@@ -121,7 +121,6 @@ function handleInvalidation(
     case 'session.unarchived':
     case 'session.forked':
     case 'session.moved':
-    case 'session.usage.updated':
     case 'session.idle':
     case 'session.execution.succeeded':
     case 'session.execution.failed':
@@ -129,7 +128,6 @@ function handleInvalidation(
       void queryClient.invalidateQueries({ queryKey: ['sessions'] })
       if (sessionID) {
         void queryClient.invalidateQueries({ queryKey: queryKeys.session(sessionID) })
-        if (event.type === 'session.usage.updated') return
         invalidateSoon(`messages:${sessionID}`, queryKeys.messages(sessionID))
       }
       return

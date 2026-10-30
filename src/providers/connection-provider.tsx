@@ -5,6 +5,7 @@ import {
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
   type ReactNode,
 } from 'react'
@@ -43,6 +44,7 @@ export function ConnectionProvider({ children }: { children: ReactNode }) {
   const [error, setError] = useState<string | null>(null)
   const [attempt, setAttempt] = useState<ConnectionConfig | null>(() => loadStoredConnection())
   const [localInfo, setLocalInfo] = useState<ServerInfo | null>(null)
+  const booted = useRef(false)
 
   const connect = useCallback(async (next: ConnectionConfig) => {
     setStatus('connecting')
@@ -83,6 +85,8 @@ export function ConnectionProvider({ children }: { children: ReactNode }) {
   }, [])
 
   useEffect(() => {
+    if (booted.current) return
+    booted.current = true
     let cancelled = false
 
     const boot = async () => {

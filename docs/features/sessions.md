@@ -45,6 +45,8 @@ that Clara opens in the chat view.
   not the session field.
 - **Session creation fails** — the button returns to its normal state and no
   navigation happens.
+- **Session request fails** — the list shows a retry link instead of an empty
+  state.
 - **Very long titles** — rows and cards truncate or clamp; the full title is in
   the chat header.
 - **Archived sessions** — hidden from the normal list.

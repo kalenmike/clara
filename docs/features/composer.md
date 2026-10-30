@@ -47,6 +47,8 @@ draft so a half-written prompt survives navigation.
 - **Busy session** — sending queues instead of interrupting.
 - **Escape with the palette open** — closes the palette, not the run.
 - **Paste with files** — files are attached and the text paste is suppressed.
+- **Command has no visible output** — the palette closes and the command runs;
+  only the resulting messages confirm it.
 
 ## Out of scope
 
@@ -61,6 +63,8 @@ draft so a half-written prompt survives navigation.
   templates are not exposed by the API.
 - Mentions insert a path string rather than attaching the referenced file.
 - Message history recall (Up/Down) is not implemented.
+- Command execution is fire-and-forget; Clara does not render its own success
+  toast.
 
 ## Technical appendix
 

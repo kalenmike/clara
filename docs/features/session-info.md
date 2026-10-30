@@ -45,12 +45,15 @@ counts, timing, and the active model's limits.
   `default`.
 - **Narrow viewport** — the panel becomes a sheet and does not overlap the
   composer when closed.
+- **Switching sessions with the panel open** — it re-reads the new session and
+  never keeps the previous session's numbers.
 
 ## Out of scope
 
 - Billing history, invoices, or provider dashboards
 - Per-message or per-tool cost attribution
 - Exporting usage data
+- Comparing sessions side by side
 - Context editing or trimming from the panel
 
 ## Known gaps
@@ -58,6 +61,8 @@ counts, timing, and the active model's limits.
 - Context usage is an estimate: it sums input and cache tokens from the last
   assistant message rather than the server's internal context accounting.
 - The panel does not show a breakdown of context by file or tool output.
+- Context entries are fetched whenever the panel mounts, even for very large
+  sessions.
 
 ## Technical appendix
 
@@ -69,6 +74,7 @@ counts, timing, and the active model's limits.
 - Context entries: `client.session.context({ sessionID })`
 - Models and limits: `client.model.list()`
 - Live usage: `session.usage.updated`, `session.step.ended`
+- Context percentages are clamped to 100 and never show a negative width.
 - Related: [chat](chat.md), [capabilities](capabilities.md)
 
 </details>
