@@ -3,6 +3,6 @@ packages:
   - packages/*
   - workers/*
 
-onlyBuiltDependencies:
-  - esbuild
-  - workerd
+allowBuilds:
+  esbuild: true
+  workerd: true
