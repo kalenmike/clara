@@ -71,7 +71,10 @@ export async function detectLocalService(): Promise<ServerInfo | null> {
 }
 
 export function describeConnectionError(error: unknown): string {
-  if (error instanceof DOMException && error.name === 'AbortError') {
+  if (
+    error instanceof DOMException &&
+    (error.name === 'AbortError' || error.name === 'TimeoutError')
+  ) {
     return 'Timed out while contacting the server.'
   }
   if (error instanceof TypeError) {

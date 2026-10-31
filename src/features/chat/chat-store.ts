@@ -17,6 +17,18 @@ export type ChatSnapshot = {
   cost: number
   tokens?: TokenUsageInfo
   revision: number
+  /** Bumped only when an older page is merged, so the list can anchor itself. */
+  historyRevision: number
+  /** Whether an older page can still be fetched for this session. */
+  hasOlder: boolean
+}
+
+type HistoryState = {
+  cursor: string | null
+  pages: number
+  replaceOnHydrate: boolean
+  /** Incremented when cached pages must be discarded, so stale requests are ignored. */
+  generation: number
 }
 
 const EMPTY: ChatSnapshot = {
@@ -24,6 +36,8 @@ const EMPTY: ChatSnapshot = {
   status: { type: 'idle' },
   cost: 0,
   revision: 0,
+  historyRevision: 0,
+  hasOlder: false,
 }
 
 function isAssistant(message: SessionMessageInfo): message is SessionMessageAssistant {
@@ -60,8 +74,22 @@ function cloneSnapshot(snapshot: ChatSnapshot): ChatSnapshot {
   }
 }
 
+/** Merge a page into the transcript without duplicating messages or reordering time. */
+function mergeMessages(
+  existing: SessionMessageInfo[],
+  incoming: SessionMessageInfo[]
+): SessionMessageInfo[] {
+  if (existing.length === 0) return incoming
+  if (incoming.length === 0) return existing
+
+  const byID = new Map(existing.map((message) => [message.id, message]))
+  for (const message of incoming) byID.set(message.id, message)
+  return [...byID.values()].sort((a, b) => a.time.created - b.time.created)
+}
+
 class ChatStore {
   private snapshots = new Map<string, ChatSnapshot>()
+  private histories = new Map<string, HistoryState>()
   private listeners = new Map<string, Set<() => void>>()
   private pending = new Set<string>()
 
@@ -80,16 +108,104 @@ class ChatStore {
     }
   }
 
-  hydrate(sessionID: string, messages: SessionMessageInfo[]) {
+  hydrate(sessionID: string, messages: SessionMessageInfo[], cursor: string | null) {
     const previous = this.snapshots.get(sessionID)
+    const history = this.histories.get(sessionID)
+    const replace = !previous || !history || history.replaceOnHydrate
+    const pages = replace ? 0 : (history?.pages ?? 0)
+    const nextCursor = pages === 0 ? cursor : (history?.cursor ?? null)
+
+    this.histories.set(sessionID, {
+      cursor: nextCursor,
+      pages,
+      replaceOnHydrate: false,
+      generation: history?.generation ?? 0,
+    })
     this.snapshots.set(sessionID, {
-      messages,
+      messages: replace ? messages : mergeMessages(previous.messages, messages),
       status: previous?.status ?? { type: 'idle' },
       cost: previous?.cost ?? 0,
       tokens: previous?.tokens,
       revision: (previous?.revision ?? 0) + 1,
+      historyRevision: previous?.historyRevision ?? 0,
+      hasOlder: nextCursor !== null,
     })
     this.scheduleNotify(sessionID)
+  }
+
+  /** Add a page that is older than everything already in the snapshot. */
+  prependOlder(
+    sessionID: string,
+    messages: SessionMessageInfo[],
+    cursor: string | null,
+    generation: number
+  ) {
+    const history = this.histories.get(sessionID)
+    if (!history || history.generation !== generation) return
+
+    const previous = this.snapshots.get(sessionID) ?? EMPTY
+    this.histories.set(sessionID, {
+      cursor,
+      pages: history.pages + 1,
+      replaceOnHydrate: false,
+      generation: history.generation,
+    })
+    this.snapshots.set(sessionID, {
+      ...previous,
+      messages: mergeMessages(previous.messages, messages),
+      hasOlder: cursor !== null,
+      revision: previous.revision + 1,
+      historyRevision: previous.historyRevision + 1,
+    })
+    this.scheduleNotify(sessionID)
+  }
+
+  /** The cursor and generation that identify the next older page. */
+  getOlderPage(sessionID: string) {
+    const history = this.histories.get(sessionID)
+    return { cursor: history?.cursor ?? null, generation: history?.generation ?? 0 }
+  }
+
+  /**
+   * Forget paginated history without dropping the visible transcript yet. The
+   * next head refetch replaces it, which matters after compaction or a revert.
+   */
+  resetHistory(sessionID: string) {
+    const previous = this.snapshots.get(sessionID)
+    this.histories.set(sessionID, {
+      cursor: null,
+      pages: 0,
+      replaceOnHydrate: true,
+      generation: (this.histories.get(sessionID)?.generation ?? 0) + 1,
+    })
+    if (!previous) return
+
+    this.snapshots.set(sessionID, {
+      ...previous,
+      hasOlder: false,
+      revision: previous.revision + 1,
+    })
+    this.scheduleNotify(sessionID)
+  }
+
+  /** History may have changed while the stream was down, so drop every page. */
+  resetHistories() {
+    for (const sessionID of this.snapshots.keys()) this.resetHistory(sessionID)
+  }
+
+  forget(sessionID: string) {
+    const hadSnapshot = this.snapshots.delete(sessionID)
+    this.histories.delete(sessionID)
+    if (hadSnapshot) this.scheduleNotify(sessionID)
+  }
+
+  /** Drop every cached session, used when the client points at a different server. */
+  reset() {
+    const sessions = [...this.snapshots.keys()]
+    this.snapshots.clear()
+    this.histories.clear()
+    this.pending.clear()
+    for (const sessionID of sessions) this.scheduleNotify(sessionID)
   }
 
   setUsage(sessionID: string, cost: number, tokens?: TokenUsageInfo) {
@@ -196,6 +312,17 @@ class ChatStore {
         })
         return
 
+      case 'session.tool.progress':
+        this.patchMessage(sessionID, event.data.assistantMessageID, (message) => {
+          const tool = findTool(message, event.data.id)
+          if (!tool || tool.state.status !== 'running') return
+          tool.state = {
+            ...tool.state,
+            metadata: { ...tool.state.metadata, ...event.data.metadata },
+          }
+        })
+        return
+
       case 'session.tool.success':
         this.patchMessage(sessionID, event.data.assistantMessageID, (message) => {
           const tool = findTool(message, event.data.id)
@@ -226,6 +353,16 @@ class ChatStore {
         })
         return
 
+      case 'session.step.failed':
+        this.patchMessage(sessionID, event.data.assistantMessageID, (message) => {
+          message.finish = 'error'
+          message.error = event.data.error
+          message.time = { ...message.time, completed: event.created }
+          if (event.data.cost !== undefined) message.cost = event.data.cost
+          if (event.data.tokens) message.tokens = event.data.tokens
+        })
+        return
+
       case 'session.step.ended':
         this.patchMessage(sessionID, event.data.assistantMessageID, (message) => {
           message.cost = event.data.cost
@@ -251,8 +388,27 @@ class ChatStore {
         this.update(sessionID, (snapshot) => ({ ...snapshot, status: { type: 'busy' } }))
         return
 
-      case 'session.execution.succeeded':
       case 'session.execution.failed':
+        this.update(sessionID, (snapshot) => {
+          const messages = [...snapshot.messages]
+          for (let index = messages.length - 1; index >= 0; index -= 1) {
+            const message = messages[index]
+            if (message.type !== 'assistant') continue
+            if (!message.error && !message.time.completed) {
+              messages[index] = {
+                ...message,
+                finish: 'error',
+                error: event.data.error,
+                time: { ...message.time, completed: event.created },
+              }
+            }
+            break
+          }
+          return { ...snapshot, messages, status: { type: 'idle' } }
+        })
+        return
+
+      case 'session.execution.succeeded':
       case 'session.execution.interrupted':
       case 'session.idle':
         this.update(sessionID, (snapshot) => ({ ...snapshot, status: { type: 'idle' } }))

@@ -1,0 +1,68 @@
+import { Bot, Check } from 'lucide-react'
+import type { SessionInfo } from '@opencode/client'
+import { Button } from '@/components/ui/button'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
+import { useAgents } from '@/features/catalog/use-catalog'
+import { useSwitchAgent } from '@/features/chat/use-chat'
+
+export function AgentPicker({
+  session,
+  open,
+  onOpenChange,
+}: {
+  session: SessionInfo | undefined
+  open: boolean
+  onOpenChange: (open: boolean) => void
+}) {
+  const agentsQuery = useAgents()
+  const switchAgent = useSwitchAgent(session?.id ?? '')
+  const primaryAgents = (agentsQuery.data ?? []).filter(
+    (agent) => !agent.hidden && agent.mode !== 'subagent'
+  )
+
+  return (
+    <DropdownMenu open={open} onOpenChange={onOpenChange}>
+      <DropdownMenuTrigger asChild>
+        <Button
+          type="button"
+          variant="ghost"
+          size="sm"
+          className="max-w-24 min-w-0 shrink gap-1.5 text-muted-foreground sm:max-w-36"
+        >
+          <Bot className="size-3.5" />
+          <span className="truncate text-xs text-foreground">{session?.agent ?? 'build'}</span>
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent side="top" align="end" className="w-56">
+        <DropdownMenuLabel>Agent</DropdownMenuLabel>
+        <DropdownMenuSeparator />
+        {primaryAgents.map((agent) => (
+          <DropdownMenuItem
+            key={agent.id}
+            onSelect={() => switchAgent.mutate(agent.id)}
+            className="gap-2"
+          >
+            <Bot className="size-3.5 text-muted-foreground" />
+            <span className="min-w-0 flex-1">
+              <span className="block text-xs">{agent.name}</span>
+              <span className="block truncate text-[10px] text-muted-foreground">
+                {agent.description}
+              </span>
+            </span>
+            {agent.id === session?.agent && <Check className="size-3.5" />}
+          </DropdownMenuItem>
+        ))}
+        {primaryAgents.length === 0 && (
+          <div className="px-2 py-1.5 text-xs text-muted-foreground">No agents available</div>
+        )}
+      </DropdownMenuContent>
+    </DropdownMenu>
+  )
+}

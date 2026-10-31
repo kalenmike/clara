@@ -39,10 +39,10 @@ ${XDG_STATE_HOME:-~/.local/state}/opencode/service.json
 
 Clara supports two modes:
 
-- **Local proxy** — the Vite dev server reads `service.json` and proxies `/oc`
-  to the service URL with the `authorization` header attached. The browser never
-  sees the password. This is the default in development when a local service is
-  running.
+- **Local proxy** — the Vite dev server reads `service.json` on each request and
+  proxies `/oc` to the service URL with the `authorization` header attached. The
+  browser never sees the password. This is the default in development when a
+  local service is running, and it works in `vite preview` too.
 - **Manual** — the user enters a URL and password on `/connect`. The SDK sends
   the basic-auth header on every request, including the SSE stream. Credentials
   live in `sessionStorage` unless "remember" is checked, in which case they go to
@@ -61,6 +61,7 @@ ConnectionProvider
        └─ EventProvider: one SSE subscription for the whole tab
             ├─ chatStore: applies streaming deltas per session
             └─ query invalidations: durable events and list changes
+                 └─ NotificationProvider: system alerts and sounds for Inbox states
 ```
 
 - **`chatStore`** keeps a snapshot per session (messages, status, cost, tokens)
@@ -68,18 +69,25 @@ ConnectionProvider
   from it; history queries hydrate it.
 - **TanStack Query** owns everything that is requested on demand. Event handlers
   invalidate the relevant keys instead of duplicating server state.
-- **EventProvider** reconnects with exponential backoff. It tolerates unknown
+- **EventProvider** reconnects with jittered exponential backoff, treats 45s
+  without a heartbeat as a dead stream, and invalidates cached queries after a
+  reconnect so missed events do not leave the UI stale. It tolerates unknown
   event types so a newer server does not break the tab.
 
 ## Routing
 
-| Route                        | Screen                                                  |
-| ---------------------------- | ------------------------------------------------------- |
-| `/connect`                   | Server form, local service detection, connection errors |
-| `/`                          | Redirects to the last project or the first project      |
-| `/p/:projectId`              | Project overview and session grid                       |
-| `/p/:projectId/s/:sessionId` | Chat                                                    |
-| `/settings`                  | Connection details, appearance, shortcuts               |
+| Route                        | Screen                                                     |
+| ---------------------------- | ---------------------------------------------------------- |
+| `/connect`                   | Server form, local service detection, connection errors    |
+| `/`                          | Start view; creates a session and opens its draft composer |
+| `/p/:projectId`              | Project overview and session grid                          |
+| `/p/:projectId/s/:sessionId` | Chat                                                       |
+| `/settings`                  | Connection details, appearance, notifications, shortcuts   |
+
+The start view is reused inside `/p/:projectId/s/:sessionId` when the session has
+no messages. Its action opens the reply window in the last-used size (expanded by
+default) instead of creating another session. The start view at `/` creates a
+session first, then navigates to it with the composer already open at that size.
 
 ## Directory scoping
 
@@ -102,12 +110,20 @@ The event stream is the source of truth while a run is active:
 - `session.step.started` creates the assistant message.
 - `session.text.*` and `session.reasoning.*` append to content parts by ordinal.
 - `session.tool.*` maintains tool cards and their input/output.
+  `session.tool.progress` carries streamed shell output used by the pair
+  terminal.
 - `session.usage.updated` and `session.step.ended` update cost and tokens.
-- `session.status`, `session.execution.*`, and `session.idle` drive the run badge.
+- `session.status`, `session.execution.*`, and `session.idle` drive the run badge
+  and refresh the active-session map used by the sidebar's live dot and Outbox.
+  The notification provider also uses these events to raise Inbox alerts.
 - Durable events (synthetic notes, skills, shell, agent/model switches) trigger a
   debounced message refetch.
+- `session.step.failed` and `session.execution.failed` attach the provider error
+  to the assistant turn. The chat renders it at every detail level and raises a
+  toast, so a failed run never looks like silence.
 
-A refetch on idle reconciles the stream with persisted history.
+A refetch on idle reconciles the stream with persisted history, and a reconnect
+invalidates the queries that missed events would have refreshed.
 
 ## Security notes
 

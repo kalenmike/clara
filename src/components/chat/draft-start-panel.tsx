@@ -1,0 +1,58 @@
+import { useState } from 'react'
+import { Loader2, Play } from 'lucide-react'
+import { toast } from 'sonner'
+import { Button } from '@/components/ui/button'
+import { useSendPrompt } from '@/features/chat/use-chat'
+
+export function DraftStartPanel({ sessionID, count }: { sessionID: string; count: number }) {
+  const sendPrompt = useSendPrompt(sessionID)
+  const [starting, setStarting] = useState(false)
+  const pending = starting || sendPrompt.isPending
+
+  const start = async () => {
+    if (pending) return
+    setStarting(true)
+    try {
+      await sendPrompt.mutateAsync({ text: 'Start', delivery: 'steer' })
+    } catch {
+      setStarting(false)
+      toast.error('Could not start the draft. Try again.')
+    }
+  }
+
+  return (
+    <div className="shrink-0 border-b bg-primary/5 p-2 md:p-3">
+      <section
+        aria-label="Draft ready"
+        className="mx-auto max-w-3xl rounded-xl border border-primary/30 bg-card p-3"
+      >
+        <div className="flex items-start gap-2">
+          <Play className="mt-0.5 size-4 text-primary" />
+          <div className="min-w-0 flex-1">
+            <div className="text-xs font-medium">
+              {count === 1 ? 'Draft saved' : `${count} drafts saved`}
+            </div>
+            <p className="mt-1 text-[11px] text-muted-foreground">
+              Start when you&apos;re ready to let the agent work on {count === 1 ? 'it' : 'them'}.
+            </p>
+            <div className="mt-3">
+              <Button
+                size="sm"
+                className="h-7 gap-1 text-xs"
+                onClick={() => void start()}
+                disabled={pending}
+              >
+                {pending ? (
+                  <Loader2 className="size-3.5 animate-spin" />
+                ) : (
+                  <Play className="size-3.5" />
+                )}
+                Start
+              </Button>
+            </div>
+          </div>
+        </div>
+      </section>
+    </div>
+  )
+}

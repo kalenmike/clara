@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button'
 import { Sheet, SheetContent, SheetDescription, SheetTitle } from '@/components/ui/sheet'
 import { Sidebar, SidebarContent } from '@/components/layout/sidebar'
 import { useConnection } from '@/providers/connection-provider'
+import { NotificationProvider } from '@/providers/notification-provider'
 
 export function AppShell() {
   const { status } = useConnection()
@@ -54,7 +55,9 @@ export function AppShell() {
           <span className="text-sm font-semibold">Clara</span>
         </div>
         <div className="min-h-0 flex-1">
-          <Outlet />
+          <NotificationProvider>
+            <Outlet />
+          </NotificationProvider>
         </div>
       </div>
     </div>

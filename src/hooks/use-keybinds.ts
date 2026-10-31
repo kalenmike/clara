@@ -4,6 +4,9 @@ type KeybindActions = {
   onNewSession?: () => void
   onSessions?: () => void
   onToggleInfo?: () => void
+  onOpenGit?: () => void
+  onToggleTerminal?: () => void
+  onToggleMessages?: () => void
   onCompact?: () => void
   onCopyReply?: () => void
   onInterrupt?: () => void
@@ -24,10 +27,6 @@ export function useKeybinds(actions: KeybindActions) {
     let leader = false
     let timer: number | undefined
 
-    const isTyping = (target: EventTarget | null) =>
-      target instanceof HTMLElement &&
-      (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable)
-
     const handler = (event: KeyboardEvent) => {
       const current = actionsRef.current
       const key = event.key.toLowerCase()
@@ -39,6 +38,14 @@ export function useKeybinds(actions: KeybindActions) {
         timer = window.setTimeout(() => {
           leader = false
         }, LEADER_TIMEOUT)
+        return
+      }
+
+      if ((event.ctrlKey || event.metaKey) && event.code === 'Period') {
+        leader = false
+        window.clearTimeout(timer)
+        event.preventDefault()
+        current.onCycleAgent?.(event.shiftKey ? -1 : 1)
         return
       }
 
@@ -70,6 +77,18 @@ export function useKeybinds(actions: KeybindActions) {
             event.preventDefault()
             current.onToggleInfo?.()
             return
+          case 'g':
+            event.preventDefault()
+            current.onOpenGit?.()
+            return
+          case '`':
+            event.preventDefault()
+            current.onToggleTerminal?.()
+            return
+          case 'h':
+            event.preventDefault()
+            current.onToggleMessages?.()
+            return
           case 't':
             event.preventDefault()
             current.onToggleTheme?.()
@@ -94,7 +113,7 @@ export function useKeybinds(actions: KeybindActions) {
         return
       }
 
-      if (event.key === 'Tab' && !isTyping(event.target)) {
+      if (event.key === 'Tab' && document.activeElement === document.body) {
         event.preventDefault()
         current.onCycleAgent?.(event.shiftKey ? -1 : 1)
       }

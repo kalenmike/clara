@@ -1,17 +1,51 @@
 /* eslint-disable react-refresh/only-export-components */
-import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from 'react'
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ReactNode,
+} from 'react'
 import { useQueryClient, type QueryClient } from '@tanstack/react-query'
 import type { V2Event } from '@opencode/client'
+import { toast } from 'sonner'
 import { chatStore } from '@/features/chat/chat-store'
 import { queryKeys } from '@/lib/query-keys'
 import { useConnection } from '@/providers/connection-provider'
 
+export type StreamState = 'connecting' | 'live' | 'reconnecting' | 'offline'
+
+type EventListener = (event: V2Event) => void
+
 type EventContextValue = {
   live: boolean
+  state: StreamState
   lastEventAt: number
+  lastError: string | null
+  /** Observe raw events without opening another SSE connection. */
+  subscribe: (listener: EventListener) => () => void
 }
 
-const EventContext = createContext<EventContextValue>({ live: false, lastEventAt: 0 })
+const EventContext = createContext<EventContextValue>({
+  live: false,
+  state: 'offline',
+  lastEventAt: 0,
+  lastError: null,
+  subscribe: () => () => {},
+})
+
+/** The server writes an SSE heartbeat every 15 seconds. */
+const HEARTBEAT_MS = 15_000
+/** Three missed heartbeats mean the socket is half-open rather than idle. */
+const STALL_MS = HEARTBEAT_MS * 3
+const WATCHDOG_MS = 5_000
+const MAX_BACKOFF_MS = 15_000
+const RECONNECT_NOTICE_MS = 5_000
+/** A connection must survive this long before it resets the backoff. */
+const STABLE_MS = 10_000
 
 const MESSAGE_EVENTS = new Set([
   'session.synthetic',
@@ -28,21 +62,40 @@ const MESSAGE_EVENTS = new Set([
 ])
 
 export function EventProvider({ children }: { children: ReactNode }) {
-  const { client } = useConnection()
+  const { client, generation } = useConnection()
   const queryClient = useQueryClient()
   const [live, setLive] = useState(false)
+  const [state, setState] = useState<StreamState>('offline')
   const [lastEventAt, setLastEventAt] = useState(0)
+  const [lastError, setLastError] = useState<string | null>(null)
+  const listeners = useRef(new Set<EventListener>())
+
+  const subscribe = useCallback((listener: EventListener) => {
+    listeners.current.add(listener)
+    return () => {
+      listeners.current.delete(listener)
+    }
+  }, [])
 
   useEffect(() => {
     if (!client) {
       setLive(false)
+      setState('offline')
       return
     }
 
     const controller = new AbortController()
     let retry = 0
     let cancelSleep: (() => void) | null = null
+    let active: AbortController | null = null
+    let connected = false
+    let hadFailure = false
+    let downSince = 0
+    let lastActivity = Date.now()
+    let stableTimer: number | null = null
     const timers = new Map<string, number>()
+
+    setState('connecting')
 
     const sleep = (ms: number) =>
       new Promise<void>((resolve) => {
@@ -65,44 +118,135 @@ export function EventProvider({ children }: { children: ReactNode }) {
       )
     }
 
-    const handleEvent = (event: V2Event) => {
+    /** Runs on every raw chunk, including keepalive comments. */
+    const markAlive = () => {
+      lastActivity = Date.now()
+      if (connected) return
+      connected = true
+      if (stableTimer === null) {
+        stableTimer = window.setTimeout(() => {
+          stableTimer = null
+          retry = 0
+        }, STABLE_MS)
+      }
       setLive(true)
+      setState('live')
+      setLastError(null)
+      if (hadFailure) {
+        // Events that arrived while the stream was down were never replayed.
+        chatStore.resetHistories()
+        void queryClient.resetQueries({ queryKey: ['messages'] })
+        void queryClient.invalidateQueries({
+          predicate: (query) => query.queryKey[0] !== 'messages',
+        })
+        if (Date.now() - downSince > RECONNECT_NOTICE_MS) {
+          toast.success('Reconnected to OpenCode', { id: 'stream-reconnected' })
+        }
+        hadFailure = false
+        downSince = 0
+      }
+    }
+
+    const markDown = () => {
+      if (stableTimer !== null) {
+        window.clearTimeout(stableTimer)
+        stableTimer = null
+      }
+      connected = false
+      if (!hadFailure) {
+        hadFailure = true
+        downSince = Date.now()
+      }
+      setLive(false)
+      setState('reconnecting')
+    }
+
+    const handleEvent = (event: V2Event) => {
+      markAlive()
       setLastEventAt(Date.now())
+      for (const listener of listeners.current) {
+        try {
+          listener(event)
+        } catch (cause) {
+          console.warn('Event listener failed', cause)
+        }
+      }
+      if (event.type === 'session.execution.failed') {
+        const error = event.data.error
+        toast.error('OpenCode run failed', {
+          id: `run-failed:${event.data.sessionID}`,
+          description: error.status ? `${error.message} (${error.status})` : error.message,
+        })
+      }
       chatStore.dispatch(event)
       handleInvalidation(event, queryClient, invalidateSoon)
     }
 
     const run = async () => {
       while (!controller.signal.aborted) {
+        const attempt = new AbortController()
+        active = attempt
+        lastActivity = Date.now()
+        const abortAttempt = () => attempt.abort()
+        controller.signal.addEventListener('abort', abortAttempt, { once: true })
+
         try {
-          for await (const event of client.event.subscribe({ signal: controller.signal })) {
-            retry = 0
+          for await (const event of client.event.subscribe({
+            signal: attempt.signal,
+            onActivity: markAlive,
+          })) {
             handleEvent(event)
           }
-        } catch {
-          if (controller.signal.aborted) break
-          setLive(false)
+        } catch (cause) {
+          if (!controller.signal.aborted) setLastError(describeStreamError(cause))
+        } finally {
+          controller.signal.removeEventListener('abort', abortAttempt)
+          if (active === attempt) active = null
         }
 
         if (controller.signal.aborted) break
+        markDown()
         retry += 1
-        await sleep(Math.min(1000 * 2 ** retry, 15000))
+        await sleep(backoff(retry))
       }
     }
+
+    // A half-open SSE socket never rejects, so the loop above would wait forever.
+    const watchdog = window.setInterval(() => {
+      if (Date.now() - lastActivity > STALL_MS) active?.abort()
+    }, WATCHDOG_MS)
 
     void run()
 
     return () => {
       controller.abort()
+      active?.abort()
+      window.clearInterval(watchdog)
+      if (stableTimer !== null) window.clearTimeout(stableTimer)
       cancelSleep?.()
       for (const timer of timers.values()) window.clearTimeout(timer)
       setLive(false)
     }
-  }, [client, queryClient])
+    // generation forces a fresh subscription after a manual reconnect.
+  }, [client, generation, queryClient])
 
-  const value = useMemo(() => ({ live, lastEventAt }), [live, lastEventAt])
+  const value = useMemo(
+    () => ({ live, state, lastEventAt, lastError, subscribe }),
+    [live, state, lastEventAt, lastError, subscribe]
+  )
 
   return <EventContext.Provider value={value}>{children}</EventContext.Provider>
+}
+
+function describeStreamError(error: unknown): string {
+  if (error instanceof Error && error.message) return error.message
+  return 'The event stream disconnected.'
+}
+
+function backoff(attempt: number): number {
+  const base = Math.min(1000 * 2 ** Math.min(attempt, 4), MAX_BACKOFF_MS)
+  // Jitter keeps several tabs from reconnecting in lockstep.
+  return base * (0.8 + Math.random() * 0.4)
 }
 
 function handleInvalidation(
@@ -121,14 +265,80 @@ function handleInvalidation(
     case 'session.unarchived':
     case 'session.forked':
     case 'session.moved':
+      if (event.type === 'session.deleted' && sessionID) chatStore.forget(sessionID)
+      void queryClient.invalidateQueries({ queryKey: ['sessions'] })
+      if (sessionID) {
+        void queryClient.invalidateQueries({ queryKey: queryKeys.session(sessionID) })
+      }
+      return
+
+    case 'session.metadata.updated':
+      void queryClient.invalidateQueries({ queryKey: ['sessions'] })
+      if (sessionID) {
+        void queryClient.invalidateQueries({ queryKey: queryKeys.session(sessionID) })
+      }
+      return
+
     case 'session.idle':
     case 'session.execution.succeeded':
     case 'session.execution.failed':
     case 'session.execution.interrupted':
+      // Invalidating `sessions` also refreshes the active-session map.
       void queryClient.invalidateQueries({ queryKey: ['sessions'] })
+      void queryClient.invalidateQueries({ queryKey: queryKeys.permissions })
+      invalidateSoon('vcs', ['vcs'])
       if (sessionID) {
         void queryClient.invalidateQueries({ queryKey: queryKeys.session(sessionID) })
         invalidateSoon(`messages:${sessionID}`, queryKeys.messages(sessionID))
+        invalidateSoon(`inbox:${sessionID}`, queryKeys.sessionInbox(sessionID))
+        invalidateSoon(`mailbox:${sessionID}`, queryKeys.sessionMailbox(sessionID))
+      }
+      return
+
+    case 'session.compaction.started':
+    case 'session.compaction.ended':
+    case 'session.compaction.failed':
+    case 'session.revert.staged':
+    case 'session.revert.cleared':
+    case 'session.revert.committed':
+      // These can replace or remove messages, so cached older pages are stale.
+      if (sessionID) {
+        chatStore.resetHistory(sessionID)
+        void queryClient.resetQueries({ queryKey: queryKeys.messages(sessionID) })
+      }
+      return
+
+    case 'session.status':
+      invalidateSoon('active-sessions', queryKeys.activeSessions)
+      return
+
+    case 'session.execution.started':
+      invalidateSoon('active-sessions', queryKeys.activeSessions)
+      if (sessionID) {
+        invalidateSoon(`mailbox:${sessionID}`, queryKeys.sessionMailbox(sessionID))
+      }
+      return
+
+    case 'session.inbox.delivered':
+      if (sessionID) {
+        invalidateSoon(`inbox:${sessionID}`, queryKeys.sessionInbox(sessionID))
+        invalidateSoon(`messages:${sessionID}`, queryKeys.messages(sessionID))
+        invalidateSoon(`mailbox:${sessionID}`, queryKeys.sessionMailbox(sessionID))
+      }
+      return
+
+    case 'session.inbox.enqueued':
+    case 'session.inbox.cancelled':
+    case 'session.inbox.delivery.changed':
+      if (sessionID) {
+        invalidateSoon(`inbox:${sessionID}`, queryKeys.sessionInbox(sessionID))
+        invalidateSoon(`mailbox:${sessionID}`, queryKeys.sessionMailbox(sessionID))
+      }
+      return
+
+    case 'session.step.started':
+      if (sessionID) {
+        invalidateSoon(`mailbox:${sessionID}`, queryKeys.sessionMailbox(sessionID))
       }
       return
 
@@ -145,12 +355,24 @@ function handleInvalidation(
       void queryClient.invalidateQueries({ queryKey: queryKeys.permissions })
       return
 
+    case 'vcs.branch.updated':
+      void queryClient.invalidateQueries({ queryKey: ['vcs'] })
+      return
+
+    case 'filesystem.changed':
+      invalidateSoon('vcs', ['vcs'])
+      return
+
     case 'form.created':
     case 'form.replied':
     case 'form.cancelled': {
       const formData = event.data as { sessionID?: string }
       if (formData.sessionID) {
         void queryClient.invalidateQueries({ queryKey: queryKeys.forms(formData.sessionID) })
+        invalidateSoon(
+          `mailbox:${formData.sessionID}`,
+          queryKeys.sessionMailbox(formData.sessionID)
+        )
       }
       return
     }

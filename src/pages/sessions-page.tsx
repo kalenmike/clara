@@ -1,24 +1,30 @@
-import { Link, useNavigate, useParams } from 'react-router'
+import { Link, useParams } from 'react-router'
 import { ArrowUpRight, FolderGit2, Loader2, Plus, SearchX } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
 import { useProjects } from '@/features/projects/use-projects'
-import { useActiveSessions, useCreateSession, useSessions } from '@/features/sessions/use-sessions'
+import { useActiveSessions, useSessions } from '@/features/sessions/use-sessions'
+import { useStartSession } from '@/features/sessions/use-start-session'
 import { formatCost, formatRelativeTime, formatTokens } from '@/lib/format'
 import { cn } from '@/lib/utils'
 
 export function SessionsPage() {
   const { projectId } = useParams<{ projectId: string }>()
-  const navigate = useNavigate()
   const projectsQuery = useProjects()
   const project = projectsQuery.data?.find((item) => item.id === projectId)
   const sessionsQuery = useSessions(project?.canonical ?? null, '')
   const activeQuery = useActiveSessions()
-  const createSession = useCreateSession(project?.canonical ?? '')
 
   const sessions = sessionsQuery.data?.data ?? []
+  const latest = sessions[0]
+  const { startSession, pending } = useStartSession({
+    projectID: project?.id,
+    directory: project?.canonical,
+    agent: latest?.agent,
+    model: latest?.model,
+  })
 
   if (projectsQuery.isLoading) {
     return (
@@ -44,16 +50,6 @@ export function SessionsPage() {
     )
   }
 
-  const startSession = () => {
-    const latest = sessions[0]
-    createSession.mutate(
-      { agent: latest?.agent, model: latest?.model },
-      {
-        onSuccess: (session) => navigate(`/p/${project.id}/s/${session.id}`),
-      }
-    )
-  }
-
   return (
     <div className="h-full overflow-auto">
       <div className="mx-auto max-w-4xl space-y-6 p-6">
@@ -70,12 +66,8 @@ export function SessionsPage() {
               {sessions.length} session{sessions.length === 1 ? '' : 's'} in this project
             </p>
           </div>
-          <Button onClick={startSession} disabled={createSession.isPending}>
-            {createSession.isPending ? (
-              <Loader2 className="size-4 animate-spin" />
-            ) : (
-              <Plus className="size-4" />
-            )}
+          <Button onClick={startSession} disabled={pending}>
+            {pending ? <Loader2 className="size-4 animate-spin" /> : <Plus className="size-4" />}
             New session
           </Button>
         </div>
@@ -95,7 +87,7 @@ export function SessionsPage() {
             <p className="mt-1 max-w-sm text-xs text-muted-foreground">
               Start a session to chat with an agent in this project.
             </p>
-            <Button onClick={startSession} className="mt-4" size="sm">
+            <Button onClick={startSession} className="mt-4" size="sm" disabled={pending}>
               <Plus className="size-4" /> New session
             </Button>
           </div>

@@ -1,0 +1,58 @@
+import type { SessionMessageAssistant, SessionMessageInfo } from '@opencode/client'
+
+/**
+ * Internal messages are useful while debugging or auditing a run, but they are
+ * not part of the conversation. They are hidden unless the reader opts in.
+ */
+export function getVisibleMessages(
+  messages: SessionMessageInfo[],
+  showInternal: boolean,
+  streaming: boolean
+): SessionMessageInfo[] {
+  return messages.filter((message, index) => {
+    switch (message.type) {
+      case 'system':
+      case 'agent-switched':
+      case 'idle':
+        return false
+      case 'user':
+      case 'model-switched':
+      case 'location-switched':
+        return true
+      case 'synthetic':
+      case 'skill':
+      case 'compaction':
+      case 'shell':
+        return showInternal
+      case 'assistant':
+        if (showInternal) return true
+        return (
+          assistantHasContent(message, false) ||
+          assistantHasFailed(message) ||
+          (streaming && index === messages.length - 1)
+        )
+      default:
+        return false
+    }
+  })
+}
+
+/**
+ * A failed turn has no content parts, so it must stay visible even when internal
+ * output is hidden. Otherwise a provider or quota failure looks like silence.
+ */
+export function assistantHasFailed(message: SessionMessageAssistant): boolean {
+  return Boolean(message.error) || message.finish === 'error'
+}
+
+/** Whether an assistant message has anything that is shown at this detail level. */
+export function assistantHasContent(
+  message: SessionMessageAssistant,
+  showInternal: boolean
+): boolean {
+  return message.content.some((part) => {
+    if (part.type === 'text') return part.text.trim().length > 0
+    if (!showInternal) return false
+    return part.type === 'tool' || part.text.trim().length > 0
+  })
+}

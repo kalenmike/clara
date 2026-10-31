@@ -2,13 +2,28 @@ import { useMemo, useState } from 'react'
 import { CircleHelp } from 'lucide-react'
 import type { FormField, FormInfo } from '@opencode/client'
 import { Button } from '@/components/ui/button'
+import { Checkbox } from '@/components/ui/checkbox'
 import { Input } from '@/components/ui/input'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
 import {
   useRejectForm,
   useReplyForm,
   useSessionForms,
   type FormAnswerValue,
 } from '@/features/chat/use-forms'
+
+const CLEAR_SELECTION = '__clear__'
+const OPTION_PREFIX = 'option:'
+
+function optionID(value: string) {
+  return `${OPTION_PREFIX}${value}`
+}
 
 export function FormPanel({ sessionID }: { sessionID: string }) {
   const formsQuery = useSessionForms(sessionID)
@@ -101,11 +116,9 @@ function Field({
   if (field.type === 'boolean') {
     return (
       <label className="flex items-center gap-2 text-xs">
-        <input
-          type="checkbox"
+        <Checkbox
           checked={Boolean(value)}
-          onChange={(event) => onChange(event.target.checked)}
-          className="size-3.5 accent-foreground"
+          onCheckedChange={(checked) => onChange(checked === true)}
         />
         {field.title ?? field.key}
       </label>
@@ -120,17 +133,15 @@ function Field({
         <div className="flex flex-wrap gap-2">
           {field.options.map((option) => (
             <label key={option.value} className="flex items-center gap-1.5 text-[11px]">
-              <input
-                type="checkbox"
+              <Checkbox
                 checked={selected.includes(option.value)}
-                onChange={(event) => {
+                onCheckedChange={(checked) => {
                   onChange(
-                    event.target.checked
+                    checked === true
                       ? [...selected, option.value]
                       : selected.filter((item) => item !== option.value)
                   )
                 }}
-                className="size-3.5 accent-foreground"
               />
               {option.label}
             </label>
@@ -141,22 +152,39 @@ function Field({
   }
 
   if (field.type === 'string' && field.options) {
+    const current = typeof value === 'string' && value !== '' ? optionID(value) : CLEAR_SELECTION
     return (
-      <label className="block space-y-1">
+      <div className="space-y-1">
         <span className="text-xs font-medium">{field.title ?? field.key}</span>
-        <select
-          value={typeof value === 'string' ? value : ''}
-          onChange={(event) => onChange(event.target.value)}
-          className="h-8 w-full rounded-md border bg-transparent px-2 text-xs"
+        {field.description && (
+          <span className="block text-[11px] text-muted-foreground">{field.description}</span>
+        )}
+        <Select
+          value={current}
+          onValueChange={(next) =>
+            onChange(next === CLEAR_SELECTION ? '' : next.slice(OPTION_PREFIX.length))
+          }
         >
-          <option value="">Select…</option>
-          {field.options.map((option) => (
-            <option key={option.value} value={option.value}>
-              {option.label}
-            </option>
-          ))}
-        </select>
-      </label>
+          <SelectTrigger className="h-8 w-full text-xs" aria-label={field.title ?? field.key}>
+            <SelectValue placeholder="Select…" />
+          </SelectTrigger>
+          <SelectContent position="popper">
+            <SelectItem value={CLEAR_SELECTION}>Select…</SelectItem>
+            {field.options.map((option) => (
+              <SelectItem key={option.value} value={optionID(option.value)}>
+                {option.description ? (
+                  <span className="flex flex-col">
+                    <span>{option.label}</span>
+                    <span className="text-[11px] text-muted-foreground">{option.description}</span>
+                  </span>
+                ) : (
+                  option.label
+                )}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
     )
   }
 

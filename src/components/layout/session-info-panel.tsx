@@ -61,7 +61,7 @@ export function SessionInfoPanel({
   const percent = contextPercent(contextTokens, limit)
 
   return (
-    <aside className="flex w-72 shrink-0 flex-col overflow-y-auto border-l bg-sidebar/40 p-3 text-xs">
+    <div className="text-xs">
       <div className="space-y-1">
         <div className="flex items-center gap-1.5 font-medium">
           <BarChart3 className="size-3.5 text-muted-foreground" /> Session info
@@ -195,7 +195,7 @@ export function SessionInfoPanel({
           </div>
         )}
       </div>
-    </aside>
+    </div>
   )
 }
 

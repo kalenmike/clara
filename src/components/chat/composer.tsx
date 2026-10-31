@@ -1,10 +1,40 @@
 import { useDeferredValue, useEffect, useMemo, useRef, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { AtSign, BookOpen, Bot, FileText, Paperclip, Send, Slash, Sparkles, X } from 'lucide-react'
+import {
+  AtSign,
+  BookOpen,
+  Bot,
+  ChevronDown,
+  FileText,
+  Paperclip,
+  Save,
+  Send,
+  Slash,
+  Sparkles,
+  X,
+} from 'lucide-react'
+import type { SessionInfo } from '@opencode/client'
+import { toast } from 'sonner'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
+import { AgentPicker } from '@/components/chat/agent-picker'
+import { ModelPicker, VariantPicker } from '@/components/chat/model-picker'
 import { useAgents, useCommands, useReferences, useSkills } from '@/features/catalog/use-catalog'
-import { useRunCommand, useSendPrompt, type PromptFile } from '@/features/chat/use-chat'
+import {
+  useRunCommand,
+  useSaveDraft,
+  useSendPrompt,
+  type PromptFile,
+} from '@/features/chat/use-chat'
+import { draftTitleFromText } from '@/features/sessions/draft-title'
+import { describeConnectionError } from '@/lib/client'
 import { readDraft, saveDraft } from '@/lib/storage'
 import { useConnection } from '@/providers/connection-provider'
 import { cn } from '@/lib/utils'
@@ -17,21 +47,41 @@ type MenuItem = {
 }
 
 export function Composer({
+  session,
   sessionID,
   directory,
   busy,
   disabled,
+  active,
+  focusSignal,
+  modelRequest,
+  agentRequest,
+  canSaveAsDraft,
+  onDraftChange,
+  onSent,
+  onCycleAgent,
 }: {
+  session: SessionInfo | undefined
   sessionID: string
   directory: string | undefined
   busy: boolean
   disabled?: boolean
+  active: boolean
+  focusSignal: number
+  modelRequest: number
+  agentRequest: number
+  canSaveAsDraft: boolean
+  onDraftChange: (hasDraft: boolean) => void
+  onSent: () => void
+  onCycleAgent: (direction: 1 | -1) => void
 }) {
   const { client } = useConnection()
   const [text, setText] = useState(() => readDraft(sessionID))
   const [files, setFiles] = useState<PromptFile[]>([])
   const [activeIndex, setActiveIndex] = useState(0)
   const [dismissed, setDismissed] = useState(false)
+  const [modelOpen, setModelOpen] = useState(false)
+  const [agentOpen, setAgentOpen] = useState(false)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
@@ -41,6 +91,7 @@ export function Composer({
   const referencesQuery = useReferences(directory)
   const sendPrompt = useSendPrompt(sessionID)
   const runCommand = useRunCommand(sessionID)
+  const saveAsDraft = useSaveDraft(sessionID)
 
   const commands = useMemo(() => commandsQuery.data ?? [], [commandsQuery.data])
   const agents = useMemo(
@@ -73,7 +124,7 @@ export function Composer({
         limit: 8,
       }),
     enabled: Boolean(
-      client && directory && token?.kind === 'mention' && deferredMention.length > 0
+      active && client && directory && token?.kind === 'mention' && deferredMention.length > 0
     ),
     select: (result) => result.data,
     staleTime: 10_000,
@@ -152,18 +203,43 @@ export function Composer({
   }, [sessionID, text])
 
   useEffect(() => {
-    const element = textareaRef.current
-    if (!element) return
-    element.style.height = 'auto'
-    element.style.height = `${Math.min(element.scrollHeight, 220)}px`
-  }, [text])
+    onDraftChange(text.trim().length > 0 || files.length > 0)
+  }, [text, files, onDraftChange])
+
+  useEffect(() => {
+    if (modelRequest > 0) setModelOpen(true)
+  }, [modelRequest])
+
+  useEffect(() => {
+    if (agentRequest > 0) setAgentOpen(true)
+  }, [agentRequest])
+
+  useEffect(() => {
+    if (active) return
+    setModelOpen(false)
+    setAgentOpen(false)
+    setDismissed(true)
+  }, [active])
+
+  useEffect(() => {
+    if (!active || focusSignal === 0) return
+    const frame = requestAnimationFrame(() => textareaRef.current?.focus())
+    return () => cancelAnimationFrame(frame)
+  }, [active, focusSignal])
 
   const selectItem = (item: MenuItem) => {
     if (!token) return
-    const replacement = item.kind === 'command' ? `${item.label} ` : `${item.label} `
-    setText(text.slice(0, token.start) + replacement)
+    setText(text.slice(0, token.start) + `${item.label} `)
     setDismissed(true)
     requestAnimationFrame(() => textareaRef.current?.focus())
+  }
+
+  const clear = () => {
+    setText('')
+    setFiles([])
+    saveDraft(sessionID, '')
+    onDraftChange(false)
+    onSent()
   }
 
   const submit = () => {
@@ -174,22 +250,53 @@ export function Composer({
       const [name, ...rest] = value.slice(1).split(/\s+/)
       const command = commands.find((item) => item.name === name)
       if (command) {
-        runCommand.mutate({ name: command.name, text: rest.join(' '), files })
-        setText('')
-        setFiles([])
-        saveDraft(sessionID, '')
+        runCommand.mutate(
+          { name: command.name, text: rest.join(' '), files },
+          {
+            onSuccess: clear,
+            onError: (cause) =>
+              toast.error('Could not run the command', {
+                description: describeConnectionError(cause),
+              }),
+          }
+        )
         return
       }
     }
 
     sendPrompt.mutate(
-      { text: value, files, delivery: busy ? 'queue' : undefined },
+      { text: value, files, delivery: 'steer' },
       {
-        onSuccess: () => {
-          setText('')
-          setFiles([])
-          saveDraft(sessionID, '')
+        onSuccess: clear,
+        onError: (cause) =>
+          toast.error('Could not send the message', {
+            description: describeConnectionError(cause),
+          }),
+      }
+    )
+  }
+
+  const saveDraftMessage = () => {
+    const value = text.trim()
+    if (!value || disabled) return
+
+    saveAsDraft.mutate(
+      {
+        text: value,
+        files,
+        title: session?.title?.trim() ? undefined : draftTitleFromText(value),
+      },
+      {
+        onSuccess: ({ titleUpdated }) => {
+          if (!titleUpdated) {
+            toast.warning('Draft saved, but the title could not be updated')
+          }
+          clear()
         },
+        onError: (cause) =>
+          toast.error('Could not save the draft', {
+            description: describeConnectionError(cause),
+          }),
       }
     )
   }
@@ -225,6 +332,12 @@ export function Composer({
       }
     }
 
+    if (event.key === 'Tab') {
+      event.preventDefault()
+      onCycleAgent(event.shiftKey ? -1 : 1)
+      return
+    }
+
     if (event.key === 'Enter' && !event.shiftKey) {
       event.preventDefault()
       submit()
@@ -240,48 +353,55 @@ export function Composer({
     setFiles((current) => [...current, ...next])
   }
 
-  const pending = sendPrompt.isPending || runCommand.isPending
+  const pending = sendPrompt.isPending || runCommand.isPending || saveAsDraft.isPending
+  const canSend = text.trim().length > 0 && !pending && !disabled
 
   return (
-    <div className="shrink-0 border-t bg-background p-2 md:p-3">
-      {items.length > 0 && !dismissed && (
-        <div className="mx-auto mb-2 max-w-3xl overflow-hidden rounded-xl border bg-popover shadow-lg">
-          <div className="border-b px-3 py-1.5 text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
-            {token?.kind === 'command' ? 'Commands' : 'Mentions'}
-          </div>
-          <div className="max-h-64 overflow-y-auto p-1">
-            {items.map((item, index) => (
-              <button
-                key={item.id}
-                type="button"
-                onMouseDown={(event) => {
-                  event.preventDefault()
-                  selectItem(item)
-                }}
-                onMouseEnter={() => setActiveIndex(index)}
-                className={cn(
-                  'flex w-full items-start gap-2 rounded-md px-2 py-1.5 text-left',
-                  index === activeIndex && 'bg-accent'
-                )}
-              >
-                <MenuIcon kind={item.kind} />
-                <span className="min-w-0 flex-1">
-                  <span className="block truncate font-mono text-xs">{item.label}</span>
-                  {item.description && (
-                    <span className="block truncate text-[10px] text-muted-foreground">
-                      {item.description}
-                    </span>
-                  )}
-                </span>
-              </button>
-            ))}
-          </div>
-        </div>
-      )}
+    <div className="flex min-h-0 flex-1 flex-col">
+      <div className="flex shrink-0 items-center gap-2 border-b px-3 py-2">
+        <span className="text-xs text-muted-foreground">To</span>
+        <ModelPicker session={session} open={modelOpen} onOpenChange={setModelOpen} />
+        <VariantPicker session={session} />
+      </div>
 
-      <div className="mx-auto max-w-3xl rounded-xl border bg-card shadow-sm focus-within:border-foreground/25">
+      <div className="relative flex min-h-0 flex-1 flex-col">
+        {items.length > 0 && !dismissed && (
+          <div className="absolute inset-x-2 bottom-2 z-20 max-h-56 overflow-y-auto rounded-xl border bg-popover shadow-xl">
+            <div className="sticky top-0 border-b bg-popover px-3 py-1.5 text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
+              {token?.kind === 'command' ? 'Commands' : 'Mentions'}
+            </div>
+            <div className="p-1">
+              {items.map((item, index) => (
+                <button
+                  key={item.id}
+                  type="button"
+                  onMouseDown={(event) => {
+                    event.preventDefault()
+                    selectItem(item)
+                  }}
+                  onMouseEnter={() => setActiveIndex(index)}
+                  className={cn(
+                    'flex w-full items-start gap-2 rounded-md px-2 py-1.5 text-left',
+                    index === activeIndex && 'bg-accent'
+                  )}
+                >
+                  <MenuIcon kind={item.kind} />
+                  <span className="min-w-0 flex-1">
+                    <span className="block truncate font-mono text-xs">{item.label}</span>
+                    {item.description && (
+                      <span className="block truncate text-[10px] text-muted-foreground">
+                        {item.description}
+                      </span>
+                    )}
+                  </span>
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
         {files.length > 0 && (
-          <div className="flex flex-wrap gap-1.5 border-b px-3 py-2">
+          <div className="flex shrink-0 flex-wrap gap-1.5 border-b px-3 py-2">
             {files.map((file, index) => (
               <Badge
                 key={`${file.name}-${index}`}
@@ -314,89 +434,116 @@ export function Composer({
               void addFiles(pasted)
             }
           }}
-          placeholder="Ask anything…  / commands   @ files"
-          rows={1}
+          placeholder="Write your reply…  / commands   @ files"
           disabled={disabled}
-          className="block max-h-[220px] min-h-[52px] w-full resize-none bg-transparent px-3 py-3 text-sm outline-none placeholder:text-muted-foreground disabled:opacity-60"
+          className="min-h-0 flex-1 resize-none bg-transparent px-3 py-3 text-sm outline-none placeholder:text-muted-foreground disabled:opacity-60"
         />
+      </div>
 
-        <div className="flex items-center gap-1 px-2 pb-2">
-          <input
-            ref={fileInputRef}
-            type="file"
-            multiple
-            className="hidden"
-            onChange={(event) => {
-              if (event.target.files) void addFiles(event.target.files)
-              event.target.value = ''
-            }}
-          />
-          <Button
-            type="button"
-            variant="ghost"
-            size="icon"
-            className="size-7"
-            onClick={() => fileInputRef.current?.click()}
-          >
-            <Paperclip className="size-3.5" />
-            <span className="sr-only">Attach file</span>
-          </Button>
-          <Button
-            type="button"
-            variant="ghost"
-            size="sm"
-            className="h-7 gap-1 px-1.5 text-[10px] text-muted-foreground"
-            onClick={() => {
-              setText((current) => `${current}/`)
-              textareaRef.current?.focus()
-            }}
-          >
-            <Slash className="size-3" /> commands
-          </Button>
-          <Button
-            type="button"
-            variant="ghost"
-            size="sm"
-            className="h-7 gap-1 px-1.5 text-[10px] text-muted-foreground"
-            onClick={() => {
-              setText((current) => `${current}@`)
-              textareaRef.current?.focus()
-            }}
-          >
-            <AtSign className="size-3" /> files
-          </Button>
-
-          <span className="ml-auto hidden text-[10px] text-muted-foreground sm:block">
-            Enter to send · Shift+Enter for newline
-          </span>
-
-          {busy ? (
+      <div className="flex shrink-0 items-center gap-1 border-t px-2 py-2">
+        <input
+          ref={fileInputRef}
+          type="file"
+          multiple
+          className="hidden"
+          onChange={(event) => {
+            if (event.target.files) void addFiles(event.target.files)
+            event.target.value = ''
+          }}
+        />
+        <Tooltip>
+          <TooltipTrigger asChild>
             <Button
               type="button"
-              size="sm"
-              variant="outline"
-              className="h-7 gap-1"
-              onClick={submit}
-              disabled={!text.trim() || pending}
+              variant="ghost"
+              size="icon-sm"
+              onClick={() => fileInputRef.current?.click()}
             >
-              <Send className="size-3.5" /> Queue
+              <Paperclip className="size-3.5" />
+              <span className="sr-only">Attach file</span>
             </Button>
-          ) : (
-            <Button
-              type="button"
-              size="sm"
-              className="h-7 gap-1"
-              onClick={submit}
-              disabled={!text.trim() || pending}
-            >
-              {pending ? (
-                <span className="size-3.5 animate-spin rounded-full border-2 border-current border-t-transparent" />
-              ) : (
-                <Send className="size-3.5" />
-              )}
-              Send
-            </Button>
-          )}
+          </TooltipTrigger>
+          <TooltipContent>Attach file</TooltipContent>
+        </Tooltip>
+        <Button
+          type="button"
+          variant="ghost"
+          size="sm"
+          className="h-7 gap-1 px-1.5 text-[10px] text-muted-foreground"
+          onClick={() => {
+            setText((current) => `${current}/`)
+            textareaRef.current?.focus()
+          }}
+        >
+          <Slash className="size-3" /> <span className="hidden sm:inline">commands</span>
+        </Button>
+        <Button
+          type="button"
+          variant="ghost"
+          size="sm"
+          className="h-7 gap-1 px-1.5 text-[10px] text-muted-foreground"
+          onClick={() => {
+            setText((current) => `${current}@`)
+            textareaRef.current?.focus()
+          }}
+        >
+          <AtSign className="size-3" /> <span className="hidden sm:inline">files</span>
+        </Button>
+
+        <div className="ml-auto flex items-center gap-1">
+          <AgentPicker session={session} open={agentOpen} onOpenChange={setAgentOpen} />
+
+          <div className="flex items-center">
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  type="button"
+                  size="sm"
+                  className={cn('h-8 gap-1', canSaveAsDraft && 'rounded-r-none')}
+                  onClick={submit}
+                  disabled={!canSend}
+                >
+                  {pending ? (
+                    <span className="size-3.5 animate-spin rounded-full border-2 border-current border-t-transparent" />
+                  ) : (
+                    <Send className="size-3.5" />
+                  )}
+                  Send
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>
+                {busy ? 'Send and steer the active run' : 'Send and start a run'}
+              </TooltipContent>
+            </Tooltip>
+
+            {canSaveAsDraft && (
+              <DropdownMenu>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <DropdownMenuTrigger asChild>
+                      <Button
+                        type="button"
+                        size="icon-sm"
+                        className="h-8 rounded-l-none border-l border-primary-foreground/25"
+                        disabled={!canSend}
+                      >
+                        <ChevronDown className="size-3.5" />
+                        <span className="sr-only">Message options</span>
+                      </Button>
+                    </DropdownMenuTrigger>
+                  </TooltipTrigger>
+                  <TooltipContent>Save this message as a draft</TooltipContent>
+                </Tooltip>
+                <DropdownMenuContent side="top" align="end" className="w-56">
+                  <DropdownMenuItem onSelect={saveDraftMessage}>
+                    <Save className="size-3.5" />
+                    <span className="flex-1">Save as draft</span>
+                    <span className="text-[10px] text-muted-foreground">no reply</span>
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            )}
+          </div>
         </div>
       </div>
     </div>

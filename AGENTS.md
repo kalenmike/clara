@@ -56,18 +56,19 @@ changing connection, auth, streaming, or version pins.
 
 ## Documentation map
 
-| Before you touch…                    | Read                                                           |
-| ------------------------------------ | -------------------------------------------------------------- |
-| Writing or updating a feature spec   | [docs/features/GUIDE.md](docs/features/GUIDE.md)               |
-| Stack, auth, streaming, version pins | [docs/architecture/overview.md](docs/architecture/overview.md) |
-| What ships and what does not         | [docs/features/capabilities.md](docs/features/capabilities.md) |
-| Connection and credentials           | [docs/features/connection.md](docs/features/connection.md)     |
-| Project/session browser              | [docs/features/sessions.md](docs/features/sessions.md)         |
-| Messages, tools, approvals           | [docs/features/chat.md](docs/features/chat.md)                 |
-| Prompt box, commands, mentions       | [docs/features/composer.md](docs/features/composer.md)         |
-| Cost, tokens, context                | [docs/features/session-info.md](docs/features/session-info.md) |
-| Keyboard behavior                    | [docs/features/shortcuts.md](docs/features/shortcuts.md)       |
-| Everything else                      | [docs/README.md](docs/README.md)                               |
+| Before you touch…                    | Read                                                             |
+| ------------------------------------ | ---------------------------------------------------------------- |
+| Writing or updating a feature spec   | [docs/features/GUIDE.md](docs/features/GUIDE.md)                 |
+| Stack, auth, streaming, version pins | [docs/architecture/overview.md](docs/architecture/overview.md)   |
+| What ships and what does not         | [docs/features/capabilities.md](docs/features/capabilities.md)   |
+| Connection and credentials           | [docs/features/connection.md](docs/features/connection.md)       |
+| Project/session browser              | [docs/features/sessions.md](docs/features/sessions.md)           |
+| Messages, tools, approvals           | [docs/features/chat.md](docs/features/chat.md)                   |
+| Prompt box, commands, mentions       | [docs/features/composer.md](docs/features/composer.md)           |
+| Cost, tokens, context                | [docs/features/session-info.md](docs/features/session-info.md)   |
+| Inbox notifications and sounds       | [docs/features/notifications.md](docs/features/notifications.md) |
+| Keyboard behavior                    | [docs/features/shortcuts.md](docs/features/shortcuts.md)         |
+| Everything else                      | [docs/README.md](docs/README.md)                                 |
 
 ## Definition of done
 

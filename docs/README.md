@@ -33,12 +33,15 @@ here, it is not part of the canonical set.
 
 ### Features
 
-| Document                                    | Read when…                                                            |
-| ------------------------------------------- | --------------------------------------------------------------------- |
-| [capabilities.md](features/capabilities.md) | You need to know what ships, what is partial, or what is missing      |
-| [connection.md](features/connection.md)     | You are working on connecting Clara to an OpenCode server             |
-| [sessions.md](features/sessions.md)         | You are working on the project/session browser                        |
-| [chat.md](features/chat.md)                 | You are working on messages, streaming, tools, or permissions         |
-| [composer.md](features/composer.md)         | You are working on the prompt box, commands, mentions, or attachments |
-| [session-info.md](features/session-info.md) | You are working on cost, tokens, context, or message counts           |
-| [shortcuts.md](features/shortcuts.md)       | You are working on keyboard behavior                                  |
+| Document                                      | Read when…                                                               |
+| --------------------------------------------- | ------------------------------------------------------------------------ |
+| [capabilities.md](features/capabilities.md)   | You need to know what ships, what is partial, or what is missing         |
+| [connection.md](features/connection.md)       | You are working on connecting Clara to an OpenCode server                |
+| [sessions.md](features/sessions.md)           | You are working on the project/session browser                           |
+| [chat.md](features/chat.md)                   | You are working on messages, streaming, tools, or permissions            |
+| [pair-terminal.md](features/pair-terminal.md) | You are working on the read-only terminal that follows a running session |
+| [composer.md](features/composer.md)           | You are working on the reply window, commands, mentions, or attachments  |
+| [session-info.md](features/session-info.md)   | You are working on cost, tokens, context, or message counts              |
+| [notifications.md](features/notifications.md) | You are working on Inbox alerts, desktop notifications, or alert sounds  |
+| [git.md](features/git.md)                     | You are working on the branch and change summary in the right panel      |
+| [shortcuts.md](features/shortcuts.md)         | You are working on keyboard behavior                                     |

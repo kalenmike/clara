@@ -11,6 +11,22 @@ export function useSessions(directory: string | null, search: string) {
       client!.session.list({
         directory: directory ?? undefined,
         search: search.trim() || undefined,
+        archived: false,
+        limit: 50,
+      }),
+    enabled: Boolean(client),
+  })
+}
+
+export function useArchivedSessions(directory: string | null, search: string) {
+  const { client } = useConnection()
+  return useQuery({
+    queryKey: [...queryKeys.archivedSessions(directory), search],
+    queryFn: () =>
+      client!.session.list({
+        directory: directory ?? undefined,
+        search: search.trim() || undefined,
+        archived: true,
         limit: 50,
       }),
     enabled: Boolean(client),
@@ -79,6 +95,7 @@ export function useArchiveSession(sessionID: string) {
     mutationFn: (archived: boolean) => client!.session.update({ sessionID, archived }),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ['sessions'] })
+      void queryClient.invalidateQueries({ queryKey: queryKeys.session(sessionID) })
     },
   })
 }

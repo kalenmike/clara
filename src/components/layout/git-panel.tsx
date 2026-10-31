@@ -1,0 +1,388 @@
+import { useEffect, useMemo, useState, type ReactNode } from 'react'
+import { AlertCircle, GitBranch, GitCommitHorizontal, Loader2, RefreshCw } from 'lucide-react'
+import type { VcsFileStatus } from '@opencode/client'
+import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
+import { Separator } from '@/components/ui/separator'
+import { Skeleton } from '@/components/ui/skeleton'
+import { useGitBase, useGitChanges, useGitInfo, type GitRange } from '@/features/git/use-git'
+import { formatCount } from '@/lib/format'
+import { cn } from '@/lib/utils'
+
+const STATUS_COLOR: Record<VcsFileStatus['status'], string> = {
+  added: 'text-emerald-600 dark:text-emerald-400',
+  modified: 'text-amber-600 dark:text-amber-400',
+  deleted: 'text-rose-600 dark:text-rose-400',
+}
+
+const STATUS_LABEL: Record<VcsFileStatus['status'], string> = {
+  added: 'A',
+  modified: 'M',
+  deleted: 'D',
+}
+
+export function GitPanel({ directory }: { directory: string | undefined }) {
+  const infoQuery = useGitInfo(directory)
+  const baseQuery = useGitBase(directory)
+  const [range, setRange] = useState<GitRange>('working')
+  const [fallbackBase, setFallbackBase] = useState<string | undefined>()
+
+  useEffect(() => {
+    setFallbackBase(undefined)
+  }, [directory])
+
+  const info = infoQuery.data
+  const currentBranch = info?.branch.current
+  const defaultBranch = info?.branch.default ?? baseQuery.data?.name
+  const isRepo = Boolean(info?.provider || currentBranch || defaultBranch)
+  const effectiveRange = range === 'branch' && !defaultBranch ? 'working' : range
+  const base =
+    effectiveRange === 'commits'
+      ? (fallbackBase ?? 'HEAD~3')
+      : effectiveRange === 'branch'
+        ? defaultBranch
+        : undefined
+
+  const changesQuery = useGitChanges(directory, effectiveRange, base)
+  const files = useMemo(() => changesQuery.data ?? [], [changesQuery.data])
+  const totals = useMemo(
+    () =>
+      files.reduce(
+        (sum, file) => ({
+          additions: sum.additions + file.additions,
+          deletions: sum.deletions + file.deletions,
+        }),
+        { additions: 0, deletions: 0 }
+      ),
+    [files]
+  )
+  const sorted = useMemo(
+    () =>
+      [...files].sort(
+        (left, right) => right.additions + right.deletions - (left.additions + left.deletions)
+      ),
+    [files]
+  )
+  const maxChurn = useMemo(
+    () => Math.max(1, ...files.map((file) => file.additions + file.deletions)),
+    [files]
+  )
+  const fetching = infoQuery.isFetching || baseQuery.isFetching || changesQuery.isFetching
+
+  const refresh = () => {
+    void infoQuery.refetch()
+    void baseQuery.refetch()
+    void changesQuery.refetch()
+  }
+
+  const changeRange = (value: string) => {
+    setFallbackBase(undefined)
+    setRange(value as GitRange)
+  }
+
+  if (!directory) {
+    return (
+      <PanelMessage
+        title="No directory"
+        description="This session is not attached to a project directory."
+      />
+    )
+  }
+
+  if (infoQuery.isPending) {
+    return (
+      <div className="space-y-3">
+        <Skeleton className="h-8 w-full" />
+        <Skeleton className="h-4 w-2/3" />
+        <Skeleton className="h-16 w-full" />
+      </div>
+    )
+  }
+
+  if (infoQuery.isError) {
+    return (
+      <PanelMessage
+        title="Could not read git information"
+        description="The server did not answer the git request."
+        action={
+          <Button variant="outline" size="sm" onClick={() => void infoQuery.refetch()}>
+            Retry
+          </Button>
+        }
+      />
+    )
+  }
+
+  if (!info || !isRepo) {
+    return (
+      <PanelMessage
+        title="Not a git repository"
+        description={`${directory} has no git repository.`}
+      />
+    )
+  }
+
+  const rangeLabel =
+    effectiveRange === 'working'
+      ? 'HEAD → working tree'
+      : effectiveRange === 'commits'
+        ? `${base} → HEAD`
+        : `${defaultBranch ?? 'base'}...HEAD`
+
+  return (
+    <div className="space-y-3">
+      <div className="flex items-start justify-between gap-2">
+        <div className="min-w-0">
+          <div className="flex min-w-0 items-center gap-1.5 font-medium">
+            <GitBranch className="size-3.5 shrink-0 text-muted-foreground" />
+            <span className="truncate">{currentBranch || 'detached HEAD'}</span>
+            {currentBranch && currentBranch === defaultBranch && (
+              <Badge variant="secondary" className="shrink-0 text-[9px]">
+                default
+              </Badge>
+            )}
+          </div>
+          <p className="truncate text-[10px] text-muted-foreground">
+            base {defaultBranch || 'unknown'} · {info.provider ?? 'git'}
+          </p>
+        </div>
+        <Button
+          variant="ghost"
+          size="icon"
+          className="size-7 shrink-0"
+          onClick={refresh}
+          disabled={fetching}
+          title="Refresh git changes"
+        >
+          {fetching ? (
+            <Loader2 className="size-3.5 animate-spin" />
+          ) : (
+            <RefreshCw className="size-3.5" />
+          )}
+          <span className="sr-only">Refresh git changes</span>
+        </Button>
+      </div>
+
+      <Separator />
+
+      <div className="space-y-1.5">
+        <div className="flex items-center justify-between gap-2">
+          <span className="text-muted-foreground">Compare</span>
+          <Select value={effectiveRange} onValueChange={changeRange}>
+            <SelectTrigger size="sm" className="h-7 text-[11px]">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="working">Working tree</SelectItem>
+              <SelectItem value="commits">Last 3 commits</SelectItem>
+              <SelectItem value="branch" disabled={!defaultBranch}>
+                Base branch
+              </SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+        <p className="truncate font-mono text-[10px] text-muted-foreground">{rangeLabel}</p>
+        {fallbackBase && (
+          <p className="text-[10px] text-amber-600 dark:text-amber-400">
+            Last 3 commits unavailable; showing the last commit.
+          </p>
+        )}
+      </div>
+
+      <Separator />
+
+      {changesQuery.isPending ? (
+        <div className="space-y-2">
+          <Skeleton className="h-4 w-1/2" />
+          <Skeleton className="h-8 w-full" />
+          <Skeleton className="h-8 w-full" />
+          <Skeleton className="h-8 w-full" />
+        </div>
+      ) : changesQuery.isError ? (
+        <ChangeError
+          range={effectiveRange}
+          message={errorMessage(changesQuery.error)}
+          onRetry={() => void changesQuery.refetch()}
+          onShowLastCommit={
+            effectiveRange === 'commits' && !fallbackBase
+              ? () => setFallbackBase('HEAD~1')
+              : undefined
+          }
+        />
+      ) : files.length === 0 ? (
+        <div className="flex flex-col items-center gap-1.5 py-8 text-center text-muted-foreground">
+          <GitCommitHorizontal className="size-5" />
+          <p className="text-[10px]">No changes in this range.</p>
+        </div>
+      ) : (
+        <>
+          <div className="space-y-1.5">
+            <div className="flex items-center justify-between text-[10px]">
+              <span className="text-muted-foreground">
+                {formatCount(files.length)} file{files.length === 1 ? '' : 's'}
+              </span>
+              <span className="font-mono">
+                <span className="text-emerald-600 dark:text-emerald-400">
+                  +{formatCount(totals.additions)}
+                </span>{' '}
+                <span className="text-rose-600 dark:text-rose-400">
+                  −{formatCount(totals.deletions)}
+                </span>
+              </span>
+            </div>
+            <div className="flex h-1.5 overflow-hidden rounded-full bg-muted">
+              <div
+                className="h-full bg-emerald-500"
+                style={{
+                  width: `${(totals.additions / Math.max(1, totals.additions + totals.deletions)) * 100}%`,
+                }}
+              />
+              <div
+                className="h-full bg-rose-500"
+                style={{
+                  width: `${(totals.deletions / Math.max(1, totals.additions + totals.deletions)) * 100}%`,
+                }}
+              />
+            </div>
+          </div>
+
+          <ul className="space-y-2">
+            {sorted.map((file) => (
+              <FileRow key={file.file} file={file} maxChurn={maxChurn} />
+            ))}
+          </ul>
+        </>
+      )}
+    </div>
+  )
+}
+
+function FileRow({ file, maxChurn }: { file: VcsFileStatus; maxChurn: number }) {
+  const slash = file.file.lastIndexOf('/')
+  const directory = slash >= 0 ? file.file.slice(0, slash) : ''
+  const name = slash >= 0 ? file.file.slice(slash + 1) : file.file
+  const churn = file.additions + file.deletions
+
+  return (
+    <li className="space-y-1">
+      <div className="flex items-start gap-1.5">
+        <span
+          className={cn(
+            'mt-0.5 w-3 shrink-0 font-mono text-[10px] font-semibold',
+            STATUS_COLOR[file.status]
+          )}
+          title={file.status}
+        >
+          {STATUS_LABEL[file.status]}
+        </span>
+        <div className="min-w-0 flex-1">
+          <div className="flex items-baseline gap-1.5">
+            <span className="truncate font-mono text-[10px]" title={file.file}>
+              {name}
+            </span>
+            <span className="ml-auto shrink-0 font-mono text-[10px] text-emerald-600 dark:text-emerald-400">
+              +{formatCount(file.additions)}
+            </span>
+            <span className="shrink-0 font-mono text-[10px] text-rose-600 dark:text-rose-400">
+              −{formatCount(file.deletions)}
+            </span>
+          </div>
+          {directory && (
+            <p className="truncate font-mono text-[9px] text-muted-foreground">{directory}</p>
+          )}
+        </div>
+      </div>
+      <div className="ml-[18px] h-0.5 overflow-hidden rounded-full bg-muted/60">
+        <div className="flex h-full" style={{ width: `${Math.max(4, (churn / maxChurn) * 100)}%` }}>
+          <div
+            className="h-full bg-emerald-500/70"
+            style={{ width: `${(file.additions / Math.max(1, churn)) * 100}%` }}
+          />
+          <div
+            className="h-full bg-rose-500/70"
+            style={{ width: `${(file.deletions / Math.max(1, churn)) * 100}%` }}
+          />
+        </div>
+      </div>
+    </li>
+  )
+}
+
+function ChangeError({
+  range,
+  message,
+  onRetry,
+  onShowLastCommit,
+}: {
+  range: GitRange
+  message: string
+  onRetry: () => void
+  onShowLastCommit: (() => void) | undefined
+}) {
+  return (
+    <div className="space-y-2 rounded-lg border border-dashed p-2">
+      <div className="flex items-start gap-1.5 text-[10px] text-muted-foreground">
+        <AlertCircle className="mt-0.5 size-3.5 shrink-0" />
+        <div className="min-w-0 space-y-1">
+          <p>
+            {range === 'commits'
+              ? 'The last 3 commits are unavailable. This repository may have fewer commits.'
+              : 'Could not load changes for this range.'}
+          </p>
+          <p className="truncate font-mono text-[9px]">{message}</p>
+        </div>
+      </div>
+      <div className="flex gap-1.5">
+        {onShowLastCommit && (
+          <Button
+            variant="outline"
+            size="sm"
+            className="h-6 px-2 text-[10px]"
+            onClick={onShowLastCommit}
+          >
+            Show last commit
+          </Button>
+        )}
+        <Button variant="ghost" size="sm" className="h-6 px-2 text-[10px]" onClick={onRetry}>
+          Retry
+        </Button>
+      </div>
+    </div>
+  )
+}
+
+function PanelMessage({
+  title,
+  description,
+  action,
+}: {
+  title: string
+  description: string
+  action?: ReactNode
+}) {
+  return (
+    <div className="flex flex-col items-center gap-2 py-8 text-center">
+      <GitBranch className="size-5 text-muted-foreground" />
+      <div className="space-y-1">
+        <p className="text-[11px] font-medium">{title}</p>
+        <p className="break-words text-[10px] text-muted-foreground">{description}</p>
+      </div>
+      {action}
+    </div>
+  )
+}
+
+function errorMessage(error: unknown): string {
+  if (error instanceof Error) return error.message
+  if (typeof error === 'object' && error && 'message' in error) {
+    return String(error.message)
+  }
+  return 'Unknown error'
+}

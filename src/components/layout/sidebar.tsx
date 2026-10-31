@@ -1,17 +1,19 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router'
 import {
   ChevronDown,
-  CircleDot,
+  ChevronRight,
   FolderGit2,
   Loader2,
   Plus,
   Search,
   Settings,
   Sparkles,
+  X,
 } from 'lucide-react'
 import type { SessionInfo } from '@opencode/client'
 import { Button } from '@/components/ui/button'
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -23,40 +25,66 @@ import {
 import { Input } from '@/components/ui/input'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Skeleton } from '@/components/ui/skeleton'
+import { SidebarSessionRow } from '@/components/layout/sidebar-session-row'
+import { usePendingPermissions } from '@/features/chat/use-permissions'
+import { resolveAttentionKind } from '@/features/notifications/attention'
 import { useProjects } from '@/features/projects/use-projects'
-import { useActiveSessions, useCreateSession, useSessions } from '@/features/sessions/use-sessions'
-import { formatRelativeTime } from '@/lib/format'
-import { readLastProject, saveLastProject } from '@/lib/storage'
+import { isArchivedSession } from '@/features/sessions/session-archive'
+import { groupSessionsByMailbox } from '@/features/sessions/session-sections'
+import { useSessionMailboxSignals } from '@/features/sessions/use-session-mailbox'
+import {
+  useActiveSessions,
+  useArchivedSessions,
+  useSessions,
+} from '@/features/sessions/use-sessions'
+import { useStartSession } from '@/features/sessions/use-start-session'
+import { useSidebarWidth } from '@/hooks/use-sidebar-width'
+import { claraBuildLabel, claraBuildTitle, claraVersion } from '@/lib/build-info'
+import {
+  SIDEBAR_WIDTH_MAX,
+  SIDEBAR_WIDTH_MIN,
+  readLastProject,
+  readSidebarSections,
+  saveLastProject,
+  saveSidebarSections,
+  type SidebarSection,
+} from '@/lib/storage'
 import { useConnection } from '@/providers/connection-provider'
 import { useEventStream } from '@/providers/event-provider'
 import { cn } from '@/lib/utils'
 
-function groupSessions(sessions: SessionInfo[]) {
-  const now = new Date()
-  const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime()
-  const day = 86_400_000
-  const groups: Array<{ label: string; sessions: SessionInfo[] }> = [
-    { label: 'Today', sessions: [] },
-    { label: 'Yesterday', sessions: [] },
-    { label: 'Previous 7 days', sessions: [] },
-    { label: 'Older', sessions: [] },
-  ]
-
-  for (const session of sessions) {
-    const time = session.time.updated
-    if (time >= startOfToday) groups[0].sessions.push(session)
-    else if (time >= startOfToday - day) groups[1].sessions.push(session)
-    else if (time >= startOfToday - 7 * day) groups[2].sessions.push(session)
-    else groups[3].sessions.push(session)
-  }
-
-  return groups.filter((group) => group.sessions.length > 0)
-}
-
 export function Sidebar() {
+  const { width, dragging, handleProps } = useSidebarWidth()
+
   return (
-    <aside className="hidden w-72 shrink-0 flex-col border-r bg-sidebar text-sidebar-foreground md:flex">
+    <aside
+      className="relative hidden shrink-0 flex-col border-r bg-sidebar text-sidebar-foreground md:flex"
+      style={{ width }}
+    >
       <SidebarContent />
+      <div
+        {...handleProps}
+        role="separator"
+        aria-orientation="vertical"
+        aria-label="Resize sidebar"
+        aria-valuenow={width}
+        aria-valuemin={SIDEBAR_WIDTH_MIN}
+        aria-valuemax={SIDEBAR_WIDTH_MAX}
+        tabIndex={0}
+        className={cn(
+          'group absolute inset-y-0 right-0 z-10 w-1.5 cursor-col-resize touch-none outline-none',
+          'focus-visible:bg-primary/10'
+        )}
+      >
+        <div
+          className={cn(
+            'absolute inset-y-0 right-0 w-px transition-colors',
+            dragging
+              ? 'bg-primary'
+              : 'bg-transparent group-hover:bg-primary/50 group-focus-visible:bg-primary'
+          )}
+        />
+      </div>
     </aside>
   )
 }
@@ -64,11 +92,13 @@ export function Sidebar() {
 export function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
   const navigate = useNavigate()
   const params = useParams<{ projectId: string; sessionId?: string }>()
-  const { info } = useConnection()
-  const { live } = useEventStream()
+  const { info, reconnect, reconnecting } = useConnection()
+  const { state } = useEventStream()
   const projectsQuery = useProjects()
   const projects = useMemo(() => projectsQuery.data ?? [], [projectsQuery.data])
   const [search, setSearch] = useState('')
+  const [openSections, setOpenSections] = useState(readSidebarSections)
+  const searching = search.trim().length > 0
 
   const selectedProject = useMemo(() => {
     const fromUrl = projects.find((project) => project.id === params.projectId)
@@ -78,11 +108,64 @@ export function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
   }, [params.projectId, projects])
 
   const sessionsQuery = useSessions(selectedProject?.canonical ?? null, search)
-  const sessions = useMemo(() => sessionsQuery.data?.data ?? [], [sessionsQuery.data])
-  const activeQuery = useActiveSessions()
-  const createSession = useCreateSession(selectedProject?.canonical ?? '')
+  const archivedQuery = useArchivedSessions(selectedProject?.canonical ?? null, search)
 
-  const groups = useMemo(() => groupSessions(sessions), [sessions])
+  useEffect(() => {
+    if (selectedProject) saveLastProject(selectedProject.id)
+  }, [selectedProject])
+
+  const sessions = useMemo(() => sessionsQuery.data?.data ?? [], [sessionsQuery.data])
+  const archivedSessions = useMemo(() => archivedQuery.data?.data ?? [], [archivedQuery.data])
+  const allSessions = useMemo(() => {
+    const byID = new Map<string, SessionInfo>()
+    for (const session of archivedSessions) byID.set(session.id, session)
+    for (const session of sessions) {
+      if (!byID.has(session.id)) byID.set(session.id, session)
+    }
+    return [...byID.values()]
+  }, [sessions, archivedSessions])
+
+  const activeQuery = useActiveSessions()
+  const mailboxSessions = useMemo(
+    () => allSessions.filter((session) => !isArchivedSession(session)),
+    [allSessions]
+  )
+  const { signals: mailboxSignals, pending: mailboxesPending } =
+    useSessionMailboxSignals(mailboxSessions)
+
+  const permissionsQuery = usePendingPermissions(selectedProject?.canonical)
+  const awaitingInput = useMemo(
+    () => new Set((permissionsQuery.data ?? []).map((request) => request.sessionID)),
+    [permissionsQuery.data]
+  )
+
+  const sections = useMemo(() => {
+    const grouped = groupSessionsByMailbox(
+      allSessions,
+      mailboxSignals,
+      activeQuery.data,
+      awaitingInput
+    )
+
+    return [
+      { id: 'inbox', label: 'Inbox', sessions: grouped.inbox },
+      { id: 'outbox', label: 'Outbox', sessions: grouped.outbox },
+      { id: 'drafts', label: 'Drafts', sessions: grouped.drafts },
+      { id: 'archived', label: 'Archived', sessions: grouped.archived },
+    ] satisfies Array<{ id: SidebarSection; label: string; sessions: SessionInfo[] }>
+  }, [allSessions, mailboxSignals, activeQuery.data, awaitingInput])
+
+  const latest = sessions[0]
+  const { startSession: newSession, pending: createPending } = useStartSession({
+    projectID: selectedProject?.id,
+    directory: selectedProject?.canonical,
+    agent: latest?.agent,
+    model: latest?.model,
+  })
+
+  const sessionsLoading = sessionsQuery.isLoading || archivedQuery.isLoading
+  const sessionsError = sessionsQuery.isError || archivedQuery.isError
+  const listPending = sessionsLoading || (mailboxSessions.length > 0 && mailboxesPending)
 
   const selectProject = (projectID: string) => {
     saveLastProject(projectID)
@@ -90,18 +173,12 @@ export function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
     onNavigate?.()
   }
 
-  const newSession = () => {
-    if (!selectedProject) return
-    const latest = sessions[0]
-    createSession.mutate(
-      { agent: latest?.agent, model: latest?.model },
-      {
-        onSuccess: (session) => {
-          navigate(`/p/${selectedProject.id}/s/${session.id}`)
-          onNavigate?.()
-        },
-      }
-    )
+  const setSectionOpen = (section: SidebarSection, open: boolean) => {
+    setOpenSections((current) => {
+      const next = { ...current, [section]: open }
+      saveSidebarSections(next)
+      return next
+    })
   }
 
   return (
@@ -113,13 +190,28 @@ export function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
         <div className="min-w-0 flex-1">
           <div className="text-sm font-semibold leading-tight tracking-tight">Clara</div>
           <div className="flex items-center gap-1 text-[10px] uppercase tracking-wider text-muted-foreground">
-            <span
-              className={cn(
-                'size-1.5 rounded-full',
-                live ? 'bg-emerald-500' : 'bg-muted-foreground/40'
-              )}
-            />
-            {live ? 'live' : 'offline'}
+            {state === 'live' ? (
+              <span className="flex items-center gap-1">
+                <span className="size-1.5 rounded-full bg-emerald-500" />
+                live
+              </span>
+            ) : (
+              <button
+                type="button"
+                onClick={() => void reconnect()}
+                disabled={reconnecting}
+                title="Reconnect to the OpenCode server"
+                className="flex items-center gap-1 rounded-sm uppercase tracking-wider transition-colors hover:text-foreground disabled:opacity-60"
+              >
+                <span
+                  className={cn(
+                    'size-1.5 rounded-full',
+                    reconnecting ? 'animate-pulse bg-amber-500' : 'bg-muted-foreground/40'
+                  )}
+                />
+                {reconnecting || state === 'connecting' ? 'reconnecting' : 'retry'}
+              </button>
+            )}
           </div>
         </div>
         <Button asChild variant="ghost" size="icon" className="size-8">
@@ -188,9 +280,9 @@ export function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
           size="sm"
           className="flex-1"
           onClick={newSession}
-          disabled={!selectedProject || createSession.isPending}
+          disabled={!selectedProject || createPending}
         >
-          {createSession.isPending ? (
+          {createPending ? (
             <Loader2 className="size-4 animate-spin" />
           ) : (
             <Plus className="size-4" />
@@ -206,13 +298,23 @@ export function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
             value={search}
             onChange={(event) => setSearch(event.target.value)}
             placeholder="Search sessions"
-            className="h-8 pl-8 text-xs"
+            className="h-8 pl-8 pr-8 text-xs"
           />
+          {search && (
+            <button
+              type="button"
+              onClick={() => setSearch('')}
+              aria-label="Clear search"
+              className="absolute right-1.5 top-1/2 flex size-5 -translate-y-1/2 items-center justify-center rounded-sm text-muted-foreground transition-colors hover:text-foreground"
+            >
+              <X className="size-3.5" />
+            </button>
+          )}
         </div>
       </div>
 
       <ScrollArea className="min-h-0 flex-1 px-2">
-        {sessionsQuery.isLoading && (
+        {listPending && (
           <div className="space-y-2 p-2">
             {Array.from({ length: 6 }).map((_, index) => (
               <Skeleton key={index} className="h-11 w-full" />
@@ -220,67 +322,87 @@ export function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
           </div>
         )}
 
-        {sessionsQuery.isError && (
+        {!listPending && sessionsError && (
           <div className="p-3 text-xs text-muted-foreground">
             Could not load sessions.{' '}
-            <button className="underline" onClick={() => sessionsQuery.refetch()}>
+            <button
+              className="underline"
+              onClick={() => {
+                void sessionsQuery.refetch()
+                void archivedQuery.refetch()
+              }}
+            >
               Retry
             </button>
           </div>
         )}
 
-        {!sessionsQuery.isLoading && sessions.length === 0 && (
+        {!listPending && !sessionsError && allSessions.length === 0 && (
           <div className="p-3 text-xs text-muted-foreground">
             {search ? 'No sessions match your search.' : 'No sessions yet. Start a new one.'}
           </div>
         )}
 
-        {groups.map((group) => (
-          <div key={group.label} className="pb-2">
-            <div className="px-2 pb-1 pt-2 text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
-              {group.label}
-            </div>
-            {group.sessions.map((session) => {
-              const active = Boolean(activeQuery.data?.[session.id])
-              const selected = session.id === params.sessionId
-              return (
-                <Link
-                  key={session.id}
-                  to={`/p/${selectedProject?.id ?? session.projectID}/s/${session.id}`}
-                  onClick={onNavigate}
-                  className={cn(
-                    'group flex items-start gap-2 rounded-md px-2 py-1.5 transition-colors hover:bg-sidebar-accent',
-                    selected && 'bg-sidebar-accent'
-                  )}
+        {!listPending &&
+          !sessionsError &&
+          sections.map((section) => {
+            const open = searching || openSections[section.id]
+            return (
+              <div key={section.id} className="pb-2">
+                <Collapsible
+                  open={open}
+                  onOpenChange={(next) => {
+                    if (!searching) setSectionOpen(section.id, next)
+                  }}
                 >
-                  {active ? (
-                    <CircleDot className="mt-1 size-3 shrink-0 animate-pulse text-emerald-500" />
-                  ) : (
-                    <span className="mt-[7px] size-1.5 shrink-0 rounded-full bg-muted-foreground/30" />
-                  )}
-                  <span className="min-w-0 flex-1">
-                    <span className="block truncate text-xs font-medium">
-                      {session.title || 'Untitled session'}
+                  <CollapsibleTrigger className="flex w-full items-center gap-1.5 rounded-md px-2 py-1.5 text-[10px] font-medium uppercase tracking-wider text-muted-foreground transition-colors hover:bg-sidebar-accent/60 hover:text-foreground">
+                    <ChevronRight
+                      className={cn('size-3 shrink-0 transition-transform', open && 'rotate-90')}
+                    />
+                    <span>{section.label}</span>
+                    <span className="ml-auto min-w-4 text-right tabular-nums">
+                      {section.sessions.length}
                     </span>
-                    <span className="mt-0.5 flex items-center gap-1.5 text-[10px] text-muted-foreground">
-                      <span className="truncate">{session.agent ?? 'build'}</span>
-                      <span>·</span>
-                      <span className="truncate">{session.model?.id ?? 'default'}</span>
-                      <span>·</span>
-                      <span className="shrink-0">{formatRelativeTime(session.time.updated)}</span>
-                    </span>
-                  </span>
-                </Link>
-              )
-            })}
-          </div>
-        ))}
+                  </CollapsibleTrigger>
+                  <CollapsibleContent>
+                    {section.sessions.length === 0 ? (
+                      <div className="px-2 py-1 text-[11px] text-muted-foreground">No sessions</div>
+                    ) : (
+                      section.sessions.map((session) => {
+                        const signals = mailboxSignals.get(session.id)
+                        const attention = resolveAttentionKind(
+                          signals,
+                          session.agent,
+                          awaitingInput.has(session.id)
+                        )
+                        return (
+                          <SidebarSessionRow
+                            key={session.id}
+                            session={session}
+                            projectID={selectedProject?.id ?? session.projectID}
+                            selected={session.id === params.sessionId}
+                            active={Boolean(activeQuery.data?.[session.id])}
+                            blocked={attention === 'question'}
+                            error={section.id === 'inbox' && attention === 'error'}
+                            planReady={section.id === 'inbox' && attention === 'plan'}
+                            onNavigate={onNavigate}
+                          />
+                        )
+                      })
+                    )}
+                  </CollapsibleContent>
+                </Collapsible>
+              </div>
+            )
+          })}
       </ScrollArea>
 
       <div className="border-t px-3 py-2 text-[10px] text-muted-foreground">
         <div className="flex items-center justify-between gap-2">
           <span className="truncate">{info ? `OpenCode ${info.version}` : 'Not connected'}</span>
-          <span className="truncate">⌘/ctrl + X shortcuts</span>
+          <span className="truncate" title={claraBuildTitle}>
+            Clara {claraVersion} · {claraBuildLabel}
+          </span>
         </div>
       </div>
     </>

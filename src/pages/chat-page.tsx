@@ -1,33 +1,53 @@
-import { useCallback, useMemo, useState } from 'react'
-import { Link, useNavigate, useParams } from 'react-router'
+import { useCallback, useEffect, useMemo, useState } from 'react'
+import { Link, Navigate, useLocation, useNavigate, useParams } from 'react-router'
 import { useTheme } from 'next-themes'
 import { toast } from 'sonner'
-import { ArrowLeft, Loader2 } from 'lucide-react'
+import { ArrowLeft, Loader2, SquarePen } from 'lucide-react'
+import type { SessionInboxUser, SessionMessageInfo, SessionMessageUser } from '@opencode/client'
 import { Button } from '@/components/ui/button'
 import { Sheet, SheetContent, SheetDescription, SheetTitle } from '@/components/ui/sheet'
 import { ChatHeader } from '@/components/chat/chat-header'
-import { Composer } from '@/components/chat/composer'
+import { DraftStartPanel } from '@/components/chat/draft-start-panel'
+import { EmptySessionView } from '@/components/chat/empty-session-view'
 import { FormPanel } from '@/components/chat/form-panel'
+import { InboxJumpButton } from '@/components/chat/inbox-jump-button'
 import { MessageList } from '@/components/chat/message-list'
 import { PermissionPanel } from '@/components/chat/permission-panel'
-import { SessionInfoPanel } from '@/components/layout/session-info-panel'
-import { useAgents } from '@/features/catalog/use-catalog'
+import { PlanReadyPanel } from '@/components/chat/plan-ready-panel'
+import { ReplyDock } from '@/components/chat/reply-dock'
+import { SidePanel } from '@/components/layout/side-panel'
+import { useAgents, useModels } from '@/features/catalog/use-catalog'
+import { getVisibleMessages } from '@/features/chat/message-visibility'
+import { findPlanReadyReply } from '@/features/chat/plan-ready'
 import {
   useChatSnapshot,
   useCompactSession,
   useInterruptSession,
+  useSessionInbox,
   useSessionMessages,
   useSwitchAgent,
+  useSwitchModel,
 } from '@/features/chat/use-chat'
 import { useProjects } from '@/features/projects/use-projects'
-import { useCreateSession, useSession } from '@/features/sessions/use-sessions'
+import { isArchivedSession } from '@/features/sessions/session-archive'
+import { useSession } from '@/features/sessions/use-sessions'
+import { useStartSession, type ChatComposeState } from '@/features/sessions/use-start-session'
+import { useCollapsedMessages } from '@/hooks/use-collapsed-messages'
 import { useKeybinds } from '@/hooks/use-keybinds'
 import { useMediaQuery } from '@/hooks/use-media-query'
+import {
+  readShowInternal,
+  readSidePanelTab,
+  saveShowInternal,
+  saveSidePanelTab,
+  type SidePanelTab,
+} from '@/lib/storage'
 import { useConnection } from '@/providers/connection-provider'
 
 export function ChatPage() {
   const { projectId, sessionId } = useParams<{ projectId: string; sessionId: string }>()
   const navigate = useNavigate()
+  const location = useLocation()
   const { status } = useConnection()
   const { setTheme, resolvedTheme } = useTheme()
   const projectsQuery = useProjects()
@@ -35,10 +55,56 @@ export function ChatPage() {
   const sessionQuery = useSession(sessionId ?? null)
   const session = sessionQuery.data
   const snapshot = useChatSnapshot(sessionId ?? '')
-  useSessionMessages(sessionId ?? '')
+  const messagesQuery = useSessionMessages(sessionId ?? '')
+  const inboxQuery = useSessionInbox(sessionId ?? '')
+  const busy = snapshot.status.type !== 'idle'
+  const [showInternal, setShowInternal] = useState(readShowInternal)
+  const [replyOpen, setReplyOpen] = useState(false)
+  const pendingDrafts = useMemo(
+    () => (inboxQuery.data ?? []).filter((item): item is SessionInboxUser => item.type === 'user'),
+    [inboxQuery.data]
+  )
+  const allMessages = useMemo<SessionMessageInfo[]>(() => {
+    const base =
+      snapshot.messages.length > 0 ? snapshot.messages : (messagesQuery.data?.messages ?? [])
+    if (pendingDrafts.length === 0) return base
+
+    const byID = new Map(base.map((message) => [message.id, message]))
+    for (const draft of pendingDrafts) {
+      if (!byID.has(draft.id)) byID.set(draft.id, inboxDraftToMessage(draft))
+    }
+    return [...byID.values()].sort((a, b) => a.time.created - b.time.created)
+  }, [messagesQuery.data, pendingDrafts, snapshot.messages])
+  const visibleMessages = useMemo(
+    () => getVisibleMessages(allMessages, showInternal, busy),
+    [allMessages, showInternal, busy]
+  )
+  const messagesPending =
+    (messagesQuery.isPending || inboxQuery.isPending) && allMessages.length === 0
+  const messagesReady = snapshot.messages.length > 0 || messagesQuery.isSuccess
+  const hasAssistant = useMemo(
+    () => allMessages.some((message) => message.type === 'assistant'),
+    [allMessages]
+  )
+  const canSaveAsDraft = messagesReady && !hasAssistant
+  const draftCount = pendingDrafts.length
+  const emptySession = useMemo(
+    () => !allMessages.some((message) => message.type === 'user' || message.type === 'assistant'),
+    [allMessages]
+  )
+  const planReady = useMemo(
+    () =>
+      session && !isArchivedSession(session)
+        ? findPlanReadyReply(allMessages, session.agent, busy)
+        : undefined,
+    [allMessages, busy, session]
+  )
+  const { collapsedIDs, allCollapsed, canToggleAll, toggleMessage, toggleAll } =
+    useCollapsedMessages(sessionId ?? '', visibleMessages)
   const [infoOpen, setInfoOpen] = useState(
     () => typeof window !== 'undefined' && window.matchMedia('(min-width: 1280px)').matches
   )
+  const [panelTab, setPanelTab] = useState<SidePanelTab>(readSidePanelTab)
   const isDesktop = useMediaQuery('(min-width: 1280px)')
 
   const agentsQuery = useAgents()
@@ -47,12 +113,83 @@ export function ChatPage() {
     [agentsQuery.data]
   )
   const switchAgent = useSwitchAgent(sessionId ?? '')
+  const switchModel = useSwitchModel(sessionId ?? '')
+  const modelsQuery = useModels()
   const compact = useCompactSession(sessionId ?? '')
   const interrupt = useInterruptSession(sessionId ?? '')
-  const createSession = useCreateSession(project?.canonical ?? '')
 
-  const busy = snapshot.status.type !== 'idle'
   const directory = project?.canonical ?? session?.location.directory
+  const { startSession } = useStartSession({
+    projectID: projectId,
+    directory,
+    agent: session?.agent,
+    model: session?.model,
+  })
+  const startExpanded = Boolean((location.state as ChatComposeState | null)?.compose)
+  const clearComposeState = useCallback(() => {
+    navigate(location.pathname, { replace: true })
+  }, [location.pathname, navigate])
+  const handleReplyOpenChange = useCallback((open: boolean) => setReplyOpen(open), [])
+  const steerFromPlan = useCallback(() => {
+    setReplyOpen(true)
+    window.dispatchEvent(new Event('clara:open-reply'))
+  }, [])
+
+  useEffect(() => {
+    saveShowInternal(showInternal)
+  }, [showInternal])
+
+  useEffect(() => {
+    saveSidePanelTab(panelTab)
+  }, [panelTab])
+
+  const toggleInternal = useCallback(() => {
+    setShowInternal((value) => !value)
+  }, [])
+
+  const togglePanel = useCallback(() => {
+    if (infoOpen) {
+      setInfoOpen(false)
+      return
+    }
+    setPanelTab('info')
+    setInfoOpen(true)
+  }, [infoOpen])
+
+  const openGitPanel = useCallback(() => {
+    setPanelTab('git')
+    setInfoOpen(true)
+  }, [])
+
+  const toggleTerminal = useCallback(() => {
+    if (infoOpen && panelTab === 'terminal') {
+      setInfoOpen(false)
+      return
+    }
+    setPanelTab('terminal')
+    setInfoOpen(true)
+  }, [infoOpen, panelTab])
+
+  const currentModel = modelsQuery.data?.find(
+    (model) =>
+      model.modelID === session?.model?.id && model.providerID === session?.model?.providerID
+  )
+
+  useEffect(() => {
+    const cycle = () => {
+      if (!currentModel || currentModel.variants.length < 2) return
+      const current = session?.model?.variant ?? 'default'
+      const index = currentModel.variants.findIndex((variant) => variant.id === current)
+      const next = currentModel.variants[(index + 1) % currentModel.variants.length]
+      switchModel.mutate({
+        id: currentModel.modelID,
+        providerID: currentModel.providerID,
+        variant: next.id === 'default' ? undefined : next.id,
+      })
+    }
+    window.addEventListener('clara:cycle-variant', cycle)
+    return () => window.removeEventListener('clara:cycle-variant', cycle)
+  }, [currentModel, session?.model?.variant, switchModel])
 
   const copyLastReply = useCallback(() => {
     const last = [...snapshot.messages].reverse().find((message) => message.type === 'assistant')
@@ -78,21 +215,18 @@ export function ChatPage() {
   )
 
   useKeybinds({
-    onNewSession: () => {
-      if (!project) return
-      createSession.mutate(
-        { agent: session?.agent, model: session?.model },
-        { onSuccess: (created) => navigate(`/p/${project.id}/s/${created.id}`) }
-      )
-    },
+    onNewSession: startSession,
     onSessions: () => {
       if (project) navigate(`/p/${project.id}`)
     },
-    onToggleInfo: () => setInfoOpen((open) => !open),
+    onToggleInfo: togglePanel,
+    onOpenGit: openGitPanel,
+    onToggleTerminal: toggleTerminal,
     onCompact: () => {
       if (sessionId && !busy) compact.mutate()
     },
     onCopyReply: copyLastReply,
+    onToggleMessages: toggleAll,
     onInterrupt: () => {
       if (busy) interrupt.mutate()
     },
@@ -112,12 +246,7 @@ export function ChatPage() {
   }
 
   if (!sessionId) {
-    return (
-      <div className="flex h-full flex-col items-center justify-center gap-2 text-center">
-        <p className="text-sm font-medium">No session selected</p>
-        <p className="text-xs text-muted-foreground">Pick a session from the sidebar.</p>
-      </div>
-    )
+    return <Navigate to={projectId ? `/p/${projectId}` : '/'} replace />
   }
 
   if (sessionQuery.isLoading) {
@@ -146,40 +275,138 @@ export function ChatPage() {
 
   return (
     <div className="flex h-full min-h-0">
-      <div className="flex min-w-0 flex-1 flex-col">
+      <div className="relative flex min-w-0 flex-1 flex-col">
         <ChatHeader
           session={session}
           snapshot={snapshot}
           projectID={projectId ?? session.projectID}
           infoOpen={infoOpen}
-          onToggleInfo={() => setInfoOpen((open) => !open)}
+          onToggleInfo={togglePanel}
           onDeleted={() => navigate(`/p/${projectId ?? session.projectID}`)}
+          allCollapsed={allCollapsed}
+          canToggleAll={canToggleAll}
+          onToggleAll={toggleAll}
+          showInternal={showInternal}
+          onToggleInternal={toggleInternal}
         />
 
+        {draftCount > 0 && !busy && !isArchivedSession(session) && (
+          <DraftStartPanel sessionID={sessionId} count={draftCount} />
+        )}
         <FormPanel sessionID={sessionId} />
         <PermissionPanel sessionID={sessionId} directory={directory} />
+        {planReady && !replyOpen && (
+          <PlanReadyPanel key={planReady.id} sessionID={sessionId} onSteer={steerFromPlan} />
+        )}
 
-        <MessageList messages={snapshot.messages} streaming={busy} revision={snapshot.revision} />
+        {messagesPending ? (
+          <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
+            <Loader2 className="mr-2 size-4 animate-spin" /> Loading conversation…
+          </div>
+        ) : messagesQuery.isError && allMessages.length === 0 ? (
+          <div className="flex h-full flex-col items-center justify-center gap-3 text-center">
+            <p className="text-sm font-medium">Could not load the conversation</p>
+            <p className="max-w-sm text-xs text-muted-foreground">
+              The server did not return this session&apos;s messages.
+            </p>
+            <Button variant="outline" size="sm" onClick={() => void messagesQuery.refetch()}>
+              Retry
+            </Button>
+          </div>
+        ) : visibleMessages.length === 0 ? (
+          <EmptySessionView
+            title="Start the conversation"
+            description="Open the reply window to write the first prompt. Use / for commands or @ to reference files and agents."
+            actionLabel="Start conversation"
+            actionIcon={<SquarePen className="size-4" />}
+            onAction={() => window.dispatchEvent(new Event('clara:expand-reply'))}
+          />
+        ) : (
+          <MessageList
+            messages={visibleMessages}
+            streaming={busy}
+            showInternal={showInternal}
+            revision={snapshot.revision}
+            historyRevision={snapshot.historyRevision}
+            collapsedIDs={collapsedIDs}
+            hasOlder={snapshot.hasOlder}
+            loadingOlder={messagesQuery.loadingOlder}
+            onLoadOlder={() => void messagesQuery.loadOlder()}
+            onToggleMessage={toggleMessage}
+          />
+        )}
 
-        <Composer
+        <ReplyDock
+          key={sessionId}
+          session={session}
           sessionID={sessionId}
           directory={directory}
           busy={busy}
           disabled={sessionQuery.isError}
+          empty={emptySession}
+          ready={messagesReady}
+          canSaveAsDraft={canSaveAsDraft}
+          startExpanded={startExpanded}
+          onStartExpandedConsumed={clearComposeState}
+          onOpenChange={handleReplyOpenChange}
+          onDone={() => navigate('/')}
+          onCycleAgent={cycleAgent}
         />
+
+        {directory && (
+          <InboxJumpButton
+            projectID={projectId ?? session.projectID}
+            currentSessionID={sessionId}
+            directory={directory}
+            className="absolute bottom-4 left-1/2 z-20 -translate-x-1/2 max-md:bottom-16"
+          />
+        )}
       </div>
 
-      {infoOpen && isDesktop && <SessionInfoPanel session={session} snapshot={snapshot} />}
+      {infoOpen && isDesktop && (
+        <SidePanel
+          session={session}
+          snapshot={snapshot}
+          messages={allMessages}
+          directory={directory}
+          tab={panelTab}
+          onTabChange={setPanelTab}
+        />
+      )}
 
       {!isDesktop && (
         <Sheet open={infoOpen} onOpenChange={setInfoOpen}>
-          <SheetContent side="right" className="w-80 p-0">
-            <SheetTitle className="sr-only">Session info</SheetTitle>
-            <SheetDescription className="sr-only">Usage, cost, and timing</SheetDescription>
-            <SessionInfoPanel session={session} snapshot={snapshot} />
+          <SheetContent side="right" className="p-0 data-[side=right]:w-full sm:max-w-none">
+            <SheetTitle className="sr-only">Session panel</SheetTitle>
+            <SheetDescription className="sr-only">
+              Usage, cost, git changes, and the pair terminal
+            </SheetDescription>
+            <SidePanel
+              session={session}
+              snapshot={snapshot}
+              messages={allMessages}
+              directory={directory}
+              tab={panelTab}
+              onTabChange={setPanelTab}
+              resizable={false}
+              className="w-full"
+            />
           </SheetContent>
         </Sheet>
       )}
     </div>
   )
+}
+
+function inboxDraftToMessage(item: SessionInboxUser): SessionMessageUser {
+  return {
+    id: item.id,
+    metadata: item.payload.metadata,
+    time: item.time,
+    text: item.payload.text,
+    files: item.payload.files,
+    agents: item.payload.agents,
+    skills: item.payload.skills,
+    type: 'user',
+  }
 }

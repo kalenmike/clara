@@ -1,121 +1,276 @@
 import { useState } from 'react'
-import { Brain, ChevronRight, CircleAlert, Cog, FileText, Sparkles, Terminal } from 'lucide-react'
+import {
+  Bot,
+  Brain,
+  ChevronRight,
+  CircleAlert,
+  FileText,
+  Sparkles,
+  Terminal,
+  User,
+} from 'lucide-react'
 import type {
   SessionMessageAssistant,
   SessionMessageInfo,
   SessionMessageShell,
 } from '@opencode/client'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
+import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { Badge } from '@/components/ui/badge'
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
 import { Markdown } from '@/components/chat/markdown'
 import { ToolCard } from '@/components/chat/tool-card'
-import { formatCost, formatDateTime, formatTokens } from '@/lib/format'
+import { assistantHasContent, assistantHasFailed } from '@/features/chat/message-visibility'
+import { formatCost, formatDateTime, formatRelativeTime, formatTokens } from '@/lib/format'
 import { cn } from '@/lib/utils'
 
 export function MessageItem({
   message,
   streaming,
+  showInternal,
+  collapsed = false,
+  onToggle,
 }: {
   message: SessionMessageInfo
   streaming: boolean
+  showInternal: boolean
+  collapsed?: boolean
+  onToggle?: () => void
 }) {
   switch (message.type) {
     case 'user':
-      return <UserMessage message={message} />
+      return <UserMessage message={message} collapsed={collapsed} onToggle={onToggle} />
     case 'assistant':
-      return <AssistantMessage message={message} streaming={streaming} />
+      return (
+        <AssistantMessage
+          message={message}
+          streaming={streaming}
+          showInternal={showInternal}
+          collapsed={collapsed}
+          onToggle={onToggle}
+        />
+      )
     case 'shell':
-      return <ShellMessage message={message} />
+      return <ShellMessage message={message} collapsed={collapsed} onToggle={onToggle} />
     case 'synthetic':
-      return <Note>{message.text}</Note>
-    case 'system':
       return <Note>{message.text}</Note>
     case 'skill':
       return (
         <Note>
-          <Sparkles className="mr-1 inline size-3" />
+          <Sparkles className="size-3" />
           Skill <span className="font-medium">{message.name}</span> activated
         </Note>
       )
-    case 'agent-switched':
-      return <Note>Agent switched to {message.agent}</Note>
     case 'model-switched':
       return <Note>Model switched to {message.model.id}</Note>
     case 'location-switched':
       return <Note>Location switched</Note>
     case 'compaction':
       return <Note>Context compaction {message.status}</Note>
-    case 'idle': {
+    case 'agent-switched':
+    case 'system':
+    case 'idle':
       return null
-    }
     default:
       return null
   }
 }
 
-function UserMessage({ message }: { message: Extract<SessionMessageInfo, { type: 'user' }> }) {
+function MessageRow({
+  role,
+  sender,
+  senderSuffix,
+  timestamp,
+  meta,
+  collapsed,
+  preview,
+  onToggle,
+  children,
+}: {
+  role: 'user' | 'agent'
+  sender: string
+  senderSuffix?: React.ReactNode
+  timestamp: number
+  meta?: string
+  collapsed: boolean
+  preview: string
+  onToggle?: () => void
+  children: React.ReactNode
+}) {
   return (
-    <div className="flex justify-end px-4 py-1.5">
-      <div className="max-w-[85%] rounded-2xl rounded-br-md bg-primary px-4 py-2.5 text-primary-foreground">
-        <div className="whitespace-pre-wrap break-words text-sm">{message.text}</div>
-        {(message.files?.length ?? 0) > 0 && (
-          <div className="mt-2 flex flex-wrap gap-1">
-            {message.files?.map((file, index) => (
-              <Badge key={index} variant="secondary" className="gap-1 text-[10px]">
-                <FileText className="size-3" />
-                {file.name ?? 'file'}
-              </Badge>
-            ))}
-          </div>
+    <Collapsible
+      open={!collapsed}
+      onOpenChange={(open) => {
+        if (open === collapsed) onToggle?.()
+      }}
+    >
+      <article className="px-2 py-1 sm:px-4">
+        <CollapsibleTrigger asChild>
+          <button
+            type="button"
+            aria-label={collapsed ? `Expand ${sender} message` : `Collapse ${sender} message`}
+            className={cn(
+              'flex w-full flex-col gap-1.5 rounded-lg px-2 py-3 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
+              collapsed && 'hover:bg-accent/40'
+            )}
+          >
+            <div className="flex w-full items-start gap-3">
+              <MessageAvatar role={role} />
+              <div className="min-w-0 flex-1">
+                <div className="flex min-w-0 items-center gap-1.5">
+                  <span className="truncate text-sm font-medium">{sender}</span>
+                  {senderSuffix}
+                </div>
+                <time
+                  className="text-xs text-muted-foreground"
+                  dateTime={new Date(timestamp).toISOString()}
+                >
+                  {formatDateTime(timestamp)} ({formatRelativeTime(timestamp)})
+                </time>
+              </div>
+              <ChevronRight
+                aria-hidden="true"
+                className={cn(
+                  'mt-1 size-4 shrink-0 text-muted-foreground transition-transform',
+                  !collapsed && 'rotate-90'
+                )}
+              />
+            </div>
+
+            {collapsed && preview ? (
+              <p className="w-full truncate pl-12 text-xs text-muted-foreground">{preview}</p>
+            ) : null}
+          </button>
+        </CollapsibleTrigger>
+
+        <CollapsibleContent>
+          <div className="pr-2 pb-3 pl-14 text-sm leading-relaxed">{children}</div>
+
+          {meta ? (
+            <div className="pr-2 pb-3 pl-14 text-[11px] text-muted-foreground">{meta}</div>
+          ) : null}
+        </CollapsibleContent>
+      </article>
+    </Collapsible>
+  )
+}
+
+function MessageAvatar({ role }: { role: 'user' | 'agent' }) {
+  return (
+    <Avatar aria-hidden="true" className="size-9">
+      <AvatarFallback
+        className={cn(
+          'font-medium',
+          role === 'user' ? 'bg-primary text-primary-foreground' : 'bg-muted text-foreground'
         )}
-        {message.agents?.map((agent, index) => (
-          <Badge key={index} variant="secondary" className="mt-2 mr-1 text-[10px]">
-            @{agent.name}
-          </Badge>
-        ))}
-      </div>
-    </div>
+      >
+        {role === 'user' ? (
+          <User className="size-4" aria-hidden="true" />
+        ) : (
+          <Bot className="size-4" aria-hidden="true" />
+        )}
+      </AvatarFallback>
+    </Avatar>
+  )
+}
+
+function UserMessage({
+  message,
+  collapsed,
+  onToggle,
+}: {
+  message: Extract<SessionMessageInfo, { type: 'user' }>
+  collapsed: boolean
+  onToggle?: () => void
+}) {
+  return (
+    <MessageRow
+      role="user"
+      sender="User"
+      timestamp={message.time.created}
+      collapsed={collapsed}
+      preview={userPreview(message)}
+      onToggle={onToggle}
+    >
+      <div className="whitespace-pre-wrap break-words">{message.text}</div>
+      {(message.files?.length ?? 0) > 0 && (
+        <div className="mt-2 flex flex-wrap gap-1">
+          {message.files?.map((file, index) => (
+            <Badge key={index} variant="secondary" className="gap-1 text-[10px]">
+              <FileText className="size-3" />
+              {file.name ?? 'file'}
+            </Badge>
+          ))}
+        </div>
+      )}
+      {message.agents?.map((agent, index) => (
+        <Badge key={index} variant="secondary" className="mt-2 mr-1 text-[10px]">
+          @{agent.name}
+        </Badge>
+      ))}
+    </MessageRow>
   )
 }
 
 function AssistantMessage({
   message,
   streaming,
+  showInternal,
+  collapsed,
+  onToggle,
 }: {
   message: SessionMessageAssistant
   streaming: boolean
+  showInternal: boolean
+  collapsed: boolean
+  onToggle?: () => void
 }) {
-  const hasContent = message.content.some((part) =>
-    part.type === 'text'
-      ? part.text.trim().length > 0
-      : part.type === 'tool'
-        ? true
-        : part.text.trim().length > 0
-  )
+  const hasContent = assistantHasContent(message, showInternal)
+
+  const meta = [
+    message.tokens
+      ? `${formatTokens(message.tokens.input)} in · ${formatTokens(message.tokens.output)} out`
+      : null,
+    message.cost ? formatCost(message.cost) : null,
+  ]
+    .filter(Boolean)
+    .join(' · ')
 
   return (
-    <div className="px-4 py-1.5">
-      <div className="mb-1 flex flex-wrap items-center gap-2 text-[10px] text-muted-foreground">
-        <span className="flex items-center gap-1 font-medium text-foreground/80">
-          <Cog className="size-3" />
-          {message.agent || 'assistant'}
-        </span>
-        <span>{message.model.id}</span>
-        {message.cost ? <span>{formatCost(message.cost)}</span> : null}
-        {message.tokens ? (
-          <span>
-            {formatTokens(message.tokens.input)} in · {formatTokens(message.tokens.output)} out
-          </span>
-        ) : null}
-        <span>{formatDateTime(message.time.created)}</span>
-      </div>
-
+    <MessageRow
+      role="agent"
+      sender={message.model.id}
+      senderSuffix={
+        message.agent ? (
+          <Badge
+            variant="secondary"
+            className="h-4 shrink-0 gap-1 px-1.5 text-[10px] font-normal text-muted-foreground"
+            title={`Agent ${message.agent}`}
+          >
+            <Bot className="size-3" />
+            {message.agent}
+          </Badge>
+        ) : undefined
+      }
+      timestamp={message.time.created}
+      meta={meta}
+      collapsed={collapsed && !assistantHasFailed(message)}
+      preview={assistantPreview(message, showInternal)}
+      onToggle={onToggle}
+    >
       {message.error && (
-        <Alert variant="destructive" className="my-2">
+        <Alert variant="destructive" className="mb-3">
           <CircleAlert className="size-4" />
-          <AlertTitle>{message.error.type}</AlertTitle>
-          <AlertDescription>{message.error.message}</AlertDescription>
+          <AlertTitle>
+            {message.error.type}
+            {message.error.status ? ` · HTTP ${message.error.status}` : ''}
+          </AlertTitle>
+          <AlertDescription>
+            <p>{message.error.message}</p>
+            {errorHint(message.error.type) && (
+              <p className="mt-1 text-xs opacity-80">{errorHint(message.error.type)}</p>
+            )}
+          </AlertDescription>
         </Alert>
       )}
 
@@ -126,23 +281,24 @@ function AssistantMessage({
         </div>
       )}
 
-      <div className={cn('space-y-0.5', streaming && 'min-h-4')}>
+      <div className={cn('space-y-2', streaming && 'min-h-4')}>
         {message.content.map((part, index) => {
           if (part.type === 'text') {
             if (!part.text.trim()) return null
             return <Markdown key={`text-${index}`}>{part.text}</Markdown>
           }
           if (part.type === 'reasoning') {
-            if (!part.text.trim()) return null
+            if (!showInternal || !part.text.trim()) return null
             return <ReasoningPart key={`reasoning-${index}`} text={part.text} />
           }
           if (part.type === 'tool') {
+            if (!showInternal) return null
             return <ToolCard key={`tool-${part.id}-${index}`} tool={part} />
           }
           return null
         })}
       </div>
-    </div>
+    </MessageRow>
   )
 }
 
@@ -170,9 +326,65 @@ function ReasoningPart({ text }: { text: string }) {
   )
 }
 
-function ShellMessage({ message }: { message: SessionMessageShell }) {
+function userPreview(message: Extract<SessionMessageInfo, { type: 'user' }>): string {
+  const text = firstLine(message.text)
+  if (text) return text
+  const files = message.files?.length ?? 0
+  if (files > 0) return `${files} attachment${files === 1 ? '' : 's'}`
+  return ''
+}
+
+function assistantPreview(message: SessionMessageAssistant, showInternal: boolean): string {
+  let reasoning = ''
+  for (const part of message.content) {
+    if (part.type === 'text') {
+      const text = firstLine(part.text)
+      if (text) return text
+    } else if (part.type === 'tool') {
+      if (showInternal) return part.name
+    } else if (showInternal && !reasoning) {
+      reasoning = firstLine(part.text)
+    }
+  }
+  if (reasoning) return reasoning
+  if (message.error) return firstLine(message.error.message)
+  return ''
+}
+
+function firstLine(text: string): string {
+  const line = text.split('\n').find((value) => value.trim().length > 0)
+  return line?.trim() ?? ''
+}
+
+/** Plain-language next step for the provider failures OpenCode reports most often. */
+function errorHint(type: string): string | null {
+  if (type === 'provider.auth') {
+    return 'Check this provider’s credentials in OpenCode, or switch to another model.'
+  }
+  if (type === 'provider.quota') {
+    return 'This provider account has no available credit. Top up the account or switch models.'
+  }
+  return null
+}
+
+function ShellMessage({
+  message,
+  collapsed,
+  onToggle,
+}: {
+  message: SessionMessageShell
+  collapsed: boolean
+  onToggle?: () => void
+}) {
   return (
-    <div className="px-4 py-1.5">
+    <MessageRow
+      role="agent"
+      sender="Shell"
+      timestamp={message.time.created}
+      collapsed={collapsed}
+      preview={firstLine(message.command)}
+      onToggle={onToggle}
+    >
       <div className="overflow-hidden rounded-lg border bg-card">
         <div className="flex items-center gap-2 border-b px-3 py-1.5 text-[11px]">
           <Terminal className="size-3.5 text-muted-foreground" />
@@ -185,16 +397,14 @@ function ShellMessage({ message }: { message: SessionMessageShell }) {
           </pre>
         )}
       </div>
-    </div>
+    </MessageRow>
   )
 }
 
 function Note({ children }: { children: React.ReactNode }) {
   return (
-    <div className="flex justify-center px-4 py-2">
-      <div className="max-w-[90%] rounded-full border bg-muted/40 px-3 py-1 text-center text-[11px] text-muted-foreground">
-        {children}
-      </div>
+    <div className="px-4 py-3 text-xs italic text-muted-foreground sm:px-6">
+      <div className="flex items-center gap-1.5">{children}</div>
     </div>
   )
 }

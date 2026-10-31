@@ -1,16 +1,29 @@
-import { useEffect } from 'react'
-import { Navigate } from 'react-router'
-import { Loader2 } from 'lucide-react'
+import { useEffect, useMemo } from 'react'
+import { Loader2, Plus } from 'lucide-react'
+import { EmptySessionView } from '@/components/chat/empty-session-view'
 import { useProjects } from '@/features/projects/use-projects'
+import { useSessions } from '@/features/sessions/use-sessions'
+import { useStartSession } from '@/features/sessions/use-start-session'
 import { readLastProject, saveLastProject } from '@/lib/storage'
 import { useConnection } from '@/providers/connection-provider'
 
 export function HomePage() {
   const { status } = useConnection()
   const projectsQuery = useProjects()
-  const projects = projectsQuery.data ?? []
+  const projects = useMemo(() => projectsQuery.data ?? [], [projectsQuery.data])
   const last = readLastProject()
-  const project = projects.find((item) => item.id === last) ?? projects[0]
+  const project = useMemo(
+    () => projects.find((item) => item.id === last) ?? projects[0] ?? null,
+    [last, projects]
+  )
+  const sessionsQuery = useSessions(project?.canonical ?? null, '')
+  const latest = sessionsQuery.data?.data[0]
+  const { startSession, pending } = useStartSession({
+    projectID: project?.id,
+    directory: project?.canonical,
+    agent: latest?.agent,
+    model: latest?.model,
+  })
 
   useEffect(() => {
     if (project) saveLastProject(project.id)
@@ -27,14 +40,22 @@ export function HomePage() {
 
   if (!project) {
     return (
-      <div className="flex h-full flex-col items-center justify-center gap-2 p-8 text-center">
-        <h1 className="text-lg font-semibold">No projects yet</h1>
-        <p className="max-w-sm text-sm text-muted-foreground">
-          Open a directory with OpenCode first. Projects appear here once the server has seen them.
-        </p>
-      </div>
+      <EmptySessionView
+        title="No projects yet"
+        description="Open a directory with OpenCode first. Projects appear here once the server has seen them."
+      />
     )
   }
 
-  return <Navigate to={`/p/${project.id}`} replace />
+  return (
+    <EmptySessionView
+      projectName={project.name ?? project.canonical}
+      title="Start a new session"
+      description="Draft your initial prompt below to start working with the agent. Use / for commands or @ to reference files and agents."
+      actionLabel="New Session"
+      actionIcon={<Plus className="size-4" />}
+      onAction={startSession}
+      actionPending={pending}
+    />
+  )
 }

@@ -2,15 +2,19 @@
 
 ## Summary
 
-The session info panel answers "how big is this conversation and what has it
+The session info tab answers "how big is this conversation and what has it
 cost?" It shows context usage against the model limit, token breakdowns, message
-counts, timing, and the active model's limits.
+counts, timing, and the active model's limits. It shares the right panel with
+the [Git](git.md) tab and the [pair terminal](pair-terminal.md).
 
 ## User flow
 
 1. Open a session and press the panel button in the header, or `ctrl+x` then `s`.
-2. On wide screens the panel opens on the right; on narrow screens it opens as a
-   sheet.
+   The panel opens on the Info tab; use the Git or Terminal tab beside it for
+   branch and change information or a live command log.
+2. On wide screens the panel opens on the right; drag its left edge to resize it
+   between 240 and 640px (capped so the chat keeps usable width), or double-click
+   the handle to reset. On narrow screens it opens as a sheet.
 3. Read context usage as a percentage and bar, with used and limit tokens.
 4. Read cost and the input, output, reasoning, cache-read, and cache-write totals.
 5. Read message counts: prompts from you, replies from the agent, tool calls, and
@@ -24,10 +28,12 @@ counts, timing, and the active model's limits.
    writes, measured against the model's context limit.
 2. Cost and token totals prefer live usage events, then fall back to the session
    record.
-3. Message counts come from the full session context, not the visible 100-message
-   page.
+3. Message counts come from the full session context, not the pages loaded in
+   the chat.
 4. The panel is available on every session, including empty ones.
-5. The panel is read-only; it never changes the session.
+5. The panel is read-only; it never changes the session. The selected tab and the
+   panel width are remembered across reloads, and only the visible tab loads its
+   data. The width is shared by the Info, Git, and Terminal tabs.
 
 ## Edge cases
 
@@ -43,8 +49,10 @@ counts, timing, and the active model's limits.
 - **Huge counts** — numbers are compacted (for example 1.2M).
 - **Session without an agent or model** — badges fall back to `build` and
   `default`.
-- **Narrow viewport** — the panel becomes a sheet and does not overlap the
-  composer when closed.
+- **Narrow viewport** — the panel becomes a sheet and does not overlap the reply
+  window when closed.
+- **Small desktop viewport** — the panel's maximum width shrinks so the chat keeps
+  at least 360px beside the sidebar.
 - **Switching sessions with the panel open** — it re-reads the new session and
   never keeps the previous session's numbers.
 
@@ -70,11 +78,15 @@ counts, timing, and the active model's limits.
 <summary>Routes, data, and references</summary>
 
 - Component: `src/components/layout/session-info-panel.tsx`
+- Tab shell: `src/components/layout/side-panel.tsx`
+- Resize: `src/hooks/use-side-panel-width.ts` over the shared
+  `src/hooks/use-panel-width.ts`; width stored in `clara.sidePanelWidth`
+  (240–640px, default 320px)
 - Session: `client.session.get({ sessionID })`
 - Context entries: `client.session.context({ sessionID })`
 - Models and limits: `client.model.list()`
 - Live usage: `session.usage.updated`, `session.step.ended`
 - Context percentages are clamped to 100 and never show a negative width.
-- Related: [chat](chat.md), [capabilities](capabilities.md)
+- Related: [chat](chat.md), [git](git.md), [capabilities](capabilities.md)
 
 </details>

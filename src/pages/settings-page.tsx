@@ -1,10 +1,14 @@
 import { useNavigate } from 'react-router'
 import { useTheme } from 'next-themes'
-import { Check, LogOut, Monitor, Moon, Server, Sun } from 'lucide-react'
+import { Check, Loader2, LogOut, Monitor, Moon, RefreshCw, Server, Sun } from 'lucide-react'
+import { toast } from 'sonner'
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Separator } from '@/components/ui/separator'
+import { NotificationsCard } from '@/components/settings/notifications-card'
 import { useConnection } from '@/providers/connection-provider'
+import { useEventStream } from '@/providers/event-provider'
 import { cn } from '@/lib/utils'
 
 const SHORTCUTS: Array<[string, string]> = [
@@ -14,9 +18,13 @@ const SHORTCUTS: Array<[string, string]> = [
   ['ctrl+x then a', 'Agent picker'],
   ['ctrl+x then c', 'Compact session'],
   ['ctrl+x then s', 'Session info'],
+  ['ctrl+x then g', 'Git changes'],
+  ['ctrl+x then `', 'Pair terminal'],
+  ['ctrl+x then h', 'Collapse messages'],
   ['ctrl+x then t', 'Toggle theme'],
   ['ctrl+x then y', 'Copy last reply'],
-  ['tab / shift+tab', 'Cycle agent'],
+  ['tab / shift+tab', 'Cycle agent in the message box'],
+  ['ctrl+. / ctrl+shift+.', 'Cycle agent from anywhere'],
   ['ctrl+t', 'Cycle model variant'],
   ['escape', 'Interrupt or close'],
   ['shift+enter', 'New line'],
@@ -25,11 +33,18 @@ const SHORTCUTS: Array<[string, string]> = [
 export function SettingsPage() {
   const navigate = useNavigate()
   const { theme, setTheme } = useTheme()
-  const { config, info, disconnect } = useConnection()
+  const { config, info, disconnect, reconnect, reconnecting, reconnectError } = useConnection()
+  const { state: streamState, lastError } = useEventStream()
 
   const signOut = () => {
     disconnect()
     navigate('/connect', { replace: true })
+  }
+
+  const retry = async () => {
+    const ok = await reconnect()
+    if (ok) toast.success('Reconnected to OpenCode')
+    else toast.error('Could not reach the server. Check that OpenCode is running.')
   }
 
   return (
@@ -37,7 +52,9 @@ export function SettingsPage() {
       <div className="mx-auto max-w-3xl space-y-6 p-6">
         <div>
           <h1 className="text-xl font-semibold tracking-tight">Settings</h1>
-          <p className="text-sm text-muted-foreground">Connection, appearance, and shortcuts.</p>
+          <p className="text-sm text-muted-foreground">
+            Connection, appearance, notifications, sounds, and shortcuts.
+          </p>
         </div>
 
         <Card>
@@ -52,10 +69,33 @@ export function SettingsPage() {
             <Row label="Version" value={info?.version ?? 'unknown'} />
             <Row label="PID" value={info ? String(info.pid) : 'unknown'} />
             <Row label="URLs" value={info?.urls.join(', ') ?? 'unknown'} />
+            <Row label="Stream" value={streamState} />
+            {lastError && <Row label="Stream error" value={lastError} />}
             <Separator />
-            <Button variant="outline" size="sm" onClick={signOut}>
-              <LogOut className="size-4" /> Disconnect
-            </Button>
+            <div className="flex flex-wrap items-center gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => void retry()}
+                disabled={reconnecting}
+              >
+                {reconnecting ? (
+                  <Loader2 className="size-4 animate-spin" />
+                ) : (
+                  <RefreshCw className="size-4" />
+                )}
+                Reconnect
+              </Button>
+              <Button variant="outline" size="sm" onClick={signOut}>
+                <LogOut className="size-4" /> Disconnect
+              </Button>
+            </div>
+            {reconnectError && (
+              <Alert variant="destructive">
+                <AlertTitle>Reconnect failed</AlertTitle>
+                <AlertDescription>{reconnectError}</AlertDescription>
+              </Alert>
+            )}
           </CardContent>
         </Card>
 
@@ -84,6 +124,8 @@ export function SettingsPage() {
             ))}
           </CardContent>
         </Card>
+
+        <NotificationsCard />
 
         <Card>
           <CardHeader>
