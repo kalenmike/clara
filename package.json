@@ -17,8 +17,10 @@
     "test": "pnpm -r --if-present test",
     "knip": "knip",
     "check": "pnpm typecheck && pnpm lint && pnpm format:check && pnpm knip && pnpm test",
-    "deploy:web": "pnpm --filter @clara/web deploy",
-    "deploy:relay": "pnpm --filter @clara/relay deploy"
+    "deploy:web": "pnpm --filter @clara/web run deploy",
+    "deploy:relay": "pnpm --filter @clara/relay run deploy",
+    "clara:serve": "pnpm --filter @clara/server exec node dist/index.js",
+    "clara:pair": "pnpm --filter @clara/server exec node dist/index.js pair"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
