@@ -12,16 +12,17 @@ either header can be folded with a click. Assistant headers show the model name
 and the agent that produced the reply. A header toggle reveals internal output
 such as thinking, tool calls, and commands; internal output is hidden by
 default. When a Plan run finishes, a plan-ready card appears above the thread so
-the person can steer the plan or hand off to Build. A session saved as a draft
-shows its queued user message in the thread and a Start card above it.
+the person can steer the plan or hand off to Build. A session with no messages
+shows a dedicated New message view, and a session saved as a draft shows its
+queued user message in the thread and a Start card above it.
 
 ## User flow
 
 1. Open a session from the sidebar or project page. A session with no messages
-   and no saved draft shows the empty session view instead of the message list;
-   its **Start conversation** button opens the reply window in the last-used
-   size (expanded by default). Creating a new session opens that window
-   automatically.
+   and no saved draft shows a dedicated New message view instead of the message
+   list. Creating a new session opens the composer automatically in the
+   last-used size (expanded by default). Opening an empty draft with locally
+   saved text opens the composer too; otherwise press **New** to reopen it.
 2. Clara loads the newest messages and scrolls to the bottom.
 3. Click **Reply**, type in the reply window, and press Enter; the prompt appears
    immediately and the header switches to "running".
@@ -31,11 +32,13 @@ shows its queued user message in the thread and a Start card above it.
    commands and their streamed output separately.
 5. When the run is idle, a bright **Done** button appears next to the floating
    Reply button. Clicking it plays an optional completion chime, briefly
-   celebrates, appends `[DONE]` to the session title, archives the session, and
-   returns to the start view.
-6. On an archived session, **Reopen** replaces Done next to Reply. Clicking it
-   clears the archive state and leaves the title, including any `[DONE]` suffix,
-   as it is.
+   celebrates, archives the session without changing its title, and returns to
+   the start view. On an empty draft, a simple **Delete** button replaces Done
+   and **New** replaces Reply; Delete removes the session immediately without
+   the celebration or chime.
+6. On an archived or snoozed session, **Reopen** replaces Done next to Reply.
+   Clicking it clears the archive and snooze state as applicable and leaves the
+   title untouched.
 7. Tool calls appear as cards that expand to show input, output, duration, and
    status when internal output is on.
 8. If a tool needs approval, a permission panel appears above the message list
@@ -53,6 +56,9 @@ shows its queued user message in the thread and a Start card above it.
     first line only. The button in the top-right folds or opens every message.
 14. Click the eye button next to it to show or hide internal output. The choice
     is remembered across sessions and reloads.
+15. The header's more menu can **Snooze session** or **Remove from Snoozed**.
+    Snoozing moves the session to the sidebar's Snoozed bucket and replaces Done
+    with Reopen.
 
 ## Core business rules
 
@@ -70,9 +76,11 @@ shows its queued user message in the thread and a Start card above it.
    timestamp, and a divider. Assistant headers show the model name and an agent
    chip with the bot icon. Token and cost details appear in a muted footer under
    the content; system events render as avatar-less notes.
-7. The newest message starts expanded and every earlier message starts collapsed.
-   When a new message arrives, the previous one collapses again unless it was
-   folded or opened by hand.
+7. The newest prompt or reply starts expanded and every earlier reply starts
+   collapsed. An assistant step does not count as a reply until it has text (or
+   fails), so the prompt that started a run stays expanded while the agent is
+   thinking or calling tools. When the agent replies, the previous message
+   collapses again unless it was folded or opened by hand.
 8. A collapsed message shows only its header and a one-line preview: the prompt's
    first line, the first assistant text, or the shell command. Internal reasoning
    and tool names only appear in the preview when internal output is on. Usage
@@ -86,19 +94,21 @@ shows its queued user message in the thread and a Start card above it.
     detail level.
 11. Agent-switched and system-reminder messages are never rendered; the agent is
     shown on the assistant header instead.
-12. Done is available only while the reply window is closed and the agent is
-    idle. On a session with messages it archives the session on the server,
-    appends `[DONE]` unless a `[DONE]` or `(DONE)` suffix is already present,
-    and returns to the start view. On an empty session it deletes the session
-    instead. The button is hidden while the agent is running and for sessions
-    that are already archived. Empty sessions hide the floating Reply button;
-    the reply window opens in the last-used size from the empty view action. The
+12. Done is available only while the composer is closed, the agent is idle, and
+    the session has a message. It archives the session on the server without
+    changing its title and returns to the start view. An empty, non-archived
+    draft shows a simple **Delete** action instead: it removes the session
+    immediately without the celebration, chime, or redirect delay. Empty drafts
+    show **New** in place of Reply; New opens the composer in the last-used
+    size, and opening an empty draft with locally saved composer text opens it
+    automatically. The New message view itself has no action button. The Done
     button plays the UI completion chime when **UI sounds** is on; its animation
     and success toast do not depend on sound settings. The start view returns
     after a short celebration delay.
-13. Archived sessions show Reopen instead of Done next to Reply. Reopen clears
-    the server's archived flag without renaming the session, so the session
-    returns to its mailbox section with its `[DONE]` title intact.
+13. Archived or snoozed sessions show Reopen instead of Done next to Reply.
+    Reopen clears the server's archived flag and any snooze metadata without
+    renaming the session, so the session returns to its mailbox section with its
+    title intact. Archived wins when both flags are present.
 14. The plan-ready card appears only while the session is idle, the session agent
     is Plan, and the newest user or assistant message is a Plan reply that
     finished with `stop` and no error. It is hidden while the reply window is
@@ -121,9 +131,11 @@ shows its queued user message in the thread and a Start card above it.
   provider reconnects with backoff, and a successful reconnect refetches the
   queries that missed events would have invalidated.
 - **Session missing** — a "Session not found" state offers the project page.
-- **Empty session** — the empty session view replaces the message list, the
-  floating Reply button is hidden, and Start conversation opens the reply window
-  in the last-used size.
+- **Empty draft** — the New message view replaces the message list, **New**
+  replaces Reply, and **Delete** replaces Done. The composer opens
+  automatically when locally saved text exists.
+- **Draft restored** — reopening an empty draft with locally saved text opens
+  the composer with that text; after closing, the New button shows a draft dot.
 - **Saved draft** — the draft is a pending inbox item, not a projected message.
   It is rendered in the thread and the Start card appears; Done archives rather
   than deletes because the draft counts as a message.
@@ -150,7 +162,10 @@ shows its queued user message in the thread and a Start card above it.
   streams in; the header button opens it again.
 - **Tool-only reply** — with internal output off, an assistant message that only
   contains reasoning or tool calls is hidden. While it is still streaming, the
-  newest message keeps a “Thinking…” indicator.
+  newest message keeps a “Thinking…” indicator and the prompt that started the
+  run stays expanded until the agent produces text.
+- **Prompt sent to a running agent** — the new prompt takes over as the expanded
+  message; the previous reply collapses unless it was opened by hand.
 - **Plan reply without `stop`** — a Plan run that ends on a tool call, an error,
   or a non-stop finish does not show the plan-ready card.
 - **Stale plan handoff** — the card requires the session agent and the newest
@@ -164,16 +179,23 @@ shows its queued user message in the thread and a Start card above it.
 - **Mixed collapse state** — the header button folds every visible message first;
   pressing it again opens them all. Hidden internal messages are not counted.
 - **Done while running** — the button is hidden until the agent is idle.
-- **Done on an empty session** — the session is deleted and the start view
-  returns; no `[DONE]` title is written.
-- **Done on an archived session** — the button is hidden and Reopen is shown
-  instead; the chat remains readable.
+- **Delete on an empty draft** — the session is removed immediately and the
+  start view returns; the title is left untouched.
+- **Done on an archived or snoozed session** — the button is hidden and Reopen
+  is shown instead; the chat remains readable.
+- **Snoozing while running** — the session moves to Snoozed, but Reopen stays
+  hidden until the run finishes.
 - **UI sounds off** — Done archives silently, but the button animation and
   success toast still play. Inbox alert sounds are controlled separately.
-- **Reopen** — clears the archived flag, leaves the title untouched, and returns
-  to the same view without navigating away.
-- **Title already suffixed** — `[DONE]` and `(DONE)` titles are not suffixed
-  again when archived, and reopening keeps them as they are.
+- **Reopen** — clears the archived flag and any snooze metadata, leaves the title
+  untouched, and returns to the same view without navigating away.
+- **Title preserved on archive** — Done archives the session as-is, so existing
+  titles, including legacy `[DONE]` and `(DONE)` suffixes, are never changed.
+- **Narrow viewport** — the session title keeps its own row and ellipsizes; the
+  internal-output, collapse-all, side-panel, and more actions move into the Clara
+  app bar above it instead of sharing the title row. Every icon control in the
+  mobile chrome uses a 44px touch target and a 20px glyph, while the desktop
+  header keeps its compact 32px controls.
 
 ## Out of scope
 
@@ -206,11 +228,15 @@ shows its queued user message in the thread and a Start card above it.
   thread by message ID
 - Start draft: `client.session.prompt({ sessionID, text: 'Start', delivery: 'steer' })`
 - Start card: `src/components/chat/draft-start-panel.tsx`
+- New message view: `src/components/chat/draft-session-view.tsx`
 - Done: `client.session.update({ sessionID, title, archived: true })`; the
   button is `src/components/chat/done-button.tsx` and the chime is
   `playDoneSound` in `src/features/notifications/sounds.ts`
-- Reopen: `client.session.update({ sessionID, archived: false })` — no title
-- Done on empty: `client.session.remove({ sessionID })`
+- Snooze: `client.session.update({ sessionID, metadata: { ...existing, snoozed: true } })`
+- Reopen: `client.session.update({ sessionID, archived: false, metadata? })` —
+  clears archived and snooze metadata; no title change
+- Delete empty draft: `client.session.remove({ sessionID })`; the button is
+  rendered by `src/components/chat/reply-dock.tsx`
 - Interrupt: `client.session.interrupt({ sessionID })`
 - Approvals: `client.permission.request.list`, `client.permission.reply`
 - Forms: `client.session.form.list`, `client.session.form.reply`
@@ -226,6 +252,7 @@ shows its queued user message in the thread and a Start card above it.
 - Collapse state: `src/hooks/use-collapsed-messages.ts`
 - Internal-output visibility: `src/features/chat/message-visibility.ts`
 - Internal-output preference: `clara.internalMessages` in `localStorage`
+- Local composer draft: `clara.draft.<sessionID>` in `localStorage`
 - Related: [capabilities](capabilities.md), [composer](composer.md)
 
 </details>

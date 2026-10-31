@@ -51,9 +51,9 @@ export function ModelPicker({
         size="sm"
         onClick={() => onOpenChange(true)}
         title={currentModel ? `${currentModel.providerID}/${currentModel.modelID}` : undefined}
-        className="max-w-40 min-w-0 shrink gap-1.5 sm:max-w-56"
+        className="max-w-40 min-w-0 shrink gap-1.5 max-md:h-11 max-md:px-3 max-md:text-sm sm:max-w-56"
       >
-        <Cpu className="size-3.5 text-muted-foreground" />
+        <Cpu className="size-3.5 text-muted-foreground max-md:size-5" />
         <span className="truncate text-xs">
           {currentModel?.name ?? session?.model?.id ?? 'default'}
         </span>
@@ -127,9 +127,9 @@ export function VariantPicker({ session }: { session: SessionInfo | undefined })
           type="button"
           variant="outline"
           size="sm"
-          className="h-7 max-w-24 min-w-0 shrink gap-1 text-[11px] text-muted-foreground sm:max-w-36"
+          className="h-7 max-w-24 min-w-0 shrink gap-1 text-[11px] text-muted-foreground max-md:h-11 max-md:px-3 max-md:text-sm sm:max-w-36"
         >
-          <SlidersHorizontal className="size-3" />
+          <SlidersHorizontal className="size-3 max-md:size-5" />
           <span className="truncate">{current}</span>
         </Button>
       </DropdownMenuTrigger>

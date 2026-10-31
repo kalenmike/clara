@@ -363,17 +363,18 @@ function handleInvalidation(
       invalidateSoon('vcs', ['vcs'])
       return
 
-    case 'form.created':
+    case 'form.created': {
+      const { sessionID } = event.data.form
+      void queryClient.invalidateQueries({ queryKey: queryKeys.forms(sessionID) })
+      invalidateSoon(`mailbox:${sessionID}`, queryKeys.sessionMailbox(sessionID))
+      return
+    }
+
     case 'form.replied':
     case 'form.cancelled': {
-      const formData = event.data as { sessionID?: string }
-      if (formData.sessionID) {
-        void queryClient.invalidateQueries({ queryKey: queryKeys.forms(formData.sessionID) })
-        invalidateSoon(
-          `mailbox:${formData.sessionID}`,
-          queryKeys.sessionMailbox(formData.sessionID)
-        )
-      }
+      const { sessionID } = event.data
+      void queryClient.invalidateQueries({ queryKey: queryKeys.forms(sessionID) })
+      invalidateSoon(`mailbox:${sessionID}`, queryKeys.sessionMailbox(sessionID))
       return
     }
 

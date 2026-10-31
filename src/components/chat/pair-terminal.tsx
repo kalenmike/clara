@@ -7,6 +7,7 @@ import {
   type TerminalEntry,
   type TerminalStatus,
 } from '@/features/chat/terminal-log'
+import { useSessionWording } from '@/features/sessions/use-wording'
 import { formatDuration } from '@/lib/format'
 import { cn } from '@/lib/utils'
 import { useEventStream } from '@/providers/event-provider'
@@ -25,6 +26,7 @@ export function PairTerminal({
   status: ChatSnapshot['status']
 }) {
   const scrollRef = useRef<HTMLDivElement>(null)
+  const { lowerSingular } = useSessionWording()
   const [follow, setFollow] = useState(true)
   const log = useMemo(() => buildTerminalLog(messages), [messages])
   const live = useEventStream().live
@@ -72,7 +74,7 @@ export function PairTerminal({
         <div className="min-w-0 flex-1">
           <div className="truncate text-[11px] font-medium text-zinc-100">Pair terminal</div>
           <div className="truncate font-mono text-[10px] text-zinc-500">
-            {title || directory || 'This session'}
+            {title || directory || `This ${lowerSingular}`}
           </div>
         </div>
         <div

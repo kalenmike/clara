@@ -1,14 +1,17 @@
 import { useEffect, useMemo } from 'react'
 import { Loader2, Plus } from 'lucide-react'
 import { EmptySessionView } from '@/components/chat/empty-session-view'
+import { InboxMonitorToggle } from '@/components/chat/inbox-monitor-toggle'
 import { useProjects } from '@/features/projects/use-projects'
 import { useSessions } from '@/features/sessions/use-sessions'
 import { useStartSession } from '@/features/sessions/use-start-session'
+import { useSessionWording } from '@/features/sessions/use-wording'
 import { readLastProject, saveLastProject } from '@/lib/storage'
 import { useConnection } from '@/providers/connection-provider'
 
 export function HomePage() {
   const { status } = useConnection()
+  const { lowerSingular } = useSessionWording()
   const projectsQuery = useProjects()
   const projects = useMemo(() => projectsQuery.data ?? [], [projectsQuery.data])
   const last = readLastProject()
@@ -49,13 +52,13 @@ export function HomePage() {
 
   return (
     <EmptySessionView
-      projectName={project.name ?? project.canonical}
-      title="Start a new session"
-      description="Draft your initial prompt below to start working with the agent. Use / for commands or @ to reference files and agents."
-      actionLabel="New Session"
+      title="What's next on the list?"
+      description="Give Clara something to work on!"
+      actionLabel={`New ${lowerSingular}`}
       actionIcon={<Plus className="size-4" />}
       onAction={startSession}
       actionPending={pending}
+      footer={<InboxMonitorToggle />}
     />
   )
 }

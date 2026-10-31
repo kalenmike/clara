@@ -3,6 +3,7 @@ import { Check, Loader2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { useNotificationSettings } from '@/features/notifications/use-notification-settings'
 import { playDoneSound } from '@/features/notifications/sounds'
+import { useSessionWording } from '@/features/sessions/use-wording'
 import { cn } from '@/lib/utils'
 
 const BURST_PARTICLES = [
@@ -18,16 +19,9 @@ const BURST_PARTICLES = [
 
 const BURST_COLORS = ['bg-emerald-400', 'bg-lime-400', 'bg-teal-300', 'bg-emerald-300'] as const
 
-export function DoneButton({
-  empty,
-  pending,
-  onConfirm,
-}: {
-  empty: boolean
-  pending: boolean
-  onConfirm: () => void
-}) {
+export function DoneButton({ pending, onConfirm }: { pending: boolean; onConfirm: () => void }) {
   const { settings } = useNotificationSettings()
+  const { lowerSingular } = useSessionWording()
   const [burst, setBurst] = useState(false)
   const timer = useRef<number | undefined>(undefined)
 
@@ -57,10 +51,10 @@ export function DoneButton({
       size="lg"
       onClick={handleClick}
       disabled={pending}
-      aria-label={empty ? 'Delete empty session' : 'Mark session done and archive'}
-      title={empty ? 'Delete empty session' : 'Mark done and archive'}
+      aria-label={`Mark ${lowerSingular} done and archive`}
+      title="Mark done and archive"
       className={cn(
-        'group relative h-9 overflow-visible rounded-full bg-gradient-to-r from-emerald-500 via-green-500 to-teal-500 px-4 font-semibold text-white shadow-lg shadow-emerald-500/25',
+        'group relative h-9 overflow-visible rounded-full bg-gradient-to-r from-emerald-500 via-green-500 to-teal-500 px-4 font-semibold text-white shadow-lg shadow-emerald-500/25 max-md:h-11',
         'transition-all duration-200 hover:-translate-y-0.5 hover:from-emerald-400 hover:via-green-400 hover:to-teal-400 hover:shadow-xl hover:shadow-emerald-500/40',
         'active:translate-y-0 active:scale-95',
         'focus-visible:border-emerald-400 focus-visible:ring-emerald-400/50 focus-visible:ring-offset-2 focus-visible:ring-offset-background',

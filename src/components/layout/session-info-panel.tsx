@@ -6,6 +6,7 @@ import { Separator } from '@/components/ui/separator'
 import { useModels } from '@/features/catalog/use-catalog'
 import type { ChatSnapshot } from '@/features/chat/chat-store'
 import { useSessionContext } from '@/features/chat/use-session-context'
+import { useSessionWording } from '@/features/sessions/use-wording'
 import {
   contextPercent,
   formatCost,
@@ -24,6 +25,7 @@ export function SessionInfoPanel({
   snapshot: ChatSnapshot
 }) {
   const contextQuery = useSessionContext(session?.id ?? '', Boolean(session))
+  const { singular } = useSessionWording()
   const modelsQuery = useModels()
   const model = modelsQuery.data?.find(
     (item) => item.modelID === session?.model?.id && item.providerID === session?.model?.providerID
@@ -64,7 +66,7 @@ export function SessionInfoPanel({
     <div className="text-xs">
       <div className="space-y-1">
         <div className="flex items-center gap-1.5 font-medium">
-          <BarChart3 className="size-3.5 text-muted-foreground" /> Session info
+          <BarChart3 className="size-3.5 text-muted-foreground" /> {singular} info
         </div>
         <p className="truncate text-[10px] text-muted-foreground">{session?.id ?? 'loading'}</p>
       </div>

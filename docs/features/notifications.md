@@ -38,8 +38,8 @@ have to watch the sidebar.
    Interruptions only suppress the next evaluation, and the same state is not
    announced twice for a session within five seconds.
 3. A session that is open and whose tab is visible and focused never alerts.
-   Archived sessions, sessions whose latest message is from the person, and
-   interrupted runs do not alert.
+   Archived and snoozed sessions, sessions whose latest message is from the
+   person, and interrupted runs do not alert.
 4. Desktop notifications need browser permission. Without it, sounds and the
    sidebar still work; permission is requested only from the Settings switch.
 5. Inbox notification sounds and UI sounds are independent. The volume slider
@@ -63,7 +63,8 @@ have to watch the sidebar.
   needs attention.
 - **Clicking a notification** — Clara resolves the project from the session's
   directory. If no project matches, it focuses the window without navigating.
-- **Session archived between the event and the alert** — the alert is dropped.
+- **Session archived or snoozed between the event and the alert** — the alert is
+  dropped.
 - **Interrupted run** — the next idle evaluation is suppressed, so cancelling a
   run does not look like a completed reply.
 - **Two overlaid events** — a failed run followed by idle is one error alert, not
@@ -77,7 +78,8 @@ have to watch the sidebar.
 - Cross-tab de-duplication or leader election.
 - Per-project notification settings.
 - Notifications for retries, queued prompt delivery, or background tasks.
-- Grouping, snoozing, or a notification history inside Clara.
+- Grouping or a notification history inside Clara. Session snoozing is separate
+  and lives in the sidebar; individual notifications cannot be snoozed.
 - Per-action UI sound choices; Done is the only UI sound today.
 
 ## Known gaps

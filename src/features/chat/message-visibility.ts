@@ -45,6 +45,18 @@ export function assistantHasFailed(message: SessionMessageAssistant): boolean {
   return Boolean(message.error) || message.finish === 'error'
 }
 
+/**
+ * A turn counts as a reply once it has text to show or a failure to report.
+ * Reasoning and tool-only steps still describe work in progress, so they do not
+ * take the newest-message slot away from the prompt that started the run.
+ */
+export function assistantHasReply(message: SessionMessageAssistant): boolean {
+  return (
+    assistantHasFailed(message) ||
+    message.content.some((part) => part.type === 'text' && part.text.trim().length > 0)
+  )
+}
+
 /** Whether an assistant message has anything that is shown at this detail level. */
 export function assistantHasContent(
   message: SessionMessageAssistant,

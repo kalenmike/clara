@@ -1,8 +1,9 @@
-import { BarChart3, GitBranch, SquareTerminal } from 'lucide-react'
+import { BarChart3, GitBranch, SquareTerminal, X } from 'lucide-react'
 import type { SessionInfo, SessionMessageInfo } from '@opencode/client'
 import { PairTerminal } from '@/components/chat/pair-terminal'
 import { GitPanel } from '@/components/layout/git-panel'
 import { SessionInfoPanel } from '@/components/layout/session-info-panel'
+import { Button } from '@/components/ui/button'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import type { ChatSnapshot } from '@/features/chat/chat-store'
 import { useSidePanelWidth } from '@/hooks/use-side-panel-width'
@@ -16,6 +17,7 @@ export function SidePanel({
   directory,
   tab,
   onTabChange,
+  onClose,
   resizable = true,
   className,
 }: {
@@ -25,6 +27,8 @@ export function SidePanel({
   directory: string | undefined
   tab: SidePanelTab
   onTabChange: (tab: SidePanelTab) => void
+  /** Shown as an in-panel close control when the panel is a sheet. */
+  onClose?: () => void
   resizable?: boolean
   className?: string
 }) {
@@ -68,8 +72,8 @@ export function SidePanel({
         onValueChange={(value) => onTabChange(value as SidePanelTab)}
         className="min-h-0 flex-1 gap-0"
       >
-        <div className="shrink-0 border-b p-2">
-          <TabsList className="w-full">
+        <div className="flex shrink-0 items-center gap-1 border-b p-2">
+          <TabsList className="min-w-0 flex-1 max-md:h-[51px]!">
             <TabsTrigger value="info" className="text-[11px]">
               <BarChart3 className="size-3.5" />
               Info
@@ -83,6 +87,18 @@ export function SidePanel({
               Terminal
             </TabsTrigger>
           </TabsList>
+          {onClose && (
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              onClick={onClose}
+              title="Close panel"
+              className="shrink-0 max-md:size-11"
+            >
+              <X className="size-4 max-md:size-5" />
+              <span className="sr-only">Close panel</span>
+            </Button>
+          )}
         </div>
         <TabsContent value="info" className="min-h-0 flex-1 overflow-y-auto p-3">
           <SessionInfoPanel session={session} snapshot={snapshot} />

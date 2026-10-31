@@ -4,11 +4,13 @@ import {
   resolveSessionMailbox,
   type SessionMailboxSignals,
 } from '@/features/sessions/session-mailbox'
+import { isSnoozedSession } from '@/features/sessions/session-snooze'
 
 export type SessionGroups = {
   inbox: SessionInfo[]
   outbox: SessionInfo[]
   drafts: SessionInfo[]
+  snoozed: SessionInfo[]
   archived: SessionInfo[]
 }
 
@@ -22,11 +24,16 @@ export function groupSessionsByMailbox(
   const inbox: SessionInfo[] = []
   const outbox: SessionInfo[] = []
   const drafts: SessionInfo[] = []
+  const snoozed: SessionInfo[] = []
   const archived: SessionInfo[] = []
 
   for (const session of sessions) {
     if (isArchivedSession(session)) {
       archived.push(session)
+      continue
+    }
+    if (isSnoozedSession(session)) {
+      snoozed.push(session)
       continue
     }
     const mailbox = resolveSessionMailbox(signals.get(session.id), {
@@ -42,7 +49,8 @@ export function groupSessionsByMailbox(
   inbox.sort(byUpdated)
   outbox.sort(byUpdated)
   drafts.sort(byUpdated)
+  snoozed.sort(byUpdated)
   archived.sort((a, b) => (b.time.archived ?? b.time.updated) - (a.time.archived ?? a.time.updated))
 
-  return { inbox, outbox, drafts, archived }
+  return { inbox, outbox, drafts, snoozed, archived }
 }

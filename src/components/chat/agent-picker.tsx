@@ -34,10 +34,12 @@ export function AgentPicker({
           type="button"
           variant="ghost"
           size="sm"
-          className="max-w-24 min-w-0 shrink gap-1.5 text-muted-foreground sm:max-w-36"
+          className="max-w-24 min-w-0 shrink gap-1.5 text-muted-foreground max-md:h-11 max-sm:w-11 max-sm:justify-center max-sm:gap-0 max-sm:px-0 sm:max-w-36"
         >
-          <Bot className="size-3.5" />
-          <span className="truncate text-xs text-foreground">{session?.agent ?? 'build'}</span>
+          <Bot className="size-3.5 max-md:size-4" />
+          <span className="truncate text-xs text-foreground max-sm:sr-only">
+            {session?.agent ?? 'build'}
+          </span>
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent side="top" align="end" className="w-56">

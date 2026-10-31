@@ -57,6 +57,7 @@ export function Composer({
   modelRequest,
   agentRequest,
   canSaveAsDraft,
+  draft = false,
   onDraftChange,
   onSent,
   onCycleAgent,
@@ -71,6 +72,7 @@ export function Composer({
   modelRequest: number
   agentRequest: number
   canSaveAsDraft: boolean
+  draft?: boolean
   onDraftChange: (hasDraft: boolean) => void
   onSent: () => void
   onCycleAgent: (direction: 1 | -1) => void
@@ -401,21 +403,21 @@ export function Composer({
         )}
 
         {files.length > 0 && (
-          <div className="flex shrink-0 flex-wrap gap-1.5 border-b px-3 py-2">
+          <div className="flex shrink-0 flex-wrap gap-1.5 border-b px-3 py-2 max-md:gap-2">
             {files.map((file, index) => (
               <Badge
                 key={`${file.name}-${index}`}
                 variant="secondary"
-                className="gap-1 text-[10px]"
+                className="gap-1 text-[10px] max-md:h-9 max-md:overflow-visible"
               >
                 <FileText className="size-3" />
                 {file.name ?? 'file'}
                 <button
                   type="button"
                   onClick={() => setFiles((current) => current.filter((_, i) => i !== index))}
-                  className="ml-1 rounded-full hover:bg-background/50"
+                  className="relative ml-1 rounded-full hover:bg-background/50 max-md:size-7 max-md:after:absolute max-md:after:-inset-2 max-md:after:content-['']"
                 >
-                  <X className="size-3" />
+                  <X className="size-3 max-md:size-4" />
                 </button>
               </Badge>
             ))}
@@ -434,13 +436,17 @@ export function Composer({
               void addFiles(pasted)
             }
           }}
-          placeholder="Write your reply…  / commands   @ files"
+          placeholder={
+            draft
+              ? 'Write your first message…  / commands   @ files'
+              : 'Write your reply…  / commands   @ files'
+          }
           disabled={disabled}
-          className="min-h-0 flex-1 resize-none bg-transparent px-3 py-3 text-sm outline-none placeholder:text-muted-foreground disabled:opacity-60"
+          className="min-h-0 flex-1 resize-none bg-transparent px-3 py-3 text-base outline-none placeholder:text-muted-foreground disabled:opacity-60 md:text-sm"
         />
       </div>
 
-      <div className="flex shrink-0 items-center gap-1 border-t px-2 py-2">
+      <div className="flex shrink-0 items-center gap-1 border-t px-2 py-2 max-md:gap-0.5 max-md:px-3 max-md:pb-[max(1.25rem,calc(0.5rem_+_env(safe-area-inset-bottom)))]">
         <input
           ref={fileInputRef}
           type="file"
@@ -457,9 +463,10 @@ export function Composer({
               type="button"
               variant="ghost"
               size="icon-sm"
+              className="max-md:size-11"
               onClick={() => fileInputRef.current?.click()}
             >
-              <Paperclip className="size-3.5" />
+              <Paperclip className="size-3.5 max-md:size-5" />
               <span className="sr-only">Attach file</span>
             </Button>
           </TooltipTrigger>
@@ -469,28 +476,30 @@ export function Composer({
           type="button"
           variant="ghost"
           size="sm"
-          className="h-7 gap-1 px-1.5 text-[10px] text-muted-foreground"
+          className="h-7 gap-1 px-1.5 text-[10px] text-muted-foreground max-md:h-11 max-sm:w-11"
           onClick={() => {
             setText((current) => `${current}/`)
             textareaRef.current?.focus()
           }}
         >
-          <Slash className="size-3" /> <span className="hidden sm:inline">commands</span>
+          <Slash className="size-3 max-md:size-5" />{' '}
+          <span className="hidden sm:inline">commands</span>
         </Button>
         <Button
           type="button"
           variant="ghost"
           size="sm"
-          className="h-7 gap-1 px-1.5 text-[10px] text-muted-foreground"
+          className="h-7 gap-1 px-1.5 text-[10px] text-muted-foreground max-md:h-11 max-sm:w-11"
           onClick={() => {
             setText((current) => `${current}@`)
             textareaRef.current?.focus()
           }}
         >
-          <AtSign className="size-3" /> <span className="hidden sm:inline">files</span>
+          <AtSign className="size-3 max-md:size-5" />{' '}
+          <span className="hidden sm:inline">files</span>
         </Button>
 
-        <div className="ml-auto flex items-center gap-1">
+        <div className="ml-auto flex items-center gap-1 max-md:gap-0.5">
           <AgentPicker session={session} open={agentOpen} onOpenChange={setAgentOpen} />
 
           <div className="flex items-center">
@@ -499,14 +508,14 @@ export function Composer({
                 <Button
                   type="button"
                   size="sm"
-                  className={cn('h-8 gap-1', canSaveAsDraft && 'rounded-r-none')}
+                  className={cn('h-8 gap-1 max-md:h-11', canSaveAsDraft && 'rounded-r-none')}
                   onClick={submit}
                   disabled={!canSend}
                 >
                   {pending ? (
-                    <span className="size-3.5 animate-spin rounded-full border-2 border-current border-t-transparent" />
+                    <span className="size-3.5 animate-spin rounded-full border-2 border-current border-t-transparent max-md:size-5" />
                   ) : (
-                    <Send className="size-3.5" />
+                    <Send className="size-3.5 max-md:size-4" />
                   )}
                   Send
                 </Button>
@@ -524,10 +533,10 @@ export function Composer({
                       <Button
                         type="button"
                         size="icon-sm"
-                        className="h-8 rounded-l-none border-l border-primary-foreground/25"
+                        className="h-8 rounded-l-none border-l border-primary-foreground/25 max-md:size-11"
                         disabled={!canSend}
                       >
-                        <ChevronDown className="size-3.5" />
+                        <ChevronDown className="size-3.5 max-md:size-5" />
                         <span className="sr-only">Message options</span>
                       </Button>
                     </DropdownMenuTrigger>

@@ -4,11 +4,13 @@ import { Loader2, PlugZap, Server, Sparkles } from 'lucide-react'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { useSessionWording } from '@/features/sessions/use-wording'
 import { useConnection } from '@/providers/connection-provider'
 
 export function ConnectPage() {
   const navigate = useNavigate()
   const location = useLocation()
+  const { lowerPlural } = useSessionWording()
   const { status, error, attempt, localInfo, connect, connectLocal } = useConnection()
   const [baseUrl, setBaseUrl] = useState(attempt?.baseUrl ?? 'http://127.0.0.1:49374')
   const [password, setPassword] = useState(attempt?.password ?? '')
@@ -47,7 +49,7 @@ export function ConnectPage() {
           </div>
           <div>
             <h1 className="text-lg font-semibold tracking-tight">Clara</h1>
-            <p className="text-xs text-muted-foreground">A web client for OpenCode sessions</p>
+            <p className="text-xs text-muted-foreground">A web client for OpenCode {lowerPlural}</p>
           </div>
         </div>
 

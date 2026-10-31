@@ -15,7 +15,8 @@ actions; direct keys handle interruption and switching.
 3. Press `m` for the model picker or `a` for the agent picker. Both open the
    reply window first if it is closed.
 4. Press `c` to compact the context, `y` to copy the last reply, `h` to fold or
-   open every message, or `t` to toggle the theme.
+   open every message, or `t` to toggle light and dark mode without changing the
+   selected color theme.
 5. Press Tab or Shift+Tab in the message box to cycle agents without leaving it,
    or use `ctrl+.` / `ctrl+shift+.` anywhere on the chat page.
 6. Press `ctrl+t` to cycle the current model's variants.
@@ -60,8 +61,8 @@ actions; direct keys handle interruption and switching.
   some browsers.
 - Escape can both close a menu and interrupt a run when focus is outside the
   reply window; the global handler is intentionally permissive.
-- The theme shortcut toggles between light and dark and does not cycle through
-  "system".
+- The theme shortcut toggles between light and dark, keeps the selected color
+  theme, and does not cycle through "system".
 - Tab and Shift+Tab cycle agents inside the message box, so the textarea cannot
   be left with Tab; click elsewhere to move focus.
 
@@ -81,7 +82,7 @@ actions; direct keys handle interruption and switching.
 | `ctrl+x` `g`              | Open panel on Git tab          |
 | `ctrl+x` `` ` ``          | Toggle pair terminal           |
 | `ctrl+x` `h`              | Collapse messages              |
-| `ctrl+x` `t`              | Toggle theme                   |
+| `ctrl+x` `t`              | Toggle light/dark mode         |
 | `ctrl+x` `y`              | Copy last reply                |
 | `tab` / `shift+tab`       | Cycle agent in the message box |
 | `ctrl+.` / `ctrl+shift+.` | Cycle agent from anywhere      |

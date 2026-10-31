@@ -50,18 +50,18 @@ export function PermissionPanel({
               <div className="mt-3 flex flex-wrap gap-2">
                 <Button
                   size="sm"
-                  className="h-7 text-xs"
+                  className="h-7 text-xs max-md:h-11 max-md:px-3 max-md:text-sm"
                   onClick={() =>
                     reply.mutate({ sessionID, requestID: request.id, decision: 'once' })
                   }
                   disabled={reply.isPending}
                 >
-                  <ShieldCheck className="size-3.5" /> Allow once
+                  <ShieldCheck className="size-3.5 max-md:size-5" /> Allow once
                 </Button>
                 <Button
                   size="sm"
                   variant="outline"
-                  className="h-7 text-xs"
+                  className="h-7 text-xs max-md:h-11 max-md:px-3 max-md:text-sm"
                   onClick={() =>
                     reply.mutate({ sessionID, requestID: request.id, decision: 'always' })
                   }
@@ -72,13 +72,13 @@ export function PermissionPanel({
                 <Button
                   size="sm"
                   variant="ghost"
-                  className="h-7 text-xs text-destructive"
+                  className="h-7 text-xs text-destructive max-md:h-11 max-md:px-3 max-md:text-sm"
                   onClick={() =>
                     reply.mutate({ sessionID, requestID: request.id, decision: 'reject' })
                   }
                   disabled={reply.isPending}
                 >
-                  <ShieldX className="size-3.5" /> Reject
+                  <ShieldX className="size-3.5 max-md:size-5" /> Reject
                 </Button>
               </div>
             </div>

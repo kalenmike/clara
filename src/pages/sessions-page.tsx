@@ -7,6 +7,7 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { useProjects } from '@/features/projects/use-projects'
 import { useActiveSessions, useSessions } from '@/features/sessions/use-sessions'
 import { useStartSession } from '@/features/sessions/use-start-session'
+import { useSessionWording } from '@/features/sessions/use-wording'
 import { formatCost, formatRelativeTime, formatTokens } from '@/lib/format'
 import { cn } from '@/lib/utils'
 
@@ -16,6 +17,7 @@ export function SessionsPage() {
   const project = projectsQuery.data?.find((item) => item.id === projectId)
   const sessionsQuery = useSessions(project?.canonical ?? null, '')
   const activeQuery = useActiveSessions()
+  const { lowerSingular, lowerPlural } = useSessionWording()
 
   const sessions = sessionsQuery.data?.data ?? []
   const latest = sessions[0]
@@ -63,12 +65,13 @@ export function SessionsPage() {
               {project.name ?? project.canonical.split('/').pop()}
             </h1>
             <p className="mt-1 text-sm text-muted-foreground">
-              {sessions.length} session{sessions.length === 1 ? '' : 's'} in this project
+              {sessions.length} {sessions.length === 1 ? lowerSingular : lowerPlural} in this
+              project
             </p>
           </div>
           <Button onClick={startSession} disabled={pending}>
             {pending ? <Loader2 className="size-4 animate-spin" /> : <Plus className="size-4" />}
-            New session
+            New {lowerSingular}
           </Button>
         </div>
 
@@ -83,12 +86,12 @@ export function SessionsPage() {
         {!sessionsQuery.isLoading && sessions.length === 0 && (
           <div className="flex flex-col items-center justify-center rounded-xl border border-dashed p-12 text-center">
             <SearchX className="size-8 text-muted-foreground" />
-            <p className="mt-3 text-sm font-medium">No sessions yet</p>
+            <p className="mt-3 text-sm font-medium">No {lowerPlural} yet</p>
             <p className="mt-1 max-w-sm text-xs text-muted-foreground">
-              Start a session to chat with an agent in this project.
+              Start a {lowerSingular} to chat with an agent in this project.
             </p>
             <Button onClick={startSession} className="mt-4" size="sm" disabled={pending}>
-              <Plus className="size-4" /> New session
+              <Plus className="size-4" /> New {lowerSingular}
             </Button>
           </div>
         )}
@@ -101,7 +104,9 @@ export function SessionsPage() {
                 <Card className="h-full gap-3 py-4 transition-colors group-hover:border-foreground/25">
                   <CardHeader className="px-4">
                     <CardTitle className="flex items-start justify-between gap-2 text-sm">
-                      <span className="line-clamp-2">{session.title || 'Untitled session'}</span>
+                      <span className="line-clamp-2">
+                        {session.title || `Untitled ${lowerSingular}`}
+                      </span>
                       <ArrowUpRight className="size-4 shrink-0 text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100" />
                     </CardTitle>
                   </CardHeader>

@@ -4,6 +4,7 @@ import type { OpenCodeClient } from '@/lib/client'
 import { queryKeys } from '@/lib/query-keys'
 import { isArchivedSession } from '@/features/sessions/session-archive'
 import { loadSessionMailboxSignals } from '@/features/sessions/session-mailbox-signals'
+import { isSnoozedSession } from '@/features/sessions/session-snooze'
 import { resolveAttentionKind, type AttentionKind } from './attention'
 
 export type SessionAttention = {
@@ -34,7 +35,7 @@ export async function loadSessionAttention(
   sessionID: string
 ): Promise<SessionAttention | null> {
   const session = await getSessionInfo(client, queryClient, sessionID)
-  if (isArchivedSession(session)) return null
+  if (isArchivedSession(session) || isSnoozedSession(session)) return null
 
   const signals = await loadSessionMailboxSignals(client, sessionID)
   const kind = resolveAttentionKind(signals, session.agent, false)

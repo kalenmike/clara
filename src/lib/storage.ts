@@ -98,13 +98,14 @@ export function saveSidePanelWidth(width: number): void {
   window.localStorage.setItem(SIDE_PANEL_WIDTH_KEY, String(clamped))
 }
 
-export type SidebarSection = 'inbox' | 'outbox' | 'drafts' | 'archived'
+export type SidebarSection = 'inbox' | 'outbox' | 'drafts' | 'snoozed' | 'archived'
 
 const SIDEBAR_SECTIONS_KEY = 'clara.sidebarSections'
 const SIDEBAR_SECTIONS_DEFAULT: Record<SidebarSection, boolean> = {
   inbox: true,
   outbox: true,
   drafts: true,
+  snoozed: false,
   archived: false,
 }
 
@@ -117,6 +118,8 @@ export function readSidebarSections(): Record<SidebarSection, boolean> {
       inbox: typeof value.inbox === 'boolean' ? value.inbox : SIDEBAR_SECTIONS_DEFAULT.inbox,
       outbox: typeof value.outbox === 'boolean' ? value.outbox : SIDEBAR_SECTIONS_DEFAULT.outbox,
       drafts: typeof value.drafts === 'boolean' ? value.drafts : SIDEBAR_SECTIONS_DEFAULT.drafts,
+      snoozed:
+        typeof value.snoozed === 'boolean' ? value.snoozed : SIDEBAR_SECTIONS_DEFAULT.snoozed,
       archived:
         typeof value.archived === 'boolean' ? value.archived : SIDEBAR_SECTIONS_DEFAULT.archived,
     }
@@ -167,6 +170,14 @@ export function readShowInternal(): boolean {
 
 export function saveShowInternal(show: boolean): void {
   window.localStorage.setItem('clara.internalMessages', show ? 'shown' : 'hidden')
+}
+
+export function readInboxMonitor(): boolean {
+  return window.localStorage.getItem('clara.monitorInbox') === 'on'
+}
+
+export function saveInboxMonitor(active: boolean): void {
+  window.localStorage.setItem('clara.monitorInbox', active ? 'on' : 'off')
 }
 
 export function readDraft(sessionID: string): string {

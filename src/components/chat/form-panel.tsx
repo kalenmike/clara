@@ -72,13 +72,18 @@ function FormCard({ sessionID, form }: { sessionID: string; form: FormInfo }) {
             ))}
           </div>
           <div className="mt-3 flex gap-2">
-            <Button size="sm" className="h-7 text-xs" onClick={submit} disabled={reply.isPending}>
+            <Button
+              size="sm"
+              className="h-7 text-xs max-md:h-11 max-md:px-3 max-md:text-sm"
+              onClick={submit}
+              disabled={reply.isPending}
+            >
               Submit
             </Button>
             <Button
               size="sm"
               variant="ghost"
-              className="h-7 text-xs"
+              className="h-7 text-xs max-md:h-11 max-md:px-3 max-md:text-sm"
               onClick={() => reject.mutate({ formID: form.id })}
               disabled={reject.isPending}
             >
@@ -196,7 +201,7 @@ function Field({
           type="number"
           value={typeof value === 'number' ? value : ''}
           onChange={(event) => onChange(Number(event.target.value))}
-          className="h-8 text-xs"
+          className="h-8 text-base md:text-xs"
         />
       </label>
     )
@@ -212,7 +217,7 @@ function Field({
         value={typeof value === 'string' ? value : ''}
         onChange={(event) => onChange(event.target.value)}
         placeholder={field.type === 'string' ? field.placeholder : undefined}
-        className="h-8 text-xs"
+        className="h-8 text-base md:text-xs"
       />
     </label>
   )

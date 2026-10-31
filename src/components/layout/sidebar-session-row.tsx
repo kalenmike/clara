@@ -1,6 +1,7 @@
 import { Link } from 'react-router'
-import { CircleDot } from 'lucide-react'
+import { AlarmClock, CircleDot } from 'lucide-react'
 import type { SessionInfo } from '@opencode/client'
+import { useSessionWording } from '@/features/sessions/use-wording'
 import { formatRelativeTime } from '@/lib/format'
 import { cn } from '@/lib/utils'
 
@@ -9,6 +10,7 @@ export function SidebarSessionRow({
   projectID,
   selected,
   active,
+  snoozed,
   blocked,
   error,
   planReady,
@@ -18,36 +20,43 @@ export function SidebarSessionRow({
   projectID: string
   selected: boolean
   active: boolean
+  snoozed: boolean
   blocked: boolean
   error: boolean
   planReady: boolean
   onNavigate?: () => void
 }) {
+  const { lowerSingular } = useSessionWording()
+
   return (
     <Link
       to={`/p/${projectID}/s/${session.id}`}
       onClick={onNavigate}
       className={cn(
-        'group flex items-start gap-2 rounded-md px-2 py-1.5 transition-colors hover:bg-sidebar-accent',
+        'group flex items-start gap-2.5 rounded-md px-2.5 py-2 transition-colors hover:bg-sidebar-accent md:gap-2 md:px-2 md:py-1.5',
         selected && 'bg-sidebar-accent'
       )}
     >
-      {blocked ? (
-        <CircleDot className="mt-1 size-3 shrink-0 animate-pulse text-red-500" />
-      ) : active ? (
-        <CircleDot className="mt-1 size-3 shrink-0 animate-pulse text-emerald-500" />
-      ) : error ? (
-        <CircleDot className="mt-1 size-3 shrink-0 text-red-500" />
-      ) : planReady ? (
-        <span className="mt-[7px] size-1.5 shrink-0 rounded-full bg-orange-500" />
-      ) : (
-        <span className="mt-[7px] size-1.5 shrink-0 rounded-full bg-muted-foreground/30" />
-      )}
+      <span className="flex h-5 w-4 shrink-0 items-center justify-center md:h-4 md:w-3">
+        {snoozed ? (
+          <AlarmClock className="size-3.5 text-muted-foreground md:size-3" />
+        ) : blocked ? (
+          <CircleDot className="size-3.5 animate-pulse text-red-500 md:size-3" />
+        ) : active ? (
+          <CircleDot className="size-3.5 animate-pulse text-emerald-500 md:size-3" />
+        ) : error ? (
+          <CircleDot className="size-3.5 text-red-500 md:size-3" />
+        ) : planReady ? (
+          <span className="size-2 rounded-full bg-orange-500 md:size-1.5" />
+        ) : (
+          <span className="size-2 rounded-full bg-muted-foreground/30 md:size-1.5" />
+        )}
+      </span>
       <span className="min-w-0 flex-1">
-        <span className="block truncate text-xs font-medium">
-          {session.title || 'Untitled session'}
+        <span className="block truncate text-sm font-medium md:text-xs">
+          {session.title || `Untitled ${lowerSingular}`}
         </span>
-        <span className="mt-0.5 flex items-center gap-1.5 text-[10px] text-muted-foreground">
+        <span className="mt-0.5 flex items-center gap-1.5 text-xs text-muted-foreground md:text-[10px]">
           <span className="truncate">{session.agent ?? 'build'}</span>
           <span>·</span>
           <span className="truncate">{session.model?.id ?? 'default'}</span>

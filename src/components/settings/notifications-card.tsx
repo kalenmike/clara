@@ -25,6 +25,7 @@ import { requestNotificationPermission } from '@/features/notifications/notifier
 import { useNotificationPermission } from '@/features/notifications/use-notification-permission'
 import { useNotificationSettings } from '@/features/notifications/use-notification-settings'
 import { playAttentionSound, playDoneSound } from '@/features/notifications/sounds'
+import { useSessionWording } from '@/features/sessions/use-wording'
 
 const KIND_ICONS: Record<AttentionKind, typeof Eye> = {
   review: Eye,
@@ -36,6 +37,7 @@ const KIND_ICONS: Record<AttentionKind, typeof Eye> = {
 export function NotificationsCard() {
   const { settings, update } = useNotificationSettings()
   const { permission, setPermission } = useNotificationPermission()
+  const { lowerSingular } = useSessionWording()
 
   const supported = permission !== 'unsupported'
   const desktopEnabled = permission === 'granted' && settings.desktop
@@ -72,7 +74,7 @@ export function NotificationsCard() {
         ? 'Blocked by the browser. Allow notifications for this site in browser settings.'
         : permission === 'default'
           ? 'Turn this on to ask the browser for permission.'
-          : 'Show a system notification when a session needs you.'
+          : `Show a system notification when a ${lowerSingular} needs you.`
 
   return (
     <Card>
@@ -146,11 +148,12 @@ export function NotificationsCard() {
                   type="button"
                   variant="ghost"
                   size="icon-xs"
+                  className="max-md:size-11"
                   onClick={() => playAttentionSound(kind, settings.volume, true)}
                   aria-label={`Preview the ${ATTENTION_LABELS[kind]} sound`}
                   title="Preview"
                 >
-                  <Play className="size-3" />
+                  <Play className="size-3 max-md:size-5" />
                 </Button>
                 <Switch
                   size="sm"
@@ -172,7 +175,7 @@ export function NotificationsCard() {
             <div>
               <div className="text-sm">UI sounds</div>
               <p className="mt-0.5 text-xs text-muted-foreground">
-                Play a chime when you finish an action, like marking a session Done.
+                Play a chime when you finish an action, like marking a {lowerSingular} Done.
               </p>
             </div>
           </div>
@@ -181,11 +184,12 @@ export function NotificationsCard() {
               type="button"
               variant="ghost"
               size="icon-xs"
+              className="max-md:size-11"
               onClick={() => playDoneSound(settings.volume)}
               aria-label="Preview the UI sound"
               title="Preview"
             >
-              <Play className="size-3" />
+              <Play className="size-3 max-md:size-5" />
             </Button>
             <Switch
               checked={settings.uiSounds}

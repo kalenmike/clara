@@ -13,6 +13,7 @@ import {
 import { Separator } from '@/components/ui/separator'
 import { Skeleton } from '@/components/ui/skeleton'
 import { useGitBase, useGitChanges, useGitInfo, type GitRange } from '@/features/git/use-git'
+import { useSessionWording } from '@/features/sessions/use-wording'
 import { formatCount } from '@/lib/format'
 import { cn } from '@/lib/utils'
 
@@ -31,6 +32,7 @@ const STATUS_LABEL: Record<VcsFileStatus['status'], string> = {
 export function GitPanel({ directory }: { directory: string | undefined }) {
   const infoQuery = useGitInfo(directory)
   const baseQuery = useGitBase(directory)
+  const { lowerSingular } = useSessionWording()
   const [range, setRange] = useState<GitRange>('working')
   const [fallbackBase, setFallbackBase] = useState<string | undefined>()
 
@@ -91,7 +93,7 @@ export function GitPanel({ directory }: { directory: string | undefined }) {
     return (
       <PanelMessage
         title="No directory"
-        description="This session is not attached to a project directory."
+        description={`This ${lowerSingular} is not attached to a project directory.`}
       />
     )
   }
@@ -112,7 +114,12 @@ export function GitPanel({ directory }: { directory: string | undefined }) {
         title="Could not read git information"
         description="The server did not answer the git request."
         action={
-          <Button variant="outline" size="sm" onClick={() => void infoQuery.refetch()}>
+          <Button
+            variant="outline"
+            size="sm"
+            className="max-md:h-11 max-md:px-3 max-md:text-sm"
+            onClick={() => void infoQuery.refetch()}
+          >
             Retry
           </Button>
         }
@@ -156,15 +163,15 @@ export function GitPanel({ directory }: { directory: string | undefined }) {
         <Button
           variant="ghost"
           size="icon"
-          className="size-7 shrink-0"
+          className="size-7 shrink-0 max-md:size-11"
           onClick={refresh}
           disabled={fetching}
           title="Refresh git changes"
         >
           {fetching ? (
-            <Loader2 className="size-3.5 animate-spin" />
+            <Loader2 className="size-3.5 animate-spin max-md:size-5" />
           ) : (
-            <RefreshCw className="size-3.5" />
+            <RefreshCw className="size-3.5 max-md:size-5" />
           )}
           <span className="sr-only">Refresh git changes</span>
         </Button>
@@ -176,7 +183,7 @@ export function GitPanel({ directory }: { directory: string | undefined }) {
         <div className="flex items-center justify-between gap-2">
           <span className="text-muted-foreground">Compare</span>
           <Select value={effectiveRange} onValueChange={changeRange}>
-            <SelectTrigger size="sm" className="h-7 text-[11px]">
+            <SelectTrigger size="sm" className="h-7 text-[11px] max-md:h-11 max-md:text-sm">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -344,13 +351,18 @@ function ChangeError({
           <Button
             variant="outline"
             size="sm"
-            className="h-6 px-2 text-[10px]"
+            className="h-6 px-2 text-[10px] max-md:h-11 max-md:px-3 max-md:text-sm"
             onClick={onShowLastCommit}
           >
             Show last commit
           </Button>
         )}
-        <Button variant="ghost" size="sm" className="h-6 px-2 text-[10px]" onClick={onRetry}>
+        <Button
+          variant="ghost"
+          size="sm"
+          className="h-6 px-2 text-[10px] max-md:h-11 max-md:px-3 max-md:text-sm"
+          onClick={onRetry}
+        >
           Retry
         </Button>
       </div>

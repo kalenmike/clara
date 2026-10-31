@@ -13,23 +13,37 @@ Clara connects to a running OpenCode 2 server. It does not start one.
 
 ## Quick start
 
+Start OpenCode as a background service, then start Clara:
+
 ```bash
+opencode service start
 pnpm install
 pnpm dev
 ```
 
-Open <http://localhost:5173>. In development Clara reads the local OpenCode
-service from:
+Open <http://localhost:5173>. `opencode service start` registers the server URL
+and password in:
 
 ```text
 ${XDG_STATE_HOME:-~/.local/state}/opencode/service.json
 ```
 
-The Vite dev server proxies `/oc` to that service and attaches the basic-auth
-header, so the browser never sees the password. If no local service is found,
-use the connect screen with a server URL and password.
+The Vite dev server reads that file and proxies `/oc` to the service with the
+basic-auth header, so the browser never sees the password. Check the service
+with `opencode service status` and stop it with `opencode service stop`.
 
-### Connecting to another server
+### Two ways to start OpenCode
+
+| Command                          | Server                                                                                             | How Clara connects                                                                                                       |
+| -------------------------------- | -------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------ |
+| `opencode service start`         | Background service, registered in `service.json` (port `49374` by default on the `latest` channel) | Automatically through the `/oc` proxy. No URL, password, or CORS configuration needed.                                   |
+| `opencode serve --cors <origin>` | Foreground server on `127.0.0.1:4096` by default                                                   | Manually from **Connect**: enter the URL and the `server password …` printed at startup. CORS must allow Clara's origin. |
+
+`opencode serve` does not write `service.json`, so Clara's proxy cannot discover
+it. `opencode service start` is the command that registers a server for
+automatic detection.
+
+### Connecting to a foreground or remote server
 
 1. Start the server with Clara's origin allowed:
 
@@ -37,11 +51,16 @@ use the connect screen with a server URL and password.
    opencode serve --cors http://localhost:5173
    ```
 
+   Repeat `--cors` for each origin Clara uses, for example
+   `--cors http://localhost:4173` for `pnpm preview` or
+   `--cors http://127.0.0.1:5173` when Clara is opened by IP.
+
 2. Open **Connect**, enter the URL (for example `http://127.0.0.1:4096`) and the
-   password from that server's `service.json`.
+   password printed by `opencode serve` as `server password …`.
 3. Optionally check "Remember this connection".
 
 Production builds have no proxy; they always use the manual connection.
+`pnpm preview` still includes the local proxy.
 
 ## Scripts
 

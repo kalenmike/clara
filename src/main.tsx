@@ -3,6 +3,9 @@ import './index.css'
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import { App } from './App'
+import { initColorTheme } from './features/theme/color-theme'
+
+initColorTheme()
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>

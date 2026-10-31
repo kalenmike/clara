@@ -37,20 +37,29 @@ password lives in the service state file:
 ${XDG_STATE_HOME:-~/.local/state}/opencode/service.json
 ```
 
-Clara supports two modes:
+Clara supports two modes, and the startup command decides which one works:
+
+| Start OpenCode with              | Mode        | Result                                                                                   |
+| -------------------------------- | ----------- | ---------------------------------------------------------------------------------------- |
+| `opencode service start`         | Local proxy | The service registers its URL and password in `service.json`; Clara auto-detects it.     |
+| `opencode serve --cors <origin>` | Manual      | The server stays unregistered; connect with its URL and the password printed at startup. |
 
 - **Local proxy** — the Vite dev server reads `service.json` on each request and
   proxies `/oc` to the service URL with the `authorization` header attached. The
   browser never sees the password. This is the default in development when a
-  local service is running, and it works in `vite preview` too.
+  local service is running, and it works in `vite preview` too. Only a server
+  registered by the background service (`opencode service start`) appears here.
+  A plain `opencode serve` does not write `service.json`.
 - **Manual** — the user enters a URL and password on `/connect`. The SDK sends
   the basic-auth header on every request, including the SSE stream. Credentials
   live in `sessionStorage` unless "remember" is checked, in which case they go to
-  `localStorage`.
+  `localStorage`. Use this mode for a foreground `opencode serve`, which listens
+  on `4096` by default and prints its password as `server password …`.
 
 Remote servers must allow the Clara origin. Start them with
 `opencode serve --cors <origin>`; OpenCode answers preflight requests with the
-matching `Access-Control-Allow-Origin`.
+matching `Access-Control-Allow-Origin`. The proxy path is same-origin, so it
+needs no CORS entry.
 
 ## Runtime shape
 

@@ -1,8 +1,10 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Link, useNavigate, useParams } from 'react-router'
+import { Link, useLocation, useNavigate, useParams } from 'react-router'
 import {
   ChevronDown,
   ChevronRight,
+  ChevronsDownUp,
+  ChevronsUpDown,
   FolderGit2,
   Loader2,
   Plus,
@@ -31,6 +33,7 @@ import { resolveAttentionKind } from '@/features/notifications/attention'
 import { useProjects } from '@/features/projects/use-projects'
 import { isArchivedSession } from '@/features/sessions/session-archive'
 import { groupSessionsByMailbox } from '@/features/sessions/session-sections'
+import { isSnoozedSession } from '@/features/sessions/session-snooze'
 import { useSessionMailboxSignals } from '@/features/sessions/use-session-mailbox'
 import {
   useActiveSessions,
@@ -38,6 +41,7 @@ import {
   useSessions,
 } from '@/features/sessions/use-sessions'
 import { useStartSession } from '@/features/sessions/use-start-session'
+import { useSessionWording } from '@/features/sessions/use-wording'
 import { useSidebarWidth } from '@/hooks/use-sidebar-width'
 import { claraBuildLabel, claraBuildTitle, claraVersion } from '@/lib/build-info'
 import {
@@ -91,7 +95,9 @@ export function Sidebar() {
 
 export function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
   const navigate = useNavigate()
+  const location = useLocation()
   const params = useParams<{ projectId: string; sessionId?: string }>()
+  const { lowerSingular, lowerPlural } = useSessionWording()
   const { info, reconnect, reconnecting } = useConnection()
   const { state } = useEventStream()
   const projectsQuery = useProjects()
@@ -127,7 +133,8 @@ export function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
 
   const activeQuery = useActiveSessions()
   const mailboxSessions = useMemo(
-    () => allSessions.filter((session) => !isArchivedSession(session)),
+    () =>
+      allSessions.filter((session) => !isArchivedSession(session) && !isSnoozedSession(session)),
     [allSessions]
   )
   const { signals: mailboxSignals, pending: mailboxesPending } =
@@ -151,6 +158,7 @@ export function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
       { id: 'inbox', label: 'Inbox', sessions: grouped.inbox },
       { id: 'outbox', label: 'Outbox', sessions: grouped.outbox },
       { id: 'drafts', label: 'Drafts', sessions: grouped.drafts },
+      { id: 'snoozed', label: 'Snoozed', sessions: grouped.snoozed },
       { id: 'archived', label: 'Archived', sessions: grouped.archived },
     ] satisfies Array<{ id: SidebarSection; label: string; sessions: SessionInfo[] }>
   }, [allSessions, mailboxSignals, activeQuery.data, awaitingInput])
@@ -181,6 +189,17 @@ export function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
     })
   }
 
+  const onSettings = location.pathname === '/settings'
+  const allSectionsOpen = sections.every((section) => openSections[section.id])
+
+  const toggleAllSections = () => {
+    const open = !allSectionsOpen
+    const next = { ...openSections }
+    for (const section of sections) next[section.id] = open
+    saveSidebarSections(next)
+    setOpenSections(next)
+  }
+
   return (
     <>
       <div className="flex h-14 items-center gap-2 px-4">
@@ -189,7 +208,7 @@ export function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
         </div>
         <div className="min-w-0 flex-1">
           <div className="text-sm font-semibold leading-tight tracking-tight">Clara</div>
-          <div className="flex items-center gap-1 text-[10px] uppercase tracking-wider text-muted-foreground">
+          <div className="flex items-center gap-1 text-[11px] uppercase tracking-wider text-muted-foreground md:text-[10px]">
             {state === 'live' ? (
               <span className="flex items-center gap-1">
                 <span className="size-1.5 rounded-full bg-emerald-500" />
@@ -214,12 +233,28 @@ export function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
             )}
           </div>
         </div>
-        <Button asChild variant="ghost" size="icon" className="size-8">
-          <Link to="/settings" onClick={onNavigate}>
-            <Settings className="size-4" />
-            <span className="sr-only">Settings</span>
+        <Button asChild variant="ghost" size="icon" className="size-11 md:size-8">
+          <Link
+            to={onSettings ? '/' : '/settings'}
+            onClick={onNavigate}
+            title={onSettings ? 'Back to home' : 'Settings'}
+          >
+            <Settings className="size-5 md:size-4" />
+            <span className="sr-only">{onSettings ? 'Back to home' : 'Settings'}</span>
           </Link>
         </Button>
+        {onNavigate && (
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={onNavigate}
+            title="Close navigation"
+            className="size-11 md:size-8"
+          >
+            <X className="size-5 md:size-4" />
+            <span className="sr-only">Close navigation</span>
+          </Button>
+        )}
       </div>
 
       <div className="px-3 pb-2">
@@ -227,22 +262,22 @@ export function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
           <DropdownMenuTrigger asChild>
             <Button
               variant="outline"
-              className="h-auto w-full justify-between gap-2 px-2.5 py-2 text-left"
+              className="h-auto w-full justify-between gap-2 px-3 py-2.5 text-left md:px-2.5 md:py-2"
             >
               <span className="flex min-w-0 items-center gap-2">
                 <FolderGit2 className="size-4 shrink-0 text-muted-foreground" />
                 <span className="min-w-0">
-                  <span className="block truncate text-xs font-medium">
+                  <span className="block truncate text-sm font-medium md:text-xs">
                     {selectedProject?.name ??
                       selectedProject?.canonical.split('/').pop() ??
                       'Select project'}
                   </span>
-                  <span className="block truncate text-[10px] text-muted-foreground">
+                  <span className="block truncate text-[11px] text-muted-foreground md:text-[10px]">
                     {selectedProject?.canonical ?? 'No project selected'}
                   </span>
                 </span>
               </span>
-              <ChevronDown className="size-3.5 shrink-0 text-muted-foreground" />
+              <ChevronDown className="size-4 shrink-0 text-muted-foreground md:size-3.5" />
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="start" className="w-72">
@@ -275,10 +310,9 @@ export function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
         </DropdownMenu>
       </div>
 
-      <div className="flex gap-2 px-3 pb-3">
+      <div className="flex flex-col gap-2 px-3 pb-3">
         <Button
-          size="sm"
-          className="flex-1"
+          className="h-11 w-full text-sm md:h-7 md:text-[0.8rem]"
           onClick={newSession}
           disabled={!selectedProject || createPending}
         >
@@ -287,44 +321,62 @@ export function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
           ) : (
             <Plus className="size-4" />
           )}
-          New session
+          New {lowerSingular}
         </Button>
       </div>
 
-      <div className="px-3 pb-2">
-        <div className="relative">
-          <Search className="pointer-events-none absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" />
+      <div className="flex items-center gap-1.5 px-3 pb-2">
+        <div className="relative min-w-0 flex-1">
+          <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground md:left-2.5 md:size-3.5" />
           <Input
             value={search}
             onChange={(event) => setSearch(event.target.value)}
-            placeholder="Search sessions"
-            className="h-8 pl-8 pr-8 text-xs"
+            placeholder={`Search ${lowerPlural}`}
+            className="h-10 pl-9 pr-14 text-base md:h-8 md:pl-8 md:pr-8 md:text-xs"
           />
           {search && (
             <button
               type="button"
               onClick={() => setSearch('')}
               aria-label="Clear search"
-              className="absolute right-1.5 top-1/2 flex size-5 -translate-y-1/2 items-center justify-center rounded-sm text-muted-foreground transition-colors hover:text-foreground"
+              className="absolute right-1.5 top-1/2 flex size-8 -translate-y-1/2 items-center justify-center rounded-sm text-muted-foreground transition-colors hover:text-foreground md:size-5 max-md:size-11"
             >
-              <X className="size-3.5" />
+              <X className="size-4 md:size-3.5 max-md:size-5" />
             </button>
           )}
         </div>
+        <Button
+          variant="ghost"
+          size="icon"
+          onClick={toggleAllSections}
+          disabled={searching}
+          aria-pressed={allSectionsOpen}
+          title={allSectionsOpen ? 'Collapse all groups' : 'Expand all groups'}
+          className="size-11 shrink-0 md:size-8"
+        >
+          {allSectionsOpen ? (
+            <ChevronsDownUp className="size-5 md:size-4" />
+          ) : (
+            <ChevronsUpDown className="size-5 md:size-4" />
+          )}
+          <span className="sr-only">
+            {allSectionsOpen ? 'Collapse all groups' : 'Expand all groups'}
+          </span>
+        </Button>
       </div>
 
-      <ScrollArea className="min-h-0 flex-1 px-2">
+      <ScrollArea className="min-h-0 flex-1 px-2.5 md:px-2">
         {listPending && (
           <div className="space-y-2 p-2">
             {Array.from({ length: 6 }).map((_, index) => (
-              <Skeleton key={index} className="h-11 w-full" />
+              <Skeleton key={index} className="h-14 w-full md:h-11" />
             ))}
           </div>
         )}
 
         {!listPending && sessionsError && (
-          <div className="p-3 text-xs text-muted-foreground">
-            Could not load sessions.{' '}
+          <div className="p-3 text-sm text-muted-foreground md:text-xs">
+            Could not load {lowerPlural}.{' '}
             <button
               className="underline"
               onClick={() => {
@@ -338,8 +390,10 @@ export function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
         )}
 
         {!listPending && !sessionsError && allSessions.length === 0 && (
-          <div className="p-3 text-xs text-muted-foreground">
-            {search ? 'No sessions match your search.' : 'No sessions yet. Start a new one.'}
+          <div className="p-3 text-sm text-muted-foreground md:text-xs">
+            {search
+              ? `No ${lowerPlural} match your search.`
+              : `No ${lowerPlural} yet. Start a new one.`}
           </div>
         )}
 
@@ -355,18 +409,23 @@ export function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
                     if (!searching) setSectionOpen(section.id, next)
                   }}
                 >
-                  <CollapsibleTrigger className="flex w-full items-center gap-1.5 rounded-md px-2 py-1.5 text-[10px] font-medium uppercase tracking-wider text-muted-foreground transition-colors hover:bg-sidebar-accent/60 hover:text-foreground">
+                  <CollapsibleTrigger className="flex w-full items-center gap-1.5 rounded-md px-2.5 py-2.5 text-xs font-medium uppercase tracking-wider text-muted-foreground transition-colors hover:bg-sidebar-accent/60 hover:text-foreground md:px-2 md:py-1.5 md:text-[10px]">
                     <ChevronRight
-                      className={cn('size-3 shrink-0 transition-transform', open && 'rotate-90')}
+                      className={cn(
+                        'size-3.5 shrink-0 transition-transform md:size-3',
+                        open && 'rotate-90'
+                      )}
                     />
                     <span>{section.label}</span>
-                    <span className="ml-auto min-w-4 text-right tabular-nums">
+                    <span className="ml-auto min-w-4 pr-1 text-right tabular-nums">
                       {section.sessions.length}
                     </span>
                   </CollapsibleTrigger>
                   <CollapsibleContent>
                     {section.sessions.length === 0 ? (
-                      <div className="px-2 py-1 text-[11px] text-muted-foreground">No sessions</div>
+                      <div className="px-2 py-1 text-sm text-muted-foreground md:text-[11px]">
+                        No {lowerPlural}
+                      </div>
                     ) : (
                       section.sessions.map((session) => {
                         const signals = mailboxSignals.get(session.id)
@@ -382,6 +441,7 @@ export function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
                             projectID={selectedProject?.id ?? session.projectID}
                             selected={session.id === params.sessionId}
                             active={Boolean(activeQuery.data?.[session.id])}
+                            snoozed={section.id === 'snoozed'}
                             blocked={attention === 'question'}
                             error={section.id === 'inbox' && attention === 'error'}
                             planReady={section.id === 'inbox' && attention === 'plan'}
@@ -397,7 +457,7 @@ export function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
           })}
       </ScrollArea>
 
-      <div className="border-t px-3 py-2 text-[10px] text-muted-foreground">
+      <div className="border-t px-3 py-2.5 text-[11px] text-muted-foreground md:py-2 md:text-[10px]">
         <div className="flex items-center justify-between gap-2">
           <span className="truncate">{info ? `OpenCode ${info.version}` : 'Not connected'}</span>
           <span className="truncate" title={claraBuildTitle}>

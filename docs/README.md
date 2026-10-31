@@ -43,5 +43,6 @@ here, it is not part of the canonical set.
 | [composer.md](features/composer.md)           | You are working on the reply window, commands, mentions, or attachments  |
 | [session-info.md](features/session-info.md)   | You are working on cost, tokens, context, or message counts              |
 | [notifications.md](features/notifications.md) | You are working on Inbox alerts, desktop notifications, or alert sounds  |
+| [theme.md](features/theme.md)                 | You are working on appearance, color themes, or light/dark mode          |
 | [git.md](features/git.md)                     | You are working on the branch and change summary in the right panel      |
 | [shortcuts.md](features/shortcuts.md)         | You are working on keyboard behavior                                     |

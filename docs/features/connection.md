@@ -8,8 +8,10 @@ the place to recover when the server restarts or credentials change.
 
 ## User flow
 
-1. Open Clara. On first load it looks for a local OpenCode service through the
-   dev proxy and connects automatically when one answers.
+1. Start OpenCode with `opencode service start`, then open Clara. On first load
+   it looks for that local service through the dev proxy and connects
+   automatically when it answers. A foreground `opencode serve` is not detected
+   this way.
 2. If nothing answers, the connect screen shows a server URL field, a password
    field, and a "remember this connection" checkbox.
 3. When a local service is detected, a card shows its version and process ID with
@@ -39,7 +41,10 @@ the place to recover when the server restarts or credentials change.
 3. Credentials live in `sessionStorage` by default. They move to `localStorage`
    only when the person checks "remember".
 4. A stored connection is retried on boot before the local service is considered.
-5. The local proxy is a development convenience. Production builds must use
+5. The local proxy only finds a server registered in `service.json` by
+   `opencode service start`. A foreground `opencode serve` does not write that
+   file, so it must be connected manually with its URL, the password printed at
+   startup, and a CORS entry for Clara's origin. Production builds must use
    manual credentials or an operator-controlled reverse proxy.
 6. Reconnect keeps the stored configuration and the current client while it
    probes. A failed reconnect reports the error but does not sign the person out.
@@ -52,6 +57,9 @@ the place to recover when the server restarts or credentials change.
 - **401** — the form reports an authentication failure; the URL is kept.
 - **Server down or wrong port** — a network error explains that the URL, CORS, or
   process may be wrong.
+- **502 from the local proxy** — `service.json` points at a stopped or restarted
+  service. Run `opencode service start`; a foreground `opencode serve` on `4096`
+  will not update that file, so connect to it manually instead.
 - **CORS rejection** — the alert points at `opencode serve --cors <origin>`.
 - **No local service** — the local card is hidden; manual connection still works.
 - **Stale stored connection** — Clara falls back to the connect screen with the
@@ -104,6 +112,9 @@ the place to recover when the server restarts or credentials change.
   `${XDG_STATE_HOME:-~/.local/state}/opencode/service.json` on each request and
   forwards `/oc/*` with the basic-auth header. It runs in both `vite` and
   `vite preview`, so a restarted service is picked up without restarting Vite.
+  Only `opencode service start` (or another service-mode process) writes that
+  registration; `opencode serve` runs on `4096` by default and prints its
+  password but does not register itself.
 - Related: [architecture overview](../architecture/overview.md)
 
 </details>

@@ -2,6 +2,7 @@
 @import 'tw-animate-css';
 @import 'shadcn/tailwind.css';
 @import '@fontsource-variable/geist';
+@import './styles/color-themes.css';
 
 @custom-variant dark (&:is(.dark *));
 
@@ -226,6 +227,32 @@ body {
 .markdown hr {
   border-color: var(--border);
   margin: 1rem 0;
+}
+
+/*
+ * On touch layouts the whole toast clears it: the close control stretches over
+ * the toast, so a tap anywhere dismisses the notification instead of only the
+ * small corner button.
+ */
+@media (max-width: 767px) {
+  [data-sonner-toast][data-styled='true'] [data-close-button] {
+    inset: 0 !important;
+    width: 100% !important;
+    height: 100% !important;
+    transform: none !important;
+    border: 0 !important;
+    border-radius: inherit !important;
+    background: transparent !important;
+    justify-content: flex-end;
+    align-items: flex-start;
+    padding: 10px;
+  }
+
+  [data-sonner-toast][data-styled='true'] [data-close-button] svg {
+    width: 14px;
+    height: 14px;
+    opacity: 0.6;
+  }
 }
 
 @keyframes clara-done-ring {

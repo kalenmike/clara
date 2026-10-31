@@ -1,0 +1,16 @@
+[Unit]
+Description=OpenCode Server
+After=network.target
+
+[Service]
+Type=simple
+WorkingDirectory=%h/Projects
+
+# 3. Start OpenCode
+ExecStart=/bin/sh -c 'OPENCODE_PASSWORD=$(pass show api/opencode/server) && exec /home/jet/.opencode/bin/opencode serve --cors http://0.0.0.0:4173 --hostname 0.0.0.0 --port 4096'
+
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=default.target

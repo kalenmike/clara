@@ -2,15 +2,15 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Link, Navigate, useLocation, useNavigate, useParams } from 'react-router'
 import { useTheme } from 'next-themes'
 import { toast } from 'sonner'
-import { ArrowLeft, Loader2, SquarePen } from 'lucide-react'
+import { ArrowLeft, Loader2 } from 'lucide-react'
 import type { SessionInboxUser, SessionMessageInfo, SessionMessageUser } from '@opencode/client'
 import { Button } from '@/components/ui/button'
 import { Sheet, SheetContent, SheetDescription, SheetTitle } from '@/components/ui/sheet'
 import { ChatHeader } from '@/components/chat/chat-header'
 import { DraftStartPanel } from '@/components/chat/draft-start-panel'
+import { DraftSessionView } from '@/components/chat/draft-session-view'
 import { EmptySessionView } from '@/components/chat/empty-session-view'
 import { FormPanel } from '@/components/chat/form-panel'
-import { InboxJumpButton } from '@/components/chat/inbox-jump-button'
 import { MessageList } from '@/components/chat/message-list'
 import { PermissionPanel } from '@/components/chat/permission-panel'
 import { PlanReadyPanel } from '@/components/chat/plan-ready-panel'
@@ -28,14 +28,18 @@ import {
   useSwitchAgent,
   useSwitchModel,
 } from '@/features/chat/use-chat'
+import { useInboxMonitor } from '@/features/sessions/inbox-monitor'
 import { useProjects } from '@/features/projects/use-projects'
 import { isArchivedSession } from '@/features/sessions/session-archive'
+import { isSnoozedSession } from '@/features/sessions/session-snooze'
 import { useSession } from '@/features/sessions/use-sessions'
 import { useStartSession, type ChatComposeState } from '@/features/sessions/use-start-session'
+import { useSessionWording } from '@/features/sessions/use-wording'
 import { useCollapsedMessages } from '@/hooks/use-collapsed-messages'
 import { useKeybinds } from '@/hooks/use-keybinds'
 import { useMediaQuery } from '@/hooks/use-media-query'
 import {
+  readDraft,
   readShowInternal,
   readSidePanelTab,
   saveShowInternal,
@@ -49,6 +53,8 @@ export function ChatPage() {
   const navigate = useNavigate()
   const location = useLocation()
   const { status } = useConnection()
+  const { singular, lowerSingular, lowerPlural } = useSessionWording()
+  const inboxMonitor = useInboxMonitor()
   const { setTheme, resolvedTheme } = useTheme()
   const projectsQuery = useProjects()
   const project = projectsQuery.data?.find((item) => item.id === projectId)
@@ -60,6 +66,18 @@ export function ChatPage() {
   const busy = snapshot.status.type !== 'idle'
   const [showInternal, setShowInternal] = useState(readShowInternal)
   const [replyOpen, setReplyOpen] = useState(false)
+  const [draftState, setDraftState] = useState<{
+    sessionID: string
+    hasDraft: boolean
+  } | null>(null)
+  const storedHasLocalDraft = useMemo(
+    () => (sessionId ? readDraft(sessionId).trim().length > 0 : false),
+    [sessionId]
+  )
+  const hasLocalDraft =
+    draftState != null && draftState.sessionID === sessionId
+      ? draftState.hasDraft
+      : storedHasLocalDraft
   const pendingDrafts = useMemo(
     () => (inboxQuery.data ?? []).filter((item): item is SessionInboxUser => item.type === 'user'),
     [inboxQuery.data]
@@ -92,6 +110,13 @@ export function ChatPage() {
     () => !allMessages.some((message) => message.type === 'user' || message.type === 'assistant'),
     [allMessages]
   )
+  const isDraftSession =
+    messagesReady &&
+    emptySession &&
+    !busy &&
+    session != null &&
+    !isArchivedSession(session) &&
+    !isSnoozedSession(session)
   const planReady = useMemo(
     () =>
       session && !isArchivedSession(session)
@@ -130,6 +155,12 @@ export function ChatPage() {
     navigate(location.pathname, { replace: true })
   }, [location.pathname, navigate])
   const handleReplyOpenChange = useCallback((open: boolean) => setReplyOpen(open), [])
+  const handleDraftChange = useCallback(
+    (hasDraft: boolean) => {
+      if (sessionId) setDraftState({ sessionID: sessionId, hasDraft })
+    },
+    [sessionId]
+  )
   const steerFromPlan = useCallback(() => {
     setReplyOpen(true)
     window.dispatchEvent(new Event('clara:open-reply'))
@@ -252,7 +283,7 @@ export function ChatPage() {
   if (sessionQuery.isLoading) {
     return (
       <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
-        <Loader2 className="mr-2 size-4 animate-spin" /> Loading session…
+        <Loader2 className="mr-2 size-4 animate-spin" /> Loading {lowerSingular}…
       </div>
     )
   }
@@ -260,13 +291,13 @@ export function ChatPage() {
   if (sessionQuery.isError || !session) {
     return (
       <div className="flex h-full flex-col items-center justify-center gap-3 text-center">
-        <p className="text-sm font-medium">Session not found</p>
+        <p className="text-sm font-medium">{singular} not found</p>
         <p className="max-w-sm text-xs text-muted-foreground">
           It may have been deleted or the server is unreachable.
         </p>
         <Button asChild variant="outline" size="sm">
           <Link to={projectId ? `/p/${projectId}` : '/'}>
-            <ArrowLeft className="size-4" /> Back to sessions
+            <ArrowLeft className="size-4" /> Back to {lowerPlural}
           </Link>
         </Button>
       </div>
@@ -279,7 +310,6 @@ export function ChatPage() {
         <ChatHeader
           session={session}
           snapshot={snapshot}
-          projectID={projectId ?? session.projectID}
           infoOpen={infoOpen}
           onToggleInfo={togglePanel}
           onDeleted={() => navigate(`/p/${projectId ?? session.projectID}`)}
@@ -307,20 +337,21 @@ export function ChatPage() {
           <div className="flex h-full flex-col items-center justify-center gap-3 text-center">
             <p className="text-sm font-medium">Could not load the conversation</p>
             <p className="max-w-sm text-xs text-muted-foreground">
-              The server did not return this session&apos;s messages.
+              The server did not return this {lowerSingular}&apos;s messages.
             </p>
             <Button variant="outline" size="sm" onClick={() => void messagesQuery.refetch()}>
               Retry
             </Button>
           </div>
         ) : visibleMessages.length === 0 ? (
-          <EmptySessionView
-            title="Start the conversation"
-            description="Open the reply window to write the first prompt. Use / for commands or @ to reference files and agents."
-            actionLabel="Start conversation"
-            actionIcon={<SquarePen className="size-4" />}
-            onAction={() => window.dispatchEvent(new Event('clara:expand-reply'))}
-          />
+          isDraftSession ? (
+            <DraftSessionView hasDraft={hasLocalDraft} />
+          ) : (
+            <EmptySessionView
+              title="No messages"
+              description={`This ${lowerSingular} has no messages yet.`}
+            />
+          )
         ) : (
           <MessageList
             messages={visibleMessages}
@@ -346,21 +377,24 @@ export function ChatPage() {
           empty={emptySession}
           ready={messagesReady}
           canSaveAsDraft={canSaveAsDraft}
+          hasDraft={hasLocalDraft}
+          autoOpen={isDraftSession && storedHasLocalDraft}
           startExpanded={startExpanded}
           onStartExpandedConsumed={clearComposeState}
+          onDraftChange={handleDraftChange}
           onOpenChange={handleReplyOpenChange}
-          onDone={() => navigate('/')}
+          onDone={() => {
+            if (inboxMonitor.active) {
+              inboxMonitor.advance(sessionId)
+              return
+            }
+            navigate('/')
+          }}
+          onSent={() => {
+            if (inboxMonitor.active) inboxMonitor.advance(sessionId)
+          }}
           onCycleAgent={cycleAgent}
         />
-
-        {directory && (
-          <InboxJumpButton
-            projectID={projectId ?? session.projectID}
-            currentSessionID={sessionId}
-            directory={directory}
-            className="absolute bottom-4 left-1/2 z-20 -translate-x-1/2 max-md:bottom-16"
-          />
-        )}
       </div>
 
       {infoOpen && isDesktop && (
@@ -376,8 +410,12 @@ export function ChatPage() {
 
       {!isDesktop && (
         <Sheet open={infoOpen} onOpenChange={setInfoOpen}>
-          <SheetContent side="right" className="p-0 data-[side=right]:w-full sm:max-w-none">
-            <SheetTitle className="sr-only">Session panel</SheetTitle>
+          <SheetContent
+            side="right"
+            className="p-0 data-[side=right]:w-full sm:max-w-none"
+            showCloseButton={false}
+          >
+            <SheetTitle className="sr-only">{singular} panel</SheetTitle>
             <SheetDescription className="sr-only">
               Usage, cost, git changes, and the pair terminal
             </SheetDescription>
@@ -388,6 +426,7 @@ export function ChatPage() {
               directory={directory}
               tab={panelTab}
               onTabChange={setPanelTab}
+              onClose={() => setInfoOpen(false)}
               resizable={false}
               className="w-full"
             />

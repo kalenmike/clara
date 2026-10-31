@@ -16,7 +16,7 @@ function CodeBlock({ code, language }: { code: string; language?: string }) {
 
   return (
     <div className="group relative my-3 overflow-hidden rounded-lg border bg-muted/40">
-      <div className="flex items-center justify-between border-b bg-muted/60 px-3 py-1.5">
+      <div className="flex items-center justify-between border-b bg-muted/60 px-3 py-1.5 max-md:py-0">
         <span className="font-mono text-[10px] uppercase tracking-wider text-muted-foreground">
           {language || 'text'}
         </span>
@@ -24,10 +24,14 @@ function CodeBlock({ code, language }: { code: string; language?: string }) {
           type="button"
           variant="ghost"
           size="icon"
-          className="size-6 opacity-0 transition-opacity group-hover:opacity-100"
+          className="size-6 opacity-0 transition-opacity group-hover:opacity-100 max-md:size-11 max-md:opacity-100"
           onClick={copy}
         >
-          {copied ? <Check className="size-3" /> : <Copy className="size-3" />}
+          {copied ? (
+            <Check className="size-3 max-md:size-5" />
+          ) : (
+            <Copy className="size-3 max-md:size-5" />
+          )}
           <span className="sr-only">Copy code</span>
         </Button>
       </div>

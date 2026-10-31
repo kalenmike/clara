@@ -4,9 +4,17 @@
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="description" content="Clara is a web client for OpenCode sessions." />
+    <meta name="description" content="Clara is a web client for OpenCode." />
     <meta name="theme-color" content="#111111" />
-    <title>Clara · OpenCode sessions</title>
+    <title>Clara · OpenCode</title>
+    <script>
+      try {
+        const colorTheme = localStorage.getItem('clara.colorTheme')
+        if (colorTheme) document.documentElement.dataset.theme = colorTheme
+      } catch {
+        // Storage can be unavailable; the default palette is used.
+      }
+    </script>
   </head>
   <body>
     <div id="root"></div>

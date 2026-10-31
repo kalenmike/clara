@@ -1,0 +1,14 @@
+[Unit]
+Description=Clara UI Service
+After=network.target
+
+[Service]
+Type=simple
+WorkingDirectory=/home/jet/Projects/clara
+Environment=PATH=/home/jet/.nvm/versions/node/v22.22.0/bin:/usr/local/bin:/usr/bin:/bin
+ExecStart=/home/jet/.nvm/versions/node/v22.22.0/bin/pnpm exec vite preview --host 0.0.0.0 --port 4173
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=default.target

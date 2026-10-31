@@ -150,11 +150,11 @@ export function MessageList({
         variant="secondary"
         onClick={scrollToBottom}
         className={cn(
-          'absolute bottom-4 left-1/2 size-8 -translate-x-1/2 rounded-full shadow-md transition-opacity md:bottom-16',
+          'absolute bottom-4 left-1/2 size-8 -translate-x-1/2 rounded-full shadow-md transition-opacity md:bottom-16 max-md:size-11',
           showJump ? 'opacity-100' : 'pointer-events-none opacity-0'
         )}
       >
-        <ArrowDown className="size-4" />
+        <ArrowDown className="size-4 max-md:size-5" />
         <span className="sr-only">Scroll to bottom</span>
       </Button>
     </div>

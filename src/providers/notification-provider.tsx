@@ -3,6 +3,8 @@ import { useNavigate } from 'react-router'
 import { useQueryClient } from '@tanstack/react-query'
 import type { SessionInfo } from '@opencode/client'
 import { isArchivedSession } from '@/features/sessions/session-archive'
+import { isSnoozedSession } from '@/features/sessions/session-snooze'
+import { readSessionWording } from '@/features/sessions/wording'
 import type { AttentionKind } from '@/features/notifications/attention'
 import {
   readNotificationPermission,
@@ -89,7 +91,7 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
             return
           }
         }
-        if (disposed || isArchivedSession(session)) return
+        if (disposed || isArchivedSession(session) || isSnoozedSession(session)) return
 
         showDesktopNotification({
           kind,
@@ -173,7 +175,7 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
 }
 
 function attentionBody(kind: AttentionKind, title: string | undefined, detail?: string): string {
-  const name = title?.trim() || 'Untitled session'
+  const name = title?.trim() || `Untitled ${readSessionWording().lowerSingular}`
   const suffix = detail?.trim() ? `: ${clip(detail)}` : '.'
 
   switch (kind) {

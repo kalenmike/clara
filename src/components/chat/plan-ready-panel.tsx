@@ -47,23 +47,23 @@ export function PlanReadyPanel({ sessionID, onSteer }: { sessionID: string; onSt
               <Button
                 size="sm"
                 variant="outline"
-                className="h-7 gap-1 text-xs"
+                className="h-7 gap-1 text-xs max-md:h-11 max-md:px-3 max-md:text-sm"
                 onClick={onSteer}
                 disabled={pending}
               >
-                <SquarePen className="size-3.5" />
+                <SquarePen className="size-3.5 max-md:size-5" />
                 Steer
               </Button>
               <Button
                 size="sm"
-                className="h-7 gap-1 text-xs"
+                className="h-7 gap-1 text-xs max-md:h-11 max-md:px-3 max-md:text-sm"
                 onClick={() => void startBuild()}
                 disabled={pending}
               >
                 {pending ? (
-                  <Loader2 className="size-3.5 animate-spin" />
+                  <Loader2 className="size-3.5 animate-spin max-md:size-5" />
                 ) : (
-                  <Hammer className="size-3.5" />
+                  <Hammer className="size-3.5 max-md:size-5" />
                 )}
                 Build
               </Button>

@@ -3,20 +3,20 @@
 ## Summary
 
 The reply composer is a Gmail-style window docked to the bottom-right of a chat.
-It opens from the **Reply** button, automatically when a new session is created,
-or from **Start conversation** on an empty session. It sends prompts that steer
-the run by default, can save the first message as a draft without starting a
-run, and carries commands, mentions, attachments, model selection, and agent
-selection.
+It opens from the **Reply** or **New** button, automatically when a new session
+is created or an empty draft with locally saved text is opened, and from Steer
+on the plan-ready card. It sends prompts that steer the run by default, can save
+the first message as a draft without starting a run, and carries commands,
+mentions, attachments, model selection, and agent selection.
 
 ## User flow
 
-1. Click **Reply** in the bottom-right corner of the chat. The window opens in
-   the last-used size: expanded (maximized) by default, or the smaller docked
-   window if that is how it was last restored. Creating a new session opens the
-   window automatically at that size; on an empty session, click **Start
-   conversation** instead. The plan-ready card's **Steer** action also opens the
-   window.
+1. Click **Reply** in the bottom-right corner of the chat, or **New** on an empty
+   draft. The window opens in the last-used size: expanded (maximized) by
+   default, or the smaller docked window if that is how it was last restored.
+   Creating a new session opens the window automatically at that size, and so
+   does opening an empty draft that has locally saved text. The plan-ready
+   card's **Steer** action also opens the window.
 2. Type in the large editor. The docked window stays non-modal, so the thread
    remains readable and scrollable behind it.
 3. Press Enter to send with steering, or Shift+Enter to add a line.
@@ -50,9 +50,9 @@ selection.
    Reply when it is visible. A failed send keeps the text and attachments.
 6. The window remembers its size across sessions and reloads. Expanded
    (maximized) is the default; restoring to the smaller dock makes the next
-   open — from Reply, a new session, Start conversation, or Steer — use the
-   docked size. Minimizing to the title bar is transient and does not overwrite
-   the remembered size; restoring returns to the saved size.
+   open — from Reply, New, a new session, a restored local draft, or Steer — use
+   the docked size. Minimizing to the title bar is transient and does not
+   overwrite the remembered size; restoring returns to the saved size.
 7. **Save as draft** is available only before the session has an assistant
    reply. It calls `session.prompt` with `resume: false`, which admits the
    message to the session inbox without starting a run. An untitled session is
@@ -65,6 +65,21 @@ selection.
 ## Edge cases
 
 - **Empty or whitespace-only prompt** — Send and Save as draft are disabled.
+- **Mobile focus zoom** — every text input and textarea renders at 16px or more
+  on phones (`text-base md:text-sm` or `text-base md:text-xs`). iOS Safari zooms
+  the page when a focused field is smaller than 16px, which crops the composer's
+  Send button. Keep new mobile inputs at 16px rather than disabling page zoom.
+- **Mobile toolbar targets** — below `md` every action button gets a 44px touch
+  target: the footer icons, the model and variant pickers, and the buttons in
+  permission, form, plan, draft, and git panels. The footer glyphs are 20px.
+  Below `sm` the slash, mention, and agent labels collapse to icon-only so the
+  row still fits a 320px-wide phone; their accessible names stay in `sr-only`
+  text and the agent picker opens with the full list.
+- **Mobile screen corners** — below `md` the footer keeps extra bottom padding
+  (plus the safe-area inset when the browser reports one) and the floating
+  Reply/New cluster sits further from the bottom-right corner. The expanded
+  window also insets its bottom edge, so iPhone rounded corners and the home
+  indicator do not clip the attach/Send controls.
 - **Unknown slash command** — the text is sent as a normal prompt with steering.
 - **Busy session with Send** — the prompt steers the active run instead of
   interrupting it.
@@ -79,16 +94,16 @@ selection.
   it as a user message instead of executing it as a command.
 - **Start failure** — the draft stays queued and Start can be retried.
 - **Send failure** — the window stays open with the draft and attachments intact.
-- **Empty session** — Start conversation opens the window in the last-used size
-  (expanded by default); the floating Reply button stays hidden until the
-  session has a message.
+- **Empty draft** — New replaces Reply and Delete replaces Done. The composer
+  opens automatically when locally saved text exists; otherwise New opens it in
+  the last-used size (expanded by default).
 - **New session** — the window opens in the last-used size and focused, with the
   rest of the start view still visible behind it.
 - **Size memory** — the expanded/docked choice survives closing, switching
   sessions, and reloads. An unreadable or missing stored value falls back to
   expanded.
-- **Close with a draft** — the Reply button shows a draft dot and reopening
-  restores the text.
+- **Close with a draft** — the Reply or New button shows a draft dot and
+  reopening restores the text.
 - **Switch sessions** — the reply window resets to the new session's draft.
 - **Minimized window** — a model or agent shortcut restores the window to its
   saved size before opening its picker.
@@ -137,6 +152,7 @@ selection.
 - Pending drafts: `client.session.inbox.list({ sessionID })`
 - Start: `client.session.prompt({ sessionID, text: 'Start', delivery: 'steer' })`
 - Start panel: `src/components/chat/draft-start-panel.tsx`
+- New message view: `src/components/chat/draft-session-view.tsx`
 - Commands: `client.command.list()`, `client.session.command({ name, text })`
 - File search: `client.file.find({ location, query, type: 'file', limit: 8 })`
 - Mentions: `client.agent.list()`, `client.skill.list()`,

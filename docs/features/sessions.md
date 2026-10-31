@@ -4,7 +4,8 @@
 
 The project and session browser is how people find their work. Projects group
 sessions by the directory OpenCode opened; sessions are the units of conversation
-that Clara opens in the chat view.
+that Clara opens in the chat view. The interface calls them **Briefs** by
+default, and the noun is configurable in Settings.
 
 ## User flow
 
@@ -12,34 +13,46 @@ that Clara opens in the chat view.
    project or the first project selected in the sidebar.
 2. The sidebar project button opens a menu of every project the server knows,
    showing its name and canonical path.
-3. Choosing a project loads its sessions into four collapsible sections: Inbox,
-   Outbox, Drafts, and Archived.
+3. Choosing a project loads its sessions into five collapsible sections: Inbox,
+   Outbox, Drafts, Snoozed, and Archived.
 4. Inbox holds sessions that need the person: a pending approval or question,
    or an idle session whose latest conversational message is from the agent.
    Outbox holds sessions where the agent still owes a reply, including every
    running session.
 5. Drafts holds empty sessions and sessions with a saved no-reply draft that
-   has not produced a projected message yet. Archived holds sessions archived on
-   the server.
+   has not produced a projected message yet. Snoozed holds sessions postponed
+   with the server's `snoozed` metadata. Archived holds sessions archived on the
+   server and wins over Snoozed when both apply.
 6. The search box filters sessions by title using the server's search parameter
-   and temporarily expands every section so matching titles are visible.
+   and temporarily expands every section so matching titles are visible. A
+   toggle button beside the search box opens or closes every section at once;
+   it is disabled while a search is active.
 7. **New session** creates a session in the selected project and opens the reply
    composer in the last-used size (expanded by default), ready for the first
-   prompt; the empty session appears in Drafts.
+   prompt; the empty session appears in Drafts. Opening an empty draft with
+   locally saved text opens the composer too.
 8. On the project page, sessions also appear as cards with agent, model, token
    totals, cost, and update time.
-9. Opening a session shows it in the sidebar and loads the chat view, or the
-   empty session view when it has no messages and no pending draft.
-10. A floating **Inbox** button at the bottom center of the chat opens the newest
-    Inbox session. It is greyed out when the Inbox is empty or the open session
-    is already the newest Inbox session.
-11. The chat header can rename, archive, or delete the current session.
-12. The Done button in the reply dock appends `[DONE]` to the title, archives
-    the session, briefly celebrates, and returns to the start view. On a session
-    with no messages, Done deletes the session instead of archiving it.
-13. Opening an archived session shows a Reopen button next to Reply. Reopening
-    clears the server's archived flag and leaves the title untouched, so a
-    `[DONE]` suffix stays in place until the person renames the session.
+9. Opening a session shows it in the sidebar and loads the chat view, or a
+   dedicated New message view when it has no messages and no pending draft.
+10. A **Monitor Inbox** switch on the start view, below **New Session**, jumps
+    to the newest Inbox session when turned on. While active it advances after
+    Done, Send, or saving a draft: Clara opens the next newest Inbox session, or
+    the start view when the Inbox is empty. It also opens a session as soon as
+    it newly enters the Inbox while the start view is open; sessions already in
+    the Inbox when the view opens never redirect. Manual navigation is otherwise
+    never redirected. The switch shows whether monitoring is active whenever the
+    start view is shown, and reports how many agents are working in the project's
+    Outbox with a pulsing dot while any run is active.
+11. The chat header can rename, snooze, archive, or delete the current session. A home
+    button to the left of the title returns to the start view.
+12. The Done button in the reply dock archives the session without renaming it,
+    briefly celebrates, and returns to the start view (or opens the next Inbox
+    session while Monitor Inbox is active). An empty draft shows a simple
+    **Delete** action instead, which removes the session immediately.
+13. Opening an archived or snoozed session shows a Reopen button next to Reply.
+    Reopening clears the server's archived and snoozed flags as applicable and
+    leaves the title untouched.
 
 ## Core business rules
 
@@ -68,37 +81,75 @@ that Clara opens in the chat view.
    message was saved with OpenCode's no-reply mode and still sits in the session
    inbox. The queued message is shown in the chat and can be started from the
    Start panel.
-7. Archive state comes only from the server's `archived` timestamp. A `[DONE]`
-   or `(DONE)` title never moves a session out of Inbox on its own.
-8. Done appends `[DONE]` unless the title already has a completion suffix, sets
-   the server's archived flag, and returns to the start view after a short
-   celebration delay. On an empty session it deletes the session instead. It is
-   hidden while the agent is running.
-9. Reopening clears the archived flag and does not rename the session. Reopen is
-   available only while the reply window is closed and the agent is idle.
-10. A session without projected messages and without a pending draft shows the
-    empty session view instead of the chat, with a single action that opens the
-    reply window in the last-used size. A new session skips this step and opens
-    the composer immediately.
+7. Archive state comes only from the server's `archived` timestamp, and snooze
+   state only from `metadata.snoozed === true`. Title text, including any legacy
+   `[DONE]` or `(DONE)` suffix, never moves a session out of Inbox on its own.
+8. Done sets the server's archived flag without changing the title, and returns
+   to the start view after a short celebration delay, or opens the next Inbox
+   session when Monitor Inbox is active. An empty, non-archived draft shows
+   **Delete** instead; it removes the session immediately. Done is hidden while
+   the agent is running and on snoozed sessions.
+9. Reopening clears the archived flag and any snooze metadata, and does not
+   rename the session. Reopen is available only while the reply window is closed
+   and the agent is idle.
+10. A session without projected messages and without a pending draft shows a
+    dedicated New message view instead of the chat. **New** replaces Reply and
+    opens the composer in the last-used size; opening the draft with locally
+    saved text opens the composer automatically. A new session skips this step
+    and opens the composer immediately.
 11. Each section header shows its session count whether the section is expanded
-    or collapsed. Sections collapse independently; the state is remembered in
-    local storage, and search temporarily forces every section open without
+    or collapsed. Sections collapse independently; the toggle beside the search
+    box opens or closes all of them at once, and both actions are remembered in
+    local storage. Search temporarily forces every section open without
     overwriting the saved state.
 12. Deleting a session requires confirmation and permanently removes its
     messages.
-13. The Inbox button targets the newest Inbox session for the current project by
-    update time, independent of the sidebar search. It never navigates to itself.
+13. Monitor Inbox targets the newest Inbox session for the current project by
+    update time, independent of the sidebar search. It moves the open view when
+    the toggle is turned on, after Done, Send, or saving a draft, or when a
+    session newly enters the Inbox while the start view is open. The first three
+    actions open the next newest Inbox session, or the start view when none
+    remain. Sessions already in the Inbox when the start view opens never
+    redirect, so manual navigation and the switch stay usable. The preference is
+    remembered in local storage. The switch also shows the current Outbox count
+    as “N agents working” (or “No agents working”) for the project.
+14. Snoozed sessions leave Inbox, Outbox, and Drafts until they are reopened.
+    Archived wins when a session is both archived and snoozed. Snoozed sessions
+    do not trigger desktop notifications, inbox sounds, or Monitor Inbox.
+15. The interface calls a session a **Brief** by default. Settings → Session
+    wording replaces that noun in every user-facing label, placeholder, toast,
+    and notification. The setting offers Brief, Task, Session, Action, Run, and
+    Job presets or any custom singular word, derives the plural, and stores the
+    choice in the browser. OpenCode's API and Clara's internal code still use
+    `session`.
 
 ## Edge cases
 
 - **No projects** — an empty state explains that a directory must be opened with
   OpenCode first.
 - **No sessions** — the list invites the person to create one.
-- **No Inbox sessions** — the Inbox button stays visible but greyed out.
-- **Already on the newest Inbox session** — the Inbox button is greyed out even
-  when older Inbox sessions exist.
-- **Inbox still loading** — the Inbox button stays disabled until sessions and
-  mailbox signals resolve.
+- **Custom wording is blank** — Clara falls back to the current or default noun
+  instead of saving an empty label.
+- **No Inbox sessions while monitoring** — Clara shows the start view with the
+  Monitor Inbox switch still on, so monitoring can be turned off. The next
+  session to enter the Inbox opens automatically.
+- **Open session leaves the Inbox** — Done, Send, and saving a draft open the
+  next newest Inbox session.
+- **A newer Inbox session arrives while a session is open** — the open session
+  stays in place.
+- **A session enters the Inbox while the start view is open** — Clara opens it.
+  Sessions already in the Inbox when the view opens stay put.
+- **Manual navigation while monitoring** — opening a session outside the Inbox,
+  starting a new session, or opening Settings stays where the person navigated.
+- **Home button** — the chat header link returns to the start view without
+  changing the monitoring preference.
+- **Inbox still loading on activation** — Clara waits for sessions and mailbox
+  signals, then jumps once; navigating before they resolve cancels the jump.
+- **Inbox request fails** — Clara keeps the current view and the switch keeps
+  its saved state.
+- **Monitoring remembered after reload** — the active state is restored without
+  redirecting for sessions already in the Inbox. A later arrival still opens
+  when the start view is shown.
 - **No draft sessions** — the Drafts section shows a small empty state.
 - **Search with no matches** — the list says so without clearing the query.
 - **Search active** — every section is temporarily expanded so matching titles
@@ -132,12 +183,19 @@ that Clara opens in the chat view.
   normal state.
 - **Very long titles** — rows and cards truncate or clamp; the full title is in
   the chat header.
-- **Archived sessions** — shown only in the Archived section.
+- **Archived sessions** — shown only in the Archived section, even when they
+  also carry snooze metadata.
+- **Snoozed sessions** — shown only in the Snoozed section until reopened; they
+  keep their title, messages, and run state.
+- **Snoozed and archived** — Archived wins; reopening the session clears both
+  flags and returns it to its mailbox bucket.
+- **Snoozing while running** — the run continues but the session stays out of
+  Outbox and inbox alerts; Reopen remains hidden until the run finishes.
 - **Reopened sessions** — return to Inbox, Outbox, or Drafts with their title
-  unchanged, including any `[DONE]` suffix.
+  unchanged.
 - **Done or Reopen while running** — both are hidden until the run finishes.
-- **Done on an empty session** — the session is deleted rather than archived,
-  and the start view returns.
+- **Delete on an empty draft** — the session is removed immediately rather than
+  archived, and the start view returns.
 - **New session** — creates the session and opens the reply composer in the
   last-used size so the first prompt can be typed immediately.
 - **Messages fail to load** — the chat reports the failure and hides Done so a
@@ -165,7 +223,8 @@ that Clara opens in the chat view.
 <summary>Routes, data, and references</summary>
 
 - Routes: `/`, `/p/:projectId`, `/p/:projectId/s/:sessionId`
-- Active list: `client.session.list({ directory, search, archived: false, limit: 50 })`
+- Active list: `client.session.list({ directory, search, archived: false, limit: 50 })`;
+  includes snoozed sessions
 - Archived list: `client.session.list({ directory, search, archived: true, limit: 50 })`
 - Mailbox signals: `client.message.list({ sessionID, order: 'desc', limit: 1, type })`
   for `user` and `assistant`, plus `client.session.form.list({ sessionID })`
@@ -177,14 +236,23 @@ that Clara opens in the chat view.
 - Awaiting input: `client.permission.request.list({ location: { directory } })`
   and pending forms
 - Create: `client.session.create({ location: { directory }, agent, model })`
-- Update: `client.session.update({ sessionID, title?, archived? })`
-- Done: `client.session.update({ sessionID, title: '<title> [DONE]', archived: true })`
-- Reopen: `client.session.update({ sessionID, archived: false })` — title untouched
-- Done on empty: `client.session.remove({ sessionID })`
+- Update: `client.session.update({ sessionID, title?, metadata?, archived? })` —
+  metadata replaces the stored object, so snooze writes merge the current keys
+- Snooze: `client.session.update({ sessionID, metadata: { ...existing, snoozed: true } })`
+- Unsnooze: `client.session.update({ sessionID, metadata: withoutSnoozed })`
+- Done: `client.session.update({ sessionID, archived: true })` — title untouched
+- Reopen: `client.session.update({ sessionID, archived: false, metadata? })` —
+  clears archived and any snooze metadata; title untouched
+- Delete empty draft: `client.session.remove({ sessionID })`
+- Local composer draft: `clara.draft.<sessionID>` in `localStorage`
 - Delete: `client.session.remove({ sessionID })`
 - Active map: `client.session.active()`
-- Inbox shortcut: `src/features/sessions/use-inbox-sessions.ts`,
-  `src/components/chat/inbox-jump-button.tsx`
+- Inbox monitor: `src/features/sessions/inbox-monitor.tsx`,
+  `src/components/chat/inbox-monitor-toggle.tsx`, and
+  `src/features/sessions/use-inbox-sessions.ts`
+- Monitor preference: `clara.monitorInbox` in `localStorage` (`on` or `off`)
+- Session wording: `clara.sessionWording` in `localStorage` (default `Brief`;
+  custom singular word, plural derived automatically)
 - Inbox alerts: see [notifications](notifications.md)
 - Section state: `clara.sidebarSections` in `localStorage`
 - Sidebar width: `clara.sidebarWidth` in `localStorage` (clamped to 208–480px,

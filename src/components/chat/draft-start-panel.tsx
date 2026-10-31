@@ -38,14 +38,14 @@ export function DraftStartPanel({ sessionID, count }: { sessionID: string; count
             <div className="mt-3">
               <Button
                 size="sm"
-                className="h-7 gap-1 text-xs"
+                className="h-7 gap-1 text-xs max-md:h-11 max-md:px-3 max-md:text-sm"
                 onClick={() => void start()}
                 disabled={pending}
               >
                 {pending ? (
-                  <Loader2 className="size-3.5 animate-spin" />
+                  <Loader2 className="size-3.5 animate-spin max-md:size-5" />
                 ) : (
-                  <Play className="size-3.5" />
+                  <Play className="size-3.5 max-md:size-5" />
                 )}
                 Start
               </Button>

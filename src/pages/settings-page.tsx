@@ -1,40 +1,45 @@
-import { useNavigate } from 'react-router'
-import { useTheme } from 'next-themes'
-import { Check, Loader2, LogOut, Monitor, Moon, RefreshCw, Server, Sun } from 'lucide-react'
+import { Link, useNavigate } from 'react-router'
+import { ArrowLeft, Loader2, LogOut, RefreshCw, Server } from 'lucide-react'
 import { toast } from 'sonner'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Separator } from '@/components/ui/separator'
 import { NotificationsCard } from '@/components/settings/notifications-card'
+import { ThemeCard } from '@/components/settings/theme-card'
+import { WordingCard } from '@/components/settings/wording-card'
+import { useSessionWording } from '@/features/sessions/use-wording'
+import type { SessionWording } from '@/features/sessions/wording'
 import { useConnection } from '@/providers/connection-provider'
 import { useEventStream } from '@/providers/event-provider'
-import { cn } from '@/lib/utils'
 
-const SHORTCUTS: Array<[string, string]> = [
-  ['ctrl+x then n', 'New session'],
-  ['ctrl+x then l', 'Session list'],
-  ['ctrl+x then m', 'Model picker'],
-  ['ctrl+x then a', 'Agent picker'],
-  ['ctrl+x then c', 'Compact session'],
-  ['ctrl+x then s', 'Session info'],
-  ['ctrl+x then g', 'Git changes'],
-  ['ctrl+x then `', 'Pair terminal'],
-  ['ctrl+x then h', 'Collapse messages'],
-  ['ctrl+x then t', 'Toggle theme'],
-  ['ctrl+x then y', 'Copy last reply'],
-  ['tab / shift+tab', 'Cycle agent in the message box'],
-  ['ctrl+. / ctrl+shift+.', 'Cycle agent from anywhere'],
-  ['ctrl+t', 'Cycle model variant'],
-  ['escape', 'Interrupt or close'],
-  ['shift+enter', 'New line'],
-]
+function shortcutList(wording: SessionWording): Array<[string, string]> {
+  return [
+    ['ctrl+x then n', `New ${wording.lowerSingular}`],
+    ['ctrl+x then l', `${wording.singular} list`],
+    ['ctrl+x then m', 'Model picker'],
+    ['ctrl+x then a', 'Agent picker'],
+    ['ctrl+x then c', `Compact ${wording.lowerSingular}`],
+    ['ctrl+x then s', `${wording.singular} info`],
+    ['ctrl+x then g', 'Git changes'],
+    ['ctrl+x then `', 'Pair terminal'],
+    ['ctrl+x then h', 'Collapse messages'],
+    ['ctrl+x then t', 'Toggle light/dark mode'],
+    ['ctrl+x then y', 'Copy last reply'],
+    ['tab / shift+tab', 'Cycle agent in the message box'],
+    ['ctrl+. / ctrl+shift+.', 'Cycle agent from anywhere'],
+    ['ctrl+t', 'Cycle model variant'],
+    ['escape', 'Interrupt or close'],
+    ['shift+enter', 'New line'],
+  ]
+}
 
 export function SettingsPage() {
   const navigate = useNavigate()
-  const { theme, setTheme } = useTheme()
   const { config, info, disconnect, reconnect, reconnecting, reconnectError } = useConnection()
   const { state: streamState, lastError } = useEventStream()
+  const wording = useSessionWording()
+  const shortcuts = shortcutList(wording)
 
   const signOut = () => {
     disconnect()
@@ -51,9 +56,16 @@ export function SettingsPage() {
     <div className="h-full overflow-auto">
       <div className="mx-auto max-w-3xl space-y-6 p-6">
         <div>
+          <Link
+            to="/"
+            className="mb-3 inline-flex items-center gap-1.5 text-sm text-muted-foreground transition-colors hover:text-foreground"
+          >
+            <ArrowLeft className="size-4" />
+            Back to home
+          </Link>
           <h1 className="text-xl font-semibold tracking-tight">Settings</h1>
           <p className="text-sm text-muted-foreground">
-            Connection, appearance, notifications, sounds, and shortcuts.
+            Connection, appearance, wording, notifications, sounds, and shortcuts.
           </p>
         </div>
 
@@ -99,31 +111,9 @@ export function SettingsPage() {
           </CardContent>
         </Card>
 
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-sm">Appearance</CardTitle>
-            <CardDescription>Follow the system or force a theme.</CardDescription>
-          </CardHeader>
-          <CardContent className="flex gap-2">
-            {[
-              { value: 'light', label: 'Light', icon: Sun },
-              { value: 'dark', label: 'Dark', icon: Moon },
-              { value: 'system', label: 'System', icon: Monitor },
-            ].map((option) => (
-              <Button
-                key={option.value}
-                variant="outline"
-                size="sm"
-                onClick={() => setTheme(option.value)}
-                className={cn(theme === option.value && 'border-foreground/40 bg-accent')}
-              >
-                <option.icon className="size-4" />
-                {option.label}
-                {theme === option.value && <Check className="size-3.5" />}
-              </Button>
-            ))}
-          </CardContent>
-        </Card>
+        <ThemeCard />
+
+        <WordingCard />
 
         <NotificationsCard />
 
@@ -134,7 +124,7 @@ export function SettingsPage() {
           </CardHeader>
           <CardContent>
             <div className="grid gap-x-8 gap-y-2 sm:grid-cols-2">
-              {SHORTCUTS.map(([keys, action]) => (
+              {shortcuts.map(([keys, action]) => (
                 <div key={keys} className="flex items-center justify-between gap-3 text-xs">
                   <span className="text-muted-foreground">{action}</span>
                   <kbd className="rounded border bg-muted px-1.5 py-0.5 font-mono text-[10px]">

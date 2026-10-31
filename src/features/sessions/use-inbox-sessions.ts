@@ -2,18 +2,19 @@ import { useMemo } from 'react'
 import { usePendingPermissions } from '@/features/chat/use-permissions'
 import { isArchivedSession } from '@/features/sessions/session-archive'
 import { groupSessionsByMailbox } from '@/features/sessions/session-sections'
+import { isSnoozedSession } from '@/features/sessions/session-snooze'
 import { useSessionMailboxSignals } from '@/features/sessions/use-session-mailbox'
 import { useActiveSessions, useSessions } from '@/features/sessions/use-sessions'
 
 /** Inbox sessions for a project, newest first, with the data needed to jump to them. */
-export function useInboxSessions(directory: string) {
-  const sessionsQuery = useSessions(directory, '')
+export function useInboxSessions(directory: string | null) {
+  const sessionsQuery = useSessions(directory, '', Boolean(directory))
   const activeQuery = useActiveSessions()
-  const permissionsQuery = usePendingPermissions(directory)
+  const permissionsQuery = usePendingPermissions(directory ?? undefined)
 
   const sessions = useMemo(() => sessionsQuery.data?.data ?? [], [sessionsQuery.data])
   const mailboxSessions = useMemo(
-    () => sessions.filter((session) => !isArchivedSession(session)),
+    () => sessions.filter((session) => !isArchivedSession(session) && !isSnoozedSession(session)),
     [sessions]
   )
   const { signals, pending: mailboxesPending } = useSessionMailboxSignals(mailboxSessions)
@@ -21,14 +22,15 @@ export function useInboxSessions(directory: string) {
     () => new Set((permissionsQuery.data ?? []).map((request) => request.sessionID)),
     [permissionsQuery.data]
   )
-  const inbox = useMemo(
-    () => groupSessionsByMailbox(mailboxSessions, signals, activeQuery.data, awaitingInput).inbox,
+  const groups = useMemo(
+    () => groupSessionsByMailbox(mailboxSessions, signals, activeQuery.data, awaitingInput),
     [mailboxSessions, signals, activeQuery.data, awaitingInput]
   )
 
   return {
-    inbox,
-    top: inbox[0],
+    inbox: groups.inbox,
+    outboxCount: groups.outbox.length,
+    top: groups.inbox[0],
     pending:
       sessionsQuery.isPending ||
       activeQuery.isPending ||

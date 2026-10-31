@@ -1,9 +1,14 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import type { SessionInfo } from '@opencode/client'
+import {
+  isSnoozedSession,
+  snoozeMetadata,
+  unsnoozeMetadata,
+} from '@/features/sessions/session-snooze'
 import { queryKeys } from '@/lib/query-keys'
 import { useConnection } from '@/providers/connection-provider'
 
-export function useSessions(directory: string | null, search: string) {
+export function useSessions(directory: string | null, search: string, enabled = true) {
   const { client } = useConnection()
   return useQuery({
     queryKey: [...queryKeys.sessions(directory), search],
@@ -14,7 +19,7 @@ export function useSessions(directory: string | null, search: string) {
         archived: false,
         limit: 50,
       }),
-    enabled: Boolean(client),
+    enabled: Boolean(client) && enabled,
   })
 }
 
@@ -96,6 +101,40 @@ export function useArchiveSession(sessionID: string) {
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ['sessions'] })
       void queryClient.invalidateQueries({ queryKey: queryKeys.session(sessionID) })
+    },
+  })
+}
+
+export function useSnoozeSession() {
+  const { client } = useConnection()
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: ({ session, snoozed }: { session: SessionInfo; snoozed: boolean }) =>
+      client!.session.update({
+        sessionID: session.id,
+        metadata: snoozed ? snoozeMetadata(session.metadata) : unsnoozeMetadata(session.metadata),
+      }),
+    onSuccess: (_result, { session }) => {
+      void queryClient.invalidateQueries({ queryKey: ['sessions'] })
+      void queryClient.invalidateQueries({ queryKey: queryKeys.session(session.id) })
+    },
+  })
+}
+
+/** Reopen a session, clearing its archived flag and any snooze metadata. */
+export function useReopenSession() {
+  const { client } = useConnection()
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: ({ session }: { session: SessionInfo }) =>
+      client!.session.update({
+        sessionID: session.id,
+        archived: false,
+        ...(isSnoozedSession(session) ? { metadata: unsnoozeMetadata(session.metadata) } : {}),
+      }),
+    onSuccess: (_result, { session }) => {
+      void queryClient.invalidateQueries({ queryKey: ['sessions'] })
+      void queryClient.invalidateQueries({ queryKey: queryKeys.session(session.id) })
     },
   })
 }
