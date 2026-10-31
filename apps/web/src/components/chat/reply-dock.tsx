@@ -314,7 +314,7 @@ export function ReplyDock({
         className={cn(
           'flex flex-col overflow-hidden border bg-popover text-popover-foreground shadow-2xl',
           mode === 'maximized'
-            ? 'fixed inset-2 z-50 rounded-xl max-md:inset-x-2 max-md:top-2 max-md:bottom-[max(1.25rem,env(safe-area-inset-bottom))] sm:inset-3'
+            ? 'fixed inset-2 z-50 rounded-xl max-md:inset-x-2 max-md:top-[max(0.5rem,env(safe-area-inset-top))] max-md:bottom-[max(1.25rem,env(safe-area-inset-bottom))] sm:inset-3'
             : mode === 'minimized'
               ? 'absolute right-3 bottom-3 z-40 h-auto w-[min(32rem,calc(100vw-1.5rem))] rounded-xl max-md:inset-x-0 max-md:bottom-0 max-md:w-full max-md:rounded-b-none'
               : 'absolute right-3 bottom-3 z-40 h-[min(34rem,calc(100dvh-5rem))] w-[min(32rem,calc(100vw-1.5rem))] rounded-xl max-md:inset-x-0 max-md:bottom-0 max-md:h-[85%] max-md:w-full max-md:rounded-b-none',

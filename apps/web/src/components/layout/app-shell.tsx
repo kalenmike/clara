@@ -61,7 +61,9 @@ export function AppShell() {
           </Sheet>
 
           <div className="flex min-w-0 flex-1 flex-col">
-            <div className="flex h-12 shrink-0 items-center gap-2 border-b px-3 md:hidden">
+            {/* The installed PWA draws under the status bar, so the bar owns the
+                top safe-area inset and stays 48px tall below it. */}
+            <div className="flex h-[calc(3rem_+_env(safe-area-inset-top))] shrink-0 items-center gap-2 border-b px-3 pt-[env(safe-area-inset-top)] md:hidden">
               <Button
                 variant="ghost"
                 size="icon"
