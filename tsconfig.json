@@ -2,15 +2,19 @@
   "files": [],
   "references": [
     {
-      "path": "./tsconfig.app.json"
+      "path": "./apps/server"
     },
     {
-      "path": "./tsconfig.node.json"
+      "path": "./apps/web"
+    },
+    {
+      "path": "./packages/crypto"
+    },
+    {
+      "path": "./packages/shared-types"
+    },
+    {
+      "path": "./workers/relay"
     }
-  ],
-  "compilerOptions": {
-    "paths": {
-      "@/*": ["./src/*"]
-    }
-  }
+  ]
 }

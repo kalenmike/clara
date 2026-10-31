@@ -1,7 +1,24 @@
 {
-  "$schema": "https://unpkg.com/knip@6/schema.json",
-  "project": ["src/**/*.{ts,tsx}"],
-  "ignore": ["src/components/ui/**"],
+  "workspaces": {
+    "apps/web": {
+      "entry": ["index.html"],
+      "project": ["src/**/*.{ts,tsx}"]
+    },
+    "apps/server": {
+      "project": ["src/**/*.ts", "test/**/*.ts"]
+    },
+    "packages/shared-types": {
+      "project": ["src/**/*.ts", "test/**/*.ts"]
+    },
+    "packages/crypto": {
+      "project": ["src/**/*.ts", "test/**/*.ts"]
+    },
+    "workers/relay": {
+      "project": ["src/**/*.ts", "test/**/*.ts"]
+    }
+  },
+  "ignore": ["apps/web/src/components/ui/**"],
+  "ignoreDependencies": ["cloudflare"],
   "rules": {
     "exports": "off",
     "types": "off"

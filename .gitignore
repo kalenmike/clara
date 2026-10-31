@@ -10,7 +10,14 @@ lerna-debug.log*
 node_modules
 dist
 dist-ssr
+coverage
 *.local
+**/dist
+**/*.tsbuildinfo
+.wrangler
+**/.wrangler
+.dev.vars
+**/.dev.vars
 
 # Editor directories and files
 .vscode/*
@@ -22,11 +29,8 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
-node_modules
-dist
-dist-ssr
-coverage
-*.local
+
+# Environment
 .env
 .env.*
 !.env.example

@@ -1,0 +1,19 @@
+/// <reference types="vite/client" />
+
+interface ImportMetaEnv {
+  /** Optional relay or local agent WebSocket base. Empty selects direct HTTP mode. */
+  readonly VITE_CLARA_WS_URL?: string
+  /** Injected from package.json by Vite. */
+  readonly CLARA_VERSION: string
+  /** Injected by Vite at dev-server start or build time. */
+  readonly CLARA_BUILD: {
+    mode: 'dev' | 'build'
+    commit: string | null
+    dirty: boolean
+    builtAt: string
+  }
+}
+
+interface ImportMeta {
+  readonly env: ImportMetaEnv
+}

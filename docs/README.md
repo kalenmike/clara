@@ -21,9 +21,11 @@ here, it is not part of the canonical set.
 
 ### Architecture
 
-| Document                                | Read when…                                                     |
-| --------------------------------------- | -------------------------------------------------------------- |
-| [overview.md](architecture/overview.md) | You need the stack, server contract, auth model, or event flow |
+| Document                                | Read when…                                                      |
+| --------------------------------------- | --------------------------------------------------------------- |
+| [overview.md](architecture/overview.md) | You need the workspace, modes, auth model, or event flow        |
+| [relay.md](architecture/relay.md)       | You are working on the Worker, Durable Object, or remote access |
+| [e2ee.md](architecture/e2ee.md)         | You are working on pairing, key derivation, or encrypted frames |
 
 ### Standards
 
@@ -37,6 +39,7 @@ here, it is not part of the canonical set.
 | --------------------------------------------- | ------------------------------------------------------------------------ |
 | [capabilities.md](features/capabilities.md)   | You need to know what ships, what is partial, or what is missing         |
 | [connection.md](features/connection.md)       | You are working on connecting Clara to an OpenCode server                |
+| [pairing.md](features/pairing.md)             | You are working on QR/code pairing, device storage, or key rotation      |
 | [sessions.md](features/sessions.md)           | You are working on the project/session browser                           |
 | [chat.md](features/chat.md)                   | You are working on messages, streaming, tools, or permissions            |
 | [pair-terminal.md](features/pair-terminal.md) | You are working on the read-only terminal that follows a running session |

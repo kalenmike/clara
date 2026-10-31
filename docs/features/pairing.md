@@ -1,0 +1,83 @@
+# Pairing
+
+## Summary
+
+Pairs a browser or installed PWA with a Clara home agent without exposing the
+OpenCode password or the E2EE key to Cloudflare. The phone scans a QR code, or a
+desktop pastes the same code, and Clara stores the device configuration locally.
+
+## User flow
+
+1. Start the home agent (`clara-server serve` or the systemd unit).
+2. Run `clara-server pair` on the machine that runs the agent. The terminal
+   prints a QR code, a `https://clara.kalenmichael.com/#pair=…` link, a
+   `clara1_…` code, and the key fingerprint.
+3. Open Clara on the device. A link from the QR is consumed automatically; a
+   code can be pasted into **Pair this device**.
+4. Clara validates the payload, connects to the full WebSocket URL, completes
+   the E2EE handshake, and calls the OpenCode info endpoint through the tunnel.
+5. On success the device is stored and Clara opens the last project. The
+   Settings → Server card shows the relay state and fingerprint-backed session.
+6. **Settings → Disconnect** clears the stored pairing and returns to the
+   connect screen.
+7. Run `clara-server pair --rotate` to invalidate every paired device and print
+   a new code.
+
+## Core business rules
+
+1. Pairing is the only way to obtain the PSK and relay client token. They are
+   never bundled into the Pages build.
+2. The pairing payload contains the full WebSocket URL, room id, client token,
+   PSK, and fingerprint. The URL fragment is not sent to Pages or Cloudflare.
+3. `VITE_CLARA_WS_URL` is the deployment switch. When set it supplies the relay
+   or local-agent endpoint; when empty the pairing payload's URL is used.
+4. A device is stored in `localStorage` after pairing; direct connections keep
+   the existing session/local-storage remember rule.
+5. The fingerprint shown by the web must match the terminal fingerprint before
+   the connection is trusted.
+6. One PSK and one client token are shared by all paired devices in v1.
+
+## Edge cases
+
+- **Invalid or truncated code** — the form reports a pairing-code error and
+  keeps the input.
+- **Fingerprint mismatch** — the transport closes with `4001`; the connect
+  screen reports a key mismatch and asks for a fresh code.
+- **Relay offline** — the device connects but the agent is absent; the client
+  closes with `1013` and the form reports a connection failure.
+- **Wrong relay token** — the Worker returns `401` before the upgrade.
+- **Agent restart** — the DO closes clients with `1012`; the web reconnects and
+  re-handshakes automatically.
+- **Rotated key** — old devices fail the fingerprint check and must re-pair.
+- **Local-only pairing** — the code points at `ws://127.0.0.1:8788/ws`; it only
+  works on the same machine. Configure the relay for phones.
+- **Cleared browser storage** — the device is forgotten; pair again.
+- **Pairing link opened by mistake** — the fragment is consumed and stored
+  immediately; use Disconnect to remove it.
+
+## Out of scope
+
+- Per-device keys or per-device revocation
+- Pairing expiration windows or one-time codes
+- Camera-based QR scanning inside the web app
+- Multiple home agents or saved pairing profiles
+
+## Known gaps
+
+- A pairing code can be reused until the PSK is rotated.
+- The client token is shared by every paired device.
+
+## Technical appendix
+
+<details>
+<summary>Routes, data, and references</summary>
+
+- Pair command: `node apps/server/dist/index.js pair [--rotate] [--no-qr]`
+- Pairing URL: `<pairingBaseUrl>/#pair=<base64url(JSON)>`
+- Payload: `{ v, wsUrl, room, clientToken, psk, fingerprint }`
+- Storage key: `clara.connection.local` / `clara.connection.session`
+- Connect screen: `/connect`
+- Server config: `~/.config/clara/server.json` (mode `0600`)
+- Related: [E2EE](../architecture/e2ee.md), [Relay](../architecture/relay.md)
+
+</details>

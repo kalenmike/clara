@@ -1,0 +1,341 @@
+import {
+  ReplayGuard,
+  bytesToBase64Url,
+  deriveSessionKeys,
+  open,
+  randomBytes,
+  seal,
+  utf8,
+  type SessionKeys,
+} from '@clara/crypto'
+import {
+  PROTOCOL_VERSION,
+  isHelloFrame,
+  isSealedFrame,
+  parseWireFrame,
+  type AgentInfo,
+  type ClaraAction,
+  type ClaraState,
+  type WireFrame,
+} from '@clara/shared-types'
+import { OpenCodeClient, responseHeaders, type HttpRequestAction } from './opencode.ts'
+
+const MAX_REQUESTS_PER_SESSION = 32
+const MAX_PAYLOAD_BYTES = 10 * 1024 * 1024
+const CHUNK_BYTES = 32 * 1024
+const SESSION_IDLE_MS = 90_000
+const SWEEP_MS = 30_000
+
+type Session = {
+  sid: string
+  keys: SessionKeys
+  sendSeq: number
+  receive: ReplayGuard
+  lastSeen: number
+  sendChain: Promise<void>
+  requests: Map<string, AbortController>
+}
+
+export type AgentOptions = {
+  openCode: OpenCodeClient
+  psk: string
+  info: AgentInfo
+  send: (frame: WireFrame) => void
+  log?: (message: string, detail?: unknown) => void
+}
+
+/**
+ * One Agent serves every client attached to a single transport (the local WS
+ * listener or the relay). Sessions are independent and keyed by the client's
+ * random sid, so the relay can broadcast every agent frame without routing
+ * state.
+ */
+export class Agent {
+  private readonly sessions = new Map<string, Session>()
+  private readonly sweepTimer: NodeJS.Timeout
+  private readonly options: AgentOptions
+
+  constructor(options: AgentOptions) {
+    this.options = options
+    this.sweepTimer = setInterval(() => this.sweep(), SWEEP_MS)
+    this.sweepTimer.unref()
+  }
+
+  handleMessage(raw: string | Uint8Array | ArrayBuffer): void {
+    let text: string
+    try {
+      text = typeof raw === 'string' ? raw : new TextDecoder().decode(raw)
+    } catch {
+      return
+    }
+
+    let parsed: unknown
+    try {
+      parsed = JSON.parse(text)
+    } catch {
+      return
+    }
+
+    const frame = parseWireFrame(parsed)
+    if (!frame) return
+
+    if (isHelloFrame(frame)) {
+      void this.handleHello(frame.sid, frame.nonce, frame.role)
+      return
+    }
+    if (isSealedFrame(frame)) {
+      void this.handleSealed(frame)
+    }
+  }
+
+  reset(): void {
+    for (const session of this.sessions.values()) this.abortSession(session)
+    this.sessions.clear()
+  }
+
+  close(): void {
+    clearInterval(this.sweepTimer)
+    this.reset()
+  }
+
+  get sessionCount(): number {
+    return this.sessions.size
+  }
+
+  private async handleHello(
+    sid: string,
+    clientNonce: string,
+    role: 'agent' | 'client'
+  ): Promise<void> {
+    if (role !== 'client' || !sid || !clientNonce) return
+
+    const existing = this.sessions.get(sid)
+    if (existing) this.abortSession(existing)
+
+    const agentNonce = bytesToBase64Url(randomBytes(16))
+    let keys: SessionKeys
+    try {
+      keys = await deriveSessionKeys({
+        psk: this.options.psk,
+        sid,
+        clientNonce,
+        agentNonce,
+      })
+    } catch (cause) {
+      this.options.log?.('handshake failed', cause)
+      return
+    }
+
+    const session: Session = {
+      sid,
+      keys,
+      sendSeq: 0,
+      receive: new ReplayGuard(),
+      lastSeen: Date.now(),
+      sendChain: Promise.resolve(),
+      requests: new Map(),
+    }
+    this.sessions.set(sid, session)
+
+    this.options.send({
+      t: 'hello',
+      v: PROTOCOL_VERSION,
+      sid,
+      nonce: agentNonce,
+      role: 'agent',
+    })
+    this.enqueue(session, { type: 'ready', agent: this.options.info })
+  }
+
+  private async handleSealed(frame: Extract<WireFrame, { t: 'sealed' }>): Promise<void> {
+    const session = this.sessions.get(frame.sid)
+    if (!session) return
+    session.lastSeen = Date.now()
+
+    try {
+      session.receive.check(frame.seq)
+    } catch (cause) {
+      this.options.log?.('rejected an out-of-order frame', cause)
+      this.abortSession(session)
+      this.sessions.delete(frame.sid)
+      return
+    }
+
+    let plaintext: Uint8Array<ArrayBuffer>
+    try {
+      plaintext = await open(
+        session.keys.c2s,
+        { sid: session.sid, direction: 'c2s', seq: frame.seq },
+        frame
+      )
+    } catch (cause) {
+      this.options.log?.('could not decrypt a client frame', cause)
+      this.abortSession(session)
+      this.sessions.delete(frame.sid)
+      return
+    }
+
+    if (plaintext.byteLength > MAX_PAYLOAD_BYTES) {
+      this.abortSession(session)
+      this.sessions.delete(frame.sid)
+      return
+    }
+
+    let payload: unknown
+    try {
+      payload = JSON.parse(new TextDecoder().decode(plaintext))
+    } catch {
+      return
+    }
+    if (!isClaraPayload(payload)) return
+    this.handlePayload(session, payload)
+  }
+
+  private handlePayload(session: Session, payload: ClaraAction | ClaraState): void {
+    switch (payload.type) {
+      case 'ready.ack':
+        return
+      case 'ping':
+        this.enqueue(session, { type: 'pong', at: payload.at })
+        return
+      case 'pong':
+        return
+      case 'http.abort':
+        session.requests.get(payload.id)?.abort()
+        return
+      case 'http.request':
+        this.startRequest(session, payload)
+        return
+      default:
+        return
+    }
+  }
+
+  private startRequest(session: Session, action: HttpRequestAction): void {
+    if (typeof action.id !== 'string' || action.id.length === 0 || action.id.length > 128) return
+    if (session.requests.has(action.id)) return
+    if (session.requests.size >= MAX_REQUESTS_PER_SESSION) {
+      this.enqueue(session, {
+        type: 'http.error',
+        id: action.id,
+        code: 'too_many_requests',
+        message: 'Too many concurrent requests in this session',
+      })
+      return
+    }
+
+    const controller = new AbortController()
+    session.requests.set(action.id, controller)
+    void this.runRequest(session, action, controller)
+  }
+
+  private async runRequest(
+    session: Session,
+    action: HttpRequestAction,
+    controller: AbortController
+  ): Promise<void> {
+    try {
+      const response = await this.options.openCode.request(action, controller.signal)
+      this.enqueue(session, {
+        type: 'http.response',
+        id: action.id,
+        status: response.status,
+        statusText: response.statusText,
+        headers: responseHeaders(response.headers),
+      })
+
+      if (response.body) {
+        const reader = response.body.getReader()
+        try {
+          while (true) {
+            const { done, value } = await reader.read()
+            if (done) break
+            for (const chunk of splitChunks(value)) {
+              this.enqueue(session, {
+                type: 'http.chunk',
+                id: action.id,
+                data: bytesToBase64Url(chunk),
+              })
+            }
+          }
+        } finally {
+          reader.releaseLock()
+        }
+      }
+
+      this.enqueue(session, { type: 'http.end', id: action.id })
+    } catch (cause) {
+      const aborted = controller.signal.aborted
+      this.enqueue(session, {
+        type: 'http.error',
+        id: action.id,
+        code: aborted ? 'aborted' : 'upstream_error',
+        message: aborted ? 'Request aborted' : errorMessage(cause),
+      })
+    } finally {
+      session.requests.delete(action.id)
+    }
+  }
+
+  private enqueue(session: Session, payload: ClaraAction | ClaraState): void {
+    const text = JSON.stringify(payload)
+    const next = session.sendChain
+      .then(async () => {
+        if (!this.sessions.has(session.sid)) return
+        const seq = session.sendSeq
+        session.sendSeq += 1
+        const box = await seal(
+          session.keys.s2c,
+          { sid: session.sid, direction: 's2c', seq },
+          utf8(text)
+        )
+        this.options.send({
+          t: 'sealed',
+          v: PROTOCOL_VERSION,
+          sid: session.sid,
+          seq,
+          iv: box.iv,
+          ct: box.ct,
+        })
+      })
+      .catch((cause) => {
+        this.options.log?.('could not send an agent frame', cause)
+      })
+    session.sendChain = next
+  }
+
+  private abortSession(session: Session): void {
+    for (const controller of session.requests.values()) controller.abort()
+    session.requests.clear()
+  }
+
+  private sweep(): void {
+    const now = Date.now()
+    for (const [sid, session] of this.sessions) {
+      if (now - session.lastSeen <= SESSION_IDLE_MS) continue
+      this.abortSession(session)
+      this.sessions.delete(sid)
+    }
+  }
+}
+
+function splitChunks(value: Uint8Array<ArrayBufferLike>): Uint8Array<ArrayBuffer>[] {
+  const chunks: Uint8Array<ArrayBuffer>[] = []
+  for (let offset = 0; offset < value.byteLength; offset += CHUNK_BYTES) {
+    chunks.push(new Uint8Array(value.slice(offset, offset + CHUNK_BYTES)))
+  }
+  return chunks
+}
+
+function isClaraPayload(value: unknown): value is ClaraAction | ClaraState {
+  return (
+    typeof value === 'object' &&
+    value !== null &&
+    !Array.isArray(value) &&
+    typeof (value as { type?: unknown }).type === 'string'
+  )
+}
+
+function errorMessage(cause: unknown): string {
+  return cause instanceof Error ? cause.message : String(cause)
+}
