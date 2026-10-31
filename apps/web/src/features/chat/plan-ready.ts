@@ -1,11 +1,7 @@
+import { isFinishedPlanReply } from '@clara/shared-types'
 import type { SessionMessageAssistant, SessionMessageInfo } from '@opencode/client'
 
-/**
- * A finished Plan reply that carries no error and stopped on its own terms.
- */
-export function isFinishedPlanReply(message: SessionMessageAssistant): boolean {
-  return message.agent === 'plan' && message.finish === 'stop' && !message.error
-}
+export { isFinishedPlanReply }
 
 /**
  * Find a finished Plan reply that is waiting for the person to switch to Build.

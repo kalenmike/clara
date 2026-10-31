@@ -43,10 +43,14 @@ export type RelayTransportStatus = {
   agent: AgentInfo | null
 }
 
+export type PushStatusState = Extract<ClaraState, { type: 'push.status' }>
+
 export type RelayTransport = {
   fetch: typeof globalThis.fetch
   close: () => void
   subscribe: (listener: (status: RelayTransportStatus) => void) => () => void
+  subscribePush: (listener: (state: PushStatusState) => void) => () => void
+  sendAction: (action: ClaraAction) => Promise<void>
   status: () => RelayTransportStatus
 }
 
@@ -70,6 +74,7 @@ class RelayFetchTransport implements RelayTransport {
   private readonly config: RelayTransportConfig
   private readonly pending = new Map<string, PendingResponse>()
   private readonly listeners = new Set<(status: RelayTransportStatus) => void>()
+  private readonly pushListeners = new Set<(state: PushStatusState) => void>()
   private socket: WebSocket | null = null
   private keys: SessionKeys | null = null
   private sid: string | null = null
@@ -111,6 +116,17 @@ class RelayFetchTransport implements RelayTransport {
     return () => {
       this.listeners.delete(listener)
     }
+  }
+
+  subscribePush(listener: (state: PushStatusState) => void): () => void {
+    this.pushListeners.add(listener)
+    return () => {
+      this.pushListeners.delete(listener)
+    }
+  }
+
+  sendAction(action: ClaraAction): Promise<void> {
+    return this.send(action)
   }
 
   status(): RelayTransportStatus {
@@ -249,21 +265,31 @@ class RelayFetchTransport implements RelayTransport {
 
     socket.addEventListener('error', () => {
       if (this.socket !== socket) return
-      this.setState(this.statusValue.state, 'The relay connection failed')
+      if (this.statusValue.state === 'open') {
+        this.setState('open', 'The connection to the relay was interrupted')
+        return
+      }
+      const reason = refusedReason(this.config.wsUrl)
+      this.setState(this.statusValue.state, reason)
+      // Browsers follow an error with a close, but not every runtime does, so
+      // fail a pending handshake here as well.
+      this.rejectHandshake(new Error(reason))
     })
 
     socket.addEventListener('close', (event) => {
       if (this.socket !== socket) return
+      const wasOpen = this.statusValue.state === 'open'
       this.socket = null
       this.keys = null
       this.receive = null
       this.stopHeartbeat()
       if (this.handshakeTimer !== null) window.clearTimeout(this.handshakeTimer)
       this.handshakeTimer = null
-      this.rejectHandshake(new Error(event.reason || 'The relay connection closed'))
-      this.failAll(new Error(event.reason || 'The relay connection closed'))
+      const reason = describeClose(event, this.config.wsUrl, wasOpen)
+      this.rejectHandshake(new Error(reason))
+      this.failAll(new Error(reason))
       if (this.closed) return
-      this.setState('reconnecting', event.reason || null)
+      this.setState('reconnecting', reason)
       this.scheduleReconnect()
     })
   }
@@ -355,10 +381,15 @@ class RelayFetchTransport implements RelayTransport {
       return
     }
 
+    if (payload.type === 'push.status') {
+      this.emitPush(payload)
+      return
+    }
+
     if (isState(payload)) this.handleState(payload)
   }
 
-  private handleState(state: ClaraState): void {
+  private handleState(state: Exclude<ClaraState, { type: 'push.status' }>): void {
     if (state.type === 'agent.status') return
     const pending = this.pending.get(state.id)
     if (!pending) return
@@ -556,6 +587,16 @@ class RelayFetchTransport implements RelayTransport {
       }
     }
   }
+
+  private emitPush(state: PushStatusState): void {
+    for (const listener of this.pushListeners) {
+      try {
+        listener(state)
+      } catch {
+        // listeners must not break the transport
+      }
+    }
+  }
 }
 
 type HttpMethod = 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE' | 'HEAD' | 'OPTIONS'
@@ -568,7 +609,36 @@ function abortError(): DOMException {
   return new DOMException('The request was aborted', 'AbortError')
 }
 
-function isState(payload: ClaraAction | ClaraState): payload is ClaraState {
+/**
+ * A refused WebSocket upgrade (Worker 404/401, or a mixed-content block for a
+ * `ws://` endpoint on an HTTPS page) closes without a reason, so turn the bare
+ * code into something actionable.
+ */
+const LOCAL_ONLY_MESSAGE =
+  'This pairing code is local-only. Configure the relay on the home agent, then pair again.'
+const REFUSED_MESSAGE = 'The relay refused the connection. Check the room URL and the client token.'
+
+function describeClose(event: CloseEvent, wsUrl: string, wasOpen: boolean): string {
+  if (event.reason) return event.reason
+  if (event.code === 1006 || event.code === 1005) {
+    if (wasOpen) return 'The connection to the relay dropped. Reconnecting.'
+    return refusedReason(wsUrl)
+  }
+  return `The relay connection closed (code ${event.code}).`
+}
+
+function refusedReason(wsUrl: string): string {
+  return isBlockedLocalEndpoint(wsUrl) ? LOCAL_ONLY_MESSAGE : REFUSED_MESSAGE
+}
+
+function isBlockedLocalEndpoint(wsUrl: string): boolean {
+  if (!wsUrl.startsWith('ws://')) return false
+  return typeof window !== 'undefined' && window.location?.protocol === 'https:'
+}
+
+function isState(
+  payload: ClaraAction | ClaraState
+): payload is Exclude<ClaraState, { type: 'push.status' }> {
   return (
     payload.type === 'http.response' ||
     payload.type === 'http.chunk' ||

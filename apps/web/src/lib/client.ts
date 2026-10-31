@@ -1,5 +1,10 @@
 import { OpenCode } from '@opencode/client'
-import { createRelayTransport, type RelayTransportStatus } from '@/lib/transport/relay'
+import type { ClaraAction } from '@clara/shared-types'
+import {
+  createRelayTransport,
+  type PushStatusState,
+  type RelayTransportStatus,
+} from '@/lib/transport/relay'
 
 export type DirectConnectionConfig = {
   mode?: 'direct'
@@ -27,9 +32,15 @@ export type RelayConnectionConfig = {
 
 export type ConnectionConfig = DirectConnectionConfig | RelayConnectionConfig
 
+export type ClientControl = {
+  send: (action: ClaraAction) => Promise<void>
+  subscribePush: (listener: (state: PushStatusState) => void) => () => void
+}
+
 export type ClientHandle = {
   client: OpenCodeClient
   close: () => void
+  control?: ClientControl
   subscribeStatus?: (listener: (status: RelayTransportStatus) => void) => () => void
   status?: () => RelayTransportStatus
 }
@@ -56,19 +67,21 @@ export function connectionUrl(config: ConnectionConfig | null): string {
 }
 
 /**
- * VITE_CLARA_WS_URL is the deployment switch: when set it supplies the relay
- * (or local agent) endpoint. The pairing payload still supplies the room and
+ * VITE_CLARA_WS_URL is the deployment switch for relay rooms: when set it
+ * supplies the relay endpoint and the pairing payload supplies the room and
  * E2EE key. When unset, the pairing payload's own URL is used.
+ *
+ * A `local` room means the home agent has no relay configured, so the pairing
+ * payload's URL is the only usable endpoint. Rewriting it to a relay base would
+ * produce `<relay>/ws`, which the Worker does not route.
  */
 export function resolveRelayWsUrl(wsUrl: string, room: string): string {
+  if (room === 'local') return wsUrl
+
   const configured = import.meta.env.VITE_CLARA_WS_URL?.trim()
   if (!configured) return wsUrl
 
   const url = new URL(configured)
-  if (room === 'local') {
-    if (!url.pathname.endsWith('/ws')) url.pathname = `${url.pathname.replace(/\/+$/, '')}/ws`
-    return url.toString()
-  }
   if (!url.pathname.includes('/room/')) {
     url.pathname = `${url.pathname.replace(/\/+$/, '')}/room/${encodeURIComponent(room)}`
   }
@@ -98,6 +111,10 @@ export function createClient(config: ConnectionConfig): ClientHandle {
         fetch: transport.fetch,
       }),
       close: () => transport.close(),
+      control: {
+        send: (action) => transport.sendAction(action),
+        subscribePush: (listener) => transport.subscribePush(listener),
+      },
       subscribeStatus: (listener) => transport.subscribe(listener),
       status: () => transport.status(),
     }

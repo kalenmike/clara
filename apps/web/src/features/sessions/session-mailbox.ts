@@ -1,13 +1,8 @@
-export type SessionMailbox = 'inbox' | 'outbox' | 'draft'
+import type { SessionMailboxSignals } from '@clara/shared-types'
 
-export type SessionMailboxSignals = {
-  last: 'user' | 'assistant' | 'none'
-  awaitingInput: boolean
-  /** The newest conversational message is a failed assistant turn. */
-  lastError: boolean
-  /** The newest conversational message is a finished, error-free Plan reply. */
-  planReply: boolean
-}
+export type { SessionMailboxSignals }
+
+export type SessionMailbox = 'inbox' | 'outbox' | 'draft'
 
 /**
  * Resolve which section a session belongs to.

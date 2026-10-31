@@ -185,6 +185,7 @@ export default defineConfig(({ command }) => ({
         navigateFallback: 'index.html',
         globPatterns: ['**/*.{js,css,html,svg,png,woff2}'],
         runtimeCaching: [],
+        importScripts: ['push-sw.js'],
       },
     }),
   ],

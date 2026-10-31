@@ -6,6 +6,7 @@ import {
   Eye,
   MessageCircleQuestion,
   Play,
+  Send,
   Sparkles,
   Volume2,
   VolumeX,
@@ -21,10 +22,14 @@ import {
   ATTENTION_LABELS,
   type AttentionKind,
 } from '@/features/notifications/attention'
-import { requestNotificationPermission } from '@/features/notifications/notifier'
+import {
+  readNotificationPermission,
+  requestNotificationPermission,
+} from '@/features/notifications/notifier'
 import { useNotificationPermission } from '@/features/notifications/use-notification-permission'
 import { useNotificationSettings } from '@/features/notifications/use-notification-settings'
 import { playAttentionSound, playDoneSound } from '@/features/notifications/sounds'
+import { usePush } from '@/providers/push-provider'
 import { useSessionWording } from '@/features/sessions/use-wording'
 
 const KIND_ICONS: Record<AttentionKind, typeof Eye> = {
@@ -37,10 +42,17 @@ const KIND_ICONS: Record<AttentionKind, typeof Eye> = {
 export function NotificationsCard() {
   const { settings, update } = useNotificationSettings()
   const { permission, setPermission } = useNotificationPermission()
+  const push = usePush()
   const { lowerSingular } = useSessionWording()
 
   const supported = permission !== 'unsupported'
   const desktopEnabled = permission === 'granted' && settings.desktop
+
+  const togglePush = async (enabled: boolean) => {
+    if (enabled) await push.enable()
+    else await push.disable()
+    setPermission(readNotificationPermission())
+  }
 
   const toggleDesktop = async (enabled: boolean) => {
     if (!enabled) {
@@ -99,6 +111,43 @@ export function NotificationsCard() {
             aria-label="Desktop notifications"
           />
         </div>
+
+        <div className="flex items-start justify-between gap-4">
+          <div className="min-w-0">
+            <div className="flex items-center gap-2 text-sm">
+              <Send className="size-3.5 text-muted-foreground" /> Push notifications
+            </div>
+            <p className="mt-0.5 text-xs text-muted-foreground">
+              {push.reason ?? 'Receive alerts when Clara is closed or in the background.'}
+            </p>
+            {push.error && <p className="mt-1 text-xs text-destructive">{push.error}</p>}
+          </div>
+          <Switch
+            checked={push.enabled}
+            onCheckedChange={(checked) => void togglePush(checked)}
+            disabled={!push.available || push.busy || (push.isIosDevice && !push.isInstalled)}
+            aria-label="Push notifications"
+          />
+        </div>
+
+        {push.enabled && (
+          <div className="flex flex-wrap items-center gap-2 pl-6">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => void push.test()}
+              disabled={push.busy}
+            >
+              <Send className="size-3.5" /> Send test
+            </Button>
+            {push.count !== null && (
+              <span className="text-[11px] text-muted-foreground">
+                {push.count} {push.count === 1 ? 'device' : 'devices'} registered
+              </span>
+            )}
+          </div>
+        )}
 
         <Separator />
 

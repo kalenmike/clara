@@ -3,48 +3,58 @@
 ## Summary
 
 Clara tells the person when a session lands in the Inbox with a system
-notification and a distinct sound for each kind of attention. The same settings
-card also controls an optional completion chime for UI actions such as Done. It
-is for people who start an agent run and move on to another tab, so they do not
-have to watch the sidebar.
+notification and a distinct sound for each kind of attention. When the Clara
+home agent is connected, the same alert can arrive as a Web Push notification
+after the last Clara window is closed. The settings card also controls an
+optional completion chime for UI actions such as Done. It is for people who
+start an agent run and move on, so they do not have to watch the sidebar.
 
 ## User flow
 
 1. The person opens **Settings** and turns on **Desktop notifications**; the
    browser asks for permission the first time.
-2. They can keep **Inbox notification sounds** on, adjust the shared sound
-   volume, and mute any of the four states. A separate **UI sounds** switch
-   controls the completion chime.
-3. A run ends, a question arrives, a plan finishes, or a run fails.
-4. Clara plays the matching sound. If the session is not open and focused, it
-   also shows a system notification.
-5. When the person marks a session Done, Clara plays the completion chime if
+2. They can keep **Inbox notification sounds** on, adjust the shared volume, and
+   mute any of the four states. **UI sounds** controls the Done chime.
+3. They can turn on **Push notifications** when Clara is connected through the
+   home agent, then send a test notification to prove delivery.
+4. On iPhone and iPad, push requires adding Clara to the Home Screen and opening
+   it from that icon before turning push on.
+5. A run ends, a question arrives, a plan finishes, or a run fails. Clara plays
+   the matching sound and, if the session is not open and focused, shows an
+   alert.
+6. If Clara is hidden or closed, the home agent sends the push and the person
+   taps it. Clicking any notification focuses Clara and opens the session.
+7. When the person marks a session Done, Clara plays the completion chime if
    **UI sounds** is on.
-6. Clicking the notification focuses Clara and opens that session's chat.
-7. The sidebar still shows the same state with its dot, whether or not the alert
-   was delivered.
-8. The person can preview every sound, including the Done chime, before relying
-   on it.
+8. The sidebar still shows the same state with its dot, and the person can
+   preview every sound before relying on it.
 
 ## Core business rules
 
-1. There are four attention states, in precedence order: **Question** (a pending
-   approval or form), **Run failed** (the latest reply failed), **Plan ready** (a
-   finished, error-free Plan reply), and **Needs review** (any other finished
-   agent reply).
+1. There are four attention states, in precedence order: **Needs Input** (a
+   pending approval or form), **Error** (the latest reply failed), **Ready for
+   Review** (a finished, error-free Plan reply), and **Brief Complete** (any
+   other finished agent reply).
 2. Alerts come from the live event stream, never from page load or reconnect.
    Questions and failures use their own events, while review and Plan ready are
    resolved after a short debounce from the latest messages and forms.
    Interruptions only suppress the next evaluation, and the same state is not
    announced twice for a session within five seconds.
-3. A session that is open and whose tab is visible and focused never alerts.
+3. The home agent runs the same classification while it is running, so push and
+   the open sidebar agree on the state.
+4. A session that is open and whose tab is visible and focused never alerts.
    Archived and snoozed sessions, sessions whose latest message is from the
    person, and interrupted runs do not alert.
-4. Desktop notifications need browser permission. Without it, sounds and the
+5. Desktop notifications need browser permission. Without it, sounds and the
    sidebar still work; permission is requested only from the Settings switch.
-5. Inbox notification sounds and UI sounds are independent. The volume slider
+6. Push notifications need browser permission and a Clara home agent; they are
+   stored on the agent and sent directly with Web Push. A visible Clara window
+   handles its own alert, and a hidden or closed Clara leaves delivery to the
+   service worker push so the person is not notified twice.
+7. Inbox notification sounds and UI sounds are independent. The volume slider
    applies to both, either can be muted without affecting the other, and the
-   Done chime is a UI sound rather than an Inbox alert.
+   Done chime is a UI sound rather than an Inbox alert. Closed-app pushes use
+   the operating system's notification sound.
 
 ## Edge cases
 
@@ -69,24 +79,50 @@ have to watch the sidebar.
   run does not look like a completed reply.
 - **Two overlaid events** — a failed run followed by idle is one error alert, not
   an error and a review.
-- **Two Clara tabs** — each tab can alert; there is no cross-tab lease.
+- **Two Clara tabs** — each tab can alert; the service worker skips push while a
+  non-connect window is visible, so the visible tab is the one that alerts.
+- **Push unavailable** — direct HTTP mode, a home agent without push support, a
+  denied permission, or an iPhone that has not installed Clara keeps push off.
+  Settings explains which condition applies.
+- **iPhone or iPad** — Clara must be installed from Safari and opened from the
+  Home Screen icon before permission, subscription, or push delivery works.
+- **Push subscription expired** — a `404` or `410` from the push service removes
+  the stored subscription. A browser that rotates its subscription is
+  reconciled the next time Clara opens.
+- **Home agent stopped or asleep** — events during the gap are not replayed, so
+  a run that finishes while the agent is down does not push later.
+- **Pairing rotated** — `pair --rotate` clears every stored push subscription, so
+  a lost device stops receiving notifications.
+- **Push notification tapped while Clara is open** — the existing window is
+  focused and navigated to the session.
+- **Push payload** — it carries the session title and reason, so the lock screen
+  can show the same summary as an in-app alert.
 
 ## Out of scope
 
-- Push notifications after the final Clara tab is closed.
-- Service workers, installed-PWA notifications, and mobile-specific behavior.
-- Cross-tab de-duplication or leader election.
-- Per-project notification settings.
+- Push notifications in direct HTTP mode.
+- Per-project or per-kind push filters; all four attention states share the push
+  switch.
+- Cross-tab de-duplication beyond the visible-window rule.
 - Notifications for retries, queued prompt delivery, or background tasks.
 - Grouping or a notification history inside Clara. Session snoozing is separate
   and lives in the sidebar; individual notifications cannot be snoozed.
 - Per-action UI sound choices; Done is the only UI sound today.
+- Message backlog or offline event replay for the push monitor.
 
 ## Known gaps
 
 - A system notification is only as reliable as the browser's Notification
   permission and the operating system's Do Not Disturb setting.
 - Sound output depends on a prior user gesture in the tab.
+- Push delivery is best effort. Apple, Google, and Mozilla push services can
+  delay or drop a message, and a home agent that is offline cannot send.
+- The custom per-kind sounds, sound switches, and volume do not apply once the
+  app is closed; that push uses the operating-system sound and settings.
+- Losing or rotating `vapid.json` invalidates existing push subscriptions until
+  each device subscribes again.
+- There is no per-device push list or revoke control; `pair --rotate` clears all
+  stored subscriptions.
 
 ## Technical appendix
 
@@ -101,15 +137,30 @@ have to watch the sidebar.
 - Signals: `client.session.get({ sessionID })`,
   `client.message.list({ sessionID, order: 'desc', limit: 1, type })` for `user`
   and `assistant`, and `client.session.form.list({ sessionID })`
-- State precedence: `src/features/notifications/attention.ts`
+- State precedence: `packages/shared-types/src/session-signals.ts`, shared by
+  the web and the home agent
 - Event subscription: `EventProvider` exposes `subscribe`; the
   `NotificationProvider` inside the app shell consumes it
-- Desktop notification: browser Notification API, `silent: true`, tag
+- Desktop notification: service-worker `showNotification` when available,
+  falling back to the page Notification API; `silent: true`, tag
   `clara:<sessionID>`, icon `/favicon.svg`
 - Sounds: Web Audio motifs in `src/features/notifications/sounds.ts`; the Done
   chime is `playDoneSound`
-- Settings: `clara.notifications` in `localStorage` (`sounds`, `uiSounds`,
-  `volume`, `soundKinds`)
-- Related: [sessions](sessions.md), [capabilities](capabilities.md)
+- Settings: `clara.notifications` in `localStorage` (`desktop`, `push`,
+  `sounds`, `uiSounds`, `volume`, `soundKinds`)
+- Push labels: Error, Needs Input, Ready for Review, Brief Complete
+- Push control: sealed `push.subscribe`, `push.unsubscribe`, and `push.test`
+  actions; the agent acknowledges with `push.status`
+- Push monitor: `apps/server/src/push/` reads `/api/event`, applies the same
+  750 ms evaluation delay and 5 s cooldown, then sends through `web-push`
+- Push storage: `${CLARA_CONFIG_DIR:-~/.config/clara}/subscriptions.json` (mode
+  `0600`); VAPID keys live in `vapid.json` next to it
+- Push service worker: `apps/web/public/push-sw.js`, imported by the generated
+  Workbox worker
+- Push setup: `CLARA_VAPID_SUBJECT` optionally overrides the default subject;
+  `CLARA_VAPID_PUBLIC_KEY` and `CLARA_VAPID_PRIVATE_KEY` override the stored key
+  pair
+- Related: [sessions](sessions.md), [capabilities](capabilities.md),
+  [pairing](pairing.md)
 
 </details>

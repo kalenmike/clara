@@ -1,4 +1,7 @@
+import { assistantHasFailed } from '@clara/shared-types'
 import type { SessionMessageAssistant, SessionMessageInfo } from '@opencode/client'
+
+export { assistantHasFailed }
 
 /**
  * Internal messages are useful while debugging or auditing a run, but they are
@@ -35,14 +38,6 @@ export function getVisibleMessages(
         return false
     }
   })
-}
-
-/**
- * A failed turn has no content parts, so it must stay visible even when internal
- * output is hidden. Otherwise a provider or quota failure looks like silence.
- */
-export function assistantHasFailed(message: SessionMessageAssistant): boolean {
-  return Boolean(message.error) || message.finish === 'error'
 }
 
 /**

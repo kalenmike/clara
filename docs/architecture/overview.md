@@ -3,7 +3,8 @@
 Clara is a browser/PWA client for one running OpenCode server, plus a small home
 agent that can carry the OpenCode HTTP/SSE API over an end-to-end encrypted
 WebSocket. The web app reads projects, sessions, and messages; the agent owns
-OpenCode authentication and the outbound relay connection.
+OpenCode authentication, the outbound relay connection, and Web Push delivery
+while Clara is closed.
 
 ## Stack
 
@@ -57,23 +58,28 @@ OpenCode HTTP/SSE
 Clara home agent ──outbound WSS──▶ Worker ──▶ RelayRoom DO ◀──WSS── web / iPhone PWA
       │                                              │
       └──────────── E2EE payloads ───────────────────┘
+      │
+      └── Web Push (VAPID) ──▶ Apple / browser push service ──▶ service worker
 
 Local mode: web ──WSS──▶ home agent ──▶ OpenCode
 Direct mode: web ──HTTP/SSE──▶ OpenCode (legacy / operator-managed)
 ```
 
 The relay forwards opaque frames. It does not parse, store, or replay payloads.
-See [relay.md](relay.md) and [e2ee.md](e2ee.md).
+Push subscriptions travel through the E2EE channel, but delivery uses the Web
+Push protocol directly from the home agent to the browser vendor's push service.
+See [relay.md](relay.md), [e2ee.md](e2ee.md), and
+[notifications.md](../features/notifications.md).
 
 ## Connecting
 
 Clara supports three modes:
 
-| Mode        | Selected by                               | Auth                                                  |
-| ----------- | ----------------------------------------- | ----------------------------------------------------- |
-| Relay       | `VITE_CLARA_WS_URL` + pairing code        | E2EE PSK + relay client token                         |
-| Local agent | `VITE_CLARA_WS_URL` pointing at the agent | E2EE PSK + local WebSocket                            |
-| Direct      | No WebSocket URL                          | OpenCode HTTP basic auth, or the Vite `/oc` dev proxy |
+| Mode        | Selected by                        | Auth                                                  |
+| ----------- | ---------------------------------- | ----------------------------------------------------- |
+| Relay       | `VITE_CLARA_WS_URL` + pairing code | E2EE PSK + relay client token                         |
+| Local agent | Pairing payload URL (`local` room) | E2EE PSK + local WebSocket                            |
+| Direct      | No pairing                         | OpenCode HTTP basic auth, or the Vite `/oc` dev proxy |
 
 The connect screen offers pairing first and keeps the direct URL/password form
 for fallback. Pairing is described in [pairing.md](../features/pairing.md).
@@ -119,6 +125,9 @@ ConnectionProvider
 - The home agent keeps one E2EE session per browser connection. Relay clients
   are independent; the Durable Object broadcasts agent frames and clients drop
   frames for other sessions.
+- The home agent also reads OpenCode's `/api/event` stream for push and stores
+  Web Push subscriptions at `~/.config/clara/subscriptions.json`. VAPID keys
+  live in `~/.config/clara/vapid.json`.
 
 ## Routing
 
@@ -182,7 +191,9 @@ re-subscribes through the transport.
 
 - Never commit `service.json`, passwords, pairing codes, PSKs, or relay tokens.
 - The home agent's config is `~/.config/clara/server.json` (mode `0600`).
-- The relay sees metadata only; all payloads are E2EE.
+  `vapid.json` and `subscriptions.json` use the same directory and mode.
+- The relay sees metadata only; all payloads are E2EE. Web Push payloads use
+  Web Push encryption to the browser subscription, not Clara's PSK envelope.
 - The web stores the PSK in `localStorage`; `_headers` ships a CSP but XSS on the
   Pages origin can still reach browser storage.
 - Relay tokens are defense in depth; the PSK is the real authentication key.

@@ -9,6 +9,7 @@ import { InboxMonitorProvider } from '@/features/sessions/inbox-monitor'
 import { useSessionWording } from '@/features/sessions/use-wording'
 import { useConnection } from '@/providers/connection-provider'
 import { NotificationProvider } from '@/providers/notification-provider'
+import { PushProvider } from '@/providers/push-provider'
 
 export function AppShell() {
   const { status } = useConnection()
@@ -74,11 +75,13 @@ export function AppShell() {
               <MobileActionsSlot />
             </div>
             <div className="min-h-0 flex-1">
-              <NotificationProvider>
-                <div className="relative h-full">
-                  <Outlet />
-                </div>
-              </NotificationProvider>
+              <PushProvider>
+                <NotificationProvider>
+                  <div className="relative h-full">
+                    <Outlet />
+                  </div>
+                </NotificationProvider>
+              </PushProvider>
             </div>
           </div>
         </div>

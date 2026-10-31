@@ -16,9 +16,13 @@ import {
   type AgentInfo,
   type ClaraAction,
   type ClaraState,
+  type PushSubscribeAction,
+  type PushTestAction,
+  type PushUnsubscribeAction,
   type WireFrame,
 } from '@clara/shared-types'
 import { OpenCodeClient, responseHeaders, type HttpRequestAction } from './opencode.ts'
+import type { PushService } from './push/service.ts'
 
 const MAX_REQUESTS_PER_SESSION = 32
 const MAX_PAYLOAD_BYTES = 10 * 1024 * 1024
@@ -41,6 +45,7 @@ export type AgentOptions = {
   psk: string
   info: AgentInfo
   send: (frame: WireFrame) => void
+  push?: PushService
   log?: (message: string, detail?: unknown) => void
 }
 
@@ -206,8 +211,126 @@ export class Agent {
       case 'http.request':
         this.startRequest(session, payload)
         return
+      case 'push.subscribe':
+        void this.handlePushSubscribe(session, payload)
+        return
+      case 'push.unsubscribe':
+        void this.handlePushUnsubscribe(session, payload)
+        return
+      case 'push.test':
+        void this.handlePushTest(session, payload)
+        return
       default:
         return
+    }
+  }
+
+  private async handlePushSubscribe(session: Session, action: PushSubscribeAction): Promise<void> {
+    const push = this.options.push
+    const endpoint = action.subscription?.endpoint
+    if (!push) {
+      this.enqueue(session, {
+        type: 'push.status',
+        id: action.id,
+        subscribed: false,
+        endpoint: typeof endpoint === 'string' ? endpoint : undefined,
+        error: 'Push notifications are not available on this server',
+      })
+      return
+    }
+
+    try {
+      const result = push.subscribe(action.subscription, { userAgent: action.userAgent })
+      this.enqueue(session, {
+        type: 'push.status',
+        id: action.id,
+        subscribed: true,
+        endpoint: result.endpoint,
+        count: result.count,
+      })
+    } catch (cause) {
+      this.options.log?.('could not save a push subscription', cause)
+      this.enqueue(session, {
+        type: 'push.status',
+        id: action.id,
+        subscribed: false,
+        endpoint: typeof endpoint === 'string' ? endpoint : undefined,
+        error: errorMessage(cause),
+      })
+    }
+  }
+
+  private async handlePushUnsubscribe(
+    session: Session,
+    action: PushUnsubscribeAction
+  ): Promise<void> {
+    const push = this.options.push
+    if (!push || typeof action.endpoint !== 'string') {
+      this.enqueue(session, {
+        type: 'push.status',
+        id: action.id,
+        subscribed: false,
+        endpoint: typeof action.endpoint === 'string' ? action.endpoint : undefined,
+        error: push ? 'The push endpoint is invalid' : 'Push notifications are not available',
+      })
+      return
+    }
+
+    try {
+      const result = push.unsubscribe(action.endpoint)
+      this.enqueue(session, {
+        type: 'push.status',
+        id: action.id,
+        subscribed: false,
+        endpoint: action.endpoint,
+        count: result.count,
+      })
+    } catch (cause) {
+      this.options.log?.('could not remove a push subscription', cause)
+      this.enqueue(session, {
+        type: 'push.status',
+        id: action.id,
+        subscribed: true,
+        endpoint: action.endpoint,
+        error: errorMessage(cause),
+      })
+    }
+  }
+
+  private async handlePushTest(session: Session, action: PushTestAction): Promise<void> {
+    const push = this.options.push
+    if (!push) {
+      this.enqueue(session, {
+        type: 'push.status',
+        id: action.id,
+        subscribed: false,
+        error: 'Push notifications are not available on this server',
+      })
+      return
+    }
+
+    const isSubscribed = () => (action.endpoint ? push.has(action.endpoint) : push.count > 0)
+
+    try {
+      const result = await push.test(action.endpoint)
+      this.enqueue(session, {
+        type: 'push.status',
+        id: action.id,
+        subscribed: isSubscribed(),
+        endpoint: action.endpoint,
+        count: result.count,
+        tested: true,
+      })
+    } catch (cause) {
+      this.options.log?.('could not send a test push', cause)
+      this.enqueue(session, {
+        type: 'push.status',
+        id: action.id,
+        subscribed: isSubscribed(),
+        endpoint: action.endpoint,
+        tested: true,
+        error: errorMessage(cause),
+      })
     }
   }
 

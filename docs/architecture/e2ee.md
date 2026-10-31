@@ -56,13 +56,18 @@ broadcast frames:
 `packages/shared-types` defines the payload unions:
 
 - Actions (browser → agent): `http.request`, `http.abort`, `ping`, `pong`,
-  `ready`, `ready.ack`.
+  `ready`, `ready.ack`, `push.subscribe`, `push.unsubscribe`, `push.test`.
 - States (agent → browser): `http.response`, `http.chunk`, `http.end`,
-  `http.error`, `agent.status`.
+  `http.error`, `agent.status`, `push.status`.
 
 The agent refuses paths outside `/api/`, strips hop-by-hop headers, adds OpenCode
 basic auth, and prevents origin changes. The browser never receives the OpenCode
 password in relay mode.
+
+Push subscription management is sealed like every other action. Push delivery
+itself leaves the E2EE channel: `web-push` encrypts the payload to the browser's
+subscription keys and posts it to the browser vendor's push endpoint. The push
+service cannot read the payload, but it sees the endpoint and delivery metadata.
 
 ## Threat model
 
@@ -92,6 +97,8 @@ updating the Worker secret, the server environment, and re-pairing devices.
 - One shared client token for all paired devices.
 - Metadata (room, connection timing, frame sizes) is visible to Cloudflare.
 - The relay does not buffer messages for offline devices.
+- Push subscriptions are not forward secret and live on the home agent; rotate
+  the pairing key with `pair --rotate` to clear them from a lost device.
 
 ## Related
 

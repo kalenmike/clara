@@ -17,6 +17,15 @@ export type ClaraState =
   | { type: 'http.end'; id: string }
   | { type: 'http.error'; id: string; message: string; code?: string }
   | { type: 'agent.status'; online: boolean; agent?: AgentInfo }
+  | {
+      type: 'push.status'
+      id?: string
+      subscribed: boolean
+      endpoint?: string
+      count?: number
+      tested?: boolean
+      error?: string
+    }
 
 export type ClaraStateType = ClaraState['type']
 

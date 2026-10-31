@@ -40,21 +40,18 @@ ${XDG_STATE_HOME:-~/.local/state}/opencode/service.json
 
 ### Local WebSocket mode
 
-Point the web build at the local agent:
-
-```bash
-# apps/web/.env.local
-VITE_CLARA_WS_URL=ws://127.0.0.1:8788
-```
-
-Then print a pairing code:
+Pair with the local agent directly:
 
 ```bash
 pnpm --filter @clara/server pair
 ```
 
-Scan the QR or paste the code on the connect screen. Local mode still uses
-E2EE; it does not fall back to plaintext.
+The pairing payload carries the agent's own `ws://127.0.0.1:8788/ws` URL, so no
+build-time endpoint is needed. Scan the QR or paste the code on the connect
+screen. Local mode still uses E2EE; it does not fall back to plaintext.
+
+A `local` pairing code only works where that URL is reachable, and an HTTPS page
+cannot open a `ws://` socket. For phones, configure the relay instead.
 
 ### Relay mode
 
@@ -77,19 +74,48 @@ E2EE; it does not fall back to plaintext.
 3. Deploy `apps/web/dist` to the Pages project `clara` and attach
    `clara.kalenmichael.com`.
 
-4. Configure the home agent (`~/.config/clara/server.env` or systemd):
+4. Configure the home agent. The systemd unit reads
+   `~/.config/clara/server.env` (`KEY=value`, mode `0600`) and restarts with it;
+   a hand-started agent needs the same variables exported:
 
    ```bash
    CLARA_RELAY_URL=wss://relay.clara.kalenmichael.com
-   CLARA_RELAY_ROOM=<printed by pair>
+   CLARA_RELAY_ROOM=<generated on first run, persisted in server.json>
    CLARA_AGENT_TOKEN=<must match the Worker secret>
    CLARA_CLIENT_TOKEN=<must match the Worker secret>
    ```
 
-5. `node apps/server/dist/index.js pair` prints the QR for a phone or desktop.
+5. Restart the agent and check `relay connecting` / `relay online` in its log.
+   `clara-server pair` must then print a random `Room:` and a `/room/<id>` link;
+   a `Room: local` code is local-only and cannot work through the relay.
 
-`VITE_CLARA_WS_URL` empty keeps direct HTTP mode. See
+   The relay URL and room are persisted in `~/.config/clara/server.json`, but the
+   two tokens are environment-only and never written there. Missing tokens stop
+   the agent at startup with an error naming the missing variable.
+
+`VITE_CLARA_WS_URL` is the relay deployment switch: it retargets relay-room
+pairings and is ignored for `local` pairing codes. When unset, the pairing
+payload's URL is used for both. An empty variable does not select direct mode —
+that comes from the connect screen or the `/oc` dev proxy. See
 [docs/architecture/relay.md](docs/architecture/relay.md) for the full topology.
+
+## Push notifications
+
+When Clara is connected through the home agent, **Settings → Notifications** can
+enable Web Push. The agent generates a VAPID key pair on first run and stores
+subscriptions at `~/.config/clara/subscriptions.json`.
+
+- On iPhone and iPad, add Clara to the Home Screen from Safari and open it from
+  that icon before enabling push.
+- The agent must be able to reach the browser vendor's push service over HTTPS.
+- `node apps/server/dist/index.js pair --rotate` clears all stored push
+  subscriptions as well as rotating the pairing key; restart the running home
+  agent afterward.
+- `CLARA_VAPID_SUBJECT` overrides the VAPID contact subject; the default is the
+  pairing base URL.
+- Test push from a production build with the home agent URL
+  (`VITE_CLARA_WS_URL=ws://127.0.0.1:8788 pnpm build && pnpm preview`) or the
+  deployed PWA; the Vite dev server does not enable the service worker.
 
 ## Direct mode
 
@@ -129,9 +155,12 @@ or the relay.
 - The browser never receives the OpenCode password in relay mode.
 - The PSK is delivered in a URL fragment, stored in browser storage, and kept
   at `~/.config/clara/server.json` (mode `0600`) on the agent.
-- Never commit `.env`, `.dev.vars`, `service.json`, pairing codes, tokens, or the
-  PSK.
-- Rotate with `node apps/server/dist/index.js pair --rotate`.
+- Web Push subscriptions live at `~/.config/clara/subscriptions.json`; VAPID
+  keys live at `~/.config/clara/vapid.json`. Both use mode `0600`.
+- Never commit `.env`, `.dev.vars`, `service.json`, push subscriptions, VAPID
+  keys, pairing codes, tokens, or the PSK.
+- Rotate with `node apps/server/dist/index.js pair --rotate`; this also clears
+  every stored push subscription.
 
 See [docs/architecture/e2ee.md](docs/architecture/e2ee.md).
 

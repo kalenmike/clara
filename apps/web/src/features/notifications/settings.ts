@@ -2,6 +2,7 @@ import { ATTENTION_KINDS, type AttentionKind } from './attention'
 
 export type NotificationSettings = {
   desktop: boolean
+  push: boolean
   sounds: boolean
   uiSounds: boolean
   volume: number
@@ -12,6 +13,7 @@ export const NOTIFICATION_SETTINGS_KEY = 'clara.notifications'
 
 export const DEFAULT_NOTIFICATION_SETTINGS: NotificationSettings = {
   desktop: false,
+  push: false,
   sounds: true,
   uiSounds: true,
   volume: 0.7,
@@ -60,6 +62,7 @@ function normalize(value: unknown): NotificationSettings {
 
   return {
     desktop: readBoolean(record.desktop, DEFAULT_NOTIFICATION_SETTINGS.desktop),
+    push: readBoolean(record.push, DEFAULT_NOTIFICATION_SETTINGS.push),
     sounds: readBoolean(record.sounds, DEFAULT_NOTIFICATION_SETTINGS.sounds),
     uiSounds: readBoolean(record.uiSounds, legacyUiSounds),
     volume,

@@ -36,21 +36,26 @@ pairs new devices from a QR code and proves the connection before showing data.
    adds basic auth and only proxies `/api/` paths on the configured origin.
 3. Direct mode uses HTTP basic auth with the fixed `opencode` user. Credentials
    live in `sessionStorage` unless "remember" is checked.
-4. `VITE_CLARA_WS_URL` selects the deployment endpoint. Pairing supplies the
-   room, client token, and PSK; an empty variable falls back to direct HTTP.
+4. `VITE_CLARA_WS_URL` retargets relay-room pairings; a `local` pairing keeps the
+   endpoint from its payload. Pairing supplies the room, client token, and PSK.
 5. A stored device is retried on boot before local service detection.
 6. The event stream is healthy only while chunks keep arriving. The agent sends
    a heartbeat every 15 seconds; 45 seconds of silence is treated as dead.
 7. The local proxy only finds a server registered in `service.json` by
    `opencode service start`. A foreground `opencode serve` must be connected
    manually with its URL, password, and a CORS entry for Clara's origin.
+8. Push notifications need the home agent's E2EE transport; direct HTTP mode has
+   no control channel and leaves push unavailable.
 
 ## Edge cases
 
 - **401 from OpenCode** — direct mode reports authentication failure and keeps
   the URL.
 - **401 from the relay** — the Worker rejects the WebSocket before upgrade; the
-  pairing token is wrong or rotated.
+  pairing token is wrong or rotated. Clara reports that the relay refused the
+  connection and names the room URL and client token.
+- **Local-only code on HTTPS** — the transport reports that the pairing code is
+  local-only instead of a bare socket close.
 - **Fingerprint mismatch** — the E2EE handshake closes with `4001`; re-pair.
 - **Agent offline** — the client connects, receives `1013`, and reports that the
   home server is unreachable.

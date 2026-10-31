@@ -22,6 +22,7 @@ export type ServerConfig = {
   relay?: RelayConfig
   psk: string
   pairingBaseUrl: string
+  configDir: string
   configPath: string
 }
 
@@ -80,8 +81,16 @@ export function loadConfig(options: { rotate?: boolean } = {}): ServerConfig {
     : undefined
 
   if (relay && (!relay.agentToken || !relay.clientToken)) {
+    const missing = [
+      relay.agentToken ? null : 'CLARA_AGENT_TOKEN',
+      relay.clientToken ? null : 'CLARA_CLIENT_TOKEN',
+    ]
+      .filter(Boolean)
+      .join(' and ')
     throw new Error(
-      'CLARA_RELAY_URL is set but CLARA_AGENT_TOKEN and CLARA_CLIENT_TOKEN are missing.'
+      `Missing ${missing}. The relay URL is configured in ${configPath}, but tokens are never ` +
+        `stored there. Add them to ${join(configDir, 'server.env')} (systemd EnvironmentFile), ` +
+        `export them before starting the agent, or set them under "relay" in ${configPath}.`
     )
   }
 
@@ -101,6 +110,7 @@ export function loadConfig(options: { rotate?: boolean } = {}): ServerConfig {
       file.pairingBaseUrl ??
       DEFAULT_PAIRING_BASE_URL
     ).replace(/\/+$/, ''),
+    configDir,
     configPath,
   }
 

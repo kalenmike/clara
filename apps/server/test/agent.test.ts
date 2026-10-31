@@ -18,6 +18,7 @@ import {
 } from '@clara/shared-types'
 import { Agent } from '../src/agent.ts'
 import { OpenCodeClient } from '../src/opencode.ts'
+import type { PushService } from '../src/push/service.ts'
 
 type FakeOpenCode = {
   url: string
@@ -75,7 +76,10 @@ type Client = {
 
 const agents: Agent[] = []
 
-async function connect(fake: FakeOpenCode): Promise<{
+async function connect(
+  fake: FakeOpenCode,
+  push?: PushService
+): Promise<{
   agent: Agent
   client: Client
   frames: WireFrame[]
@@ -89,6 +93,7 @@ async function connect(fake: FakeOpenCode): Promise<{
     psk,
     info: { version: 'test', protocol: PROTOCOL_VERSION },
     send: (frame) => frames.push(frame),
+    push,
   })
   agents.push(agent)
 
@@ -220,6 +225,46 @@ describe('agent', () => {
         .join('')
       expect(body).toContain('data: one')
       expect(body).toContain('data: two')
+    } finally {
+      await fake.close()
+    }
+  })
+
+  it('acknowledges a push subscription over the encrypted session', async () => {
+    const fake = await startFakeOpenCode()
+    try {
+      const endpoint = 'https://web.push.apple.com/live-test'
+      const push = {
+        subscribe: () => ({ count: 1, endpoint }),
+        unsubscribe: () => ({ count: 0, removed: true }),
+        has: () => true,
+        test: async () => ({ count: 1 }),
+        count: 1,
+      } as unknown as PushService
+      const { agent, client, frames } = await connect(fake, push)
+      await waitFor(() => (frames.length >= 2 ? true : undefined))
+      await send(client, agent, { type: 'ready.ack', agent: { version: 'web', protocol: 1 } })
+      await send(client, agent, {
+        type: 'push.subscribe',
+        id: 'push-1',
+        subscription: {
+          endpoint,
+          expirationTime: null,
+          keys: { p256dh: 'a'.repeat(87), auth: 'b'.repeat(22) },
+        },
+      })
+
+      const states = await waitFor(async () => {
+        const parsed = await readStates(client, frames)
+        return parsed.some((state) => state.type === 'push.status') ? parsed : undefined
+      })
+      expect(states).toContainEqual({
+        type: 'push.status',
+        id: 'push-1',
+        subscribed: true,
+        endpoint,
+        count: 1,
+      })
     } finally {
       await fake.close()
     }

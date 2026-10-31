@@ -13,6 +13,7 @@ import type { SessionWording } from '@/features/sessions/wording'
 import { connectionUrl, isRelayConfig } from '@/lib/client'
 import { useConnection } from '@/providers/connection-provider'
 import { useEventStream } from '@/providers/event-provider'
+import { usePush } from '@/providers/push-provider'
 
 function shortcutList(wording: SessionWording): Array<[string, string]> {
   return [
@@ -40,10 +41,12 @@ export function SettingsPage() {
   const { config, info, disconnect, reconnect, reconnecting, reconnectError, relayStatus } =
     useConnection()
   const { state: streamState, lastError } = useEventStream()
+  const push = usePush()
   const wording = useSessionWording()
   const shortcuts = shortcutList(wording)
 
-  const signOut = () => {
+  const signOut = async () => {
+    await push.disable()
     disconnect()
     navigate('/connect', { replace: true })
   }
@@ -105,7 +108,7 @@ export function SettingsPage() {
                 )}
                 Reconnect
               </Button>
-              <Button variant="outline" size="sm" onClick={signOut}>
+              <Button variant="outline" size="sm" onClick={() => void signOut()}>
                 <LogOut className="size-4" /> Disconnect
               </Button>
             </div>

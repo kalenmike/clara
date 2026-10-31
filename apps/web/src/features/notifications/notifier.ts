@@ -1,4 +1,5 @@
 import { ATTENTION_LABELS, type AttentionKind } from './attention'
+import { getServiceWorkerRegistration } from './push'
 
 export type NotificationPermissionState = NotificationPermission | 'unsupported'
 
@@ -16,16 +17,35 @@ export async function requestNotificationPermission(): Promise<NotificationPermi
   }
 }
 
-export function showDesktopNotification(input: {
+export async function showDesktopNotification(input: {
   kind: AttentionKind
   sessionID: string
   body: string
+  url: string
   onOpen: () => void
-}): void {
+}): Promise<void> {
   if (readNotificationPermission() !== 'granted') return
 
+  const title = `Clara · ${ATTENTION_LABELS[input.kind]}`
   try {
-    const notification = new Notification(`Clara · ${ATTENTION_LABELS[input.kind]}`, {
+    const registration = await getServiceWorkerRegistration()
+    if (registration) {
+      await registration.showNotification(title, {
+        body: input.body,
+        tag: `clara:${input.sessionID}`,
+        icon: '/favicon.svg',
+        badge: '/favicon.svg',
+        silent: true,
+        data: { url: input.url, sessionID: input.sessionID, kind: input.kind },
+      })
+      return
+    }
+  } catch {
+    // Fall back to a page notification on browsers without a usable worker.
+  }
+
+  try {
+    const notification = new Notification(title, {
       body: input.body,
       tag: `clara:${input.sessionID}`,
       icon: '/favicon.svg',

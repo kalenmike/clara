@@ -15,6 +15,7 @@ import {
   loadSessionAttention,
   resolveProjectID,
 } from '@/features/notifications/session-attention'
+import { isPushActive } from '@/features/notifications/push'
 import { readNotificationSettings } from '@/features/notifications/settings'
 import { ensureSoundUnlock, playAttentionSound } from '@/features/notifications/sounds'
 import { useConnection } from '@/providers/connection-provider'
@@ -57,14 +58,6 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
       return match?.[1] === sessionID
     }
 
-    const openSession = (session: SessionInfo) => {
-      void resolveProjectID(client, queryClient, session)
-        .then((projectID) => {
-          if (projectID) navigate(`/p/${projectID}/s/${session.id}`)
-        })
-        .catch(() => undefined)
-    }
-
     const notify = async (
       sessionID: string,
       kind: AttentionKind,
@@ -77,11 +70,17 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
         if (viewingSession(sessionID)) return
 
         const settings = readNotificationSettings()
-        if (settings.sounds && settings.soundKinds[kind]) {
+        const pushActive = await isPushActive()
+        const visible = document.visibilityState === 'visible'
+
+        // A visible tab owns its alert. A hidden tab leaves delivery and sound
+        // to the service worker push.
+        if (settings.sounds && settings.soundKinds[kind] && (!pushActive || visible)) {
           playAttentionSound(kind, settings.volume)
         }
 
         if (!settings.desktop || readNotificationPermission() !== 'granted') return
+        if (pushActive && !visible) return
 
         let session = known
         if (!session) {
@@ -93,11 +92,18 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
         }
         if (disposed || isArchivedSession(session) || isSnoozedSession(session)) return
 
-        showDesktopNotification({
+        const projectID = await resolveProjectID(client, queryClient, session).catch(() => null)
+        if (disposed) return
+        const url = projectID ? `/p/${projectID}/s/${session.id}` : '/'
+
+        await showDesktopNotification({
           kind,
           sessionID,
           body: attentionBody(kind, session.title, detail),
-          onOpen: () => openSession(session),
+          url,
+          onOpen: () => {
+            if (projectID) navigate(url)
+          },
         })
       } catch {
         // Alerts are best effort; the sidebar remains the source of truth.
