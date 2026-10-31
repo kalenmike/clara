@@ -87,7 +87,7 @@ automatic appearance changes.
 - React binding: `src/features/theme/use-color-theme.ts`
 - Palette CSS: `src/styles/color-themes.css`, imported by `src/index.css`
 - Default palette: `:root` and `.dark` in `src/index.css`
-- Mode provider: `ThemeProvider` from `next-themes` in `src/App.tsx`
+- Mode provider: `src/providers/theme-provider.tsx` (wraps `next-themes`)
 - Storage keys: `clara.theme` (mode), `clara.colorTheme` (palette)
 - Root markers: `class="dark"` (mode), `data-theme="<value>"` (palette)
 - Theme values: `default`, `solarized`, `tokyo-night`, `gruvbox`, `nord`,

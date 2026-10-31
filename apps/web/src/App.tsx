@@ -1,10 +1,10 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { ThemeProvider } from 'next-themes'
 import { RouterProvider } from 'react-router'
 import { Toaster } from '@/components/ui/sonner'
 import { TooltipProvider } from '@/components/ui/tooltip'
 import { ConnectionProvider } from '@/providers/connection-provider'
 import { EventProvider } from '@/providers/event-provider'
+import { ThemeProvider } from '@/providers/theme-provider'
 import { router } from '@/router'
 
 const queryClient = new QueryClient({
