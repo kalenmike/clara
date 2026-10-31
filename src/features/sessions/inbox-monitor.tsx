@@ -10,7 +10,7 @@ import {
   type ReactNode,
 } from 'react'
 import { useLocation, useMatches, useNavigate } from 'react-router'
-import { useProjects } from '@/features/projects/use-projects'
+import { canonicalProject, canonicalProjects, useProjects } from '@/features/projects/use-projects'
 import { useInboxSessions } from '@/features/sessions/use-inbox-sessions'
 import { useSessionWording } from '@/features/sessions/use-wording'
 import { readInboxMonitor, readLastProject, saveInboxMonitor } from '@/lib/storage'
@@ -52,16 +52,18 @@ export function InboxMonitorProvider({ children }: { children: ReactNode }) {
     return { projectID, sessionID }
   }, [matches])
 
-  const project = useMemo(() => {
-    const fromRoute = routeParams.projectID
-      ? projects.find((item) => item.id === routeParams.projectID)
-      : undefined
-    if (fromRoute) return fromRoute
-    const last = readLastProject()
-    return projects.find((item) => item.id === last) ?? projects[0] ?? null
-  }, [projects, routeParams.projectID])
+  const projectOptions = useMemo(() => canonicalProjects(projects), [projects])
 
-  const { inbox, outboxCount, top, pending, isError } = useInboxSessions(project?.canonical ?? null)
+  const project = useMemo(() => {
+    const fromRoute = canonicalProject(projects, routeParams.projectID)
+    if (fromRoute) return fromRoute
+    return canonicalProject(projects, readLastProject()) ?? projectOptions[0] ?? null
+  }, [projectOptions, projects, routeParams.projectID])
+
+  const { inbox, outboxCount, top, pending, isError } = useInboxSessions(
+    project?.id ?? null,
+    project?.canonical ?? null
+  )
   const [active, setActiveState] = useState(readInboxMonitor)
   /** A one-shot jump requested while the Inbox was still loading. */
   const pendingJump = useRef<{ pathname: string } | null>(null)

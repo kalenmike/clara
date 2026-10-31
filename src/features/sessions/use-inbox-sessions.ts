@@ -7,8 +7,8 @@ import { useSessionMailboxSignals } from '@/features/sessions/use-session-mailbo
 import { useActiveSessions, useSessions } from '@/features/sessions/use-sessions'
 
 /** Inbox sessions for a project, newest first, with the data needed to jump to them. */
-export function useInboxSessions(directory: string | null) {
-  const sessionsQuery = useSessions(directory, '', Boolean(directory))
+export function useInboxSessions(projectID: string | null, directory: string | null) {
+  const sessionsQuery = useSessions(projectID, '', Boolean(projectID))
   const activeQuery = useActiveSessions()
   const permissionsQuery = usePendingPermissions(directory ?? undefined)
 

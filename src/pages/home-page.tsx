@@ -2,7 +2,7 @@ import { useEffect, useMemo } from 'react'
 import { Loader2, Plus } from 'lucide-react'
 import { EmptySessionView } from '@/components/chat/empty-session-view'
 import { InboxMonitorToggle } from '@/components/chat/inbox-monitor-toggle'
-import { useProjects } from '@/features/projects/use-projects'
+import { canonicalProject, canonicalProjects, useProjects } from '@/features/projects/use-projects'
 import { useSessions } from '@/features/sessions/use-sessions'
 import { useStartSession } from '@/features/sessions/use-start-session'
 import { useSessionWording } from '@/features/sessions/use-wording'
@@ -16,10 +16,10 @@ export function HomePage() {
   const projects = useMemo(() => projectsQuery.data ?? [], [projectsQuery.data])
   const last = readLastProject()
   const project = useMemo(
-    () => projects.find((item) => item.id === last) ?? projects[0] ?? null,
+    () => canonicalProject(projects, last) ?? canonicalProjects(projects)[0] ?? null,
     [last, projects]
   )
-  const sessionsQuery = useSessions(project?.canonical ?? null, '')
+  const sessionsQuery = useSessions(project?.id ?? null, '')
   const latest = sessionsQuery.data?.data[0]
   const { startSession, pending } = useStartSession({
     projectID: project?.id,

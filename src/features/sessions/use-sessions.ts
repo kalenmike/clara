@@ -8,13 +8,13 @@ import {
 import { queryKeys } from '@/lib/query-keys'
 import { useConnection } from '@/providers/connection-provider'
 
-export function useSessions(directory: string | null, search: string, enabled = true) {
+export function useSessions(projectID: string | null, search: string, enabled = true) {
   const { client } = useConnection()
   return useQuery({
-    queryKey: [...queryKeys.sessions(directory), search],
+    queryKey: [...queryKeys.sessions(projectID), search],
     queryFn: () =>
       client!.session.list({
-        directory: directory ?? undefined,
+        project: projectID ?? undefined,
         search: search.trim() || undefined,
         archived: false,
         limit: 50,
@@ -23,13 +23,13 @@ export function useSessions(directory: string | null, search: string, enabled = 
   })
 }
 
-export function useArchivedSessions(directory: string | null, search: string) {
+export function useArchivedSessions(projectID: string | null, search: string) {
   const { client } = useConnection()
   return useQuery({
-    queryKey: [...queryKeys.archivedSessions(directory), search],
+    queryKey: [...queryKeys.archivedSessions(projectID), search],
     queryFn: () =>
       client!.session.list({
-        directory: directory ?? undefined,
+        project: projectID ?? undefined,
         search: search.trim() || undefined,
         archived: true,
         limit: 50,

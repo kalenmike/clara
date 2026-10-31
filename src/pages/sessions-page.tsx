@@ -1,10 +1,11 @@
+import { useMemo } from 'react'
 import { Link, useParams } from 'react-router'
 import { ArrowUpRight, FolderGit2, Loader2, Plus, SearchX } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
-import { useProjects } from '@/features/projects/use-projects'
+import { canonicalProject, useProjects } from '@/features/projects/use-projects'
 import { useActiveSessions, useSessions } from '@/features/sessions/use-sessions'
 import { useStartSession } from '@/features/sessions/use-start-session'
 import { useSessionWording } from '@/features/sessions/use-wording'
@@ -14,8 +15,9 @@ import { cn } from '@/lib/utils'
 export function SessionsPage() {
   const { projectId } = useParams<{ projectId: string }>()
   const projectsQuery = useProjects()
-  const project = projectsQuery.data?.find((item) => item.id === projectId)
-  const sessionsQuery = useSessions(project?.canonical ?? null, '')
+  const projects = useMemo(() => projectsQuery.data ?? [], [projectsQuery.data])
+  const project = useMemo(() => canonicalProject(projects, projectId), [projectId, projects])
+  const sessionsQuery = useSessions(project?.id ?? null, '')
   const activeQuery = useActiveSessions()
   const { lowerSingular, lowerPlural } = useSessionWording()
 

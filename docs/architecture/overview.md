@@ -98,19 +98,31 @@ no messages. Its action opens the reply window in the last-used size (expanded b
 default) instead of creating another session. The start view at `/` creates a
 session first, then navigates to it with the composer already open at that size.
 
-## Directory scoping
+## Project and directory scoping
 
-The server scopes sessions and catalogs by directory. Two behaviors matter:
+Sessions belong to a project, and one project can own sessions in several
+locations: its canonical directory, git worktrees, and sandboxes. Clara lists
+sessions with `GET /api/session?project=<id>` so sessions moved to a worktree
+stay in the project view. The `directory` filter is exact and is not used for
+the session list.
 
-- `GET /api/session?project=<id>` does **not** return the project's sessions in
-  2.1.1. Clara lists them with `?directory=<project.canonical>`.
-- Sessions returned by a directory query can report `projectID: "global"`.
-  Clara therefore uses the route/selected project ID for links, not the session's
-  `projectID`.
+The canonical directory is still used to create sessions and to scope
+location-specific data such as skills, references, and pending approvals. For an
+open session, its `location.directory` wins when it differs from the project
+canonical.
+
+The server can keep more than one project record for the same canonical path,
+for example before and after `git init`. Clara prefers the VCS-backed record, so
+route and remembered IDs resolve to the project that owns the sessions.
+
+Sessions can report `projectID: "global"`. Session rows build links from the
+route/selected project ID; notifications resolve the owning project, preferring
+the session's project ID and falling back to the canonical directory.
 
 Session-scoped endpoints (`messages`, `prompt`, `command`, `switchAgent`,
 `switchModel`, `context`) take only the session ID; the server resolves the
-directory from the session record.
+directory from the session record. Moving a session to a worktree changes only
+`location.directory`; its project ID stays the same.
 
 ## Streaming model
 

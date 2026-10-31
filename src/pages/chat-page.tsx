@@ -143,7 +143,7 @@ export function ChatPage() {
   const compact = useCompactSession(sessionId ?? '')
   const interrupt = useInterruptSession(sessionId ?? '')
 
-  const directory = project?.canonical ?? session?.location.directory
+  const directory = session?.location.directory ?? project?.canonical
   const { startSession } = useStartSession({
     projectID: projectId,
     directory,

@@ -30,7 +30,7 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { SidebarSessionRow } from '@/components/layout/sidebar-session-row'
 import { usePendingPermissions } from '@/features/chat/use-permissions'
 import { resolveAttentionKind } from '@/features/notifications/attention'
-import { useProjects } from '@/features/projects/use-projects'
+import { canonicalProject, canonicalProjects, useProjects } from '@/features/projects/use-projects'
 import { isArchivedSession } from '@/features/sessions/session-archive'
 import { groupSessionsByMailbox } from '@/features/sessions/session-sections'
 import { isSnoozedSession } from '@/features/sessions/session-snooze'
@@ -106,15 +106,16 @@ export function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
   const [openSections, setOpenSections] = useState(readSidebarSections)
   const searching = search.trim().length > 0
 
-  const selectedProject = useMemo(() => {
-    const fromUrl = projects.find((project) => project.id === params.projectId)
-    if (fromUrl) return fromUrl
-    const last = readLastProject()
-    return projects.find((project) => project.id === last) ?? projects[0] ?? null
-  }, [params.projectId, projects])
+  const projectOptions = useMemo(() => canonicalProjects(projects), [projects])
 
-  const sessionsQuery = useSessions(selectedProject?.canonical ?? null, search)
-  const archivedQuery = useArchivedSessions(selectedProject?.canonical ?? null, search)
+  const selectedProject = useMemo(() => {
+    const fromUrl = canonicalProject(projects, params.projectId)
+    if (fromUrl) return fromUrl
+    return canonicalProject(projects, readLastProject()) ?? projectOptions[0] ?? null
+  }, [params.projectId, projectOptions, projects])
+
+  const sessionsQuery = useSessions(selectedProject?.id ?? null, search)
+  const archivedQuery = useArchivedSessions(selectedProject?.id ?? null, search)
 
   useEffect(() => {
     if (selectedProject) saveLastProject(selectedProject.id)
@@ -286,7 +287,7 @@ export function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
             {projectsQuery.isLoading && (
               <div className="px-2 py-1.5 text-xs text-muted-foreground">Loading…</div>
             )}
-            {projects.map((project) => (
+            {projectOptions.map((project) => (
               <DropdownMenuItem
                 key={project.id}
                 onSelect={() => selectProject(project.id)}
@@ -303,7 +304,7 @@ export function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
                 </span>
               </DropdownMenuItem>
             ))}
-            {projects.length === 0 && !projectsQuery.isLoading && (
+            {projectOptions.length === 0 && !projectsQuery.isLoading && (
               <div className="px-2 py-1.5 text-xs text-muted-foreground">No projects found</div>
             )}
           </DropdownMenuContent>

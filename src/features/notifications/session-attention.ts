@@ -2,6 +2,7 @@ import type { QueryClient } from '@tanstack/react-query'
 import type { Project, SessionInfo } from '@opencode/client'
 import type { OpenCodeClient } from '@/lib/client'
 import { queryKeys } from '@/lib/query-keys'
+import { canonicalProjects } from '@/features/projects/use-projects'
 import { isArchivedSession } from '@/features/sessions/session-archive'
 import { loadSessionMailboxSignals } from '@/features/sessions/session-mailbox-signals'
 import { isSnoozedSession } from '@/features/sessions/session-snooze'
@@ -44,29 +45,32 @@ export async function loadSessionAttention(
 
 /**
  * Find the project that owns a session so a notification can open the right
- * route. Sessions can report `projectID: "global"`, so the directory is the
- * reliable link.
+ * route. Prefer the session's project ID, which survives a move to a worktree,
+ * then fall back to matching its location against a project directory.
  */
+function projectIDFromList(projects: Project[], session: SessionInfo): string | null {
+  const direct = projects.find((project) => project.id === session.projectID)
+  if (direct) return direct.id
+  return (
+    canonicalProjects(projects).find((project) => project.canonical === session.location.directory)
+      ?.id ?? null
+  )
+}
+
 export async function resolveProjectID(
   client: OpenCodeClient,
   queryClient: QueryClient,
   session: SessionInfo
 ): Promise<string | null> {
-  const match = (projects: Project[] | undefined) =>
-    projects?.find((project) => project.canonical === session.location.directory)?.id
-
-  const cached = match(queryClient.getQueryData<Project[]>(queryKeys.projects))
-  if (cached) return cached
+  const cached = queryClient.getQueryData<Project[]>(queryKeys.projects)
+  const cachedID = cached ? projectIDFromList(cached, session) : null
+  if (cachedID) return cachedID
 
   try {
     const projects = await client.project.list()
     queryClient.setQueryData(queryKeys.projects, projects)
-    return match(projects) ?? fallbackProjectID(session)
+    return projectIDFromList(projects, session)
   } catch {
-    return fallbackProjectID(session)
+    return session.projectID === 'global' ? null : session.projectID
   }
-}
-
-function fallbackProjectID(session: SessionInfo): string | null {
-  return session.projectID === 'global' ? null : session.projectID
 }

@@ -56,8 +56,11 @@ default, and the noun is configurable in Settings.
 
 ## Core business rules
 
-1. Sessions are fetched by the project's **directory**, not by project ID; the
-   server's `project` filter does not return the expected rows in 2.1.1.
+1. Sessions are fetched by **project ID**. A project can own sessions in its
+   canonical directory, git worktrees, and sandboxes; a directory query is exact
+   and would hide sessions after an agent moves one to a worktree. When the
+   server holds duplicate records for the same canonical path, Clara uses the
+   VCS-backed record.
 2. The active list shows the newest 50 non-archived sessions for the directory;
    the archived list shows the newest 50 archived sessions.
 3. A new session inherits the agent and model of the most recent active session
@@ -158,8 +161,14 @@ default, and the noun is configurable in Settings.
   found" with a way home.
 - **Session deleted elsewhere** — the chat route reports "Session not found" and
   offers the project page.
-- **Session reports `projectID: "global"`** — links use the selected project ID,
-  not the session field.
+- **Session reports `projectID: "global"`** — sidebar links use the selected
+  project ID; notifications resolve the project from the session and its
+  directory.
+- **Agent moves a session to a worktree** — its project ID is unchanged, so it
+  stays in the project's list, search, and Inbox. The chat uses the worktree
+  directory for Git, mentions, skills, and approvals.
+- **Duplicate project records for one directory** — Clara lists and remembers
+  the VCS-backed record, so selecting either duplicate shows the same sessions.
 - **Session creation fails** — the button returns to its normal state and no
   navigation happens.
 - **Session request fails** — the list shows a retry link instead of an empty
@@ -204,7 +213,8 @@ default, and the noun is configurable in Settings.
 ## Out of scope
 
 - Bulk actions
-- Workspaces, worktrees, or moving sessions between projects
+- Creating, switching, or removing worktrees, or moving sessions between
+  projects
 - Sharing, export, or import
 - Organizing sessions into folders or tags
 
@@ -223,9 +233,9 @@ default, and the noun is configurable in Settings.
 <summary>Routes, data, and references</summary>
 
 - Routes: `/`, `/p/:projectId`, `/p/:projectId/s/:sessionId`
-- Active list: `client.session.list({ directory, search, archived: false, limit: 50 })`;
-  includes snoozed sessions
-- Archived list: `client.session.list({ directory, search, archived: true, limit: 50 })`
+- Active list: `client.session.list({ project: projectID, search, archived: false, limit: 50 })`;
+  includes snoozed sessions and sessions in worktrees or sandboxes
+- Archived list: `client.session.list({ project: projectID, search, archived: true, limit: 50 })`
 - Mailbox signals: `client.message.list({ sessionID, order: 'desc', limit: 1, type })`
   for `user` and `assistant`, plus `client.session.form.list({ sessionID })`
 - Pending drafts: `client.session.inbox.list({ sessionID })`
