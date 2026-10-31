@@ -20,10 +20,10 @@ type LocalService = {
   version?: string
 }
 
-const root = fileURLToPath(new URL('.', import.meta.url))
+const root = fileURLToPath(new URL('../..', import.meta.url))
 
 const packageVersion = (
-  JSON.parse(readFileSync(new URL('./package.json', import.meta.url), 'utf8')) as {
+  JSON.parse(readFileSync(new URL('../../package.json', import.meta.url), 'utf8')) as {
     version: string
   }
 ).version

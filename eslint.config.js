@@ -7,18 +7,18 @@ import tseslint from 'typescript-eslint'
 import { defineConfig, globalIgnores } from 'eslint/config'
 
 export default defineConfig([
-  globalIgnores(['dist', 'coverage', 'src/components/ui/**']),
+  globalIgnores([
+    '**/dist/**',
+    '**/coverage/**',
+    '**/node_modules/**',
+    '**/.wrangler/**',
+    'apps/web/src/components/ui/**',
+  ]),
   {
     files: ['**/*.{ts,tsx}'],
-    extends: [
-      js.configs.recommended,
-      ...tseslint.configs.recommended,
-      reactHooks.configs.flat.recommended,
-      reactRefresh.configs.vite,
-    ],
+    extends: [js.configs.recommended, ...tseslint.configs.recommended],
     languageOptions: {
       ecmaVersion: 2023,
-      globals: globals.browser,
     },
     rules: {
       'no-console': ['warn', { allow: ['warn', 'error'] }],
@@ -27,6 +27,15 @@ export default defineConfig([
         'error',
         { argsIgnorePattern: '^_', varsIgnorePattern: '^_' },
       ],
+    },
+  },
+  {
+    files: ['apps/web/**/*.{ts,tsx}'],
+    extends: [reactHooks.configs.flat.recommended, reactRefresh.configs.vite],
+    languageOptions: {
+      globals: globals.browser,
+    },
+    rules: {
       // React Compiler diagnostics that conflict with imperative event-store and
       // menu patterns used in this app.
       'react-hooks/set-state-in-effect': 'off',
@@ -35,7 +44,13 @@ export default defineConfig([
     },
   },
   {
-    files: ['vite.config.ts'],
+    files: ['apps/server/**/*.ts', 'packages/**/*.ts', 'workers/**/*.ts'],
+    languageOptions: {
+      globals: globals.node,
+    },
+  },
+  {
+    files: ['apps/web/vite.config.ts'],
     languageOptions: { globals: globals.node },
   },
   prettier,
