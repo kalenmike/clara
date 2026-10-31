@@ -11,15 +11,19 @@ import {
 } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import {
+  connectionKey,
   createClient,
   describeConnectionError,
   detectLocalService,
+  isRelayConfig,
   localProxyConfig,
+  type ClientHandle,
   type ConnectionConfig,
   type ConnectionStatus,
   type OpenCodeClient,
   type ServerInfo,
 } from '@/lib/client'
+import type { RelayTransportStatus } from '@/lib/transport/relay'
 import { chatStore } from '@/features/chat/chat-store'
 import { clearStoredConnection, loadStoredConnection, saveStoredConnection } from '@/lib/storage'
 
@@ -34,6 +38,7 @@ type ConnectionContextValue = {
   error: string | null
   attempt: ConnectionConfig | null
   localInfo: ServerInfo | null
+  relayStatus: RelayTransportStatus | null
   /** Bumped when a new client is installed so the stream resubscribes. */
   generation: number
   reconnecting: boolean
@@ -55,11 +60,34 @@ export function ConnectionProvider({ children }: { children: ReactNode }) {
   const [error, setError] = useState<string | null>(null)
   const [attempt, setAttempt] = useState<ConnectionConfig | null>(() => loadStoredConnection())
   const [localInfo, setLocalInfo] = useState<ServerInfo | null>(null)
+  const [relayStatus, setRelayStatus] = useState<RelayTransportStatus | null>(null)
   const [generation, setGeneration] = useState(0)
   const [reconnecting, setReconnecting] = useState(false)
   const [reconnectError, setReconnectError] = useState<string | null>(null)
   const configRef = useRef<ConnectionConfig | null>(null)
+  const handleRef = useRef<ClientHandle | null>(null)
+  const unsubscribeRef = useRef<(() => void) | null>(null)
   const booted = useRef(false)
+
+  const clearHandle = useCallback(() => {
+    unsubscribeRef.current?.()
+    unsubscribeRef.current = null
+    handleRef.current?.close()
+    handleRef.current = null
+    setRelayStatus(null)
+  }, [])
+
+  const installHandle = useCallback((handle: ClientHandle) => {
+    unsubscribeRef.current?.()
+    unsubscribeRef.current = null
+    handleRef.current?.close()
+    handleRef.current = handle
+    if (handle.subscribeStatus) {
+      unsubscribeRef.current = handle.subscribeStatus(setRelayStatus)
+    } else {
+      setRelayStatus(null)
+    }
+  }, [])
 
   const connect = useCallback(
     async (next: ConnectionConfig) => {
@@ -67,17 +95,18 @@ export function ConnectionProvider({ children }: { children: ReactNode }) {
       setError(null)
       setAttempt(next)
 
+      const handle = createClient(next)
       try {
-        const nextClient = createClient(next)
-        const nextInfo = await nextClient.server.info({
+        const nextInfo = await handle.client.server.info({
           signal: AbortSignal.timeout(PROBE_TIMEOUT_MS),
         })
-        if (configRef.current?.baseUrl !== next.baseUrl) {
+        if (connectionKey(configRef.current ?? next) !== connectionKey(next)) {
           chatStore.reset()
           queryClient.clear()
         }
         configRef.current = next
-        setClient(nextClient)
+        installHandle(handle)
+        setClient(handle.client)
         setConfig(next)
         setInfo(nextInfo)
         setStatus('connected')
@@ -85,6 +114,8 @@ export function ConnectionProvider({ children }: { children: ReactNode }) {
         saveStoredConnection(next)
         return true
       } catch (cause) {
+        handle.close()
+        clearHandle()
         setClient(null)
         setConfig(null)
         setInfo(null)
@@ -93,7 +124,7 @@ export function ConnectionProvider({ children }: { children: ReactNode }) {
         return false
       }
     },
-    [queryClient]
+    [clearHandle, installHandle, queryClient]
   )
 
   const connectLocal = useCallback(async () => {
@@ -112,12 +143,13 @@ export function ConnectionProvider({ children }: { children: ReactNode }) {
     setReconnecting(true)
     setReconnectError(null)
 
+    const handle = createClient(current)
     try {
-      const nextClient = createClient(current)
-      const nextInfo = await nextClient.server.info({
+      const nextInfo = await handle.client.server.info({
         signal: AbortSignal.timeout(RECONNECT_TIMEOUT_MS),
       })
-      setClient(nextClient)
+      installHandle(handle)
+      setClient(handle.client)
       setInfo(nextInfo)
       setStatus('connected')
       setError(null)
@@ -125,16 +157,18 @@ export function ConnectionProvider({ children }: { children: ReactNode }) {
       void queryClient.invalidateQueries()
       return true
     } catch (cause) {
+      handle.close()
       setReconnectError(describeConnectionError(cause))
       return false
     } finally {
       setReconnecting(false)
     }
-  }, [queryClient])
+  }, [installHandle, queryClient])
 
   const disconnect = useCallback(() => {
     clearStoredConnection()
     configRef.current = null
+    clearHandle()
     chatStore.reset()
     queryClient.clear()
     setClient(null)
@@ -145,7 +179,7 @@ export function ConnectionProvider({ children }: { children: ReactNode }) {
     setAttempt(null)
     setReconnectError(null)
     setGeneration((value) => value + 1)
-  }, [queryClient])
+  }, [clearHandle, queryClient])
 
   useEffect(() => {
     if (booted.current) return
@@ -155,14 +189,14 @@ export function ConnectionProvider({ children }: { children: ReactNode }) {
       const stored = loadStoredConnection()
       if (stored) {
         // Do not make the stored connection wait for the local-service probe.
-        void detectLocalService().then(setLocalInfo)
+        if (!isRelayConfig(stored)) void detectLocalService().then(setLocalInfo)
         await connect(stored)
         return
       }
 
       const local = await detectLocalService()
       setLocalInfo(local)
-      if (local) await connect(localProxyConfig())
+      if (local && !window.location.hash.includes('pair=')) await connect(localProxyConfig())
     }
 
     void boot()
@@ -179,6 +213,7 @@ export function ConnectionProvider({ children }: { children: ReactNode }) {
       error,
       attempt,
       localInfo,
+      relayStatus,
       generation,
       reconnecting,
       reconnectError,
@@ -195,6 +230,7 @@ export function ConnectionProvider({ children }: { children: ReactNode }) {
       error,
       attempt,
       localInfo,
+      relayStatus,
       generation,
       reconnecting,
       reconnectError,

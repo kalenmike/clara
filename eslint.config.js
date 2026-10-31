@@ -50,6 +50,13 @@ export default defineConfig([
     },
   },
   {
+    files: ['apps/server/**/*.ts'],
+    rules: {
+      // The home agent is a CLI; startup and pairing output belongs on stdout.
+      'no-console': 'off',
+    },
+  },
+  {
     files: ['apps/web/vite.config.ts'],
     languageOptions: { globals: globals.node },
   },

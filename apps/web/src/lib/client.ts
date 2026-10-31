@@ -1,6 +1,8 @@
 import { OpenCode } from '@opencode/client'
+import { createRelayTransport, type RelayTransportStatus } from '@/lib/transport/relay'
 
-export type ConnectionConfig = {
+export type DirectConnectionConfig = {
+  mode?: 'direct'
   /** Base URL without a trailing slash. Local proxy mode uses `<origin>/oc`. */
   baseUrl: string
   /** Password for the `opencode` basic-auth user. Omitted for the dev proxy. */
@@ -11,11 +13,69 @@ export type ConnectionConfig = {
   remember?: boolean
 }
 
+export type RelayConnectionConfig = {
+  mode: 'relay'
+  /** Full WebSocket URL, including `/room/<id>` for a relay or `/ws` locally. */
+  wsUrl: string
+  room: string
+  clientToken: string
+  psk: string
+  fingerprint: string
+  label?: string
+  remember?: boolean
+}
+
+export type ConnectionConfig = DirectConnectionConfig | RelayConnectionConfig
+
+export type ClientHandle = {
+  client: OpenCodeClient
+  close: () => void
+  subscribeStatus?: (listener: (status: RelayTransportStatus) => void) => () => void
+  status?: () => RelayTransportStatus
+}
+
 export type OpenCodeClient = ReturnType<typeof OpenCode.make>
 
 export type ServerInfo = Awaited<ReturnType<OpenCodeClient['server']['info']>>
 
 export type ConnectionStatus = 'disconnected' | 'connecting' | 'connected' | 'error'
+
+export function isRelayConfig(config: ConnectionConfig): config is RelayConnectionConfig {
+  return config.mode === 'relay'
+}
+
+export function connectionKey(config: ConnectionConfig): string {
+  return isRelayConfig(config)
+    ? `relay:${config.wsUrl}:${config.room}:${config.fingerprint}`
+    : `direct:${config.baseUrl}`
+}
+
+export function connectionUrl(config: ConnectionConfig | null): string {
+  if (!config) return 'not connected'
+  return isRelayConfig(config) ? `${config.wsUrl} (${config.room})` : config.baseUrl
+}
+
+/**
+ * VITE_CLARA_WS_URL is the deployment switch: when set it supplies the relay
+ * (or local agent) endpoint. The pairing payload still supplies the room and
+ * E2EE key. When unset, the pairing payload's own URL is used.
+ */
+export function resolveRelayWsUrl(wsUrl: string, room: string): string {
+  const configured = import.meta.env.VITE_CLARA_WS_URL?.trim()
+  if (!configured) return wsUrl
+
+  const url = new URL(configured)
+  if (room === 'local') {
+    if (!url.pathname.endsWith('/ws')) url.pathname = `${url.pathname.replace(/\/+$/, '')}/ws`
+    return url.toString()
+  }
+  if (!url.pathname.includes('/room/')) {
+    url.pathname = `${url.pathname.replace(/\/+$/, '')}/room/${encodeURIComponent(room)}`
+  }
+  url.search = ''
+  url.hash = ''
+  return url.toString()
+}
 
 export function basicAuth(password: string) {
   const bytes = new TextEncoder().encode(`opencode:${password}`)
@@ -24,15 +84,36 @@ export function basicAuth(password: string) {
   return `Basic ${btoa(binary)}`
 }
 
-export function createClient(config: ConnectionConfig): OpenCodeClient {
-  return OpenCode.make({
-    baseUrl: config.baseUrl.replace(/\/+$/, ''),
-    headers: config.password ? { authorization: basicAuth(config.password) } : undefined,
-  })
+export function createClient(config: ConnectionConfig): ClientHandle {
+  if (isRelayConfig(config)) {
+    const transport = createRelayTransport({
+      wsUrl: config.wsUrl,
+      clientToken: config.clientToken,
+      psk: config.psk,
+      fingerprint: config.fingerprint,
+    })
+    return {
+      client: OpenCode.make({
+        baseUrl: 'http://clara.relay',
+        fetch: transport.fetch,
+      }),
+      close: transport.close,
+      subscribeStatus: transport.subscribe,
+      status: transport.status,
+    }
+  }
+
+  return {
+    client: OpenCode.make({
+      baseUrl: config.baseUrl.replace(/\/+$/, ''),
+      headers: config.password ? { authorization: basicAuth(config.password) } : undefined,
+    }),
+    close: () => {},
+  }
 }
 
 export async function fetchServerInfo(
-  config: ConnectionConfig,
+  config: DirectConnectionConfig,
   signal?: AbortSignal
 ): Promise<ServerInfo> {
   const response = await fetch(`${config.baseUrl.replace(/\/+$/, '')}/api/info`, {
@@ -51,8 +132,9 @@ export async function fetchServerInfo(
 }
 
 /** The Vite dev server proxies `/oc` to the local OpenCode service with auth. */
-export function localProxyConfig(): ConnectionConfig {
+export function localProxyConfig(): DirectConnectionConfig {
   return {
+    mode: 'direct',
     baseUrl: `${window.location.origin}/oc`,
     label: 'Local OpenCode service',
   }

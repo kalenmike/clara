@@ -8,9 +8,28 @@ type StoredConnection = ConnectionConfig
 function parse(raw: string | null): StoredConnection | null {
   if (!raw) return null
   try {
-    const value = JSON.parse(raw) as Partial<StoredConnection>
+    const value = JSON.parse(raw) as Record<string, unknown>
+    if (value.mode === 'relay') {
+      const wsUrl = typeof value.wsUrl === 'string' ? value.wsUrl : ''
+      const room = typeof value.room === 'string' ? value.room : ''
+      const clientToken = typeof value.clientToken === 'string' ? value.clientToken : ''
+      const psk = typeof value.psk === 'string' ? value.psk : ''
+      const fingerprint = typeof value.fingerprint === 'string' ? value.fingerprint : ''
+      if (!wsUrl || !room || !clientToken || !psk || !fingerprint) return null
+      return {
+        mode: 'relay',
+        wsUrl,
+        room,
+        clientToken,
+        psk,
+        fingerprint,
+        label: typeof value.label === 'string' ? value.label : undefined,
+        remember: Boolean(value.remember),
+      }
+    }
     if (typeof value.baseUrl !== 'string' || value.baseUrl.length === 0) return null
     return {
+      mode: 'direct',
       baseUrl: value.baseUrl,
       password: typeof value.password === 'string' ? value.password : undefined,
       label: typeof value.label === 'string' ? value.label : undefined,

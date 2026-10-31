@@ -3,6 +3,18 @@
     "apps/web": {
       "entry": ["index.html"],
       "project": ["src/**/*.{ts,tsx}"]
+    },
+    "apps/server": {
+      "entry": ["src/index.ts"],
+      "project": ["src/**/*.ts", "test/**/*.ts"]
+    },
+    "packages/shared-types": {
+      "entry": ["src/index.ts"],
+      "project": ["src/**/*.ts", "test/**/*.ts"]
+    },
+    "packages/crypto": {
+      "entry": ["src/index.ts"],
+      "project": ["src/**/*.ts", "test/**/*.ts"]
     }
   },
   "ignore": ["apps/web/src/components/ui/**"],

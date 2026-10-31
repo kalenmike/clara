@@ -10,6 +10,7 @@ import { ThemeCard } from '@/components/settings/theme-card'
 import { WordingCard } from '@/components/settings/wording-card'
 import { useSessionWording } from '@/features/sessions/use-wording'
 import type { SessionWording } from '@/features/sessions/wording'
+import { connectionUrl, isRelayConfig } from '@/lib/client'
 import { useConnection } from '@/providers/connection-provider'
 import { useEventStream } from '@/providers/event-provider'
 
@@ -36,7 +37,8 @@ function shortcutList(wording: SessionWording): Array<[string, string]> {
 
 export function SettingsPage() {
   const navigate = useNavigate()
-  const { config, info, disconnect, reconnect, reconnecting, reconnectError } = useConnection()
+  const { config, info, disconnect, reconnect, reconnecting, reconnectError, relayStatus } =
+    useConnection()
   const { state: streamState, lastError } = useEventStream()
   const wording = useSessionWording()
   const shortcuts = shortcutList(wording)
@@ -77,7 +79,12 @@ export function SettingsPage() {
             <CardDescription>The OpenCode instance this browser is connected to.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-3 text-sm">
-            <Row label="URL" value={config?.baseUrl ?? 'not connected'} />
+            <Row label="URL" value={connectionUrl(config)} />
+            <Row label="Mode" value={config && isRelayConfig(config) ? 'E2EE relay' : 'direct'} />
+            {relayStatus && <Row label="Relay" value={relayStatus.state} />}
+            {relayStatus?.agent?.opencodeVersion && (
+              <Row label="OpenCode" value={relayStatus.agent.opencodeVersion} />
+            )}
             <Row label="Version" value={info?.version ?? 'unknown'} />
             <Row label="PID" value={info ? String(info.pid) : 'unknown'} />
             <Row label="URLs" value={info?.urls.join(', ') ?? 'unknown'} />

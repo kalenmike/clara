@@ -1,20 +1,27 @@
-import { useEffect, useState, type FormEvent } from 'react'
+import { useEffect, useRef, useState, type FormEvent } from 'react'
 import { Navigate, useLocation, useNavigate } from 'react-router'
-import { Loader2, PlugZap, Server, Sparkles } from 'lucide-react'
+import { Link2, Loader2, PlugZap, QrCode, Server, Sparkles } from 'lucide-react'
+import { parsePairingInput, type PairingPayload } from '@clara/shared-types'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { useSessionWording } from '@/features/sessions/use-wording'
+import { isRelayConfig, resolveRelayWsUrl } from '@/lib/client'
 import { useConnection } from '@/providers/connection-provider'
 
 export function ConnectPage() {
   const navigate = useNavigate()
   const location = useLocation()
   const { lowerPlural } = useSessionWording()
-  const { status, error, attempt, localInfo, connect, connectLocal } = useConnection()
-  const [baseUrl, setBaseUrl] = useState(attempt?.baseUrl ?? 'http://127.0.0.1:49374')
-  const [password, setPassword] = useState(attempt?.password ?? '')
-  const [remember, setRemember] = useState(attempt?.remember ?? false)
+  const { status, error, attempt, localInfo, connect, connectLocal, relayStatus } = useConnection()
+  const attemptDirect = attempt && !isRelayConfig(attempt) ? attempt : null
+  const [baseUrl, setBaseUrl] = useState(attemptDirect?.baseUrl ?? 'http://127.0.0.1:49374')
+  const [password, setPassword] = useState(attemptDirect?.password ?? '')
+  const [remember, setRemember] = useState(attemptDirect?.remember ?? false)
+  const [pairCode, setPairCode] = useState('')
+  const [pairError, setPairError] = useState<string | null>(null)
+  const [pairing, setPairing] = useState<PairingPayload | null>(null)
+  const autoPaired = useRef(false)
 
   const target = (location.state as { from?: string } | null)?.from ?? '/'
 
@@ -22,13 +29,49 @@ export function ConnectPage() {
     if (status === 'connected') navigate(target, { replace: true })
   }, [status, navigate, target])
 
+  useEffect(() => {
+    if (autoPaired.current) return
+    autoPaired.current = true
+    const payload = parsePairingInput(window.location.href)
+    if (!payload) return
+    window.history.replaceState(null, '', `${window.location.pathname}${window.location.search}`)
+    setPairing(payload)
+    void connect({
+      mode: 'relay',
+      ...payload,
+      wsUrl: resolveRelayWsUrl(payload.wsUrl, payload.room),
+      remember: true,
+      label: 'Clara server',
+    })
+  }, [connect])
+
   const submit = async (event: FormEvent) => {
     event.preventDefault()
     const ok = await connect({
+      mode: 'direct',
       baseUrl: baseUrl.trim().replace(/\/+$/, ''),
       password: password || undefined,
       remember,
       label: 'OpenCode server',
+    })
+    if (ok) navigate(target, { replace: true })
+  }
+
+  const submitPair = async (event: FormEvent) => {
+    event.preventDefault()
+    const payload = parsePairingInput(pairCode)
+    if (!payload) {
+      setPairError('That does not look like a Clara pairing code or link.')
+      return
+    }
+    setPairError(null)
+    setPairing(payload)
+    const ok = await connect({
+      mode: 'relay',
+      ...payload,
+      wsUrl: resolveRelayWsUrl(payload.wsUrl, payload.room),
+      remember: true,
+      label: 'Clara server',
     })
     if (ok) navigate(target, { replace: true })
   }
@@ -53,6 +96,63 @@ export function ConnectPage() {
           </div>
         </div>
 
+        <form onSubmit={submitPair} className="space-y-4 rounded-xl border bg-card p-5">
+          <div className="space-y-1">
+            <h2 className="flex items-center gap-2 text-sm font-medium">
+              <QrCode className="size-4" /> Pair this device
+            </h2>
+            <p className="text-xs text-muted-foreground">
+              Scan the QR code printed by <code>clara-server pair</code>, or paste its link here.
+              The key never leaves this browser.
+            </p>
+          </div>
+
+          <div className="space-y-2">
+            <label htmlFor="pairCode" className="text-xs font-medium">
+              Pairing code or link
+            </label>
+            <Input
+              id="pairCode"
+              value={pairCode}
+              onChange={(event) => setPairCode(event.target.value)}
+              placeholder="clara1_… or https://clara.kalenmichael.com/#pair=…"
+              autoComplete="off"
+              spellCheck={false}
+            />
+          </div>
+
+          {pairing && (
+            <div className="rounded-lg bg-muted px-3 py-2 text-[11px] text-muted-foreground">
+              Key fingerprint{' '}
+              <span className="font-mono text-foreground">{pairing.fingerprint}</span>
+              {relayStatus ? ` · relay ${relayStatus.state}` : null}
+            </div>
+          )}
+
+          {pairError && (
+            <Alert variant="destructive">
+              <AlertTitle>Pairing code</AlertTitle>
+              <AlertDescription>{pairError}</AlertDescription>
+            </Alert>
+          )}
+
+          {error && (
+            <Alert variant="destructive">
+              <AlertTitle>Connection failed</AlertTitle>
+              <AlertDescription>{error}</AlertDescription>
+            </Alert>
+          )}
+
+          <Button type="submit" className="w-full" disabled={status === 'connecting'}>
+            {status === 'connecting' ? (
+              <Loader2 className="size-4 animate-spin" />
+            ) : (
+              <Link2 className="size-4" />
+            )}
+            Pair with Clara server
+          </Button>
+        </form>
+
         {localInfo && (
           <div className="rounded-xl border bg-card p-4">
             <div className="flex items-start gap-3">
@@ -73,10 +173,10 @@ export function ConnectPage() {
 
         <form onSubmit={submit} className="space-y-4 rounded-xl border bg-card p-5">
           <div className="space-y-1">
-            <h2 className="text-sm font-medium">Connect to a server</h2>
+            <h2 className="text-sm font-medium">Connect directly</h2>
             <p className="text-xs text-muted-foreground">
-              Point Clara at a running OpenCode 2 server. The default port is 4096; background
-              services use a random local port.
+              Point Clara at a running OpenCode 2 server without the Clara relay. The default port
+              is 4096; background services use a random local port.
             </p>
           </div>
 
@@ -121,13 +221,6 @@ export function ConnectPage() {
             Remember this connection on this device
           </label>
 
-          {error && (
-            <Alert variant="destructive">
-              <AlertTitle>Connection failed</AlertTitle>
-              <AlertDescription>{error}</AlertDescription>
-            </Alert>
-          )}
-
           <Button type="submit" className="w-full" disabled={status === 'connecting'}>
             {status === 'connecting' ? (
               <Loader2 className="size-4 animate-spin" />
@@ -139,10 +232,7 @@ export function ConnectPage() {
         </form>
 
         <p className="text-center text-[11px] text-muted-foreground">
-          Remote server? Start OpenCode with{' '}
-          <code className="rounded bg-muted px-1 py-0.5">
-            opencode serve --cors {window.location.origin}
-          </code>
+          The relay only sees encrypted frames. Your OpenCode password never leaves the home server.
         </p>
       </div>
     </div>
