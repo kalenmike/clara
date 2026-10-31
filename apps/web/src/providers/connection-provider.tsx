@@ -17,6 +17,7 @@ import {
   detectLocalService,
   isRelayConfig,
   localProxyConfig,
+  resolveRelayWsUrl,
   type ClientHandle,
   type ConnectionConfig,
   type ConnectionStatus,
@@ -25,6 +26,7 @@ import {
 } from '@/lib/client'
 import type { RelayTransportStatus } from '@/lib/transport/relay'
 import { chatStore } from '@/features/chat/chat-store'
+import { takePairingLink } from '@/lib/pairing'
 import { clearStoredConnection, loadStoredConnection, saveStoredConnection } from '@/lib/storage'
 
 const PROBE_TIMEOUT_MS = 8_000
@@ -50,6 +52,9 @@ type ConnectionContextValue = {
 }
 
 const ConnectionContext = createContext<ConnectionContextValue | null>(null)
+
+/** Survives React StrictMode's development remount, unlike a ref. */
+let bootStarted = false
 
 export function ConnectionProvider({ children }: { children: ReactNode }) {
   const queryClient = useQueryClient()
@@ -182,10 +187,25 @@ export function ConnectionProvider({ children }: { children: ReactNode }) {
   }, [clearHandle, queryClient])
 
   useEffect(() => {
-    if (booted.current) return
+    if (booted.current || bootStarted) return
     booted.current = true
+    bootStarted = true
 
     const boot = async () => {
+      // A pairing link owns the first connection attempt, even when React
+      // Router has already rewritten the URL to `/connect`.
+      const pairing = takePairingLink()
+      if (pairing) {
+        await connect({
+          mode: 'relay',
+          ...pairing,
+          wsUrl: resolveRelayWsUrl(pairing.wsUrl, pairing.room),
+          remember: true,
+          label: 'Clara server',
+        })
+        return
+      }
+
       const stored = loadStoredConnection()
       if (stored) {
         // Do not make the stored connection wait for the local-service probe.
@@ -196,7 +216,7 @@ export function ConnectionProvider({ children }: { children: ReactNode }) {
 
       const local = await detectLocalService()
       setLocalInfo(local)
-      if (local && !window.location.hash.includes('pair=')) await connect(localProxyConfig())
+      if (local) await connect(localProxyConfig())
     }
 
     void boot()

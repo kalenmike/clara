@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type FormEvent } from 'react'
+import { useEffect, useState, type FormEvent } from 'react'
 import { Navigate, useLocation, useNavigate } from 'react-router'
 import { Link2, Loader2, PlugZap, QrCode, Server, Sparkles } from 'lucide-react'
 import { parsePairingInput, type PairingPayload } from '@clara/shared-types'
@@ -21,29 +21,12 @@ export function ConnectPage() {
   const [pairCode, setPairCode] = useState('')
   const [pairError, setPairError] = useState<string | null>(null)
   const [pairing, setPairing] = useState<PairingPayload | null>(null)
-  const autoPaired = useRef(false)
 
   const target = (location.state as { from?: string } | null)?.from ?? '/'
 
   useEffect(() => {
     if (status === 'connected') navigate(target, { replace: true })
   }, [status, navigate, target])
-
-  useEffect(() => {
-    if (autoPaired.current) return
-    autoPaired.current = true
-    const payload = parsePairingInput(window.location.href)
-    if (!payload) return
-    window.history.replaceState(null, '', `${window.location.pathname}${window.location.search}`)
-    setPairing(payload)
-    void connect({
-      mode: 'relay',
-      ...payload,
-      wsUrl: resolveRelayWsUrl(payload.wsUrl, payload.room),
-      remember: true,
-      label: 'Clara server',
-    })
-  }, [connect])
 
   const submit = async (event: FormEvent) => {
     event.preventDefault()

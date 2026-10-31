@@ -34,6 +34,7 @@ export async function printPairing(config: ServerConfig, withQr = true): Promise
   console.log('Clara pairing')
   console.log(`  Open:        ${url}`)
   console.log(`  Code:        ${code}`)
+  console.log(`  Room:        ${payload.room}`)
   console.log(`  Fingerprint: ${payload.fingerprint}`)
   if (!config.relay) {
     console.log('  Relay:       not configured; this code only works on the local machine.')

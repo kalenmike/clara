@@ -97,9 +97,9 @@ export function createClient(config: ConnectionConfig): ClientHandle {
         baseUrl: 'http://clara.relay',
         fetch: transport.fetch,
       }),
-      close: transport.close,
-      subscribeStatus: transport.subscribe,
-      status: transport.status,
+      close: () => transport.close(),
+      subscribeStatus: (listener) => transport.subscribe(listener),
+      status: () => transport.status(),
     }
   }
 
