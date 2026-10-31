@@ -13,6 +13,7 @@ import { fileURLToPath, URL } from 'node:url'
 import tailwindcss from '@tailwindcss/vite'
 import react from '@vitejs/plugin-react'
 import { defineConfig, type Plugin } from 'vite'
+import { VitePWA } from 'vite-plugin-pwa'
 
 type LocalService = {
   url: string
@@ -152,7 +153,41 @@ function localServiceProxyPlugin(): Plugin {
 }
 
 export default defineConfig(({ command }) => ({
-  plugins: [react(), tailwindcss(), localServiceProxyPlugin()],
+  plugins: [
+    react(),
+    tailwindcss(),
+    localServiceProxyPlugin(),
+    VitePWA({
+      registerType: 'autoUpdate',
+      includeAssets: ['favicon.svg', 'apple-touch-icon.png'],
+      manifest: {
+        id: '/',
+        name: 'Clara',
+        short_name: 'Clara',
+        description: 'A secure web client for OpenCode sessions.',
+        theme_color: '#111111',
+        background_color: '#111111',
+        display: 'standalone',
+        start_url: '/',
+        scope: '/',
+        icons: [
+          { src: '/icon-192.png', sizes: '192x192', type: 'image/png' },
+          { src: '/icon-512.png', sizes: '512x512', type: 'image/png' },
+          {
+            src: '/icon-maskable-512.png',
+            sizes: '512x512',
+            type: 'image/png',
+            purpose: 'maskable',
+          },
+        ],
+      },
+      workbox: {
+        navigateFallback: 'index.html',
+        globPatterns: ['**/*.{js,css,html,svg,png,woff2}'],
+        runtimeCaching: [],
+      },
+    }),
+  ],
   define: {
     'import.meta.env.CLARA_VERSION': JSON.stringify(packageVersion),
     'import.meta.env.CLARA_BUILD': JSON.stringify({

@@ -1,7 +1,16 @@
-#/usr/bin/env bash
+#!/usr/bin/env bash
+set -euo pipefail
 
-ln -s $(pwd)/clara.service ~/.config/systemd/user/clara.service
+cd "$(dirname "$0")"
+
+pnpm build
+
+mkdir -p "$HOME/.config/systemd/user"
+ln -sf "$(pwd)/clara.service" "$HOME/.config/systemd/user/clara.service"
 
 systemctl --user daemon-reload
 systemctl --user enable --now clara.service
-systemctl --user restart clara
+systemctl --user restart clara.service
+
+echo "Clara home agent installed."
+echo "Pair a device with: node apps/server/dist/index.js pair"
