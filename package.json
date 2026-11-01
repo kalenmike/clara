@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "pnpm --parallel --filter @clara/web --filter @clara/server dev",
     "dev:web": "pnpm --filter @clara/web dev",
+    "dev:panel": "pnpm --filter @clara/panel dev",
     "dev:server": "pnpm --filter @clara/server dev",
     "dev:relay": "pnpm --filter @clara/relay dev",
     "build": "pnpm -r --if-present build",

@@ -4,6 +4,10 @@
       "entry": ["index.html"],
       "project": ["src/**/*.{ts,tsx}"]
     },
+    "apps/panel": {
+      "entry": ["index.html"],
+      "project": ["src/**/*.{ts,tsx,css}"]
+    },
     "apps/server": {
       "project": ["src/**/*.ts", "test/**/*.ts"]
     },

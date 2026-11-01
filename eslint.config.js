@@ -30,7 +30,7 @@ export default defineConfig([
     },
   },
   {
-    files: ['apps/web/**/*.{ts,tsx}'],
+    files: ['apps/web/**/*.{ts,tsx}', 'apps/panel/**/*.{ts,tsx}'],
     extends: [reactHooks.configs.flat.recommended, reactRefresh.configs.vite],
     languageOptions: {
       globals: globals.browser,
@@ -57,7 +57,7 @@ export default defineConfig([
     },
   },
   {
-    files: ['apps/web/vite.config.ts'],
+    files: ['apps/web/vite.config.ts', 'apps/panel/vite.config.ts'],
     languageOptions: { globals: globals.node },
   },
   prettier,
