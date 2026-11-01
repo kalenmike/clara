@@ -1,16 +1,15 @@
 import { HardDrive } from 'lucide-react'
 import type { PanelStorageEntry } from '@clara/shared-types'
 import { formatBytes, formatRelative, formatTimestamp, healthLabel } from '../lib/format.ts'
-import { Badge, Card, CardBody, CardHeader, type Tone } from './primitives.tsx'
+import { Badge, CardBody, CollapsibleCard, type Tone } from './primitives.tsx'
 
 export function StorageCard({ storage, now }: { storage: PanelStorageEntry[]; now: number }) {
   return (
-    <Card>
-      <CardHeader
-        title="Storage"
-        description="Files the agent reads and writes, never their contents"
-        icon={<HardDrive className="size-4" aria-hidden="true" />}
-      />
+    <CollapsibleCard
+      title="Storage"
+      description="Files the agent reads and writes, never their contents"
+      icon={<HardDrive className="size-4" aria-hidden="true" />}
+    >
       <CardBody>
         <ul className="divide-y divide-neutral-100 dark:divide-neutral-800">
           {storage.map((entry) => (
@@ -57,7 +56,7 @@ export function StorageCard({ storage, now }: { storage: PanelStorageEntry[]; no
           ))}
         </ul>
       </CardBody>
-    </Card>
+    </CollapsibleCard>
   )
 }
 

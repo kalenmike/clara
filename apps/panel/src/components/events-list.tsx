@@ -1,18 +1,17 @@
 import { ScrollText } from 'lucide-react'
 import type { PanelEvent } from '@clara/shared-types'
 import { formatRelative, formatTimestamp } from '../lib/format.ts'
-import { Badge, Card, CardBody, CardHeader, EmptyState, type Tone } from './primitives.tsx'
+import { Badge, CardBody, CollapsibleCard, EmptyState, type Tone } from './primitives.tsx'
 
 export function EventsCard({ events, now }: { events: PanelEvent[]; now: number }) {
   const newestFirst = [...events].reverse()
   return (
-    <Card>
-      <CardHeader
-        title="Recent activity"
-        description="In-memory events since this agent started"
-        icon={<ScrollText className="size-4" aria-hidden="true" />}
-        action={<Badge tone="neutral">{events.length}</Badge>}
-      />
+    <CollapsibleCard
+      title="Recent activity"
+      description="In-memory events since this agent started"
+      icon={<ScrollText className="size-4" aria-hidden="true" />}
+      action={<Badge tone="neutral">{events.length}</Badge>}
+    >
       <CardBody>
         {newestFirst.length === 0 ? (
           <EmptyState>No activity has been recorded yet.</EmptyState>
@@ -40,7 +39,7 @@ export function EventsCard({ events, now }: { events: PanelEvent[]; now: number 
           The systemd journal keeps the durable log.
         </p>
       </CardBody>
-    </Card>
+    </CollapsibleCard>
   )
 }
 

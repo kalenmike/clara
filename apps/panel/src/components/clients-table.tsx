@@ -1,19 +1,16 @@
 import { Users } from 'lucide-react'
 import type { PanelClientInfo } from '@clara/shared-types'
 import { formatDuration, formatRelative, formatTimestamp, shortId } from '../lib/format.ts'
-import { Badge, Card, CardBody, CardHeader, EmptyState } from './primitives.tsx'
+import { Badge, CardBody, CollapsibleCard, EmptyState } from './primitives.tsx'
 
 export function ClientsTable({ clients, now }: { clients: PanelClientInfo[]; now: number }) {
   return (
-    <Card>
-      <CardHeader
-        title="Connected clients"
-        description="Live end-to-end encrypted sessions"
-        icon={<Users className="size-4" aria-hidden="true" />}
-        action={
-          <Badge tone={clients.length > 0 ? 'info' : 'neutral'}>{clients.length} active</Badge>
-        }
-      />
+    <CollapsibleCard
+      title="Connected clients"
+      description="Live end-to-end encrypted sessions"
+      icon={<Users className="size-4" aria-hidden="true" />}
+      action={<Badge tone={clients.length > 0 ? 'info' : 'neutral'}>{clients.length} active</Badge>}
+    >
       <CardBody>
         {clients.length === 0 ? (
           <EmptyState>No paired clients are connected right now.</EmptyState>
@@ -92,6 +89,6 @@ export function ClientsTable({ clients, now }: { clients: PanelClientInfo[]; now
           Session IDs are random per connection and do not reveal the pairing key.
         </p>
       </CardBody>
-    </Card>
+    </CollapsibleCard>
   )
 }

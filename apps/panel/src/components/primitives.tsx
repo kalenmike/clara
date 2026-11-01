@@ -1,5 +1,5 @@
-import { useState, type ReactNode } from 'react'
-import { Check, CircleAlert, Copy } from 'lucide-react'
+import { useEffect, useId, useState, type ReactNode } from 'react'
+import { Check, ChevronDown, CircleAlert, Copy } from 'lucide-react'
 
 export type Tone = 'neutral' | 'success' | 'warning' | 'danger' | 'info'
 
@@ -23,43 +23,71 @@ const DOT_CLASSES: Record<Tone, string> = {
   info: 'bg-sky-500',
 }
 
-export function Card({ children, className = '' }: { children: ReactNode; className?: string }) {
-  return (
-    <section
-      className={`rounded-xl border border-neutral-200 bg-white shadow-sm dark:border-neutral-800 dark:bg-neutral-900 ${className}`}
-    >
-      {children}
-    </section>
-  )
-}
-
-export function CardHeader({
+export function CollapsibleCard({
   title,
   description,
   action,
   control,
   icon,
+  expandable = true,
+  notice,
+  children,
 }: {
   title: string
   description?: string
   action?: ReactNode
   control?: ReactNode
   icon?: ReactNode
+  /** When false the header cannot be opened and the body is hidden. */
+  expandable?: boolean
+  notice?: ReactNode
+  children: ReactNode
 }) {
+  const bodyId = useId()
+  const [expanded, setExpanded] = useState(false)
+
+  useEffect(() => {
+    if (!expandable) setExpanded(false)
+  }, [expandable])
+
   return (
-    <div className="flex items-start gap-3 border-b border-neutral-100 px-4 py-3 dark:border-neutral-800">
-      {control ? <div className="shrink-0 pt-0.5">{control}</div> : null}
-      <div className="min-w-0 flex-1">
-        <h2 className="flex flex-wrap items-center gap-2 text-sm font-semibold text-neutral-900 dark:text-neutral-100">
-          {icon}
-          {title}
-          {action}
-        </h2>
-        {description ? (
-          <p className="mt-0.5 text-xs text-neutral-500 dark:text-neutral-400">{description}</p>
-        ) : null}
+    <section className="rounded-xl border border-neutral-200 bg-white shadow-sm dark:border-neutral-800 dark:bg-neutral-900">
+      <div className="flex items-start justify-between gap-3 border-b border-neutral-100 px-4 py-3 dark:border-neutral-800">
+        <div
+          className={`relative flex min-w-0 flex-1 items-start gap-2 ${expandable ? 'cursor-pointer' : ''}`}
+        >
+          {expandable ? (
+            <button
+              type="button"
+              onClick={() => setExpanded((value) => !value)}
+              aria-expanded={expanded}
+              aria-controls={bodyId}
+              aria-label={`${expanded ? 'Collapse' : 'Expand'} ${title}`}
+              className="absolute inset-0 rounded-md focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-neutral-400"
+            />
+          ) : null}
+          <span className="mt-0.5 shrink-0">{icon}</span>
+          <div className="min-w-0 flex-1">
+            <h2 className="flex flex-wrap items-center gap-2 text-sm font-semibold text-neutral-900 dark:text-neutral-100">
+              {title}
+              {action}
+              {expandable ? (
+                <ChevronDown
+                  className={`size-3.5 shrink-0 text-neutral-400 transition ${expanded ? 'rotate-180' : ''}`}
+                  aria-hidden="true"
+                />
+              ) : null}
+            </h2>
+            {description ? (
+              <p className="mt-0.5 text-xs text-neutral-500 dark:text-neutral-400">{description}</p>
+            ) : null}
+          </div>
+        </div>
+        {control ? <div className="relative z-10 shrink-0">{control}</div> : null}
       </div>
-    </div>
+      {notice}
+      {expandable && expanded ? <div id={bodyId}>{children}</div> : null}
+    </section>
   )
 }
 

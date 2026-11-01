@@ -89,21 +89,21 @@ export function App() {
               </div>
             ) : null}
 
-            <ShellPolicyCard shell={data.controls.shell} onChanged={refresh} />
-
-            <div className="grid items-start gap-4 md:grid-cols-2 xl:grid-cols-3">
+            <div className="grid items-start gap-4 md:grid-cols-2">
               <AgentCard
                 agent={data.agent}
                 controls={data.controls}
                 onChanged={refresh}
                 now={clock}
               />
-              <OpenCodeCard
-                opencode={data.opencode}
-                controls={data.controls}
-                onChanged={refresh}
-                now={clock}
-              />
+              <ConfigCard config={data.config} />
+            </div>
+
+            <ClientsTable clients={data.clients} now={clock} />
+
+            <EventsCard events={data.events} now={clock} />
+
+            <div className="grid items-start gap-4 md:grid-cols-2">
               <LocalCard
                 local={data.local}
                 sessions={data.clients.filter((client) => client.transport === 'local').length}
@@ -116,15 +116,21 @@ export function App() {
                 onChanged={refresh}
                 now={clock}
               />
-              <PushCard push={data.push} controls={data.controls} onChanged={refresh} />
-              <ConfigCard config={data.config} />
             </div>
 
-            <ClientsTable clients={data.clients} now={clock} />
+            <div className="grid items-start gap-4 md:grid-cols-2">
+              <OpenCodeCard
+                opencode={data.opencode}
+                controls={data.controls}
+                onChanged={refresh}
+                now={clock}
+              />
+              <ShellPolicyCard shell={data.controls.shell} onChanged={refresh} />
+            </div>
 
-            <div className="grid items-start gap-4 xl:grid-cols-2">
+            <div className="grid items-start gap-4 md:grid-cols-2">
+              <PushCard push={data.push} controls={data.controls} onChanged={refresh} />
               <StorageCard storage={data.storage} now={clock} />
-              <EventsCard events={data.events} now={clock} />
             </div>
           </div>
         ) : (

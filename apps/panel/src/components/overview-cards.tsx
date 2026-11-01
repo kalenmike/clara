@@ -20,9 +20,8 @@ import {
 import { postPanel } from '../lib/panel-api.ts'
 import {
   Badge,
-  Card,
   CardBody,
-  CardHeader,
+  CollapsibleCard,
   CopyButton,
   EmptyState,
   KeyValue,
@@ -71,17 +70,36 @@ export function AgentCard({
   }
 
   return (
-    <Card>
-      <CardHeader
-        title="Agent"
-        description="The home agent process and its pairing state"
-        icon={<Server className="size-4" aria-hidden="true" />}
-        action={
-          <Badge tone={agent.stopped ? 'warning' : 'success'}>
-            {agent.stopped ? 'Stopped' : 'Running'}
-          </Badge>
-        }
-      />
+    <CollapsibleCard
+      title="Agent"
+      description="The home agent process and its pairing state"
+      icon={<Server className="size-4" aria-hidden="true" />}
+      action={
+        <Badge tone={agent.stopped ? 'warning' : 'success'}>
+          {agent.stopped ? 'Stopped' : 'Running'}
+        </Badge>
+      }
+      control={
+        <button
+          type="button"
+          onClick={() => void setStopped()}
+          disabled={pending}
+          className={`inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-semibold text-white shadow-sm transition disabled:cursor-not-allowed disabled:opacity-60 ${
+            stopped ? 'bg-emerald-600 hover:bg-emerald-500' : 'bg-red-600 hover:bg-red-500'
+          }`}
+        >
+          <Power className="size-3.5" aria-hidden="true" />
+          {pending ? (stopped ? 'Starting…' : 'Stopping…') : stopped ? 'Start agent' : 'Stop agent'}
+        </button>
+      }
+      notice={
+        error ? (
+          <div className="px-4 pt-3">
+            <Notice tone="danger">{error}</Notice>
+          </div>
+        ) : null
+      }
+    >
       <CardBody>
         <KeyValue label="External connections">
           {agent.stopped ? 'Off by admin setting' : 'Enabled per feature'}
@@ -107,28 +125,8 @@ export function AgentCard({
           {agent.fingerprint ?? 'fingerprint unavailable'}
         </KeyValue>
         <KeyValue label="PSK">{agent.pskConfigured ? 'Configured' : 'Not configured'}</KeyValue>
-        {error ? <Notice tone="danger">{error}</Notice> : null}
-        <div className="flex justify-end pt-2">
-          <button
-            type="button"
-            onClick={() => void setStopped()}
-            disabled={pending}
-            className={`inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold text-white shadow-sm transition disabled:cursor-not-allowed disabled:opacity-60 ${
-              stopped ? 'bg-emerald-600 hover:bg-emerald-500' : 'bg-red-600 hover:bg-red-500'
-            }`}
-          >
-            <Power className="size-3.5" aria-hidden="true" />
-            {pending
-              ? stopped
-                ? 'Starting…'
-                : 'Stopping…'
-              : stopped
-                ? 'Start agent'
-                : 'Stop agent'}
-          </button>
-        </div>
       </CardBody>
-    </Card>
+    </CollapsibleCard>
   )
 }
 
@@ -164,50 +162,50 @@ export function OpenCodeCard({
           : 'Unreachable'
 
   return (
-    <Card>
-      <CardHeader
-        control={
-          <Toggle
-            checked={feature.desired}
-            onChange={control.toggle}
-            label={`OpenCode connection: ${feature.desired ? 'on' : 'off'}`}
-            state={control.pending ? 'pending' : feature.desired ? 'on' : 'off'}
-            disabled={control.disabled}
-            title={control.title}
-          />
-        }
-        title="OpenCode"
-        description="The upstream server this agent proxies"
-        icon={<Cpu className="size-4" aria-hidden="true" />}
-        action={<Badge tone={tone}>{status}</Badge>}
-      />
-      {control.error ? (
-        <div className="px-4 pt-3">
-          <Notice tone="danger">{control.error}</Notice>
-        </div>
-      ) : null}
-      {feature.desired ? (
-        <CardBody>
-          <KeyValue label="URL">
-            <span className="inline-flex flex-wrap items-center justify-end gap-2">
-              <span className="font-mono text-xs">{opencode.url}</span>
-              <CopyButton value={opencode.url} label="Copy URL" />
-            </span>
-          </KeyValue>
-          <KeyValue label="Desired">{opencode.desired ? 'On' : 'Off'}</KeyValue>
-          <KeyValue label="Effective">{opencode.effective ? 'On' : 'Off'}</KeyValue>
-          <KeyValue label="Version">{opencode.version ?? 'Unknown'}</KeyValue>
-          <KeyValue label="Latency">{opencode.latencyMs ?? '—'} ms</KeyValue>
-          <KeyValue label="Password">
-            {opencode.passwordConfigured ? 'Configured' : 'Not configured'}
-          </KeyValue>
-          <KeyValue label="Checked" title={formatTimestamp(opencode.checkedAt)}>
-            {formatRelative(opencode.checkedAt, now)}
-          </KeyValue>
-          {opencode.error && !disabled ? <Notice tone="danger">{opencode.error}</Notice> : null}
-        </CardBody>
-      ) : null}
-    </Card>
+    <CollapsibleCard
+      title="OpenCode"
+      description="The upstream server this agent proxies"
+      icon={<Cpu className="size-4" aria-hidden="true" />}
+      action={<Badge tone={tone}>{status}</Badge>}
+      expandable={feature.desired}
+      control={
+        <Toggle
+          checked={feature.desired}
+          onChange={control.toggle}
+          label={`OpenCode connection: ${feature.desired ? 'on' : 'off'}`}
+          state={control.pending ? 'pending' : feature.desired ? 'on' : 'off'}
+          disabled={control.disabled}
+          title={control.title}
+        />
+      }
+      notice={
+        control.error ? (
+          <div className="px-4 pt-3">
+            <Notice tone="danger">{control.error}</Notice>
+          </div>
+        ) : null
+      }
+    >
+      <CardBody>
+        <KeyValue label="URL">
+          <span className="inline-flex flex-wrap items-center justify-end gap-2">
+            <span className="font-mono text-xs">{opencode.url}</span>
+            <CopyButton value={opencode.url} label="Copy URL" />
+          </span>
+        </KeyValue>
+        <KeyValue label="Desired">{opencode.desired ? 'On' : 'Off'}</KeyValue>
+        <KeyValue label="Effective">{opencode.effective ? 'On' : 'Off'}</KeyValue>
+        <KeyValue label="Version">{opencode.version ?? 'Unknown'}</KeyValue>
+        <KeyValue label="Latency">{opencode.latencyMs ?? '—'} ms</KeyValue>
+        <KeyValue label="Password">
+          {opencode.passwordConfigured ? 'Configured' : 'Not configured'}
+        </KeyValue>
+        <KeyValue label="Checked" title={formatTimestamp(opencode.checkedAt)}>
+          {formatRelative(opencode.checkedAt, now)}
+        </KeyValue>
+        {opencode.error && !disabled ? <Notice tone="danger">{opencode.error}</Notice> : null}
+      </CardBody>
+    </CollapsibleCard>
   )
 }
 
@@ -227,51 +225,51 @@ export function LocalCard({
   const tone: Tone = local.active ? 'success' : local.desired ? 'warning' : 'neutral'
   const status = local.active ? 'Listening' : local.desired ? 'Unavailable' : 'Off'
   return (
-    <Card>
-      <CardHeader
-        control={
-          <Toggle
-            checked={feature.desired}
-            onChange={control.toggle}
-            label={`Local transport: ${feature.desired ? 'on' : 'off'}`}
-            state={control.pending ? 'pending' : feature.desired ? 'on' : 'off'}
-            disabled={control.disabled}
-            title={control.title}
-          />
-        }
-        title="Local transport"
-        description="The loopback WebSocket the browser pairs with"
-        icon={<Radio className="size-4" aria-hidden="true" />}
-        action={<Badge tone={tone}>{status}</Badge>}
-      />
-      {control.error ? (
-        <div className="px-4 pt-3">
-          <Notice tone="danger">{control.error}</Notice>
-        </div>
-      ) : null}
-      {feature.desired ? (
-        <CardBody>
-          <KeyValue label="WebSocket">
-            <span className="inline-flex flex-wrap items-center justify-end gap-2">
-              <span className="font-mono text-xs">{local.url}</span>
-              <CopyButton value={local.url} label="Copy URL" />
-            </span>
-          </KeyValue>
-          <KeyValue label="Host" mono>
-            {local.host}:{local.port}
-          </KeyValue>
-          <KeyValue label="Desired">{local.desired ? 'On' : 'Off'}</KeyValue>
-          <KeyValue label="Effective">{local.effective ? 'On' : 'Off'}</KeyValue>
-          <KeyValue label="Socket connections">{local.connections}</KeyValue>
-          <KeyValue label="E2EE sessions">{sessions}</KeyValue>
-          {local.error ? <Notice>{local.error}</Notice> : null}
-          <p className="pt-2 text-xs text-neutral-500 dark:text-neutral-400">
-            Sessions are authenticated with the pairing key. The panel never sees or displays that
-            key.
-          </p>
-        </CardBody>
-      ) : null}
-    </Card>
+    <CollapsibleCard
+      title="Local transport"
+      description="The loopback WebSocket the browser pairs with"
+      icon={<Radio className="size-4" aria-hidden="true" />}
+      action={<Badge tone={tone}>{status}</Badge>}
+      expandable={feature.desired}
+      control={
+        <Toggle
+          checked={feature.desired}
+          onChange={control.toggle}
+          label={`Local transport: ${feature.desired ? 'on' : 'off'}`}
+          state={control.pending ? 'pending' : feature.desired ? 'on' : 'off'}
+          disabled={control.disabled}
+          title={control.title}
+        />
+      }
+      notice={
+        control.error ? (
+          <div className="px-4 pt-3">
+            <Notice tone="danger">{control.error}</Notice>
+          </div>
+        ) : null
+      }
+    >
+      <CardBody>
+        <KeyValue label="WebSocket">
+          <span className="inline-flex flex-wrap items-center justify-end gap-2">
+            <span className="font-mono text-xs">{local.url}</span>
+            <CopyButton value={local.url} label="Copy URL" />
+          </span>
+        </KeyValue>
+        <KeyValue label="Host" mono>
+          {local.host}:{local.port}
+        </KeyValue>
+        <KeyValue label="Desired">{local.desired ? 'On' : 'Off'}</KeyValue>
+        <KeyValue label="Effective">{local.effective ? 'On' : 'Off'}</KeyValue>
+        <KeyValue label="Socket connections">{local.connections}</KeyValue>
+        <KeyValue label="E2EE sessions">{sessions}</KeyValue>
+        {local.error ? <Notice>{local.error}</Notice> : null}
+        <p className="pt-2 text-xs text-neutral-500 dark:text-neutral-400">
+          Sessions are authenticated with the pairing key. The panel never sees or displays that
+          key.
+        </p>
+      </CardBody>
+    </CollapsibleCard>
   )
 }
 
@@ -306,72 +304,72 @@ export function RelayCard({
         : relay.status.charAt(0).toUpperCase() + relay.status.slice(1)
 
   return (
-    <Card>
-      <CardHeader
-        control={
-          <Toggle
-            checked={feature.desired}
-            onChange={control.toggle}
-            label={`Relay: ${feature.desired ? 'on' : 'off'}`}
-            state={control.pending ? 'pending' : feature.desired ? 'on' : 'off'}
-            disabled={control.disabled}
-            title={control.title}
-          />
-        }
-        title="Relay"
-        description="Outbound remote access through Cloudflare"
-        icon={<Radio className="size-4" aria-hidden="true" />}
-        action={<Badge tone={tone}>{status}</Badge>}
-      />
-      {control.error ? (
-        <div className="px-4 pt-3">
-          <Notice tone="danger">{control.error}</Notice>
-        </div>
-      ) : null}
-      {feature.desired ? (
-        <CardBody>
-          {relay.configured ? (
-            <>
-              <KeyValue label="Relay URL" mono>
-                {relay.url}
-              </KeyValue>
-              <KeyValue label="Room">
-                <span className="inline-flex flex-wrap items-center justify-end gap-2">
-                  <span className="font-mono text-xs">{relay.room}</span>
-                  {relay.room ? <CopyButton value={relay.room} label="Copy room" /> : null}
-                </span>
-              </KeyValue>
-              <KeyValue label="Desired">{relay.desired ? 'On' : 'Off'}</KeyValue>
-              <KeyValue label="Effective">{relay.effective ? 'On' : 'Off'}</KeyValue>
-              <KeyValue label="Connected">
-                {relay.connectedSince ? formatRelative(relay.connectedSince, now) : 'Not connected'}
-              </KeyValue>
-              <KeyValue label="Last change" title={formatTimestamp(relay.lastChangedAt ?? '')}>
-                {relay.lastChangedAt ? formatRelative(relay.lastChangedAt, now) : '—'}
-              </KeyValue>
-              <KeyValue label="Reconnect attempts">{relay.reconnectAttempts ?? 0}</KeyValue>
-              <KeyValue label="Tokens">
-                {relay.agentTokenConfigured && relay.clientTokenConfigured
-                  ? 'Agent and client configured'
-                  : 'Missing a token'}
-              </KeyValue>
-              {relay.error ? <Notice>{relay.error}</Notice> : null}
-              {relay.lastError ? <Notice>{relay.lastError}</Notice> : null}
-            </>
-          ) : (
-            <>
-              <EmptyState>
-                This agent is local-only. Set <span className="font-mono">CLARA_RELAY_URL</span>, a
-                room, and both tokens to enable remote access.
-              </EmptyState>
-              <p className="pt-2 text-xs text-neutral-500 dark:text-neutral-400">
-                A relay-disabled agent still serves the local WebSocket and this panel.
-              </p>
-            </>
-          )}
-        </CardBody>
-      ) : null}
-    </Card>
+    <CollapsibleCard
+      title="Relay"
+      description="Outbound remote access through Cloudflare"
+      icon={<Radio className="size-4" aria-hidden="true" />}
+      action={<Badge tone={tone}>{status}</Badge>}
+      expandable={feature.desired}
+      control={
+        <Toggle
+          checked={feature.desired}
+          onChange={control.toggle}
+          label={`Relay: ${feature.desired ? 'on' : 'off'}`}
+          state={control.pending ? 'pending' : feature.desired ? 'on' : 'off'}
+          disabled={control.disabled}
+          title={control.title}
+        />
+      }
+      notice={
+        control.error ? (
+          <div className="px-4 pt-3">
+            <Notice tone="danger">{control.error}</Notice>
+          </div>
+        ) : null
+      }
+    >
+      <CardBody>
+        {relay.configured ? (
+          <>
+            <KeyValue label="Relay URL" mono>
+              {relay.url}
+            </KeyValue>
+            <KeyValue label="Room">
+              <span className="inline-flex flex-wrap items-center justify-end gap-2">
+                <span className="font-mono text-xs">{relay.room}</span>
+                {relay.room ? <CopyButton value={relay.room} label="Copy room" /> : null}
+              </span>
+            </KeyValue>
+            <KeyValue label="Desired">{relay.desired ? 'On' : 'Off'}</KeyValue>
+            <KeyValue label="Effective">{relay.effective ? 'On' : 'Off'}</KeyValue>
+            <KeyValue label="Connected">
+              {relay.connectedSince ? formatRelative(relay.connectedSince, now) : 'Not connected'}
+            </KeyValue>
+            <KeyValue label="Last change" title={formatTimestamp(relay.lastChangedAt ?? '')}>
+              {relay.lastChangedAt ? formatRelative(relay.lastChangedAt, now) : '—'}
+            </KeyValue>
+            <KeyValue label="Reconnect attempts">{relay.reconnectAttempts ?? 0}</KeyValue>
+            <KeyValue label="Tokens">
+              {relay.agentTokenConfigured && relay.clientTokenConfigured
+                ? 'Agent and client configured'
+                : 'Missing a token'}
+            </KeyValue>
+            {relay.error ? <Notice>{relay.error}</Notice> : null}
+            {relay.lastError ? <Notice>{relay.lastError}</Notice> : null}
+          </>
+        ) : (
+          <>
+            <EmptyState>
+              This agent is local-only. Set <span className="font-mono">CLARA_RELAY_URL</span>, a
+              room, and both tokens to enable remote access.
+            </EmptyState>
+            <p className="pt-2 text-xs text-neutral-500 dark:text-neutral-400">
+              A relay-disabled agent still serves the local WebSocket and this panel.
+            </p>
+          </>
+        )}
+      </CardBody>
+    </CollapsibleCard>
   )
 }
 
@@ -389,55 +387,54 @@ export function PushCard({
   const tone: Tone = push.effective ? (push.failing > 0 ? 'warning' : 'success') : 'neutral'
   const status = push.effective ? 'Enabled' : push.desired ? 'Not active' : 'Off'
   return (
-    <Card>
-      <CardHeader
-        control={
-          <Toggle
-            checked={feature.desired}
-            onChange={control.toggle}
-            label={`Push notifications: ${feature.desired ? 'on' : 'off'}`}
-            state={control.pending ? 'pending' : feature.desired ? 'on' : 'off'}
-            disabled={control.disabled}
-            title={control.title}
-          />
-        }
-        title="Push"
-        description="Web Push delivery while Clara is closed"
-        icon={<Bell className="size-4" aria-hidden="true" />}
-        action={<Badge tone={tone}>{status}</Badge>}
-      />
-      {control.error ? (
-        <div className="px-4 pt-3">
-          <Notice tone="danger">{control.error}</Notice>
-        </div>
-      ) : null}
-      {feature.desired ? (
-        <CardBody>
-          <KeyValue label="Desired">{push.desired ? 'On' : 'Off'}</KeyValue>
-          <KeyValue label="Effective">{push.effective ? 'On' : 'Off'}</KeyValue>
-          <KeyValue label="Subscriptions">{push.subscriptions}</KeyValue>
-          <KeyValue label="Delivery problems">{push.failing}</KeyValue>
-          <KeyValue label="VAPID key">
-            {push.publicKeyConfigured ? 'Configured' : 'Not configured'}
-          </KeyValue>
-          {push.error ? <Notice>{push.error}</Notice> : null}
-          <p className="pt-2 text-xs text-neutral-500 dark:text-neutral-400">
-            Push endpoints are never exposed by the panel.
-          </p>
-        </CardBody>
-      ) : null}
-    </Card>
+    <CollapsibleCard
+      title="Push"
+      description="Web Push delivery while Clara is closed"
+      icon={<Bell className="size-4" aria-hidden="true" />}
+      action={<Badge tone={tone}>{status}</Badge>}
+      expandable={feature.desired}
+      control={
+        <Toggle
+          checked={feature.desired}
+          onChange={control.toggle}
+          label={`Push notifications: ${feature.desired ? 'on' : 'off'}`}
+          state={control.pending ? 'pending' : feature.desired ? 'on' : 'off'}
+          disabled={control.disabled}
+          title={control.title}
+        />
+      }
+      notice={
+        control.error ? (
+          <div className="px-4 pt-3">
+            <Notice tone="danger">{control.error}</Notice>
+          </div>
+        ) : null
+      }
+    >
+      <CardBody>
+        <KeyValue label="Desired">{push.desired ? 'On' : 'Off'}</KeyValue>
+        <KeyValue label="Effective">{push.effective ? 'On' : 'Off'}</KeyValue>
+        <KeyValue label="Subscriptions">{push.subscriptions}</KeyValue>
+        <KeyValue label="Delivery problems">{push.failing}</KeyValue>
+        <KeyValue label="VAPID key">
+          {push.publicKeyConfigured ? 'Configured' : 'Not configured'}
+        </KeyValue>
+        {push.error ? <Notice>{push.error}</Notice> : null}
+        <p className="pt-2 text-xs text-neutral-500 dark:text-neutral-400">
+          Push endpoints are never exposed by the panel.
+        </p>
+      </CardBody>
+    </CollapsibleCard>
   )
 }
 
 export function ConfigCard({ config }: { config: PanelConfigInfo }) {
   return (
-    <Card>
-      <CardHeader
-        title="Effective configuration"
-        description="Where each value came from, without showing secrets"
-        icon={<Settings2 className="size-4" aria-hidden="true" />}
-      />
+    <CollapsibleCard
+      title="Effective configuration"
+      description="Where each value came from, without showing secrets"
+      icon={<Settings2 className="size-4" aria-hidden="true" />}
+    >
       <CardBody>
         <ConfigRow
           label="OpenCode URL"
@@ -479,7 +476,7 @@ export function ConfigCard({ config }: { config: PanelConfigInfo }) {
           source={config.pairingBaseUrl.source}
         />
       </CardBody>
-    </Card>
+    </CollapsibleCard>
   )
 }
 
