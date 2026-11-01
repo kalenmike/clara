@@ -19,6 +19,11 @@ import {
   type AgentInfo,
   type ClaraAction,
   type ClaraState,
+  type SyncCheckAction,
+  type SyncErrorCode,
+  type SyncPullAction,
+  type SyncPushAction,
+  type SyncSnapshot,
   type WireFrame,
 } from '@clara/shared-types'
 import { installPresenceTracking, readPresenceSnapshot } from '@/features/notifications/presence'
@@ -28,6 +33,7 @@ const REQUEST_HEAD_TIMEOUT_MS = 30_000
 const HEARTBEAT_MS = 15_000
 const STALL_MS = 45_000
 const MAX_RECONNECT_MS = 15_000
+const SYNC_TIMEOUT_MS = 30_000
 
 export type RelayTransportConfig = {
   wsUrl: string
@@ -46,11 +52,24 @@ export type RelayTransportStatus = {
 
 export type PushStatusState = Extract<ClaraState, { type: 'push.status' }>
 
+export type SyncRequestAction = SyncCheckAction | SyncPullAction | SyncPushAction
+
+export type SyncResponse =
+  | { type: 'revision'; namespace: string; revision: number }
+  | { type: 'snapshot'; snapshot: SyncSnapshot }
+  | {
+      type: 'error'
+      code: SyncErrorCode
+      message: string
+      snapshot?: SyncSnapshot
+    }
+
 export type RelayTransport = {
   fetch: typeof globalThis.fetch
   close: () => void
   subscribe: (listener: (status: RelayTransportStatus) => void) => () => void
   subscribePush: (listener: (state: PushStatusState) => void) => () => void
+  requestSync: (action: SyncRequestAction) => Promise<SyncResponse>
   sendAction: (action: ClaraAction) => Promise<void>
   status: () => RelayTransportStatus
 }
@@ -65,6 +84,12 @@ type PendingResponse = {
   cleanup: () => void
 }
 
+type PendingSync = {
+  resolve: (response: SyncResponse) => void
+  reject: (cause: unknown) => void
+  timer: number
+}
+
 export function createRelayTransport(config: RelayTransportConfig): RelayTransport {
   return new RelayFetchTransport(config)
 }
@@ -74,6 +99,7 @@ class RelayFetchTransport implements RelayTransport {
 
   private readonly config: RelayTransportConfig
   private readonly pending = new Map<string, PendingResponse>()
+  private readonly syncPending = new Map<string, PendingSync>()
   private readonly listeners = new Set<(status: RelayTransportStatus) => void>()
   private readonly pushListeners = new Set<(state: PushStatusState) => void>()
   private socket: WebSocket | null = null
@@ -107,6 +133,7 @@ class RelayFetchTransport implements RelayTransport {
     this.clearTimers()
     this.rejectHandshake(new Error('Relay transport closed'))
     this.failAll(new Error('Relay transport closed'))
+    this.failAllSync(new Error('Relay transport closed'))
     this.socket?.close(1000, 'client closed')
     this.socket = null
     this.setState('closed', null)
@@ -125,6 +152,27 @@ class RelayFetchTransport implements RelayTransport {
     return () => {
       this.pushListeners.delete(listener)
     }
+  }
+
+  async requestSync(action: SyncRequestAction): Promise<SyncResponse> {
+    await this.ensureReady()
+    if (this.closed) throw new Error('Relay transport closed')
+
+    const response = new Promise<SyncResponse>((resolve, reject) => {
+      const timer = window.setTimeout(() => {
+        this.syncPending.delete(action.id)
+        reject(new Error('Timed out waiting for the home server to sync settings'))
+      }, SYNC_TIMEOUT_MS)
+      this.syncPending.set(action.id, { resolve, reject, timer })
+    })
+
+    try {
+      await this.send(action)
+    } catch (cause) {
+      this.failSyncPending(action.id, cause)
+    }
+
+    return response
   }
 
   sendAction(action: ClaraAction): Promise<void> {
@@ -290,6 +338,7 @@ class RelayFetchTransport implements RelayTransport {
       const reason = describeClose(event, this.config.wsUrl, wasOpen)
       this.rejectHandshake(new Error(reason))
       this.failAll(new Error(reason))
+      this.failAllSync(new Error(reason))
       if (this.closed) return
       this.setState('reconnecting', reason)
       this.scheduleReconnect()
@@ -392,7 +441,23 @@ class RelayFetchTransport implements RelayTransport {
   }
 
   private handleState(state: Exclude<ClaraState, { type: 'push.status' }>): void {
-    if (state.type === 'agent.status') return
+    if (state.type === 'agent.status') {
+      if (state.agent) {
+        this.statusValue = { ...this.statusValue, agent: state.agent }
+        this.emit()
+      }
+      return
+    }
+
+    if (
+      state.type === 'sync.revision' ||
+      state.type === 'sync.snapshot' ||
+      state.type === 'sync.error'
+    ) {
+      this.handleSyncState(state)
+      return
+    }
+
     const pending = this.pending.get(state.id)
     if (!pending) return
 
@@ -457,6 +522,46 @@ class RelayFetchTransport implements RelayTransport {
     }
   }
 
+  private handleSyncState(
+    state: Extract<ClaraState, { type: 'sync.revision' | 'sync.snapshot' | 'sync.error' }>
+  ): void {
+    const pending = this.syncPending.get(state.id)
+    if (!pending) return
+    this.syncPending.delete(state.id)
+    window.clearTimeout(pending.timer)
+
+    if (state.type === 'sync.revision') {
+      pending.resolve({ type: 'revision', namespace: state.namespace, revision: state.revision })
+      return
+    }
+    if (state.type === 'sync.snapshot') {
+      pending.resolve({
+        type: 'snapshot',
+        snapshot: {
+          namespace: state.namespace,
+          revision: state.revision,
+          entries: state.entries,
+        },
+      })
+      return
+    }
+
+    pending.resolve({
+      type: 'error',
+      code: state.code,
+      message: state.message,
+      ...(state.revision !== undefined && state.entries !== undefined
+        ? {
+            snapshot: {
+              namespace: state.namespace ?? 'default',
+              revision: state.revision,
+              entries: state.entries,
+            },
+          }
+        : {}),
+    })
+  }
+
   private finishPending(id: string): void {
     const pending = this.pending.get(id)
     if (!pending) return
@@ -488,6 +593,18 @@ class RelayFetchTransport implements RelayTransport {
 
   private failAll(cause: unknown): void {
     for (const id of [...this.pending.keys()]) this.failPending(id, cause)
+  }
+
+  private failSyncPending(id: string, cause: unknown): void {
+    const pending = this.syncPending.get(id)
+    if (!pending) return
+    window.clearTimeout(pending.timer)
+    this.syncPending.delete(id)
+    pending.reject(cause)
+  }
+
+  private failAllSync(cause: unknown): void {
+    for (const id of [...this.syncPending.keys()]) this.failSyncPending(id, cause)
   }
 
   private send(payload: ClaraAction | ClaraState): Promise<void> {
@@ -661,6 +778,9 @@ function isState(
     payload.type === 'http.chunk' ||
     payload.type === 'http.end' ||
     payload.type === 'http.error' ||
-    payload.type === 'agent.status'
+    payload.type === 'agent.status' ||
+    payload.type === 'sync.revision' ||
+    payload.type === 'sync.snapshot' ||
+    payload.type === 'sync.error'
   )
 }

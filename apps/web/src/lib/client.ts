@@ -4,6 +4,8 @@ import {
   createRelayTransport,
   type PushStatusState,
   type RelayTransportStatus,
+  type SyncRequestAction,
+  type SyncResponse,
 } from '@/lib/transport/relay'
 
 export type DirectConnectionConfig = {
@@ -35,6 +37,7 @@ export type ConnectionConfig = DirectConnectionConfig | RelayConnectionConfig
 export type ClientControl = {
   send: (action: ClaraAction) => Promise<void>
   subscribePush: (listener: (state: PushStatusState) => void) => () => void
+  requestSync: (action: SyncRequestAction) => Promise<SyncResponse>
 }
 
 export type ClientHandle = {
@@ -114,6 +117,7 @@ export function createClient(config: ConnectionConfig): ClientHandle {
       control: {
         send: (action) => transport.sendAction(action),
         subscribePush: (listener) => transport.subscribePush(listener),
+        requestSync: (action) => transport.requestSync(action),
       },
       subscribeStatus: (listener) => transport.subscribe(listener),
       status: () => transport.status(),

@@ -1,4 +1,6 @@
-const SHOW_EMPTY_PROJECTS_KEY = 'clara.showEmptyProjects'
+import { notifySettingChanged } from '@/lib/setting-events'
+
+export const SHOW_EMPTY_PROJECTS_KEY = 'clara.showEmptyProjects'
 
 let cached: boolean | null = null
 const listeners = new Set<() => void>()
@@ -25,6 +27,7 @@ export function saveShowEmptyProjects(show: boolean): void {
   }
 
   for (const listener of listeners) listener()
+  notifySettingChanged(SHOW_EMPTY_PROJECTS_KEY)
 }
 
 export function subscribeShowEmptyProjects(listener: () => void): () => void {

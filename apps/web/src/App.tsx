@@ -5,6 +5,7 @@ import { TooltipProvider } from '@/components/ui/tooltip'
 import { ConnectionProvider } from '@/providers/connection-provider'
 import { EventProvider } from '@/providers/event-provider'
 import { ThemeProvider } from '@/providers/theme-provider'
+import { THEME_KEY } from '@/lib/storage'
 import { router } from '@/router'
 
 const queryClient = new QueryClient({
@@ -23,7 +24,7 @@ export function App() {
       attribute="class"
       defaultTheme="dark"
       enableSystem
-      storageKey="clara.theme"
+      storageKey={THEME_KEY}
       disableTransitionOnChange
     >
       <QueryClientProvider client={queryClient}>

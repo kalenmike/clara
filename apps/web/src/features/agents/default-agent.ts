@@ -1,4 +1,5 @@
 import type { AgentInfo } from '@opencode/client'
+import { notifySettingChanged } from '@/lib/setting-events'
 
 export type DefaultAgentMode = 'last' | 'fixed'
 
@@ -54,6 +55,7 @@ export function saveDefaultAgent(settings: DefaultAgentSettings): void {
   }
 
   for (const listener of listeners) listener()
+  notifySettingChanged(AGENT_DEFAULT_KEY)
 }
 
 export function readLastAgent(): string | null {
@@ -75,6 +77,7 @@ export function saveLastAgent(agent: string): void {
   }
 
   for (const listener of listeners) listener()
+  notifySettingChanged(LAST_AGENT_KEY)
 }
 
 export function subscribeAgentDefault(listener: () => void): () => void {

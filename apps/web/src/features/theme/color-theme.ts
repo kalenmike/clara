@@ -1,3 +1,5 @@
+import { notifySettingChanged } from '@/lib/setting-events'
+
 export const COLOR_THEME_VALUES = [
   'default',
   'solarized',
@@ -95,7 +97,7 @@ export const COLOR_THEME_KEY = 'clara.colorTheme'
 let cached: ColorTheme | null = null
 const listeners = new Set<() => void>()
 
-function isColorTheme(value: unknown): value is ColorTheme {
+export function isColorTheme(value: unknown): value is ColorTheme {
   return typeof value === 'string' && (COLOR_THEME_VALUES as readonly string[]).includes(value)
 }
 
@@ -127,6 +129,7 @@ export function saveColorTheme(theme: ColorTheme): void {
 
   applyColorTheme(cached)
   for (const listener of listeners) listener()
+  notifySettingChanged(COLOR_THEME_KEY)
 }
 
 export function subscribeColorTheme(listener: () => void): () => void {

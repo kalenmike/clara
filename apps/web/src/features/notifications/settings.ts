@@ -1,3 +1,4 @@
+import { notifySettingChanged } from '@/lib/setting-events'
 import { ATTENTION_KINDS, type AttentionKind } from './attention'
 
 export type NotificationSettings = {
@@ -127,6 +128,7 @@ export function saveNotificationSettings(next: NotificationSettings): void {
   cached = normalize(next)
   window.localStorage.setItem(NOTIFICATION_SETTINGS_KEY, JSON.stringify(cached))
   for (const listener of listeners) listener()
+  notifySettingChanged(NOTIFICATION_SETTINGS_KEY)
 }
 
 export function subscribeNotificationSettings(listener: () => void): () => void {

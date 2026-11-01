@@ -66,7 +66,53 @@ describe('relay fetch transport', () => {
     expect(response.headers.get('content-type')).toBe('text/event-stream')
     await expect(response.text()).resolves.toContain('data: hello')
   })
+
+  it('checks, pulls, and receives conflict snapshots', async () => {
+    const check = await transport.requestSync({ type: 'sync.check', id: 'check-1' })
+    expect(check).toEqual({ type: 'revision', namespace: 'default', revision: 1 })
+
+    const pull = await transport.requestSync({ type: 'sync.pull', id: 'pull-1' })
+    expect(pull).toMatchObject({
+      type: 'snapshot',
+      snapshot: {
+        namespace: 'default',
+        revision: 1,
+        entries: [{ key: 'clara.colorTheme', value: 'nord' }],
+      },
+    })
+
+    const conflict = await transport.requestSync({
+      type: 'sync.push',
+      id: 'push-1',
+      entries: [{ key: 'clara.colorTheme', value: 'clara' }],
+    })
+    expect(conflict).toMatchObject({
+      type: 'error',
+      code: 'conflict',
+      snapshot: { revision: 2 },
+    })
+  })
+
+  it('updates the agent info from an agent.status frame', async () => {
+    await transport.fetch('http://clara.relay/api/info', {
+      signal: AbortSignal.timeout(3_000),
+    })
+    await waitFor(() => transport.status().agent?.syncIntervalMs === 15_000)
+    expect(transport.status().agent).toMatchObject({
+      version: 'status',
+      syncEnabled: true,
+      syncIntervalMs: 15_000,
+    })
+  })
 })
+
+async function waitFor(check: () => boolean, timeoutMs = 2_000): Promise<void> {
+  const started = Date.now()
+  while (!check()) {
+    if (Date.now() - started > timeoutMs) throw new Error('Timed out waiting for the transport')
+    await new Promise((resolve) => setTimeout(resolve, 10))
+  }
+}
 
 function attachFakeAgent(socket: WebSocket, psk: string): void {
   let keys: SessionKeys | null = null
@@ -122,6 +168,16 @@ function attachFakeAgent(socket: WebSocket, psk: string): void {
         })
       )
       send({ type: 'ready', agent: { version: 'test', protocol: PROTOCOL_VERSION } })
+      send({
+        type: 'agent.status',
+        online: true,
+        agent: {
+          version: 'status',
+          protocol: PROTOCOL_VERSION,
+          syncEnabled: true,
+          syncIntervalMs: 15_000,
+        },
+      })
       return
     }
 
@@ -134,6 +190,34 @@ function attachFakeAgent(socket: WebSocket, psk: string): void {
     const payload = JSON.parse(new TextDecoder().decode(plaintext)) as ClaraAction
 
     if (payload.type === 'ready.ack') return
+
+    if (payload.type === 'sync.check') {
+      send({ type: 'sync.revision', id: payload.id, namespace: 'default', revision: 1 })
+      return
+    }
+    if (payload.type === 'sync.pull') {
+      send({
+        type: 'sync.snapshot',
+        id: payload.id,
+        namespace: 'default',
+        revision: 1,
+        entries: [{ key: 'clara.colorTheme', value: 'nord', updatedAt: 1 }],
+      })
+      return
+    }
+    if (payload.type === 'sync.push') {
+      send({
+        type: 'sync.error',
+        id: payload.id,
+        namespace: 'default',
+        code: 'conflict',
+        message: 'The namespace is at revision 2',
+        revision: 2,
+        entries: [{ key: 'clara.colorTheme', value: 'nord', updatedAt: 1 }],
+      })
+      return
+    }
+
     if (payload.type !== 'http.request') return
 
     if (payload.path === '/api/event') {

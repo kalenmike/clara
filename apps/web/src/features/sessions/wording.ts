@@ -1,3 +1,5 @@
+import { notifySettingChanged } from '@/lib/setting-events'
+
 export const SESSION_WORDING_KEY = 'clara.sessionWording'
 export const DEFAULT_SESSION_WORD = 'Brief'
 export const MAX_SESSION_WORD_LENGTH = 24
@@ -49,6 +51,7 @@ export function saveSessionWording(value: string): string {
   cached = build(normalize(value))
   window.localStorage.setItem(SESSION_WORDING_KEY, cached.singular)
   for (const listener of listeners) listener()
+  notifySettingChanged(SESSION_WORDING_KEY)
   return cached.singular
 }
 

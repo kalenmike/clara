@@ -18,6 +18,7 @@ import { readInboxMonitor, readLastProject, saveInboxMonitor } from '@/lib/stora
 type InboxMonitorContextValue = {
   active: boolean
   toggle: () => void
+  setActive: (active: boolean) => void
   advance: (currentSessionID?: string) => void
   inboxCount: number
   outboxCount: number
@@ -158,6 +159,7 @@ export function InboxMonitorProvider({ children }: { children: ReactNode }) {
     () => ({
       active,
       toggle,
+      setActive,
       advance,
       inboxCount: inbox.length,
       outboxCount,
@@ -166,7 +168,18 @@ export function InboxMonitorProvider({ children }: { children: ReactNode }) {
       isError,
       projectID: project?.id,
     }),
-    [active, advance, inbox.length, isError, outboxCount, pending, project?.id, toggle, topTitle]
+    [
+      active,
+      advance,
+      inbox.length,
+      isError,
+      outboxCount,
+      pending,
+      project?.id,
+      setActive,
+      toggle,
+      topTitle,
+    ]
   )
 
   return <InboxMonitorContext.Provider value={value}>{children}</InboxMonitorContext.Provider>

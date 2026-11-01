@@ -1,4 +1,5 @@
 import type { ConnectionConfig } from '@/lib/client'
+import { notifySettingChanged } from '@/lib/setting-events'
 
 const LOCAL_KEY = 'clara.connection.local'
 const SESSION_KEY = 'clara.connection.session'
@@ -63,12 +64,15 @@ export function clearStoredConnection(): void {
   window.localStorage.removeItem(LOCAL_KEY)
 }
 
+export const LAST_PROJECT_KEY = 'clara.lastProject'
+
 export function readLastProject(): string | null {
-  return window.localStorage.getItem('clara.lastProject')
+  return window.localStorage.getItem(LAST_PROJECT_KEY)
 }
 
 export function saveLastProject(projectID: string): void {
-  window.localStorage.setItem('clara.lastProject', projectID)
+  window.localStorage.setItem(LAST_PROJECT_KEY, projectID)
+  notifySettingChanged(LAST_PROJECT_KEY)
 }
 
 export function readSidebarCollapsed(): boolean {
@@ -163,13 +167,22 @@ export function saveComposerSize(size: ComposerSize): void {
   window.localStorage.setItem(COMPOSER_SIZE_KEY, size)
 }
 
-export function readTheme(): 'light' | 'dark' | 'system' {
-  const value = window.localStorage.getItem('clara.theme')
+export const THEME_KEY = 'clara.theme'
+export const THEME_VALUES = ['light', 'dark', 'system'] as const
+
+export type ThemeMode = (typeof THEME_VALUES)[number]
+
+export function isThemeMode(value: unknown): value is ThemeMode {
+  return typeof value === 'string' && (THEME_VALUES as readonly string[]).includes(value)
+}
+
+export function readTheme(): ThemeMode {
+  const value = window.localStorage.getItem(THEME_KEY)
   return value === 'light' || value === 'dark' ? value : 'system'
 }
 
-export function saveTheme(theme: 'light' | 'dark' | 'system'): void {
-  window.localStorage.setItem('clara.theme', theme)
+export function saveTheme(theme: ThemeMode): void {
+  window.localStorage.setItem(THEME_KEY, theme)
 }
 
 export type SidePanelTab = 'info' | 'git' | 'terminal'
@@ -191,12 +204,15 @@ export function saveShowInternal(show: boolean): void {
   window.localStorage.setItem('clara.internalMessages', show ? 'shown' : 'hidden')
 }
 
+export const MONITOR_INBOX_KEY = 'clara.monitorInbox'
+
 export function readInboxMonitor(): boolean {
-  return window.localStorage.getItem('clara.monitorInbox') === 'on'
+  return window.localStorage.getItem(MONITOR_INBOX_KEY) === 'on'
 }
 
 export function saveInboxMonitor(active: boolean): void {
-  window.localStorage.setItem('clara.monitorInbox', active ? 'on' : 'off')
+  window.localStorage.setItem(MONITOR_INBOX_KEY, active ? 'on' : 'off')
+  notifySettingChanged(MONITOR_INBOX_KEY)
 }
 
 export function readDraft(sessionID: string): string {
