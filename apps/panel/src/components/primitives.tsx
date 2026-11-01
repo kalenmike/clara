@@ -1,5 +1,5 @@
 import { useState, type ReactNode } from 'react'
-import { Check, Copy } from 'lucide-react'
+import { Check, CircleAlert, Copy } from 'lucide-react'
 
 export type Tone = 'neutral' | 'success' | 'warning' | 'danger' | 'info'
 
@@ -37,31 +37,96 @@ export function CardHeader({
   title,
   description,
   action,
+  control,
   icon,
 }: {
   title: string
   description?: string
   action?: ReactNode
+  control?: ReactNode
   icon?: ReactNode
 }) {
   return (
-    <div className="flex items-start justify-between gap-3 border-b border-neutral-100 px-4 py-3 dark:border-neutral-800">
-      <div className="min-w-0">
-        <h2 className="flex items-center gap-2 text-sm font-semibold text-neutral-900 dark:text-neutral-100">
+    <div className="flex items-start gap-3 border-b border-neutral-100 px-4 py-3 dark:border-neutral-800">
+      {control ? <div className="shrink-0 pt-0.5">{control}</div> : null}
+      <div className="min-w-0 flex-1">
+        <h2 className="flex flex-wrap items-center gap-2 text-sm font-semibold text-neutral-900 dark:text-neutral-100">
           {icon}
           {title}
+          {action}
         </h2>
         {description ? (
           <p className="mt-0.5 text-xs text-neutral-500 dark:text-neutral-400">{description}</p>
         ) : null}
       </div>
-      {action ? <div className="shrink-0">{action}</div> : null}
     </div>
   )
 }
 
 export function CardBody({ children }: { children: ReactNode }) {
   return <div className="space-y-1 px-4 py-3">{children}</div>
+}
+
+export type ToggleState = 'off' | 'pending' | 'on'
+
+const TOGGLE_TRACKS: Record<ToggleState, string> = {
+  off: 'border-neutral-300 bg-neutral-200 dark:border-neutral-700 dark:bg-neutral-800',
+  pending: 'border-amber-500 bg-amber-500',
+  on: 'border-emerald-600 bg-emerald-600',
+}
+
+export function Toggle({
+  checked,
+  onChange,
+  label,
+  state = checked ? 'on' : 'off',
+  disabled = false,
+  title,
+}: {
+  checked: boolean
+  onChange: () => void
+  label: string
+  state?: ToggleState
+  disabled?: boolean
+  title?: string
+}) {
+  return (
+    <button
+      type="button"
+      role="switch"
+      aria-checked={checked}
+      aria-label={label}
+      title={title}
+      onClick={onChange}
+      disabled={disabled}
+      className={`relative inline-flex h-6 w-11 shrink-0 items-center rounded-full border transition disabled:cursor-not-allowed disabled:opacity-50 ${TOGGLE_TRACKS[state]}`}
+    >
+      <span
+        className={`inline-block size-4 rounded-full bg-white shadow transition ${
+          checked ? 'translate-x-6' : 'translate-x-1'
+        }`}
+      />
+    </button>
+  )
+}
+
+export function Notice({
+  children,
+  tone = 'warning',
+}: {
+  children: ReactNode
+  tone?: 'warning' | 'danger'
+}) {
+  const classes =
+    tone === 'danger'
+      ? 'bg-red-50 text-red-700 dark:bg-red-950/50 dark:text-red-300'
+      : 'bg-amber-50 text-amber-800 dark:bg-amber-950/50 dark:text-amber-300'
+  return (
+    <p className={`flex items-start gap-1.5 rounded-md px-2.5 py-2 text-xs ${classes}`}>
+      <CircleAlert className="mt-0.5 size-3.5 shrink-0" aria-hidden="true" />
+      <span>{children}</span>
+    </p>
+  )
 }
 
 export function Badge({ children, tone = 'neutral' }: { children: ReactNode; tone?: Tone }) {

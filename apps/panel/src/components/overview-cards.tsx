@@ -1,12 +1,15 @@
-import { Bell, Cpu, Radio, Server, Settings2 } from 'lucide-react'
+import { useState } from 'react'
+import { Bell, Cpu, Power, Radio, Server, Settings2 } from 'lucide-react'
 import type {
   PanelAgentInfo,
   PanelConfigInfo,
+  PanelControls,
   PanelLocalTransport,
   PanelOpenCodeInfo,
   PanelPushInfo,
   PanelRelayTransport,
 } from '@clara/shared-types'
+import { findFeature, useFeatureControl } from '../lib/feature-control.ts'
 import {
   formatBytes,
   formatDuration,
@@ -14,6 +17,7 @@ import {
   formatTimestamp,
   sourceLabel,
 } from '../lib/format.ts'
+import { postPanel } from '../lib/panel-api.ts'
 import {
   Badge,
   Card,
@@ -23,11 +27,49 @@ import {
   EmptyState,
   KeyValue,
   Muted,
+  Notice,
   SourceTag,
+  Toggle,
   type Tone,
 } from './primitives.tsx'
 
-export function AgentCard({ agent, now }: { agent: PanelAgentInfo; now: number }) {
+export function AgentCard({
+  agent,
+  controls,
+  onChanged,
+  now,
+}: {
+  agent: PanelAgentInfo
+  controls: PanelControls
+  onChanged: () => void
+  now: number
+}) {
+  const [pending, setPending] = useState(false)
+  const [error, setError] = useState<string>()
+  const stopped = controls.stopped
+
+  const setStopped = async () => {
+    const next = !stopped
+    if (
+      next &&
+      !window.confirm(
+        'Stop all external connections? The panel stays available so you can start the agent again.'
+      )
+    ) {
+      return
+    }
+    setPending(true)
+    setError(undefined)
+    try {
+      await postPanel('/panel/api/v1/agent', { stopped: next })
+      onChanged()
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : String(cause))
+    } finally {
+      setPending(false)
+    }
+  }
+
   return (
     <Card>
       <CardHeader
@@ -65,12 +107,44 @@ export function AgentCard({ agent, now }: { agent: PanelAgentInfo; now: number }
           {agent.fingerprint ?? 'fingerprint unavailable'}
         </KeyValue>
         <KeyValue label="PSK">{agent.pskConfigured ? 'Configured' : 'Not configured'}</KeyValue>
+        {error ? <Notice tone="danger">{error}</Notice> : null}
+        <div className="flex justify-end pt-2">
+          <button
+            type="button"
+            onClick={() => void setStopped()}
+            disabled={pending}
+            className={`inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold text-white shadow-sm transition disabled:cursor-not-allowed disabled:opacity-60 ${
+              stopped ? 'bg-emerald-600 hover:bg-emerald-500' : 'bg-red-600 hover:bg-red-500'
+            }`}
+          >
+            <Power className="size-3.5" aria-hidden="true" />
+            {pending
+              ? stopped
+                ? 'Starting…'
+                : 'Stopping…'
+              : stopped
+                ? 'Start agent'
+                : 'Stop agent'}
+          </button>
+        </div>
       </CardBody>
     </Card>
   )
 }
 
-export function OpenCodeCard({ opencode, now }: { opencode: PanelOpenCodeInfo; now: number }) {
+export function OpenCodeCard({
+  opencode,
+  controls,
+  onChanged,
+  now,
+}: {
+  opencode: PanelOpenCodeInfo
+  controls: PanelControls
+  onChanged: () => void
+  now: number
+}) {
+  const feature = findFeature(controls, 'opencode')
+  const control = useFeatureControl(feature, controls.stopped, onChanged)
   const disabled = opencode.code === 'disabled'
   const tone: Tone = disabled
     ? 'neutral'
@@ -92,78 +166,128 @@ export function OpenCodeCard({ opencode, now }: { opencode: PanelOpenCodeInfo; n
   return (
     <Card>
       <CardHeader
+        control={
+          <Toggle
+            checked={feature.desired}
+            onChange={control.toggle}
+            label={`OpenCode connection: ${feature.desired ? 'on' : 'off'}`}
+            state={control.pending ? 'pending' : feature.desired ? 'on' : 'off'}
+            disabled={control.disabled}
+            title={control.title}
+          />
+        }
         title="OpenCode"
         description="The upstream server this agent proxies"
         icon={<Cpu className="size-4" aria-hidden="true" />}
         action={<Badge tone={tone}>{status}</Badge>}
       />
-      <CardBody>
-        <KeyValue label="URL">
-          <span className="inline-flex flex-wrap items-center justify-end gap-2">
-            <span className="font-mono text-xs">{opencode.url}</span>
-            <CopyButton value={opencode.url} label="Copy URL" />
-          </span>
-        </KeyValue>
-        <KeyValue label="Desired">{opencode.desired ? 'On' : 'Off'}</KeyValue>
-        <KeyValue label="Effective">{opencode.effective ? 'On' : 'Off'}</KeyValue>
-        <KeyValue label="Version">{opencode.version ?? 'Unknown'}</KeyValue>
-        <KeyValue label="Latency">{opencode.latencyMs ?? '—'} ms</KeyValue>
-        <KeyValue label="Password">
-          {opencode.passwordConfigured ? 'Configured' : 'Not configured'}
-        </KeyValue>
-        <KeyValue label="Checked" title={formatTimestamp(opencode.checkedAt)}>
-          {formatRelative(opencode.checkedAt, now)}
-        </KeyValue>
-        {opencode.error && !disabled ? (
-          <p className="mt-2 rounded-md bg-red-50 px-2.5 py-2 text-xs text-red-700 dark:bg-red-950/50 dark:text-red-300">
-            {opencode.error}
-          </p>
-        ) : null}
-      </CardBody>
+      {control.error ? (
+        <div className="px-4 pt-3">
+          <Notice tone="danger">{control.error}</Notice>
+        </div>
+      ) : null}
+      {feature.desired ? (
+        <CardBody>
+          <KeyValue label="URL">
+            <span className="inline-flex flex-wrap items-center justify-end gap-2">
+              <span className="font-mono text-xs">{opencode.url}</span>
+              <CopyButton value={opencode.url} label="Copy URL" />
+            </span>
+          </KeyValue>
+          <KeyValue label="Desired">{opencode.desired ? 'On' : 'Off'}</KeyValue>
+          <KeyValue label="Effective">{opencode.effective ? 'On' : 'Off'}</KeyValue>
+          <KeyValue label="Version">{opencode.version ?? 'Unknown'}</KeyValue>
+          <KeyValue label="Latency">{opencode.latencyMs ?? '—'} ms</KeyValue>
+          <KeyValue label="Password">
+            {opencode.passwordConfigured ? 'Configured' : 'Not configured'}
+          </KeyValue>
+          <KeyValue label="Checked" title={formatTimestamp(opencode.checkedAt)}>
+            {formatRelative(opencode.checkedAt, now)}
+          </KeyValue>
+          {opencode.error && !disabled ? <Notice tone="danger">{opencode.error}</Notice> : null}
+        </CardBody>
+      ) : null}
     </Card>
   )
 }
 
-export function LocalCard({ local, sessions }: { local: PanelLocalTransport; sessions: number }) {
+export function LocalCard({
+  local,
+  sessions,
+  controls,
+  onChanged,
+}: {
+  local: PanelLocalTransport
+  sessions: number
+  controls: PanelControls
+  onChanged: () => void
+}) {
+  const feature = findFeature(controls, 'local')
+  const control = useFeatureControl(feature, controls.stopped, onChanged)
   const tone: Tone = local.active ? 'success' : local.desired ? 'warning' : 'neutral'
   const status = local.active ? 'Listening' : local.desired ? 'Unavailable' : 'Off'
   return (
     <Card>
       <CardHeader
+        control={
+          <Toggle
+            checked={feature.desired}
+            onChange={control.toggle}
+            label={`Local transport: ${feature.desired ? 'on' : 'off'}`}
+            state={control.pending ? 'pending' : feature.desired ? 'on' : 'off'}
+            disabled={control.disabled}
+            title={control.title}
+          />
+        }
         title="Local transport"
         description="The loopback WebSocket the browser pairs with"
         icon={<Radio className="size-4" aria-hidden="true" />}
         action={<Badge tone={tone}>{status}</Badge>}
       />
-      <CardBody>
-        <KeyValue label="WebSocket">
-          <span className="inline-flex flex-wrap items-center justify-end gap-2">
-            <span className="font-mono text-xs">{local.url}</span>
-            <CopyButton value={local.url} label="Copy URL" />
-          </span>
-        </KeyValue>
-        <KeyValue label="Host" mono>
-          {local.host}:{local.port}
-        </KeyValue>
-        <KeyValue label="Desired">{local.desired ? 'On' : 'Off'}</KeyValue>
-        <KeyValue label="Effective">{local.effective ? 'On' : 'Off'}</KeyValue>
-        <KeyValue label="Socket connections">{local.connections}</KeyValue>
-        <KeyValue label="E2EE sessions">{sessions}</KeyValue>
-        {local.error ? (
-          <p className="mt-2 rounded-md bg-amber-50 px-2.5 py-2 text-xs text-amber-800 dark:bg-amber-950/50 dark:text-amber-300">
-            {local.error}
+      {control.error ? (
+        <div className="px-4 pt-3">
+          <Notice tone="danger">{control.error}</Notice>
+        </div>
+      ) : null}
+      {feature.desired ? (
+        <CardBody>
+          <KeyValue label="WebSocket">
+            <span className="inline-flex flex-wrap items-center justify-end gap-2">
+              <span className="font-mono text-xs">{local.url}</span>
+              <CopyButton value={local.url} label="Copy URL" />
+            </span>
+          </KeyValue>
+          <KeyValue label="Host" mono>
+            {local.host}:{local.port}
+          </KeyValue>
+          <KeyValue label="Desired">{local.desired ? 'On' : 'Off'}</KeyValue>
+          <KeyValue label="Effective">{local.effective ? 'On' : 'Off'}</KeyValue>
+          <KeyValue label="Socket connections">{local.connections}</KeyValue>
+          <KeyValue label="E2EE sessions">{sessions}</KeyValue>
+          {local.error ? <Notice>{local.error}</Notice> : null}
+          <p className="pt-2 text-xs text-neutral-500 dark:text-neutral-400">
+            Sessions are authenticated with the pairing key. The panel never sees or displays that
+            key.
           </p>
-        ) : null}
-        <p className="pt-2 text-xs text-neutral-500 dark:text-neutral-400">
-          Sessions are authenticated with the pairing key. The panel never sees or displays that
-          key.
-        </p>
-      </CardBody>
+        </CardBody>
+      ) : null}
     </Card>
   )
 }
 
-export function RelayCard({ relay, now }: { relay: PanelRelayTransport; now: number }) {
+export function RelayCard({
+  relay,
+  controls,
+  onChanged,
+  now,
+}: {
+  relay: PanelRelayTransport
+  controls: PanelControls
+  onChanged: () => void
+  now: number
+}) {
+  const feature = findFeature(controls, 'relay')
+  const control = useFeatureControl(feature, controls.stopped, onChanged)
   const tone: Tone =
     relay.status === 'online'
       ? 'success'
@@ -184,92 +308,124 @@ export function RelayCard({ relay, now }: { relay: PanelRelayTransport; now: num
   return (
     <Card>
       <CardHeader
+        control={
+          <Toggle
+            checked={feature.desired}
+            onChange={control.toggle}
+            label={`Relay: ${feature.desired ? 'on' : 'off'}`}
+            state={control.pending ? 'pending' : feature.desired ? 'on' : 'off'}
+            disabled={control.disabled}
+            title={control.title}
+          />
+        }
         title="Relay"
         description="Outbound remote access through Cloudflare"
         icon={<Radio className="size-4" aria-hidden="true" />}
         action={<Badge tone={tone}>{status}</Badge>}
       />
-      <CardBody>
-        {relay.configured ? (
-          <>
-            <KeyValue label="Relay URL" mono>
-              {relay.url}
-            </KeyValue>
-            <KeyValue label="Room">
-              <span className="inline-flex flex-wrap items-center justify-end gap-2">
-                <span className="font-mono text-xs">{relay.room}</span>
-                {relay.room ? <CopyButton value={relay.room} label="Copy room" /> : null}
-              </span>
-            </KeyValue>
-            <KeyValue label="Desired">{relay.desired ? 'On' : 'Off'}</KeyValue>
-            <KeyValue label="Effective">{relay.effective ? 'On' : 'Off'}</KeyValue>
-            <KeyValue label="Connected">
-              {relay.connectedSince ? formatRelative(relay.connectedSince, now) : 'Not connected'}
-            </KeyValue>
-            <KeyValue label="Last change" title={formatTimestamp(relay.lastChangedAt ?? '')}>
-              {relay.lastChangedAt ? formatRelative(relay.lastChangedAt, now) : '—'}
-            </KeyValue>
-            <KeyValue label="Reconnect attempts">{relay.reconnectAttempts ?? 0}</KeyValue>
-            <KeyValue label="Tokens">
-              {relay.agentTokenConfigured && relay.clientTokenConfigured
-                ? 'Agent and client configured'
-                : 'Missing a token'}
-            </KeyValue>
-            {relay.error ? (
-              <p className="mt-2 rounded-md bg-amber-50 px-2.5 py-2 text-xs text-amber-800 dark:bg-amber-950/50 dark:text-amber-300">
-                {relay.error}
+      {control.error ? (
+        <div className="px-4 pt-3">
+          <Notice tone="danger">{control.error}</Notice>
+        </div>
+      ) : null}
+      {feature.desired ? (
+        <CardBody>
+          {relay.configured ? (
+            <>
+              <KeyValue label="Relay URL" mono>
+                {relay.url}
+              </KeyValue>
+              <KeyValue label="Room">
+                <span className="inline-flex flex-wrap items-center justify-end gap-2">
+                  <span className="font-mono text-xs">{relay.room}</span>
+                  {relay.room ? <CopyButton value={relay.room} label="Copy room" /> : null}
+                </span>
+              </KeyValue>
+              <KeyValue label="Desired">{relay.desired ? 'On' : 'Off'}</KeyValue>
+              <KeyValue label="Effective">{relay.effective ? 'On' : 'Off'}</KeyValue>
+              <KeyValue label="Connected">
+                {relay.connectedSince ? formatRelative(relay.connectedSince, now) : 'Not connected'}
+              </KeyValue>
+              <KeyValue label="Last change" title={formatTimestamp(relay.lastChangedAt ?? '')}>
+                {relay.lastChangedAt ? formatRelative(relay.lastChangedAt, now) : '—'}
+              </KeyValue>
+              <KeyValue label="Reconnect attempts">{relay.reconnectAttempts ?? 0}</KeyValue>
+              <KeyValue label="Tokens">
+                {relay.agentTokenConfigured && relay.clientTokenConfigured
+                  ? 'Agent and client configured'
+                  : 'Missing a token'}
+              </KeyValue>
+              {relay.error ? <Notice>{relay.error}</Notice> : null}
+              {relay.lastError ? <Notice>{relay.lastError}</Notice> : null}
+            </>
+          ) : (
+            <>
+              <EmptyState>
+                This agent is local-only. Set <span className="font-mono">CLARA_RELAY_URL</span>, a
+                room, and both tokens to enable remote access.
+              </EmptyState>
+              <p className="pt-2 text-xs text-neutral-500 dark:text-neutral-400">
+                A relay-disabled agent still serves the local WebSocket and this panel.
               </p>
-            ) : null}
-            {relay.lastError ? (
-              <p className="mt-2 rounded-md bg-amber-50 px-2.5 py-2 text-xs text-amber-800 dark:bg-amber-950/50 dark:text-amber-300">
-                {relay.lastError}
-              </p>
-            ) : null}
-          </>
-        ) : (
-          <>
-            <EmptyState>
-              This agent is local-only. Set <span className="font-mono">CLARA_RELAY_URL</span>, a
-              room, and both tokens to enable remote access.
-            </EmptyState>
-            <p className="pt-2 text-xs text-neutral-500 dark:text-neutral-400">
-              A relay-disabled agent still serves the local WebSocket and this panel.
-            </p>
-          </>
-        )}
-      </CardBody>
+            </>
+          )}
+        </CardBody>
+      ) : null}
     </Card>
   )
 }
 
-export function PushCard({ push }: { push: PanelPushInfo }) {
+export function PushCard({
+  push,
+  controls,
+  onChanged,
+}: {
+  push: PanelPushInfo
+  controls: PanelControls
+  onChanged: () => void
+}) {
+  const feature = findFeature(controls, 'push')
+  const control = useFeatureControl(feature, controls.stopped, onChanged)
   const tone: Tone = push.effective ? (push.failing > 0 ? 'warning' : 'success') : 'neutral'
   const status = push.effective ? 'Enabled' : push.desired ? 'Not active' : 'Off'
   return (
     <Card>
       <CardHeader
+        control={
+          <Toggle
+            checked={feature.desired}
+            onChange={control.toggle}
+            label={`Push notifications: ${feature.desired ? 'on' : 'off'}`}
+            state={control.pending ? 'pending' : feature.desired ? 'on' : 'off'}
+            disabled={control.disabled}
+            title={control.title}
+          />
+        }
         title="Push"
         description="Web Push delivery while Clara is closed"
         icon={<Bell className="size-4" aria-hidden="true" />}
         action={<Badge tone={tone}>{status}</Badge>}
       />
-      <CardBody>
-        <KeyValue label="Desired">{push.desired ? 'On' : 'Off'}</KeyValue>
-        <KeyValue label="Effective">{push.effective ? 'On' : 'Off'}</KeyValue>
-        <KeyValue label="Subscriptions">{push.subscriptions}</KeyValue>
-        <KeyValue label="Delivery problems">{push.failing}</KeyValue>
-        <KeyValue label="VAPID key">
-          {push.publicKeyConfigured ? 'Configured' : 'Not configured'}
-        </KeyValue>
-        {push.error ? (
-          <p className="mt-2 rounded-md bg-amber-50 px-2.5 py-2 text-xs text-amber-800 dark:bg-amber-950/50 dark:text-amber-300">
-            {push.error}
+      {control.error ? (
+        <div className="px-4 pt-3">
+          <Notice tone="danger">{control.error}</Notice>
+        </div>
+      ) : null}
+      {feature.desired ? (
+        <CardBody>
+          <KeyValue label="Desired">{push.desired ? 'On' : 'Off'}</KeyValue>
+          <KeyValue label="Effective">{push.effective ? 'On' : 'Off'}</KeyValue>
+          <KeyValue label="Subscriptions">{push.subscriptions}</KeyValue>
+          <KeyValue label="Delivery problems">{push.failing}</KeyValue>
+          <KeyValue label="VAPID key">
+            {push.publicKeyConfigured ? 'Configured' : 'Not configured'}
+          </KeyValue>
+          {push.error ? <Notice>{push.error}</Notice> : null}
+          <p className="pt-2 text-xs text-neutral-500 dark:text-neutral-400">
+            Push endpoints are never exposed by the panel.
           </p>
-        ) : null}
-        <p className="pt-2 text-xs text-neutral-500 dark:text-neutral-400">
-          Push endpoints are never exposed by the panel.
-        </p>
-      </CardBody>
+        </CardBody>
+      ) : null}
     </Card>
   )
 }

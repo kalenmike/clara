@@ -3,7 +3,6 @@ import { PANEL_API_VERSION } from '@clara/shared-types'
 import { formatTimestamp } from './lib/format.ts'
 import { useAgentSnapshot } from './lib/use-agent-snapshot.ts'
 import { ClientsTable } from './components/clients-table.tsx'
-import { ControlsCard } from './components/controls-card.tsx'
 import { EventsCard } from './components/events-list.tsx'
 import {
   AgentCard,
@@ -90,19 +89,34 @@ export function App() {
               </div>
             ) : null}
 
-            <ControlsCard controls={data.controls} onChanged={refresh} />
-
             <ShellPolicyCard shell={data.controls.shell} onChanged={refresh} />
 
             <div className="grid items-start gap-4 md:grid-cols-2 xl:grid-cols-3">
-              <AgentCard agent={data.agent} now={clock} />
-              <OpenCodeCard opencode={data.opencode} now={clock} />
+              <AgentCard
+                agent={data.agent}
+                controls={data.controls}
+                onChanged={refresh}
+                now={clock}
+              />
+              <OpenCodeCard
+                opencode={data.opencode}
+                controls={data.controls}
+                onChanged={refresh}
+                now={clock}
+              />
               <LocalCard
                 local={data.local}
                 sessions={data.clients.filter((client) => client.transport === 'local').length}
+                controls={data.controls}
+                onChanged={refresh}
               />
-              <RelayCard relay={data.relay} now={clock} />
-              <PushCard push={data.push} />
+              <RelayCard
+                relay={data.relay}
+                controls={data.controls}
+                onChanged={refresh}
+                now={clock}
+              />
+              <PushCard push={data.push} controls={data.controls} onChanged={refresh} />
               <ConfigCard config={data.config} />
             </div>
 
