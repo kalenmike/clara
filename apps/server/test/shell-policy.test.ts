@@ -75,6 +75,15 @@ describe('shell policy', () => {
     ).toEqual({ allowed: true })
 
     expect(
+      evaluateShellRequest(
+        allowlist,
+        request('/api/shell', {
+          command: 'git log -n 10 --format=%H%x1f%an%x1f%ae%x1f%aI%x1f%s%x1f%b%x1e',
+        })
+      )
+    ).toEqual({ allowed: true })
+
+    expect(
       evaluateShellRequest(allowlist, request('/api/shell', { command: 'git status' }))
     ).toMatchObject({ allowed: false, code: 'shell_denied' })
 
