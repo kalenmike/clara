@@ -42,6 +42,7 @@ here, it is not part of the canonical set.
 | [pairing.md](features/pairing.md)             | You are working on QR/code pairing, device storage, or key rotation      |
 | [sessions.md](features/sessions.md)           | You are working on the project/session browser                           |
 | [chat.md](features/chat.md)                   | You are working on messages, streaming, tools, or permissions            |
+| [fork.md](features/fork.md)                   | You are working on forking a session or forwarding a message             |
 | [pair-terminal.md](features/pair-terminal.md) | You are working on the read-only terminal that follows a running session |
 | [composer.md](features/composer.md)           | You are working on the reply window, commands, mentions, or attachments  |
 | [session-info.md](features/session-info.md)   | You are working on cost, tokens, context, or message counts              |

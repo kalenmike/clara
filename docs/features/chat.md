@@ -18,7 +18,9 @@ typed them. When a
 Plan run finishes, a plan-ready card appears above the thread so the person can
 steer the plan or hand off to Build. A session with no messages shows a
 dedicated New message view, and a session saved as a draft shows its queued user
-message in the thread and a Start card above it.
+message in the thread and a Start card above it. The header can fork the whole
+brief, and each user or assistant message has fork and forward actions; see
+[fork.md](fork.md).
 
 ## User flow
 
@@ -223,7 +225,7 @@ message in the thread and a Start card above it.
 
 ## Out of scope
 
-- Diff review, revert, fork, or snapshot browsing
+- Diff review, revert, or snapshot browsing
 - Todos, worktrees, interactive PTY/terminal sessions, or MCP management
 - Editing or deleting individual messages
 - Message search inside a session

@@ -134,6 +134,7 @@ docs(sessions): document archived session filters
 | Connection and credentials         | [docs/features/connection.md](docs/features/connection.md)       |
 | Project/session browser            | [docs/features/sessions.md](docs/features/sessions.md)           |
 | Messages, tools, approvals         | [docs/features/chat.md](docs/features/chat.md)                   |
+| Forking, forwarding                | [docs/features/fork.md](docs/features/fork.md)                   |
 | Prompt box, commands, mentions     | [docs/features/composer.md](docs/features/composer.md)           |
 | Cost, tokens, context              | [docs/features/session-info.md](docs/features/session-info.md)   |
 | Inbox notifications and sounds     | [docs/features/notifications.md](docs/features/notifications.md) |
