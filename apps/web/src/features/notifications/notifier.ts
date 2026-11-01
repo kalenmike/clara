@@ -33,8 +33,8 @@ export async function showDesktopNotification(input: {
       await registration.showNotification(title, {
         body: input.body,
         tag: `clara:${input.sessionID}`,
-        icon: '/favicon.svg',
-        badge: '/favicon.svg',
+        icon: '/favicon.png',
+        badge: '/favicon.png',
         silent: true,
         data: { url: input.url, sessionID: input.sessionID, kind: input.kind },
       })
@@ -48,7 +48,7 @@ export async function showDesktopNotification(input: {
     const notification = new Notification(title, {
       body: input.body,
       tag: `clara:${input.sessionID}`,
-      icon: '/favicon.svg',
+      icon: '/favicon.png',
       silent: true,
     })
 

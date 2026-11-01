@@ -4,7 +4,15 @@ import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { useSendPrompt, useSwitchAgent } from '@/features/chat/use-chat'
 
-export function PlanReadyPanel({ sessionID, onSteer }: { sessionID: string; onSteer: () => void }) {
+export function PlanReadyPanel({
+  sessionID,
+  onSteer,
+  onBuild,
+}: {
+  sessionID: string
+  onSteer: () => void
+  onBuild?: () => void
+}) {
   const switchAgent = useSwitchAgent(sessionID)
   const sendPrompt = useSendPrompt(sessionID)
   const [starting, setStarting] = useState(false)
@@ -14,10 +22,12 @@ export function PlanReadyPanel({ sessionID, onSteer }: { sessionID: string; onSt
     if (pending) return
     setStarting(true)
     let switched = false
+    let sent = false
     try {
       await switchAgent.mutateAsync('build')
       switched = true
       await sendPrompt.mutateAsync({ text: 'Confirmed', delivery: 'steer' })
+      sent = true
     } catch {
       toast.error(
         switched
@@ -27,6 +37,7 @@ export function PlanReadyPanel({ sessionID, onSteer }: { sessionID: string; onSt
     } finally {
       setStarting(false)
     }
+    if (sent) onBuild?.()
   }
 
   return (

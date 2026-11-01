@@ -66,6 +66,11 @@
   --accent: oklch(0.97 0 0);
   --accent-foreground: oklch(0.205 0 0);
   --destructive: oklch(0.577 0.245 27.325);
+  /* Notification accents follow the palette; danger reuses destructive. */
+  --status-success: #059669;
+  --status-warning: #d97706;
+  --status-info: #0284c7;
+  --status-danger: var(--destructive);
   --border: oklch(0.922 0 0);
   --input: oklch(0.922 0 0);
   --ring: oklch(0.708 0 0);
@@ -102,6 +107,10 @@
   --accent: oklch(0.269 0 0);
   --accent-foreground: oklch(0.985 0 0);
   --destructive: oklch(0.704 0.191 22.216);
+  --status-success: #34d399;
+  --status-warning: #fbbf24;
+  --status-info: #38bdf8;
+  --status-danger: var(--destructive);
   --border: oklch(1 0 0 / 10%);
   --input: oklch(1 0 0 / 15%);
   --ring: oklch(0.556 0 0);
@@ -128,7 +137,8 @@
     @apply bg-background text-foreground;
   }
   html {
-    @apply font-sans;
+    /* Paints the canvas (and any overscroll) with the active palette. */
+    @apply bg-background font-sans;
   }
 }
 html,
@@ -139,13 +149,16 @@ body,
 
 /*
  * The shell is one screen tall, but which unit means "one screen" depends on
- * how the app was opened. iOS 26 computes the dynamic and small viewports as
- * if Safari's toolbar were still on screen, even inside a Home Screen app, so
- * `dvh` and the initial containing block both resolve ~59pt short there and
- * leave a strip of canvas under the app. An installed app has no chrome to
- * retract, which makes `lvh` the true height; a browser tab keeps `dvh`,
- * because `lvh` there is the URL-bar-collapsed height and would put the
- * composer behind Safari's toolbars.
+ * how the app was opened. iOS 26 hands a Home Screen app a viewport that is
+ * short by the status-bar height, while `lvh`/`100vh` still report the whole
+ * display (WebKit bug 313800). Sizing the shell to `lvh` therefore paints past
+ * the viewport: the bottom-anchored dock buttons, the `h-full` scrollers, and
+ * the `fixed` sheets all disagree about where the screen ends, and the extra
+ * height is clipped. The shortfall is the native window frame, not the page,
+ * so the shell stays viewport-sized and the manifest `background_color` is
+ * matched to the palette instead. A browser tab keeps `dvh`, because `lvh`
+ * there is the URL-bar-collapsed height and would put the composer behind
+ * Safari's toolbars.
  */
 @media (display-mode: browser) {
   #root {
@@ -157,7 +170,6 @@ body,
   #root {
     position: fixed;
     inset: 0;
-    height: 100lvh;
   }
 }
 
@@ -277,6 +289,67 @@ body {
     height: 14px;
     opacity: 0.6;
   }
+}
+
+/*
+ * In-app notifications. Importance comes from the icon, wording, and a
+ * palette-derived accent; the surface stays a theme surface. Error carries the
+ * strongest tint, warning next, and success/info stay lightest.
+ */
+.cn-toast[data-styled='true'][data-type='success'] {
+  --clara-toast-accent: var(--status-success);
+}
+
+.cn-toast[data-styled='true'][data-type='info'] {
+  --clara-toast-accent: var(--status-info);
+}
+
+.cn-toast[data-styled='true'][data-type='warning'] {
+  --clara-toast-accent: var(--status-warning);
+}
+
+.cn-toast[data-styled='true'][data-type='error'] {
+  --clara-toast-accent: var(--status-danger);
+}
+
+.cn-toast[data-styled='true']:is(
+    [data-type='success'],
+    [data-type='info'],
+    [data-type='warning'],
+    [data-type='error']
+  ) {
+  background: color-mix(in oklab, var(--popover) 92%, var(--clara-toast-accent));
+  border-color: color-mix(in oklab, var(--border) 62%, var(--clara-toast-accent));
+}
+
+.cn-toast[data-styled='true'][data-type='warning'] {
+  background: color-mix(in oklab, var(--popover) 90%, var(--clara-toast-accent));
+  border-color: color-mix(in oklab, var(--border) 55%, var(--clara-toast-accent));
+}
+
+.cn-toast[data-styled='true'][data-type='error'] {
+  background: color-mix(in oklab, var(--popover) 88%, var(--clara-toast-accent));
+  border-color: color-mix(in oklab, var(--border) 45%, var(--clara-toast-accent));
+}
+
+.cn-toast[data-styled='true']:is(
+    [data-type='success'],
+    [data-type='info'],
+    [data-type='warning'],
+    [data-type='error']
+  )
+  [data-icon] {
+  color: var(--clara-toast-accent);
+}
+
+.cn-toast[data-styled='true'] [data-description] {
+  color: var(--muted-foreground);
+}
+
+.toaster[data-sonner-toaster] .cn-toast[data-styled='true'] [data-close-button]:hover {
+  background: var(--accent);
+  border-color: var(--border);
+  color: var(--accent-foreground);
 }
 
 @keyframes clara-done-ring {

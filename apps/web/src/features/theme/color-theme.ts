@@ -6,6 +6,7 @@ export const COLOR_THEME_VALUES = [
   'nord',
   'rose-pine',
   'catppuccin',
+  'clara',
 ] as const
 
 export type ColorTheme = (typeof COLOR_THEME_VALUES)[number]
@@ -76,6 +77,14 @@ export const COLOR_THEMES: ColorThemeOption[] = [
     preview: {
       light: ['#eff1f5', '#8839ef'],
       dark: ['#1e1e2e', '#cba6f7'],
+    },
+  },
+  {
+    value: 'clara',
+    label: 'Clara',
+    preview: {
+      light: ['#faf7ff', '#a21fd0'],
+      dark: ['#101f3b', '#e066ff'],
     },
   },
 ]

@@ -10,7 +10,6 @@ import {
   Plus,
   Search,
   Settings,
-  Sparkles,
   X,
 } from 'lucide-react'
 import type { SessionInfo } from '@opencode/client'
@@ -204,11 +203,9 @@ export function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
   return (
     <>
       <div className="flex h-14 items-center gap-2 px-4">
-        <div className="flex size-7 items-center justify-center rounded-lg bg-foreground text-background">
-          <Sparkles className="size-4" />
-        </div>
+        <img src="/clara-mark.png" alt="" className="size-7 shrink-0" />
         <div className="min-w-0 flex-1">
-          <div className="text-sm font-semibold leading-tight tracking-tight">Clara</div>
+          <img src="/clara-type.png" alt="Clara" className="h-4 w-auto" />
           <div className="flex items-center gap-1 text-[11px] uppercase tracking-wider text-muted-foreground md:text-[10px]">
             {state === 'live' ? (
               <span className="flex items-center gap-1">

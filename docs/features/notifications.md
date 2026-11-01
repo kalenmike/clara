@@ -70,6 +70,10 @@ start an agent run and move on, so they do not have to watch the sidebar.
    applies to both, either can be muted without affecting the other, and the
    Done chime is a UI sound rather than an Inbox alert. Closed-app pushes use
    the operating system's notification sound.
+10. In-app toasts follow the selected color theme. Success, warning, info, and
+    error keep distinct icons, wording, and palette-derived accents, so
+    importance is readable without relying on color alone. Error carries the
+    strongest tint, warning the next, and success and info the lightest.
 
 ## Edge cases
 
@@ -90,6 +94,12 @@ start an agent run and move on, so they do not have to watch the sidebar.
   still chimes.
 - **Autoplay blocked** — the first click or keypress unlocks audio. A sound that
   cannot play is skipped silently.
+- **Theme changed while a toast is open** — the open toast recolors immediately
+  because the accents are theme tokens.
+- **Missing or unknown palette** — the Default status accents apply, so a stale
+  stored theme never leaves a toast unstyled.
+- **Forced colors** — the operating system palette wins; icons and wording still
+  distinguish the notification state.
 - **Tab in the background or window unfocused** — the open session may still
   alert, because the person cannot see it.
 - **Another session is open** — the alert is delivered for the session that
@@ -149,6 +159,7 @@ start an agent run and move on, so they do not have to watch the sidebar.
   and lives in the sidebar; individual notifications cannot be snoozed.
 - Per-action UI sound choices; Done is the only UI sound today.
 - Message backlog or offline event replay for the push monitor.
+- Theming system and push notifications; the operating system draws their chrome.
 
 ## Known gaps
 
@@ -159,6 +170,8 @@ start an agent run and move on, so they do not have to watch the sidebar.
   delay or drop a message, and a home agent that is offline cannot send.
 - The custom per-kind sounds, sound switches, and volume do not apply once the
   app is closed; that push uses the operating-system sound and settings.
+- System and push notifications are drawn by the operating system, so their
+  colors and typography cannot follow the selected palette.
 - Losing or rotating `vapid.json` invalidates existing push subscriptions until
   each device subscribes again.
 - There is no per-device push list or revoke control; `pair --rotate` clears all
@@ -183,9 +196,15 @@ start an agent run and move on, so they do not have to watch the sidebar.
   `NotificationProvider` inside the app shell consumes it
 - Desktop notification: service-worker `showNotification` when available,
   falling back to the page Notification API; `silent: true`, tag
-  `clara:<sessionID>`, icon `/favicon.svg`
+  `clara:<sessionID>`, icon `/favicon.png`
 - Sounds: Web Audio motifs in `src/features/notifications/sounds.ts`; the Done
   chime is `playDoneSound`
+- Toast theme: `--status-success`, `--status-warning`, `--status-info`, and
+  `--status-danger` in `src/index.css` and `src/styles/color-themes.css`; the
+  Default palette maps danger to `--destructive`, and palettes adjust a token
+  where its icon needs more contrast. Accents and tint rules live in
+  `src/index.css` and hook onto the `cn-toast` class in
+  `src/components/ui/sonner.tsx`
 - Settings: `clara.notifications` in `localStorage` (`desktop`, `push`,
   `sounds`, `uiSounds`, `volume`, `soundKinds`, `deskIdleMs`)
 - Presence: the relay heartbeat carries a sealed `presence` payload

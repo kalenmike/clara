@@ -37,13 +37,13 @@ default, and the noun is configurable in Settings.
    dedicated New message view when it has no messages and no pending draft.
 10. A **Monitor Inbox** switch on the start view, below **New Session**, jumps
     to the newest Inbox session when turned on. While active it advances after
-    Done, Send, or saving a draft: Clara opens the next newest Inbox session, or
-    the start view when the Inbox is empty. It also opens a session as soon as
-    it newly enters the Inbox while the start view is open; sessions already in
-    the Inbox when the view opens never redirect. Manual navigation is otherwise
-    never redirected. The switch shows whether monitoring is active whenever the
-    start view is shown, and reports how many agents are working in the project's
-    Outbox with a pulsing dot while any run is active.
+    Done, Send, Build, or saving a draft: Clara opens the next newest Inbox
+    session, or the start view when the Inbox is empty. It also opens a session
+    as soon as it newly enters the Inbox while the start view is open; sessions
+    already in the Inbox when the view opens never redirect. Manual navigation is
+    otherwise never redirected. The switch shows whether monitoring is active
+    whenever the start view is shown, and reports how many agents are working in
+    the project's Outbox with a pulsing dot while any run is active.
 11. The chat header can rename, snooze, archive, or delete the current session. A home
     button to the left of the title returns to the start view.
 12. The Done button in the reply dock archives the session without renaming it,
@@ -109,8 +109,8 @@ default, and the noun is configurable in Settings.
     messages.
 13. Monitor Inbox targets the newest Inbox session for the current project by
     update time, independent of the sidebar search. It moves the open view when
-    the toggle is turned on, after Done, Send, or saving a draft, or when a
-    session newly enters the Inbox while the start view is open. The first three
+    the toggle is turned on, after Done, Send, Build, or saving a draft, or when
+    a session newly enters the Inbox while the start view is open. The first
     actions open the next newest Inbox session, or the start view when none
     remain. Sessions already in the Inbox when the start view opens never
     redirect, so manual navigation and the switch stay usable. The preference is
@@ -136,8 +136,8 @@ default, and the noun is configurable in Settings.
 - **No Inbox sessions while monitoring** — Clara shows the start view with the
   Monitor Inbox switch still on, so monitoring can be turned off. The next
   session to enter the Inbox opens automatically.
-- **Open session leaves the Inbox** — Done, Send, and saving a draft open the
-  next newest Inbox session.
+- **Open session leaves the Inbox** — Done, Send, Build, and saving a draft open
+  the next newest Inbox session.
 - **A newer Inbox session arrives while a session is open** — the open session
   stays in place.
 - **A session enters the Inbox while the start view is open** — Clara opens it.

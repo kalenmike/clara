@@ -165,6 +165,9 @@ export function ChatPage() {
     setReplyOpen(true)
     window.dispatchEvent(new Event('clara:open-reply'))
   }, [])
+  const advanceInbox = useCallback(() => {
+    if (inboxMonitor.active) inboxMonitor.advance(sessionId)
+  }, [inboxMonitor, sessionId])
 
   useEffect(() => {
     saveShowInternal(showInternal)
@@ -326,7 +329,12 @@ export function ChatPage() {
         <FormPanel sessionID={sessionId} />
         <PermissionPanel sessionID={sessionId} directory={directory} />
         {planReady && !replyOpen && (
-          <PlanReadyPanel key={planReady.id} sessionID={sessionId} onSteer={steerFromPlan} />
+          <PlanReadyPanel
+            key={planReady.id}
+            sessionID={sessionId}
+            onSteer={steerFromPlan}
+            onBuild={advanceInbox}
+          />
         )}
 
         {messagesPending ? (
@@ -390,9 +398,7 @@ export function ChatPage() {
             }
             navigate('/')
           }}
-          onSent={() => {
-            if (inboxMonitor.active) inboxMonitor.advance(sessionId)
-          }}
+          onSent={advanceInbox}
           onCycleAgent={cycleAgent}
         />
       </div>

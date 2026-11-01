@@ -43,8 +43,8 @@ async function handlePush(event) {
 
   await self.registration.showNotification(title, {
     body,
-    icon: '/favicon.svg',
-    badge: '/favicon.svg',
+    icon: '/favicon.png',
+    badge: '/favicon.png',
     tag,
     data: {
       url,

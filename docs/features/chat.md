@@ -114,6 +114,7 @@ queued user message in the thread and a Start card above it.
     finished with `stop` and no error. It is hidden while the reply window is
     open and on archived sessions. Build switches the agent before sending
     `Confirmed`, and both requests disable the buttons while they are in flight.
+    Once `Confirmed` is sent, Build advances the Monitor Inbox like Send does.
 15. The Start card appears only while the session is idle, not archived, and the
     server reports pending user items in the session inbox. Pending inbox user
     messages are merged into the thread by message ID, so a draft is visible
@@ -172,7 +173,7 @@ queued user message in the thread and a Start card above it.
   reply to be Plan; switching agents or opening an archived session hides it.
 - **Build request fails** — a failed switch leaves the card in place; if the
   switch succeeds but `Confirmed` fails, a toast asks the person to send it from
-  the reply box.
+  the reply box, and Monitor Inbox does not advance.
 - **System notes** — skill, compaction, and synthetic events have no header and
   are never collapsed. Model and location switches still render as notes; agent
   switches are replaced by the header chip.

@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react'
-import { Loader2, Sparkles } from 'lucide-react'
+import { Loader2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 
 export function EmptySessionView({
@@ -21,9 +21,7 @@ export function EmptySessionView({
 }) {
   return (
     <div className="flex h-full flex-col items-center justify-center gap-4 p-8 text-center">
-      <div className="flex size-12 items-center justify-center rounded-2xl border bg-card">
-        <Sparkles className="size-5 text-muted-foreground" />
-      </div>
+      <img src="/clara-mark.png" alt="" className="size-12 shrink-0" />
       <div className="max-w-sm">
         <p className="text-sm font-medium">{title}</p>
         <p className="mt-1 text-xs text-muted-foreground">{description}</p>

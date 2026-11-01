@@ -28,6 +28,7 @@ const Toaster = ({ ...props }: ToasterProps) => {
           '--normal-text': 'var(--popover-foreground)',
           '--normal-border': 'var(--border)',
           '--border-radius': 'var(--radius)',
+          fontFamily: 'var(--font-sans)',
           '--toast-close-button-start': 'unset',
           '--toast-close-button-end': '0',
           '--toast-close-button-transform': 'translate(35%, -35%)',

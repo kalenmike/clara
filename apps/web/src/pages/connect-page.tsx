@@ -1,6 +1,6 @@
 import { useState, type FormEvent } from 'react'
 import { Navigate, useLocation } from 'react-router'
-import { Loader2, Server, Sparkles } from 'lucide-react'
+import { Loader2, Server } from 'lucide-react'
 import { parsePairingInput, type PairingPayload } from '@clara/shared-types'
 import { ConnectionSplash } from '@/components/connect/connection-splash'
 import { DirectForm } from '@/components/connect/direct-form'
@@ -89,11 +89,9 @@ export function ConnectPage() {
     <div className="flex min-h-full items-center justify-center bg-background px-4 py-10 text-foreground">
       <div className="w-full max-w-lg space-y-6">
         <div className="flex items-center gap-3">
-          <div className="flex size-10 items-center justify-center rounded-xl bg-foreground text-background">
-            <Sparkles className="size-5" />
-          </div>
+          <img src="/clara-mark.png" alt="" className="size-10 shrink-0" />
           <div>
-            <h1 className="text-lg font-semibold tracking-tight">Clara</h1>
+            <img src="/clara-type.png" alt="Clara" className="h-5 w-auto" />
             <p className="text-xs text-muted-foreground">A web client for OpenCode {lowerPlural}</p>
           </div>
         </div>

@@ -3,10 +3,10 @@
 ## Summary
 
 Clara lets people choose a color theme independently from light, dark, or system
-mode. The existing Clara palette remains available as Default, and every other
-theme has a matching light and dark variant. This is for people who want the
-workspace to match their editor, terminal, or personal taste without giving up
-automatic appearance changes.
+mode. The original palette remains available as Default, and every other theme,
+including the Clara house palette, has a matching light and dark variant. This is
+for people who want the workspace to match their editor, terminal, or personal
+taste without giving up automatic appearance changes.
 
 ## User flow
 
@@ -14,7 +14,7 @@ automatic appearance changes.
 2. Choose **Light**, **Dark**, or **System** for the mode. System follows the
    operating system and changes automatically.
 3. Pick one of the color themes from the swatch grid: Default, Solarized, Tokyo
-   Night, Gruvbox, Nord, Rose Pine, or Catppuccin.
+   Night, Gruvbox, Nord, Rose Pine, Catppuccin, or Clara.
 4. The sidebar, chat, panels, dialogs, menus, and toasts update immediately.
 5. Reload Clara or return later; the same color theme and mode are restored.
 6. Press `ctrl+x` then `t` to switch between light and dark without changing the
@@ -34,9 +34,11 @@ automatic appearance changes.
 4. The selected palette is applied as `data-theme` on the document root, while
    the mode is applied as the existing `.dark` class. Theme tokens are CSS
    custom properties, so choosing a theme does not remount the app.
-5. Semantic status colors (for example green for working, amber for warnings,
-   and rose for failures) and the deliberately dark pair terminal do not change
-   between color themes.
+5. Notification accents (success, warning, info, and danger) come from the
+   selected palette so in-app toasts stay in family; their icons and wording
+   still carry the meaning. Other semantic status colors (for example green for
+   working, amber for warnings, and rose for failures) and the deliberately
+   dark pair terminal do not change between color themes.
 
 ## Edge cases
 
@@ -58,6 +60,8 @@ automatic appearance changes.
   background and primary accent, not a full application preview.
 - **Mode changed while a menu or dialog is open** — the open surface updates in
   place because the tokens change on the root element.
+- **Theme changed while a toast is open** — the toast recolors in place because
+  its accent is a CSS custom property.
 
 ## Out of scope
 
@@ -65,14 +69,16 @@ automatic appearance changes.
 - Per-project, per-session, or per-agent themes.
 - Syncing appearance settings to the OpenCode server or across devices.
 - Importing VS Code, Neovim, or terminal color schemes.
-- Theming the pair terminal, diff colors, or semantic status colors.
+- Theming the pair terminal, diff colors, or non-notification semantic status
+  colors.
 - Changing the font family, font size, or density.
 - Updating the browser toolbar color to match the palette.
 
 ## Known gaps
 
-- The document's `theme-color` metadata stays dark, so browser chrome may not
-  match a light or custom palette.
+- The document's `theme-color` and the installed app's manifest background stay
+  dark (`#0a0a0a`), so browser chrome and the iOS Home Screen window strip may
+  not match a light or custom palette.
 - Native form controls follow the light or dark `color-scheme`, not the accent
   colors of the selected palette.
 
@@ -91,9 +97,16 @@ automatic appearance changes.
 - Storage keys: `clara.theme` (mode), `clara.colorTheme` (palette)
 - Root markers: `class="dark"` (mode), `data-theme="<value>"` (palette)
 - Theme values: `default`, `solarized`, `tokyo-night`, `gruvbox`, `nord`,
-  `rose-pine`, `catppuccin`
+  `rose-pine`, `catppuccin`, `clara`
+- Notification status tokens: `--status-success`, `--status-warning`,
+  `--status-info`, and `--status-danger`; each palette overrides all four, and
+  the Default palette maps danger to `--destructive`
 - Light/dark sources: Solarized Light/Dark, Tokyo Night Day/Night, Gruvbox
   Light/Dark, Nord Light/Dark, Rosé Pine Dawn/Main, Catppuccin Latte/Mocha
+- Clara is the house palette, built from orchid `#e066ff`, turquoise `#00ced1`,
+  aqua `#7ffffd`, and medium purple `#9370db`, with a darkened orchid for
+  readable light-mode primary text; the dark variant uses the logo navy
+  `#101f3b` as its background so logo tiles blend into the app chrome
 - Related: [shortcuts](shortcuts.md), [capabilities](capabilities.md)
 
 </details>

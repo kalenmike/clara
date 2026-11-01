@@ -159,14 +159,14 @@ export default defineConfig(({ command }) => ({
     localServiceProxyPlugin(),
     VitePWA({
       registerType: 'autoUpdate',
-      includeAssets: ['favicon.svg', 'apple-touch-icon.png'],
+      includeAssets: ['favicon.png', 'apple-touch-icon.png'],
       manifest: {
         id: '/',
         name: 'Clara',
         short_name: 'Clara',
         description: 'A secure web client for OpenCode sessions.',
-        theme_color: '#111111',
-        background_color: '#111111',
+        theme_color: '#0a0a0a',
+        background_color: '#0a0a0a',
         display: 'standalone',
         start_url: '/',
         scope: '/',
@@ -174,7 +174,7 @@ export default defineConfig(({ command }) => ({
           { src: '/icon-192.png', sizes: '192x192', type: 'image/png' },
           { src: '/icon-512.png', sizes: '512x512', type: 'image/png' },
           {
-            src: '/icon-maskable-512.png',
+            src: '/icon-512-maskable.png',
             sizes: '512x512',
             type: 'image/png',
             purpose: 'maskable',

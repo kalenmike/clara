@@ -1,4 +1,4 @@
-import { Loader2, Sparkles } from 'lucide-react'
+import { Loader2 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 export function ConnectionSplash({ label, className }: { label: string; className?: string }) {
@@ -11,9 +11,7 @@ export function ConnectionSplash({ label, className }: { label: string; classNam
         className
       )}
     >
-      <div className="flex size-14 items-center justify-center rounded-2xl bg-foreground text-background">
-        <Sparkles className="size-7" />
-      </div>
+      <img src="/clara-mark.png" alt="" className="size-14 shrink-0" />
       <div className="flex items-center gap-2 text-sm text-muted-foreground">
         <Loader2 className="size-4 animate-spin" />
         {label}

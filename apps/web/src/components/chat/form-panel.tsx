@@ -158,6 +158,12 @@ function Field({
 
   if (field.type === 'string' && field.options) {
     const current = typeof value === 'string' && value !== '' ? optionID(value) : CLEAR_SELECTION
+    // Passing the label here stops Radix from mirroring the whole option
+    // (label + description) into the closed trigger.
+    const selectedLabel =
+      typeof value === 'string'
+        ? field.options.find((option) => option.value === value)?.label
+        : undefined
     return (
       <div className="space-y-1">
         <span className="text-xs font-medium">{field.title ?? field.key}</span>
@@ -171,7 +177,7 @@ function Field({
           }
         >
           <SelectTrigger className="h-8 w-full text-xs" aria-label={field.title ?? field.key}>
-            <SelectValue placeholder="Select…" />
+            <SelectValue placeholder="Select…">{selectedLabel}</SelectValue>
           </SelectTrigger>
           <SelectContent position="popper">
             <SelectItem value={CLEAR_SELECTION}>Select…</SelectItem>
