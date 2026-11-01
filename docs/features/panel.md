@@ -11,10 +11,12 @@ commands a Clara client may relay to OpenCode.
 
 ## User flow
 
-1. Start the home agent. The log prints
-   `panel at http://127.0.0.1:8790/`.
-2. Open that URL in a browser on the same machine. The panel connects to the
-   agent's loopback API.
+1. Run `pnpm clara:control` after `pnpm build`. If the agent is not already
+   serving the panel, the command starts it and waits for the listener. The log
+   prints `panel at http://127.0.0.1:8790/`.
+2. The command opens that URL in a browser on the same machine. The panel
+   connects to the agent's loopback API. If the agent was already running, for
+   example under a service manager, the command only opens the URL.
 3. Review the summary cards: agent process, OpenCode, local transport, relay,
    push, and effective configuration.
 4. In **Agent controls**, toggle OpenCode, local transport, relay, or push. Each
@@ -146,7 +148,11 @@ commands a Clara client may relay to OpenCode.
   - `CLARA_DB_PATH` moves the database (default `<config dir>/clara.db`)
 - CLI: `clara-server serve --no-panel`
 - Built assets: `apps/server/dist/panel`, copied from `apps/panel/dist`
-- Dev UI: `pnpm dev:panel` (Vite on `5174`, proxying `/panel/api` to `8790`)
+- Open the built panel: `pnpm clara:control` starts the agent when the panel is
+  not already answering, opens `http://127.0.0.1:${CLARA_PANEL_PORT:-8790}/`,
+  and stays attached to the agent it started
+- Dev UI: `pnpm dev:panel` (Vite on `5174`, proxying `/panel/api` to `8790`; the
+  proxy rewrites `Host` and `Origin` so guarded mutations pass)
 - Snapshot sections: agent, config, OpenCode, local transport, relay, clients,
   push, controls, storage, events
 - Shell policy: `apps/server/src/shell-policy.ts` (matching, validation, and the

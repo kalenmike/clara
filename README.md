@@ -50,8 +50,11 @@ pnpm dev:panel   # http://localhost:5174
 ```
 
 In a production build, the panel ships inside the agent and is available at
-<http://127.0.0.1:8790> after `pnpm build` and `pnpm clara:serve`. It is
-loopback-only and never routed through the relay. From it you can disable the
+<http://127.0.0.1:8790> after `pnpm build` and `pnpm clara:serve`. Run
+`pnpm clara:control` to open it: the command starts the built agent when it is
+not already serving the panel, opens the URL in a browser, and stays attached
+so the agent logs remain visible. It is loopback-only and never routed through
+the relay. From it you can disable the
 OpenCode connection, local transport, relay, or push, and stop every external
 connection while the process, panel, and database stay alive. Settings are
 stored at `CLARA_DB_PATH` or `~/.config/clara/clara.db` (mode `0600`). The panel
@@ -166,21 +169,22 @@ or the relay.
 
 ## Scripts
 
-| Command             | Purpose                                             |
-| ------------------- | --------------------------------------------------- |
-| `pnpm dev`          | Web dev server and home agent                       |
-| `pnpm dev:web`      | Web only                                            |
-| `pnpm dev:panel`    | Agent panel dev server                              |
-| `pnpm dev:server`   | Home agent only                                     |
-| `pnpm dev:relay`    | Local `wrangler dev` for the Worker/DO              |
-| `pnpm build`        | Build every workspace package                       |
-| `pnpm test`         | Run crypto, protocol, server, web, and Worker tests |
-| `pnpm check`        | Typecheck + lint + format + Knip + tests            |
-| `pnpm commitlint`   | Lint the last commit message                        |
-| `pnpm deploy:web`   | Build and deploy the Pages project                  |
-| `pnpm deploy:relay` | Deploy the Worker and DO migration                  |
-| `pnpm format`       | Prettier write                                      |
-| `pnpm format:check` | Prettier check                                      |
+| Command              | Purpose                                             |
+| -------------------- | --------------------------------------------------- |
+| `pnpm dev`           | Web dev server and home agent                       |
+| `pnpm dev:web`       | Web only                                            |
+| `pnpm dev:panel`     | Agent panel dev server                              |
+| `pnpm dev:server`    | Home agent only                                     |
+| `pnpm dev:relay`     | Local `wrangler dev` for the Worker/DO              |
+| `pnpm build`         | Build every workspace package                       |
+| `pnpm clara:control` | Serve the built panel and open it in a browser      |
+| `pnpm test`          | Run crypto, protocol, server, web, and Worker tests |
+| `pnpm check`         | Typecheck + lint + format + Knip + tests            |
+| `pnpm commitlint`    | Lint the last commit message                        |
+| `pnpm deploy:web`    | Build and deploy the Pages project                  |
+| `pnpm deploy:relay`  | Deploy the Worker and DO migration                  |
+| `pnpm format`        | Prettier write                                      |
+| `pnpm format:check`  | Prettier check                                      |
 
 ## Security
 

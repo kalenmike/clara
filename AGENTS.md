@@ -27,22 +27,23 @@ workers/relay         Cloudflare Worker + RelayRoom Durable Object
 ## Commands
 
 ```bash
-pnpm dev          # Web on :5173 and the home agent on :8788
-pnpm dev:web      # Web only
-pnpm dev:panel    # Agent panel only
-pnpm dev:server   # Home agent only
-pnpm dev:relay    # Local wrangler dev for the Worker/DO
-pnpm build        # Build every workspace package
-pnpm typecheck    # tsc -b
-pnpm lint         # ESLint
-pnpm format       # Prettier write
-pnpm format:check # Prettier check
-pnpm test         # All package tests
-pnpm knip         # Unused files, exports, and dependencies
-pnpm check        # typecheck + lint + format:check + knip + test
-pnpm commitlint   # Lint the last commit message (also enforced on commit)
-pnpm deploy:web   # Pages deploy
-pnpm deploy:relay # Worker deploy
+pnpm dev            # Web on :5173 and the home agent on :8788
+pnpm dev:web        # Web only
+pnpm dev:panel      # Agent panel only
+pnpm dev:server     # Home agent only
+pnpm dev:relay      # Local wrangler dev for the Worker/DO
+pnpm build          # Build every workspace package
+pnpm clara:control  # Serve the built panel and open it in a browser
+pnpm typecheck      # tsc -b
+pnpm lint           # ESLint
+pnpm format         # Prettier write
+pnpm format:check   # Prettier check
+pnpm test           # All package tests
+pnpm knip           # Unused files, exports, and dependencies
+pnpm check          # typecheck + lint + format:check + knip + test
+pnpm commitlint     # Lint the last commit message (also enforced on commit)
+pnpm deploy:web     # Pages deploy
+pnpm deploy:relay   # Worker deploy
 ```
 
 ## OpenCode server contract
