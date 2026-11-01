@@ -3,3 +3,17 @@
   Referrer-Policy: no-referrer
   Permissions-Policy: camera=(), microphone=(), geolocation=()
   X-Content-Type-Options: nosniff
+
+# The worker script and the app shell must never be answered from a long-lived
+# HTTP cache. iOS home-screen PWAs resume without a navigation, so a cached
+# worker keeps the app pinned to an old build even after a deploy. `no-store`
+# is deliberately avoided: an update check must still be able to reuse the
+# response, it just has to revalidate first.
+/sw.js
+  Cache-Control: no-cache, max-age=0, must-revalidate
+
+/index.html
+  Cache-Control: no-cache, max-age=0, must-revalidate
+
+/manifest.webmanifest
+  Cache-Control: no-cache, max-age=0, must-revalidate
