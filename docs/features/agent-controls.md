@@ -70,6 +70,8 @@ started again.
 - Kicking clients or revoking a device
 - Historical metrics or a persisted audit trail
 - Remote access to the panel through the relay or Pages
+- Sandboxing command execution; see [panel](panel.md) for the separate shell
+  policy and its limits
 
 ## Known gaps
 
@@ -87,9 +89,11 @@ started again.
 
 - Settings file: `CLARA_DB_PATH` or `<CLARA_CONFIG_DIR>/clara.db` (mode `0600`)
 - Settings keys: `features.opencode`, `features.local`, `features.relay`,
-  `features.push`, `agent.stopped`
+  `features.push`, `agent.stopped`, plus `shell.mode` and `shell.commands` for
+  the separate shell policy
 - Read API: `GET /panel/api/v1/status`
-- Mutations: `POST /panel/api/v1/features` and `POST /panel/api/v1/agent`
+- Mutations: `POST /panel/api/v1/features`, `POST /panel/api/v1/agent`, and
+  `POST /panel/api/v1/shell`
 - Mutation guards: loopback, `Host`, `Origin`, `Sec-Fetch-Site`,
   `content-type: application/json`, `x-clara-panel: 1`, 8 KB body limit,
   no unknown fields, no CORS headers

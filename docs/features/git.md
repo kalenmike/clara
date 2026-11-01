@@ -1,11 +1,15 @@
-# Git changes
+# Git changes, history, and worktrees
 
 ## Summary
 
-The Git tab answers "what branch am I on, and what has changed?" without leaving
-the chat. It shows the active branch, its default base, and a compact
-additions/deletions summary for the working tree, the last three commits, or the
-whole branch.
+The Git tab answers "what branch am I on, what has changed, what did I just
+commit, and where are my worktrees?" without leaving the chat. It has three
+views: **Changes** for the working tree and commit ranges, **Commits** for the
+last ten one-line commit messages, and **Worktrees** for every worktree the
+project knows about.
+
+All three read the repository on the **OpenCode host**, at the selected
+session's own directory. The browser never reads its own filesystem.
 
 ## User flow
 
@@ -14,71 +18,147 @@ whole branch.
    opens as a sheet.
 3. Read the current branch at the top. A `default` badge appears when the current
    branch is also the repository's default branch.
-4. Pick a range from the **Compare** menu: **Working tree**, **Last 3 commits**,
-   or **Base branch**.
-5. Read the summary: file count, total additions and deletions, and a two-color
-   change bar.
-6. Scan the file list. Each row shows `A`, `M`, or `D`, the file name, its
-   directory, line counts, and a small churn bar.
-7. Press the refresh button to re-read git without reloading the page. The panel
-   also refreshes itself when files or branches change during a run.
+4. **Changes** (the default):
+   - Pick a range from **Compare**: **Working tree**, **Last 3 commits**, or
+     **Base branch**.
+   - Read the file count, total additions and deletions, the two-color change
+     bar, and the per-file rows. Each row shows `A`, `M`, or `D`, the file name,
+     its directory, line counts, and a small churn bar.
+5. **Commits**:
+   - Read the last ten commits as `short-hash subject`.
+   - The subject is truncated to the panel width with the full text in a tooltip.
+6. **Worktrees**:
+   - Read every worktree in the project. The project's canonical directory is
+     marked `default`; the directory this session runs in is marked `current`
+     and highlighted.
+   - Press the rescan button to ask OpenCode to rediscover worktrees, for
+     example after one was created outside OpenCode.
+7. Press the header refresh button to re-read git without reloading the page.
+   Only the active view refetches, so refreshing **Changes** never runs a
+   `git log`.
 8. Switch back to **Info** for context, cost, and timing.
 
 ## Core business rules
 
-1. Git data is scoped to the project directory attached to the selected session,
-   not to the session itself.
+1. Git data is scoped to the selected session's `location.directory`, not to the
+   project. A session moved to a worktree shows that worktree's branch,
+   changes, and commits.
 2. **Working tree** lists uncommitted changes from the server's VCS status
    endpoint. It is the default range because it is the most frequently useful.
-3. **Last 3 commits** compares `HEAD~3..HEAD`, so it excludes uncommitted work.
-   **Base branch** compares the branch against its default base and excludes
-   uncommitted work as well.
-4. The panel is read-only. It never stages, commits, checks out, or writes files.
-5. Files are sorted by total churn, highest first, and every change bar is scaled
+3. **Last 3 commits** compares `HEAD~3..HEAD`. **Base branch** compares the
+   branch against its default base. Neither includes uncommitted work.
+4. **Commits** runs exactly one command on the host: `git log --oneline -n 10`.
+   Clara never accepts a command from the page or the user; the string is fixed
+   in `use-git.ts`.
+5. **Commits only work through the home agent.** The request travels over the
+   encrypted session, the agent applies the admin shell policy, and only then is
+   it forwarded to OpenCode's shell API. A direct OpenCode connection has no
+   agent to enforce a policy, so the view explains that history needs the home
+   agent instead of running the command.
+6. If the server policy blocks the command, the agent returns `403` and the view
+   says commit history is disabled on this server. If the OpenCode version has no
+   shell routes, the view says history is unavailable.
+7. **Worktrees are project-wide.** The server returns directories only, so:
+   - `default` is the entry equal to the project's canonical directory,
+   - `current` is the entry equal to this session's directory,
+   - if the server omits the canonical directory, Clara synthesizes the default
+     row so the list is still understandable.
+8. The panel is read-only toward the repository. It never stages, commits,
+   checks out, creates, or removes anything.
+9. Files are sorted by total churn, highest first, and every change bar is scaled
    against the largest file in the current range.
+10. Commits and worktrees live under their own query root (`['git', …]`) so the
+    frequent `filesystem.changed` invalidation of `['vcs', …]` cannot spawn a
+    `git log` on every file write. History refreshes on `vcs.branch.updated`, at
+    the end of an agent turn, and on manual refresh.
 
 ## Edge cases
 
 - **Not a git repository** — the panel shows "Not a git repository" with the
-  directory path and no compare controls.
+  directory path and no views.
 - **Fewer than three commits** — "Last 3 commits" fails; the panel explains the
   short history and offers **Show last commit**, which compares `HEAD~1..HEAD`.
 - **Shallow clone** — the same short-history message appears until the missing
   history is fetched.
-- **Detached HEAD** — the branch row shows `detached HEAD`, and the default badge
-  is hidden.
+- **Detached HEAD** — the branch row shows `detached HEAD`, the default badge is
+  hidden, and `git log` still works.
+- **No commits yet** — `git log` exits non-zero; the view shows "No commits
+  yet." instead of an error.
 - **No default branch or base** — **Base branch** is disabled and the panel falls
   back to the working tree.
 - **Clean tree or empty range** — the file list is replaced by "No changes in
   this range."
-- **Base equals current** — or when the working tree is clean, the summary shows
-  zero files rather than an error.
-- **Server does not support VCS** — the git request shows a retry state; the Info
-  tab keeps working.
 - **Session switched** — queries are keyed by directory, so the previous
-  project's branch and files never linger.
-- **Git tab closed** — no git requests run while the Info tab is showing.
+  session's branch, commits, and current worktree never linger.
+- **Session in a worktree** — commits and changes come from the worktree.
+  `vcs.base` returns `503 Choose a review base` there, so **Base branch** can
+  fail even though the branch name is known.
+- **Worktree removed or directory deleted** — the git requests fail with the
+  normal retry states.
+- **Worktree created outside OpenCode** — the list is discovery-backed and may
+  lag until the rescan button runs `POST /api/worktree/refresh`.
+- **No other worktrees** — the list still shows the default row; there is no
+  special empty state beyond "No worktrees reported." when the server returns
+  nothing.
+- **Session has no project record** — the Worktrees view explains that worktrees
+  are unavailable rather than guessing a project.
+- **Server policy blocks commands** — the Commits view shows an admin-disabled
+  state with no retry loop.
+- **Direct connection** — the Commits view explains that history needs the home
+  agent.
+- **Git tab closed** — no git, history, or worktree requests run while another
+  panel tab is showing.
+
+## Not a sandbox
+
+**The shell policy is a guardrail, not a sandbox.** It decides whether the home
+agent forwards a **command request** from a Clara client to OpenCode. It is not a
+capability boundary for the OpenCode API:
+
+- Any client that reaches OpenCode can still use APIs that are not command
+  requests. Writing files (`/api/experimental/fs/write`), starting a session and
+  prompting an agent, or calling a plugin RPC (`/api/rpc/{rpcID}/{method}`) can
+  all have effects on the host.
+- Direct mode has no home agent at all, so no Clara-enforced policy applies.
+  Clara hides host history there, but a modified web build can still call
+  OpenCode directly.
+- The policy itself is changed from the loopback panel, which has no
+  authentication beyond being reachable only from the machine.
+
+A real sandbox needs a positive allowlist of every proxied API route (or a
+separate process boundary) and is future work. Until then, treat the policy as a
+way to keep the web client from running commands, not as protection against a
+hostile client or a compromised origin.
 
 ## Out of scope
 
-- Staging, committing, discarding, checking out, or pushing
+- Staging, committing, discarding, checking out, pushing, or resetting
 - Patch or line-by-line diff review
-- Blame, file history, or browsing individual commits
-- Worktree management
-- A configurable commit count beyond the fixed `HEAD~3`
+- Blame, per-file history, or browsing an individual commit
+- Creating, removing, switching, or moving sessions between worktrees
+- A configurable history length, pagination, or a commit-detail view
+- Working tree status for each worktree row
 - Initializing a repository from Clara
 
 ## Known gaps
 
-- The VCS diff endpoint returns patch text even when only statistics are needed.
-  The panel asks for zero context and discards the patches, so a very large range
-  can still transfer more data than the summary uses.
-- The working tree range uses the status endpoint, which has no patch payload;
-  the other two ranges use the diff endpoint.
-- There is no commit-count endpoint, so the panel learns that a repository has
-  fewer than three commits only after `HEAD~3` fails.
-- The file list is not virtualized; a very large changeset renders every row in
-  the panel.
+- **No commit-log endpoint exists.** OpenCode 2.1.x and 2.2.x expose
+  `vcs.get/base/status/diff/branch` only, so history needs `git log` through the
+  shell API. That is why the feature depends on the home agent and a server
+  policy.
+- **History is the host's HEAD**, not "commits this session made". Two sessions in
+  the same directory see the same ten commits.
+- **Each history read spawns a process** on the host and writes a small shell job
+  file that Clara removes afterwards. On a slow volume or a very large
+  repository, expect a short delay; the request is capped at ten seconds.
+- **The worktree list has no branch names, HEAD, or dirty state.** Enriching rows
+  would need one `vcs.get` call per worktree.
+- **The worktree list is stored by OpenCode**, not read live, so it can be stale
+  until a rescan.
+- **`vcs.base` fails inside a worktree**, so **Base branch** is unreliable for
+  worktree sessions.
+- **The file list is not virtualized**; a very large changeset renders every row
+  in the panel.
 
 ## Technical appendix
 
@@ -87,16 +167,30 @@ whole branch.
 
 - Panel shell and tabs: `src/components/layout/side-panel.tsx`
 - Git view: `src/components/layout/git-panel.tsx`
+- Commit view: `src/components/layout/git-commit-list.tsx`
+- Worktree view: `src/components/layout/git-worktree-list.tsx`
+- Shared messages: `src/components/layout/git-panel-parts.tsx`
 - Hooks: `src/features/git/use-git.ts`
 - Branch and provider: `client.vcs.get({ location: { directory } })`
 - Review base: `client.vcs.base({ location: { directory } })`
 - Working tree: `client.vcs.status({ location: { directory } })`
 - Committed and branch ranges: `client.vcs.diff({ mode, base, context: 0 })`
-- Live updates: `filesystem.changed`, `vcs.branch.updated`, and the existing
-  `session.idle` / execution-finished invalidations
-- The selected tab is stored as `clara.sidePanelTab`; the compare range resets to
-  the working tree when the Git tab remounts.
+- History: `client.shell.create({ command: 'git log --oneline -n 10', cwd })`,
+  polled with `shell.get`, read with `shell.output`, cleaned with `shell.remove`
+- Worktrees: `client.worktree.list({ projectID })` and
+  `client.worktree.refresh({ projectID })`
+- Project ID: the canonical project record for the route, passed from the chat
+  page so worktree lookups use the record that owns them
+- Shell policy: enforced in `apps/server/src/shell-policy.ts` before
+  `OpenCodeClient.request` runs; see [panel](panel.md)
+- Live updates: `filesystem.changed` for changes, `vcs.branch.updated` and
+  session idle/execution events for history, `worktree.updated` and
+  `worktree.resolved` for worktrees
+- Query keys: `['vcs', …]` for changes, `['git', 'commits', directory]` and
+  `['git', 'worktrees', projectID, directory]` for history and worktrees
+- The selected panel tab is stored as `clara.sidePanelTab`; the compare range and
+  the Git view reset when the Git tab remounts.
 - Related: [session-info](session-info.md), [shortcuts](shortcuts.md),
-  [capabilities](capabilities.md)
+  [panel](panel.md), [capabilities](capabilities.md)
 
 </details>

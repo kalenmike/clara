@@ -184,6 +184,29 @@ Session-scoped endpoints (`messages`, `prompt`, `command`, `switchAgent`,
 directory from the session record. Moving a session to a worktree changes only
 `location.directory`; its project ID stays the same.
 
+## Host command policy
+
+The web client normally only reads OpenCode state. The one exception is Git
+history: the Git tab asks the home agent to run `git log --oneline -n 10` through
+OpenCode's shell API.
+
+The agent inspects every proxied request before forwarding it. Command-capable
+routes — `/api/shell`, `/api/session/:id/shell`, `/api/pty`,
+`/api/experimental/persistent-pty`, and
+`/api/experimental/session/:id/terminal` — are refused with `403` unless the
+saved shell policy allows the request:
+
+- `off` blocks every command request and every `/api/shell` read.
+- `allowlist` admits a request only when a saved entry is a literal argv prefix.
+  Shell syntax is refused rather than parsed, and interpreters such as `sh`,
+  `env`, or `python` cannot be saved. The working directory must stay inside the
+  request's location.
+
+The policy lives in `clara.db`, is read on every request, and is changed from the
+loopback panel. It applies only to requests that travel through the agent.
+Direct connections and non-command APIs are outside it. It is a guardrail, not a
+sandbox: see [git.md](features/git.md#not-a-sandbox).
+
 ## Streaming model
 
 The event stream is the source of truth while a run is active:
@@ -204,6 +227,9 @@ re-subscribes through the transport.
 
 ## Security notes
 
+- The shell policy is a guardrail, not a sandbox. It filters command requests
+  relayed by the agent, but a modified web build can still use non-command
+  OpenCode APIs, and direct mode has no Clara-enforced policy at all.
 - Never commit `service.json`, passwords, pairing codes, PSKs, or relay tokens.
 - The home agent's config is `~/.config/clara/server.json` (mode `0600`).
   Settings and non-secret client sync data live in `clara.db` (mode `0600`).
