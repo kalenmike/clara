@@ -40,7 +40,7 @@ function attentionBody(kind: AttentionKind, name: string, suffix: string): strin
     case 'question':
       return `Agent is waiting on you in “${name}”${suffix}`
     case 'plan':
-      return `Plan is ready in “${name}” — build it or steer first.`
+      return `Plan is ready in “${name}” — start work or adjust it.`
     case 'error':
       return `Run failed in “${name}”${suffix}`
   }
