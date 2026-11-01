@@ -255,8 +255,9 @@ function AssistantMessage({
   onToggle?: () => void
 }) {
   const hasContent = assistantHasContent(message, showInternal)
+  const thinking = !hasContent && streaming
 
-  const meta = [
+  const usage = [
     message.tokens
       ? `${formatTokens(message.tokens.input)} in · ${formatTokens(message.tokens.output)} out`
       : null,
@@ -264,6 +265,11 @@ function AssistantMessage({
   ]
     .filter(Boolean)
     .join(' · ')
+
+  // With internal output hidden a thinking assistant has nothing else to show.
+  // Keep usage inline so streaming token counts do not add and remove a footer
+  // row, which would jolt the scroll position.
+  const inlineUsage = thinking && !showInternal ? usage : ''
 
   return (
     <MessageRow
@@ -282,7 +288,7 @@ function AssistantMessage({
         ) : undefined
       }
       timestamp={message.time.created}
-      meta={meta}
+      meta={inlineUsage ? '' : usage}
       collapsed={collapsed && !assistantHasFailed(message)}
       preview={assistantPreview(message, showInternal)}
       actions={actions}
@@ -304,10 +310,11 @@ function AssistantMessage({
         </Alert>
       )}
 
-      {!hasContent && streaming && (
+      {thinking && (
         <div className="flex items-center gap-2 py-1 text-xs text-muted-foreground">
           <span className="size-1.5 animate-pulse rounded-full bg-foreground/50" />
-          Thinking…
+          <span>Thinking…</span>
+          {inlineUsage ? <span>{inlineUsage}</span> : null}
         </div>
       )}
 

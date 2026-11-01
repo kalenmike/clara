@@ -99,9 +99,11 @@ brief, and each user or assistant message has fork and forward actions; see
 6. Each message renders as a full-width row with a `U`/`A` avatar, sender name,
    timestamp, and a divider. Assistant headers show the model name and an agent
    chip with the bot icon. Token and cost details appear in a muted footer under
-   the content. System events render as compact divider rows with an icon, a
-   label, a timestamp, and optional expandable detail; they never look like a
-   prompt the person typed.
+   the content; while a thinking assistant has internal output hidden, its
+   usage sits inline with the “Thinking…” indicator instead, so streaming
+   counts do not add or remove a footer row. System events render as compact
+   divider rows with an icon, a label, a timestamp, and optional expandable
+   detail; they never look like a prompt the person typed.
 7. The newest prompt or reply starts expanded and every earlier reply starts
    collapsed. An assistant step does not count as a reply until it has text (or
    fails), so the prompt that started a run stays expanded while the agent is
@@ -193,7 +195,8 @@ brief, and each user or assistant message has fork and forward actions; see
 - **Tool-only reply** — with internal output off, an assistant message that only
   contains reasoning or tool calls is hidden. While it is still streaming, the
   newest message keeps a “Thinking…” indicator and the prompt that started the
-  run stays expanded until the agent produces text.
+  run stays expanded until the agent produces text. Any token and cost summary
+  for that step sits inline with the indicator instead of in the footer.
 - **Prompt sent to a running agent** — the new prompt takes over as the expanded
   message; the previous reply collapses unless it was opened by hand.
 - **Plan reply without `stop`** — a Plan run that ends on a tool call, an error,
