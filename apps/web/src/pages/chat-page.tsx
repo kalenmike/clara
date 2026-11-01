@@ -399,7 +399,7 @@ export function ChatPage() {
           <DraftStartPanel sessionID={sessionId} count={draftCount} />
         )}
         <FormPanel sessionID={sessionId} />
-        <PermissionPanel sessionID={sessionId} directory={directory} />
+        <PermissionPanel sessionID={sessionId} directory={directory} messages={allMessages} />
         {planReady && !replyOpen && (
           <PlanReadyPanel
             key={planReady.id}

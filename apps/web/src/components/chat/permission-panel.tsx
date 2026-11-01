@@ -1,14 +1,22 @@
-import { ShieldAlert, ShieldCheck, ShieldX } from 'lucide-react'
+import { useState } from 'react'
+import { Brain, ChevronRight, ShieldAlert, ShieldCheck, ShieldX } from 'lucide-react'
+import type { PermissionRequest, SessionMessageInfo } from '@opencode/client'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
+import { Markdown } from '@/components/chat/markdown'
+import { findPermissionThinking } from '@/features/chat/permission-thinking'
 import { usePendingPermissions, useReplyPermission } from '@/features/chat/use-permissions'
+import { cn } from '@/lib/utils'
 
 export function PermissionPanel({
   sessionID,
   directory,
+  messages,
 }: {
   sessionID: string
   directory: string | undefined
+  messages: SessionMessageInfo[]
 }) {
   const permissionsQuery = usePendingPermissions(directory)
   const reply = useReplyPermission()
@@ -47,6 +55,7 @@ export function PermissionPanel({
                   </code>
                 ))}
               </div>
+              <PermissionThinking request={request} messages={messages} />
               <div className="mt-3 flex flex-wrap gap-2">
                 <Button
                   size="sm"
@@ -86,5 +95,40 @@ export function PermissionPanel({
         </div>
       ))}
     </div>
+  )
+}
+
+function PermissionThinking({
+  request,
+  messages,
+}: {
+  request: PermissionRequest
+  messages: SessionMessageInfo[]
+}) {
+  const [open, setOpen] = useState(false)
+  const thinking = findPermissionThinking(messages, request)
+  if (!thinking) return null
+
+  return (
+    <Collapsible open={open} onOpenChange={setOpen} className="mt-2">
+      <CollapsibleTrigger asChild>
+        <button
+          type="button"
+          className="flex items-center gap-1.5 rounded-md px-1.5 py-1 text-[11px] text-muted-foreground transition-colors hover:text-foreground max-md:min-h-11 max-md:text-xs"
+        >
+          <ChevronRight
+            aria-hidden="true"
+            className={cn('size-3 transition-transform max-md:size-4', open && 'rotate-90')}
+          />
+          <Brain aria-hidden="true" className="size-3 max-md:size-4" />
+          Agent&apos;s thinking
+        </button>
+      </CollapsibleTrigger>
+      <CollapsibleContent>
+        <div className="mt-1 max-h-48 overflow-auto rounded-md border bg-muted/40 px-3 py-2 text-muted-foreground">
+          <Markdown className="text-xs">{thinking}</Markdown>
+        </div>
+      </CollapsibleContent>
+    </Collapsible>
   )
 }
