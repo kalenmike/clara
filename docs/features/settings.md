@@ -1,0 +1,87 @@
+# Settings
+
+## Summary
+
+Settings groups every Clara preference into five tabs: Appearance, Preferences,
+Notifications, Shortcuts, and Advanced. A device-local simplify switch keeps the
+common controls in view and hides the detail rows that most people leave alone.
+
+## User flow
+
+1. Open **Settings** from the sidebar or the home screen.
+2. The page opens on **Appearance**, where the light/dark/system mode and color
+   theme live.
+3. Use the tabs to reach **Preferences** for session wording and the default
+   agent, **Notifications** for alerts and sounds, **Shortcuts** for the
+   keyboard reference, and **Advanced** for the server connection and app build.
+4. Press the filter icon in the header to open **Filter settings**.
+5. **Simplify settings** is on by default. Turn it off to see the full page.
+6. With it on, the Notifications card shows one Inbox sounds switch instead of
+   the four-state breakdown, the Server card shows only Reconnect and
+   Disconnect, and the App card shows only the version, update state, and cache
+   reset.
+7. Reload Clara or open it later; the same simplify choice is restored on this
+   device.
+8. The Shortcuts tab is hidden on touch-first devices, where the reference does
+   not apply.
+
+## Core business rules
+
+1. The simplify choice is stored locally under `clara.simplifySettings` and
+   defaults to on for everyone, including people who never open the filter.
+2. Tabs change only the layout, not the stored preferences. Switching tabs or
+   simplifying the page never clears a setting.
+3. In simplified mode, the primary **Inbox notification sounds** switch applies
+   its new value to all four Inbox states in one action. Turning simplify on by
+   itself leaves the four stored state choices untouched.
+4. Simplified Server keeps the recovery actions and any reconnect error, while
+   hiding connection details. Simplified App keeps the version, update state,
+   update action, and the clear-cache recovery action, while hiding build and
+   runtime details.
+5. Every remaining control behaves the same as before. Simplification is a view
+   filter, not a second settings model.
+
+## Edge cases
+
+- **Storage unavailable** — private browsing or blocked storage keeps the choice
+  in memory for the current tab and returns to the default (on) after a reload.
+- **Two tabs open** — changing the switch in one tab updates the other through
+  the browser storage event.
+- **Partially muted Inbox states** — a device that muted one state before
+  simplification still shows the primary switch as on while Inbox sounds are
+  on. Toggling it off and back on applies the same value to every state.
+- **Reconnect failure** — the error alert stays visible in simplified mode so
+  the person can act on it.
+- **Update ready** — the update row and **Update and reload** button stay in
+  simplified mode.
+- **Touch-first device** — the Shortcuts tab is absent, and the Notifications
+  card keeps its existing desktop-only row rules.
+- **Older stored values** — a missing or unknown simplify value counts as on;
+  no migration is needed.
+
+## Out of scope
+
+- Syncing the simplify choice or any settings between devices. Client settings
+  sync has no web UI yet.
+- Per-tab deep links or remembering the last open tab.
+- Reordering or customizing the tab set.
+- Hiding controls beyond the three simplified adjustments above.
+
+## Technical appendix
+
+<details>
+<summary>Routes, data, and references</summary>
+
+- Route: `/settings`
+- Simplify storage: `clara.simplifySettings` (`on` or `off`; missing means on)
+- Simplify module: `src/features/settings/simplify-settings.ts` and
+  `src/features/settings/use-simplify-settings.ts`
+- Filter control: `src/components/settings/settings-filter.tsx`
+- Page and tabs: `src/pages/settings-page.tsx`
+- Simplified sound patch: `allInboxSoundKinds` in
+  `src/features/notifications/settings.ts`
+- Related: [theme](theme.md), [notifications](notifications.md),
+  [shortcuts](shortcuts.md), [connection](connection.md), [install](install.md),
+  [capabilities](capabilities.md)
+
+</details>
