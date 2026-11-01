@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { RefreshCw } from 'lucide-react'
 import { SYNC_INTERVAL_PRESETS_MS, type PanelSyncControl } from '@clara/shared-types'
 import { postPanel } from '../lib/panel-api.ts'
@@ -25,6 +25,11 @@ export function ClientSyncCard({
 }) {
   const [pending, setPending] = useState<'toggle' | 'interval'>()
   const [error, setError] = useState<string>()
+  const intervals = useMemo(() => {
+    const values = [...SYNC_INTERVAL_PRESETS_MS]
+    if (!values.includes(sync.intervalMs)) values.push(sync.intervalMs)
+    return values.sort((left, right) => left - right)
+  }, [sync.intervalMs])
 
   const update = async (next: PanelSyncControl, kind: 'toggle' | 'interval') => {
     setPending(kind)
@@ -93,7 +98,7 @@ export function ClientSyncCard({
             disabled={pending !== undefined}
             className="rounded-lg border border-neutral-200 bg-white px-2.5 py-1.5 text-xs text-neutral-900 shadow-sm outline-none transition focus:border-neutral-400 disabled:cursor-not-allowed disabled:bg-neutral-50 disabled:text-neutral-500 dark:border-neutral-800 dark:bg-neutral-950 dark:text-neutral-100 dark:focus:border-neutral-600 dark:disabled:bg-neutral-900"
           >
-            {SYNC_INTERVAL_PRESETS_MS.map((interval) => (
+            {intervals.map((interval) => (
               <option key={interval} value={interval}>
                 {formatInterval(interval)}
               </option>
@@ -112,7 +117,10 @@ export function ClientSyncCard({
 }
 
 function formatInterval(ms: number): string {
-  if (ms < 60_000) return `${ms / 1_000} seconds`
-  const minutes = ms / 60_000
+  const totalSeconds = Math.round(ms / 1_000)
+  if (totalSeconds < 60) return `${totalSeconds} seconds`
+  const minutes = Math.floor(totalSeconds / 60)
+  const seconds = totalSeconds % 60
+  if (seconds > 0) return `${minutes}m ${seconds}s`
   return minutes === 1 ? '1 minute' : `${minutes} minutes`
 }
