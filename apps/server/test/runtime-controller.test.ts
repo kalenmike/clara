@@ -103,6 +103,34 @@ describe('RuntimeController', () => {
     }
   })
 
+  it('applies a shell policy to the next request', async () => {
+    const { controller, settings, close } = await createController()
+    await controller.start()
+    try {
+      expect(controller.controls().shell).toEqual({ mode: 'off', commands: [], blocked: 0 })
+
+      const controls = await controller.setShellPolicy({
+        mode: 'allowlist',
+        commands: ['git log'],
+      })
+      expect(controls.shell).toEqual({
+        mode: 'allowlist',
+        commands: ['git log'],
+        blocked: 0,
+      })
+      expect(controller.shellPolicy()).toEqual({
+        mode: 'allowlist',
+        commands: ['git log'],
+      })
+      expect(settings.getShellPolicy()).toEqual({
+        mode: 'allowlist',
+        commands: ['git log'],
+      })
+    } finally {
+      await close()
+    }
+  })
+
   it('stops and restarts the local listener without losing its socket set', async () => {
     const { controller, close } = await createController()
     await controller.start()
