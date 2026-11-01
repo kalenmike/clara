@@ -107,6 +107,8 @@ mentions, attachments, model selection, and agent selection.
   it as a user message instead of executing it as a command.
 - **Start failure** — the draft stays queued and Start can be retried.
 - **Send failure** — the window stays open with the draft and attachments intact.
+- **Snoozed session** — sending, starting the draft, or saving as a draft clears
+  the server's snooze marker first, so the session leaves Snoozed.
 - **Empty draft** — New replaces Reply and Delete replaces Done. The composer
   opens automatically when locally saved text exists; otherwise New opens it in
   the last-used size (expanded by default).

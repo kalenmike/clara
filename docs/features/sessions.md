@@ -136,9 +136,13 @@ by default, and the noun is configurable in Settings.
     redirect, so manual navigation and the switch stay usable. The preference is
     remembered in local storage. The switch also shows the current Outbox count
     as “N agents working” (or “No agents working”) for the project.
-14. Snoozed sessions leave Inbox, Outbox, and Drafts until they are reopened.
-    Archived wins when a session is both archived and snoozed. Snoozed sessions
-    do not trigger desktop notifications, inbox sounds, or Monitor Inbox.
+14. Snoozed sessions leave Inbox, Outbox, and Drafts until they are reopened or
+    engaged. Sending a reply, starting work, requesting a plan, running a
+    command, saving a draft, or answering a permission or question clears the
+    snooze marker first, so the session returns to whichever section its state
+    implies. Archived wins when a session is both archived and snoozed. Snoozed
+    sessions do not trigger desktop notifications, inbox sounds, or Monitor
+    Inbox.
 15. The interface calls a session a **Brief** by default. Settings → Session
     wording replaces that noun in every user-facing label, placeholder, toast,
     and notification. The setting offers Brief, Task, Session, Action, Run, and
@@ -367,7 +371,9 @@ by default, and the noun is configurable in Settings.
 - Update: `client.session.update({ sessionID, title?, metadata?, archived? })` —
   metadata replaces the stored object, so snooze writes merge the current keys
 - Snooze: `client.session.update({ sessionID, metadata: { ...existing, snoozed: true } })`
-- Unsnooze: `client.session.update({ sessionID, metadata: withoutSnoozed })`
+- Unsnooze: `client.session.update({ sessionID, metadata: withoutSnoozed })`;
+  prompts, commands, draft saves, permission decisions, and question answers do
+  this first through `src/features/sessions/unsnooze.ts`
 - Done: `client.session.update({ sessionID, archived: true })` — title untouched
 - Reopen: `client.session.update({ sessionID, archived: false, metadata? })` —
   clears archived and any snooze metadata; title untouched

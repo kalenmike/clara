@@ -74,7 +74,9 @@ brief, and each user or assistant message has fork and forward actions; see
     is remembered across sessions and reloads.
 16. The header's more menu can **Snooze session** or **Remove from Snoozed**.
     Snoozing moves the session to the sidebar's Snoozed bucket and replaces Done
-    with Reopen.
+    with Reopen. Replying, starting work, saving a draft, or answering the agent
+    on a snoozed session clears the snooze first and returns it to its mailbox
+    section.
 
 ## Core business rules
 
@@ -139,7 +141,10 @@ brief, and each user or assistant message has fork and forward actions; see
 13. Archived or snoozed sessions show Reopen instead of Done next to Reply.
     Reopen clears the server's archived flag and any snooze metadata without
     renaming the session, so the session returns to its mailbox section with its
-    title intact. Archived wins when both flags are present.
+    title intact. Archived wins when both flags are present. Any reply that
+    engages the agent — a prompt, Start, Start Work or a plan request, a command,
+    a saved draft, a permission decision, or a question answer — clears the
+    snooze marker first, so the session leaves Snoozed without a manual Reopen.
 14. The plan-ready card appears only while the session is idle, the session agent
     is Plan, and the newest user or assistant message is a Plan reply that
     finished with `stop` and no error. It is hidden while the reply window is
@@ -206,6 +211,9 @@ brief, and each user or assistant message has fork and forward actions; see
 - **Start Work request fails** — a failed switch leaves the card in place; if
   the switch succeeds but the handoff cannot be sent, a toast asks the person to
   send a message from the reply box, and Monitor Inbox does not advance.
+- **Snooze clear fails** — the reply, draft, or answer still goes through, a
+  warning toast says the brief is still snoozed, and the next interaction
+  retries the clear.
 - **System events** — Clara's plan, update, start-work, and question-answer
   events have no avatar and are never collapsed. Skill, compaction, and untagged
   synthetic notices remain internal output. Model and location switches still
@@ -274,6 +282,9 @@ brief, and each user or assistant message has fork and forward actions; see
 - Snooze: `client.session.update({ sessionID, metadata: { ...existing, snoozed: true } })`
 - Reopen: `client.session.update({ sessionID, archived: false, metadata? })` —
   clears archived and snooze metadata; no title change
+- Unsnooze on engage: every prompt, command, draft save, permission decision,
+  and question answer clears the snooze marker first through
+  `unsnoozeSessionOnEngage` in `src/features/sessions/unsnooze.ts`
 - Delete empty draft: `client.session.remove({ sessionID })`; the button is
   rendered by `src/components/chat/reply-dock.tsx`
 - Interrupt: `client.session.interrupt({ sessionID })`
