@@ -10,6 +10,6 @@ export { ATTENTION_KINDS, ATTENTION_LABELS, resolveAttentionKind, type Attention
 export const ATTENTION_DESCRIPTIONS: Record<AttentionKind, string> = {
   error: 'The last run failed before it finished.',
   question: 'The agent needs an answer or an approval.',
-  plan: 'The plan is ready to review, build, or steer.',
+  plan: 'The plan is ready to review, adjust, or start.',
   review: 'The agent finished a reply and is waiting for you.',
 }

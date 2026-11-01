@@ -164,8 +164,7 @@ export function NotificationsCard({ isTouchDevice }: { isTouchDevice: boolean })
             <div>
               <div className="text-sm">UI sounds</div>
               <p className="mt-0.5 text-xs text-muted-foreground">
-                Play a chime for UI actions, like marking a {lowerSingular} Done or starting a
-                build.
+                Play a chime for UI actions, like marking a {lowerSingular} Done or starting work.
               </p>
             </div>
           </div>
