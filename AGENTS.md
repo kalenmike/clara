@@ -83,6 +83,18 @@ transport, Worker, Durable Object, or crypto.
 - Keep files focused; split a component once it carries more than one concern.
 - Commit incrementally with Conventional Commits; see [Commits](#commits).
 
+## Planning
+
+- Do not turn a plan into tasks until the user confirms it. While planning,
+  keep the plan in the conversation.
+- Once the user confirms the plan, record it in the session todo list and keep
+  that list current: mark the active task `in_progress` when work starts and
+  `completed` as soon as it is finished.
+- Update the todo list after every commit so it always shows what is done and
+  what is next. Add follow-ups the user accepts and drop work they cut.
+- Keep the list to deliverables from the confirmed plan, not a scratch pad for
+  unrelated ideas.
+
 ## Commits
 
 Commit as you work. Do not leave a whole feature request as one uncommitted
@@ -109,6 +121,7 @@ step.
   only when they are not separable.
 - Stage explicit paths. Do not use `git add -A`; never commit secrets, generated
   output, or unrelated work.
+- Update the session todo list after each commit (see [Planning](#planning)).
 - Do not force-push, rewrite published history, or amend commits unless the user
   asks.
 
