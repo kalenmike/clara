@@ -43,10 +43,21 @@ type Session = {
   keys: SessionKeys
   sendSeq: number
   receive: ReplayGuard
+  connectedAt: number
   lastSeen: number
   presence?: SessionPresence
   sendChain: Promise<void>
   requests: Map<string, AbortController>
+}
+
+export type AgentSessionInfo = {
+  sid: string
+  connectedAt: number
+  lastSeen: number
+  requests: number
+  deviceClass?: DeviceClass
+  presenceAt?: number
+  holdPhone: boolean
 }
 
 export type AgentOptions = {
@@ -117,6 +128,28 @@ export class Agent {
   }
 
   /**
+   * Read-only view of the live E2EE sessions. Keys and replay state stay inside
+   * the agent; only display metadata is exposed to the local panel.
+   */
+  getSnapshot(now = Date.now()): AgentSessionInfo[] {
+    const sessions: AgentSessionInfo[] = []
+    for (const session of this.sessions.values()) {
+      const presence = session.presence
+      const presenceActive = presence !== undefined && now - presence.at <= PRESENCE_TTL_MS
+      sessions.push({
+        sid: session.sid,
+        connectedAt: session.connectedAt,
+        lastSeen: session.lastSeen,
+        requests: session.requests.size,
+        ...(presence?.deviceClass ? { deviceClass: presence.deviceClass } : {}),
+        ...(presence ? { presenceAt: presence.at } : {}),
+        holdPhone: presenceActive && presence.holdPhone,
+      })
+    }
+    return sessions.sort((left, right) => left.connectedAt - right.connectedAt)
+  }
+
+  /**
    * True while a desktop client reports that it is visible and recently used.
    * Mobile pushes are held during that window so a desk user is not alerted on
    * both devices.
@@ -160,6 +193,7 @@ export class Agent {
       keys,
       sendSeq: 0,
       receive: new ReplayGuard(),
+      connectedAt: Date.now(),
       lastSeen: Date.now(),
       sendChain: Promise.resolve(),
       requests: new Map(),

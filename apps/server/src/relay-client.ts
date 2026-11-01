@@ -13,6 +13,14 @@ const STALL_MS = 45_000
 
 export type RelayStatus = 'connecting' | 'online' | 'reconnecting' | 'offline'
 
+export type RelaySnapshot = {
+  status: RelayStatus
+  connectedSince?: number
+  lastChangedAt: number
+  reconnectAttempts: number
+  lastError?: string
+}
+
 export type RelayClientOptions = {
   url: string
   room: string
@@ -26,6 +34,10 @@ export class RelayClient {
   private socket: WebSocket | null = null
   private stopped = true
   private retry = 0
+  private status: RelayStatus = 'offline'
+  private statusChangedAt = Date.now()
+  private connectedSince: number | undefined
+  private lastError: string | undefined
   private reconnectTimer: NodeJS.Timeout | null = null
   private heartbeatTimer: NodeJS.Timeout | null = null
   private lastPong = 0
@@ -33,6 +45,16 @@ export class RelayClient {
 
   constructor(options: RelayClientOptions) {
     this.options = options
+  }
+
+  getSnapshot(): RelaySnapshot {
+    return {
+      status: this.status,
+      ...(this.connectedSince !== undefined ? { connectedSince: this.connectedSince } : {}),
+      lastChangedAt: this.statusChangedAt,
+      reconnectAttempts: this.retry,
+      ...(this.lastError ? { lastError: this.lastError } : {}),
+    }
   }
 
   start(): void {
@@ -56,13 +78,14 @@ export class RelayClient {
     this.heartbeatTimer = null
     this.socket?.close(1000, 'server shutting down')
     this.socket = null
+    this.connectedSince = undefined
+    this.setStatus('offline')
     this.options.agent.reset()
-    this.options.onStatus?.('offline')
   }
 
   private connect(): void {
     if (this.stopped) return
-    this.options.onStatus?.(this.retry === 0 ? 'connecting' : 'reconnecting')
+    this.setStatus(this.retry === 0 ? 'connecting' : 'reconnecting')
 
     const url = relayUrl(this.options.url, this.options.room)
     const socket = new WebSocket(url, [
@@ -76,9 +99,11 @@ export class RelayClient {
       if (this.socket !== socket) return
       this.retry = 0
       this.lastPong = Date.now()
+      this.connectedSince = Date.now()
+      this.lastError = undefined
       this.options.agent.reset()
       this.options.log?.(`relay connected (${url})`)
-      this.options.onStatus?.('online')
+      this.setStatus('online')
       this.startHeartbeat(socket)
     })
 
@@ -92,16 +117,19 @@ export class RelayClient {
     })
 
     socket.on('unexpected-response', (_request, response) => {
-      this.options.log?.(`relay rejected the connection (${response.statusCode})`)
+      this.lastError = `Relay rejected the connection (${response.statusCode})`
+      this.options.log?.(this.lastError)
     })
 
     socket.on('error', (cause) => {
+      this.lastError = clip(errorMessage(cause), 240)
       this.options.log?.('relay socket error', cause)
     })
 
     socket.on('close', (code, reason) => {
       if (this.socket !== socket) return
       this.socket = null
+      this.connectedSince = undefined
       this.stopHeartbeat()
       this.options.agent.reset()
       this.options.log?.(`relay disconnected (${code} ${reason.toString() || 'no reason'})`)
@@ -111,7 +139,7 @@ export class RelayClient {
 
   private scheduleReconnect(): void {
     if (this.stopped) return
-    this.options.onStatus?.('reconnecting')
+    this.setStatus('reconnecting')
     const base = Math.min(1_000 * 2 ** Math.min(this.retry, 5), MAX_BACKOFF_MS)
     const delay = Math.round(base * (0.8 + Math.random() * 0.4))
     this.retry += 1
@@ -120,6 +148,14 @@ export class RelayClient {
       this.connect()
     }, delay)
     this.reconnectTimer.unref()
+  }
+
+  private setStatus(status: RelayStatus): void {
+    if (this.status !== status) {
+      this.status = status
+      this.statusChangedAt = Date.now()
+    }
+    this.options.onStatus?.(status)
   }
 
   private startHeartbeat(socket: WebSocket): void {
@@ -147,4 +183,12 @@ function relayUrl(value: string, room: string): string {
   url.search = ''
   url.hash = ''
   return url.toString()
+}
+
+function errorMessage(cause: unknown): string {
+  return cause instanceof Error ? cause.message : String(cause)
+}
+
+function clip(value: string, max: number): string {
+  return value.length > max ? `${value.slice(0, max - 1)}…` : value
 }

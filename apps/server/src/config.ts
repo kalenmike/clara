@@ -10,6 +10,21 @@ export type RelayConfig = {
   clientToken: string
 }
 
+export type ConfigSource = 'env' | 'file' | 'service' | 'default' | 'generated' | 'none'
+
+export type ServerConfigSources = {
+  opencodeUrl: ConfigSource
+  opencodePassword: ConfigSource
+  localHost: ConfigSource
+  localPort: ConfigSource
+  relayUrl: ConfigSource
+  relayRoom: ConfigSource
+  agentToken: ConfigSource
+  clientToken: ConfigSource
+  psk: ConfigSource
+  pairingBaseUrl: ConfigSource
+}
+
 export type ServerConfig = {
   opencode: {
     url: string
@@ -24,6 +39,7 @@ export type ServerConfig = {
   pairingBaseUrl: string
   configDir: string
   configPath: string
+  sources: ServerConfigSources
 }
 
 type ConfigFile = {
@@ -56,25 +72,78 @@ export function loadConfig(options: { rotate?: boolean } = {}): ServerConfig {
   const file = readConfig(configPath)
   const service = readOpenCodeService()
 
+  const opencodeUrlSource: ConfigSource =
+    process.env.CLARA_OPENCODE_URL !== undefined
+      ? 'env'
+      : file.opencode?.url !== undefined
+        ? 'file'
+        : service?.url !== undefined
+          ? 'service'
+          : 'default'
   const opencodeUrl =
     process.env.CLARA_OPENCODE_URL ?? file.opencode?.url ?? service?.url ?? DEFAULT_OPENCODE_URL
   const opencodePassword =
     process.env.CLARA_OPENCODE_PASSWORD ?? file.opencode?.password ?? service?.password
+  const opencodePasswordSource: ConfigSource = opencodePassword
+    ? process.env.CLARA_OPENCODE_PASSWORD !== undefined
+      ? 'env'
+      : file.opencode?.password !== undefined
+        ? 'file'
+        : 'service'
+    : 'none'
 
+  const localHostSource: ConfigSource =
+    process.env.CLARA_LOCAL_HOST !== undefined
+      ? 'env'
+      : file.local?.host !== undefined
+        ? 'file'
+        : 'default'
   const localHost = process.env.CLARA_LOCAL_HOST ?? file.local?.host ?? DEFAULT_LOCAL_HOST
+  const localPortSource: ConfigSource =
+    process.env.CLARA_LOCAL_PORT !== undefined
+      ? 'env'
+      : file.local?.port !== undefined
+        ? 'file'
+        : 'default'
   const localPort = parsePort(
     process.env.CLARA_LOCAL_PORT ?? String(file.local?.port ?? DEFAULT_LOCAL_PORT)
   )
 
   const relayUrl = process.env.CLARA_RELAY_URL ?? file.relay?.url
-  const relayRoom = process.env.CLARA_RELAY_ROOM ?? file.relay?.room
+  const relayUrlSource: ConfigSource =
+    process.env.CLARA_RELAY_URL !== undefined
+      ? 'env'
+      : file.relay?.url !== undefined
+        ? 'file'
+        : 'none'
+  const configuredRoom = process.env.CLARA_RELAY_ROOM ?? file.relay?.room
+  const relayRoom = configuredRoom || createRoom()
+  const relayRoomSource: ConfigSource = !relayUrl
+    ? 'none'
+    : !configuredRoom
+      ? 'generated'
+      : process.env.CLARA_RELAY_ROOM !== undefined
+        ? 'env'
+        : 'file'
   const agentToken = process.env.CLARA_AGENT_TOKEN ?? file.relay?.agentToken
+  const agentTokenSource: ConfigSource =
+    process.env.CLARA_AGENT_TOKEN !== undefined
+      ? 'env'
+      : file.relay?.agentToken !== undefined
+        ? 'file'
+        : 'none'
   const clientToken = process.env.CLARA_CLIENT_TOKEN ?? file.relay?.clientToken
+  const clientTokenSource: ConfigSource =
+    process.env.CLARA_CLIENT_TOKEN !== undefined
+      ? 'env'
+      : file.relay?.clientToken !== undefined
+        ? 'file'
+        : 'none'
 
   const relay = relayUrl
     ? {
         url: normalizeRelayUrl(relayUrl),
-        room: relayRoom || createRoom(),
+        room: relayRoom,
         agentToken: agentToken ?? '',
         clientToken: clientToken ?? '',
       }
@@ -95,7 +164,26 @@ export function loadConfig(options: { rotate?: boolean } = {}): ServerConfig {
   }
 
   const psk = options.rotate ? generatePsk() : (process.env.CLARA_PSK ?? file.psk ?? generatePsk())
+  const pskSource: ConfigSource = options.rotate
+    ? 'generated'
+    : process.env.CLARA_PSK !== undefined
+      ? 'env'
+      : file.psk !== undefined
+        ? 'file'
+        : 'generated'
   parsePsk(psk)
+
+  const pairingBaseUrlSource: ConfigSource =
+    process.env.CLARA_PAIRING_BASE_URL !== undefined
+      ? 'env'
+      : file.pairingBaseUrl !== undefined
+        ? 'file'
+        : 'default'
+  const pairingBaseUrl = (
+    process.env.CLARA_PAIRING_BASE_URL ??
+    file.pairingBaseUrl ??
+    DEFAULT_PAIRING_BASE_URL
+  ).replace(/\/+$/, '')
 
   const config: ServerConfig = {
     opencode: {
@@ -105,13 +193,21 @@ export function loadConfig(options: { rotate?: boolean } = {}): ServerConfig {
     local: { host: localHost, port: localPort },
     relay,
     psk,
-    pairingBaseUrl: (
-      process.env.CLARA_PAIRING_BASE_URL ??
-      file.pairingBaseUrl ??
-      DEFAULT_PAIRING_BASE_URL
-    ).replace(/\/+$/, ''),
+    pairingBaseUrl,
     configDir,
     configPath,
+    sources: {
+      opencodeUrl: opencodeUrlSource,
+      opencodePassword: opencodePasswordSource,
+      localHost: localHostSource,
+      localPort: localPortSource,
+      relayUrl: relay ? relayUrlSource : 'none',
+      relayRoom: relay ? relayRoomSource : 'none',
+      agentToken: relay ? agentTokenSource : 'none',
+      clientToken: relay ? clientTokenSource : 'none',
+      psk: pskSource,
+      pairingBaseUrl: pairingBaseUrlSource,
+    },
   }
 
   persistConfig(configPath, file, config, options.rotate === true)

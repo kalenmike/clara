@@ -48,6 +48,10 @@ export class PushService {
     return this.store.size
   }
 
+  get failing(): number {
+    return this.store.list().filter((entry) => entry.lastError).length
+  }
+
   has(endpoint: string): boolean {
     return this.store.has(endpoint)
   }

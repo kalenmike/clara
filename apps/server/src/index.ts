@@ -1,4 +1,6 @@
-import { join } from 'node:path'
+import { join, dirname } from 'node:path'
+import { fileURLToPath } from 'node:url'
+import { fingerprintPsk } from '@clara/crypto'
 import { PROTOCOL_VERSION } from '@clara/shared-types'
 import type { WebSocket } from 'ws'
 import { Agent } from './agent.ts'
@@ -6,12 +8,18 @@ import { loadConfig } from './config.ts'
 import { broadcast, startLocalServer } from './local-server.ts'
 import { OpenCodeClient } from './opencode.ts'
 import { printPairing } from './pairing.ts'
+import { PanelLog } from './panel/log.ts'
+import { PanelRuntime } from './panel/runtime.ts'
+import { startPanelServer, type PanelServer } from './panel/server.ts'
 import { PushMonitor } from './push/monitor.ts'
 import { PushService } from './push/service.ts'
 import { clearPushSubscriptions, PushSubscriptionStore } from './push/store.ts'
 import { loadVapidDetails } from './push/vapid.ts'
 import { RelayClient, type RelayStatus } from './relay-client.ts'
 import { SERVER_VERSION } from './version.ts'
+
+const panelLog = new PanelLog()
+const DEFAULT_PANEL_PORT = 8790
 
 async function main(): Promise<void> {
   const args = process.argv.slice(2)
@@ -20,7 +28,7 @@ async function main(): Promise<void> {
 
   if (command !== 'serve' && command !== 'pair') {
     console.error(`Unknown command: ${command}`)
-    console.error('Usage: clara-server [serve|pair] [--rotate]')
+    console.error('Usage: clara-server [serve|pair] [--rotate] [--no-panel]')
     process.exitCode = 2
     return
   }
@@ -39,8 +47,11 @@ async function main(): Promise<void> {
 
   const openCode = new OpenCodeClient(config.opencode.url, config.opencode.password)
   const opencodeVersion = await openCode.probeVersion()
+  const startedAt = Date.now() - Math.round(process.uptime() * 1000)
+  const fingerprint = await fingerprintPsk(config.psk).catch(() => undefined)
 
   let push: PushService | undefined
+  let pushError: string | undefined
   try {
     const vapid = loadVapidDetails(config.configDir, config.pairingBaseUrl)
     const store = new PushSubscriptionStore(join(config.configDir, 'subscriptions.json'), log)
@@ -53,6 +64,7 @@ async function main(): Promise<void> {
     })
     log(`push ready (${push.count} device(s))`)
   } catch (cause) {
+    pushError = cause instanceof Error ? cause.message : String(cause)
     log('push disabled', cause)
   }
 
@@ -118,6 +130,37 @@ async function main(): Promise<void> {
     : undefined
   pushMonitor?.start()
 
+  let panel: PanelServer | undefined
+  const panelEnabled = !args.includes('--no-panel') && process.env.CLARA_PANEL_DISABLED !== '1'
+  if (panelEnabled) {
+    const runtime = new PanelRuntime({
+      config,
+      openCode,
+      localAgent,
+      relayAgent,
+      relayClient,
+      localConnections: () => localSockets.size,
+      push,
+      pushError,
+      fingerprint,
+      startedAt,
+      log: panelLog,
+    })
+    const assetsDir =
+      process.env.CLARA_PANEL_DIR ?? join(dirname(fileURLToPath(import.meta.url)), 'panel')
+    try {
+      panel = await startPanelServer({
+        source: runtime,
+        port: parsePanelPort(process.env.CLARA_PANEL_PORT),
+        assetsDir,
+        log,
+      })
+      log(`panel at ${panel.url}`)
+    } catch (cause) {
+      log('panel unavailable', cause)
+    }
+  }
+
   log(`pairing config: ${config.configPath}`)
   log('print a pairing code with: clara-server pair')
   if (args.includes('--pair') || args.includes('--qr')) {
@@ -131,6 +174,7 @@ async function main(): Promise<void> {
     log('shutting down')
     pushMonitor?.close()
     relayClient?.close()
+    await panel?.close()
     await localServer.close()
     process.exit(0)
   }
@@ -147,12 +191,21 @@ function logRelayStatus(status: RelayStatus, url?: string): void {
 }
 
 function log(message: string, detail?: unknown): void {
+  panelLog.add(message, detail)
   if (detail !== undefined) {
     const text = detail instanceof Error ? detail.message : String(detail)
     console.error(`[clara] ${message}: ${text}`)
     return
   }
   console.log(`[clara] ${message}`)
+}
+
+function parsePanelPort(value: string | undefined): number {
+  const port = Number.parseInt(value?.trim() || String(DEFAULT_PANEL_PORT), 10)
+  if (!Number.isInteger(port) || port < 1 || port > 65_535) {
+    throw new Error(`Invalid panel port: ${value}`)
+  }
+  return port
 }
 
 void main().catch((cause) => {

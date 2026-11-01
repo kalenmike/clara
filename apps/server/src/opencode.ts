@@ -4,6 +4,15 @@ import { SERVER_VERSION } from './version.ts'
 
 export type HttpRequestAction = Extract<ClaraAction, { type: 'http.request' }>
 
+export type OpenCodeProbe = {
+  ok: boolean
+  version?: string
+  status?: number
+  latencyMs: number
+  code: 'ok' | 'timeout' | 'auth' | 'http' | 'unreachable'
+  message?: string
+}
+
 const MAX_BODY_BYTES = 10 * 1024 * 1024
 const HOP_BY_HOP = new Set([
   'authorization',
@@ -63,19 +72,68 @@ export class OpenCodeClient {
     })
   }
 
-  async probeVersion(): Promise<string | undefined> {
+  async probe(timeoutMs = 2_000): Promise<OpenCodeProbe> {
+    const started = Date.now()
     try {
       const response = await this.request(
         { type: 'http.request', id: 'probe', method: 'GET', path: '/api/info' },
-        AbortSignal.timeout(3_000)
+        AbortSignal.timeout(timeoutMs)
       )
-      if (!response.ok) return undefined
-      const info = (await response.json()) as { version?: unknown }
-      return typeof info.version === 'string' ? info.version : undefined
-    } catch {
-      return undefined
+      const latencyMs = Date.now() - started
+
+      if (response.status === 401 || response.status === 403) {
+        return {
+          ok: false,
+          status: response.status,
+          latencyMs,
+          code: 'auth',
+          message: `OpenCode rejected the password (${response.status})`,
+        }
+      }
+      if (!response.ok) {
+        return {
+          ok: false,
+          status: response.status,
+          latencyMs,
+          code: 'http',
+          message: `OpenCode responded with ${response.status}`,
+        }
+      }
+
+      let version: string | undefined
+      try {
+        const info = (await response.json()) as { version?: unknown }
+        if (typeof info.version === 'string') version = info.version
+      } catch {
+        // A reachable server that does not return JSON is still worth showing.
+      }
+      return { ok: true, latencyMs, code: 'ok', ...(version ? { version } : {}) }
+    } catch (cause) {
+      const latencyMs = Date.now() - started
+      const timeout = isTimeout(cause)
+      return {
+        ok: false,
+        latencyMs,
+        code: timeout ? 'timeout' : 'unreachable',
+        message: timeout ? `OpenCode did not answer within ${timeoutMs}ms` : errorMessage(cause),
+      }
     }
   }
+
+  async probeVersion(): Promise<string | undefined> {
+    const result = await this.probe(3_000)
+    return result.ok ? result.version : undefined
+  }
+}
+
+function isTimeout(cause: unknown): boolean {
+  if (!cause || typeof cause !== 'object') return false
+  const name = (cause as { name?: unknown }).name
+  return name === 'TimeoutError' || name === 'AbortError'
+}
+
+function errorMessage(cause: unknown): string {
+  return cause instanceof Error ? cause.message : String(cause)
 }
 
 /** Headers safe to forward into the browser Response after Node decompressed the body. */
