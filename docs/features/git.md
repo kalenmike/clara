@@ -168,9 +168,11 @@ hostile client or a compromised origin.
   repository, expect a short delay; the request is capped at ten seconds.
   Expanding a row never starts another process; the details arrive with the
   same log.
-- **The allowlist must cover the formatted command.** The panel preset `git log`
-  covers it, but an entry pinned to the old `git log --oneline -n 10` string
-  blocks the new command until it is updated.
+- **A non-empty filter must cover the formatted command.** The panel's **Allow
+  Git history** toggle adds `git log`, which covers it. An entry pinned to the
+  old `git log --oneline -n 10` string blocks the new command until it is
+  updated. An empty filter list allows every command, so Git history works
+  without an entry.
 - **The worktree list has no branch names, HEAD, or dirty state.** Enriching rows
   would need one `vcs.get` call per worktree.
 - **The worktree list is stored by OpenCode**, not read live, so it can be stale
