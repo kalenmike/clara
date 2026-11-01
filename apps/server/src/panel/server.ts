@@ -337,8 +337,7 @@ function isJsonContentType(value: string | string[] | undefined): boolean {
 }
 
 type JsonBody =
-  | { ok: true; value: unknown }
-  | { ok: false; status: number; code: string; message: string }
+  { ok: true; value: unknown } | { ok: false; status: number; code: string; message: string }
 
 async function readJsonBody(request: IncomingMessage): Promise<JsonBody> {
   const declared = Number.parseInt(request.headers['content-length'] ?? '', 10)

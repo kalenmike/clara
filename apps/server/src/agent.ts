@@ -493,11 +493,7 @@ export class Agent {
     this.enqueueSyncResult(session, id, result)
   }
 
-  private enqueueSyncResult(
-    session: Session,
-    id: string,
-    result: SyncResult
-  ): void {
+  private enqueueSyncResult(session: Session, id: string, result: SyncResult): void {
     if (result.ok) {
       this.enqueue(session, {
         type: 'sync.snapshot',

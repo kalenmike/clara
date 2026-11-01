@@ -132,7 +132,10 @@ export function ControlsCard({
                   : 'Off'
 
             return (
-              <li key={feature.name} className="flex items-start justify-between gap-4 py-3 last:pb-0">
+              <li
+                key={feature.name}
+                className="flex items-start justify-between gap-4 py-3 last:pb-0"
+              >
                 <div className="min-w-0">
                   <div className="flex flex-wrap items-center gap-2">
                     <span className="text-sm font-medium">{copy.title}</span>
@@ -147,7 +150,9 @@ export function ControlsCard({
                     {copy.description}
                   </p>
                   {feature.error ? (
-                    <p className="mt-1 text-xs text-amber-700 dark:text-amber-300">{feature.error}</p>
+                    <p className="mt-1 text-xs text-amber-700 dark:text-amber-300">
+                      {feature.error}
+                    </p>
                   ) : null}
                 </div>
                 <button

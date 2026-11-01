@@ -22,12 +22,7 @@ export type PanelDeviceClass = 'desktop' | 'mobile'
 export type PanelTransport = 'local' | 'relay'
 
 export type PanelRelayStatus =
-  | 'disabled'
-  | 'stopped'
-  | 'connecting'
-  | 'online'
-  | 'reconnecting'
-  | 'offline'
+  'disabled' | 'stopped' | 'connecting' | 'online' | 'reconnecting' | 'offline'
 
 export type PanelAgentInfo = {
   version: string

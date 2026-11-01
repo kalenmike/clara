@@ -107,9 +107,9 @@ describe('RuntimeController', () => {
     const { controller, close } = await createController()
     await controller.start()
     try {
-      expect(controller.controls().features.find((entry) => entry.name === 'local')?.effective).toBe(
-        true
-      )
+      expect(
+        controller.controls().features.find((entry) => entry.name === 'local')?.effective
+      ).toBe(true)
       await controller.setFeature('local', false)
       expect(controller.controls().features.find((entry) => entry.name === 'local')).toMatchObject({
         desired: false,

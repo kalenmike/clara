@@ -176,10 +176,7 @@ export class PanelRuntime implements PanelDataSource {
     }
   }
 
-  private relaySnapshot(
-    stopped: boolean,
-    control: PanelFeatureControl
-  ): PanelRelayTransport {
+  private relaySnapshot(stopped: boolean, control: PanelFeatureControl): PanelRelayTransport {
     const relay = this.options.config.relay
     if (!relay || !this.options.relayClient) {
       return {

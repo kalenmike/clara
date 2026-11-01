@@ -34,9 +34,14 @@ describe('ClientStorageStore', () => {
       ok: true,
       snapshot: { namespace: 'default', revision: 0, entries: [] },
     })
-    expect(store.push({ type: 'sync.push', id: 'x', namespace: 'work', entries: [
-      { key: 'clara.theme', value: 'nord' },
-    ] })).toMatchObject({ ok: true })
+    expect(
+      store.push({
+        type: 'sync.push',
+        id: 'x',
+        namespace: 'work',
+        entries: [{ key: 'clara.theme', value: 'nord' }],
+      })
+    ).toMatchObject({ ok: true })
 
     const work = store.pull('work')
     expect(work).toMatchObject({

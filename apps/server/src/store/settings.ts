@@ -23,10 +23,7 @@ export type AgentSettings = {
 
 export const FEATURE_NAMES = Object.keys(FEATURE_SETTINGS) as FeatureName[]
 
-const SETTING_KEYS = new Set<string>([
-  ...Object.values(FEATURE_SETTINGS),
-  AGENT_STOPPED_SETTING,
-])
+const SETTING_KEYS = new Set<string>([...Object.values(FEATURE_SETTINGS), AGENT_STOPPED_SETTING])
 
 /**
  * Booleans are the only values in this table. Connection strings, passwords,
