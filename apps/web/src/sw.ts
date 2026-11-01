@@ -53,7 +53,13 @@ setCatchHandler(async (options) => {
   return Response.error()
 })
 
-// `registerType: 'autoUpdate'` for now: activate immediately and take over open
-// pages, exactly like the generated worker this replaces.
-self.skipWaiting()
+// The update banner asks for this message. Skipping waiting on install would
+// swap the worker under a page that is still running the previous build.
+self.addEventListener('message', (event) => {
+  if (event.data?.type === 'SKIP_WAITING') self.skipWaiting()
+})
+
+// A claimed page receives `controllerchange`, which is what the banner reloads
+// on. Without it a new worker activates but waits for every window to close,
+// which on an installed iOS app can mean days.
 clientsClaim()

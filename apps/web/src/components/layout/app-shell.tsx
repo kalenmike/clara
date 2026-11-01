@@ -8,6 +8,7 @@ import { MobileActionsProvider, MobileActionsSlot } from '@/components/layout/mo
 import { Sidebar, SidebarContent } from '@/components/layout/sidebar'
 import { InboxMonitorProvider } from '@/features/sessions/inbox-monitor'
 import { useSessionWording } from '@/features/sessions/use-wording'
+import { UpdateBanner } from '@/components/pwa/update-banner'
 import { useConnection } from '@/providers/connection-provider'
 import { NotificationProvider } from '@/providers/notification-provider'
 import { PushProvider } from '@/providers/push-provider'
@@ -67,6 +68,7 @@ export function AppShell() {
               <span className="text-sm font-semibold">Clara</span>
               <MobileActionsSlot />
             </div>
+            <UpdateBanner />
             <div className="min-h-0 flex-1">
               <PushProvider>
                 <NotificationProvider>

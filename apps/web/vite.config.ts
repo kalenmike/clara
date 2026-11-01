@@ -158,7 +158,6 @@ export default defineConfig(({ command }) => ({
     tailwindcss(),
     localServiceProxyPlugin(),
     VitePWA({
-      registerType: 'autoUpdate',
       includeAssets: ['favicon.png', 'apple-touch-icon.png'],
       manifest: {
         id: '/',
@@ -185,6 +184,9 @@ export default defineConfig(({ command }) => ({
       // The plugin locates the custom worker as `<srcDir>/<filename>`.
       srcDir: 'src',
       filename: 'sw.ts',
+      registerType: 'prompt',
+      // Registration lives in src/features/pwa so the banner owns the lifecycle.
+      injectRegister: false,
       injectManifest: {
         globPatterns: ['**/*.{js,css,html,svg,png,woff2}'],
         // A classic worker keeps `importScripts` available and avoids module
