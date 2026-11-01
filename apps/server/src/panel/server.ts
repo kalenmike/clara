@@ -2,11 +2,18 @@ import { createServer, type IncomingMessage, type ServerResponse } from 'node:ht
 import { readFileSync, realpathSync, statSync } from 'node:fs'
 import { extname, join, resolve, sep } from 'node:path'
 import type { Server } from 'node:http'
+import type { PanelFeatureName, PanelMutationResponse } from '@clara/shared-types'
+import { readControlFailure, type PanelControlService } from './controls.ts'
 import { checkPanelRequest } from './security.ts'
 import type { PanelDataSource } from './runtime.ts'
 
 const API_PATH = '/panel/api/v1/status'
+const FEATURES_PATH = '/panel/api/v1/features'
+const AGENT_PATH = '/panel/api/v1/agent'
 const ASSETS_PREFIX = '/assets/'
+const PANEL_HEADER = 'x-clara-panel'
+const MAX_BODY_BYTES = 8 * 1024
+const FEATURE_NAMES: PanelFeatureName[] = ['opencode', 'local', 'relay', 'push']
 
 const CONTENT_TYPES: Record<string, string> = {
   '.css': 'text/css; charset=utf-8',
@@ -34,6 +41,7 @@ const SECURITY_HEADERS: Record<string, string> = {
 
 export type PanelServerOptions = {
   source: PanelDataSource
+  controls?: PanelControlService
   port: number
   assetsDir?: string
   log?: (message: string, detail?: unknown) => void
@@ -53,6 +61,7 @@ export async function startPanelServer(options: PanelServerOptions): Promise<Pan
   const server = createServer((request, response) => {
     void handleRequest(request, response, {
       source: options.source,
+      controls: options.controls,
       port,
       assetsRoot,
       indexHtml,
@@ -86,6 +95,7 @@ export async function startPanelServer(options: PanelServerOptions): Promise<Pan
 
 type RequestContext = {
   source: PanelDataSource
+  controls?: PanelControlService
   port: number
   assetsRoot: string | undefined
   indexHtml: Buffer | undefined
@@ -110,13 +120,6 @@ async function handleRequest(
   }
 
   const method = request.method ?? 'GET'
-  if (method !== 'GET' && method !== 'HEAD') {
-    response.setHeader('allow', 'GET, HEAD')
-    sendJson(response, method, 405, {
-      error: { code: 'method_not_allowed', message: 'The agent panel is read-only' },
-    })
-    return
-  }
 
   let pathname: string
   try {
@@ -124,6 +127,19 @@ async function handleRequest(
   } catch {
     sendJson(response, method, 400, {
       error: { code: 'bad_request', message: 'Invalid request path' },
+    })
+    return
+  }
+
+  if (method === 'POST') {
+    await handleMutation(request, response, context, pathname)
+    return
+  }
+
+  if (method !== 'GET' && method !== 'HEAD') {
+    response.setHeader('allow', 'GET, HEAD')
+    sendJson(response, method, 405, {
+      error: { code: 'method_not_allowed', message: 'The agent panel is read-only' },
     })
     return
   }
@@ -197,6 +213,169 @@ async function handleRequest(
       error: { code: 'asset_failed', message: 'Could not read the panel asset' },
     })
   }
+}
+
+async function handleMutation(
+  request: IncomingMessage,
+  response: ServerResponse,
+  context: RequestContext,
+  pathname: string
+): Promise<void> {
+  const method = request.method ?? 'POST'
+
+  if (pathname === API_PATH) {
+    response.setHeader('allow', 'GET, HEAD')
+    sendJson(response, method, 405, {
+      error: { code: 'method_not_allowed', message: 'The status endpoint is read-only' },
+    })
+    return
+  }
+
+  const kind =
+    pathname === FEATURES_PATH ? 'features' : pathname === AGENT_PATH ? 'agent' : undefined
+  if (!kind) {
+    sendJson(response, method, 404, {
+      error: { code: 'not_found', message: 'Unknown panel endpoint' },
+    })
+    return
+  }
+
+  const controls = context.controls
+  if (!controls) {
+    sendJson(response, method, 503, {
+      error: { code: 'controls_unavailable', message: 'Agent controls are not available' },
+    })
+    return
+  }
+
+  if (request.headers[PANEL_HEADER] !== '1') {
+    sendJson(response, method, 403, {
+      error: {
+        code: 'missing_panel_header',
+        message: `Mutations require the ${PANEL_HEADER}: 1 request header`,
+      },
+    })
+    return
+  }
+
+  if (!isJsonContentType(request.headers['content-type'])) {
+    sendJson(response, method, 415, {
+      error: { code: 'unsupported_media_type', message: 'Use content-type: application/json' },
+    })
+    return
+  }
+
+  const body = await readJsonBody(request)
+  if (!body.ok) {
+    sendJson(response, method, body.status, {
+      error: { code: body.code, message: body.message },
+    })
+    return
+  }
+  if (!isRecord(body.value)) {
+    sendJson(response, method, 400, {
+      error: { code: 'invalid_body', message: 'The request body must be a JSON object' },
+    })
+    return
+  }
+
+  try {
+    let updated
+    if (kind === 'features') {
+      const unknown = unknownFields(body.value, ['feature', 'enabled'])
+      if (unknown) return invalidField(response, method, unknown)
+      const feature = body.value.feature
+      if (typeof feature !== 'string' || !FEATURE_NAMES.includes(feature as PanelFeatureName)) {
+        return invalidField(response, method, 'feature')
+      }
+      if (typeof body.value.enabled !== 'boolean') {
+        return invalidField(response, method, 'enabled')
+      }
+      updated = await controls.setFeature(feature as PanelFeatureName, body.value.enabled)
+    } else {
+      const unknown = unknownFields(body.value, ['stopped'])
+      if (unknown) return invalidField(response, method, unknown)
+      if (typeof body.value.stopped !== 'boolean') {
+        return invalidField(response, method, 'stopped')
+      }
+      updated = await controls.setStopped(body.value.stopped)
+    }
+
+    const payload: PanelMutationResponse = { controls: updated }
+    sendJson(response, method, 200, payload)
+  } catch (cause) {
+    const failure = readControlFailure(cause)
+    if (failure) {
+      sendJson(response, method, failure.status, {
+        error: { code: failure.code, message: failure.message },
+      })
+      return
+    }
+    context.log?.('panel mutation failed', cause)
+    sendJson(response, method, 500, {
+      error: { code: 'mutation_failed', message: 'Could not apply the agent change' },
+    })
+  }
+}
+
+function invalidField(response: ServerResponse, method: string, field: string): void {
+  sendJson(response, method, 400, {
+    error: { code: 'invalid_body', message: `Invalid or unknown field: ${field}` },
+  })
+}
+
+function unknownFields(body: Record<string, unknown>, allowed: string[]): string | undefined {
+  for (const key of Object.keys(body)) {
+    if (!allowed.includes(key)) return key
+  }
+  return undefined
+}
+
+function isJsonContentType(value: string | string[] | undefined): boolean {
+  if (typeof value !== 'string') return false
+  return value.split(';')[0]?.trim().toLowerCase() === 'application/json'
+}
+
+type JsonBody =
+  | { ok: true; value: unknown }
+  | { ok: false; status: number; code: string; message: string }
+
+async function readJsonBody(request: IncomingMessage): Promise<JsonBody> {
+  const declared = Number.parseInt(request.headers['content-length'] ?? '', 10)
+  if (Number.isFinite(declared) && declared > MAX_BODY_BYTES) {
+    return {
+      ok: false,
+      status: 413,
+      code: 'body_too_large',
+      message: `The request body may be at most ${MAX_BODY_BYTES} bytes`,
+    }
+  }
+
+  const chunks: Buffer[] = []
+  let total = 0
+  for await (const chunk of request) {
+    const buffer = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk as Uint8Array)
+    total += buffer.byteLength
+    if (total > MAX_BODY_BYTES) {
+      return {
+        ok: false,
+        status: 413,
+        code: 'body_too_large',
+        message: `The request body may be at most ${MAX_BODY_BYTES} bytes`,
+      }
+    }
+    chunks.push(buffer)
+  }
+
+  try {
+    return { ok: true, value: JSON.parse(Buffer.concat(chunks).toString('utf8')) as unknown }
+  } catch {
+    return { ok: false, status: 400, code: 'invalid_json', message: 'The request body is not JSON' }
+  }
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
 
 function resolveAssetsRoot(assetsDir: string | undefined): string | undefined {

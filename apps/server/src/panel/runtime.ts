@@ -5,7 +5,10 @@ import {
   PROTOCOL_VERSION,
   type PanelClientInfo,
   type PanelConfigInfo,
+  type PanelControls,
   type PanelEvent,
+  type PanelFeatureControl,
+  type PanelFeatureName,
   type PanelOpenCodeInfo,
   type PanelRelayTransport,
   type PanelSnapshot,
@@ -16,11 +19,18 @@ import type { ServerConfig } from '../config.ts'
 import type { OpenCodeClient, OpenCodeProbe } from '../opencode.ts'
 import type { PushService } from '../push/service.ts'
 import type { RelayClient } from '../relay-client.ts'
+import type { ClientStorageStats } from '../store/client-storage.ts'
 import { SERVER_VERSION } from '../version.ts'
 import type { PanelLog } from './log.ts'
 
 const PROBE_TTL_MS = 5_000
 const MAX_ERROR_LENGTH = 240
+
+export type PanelDatabaseSource = {
+  path: string
+  schemaVersion: number
+  sync: () => ClientStorageStats
+}
 
 export type PanelRuntimeOptions = {
   config: ServerConfig
@@ -33,6 +43,9 @@ export type PanelRuntimeOptions = {
   pushError?: string
   fingerprint?: string
   startedAt: number
+  controls?: () => PanelControls
+  probeEnabled?: () => boolean
+  database?: PanelDatabaseSource
   log: PanelLog
 }
 
@@ -56,8 +69,12 @@ export class PanelRuntime implements PanelDataSource {
 
   async snapshot(): Promise<PanelSnapshot> {
     const now = Date.now()
-    const probe = await this.getProbe()
+    const controls = this.controlsSnapshot()
+    const probe = await this.getProbe(controls)
     const { config } = this.options
+    const local = controlFor(controls, 'local')
+    const relay = controlFor(controls, 'relay')
+    const push = controlFor(controls, 'push')
 
     return {
       apiVersion: PANEL_API_VERSION,
@@ -75,26 +92,36 @@ export class PanelRuntime implements PanelDataSource {
         configPath: config.configPath,
         configDir: config.configDir,
         pskConfigured: Boolean(config.psk),
+        stopped: controls.stopped,
         ...(this.options.fingerprint ? { fingerprint: this.options.fingerprint } : {}),
       },
       config: this.configSnapshot(),
-      opencode: this.openCodeSnapshot(probe, now),
+      opencode: this.openCodeSnapshot(probe, now, controlFor(controls, 'opencode')),
       local: {
         host: config.local.host,
         port: config.local.port,
         url: `ws://${formatHost(config.local.host)}:${config.local.port}/ws`,
         connections: this.options.localConnections(),
+        desired: local.desired,
+        active: local.desired && local.effective,
+        effective: local.effective,
+        ...(local.error ? { error: this.redact(local.error) } : {}),
       },
-      relay: this.relaySnapshot(),
+      relay: this.relaySnapshot(controls.stopped, relay),
       clients: this.clientsSnapshot(now),
       push: {
-        enabled: Boolean(this.options.push),
+        enabled: push.effective,
+        desired: push.desired,
+        effective: push.effective,
         subscriptions: this.options.push?.count ?? 0,
         failing: this.options.push?.failing ?? 0,
         publicKeyConfigured: Boolean(this.options.push?.publicKey),
-        ...(this.options.pushError ? { error: this.redact(this.options.pushError) } : {}),
+        ...(this.options.pushError || push.error
+          ? { error: this.redact(this.options.pushError ?? push.error ?? '') }
+          : {}),
       },
-      storage: storageEntries(config),
+      controls,
+      storage: this.storageEntries(),
       events: this.events(),
     }
   }
@@ -128,36 +155,57 @@ export class PanelRuntime implements PanelDataSource {
     }
   }
 
-  private openCodeSnapshot(probe: OpenCodeProbe, now: number): PanelOpenCodeInfo {
+  private openCodeSnapshot(
+    probe: OpenCodeProbe,
+    now: number,
+    control: PanelFeatureControl
+  ): PanelOpenCodeInfo {
     return {
       url: displayUrl(this.options.config.opencode.url),
       passwordConfigured: Boolean(this.options.config.opencode.password),
       reachable: probe.ok,
+      desired: control.desired,
+      effective: control.effective,
       ...(probe.version ? { version: probe.version } : {}),
       latencyMs: probe.latencyMs,
       checkedAt: new Date(this.probeCache?.at ?? now).toISOString(),
       code: probe.code,
-      ...(probe.message ? { error: this.redact(probe.message) } : {}),
+      ...((control.error ?? probe.message)
+        ? { error: this.redact(control.error ?? probe.message ?? '') }
+        : {}),
     }
   }
 
-  private relaySnapshot(): PanelRelayTransport {
+  private relaySnapshot(
+    stopped: boolean,
+    control: PanelFeatureControl
+  ): PanelRelayTransport {
     const relay = this.options.config.relay
     if (!relay || !this.options.relayClient) {
       return {
         configured: false,
         status: 'disabled',
+        desired: control.desired,
+        effective: false,
         agentTokenConfigured: false,
         clientTokenConfigured: false,
+        ...(control.error ? { error: this.redact(control.error) } : {}),
       }
     }
 
     const snapshot = this.options.relayClient.getSnapshot()
+    const status: PanelRelayTransport['status'] = stopped
+      ? 'stopped'
+      : !control.desired
+        ? 'disabled'
+        : snapshot.status
     return {
       configured: true,
       url: relay.url,
       room: relay.room,
-      status: snapshot.status,
+      status,
+      desired: control.desired,
+      effective: control.effective,
       agentTokenConfigured: Boolean(relay.agentToken),
       clientTokenConfigured: Boolean(relay.clientToken),
       ...(snapshot.connectedSince !== undefined
@@ -166,6 +214,7 @@ export class PanelRuntime implements PanelDataSource {
       lastChangedAt: new Date(snapshot.lastChangedAt).toISOString(),
       reconnectAttempts: snapshot.reconnectAttempts,
       ...(snapshot.lastError ? { lastError: this.redact(snapshot.lastError) } : {}),
+      ...(control.error ? { error: this.redact(control.error) } : {}),
     }
   }
 
@@ -184,7 +233,16 @@ export class PanelRuntime implements PanelDataSource {
     return this.options.log.list()
   }
 
-  private async getProbe(): Promise<OpenCodeProbe> {
+  private async getProbe(controls: PanelControls): Promise<OpenCodeProbe> {
+    if (!controlFor(controls, 'opencode').effective || this.options.probeEnabled?.() === false) {
+      return {
+        ok: false,
+        latencyMs: 0,
+        code: 'disabled',
+        message: 'OpenCode access is disabled by an admin setting',
+      }
+    }
+
     const now = Date.now()
     if (this.probeCache && now - this.probeCache.at < PROBE_TTL_MS) {
       return this.probeCache.result
@@ -201,6 +259,58 @@ export class PanelRuntime implements PanelDataSource {
         })
     }
     return this.probeInFlight
+  }
+
+  private controlsSnapshot(): PanelControls {
+    const provided = this.options.controls?.()
+    if (provided) return provided
+
+    const relayConfigured = Boolean(this.options.config.relay)
+    return {
+      stopped: false,
+      features: [
+        { name: 'opencode', configured: true, desired: true, effective: true },
+        { name: 'local', configured: true, desired: true, effective: true },
+        { name: 'relay', configured: relayConfigured, desired: true, effective: relayConfigured },
+        {
+          name: 'push',
+          configured: Boolean(this.options.push),
+          desired: Boolean(this.options.push),
+          effective: Boolean(this.options.push),
+        },
+      ],
+    }
+  }
+
+  private storageEntries(): PanelStorageEntry[] {
+    const { config } = this.options
+    const entries = [
+      describeStorage('config', 'Server config', config.configPath, true),
+      describeStorage(
+        'subscriptions',
+        'Push subscriptions',
+        join(config.configDir, 'subscriptions.json'),
+        false
+      ),
+      describeStorage('vapid', 'VAPID keys', join(config.configDir, 'vapid.json'), false),
+    ]
+    if (this.options.database) {
+      const database = this.options.database
+      const entry = describeStorage('database', 'Agent database', database.path, true)
+      entry.schemaVersion = database.schemaVersion
+      if (entry.exists) {
+        try {
+          entry.sync = database.sync()
+        } catch {
+          entry.status = 'warn'
+          entry.detail = [entry.detail, 'Could not read client sync statistics']
+            .filter(Boolean)
+            .join('. ')
+        }
+      }
+      entries.push(entry)
+    }
+    return entries
   }
 
   private redact(value: string): string {
@@ -234,17 +344,15 @@ function toClient(
   }
 }
 
-function storageEntries(config: ServerConfig): PanelStorageEntry[] {
-  return [
-    describeStorage('config', 'Server config', config.configPath, true),
-    describeStorage(
-      'subscriptions',
-      'Push subscriptions',
-      join(config.configDir, 'subscriptions.json'),
-      false
-    ),
-    describeStorage('vapid', 'VAPID keys', join(config.configDir, 'vapid.json'), false),
-  ]
+function controlFor(controls: PanelControls, name: PanelFeatureName): PanelFeatureControl {
+  return (
+    controls.features.find((feature) => feature.name === name) ?? {
+      name,
+      configured: false,
+      desired: false,
+      effective: false,
+    }
+  )
 }
 
 function describeStorage(

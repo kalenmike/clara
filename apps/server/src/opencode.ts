@@ -9,7 +9,7 @@ export type OpenCodeProbe = {
   version?: string
   status?: number
   latencyMs: number
-  code: 'ok' | 'timeout' | 'auth' | 'http' | 'unreachable'
+  code: 'ok' | 'timeout' | 'auth' | 'http' | 'unreachable' | 'disabled'
   message?: string
 }
 

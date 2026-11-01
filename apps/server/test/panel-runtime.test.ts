@@ -40,6 +40,7 @@ function config(dir: string): ServerConfig {
     pairingBaseUrl: 'https://clara.example',
     configDir: dir,
     configPath: join(dir, 'server.json'),
+    dbPath: join(dir, 'clara.db'),
     sources: {
       opencodeUrl: 'env',
       opencodePassword: 'env',

@@ -20,10 +20,13 @@ import {
   type PushSubscribeAction,
   type PushTestAction,
   type PushUnsubscribeAction,
+  type SyncPullAction,
+  type SyncPushAction,
   type WireFrame,
 } from '@clara/shared-types'
 import { OpenCodeClient, responseHeaders, type HttpRequestAction } from './opencode.ts'
 import type { PushService } from './push/service.ts'
+import type { ClientStorageStore, SyncResult } from './store/client-storage.ts'
 
 const MAX_REQUESTS_PER_SESSION = 32
 const MAX_PAYLOAD_BYTES = 10 * 1024 * 1024
@@ -60,12 +63,21 @@ export type AgentSessionInfo = {
   holdPhone: boolean
 }
 
+export type AgentPolicy = {
+  /** Gate OpenCode proxying without duplicating runtime state in the agent. */
+  canProxy?: () => boolean
+  /** Gate push actions while keeping stored subscriptions intact. */
+  canPush?: () => boolean
+}
+
 export type AgentOptions = {
   openCode: OpenCodeClient
   psk: string
   info: AgentInfo
   send: (frame: WireFrame) => void
   push?: PushService
+  sync?: ClientStorageStore
+  policy?: AgentPolicy
   log?: (message: string, detail?: unknown) => void
 }
 
@@ -279,6 +291,12 @@ export class Agent {
       case 'push.test':
         void this.handlePushTest(session, payload)
         return
+      case 'sync.pull':
+        void this.handleSyncPull(session, payload)
+        return
+      case 'sync.push':
+        void this.handleSyncPush(session, payload)
+        return
       default:
         return
     }
@@ -297,6 +315,16 @@ export class Agent {
   }
 
   private async handlePushSubscribe(session: Session, action: PushSubscribeAction): Promise<void> {
+    if (!this.canPush()) {
+      this.enqueue(session, {
+        type: 'push.status',
+        id: action.id,
+        subscribed: false,
+        error: 'Push notifications are disabled by an admin setting',
+      })
+      return
+    }
+
     const push = this.options.push
     const endpoint = action.subscription?.endpoint
     if (!push) {
@@ -338,6 +366,17 @@ export class Agent {
     session: Session,
     action: PushUnsubscribeAction
   ): Promise<void> {
+    if (!this.canPush()) {
+      this.enqueue(session, {
+        type: 'push.status',
+        id: action.id,
+        subscribed: false,
+        endpoint: typeof action.endpoint === 'string' ? action.endpoint : undefined,
+        error: 'Push notifications are disabled by an admin setting',
+      })
+      return
+    }
+
     const push = this.options.push
     if (!push || typeof action.endpoint !== 'string') {
       this.enqueue(session, {
@@ -372,6 +411,18 @@ export class Agent {
   }
 
   private async handlePushTest(session: Session, action: PushTestAction): Promise<void> {
+    if (!this.canPush()) {
+      this.enqueue(session, {
+        type: 'push.status',
+        id: action.id,
+        subscribed: false,
+        endpoint: action.endpoint,
+        tested: true,
+        error: 'Push notifications are disabled by an admin setting',
+      })
+      return
+    }
+
     const push = this.options.push
     if (!push) {
       this.enqueue(session, {
@@ -408,7 +459,82 @@ export class Agent {
     }
   }
 
+  private handleSyncPull(session: Session, action: SyncPullAction): void {
+    const sync = this.options.sync
+    const id = typeof action.id === 'string' ? action.id : ''
+    if (!sync) {
+      this.enqueue(session, {
+        type: 'sync.error',
+        id,
+        code: 'storage',
+        message: 'Client sync storage is not available on this agent',
+      })
+      return
+    }
+
+    const result = sync.pull(action.namespace)
+    this.enqueueSyncResult(session, id, result)
+  }
+
+  private handleSyncPush(session: Session, action: SyncPushAction): void {
+    const sync = this.options.sync
+    const id = typeof action.id === 'string' ? action.id : ''
+    if (!sync) {
+      this.enqueue(session, {
+        type: 'sync.error',
+        id,
+        code: 'storage',
+        message: 'Client sync storage is not available on this agent',
+      })
+      return
+    }
+
+    const result = sync.push(action, session.sid)
+    this.enqueueSyncResult(session, id, result)
+  }
+
+  private enqueueSyncResult(
+    session: Session,
+    id: string,
+    result: SyncResult
+  ): void {
+    if (result.ok) {
+      this.enqueue(session, {
+        type: 'sync.snapshot',
+        id,
+        namespace: result.snapshot.namespace,
+        revision: result.snapshot.revision,
+        entries: result.snapshot.entries,
+      })
+      return
+    }
+
+    this.enqueue(session, {
+      type: 'sync.error',
+      id,
+      code: result.code,
+      message: result.message,
+      ...(result.namespace ? { namespace: result.namespace } : {}),
+      ...(result.snapshot
+        ? { revision: result.snapshot.revision, entries: result.snapshot.entries }
+        : {}),
+    })
+  }
+
+  private canPush(): boolean {
+    return this.options.policy?.canPush?.() ?? true
+  }
+
   private startRequest(session: Session, action: HttpRequestAction): void {
+    if (this.options.policy?.canProxy && !this.options.policy.canProxy()) {
+      this.enqueue(session, {
+        type: 'http.error',
+        id: action.id,
+        code: 'disabled',
+        message: 'OpenCode access is disabled by an admin setting',
+      })
+      return
+    }
     if (typeof action.id !== 'string' || action.id.length === 0 || action.id.length > 128) return
     if (session.requests.has(action.id)) return
     if (session.requests.size >= MAX_REQUESTS_PER_SESSION) {

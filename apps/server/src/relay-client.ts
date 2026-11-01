@@ -57,6 +57,10 @@ export class RelayClient {
     }
   }
 
+  get isRunning(): boolean {
+    return !this.stopped
+  }
+
   start(): void {
     if (!this.stopped) return
     this.stopped = false

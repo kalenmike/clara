@@ -2,20 +2,19 @@ import { join, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { fingerprintPsk } from '@clara/crypto'
 import { PROTOCOL_VERSION } from '@clara/shared-types'
-import type { WebSocket } from 'ws'
-import { Agent } from './agent.ts'
 import { loadConfig } from './config.ts'
-import { broadcast, startLocalServer } from './local-server.ts'
 import { OpenCodeClient } from './opencode.ts'
 import { printPairing } from './pairing.ts'
 import { PanelLog } from './panel/log.ts'
 import { PanelRuntime } from './panel/runtime.ts'
 import { startPanelServer, type PanelServer } from './panel/server.ts'
-import { PushMonitor } from './push/monitor.ts'
 import { PushService } from './push/service.ts'
 import { clearPushSubscriptions, PushSubscriptionStore } from './push/store.ts'
 import { loadVapidDetails } from './push/vapid.ts'
-import { RelayClient, type RelayStatus } from './relay-client.ts'
+import { RuntimeController } from './runtime/controller.ts'
+import { ClientStorageStore } from './store/client-storage.ts'
+import { closeDatabase, openDatabase, schemaVersion } from './store/database.ts'
+import { SettingsStore } from './store/settings.ts'
 import { SERVER_VERSION } from './version.ts'
 
 const panelLog = new PanelLog()
@@ -45,8 +44,14 @@ async function main(): Promise<void> {
     return
   }
 
+  const database = openDatabase(config.dbPath)
+  const settings = new SettingsStore(database)
+  const clientStorage = new ClientStorageStore(database)
+  const initial = settings.get()
+
   const openCode = new OpenCodeClient(config.opencode.url, config.opencode.password)
-  const opencodeVersion = await openCode.probeVersion()
+  const opencodeVersion =
+    initial.stopped || !initial.features.opencode ? undefined : await openCode.probeVersion()
   const startedAt = Date.now() - Math.round(process.uptime() * 1000)
   const fingerprint = await fingerprintPsk(config.psk).catch(() => undefined)
 
@@ -76,59 +81,23 @@ async function main(): Promise<void> {
     pushPublicKey: push?.publicKey,
   }
 
-  const localSockets = new Set<WebSocket>()
-  const localAgent = new Agent({
+  const controller = new RuntimeController({
+    config,
     openCode,
-    psk: config.psk,
     info,
-    send: (frame) => broadcast(localSockets, frame),
+    settings,
+    sync: clientStorage,
     push,
+    pushError,
     log,
   })
 
-  const localServer = await startLocalServer({
-    host: config.local.host,
-    port: config.local.port,
-    agent: localAgent,
-    sockets: localSockets,
-    log,
-  })
+  await controller.start()
 
-  log(`local WebSocket listening on ws://${config.local.host}:${config.local.port}/ws`)
-  if (opencodeVersion) log(`OpenCode ${opencodeVersion} at ${config.opencode.url}`)
-  else log(`OpenCode is not answering at ${config.opencode.url}`)
-
-  let relayClient: RelayClient | undefined
-  let relayAgent: Agent | undefined
-  if (config.relay) {
-    relayAgent = new Agent({
-      openCode,
-      psk: config.psk,
-      info,
-      send: (frame) => relayClient?.send(frame),
-      push,
-      log,
-    })
-    relayClient = new RelayClient({
-      url: config.relay.url,
-      room: config.relay.room,
-      agentToken: config.relay.agentToken,
-      agent: relayAgent,
-      log,
-      onStatus: (status) => logRelayStatus(status, config.relay?.url),
-    })
-    relayClient.start()
+  if (!initial.stopped) {
+    if (opencodeVersion) log(`OpenCode ${opencodeVersion} at ${config.opencode.url}`)
+    else if (initial.features.opencode) log(`OpenCode is not answering at ${config.opencode.url}`)
   }
-
-  const pushMonitor = push
-    ? new PushMonitor({
-        openCode,
-        push,
-        isDeskActive: () => localAgent.deskHoldActive() || (relayAgent?.deskHoldActive() ?? false),
-        log,
-      })
-    : undefined
-  pushMonitor?.start()
 
   let panel: PanelServer | undefined
   const panelEnabled = !args.includes('--no-panel') && process.env.CLARA_PANEL_DISABLED !== '1'
@@ -136,14 +105,21 @@ async function main(): Promise<void> {
     const runtime = new PanelRuntime({
       config,
       openCode,
-      localAgent,
-      relayAgent,
-      relayClient,
-      localConnections: () => localSockets.size,
+      localAgent: controller.agent,
+      relayAgent: controller.relay,
+      relayClient: controller.relayTransport,
+      localConnections: () => controller.localConnections,
       push,
       pushError,
       fingerprint,
       startedAt,
+      controls: () => controller.controls(),
+      probeEnabled: () => controller.canProxy(),
+      database: {
+        path: config.dbPath,
+        schemaVersion: schemaVersion(database),
+        sync: () => clientStorage.stats(),
+      },
       log: panelLog,
     })
     const assetsDir =
@@ -151,6 +127,7 @@ async function main(): Promise<void> {
     try {
       panel = await startPanelServer({
         source: runtime,
+        controls: controller,
         port: parsePanelPort(process.env.CLARA_PANEL_PORT),
         assetsDir,
         log,
@@ -161,6 +138,7 @@ async function main(): Promise<void> {
     }
   }
 
+  log(`database at ${config.dbPath}`)
   log(`pairing config: ${config.configPath}`)
   log('print a pairing code with: clara-server pair')
   if (args.includes('--pair') || args.includes('--qr')) {
@@ -172,22 +150,15 @@ async function main(): Promise<void> {
     if (stopping) return
     stopping = true
     log('shutting down')
-    pushMonitor?.close()
-    relayClient?.close()
+    await controller.close()
     await panel?.close()
-    await localServer.close()
+    closeDatabase(database)
     process.exit(0)
   }
 
   process.on('SIGINT', () => void shutdown())
   process.on('SIGTERM', () => void shutdown())
   process.on('unhandledRejection', (cause) => log('unhandled rejection', cause))
-}
-
-function logRelayStatus(status: RelayStatus, url?: string): void {
-  if (status === 'offline' || status === 'online' || status === 'connecting') {
-    log(`relay ${status}${url ? ` (${url})` : ''}`)
-  }
 }
 
 function log(message: string, detail?: unknown): void {
