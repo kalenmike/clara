@@ -10,8 +10,9 @@ started again.
 ## User flow
 
 1. Open the panel at `http://127.0.0.1:8790/` on the machine running the agent.
-2. Every card starts collapsed. Click a card header to expand its contents, and
-   click it again to collapse it.
+2. The **Agent**, **Effective configuration**, **Connected clients**, and
+   **Recent activity** cards start expanded; every other card starts collapsed.
+   Click a card header to expand or collapse it.
 3. Each transport card carries its own switch at the top right: OpenCode
    connection, local transport, relay, and push notifications. The status chip
    sits beside the card title.
@@ -47,10 +48,12 @@ started again.
 5. **Dependencies are visible.** Turning OpenCode off stops the push event
    monitor but leaves the local and relay transports connected. Push actions are
    gated separately.
-6. **Cards are accordions.** Every card starts collapsed and opens from its
-   header. A disabled feature hides its details and cannot be opened; the header
-   keeps the switch and status chip. The shell card is expandable while its
-   switch is on, and the switch stays amber until Apply saves the draft.
+6. **Cards are accordions.** Agent, effective configuration, connected clients,
+   and recent activity start expanded; every other card starts collapsed. Each
+   opens from its header. A disabled feature hides its details and cannot be
+   opened; the header keeps the switch and status chip. The shell card is
+   expandable while its switch is on, and the switch stays amber until Apply
+   saves the draft.
 
 ## Edge cases
 

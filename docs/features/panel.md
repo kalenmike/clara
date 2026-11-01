@@ -18,12 +18,15 @@ monitoring on or off.
 2. The command opens that URL in a browser on the same machine. The panel
    connects to the agent's loopback API. If the agent was already running, for
    example under a service manager, the command only opens the URL.
-3. Every card starts collapsed. Review the headers for the agent process,
-   OpenCode, local transport, relay, push, effective configuration, clients,
-   activity, shell policy, and storage. Status chips sit beside each card title.
-4. Click a card header to expand its contents. Cards with a feature switch can
-   only be expanded while that feature is enabled; open the header again to
-   collapse it.
+3. The **Agent**, **Effective configuration**, **Connected clients**, and
+   **Recent activity** cards start expanded. Every other card starts collapsed.
+   Review the headers for the agent process, OpenCode, local transport, relay,
+   push, effective configuration, clients, activity, shell policy, and storage.
+   Status chips sit beside each card title, including a storage health summary
+   that turns amber for warnings and red for errors.
+4. Click a card header to expand or collapse its contents. Cards with a feature
+   switch can only be expanded while that feature is enabled; open the header
+   again to collapse it.
 5. Toggle OpenCode, local transport, relay, or push from the switch at the top
    right of its card. The choice is saved immediately. Turning a feature off
    hides its details; turning it on makes the header expandable.
@@ -41,7 +44,8 @@ monitoring on or off.
    disabled until the agent is started again; the shell policy stays editable
    because it only applies while connections are up.
 9. Review the connected-client table and the storage list. Status badges call
-   out degraded OpenCode, relay, push, permissions, or missing files.
+   out degraded OpenCode, relay, push, permissions, or missing files. The
+   storage header summarizes the most severe entry and its count.
 10. In **Traffic**, read the last minute's in and out rates, the request and
     error rates, the two sparklines for the last hour, and the totals since the
     window started. The card shows the local-versus-relay split, a peak minute,
@@ -138,6 +142,9 @@ monitoring on or off.
   and shows no rate or spike until one full minute has been measured.
 - **A spike is detected** — the badge and notice name the signal that crossed
   the threshold. A large but legitimate stream raises it too.
+- **A storage entry is unhealthy** — the storage header shows an error badge
+  when any entry failed, otherwise a warning badge for read-only files, broad
+  permissions, or missing required files. The tooltip counts each state.
 - **Config permissions are broad** — storage warns when the database,
   `server.json`, subscriptions, or VAPID keys are readable by other users.
 - **The panel was not built** — the page returns a short instruction to run
