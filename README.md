@@ -74,6 +74,13 @@ The pairing payload carries the agent's own `ws://127.0.0.1:8788/ws` URL, so no
 build-time endpoint is needed. Scan the QR or paste the code on the connect
 screen. Local mode still uses E2EE; it does not fall back to plaintext.
 
+Add `--local` (`pnpm --filter @clara/server pair:local`) to force a local-only
+code even when the agent has a relay configured. The local listener runs
+alongside the relay client, so this exercises the WebSocket transport — including
+the shell policy — without sending traffic through Cloudflare. For the dev app,
+set `CLARA_PAIRING_BASE_URL=http://localhost:5173` when pairing so the printed
+link opens Vite directly.
+
 A `local` pairing code only works where that URL is reachable, and an HTTPS page
 cannot open a `ws://` socket. For phones, configure the relay instead.
 

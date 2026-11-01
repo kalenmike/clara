@@ -42,7 +42,8 @@ pairs new devices from a QR code and proves the connection before showing data.
 3. Direct mode uses HTTP basic auth with the fixed `opencode` user. Credentials
    live in `sessionStorage` unless "remember" is checked.
 4. `VITE_CLARA_WS_URL` retargets relay-room pairings; a `local` pairing keeps the
-   endpoint from its payload. Pairing supplies the room, client token, and PSK.
+   endpoint from its payload. `clara-server pair --local` produces a `local`
+   pairing even when the agent has a relay configured. Pairing supplies the room, client token, and PSK.
 5. A stored device is retried on boot before local service detection.
 6. The connect screen holds a splash until the boot attempt settles, but a
    12-second watchdog reveals the options if the probe wedges. Normal probe and
