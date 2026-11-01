@@ -14,11 +14,28 @@ export type PushSubscriptionPayload = {
   keys: PushSubscriptionKeys
 }
 
+/** How a paired device presents itself for notification routing. */
+export type DeviceClass = 'desktop' | 'mobile'
+
+/**
+ * A browser's self-report, attached to the heartbeat. The home agent uses it to
+ * hold mobile pushes while a desktop client is visibly in use.
+ */
+export type PresenceSnapshot = {
+  deviceClass: DeviceClass
+  /** True when this client can raise its own alert and should be treated as the desk. */
+  holdPhone: boolean
+  visible: boolean
+  /** Milliseconds since the last pointer, key, or arrival event. */
+  idleMs: number
+}
+
 export type PushSubscribeAction = {
   type: 'push.subscribe'
   id?: string
   subscription: PushSubscriptionPayload
   userAgent?: string
+  deviceClass?: DeviceClass
 }
 
 export type PushUnsubscribeAction = {
@@ -48,7 +65,7 @@ export type ClaraAction =
       body?: string
     }
   | { type: 'http.abort'; id: string }
-  | { type: 'ping'; at: number }
+  | { type: 'ping'; at: number; presence?: PresenceSnapshot }
   | { type: 'pong'; at: number }
   | { type: 'ready'; agent: AgentInfo }
   | { type: 'ready.ack'; agent: AgentInfo }

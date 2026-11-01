@@ -25,6 +25,11 @@ export type PushServiceOptions = {
   send?: Sender
 }
 
+export type PushNotifyOptions = {
+  /** Hold mobile devices, for example while a desktop client is in use. */
+  skipMobile?: boolean
+}
+
 export class PushService {
   readonly publicKey: string
   private readonly store: PushSubscriptionStore
@@ -86,14 +91,17 @@ export class PushService {
     return { count: this.store.size }
   }
 
-  async notify(payload: PushNotificationPayload): Promise<void> {
+  async notify(payload: PushNotificationPayload, options: PushNotifyOptions = {}): Promise<void> {
     if (this.store.size === 0) return
-    await this.sendAll(JSON.stringify(payload))
+    await this.sendAll(JSON.stringify(payload), options)
   }
 
-  private async sendAll(text: string): Promise<void> {
+  private async sendAll(text: string, options: PushNotifyOptions = {}): Promise<void> {
     const subscriptions = [...this.store.list()]
-    await Promise.allSettled(subscriptions.map((entry) => this.sendOne(entry, text)))
+    const targets = options.skipMobile
+      ? subscriptions.filter((entry) => entry.deviceClass === 'desktop')
+      : subscriptions
+    await Promise.allSettled(targets.map((entry) => this.sendOne(entry, text)))
   }
 
   private async sendOne(

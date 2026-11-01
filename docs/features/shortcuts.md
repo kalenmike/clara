@@ -65,6 +65,9 @@ actions; direct keys handle interruption and switching.
   theme, and does not cycle through "system".
 - Tab and Shift+Tab cycle agents inside the message box, so the textarea cannot
   be left with Tab; click elsewhere to move focus.
+- Settings lists the shortcut table only on devices with a fine primary pointer.
+  A touch device with an attached hardware keyboard can still use the shortcuts,
+  but the reference card stays hidden.
 
 ## Technical appendix
 
@@ -91,7 +94,8 @@ actions; direct keys handle interruption and switching.
 | `shift+enter`             | Newline                        |
 
 - Hook: `src/hooks/use-keybinds.ts`
-- Settings screen lists the same table: `/settings`
+- Settings screen lists the same table on pointer devices: `/settings`
+- Device check: `src/hooks/use-is-touch-device.ts` (`pointer: coarse`)
 - Related: [composer](composer.md), [chat](chat.md), [git](git.md)
 
 </details>

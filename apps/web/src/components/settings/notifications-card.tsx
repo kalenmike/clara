@@ -17,6 +17,13 @@ import { Separator } from '@/components/ui/separator'
 import { Slider } from '@/components/ui/slider'
 import { Switch } from '@/components/ui/switch'
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
+import {
   ATTENTION_DESCRIPTIONS,
   ATTENTION_KINDS,
   ATTENTION_LABELS,
@@ -25,10 +32,12 @@ import {
 import {
   readNotificationPermission,
   requestNotificationPermission,
+  type NotificationPermissionState,
 } from '@/features/notifications/notifier'
 import { useNotificationPermission } from '@/features/notifications/use-notification-permission'
 import { useNotificationSettings } from '@/features/notifications/use-notification-settings'
 import { playAttentionSound, playDoneSound } from '@/features/notifications/sounds'
+import { DESK_IDLE_OPTIONS_MS } from '@/features/notifications/settings'
 import { usePush } from '@/providers/push-provider'
 import { useSessionWording } from '@/features/sessions/use-wording'
 
@@ -39,36 +48,14 @@ const KIND_ICONS: Record<AttentionKind, typeof Eye> = {
   error: CircleAlert,
 }
 
-export function NotificationsCard() {
+export function NotificationsCard({ isTouchDevice }: { isTouchDevice: boolean }) {
   const { settings, update } = useNotificationSettings()
   const { permission, setPermission } = useNotificationPermission()
-  const push = usePush()
   const { lowerSingular } = useSessionWording()
 
-  const supported = permission !== 'unsupported'
-  const desktopEnabled = permission === 'granted' && settings.desktop
-
-  const togglePush = async (enabled: boolean) => {
-    if (enabled) await push.enable()
-    else await push.disable()
-    setPermission(readNotificationPermission())
-  }
-
-  const toggleDesktop = async (enabled: boolean) => {
-    if (!enabled) {
-      update({ desktop: false })
-      return
-    }
-    if (permission === 'granted') {
-      update({ desktop: true })
-      return
-    }
-    if (permission === 'denied') return
-
-    const next = await requestNotificationPermission()
-    setPermission(next)
-    if (next === 'granted') update({ desktop: true })
-  }
+  // Hide the desktop-only row on touch devices, but keep it reachable while a
+  // previous session has it enabled so it can still be switched off.
+  const showDesktop = !isTouchDevice || settings.desktop
 
   const toggleSound = (kind: AttentionKind, enabled: boolean) => {
     update({ soundKinds: { ...settings.soundKinds, [kind]: enabled } })
@@ -78,15 +65,6 @@ export function NotificationsCard() {
     update({ uiSounds: enabled })
     if (enabled) playDoneSound(settings.volume)
   }
-
-  const desktopDescription =
-    permission === 'unsupported'
-      ? 'This browser cannot show system notifications here.'
-      : permission === 'denied'
-        ? 'Blocked by the browser. Allow notifications for this site in browser settings.'
-        : permission === 'default'
-          ? 'Turn this on to ask the browser for permission.'
-          : `Show a system notification when a ${lowerSingular} needs you.`
 
   return (
     <Card>
@@ -99,55 +77,14 @@ export function NotificationsCard() {
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
-        <div className="flex items-start justify-between gap-4">
-          <div className="min-w-0">
-            <div className="text-sm">Desktop notifications</div>
-            <p className="mt-0.5 text-xs text-muted-foreground">{desktopDescription}</p>
-          </div>
-          <Switch
-            checked={desktopEnabled}
-            onCheckedChange={(checked) => void toggleDesktop(checked)}
-            disabled={!supported || permission === 'denied'}
-            aria-label="Desktop notifications"
-          />
-        </div>
-
-        <div className="flex items-start justify-between gap-4">
-          <div className="min-w-0">
-            <div className="flex items-center gap-2 text-sm">
-              <Send className="size-3.5 text-muted-foreground" /> Push notifications
-            </div>
-            <p className="mt-0.5 text-xs text-muted-foreground">
-              {push.reason ?? 'Receive alerts when Clara is closed or in the background.'}
-            </p>
-            {push.error && <p className="mt-1 text-xs text-destructive">{push.error}</p>}
-          </div>
-          <Switch
-            checked={push.enabled}
-            onCheckedChange={(checked) => void togglePush(checked)}
-            disabled={!push.available || push.busy || (push.isIosDevice && !push.isInstalled)}
-            aria-label="Push notifications"
-          />
-        </div>
-
-        {push.enabled && (
-          <div className="flex flex-wrap items-center gap-2 pl-6">
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={() => void push.test()}
-              disabled={push.busy}
-            >
-              <Send className="size-3.5" /> Send test
-            </Button>
-            {push.count !== null && (
-              <span className="text-[11px] text-muted-foreground">
-                {push.count} {push.count === 1 ? 'device' : 'devices'} registered
-              </span>
-            )}
-          </div>
+        {showDesktop && (
+          <>
+            <DesktopNotificationsSetting permission={permission} setPermission={setPermission} />
+            <Separator />
+          </>
         )}
+
+        <PushNotificationsSetting setPermission={setPermission} isTouchDevice={isTouchDevice} />
 
         <Separator />
 
@@ -247,13 +184,159 @@ export function NotificationsCard() {
             />
           </div>
         </div>
-
-        {permission === 'unsupported' && (
-          <p className="text-[11px] text-muted-foreground">
-            System notifications need a secure browser context.
-          </p>
-        )}
       </CardContent>
     </Card>
+  )
+}
+
+function DesktopNotificationsSetting({
+  permission,
+  setPermission,
+}: {
+  permission: NotificationPermissionState
+  setPermission: (permission: NotificationPermissionState) => void
+}) {
+  const { settings, update } = useNotificationSettings()
+  const { lowerSingular } = useSessionWording()
+
+  const supported = permission !== 'unsupported'
+  const desktopEnabled = permission === 'granted' && settings.desktop
+
+  const toggleDesktop = async (enabled: boolean) => {
+    if (!enabled) {
+      update({ desktop: false })
+      return
+    }
+    if (permission === 'granted') {
+      update({ desktop: true })
+      return
+    }
+    if (permission === 'denied') return
+
+    const next = await requestNotificationPermission()
+    setPermission(next)
+    if (next === 'granted') update({ desktop: true })
+  }
+
+  const description =
+    permission === 'unsupported'
+      ? 'This browser cannot show system notifications here.'
+      : permission === 'denied'
+        ? 'Blocked by the browser. Allow notifications for this site in browser settings.'
+        : permission === 'default'
+          ? 'Turn this on to ask the browser for permission.'
+          : `Show a system notification when a ${lowerSingular} needs you.`
+
+  return (
+    <>
+      <div className="flex items-start justify-between gap-4">
+        <div className="min-w-0">
+          <div className="text-sm">Desktop notifications</div>
+          <p className="mt-0.5 text-xs text-muted-foreground">{description}</p>
+        </div>
+        <Switch
+          checked={desktopEnabled}
+          onCheckedChange={(checked) => void toggleDesktop(checked)}
+          disabled={!supported || permission === 'denied'}
+          aria-label="Desktop notifications"
+        />
+      </div>
+
+      {permission === 'unsupported' && (
+        <p className="text-[11px] text-muted-foreground">
+          System notifications need a secure browser context.
+        </p>
+      )}
+    </>
+  )
+}
+
+function PushNotificationsSetting({
+  setPermission,
+  isTouchDevice,
+}: {
+  setPermission: (permission: NotificationPermissionState) => void
+  isTouchDevice: boolean
+}) {
+  const push = usePush()
+  const { settings, update } = useNotificationSettings()
+
+  const togglePush = async (enabled: boolean) => {
+    if (enabled) await push.enable()
+    else await push.disable()
+    setPermission(readNotificationPermission())
+  }
+
+  return (
+    <>
+      <div className="flex items-start justify-between gap-4">
+        <div className="min-w-0">
+          <div className="flex items-center gap-2 text-sm">
+            <Send className="size-3.5 text-muted-foreground" /> Push notifications
+          </div>
+          <p className="mt-0.5 text-xs text-muted-foreground">
+            {push.reason ?? 'Receive alerts when Clara is closed or in the background.'}
+          </p>
+          {push.error && <p className="mt-1 text-xs text-destructive">{push.error}</p>}
+        </div>
+        <Switch
+          checked={push.enabled}
+          onCheckedChange={(checked) => void togglePush(checked)}
+          disabled={!push.available || push.busy || (push.isIosDevice && !push.isInstalled)}
+          aria-label="Push notifications"
+        />
+      </div>
+
+      {push.enabled && (
+        <>
+          <div className="flex flex-wrap items-center gap-2 pl-6">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => void push.test()}
+              disabled={push.busy}
+            >
+              <Send className="size-3.5" /> Send test
+            </Button>
+            {push.count !== null && (
+              <span className="text-[11px] text-muted-foreground">
+                {push.count} {push.count === 1 ? 'device' : 'devices'} registered
+              </span>
+            )}
+          </div>
+
+          {!isTouchDevice && (
+            <div className="flex items-start justify-between gap-4 pl-6">
+              <div className="min-w-0">
+                <div className="text-xs">Hold phone alerts</div>
+                <p className="mt-0.5 text-[11px] text-muted-foreground">
+                  Stop mobile pushes while this window is visible and you have been active.
+                </p>
+              </div>
+              <Select
+                value={String(settings.deskIdleMs)}
+                onValueChange={(value) => update({ deskIdleMs: Number(value) })}
+              >
+                <SelectTrigger
+                  size="sm"
+                  className="w-[104px] shrink-0"
+                  aria-label="Hold phone alerts after inactivity"
+                >
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {DESK_IDLE_OPTIONS_MS.map((ms) => (
+                    <SelectItem key={ms} value={String(ms)}>
+                      {ms / 60_000} min
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
+        </>
+      )}
+    </>
   )
 }

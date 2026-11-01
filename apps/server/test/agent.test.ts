@@ -270,6 +270,40 @@ describe('agent', () => {
     }
   })
 
+  it('reports desk presence from heartbeat pings', async () => {
+    const fake = await startFakeOpenCode()
+    try {
+      const { agent, client, frames } = await connect(fake)
+      await waitFor(() => (frames.length >= 2 ? true : undefined))
+      await send(client, agent, { type: 'ready.ack', agent: { version: 'web', protocol: 1 } })
+
+      await send(client, agent, {
+        type: 'ping',
+        at: Date.now(),
+        presence: { deviceClass: 'mobile', holdPhone: true, visible: true, idleMs: 0 },
+      })
+      await new Promise((resolve) => setTimeout(resolve, 20))
+      expect(agent.deskHoldActive()).toBe(false)
+
+      await send(client, agent, {
+        type: 'ping',
+        at: Date.now(),
+        presence: { deviceClass: 'desktop', holdPhone: true, visible: true, idleMs: 0 },
+      })
+      await waitFor(() => (agent.deskHoldActive() ? true : undefined))
+      expect(agent.deskHoldActive(Date.now() + 120_000)).toBe(false)
+
+      await send(client, agent, {
+        type: 'ping',
+        at: Date.now(),
+        presence: { deviceClass: 'desktop', holdPhone: false, visible: true, idleMs: 600_000 },
+      })
+      await waitFor(() => (agent.deskHoldActive() ? undefined : true))
+    } finally {
+      await fake.close()
+    }
+  })
+
   it('rejects paths outside the OpenCode API', async () => {
     const fake = await startFakeOpenCode()
     try {

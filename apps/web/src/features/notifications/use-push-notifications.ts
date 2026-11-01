@@ -12,6 +12,7 @@ import {
   toPushSubscriptionPayload,
   unsubscribeFromPush,
 } from './push'
+import { readDeviceClass } from './presence'
 import { useNotificationSettings } from './use-notification-settings'
 
 export type PushNotificationsState = {
@@ -69,6 +70,7 @@ export function usePushNotifications(): PushNotificationsState {
         id: requestId(),
         subscription,
         userAgent: navigator.userAgent.slice(0, 200),
+        deviceClass: readDeviceClass(),
       })
     },
     [control]

@@ -21,6 +21,7 @@ import {
   type ClaraState,
   type WireFrame,
 } from '@clara/shared-types'
+import { installPresenceTracking, readPresenceSnapshot } from '@/features/notifications/presence'
 
 const HANDSHAKE_TIMEOUT_MS = 10_000
 const REQUEST_HEAD_TIMEOUT_MS = 30_000
@@ -90,6 +91,7 @@ class RelayFetchTransport implements RelayTransport {
   private handshakeTimer: number | null = null
   private reconnectTimer: number | null = null
   private heartbeatTimer: number | null = null
+  private stopPresenceTracking: (() => void) | null = null
   private lastReceivedAt = 0
   private retry = 0
   private closed = false
@@ -534,19 +536,34 @@ class RelayFetchTransport implements RelayTransport {
   private startHeartbeat(): void {
     this.stopHeartbeat()
     this.lastReceivedAt = Date.now()
+    this.stopPresenceTracking = installPresenceTracking((reason) => {
+      this.sendPresence(reason === 'pagehide')
+    })
+    this.sendPresence()
     this.heartbeatTimer = window.setInterval(() => {
       if (this.statusValue.state !== 'open') return
       if (Date.now() - this.lastReceivedAt > STALL_MS) {
         this.socket?.close(4004, 'heartbeat timeout')
         return
       }
-      void this.send({ type: 'ping', at: Date.now() }).catch(() => {})
+      this.sendPresence()
     }, HEARTBEAT_MS)
+  }
+
+  private sendPresence(leaving = false): void {
+    if (this.statusValue.state !== 'open') return
+    void this.send({
+      type: 'ping',
+      at: Date.now(),
+      presence: readPresenceSnapshot({ leaving }),
+    }).catch(() => {})
   }
 
   private stopHeartbeat(): void {
     if (this.heartbeatTimer !== null) window.clearInterval(this.heartbeatTimer)
     this.heartbeatTimer = null
+    this.stopPresenceTracking?.()
+    this.stopPresenceTracking = null
   }
 
   private clearTimers(): void {

@@ -81,8 +81,10 @@ Clara supports three modes:
 | Local agent | Pairing payload URL (`local` room) | E2EE PSK + local WebSocket                            |
 | Direct      | No pairing                         | OpenCode HTTP basic auth, or the Vite `/oc` dev proxy |
 
-The connect screen offers pairing first and keeps the direct URL/password form
-for fallback. Pairing is described in [pairing.md](../features/pairing.md).
+The connect screen first proves any pairing link or stored device behind a
+branded splash. If none connects, it offers a chooser with the pairing form and
+the direct URL/password fallback; only the chosen form renders. Pairing is
+described in [pairing.md](../features/pairing.md).
 
 Direct mode reads the background service registration when present:
 

@@ -156,16 +156,6 @@ export function ChatHeader({
         </span>
       </Button>
 
-      <Button
-        variant="ghost"
-        size="icon"
-        onClick={onToggleInfo}
-        className={cn('size-8 max-md:size-11', infoOpen && 'bg-accent')}
-      >
-        <PanelRight className="size-4 max-md:size-5" />
-        <span className="sr-only">Toggle side panel</span>
-      </Button>
-
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
           <Button variant="ghost" size="icon" className="size-8 max-md:size-11">
@@ -199,6 +189,16 @@ export function ChatHeader({
           </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
+
+      <Button
+        variant="ghost"
+        size="icon"
+        onClick={onToggleInfo}
+        className={cn('size-8 max-md:size-11', infoOpen && 'bg-accent')}
+      >
+        <PanelRight className="size-4 max-md:size-5" />
+        <span className="sr-only">Toggle side panel</span>
+      </Button>
     </>
   )
 

@@ -12,12 +12,14 @@ desktop pastes the same code, and Clara stores the device configuration locally.
 2. Run `clara-server pair` on the machine that runs the agent. The terminal
    prints a QR code, a `https://clara.kalenmichael.com/#pair=…` link, a
    `clara1_…` code, and the key fingerprint.
-3. Open Clara on the device. A link from the QR is consumed automatically; a
-   code can be pasted into **Pair this device**.
+3. Open Clara on the device. A link from the QR is consumed automatically and
+   shows a branded connecting splash; a code can be pasted into
+   **Pair this device**.
 4. Clara validates the payload, connects to the full WebSocket URL, completes
    the E2EE handshake, and calls the OpenCode info endpoint through the tunnel.
 5. On success the device is stored and Clara opens the last project. The
    Settings → Server card shows the relay state and fingerprint-backed session.
+   On failure Clara returns to the pair form and shows the reason.
 6. **Settings → Disconnect** clears the stored pairing, disables push on this
    device, and returns to the connect screen.
 7. Run `clara-server pair --rotate` to invalidate every paired device, clear
@@ -46,6 +48,8 @@ desktop pastes the same code, and Clara stores the device configuration locally.
 
 - **Invalid or truncated code** — the form reports a pairing-code error and
   keeps the input.
+- **Pairing link fails** — the connecting splash gives way to the pair form,
+  which shows the relay, handshake, or fingerprint failure.
 - **Fingerprint mismatch** — the transport closes with `4001`; the connect
   screen reports a key mismatch and asks for a fresh code.
 - **Relay offline** — the device connects but the agent is absent; the client

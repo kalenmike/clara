@@ -10,6 +10,7 @@ import { ThemeCard } from '@/components/settings/theme-card'
 import { WordingCard } from '@/components/settings/wording-card'
 import { useSessionWording } from '@/features/sessions/use-wording'
 import type { SessionWording } from '@/features/sessions/wording'
+import { useIsTouchDevice } from '@/hooks/use-is-touch-device'
 import { connectionUrl, isRelayConfig } from '@/lib/client'
 import { useConnection } from '@/providers/connection-provider'
 import { useEventStream } from '@/providers/event-provider'
@@ -42,8 +43,9 @@ export function SettingsPage() {
     useConnection()
   const { state: streamState, lastError } = useEventStream()
   const push = usePush()
+  const isTouchDevice = useIsTouchDevice()
   const wording = useSessionWording()
-  const shortcuts = shortcutList(wording)
+  const shortcuts = isTouchDevice ? [] : shortcutList(wording)
 
   const signOut = async () => {
     await push.disable()
@@ -70,7 +72,9 @@ export function SettingsPage() {
           </Link>
           <h1 className="text-xl font-semibold tracking-tight">Settings</h1>
           <p className="text-sm text-muted-foreground">
-            Connection, appearance, wording, notifications, sounds, and shortcuts.
+            {isTouchDevice
+              ? 'Connection, appearance, wording, notifications, and sounds.'
+              : 'Connection, appearance, wording, notifications, sounds, and shortcuts.'}
           </p>
         </div>
 
@@ -125,26 +129,28 @@ export function SettingsPage() {
 
         <WordingCard />
 
-        <NotificationsCard />
+        <NotificationsCard isTouchDevice={isTouchDevice} />
 
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-sm">Keyboard shortcuts</CardTitle>
-            <CardDescription>Based on the standard OpenCode keybinds.</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="grid gap-x-8 gap-y-2 sm:grid-cols-2">
-              {shortcuts.map(([keys, action]) => (
-                <div key={keys} className="flex items-center justify-between gap-3 text-xs">
-                  <span className="text-muted-foreground">{action}</span>
-                  <kbd className="rounded border bg-muted px-1.5 py-0.5 font-mono text-[10px]">
-                    {keys}
-                  </kbd>
-                </div>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
+        {!isTouchDevice && (
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-sm">Keyboard shortcuts</CardTitle>
+              <CardDescription>Based on the standard OpenCode keybinds.</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="grid gap-x-8 gap-y-2 sm:grid-cols-2">
+                {shortcuts.map(([keys, action]) => (
+                  <div key={keys} className="flex items-center justify-between gap-3 text-xs">
+                    <span className="text-muted-foreground">{action}</span>
+                    <kbd className="rounded border bg-muted px-1.5 py-0.5 font-mono text-[10px]">
+                      {keys}
+                    </kbd>
+                  </div>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+        )}
       </div>
     </div>
   )

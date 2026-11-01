@@ -55,6 +55,31 @@ describe('PushSubscriptionStore', () => {
     expect(reloaded.size).toBe(0)
   })
 
+  it('keeps the device class used for notification routing', () => {
+    const path = join(tempDir(), 'subscriptions.json')
+    const store = new PushSubscriptionStore(path)
+    const desktop = { ...subscription(), endpoint: 'https://web.push.apple.com/desktop' }
+    const mobile = { ...subscription(), endpoint: 'https://web.push.apple.com/mobile' }
+
+    store.upsert(desktop, { userAgent: 'Mozilla/5.0 (X11; Linux x86_64)', deviceClass: 'desktop' })
+    store.upsert(mobile, { userAgent: 'Mozilla/5.0 (iPhone)', deviceClass: 'mobile' })
+
+    expect(store.list().map((entry) => entry.deviceClass)).toEqual(['desktop', 'mobile'])
+
+    const reloaded = new PushSubscriptionStore(path)
+    expect(reloaded.list().map((entry) => entry.deviceClass)).toEqual(['desktop', 'mobile'])
+  })
+
+  it('falls back to the user agent when a stored subscription has no device class', () => {
+    const path = join(tempDir(), 'subscriptions.json')
+    const store = new PushSubscriptionStore(path)
+    const sub = subscription()
+    store.upsert(sub, { userAgent: 'Mozilla/5.0 (iPhone; CPU iPhone OS 18_0)' })
+
+    expect(store.list()[0]?.deviceClass).toBe('mobile')
+    expect(new PushSubscriptionStore(path).list()[0]?.deviceClass).toBe('mobile')
+  })
+
   it('rejects non-HTTPS endpoints and malformed keys', () => {
     expect(() =>
       normalizePushSubscription({ ...subscription(), endpoint: 'http://localhost/push' })
@@ -143,6 +168,39 @@ describe('PushService', () => {
     expect(sent).toHaveLength(1)
     expect(JSON.parse(sent[0]).title).toBe('Clara · Brief Complete')
     expect(store.list()[0]?.lastSuccessAt).toBeTypeOf('number')
+  })
+
+  it('holds mobile devices while a desktop client is active', async () => {
+    const store = new PushSubscriptionStore(join(tempDir(), 'subscriptions.json'))
+    const desktop = { ...subscription(), endpoint: 'https://web.push.apple.com/desktop' }
+    const mobile = { ...subscription(), endpoint: 'https://web.push.apple.com/mobile' }
+    store.upsert(desktop, { deviceClass: 'desktop' })
+    store.upsert(mobile, { deviceClass: 'mobile' })
+
+    const sent: string[] = []
+    const service = new PushService({
+      ...webpush.generateVAPIDKeys(),
+      subject: 'https://clara.example.com',
+      store,
+      send: async (entry) => {
+        sent.push(entry.endpoint)
+        return { statusCode: 201 }
+      },
+    })
+
+    const payload = buildPushPayload({
+      kind: 'review',
+      sessionID: 's1',
+      sessionTitle: 'A session',
+      url: '/',
+    })
+
+    await service.notify(payload, { skipMobile: true })
+    expect(sent).toEqual([desktop.endpoint])
+
+    sent.length = 0
+    await service.notify(payload)
+    expect(sent.sort()).toEqual([desktop.endpoint, mobile.endpoint].sort())
   })
 
   it('drops a subscription that the push service reports as gone', async () => {

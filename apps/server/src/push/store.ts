@@ -1,6 +1,6 @@
 import { existsSync, mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs'
 import { dirname } from 'node:path'
-import type { PushSubscriptionPayload } from '@clara/shared-types'
+import type { DeviceClass, PushSubscriptionPayload } from '@clara/shared-types'
 
 const MAX_SUBSCRIPTIONS = 32
 const MAX_ENDPOINT_LENGTH = 2048
@@ -12,6 +12,7 @@ export type StoredPushSubscription = PushSubscriptionPayload & {
   createdAt: number
   updatedAt: number
   userAgent?: string
+  deviceClass?: DeviceClass
   lastSuccessAt?: number
   lastError?: string
 }
@@ -23,6 +24,7 @@ type StoreFile = {
 
 export type SubscriptionMeta = {
   userAgent?: string
+  deviceClass?: DeviceClass
 }
 
 export type SubscriptionResult = {
@@ -64,11 +66,16 @@ export class PushSubscriptionStore {
 
     const previous = index === -1 ? undefined : this.entries[index]
     const userAgent = normalizeUserAgent(meta.userAgent)
+    const deviceClass =
+      normalizeDeviceClass(meta.deviceClass) ??
+      previous?.deviceClass ??
+      classifyUserAgent(userAgent)
     const entry: StoredPushSubscription = {
       ...normalized,
       createdAt: previous?.createdAt ?? now,
       updatedAt: now,
       ...(userAgent ? { userAgent } : {}),
+      ...(deviceClass ? { deviceClass } : {}),
       ...(previous?.lastSuccessAt ? { lastSuccessAt: previous.lastSuccessAt } : {}),
       ...(previous?.lastError ? { lastError: previous.lastError } : {}),
     }
@@ -136,12 +143,14 @@ export class PushSubscriptionStore {
         const subscription = normalizePushSubscription(candidate)
         const record = candidate as Record<string, unknown>
         const userAgent = normalizeUserAgent(record.userAgent)
+        const deviceClass = normalizeDeviceClass(record.deviceClass) ?? classifyUserAgent(userAgent)
         const lastSuccessAt = readTimestamp(record.lastSuccessAt)
         entries.push({
           ...subscription,
           createdAt: readTimestamp(record.createdAt),
           updatedAt: readTimestamp(record.updatedAt),
           ...(userAgent ? { userAgent } : {}),
+          ...(deviceClass ? { deviceClass } : {}),
           ...(lastSuccessAt ? { lastSuccessAt } : {}),
           ...(typeof record.lastError === 'string'
             ? { lastError: clip(record.lastError, MAX_ERROR_LENGTH) }
@@ -236,6 +245,16 @@ function normalizeUserAgent(value: unknown): string | undefined {
   if (typeof value !== 'string') return undefined
   const clean = value.replace(/\s+/g, ' ').trim()
   return clean ? clip(clean, MAX_USER_AGENT_LENGTH) : undefined
+}
+
+function normalizeDeviceClass(value: unknown): DeviceClass | undefined {
+  return value === 'desktop' || value === 'mobile' ? value : undefined
+}
+
+/** Older subscriptions predate `deviceClass`; fall back to the stored user agent. */
+function classifyUserAgent(value: string | undefined): DeviceClass | undefined {
+  if (!value) return undefined
+  return /Android|iPhone|iPad|iPod|Mobile/i.test(value) ? 'mobile' : 'desktop'
 }
 
 function readTimestamp(value: unknown): number {

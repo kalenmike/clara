@@ -21,3 +21,8 @@ export function takePairingLink(): PairingPayload | null {
   pending = null
   return value
 }
+
+/** Inspect a captured link without consuming it, so boot UI can label itself. */
+export function hasPendingPairingLink(): boolean {
+  return pending !== null
+}

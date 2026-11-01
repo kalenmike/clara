@@ -27,11 +27,18 @@ import {
 } from '@/lib/client'
 import type { RelayTransportStatus } from '@/lib/transport/relay'
 import { chatStore } from '@/features/chat/chat-store'
-import { takePairingLink } from '@/lib/pairing'
+import { hasPendingPairingLink, takePairingLink } from '@/lib/pairing'
 import { clearStoredConnection, loadStoredConnection, saveStoredConnection } from '@/lib/storage'
 
 const PROBE_TIMEOUT_MS = 8_000
 const RECONNECT_TIMEOUT_MS = 5_000
+/**
+ * The connect screen holds its boot splash until the first attempt settles.
+ * Every normal path has a shorter timeout; this only guards a wedged handshake.
+ */
+const BOOT_TIMEOUT_MS = 12_000
+
+export type ConnectionBootSource = 'pairing-link' | 'stored' | 'local' | null
 
 type ConnectionContextValue = {
   config: ConnectionConfig | null
@@ -40,6 +47,9 @@ type ConnectionContextValue = {
   status: ConnectionStatus
   error: string | null
   attempt: ConnectionConfig | null
+  /** True until the initial stored/local/link attempt has settled. */
+  booting: boolean
+  bootSource: ConnectionBootSource
   localInfo: ServerInfo | null
   relayStatus: RelayTransportStatus | null
   /** Bumped when a new client is installed so the stream resubscribes. */
@@ -66,6 +76,11 @@ export function ConnectionProvider({ children }: { children: ReactNode }) {
   const [status, setStatus] = useState<ConnectionStatus>('disconnected')
   const [error, setError] = useState<string | null>(null)
   const [attempt, setAttempt] = useState<ConnectionConfig | null>(() => loadStoredConnection())
+  const [booting, setBooting] = useState(true)
+  const [bootSource, setBootSource] = useState<ConnectionBootSource>(() => {
+    if (hasPendingPairingLink()) return 'pairing-link'
+    return attempt ? 'stored' : 'local'
+  })
   const [localInfo, setLocalInfo] = useState<ServerInfo | null>(null)
   const [relayStatus, setRelayStatus] = useState<RelayTransportStatus | null>(null)
   const [control, setControl] = useState<ClientControl | null>(null)
@@ -196,37 +211,47 @@ export function ConnectionProvider({ children }: { children: ReactNode }) {
     booted.current = true
     bootStarted = true
 
+    const timeout = window.setTimeout(() => setBooting(false), BOOT_TIMEOUT_MS)
+
     const boot = async () => {
-      // A pairing link owns the first connection attempt, even when React
-      // Router has already rewritten the URL to `/connect`.
-      const pairing = takePairingLink()
-      if (pairing) {
-        await connect({
-          mode: 'relay',
-          ...pairing,
-          wsUrl: resolveRelayWsUrl(pairing.wsUrl, pairing.room),
-          remember: true,
-          label: 'Clara server',
-        })
-        return
-      }
+      try {
+        // A pairing link owns the first connection attempt, even when React
+        // Router has already rewritten the URL to `/connect`.
+        const pairing = takePairingLink()
+        if (pairing) {
+          setBootSource('pairing-link')
+          await connect({
+            mode: 'relay',
+            ...pairing,
+            wsUrl: resolveRelayWsUrl(pairing.wsUrl, pairing.room),
+            remember: true,
+            label: 'Clara server',
+          })
+          return
+        }
 
-      const stored = loadStoredConnection()
-      if (stored) {
-        // Re-resolve the stored endpoint so a deployment switch change applies
-        // to devices paired before it was set. Local pairings keep their URL.
-        const config = isRelayConfig(stored)
-          ? { ...stored, wsUrl: resolveRelayWsUrl(stored.wsUrl, stored.room) }
-          : stored
-        // Do not make the stored connection wait for the local-service probe.
-        if (!isRelayConfig(config)) void detectLocalService().then(setLocalInfo)
-        await connect(config)
-        return
-      }
+        const stored = loadStoredConnection()
+        if (stored) {
+          setBootSource('stored')
+          // Re-resolve the stored endpoint so a deployment switch change applies
+          // to devices paired before it was set. Local pairings keep their URL.
+          const config = isRelayConfig(stored)
+            ? { ...stored, wsUrl: resolveRelayWsUrl(stored.wsUrl, stored.room) }
+            : stored
+          // Do not make the stored connection wait for the local-service probe.
+          if (!isRelayConfig(config)) void detectLocalService().then(setLocalInfo)
+          await connect(config)
+          return
+        }
 
-      const local = await detectLocalService()
-      setLocalInfo(local)
-      if (local) await connect(localProxyConfig())
+        setBootSource('local')
+        const local = await detectLocalService()
+        setLocalInfo(local)
+        if (local) await connect(localProxyConfig())
+      } finally {
+        window.clearTimeout(timeout)
+        setBooting(false)
+      }
     }
 
     void boot()
@@ -242,6 +267,8 @@ export function ConnectionProvider({ children }: { children: ReactNode }) {
       status,
       error,
       attempt,
+      booting,
+      bootSource,
       localInfo,
       relayStatus,
       generation,
@@ -260,6 +287,8 @@ export function ConnectionProvider({ children }: { children: ReactNode }) {
       status,
       error,
       attempt,
+      booting,
+      bootSource,
       localInfo,
       relayStatus,
       generation,

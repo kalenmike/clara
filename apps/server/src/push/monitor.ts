@@ -17,6 +17,8 @@ const MAX_BACKOFF_MS = 30_000
 export type PushMonitorOptions = {
   openCode: OpenCodeClient
   push: PushService
+  /** True while a desktop client is visible and recently used. */
+  isDeskActive?: () => boolean
   log?: (message: string, detail?: unknown) => void
 }
 
@@ -28,6 +30,7 @@ export type PushMonitorOptions = {
 export class PushMonitor {
   private readonly openCode: OpenCodeClient
   private readonly push: PushService
+  private readonly isDeskActive?: () => boolean
   private readonly log?: (message: string, detail?: unknown) => void
   private readonly timers = new Map<string, NodeJS.Timeout>()
   private readonly interrupted = new Set<string>()
@@ -39,6 +42,7 @@ export class PushMonitor {
   constructor(options: PushMonitorOptions) {
     this.openCode = options.openCode
     this.push = options.push
+    this.isDeskActive = options.isDeskActive
     this.log = options.log
   }
 
@@ -172,7 +176,8 @@ export class PushMonitor {
           sessionTitle: session.title,
           detail,
           url,
-        })
+        }),
+        { skipMobile: this.isDeskActive?.() === true }
       )
     } catch (cause) {
       this.log?.('push notification failed', cause)

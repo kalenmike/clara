@@ -11,19 +11,22 @@ start an agent run and move on, so they do not have to watch the sidebar.
 
 ## User flow
 
-1. The person opens **Settings** and turns on **Desktop notifications**; the
-   browser asks for permission the first time.
+1. The person opens **Settings** on a desktop and turns on **Desktop
+   notifications**; the browser asks for permission the first time.
 2. They can keep **Inbox notification sounds** on, adjust the shared volume, and
    mute any of the four states. **UI sounds** controls the Done chime.
-3. They can turn on **Push notifications** when Clara is connected through the
-   home agent, then send a test notification to prove delivery.
+3. They can turn on **Push notifications** on any device when Clara is connected
+   through the home agent, then send a test notification to prove delivery.
 4. On iPhone and iPad, push requires adding Clara to the Home Screen and opening
    it from that icon before turning push on.
 5. A run ends, a question arrives, a plan finishes, or a run fails. Clara plays
    the matching sound and, if the session is not open and focused, shows an
    alert.
 6. If Clara is hidden or closed, the home agent sends the push and the person
-   taps it. Clicking any notification focuses Clara and opens the session.
+   taps it. While a desktop client is visible and recently used, mobile pushes
+   are held so the desk is alerted once; after the idle window, or when the
+   desktop window is hidden, the phone starts receiving alerts again. Clicking
+   any notification focuses Clara and opens the session.
 7. When the person marks a session Done, Clara plays the completion chime if
    **UI sounds** is on.
 8. The sidebar still shows the same state with its dot, and the person can
@@ -50,8 +53,20 @@ start an agent run and move on, so they do not have to watch the sidebar.
 6. Push notifications need browser permission and a Clara home agent; they are
    stored on the agent and sent directly with Web Push. A visible Clara window
    handles its own alert, and a hidden or closed Clara leaves delivery to the
-   service worker push so the person is not notified twice.
-7. Inbox notification sounds and UI sounds are independent. The volume slider
+   service worker push so the person is not notified twice. Desktop devices
+   always receive push; mobile devices are held while a desktop client is
+   present at the desk.
+7. Settings shows the controls that fit the current device. **Desktop
+   notifications** appears only when the primary pointer is fine, such as a
+   laptop with a mouse or trackpad. **Push notifications** appears on every
+   device. Hiding a row never clears its stored preference.
+8. A connected desktop client holds mobile pushes while its window is visible,
+   the person has used it (pointer, keyboard, or scroll) within the idle window,
+   and **Desktop notifications** is on so the page can raise the alert. The idle
+   window is set in Settings (**Hold phone alerts**) and defaults to five
+   minutes. Hiding or minimizing the window, locking the screen, closing the
+   tab, or passing the idle window releases the phone.
+9. Inbox notification sounds and UI sounds are independent. The volume slider
    applies to both, either can be muted without affecting the other, and the
    Done chime is a UI sound rather than an Inbox alert. Closed-app pushes use
    the operating system's notification sound.
@@ -62,6 +77,14 @@ start an agent run and move on, so they do not have to watch the sidebar.
   unsupported or insecure browser, keeps desktop alerts off. Settings explains
   how to unblock the site and refreshes when the window regains focus; sound
   controls remain.
+- **Touch-first device** — Desktop notifications is hidden, while push and the
+  sound controls remain. A tablet with a hardware keyboard still uses the touch
+  layout.
+- **Touchscreen laptop** — a mouse or trackpad keeps a fine primary pointer, so
+  Desktop notifications stays visible.
+- **Desktop notifications already on** — a touch device that enabled desktop
+  alerts before the layout changed still shows the row until it is switched off,
+  then hides it on the next visit.
 - **Sound settings** — UI sounds off makes Done silent while Inbox alerts still
   play; Inbox sounds off with UI sounds on makes Inbox states silent while Done
   still chimes.
@@ -81,6 +104,21 @@ start an agent run and move on, so they do not have to watch the sidebar.
   an error and a review.
 - **Two Clara tabs** — each tab can alert; the service worker skips push while a
   non-connect window is visible, so the visible tab is the one that alerts.
+- **Working at the desk** — a visible, recently used desktop client holds mobile
+  pushes, so only the desk is alerted. Desktop push still arrives when that
+  browser has no visible window.
+- **Walking away** — passing the idle window, minimizing or hiding Clara,
+  locking the screen, or closing the tab releases mobile pushes. An open but
+  focused window without input counts as away after the window elapses.
+- **Clara in a background browser tab** — the tab reports itself as not visible,
+  so mobile pushes are not held. An installed desktop window stays visible while
+  unfocused, so it keeps holding until the idle window passes.
+- **Desktop cannot alert** — if desktop notifications are off and the device has
+  no push subscription, it never holds the phone.
+- **Old push subscription without a device class** — the agent classifies it from
+  the stored user agent; the next subscribe records the class explicitly.
+- **Relay reconnect** — presence is re-sent on the next heartbeat, and a stale
+  presence entry expires after one minute.
 - **Push unavailable** — direct HTTP mode, a home agent without push support, a
   denied permission, or an iPhone that has not installed Clara keeps push off.
   Settings explains which condition applies.
@@ -104,6 +142,8 @@ start an agent run and move on, so they do not have to watch the sidebar.
 - Per-project or per-kind push filters; all four attention states share the push
   switch.
 - Cross-tab de-duplication beyond the visible-window rule.
+- A manual "send to phone" override, a per-device push list, or manual device
+  roles; holding is automatic and keyed on the desktop idle window.
 - Notifications for retries, queued prompt delivery, or background tasks.
 - Grouping or a notification history inside Clara. Session snoozing is separate
   and lives in the sidebar; individual notifications cannot be snoozed.
@@ -147,7 +187,20 @@ start an agent run and move on, so they do not have to watch the sidebar.
 - Sounds: Web Audio motifs in `src/features/notifications/sounds.ts`; the Done
   chime is `playDoneSound`
 - Settings: `clara.notifications` in `localStorage` (`desktop`, `push`,
-  `sounds`, `uiSounds`, `volume`, `soundKinds`)
+  `sounds`, `uiSounds`, `volume`, `soundKinds`, `deskIdleMs`)
+- Presence: the relay heartbeat carries a sealed `presence` payload
+  (`deviceClass`, `visible`, `idleMs`, `holdPhone`) every 15 s and immediately
+  on visibility, focus, and page hide; `Agent.deskHoldActive()` applies a 60 s
+  freshness window
+- Device class: `navigator.userAgentData.mobile` when available, then the user
+  agent (`Android`, `iPhone`, `iPad`, `iPod`, `Mobile`) and touch Macs; sent as
+  `push.subscribe.deviceClass` and stored in `subscriptions.json`
+- Push routing: `PushService.notify(payload, { skipMobile })` skips every
+  subscription whose class is not `desktop`; desktop subscriptions always send
+- Hold window: `DESK_IDLE_OPTIONS_MS` in
+  `src/features/notifications/settings.ts` (1, 5, 15, or 30 minutes; default 5)
+- Device check: `src/hooks/use-is-touch-device.ts` (`pointer: coarse`), used by
+  the settings page and notifications card
 - Push labels: Error, Needs Input, Ready for Review, Brief Complete
 - Push control: sealed `push.subscribe`, `push.unsubscribe`, and `push.test`
   actions; the agent acknowledges with `push.status`

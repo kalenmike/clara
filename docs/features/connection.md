@@ -8,24 +8,29 @@ pairs new devices from a QR code and proves the connection before showing data.
 
 ## User flow
 
-1. Open Clara. If a stored device exists, Clara reconnects automatically. A
-   pairing link in the URL fragment is consumed before any connection attempt.
-2. Otherwise the connect screen shows **Pair this device** and a direct
-   **Connect directly** form.
-3. Scan the QR printed by `clara-server pair`, or paste its `clara1_…` code.
-   Clara stores the relay/local endpoint, room, client token, PSK, and
+1. Open Clara. A branded splash shows while Clara checks a pairing link in the
+   URL fragment, a stored device, or a local service. A successful attempt opens
+   the last project without showing the connect forms.
+2. If no connection is confirmed, the connect screen offers two controls:
+   **Pair this device** and **Connect directly**. Choosing one swaps the form;
+   only the active form is shown.
+3. A pairing link starts on the splash with a connecting message. Scan the QR
+   printed by `clara-server pair`, or paste its `clara1_…` code into the pair
+   form. Clara stores the relay/local endpoint, room, client token, PSK, and
    fingerprint.
 4. Clara opens the WebSocket, completes the E2EE handshake, verifies the
    fingerprint, and calls the OpenCode info endpoint through the tunnel.
 5. On success Clara stores the pairing and opens the last project, or the first
    project the server returns.
-6. On failure the screen explains whether the code, key fingerprint, relay,
-   authentication, reachability, or CORS failed.
-7. **Settings → Reconnect** re-proves the current transport without clearing
+6. On failure the active form explains whether the code, key fingerprint, relay,
+   authentication, reachability, or CORS failed. A failed pairing link returns
+   to the pair form with the reason.
+7. The local-service card sits below the active form when a service is detected.
+8. **Settings → Reconnect** re-proves the current transport without clearing
    credentials. The sidebar health control offers the same action.
-8. **Settings → Disconnect** clears the stored device and returns here.
-9. Direct mode keeps the URL/password form for an operator-managed OpenCode
-   server or a local dev proxy.
+9. **Settings → Disconnect** clears the stored device and returns here.
+10. Direct mode keeps the URL/password form for an operator-managed OpenCode
+    server or a local dev proxy.
 
 ## Core business rules
 
@@ -39,13 +44,18 @@ pairs new devices from a QR code and proves the connection before showing data.
 4. `VITE_CLARA_WS_URL` retargets relay-room pairings; a `local` pairing keeps the
    endpoint from its payload. Pairing supplies the room, client token, and PSK.
 5. A stored device is retried on boot before local service detection.
-6. The event stream is healthy only while chunks keep arriving. The agent sends
+6. The connect screen holds a splash until the boot attempt settles, but a
+   12-second watchdog reveals the options if the probe wedges. Normal probe and
+   handshake failures settle first and report their own reason.
+7. Pairing and direct connection are separate modes in one chooser. Switching
+   modes preserves the typed values; it does not start a connection.
+8. The event stream is healthy only while chunks keep arriving. The agent sends
    a heartbeat every 15 seconds; 45 seconds of silence is treated as dead.
-7. The local proxy only finds a server registered in `service.json` by
+9. The local proxy only finds a server registered in `service.json` by
    `opencode service start`. A foreground `opencode serve` must be connected
    manually with its URL, password, and a CORS entry for Clara's origin.
-8. Push notifications need the home agent's E2EE transport; direct HTTP mode has
-   no control channel and leaves push unavailable.
+10. Push notifications need the home agent's E2EE transport; direct HTTP mode
+    has no control channel and leaves push unavailable.
 
 ## Edge cases
 
@@ -68,6 +78,10 @@ pairs new devices from a QR code and proves the connection before showing data.
   still work.
 - **Stale stored device** — Clara falls back to the connect screen with the
   previous target prefilled; it does not silently try another server.
+- **Pairing link fails** — the connecting splash gives way to the pair form,
+  which shows the connection failure reason.
+- **Wedged boot probe** — the splash yields to the connect options after 12
+  seconds so the screen cannot hang forever.
 - **Local detection timeout** — the probe gives up after 2.5 seconds.
 - **Password contains non-ASCII characters** — direct auth encodes UTF-8 before
   base64.
@@ -105,6 +119,8 @@ pairs new devices from a QR code and proves the connection before showing data.
 - Pairing payload: `{ v, wsUrl, room, clientToken, psk, fingerprint }`
 - Probe: `GET /api/info` through the selected transport, 8s timeout on connect,
   5s on reconnect
+- Boot gate: `ConnectionProvider` exposes `booting` and `bootSource`; the page
+  renders a splash until boot settles, with a 12s watchdog
 - Client factory: `createClient` in `apps/web/src/lib/client.ts`
 - Relay transport: `apps/web/src/lib/transport/relay.ts`
 - Home agent: `apps/server/src/` (`config`, `agent`, `local-server`,

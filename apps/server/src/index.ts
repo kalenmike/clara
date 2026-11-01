@@ -87,8 +87,9 @@ async function main(): Promise<void> {
   else log(`OpenCode is not answering at ${config.opencode.url}`)
 
   let relayClient: RelayClient | undefined
+  let relayAgent: Agent | undefined
   if (config.relay) {
-    const relayAgent = new Agent({
+    relayAgent = new Agent({
       openCode,
       psk: config.psk,
       info,
@@ -111,6 +112,7 @@ async function main(): Promise<void> {
     ? new PushMonitor({
         openCode,
         push,
+        isDeskActive: () => localAgent.deskHoldActive() || (relayAgent?.deskHoldActive() ?? false),
         log,
       })
     : undefined

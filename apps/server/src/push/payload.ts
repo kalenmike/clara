@@ -26,7 +26,7 @@ export function buildPushPayload(input: {
     v: 1,
     kind: input.kind,
     sessionID: input.sessionID,
-    title: `Clara · ${ATTENTION_LABELS[input.kind]}`,
+    title: ATTENTION_LABELS[input.kind],
     body: attentionBody(input.kind, name, suffix),
     url: input.url,
     tag: `clara:${input.sessionID}`,

@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Navigate, Outlet, useLocation } from 'react-router'
-import { Loader2, Menu, Sparkles } from 'lucide-react'
+import { Menu } from 'lucide-react'
+import { ConnectionSplash } from '@/components/connect/connection-splash'
 import { Button } from '@/components/ui/button'
 import { Sheet, SheetContent, SheetDescription, SheetTitle } from '@/components/ui/sheet'
 import { MobileActionsProvider, MobileActionsSlot } from '@/components/layout/mobile-actions'
@@ -22,17 +23,7 @@ export function AppShell() {
   }, [location.pathname])
 
   if (status === 'connecting') {
-    return (
-      <div className="flex h-dvh flex-col items-center justify-center gap-4 bg-background text-foreground">
-        <div className="flex size-12 items-center justify-center rounded-2xl bg-foreground text-background">
-          <Sparkles className="size-6" />
-        </div>
-        <div className="flex items-center gap-2 text-sm text-muted-foreground">
-          <Loader2 className="size-4 animate-spin" />
-          Connecting to OpenCode…
-        </div>
-      </div>
-    )
+    return <ConnectionSplash label="Connecting to OpenCode…" />
   }
 
   if (status !== 'connected') {
@@ -42,7 +33,7 @@ export function AppShell() {
   return (
     <InboxMonitorProvider>
       <MobileActionsProvider>
-        <div className="flex h-dvh overflow-hidden bg-background text-foreground">
+        <div className="flex h-full overflow-hidden bg-background text-foreground">
           <Sidebar />
 
           <Sheet open={mobileOpen} onOpenChange={setMobileOpen}>

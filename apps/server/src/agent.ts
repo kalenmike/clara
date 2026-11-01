@@ -16,6 +16,7 @@ import {
   type AgentInfo,
   type ClaraAction,
   type ClaraState,
+  type DeviceClass,
   type PushSubscribeAction,
   type PushTestAction,
   type PushUnsubscribeAction,
@@ -29,6 +30,13 @@ const MAX_PAYLOAD_BYTES = 10 * 1024 * 1024
 const CHUNK_BYTES = 32 * 1024
 const SESSION_IDLE_MS = 90_000
 const SWEEP_MS = 30_000
+const PRESENCE_TTL_MS = 60_000
+
+type SessionPresence = {
+  at: number
+  deviceClass: DeviceClass
+  holdPhone: boolean
+}
 
 type Session = {
   sid: string
@@ -36,6 +44,7 @@ type Session = {
   sendSeq: number
   receive: ReplayGuard
   lastSeen: number
+  presence?: SessionPresence
   sendChain: Promise<void>
   requests: Map<string, AbortController>
 }
@@ -105,6 +114,21 @@ export class Agent {
 
   get sessionCount(): number {
     return this.sessions.size
+  }
+
+  /**
+   * True while a desktop client reports that it is visible and recently used.
+   * Mobile pushes are held during that window so a desk user is not alerted on
+   * both devices.
+   */
+  deskHoldActive(now = Date.now()): boolean {
+    for (const session of this.sessions.values()) {
+      const presence = session.presence
+      if (!presence || presence.deviceClass !== 'desktop' || !presence.holdPhone) continue
+      if (now - presence.at > PRESENCE_TTL_MS) continue
+      return true
+    }
+    return false
   }
 
   private async handleHello(
@@ -201,6 +225,7 @@ export class Agent {
       case 'ready.ack':
         return
       case 'ping':
+        this.recordPresence(session, payload.presence)
         this.enqueue(session, { type: 'pong', at: payload.at })
         return
       case 'pong':
@@ -225,6 +250,18 @@ export class Agent {
     }
   }
 
+  private recordPresence(session: Session, value: unknown): void {
+    if (!value || typeof value !== 'object') return
+    const record = value as Record<string, unknown>
+    const deviceClass = record.deviceClass
+    if (deviceClass !== 'desktop' && deviceClass !== 'mobile') return
+    session.presence = {
+      at: Date.now(),
+      deviceClass,
+      holdPhone: record.holdPhone === true,
+    }
+  }
+
   private async handlePushSubscribe(session: Session, action: PushSubscribeAction): Promise<void> {
     const push = this.options.push
     const endpoint = action.subscription?.endpoint
@@ -240,7 +277,10 @@ export class Agent {
     }
 
     try {
-      const result = push.subscribe(action.subscription, { userAgent: action.userAgent })
+      const result = push.subscribe(action.subscription, {
+        userAgent: action.userAgent,
+        deviceClass: action.deviceClass,
+      })
       this.enqueue(session, {
         type: 'push.status',
         id: action.id,

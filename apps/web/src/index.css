@@ -137,6 +137,30 @@ body,
   height: 100%;
 }
 
+/*
+ * The shell is one screen tall, but which unit means "one screen" depends on
+ * how the app was opened. iOS 26 computes the dynamic and small viewports as
+ * if Safari's toolbar were still on screen, even inside a Home Screen app, so
+ * `dvh` and the initial containing block both resolve ~59pt short there and
+ * leave a strip of canvas under the app. An installed app has no chrome to
+ * retract, which makes `lvh` the true height; a browser tab keeps `dvh`,
+ * because `lvh` there is the URL-bar-collapsed height and would put the
+ * composer behind Safari's toolbars.
+ */
+@media (display-mode: browser) {
+  #root {
+    height: 100dvh;
+  }
+}
+
+@media (display-mode: standalone) {
+  #root {
+    position: fixed;
+    inset: 0;
+    height: 100lvh;
+  }
+}
+
 body {
   overflow: hidden;
 }
