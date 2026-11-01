@@ -30,6 +30,7 @@ export function CollapsibleCard({
   control,
   icon,
   expandable = true,
+  defaultExpanded = false,
   notice,
   children,
 }: {
@@ -40,11 +41,13 @@ export function CollapsibleCard({
   icon?: ReactNode
   /** When false the header cannot be opened and the body is hidden. */
   expandable?: boolean
+  /** Whether the body starts open. Only applies on first render. */
+  defaultExpanded?: boolean
   notice?: ReactNode
   children: ReactNode
 }) {
   const bodyId = useId()
-  const [expanded, setExpanded] = useState(false)
+  const [expanded, setExpanded] = useState(defaultExpanded)
 
   useEffect(() => {
     if (!expandable) setExpanded(false)

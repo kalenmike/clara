@@ -18,6 +18,7 @@ export function ClientsTable({ clients, now }: { clients: PanelClientInfo[]; now
       description="Live end-to-end encrypted sessions"
       icon={<Users className="size-4" aria-hidden="true" />}
       action={<Badge tone={clients.length > 0 ? 'info' : 'neutral'}>{clients.length} active</Badge>}
+      defaultExpanded
     >
       <CardBody>
         {clients.length === 0 ? (

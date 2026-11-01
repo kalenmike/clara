@@ -74,6 +74,7 @@ export function AgentCard({
       title="Agent"
       description="The home agent process and its pairing state"
       icon={<Server className="size-4" aria-hidden="true" />}
+      defaultExpanded
       action={
         <Badge tone={agent.stopped ? 'warning' : 'success'}>
           {agent.stopped ? 'Stopped' : 'Running'}
@@ -434,6 +435,7 @@ export function ConfigCard({ config }: { config: PanelConfigInfo }) {
       title="Effective configuration"
       description="Where each value came from, without showing secrets"
       icon={<Settings2 className="size-4" aria-hidden="true" />}
+      defaultExpanded
     >
       <CardBody>
         <ConfigRow

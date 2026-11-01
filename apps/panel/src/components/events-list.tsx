@@ -11,6 +11,7 @@ export function EventsCard({ events, now }: { events: PanelEvent[]; now: number 
       description="In-memory events since this agent started"
       icon={<ScrollText className="size-4" aria-hidden="true" />}
       action={<Badge tone="neutral">{events.length}</Badge>}
+      defaultExpanded
     >
       <CardBody>
         {newestFirst.length === 0 ? (
