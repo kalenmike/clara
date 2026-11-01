@@ -1,4 +1,7 @@
 import { createServer, type Server } from 'node:http'
+import { mkdtempSync, rmSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
 import {
   bytesToBase64Url,
@@ -19,6 +22,12 @@ import {
 import { Agent } from '../src/agent.ts'
 import { OpenCodeClient } from '../src/opencode.ts'
 import type { PushService } from '../src/push/service.ts'
+import {
+  ClientStorageStore,
+  MAX_SYNC_ENTRIES_PER_PUSH,
+  MAX_SYNC_VALUE_BYTES,
+} from '../src/store/client-storage.ts'
+import { closeDatabase, openDatabase, type ClaraDatabase } from '../src/store/database.ts'
 
 type FakeOpenCode = {
   url: string
@@ -75,10 +84,13 @@ type Client = {
 }
 
 const agents: Agent[] = []
+const tempDirs: string[] = []
+const databases: ClaraDatabase[] = []
 
 async function connect(
   fake: FakeOpenCode,
-  push?: PushService
+  push?: PushService,
+  sync?: ClientStorageStore
 ): Promise<{
   agent: Agent
   client: Client
@@ -94,6 +106,7 @@ async function connect(
     info: { version: 'test', protocol: PROTOCOL_VERSION },
     send: (frame) => frames.push(frame),
     push,
+    sync,
   })
   agents.push(agent)
 
@@ -165,6 +178,8 @@ async function waitFor<T>(
 
 afterEach(() => {
   for (const agent of agents.splice(0)) agent.close()
+  for (const db of databases.splice(0)) closeDatabase(db)
+  for (const dir of tempDirs.splice(0)) rmSync(dir, { recursive: true, force: true })
 })
 
 describe('agent', () => {
@@ -397,5 +412,227 @@ describe('agent', () => {
     } finally {
       await fake.close()
     }
+  })
+})
+
+describe('agent client sync', () => {
+  function openSync(): { store: ClientStorageStore; db: ClaraDatabase; path: string } {
+    const dir = mkdtempSync(join(tmpdir(), 'clara-sync-'))
+    tempDirs.push(dir)
+    const path = join(dir, 'clara.db')
+    const db = openDatabase(path)
+    databases.push(db)
+    return { store: new ClientStorageStore(db), db, path }
+  }
+
+  async function waitForState(
+    client: Client,
+    frames: WireFrame[],
+    type: 'sync.snapshot' | 'sync.error' | 'http.error'
+  ): Promise<ClaraState> {
+    return waitFor(async () => {
+      const states = await readStates(client, frames)
+      return states.find((state) => state.type === type)
+    })
+  }
+
+  it('pulls, pushes, tombstones, and reports conflicts over an encrypted session', async () => {
+    const fake = await startFakeOpenCode()
+    const { store } = openSync()
+    try {
+      const { agent, client, frames } = await connect(fake, undefined, store)
+      await waitFor(() => (frames.length >= 2 ? true : undefined))
+
+      await send(client, agent, { type: 'sync.pull', id: 'pull-0' })
+      const empty = await waitForState(client, frames, 'sync.snapshot')
+      expect(empty).toMatchObject({
+        type: 'sync.snapshot',
+        id: 'pull-0',
+        namespace: 'default',
+        revision: 0,
+        entries: [],
+      })
+
+      await send(client, agent, {
+        type: 'sync.push',
+        id: 'push-1',
+        baseRevision: 0,
+        entries: [{ key: 'clara.theme', value: 'dark' }],
+      })
+      const first = await waitFor(async () => {
+        const states = await readStates(client, frames)
+        return states.find((state) => state.type === 'sync.snapshot' && state.id === 'push-1')
+      })
+      expect(first).toMatchObject({
+        type: 'sync.snapshot',
+        id: 'push-1',
+        revision: 1,
+        entries: [{ key: 'clara.theme', value: 'dark' }],
+      })
+      expect(
+        (first as Extract<ClaraState, { type: 'sync.snapshot' }>).entries[0]?.updatedAt
+      ).toBeGreaterThan(0)
+
+      await send(client, agent, {
+        type: 'sync.push',
+        id: 'push-2',
+        namespace: 'default',
+        baseRevision: 1,
+        entries: [{ key: 'clara.colorTheme', value: 'nord' }],
+      })
+      const second = await waitFor(async () => {
+        const states = await readStates(client, frames)
+        return states.find((state) => state.type === 'sync.snapshot' && state.id === 'push-2')
+      })
+      expect(second).toMatchObject({
+        type: 'sync.snapshot',
+        id: 'push-2',
+        revision: 2,
+        entries: [
+          { key: 'clara.colorTheme', value: 'nord' },
+          { key: 'clara.theme', value: 'dark' },
+        ],
+      })
+
+      await send(client, agent, {
+        type: 'sync.push',
+        id: 'push-3',
+        baseRevision: 2,
+        entries: [{ key: 'clara.theme', value: null }],
+      })
+      const third = await waitFor(async () => {
+        const states = await readStates(client, frames)
+        return states.find((state) => state.type === 'sync.snapshot' && state.id === 'push-3')
+      })
+      expect(third).toMatchObject({
+        type: 'sync.snapshot',
+        revision: 3,
+        entries: [
+          { key: 'clara.colorTheme', value: 'nord' },
+          { key: 'clara.theme', value: null },
+        ],
+      })
+
+      await send(client, agent, {
+        type: 'sync.push',
+        id: 'stale',
+        baseRevision: 1,
+        entries: [{ key: 'clara.theme', value: 'light' }],
+      })
+      const conflict = await waitFor(async () => {
+        const states = await readStates(client, frames)
+        return states.find((state) => state.type === 'sync.error' && state.id === 'stale')
+      })
+      expect(conflict).toMatchObject({
+        type: 'sync.error',
+        id: 'stale',
+        code: 'conflict',
+        namespace: 'default',
+        revision: 3,
+      })
+      expect(
+        (conflict as Extract<ClaraState, { type: 'sync.error' }>).entries?.find(
+          (entry) => entry.key === 'clara.theme'
+        )?.value
+      ).toBeNull()
+    } finally {
+      await fake.close()
+    }
+  })
+
+  it('rejects secret keys, oversized entries, and too many entries', async () => {
+    const fake = await startFakeOpenCode()
+    const { store } = openSync()
+    try {
+      const { agent, client, frames } = await connect(fake, undefined, store)
+      await waitFor(() => (frames.length >= 2 ? true : undefined))
+
+      await send(client, agent, {
+        type: 'sync.push',
+        id: 'secret',
+        entries: [{ key: 'clara.connection.local', value: '{}' }],
+      })
+      const secret = await waitForState(client, frames, 'sync.error')
+      expect(secret).toMatchObject({ type: 'sync.error', id: 'secret', code: 'invalid' })
+
+      await send(client, agent, {
+        type: 'sync.push',
+        id: 'too-large',
+        entries: [{ key: 'clara.theme', value: 'x'.repeat(MAX_SYNC_VALUE_BYTES + 1) }],
+      })
+      const tooLarge = await waitFor(async () => {
+        const states = await readStates(client, frames)
+        return states.find((state) => state.type === 'sync.error' && state.id === 'too-large')
+      })
+      expect(tooLarge).toMatchObject({ type: 'sync.error', code: 'too_large' })
+
+      await send(client, agent, {
+        type: 'sync.push',
+        id: 'too-many',
+        entries: Array.from({ length: MAX_SYNC_ENTRIES_PER_PUSH + 1 }, (_, index) => ({
+          key: `key-${index}`,
+          value: 'v',
+        })),
+      })
+      const tooMany = await waitFor(async () => {
+        const states = await readStates(client, frames)
+        return states.find((state) => state.type === 'sync.error' && state.id === 'too-many')
+      })
+      expect(tooMany).toMatchObject({ type: 'sync.error', code: 'too_large' })
+    } finally {
+      await fake.close()
+    }
+  })
+
+  it('reports storage when the sync store is unavailable', async () => {
+    const fake = await startFakeOpenCode()
+    try {
+      const { agent, client, frames } = await connect(fake)
+      await waitFor(() => (frames.length >= 2 ? true : undefined))
+      await send(client, agent, { type: 'sync.pull', id: 'no-store' })
+      const state = await waitForState(client, frames, 'sync.error')
+      expect(state).toMatchObject({ type: 'sync.error', id: 'no-store', code: 'storage' })
+    } finally {
+      await fake.close()
+    }
+  })
+
+  it('persists synced values and tombstones across a store reopen', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'clara-sync-reopen-'))
+    tempDirs.push(dir)
+    const path = join(dir, 'clara.db')
+    const first = openDatabase(path)
+    const store = new ClientStorageStore(first)
+    expect(
+      store.push({
+        type: 'sync.push',
+        id: 'one',
+        entries: [
+          { key: 'clara.theme', value: 'dark' },
+          { key: 'clara.sidebar', value: '{"width":300}' },
+        ],
+      })
+    ).toMatchObject({ ok: true })
+    expect(
+      store.push({
+        type: 'sync.push',
+        id: 'two',
+        baseRevision: 1,
+        entries: [{ key: 'clara.sidebar', value: null }],
+      })
+    ).toMatchObject({ ok: true })
+    closeDatabase(first)
+
+    const second = openDatabase(path)
+    databases.push(second)
+    const reopened = new ClientStorageStore(second)
+    const result = reopened.pull(undefined)
+    expect(result).toMatchObject({ ok: true })
+    if (!result.ok) throw new Error('Expected a snapshot')
+    expect(result.snapshot.revision).toBe(2)
+    expect(result.snapshot.entries).toEqual([
+      expect.objectContaining({ key: 'clara.sidebar', value: null }),
+      expect.objectContaining({ key: 'clara.theme', value: 'dark' }),
+    ])
   })
 })

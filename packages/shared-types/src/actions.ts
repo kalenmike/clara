@@ -50,6 +50,21 @@ export type PushTestAction = {
   endpoint?: string
 }
 
+/** Pull the non-secret client preferences stored for one namespace. */
+export type SyncPullAction = {
+  type: 'sync.pull'
+  id: string
+  namespace?: string
+}
+
+export type SyncPushAction = {
+  type: 'sync.push'
+  id: string
+  namespace?: string
+  baseRevision?: number
+  entries: Array<{ key: string; value: string | null }>
+}
+
 /**
  * Actions travel from a browser client to the home agent. `body` is base64url
  * encoded so the payload stays JSON-safe on every runtime.
@@ -72,5 +87,7 @@ export type ClaraAction =
   | PushSubscribeAction
   | PushUnsubscribeAction
   | PushTestAction
+  | SyncPullAction
+  | SyncPushAction
 
 export type ClaraActionType = ClaraAction['type']

@@ -1,6 +1,20 @@
 import type { ClaraAction } from './actions.ts'
 import type { AgentInfo } from './protocol.ts'
 
+export type SyncEntry = {
+  key: string
+  value: string | null
+  updatedAt: number
+}
+
+export type SyncSnapshot = {
+  namespace: string
+  revision: number
+  entries: SyncEntry[]
+}
+
+export type SyncErrorCode = 'invalid' | 'too_large' | 'conflict' | 'disabled' | 'storage'
+
 /**
  * States travel from the home agent to a browser client. Response chunks are
  * base64url encoded so a single JSON frame decoder works in every runtime.
@@ -25,6 +39,22 @@ export type ClaraState =
       count?: number
       tested?: boolean
       error?: string
+    }
+  | {
+      type: 'sync.snapshot'
+      id: string
+      namespace: string
+      revision: number
+      entries: SyncEntry[]
+    }
+  | {
+      type: 'sync.error'
+      id: string
+      namespace?: string
+      code: SyncErrorCode
+      message: string
+      revision?: number
+      entries?: SyncEntry[]
     }
 
 export type ClaraStateType = ClaraState['type']
