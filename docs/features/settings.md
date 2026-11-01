@@ -14,12 +14,13 @@ common controls in view and hides the detail rows that most people leave alone.
 3. Use the tabs to reach **Preferences** for session wording and the default
    agent, **Notifications** for alerts and sounds, **Shortcuts** for the
    keyboard reference, and **Advanced** for the server connection and app build.
+   On narrow screens the tab strip becomes a section menu.
 4. Press the filter icon in the header to open **Filter settings**.
 5. **Simplify settings** is on by default. Turn it off to see the full page.
 6. With it on, the Notifications card shows one Inbox sounds switch instead of
-   the four-state breakdown, the Server card shows only Reconnect and
-   Disconnect, and the App card shows only the version, update state, and cache
-   reset.
+   the four-state breakdown and volume slider, the Server card shows only
+   Reconnect and Disconnect, and the App card shows only the version, update
+   state, and cache reset.
 7. Reload Clara or open it later; the same simplify choice is restored on this
    device.
 8. The Shortcuts tab is hidden on touch-first devices, where the reference does
@@ -32,8 +33,9 @@ common controls in view and hides the detail rows that most people leave alone.
 2. Tabs change only the layout, not the stored preferences. Switching tabs or
    simplifying the page never clears a setting.
 3. In simplified mode, the primary **Inbox notification sounds** switch applies
-   its new value to all four Inbox states in one action. Turning simplify on by
-   itself leaves the four stored state choices untouched.
+   its new value to all four Inbox states in one action. Turning it on also
+   restores the volume to 70%; turning it off leaves the volume alone. Turning
+   simplify on by itself leaves the four stored state choices untouched.
 4. Simplified Server keeps the recovery actions and any reconnect error, while
    hiding connection details. Simplified App keeps the version, update state,
    update action, and the clear-cache recovery action, while hiding build and
@@ -50,6 +52,9 @@ common controls in view and hides the detail rows that most people leave alone.
 - **Partially muted Inbox states** — a device that muted one state before
   simplification still shows the primary switch as on while Inbox sounds are
   on. Toggling it off and back on applies the same value to every state.
+- **Volume was lowered** — with the slider hidden, turning Inbox sounds on from
+  simplified mode sets the volume back to 70% so a previously quiet level does
+  not hide the alert.
 - **Reconnect failure** — the error alert stays visible in simplified mode so
   the person can act on it.
 - **Update ready** — the update row and **Update and reload** button stay in
@@ -78,8 +83,8 @@ common controls in view and hides the detail rows that most people leave alone.
   `src/features/settings/use-simplify-settings.ts`
 - Filter control: `src/components/settings/settings-filter.tsx`
 - Page and tabs: `src/pages/settings-page.tsx`
-- Simplified sound patch: `allInboxSoundKinds` in
-  `src/features/notifications/settings.ts`
+- Simplified sound patch: `simplifiedInboxSoundPatch` and
+  `DEFAULT_SOUND_VOLUME` in `src/features/notifications/settings.ts`
 - Related: [theme](theme.md), [notifications](notifications.md),
   [shortcuts](shortcuts.md), [connection](connection.md), [install](install.md),
   [capabilities](capabilities.md)

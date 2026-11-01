@@ -18,8 +18,8 @@ sidebar.
    notification actually reaches the operating system.
 3. They can keep **Inbox notification sounds** on, adjust the shared volume, and
    mute any of the four states. **UI sounds** controls the Done and Build
-   chimes. With Settings simplified, the four state rows are hidden and the
-   primary switch applies to all of them.
+   chimes. With Settings simplified, the four state rows and volume slider are
+   hidden and the primary switch applies to all of them.
 4. They can turn on **Push notifications** on any device when Clara is connected
    through the home agent, then send a test notification to prove delivery.
 5. On iPhone and iPad, push requires adding Clara to the Home Screen and opening
@@ -79,7 +79,8 @@ sidebar.
    Done and Build chimes are UI sounds rather than Inbox alerts. Closed-app
    pushes use the operating system's notification sound. When Settings is
    simplified, the primary Inbox switch applies its new value to all four
-   states; turning simplification on alone does not change them.
+   states; turning it on also restores the volume to 70%, and turning
+   simplification on alone does not change any state.
 10. In-app toasts follow the selected color theme. Success, warning, info, and
     error keep distinct icons, wording, and palette-derived accents, so
     importance is readable without relying on color alone. Error carries the
@@ -110,9 +111,10 @@ sidebar.
 - **Sound settings** — UI sounds off makes Done and Build silent while Inbox
   alerts still play; Inbox sounds off with UI sounds on makes Inbox states
   silent while the UI chimes still play.
-- **Simplified settings** — the four Inbox state rows are hidden while the
-  primary switch remains. A state muted earlier stays muted until the primary
-  switch is toggled, which writes the same value to every state.
+- **Simplified settings** — the four Inbox state rows and volume slider are
+  hidden while the primary switch remains. A state muted earlier stays muted
+  until the primary switch is toggled, which writes the same value to every
+  state and resets the volume to 70% when turned on.
 - **Autoplay blocked** — the first click or keypress unlocks audio. A sound that
   cannot play is skipped silently.
 - **Theme changed while a toast is open** — the open toast recolors immediately
