@@ -105,6 +105,28 @@ export async function unsubscribeFromPush(): Promise<void> {
   }
 }
 
+/**
+ * Chromium, and therefore Brave, reports every push-service failure as an
+ * opaque `Registration failed - push service error`. Brave desktop has no push
+ * service of its own, so it cannot subscribe until the person enables Google
+ * services for push messaging. Translate the common failure into an action.
+ */
+export function describePushError(
+  cause: unknown,
+  userAgent: string = navigatorUserAgent()
+): string {
+  const message = cause instanceof Error ? cause.message : String(cause)
+
+  if (isPushServiceError(message)) {
+    if (/\bBrave\//.test(userAgent)) {
+      return 'Brave blocks Web Push until "Use Google services for push messaging" is enabled at brave://settings/privacy. Enable it, relaunch Brave, then try again.'
+    }
+    return 'The browser push service is unavailable. Check the browser privacy settings and network connection, then try again.'
+  }
+
+  return message || 'Push notifications could not be enabled'
+}
+
 export function toPushSubscriptionPayload(subscription: PushSubscription): PushSubscriptionPayload {
   const json = subscription.toJSON()
   const endpoint = json.endpoint ?? subscription.endpoint
@@ -131,6 +153,14 @@ export function urlBase64ToUint8Array(value: string): Uint8Array<ArrayBuffer> {
     bytes[index] = raw.charCodeAt(index)
   }
   return bytes
+}
+
+function isPushServiceError(message: string): boolean {
+  return /push service (?:error|not available)/i.test(message)
+}
+
+function navigatorUserAgent(): string {
+  return typeof navigator === 'undefined' ? '' : navigator.userAgent
 }
 
 function hasApplicationServerKey(

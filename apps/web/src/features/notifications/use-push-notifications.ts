@@ -4,6 +4,7 @@ import { isRelayConfig } from '@/lib/client'
 import { useConnection } from '@/providers/connection-provider'
 import { readNotificationPermission, requestNotificationPermission } from './notifier'
 import {
+  describePushError,
   isIos,
   isStandalone,
   pushSupported,
@@ -113,7 +114,7 @@ export function usePushNotifications(): PushNotificationsState {
       setError(null)
     } catch (cause) {
       setEnabled(false)
-      setError(errorMessage(cause))
+      setError(describePushError(cause))
     }
   }, [available, control, publicKey, sendSubscription, settings.push, supported, update])
 
@@ -172,7 +173,7 @@ export function usePushNotifications(): PushNotificationsState {
       update({ push: true })
       setEnabled(true)
     } catch (cause) {
-      setError(errorMessage(cause))
+      setError(describePushError(cause))
       setEnabled(false)
     } finally {
       setBusy(false)
