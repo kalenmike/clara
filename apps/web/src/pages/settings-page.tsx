@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Separator } from '@/components/ui/separator'
 import { AgentCard } from '@/components/settings/agent-card'
+import { AppCard } from '@/components/settings/app-card'
 import { NotificationsCard } from '@/components/settings/notifications-card'
 import { ThemeCard } from '@/components/settings/theme-card'
 import { WordingCard } from '@/components/settings/wording-card'
@@ -66,8 +67,8 @@ export function SettingsPage() {
       title="Settings"
       description={
         isTouchDevice
-          ? 'Connection, appearance, wording, agents, notifications, and sounds.'
-          : 'Connection, appearance, wording, agents, notifications, sounds, and shortcuts.'
+          ? 'Connection, appearance, wording, agents, notifications, sounds, and the app build.'
+          : 'Connection, appearance, wording, agents, notifications, sounds, shortcuts, and the app build.'
       }
     >
       <Card>
@@ -125,11 +126,16 @@ export function SettingsPage() {
 
       <NotificationsCard isTouchDevice={isTouchDevice} />
 
+      <AppCard />
+
       {!isTouchDevice && (
         <Card>
           <CardHeader>
             <CardTitle className="text-sm">Keyboard shortcuts</CardTitle>
-            <CardDescription>Based on the standard OpenCode keybinds.</CardDescription>
+            <CardDescription>
+              Based on the standard OpenCode keybinds. The ctrl+x leader stays off while typing so
+              cut keeps working.
+            </CardDescription>
           </CardHeader>
           <CardContent>
             <div className="grid gap-x-8 gap-y-2 sm:grid-cols-2">
