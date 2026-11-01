@@ -14,6 +14,7 @@ import {
   type PanelSnapshot,
   type PanelStorageEntry,
 } from '@clara/shared-types'
+import { DEFAULT_SHELL_POLICY } from '../shell-policy.ts'
 import type { Agent } from '../agent.ts'
 import type { ServerConfig } from '../config.ts'
 import type { OpenCodeClient, OpenCodeProbe } from '../opencode.ts'
@@ -276,6 +277,7 @@ export class PanelRuntime implements PanelDataSource {
           effective: Boolean(this.options.push),
         },
       ],
+      shell: { ...DEFAULT_SHELL_POLICY, blocked: 0 },
     }
   }
 

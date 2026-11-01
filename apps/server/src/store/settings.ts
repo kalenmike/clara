@@ -1,4 +1,6 @@
+import type { ShellPolicy } from '@clara/shared-types'
 import type Database from 'better-sqlite3'
+import { readStoredShellPolicy } from '../shell-policy.ts'
 import type { ClaraDatabase } from './database.ts'
 
 export const FEATURE_SETTINGS = {
@@ -9,26 +11,39 @@ export const FEATURE_SETTINGS = {
 } as const
 
 export const AGENT_STOPPED_SETTING = 'agent.stopped'
+export const SHELL_MODE_SETTING = 'shell.mode'
+export const SHELL_COMMANDS_SETTING = 'shell.commands'
 
 export type FeatureName = keyof typeof FEATURE_SETTINGS
 
-export type SettingKey = (typeof FEATURE_SETTINGS)[FeatureName] | typeof AGENT_STOPPED_SETTING
+export type SettingKey =
+  | (typeof FEATURE_SETTINGS)[FeatureName]
+  | typeof AGENT_STOPPED_SETTING
+  | typeof SHELL_MODE_SETTING
+  | typeof SHELL_COMMANDS_SETTING
 
 export type FeatureSettings = Record<FeatureName, boolean>
 
 export type AgentSettings = {
   features: FeatureSettings
   stopped: boolean
+  shell: ShellPolicy
 }
 
 export const FEATURE_NAMES = Object.keys(FEATURE_SETTINGS) as FeatureName[]
 
-const SETTING_KEYS = new Set<string>([...Object.values(FEATURE_SETTINGS), AGENT_STOPPED_SETTING])
+const SETTING_KEYS = new Set<string>([
+  ...Object.values(FEATURE_SETTINGS),
+  AGENT_STOPPED_SETTING,
+  SHELL_MODE_SETTING,
+  SHELL_COMMANDS_SETTING,
+])
 
 /**
- * Booleans are the only values in this table. Connection strings, passwords,
- * tokens, PSKs, and push endpoints stay in their existing files so the panel
- * can expose settings without ever becoming a secret store.
+ * Booleans, one mode string, and one command array are the only values in this
+ * table. Connection strings, passwords, tokens, PSKs, and push endpoints stay
+ * in their existing files so the panel can expose settings without ever
+ * becoming a secret store.
  */
 export class SettingsStore {
   private readonly db: ClaraDatabase
@@ -49,7 +64,11 @@ export class SettingsStore {
     for (const feature of FEATURE_NAMES) {
       features[feature] = this.readBoolean(FEATURE_SETTINGS[feature])
     }
-    return { features, stopped: this.readBoolean(AGENT_STOPPED_SETTING) }
+    return {
+      features,
+      stopped: this.readBoolean(AGENT_STOPPED_SETTING),
+      shell: this.getShellPolicy(),
+    }
   }
 
   getFeature(feature: FeatureName): boolean {
@@ -60,20 +79,41 @@ export class SettingsStore {
     return this.readBoolean(AGENT_STOPPED_SETTING)
   }
 
+  getShellPolicy(): ShellPolicy {
+    return readStoredShellPolicy(
+      this.readValue(SHELL_MODE_SETTING),
+      this.readValue(SHELL_COMMANDS_SETTING)
+    )
+  }
+
   setFeature(feature: FeatureName, enabled: boolean): AgentSettings {
     this.assertFeature(feature)
     assertBoolean(enabled, FEATURE_SETTINGS[feature])
-    this.writeBoolean(FEATURE_SETTINGS[feature], enabled)
+    this.writeValue(FEATURE_SETTINGS[feature], enabled)
     return this.get()
   }
 
   setStopped(stopped: boolean): AgentSettings {
     assertBoolean(stopped, AGENT_STOPPED_SETTING)
-    this.writeBoolean(AGENT_STOPPED_SETTING, stopped)
+    this.writeValue(AGENT_STOPPED_SETTING, stopped)
+    return this.get()
+  }
+
+  setShellPolicy(policy: ShellPolicy): AgentSettings {
+    this.writeValue(SHELL_MODE_SETTING, policy.mode)
+    this.writeValue(SHELL_COMMANDS_SETTING, policy.commands)
     return this.get()
   }
 
   private readBoolean(key: SettingKey): boolean {
+    const parsed = this.readValue(key)
+    if (typeof parsed !== 'boolean') {
+      throw new Error(`The Clara setting "${key}" in ${this.db.name} must be a boolean`)
+    }
+    return parsed
+  }
+
+  private readValue(key: SettingKey): unknown {
     const row = this.selectStatement.get(key) as { value?: unknown } | undefined
     if (!row) {
       throw new Error(`The Clara setting "${key}" is missing from ${this.db.name}`)
@@ -82,21 +122,16 @@ export class SettingsStore {
       throw new Error(`The Clara setting "${key}" in ${this.db.name} is not a JSON value`)
     }
 
-    let parsed: unknown
     try {
-      parsed = JSON.parse(row.value)
+      return JSON.parse(row.value)
     } catch (cause) {
       throw new Error(`The Clara setting "${key}" in ${this.db.name} is not valid JSON`, {
         cause,
       })
     }
-    if (typeof parsed !== 'boolean') {
-      throw new Error(`The Clara setting "${key}" in ${this.db.name} must be a boolean`)
-    }
-    return parsed
   }
 
-  private writeBoolean(key: SettingKey, value: boolean): void {
+  private writeValue(key: SettingKey, value: unknown): void {
     if (!SETTING_KEYS.has(key)) throw new Error(`Unknown Clara setting "${key}"`)
     this.upsertStatement.run(key, JSON.stringify(value), Date.now())
   }

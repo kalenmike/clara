@@ -1,4 +1,4 @@
-import type { PanelControls, PanelFeatureName } from '@clara/shared-types'
+import type { PanelControls, PanelFeatureName, ShellPolicy } from '@clara/shared-types'
 
 /**
  * The mutation surface of the panel API. The read snapshot stays on
@@ -9,6 +9,7 @@ export type PanelControlService = {
   controls: () => PanelControls
   setFeature: (feature: PanelFeatureName, enabled: boolean) => Promise<PanelControls>
   setStopped: (stopped: boolean) => Promise<PanelControls>
+  setShellPolicy: (policy: ShellPolicy) => Promise<PanelControls>
 }
 
 export type PanelControlFailure = {

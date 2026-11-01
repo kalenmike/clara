@@ -6,10 +6,12 @@ import type { PanelFeatureName, PanelMutationResponse } from '@clara/shared-type
 import { readControlFailure, type PanelControlService } from './controls.ts'
 import { checkPanelRequest } from './security.ts'
 import type { PanelDataSource } from './runtime.ts'
+import { parseShellPolicy } from '../shell-policy.ts'
 
 const API_PATH = '/panel/api/v1/status'
 const FEATURES_PATH = '/panel/api/v1/features'
 const AGENT_PATH = '/panel/api/v1/agent'
+const SHELL_PATH = '/panel/api/v1/shell'
 const ASSETS_PREFIX = '/assets/'
 const PANEL_HEADER = 'x-clara-panel'
 const MAX_BODY_BYTES = 8 * 1024
@@ -232,7 +234,13 @@ async function handleMutation(
   }
 
   const kind =
-    pathname === FEATURES_PATH ? 'features' : pathname === AGENT_PATH ? 'agent' : undefined
+    pathname === FEATURES_PATH
+      ? 'features'
+      : pathname === AGENT_PATH
+        ? 'agent'
+        : pathname === SHELL_PATH
+          ? 'shell'
+          : undefined
   if (!kind) {
     sendJson(response, method, 404, {
       error: { code: 'not_found', message: 'Unknown panel endpoint' },
@@ -292,13 +300,24 @@ async function handleMutation(
         return invalidField(response, method, 'enabled')
       }
       updated = await controls.setFeature(feature as PanelFeatureName, body.value.enabled)
-    } else {
+    } else if (kind === 'agent') {
       const unknown = unknownFields(body.value, ['stopped'])
       if (unknown) return invalidField(response, method, unknown)
       if (typeof body.value.stopped !== 'boolean') {
         return invalidField(response, method, 'stopped')
       }
       updated = await controls.setStopped(body.value.stopped)
+    } else {
+      const unknown = unknownFields(body.value, ['mode', 'commands'])
+      if (unknown) return invalidField(response, method, unknown)
+      const parsed = parseShellPolicy(body.value.mode, body.value.commands)
+      if (!parsed.ok) {
+        sendJson(response, method, 400, {
+          error: { code: 'invalid_body', message: parsed.message },
+        })
+        return
+      }
+      updated = await controls.setShellPolicy(parsed.policy)
     }
 
     const payload: PanelMutationResponse = { controls: updated }

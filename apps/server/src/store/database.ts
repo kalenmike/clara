@@ -4,7 +4,7 @@ import Database from 'better-sqlite3'
 
 export type ClaraDatabase = Database.Database
 
-export const SCHEMA_VERSION = 1
+export const SCHEMA_VERSION = 2
 
 const BUSY_TIMEOUT_MS = 5_000
 const DATABASE_MODE = 0o600
@@ -50,6 +50,18 @@ const MIGRATIONS: Migration[] = [
       insert.run(key, JSON.stringify(value), now)
     }
   },
+  /**
+   * The shell policy arrived after the first release. Existing databases keep
+   * their feature choices and start with command requests blocked.
+   */
+  (db) => {
+    const now = Date.now()
+    const insert = db.prepare(
+      'INSERT INTO settings (key, value, updated_at) VALUES (?, ?, ?) ON CONFLICT (key) DO NOTHING'
+    )
+    insert.run('shell.mode', JSON.stringify('off'), now)
+    insert.run('shell.commands', JSON.stringify([]), now)
+  },
 ]
 
 /** The settings seeded into every new database. */
@@ -59,6 +71,8 @@ export const DEFAULT_SETTINGS = {
   'features.relay': true,
   'features.push': true,
   'agent.stopped': false,
+  'shell.mode': 'off',
+  'shell.commands': [],
 } as const
 
 export function openDatabase(path: string): ClaraDatabase {

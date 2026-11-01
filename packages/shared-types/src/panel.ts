@@ -6,7 +6,7 @@
  * agent on a loopback listener; it never travels through the relay.
  */
 
-export const PANEL_API_VERSION = 2
+export const PANEL_API_VERSION = 3
 
 export type PanelValueSource = 'env' | 'file' | 'service' | 'default' | 'generated' | 'none'
 
@@ -153,15 +153,36 @@ export type PanelFeatureControl = {
   error?: string
 }
 
+/**
+ * `off` blocks every command request. `allowlist` admits a request only when
+ * one of `commands` is an argv prefix of it. Entries are literal tokens, never
+ * shell syntax, and a request that contains shell metacharacters never matches.
+ */
+export type ShellPolicyMode = 'off' | 'allowlist'
+
+export type ShellPolicy = {
+  mode: ShellPolicyMode
+  /** Literal command prefixes, for example `git log`. */
+  commands: string[]
+}
+
+export type PanelShellControl = ShellPolicy & {
+  /** Command requests the agent refused since it started. */
+  blocked: number
+}
+
 export type PanelControls = {
   stopped: boolean
   features: PanelFeatureControl[]
+  shell: PanelShellControl
 }
 
 export type PanelFeatureUpdate = {
   feature: PanelFeatureName
   enabled: boolean
 }
+
+export type PanelShellUpdate = ShellPolicy
 
 export type PanelAgentUpdate = {
   stopped: boolean

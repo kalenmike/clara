@@ -8,6 +8,7 @@ import {
   type PanelControls,
   type PanelMutationResponse,
   type PanelSnapshot,
+  type ShellPolicy,
 } from '@clara/shared-types'
 import type { PanelControlService } from '../src/panel/controls.ts'
 import type { PanelDataSource } from '../src/panel/runtime.ts'
@@ -95,6 +96,7 @@ function snapshot(): PanelSnapshot {
         { name: 'relay', configured: false, desired: true, effective: false },
         { name: 'push', configured: false, desired: false, effective: false },
       ],
+      shell: { mode: 'off', commands: [], blocked: 0 },
     },
     storage: [],
     events: [],
@@ -109,6 +111,7 @@ type FakeControls = PanelControlService & {
   state: PanelControls
   features: Array<{ feature: string; enabled: boolean }>
   stops: boolean[]
+  shells: ShellPolicy[]
 }
 
 function fakeControls(initial: Partial<PanelControls> = {}): FakeControls {
@@ -120,14 +123,17 @@ function fakeControls(initial: Partial<PanelControls> = {}): FakeControls {
       { name: 'relay', configured: false, desired: false, effective: false },
       { name: 'push', configured: false, desired: false, effective: false },
     ],
+    shell: { mode: 'off', commands: [], blocked: 0 },
     ...initial,
   }
   const features: Array<{ feature: string; enabled: boolean }> = []
   const stops: boolean[] = []
+  const shells: ShellPolicy[] = []
   return {
     state,
     features,
     stops,
+    shells,
     controls: () => state,
     setFeature: async (feature, enabled) => {
       if (state.stopped) {
@@ -145,6 +151,11 @@ function fakeControls(initial: Partial<PanelControls> = {}): FakeControls {
     setStopped: async (stopped) => {
       stops.push(stopped)
       state.stopped = stopped
+      return state
+    },
+    setShellPolicy: async (policy) => {
+      shells.push(policy)
+      state.shell = { ...policy, blocked: state.shell.blocked }
       return state
     },
   }
@@ -356,6 +367,44 @@ describe('panel server', () => {
     const started = await post(server, 'agent', { stopped: false })
     expect(started.status).toBe(200)
     expect(controls.stops).toEqual([true, false])
+  })
+
+  it('applies a shell policy and rejects bad command entries', async () => {
+    const controls = fakeControls()
+    const server = await start(undefined, controls)
+
+    const applied = await post(server, 'shell', {
+      mode: 'allowlist',
+      commands: ['  git   log ', 'git log'],
+    })
+    expect(applied.status).toBe(200)
+    expect(controls.shells).toEqual([{ mode: 'allowlist', commands: ['git log'] }])
+    const body = (await applied.json()) as PanelMutationResponse
+    expect(body.controls.shell).toMatchObject({
+      mode: 'allowlist',
+      commands: ['git log'],
+      blocked: 0,
+    })
+
+    const interpreter = await post(server, 'shell', { mode: 'allowlist', commands: ['bash'] })
+    expect(interpreter.status).toBe(400)
+
+    const syntax = await post(server, 'shell', {
+      mode: 'allowlist',
+      commands: ['git log; rm -rf /'],
+    })
+    expect(syntax.status).toBe(400)
+
+    const unknown = await post(server, 'shell', {
+      mode: 'allowlist',
+      commands: [],
+      extra: true,
+    })
+    expect(unknown.status).toBe(400)
+
+    const badMode = await post(server, 'shell', { mode: 'ask', commands: [] })
+    expect(badMode.status).toBe(400)
+    expect(controls.shells).toHaveLength(1)
   })
 })
 

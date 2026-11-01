@@ -20,12 +20,14 @@ import {
   type PushSubscribeAction,
   type PushTestAction,
   type PushUnsubscribeAction,
+  type ShellPolicy,
   type SyncPullAction,
   type SyncPushAction,
   type WireFrame,
 } from '@clara/shared-types'
 import { OpenCodeClient, responseHeaders, type HttpRequestAction } from './opencode.ts'
 import type { PushService } from './push/service.ts'
+import { DEFAULT_SHELL_POLICY, evaluateShellRequest, type ShellDecision } from './shell-policy.ts'
 import type { ClientStorageStore, SyncResult } from './store/client-storage.ts'
 
 const MAX_REQUESTS_PER_SESSION = 32
@@ -68,6 +70,13 @@ export type AgentPolicy = {
   canProxy?: () => boolean
   /** Gate push actions while keeping stored subscriptions intact. */
   canPush?: () => boolean
+  /**
+   * The current command policy, read on every request so a panel change takes
+   * effect without a restart. When absent, command requests are blocked.
+   */
+  shellPolicy?: () => ShellPolicy
+  /** Record a refused command request for the panel counter. */
+  onShellDenied?: () => void
 }
 
 export type AgentOptions = {
@@ -533,6 +542,18 @@ export class Agent {
     }
     if (typeof action.id !== 'string' || action.id.length === 0 || action.id.length > 128) return
     if (session.requests.has(action.id)) return
+
+    const decision = evaluateShellRequest(
+      this.options.policy?.shellPolicy?.() ?? DEFAULT_SHELL_POLICY,
+      action
+    )
+    if (!decision.allowed) {
+      this.options.policy?.onShellDenied?.()
+      this.options.log?.(`refused ${action.method} ${action.path}`, decision.code)
+      this.respondRefused(session, action.id, decision)
+      return
+    }
+
     if (session.requests.size >= MAX_REQUESTS_PER_SESSION) {
       this.enqueue(session, {
         type: 'http.error',
@@ -546,6 +567,27 @@ export class Agent {
     const controller = new AbortController()
     session.requests.set(action.id, controller)
     void this.runRequest(session, action, controller)
+  }
+
+  /**
+   * A refused command returns a real HTTP response instead of `http.error`, so
+   * the client can tell a policy denial from a transport failure.
+   */
+  private respondRefused(
+    session: Session,
+    id: string,
+    decision: Exclude<ShellDecision, { allowed: true }>
+  ): void {
+    const body = utf8(JSON.stringify({ error: { code: decision.code, message: decision.message } }))
+    this.enqueue(session, {
+      type: 'http.response',
+      id,
+      status: decision.status,
+      statusText: decision.status === 403 ? 'Forbidden' : 'Bad Request',
+      headers: { 'content-type': 'application/json' },
+    })
+    this.enqueue(session, { type: 'http.chunk', id, data: bytesToBase64Url(body) })
+    this.enqueue(session, { type: 'http.end', id })
   }
 
   private async runRequest(

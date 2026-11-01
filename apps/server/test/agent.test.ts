@@ -19,7 +19,7 @@ import {
   type ClaraState,
   type WireFrame,
 } from '@clara/shared-types'
-import { Agent } from '../src/agent.ts'
+import { Agent, type AgentPolicy } from '../src/agent.ts'
 import { OpenCodeClient } from '../src/opencode.ts'
 import type { PushService } from '../src/push/service.ts'
 import {
@@ -90,7 +90,8 @@ const databases: ClaraDatabase[] = []
 async function connect(
   fake: FakeOpenCode,
   push?: PushService,
-  sync?: ClientStorageStore
+  sync?: ClientStorageStore,
+  policy?: AgentPolicy
 ): Promise<{
   agent: Agent
   client: Client
@@ -107,6 +108,7 @@ async function connect(
     send: (frame) => frames.push(frame),
     push,
     sync,
+    ...(policy ? { policy } : {}),
   })
   agents.push(agent)
 
@@ -210,6 +212,84 @@ describe('agent', () => {
         .map((data) => Buffer.from(data, 'base64url').toString('utf8'))
         .join('')
       expect(JSON.parse(body)).toMatchObject({ version: '9.9.9' })
+    } finally {
+      await fake.close()
+    }
+  })
+
+  it('refuses a command request when the shell policy is off', async () => {
+    const fake = await startFakeOpenCode()
+    try {
+      let denied = 0
+      const { agent, client, frames } = await connect(fake, undefined, undefined, {
+        shellPolicy: () => ({ mode: 'off', commands: [] }),
+        onShellDenied: () => {
+          denied += 1
+        },
+      })
+      await waitFor(() => (frames.length >= 2 ? true : undefined))
+      await send(client, agent, { type: 'ready.ack', agent: { version: 'web', protocol: 1 } })
+      await send(client, agent, {
+        type: 'http.request',
+        id: 'shell-off',
+        method: 'POST',
+        path: '/api/shell',
+        search: '?location%5Bdirectory%5D=%2Ftmp',
+        body: bytesToBase64Url(utf8(JSON.stringify({ command: 'git log' }))),
+      })
+
+      const states = await waitFor(async () => {
+        const parsed = await readStates(client, frames)
+        return parsed.some((state) => state.type === 'http.end') ? parsed : undefined
+      })
+
+      const response = states.find((state) => state.type === 'http.response')
+      expect(response && response.type === 'http.response' ? response.status : undefined).toBe(403)
+      const body = states
+        .filter((state) => state.type === 'http.chunk')
+        .map((state) => (state.type === 'http.chunk' ? state.data : ''))
+        .map((data) => Buffer.from(data, 'base64url').toString('utf8'))
+        .join('')
+      expect(JSON.parse(body)).toMatchObject({ error: { code: 'shell_disabled' } })
+      expect(denied).toBe(1)
+    } finally {
+      await fake.close()
+    }
+  })
+
+  it('forwards an allowlisted command to OpenCode', async () => {
+    const fake = await startFakeOpenCode()
+    try {
+      let denied = 0
+      const { agent, client, frames } = await connect(fake, undefined, undefined, {
+        shellPolicy: () => ({ mode: 'allowlist', commands: ['git log'] }),
+        onShellDenied: () => {
+          denied += 1
+        },
+      })
+      await waitFor(() => (frames.length >= 2 ? true : undefined))
+      await send(client, agent, { type: 'ready.ack', agent: { version: 'web', protocol: 1 } })
+      await send(client, agent, {
+        type: 'http.request',
+        id: 'shell-allowed',
+        method: 'POST',
+        path: '/api/shell',
+        search: '?location%5Bdirectory%5D=%2Ftmp',
+        body: bytesToBase64Url(
+          utf8(JSON.stringify({ command: 'git log --oneline -n 10', cwd: '/tmp' }))
+        ),
+      })
+
+      const states = await waitFor(async () => {
+        const parsed = await readStates(client, frames)
+        return parsed.some((state) => state.type === 'http.end') ? parsed : undefined
+      })
+
+      // The fake OpenCode server has no /api/shell route, so a 404 proves the
+      // request reached it instead of being refused by the policy.
+      const response = states.find((state) => state.type === 'http.response')
+      expect(response && response.type === 'http.response' ? response.status : undefined).toBe(404)
+      expect(denied).toBe(0)
     } finally {
       await fake.close()
     }

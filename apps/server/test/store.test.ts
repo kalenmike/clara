@@ -1,6 +1,7 @@
 import { mkdtempSync, rmSync, statSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
+import Database from 'better-sqlite3'
 import { afterEach, describe, expect, it } from 'vitest'
 import {
   closeDatabase,
@@ -33,6 +34,7 @@ describe('SQLite settings store', () => {
       expect(settings.get()).toEqual({
         features: { opencode: true, local: true, relay: true, push: true },
         stopped: false,
+        shell: { mode: 'off', commands: [] },
       })
       const rows = db.prepare('SELECT key FROM settings ORDER BY key').all() as Array<{
         key: string
@@ -50,6 +52,7 @@ describe('SQLite settings store', () => {
     settings.setFeature('relay', false)
     settings.setFeature('push', false)
     settings.setStopped(true)
+    settings.setShellPolicy({ mode: 'allowlist', commands: ['git log'] })
     closeDatabase(first)
 
     const second = openDatabase(path)
@@ -63,9 +66,39 @@ describe('SQLite settings store', () => {
           push: false,
         },
         stopped: true,
+        shell: { mode: 'allowlist', commands: ['git log'] },
       })
     } finally {
       closeDatabase(second)
+    }
+  })
+
+  it('adds the shell policy to a database created before it existed', () => {
+    const path = join(tempDir(), 'clara.db')
+    const legacy = new Database(path)
+    legacy.exec(
+      'CREATE TABLE settings (key TEXT PRIMARY KEY, value TEXT NOT NULL, updated_at INTEGER NOT NULL)'
+    )
+    const insert = legacy.prepare('INSERT INTO settings (key, value, updated_at) VALUES (?, ?, ?)')
+    const now = Date.now()
+    insert.run('features.opencode', 'false', now)
+    insert.run('features.local', 'true', now)
+    insert.run('features.relay', 'true', now)
+    insert.run('features.push', 'true', now)
+    insert.run('agent.stopped', 'false', now)
+    legacy.pragma('user_version = 1')
+    legacy.close()
+
+    const db = openDatabase(path)
+    try {
+      expect(schemaVersion(db)).toBe(SCHEMA_VERSION)
+      expect(new SettingsStore(db).get()).toEqual({
+        features: { opencode: false, local: true, relay: true, push: true },
+        stopped: false,
+        shell: { mode: 'off', commands: [] },
+      })
+    } finally {
+      closeDatabase(db)
     }
   })
 
