@@ -1,0 +1,162 @@
+import { chmodSync, closeSync, existsSync, mkdirSync, openSync, statSync } from 'node:fs'
+import { dirname } from 'node:path'
+import Database from 'better-sqlite3'
+
+export type ClaraDatabase = Database.Database
+
+export const SCHEMA_VERSION = 1
+
+const BUSY_TIMEOUT_MS = 5_000
+const DATABASE_MODE = 0o600
+const DIRECTORY_MODE = 0o700
+
+type Migration = (db: ClaraDatabase) => void
+
+/**
+ * Migrations are append-only. `user_version` records how many have run, and
+ * each one commits together with its version bump so a partial upgrade cannot
+ * leave the database in an unknown shape.
+ */
+const MIGRATIONS: Migration[] = [
+  (db) => {
+    db.exec(`
+      CREATE TABLE settings (
+        key TEXT PRIMARY KEY,
+        value TEXT NOT NULL,
+        updated_at INTEGER NOT NULL
+      );
+
+      CREATE TABLE client_storage (
+        namespace TEXT NOT NULL,
+        key TEXT NOT NULL,
+        value TEXT,
+        updated_at INTEGER NOT NULL,
+        updated_by TEXT,
+        PRIMARY KEY (namespace, key)
+      ) WITHOUT ROWID;
+
+      CREATE TABLE client_storage_revisions (
+        namespace TEXT PRIMARY KEY,
+        revision INTEGER NOT NULL,
+        updated_at INTEGER NOT NULL
+      ) WITHOUT ROWID;
+    `)
+
+    const now = Date.now()
+    const insert = db.prepare(
+      'INSERT INTO settings (key, value, updated_at) VALUES (?, ?, ?) ON CONFLICT (key) DO NOTHING'
+    )
+    for (const [key, value] of Object.entries(DEFAULT_SETTINGS)) {
+      insert.run(key, JSON.stringify(value), now)
+    }
+  },
+]
+
+/** The settings seeded into every new database. */
+export const DEFAULT_SETTINGS = {
+  'features.opencode': true,
+  'features.local': true,
+  'features.relay': true,
+  'features.push': true,
+  'agent.stopped': false,
+} as const
+
+export function openDatabase(path: string): ClaraDatabase {
+  try {
+    preparePath(path)
+  } catch (cause) {
+    throw new Error(`Could not prepare the Clara database at ${path}: ${errorMessage(cause)}`, {
+      cause,
+    })
+  }
+
+  let db: ClaraDatabase
+  try {
+    db = new Database(path)
+  } catch (cause) {
+    throw new Error(`Could not open the Clara database at ${path}: ${errorMessage(cause)}`, {
+      cause,
+    })
+  }
+
+  try {
+    db.pragma('journal_mode = WAL')
+    db.pragma('synchronous = NORMAL')
+    db.pragma('foreign_keys = ON')
+    db.pragma(`busy_timeout = ${BUSY_TIMEOUT_MS}`)
+    migrate(db)
+    secureFiles(path)
+    return db
+  } catch (cause) {
+    try {
+      db.close()
+    } catch {
+      // Keep the startup error about the original failure.
+    }
+    throw new Error(`Could not migrate the Clara database at ${path}: ${errorMessage(cause)}`, {
+      cause,
+    })
+  }
+}
+
+export function closeDatabase(db: ClaraDatabase): void {
+  try {
+    db.pragma('wal_checkpoint(TRUNCATE)')
+  } catch {
+    // A read-only or already-closed database still needs to close cleanly.
+  }
+  db.close()
+}
+
+export function schemaVersion(db: ClaraDatabase): number {
+  return db.pragma('user_version', { simple: true }) as number
+}
+
+function preparePath(path: string): void {
+  mkdirSync(dirname(path), { recursive: true, mode: DIRECTORY_MODE })
+  if (!existsSync(path)) {
+    closeSync(openSync(path, 'a', DATABASE_MODE))
+  }
+  chmodSync(path, DATABASE_MODE)
+}
+
+function secureFiles(path: string): void {
+  for (const candidate of [path, `${path}-wal`, `${path}-shm`]) {
+    try {
+      if (existsSync(candidate)) chmodSync(candidate, DATABASE_MODE)
+    } catch {
+      // File permissions are best effort after the first chmod of the database.
+    }
+  }
+}
+
+function migrate(db: ClaraDatabase): void {
+  const current = schemaVersion(db)
+  if (!Number.isInteger(current) || current < 0 || current > MIGRATIONS.length) {
+    throw new Error(
+      `Database schema version ${current} is not supported (expected 0-${MIGRATIONS.length})`
+    )
+  }
+
+  for (let version = current; version < MIGRATIONS.length; version += 1) {
+    const migration = MIGRATIONS[version]
+    if (!migration) continue
+    const run = db.transaction(() => {
+      migration(db)
+      db.pragma(`user_version = ${version + 1}`)
+    })
+    run()
+  }
+}
+
+export function databaseMode(path: string): string | undefined {
+  try {
+    return (statSync(path).mode & 0o777).toString(8).padStart(3, '0')
+  } catch {
+    return undefined
+  }
+}
+
+function errorMessage(cause: unknown): string {
+  return cause instanceof Error ? cause.message : String(cause)
+}

@@ -8,6 +8,7 @@ import { loadConfig } from '../src/config.ts'
 const tempDirs: string[] = []
 const ENV_KEYS = [
   'CLARA_CONFIG_DIR',
+  'CLARA_DB_PATH',
   'CLARA_OPENCODE_URL',
   'CLARA_OPENCODE_PASSWORD',
   'CLARA_LOCAL_HOST',
@@ -66,6 +67,17 @@ describe('loadConfig sources', () => {
     expect(config.sources.relayUrl).toBe('none')
     expect(config.sources.pairingBaseUrl).toBe('default')
     expect(config.sources.psk).toBe('generated')
+    expect(config.dbPath).toBe(join(dir, 'clara.db'))
+  })
+
+  it('allows CLARA_DB_PATH to move the database', () => {
+    const dir = tempDir()
+    process.env.CLARA_CONFIG_DIR = dir
+    process.env.CLARA_DB_PATH = join(dir, 'custom', 'agent.sqlite')
+    process.env.XDG_STATE_HOME = tempDir()
+
+    const config = loadConfig()
+    expect(config.dbPath).toBe(join(dir, 'custom', 'agent.sqlite'))
   })
 
   it('tracks file values and environment overrides independently', () => {

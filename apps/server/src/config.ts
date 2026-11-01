@@ -39,6 +39,7 @@ export type ServerConfig = {
   pairingBaseUrl: string
   configDir: string
   configPath: string
+  dbPath: string
   sources: ServerConfigSources
 }
 
@@ -196,6 +197,7 @@ export function loadConfig(options: { rotate?: boolean } = {}): ServerConfig {
     pairingBaseUrl,
     configDir,
     configPath,
+    dbPath: resolveDatabasePath(configDir),
     sources: {
       opencodeUrl: opencodeUrlSource,
       opencodePassword: opencodePasswordSource,
@@ -273,6 +275,10 @@ function persistConfig(
 
   mkdirSync(dirname(path), { recursive: true, mode: 0o700 })
   writeFileSync(path, `${JSON.stringify(next, null, 2)}\n`, { mode: 0o600 })
+}
+
+function resolveDatabasePath(configDir: string): string {
+  return process.env.CLARA_DB_PATH?.trim() || join(configDir, 'clara.db')
 }
 
 function normalizeRelayUrl(value: string): string {

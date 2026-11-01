@@ -4,5 +4,6 @@ packages:
   - workers/*
 
 allowBuilds:
+  better-sqlite3: true
   esbuild: true
   workerd: true
