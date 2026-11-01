@@ -38,6 +38,7 @@ here, it is not part of the canonical set.
 | Document                                      | Read when…                                                               |
 | --------------------------------------------- | ------------------------------------------------------------------------ |
 | [capabilities.md](features/capabilities.md)   | You need to know what ships, what is partial, or what is missing         |
+| [install.md](features/install.md)             | You are working on install, updates, caching, or offline behavior        |
 | [connection.md](features/connection.md)       | You are working on connecting Clara to an OpenCode server                |
 | [pairing.md](features/pairing.md)             | You are working on QR/code pairing, device storage, or key rotation      |
 | [sessions.md](features/sessions.md)           | You are working on the project/session browser                           |

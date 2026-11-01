@@ -144,6 +144,7 @@ docs(sessions): document archived session filters
 | E2EE, PSK, envelopes, rotation     | [docs/architecture/e2ee.md](docs/architecture/e2ee.md)           |
 | What ships and what does not       | [docs/features/capabilities.md](docs/features/capabilities.md)   |
 | Pairing, QR codes, device storage  | [docs/features/pairing.md](docs/features/pairing.md)             |
+| Install, updates, offline caching  | [docs/features/install.md](docs/features/install.md)             |
 | Connection and credentials         | [docs/features/connection.md](docs/features/connection.md)       |
 | Project/session browser            | [docs/features/sessions.md](docs/features/sessions.md)           |
 | Messages, tools, approvals         | [docs/features/chat.md](docs/features/chat.md)                   |

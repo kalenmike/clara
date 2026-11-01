@@ -245,8 +245,8 @@ sidebar.
   750 ms evaluation delay and 5 s cooldown, then sends through `web-push`
 - Push storage: `${CLARA_CONFIG_DIR:-~/.config/clara}/subscriptions.json` (mode
   `0600`); VAPID keys live in `vapid.json` next to it
-- Push service worker: `apps/web/public/push-sw.js`, imported by the generated
-  Workbox worker
+- Push service worker: `apps/web/public/push-sw.js`, loaded by the Clara worker
+  (`apps/web/src/sw.ts`) with `importScripts`
 - Push setup: `CLARA_VAPID_SUBJECT` optionally overrides the default subject;
   `CLARA_VAPID_PUBLIC_KEY` and `CLARA_VAPID_PRIVATE_KEY` override the stored key
   pair
