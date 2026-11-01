@@ -4,10 +4,11 @@
 
 A loopback-only control panel served by the Clara home agent. It shows the
 agent's live state, transports, connected clients, OpenCode probe, push health,
-configuration sources, database health, and storage files without exposing
-secrets. It also lets the person at the machine switch external connections on
-and off, stop the agent without stopping the process, and decide which shell
-commands a Clara client may relay to OpenCode.
+configuration sources, database health, storage files, and a live traffic meter
+without exposing secrets. It also lets the person at the machine switch external
+connections on and off, stop the agent without stopping the process, decide
+which shell commands a Clara client may relay to OpenCode, and turn traffic
+monitoring on or off.
 
 ## User flow
 
@@ -41,7 +42,17 @@ commands a Clara client may relay to OpenCode.
    because it only applies while connections are up.
 9. Review the connected-client table and the storage list. Status badges call
    out degraded OpenCode, relay, push, permissions, or missing files.
-10. Leave the page open. It refreshes every five seconds while visible and
+10. In **Traffic**, read the last minute's in and out rates, the request and
+    error rates, the two sparklines for the last hour, and the totals since the
+    window started. The card shows the local-versus-relay split, a peak minute,
+    and the error breakdown. An amber **Spike** badge means the last complete
+    minute was at least three times the previous half hour and above a floor; it
+    is a hint, not a verdict.
+11. Use the switch at the top left of **Traffic** to stop recording. The card
+    collapses to its header, the counters are discarded, and the client table
+    drops its traffic columns. Turning it back on starts a fresh window with a
+    one-minute warm-up. The switch stays usable while the agent is stopped.
+12. Leave the page open. It refreshes every five seconds while visible and
     pauses when the tab is hidden. Use **Refresh** for an immediate check.
 
 ## Core business rules
@@ -51,8 +62,8 @@ commands a Clara client may relay to OpenCode.
    the panel. It is never served through the relay or the Pages deployment.
 2. **Reads are open to loopback; writes are narrow.** `GET` and `HEAD` serve the
    snapshot and assets. `POST` is accepted only at
-   `/panel/api/v1/features`, `/panel/api/v1/agent`, and `/panel/api/v1/shell`;
-   every other mutating method returns `405`.
+   `/panel/api/v1/features`, `/panel/api/v1/agent`, `/panel/api/v1/shell`, and
+   `/panel/api/v1/monitoring`; every other mutating method returns `405`.
 3. **Secrets stay out.** The snapshot is built from an explicit allowlist. The
    PSK, pairing code, OpenCode password, relay tokens, push endpoints, sync
    values, and file contents are never returned. The PSK fingerprint, token
@@ -62,10 +73,10 @@ commands a Clara client may relay to OpenCode.
    `content-type: application/json` and `x-clara-panel: 1`, reject unknown
    fields, and cap the body at 8 KB. The custom header forces a CORS preflight
    for cross-origin pages, which the server rejects. No CORS headers are sent.
-5. **Settings are durable.** Feature choices, the stopped flag, and the shell
-   policy live in the agent's SQLite database and are loaded before any
-   transport starts. The panel can fail without stopping the agent; a busy panel
-   port only loses the panel.
+5. **Settings are durable.** Feature choices, the stopped flag, the shell
+   policy, and the monitoring choice live in the agent's SQLite database and are
+   loaded before any transport starts. The panel can fail without stopping the
+   agent; a busy panel port only loses the panel.
 6. **The shell policy is read per request.** The agent consults it before
    forwarding a command request, so Apply takes effect on the next command
    without a restart. `off` refuses them all. `allowlist` with an empty filter
@@ -78,6 +89,12 @@ commands a Clara client may relay to OpenCode.
    writes, prompts that let an agent run tools, and plugin RPC can still affect
    the host. Direct connections bypass the agent entirely. See [git](git.md) for
    the full caveat.
+8. **Traffic monitoring is advisory and in memory.** The meter counts frame
+   sizes, decrypted request actions, and the failures the agent already detects;
+   it never reads or stores payloads. Counters live in a sixty-minute ring of
+   one-minute buckets and reset on restart or when monitoring is switched off.
+   Nothing is throttled, blocked, or persisted, and the per-client counters are
+   hidden while monitoring is off.
 
 ## Edge cases
 
@@ -112,6 +129,15 @@ commands a Clara client may relay to OpenCode.
 - **A feature fails to start** — the saved choice remains, the card shows the
   error, and the rest of the agent keeps running.
 - **No clients** — the client table shows an empty state.
+- **Monitoring is off** — the Traffic card collapses to its header and switch,
+  the client table drops its traffic columns, and no counter moves. Turning it
+  on starts a new window.
+- **Monitoring is switched off mid-stream** — the counters stop where they are
+  and the window is discarded. The stream itself keeps flowing.
+- **The first minute after enabling or restarting** — the card says collecting
+  and shows no rate or spike until one full minute has been measured.
+- **A spike is detected** — the badge and notice name the signal that crossed
+  the threshold. A large but legitimate stream raises it too.
 - **Config permissions are broad** — storage warns when the database,
   `server.json`, subscriptions, or VAPID keys are readable by other users.
 - **The panel was not built** — the page returns a short instruction to run
@@ -126,7 +152,9 @@ commands a Clara client may relay to OpenCode.
 - Kicking clients or revoking a device
 - A sandbox for command execution, or an allowlist of every proxied API route
 - Per-command arguments, wildcards, or regular expressions in the allowlist
-- Historical metrics, persisted logs, or an audit trail
+- Rate limiting, blocking, or alerts driven by the traffic meter
+- Historical metrics beyond the sixty-minute window, persisted logs, or an audit
+  trail
 - A sync settings page (server storage exists, the web UI does not)
 
 ## Known gaps
@@ -135,7 +163,13 @@ commands a Clara client may relay to OpenCode.
   extension with loopback access, can read and change the panel.
 - There is no per-device identity; the panel shows one entry per live E2EE
   session.
-- The activity list is in memory and resets when the agent restarts.
+- Traffic is measured at the agent, so connections the relay rejects before they
+  reach it, and Cloudflare-level bandwidth, are visible only in Cloudflare
+  analytics.
+- The traffic window and the activity list are in memory and reset when the
+  agent restarts.
+- A session that spans a monitoring toggle shows only the traffic recorded while
+  monitoring was on.
 - The OpenCode probe is cached for five seconds, so the card can briefly lag a
   restart.
 
@@ -146,11 +180,12 @@ commands a Clara client may relay to OpenCode.
 
 - Panel listener: `127.0.0.1:8790` by default
 - Page: `GET /`
-- Read API: `GET /panel/api/v1/status` (API version `3`)
+- Read API: `GET /panel/api/v1/status` (API version `4`)
 - Mutations:
   - `POST /panel/api/v1/features` with `{ "feature": "...", "enabled": true }`
   - `POST /panel/api/v1/agent` with `{ "stopped": true }`
   - `POST /panel/api/v1/shell` with `{ "mode": "off" | "allowlist", "commands": ["git log"] }`
+  - `POST /panel/api/v1/monitoring` with `{ "enabled": false }`
 - Required mutation headers: `content-type: application/json`,
   `x-clara-panel: 1`
 - Assets: `GET /assets/<hashed file>` and `GET /favicon.svg`
@@ -167,21 +202,25 @@ commands a Clara client may relay to OpenCode.
 - Dev UI: `pnpm dev:panel` (Vite on `5174`, proxying `/panel/api` to `8790`; the
   proxy rewrites `Host` and `Origin` so guarded mutations pass)
 - Snapshot sections: agent, config, OpenCode, local transport, relay, clients,
-  push, controls, storage, events
+  push, controls, storage, events, traffic
 - Shell policy: `apps/server/src/shell-policy.ts` (matching, validation, and the
   `403` decision), `apps/server/src/agent.ts` (enforcement), and the
   `ShellPolicyCard` in `apps/panel/src/components/shell-policy-card.tsx`
+- Traffic meter: `apps/server/src/traffic.ts` (sixty one-minute buckets, rates,
+  spike detection), fed by `apps/server/src/agent.ts` and read by
+  `PanelRuntime`; rendered by the `TrafficCard` in
+  `apps/panel/src/components/traffic-card.tsx`
 - Panel controls: per-card switches in
   `apps/panel/src/components/overview-cards.tsx`, the stop/start action in
-  `AgentCard`, and `useFeatureControl` in
-  `apps/panel/src/lib/feature-control.ts`
+  `AgentCard`, the monitoring switch in `TrafficCard`, and `useFeatureControl`
+  in `apps/panel/src/lib/feature-control.ts`
 - Policy storage: `shell.mode` and `shell.commands` in the settings table,
-  added by database migration `2`
+  added by database migration `2`; `monitoring.enabled`, added by migration `3`
 - Database health: path, existence, mode, bytes, schema version, client-sync
   counts and bytes (never values)
 - Guards: loopback remote address, `Host`, `Origin`, `Sec-Fetch-Site`,
-  `GET`/`HEAD` reads, two guarded `POST` routes, path allowlist, CSP, `no-store`,
-  no CORS
+  `GET`/`HEAD` reads, four guarded `POST` routes, path allowlist, CSP,
+  `no-store`, no CORS
 - Related: [agent-controls.md](agent-controls.md), [git.md](git.md),
   [sync.md](sync.md), [overview.md](../architecture/overview.md),
   [pairing.md](pairing.md), [connection.md](connection.md),
