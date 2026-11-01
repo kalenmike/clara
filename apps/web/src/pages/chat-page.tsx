@@ -32,8 +32,11 @@ import {
 } from '@/features/chat/use-chat'
 import { useInboxMonitor } from '@/features/sessions/inbox-monitor'
 import { useProjects } from '@/features/projects/use-projects'
+import { planMessageFork } from '@/features/sessions/fork'
 import { isArchivedSession } from '@/features/sessions/session-archive'
 import { isSnoozedSession } from '@/features/sessions/session-snooze'
+import { useForkSession } from '@/features/sessions/use-fork-session'
+import { useForwardMessage } from '@/features/sessions/use-forward-message'
 import { useSession } from '@/features/sessions/use-sessions'
 import { useStartSession, type ChatComposeState } from '@/features/sessions/use-start-session'
 import { useSessionWording } from '@/features/sessions/use-wording'
@@ -161,6 +164,34 @@ export function ChatPage() {
   const modelsQuery = useModels()
   const compact = useCompactSession(sessionId ?? '')
   const interrupt = useInterruptSession(sessionId ?? '')
+  const { mutate: forkSession, isPending: forkPending } = useForkSession({
+    session,
+    projectID: projectId,
+  })
+  const { mutate: forwardMessage, isPending: forwardPending } = useForwardMessage({
+    session,
+    projectID: projectId,
+  })
+  const serverMessageIDs = useMemo(
+    () => new Set(snapshot.messages.map((message) => message.id)),
+    [snapshot.messages]
+  )
+  const canActOnMessage = useCallback(
+    (message: SessionMessageInfo) => serverMessageIDs.has(message.id),
+    [serverMessageIDs]
+  )
+  const handleForkSession = useCallback(() => forkSession({}), [forkSession])
+  const handleForkMessage = useCallback(
+    (message: SessionMessageInfo) => {
+      const boundary = planMessageFork(snapshot.messages, message.id)
+      if (boundary) forkSession(boundary)
+    },
+    [forkSession, snapshot.messages]
+  )
+  const handleForwardMessage = useCallback(
+    (message: SessionMessageInfo) => forwardMessage(message),
+    [forwardMessage]
+  )
 
   /**
    * A fixed default agent also applies to empty drafts created before the
@@ -182,7 +213,10 @@ export function ChatPage() {
     agent: session?.agent,
     model: session?.model,
   })
-  const startExpanded = Boolean((location.state as ChatComposeState | null)?.compose)
+  const composeState = location.state as ChatComposeState | null
+  const startExpanded = Boolean(composeState?.compose)
+  const startText = composeState?.draftText
+  const startFiles = composeState?.draftFiles
   const clearComposeState = useCallback(() => {
     navigate(location.pathname, { replace: true })
   }, [location.pathname, navigate])
@@ -351,6 +385,8 @@ export function ChatPage() {
           snapshot={snapshot}
           infoOpen={infoOpen}
           onToggleInfo={togglePanel}
+          onFork={handleForkSession}
+          forkPending={forkPending}
           onDeleted={() => navigate(`/p/${projectId ?? session.projectID}`)}
           allCollapsed={allCollapsed}
           canToggleAll={canToggleAll}
@@ -410,6 +446,10 @@ export function ChatPage() {
             loadingOlder={messagesQuery.loadingOlder}
             onLoadOlder={() => void messagesQuery.loadOlder()}
             onToggleMessage={toggleMessage}
+            onForkMessage={handleForkMessage}
+            onForwardMessage={handleForwardMessage}
+            canActOnMessage={canActOnMessage}
+            actionsDisabled={forkPending || forwardPending}
           />
         )}
 
@@ -426,6 +466,8 @@ export function ChatPage() {
           hasDraft={hasLocalDraft}
           autoOpen={isDraftSession && storedHasLocalDraft}
           startExpanded={startExpanded}
+          startText={startText}
+          startFiles={startFiles}
           onStartExpandedConsumed={clearComposeState}
           onDraftChange={handleDraftChange}
           onOpenChange={handleReplyOpenChange}

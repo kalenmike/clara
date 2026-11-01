@@ -274,6 +274,9 @@ function handleInvalidation(
       void queryClient.invalidateQueries({ queryKey: ['sessions'] })
       if (sessionID) {
         void queryClient.invalidateQueries({ queryKey: queryKeys.session(sessionID) })
+        if (event.type === 'session.forked') {
+          invalidateSoon(`messages:${sessionID}`, queryKeys.messages(sessionID))
+        }
       }
       return
 

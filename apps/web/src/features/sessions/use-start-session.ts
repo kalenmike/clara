@@ -3,9 +3,14 @@ import { useNavigate } from 'react-router'
 import { resolveDefaultAgent } from '@/features/agents/default-agent'
 import { useDefaultAgent } from '@/features/agents/use-default-agent'
 import { useAgents } from '@/features/catalog/use-catalog'
+import type { PromptFile } from '@/features/chat/use-chat'
 import { useCreateSession, type CreateSessionInput } from '@/features/sessions/use-sessions'
 
-export type ChatComposeState = { compose?: boolean }
+export type ChatComposeState = {
+  compose?: boolean
+  draftText?: string
+  draftFiles?: PromptFile[]
+}
 
 export function useStartSession({
   projectID,

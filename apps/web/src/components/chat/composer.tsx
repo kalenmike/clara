@@ -58,6 +58,8 @@ export function Composer({
   agentRequest,
   canSaveAsDraft,
   draft = false,
+  startText,
+  startFiles,
   onDraftChange,
   onSent,
   onCycleAgent,
@@ -73,13 +75,17 @@ export function Composer({
   agentRequest: number
   canSaveAsDraft: boolean
   draft?: boolean
+  /** Text handed over by a forward action; local storage is the fallback. */
+  startText?: string
+  /** Attachments handed over by a forward action. */
+  startFiles?: PromptFile[]
   onDraftChange: (hasDraft: boolean) => void
   onSent: () => void
   onCycleAgent: (direction: 1 | -1) => void
 }) {
   const { client } = useConnection()
-  const [text, setText] = useState(() => readDraft(sessionID))
-  const [files, setFiles] = useState<PromptFile[]>([])
+  const [text, setText] = useState(() => startText ?? readDraft(sessionID))
+  const [files, setFiles] = useState<PromptFile[]>(() => startFiles ?? [])
   const [activeIndex, setActiveIndex] = useState(0)
   const [dismissed, setDismissed] = useState(false)
   const [modelOpen, setModelOpen] = useState(false)

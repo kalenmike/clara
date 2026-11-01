@@ -10,6 +10,7 @@ import {
   Copy,
   Eye,
   EyeOff,
+  GitFork,
   Home,
   MoreHorizontal,
   PanelRight,
@@ -57,6 +58,8 @@ export function ChatHeader({
   snapshot,
   infoOpen,
   onToggleInfo,
+  onFork,
+  forkPending,
   onDeleted,
   allCollapsed,
   canToggleAll,
@@ -68,6 +71,8 @@ export function ChatHeader({
   snapshot: ChatSnapshot
   infoOpen: boolean
   onToggleInfo: () => void
+  onFork: () => void
+  forkPending: boolean
   onDeleted: () => void
   allCollapsed: boolean
   canToggleAll: boolean
@@ -166,6 +171,9 @@ export function ChatHeader({
         <DropdownMenuContent align="end">
           <DropdownMenuItem onSelect={copyID}>
             <Copy className="size-3.5" /> Copy {lowerSingular} ID
+          </DropdownMenuItem>
+          <DropdownMenuItem onSelect={onFork} disabled={forkPending}>
+            <GitFork className="size-3.5" /> Fork {lowerSingular}
           </DropdownMenuItem>
           <DropdownMenuItem onSelect={() => compact.mutate()}>
             <PanelRight className="size-3.5" /> Compact context

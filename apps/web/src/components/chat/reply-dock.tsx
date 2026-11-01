@@ -14,6 +14,7 @@ import type { SessionInfo } from '@opencode/client'
 import { Button } from '@/components/ui/button'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { Composer } from '@/components/chat/composer'
+import type { PromptFile } from '@/features/chat/use-chat'
 import { DoneButton } from '@/components/chat/done-button'
 import { isArchivedSession } from '@/features/sessions/session-archive'
 import { isSnoozedSession } from '@/features/sessions/session-snooze'
@@ -40,6 +41,8 @@ export function ReplyDock({
   hasDraft,
   autoOpen,
   startExpanded,
+  startText,
+  startFiles,
   onStartExpandedConsumed,
   onDraftChange,
   onOpenChange,
@@ -58,6 +61,8 @@ export function ReplyDock({
   hasDraft: boolean
   autoOpen?: boolean
   startExpanded?: boolean
+  startText?: string
+  startFiles?: PromptFile[]
   onStartExpandedConsumed?: () => void
   onDraftChange: (hasDraft: boolean) => void
   onOpenChange?: (open: boolean) => void
@@ -395,6 +400,8 @@ export function ReplyDock({
             agentRequest={agentRequest}
             canSaveAsDraft={canSaveAsDraft}
             draft={empty}
+            startText={startText}
+            startFiles={startFiles}
             onDraftChange={onDraftChange}
             onSent={handleSent}
             onCycleAgent={onCycleAgent}

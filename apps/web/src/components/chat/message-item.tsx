@@ -19,27 +19,44 @@ import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { Badge } from '@/components/ui/badge'
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
 import { Markdown } from '@/components/chat/markdown'
+import { MessageActions } from '@/components/chat/message-actions'
 import { ToolCard } from '@/components/chat/tool-card'
 import { assistantHasContent, assistantHasFailed } from '@/features/chat/message-visibility'
 import { formatCost, formatDateTime, formatRelativeTime, formatTokens } from '@/lib/format'
 import { cn } from '@/lib/utils'
+
+export type MessageItemActions = {
+  onFork: () => void
+  onForward: () => void
+  canForward: boolean
+  disabled?: boolean
+}
 
 export function MessageItem({
   message,
   streaming,
   showInternal,
   collapsed = false,
+  actions,
   onToggle,
 }: {
   message: SessionMessageInfo
   streaming: boolean
   showInternal: boolean
   collapsed?: boolean
+  actions?: MessageItemActions
   onToggle?: () => void
 }) {
   switch (message.type) {
     case 'user':
-      return <UserMessage message={message} collapsed={collapsed} onToggle={onToggle} />
+      return (
+        <UserMessage
+          message={message}
+          collapsed={collapsed}
+          actions={actions}
+          onToggle={onToggle}
+        />
+      )
     case 'assistant':
       return (
         <AssistantMessage
@@ -47,6 +64,7 @@ export function MessageItem({
           streaming={streaming}
           showInternal={showInternal}
           collapsed={collapsed}
+          actions={actions}
           onToggle={onToggle}
         />
       )
@@ -84,6 +102,7 @@ function MessageRow({
   meta,
   collapsed,
   preview,
+  actions,
   onToggle,
   children,
 }: {
@@ -94,6 +113,7 @@ function MessageRow({
   meta?: string
   collapsed: boolean
   preview: string
+  actions?: MessageItemActions
   onToggle?: () => void
   children: React.ReactNode
 }) {
@@ -104,44 +124,48 @@ function MessageRow({
         if (open === collapsed) onToggle?.()
       }}
     >
-      <article className="px-2 py-1 sm:px-4">
-        <CollapsibleTrigger asChild>
-          <button
-            type="button"
-            aria-label={collapsed ? `Expand ${sender} message` : `Collapse ${sender} message`}
-            className={cn(
-              'flex w-full flex-col gap-1.5 rounded-lg px-2 py-3 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
-              collapsed && 'hover:bg-accent/40'
-            )}
-          >
-            <div className="flex w-full items-start gap-3">
-              <MessageAvatar role={role} />
-              <div className="min-w-0 flex-1">
-                <div className="flex min-w-0 items-center gap-1.5">
-                  <span className="truncate text-sm font-medium">{sender}</span>
-                  {senderSuffix}
+      <article className="group/row px-2 py-1 sm:px-4">
+        <div className="flex items-start gap-1">
+          <CollapsibleTrigger asChild>
+            <button
+              type="button"
+              aria-label={collapsed ? `Expand ${sender} message` : `Collapse ${sender} message`}
+              className={cn(
+                'flex min-w-0 flex-1 flex-col gap-1.5 rounded-lg px-2 py-3 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
+                collapsed && 'hover:bg-accent/40'
+              )}
+            >
+              <div className="flex w-full items-start gap-3">
+                <MessageAvatar role={role} />
+                <div className="min-w-0 flex-1">
+                  <div className="flex min-w-0 items-center gap-1.5">
+                    <span className="truncate text-sm font-medium">{sender}</span>
+                    {senderSuffix}
+                  </div>
+                  <time
+                    className="text-xs text-muted-foreground"
+                    dateTime={new Date(timestamp).toISOString()}
+                  >
+                    {formatDateTime(timestamp)} ({formatRelativeTime(timestamp)})
+                  </time>
                 </div>
-                <time
-                  className="text-xs text-muted-foreground"
-                  dateTime={new Date(timestamp).toISOString()}
-                >
-                  {formatDateTime(timestamp)} ({formatRelativeTime(timestamp)})
-                </time>
+                <ChevronRight
+                  aria-hidden="true"
+                  className={cn(
+                    'mt-1 size-4 shrink-0 text-muted-foreground transition-transform',
+                    !collapsed && 'rotate-90'
+                  )}
+                />
               </div>
-              <ChevronRight
-                aria-hidden="true"
-                className={cn(
-                  'mt-1 size-4 shrink-0 text-muted-foreground transition-transform',
-                  !collapsed && 'rotate-90'
-                )}
-              />
-            </div>
 
-            {collapsed && preview ? (
-              <p className="w-full truncate pl-12 text-xs text-muted-foreground">{preview}</p>
-            ) : null}
-          </button>
-        </CollapsibleTrigger>
+              {collapsed && preview ? (
+                <p className="w-full truncate pl-12 text-xs text-muted-foreground">{preview}</p>
+              ) : null}
+            </button>
+          </CollapsibleTrigger>
+
+          {actions ? <MessageActions {...actions} /> : null}
+        </div>
 
         <CollapsibleContent>
           <div className="pr-2 pb-3 pl-14 text-sm leading-relaxed">{children}</div>
@@ -177,10 +201,12 @@ function MessageAvatar({ role }: { role: 'user' | 'agent' }) {
 function UserMessage({
   message,
   collapsed,
+  actions,
   onToggle,
 }: {
   message: Extract<SessionMessageInfo, { type: 'user' }>
   collapsed: boolean
+  actions?: MessageItemActions
   onToggle?: () => void
 }) {
   return (
@@ -190,6 +216,7 @@ function UserMessage({
       timestamp={message.time.created}
       collapsed={collapsed}
       preview={userPreview(message)}
+      actions={actions}
       onToggle={onToggle}
     >
       <div className="whitespace-pre-wrap break-words">{message.text}</div>
@@ -217,12 +244,14 @@ function AssistantMessage({
   streaming,
   showInternal,
   collapsed,
+  actions,
   onToggle,
 }: {
   message: SessionMessageAssistant
   streaming: boolean
   showInternal: boolean
   collapsed: boolean
+  actions?: MessageItemActions
   onToggle?: () => void
 }) {
   const hasContent = assistantHasContent(message, showInternal)
@@ -256,6 +285,7 @@ function AssistantMessage({
       meta={meta}
       collapsed={collapsed && !assistantHasFailed(message)}
       preview={assistantPreview(message, showInternal)}
+      actions={actions}
       onToggle={onToggle}
     >
       {message.error && (

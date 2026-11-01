@@ -1,9 +1,11 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { useVirtualizer } from '@tanstack/react-virtual'
 import { ArrowDown } from 'lucide-react'
+import type { SessionMessageInfo } from '@opencode/client'
 import { Button } from '@/components/ui/button'
 import { MessageItem } from '@/components/chat/message-item'
 import { SystemEventRow } from '@/components/chat/system-event-row'
+import { canForwardMessage } from '@/features/sessions/forward'
 import type { TimelineItem } from '@/features/chat/timeline'
 import { cn } from '@/lib/utils'
 
@@ -20,6 +22,10 @@ export function MessageList({
   scrollToEndRequest,
   onLoadOlder,
   onToggleMessage,
+  onForkMessage,
+  onForwardMessage,
+  canActOnMessage,
+  actionsDisabled,
 }: {
   sessionID: string
   items: TimelineItem[]
@@ -33,6 +39,10 @@ export function MessageList({
   scrollToEndRequest: number
   onLoadOlder: () => void
   onToggleMessage: (id: string) => void
+  onForkMessage: (message: SessionMessageInfo) => void
+  onForwardMessage: (message: SessionMessageInfo) => void
+  canActOnMessage: (message: SessionMessageInfo) => boolean
+  actionsDisabled: boolean
 }) {
   const parentRef = useRef<HTMLDivElement>(null)
   const [atBottom, setAtBottom] = useState(true)
@@ -276,6 +286,17 @@ export function MessageList({
                     streaming={streaming && item.index === lastMessageIndex}
                     showInternal={showInternal}
                     collapsed={collapsedIDs.has(entry.message.id)}
+                    actions={
+                      canActOnMessage(entry.message)
+                        ? {
+                            onFork: () => onForkMessage(entry.message),
+                            onForward: () => onForwardMessage(entry.message),
+                            canForward: canForwardMessage(entry.message),
+                            disabled:
+                              actionsDisabled || (streaming && item.index === lastMessageIndex),
+                          }
+                        : undefined
+                    }
                     onToggle={() => onToggleMessage(entry.message.id)}
                   />
                 ) : (
