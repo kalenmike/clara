@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Check, ChevronDown } from 'lucide-react'
 import { PageShell } from '@/components/layout/page-shell'
 import { Button } from '@/components/ui/button'
@@ -17,19 +17,23 @@ import { AppCard } from '@/components/settings/app-card'
 import { NotificationsCard } from '@/components/settings/notifications-card'
 import { ServerCard } from '@/components/settings/server-card'
 import { SettingsFilter } from '@/components/settings/settings-filter'
+import { SyncCard } from '@/components/settings/sync-card'
 import { ThemeCard } from '@/components/settings/theme-card'
 import { WordingCard } from '@/components/settings/wording-card'
 import { useSimplifySettings } from '@/features/settings/use-simplify-settings'
 import { useSessionWording } from '@/features/sessions/use-wording'
 import type { SessionWording } from '@/features/sessions/wording'
+import { useSettingsSync } from '@/providers/settings-sync-provider'
 import { useIsTouchDevice } from '@/hooks/use-is-touch-device'
 
-type SettingsTab = 'appearance' | 'preferences' | 'notifications' | 'shortcuts' | 'advanced'
+type SettingsTab =
+  'appearance' | 'preferences' | 'notifications' | 'sync' | 'shortcuts' | 'advanced'
 
 const SETTINGS_TABS: Array<{ value: SettingsTab; label: string }> = [
   { value: 'appearance', label: 'Appearance' },
   { value: 'preferences', label: 'Preferences' },
   { value: 'notifications', label: 'Notifications' },
+  { value: 'sync', label: 'Sync' },
   { value: 'shortcuts', label: 'Shortcuts' },
   { value: 'advanced', label: 'Advanced' },
 ]
@@ -58,18 +62,26 @@ function shortcutList(wording: SessionWording): Array<[string, string]> {
 export function SettingsPage() {
   const isTouchDevice = useIsTouchDevice()
   const { simplified } = useSimplifySettings()
+  const { serverEnabled } = useSettingsSync()
   const wording = useSessionWording()
   const [tab, setTab] = useState<SettingsTab>('appearance')
   const shortcuts = isTouchDevice ? [] : shortcutList(wording)
-  const tabs = isTouchDevice
-    ? SETTINGS_TABS.filter((item) => item.value !== 'shortcuts')
-    : SETTINGS_TABS
-  const activeTab = tabs.find((item) => item.value === tab) ?? SETTINGS_TABS[0]
+  const showSync = serverEnabled
+  const tabs = SETTINGS_TABS.filter((item) => {
+    if (item.value === 'shortcuts') return !isTouchDevice
+    if (item.value === 'sync') return showSync
+    return true
+  })
+  const activeTab = tabs.find((item) => item.value === tab) ?? tabs[0] ?? SETTINGS_TABS[0]
+
+  useEffect(() => {
+    if (tab === 'sync' && !showSync) setTab('appearance')
+  }, [showSync, tab])
 
   return (
     <PageShell
       title="Settings"
-      description={`Appearance, preferences, notifications,${isTouchDevice ? '' : ' shortcuts,'} and advanced options.`}
+      description={`Appearance, preferences, notifications,${showSync ? ' sync,' : ''}${isTouchDevice ? '' : ' shortcuts,'} and advanced options.`}
       actions={<SettingsFilter />}
     >
       <DropdownMenu>
@@ -128,6 +140,12 @@ export function SettingsPage() {
         <TabsContent value="notifications" className="space-y-4">
           <NotificationsCard isTouchDevice={isTouchDevice} simplified={simplified} />
         </TabsContent>
+
+        {showSync && (
+          <TabsContent value="sync" className="space-y-4">
+            <SyncCard />
+          </TabsContent>
+        )}
 
         {!isTouchDevice && (
           <TabsContent value="shortcuts">
