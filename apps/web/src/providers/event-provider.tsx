@@ -295,6 +295,8 @@ function handleInvalidation(
       void queryClient.invalidateQueries({ queryKey: ['sessions'] })
       void queryClient.invalidateQueries({ queryKey: queryKeys.permissions })
       invalidateSoon('vcs', ['vcs'])
+      // One `git log` per finished turn, when commits are most likely.
+      invalidateSoon('git-commits', ['git', 'commits'])
       if (sessionID) {
         void queryClient.invalidateQueries({ queryKey: queryKeys.session(sessionID) })
         invalidateSoon(`messages:${sessionID}`, queryKeys.messages(sessionID))
@@ -372,6 +374,13 @@ function handleInvalidation(
 
     case 'vcs.branch.updated':
       void queryClient.invalidateQueries({ queryKey: ['vcs'] })
+      // A commit moves HEAD; refresh the log once, not on every file write.
+      invalidateSoon('git-commits', ['git', 'commits'])
+      return
+
+    case 'worktree.updated':
+    case 'worktree.resolved':
+      void queryClient.invalidateQueries({ queryKey: ['git', 'worktrees'] })
       return
 
     case 'filesystem.changed':

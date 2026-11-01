@@ -31,7 +31,7 @@ import {
   useSwitchModel,
 } from '@/features/chat/use-chat'
 import { useInboxMonitor } from '@/features/sessions/inbox-monitor'
-import { useProjects } from '@/features/projects/use-projects'
+import { canonicalProject, useProjects } from '@/features/projects/use-projects'
 import { planMessageFork } from '@/features/sessions/fork'
 import { isArchivedSession } from '@/features/sessions/session-archive'
 import { isSnoozedSession } from '@/features/sessions/session-snooze'
@@ -63,6 +63,8 @@ export function ChatPage() {
   const { setTheme, resolvedTheme } = useTheme()
   const projectsQuery = useProjects()
   const project = projectsQuery.data?.find((item) => item.id === projectId)
+  /** The record that owns worktrees, even when the route names a duplicate. */
+  const owningProject = canonicalProject(projectsQuery.data ?? [], projectId)
   const sessionQuery = useSession(sessionId ?? null)
   const session = sessionQuery.data
   const snapshot = useChatSnapshot(sessionId ?? '')
@@ -489,6 +491,8 @@ export function ChatPage() {
           snapshot={snapshot}
           messages={allMessages}
           directory={directory}
+          projectID={owningProject?.id ?? projectId}
+          canonical={owningProject?.canonical ?? project?.canonical}
           draft={isDraftSession}
           tab={panelTab}
           onTabChange={setPanelTab}
@@ -511,6 +515,8 @@ export function ChatPage() {
               snapshot={snapshot}
               messages={allMessages}
               directory={directory}
+              projectID={owningProject?.id ?? projectId}
+              canonical={owningProject?.canonical ?? project?.canonical}
               draft={isDraftSession}
               tab={panelTab}
               onTabChange={setPanelTab}

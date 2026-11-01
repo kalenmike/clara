@@ -1,6 +1,10 @@
-import { useEffect, useMemo, useState, type ReactNode } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { AlertCircle, GitBranch, GitCommitHorizontal, Loader2, RefreshCw } from 'lucide-react'
+import { useQueryClient } from '@tanstack/react-query'
 import type { VcsFileStatus } from '@opencode/client'
+import { GitCommitList } from '@/components/layout/git-commit-list'
+import { GitPanelMessage } from '@/components/layout/git-panel-parts'
+import { GitWorktreeList } from '@/components/layout/git-worktree-list'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import {
@@ -12,10 +16,14 @@ import {
 } from '@/components/ui/select'
 import { Separator } from '@/components/ui/separator'
 import { Skeleton } from '@/components/ui/skeleton'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { useGitBase, useGitChanges, useGitInfo, type GitRange } from '@/features/git/use-git'
 import { useSessionWording } from '@/features/sessions/use-wording'
+import { isRelayConfig } from '@/lib/client'
+import { errorMessage } from '@/lib/errors'
 import { formatCount } from '@/lib/format'
 import { cn } from '@/lib/utils'
+import { useConnection } from '@/providers/connection-provider'
 
 const STATUS_COLOR: Record<VcsFileStatus['status'], string> = {
   added: 'text-emerald-600 dark:text-emerald-400',
@@ -29,16 +37,36 @@ const STATUS_LABEL: Record<VcsFileStatus['status'], string> = {
   deleted: 'D',
 }
 
-export function GitPanel({ directory }: { directory: string | undefined }) {
+type GitView = 'changes' | 'commits' | 'worktrees'
+
+export function GitPanel({
+  directory,
+  projectID,
+  canonical,
+}: {
+  directory: string | undefined
+  projectID: string | undefined
+  /** The project's canonical directory, used to mark the default worktree. */
+  canonical: string | undefined
+}) {
+  const { config } = useConnection()
+  const queryClient = useQueryClient()
   const infoQuery = useGitInfo(directory)
   const baseQuery = useGitBase(directory)
   const { lowerSingular } = useSessionWording()
   const [range, setRange] = useState<GitRange>('working')
+  const [view, setView] = useState<GitView>('changes')
   const [fallbackBase, setFallbackBase] = useState<string | undefined>()
 
   useEffect(() => {
     setFallbackBase(undefined)
   }, [directory])
+
+  /**
+   * Commit history runs `git log` on the host, so it only exists when the
+   * request travels through the home agent and its shell policy.
+   */
+  const hostCommands = Boolean(config && isRelayConfig(config))
 
   const info = infoQuery.data
   const currentBranch = info?.branch.current
@@ -82,6 +110,9 @@ export function GitPanel({ directory }: { directory: string | undefined }) {
     void infoQuery.refetch()
     void baseQuery.refetch()
     void changesQuery.refetch()
+    // Only the active history or worktree query refetches, so a refresh on the
+    // changes view cannot spawn a `git log` shell job.
+    void queryClient.invalidateQueries({ queryKey: ['git'] })
   }
 
   const changeRange = (value: string) => {
@@ -91,7 +122,7 @@ export function GitPanel({ directory }: { directory: string | undefined }) {
 
   if (!directory) {
     return (
-      <PanelMessage
+      <GitPanelMessage
         title="No directory"
         description={`This ${lowerSingular} is not attached to a project directory.`}
       />
@@ -110,7 +141,7 @@ export function GitPanel({ directory }: { directory: string | undefined }) {
 
   if (infoQuery.isError) {
     return (
-      <PanelMessage
+      <GitPanelMessage
         title="Could not read git information"
         description="The server did not answer the git request."
         action={
@@ -129,7 +160,7 @@ export function GitPanel({ directory }: { directory: string | undefined }) {
 
   if (!info || !isRepo) {
     return (
-      <PanelMessage
+      <GitPanelMessage
         title="Not a git repository"
         description={`${directory} has no git repository.`}
       />
@@ -179,94 +210,125 @@ export function GitPanel({ directory }: { directory: string | undefined }) {
 
       <Separator />
 
-      <div className="space-y-1.5">
-        <div className="flex items-center justify-between gap-2">
-          <span className="text-muted-foreground">Compare</span>
-          <Select value={effectiveRange} onValueChange={changeRange}>
-            <SelectTrigger size="sm" className="h-7 text-[11px] max-md:h-11 max-md:text-sm">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="working">Working tree</SelectItem>
-              <SelectItem value="commits">Last 3 commits</SelectItem>
-              <SelectItem value="branch" disabled={!defaultBranch}>
-                Base branch
-              </SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
-        <p className="truncate font-mono text-[10px] text-muted-foreground">{rangeLabel}</p>
-        {fallbackBase && (
-          <p className="text-[10px] text-amber-600 dark:text-amber-400">
-            Last 3 commits unavailable; showing the last commit.
-          </p>
-        )}
-      </div>
+      <Tabs value={view} onValueChange={(value) => setView(value as GitView)} className="gap-2">
+        <TabsList className="h-7 w-full max-md:h-11">
+          <TabsTrigger value="changes" className="text-[11px] max-md:text-sm">
+            Changes
+          </TabsTrigger>
+          <TabsTrigger value="commits" className="text-[11px] max-md:text-sm">
+            Commits
+          </TabsTrigger>
+          <TabsTrigger value="worktrees" className="text-[11px] max-md:text-sm">
+            Worktrees
+          </TabsTrigger>
+        </TabsList>
 
-      <Separator />
-
-      {changesQuery.isPending ? (
-        <div className="space-y-2">
-          <Skeleton className="h-4 w-1/2" />
-          <Skeleton className="h-8 w-full" />
-          <Skeleton className="h-8 w-full" />
-          <Skeleton className="h-8 w-full" />
-        </div>
-      ) : changesQuery.isError ? (
-        <ChangeError
-          range={effectiveRange}
-          message={errorMessage(changesQuery.error)}
-          onRetry={() => void changesQuery.refetch()}
-          onShowLastCommit={
-            effectiveRange === 'commits' && !fallbackBase
-              ? () => setFallbackBase('HEAD~1')
-              : undefined
-          }
-        />
-      ) : files.length === 0 ? (
-        <div className="flex flex-col items-center gap-1.5 py-8 text-center text-muted-foreground">
-          <GitCommitHorizontal className="size-5" />
-          <p className="text-[10px]">No changes in this range.</p>
-        </div>
-      ) : (
-        <>
+        <TabsContent value="changes" className="space-y-3">
           <div className="space-y-1.5">
-            <div className="flex items-center justify-between text-[10px]">
-              <span className="text-muted-foreground">
-                {formatCount(files.length)} file{files.length === 1 ? '' : 's'}
-              </span>
-              <span className="font-mono">
-                <span className="text-emerald-600 dark:text-emerald-400">
-                  +{formatCount(totals.additions)}
-                </span>{' '}
-                <span className="text-rose-600 dark:text-rose-400">
-                  −{formatCount(totals.deletions)}
-                </span>
-              </span>
+            <div className="flex items-center justify-between gap-2">
+              <span className="text-muted-foreground">Compare</span>
+              <Select value={effectiveRange} onValueChange={changeRange}>
+                <SelectTrigger size="sm" className="h-7 text-[11px] max-md:h-11 max-md:text-sm">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="working">Working tree</SelectItem>
+                  <SelectItem value="commits">Last 3 commits</SelectItem>
+                  <SelectItem value="branch" disabled={!defaultBranch}>
+                    Base branch
+                  </SelectItem>
+                </SelectContent>
+              </Select>
             </div>
-            <div className="flex h-1.5 overflow-hidden rounded-full bg-muted">
-              <div
-                className="h-full bg-emerald-500"
-                style={{
-                  width: `${(totals.additions / Math.max(1, totals.additions + totals.deletions)) * 100}%`,
-                }}
-              />
-              <div
-                className="h-full bg-rose-500"
-                style={{
-                  width: `${(totals.deletions / Math.max(1, totals.additions + totals.deletions)) * 100}%`,
-                }}
-              />
-            </div>
+            <p className="truncate font-mono text-[10px] text-muted-foreground">{rangeLabel}</p>
+            {fallbackBase && (
+              <p className="text-[10px] text-amber-600 dark:text-amber-400">
+                Last 3 commits unavailable; showing the last commit.
+              </p>
+            )}
           </div>
 
-          <ul className="space-y-2">
-            {sorted.map((file) => (
-              <FileRow key={file.file} file={file} maxChurn={maxChurn} />
-            ))}
-          </ul>
-        </>
-      )}
+          <Separator />
+
+          {changesQuery.isPending ? (
+            <div className="space-y-2">
+              <Skeleton className="h-4 w-1/2" />
+              <Skeleton className="h-8 w-full" />
+              <Skeleton className="h-8 w-full" />
+              <Skeleton className="h-8 w-full" />
+            </div>
+          ) : changesQuery.isError ? (
+            <ChangeError
+              range={effectiveRange}
+              message={errorMessage(changesQuery.error)}
+              onRetry={() => void changesQuery.refetch()}
+              onShowLastCommit={
+                effectiveRange === 'commits' && !fallbackBase
+                  ? () => setFallbackBase('HEAD~1')
+                  : undefined
+              }
+            />
+          ) : files.length === 0 ? (
+            <div className="flex flex-col items-center gap-1.5 py-8 text-center text-muted-foreground">
+              <GitCommitHorizontal className="size-5" />
+              <p className="text-[10px]">No changes in this range.</p>
+            </div>
+          ) : (
+            <>
+              <div className="space-y-1.5">
+                <div className="flex items-center justify-between text-[10px]">
+                  <span className="text-muted-foreground">
+                    {formatCount(files.length)} file{files.length === 1 ? '' : 's'}
+                  </span>
+                  <span className="font-mono">
+                    <span className="text-emerald-600 dark:text-emerald-400">
+                      +{formatCount(totals.additions)}
+                    </span>{' '}
+                    <span className="text-rose-600 dark:text-rose-400">
+                      −{formatCount(totals.deletions)}
+                    </span>
+                  </span>
+                </div>
+                <div className="flex h-1.5 overflow-hidden rounded-full bg-muted">
+                  <div
+                    className="h-full bg-emerald-500"
+                    style={{
+                      width: `${(totals.additions / Math.max(1, totals.additions + totals.deletions)) * 100}%`,
+                    }}
+                  />
+                  <div
+                    className="h-full bg-rose-500"
+                    style={{
+                      width: `${(totals.deletions / Math.max(1, totals.additions + totals.deletions)) * 100}%`,
+                    }}
+                  />
+                </div>
+              </div>
+
+              <ul className="space-y-2">
+                {sorted.map((file) => (
+                  <FileRow key={file.file} file={file} maxChurn={maxChurn} />
+                ))}
+              </ul>
+            </>
+          )}
+        </TabsContent>
+
+        <TabsContent value="commits">
+          {hostCommands ? (
+            <GitCommitList directory={directory} />
+          ) : (
+            <GitPanelMessage
+              title="Commit history needs the home agent"
+              description="Clara runs the log on the host through the Clara server. A direct OpenCode connection has no agent to apply the shell policy."
+            />
+          )}
+        </TabsContent>
+
+        <TabsContent value="worktrees">
+          <GitWorktreeList projectID={projectID} directory={directory} canonical={canonical} />
+        </TabsContent>
+      </Tabs>
     </div>
   )
 }
@@ -368,33 +430,4 @@ function ChangeError({
       </div>
     </div>
   )
-}
-
-function PanelMessage({
-  title,
-  description,
-  action,
-}: {
-  title: string
-  description: string
-  action?: ReactNode
-}) {
-  return (
-    <div className="flex flex-col items-center gap-2 py-8 text-center">
-      <GitBranch className="size-5 text-muted-foreground" />
-      <div className="space-y-1">
-        <p className="text-[11px] font-medium">{title}</p>
-        <p className="break-words text-[10px] text-muted-foreground">{description}</p>
-      </div>
-      {action}
-    </div>
-  )
-}
-
-function errorMessage(error: unknown): string {
-  if (error instanceof Error) return error.message
-  if (typeof error === 'object' && error && 'message' in error) {
-    return String(error.message)
-  }
-  return 'Unknown error'
 }

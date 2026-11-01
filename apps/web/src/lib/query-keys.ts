@@ -19,6 +19,13 @@ export const queryKeys = {
   vcsBase: (directory: string | undefined) => ['vcs', 'base', directory ?? 'global'] as const,
   vcsChanges: (directory: string | undefined, range: string, base: string | undefined) =>
     ['vcs', 'changes', directory ?? 'global', range, base ?? ''] as const,
+  /**
+   * Git history and worktrees use their own root. Invalidating `vcs` on every
+   * file write must not spawn a `git log` shell job.
+   */
+  gitCommits: (directory: string | undefined) => ['git', 'commits', directory ?? 'global'] as const,
+  gitWorktrees: (projectID: string | undefined, directory: string | undefined) =>
+    ['git', 'worktrees', projectID ?? 'global', directory ?? 'global'] as const,
   permissions: ['permissions'] as const,
   forms: (sessionID: string) => ['forms', sessionID] as const,
 }

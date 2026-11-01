@@ -15,6 +15,8 @@ export function SidePanel({
   snapshot,
   messages,
   directory,
+  projectID,
+  canonical,
   draft,
   tab,
   onTabChange,
@@ -26,6 +28,8 @@ export function SidePanel({
   snapshot: ChatSnapshot
   messages: SessionMessageInfo[]
   directory: string | undefined
+  projectID: string | undefined
+  canonical: string | undefined
   draft: boolean
   tab: SidePanelTab
   onTabChange: (tab: SidePanelTab) => void
@@ -111,7 +115,7 @@ export function SidePanel({
           />
         </TabsContent>
         <TabsContent value="git" className="min-h-0 flex-1 overflow-y-auto p-3">
-          <GitPanel directory={directory} />
+          <GitPanel directory={directory} projectID={projectID} canonical={canonical} />
         </TabsContent>
         <TabsContent value="terminal" className="min-h-0 flex-1 overflow-hidden p-0">
           <PairTerminal
