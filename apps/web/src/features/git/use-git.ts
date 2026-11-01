@@ -21,7 +21,7 @@ export const GIT_LOG_COMMAND = 'git log --oneline -n 10'
 const COMMIT_COUNT = 10
 const SHELL_TIMEOUT_MS = 10_000
 const SHELL_POLL_MS = 150
-const SHELL_POLL_LIMIT = 40
+const SHELL_POLL_LIMIT = Math.ceil(SHELL_TIMEOUT_MS / SHELL_POLL_MS) + 2
 
 export function useGitInfo(directory: string | undefined) {
   const { client } = useConnection()
