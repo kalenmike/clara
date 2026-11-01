@@ -31,7 +31,7 @@ sidebar.
    are held so the desk is alerted once; after the idle window, or when the
    desktop window is hidden, the phone starts receiving alerts again. Clicking
    any notification focuses Clara and opens the session.
-8. When the person marks a session Done or hands a ready plan to Build, Clara
+8. When the person marks a session Done or starts work from a ready plan, Clara
    plays the matching UI chime if **UI sounds** is on.
 9. The sidebar still shows the same state with its dot, and the person can
    preview every sound before relying on it.

@@ -4,9 +4,9 @@
 
 The reply composer is a Gmail-style window docked to the bottom-right of a chat.
 It opens from the **Reply** or **New** button, automatically when a new session
-is created or an empty draft with locally saved text is opened, and from Steer
-on the plan-ready card. It sends prompts that steer the run by default, can save
-the first message as a draft without starting a run, and carries commands,
+is created or an empty draft with locally saved text is opened, and from Adjust
+Plan on the plan-ready card. It sends prompts that steer the run by default, can
+save the first message as a draft without starting a run, and carries commands,
 mentions, attachments, model selection, and agent selection.
 
 ## User flow
@@ -16,7 +16,7 @@ mentions, attachments, model selection, and agent selection.
    default, or the smaller docked window if that is how it was last restored.
    Creating a new session opens the window automatically at that size, and so
    does opening an empty draft that has locally saved text. The plan-ready
-   card's **Steer** action also opens the window.
+   card's **Adjust Plan** action also opens the window.
 2. Type in the large editor. The docked window stays non-modal, so the thread
    remains readable and scrollable behind it.
 3. Press Enter to send with steering, or Shift+Enter to add a line.

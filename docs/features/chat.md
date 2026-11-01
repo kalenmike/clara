@@ -12,11 +12,11 @@ either header can be folded with a click. Assistant headers show the model name
 and the agent that produced the reply. A header toggle reveals internal output
 such as thinking, tool calls, and commands; internal output is hidden by
 default. Actions Clara triggers on the person's behalf — requesting a plan,
-refreshing it, and building — and the person's answers to an agent question
-appear as compact system rows in the thread rather than as if the person had
-typed them. When a
+refreshing it, and starting work — and the person's answers to an agent
+question appear as compact system rows in the thread rather than as if the
+person had typed them. When a
 Plan run finishes, a plan-ready card appears above the thread so the person can
-steer the plan or hand off to Build. A session with no messages shows a
+adjust the plan or start work. A session with no messages shows a
 dedicated New message view, and a session saved as a draft shows its queued user
 message in the thread and a Start card above it. The header can fork the whole
 brief, and each user or assistant message has fork and forward actions; see
@@ -57,9 +57,9 @@ brief, and each user or assistant message has fork and forward actions; see
    agent is working steers the active run.
 10. When the run finishes the header returns to "idle" and usage settles.
 11. When a Plan run ends with a final reply, a plan-ready card appears above the
-    thread. **Steer** opens the reply window for adjustments; **Build** switches
-    to Build and sends a short synthetic handoff, which appears as a **Started
-    build** system row.
+    thread. **Adjust Plan** opens the reply window for changes; **Start Work**
+    switches to the working agent and sends a short synthetic handoff, which
+    appears as a **User confirmed. Starting work.** system row.
 12. Open a session with a saved draft. The queued user message appears in the
     thread and a Start card appears above it. Click **Start** to send `Start`,
     deliver the draft, and begin the run.
@@ -195,11 +195,11 @@ brief, and each user or assistant message has fork and forward actions; see
   or a non-stop finish does not show the plan-ready card.
 - **Stale plan handoff** — the card requires the session agent and the newest
   reply to be Plan; switching agents or opening an archived session hides it.
-- **Build request fails** — a failed switch leaves the card in place; if the
-  switch succeeds but the handoff cannot be sent, a toast asks the person to
+- **Start Work request fails** — a failed switch leaves the card in place; if
+  the switch succeeds but the handoff cannot be sent, a toast asks the person to
   send a message from the reply box, and Monitor Inbox does not advance.
-- **System events** — Clara's plan, update, build, and question-answer events
-  have no avatar and are never collapsed. Skill, compaction, and untagged
+- **System events** — Clara's plan, update, start-work, and question-answer
+  events have no avatar and are never collapsed. Skill, compaction, and untagged
   synthetic notices remain internal output. Model and location switches still
   render as notes; agent switches are replaced by the header chip.
 - **Mixed collapse state** — the header button folds every visible message first;
@@ -272,9 +272,9 @@ brief, and each user or assistant message has fork and forward actions; see
 - Approvals: `client.permission.request.list`, `client.permission.reply`
 - Forms: `client.session.form.list`, `client.session.form.reply`
 - Plan handoff: `src/features/chat/plan-ready.ts`,
-  `src/components/chat/plan-ready-panel.tsx`; the Build button plays
-  `playBuildSound` from `src/features/notifications/sounds.ts` when UI sounds
-  are on
+  `src/components/chat/plan-ready-panel.tsx`; the Start Work button plays
+  `playStartWorkSound` from `src/features/notifications/sounds.ts` when UI
+  sounds are on
 - Plan handoff APIs: `client.session.switchAgent({ sessionID, agent: 'build' })`,
   then `client.session.synthetic({ sessionID, text, description, metadata,
 delivery: 'steer' })`

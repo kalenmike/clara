@@ -49,7 +49,7 @@ the [Git](git.md) tab and the [pair terminal](pair-terminal.md).
    empty list counts as a cleared plan. The checklist is rendered in server
    order and never edited locally.
 7. Request Plan and Request Update send short steering synthetic inputs. They do
-   not switch the agent or start a build. A busy request is delivered at the next
+   not switch the agent or start work. A busy request is delivered at the next
    safe step boundary, does not interrupt the current tool call, and asks the
    agent to continue after refreshing the list.
 
