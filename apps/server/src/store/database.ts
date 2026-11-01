@@ -1,4 +1,4 @@
-import { chmodSync, closeSync, existsSync, mkdirSync, openSync, statSync } from 'node:fs'
+import { chmodSync, closeSync, existsSync, mkdirSync, openSync } from 'node:fs'
 import { dirname } from 'node:path'
 import Database from 'better-sqlite3'
 
@@ -146,14 +146,6 @@ function migrate(db: ClaraDatabase): void {
       db.pragma(`user_version = ${version + 1}`)
     })
     run()
-  }
-}
-
-export function databaseMode(path: string): string | undefined {
-  try {
-    return (statSync(path).mode & 0o777).toString(8).padStart(3, '0')
-  } catch {
-    return undefined
   }
 }
 

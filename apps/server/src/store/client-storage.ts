@@ -11,7 +11,6 @@ export const MAX_SYNC_NAMESPACE_LENGTH = 64
 export const MAX_SYNC_KEY_LENGTH = 128
 
 const NAMESPACE_PATTERN = /^[a-z0-9_-]+$/
-const CONTROL_CHARACTER_PATTERN = /[\u0000-\u001f\u007f]/
 
 /**
  * Keys that carry credentials must never reach the plaintext sync table. The
@@ -167,13 +166,7 @@ export class ClientStorageStore {
         if (!limit.ok) return tooLargeFailure(namespace.value, limit.message)
 
         for (const entry of entries) {
-          this.upsertEntry.run(
-            namespace.value,
-            entry.key,
-            entry.value,
-            now,
-            updatedBy ?? null
-          )
+          this.upsertEntry.run(namespace.value, entry.key, entry.value, now, updatedBy ?? null)
         }
         this.upsertRevision.run(namespace.value, revision + 1, now)
         return { ok: true, snapshot: this.snapshot(namespace.value) }
@@ -261,8 +254,16 @@ export function isValidSyncKey(value: unknown): value is string {
     typeof value === 'string' &&
     value.length > 0 &&
     value.length <= MAX_SYNC_KEY_LENGTH &&
-    !CONTROL_CHARACTER_PATTERN.test(value)
+    !hasControlCharacter(value)
   )
+}
+
+function hasControlCharacter(value: string): boolean {
+  for (const character of value) {
+    const code = character.codePointAt(0) ?? 0
+    if (code < 0x20 || code === 0x7f) return true
+  }
+  return false
 }
 
 export function isSecretSyncKey(key: string): boolean {
