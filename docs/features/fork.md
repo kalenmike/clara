@@ -42,7 +42,9 @@ keeps running in its current direction in every case.
    do not travel into the child.
 5. A fork inherits the parent's agent, model, metadata, and title prefix. Clara
    clears the inherited snooze marker so the branch appears in the mailbox
-   immediately.
+   immediately. It also starts with an empty Plan section: the copied
+   `todowrite` history stays in the transcript, but Clara only shows a checklist
+   written in the branch.
 6. Forward does not write a message to the server. Clara creates an empty draft,
    saves the forwarded text as the local composer draft, and passes attachments
    through the navigation state. The user can edit everything before sending.
@@ -62,6 +64,9 @@ keeps running in its current direction in every case.
 - **Pending draft selected** — it is not a server message, so no actions appear.
 - **Snoozed parent** — the fork's inherited snooze marker is cleared.
 - **Archived parent** — the fork is created as a normal, unarchived session.
+- **Parent with a plan** — the copy keeps the parent's `todowrite` call in its
+  history, but the Plan section hides it until the branch writes its own
+  checklist.
 - **Forwarded assistant reply** — only text parts are carried over; reasoning and
   tool calls are skipped. The text becomes an editable user prompt.
 - **Assistant reply with no text** — Forward is disabled; Fork still works.
@@ -104,6 +109,8 @@ keeps running in its current direction in every case.
   `{ compose: true, draftText, draftFiles }`
 - Fork titles come from the server: `Parent title (fork #n)`
 - Fork events: `session.forked` invalidates sessions and the child transcript
+- Plan filtering: `src/features/chat/session-plan.ts` hides `todowrite` calls
+  created before the fork's `session.time.created`
 - Helpers: `src/features/sessions/fork.ts` and
   `src/features/sessions/forward.ts`
 - Mutations: `src/features/sessions/use-fork-session.ts` and

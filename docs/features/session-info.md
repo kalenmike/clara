@@ -46,8 +46,9 @@ the [Git](git.md) tab and the [pair terminal](pair-terminal.md).
    data. The width is shared by the Info, Git, and Terminal tabs.
 6. Plan reads the newest completed `todowrite` tool call from the loaded
    transcript, falling back to the full session context for an older list. An
-   empty list counts as a cleared plan. The checklist is rendered in server
-   order and never edited locally.
+   empty list counts as a cleared plan. A forked session ignores plans written
+   before the fork, so the branch starts with its own checklist. The checklist
+   is rendered in server order and never edited locally.
 7. Request Plan and Request Update send short steering synthetic inputs. They do
    not switch the agent or start work. A busy request is delivered at the next
    safe step boundary, does not interrupt the current tool call, and asks the
@@ -73,6 +74,9 @@ the [Git](git.md) tab and the [pair terminal](pair-terminal.md).
 - **Cleared or running plan** — an empty `todowrite` clears the section, malformed
   items are skipped, and the previous completed plan stays visible while a new
   call is running.
+- **Forked session** — the copied parent checklist is hidden because it was
+  written before the branch existed. The Plan section starts empty and shows the
+  branch's own `todowrite` once the agent writes one.
 - **Draft session** — the Plan section asks the person to send their brief and
   shows no request button.
 
@@ -105,7 +109,8 @@ the [Git](git.md) tab and the [pair terminal](pair-terminal.md).
 - Plan section: `src/components/layout/session-plan.tsx`
 - Plan parsing: `src/features/chat/session-plan.ts` reads the newest completed
   `todowrite` tool part and its `state.input.todos` array; an empty array means
-  the agent cleared the list
+  the agent cleared the list. Forked sessions pass the session creation time so
+  copies of the parent's `todowrite` calls are ignored.
 - Plan requests: `client.session.prompt({ delivery: "steer" })`
 - Tab shell: `src/components/layout/side-panel.tsx`
 - Resize: `src/hooks/use-side-panel-width.ts` over the shared
