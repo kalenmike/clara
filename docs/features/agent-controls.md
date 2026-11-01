@@ -10,22 +10,24 @@ started again.
 ## User flow
 
 1. Open the panel at `http://127.0.0.1:8790/` on the machine running the agent.
-2. Each transport card carries its own switch at the top left: OpenCode
+2. Every card starts collapsed. Click a card header to expand its contents, and
+   click it again to collapse it.
+3. Each transport card carries its own switch at the top right: OpenCode
    connection, local transport, relay, and push notifications. The status chip
    sits beside the card title.
-3. Toggle one feature. The panel posts the change, waits for the agent to apply
-   it, then refreshes the snapshot. Turning the feature off collapses its card
-   to the header and switch; turning it on restores the details.
-4. Read the **Desired** and **Effective** values on the switch and on the
+4. Toggle one feature. The panel posts the change, waits for the agent to apply
+   it, then refreshes the snapshot. A disabled feature hides its details and its
+   header cannot be expanded; enabling it makes the header expandable.
+5. Read the **Desired** and **Effective** values on the switch and on the
    matching transport card. A failed start shows an error instead of pretending
    the feature works.
-5. Choose **Stop agent** at the bottom right of the **Agent** card and confirm.
-   All external connections close, the E2EE sessions are reset, and the page
-   shows the stopped banner.
-6. While stopped, feature switches are disabled. Choose **Start agent** in the
+6. Choose **Stop agent** at the top right of the **Agent** card and confirm. All
+   external connections close, the E2EE sessions are reset, and the page shows
+   the stopped banner.
+7. While stopped, feature switches are disabled. Choose **Start agent** in the
    same place to restore every saved on/off choice, including features that were
    off before the stop.
-7. Restart the process at any time; the saved choices and the stopped state are
+8. Restart the process at any time; the saved choices and the stopped state are
    loaded before any transport starts.
 
 ## Core business rules
@@ -45,17 +47,18 @@ started again.
 5. **Dependencies are visible.** Turning OpenCode off stops the push event
    monitor but leaves the local and relay transports connected. Push actions are
    gated separately.
-6. **Cards follow their switch.** A disabled feature hides its details so the
-   page stays compact; the header keeps the switch and status chip. The shell
-   card uses the same collapse rule but stays amber until Apply saves the draft.
+6. **Cards are accordions.** Every card starts collapsed and opens from its
+   header. A disabled feature hides its details and cannot be opened; the header
+   keeps the switch and status chip. The shell card is expandable while its
+   switch is on, and the switch stays amber until Apply saves the draft.
 
 ## Edge cases
 
 - **Stopped at startup** — only the panel and database start. The log says the
   agent was stopped by an admin setting, and every transport stays off.
 - **Feature change while stopped** — the panel disables the feature switches,
-  the cards stay collapsed, and the API returns `409`; the saved choices cannot
-  drift while the agent is off. The separate shell policy stays editable.
+  the API returns `409`, and enabled cards remain readable; the saved choices
+  cannot drift while the agent is off. The separate shell policy stays editable.
 - **Local port busy** — the saved local setting stays on, the listener reports
   `effective: false`, and retrying after the port is free starts a fresh
   listener.

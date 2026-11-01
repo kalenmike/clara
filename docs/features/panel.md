@@ -17,27 +17,32 @@ commands a Clara client may relay to OpenCode.
 2. The command opens that URL in a browser on the same machine. The panel
    connects to the agent's loopback API. If the agent was already running, for
    example under a service manager, the command only opens the URL.
-3. Review the summary cards: agent process, OpenCode, local transport, relay,
-   push, and effective configuration. Status chips sit beside each card title.
-4. Toggle OpenCode, local transport, relay, or push from the switch at the top
-   left of its card. Turning a feature off collapses the card to its header and
-   switch; turning it on restores the details and saves the choice immediately.
-5. In **Shell commands**, use the switch to enable or block all command
-   requests. Enabling expands the card into a draft: edit **Filter commands**,
-   optionally turn on **Allow Git history**, then choose **Apply** at the bottom
-   left. The switch stays amber until Apply succeeds, then turns green. Turning
-   it off collapses the card and blocks every command immediately. Empty filters
-   mean every command is allowed, and the card warns about it.
-6. To take every external connection offline, choose **Stop agent** at the bottom
+3. Every card starts collapsed. Review the headers for the agent process,
+   OpenCode, local transport, relay, push, effective configuration, clients,
+   activity, shell policy, and storage. Status chips sit beside each card title.
+4. Click a card header to expand its contents. Cards with a feature switch can
+   only be expanded while that feature is enabled; open the header again to
+   collapse it.
+5. Toggle OpenCode, local transport, relay, or push from the switch at the top
+   right of its card. The choice is saved immediately. Turning a feature off
+   hides its details; turning it on makes the header expandable.
+6. In **Shell commands**, use the switch at the top right to enable or block all
+   command requests. Enabling makes the header expandable; open it to edit
+   **Filter commands**, optionally turn on **Allow Git history**, then choose
+   **Apply** at the bottom right. **Discard** sits to its left. The switch stays
+   amber until Apply succeeds, then turns green. Turning it off blocks every
+   command immediately. Empty filters mean every command is allowed, and the
+   card warns about it.
+7. To take every external connection offline, choose **Stop agent** at the top
    right of the Agent card and confirm. The page keeps polling; the banner
    explains that the panel is still available.
-7. Choose **Start agent** to restore the saved choices. Feature switches are
+8. Choose **Start agent** to restore the saved choices. Feature switches are
    disabled until the agent is started again; the shell policy stays editable
    because it only applies while connections are up.
-8. Review the connected-client table and the storage list. Status badges call
+9. Review the connected-client table and the storage list. Status badges call
    out degraded OpenCode, relay, push, permissions, or missing files.
-9. Leave the page open. It refreshes every five seconds while visible and pauses
-   when the tab is hidden. Use **Refresh** for an immediate check.
+10. Leave the page open. It refreshes every five seconds while visible and
+    pauses when the tab is hidden. Use **Refresh** for an immediate check.
 
 ## Core business rules
 
