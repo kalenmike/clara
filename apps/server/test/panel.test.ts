@@ -3,7 +3,13 @@ import { request as httpRequest } from 'node:http'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
-import { PANEL_API_VERSION, type PanelSnapshot } from '@clara/shared-types'
+import {
+  PANEL_API_VERSION,
+  type PanelControls,
+  type PanelMutationResponse,
+  type PanelSnapshot,
+} from '@clara/shared-types'
+import type { PanelControlService } from '../src/panel/controls.ts'
 import type { PanelDataSource } from '../src/panel/runtime.ts'
 import { startPanelServer, type PanelServer } from '../src/panel/server.ts'
 
@@ -99,10 +105,72 @@ function source(): PanelDataSource {
   return { snapshot: async () => snapshot() }
 }
 
-async function start(assetsDir?: string): Promise<PanelServer> {
-  const server = await startPanelServer({ source: source(), port: 0, assetsDir })
+type FakeControls = PanelControlService & {
+  state: PanelControls
+  features: Array<{ feature: string; enabled: boolean }>
+  stops: boolean[]
+}
+
+function fakeControls(initial: Partial<PanelControls> = {}): FakeControls {
+  const state: PanelControls = {
+    stopped: false,
+    features: [
+      { name: 'opencode', configured: true, desired: true, effective: true },
+      { name: 'local', configured: true, desired: true, effective: true },
+      { name: 'relay', configured: false, desired: false, effective: false },
+      { name: 'push', configured: false, desired: false, effective: false },
+    ],
+    ...initial,
+  }
+  const features: Array<{ feature: string; enabled: boolean }> = []
+  const stops: boolean[] = []
+  return {
+    state,
+    features,
+    stops,
+    controls: () => state,
+    setFeature: async (feature, enabled) => {
+      if (state.stopped) {
+        throw Object.assign(new Error('The agent is stopped.'), {
+          status: 409,
+          code: 'agent_stopped',
+        })
+      }
+      features.push({ feature, enabled })
+      state.features = state.features.map((entry) =>
+        entry.name === feature ? { ...entry, desired: enabled, effective: enabled } : entry
+      )
+      return state
+    },
+    setStopped: async (stopped) => {
+      stops.push(stopped)
+      state.stopped = stopped
+      return state
+    },
+  }
+}
+
+async function start(assetsDir?: string, controls?: PanelControlService): Promise<PanelServer> {
+  const server = await startPanelServer({ source: source(), controls, port: 0, assetsDir })
   servers.push(server)
   return server
+}
+
+function post(
+  server: PanelServer,
+  path: string,
+  body: unknown,
+  headers: Record<string, string> = {}
+): Promise<Response> {
+  return fetch(`${server.url}panel/api/v1/${path}`, {
+    method: 'POST',
+    headers: {
+      'content-type': 'application/json',
+      'x-clara-panel': '1',
+      ...headers,
+    },
+    body: JSON.stringify(body),
+  })
 }
 
 afterEach(async () => {
@@ -200,6 +268,94 @@ describe('panel server', () => {
     const response = await fetch(`${server.url}panel/api/v1/unknown`)
     expect(response.status).toBe(404)
     expect(response.headers.get('content-type')).toContain('application/json')
+  })
+
+  it('rejects mutations without the panel header', async () => {
+    const server = await start(undefined, fakeControls())
+    const response = await fetch(`${server.url}panel/api/v1/features`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ feature: 'relay', enabled: false }),
+    })
+    expect(response.status).toBe(403)
+    const body = (await response.json()) as { error: { code: string } }
+    expect(body.error.code).toBe('missing_panel_header')
+  })
+
+  it('rejects mutations with the wrong content type', async () => {
+    const server = await start(undefined, fakeControls())
+    const response = await post(
+      server,
+      'features',
+      { feature: 'relay', enabled: false },
+      { 'content-type': 'text/plain' }
+    )
+    expect(response.status).toBe(415)
+  })
+
+  it('rejects an oversized mutation body', async () => {
+    const server = await start(undefined, fakeControls())
+    const response = await post(server, 'features', {
+      feature: 'relay',
+      enabled: false,
+      padding: 'x'.repeat(9_000),
+    })
+    expect(response.status).toBe(413)
+  })
+
+  it('rejects unknown features and fields', async () => {
+    const controls = fakeControls()
+    const server = await start(undefined, controls)
+
+    const unknownFeature = await post(server, 'features', { feature: 'admin', enabled: true })
+    expect(unknownFeature.status).toBe(400)
+
+    const unknownField = await post(server, 'features', {
+      feature: 'relay',
+      enabled: false,
+      extra: true,
+    })
+    expect(unknownField.status).toBe(400)
+
+    const wrongType = await post(server, 'agent', { stopped: 'yes' })
+    expect(wrongType.status).toBe(400)
+    expect(controls.features).toEqual([])
+  })
+
+  it('rejects feature changes while the agent is stopped', async () => {
+    const controls = fakeControls({ stopped: true })
+    const server = await start(undefined, controls)
+    const response = await post(server, 'features', { feature: 'relay', enabled: true })
+    expect(response.status).toBe(409)
+    const body = (await response.json()) as { error: { code: string } }
+    expect(body.error.code).toBe('agent_stopped')
+    expect(controls.features).toEqual([])
+  })
+
+  it('applies a feature change and returns the updated controls', async () => {
+    const controls = fakeControls()
+    const server = await start(undefined, controls)
+    const response = await post(server, 'features', { feature: 'relay', enabled: false })
+    expect(response.status).toBe(200)
+    const body = (await response.json()) as PanelMutationResponse
+    expect(controls.features).toEqual([{ feature: 'relay', enabled: false }])
+    expect(body.controls.features.find((entry) => entry.name === 'relay')).toMatchObject({
+      desired: false,
+      effective: false,
+    })
+  })
+
+  it('stops and starts the agent through the mutation route', async () => {
+    const controls = fakeControls()
+    const server = await start(undefined, controls)
+
+    const stopped = await post(server, 'agent', { stopped: true })
+    expect(stopped.status).toBe(200)
+    expect(((await stopped.json()) as PanelMutationResponse).controls.stopped).toBe(true)
+
+    const started = await post(server, 'agent', { stopped: false })
+    expect(started.status).toBe(200)
+    expect(controls.stops).toEqual([true, false])
   })
 })
 

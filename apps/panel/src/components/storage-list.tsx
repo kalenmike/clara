@@ -32,8 +32,18 @@ export function StorageCard({ storage, now }: { storage: PanelStorageEntry[]; no
                   {entry.detail ? (
                     <p className={`mt-1 text-xs ${detailClass(entry.status)}`}>{entry.detail}</p>
                   ) : null}
+                  {entry.sync ? (
+                    <p className="mt-1 text-[11px] text-neutral-500 dark:text-neutral-400">
+                      {entry.sync.namespaces} namespace(s) · {entry.sync.liveEntries} synced
+                      value(s) · {entry.sync.tombstones} tombstone(s) ·{' '}
+                      {formatBytes(entry.sync.bytes)} of sync data
+                    </p>
+                  ) : null}
                 </div>
                 <div className="shrink-0 text-right text-[11px] text-neutral-500 dark:text-neutral-400">
+                  {entry.schemaVersion !== undefined ? (
+                    <div className="font-mono">schema v{entry.schemaVersion}</div>
+                  ) : null}
                   {entry.mode ? <div className="font-mono">mode {entry.mode}</div> : null}
                   {entry.bytes !== undefined ? <div>{formatBytes(entry.bytes)}</div> : null}
                   {entry.modifiedAt ? (

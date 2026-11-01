@@ -3,6 +3,7 @@ import { PANEL_API_VERSION } from '@clara/shared-types'
 import { formatTimestamp } from './lib/format.ts'
 import { useAgentSnapshot } from './lib/use-agent-snapshot.ts'
 import { ClientsTable } from './components/clients-table.tsx'
+import { ControlsCard } from './components/controls-card.tsx'
 import { EventsCard } from './components/events-list.tsx'
 import {
   AgentCard,
@@ -34,7 +35,7 @@ export function App() {
             <div>
               <h1 className="text-lg font-semibold tracking-tight">Clara agent panel</h1>
               <p className="text-xs text-neutral-500 dark:text-neutral-400">
-                Read-only view of the home agent, its transports, and its storage.
+                Inspect the home agent and control its external connections.
               </p>
             </div>
           </div>
@@ -79,6 +80,17 @@ export function App() {
           <LoadingState />
         ) : data ? (
           <div className="space-y-4">
+            {data.controls.stopped ? (
+              <div className="flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800 dark:border-amber-900 dark:bg-amber-950/60 dark:text-amber-300">
+                <CircleAlert className="mt-0.5 size-3.5 shrink-0" aria-hidden="true" />
+                <span>
+                  External connections are off. The panel stays available to start the agent.
+                </span>
+              </div>
+            ) : null}
+
+            <ControlsCard controls={data.controls} onChanged={refresh} />
+
             <div className="grid items-start gap-4 md:grid-cols-2 xl:grid-cols-3">
               <AgentCard agent={data.agent} now={clock} />
               <OpenCodeCard opencode={data.opencode} now={clock} />
@@ -105,7 +117,7 @@ export function App() {
         <footer className="mt-6 flex flex-wrap items-center justify-between gap-2 border-t border-neutral-200 pt-3 text-[11px] text-neutral-500 dark:border-neutral-800 dark:text-neutral-400">
           <span className="inline-flex items-center gap-1.5">
             <ShieldCheck className="size-3.5" aria-hidden="true" />
-            Loopback only · read-only API · secrets are never shown
+            Loopback only · shared settings · secrets are never shown
           </span>
           <span>
             API v{data?.apiVersion ?? PANEL_API_VERSION} · generated{' '}

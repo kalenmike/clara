@@ -34,9 +34,16 @@ export function AgentCard({ agent, now }: { agent: PanelAgentInfo; now: number }
         title="Agent"
         description="The home agent process and its pairing state"
         icon={<Server className="size-4" aria-hidden="true" />}
-        action={<Badge tone="success">Running</Badge>}
+        action={
+          <Badge tone={agent.stopped ? 'warning' : 'success'}>
+            {agent.stopped ? 'Stopped' : 'Running'}
+          </Badge>
+        }
       />
       <CardBody>
+        <KeyValue label="External connections">
+          {agent.stopped ? 'Off by admin setting' : 'Enabled per feature'}
+        </KeyValue>
         <KeyValue label="Version">
           {agent.version} <Muted>· protocol {agent.protocol}</Muted>
         </KeyValue>
@@ -64,18 +71,23 @@ export function AgentCard({ agent, now }: { agent: PanelAgentInfo; now: number }
 }
 
 export function OpenCodeCard({ opencode, now }: { opencode: PanelOpenCodeInfo; now: number }) {
-  const tone: Tone = opencode.reachable
-    ? 'success'
-    : opencode.code === 'auth'
-      ? 'warning'
-      : 'danger'
-  const status = opencode.reachable
-    ? 'Reachable'
-    : opencode.code === 'auth'
-      ? 'Auth rejected'
-      : opencode.code === 'timeout'
-        ? 'Timed out'
-        : 'Unreachable'
+  const disabled = opencode.code === 'disabled'
+  const tone: Tone = disabled
+    ? 'neutral'
+    : opencode.reachable
+      ? 'success'
+      : opencode.code === 'auth'
+        ? 'warning'
+        : 'danger'
+  const status = disabled
+    ? 'Disabled'
+    : opencode.reachable
+      ? 'Reachable'
+      : opencode.code === 'auth'
+        ? 'Auth rejected'
+        : opencode.code === 'timeout'
+          ? 'Timed out'
+          : 'Unreachable'
 
   return (
     <Card>
@@ -92,6 +104,8 @@ export function OpenCodeCard({ opencode, now }: { opencode: PanelOpenCodeInfo; n
             <CopyButton value={opencode.url} label="Copy URL" />
           </span>
         </KeyValue>
+        <KeyValue label="Desired">{opencode.desired ? 'On' : 'Off'}</KeyValue>
+        <KeyValue label="Effective">{opencode.effective ? 'On' : 'Off'}</KeyValue>
         <KeyValue label="Version">{opencode.version ?? 'Unknown'}</KeyValue>
         <KeyValue label="Latency">{opencode.latencyMs ?? '—'} ms</KeyValue>
         <KeyValue label="Password">
@@ -100,7 +114,7 @@ export function OpenCodeCard({ opencode, now }: { opencode: PanelOpenCodeInfo; n
         <KeyValue label="Checked" title={formatTimestamp(opencode.checkedAt)}>
           {formatRelative(opencode.checkedAt, now)}
         </KeyValue>
-        {opencode.error ? (
+        {opencode.error && !disabled ? (
           <p className="mt-2 rounded-md bg-red-50 px-2.5 py-2 text-xs text-red-700 dark:bg-red-950/50 dark:text-red-300">
             {opencode.error}
           </p>
@@ -111,13 +125,15 @@ export function OpenCodeCard({ opencode, now }: { opencode: PanelOpenCodeInfo; n
 }
 
 export function LocalCard({ local, sessions }: { local: PanelLocalTransport; sessions: number }) {
+  const tone: Tone = local.active ? 'success' : local.desired ? 'warning' : 'neutral'
+  const status = local.active ? 'Listening' : local.desired ? 'Unavailable' : 'Off'
   return (
     <Card>
       <CardHeader
         title="Local transport"
         description="The loopback WebSocket the browser pairs with"
         icon={<Radio className="size-4" aria-hidden="true" />}
-        action={<Badge tone="success">Listening</Badge>}
+        action={<Badge tone={tone}>{status}</Badge>}
       />
       <CardBody>
         <KeyValue label="WebSocket">
@@ -129,8 +145,15 @@ export function LocalCard({ local, sessions }: { local: PanelLocalTransport; ses
         <KeyValue label="Host" mono>
           {local.host}:{local.port}
         </KeyValue>
+        <KeyValue label="Desired">{local.desired ? 'On' : 'Off'}</KeyValue>
+        <KeyValue label="Effective">{local.effective ? 'On' : 'Off'}</KeyValue>
         <KeyValue label="Socket connections">{local.connections}</KeyValue>
         <KeyValue label="E2EE sessions">{sessions}</KeyValue>
+        {local.error ? (
+          <p className="mt-2 rounded-md bg-amber-50 px-2.5 py-2 text-xs text-amber-800 dark:bg-amber-950/50 dark:text-amber-300">
+            {local.error}
+          </p>
+        ) : null}
         <p className="pt-2 text-xs text-neutral-500 dark:text-neutral-400">
           Sessions are authenticated with the pairing key. The panel never sees or displays that
           key.
@@ -146,13 +169,17 @@ export function RelayCard({ relay, now }: { relay: PanelRelayTransport; now: num
       ? 'success'
       : relay.status === 'connecting' || relay.status === 'reconnecting'
         ? 'warning'
-        : relay.status === 'offline'
+        : relay.status === 'offline' || relay.status === 'stopped'
           ? 'danger'
           : 'neutral'
   const status =
-    relay.status === 'disabled'
-      ? 'Not configured'
-      : relay.status.charAt(0).toUpperCase() + relay.status.slice(1)
+    relay.status === 'stopped'
+      ? 'Stopped'
+      : relay.status === 'disabled'
+        ? relay.configured
+          ? 'Off'
+          : 'Not configured'
+        : relay.status.charAt(0).toUpperCase() + relay.status.slice(1)
 
   return (
     <Card>
@@ -174,11 +201,13 @@ export function RelayCard({ relay, now }: { relay: PanelRelayTransport; now: num
                 {relay.room ? <CopyButton value={relay.room} label="Copy room" /> : null}
               </span>
             </KeyValue>
+            <KeyValue label="Desired">{relay.desired ? 'On' : 'Off'}</KeyValue>
+            <KeyValue label="Effective">{relay.effective ? 'On' : 'Off'}</KeyValue>
             <KeyValue label="Connected">
               {relay.connectedSince ? formatRelative(relay.connectedSince, now) : 'Not connected'}
             </KeyValue>
-            <KeyValue label="Last change" title={formatTimestamp(relay.lastChangedAt)}>
-              {formatRelative(relay.lastChangedAt, now)}
+            <KeyValue label="Last change" title={formatTimestamp(relay.lastChangedAt ?? '')}>
+              {relay.lastChangedAt ? formatRelative(relay.lastChangedAt, now) : '—'}
             </KeyValue>
             <KeyValue label="Reconnect attempts">{relay.reconnectAttempts ?? 0}</KeyValue>
             <KeyValue label="Tokens">
@@ -186,6 +215,11 @@ export function RelayCard({ relay, now }: { relay: PanelRelayTransport; now: num
                 ? 'Agent and client configured'
                 : 'Missing a token'}
             </KeyValue>
+            {relay.error ? (
+              <p className="mt-2 rounded-md bg-amber-50 px-2.5 py-2 text-xs text-amber-800 dark:bg-amber-950/50 dark:text-amber-300">
+                {relay.error}
+              </p>
+            ) : null}
             {relay.lastError ? (
               <p className="mt-2 rounded-md bg-amber-50 px-2.5 py-2 text-xs text-amber-800 dark:bg-amber-950/50 dark:text-amber-300">
                 {relay.lastError}
@@ -209,16 +243,19 @@ export function RelayCard({ relay, now }: { relay: PanelRelayTransport; now: num
 }
 
 export function PushCard({ push }: { push: PanelPushInfo }) {
-  const tone: Tone = !push.enabled ? 'neutral' : push.failing > 0 ? 'warning' : 'success'
+  const tone: Tone = push.effective ? (push.failing > 0 ? 'warning' : 'success') : 'neutral'
+  const status = push.effective ? 'Enabled' : push.desired ? 'Not active' : 'Off'
   return (
     <Card>
       <CardHeader
         title="Push"
         description="Web Push delivery while Clara is closed"
         icon={<Bell className="size-4" aria-hidden="true" />}
-        action={<Badge tone={tone}>{push.enabled ? 'Enabled' : 'Disabled'}</Badge>}
+        action={<Badge tone={tone}>{status}</Badge>}
       />
       <CardBody>
+        <KeyValue label="Desired">{push.desired ? 'On' : 'Off'}</KeyValue>
+        <KeyValue label="Effective">{push.effective ? 'On' : 'Off'}</KeyValue>
         <KeyValue label="Subscriptions">{push.subscriptions}</KeyValue>
         <KeyValue label="Delivery problems">{push.failing}</KeyValue>
         <KeyValue label="VAPID key">
