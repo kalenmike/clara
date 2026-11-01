@@ -41,6 +41,17 @@ const DONE_MOTIF: Note[] = [
   { frequency: 1567.98, start: 0.21, duration: 0.36, gain: 0.22 },
 ]
 
+/** Two soft hammer taps, then a rising arpeggio that resolves bright. */
+const BUILD_MOTIF: Note[] = [
+  { frequency: 130.81, start: 0, duration: 0.1, type: 'square', gain: 0.35 },
+  { frequency: 196, start: 0.09, duration: 0.1, type: 'square', gain: 0.3 },
+  { frequency: 392, start: 0.18, duration: 0.14, type: 'triangle', gain: 0.7 },
+  { frequency: 523.25, start: 0.26, duration: 0.14, type: 'triangle', gain: 0.75 },
+  { frequency: 659.25, start: 0.34, duration: 0.16, type: 'triangle', gain: 0.8 },
+  { frequency: 783.99, start: 0.44, duration: 0.5, gain: 0.9 },
+  { frequency: 1046.5, start: 0.44, duration: 0.42, gain: 0.28 },
+]
+
 const MIN_REPEAT_MS = 900
 
 let context: AudioContext | null = null
@@ -146,4 +157,9 @@ export function playAttentionSound(kind: AttentionKind, volume: number, force = 
 /** Play the completion chime for UI actions such as marking a session Done. */
 export function playDoneSound(volume: number): void {
   playMotif(DONE_MOTIF, volume)
+}
+
+/** Play the build chime when a plan hands off to the Build agent. */
+export function playBuildSound(volume: number): void {
+  playMotif(BUILD_MOTIF, volume)
 }

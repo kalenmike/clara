@@ -15,6 +15,7 @@ export function SidePanel({
   snapshot,
   messages,
   directory,
+  draft,
   tab,
   onTabChange,
   onClose,
@@ -25,6 +26,7 @@ export function SidePanel({
   snapshot: ChatSnapshot
   messages: SessionMessageInfo[]
   directory: string | undefined
+  draft: boolean
   tab: SidePanelTab
   onTabChange: (tab: SidePanelTab) => void
   /** Shown as an in-panel close control when the panel is a sheet. */
@@ -101,7 +103,12 @@ export function SidePanel({
           )}
         </div>
         <TabsContent value="info" className="min-h-0 flex-1 overflow-y-auto p-3">
-          <SessionInfoPanel session={session} snapshot={snapshot} />
+          <SessionInfoPanel
+            session={session}
+            snapshot={snapshot}
+            messages={messages}
+            draft={draft}
+          />
         </TabsContent>
         <TabsContent value="git" className="min-h-0 flex-1 overflow-y-auto p-3">
           <GitPanel directory={directory} />

@@ -3,6 +3,9 @@ export const queryKeys = {
   sessions: (projectID: string | null) => ['sessions', projectID ?? 'all'] as const,
   archivedSessions: (projectID: string | null) =>
     ['sessions', projectID ?? 'all', 'archived'] as const,
+  projectPresence: (projectID: string) => ['sessions', projectID, 'presence'] as const,
+  projectStats: (projectID: string | null) =>
+    ['sessions', projectID ?? 'all', 'stats', 'project'] as const,
   activeSessions: ['sessions', 'active'] as const,
   session: (sessionID: string) => ['session', sessionID] as const,
   messages: (sessionID: string) => ['messages', sessionID] as const,

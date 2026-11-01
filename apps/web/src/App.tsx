@@ -31,7 +31,7 @@ export function App() {
           <EventProvider>
             <TooltipProvider delayDuration={300}>
               <RouterProvider router={router} />
-              <Toaster position="top-right" closeButton />
+              <Toaster position="top-right" />
             </TooltipProvider>
           </EventProvider>
         </ConnectionProvider>

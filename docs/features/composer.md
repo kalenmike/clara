@@ -44,21 +44,26 @@ mentions, attachments, model selection, and agent selection.
    literally in the draft.
 3. The To row owns model and variant; the footer owns the agent. Both reflect the
    session and change it immediately.
-4. Unsent composer text is stored per session in local storage. Attachments stay
+4. A new message draft picks its agent from the **Default agent** setting: the
+   last agent selected anywhere in Clara, or a specific agent. A specific agent
+   also replaces the agent of an empty draft the first time that draft is
+   opened after the setting changed. Sessions that already have messages keep
+   their agent.
+5. Unsent composer text is stored per session in local storage. Attachments stay
    with the open window but are not persisted across a reload.
-5. A successful send clears the editor, closes the window, and returns focus to
+6. A successful send clears the editor, closes the window, and returns focus to
    Reply when it is visible. A failed send keeps the text and attachments.
-6. The window remembers its size across sessions and reloads. Expanded
+7. The window remembers its size across sessions and reloads. Expanded
    (maximized) is the default; restoring to the smaller dock makes the next
    open — from Reply, New, a new session, a restored local draft, or Steer — use
    the docked size. Minimizing to the title bar is transient and does not
    overwrite the remembered size; restoring returns to the saved size.
-7. **Save as draft** is available only before the session has an assistant
+8. **Save as draft** is available only before the session has an assistant
    reply. It calls `session.prompt` with `resume: false`, which admits the
    message to the session inbox without starting a run. An untitled session is
    renamed to the first 50 characters of the message plus `…` when truncated.
    The session stays in Drafts because OpenCode has no projected messages yet.
-8. Pending inbox messages are rendered in the thread as draft user messages. A
+9. Pending inbox messages are rendered in the thread as draft user messages. A
    **Start** panel above the thread sends the prompt `Start` with steering,
    which delivers the queued draft and starts the run.
 
@@ -87,6 +92,14 @@ mentions, attachments, model selection, and agent selection.
   available before the first assistant message.
 - **Save as draft failure** — the window stays open with the draft and
   attachments intact.
+- **Default agent unavailable** — when the specific agent saved in Settings is
+  hidden or removed, new drafts fall back to the last selected agent and the
+  Settings card explains why.
+- **Specific default on an old empty draft** — the first time an empty draft is
+  opened, Clara switches it to the configured agent. A manual switch after that
+  is kept until the draft is closed and reopened.
+- **Existing conversation** — sessions with any user or assistant message never
+  have their agent replaced by the default setting.
 - **Draft title failure** — the draft is still saved and a warning reports that
   the title could not be updated.
 - **Draft with an existing title** — the title is left unchanged.
@@ -146,6 +159,9 @@ mentions, attachments, model selection, and agent selection.
 - Loaded from: `/p/:projectId/s/:sessionId`
 - Send: `client.session.prompt({ sessionID, text, files, delivery })` with
   `delivery: 'steer'`
+- Default agent: `clara.defaultAgent` (`{ mode: 'last' | 'fixed', agent }`) and
+  `clara.lastAgent` in `localStorage`; resolved in
+  `src/features/agents/default-agent.ts`
 - Save as draft: `client.session.prompt({ sessionID, text, files, resume: false })`
 - Draft title: `draftTitleFromText` in `src/features/sessions/draft-title.ts`
   (50 characters plus `…`)

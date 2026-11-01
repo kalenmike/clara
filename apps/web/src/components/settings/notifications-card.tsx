@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import {
   Bell,
   BellOff,
@@ -11,6 +12,7 @@ import {
   Volume2,
   VolumeX,
 } from 'lucide-react'
+import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Separator } from '@/components/ui/separator'
@@ -32,6 +34,7 @@ import {
 import {
   readNotificationPermission,
   requestNotificationPermission,
+  showTestDesktopNotification,
   type NotificationPermissionState,
 } from '@/features/notifications/notifier'
 import { useNotificationPermission } from '@/features/notifications/use-notification-permission'
@@ -161,7 +164,8 @@ export function NotificationsCard({ isTouchDevice }: { isTouchDevice: boolean })
             <div>
               <div className="text-sm">UI sounds</div>
               <p className="mt-0.5 text-xs text-muted-foreground">
-                Play a chime when you finish an action, like marking a {lowerSingular} Done.
+                Play a chime for UI actions, like marking a {lowerSingular} Done or starting a
+                build.
               </p>
             </div>
           </div>
@@ -198,9 +202,26 @@ function DesktopNotificationsSetting({
 }) {
   const { settings, update } = useNotificationSettings()
   const { lowerSingular } = useSessionWording()
+  const [testing, setTesting] = useState(false)
 
   const supported = permission !== 'unsupported'
   const desktopEnabled = permission === 'granted' && settings.desktop
+
+  const sendTest = async () => {
+    setTesting(true)
+    try {
+      const sent = await showTestDesktopNotification()
+      if (sent) {
+        toast.success('Test notification sent')
+      } else {
+        toast.error('Could not send a test notification', {
+          description: 'Allow notifications for Clara in your browser and system settings.',
+        })
+      }
+    } finally {
+      setTesting(false)
+    }
+  }
 
   const toggleDesktop = async (enabled: boolean) => {
     if (!enabled) {
@@ -241,6 +262,20 @@ function DesktopNotificationsSetting({
           aria-label="Desktop notifications"
         />
       </div>
+
+      {desktopEnabled && (
+        <div className="pl-6">
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={() => void sendTest()}
+            disabled={testing}
+          >
+            <Send className="size-3.5" /> Send test
+          </Button>
+        </div>
+      )}
 
       {permission === 'unsupported' && (
         <p className="text-[11px] text-muted-foreground">

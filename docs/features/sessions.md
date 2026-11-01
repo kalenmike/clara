@@ -4,15 +4,20 @@
 
 The project and session browser is how people find their work. Projects group
 sessions by the directory OpenCode opened; sessions are the units of conversation
-that Clara opens in the chat view. The interface calls them **Briefs** by
-default, and the noun is configurable in Settings.
+that Clara opens in the chat view. The sidebar switcher keeps the seven most
+recently active non-empty projects, while the All projects page shows every
+non-empty project with session counts and server-side rename. A filter on the
+projects header reveals empty projects. The interface calls sessions **Briefs**
+by default, and the noun is configurable in Settings.
 
 ## User flow
 
 1. After connecting, Clara shows the **Start a new session** view with the last
    project or the first project selected in the sidebar.
-2. The sidebar project button opens a menu of every project the server knows,
-   showing its name and canonical path.
+2. The sidebar project button opens a menu of the seven most recently active
+   projects, skipping projects without sessions by default, plus the current
+   project when it falls outside that window. Each row shows its name and
+   canonical path; **All projects** at the end opens the projects page.
 3. Choosing a project loads its sessions into five collapsible sections: Inbox,
    Outbox, Drafts, Snoozed, and Archived.
 4. Inbox holds sessions that need the person: a pending approval or question,
@@ -31,11 +36,22 @@ default, and the noun is configurable in Settings.
    composer in the last-used size (expanded by default), ready for the first
    prompt; the empty session appears in Drafts. Opening an empty draft with
    locally saved text opens the composer too.
-8. On the project page, sessions also appear as cards with agent, model, token
-   totals, cost, and update time.
-9. Opening a session shows it in the sidebar and loads the chat view, or a
-   dedicated New message view when it has no messages and no pending draft.
-10. A **Monitor Inbox** switch on the start view, below **New Session**, jumps
+8. The All projects page shows one card per canonical, non-empty project with
+   its directory, last activity, and active/archived session counts. A filter
+   icon at the far right of the header opens a **Show empty projects** switch,
+   off by default. The card menu renames the project on the OpenCode server; the
+   directory does not change.
+9. The project page uses the same page shell as Settings and All projects. A
+   project info card shows the directory, ID, icon, VCS, commands, sandboxes,
+   created/updated/active/archived timestamps, and active/inactive/total session
+   counts. Its menu archives every session or deletes every session after
+   confirmation; the project record itself stays on the server. Below the card,
+   a project settings card edits the icon, avatar color, and workspace startup
+   script on the server. Below that, a sessions heading introduces the session
+   cards with agent, model, token totals, cost, and update time.
+10. Opening a session shows it in the sidebar and loads the chat view, or a
+    dedicated New message view when it has no messages and no pending draft.
+11. A **Monitor Inbox** switch on the start view, below **New Session**, jumps
     to the newest Inbox session when turned on. While active it advances after
     Done, Send, Build, or saving a draft: Clara opens the next newest Inbox
     session, or the start view when the Inbox is empty. It also opens a session
@@ -44,13 +60,13 @@ default, and the noun is configurable in Settings.
     otherwise never redirected. The switch shows whether monitoring is active
     whenever the start view is shown, and reports how many agents are working in
     the project's Outbox with a pulsing dot while any run is active.
-11. The chat header can rename, snooze, archive, or delete the current session. A home
-    button to the left of the title returns to the start view.
-12. The Done button in the reply dock archives the session without renaming it,
+12. The chat header can rename, snooze, archive, or delete the current session. A
+    home button to the left of the title returns to the start view.
+13. The Done button in the reply dock archives the session without renaming it,
     briefly celebrates, and returns to the start view (or opens the next Inbox
     session while Monitor Inbox is active). An empty draft shows a simple
     **Delete** action instead, which removes the session immediately.
-13. Opening an archived or snoozed session shows a Reopen button next to Reply.
+14. Opening an archived or snoozed session shows a Reopen button next to Reply.
     Reopening clears the server's archived and snoozed flags as applicable and
     leaves the title untouched.
 
@@ -63,8 +79,12 @@ default, and the noun is configurable in Settings.
    VCS-backed record.
 2. The active list shows the newest 50 non-archived sessions for the directory;
    the archived list shows the newest 50 archived sessions.
-3. A new session inherits the agent and model of the most recent active session
-   in the project, so the first prompt uses a model that already works.
+3. A new session inherits the model of the most recent active session in the
+   project, so the first prompt uses a model that already works. Its agent
+   follows the **Default agent** setting: the last agent selected anywhere in
+   Clara, or a specific agent. A specific agent also replaces the agent of an
+   empty draft the first time that draft is opened. Sessions that already have
+   messages are never changed.
 4. Running sessions are marked with a live dot driven by the active-session map
    and status events, and that same map keeps them in Outbox. Inbox rows show
    what they need: a red pulsing dot while a run is blocked on an approval or
@@ -125,11 +145,76 @@ default, and the noun is configurable in Settings.
     Job presets or any custom singular word, derives the plural, and stores the
     choice in the browser. OpenCode's API and Clara's internal code still use
     `session`.
+16. Project recency comes from the server's `time.active`; the switcher takes
+    the newest seven and pins the current project when it falls outside them.
+    The All projects page lists every canonical, non-archived project. Projects
+    with zero total sessions are hidden from both views by default; the header
+    filter reveals them and saves the choice on the device. The current project
+    stays pinned in the switcher even when it is empty. Project names are saved
+    with `client.project.update` on the OpenCode server, so a rename reaches
+    every Clara client and never becomes a local-only label. Session counts split
+    on `time.archived`; the statistics request is capped and the total shows `+`
+    when it reaches the cap.
+17. Project bulk actions are session-level only. OpenCode has no project
+    archive or delete endpoint. **Archive all sessions** archives every
+    non-archived session in the project, and **Delete all sessions** permanently
+    deletes every session. Both actions load every page of the project's session
+    list before writing, run four writes at a time, and leave the project record
+    and directory untouched.
+18. Project settings are shared server metadata. Clara writes a custom icon to
+    `icon.override` as a 128×128 PNG data URL, writes one of OpenCode's six
+    avatar colors to `icon.color`, and writes the workspace startup command to
+    `commands.start`. It never writes the server-discovered `icon.url`.
+    Removing a custom image reveals the selected color or discovered favicon.
+    Every project avatar in the sidebar, All projects cards, and project page
+    follows that order.
+19. OpenCode runs `commands.start` after it creates a new worktree. Clara does
+    not create worktrees, so New brief does not run the startup script; the
+    setting is for OpenCode Desktop, the CLI, and future workspace support.
 
 ## Edge cases
 
 - **No projects** — an empty state explains that a directory must be opened with
   OpenCode first.
+- **Selected project outside the recent seven** — the switcher keeps it visible
+  by replacing the seventh recent entry.
+- **Project rename fails** — the dialog reports the error and the old name stays
+  in place.
+- **Project renamed on another client** — the `project.updated` event refreshes
+  the switcher and the All projects cards.
+- **Project icon image cannot be read or is too large** — the settings card
+  reports the problem and keeps the previous icon.
+- **Project icon save fails** — the preview returns to the server's icon and a
+  toast reports the failure.
+- **Project has a color and a discovered favicon** — the color avatar wins in
+  Clara, matching OpenCode; choosing **Default** reveals the favicon again.
+- **Custom project icon removed** — only `icon.override` is cleared; the
+  discovered favicon and selected color stay on the server.
+- **Startup script save fails** — the input keeps the text and a toast reports
+  the failure.
+- **Project metadata changes on another client** — the `project.updated` event
+  refreshes the project page and every project avatar.
+- **Project has no sessions** — it is hidden by default; when revealed, its card
+  shows zero active and zero archived.
+- **Every project is empty** — the All projects page shows a filter-aware empty
+  state with a **Show empty projects** action.
+- **Session lookup fails** — the project stays visible instead of disappearing.
+- **Current project is empty** — the switcher keeps it pinned while hiding other
+  empty projects.
+- **Project gains or loses its last session** — session events refresh the
+  empty-state check without a page reload.
+- **More than the statistics cap** — counts are shown with a `+` because the
+  request is bounded.
+- **Project statistics fail** — the card keeps its directory and rename action
+  and shows that counts are unavailable.
+- **Archive all sessions fails partway** — the toast reports the failure; a retry
+  only writes sessions that are still not archived.
+- **Delete all sessions fails partway** — deleted sessions stay gone and the
+  remaining sessions stay in the project; a retry lists what is left.
+- **A project has more sessions than one page** — both bulk actions follow every
+  server cursor before writing, so no page is skipped.
+- **Project record cannot be archived or deleted** — the confirmation text says
+  the project itself stays; only its sessions change.
 - **No sessions** — the list invites the person to create one.
 - **Custom wording is blank** — Clara falls back to the current or default noun
   instead of saving an empty label.
@@ -212,7 +297,9 @@ default, and the noun is configurable in Settings.
 
 ## Out of scope
 
-- Bulk actions
+- Bulk actions beyond archive-all and delete-all on the project page
+- Clara-hosted project images, arbitrary avatar colors, or running the workspace
+  startup script from Clara
 - Creating, switching, or removing worktrees, or moving sessions between
   projects
 - Sharing, export, or import
@@ -222,6 +309,8 @@ default, and the noun is configurable in Settings.
 
 - The 50-session cap is not discoverable; older sessions can only be found by
   search.
+- The workspace startup script set on the project page is not run by Clara's
+  New brief action because Clara does not create worktrees.
 - The active and archived lists each cap at 50 sessions.
 - Session cards do not show a message count; that lives in the chat info panel.
 - Saved drafts cannot be edited or cancelled from Clara yet; start the draft or
@@ -232,7 +321,34 @@ default, and the noun is configurable in Settings.
 <details>
 <summary>Routes, data, and references</summary>
 
-- Routes: `/`, `/p/:projectId`, `/p/:projectId/s/:sessionId`
+- Routes: `/`, `/projects`, `/p/:projectId`, `/p/:projectId/s/:sessionId`
+- Projects: `client.project.list()` sorted by `time.active`; the switcher takes
+  seven and pins the current project when needed; duplicate canonical records
+  resolve to the VCS-backed one
+- Project update: `client.project.update({ projectID, name?, icon?, commands? })`;
+  the `project.updated` event invalidates the cached project list
+- Project icon: `icon.override` holds a custom image as a 128×128 PNG data URL;
+  `icon.url` is a server-discovered favicon that Clara never writes; `icon.color`
+  is one of `pink`, `mint`, `orange`, `purple`, `cyan`, or `lime`
+- Icon upload: `apps/web/src/features/projects/project-icon.ts` resizes,
+  center-crops, rejects inputs over 5 MB or results over 256 KB, and re-encodes
+  as PNG
+- Workspace startup script: `commands.start`, capped at 4,096 characters in the
+  settings input; OpenCode runs it after creating a new worktree
+- Project statistics: `client.session.list({ project: projectID, limit: 1000 })`
+  counted by `time.archived`; the total shows `+` at the cap
+- Project page: `PageShell` with a `ProjectInfoCard` and `ProjectSettingsCard`;
+  metadata comes from `client.project.list()`, counts from the project statistics
+  query
+- Project actions: every session is loaded with
+  `client.session.list({ project: projectID, limit: 200, cursor })` until the
+  server returns no next cursor; archive-all calls
+  `session.update({ sessionID, archived: true })` for non-archived sessions and
+  delete-all calls `session.remove({ sessionID })`, four writes at a time
+- Empty project check: `client.session.list({ project: projectID, limit: 1 })`;
+  any result keeps the project visible. Failed lookups fail open.
+- Empty project filter: `clara.showEmptyProjects` in `localStorage` (`shown` or
+  `hidden`, default `hidden`)
 - Active list: `client.session.list({ project: projectID, search, archived: false, limit: 50 })`;
   includes snoozed sessions and sessions in worktrees or sandboxes
 - Archived list: `client.session.list({ project: projectID, search, archived: true, limit: 50 })`
@@ -246,6 +362,8 @@ default, and the noun is configurable in Settings.
 - Awaiting input: `client.permission.request.list({ location: { directory } })`
   and pending forms
 - Create: `client.session.create({ location: { directory }, agent, model })`
+  with `agent` resolved from `clara.defaultAgent` and `clara.lastAgent` in
+  `localStorage`
 - Update: `client.session.update({ sessionID, title?, metadata?, archived? })` —
   metadata replaces the stored object, so snooze writes merge the current keys
 - Snooze: `client.session.update({ sessionID, metadata: { ...existing, snoozed: true } })`

@@ -12,6 +12,7 @@ import {
 import { useQueryClient, type QueryClient } from '@tanstack/react-query'
 import type { V2Event } from '@opencode/client'
 import { toast } from 'sonner'
+import { saveLastAgent } from '@/features/agents/default-agent'
 import { chatStore } from '@/features/chat/chat-store'
 import { queryKeys } from '@/lib/query-keys'
 import { useConnection } from '@/providers/connection-provider'
@@ -258,6 +259,10 @@ function handleInvalidation(
   const sessionID = data?.sessionID
 
   switch (event.type) {
+    case 'project.updated':
+      void queryClient.invalidateQueries({ queryKey: queryKeys.projects })
+      return
+
     case 'session.created':
     case 'session.deleted':
     case 'session.renamed':
@@ -343,6 +348,13 @@ function handleInvalidation(
       return
 
     case 'session.agent.selected':
+      saveLastAgent(event.data.agent)
+      if (sessionID) {
+        void queryClient.invalidateQueries({ queryKey: queryKeys.session(sessionID) })
+        void queryClient.invalidateQueries({ queryKey: ['sessions'] })
+      }
+      return
+
     case 'session.model.selected':
       if (sessionID) {
         void queryClient.invalidateQueries({ queryKey: queryKeys.session(sessionID) })

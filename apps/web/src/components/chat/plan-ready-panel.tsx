@@ -2,7 +2,10 @@ import { useState } from 'react'
 import { Hammer, Loader2, Sparkles, SquarePen } from 'lucide-react'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
-import { useSendPrompt, useSwitchAgent } from '@/features/chat/use-chat'
+import { claraEventMetadata } from '@/features/chat/system-events'
+import { useSendSynthetic, useSwitchAgent } from '@/features/chat/use-chat'
+import { useNotificationSettings } from '@/features/notifications/use-notification-settings'
+import { playBuildSound } from '@/features/notifications/sounds'
 
 export function PlanReadyPanel({
   sessionID,
@@ -14,24 +17,32 @@ export function PlanReadyPanel({
   onBuild?: () => void
 }) {
   const switchAgent = useSwitchAgent(sessionID)
-  const sendPrompt = useSendPrompt(sessionID)
+  const sendSynthetic = useSendSynthetic(sessionID)
+  const { settings } = useNotificationSettings()
   const [starting, setStarting] = useState(false)
-  const pending = starting || switchAgent.isPending || sendPrompt.isPending
+  const pending = starting || switchAgent.isPending || sendSynthetic.isPending
 
   const startBuild = async () => {
     if (pending) return
+    if (settings.uiSounds) playBuildSound(settings.volume)
     setStarting(true)
     let switched = false
     let sent = false
     try {
       await switchAgent.mutateAsync('build')
       switched = true
-      await sendPrompt.mutateAsync({ text: 'Confirmed', delivery: 'steer' })
+      await sendSynthetic.mutateAsync({
+        text: 'The user approved the plan. Start implementing.',
+        description: 'Started build',
+        metadata: claraEventMetadata('build-start'),
+        delivery: 'steer',
+        resume: true,
+      })
       sent = true
     } catch {
       toast.error(
         switched
-          ? 'Switched to Build, but could not send "Confirmed". Send it from the reply box.'
+          ? 'Switched to Build, but could not start. Send a message from the reply box.'
           : 'Could not switch to Build. Try again.'
       )
     } finally {

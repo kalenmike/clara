@@ -5,31 +5,35 @@
 Clara tells the person when a session lands in the Inbox with a system
 notification and a distinct sound for each kind of attention. When the Clara
 home agent is connected, the same alert can arrive as a Web Push notification
-after the last Clara window is closed. The settings card also controls an
-optional completion chime for UI actions such as Done. It is for people who
-start an agent run and move on, so they do not have to watch the sidebar.
+after the last Clara window is closed. The settings card also controls
+optional chimes for UI actions such as Done and starting a Build. It is for
+people who start an agent run and move on, so they do not have to watch the
+sidebar.
 
 ## User flow
 
 1. The person opens **Settings** on a desktop and turns on **Desktop
    notifications**; the browser asks for permission the first time.
-2. They can keep **Inbox notification sounds** on, adjust the shared volume, and
-   mute any of the four states. **UI sounds** controls the Done chime.
-3. They can turn on **Push notifications** on any device when Clara is connected
+2. Once it is on, a **Send test** button appears so they can confirm a system
+   notification actually reaches the operating system.
+3. They can keep **Inbox notification sounds** on, adjust the shared volume, and
+   mute any of the four states. **UI sounds** controls the Done and Build
+   chimes.
+4. They can turn on **Push notifications** on any device when Clara is connected
    through the home agent, then send a test notification to prove delivery.
-4. On iPhone and iPad, push requires adding Clara to the Home Screen and opening
+5. On iPhone and iPad, push requires adding Clara to the Home Screen and opening
    it from that icon before turning push on.
-5. A run ends, a question arrives, a plan finishes, or a run fails. Clara plays
+6. A run ends, a question arrives, a plan finishes, or a run fails. Clara plays
    the matching sound and, if the session is not open and focused, shows an
    alert.
-6. If Clara is hidden or closed, the home agent sends the push and the person
+7. If Clara is hidden or closed, the home agent sends the push and the person
    taps it. While a desktop client is visible and recently used, mobile pushes
    are held so the desk is alerted once; after the idle window, or when the
    desktop window is hidden, the phone starts receiving alerts again. Clicking
    any notification focuses Clara and opens the session.
-7. When the person marks a session Done, Clara plays the completion chime if
-   **UI sounds** is on.
-8. The sidebar still shows the same state with its dot, and the person can
+8. When the person marks a session Done or hands a ready plan to Build, Clara
+   plays the matching UI chime if **UI sounds** is on.
+9. The sidebar still shows the same state with its dot, and the person can
    preview every sound before relying on it.
 
 ## Core business rules
@@ -50,6 +54,9 @@ start an agent run and move on, so they do not have to watch the sidebar.
    person, and interrupted runs do not alert.
 5. Desktop notifications need browser permission. Without it, sounds and the
    sidebar still work; permission is requested only from the Settings switch.
+   Once they are on, the row offers **Send test**, which raises a one-off system
+   notification and reports a refusal, so the person can check delivery before
+   trusting an alert.
 6. Push notifications need browser permission and a Clara home agent; they are
    stored on the agent and sent directly with Web Push. A visible Clara window
    handles its own alert, and a hidden or closed Clara leaves delivery to the
@@ -68,12 +75,15 @@ start an agent run and move on, so they do not have to watch the sidebar.
    tab, or passing the idle window releases the phone.
 9. Inbox notification sounds and UI sounds are independent. The volume slider
    applies to both, either can be muted without affecting the other, and the
-   Done chime is a UI sound rather than an Inbox alert. Closed-app pushes use
-   the operating system's notification sound.
+   Done and Build chimes are UI sounds rather than Inbox alerts. Closed-app
+   pushes use the operating system's notification sound.
 10. In-app toasts follow the selected color theme. Success, warning, info, and
     error keep distinct icons, wording, and palette-derived accents, so
     importance is readable without relying on color alone. Error carries the
     strongest tint, warning the next, and success and info the lightest.
+11. Toasts show no close control. Clicking or tapping anywhere on the toast
+    dismisses it, on desktop and touch alike; the surface keeps auto-dismiss
+    timing and swipe-away.
 
 ## Edge cases
 
@@ -81,6 +91,11 @@ start an agent run and move on, so they do not have to watch the sidebar.
   unsupported or insecure browser, keeps desktop alerts off. Settings explains
   how to unblock the site and refreshes when the window regains focus; sound
   controls remain.
+- **Test desktop notification** — **Send test** raises the system alert at once
+  when desktop notifications are on. A refusal from the browser or operating
+  system shows an error toast and leaves the switch on so the person can fix the
+  block and retry. Clicking a test notification focuses Clara without changing
+  the current screen.
 - **Touch-first device** — Desktop notifications is hidden, while push and the
   sound controls remain. A tablet with a hardware keyboard still uses the touch
   layout.
@@ -89,9 +104,9 @@ start an agent run and move on, so they do not have to watch the sidebar.
 - **Desktop notifications already on** — a touch device that enabled desktop
   alerts before the layout changed still shows the row until it is switched off,
   then hides it on the next visit.
-- **Sound settings** — UI sounds off makes Done silent while Inbox alerts still
-  play; Inbox sounds off with UI sounds on makes Inbox states silent while Done
-  still chimes.
+- **Sound settings** — UI sounds off makes Done and Build silent while Inbox
+  alerts still play; Inbox sounds off with UI sounds on makes Inbox states
+  silent while the UI chimes still play.
 - **Autoplay blocked** — the first click or keypress unlocks audio. A sound that
   cannot play is skipped silently.
 - **Theme changed while a toast is open** — the open toast recolors immediately
@@ -197,8 +212,11 @@ start an agent run and move on, so they do not have to watch the sidebar.
 - Desktop notification: service-worker `showNotification` when available,
   falling back to the page Notification API; `silent: true`, tag
   `clara:<sessionID>`, icon `/favicon.png`
+- Desktop test notification: `showTestDesktopNotification` in
+  `src/features/notifications/notifier.ts`, tag `clara:test`; the settings card
+  shows **Send test** while desktop notifications are on and toasts the result
 - Sounds: Web Audio motifs in `src/features/notifications/sounds.ts`; the Done
-  chime is `playDoneSound`
+  chime is `playDoneSound` and the Build chime is `playBuildSound`
 - Toast theme: `--status-success`, `--status-warning`, `--status-info`, and
   `--status-danger` in `src/index.css` and `src/styles/color-themes.css`; the
   Default palette maps danger to `--destructive`, and palettes adjust a token

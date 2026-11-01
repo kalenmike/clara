@@ -1,10 +1,12 @@
-import { Link, useNavigate } from 'react-router'
-import { ArrowLeft, Loader2, LogOut, RefreshCw, Server } from 'lucide-react'
+import { useNavigate } from 'react-router'
+import { Loader2, LogOut, RefreshCw, Server } from 'lucide-react'
 import { toast } from 'sonner'
+import { PageShell } from '@/components/layout/page-shell'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Separator } from '@/components/ui/separator'
+import { AgentCard } from '@/components/settings/agent-card'
 import { NotificationsCard } from '@/components/settings/notifications-card'
 import { ThemeCard } from '@/components/settings/theme-card'
 import { WordingCard } from '@/components/settings/wording-card'
@@ -60,99 +62,90 @@ export function SettingsPage() {
   }
 
   return (
-    <div className="h-full overflow-auto">
-      <div className="mx-auto max-w-3xl space-y-6 p-6">
-        <div>
-          <Link
-            to="/"
-            className="mb-3 inline-flex items-center gap-1.5 text-sm text-muted-foreground transition-colors hover:text-foreground"
-          >
-            <ArrowLeft className="size-4" />
-            Back to home
-          </Link>
-          <h1 className="text-xl font-semibold tracking-tight">Settings</h1>
-          <p className="text-sm text-muted-foreground">
-            {isTouchDevice
-              ? 'Connection, appearance, wording, notifications, and sounds.'
-              : 'Connection, appearance, wording, notifications, sounds, and shortcuts.'}
-          </p>
-        </div>
+    <PageShell
+      title="Settings"
+      description={
+        isTouchDevice
+          ? 'Connection, appearance, wording, agents, notifications, and sounds.'
+          : 'Connection, appearance, wording, agents, notifications, sounds, and shortcuts.'
+      }
+    >
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2 text-sm">
+            <Server className="size-4" /> Server
+          </CardTitle>
+          <CardDescription>The OpenCode instance this browser is connected to.</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-3 text-sm">
+          <Row label="URL" value={connectionUrl(config)} />
+          <Row label="Mode" value={config && isRelayConfig(config) ? 'E2EE relay' : 'direct'} />
+          {relayStatus && <Row label="Relay" value={relayStatus.state} />}
+          {relayStatus?.agent?.opencodeVersion && (
+            <Row label="OpenCode" value={relayStatus.agent.opencodeVersion} />
+          )}
+          <Row label="Version" value={info?.version ?? 'unknown'} />
+          <Row label="PID" value={info ? String(info.pid) : 'unknown'} />
+          <Row label="URLs" value={info?.urls.join(', ') ?? 'unknown'} />
+          <Row label="Stream" value={streamState} />
+          {lastError && <Row label="Stream error" value={lastError} />}
+          <Separator />
+          <div className="flex flex-wrap items-center gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => void retry()}
+              disabled={reconnecting}
+            >
+              {reconnecting ? (
+                <Loader2 className="size-4 animate-spin" />
+              ) : (
+                <RefreshCw className="size-4" />
+              )}
+              Reconnect
+            </Button>
+            <Button variant="outline" size="sm" onClick={() => void signOut()}>
+              <LogOut className="size-4" /> Disconnect
+            </Button>
+          </div>
+          {reconnectError && (
+            <Alert variant="destructive">
+              <AlertTitle>Reconnect failed</AlertTitle>
+              <AlertDescription>{reconnectError}</AlertDescription>
+            </Alert>
+          )}
+        </CardContent>
+      </Card>
 
+      <ThemeCard />
+
+      <WordingCard />
+
+      <AgentCard />
+
+      <NotificationsCard isTouchDevice={isTouchDevice} />
+
+      {!isTouchDevice && (
         <Card>
           <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-sm">
-              <Server className="size-4" /> Server
-            </CardTitle>
-            <CardDescription>The OpenCode instance this browser is connected to.</CardDescription>
+            <CardTitle className="text-sm">Keyboard shortcuts</CardTitle>
+            <CardDescription>Based on the standard OpenCode keybinds.</CardDescription>
           </CardHeader>
-          <CardContent className="space-y-3 text-sm">
-            <Row label="URL" value={connectionUrl(config)} />
-            <Row label="Mode" value={config && isRelayConfig(config) ? 'E2EE relay' : 'direct'} />
-            {relayStatus && <Row label="Relay" value={relayStatus.state} />}
-            {relayStatus?.agent?.opencodeVersion && (
-              <Row label="OpenCode" value={relayStatus.agent.opencodeVersion} />
-            )}
-            <Row label="Version" value={info?.version ?? 'unknown'} />
-            <Row label="PID" value={info ? String(info.pid) : 'unknown'} />
-            <Row label="URLs" value={info?.urls.join(', ') ?? 'unknown'} />
-            <Row label="Stream" value={streamState} />
-            {lastError && <Row label="Stream error" value={lastError} />}
-            <Separator />
-            <div className="flex flex-wrap items-center gap-2">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => void retry()}
-                disabled={reconnecting}
-              >
-                {reconnecting ? (
-                  <Loader2 className="size-4 animate-spin" />
-                ) : (
-                  <RefreshCw className="size-4" />
-                )}
-                Reconnect
-              </Button>
-              <Button variant="outline" size="sm" onClick={() => void signOut()}>
-                <LogOut className="size-4" /> Disconnect
-              </Button>
+          <CardContent>
+            <div className="grid gap-x-8 gap-y-2 sm:grid-cols-2">
+              {shortcuts.map(([keys, action]) => (
+                <div key={keys} className="flex items-center justify-between gap-3 text-xs">
+                  <span className="text-muted-foreground">{action}</span>
+                  <kbd className="rounded border bg-muted px-1.5 py-0.5 font-mono text-[10px]">
+                    {keys}
+                  </kbd>
+                </div>
+              ))}
             </div>
-            {reconnectError && (
-              <Alert variant="destructive">
-                <AlertTitle>Reconnect failed</AlertTitle>
-                <AlertDescription>{reconnectError}</AlertDescription>
-              </Alert>
-            )}
           </CardContent>
         </Card>
-
-        <ThemeCard />
-
-        <WordingCard />
-
-        <NotificationsCard isTouchDevice={isTouchDevice} />
-
-        {!isTouchDevice && (
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-sm">Keyboard shortcuts</CardTitle>
-              <CardDescription>Based on the standard OpenCode keybinds.</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="grid gap-x-8 gap-y-2 sm:grid-cols-2">
-                {shortcuts.map(([keys, action]) => (
-                  <div key={keys} className="flex items-center justify-between gap-3 text-xs">
-                    <span className="text-muted-foreground">{action}</span>
-                    <kbd className="rounded border bg-muted px-1.5 py-0.5 font-mono text-[10px]">
-                      {keys}
-                    </kbd>
-                  </div>
-                ))}
-              </div>
-            </CardContent>
-          </Card>
-        )}
-      </div>
-    </div>
+      )}
+    </PageShell>
   )
 }
 

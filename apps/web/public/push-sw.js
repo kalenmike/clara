@@ -7,6 +7,11 @@ self.addEventListener('push', (event) => {
 self.addEventListener('notificationclick', (event) => {
   event.notification.close()
   const data = event.notification.data || {}
+  const isTest = data.sessionID === 'test' || event.notification.tag === 'clara:test'
+  if (isTest) {
+    event.waitUntil(focusWindow())
+    return
+  }
   const url = typeof data.url === 'string' && data.url.length > 0 ? data.url : '/'
   event.waitUntil(focusOrOpen(url))
 })
@@ -53,6 +58,25 @@ async function handlePush(event) {
     },
     silent: false,
   })
+}
+
+async function focusWindow() {
+  const clients = await self.clients.matchAll({
+    type: 'window',
+    includeUncontrolled: true,
+  })
+
+  for (const client of clients) {
+    try {
+      if (new URL(client.url).origin !== self.location.origin) continue
+      await client.focus()
+      return
+    } catch {
+      // Try the next client, then open a fresh window.
+    }
+  }
+
+  if (self.clients.openWindow) await self.clients.openWindow('/')
 }
 
 async function focusOrOpen(url) {

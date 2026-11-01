@@ -1,4 +1,4 @@
-import { useQuery } from '@tanstack/react-query'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import type { Project } from '@opencode/client'
 import { queryKeys } from '@/lib/query-keys'
 import { useConnection } from '@/providers/connection-provider'
@@ -48,4 +48,28 @@ export function canonicalProject(
   const project = projects.find((item) => item.id === projectID)
   if (!project) return null
   return canonicalProjects(projects).find((item) => item.canonical === project.canonical) ?? project
+}
+
+type ProjectUpdatePatch = {
+  name?: string
+  icon?: Project['icon']
+  commands?: Project['commands']
+}
+
+/**
+ * Update project metadata on the OpenCode server. Every client reads the same
+ * record, so Clara keeps no local overrides for name, icon, or commands.
+ */
+export function useUpdateProject(projectID: string) {
+  const { client } = useConnection()
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (patch: ProjectUpdatePatch) => client!.project.update({ projectID, ...patch }),
+    onSuccess: (project) => {
+      queryClient.setQueryData<Project[]>(queryKeys.projects, (current) =>
+        current?.map((item) => (item.id === project.id ? project : item))
+      )
+      void queryClient.invalidateQueries({ queryKey: queryKeys.projects })
+    },
+  })
 }

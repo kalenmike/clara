@@ -6,6 +6,7 @@ import {
   ChevronsDownUp,
   ChevronsUpDown,
   FolderGit2,
+  LayoutGrid,
   Loader2,
   Plus,
   Search,
@@ -26,9 +27,17 @@ import {
 import { Input } from '@/components/ui/input'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Skeleton } from '@/components/ui/skeleton'
+import { ProjectAvatar } from '@/components/projects/project-avatar'
 import { SidebarSessionRow } from '@/components/layout/sidebar-session-row'
 import { usePendingPermissions } from '@/features/chat/use-permissions'
 import { resolveAttentionKind } from '@/features/notifications/attention'
+import {
+  filterVisibleProjects,
+  projectLabel,
+  recentProjects,
+} from '@/features/projects/project-list'
+import { useProjectSessionPresence } from '@/features/projects/use-project-presence'
+import { useShowEmptyProjects } from '@/features/projects/use-show-empty-projects'
 import { canonicalProject, canonicalProjects, useProjects } from '@/features/projects/use-projects'
 import { isArchivedSession } from '@/features/sessions/session-archive'
 import { groupSessionsByMailbox } from '@/features/sessions/session-sections'
@@ -101,17 +110,39 @@ export function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
   const { state } = useEventStream()
   const projectsQuery = useProjects()
   const projects = useMemo(() => projectsQuery.data ?? [], [projectsQuery.data])
+  const { showEmpty } = useShowEmptyProjects()
   const [search, setSearch] = useState('')
   const [openSections, setOpenSections] = useState(readSidebarSections)
   const searching = search.trim().length > 0
 
   const projectOptions = useMemo(() => canonicalProjects(projects), [projects])
+  const projectIDs = useMemo(() => projectOptions.map((project) => project.id), [projectOptions])
+  const { hasSessions, pending: presencePending } = useProjectSessionPresence(
+    projectIDs,
+    !showEmpty
+  )
+  const visibleProjectOptions = useMemo(
+    () => filterVisibleProjects(projectOptions, hasSessions, showEmpty),
+    [hasSessions, projectOptions, showEmpty]
+  )
 
   const selectedProject = useMemo(() => {
     const fromUrl = canonicalProject(projects, params.projectId)
     if (fromUrl) return fromUrl
     return canonicalProject(projects, readLastProject()) ?? projectOptions[0] ?? null
   }, [params.projectId, projectOptions, projects])
+
+  const recentProjectOptions = useMemo(() => {
+    const options =
+      !showEmpty &&
+      selectedProject &&
+      !visibleProjectOptions.some((project) => project.id === selectedProject.id)
+        ? [...visibleProjectOptions, selectedProject]
+        : visibleProjectOptions
+    return recentProjects(options, selectedProject?.id)
+  }, [selectedProject, showEmpty, visibleProjectOptions])
+
+  const projectsPending = projectsQuery.isLoading || (!showEmpty && presencePending)
 
   const sessionsQuery = useSessions(selectedProject?.id ?? null, search)
   const archivedQuery = useArchivedSessions(selectedProject?.id ?? null, search)
@@ -263,12 +294,14 @@ export function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
               className="h-auto w-full justify-between gap-2 px-3 py-2.5 text-left md:px-2.5 md:py-2"
             >
               <span className="flex min-w-0 items-center gap-2">
-                <FolderGit2 className="size-4 shrink-0 text-muted-foreground" />
+                {selectedProject ? (
+                  <ProjectAvatar project={selectedProject} size="xs" />
+                ) : (
+                  <FolderGit2 className="size-4 shrink-0 text-muted-foreground" />
+                )}
                 <span className="min-w-0">
                   <span className="block truncate text-sm font-medium md:text-xs">
-                    {selectedProject?.name ??
-                      selectedProject?.canonical.split('/').pop() ??
-                      'Select project'}
+                    {selectedProject ? projectLabel(selectedProject) : 'Select project'}
                   </span>
                   <span className="block truncate text-[11px] text-muted-foreground md:text-[10px]">
                     {selectedProject?.canonical ?? 'No project selected'}
@@ -279,31 +312,42 @@ export function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="start" className="w-72">
-            <DropdownMenuLabel>Projects</DropdownMenuLabel>
+            <DropdownMenuLabel>Recent projects</DropdownMenuLabel>
             <DropdownMenuSeparator />
-            {projectsQuery.isLoading && (
+            {projectsPending && (
               <div className="px-2 py-1.5 text-xs text-muted-foreground">Loading…</div>
             )}
-            {projectOptions.map((project) => (
-              <DropdownMenuItem
-                key={project.id}
-                onSelect={() => selectProject(project.id)}
-                className="gap-2"
-              >
-                <FolderGit2 className="size-3.5 text-muted-foreground" />
-                <span className="min-w-0 flex-1">
-                  <span className="block truncate text-xs">
-                    {project.name ?? project.canonical}
+            {!projectsPending &&
+              recentProjectOptions.map((project) => (
+                <DropdownMenuItem
+                  key={project.id}
+                  onSelect={() => selectProject(project.id)}
+                  className="gap-2"
+                >
+                  <ProjectAvatar project={project} size="xs" />
+                  <span className="min-w-0 flex-1">
+                    <span className="block truncate text-xs">{projectLabel(project)}</span>
+                    <span className="block truncate text-[10px] text-muted-foreground">
+                      {project.canonical}
+                    </span>
                   </span>
-                  <span className="block truncate text-[10px] text-muted-foreground">
-                    {project.canonical}
-                  </span>
-                </span>
-              </DropdownMenuItem>
-            ))}
-            {projectOptions.length === 0 && !projectsQuery.isLoading && (
-              <div className="px-2 py-1.5 text-xs text-muted-foreground">No projects found</div>
+                </DropdownMenuItem>
+              ))}
+            {!projectsPending && recentProjectOptions.length === 0 && (
+              <div className="px-2 py-1.5 text-xs text-muted-foreground">
+                {showEmpty ? 'No projects found' : 'No projects with sessions'}
+              </div>
             )}
+            <DropdownMenuSeparator />
+            <DropdownMenuItem asChild>
+              <Link to="/projects" onClick={onNavigate} className="gap-2">
+                <LayoutGrid className="size-3.5 text-muted-foreground" />
+                <span className="min-w-0 flex-1 truncate text-xs">All projects</span>
+                <span className="text-[10px] tabular-nums text-muted-foreground">
+                  {visibleProjectOptions.length}
+                </span>
+              </Link>
+            </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
       </div>

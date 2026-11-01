@@ -1,10 +1,14 @@
 import { useMemo } from 'react'
 import { Link, useParams } from 'react-router'
 import { ArrowUpRight, FolderGit2, Loader2, Plus, SearchX } from 'lucide-react'
+import { PageShell } from '@/components/layout/page-shell'
+import { ProjectInfoCard } from '@/components/projects/project-info-card'
+import { ProjectSettingsCard } from '@/components/projects/project-settings-card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
+import { projectLabel } from '@/features/projects/project-list'
 import { canonicalProject, useProjects } from '@/features/projects/use-projects'
 import { useActiveSessions, useSessions } from '@/features/sessions/use-sessions'
 import { useStartSession } from '@/features/sessions/use-start-session'
@@ -19,7 +23,7 @@ export function SessionsPage() {
   const project = useMemo(() => canonicalProject(projects, projectId), [projectId, projects])
   const sessionsQuery = useSessions(project?.id ?? null, '')
   const activeQuery = useActiveSessions()
-  const { lowerSingular, lowerPlural } = useSessionWording()
+  const { plural, lowerSingular, lowerPlural } = useSessionWording()
 
   const sessions = sessionsQuery.data?.data ?? []
   const latest = sessions[0]
@@ -55,26 +59,28 @@ export function SessionsPage() {
   }
 
   return (
-    <div className="h-full overflow-auto">
-      <div className="mx-auto max-w-4xl space-y-6 p-6">
-        <div className="flex flex-wrap items-start justify-between gap-4">
-          <div className="min-w-0">
-            <div className="flex items-center gap-2 text-xs text-muted-foreground">
-              <FolderGit2 className="size-3.5" />
-              <span className="truncate font-mono">{project.canonical}</span>
-            </div>
-            <h1 className="mt-1 truncate text-xl font-semibold tracking-tight">
-              {project.name ?? project.canonical.split('/').pop()}
-            </h1>
-            <p className="mt-1 text-sm text-muted-foreground">
-              {sessions.length} {sessions.length === 1 ? lowerSingular : lowerPlural} in this
-              project
-            </p>
-          </div>
-          <Button onClick={startSession} disabled={pending}>
-            {pending ? <Loader2 className="size-4 animate-spin" /> : <Plus className="size-4" />}
-            New {lowerSingular}
-          </Button>
+    <PageShell
+      title={projectLabel(project)}
+      eyebrow={
+        <>
+          <FolderGit2 className="size-3.5" />
+          <span>Project</span>
+        </>
+      }
+      description={`Project details and ${lowerPlural} for this directory.`}
+      actions={
+        <Button onClick={startSession} disabled={pending}>
+          {pending ? <Loader2 className="size-4 animate-spin" /> : <Plus className="size-4" />}
+          New {lowerSingular}
+        </Button>
+      }
+    >
+      <ProjectInfoCard project={project} />
+      <ProjectSettingsCard project={project} />
+
+      <section className="space-y-3">
+        <div className="flex items-center justify-between gap-3">
+          <h2 className="text-sm font-semibold tracking-tight">{plural}</h2>
         </div>
 
         {sessionsQuery.isLoading && (
@@ -141,8 +147,8 @@ export function SessionsPage() {
             )
           })}
         </div>
-      </div>
-    </div>
+      </section>
+    </PageShell>
   )
 }
 

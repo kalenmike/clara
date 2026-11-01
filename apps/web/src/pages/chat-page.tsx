@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Link, Navigate, useLocation, useNavigate, useParams } from 'react-router'
 import { useTheme } from 'next-themes'
 import { toast } from 'sonner'
@@ -16,9 +16,11 @@ import { PermissionPanel } from '@/components/chat/permission-panel'
 import { PlanReadyPanel } from '@/components/chat/plan-ready-panel'
 import { ReplyDock } from '@/components/chat/reply-dock'
 import { SidePanel } from '@/components/layout/side-panel'
+import { useDefaultAgent } from '@/features/agents/use-default-agent'
 import { useAgents, useModels } from '@/features/catalog/use-catalog'
 import { getVisibleMessages } from '@/features/chat/message-visibility'
 import { findPlanReadyReply } from '@/features/chat/plan-ready'
+import { buildTimeline } from '@/features/chat/timeline'
 import {
   useChatSnapshot,
   useCompactSession,
@@ -66,6 +68,7 @@ export function ChatPage() {
   const busy = snapshot.status.type !== 'idle'
   const [showInternal, setShowInternal] = useState(readShowInternal)
   const [replyOpen, setReplyOpen] = useState(false)
+  const [scrollToEndRequest, setScrollToEndRequest] = useState(0)
   const [draftState, setDraftState] = useState<{
     sessionID: string
     hasDraft: boolean
@@ -97,6 +100,14 @@ export function ChatPage() {
     () => getVisibleMessages(allMessages, showInternal, busy),
     [allMessages, showInternal, busy]
   )
+  const timeline = useMemo(
+    () => buildTimeline(visibleMessages, { showInternal, streaming: busy }),
+    [visibleMessages, showInternal, busy]
+  )
+  const timelineMessages = useMemo(
+    () => timeline.flatMap((item) => (item.type === 'message' ? [item.message] : [])),
+    [timeline]
+  )
   const messagesPending =
     (messagesQuery.isPending || inboxQuery.isPending) && allMessages.length === 0
   const messagesReady = snapshot.messages.length > 0 || messagesQuery.isSuccess
@@ -125,7 +136,7 @@ export function ChatPage() {
     [allMessages, busy, session]
   )
   const { collapsedIDs, allCollapsed, canToggleAll, toggleMessage, toggleAll } =
-    useCollapsedMessages(sessionId ?? '', visibleMessages)
+    useCollapsedMessages(sessionId ?? '', timelineMessages)
   const [infoOpen, setInfoOpen] = useState(
     () => typeof window !== 'undefined' && window.matchMedia('(min-width: 1280px)').matches
   )
@@ -139,9 +150,30 @@ export function ChatPage() {
   )
   const switchAgent = useSwitchAgent(sessionId ?? '')
   const switchModel = useSwitchModel(sessionId ?? '')
+  const { settings: defaultAgentSettings } = useDefaultAgent()
+  const fixedDefaultAgent =
+    defaultAgentSettings.mode === 'fixed' &&
+    defaultAgentSettings.agent != null &&
+    agents.some((agent) => agent.id === defaultAgentSettings.agent)
+      ? defaultAgentSettings.agent
+      : null
+  const draftAgentReset = useRef<string | null>(null)
   const modelsQuery = useModels()
   const compact = useCompactSession(sessionId ?? '')
   const interrupt = useInterruptSession(sessionId ?? '')
+
+  /**
+   * A fixed default agent also applies to empty drafts created before the
+   * setting changed. Only the first evaluation of an open draft is corrected so
+   * a manual switch inside that draft is not immediately undone.
+   */
+  useEffect(() => {
+    if (!fixedDefaultAgent || !isDraftSession || inboxQuery.isPending || draftCount > 0) return
+    if (!session || draftAgentReset.current === session.id) return
+
+    draftAgentReset.current = session.id
+    if (session.agent !== fixedDefaultAgent) switchAgent.mutate(fixedDefaultAgent)
+  }, [draftCount, fixedDefaultAgent, inboxQuery.isPending, isDraftSession, session, switchAgent])
 
   const directory = session?.location.directory ?? project?.canonical
   const { startSession } = useStartSession({
@@ -168,6 +200,10 @@ export function ChatPage() {
   const advanceInbox = useCallback(() => {
     if (inboxMonitor.active) inboxMonitor.advance(sessionId)
   }, [inboxMonitor, sessionId])
+  const handleSent = useCallback(() => {
+    advanceInbox()
+    setScrollToEndRequest((value) => value + 1)
+  }, [advanceInbox])
 
   useEffect(() => {
     saveShowInternal(showInternal)
@@ -351,7 +387,7 @@ export function ChatPage() {
               Retry
             </Button>
           </div>
-        ) : visibleMessages.length === 0 ? (
+        ) : timeline.length === 0 ? (
           isDraftSession ? (
             <DraftSessionView hasDraft={hasLocalDraft} />
           ) : (
@@ -362,7 +398,9 @@ export function ChatPage() {
           )
         ) : (
           <MessageList
-            messages={visibleMessages}
+            sessionID={sessionId}
+            items={timeline}
+            scrollToEndRequest={scrollToEndRequest}
             streaming={busy}
             showInternal={showInternal}
             revision={snapshot.revision}
@@ -398,7 +436,7 @@ export function ChatPage() {
             }
             navigate('/')
           }}
-          onSent={advanceInbox}
+          onSent={handleSent}
           onCycleAgent={cycleAgent}
         />
       </div>
@@ -409,6 +447,7 @@ export function ChatPage() {
           snapshot={snapshot}
           messages={allMessages}
           directory={directory}
+          draft={isDraftSession}
           tab={panelTab}
           onTabChange={setPanelTab}
         />
@@ -423,13 +462,14 @@ export function ChatPage() {
           >
             <SheetTitle className="sr-only">{singular} panel</SheetTitle>
             <SheetDescription className="sr-only">
-              Usage, cost, git changes, and the pair terminal
+              Usage, plan, cost, git changes, and the pair terminal
             </SheetDescription>
             <SidePanel
               session={session}
               snapshot={snapshot}
               messages={allMessages}
               directory={directory}
+              draft={isDraftSession}
               tab={panelTab}
               onTabChange={setPanelTab}
               onClose={() => setInfoOpen(false)}

@@ -1,0 +1,188 @@
+import { useState } from 'react'
+import {
+  Circle,
+  CircleCheck,
+  CircleDot,
+  CircleSlash,
+  ListTodo,
+  Loader2,
+  RefreshCw,
+} from 'lucide-react'
+import { toast } from 'sonner'
+import { Button } from '@/components/ui/button'
+import type { PlanTodo, PlanTodoStatus } from '@/features/chat/session-plan'
+import { claraEventMetadata } from '@/features/chat/system-events'
+import { useSendSynthetic } from '@/features/chat/use-chat'
+import { useSessionWording } from '@/features/sessions/use-wording'
+import { cn } from '@/lib/utils'
+
+/** Idle requests may set up a plan without starting work. */
+const PLAN_REQUEST =
+  'Create a short todo list for this task with todowrite. Do not implement or explain.'
+/** A running agent keeps going after refreshing its checklist. */
+const PLAN_REQUEST_BUSY =
+  'Create a todo list for the current task with todowrite, then continue the current work. Do not stop.'
+const UPDATE_REQUEST = 'Refresh the todo list with the current plan and progress. Do not explain.'
+const UPDATE_REQUEST_BUSY =
+  'Refresh the todo list with current progress, then continue the current work. Do not stop.'
+
+export function SessionPlan({
+  sessionID,
+  todos,
+  draft,
+  busy,
+}: {
+  sessionID: string
+  todos: PlanTodo[] | undefined
+  draft: boolean
+  busy: boolean
+}) {
+  const [requesting, setRequesting] = useState<'plan' | 'update' | null>(null)
+  const sendSynthetic = useSendSynthetic(sessionID)
+  const { lowerSingular } = useSessionWording()
+  const list = todos ?? []
+  const hasPlan = list.length > 0
+  const done = list.filter((todo) => todo.status === 'completed').length
+  const pending = sendSynthetic.isPending || requesting !== null
+
+  const request = async () => {
+    if (!sessionID || pending) return
+    const kind = hasPlan ? 'update' : 'plan'
+    setRequesting(kind)
+    try {
+      await sendSynthetic.mutateAsync({
+        text:
+          kind === 'update'
+            ? busy
+              ? UPDATE_REQUEST_BUSY
+              : UPDATE_REQUEST
+            : busy
+              ? PLAN_REQUEST_BUSY
+              : PLAN_REQUEST,
+        description: kind === 'update' ? 'Requested a plan update' : 'Requested a plan',
+        metadata: claraEventMetadata(kind === 'update' ? 'plan-update' : 'plan-request'),
+        delivery: 'steer',
+        resume: true,
+      })
+    } catch {
+      toast.error(
+        kind === 'update'
+          ? 'Could not request an update. Try again.'
+          : 'Could not request a plan. Try again.'
+      )
+    } finally {
+      setRequesting(null)
+    }
+  }
+
+  return (
+    <section aria-label="Plan" className="space-y-2">
+      <div className="flex items-center justify-between gap-2">
+        <div className="flex items-center gap-1.5 font-medium">
+          <ListTodo className="size-3.5 text-muted-foreground" /> Plan
+        </div>
+        {hasPlan && (
+          <span className="font-mono text-[10px] text-muted-foreground">
+            {done}/{list.length}
+          </span>
+        )}
+      </div>
+
+      {draft ? (
+        <p className="text-[10px] text-muted-foreground">
+          Send your {lowerSingular} to view the plan.
+        </p>
+      ) : (
+        <>
+          {hasPlan ? (
+            <ul className="space-y-1.5">
+              {list.map((todo, index) => (
+                <PlanTodoRow key={`${index}:${todo.content}`} todo={todo} />
+              ))}
+            </ul>
+          ) : (
+            <p className="text-[10px] text-muted-foreground">No plan yet.</p>
+          )}
+
+          <Button
+            type="button"
+            size="sm"
+            variant={hasPlan ? 'outline' : 'secondary'}
+            className="h-7 w-full gap-1 text-[11px] max-md:h-11 max-md:text-sm"
+            onClick={() => void request()}
+            disabled={pending || !sessionID}
+          >
+            {requesting ? (
+              <Loader2 className="size-3.5 animate-spin" />
+            ) : hasPlan ? (
+              <RefreshCw className="size-3.5" />
+            ) : (
+              <ListTodo className="size-3.5" />
+            )}
+            {requesting ? 'Requesting…' : hasPlan ? 'Request Update' : 'Request Plan'}
+          </Button>
+        </>
+      )}
+    </section>
+  )
+}
+
+function PlanTodoRow({ todo }: { todo: PlanTodo }) {
+  const Icon = iconFor(todo.status)
+
+  return (
+    <li className="flex items-start gap-1.5">
+      <Icon className={cn('mt-0.5 size-3.5 shrink-0', colorFor(todo.status))} />
+      <span
+        className={cn(
+          'min-w-0 break-words text-[11px] leading-snug',
+          todo.status === 'completed' && 'text-muted-foreground line-through',
+          todo.status === 'cancelled' && 'text-muted-foreground/60 line-through',
+          todo.status === 'in_progress' && 'font-medium'
+        )}
+      >
+        <span className="sr-only">{labelFor(todo.status)}: </span>
+        {todo.content}
+      </span>
+    </li>
+  )
+}
+
+function iconFor(status: PlanTodoStatus) {
+  switch (status) {
+    case 'completed':
+      return CircleCheck
+    case 'in_progress':
+      return CircleDot
+    case 'cancelled':
+      return CircleSlash
+    default:
+      return Circle
+  }
+}
+
+function colorFor(status: PlanTodoStatus): string {
+  switch (status) {
+    case 'completed':
+      return 'text-emerald-500'
+    case 'in_progress':
+      return 'text-amber-500'
+    case 'cancelled':
+      return 'text-muted-foreground/50'
+    default:
+      return 'text-muted-foreground'
+  }
+}
+
+function labelFor(status: PlanTodoStatus): string {
+  switch (status) {
+    case 'completed':
+      return 'Completed'
+    case 'in_progress':
+      return 'In progress'
+    case 'cancelled':
+      return 'Cancelled'
+    default:
+      return 'Pending'
+  }
+}

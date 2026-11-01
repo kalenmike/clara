@@ -137,7 +137,7 @@ ConnectionProvider
 | ---------------------------- | ---------------------------------------------------------- |
 | `/connect`                   | Pairing, direct server form, local service detection       |
 | `/`                          | Start view; creates a session and opens its draft composer |
-| `/p/:projectId`              | Project overview and session grid                          |
+| `/p/:projectId`              | Project details and session grid                           |
 | `/p/:projectId/s/:sessionId` | Chat                                                       |
 | `/settings`                  | Connection, appearance, notifications, shortcuts           |
 

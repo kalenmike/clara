@@ -17,6 +17,49 @@ export async function requestNotificationPermission(): Promise<NotificationPermi
   }
 }
 
+/**
+ * Shows a one-off system notification so the person can check that desktop
+ * alerts reach the operating system. Returns false when the browser refused.
+ */
+export async function showTestDesktopNotification(): Promise<boolean> {
+  if (readNotificationPermission() !== 'granted') return false
+
+  const title = 'Clara · Test'
+  const options: NotificationOptions = {
+    body: 'Desktop notifications are working. Inbox alerts will look like this.',
+    tag: 'clara:test',
+    icon: '/favicon.png',
+    badge: '/favicon.png',
+    silent: true,
+    data: {
+      url: `${window.location.pathname}${window.location.search}`,
+      sessionID: 'test',
+      kind: 'review',
+    },
+  }
+
+  try {
+    const registration = await getServiceWorkerRegistration()
+    if (registration) {
+      await registration.showNotification(title, options)
+      return true
+    }
+  } catch {
+    // Fall back to a page notification on browsers without a usable worker.
+  }
+
+  try {
+    const notification = new Notification(title, options)
+    notification.onclick = () => {
+      window.focus()
+      notification.close()
+    }
+    return true
+  } catch {
+    return false
+  }
+}
+
 export async function showDesktopNotification(input: {
   kind: AttentionKind
   sessionID: string

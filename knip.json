@@ -19,6 +19,7 @@
   },
   "ignore": ["apps/web/src/components/ui/**"],
   "ignoreDependencies": ["cloudflare"],
+  "ignoreBinaries": ["jq"],
   "rules": {
     "exports": "off",
     "types": "off"

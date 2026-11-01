@@ -1,10 +1,12 @@
 import { useMemo } from 'react'
 import { BarChart3, Coins, MessagesSquare, Timer } from 'lucide-react'
-import type { SessionInfo } from '@opencode/client'
+import type { SessionInfo, SessionMessageInfo } from '@opencode/client'
+import { SessionPlan } from '@/components/layout/session-plan'
 import { Badge } from '@/components/ui/badge'
 import { Separator } from '@/components/ui/separator'
 import { useModels } from '@/features/catalog/use-catalog'
 import type { ChatSnapshot } from '@/features/chat/chat-store'
+import { findPlanTodos } from '@/features/chat/session-plan'
 import { useSessionContext } from '@/features/chat/use-session-context'
 import { useSessionWording } from '@/features/sessions/use-wording'
 import {
@@ -20,13 +22,21 @@ import { cn } from '@/lib/utils'
 export function SessionInfoPanel({
   session,
   snapshot,
+  messages,
+  draft,
 }: {
   session: SessionInfo | undefined
   snapshot: ChatSnapshot
+  messages: SessionMessageInfo[]
+  draft: boolean
 }) {
   const contextQuery = useSessionContext(session?.id ?? '', Boolean(session))
   const { singular } = useSessionWording()
   const modelsQuery = useModels()
+  const todos = useMemo(
+    () => findPlanTodos(messages) ?? findPlanTodos(contextQuery.data ?? []),
+    [contextQuery.data, messages]
+  )
   const model = modelsQuery.data?.find(
     (item) => item.modelID === session?.model?.id && item.providerID === session?.model?.providerID
   )
@@ -70,6 +80,15 @@ export function SessionInfoPanel({
         </div>
         <p className="truncate text-[10px] text-muted-foreground">{session?.id ?? 'loading'}</p>
       </div>
+
+      <Separator className="my-3" />
+
+      <SessionPlan
+        sessionID={session?.id ?? ''}
+        todos={todos}
+        draft={draft}
+        busy={snapshot.status.type !== 'idle'}
+      />
 
       <Separator className="my-3" />
 

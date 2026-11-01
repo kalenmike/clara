@@ -110,7 +110,7 @@ describe('push payloads', () => {
       detail: 'provider quota',
       url: '/p/p1/s/s1',
     })
-    expect(error.title).toBe('Clara · Error')
+    expect(error.title).toBe('Error')
     expect(error.body).toContain('Fix the relay')
     expect(error.body).toContain('provider quota')
 
@@ -121,7 +121,7 @@ describe('push payloads', () => {
         sessionTitle: 'Fix the relay',
         url: '/',
       }).title
-    ).toBe('Clara · Needs Input')
+    ).toBe('Needs Input')
     expect(
       buildPushPayload({
         kind: 'plan',
@@ -129,7 +129,7 @@ describe('push payloads', () => {
         sessionTitle: 'Fix the relay',
         url: '/',
       }).title
-    ).toBe('Clara · Ready for Review')
+    ).toBe('Ready for Review')
     expect(
       buildPushPayload({
         kind: 'review',
@@ -137,7 +137,7 @@ describe('push payloads', () => {
         sessionTitle: 'Fix the relay',
         url: '/',
       }).title
-    ).toBe('Clara · Brief Complete')
+    ).toBe('Brief Complete')
   })
 })
 
@@ -166,7 +166,7 @@ describe('PushService', () => {
     await service.notify(payload)
 
     expect(sent).toHaveLength(1)
-    expect(JSON.parse(sent[0]).title).toBe('Clara · Brief Complete')
+    expect(JSON.parse(sent[0]).title).toBe('Brief Complete')
     expect(store.list()[0]?.lastSuccessAt).toBeTypeOf('number')
   })
 

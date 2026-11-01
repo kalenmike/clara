@@ -1,12 +1,13 @@
 import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import type { SessionMessageInfo } from '@opencode/client'
+import type { JsonValue, SessionMessageInfo } from '@opencode/client'
 import { toast } from 'sonner'
 export type PromptFile = {
   uri: string
   name?: string
   description?: string
 }
+import { saveLastAgent } from '@/features/agents/default-agent'
 import { chatStore, type ChatSnapshot } from '@/features/chat/chat-store'
 import { queryKeys } from '@/lib/query-keys'
 import { useConnection } from '@/providers/connection-provider'
@@ -122,6 +123,42 @@ export function useSendPrompt(sessionID: string) {
   })
 }
 
+/**
+ * Record a non-user input that may start or steer the agent. Synthetic input
+ * keeps the transcript free of fake user prompts while still reaching the
+ * model, and `description` is a free UI label that is never sent to the model.
+ */
+export function useSendSynthetic(sessionID: string) {
+  const { client } = useConnection()
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: (input: {
+      text: string
+      description?: string
+      metadata?: Record<string, JsonValue>
+      delivery?: 'steer' | 'queue'
+      resume?: boolean
+    }) =>
+      client!.session.synthetic({
+        sessionID,
+        text: input.text,
+        description: input.description,
+        metadata: input.metadata,
+        delivery: input.delivery,
+        resume: input.resume,
+      }),
+    onSuccess: () => {
+      window.setTimeout(() => {
+        void queryClient.invalidateQueries({ queryKey: queryKeys.messages(sessionID) })
+        void queryClient.invalidateQueries({ queryKey: queryKeys.sessionInbox(sessionID) })
+        void queryClient.invalidateQueries({ queryKey: queryKeys.sessionMailbox(sessionID) })
+        void queryClient.invalidateQueries({ queryKey: ['sessions'] })
+      }, 200)
+    },
+  })
+}
+
 export function useSaveDraft(sessionID: string) {
   const { client } = useConnection()
   const queryClient = useQueryClient()
@@ -188,7 +225,8 @@ export function useSwitchAgent(sessionID: string) {
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: (agent: string) => client!.session.switchAgent({ sessionID, agent }),
-    onSuccess: () => {
+    onSuccess: (_data, agent) => {
+      saveLastAgent(agent)
       void queryClient.invalidateQueries({ queryKey: queryKeys.session(sessionID) })
     },
   })

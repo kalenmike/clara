@@ -1,13 +1,15 @@
-import { useEffect, useLayoutEffect, useRef, useState } from 'react'
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { useVirtualizer } from '@tanstack/react-virtual'
 import { ArrowDown } from 'lucide-react'
-import type { SessionMessageInfo } from '@opencode/client'
 import { Button } from '@/components/ui/button'
 import { MessageItem } from '@/components/chat/message-item'
+import { SystemEventRow } from '@/components/chat/system-event-row'
+import type { TimelineItem } from '@/features/chat/timeline'
 import { cn } from '@/lib/utils'
 
 export function MessageList({
-  messages,
+  sessionID,
+  items,
   streaming,
   showInternal,
   revision,
@@ -15,10 +17,12 @@ export function MessageList({
   collapsedIDs,
   hasOlder,
   loadingOlder,
+  scrollToEndRequest,
   onLoadOlder,
   onToggleMessage,
 }: {
-  messages: SessionMessageInfo[]
+  sessionID: string
+  items: TimelineItem[]
   streaming: boolean
   showInternal: boolean
   revision: number
@@ -26,48 +30,125 @@ export function MessageList({
   collapsedIDs: ReadonlySet<string>
   hasOlder: boolean
   loadingOlder: boolean
+  scrollToEndRequest: number
   onLoadOlder: () => void
   onToggleMessage: (id: string) => void
 }) {
   const parentRef = useRef<HTMLDivElement>(null)
   const [atBottom, setAtBottom] = useState(true)
   const [showJump, setShowJump] = useState(false)
+  const [opened, setOpened] = useState(false)
   const userScrolled = useRef(false)
-  const anchorID = useRef<string | null>(null)
+  const anchorKey = useRef<string | null>(null)
   const anchorOffset = useRef(0)
   const skipAutoScroll = useRef(false)
+  const openedSession = useRef<string | null>(null)
+  const anchorSettling = useRef(false)
+  const anchorFrame = useRef<number | null>(null)
+  const handledScrollRequest = useRef(scrollToEndRequest)
+
+  const lastMessageIndex = useMemo(() => {
+    for (let index = items.length - 1; index >= 0; index -= 1) {
+      if (items[index]?.type === 'message') return index
+    }
+    return -1
+  }, [items])
 
   const virtualizer = useVirtualizer({
-    count: messages.length,
+    count: items.length,
     getScrollElement: () => parentRef.current,
     estimateSize: () => 180,
     overscan: 6,
-    getItemKey: (index) => messages[index]?.id ?? index,
+    getItemKey: (index) => items[index]?.key ?? index,
   })
 
-  const scrollToBottom = () => {
-    if (messages.length === 0) return
-    virtualizer.scrollToIndex(messages.length - 1, { align: 'end' })
+  const cancelAnchor = () => {
+    if (anchorFrame.current !== null) cancelAnimationFrame(anchorFrame.current)
+    anchorFrame.current = null
+    anchorSettling.current = false
+  }
+
+  /** Move to the newest output without disturbing an opening anchor. */
+  const scrollToEnd = () => {
+    if (items.length === 0) return
+    setOpened(true)
+    virtualizer.scrollToIndex(items.length - 1, { align: 'end' })
     setAtBottom(true)
     setShowJump(false)
     userScrolled.current = false
+  }
+
+  const scrollToBottom = () => {
+    cancelAnchor()
+    scrollToEnd()
+  }
+
+  /** Stop chasing the opening position and hand control back to the person. */
+  const releaseAnchor = () => {
+    if (!anchorSettling.current) return
+    cancelAnchor()
+    skipAutoScroll.current = false
+    setOpened(true)
   }
 
   const requestOlder = () => {
     if (!hasOlder || loadingOlder) return
     const offset = parentRef.current?.scrollTop ?? 0
     const first = virtualizer.getVirtualItems().find((item) => item.end > offset)
-    const message = first ? messages[first.index] : undefined
-    anchorID.current = message?.id ?? null
+    const item = first ? items[first.index] : undefined
+    anchorKey.current = item?.key ?? null
     anchorOffset.current = first ? Math.max(0, offset - first.start) : 0
     onLoadOlder()
   }
 
+  /**
+   * Put the top of the newest message at the top of the thread so a long reply
+   * is readable from its first line. Measurements land over a few frames, so
+   * re-align briefly instead of trusting the first estimated offset.
+   */
+  const alignToLastMessage = () => {
+    const index = lastMessageIndex >= 0 ? lastMessageIndex : items.length - 1
+    if (!parentRef.current || index < 0) return
+
+    anchorSettling.current = true
+    setAtBottom(false)
+    setShowJump(false)
+
+    let attempts = 0
+    const settle = () => {
+      anchorFrame.current = null
+      const element = parentRef.current
+      if (!element || !anchorSettling.current) return
+
+      const target = virtualizer.getOffsetForIndex(index, 'start')
+      if (target && Math.abs(element.scrollTop - target[0]) > 1) {
+        virtualizer.scrollToOffset(target[0])
+      }
+
+      attempts += 1
+      if (attempts < 3) {
+        anchorFrame.current = requestAnimationFrame(settle)
+        return
+      }
+
+      anchorSettling.current = false
+      skipAutoScroll.current = false
+      const bottom = element.scrollHeight - element.scrollTop - element.clientHeight < 80
+      setAtBottom(bottom)
+      setShowJump(!bottom)
+      setOpened(true)
+      if (element.scrollTop < 240) requestOlder()
+    }
+
+    virtualizer.scrollToIndex(index, { align: 'start' })
+    anchorFrame.current = requestAnimationFrame(settle)
+  }
+
   useLayoutEffect(() => {
-    const anchor = anchorID.current
+    const anchor = anchorKey.current
     if (!anchor) return
-    anchorID.current = null
-    const index = messages.findIndex((message) => message.id === anchor)
+    anchorKey.current = null
+    const index = items.findIndex((item) => item.key === anchor)
     if (index === -1) return
     skipAutoScroll.current = true
     const target = virtualizer.getOffsetForIndex(index, 'start')
@@ -76,16 +157,72 @@ export function MessageList({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [historyRevision])
 
+  useLayoutEffect(() => {
+    if (items.length === 0) return
+    if (openedSession.current !== sessionID) {
+      // A newly opened thread starts fresh: stop the previous session's settle
+      // and drop its scroll intent before anything else can act on it.
+      cancelAnchor()
+      userScrolled.current = false
+      skipAutoScroll.current = false
+      setOpened(false)
+      setShowJump(false)
+    }
+    // Measure after the virtualizer has attached its scroll element, which its
+    // own layout effect does after ours. Deferring also keeps StrictMode's
+    // setup/cleanup/setup cycle from skipping the anchor.
+    const frame = requestAnimationFrame(() => {
+      if (openedSession.current === sessionID) return
+      if (userScrolled.current) {
+        openedSession.current = sessionID
+        setOpened(true)
+        return
+      }
+      openedSession.current = sessionID
+      cancelAnchor()
+      skipAutoScroll.current = false
+      setShowJump(false)
+
+      if (streaming) {
+        setAtBottom(true)
+        setOpened(true)
+        return
+      }
+
+      setOpened(false)
+      alignToLastMessage()
+    })
+    return () => cancelAnimationFrame(frame)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sessionID, items.length, streaming])
+
   useEffect(() => {
+    if (!opened) return
+    // Never follow with another session's state while a new thread is opening.
+    if (openedSession.current !== sessionID) return
     if (skipAutoScroll.current) {
       skipAutoScroll.current = false
       return
     }
     if (!atBottom) return
-    const frame = requestAnimationFrame(scrollToBottom)
+    const frame = requestAnimationFrame(scrollToEnd)
     return () => cancelAnimationFrame(frame)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [messages.length, revision, atBottom])
+  }, [opened, sessionID, items.length, revision, atBottom])
+
+  useEffect(() => {
+    if (scrollToEndRequest === handledScrollRequest.current) return
+    handledScrollRequest.current = scrollToEndRequest
+    scrollToBottom()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [scrollToEndRequest])
+
+  useEffect(
+    () => () => {
+      if (anchorFrame.current !== null) cancelAnimationFrame(anchorFrame.current)
+    },
+    []
+  )
 
   const onScroll = () => {
     const element = parentRef.current
@@ -93,7 +230,7 @@ export function MessageList({
     if (element.scrollTop < 240) requestOlder()
     const bottom = element.scrollHeight - element.scrollTop - element.clientHeight < 80
     setAtBottom(bottom)
-    setShowJump(userScrolled.current && !bottom)
+    setShowJump(!bottom && (userScrolled.current || opened))
   }
 
   return (
@@ -109,17 +246,19 @@ export function MessageList({
         onScroll={onScroll}
         onWheel={() => {
           userScrolled.current = true
+          releaseAnchor()
         }}
         onTouchMove={() => {
           userScrolled.current = true
+          releaseAnchor()
         }}
         className="h-full overflow-y-auto pb-28"
       >
         <div className="relative w-full" style={{ height: virtualizer.getTotalSize() }}>
           {virtualizer.getVirtualItems().map((item) => {
-            const message = messages[item.index]
-            if (!message) return null
-            const isLast = item.index === messages.length - 1
+            const entry = items[item.index]
+            if (!entry) return null
+            const isLast = item.index === items.length - 1
             return (
               <div
                 key={item.key}
@@ -131,13 +270,17 @@ export function MessageList({
                 )}
                 style={{ transform: `translateY(${item.start}px)` }}
               >
-                <MessageItem
-                  message={message}
-                  streaming={streaming && isLast}
-                  showInternal={showInternal}
-                  collapsed={collapsedIDs.has(message.id)}
-                  onToggle={() => onToggleMessage(message.id)}
-                />
+                {entry.type === 'message' ? (
+                  <MessageItem
+                    message={entry.message}
+                    streaming={streaming && item.index === lastMessageIndex}
+                    showInternal={showInternal}
+                    collapsed={collapsedIDs.has(entry.message.id)}
+                    onToggle={() => onToggleMessage(entry.message.id)}
+                  />
+                ) : (
+                  <SystemEventRow event={entry.event} />
+                )}
               </div>
             )
           })}
