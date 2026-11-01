@@ -26,12 +26,26 @@ export function allInboxSoundKinds(enabled: boolean): NotificationSettings['soun
   return soundKinds
 }
 
+export const DEFAULT_SOUND_VOLUME = 0.7
+
+/**
+ * Simplified settings hide the volume slider, so turning the single Inbox
+ * switch back on restores a comfortable level rather than an old muted volume.
+ */
+export function simplifiedInboxSoundPatch(enabled: boolean): Partial<NotificationSettings> {
+  return {
+    sounds: enabled,
+    soundKinds: allInboxSoundKinds(enabled),
+    ...(enabled ? { volume: DEFAULT_SOUND_VOLUME } : {}),
+  }
+}
+
 export const DEFAULT_NOTIFICATION_SETTINGS: NotificationSettings = {
   desktop: false,
   push: false,
   sounds: true,
   uiSounds: true,
-  volume: 0.7,
+  volume: DEFAULT_SOUND_VOLUME,
   soundKinds: {
     review: true,
     question: true,

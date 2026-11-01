@@ -40,7 +40,7 @@ import {
 import { useNotificationPermission } from '@/features/notifications/use-notification-permission'
 import { useNotificationSettings } from '@/features/notifications/use-notification-settings'
 import { playAttentionSound, playDoneSound } from '@/features/notifications/sounds'
-import { DESK_IDLE_OPTIONS_MS, allInboxSoundKinds } from '@/features/notifications/settings'
+import { DESK_IDLE_OPTIONS_MS, simplifiedInboxSoundPatch } from '@/features/notifications/settings'
 import { usePush } from '@/providers/push-provider'
 import { useSessionWording } from '@/features/sessions/use-wording'
 
@@ -67,11 +67,7 @@ export function NotificationsCard({
   const showDesktop = !isTouchDevice || settings.desktop
 
   const toggleInboxSounds = (enabled: boolean) => {
-    update(
-      simplified
-        ? { sounds: enabled, soundKinds: allInboxSoundKinds(enabled) }
-        : { sounds: enabled }
-    )
+    update(simplified ? simplifiedInboxSoundPatch(enabled) : { sounds: enabled })
   }
 
   const toggleSound = (kind: AttentionKind, enabled: boolean) => {
@@ -122,18 +118,20 @@ export function NotificationsCard({
           />
         </div>
 
-        <div className="flex items-center gap-3 pl-6">
-          <Volume2 className="size-3.5 shrink-0 text-muted-foreground" />
-          <Slider
-            value={[Math.round(settings.volume * 100)]}
-            onValueChange={([value]) => update({ volume: value / 100 })}
-            disabled={!settings.sounds && !settings.uiSounds}
-            aria-label="Sound volume"
-          />
-          <span className="w-9 shrink-0 text-right text-[11px] tabular-nums text-muted-foreground">
-            {Math.round(settings.volume * 100)}%
-          </span>
-        </div>
+        {!simplified && (
+          <div className="flex items-center gap-3 pl-6">
+            <Volume2 className="size-3.5 shrink-0 text-muted-foreground" />
+            <Slider
+              value={[Math.round(settings.volume * 100)]}
+              onValueChange={([value]) => update({ volume: value / 100 })}
+              disabled={!settings.sounds && !settings.uiSounds}
+              aria-label="Sound volume"
+            />
+            <span className="w-9 shrink-0 text-right text-[11px] tabular-nums text-muted-foreground">
+              {Math.round(settings.volume * 100)}%
+            </span>
+          </div>
+        )}
 
         {!simplified && (
           <div className="space-y-1 rounded-lg border p-2">

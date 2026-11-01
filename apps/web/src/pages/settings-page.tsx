@@ -62,8 +62,8 @@ export function SettingsPage() {
         </TabsContent>
 
         <TabsContent value="preferences" className="space-y-4">
-          <WordingCard />
           <AgentCard />
+          <WordingCard />
         </TabsContent>
 
         <TabsContent value="notifications" className="space-y-4">

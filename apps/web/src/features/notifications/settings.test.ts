@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { ATTENTION_KINDS } from './attention'
-import { allInboxSoundKinds } from './settings'
+import { DEFAULT_SOUND_VOLUME, allInboxSoundKinds, simplifiedInboxSoundPatch } from './settings'
 
 describe('allInboxSoundKinds', () => {
   it('enables every Inbox state', () => {
@@ -16,5 +16,21 @@ describe('allInboxSoundKinds', () => {
 
   it('returns a fresh object each time', () => {
     expect(allInboxSoundKinds(true)).not.toBe(allInboxSoundKinds(true))
+  })
+})
+
+describe('simplifiedInboxSoundPatch', () => {
+  it('enables every Inbox state and restores the default volume', () => {
+    const patch = simplifiedInboxSoundPatch(true)
+    expect(patch.sounds).toBe(true)
+    expect(patch.volume).toBe(DEFAULT_SOUND_VOLUME)
+    for (const kind of ATTENTION_KINDS) expect(patch.soundKinds?.[kind]).toBe(true)
+  })
+
+  it('mutes every Inbox state without touching the volume', () => {
+    const patch = simplifiedInboxSoundPatch(false)
+    expect(patch.sounds).toBe(false)
+    expect(patch).not.toHaveProperty('volume')
+    for (const kind of ATTENTION_KINDS) expect(patch.soundKinds?.[kind]).toBe(false)
   })
 })
