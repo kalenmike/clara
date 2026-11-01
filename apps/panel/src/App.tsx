@@ -15,6 +15,7 @@ import {
 } from './components/overview-cards.tsx'
 import { Badge } from './components/primitives.tsx'
 import { StorageCard } from './components/storage-list.tsx'
+import { ShellPolicyCard } from './components/shell-policy-card.tsx'
 
 export function App() {
   const { data, error, loading, refreshing, updatedAt, now, refresh } = useAgentSnapshot()
@@ -90,6 +91,8 @@ export function App() {
             ) : null}
 
             <ControlsCard controls={data.controls} onChanged={refresh} />
+
+            <ShellPolicyCard shell={data.controls.shell} onChanged={refresh} />
 
             <div className="grid items-start gap-4 md:grid-cols-2 xl:grid-cols-3">
               <AgentCard agent={data.agent} now={clock} />
