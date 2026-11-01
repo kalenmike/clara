@@ -8,7 +8,8 @@ actions; direct keys handle interruption and switching.
 
 ## User flow
 
-1. Press `ctrl+x` (the leader). Clara waits two seconds for the next key.
+1. Press `ctrl+x` (the leader) with focus outside a text field. Clara waits two
+   seconds for the next key.
 2. Press `n` to create a session and open its draft composer in the last-used
    reply size, `l` for the project session list, `s` to toggle the panel on its
    Info tab, `g` to open the Git tab, or `` ` `` to open the pair terminal.
@@ -24,9 +25,12 @@ actions; direct keys handle interruption and switching.
 
 ## Core business rules
 
-1. The leader is `ctrl+x` and expires after 2 seconds.
+1. The leader is `ctrl+x` and expires after 2 seconds. It only starts when
+   focus is outside a text field.
 2. Shortcuts do not fire while typing in an input, textarea, or contenteditable
-   element, except the leader, agent cycling (`ctrl+.`, Tab), and Escape.
+   element, except agent cycling (`ctrl+.`, Tab in the message box), `ctrl+t`,
+   and Escape. The leader is not available there, so `ctrl+x` keeps its native
+   cut behavior.
 3. Tab cycles agents while the message box has focus and keeps focus there
    instead of indenting. Tab elsewhere is normal focus traversal, and `ctrl+.`
    cycles agents from anywhere on the chat page.
@@ -38,6 +42,9 @@ actions; direct keys handle interruption and switching.
 ## Edge cases
 
 - **Leader pressed alone** — the sequence expires silently after two seconds.
+- **Caret in a text field** — `ctrl+x` cuts the selection, or does nothing when
+  there is no selection, and never starts the leader. A leader armed before
+  focus moved into the field is dropped on the next key press.
 - **Leader then unknown key** — nothing happens; the leader resets.
 - **No project selected** — `n` and `l` are no-ops.
 - **No model variants** — `ctrl+t` is a no-op.
@@ -45,7 +52,8 @@ actions; direct keys handle interruption and switching.
 - **Menu open in the reply window** — Escape closes the menu first, and Tab
   selects the highlighted item instead of cycling agents.
 - **Browser-reserved keys** — the browser may intercept combinations such as
-  `ctrl+t` or `ctrl+x` before Clara sees them, depending on platform and focus.
+  `ctrl+t` before Clara sees them, depending on platform and focus. Clara leaves
+  `ctrl+x` to the browser while a text field has focus.
 - **Dialog open** — Escape closes the dialog instead of interrupting the run.
 
 ## Out of scope
@@ -93,7 +101,11 @@ actions; direct keys handle interruption and switching.
 | `escape`                  | Interrupt or close             |
 | `shift+enter`             | Newline                        |
 
+`ctrl+x` only starts the leader when focus is outside a text field; inside one
+it stays the browser's cut.
+
 - Hook: `src/hooks/use-keybinds.ts`
+- Text-field check: `src/lib/keyboard.ts` (`isTextEntryTarget`)
 - Settings screen lists the same table on pointer devices: `/settings`
 - Device check: `src/hooks/use-is-touch-device.ts` (`pointer: coarse`)
 - Related: [composer](composer.md), [chat](chat.md), [git](git.md)
