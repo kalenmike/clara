@@ -191,6 +191,10 @@ sidebar.
 - Sound output depends on a prior user gesture in the tab.
 - Push delivery is best effort. Apple, Google, and Mozilla push services can
   delay or drop a message, and a home agent that is offline cannot send.
+- Brave on desktop has no push service of its own. Subscribing fails until the
+  person enables **Use Google services for push messaging** at
+  `brave://settings/privacy` and relaunches Brave. Settings names that setting
+  when registration fails.
 - The custom per-kind sounds, sound switches, and volume do not apply once the
   app is closed; that push uses the operating-system sound and settings.
 - System and push notifications are drawn by the operating system, so their

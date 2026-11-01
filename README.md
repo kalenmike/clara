@@ -128,6 +128,9 @@ subscriptions at `~/.config/clara/subscriptions.json`.
 
 - On iPhone and iPad, add Clara to the Home Screen from Safari and open it from
   that icon before enabling push.
+- Brave on desktop needs **Use Google services for push messaging** enabled at
+  `brave://settings/privacy`; Brave has no push service of its own, so
+  subscribing fails until that setting is on and the browser is relaunched.
 - The agent must be able to reach the browser vendor's push service over HTTPS.
 - `node apps/server/dist/index.js pair --rotate` clears all stored push
   subscriptions as well as rotating the pairing key; restart the running home
