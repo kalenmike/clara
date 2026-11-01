@@ -38,6 +38,7 @@ pnpm format:check # Prettier check
 pnpm test         # All package tests
 pnpm knip         # Unused files, exports, and dependencies
 pnpm check        # typecheck + lint + format:check + knip + test
+pnpm commitlint   # Lint the last commit message (also enforced on commit)
 pnpm deploy:web   # Pages deploy
 pnpm deploy:relay # Worker deploy
 ```
@@ -80,6 +81,45 @@ transport, Worker, Durable Object, or crypto.
   only when the user opts in). Never commit pairing codes, PSKs, tokens, or
   `.env`/`.dev.vars`.
 - Keep files focused; split a component once it carries more than one concern.
+- Commit incrementally with Conventional Commits; see [Commits](#commits).
+
+## Commits
+
+Commit as you work. Do not leave a whole feature request as one uncommitted
+change, and do not commit every file edit. A feature request should normally
+land as a handful of coherent commits (typically 2–6), each one a reviewable
+step.
+
+- Commit when a coherent unit is complete and the tree is runnable: a vertical
+  slice, a refactor, a test batch, a docs update, or a tooling change.
+- Split by concern, not by file. If the subject needs "and" to join unrelated
+  work, split the commit.
+- Keep every commit buildable. Run `pnpm typecheck` (or the affected package
+  test) before intermediate commits and `pnpm check` before the final commit of
+  a feature request.
+- Use Conventional Commits: `<type>(<scope>): <subject>`. A `commit-msg` hook
+  runs commitlint on every commit and rejects a non-conforming header.
+  - Types: `feat`, `fix`, `docs`, `refactor`, `test`, `chore`, `perf`, `build`,
+    `ci`.
+  - Scopes are optional: `web`, `server`, `relay`, `crypto`, `types`, `docs`.
+  - Subject: imperative, lowercase, no trailing period, 72 characters or less.
+  - Body: explain why and any user-visible behavior change; wrap at 72.
+- Commit separable docs and capability updates on their own, e.g.
+  `docs(chat): describe the plan-ready panel`. Fold docs into the feature commit
+  only when they are not separable.
+- Stage explicit paths. Do not use `git add -A`; never commit secrets, generated
+  output, or unrelated work.
+- Do not force-push, rewrite published history, or amend commits unless the user
+  asks.
+
+Examples:
+
+```text
+feat(web): show plan-ready panel in the session side panel
+fix(server): keep push subscriptions across reconnects
+test(web): cover timeline gap detection
+docs(sessions): document archived session filters
+```
 
 ## Documentation map
 
@@ -110,3 +150,5 @@ transport, Worker, Durable Object, or crypto.
    [docs/features/capabilities.md](docs/features/capabilities.md) in the same
    change.
 5. No secrets, generated output, or unrelated files are staged.
+6. Work is committed as coherent Conventional Commits; `git status` shows only
+   intentionally uncommitted follow-up work.

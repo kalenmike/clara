@@ -144,6 +144,7 @@ or the relay.
 | `pnpm build`        | Build every workspace package                       |
 | `pnpm test`         | Run crypto, protocol, server, web, and Worker tests |
 | `pnpm check`        | Typecheck + lint + format + Knip + tests            |
+| `pnpm commitlint`   | Lint the last commit message                        |
 | `pnpm deploy:web`   | Build and deploy the Pages project                  |
 | `pnpm deploy:relay` | Deploy the Worker and DO migration                  |
 | `pnpm format`       | Prettier write                                      |
