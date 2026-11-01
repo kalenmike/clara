@@ -1,4 +1,5 @@
 import { useEffect, useRef } from 'react'
+import { isTextEntryTarget } from '@/lib/keyboard'
 
 type KeybindActions = {
   onNewSession?: () => void
@@ -30,8 +31,17 @@ export function useKeybinds(actions: KeybindActions) {
     const handler = (event: KeyboardEvent) => {
       const current = actionsRef.current
       const key = event.key.toLowerCase()
+      const typing = isTextEntryTarget(event.target)
 
-      if ((event.ctrlKey || event.metaKey) && key === 'x') {
+      // A leader armed outside a field must not swallow the first key typed
+      // inside one.
+      if (typing && leader) {
+        leader = false
+        window.clearTimeout(timer)
+      }
+
+      // In a text field ctrl+x is the browser's cut, not the leader.
+      if (!typing && (event.ctrlKey || event.metaKey) && key === 'x') {
         event.preventDefault()
         leader = true
         window.clearTimeout(timer)
