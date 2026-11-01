@@ -39,6 +39,7 @@ browser-safe, so Clara uses the browser client from the same family.
 ```text
 apps/
   web/                 React SPA, deployed to Cloudflare Pages
+  panel/               Read-only loopback dashboard served by the home agent
   server/              Node home agent, outbound relay client, local WS listener
 packages/
   shared-types/        Wire frames, actions, states, pairing payloads
@@ -63,6 +64,7 @@ Clara home agent ──outbound WSS──▶ Worker ──▶ RelayRoom DO ◀�
 
 Local mode: web ──WSS──▶ home agent ──▶ OpenCode
 Direct mode: web ──HTTP/SSE──▶ OpenCode (legacy / operator-managed)
+Panel: browser ──HTTP 127.0.0.1:8790──▶ home agent (read-only)
 ```
 
 The relay forwards opaque frames. It does not parse, store, or replay payloads.
@@ -130,6 +132,10 @@ ConnectionProvider
 - The home agent also reads OpenCode's `/api/event` stream for push and stores
   Web Push subscriptions at `~/.config/clara/subscriptions.json`. VAPID keys
   live in `~/.config/clara/vapid.json`.
+- The home agent serves `apps/panel` on a second loopback listener (default
+  `127.0.0.1:8790`). It reads one allowlisted runtime snapshot; it does not
+  proxy OpenCode, expose the PSK, or write settings in v1. See
+  [panel.md](../features/panel.md).
 
 ## Routing
 
@@ -201,6 +207,11 @@ re-subscribes through the transport.
 - Relay tokens are defense in depth; the PSK is the real authentication key.
 - The Worker uses separate agent/client tokens so a paired client cannot
   impersonate the home agent.
+- The agent panel is loopback-only and independent of `CLARA_LOCAL_HOST`. It
+  checks the socket address, `Host`, `Origin`, and fetch metadata, allows only
+  `GET`/`HEAD`, and never returns the PSK, password, tokens, push endpoints, or
+  file contents. Loopback is not user isolation; v1 assumes a single-user
+  machine.
 
 ## Related
 

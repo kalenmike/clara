@@ -17,6 +17,7 @@ Cloudflare relay, or connect directly on a trusted network.
 
 ```text
 apps/web              React/Vite SPA, deployed to Cloudflare Pages
+apps/panel            Read-only loopback dashboard served by the home agent
 apps/server           Node home agent, local WS + outbound relay
 packages/shared-types Wire frames, actions, states, pairing payloads
 packages/crypto       PSK derivation, AES-GCM envelopes, replay guard
@@ -37,6 +38,22 @@ direct OpenCode URL/password. The home agent reads the OpenCode password from:
 ```text
 ${XDG_STATE_HOME:-~/.local/state}/opencode/service.json
 ```
+
+### Agent panel
+
+The home agent serves a read-only dashboard on its own loopback listener. In
+development, run the API and the panel separately:
+
+```bash
+pnpm dev:server
+pnpm dev:panel   # http://localhost:5174
+```
+
+In a production build, the panel ships inside the agent and is available at
+<http://127.0.0.1:8790> after `pnpm build` and `pnpm clara:serve`. It is
+loopback-only, never routed through the relay, and shows no PSK, OpenCode
+password, relay tokens, push endpoints, or file contents. See
+[docs/features/panel.md](docs/features/panel.md).
 
 ### Local WebSocket mode
 
@@ -139,6 +156,7 @@ or the relay.
 | ------------------- | --------------------------------------------------- |
 | `pnpm dev`          | Web dev server and home agent                       |
 | `pnpm dev:web`      | Web only                                            |
+| `pnpm dev:panel`    | Agent panel dev server                              |
 | `pnpm dev:server`   | Home agent only                                     |
 | `pnpm dev:relay`    | Local `wrangler dev` for the Worker/DO              |
 | `pnpm build`        | Build every workspace package                       |
@@ -158,6 +176,9 @@ or the relay.
   at `~/.config/clara/server.json` (mode `0600`) on the agent.
 - Web Push subscriptions live at `~/.config/clara/subscriptions.json`; VAPID
   keys live at `~/.config/clara/vapid.json`. Both use mode `0600`.
+- The agent panel listens only on `127.0.0.1:8790`, is read-only in v1, and
+  never returns the PSK, OpenCode password, relay tokens, push endpoints, or
+  file contents. It is not exposed through the relay or Pages.
 - Never commit `.env`, `.dev.vars`, `service.json`, push subscriptions, VAPID
   keys, pairing codes, tokens, or the PSK.
 - Rotate with `node apps/server/dist/index.js pair --rotate`; this also clears

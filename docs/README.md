@@ -41,6 +41,7 @@ here, it is not part of the canonical set.
 | [install.md](features/install.md)             | You are working on install, updates, caching, or offline behavior        |
 | [connection.md](features/connection.md)       | You are working on connecting Clara to an OpenCode server                |
 | [pairing.md](features/pairing.md)             | You are working on QR/code pairing, device storage, or key rotation      |
+| [panel.md](features/panel.md)                 | You are working on the local read-only agent dashboard                   |
 | [sessions.md](features/sessions.md)           | You are working on the project/session browser                           |
 | [chat.md](features/chat.md)                   | You are working on messages, streaming, tools, or permissions            |
 | [fork.md](features/fork.md)                   | You are working on forking a session or forwarding a message             |

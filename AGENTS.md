@@ -8,6 +8,7 @@ WebSocket. This file is the contract for every AI agent working in this repo.
 
 ```text
 apps/web              React/Vite SPA (Cloudflare Pages)
+apps/panel            Read-only loopback agent dashboard
 apps/server           Node home agent, local WS + outbound Cloudflare relay
 packages/shared-types Wire frames, actions, states, pairing payloads
 packages/crypto       PSK derivation, AES-GCM envelopes, replay guard
@@ -28,6 +29,7 @@ workers/relay         Cloudflare Worker + RelayRoom Durable Object
 ```bash
 pnpm dev          # Web on :5173 and the home agent on :8788
 pnpm dev:web      # Web only
+pnpm dev:panel    # Agent panel only
 pnpm dev:server   # Home agent only
 pnpm dev:relay    # Local wrangler dev for the Worker/DO
 pnpm build        # Build every workspace package
@@ -146,6 +148,7 @@ docs(sessions): document archived session filters
 | Pairing, QR codes, device storage  | [docs/features/pairing.md](docs/features/pairing.md)             |
 | Install, updates, offline caching  | [docs/features/install.md](docs/features/install.md)             |
 | Connection and credentials         | [docs/features/connection.md](docs/features/connection.md)       |
+| Agent panel and local server state | [docs/features/panel.md](docs/features/panel.md)                 |
 | Project/session browser            | [docs/features/sessions.md](docs/features/sessions.md)           |
 | Messages, tools, approvals         | [docs/features/chat.md](docs/features/chat.md)                   |
 | Forking, forwarding                | [docs/features/fork.md](docs/features/fork.md)                   |
