@@ -1,6 +1,6 @@
 import { base64UrlToBytes } from '@clara/crypto'
 import { basename, isAbsolute, relative, resolve } from 'node:path'
-import type { ShellPolicy, ShellPolicyMode } from '@clara/shared-types'
+import type { ShellPolicy } from '@clara/shared-types'
 import type { HttpRequestAction } from './opencode.ts'
 
 export const DEFAULT_SHELL_POLICY: ShellPolicy = { mode: 'off', commands: [] }
@@ -188,10 +188,6 @@ export function readStoredShellPolicy(mode: unknown, commands: unknown): ShellPo
     throw new Error(`The stored shell policy is invalid: ${parsed.message}`)
   }
   return parsed.policy
-}
-
-export function isShellPolicyMode(value: unknown): value is ShellPolicyMode {
-  return value === 'off' || value === 'allowlist'
 }
 
 function metacharacterDenial(): ShellDecision {
