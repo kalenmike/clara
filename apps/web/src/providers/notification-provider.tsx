@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router'
 import { useQueryClient } from '@tanstack/react-query'
 import type { SessionInfo } from '@opencode/client'
 import { isArchivedSession } from '@/features/sessions/session-archive'
+import { getSessionInfo } from '@/features/sessions/session-cache'
 import { isSnoozedSession } from '@/features/sessions/session-snooze'
 import { readSessionWording } from '@/features/sessions/wording'
 import type { AttentionKind } from '@/features/notifications/attention'
@@ -11,7 +12,6 @@ import {
   showDesktopNotification,
 } from '@/features/notifications/notifier'
 import {
-  getSessionInfo,
   loadSessionAttention,
   resolveProjectID,
 } from '@/features/notifications/session-attention'

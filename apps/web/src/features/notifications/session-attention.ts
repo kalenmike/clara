@@ -4,6 +4,7 @@ import type { OpenCodeClient } from '@/lib/client'
 import { queryKeys } from '@/lib/query-keys'
 import { canonicalProjects } from '@/features/projects/use-projects'
 import { isArchivedSession } from '@/features/sessions/session-archive'
+import { getSessionInfo } from '@/features/sessions/session-cache'
 import { loadSessionMailboxSignals } from '@/features/sessions/session-mailbox-signals'
 import { isSnoozedSession } from '@/features/sessions/session-snooze'
 import { resolveAttentionKind, type AttentionKind } from './attention'
@@ -11,19 +12,6 @@ import { resolveAttentionKind, type AttentionKind } from './attention'
 export type SessionAttention = {
   kind: AttentionKind
   session: SessionInfo
-}
-
-export async function getSessionInfo(
-  client: OpenCodeClient,
-  queryClient: QueryClient,
-  sessionID: string
-): Promise<SessionInfo> {
-  const cached = queryClient.getQueryData<SessionInfo>(queryKeys.session(sessionID))
-  if (cached) return cached
-
-  const session = await client.session.get({ sessionID })
-  queryClient.setQueryData(queryKeys.session(sessionID), session)
-  return session
 }
 
 /**
