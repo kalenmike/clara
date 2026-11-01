@@ -15,6 +15,7 @@ import {
 import { Badge } from './components/primitives.tsx'
 import { StorageCard } from './components/storage-list.tsx'
 import { ShellPolicyCard } from './components/shell-policy-card.tsx'
+import { TrafficCard } from './components/traffic-card.tsx'
 
 export function App() {
   const { data, error, loading, refreshing, updatedAt, now, refresh } = useAgentSnapshot()
@@ -100,6 +101,13 @@ export function App() {
             </div>
 
             <ClientsTable clients={data.clients} now={clock} />
+
+            <TrafficCard
+              traffic={data.traffic}
+              monitoring={data.controls.monitoring}
+              onChanged={refresh}
+              now={clock}
+            />
 
             <EventsCard events={data.events} now={clock} />
 

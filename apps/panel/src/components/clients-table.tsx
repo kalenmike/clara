@@ -1,9 +1,17 @@
 import { Users } from 'lucide-react'
 import type { PanelClientInfo } from '@clara/shared-types'
-import { formatDuration, formatRelative, formatTimestamp, shortId } from '../lib/format.ts'
+import {
+  formatBytes,
+  formatDuration,
+  formatRelative,
+  formatTimestamp,
+  shortId,
+} from '../lib/format.ts'
 import { Badge, CardBody, CollapsibleCard, EmptyState } from './primitives.tsx'
 
 export function ClientsTable({ clients, now }: { clients: PanelClientInfo[]; now: number }) {
+  const withTraffic = clients.some((client) => client.bytesIn !== undefined)
+
   return (
     <CollapsibleCard
       title="Connected clients"
@@ -16,7 +24,7 @@ export function ClientsTable({ clients, now }: { clients: PanelClientInfo[]; now
           <EmptyState>No paired clients are connected right now.</EmptyState>
         ) : (
           <div className="-mx-1 overflow-x-auto">
-            <table className="w-full min-w-[680px] border-collapse text-left text-xs">
+            <table className="w-full min-w-[880px] border-collapse text-left text-xs">
               <thead>
                 <tr className="text-[10px] uppercase tracking-wide text-neutral-500 dark:text-neutral-400">
                   <th scope="col" className="px-1 py-2 font-medium">
@@ -38,8 +46,21 @@ export function ClientsTable({ clients, now }: { clients: PanelClientInfo[]; now
                     Idle
                   </th>
                   <th scope="col" className="px-1 py-2 text-right font-medium">
-                    Requests
+                    In flight
                   </th>
+                  {withTraffic ? (
+                    <>
+                      <th scope="col" className="px-1 py-2 text-right font-medium">
+                        Requests
+                      </th>
+                      <th scope="col" className="px-1 py-2 text-right font-medium">
+                        In
+                      </th>
+                      <th scope="col" className="px-1 py-2 text-right font-medium">
+                        Out
+                      </th>
+                    </>
+                  ) : null}
                   <th scope="col" className="px-1 py-2 font-medium">
                     Desk hold
                   </th>
@@ -76,6 +97,19 @@ export function ClientsTable({ clients, now }: { clients: PanelClientInfo[]; now
                       {formatDuration(client.idleMs)}
                     </td>
                     <td className="px-1 py-2 text-right tabular-nums">{client.requests}</td>
+                    {withTraffic ? (
+                      <>
+                        <td className="px-1 py-2 text-right tabular-nums">
+                          {client.requestsTotal ?? '—'}
+                        </td>
+                        <td className="px-1 py-2 text-right tabular-nums">
+                          {client.bytesIn === undefined ? '—' : formatBytes(client.bytesIn)}
+                        </td>
+                        <td className="px-1 py-2 text-right tabular-nums">
+                          {client.bytesOut === undefined ? '—' : formatBytes(client.bytesOut)}
+                        </td>
+                      </>
+                    ) : null}
                     <td className="px-1 py-2">
                       {client.holdPhone ? <Badge tone="warning">Held</Badge> : '—'}
                     </td>
@@ -86,7 +120,8 @@ export function ClientsTable({ clients, now }: { clients: PanelClientInfo[]; now
           </div>
         )}
         <p className="pt-2 text-xs text-neutral-500 dark:text-neutral-400">
-          Session IDs are random per connection and do not reveal the pairing key.
+          Session IDs are random per connection and do not reveal the pairing key. Traffic counters
+          are omitted while monitoring is off.
         </p>
       </CardBody>
     </CollapsibleCard>

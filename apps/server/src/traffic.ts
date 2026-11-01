@@ -12,7 +12,7 @@ import type {
 
 /** One minute per bucket, sixty buckets per window. */
 export const TRAFFIC_BUCKET_MS = 60_000
-export const TRAFFIC_WINDOW_BUCKETS = 60
+const TRAFFIC_WINDOW_BUCKETS = 60
 
 const WINDOW_MS = TRAFFIC_BUCKET_MS * TRAFFIC_WINDOW_BUCKETS
 const SPIKE_MIN_BUCKETS = 5
