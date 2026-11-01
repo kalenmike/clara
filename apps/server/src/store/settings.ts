@@ -1,4 +1,9 @@
-import type { ShellPolicy } from '@clara/shared-types'
+import {
+  MAX_SYNC_INTERVAL_MS,
+  MIN_SYNC_INTERVAL_MS,
+  isSyncIntervalMs,
+  type ShellPolicy,
+} from '@clara/shared-types'
 import type Database from 'better-sqlite3'
 import { readStoredShellPolicy } from '../shell-policy.ts'
 import type { ClaraDatabase } from './database.ts'
@@ -14,6 +19,8 @@ export const AGENT_STOPPED_SETTING = 'agent.stopped'
 export const SHELL_MODE_SETTING = 'shell.mode'
 export const SHELL_COMMANDS_SETTING = 'shell.commands'
 export const MONITORING_SETTING = 'monitoring.enabled'
+export const SYNC_ENABLED_SETTING = 'sync.enabled'
+export const SYNC_INTERVAL_SETTING = 'sync.intervalMs'
 
 export type FeatureName = keyof typeof FEATURE_SETTINGS
 
@@ -23,8 +30,15 @@ export type SettingKey =
   | typeof SHELL_MODE_SETTING
   | typeof SHELL_COMMANDS_SETTING
   | typeof MONITORING_SETTING
+  | typeof SYNC_ENABLED_SETTING
+  | typeof SYNC_INTERVAL_SETTING
 
 export type FeatureSettings = Record<FeatureName, boolean>
+
+export type SyncSettings = {
+  enabled: boolean
+  intervalMs: number
+}
 
 export type AgentSettings = {
   features: FeatureSettings
@@ -32,6 +46,7 @@ export type AgentSettings = {
   shell: ShellPolicy
   /** The panel traffic meter records nothing while this is false. */
   monitoring: boolean
+  sync: SyncSettings
 }
 
 export const FEATURE_NAMES = Object.keys(FEATURE_SETTINGS) as FeatureName[]
@@ -42,13 +57,15 @@ const SETTING_KEYS = new Set<string>([
   SHELL_MODE_SETTING,
   SHELL_COMMANDS_SETTING,
   MONITORING_SETTING,
+  SYNC_ENABLED_SETTING,
+  SYNC_INTERVAL_SETTING,
 ])
 
 /**
- * Booleans, one mode string, and one command array are the only values in this
- * table. Connection strings, passwords, tokens, PSKs, and push endpoints stay
- * in their existing files so the panel can expose settings without ever
- * becoming a secret store.
+ * Booleans, one mode string, one command array, and one interval are the only
+ * values in this table. Connection strings, passwords, tokens, PSKs, and push
+ * endpoints stay in their existing files so the panel can expose settings
+ * without ever becoming a secret store.
  */
 export class SettingsStore {
   private readonly db: ClaraDatabase
@@ -74,6 +91,7 @@ export class SettingsStore {
       stopped: this.readBoolean(AGENT_STOPPED_SETTING),
       shell: this.getShellPolicy(),
       monitoring: this.readBoolean(MONITORING_SETTING),
+      sync: this.getSync(),
     }
   }
 
@@ -94,6 +112,21 @@ export class SettingsStore {
 
   getMonitoring(): boolean {
     return this.readBoolean(MONITORING_SETTING)
+  }
+
+  getSync(): SyncSettings {
+    return {
+      enabled: this.readBoolean(SYNC_ENABLED_SETTING),
+      intervalMs: this.readSyncInterval(),
+    }
+  }
+
+  getSyncEnabled(): boolean {
+    return this.readBoolean(SYNC_ENABLED_SETTING)
+  }
+
+  getSyncInterval(): number {
+    return this.readSyncInterval()
   }
 
   setFeature(feature: FeatureName, enabled: boolean): AgentSettings {
@@ -119,6 +152,24 @@ export class SettingsStore {
     assertBoolean(enabled, MONITORING_SETTING)
     this.writeValue(MONITORING_SETTING, enabled)
     return this.get()
+  }
+
+  setSync(settings: SyncSettings): AgentSettings {
+    assertBoolean(settings.enabled, SYNC_ENABLED_SETTING)
+    assertSyncInterval(settings.intervalMs)
+    this.writeValue(SYNC_ENABLED_SETTING, settings.enabled)
+    this.writeValue(SYNC_INTERVAL_SETTING, settings.intervalMs)
+    return this.get()
+  }
+
+  private readSyncInterval(): number {
+    const parsed = this.readValue(SYNC_INTERVAL_SETTING)
+    if (typeof parsed !== 'number' || !isSyncIntervalMs(parsed)) {
+      throw new Error(
+        `The Clara setting "${SYNC_INTERVAL_SETTING}" in ${this.db.name} must be an integer between ${MIN_SYNC_INTERVAL_MS} and ${MAX_SYNC_INTERVAL_MS} milliseconds`
+      )
+    }
+    return parsed
   }
 
   private readBoolean(key: SettingKey): boolean {
@@ -166,5 +217,13 @@ export function isFeatureName(value: unknown): value is FeatureName {
 function assertBoolean(value: unknown, key: SettingKey): asserts value is boolean {
   if (typeof value !== 'boolean') {
     throw new Error(`The Clara setting "${key}" must be a boolean`)
+  }
+}
+
+function assertSyncInterval(value: number): void {
+  if (!isSyncIntervalMs(value)) {
+    throw new Error(
+      `The Clara setting "${SYNC_INTERVAL_SETTING}" must be an integer between ${MIN_SYNC_INTERVAL_MS} and ${MAX_SYNC_INTERVAL_MS} milliseconds`
+    )
   }
 }

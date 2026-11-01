@@ -56,6 +56,20 @@ describe('ClientStorageStore', () => {
     expect(fallback.snapshot.entries).toEqual([])
   })
 
+  it('checks the revision without reading entries', () => {
+    const store = openStore()
+    expect(store.check(undefined)).toEqual({ ok: true, namespace: 'default', revision: 0 })
+
+    store.push({
+      type: 'sync.push',
+      id: 'seed',
+      entries: [{ key: 'clara.theme', value: 'nord' }],
+    })
+
+    expect(store.check(undefined)).toEqual({ ok: true, namespace: 'default', revision: 1 })
+    expect(store.check('bad namespace')).toMatchObject({ ok: false, code: 'invalid' })
+  })
+
   it('validates namespaces, keys, duplicates, and secret names', () => {
     const store = openStore()
     expect(normalizeNamespace(undefined)).toEqual({ ok: true, value: 'default' })

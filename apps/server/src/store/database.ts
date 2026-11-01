@@ -1,10 +1,11 @@
 import { chmodSync, closeSync, existsSync, mkdirSync, openSync } from 'node:fs'
 import { dirname } from 'node:path'
+import { DEFAULT_SYNC_INTERVAL_MS } from '@clara/shared-types'
 import Database from 'better-sqlite3'
 
 export type ClaraDatabase = Database.Database
 
-export const SCHEMA_VERSION = 3
+export const SCHEMA_VERSION = 4
 
 const BUSY_TIMEOUT_MS = 5_000
 const DATABASE_MODE = 0o600
@@ -72,6 +73,18 @@ const MIGRATIONS: Migration[] = [
     )
     insert.run('monitoring.enabled', JSON.stringify(true), Date.now())
   },
+  /**
+   * Settings sync arrived after the first release. Existing agents start with
+   * sync on and check every 30 seconds; the panel can change both.
+   */
+  (db) => {
+    const insert = db.prepare(
+      'INSERT INTO settings (key, value, updated_at) VALUES (?, ?, ?) ON CONFLICT (key) DO NOTHING'
+    )
+    const now = Date.now()
+    insert.run('sync.enabled', JSON.stringify(true), now)
+    insert.run('sync.intervalMs', JSON.stringify(DEFAULT_SYNC_INTERVAL_MS), now)
+  },
 ]
 
 /** The settings seeded into every new database. */
@@ -84,6 +97,8 @@ export const DEFAULT_SETTINGS = {
   'shell.mode': 'off',
   'shell.commands': [],
   'monitoring.enabled': true,
+  'sync.enabled': true,
+  'sync.intervalMs': DEFAULT_SYNC_INTERVAL_MS,
 } as const
 
 export function openDatabase(path: string): ClaraDatabase {

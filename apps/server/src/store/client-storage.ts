@@ -44,6 +44,10 @@ export type SyncSuccess = { ok: true; snapshot: SyncSnapshot }
 
 export type SyncResult = SyncSuccess | SyncFailure
 
+export type SyncCheckSuccess = { ok: true; namespace: string; revision: number }
+
+export type SyncCheckResult = SyncCheckSuccess | SyncFailure
+
 export type ClientStorageStats = {
   namespaces: number
   entries: number
@@ -86,6 +90,17 @@ export class ClientStorageStore {
     if (!namespace.ok) return namespace
     try {
       return { ok: true, snapshot: this.snapshot(namespace.value) }
+    } catch (cause) {
+      return storageFailure(cause, namespace.value)
+    }
+  }
+
+  /** Read only the revision so clients can skip a full pull when nothing changed. */
+  check(namespaceValue: string | undefined): SyncCheckResult {
+    const namespace = normalizeNamespace(namespaceValue)
+    if (!namespace.ok) return namespace
+    try {
+      return { ok: true, namespace: namespace.value, revision: this.revision(namespace.value) }
     } catch (cause) {
       return storageFailure(cause, namespace.value)
     }

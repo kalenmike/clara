@@ -6,7 +6,7 @@
  * agent on a loopback listener; it never travels through the relay.
  */
 
-export const PANEL_API_VERSION = 4
+export const PANEL_API_VERSION = 5
 
 export type PanelValueSource = 'env' | 'file' | 'service' | 'default' | 'generated' | 'none'
 
@@ -185,10 +185,17 @@ export type PanelControls = {
   features: PanelFeatureControl[]
   shell: PanelShellControl
   monitoring: PanelMonitoringControl
+  sync: PanelSyncControl
 }
 
 export type PanelMonitoringControl = {
   enabled: boolean
+}
+
+export type PanelSyncControl = {
+  enabled: boolean
+  /** How often paired clients check for settings changes. */
+  intervalMs: number
 }
 
 export type PanelFeatureUpdate = {
@@ -204,6 +211,11 @@ export type PanelAgentUpdate = {
 
 export type PanelMonitoringUpdate = {
   enabled: boolean
+}
+
+export type PanelSyncUpdate = {
+  enabled: boolean
+  intervalMs: number
 }
 
 export type PanelMutationResponse = {

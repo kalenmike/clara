@@ -41,6 +41,12 @@ export type ClaraState =
       error?: string
     }
   | {
+      type: 'sync.revision'
+      id: string
+      namespace: string
+      revision: number
+    }
+  | {
       type: 'sync.snapshot'
       id: string
       namespace: string

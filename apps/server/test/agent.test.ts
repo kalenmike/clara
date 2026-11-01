@@ -511,7 +511,7 @@ describe('agent client sync', () => {
   async function waitForState(
     client: Client,
     frames: WireFrame[],
-    type: 'sync.snapshot' | 'sync.error' | 'http.error'
+    type: 'sync.revision' | 'sync.snapshot' | 'sync.error' | 'http.error'
   ): Promise<ClaraState> {
     return waitFor(async () => {
       const states = await readStates(client, frames)
@@ -662,6 +662,90 @@ describe('agent client sync', () => {
         return states.find((state) => state.type === 'sync.error' && state.id === 'too-many')
       })
       expect(tooMany).toMatchObject({ type: 'sync.error', code: 'too_large' })
+    } finally {
+      await fake.close()
+    }
+  })
+
+  it('reports only the revision for a sync check', async () => {
+    const fake = await startFakeOpenCode()
+    const { store } = openSync()
+    try {
+      store.push({
+        type: 'sync.push',
+        id: 'seed',
+        entries: [{ key: 'clara.theme', value: 'dark' }],
+      })
+      const { agent, client, frames } = await connect(fake, undefined, store)
+      await waitFor(() => (frames.length >= 2 ? true : undefined))
+
+      await send(client, agent, { type: 'sync.check', id: 'check-1' })
+      const state = await waitFor(async () => {
+        const states = await readStates(client, frames)
+        return states.find((item) => item.type === 'sync.revision' && item.id === 'check-1')
+      })
+      expect(state).toEqual({
+        type: 'sync.revision',
+        id: 'check-1',
+        namespace: 'default',
+        revision: 1,
+      })
+    } finally {
+      await fake.close()
+    }
+  })
+
+  it('rejects sync actions when an admin disables sync', async () => {
+    const fake = await startFakeOpenCode()
+    const { store } = openSync()
+    try {
+      const { agent, client, frames } = await connect(fake, undefined, store, {
+        canSync: () => false,
+      })
+      await waitFor(() => (frames.length >= 2 ? true : undefined))
+
+      const actions: Array<{ id: string; action: ClaraAction }> = [
+        { id: 'disabled-check', action: { type: 'sync.check', id: 'disabled-check' } },
+        { id: 'disabled-pull', action: { type: 'sync.pull', id: 'disabled-pull' } },
+        {
+          id: 'disabled-push',
+          action: {
+            type: 'sync.push',
+            id: 'disabled-push',
+            entries: [{ key: 'clara.theme', value: 'dark' }],
+          },
+        },
+      ]
+
+      for (const entry of actions) {
+        await send(client, agent, entry.action)
+        const state = await waitFor(async () => {
+          const states = await readStates(client, frames)
+          return states.find((item) => item.type === 'sync.error' && item.id === entry.id)
+        })
+        expect(state).toMatchObject({ type: 'sync.error', id: entry.id, code: 'disabled' })
+      }
+    } finally {
+      await fake.close()
+    }
+  })
+
+  it('broadcasts the current agent info to connected clients', async () => {
+    const fake = await startFakeOpenCode()
+    try {
+      const { agent, client, frames } = await connect(fake)
+      await waitFor(() => (frames.length >= 2 ? true : undefined))
+
+      agent.broadcastAgentInfo()
+      const state = await waitFor(async () => {
+        const states = await readStates(client, frames)
+        return states.find((item) => item.type === 'agent.status')
+      })
+      expect(state).toMatchObject({
+        type: 'agent.status',
+        online: true,
+        agent: { version: 'test', protocol: PROTOCOL_VERSION },
+      })
     } finally {
       await fake.close()
     }

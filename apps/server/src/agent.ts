@@ -22,6 +22,7 @@ import {
   type PushTestAction,
   type PushUnsubscribeAction,
   type ShellPolicy,
+  type SyncCheckAction,
   type SyncPullAction,
   type SyncPushAction,
   type WireFrame,
@@ -29,7 +30,7 @@ import {
 import { OpenCodeClient, responseHeaders, type HttpRequestAction } from './opencode.ts'
 import type { PushService } from './push/service.ts'
 import { DEFAULT_SHELL_POLICY, evaluateShellRequest, type ShellDecision } from './shell-policy.ts'
-import type { ClientStorageStore, SyncResult } from './store/client-storage.ts'
+import type { ClientStorageStore, SyncCheckResult, SyncResult } from './store/client-storage.ts'
 import type { TrafficMeter } from './traffic.ts'
 
 const MAX_REQUESTS_PER_SESSION = 32
@@ -79,6 +80,8 @@ export type AgentPolicy = {
   canProxy?: () => boolean
   /** Gate push actions while keeping stored subscriptions intact. */
   canPush?: () => boolean
+  /** Gate client settings sync without deleting the stored namespace. */
+  canSync?: () => boolean
   /**
    * The current command policy, read on every request so a panel change takes
    * effect without a restart. When absent, command requests are blocked.
@@ -358,6 +361,9 @@ export class Agent {
       case 'push.test':
         void this.handlePushTest(session, payload)
         return
+      case 'sync.check':
+        void this.handleSyncCheck(session, payload)
+        return
       case 'sync.pull':
         void this.handleSyncPull(session, payload)
         return
@@ -526,6 +532,26 @@ export class Agent {
     }
   }
 
+  private handleSyncCheck(session: Session, action: SyncCheckAction): void {
+    const sync = this.options.sync
+    const id = typeof action.id === 'string' ? action.id : ''
+    if (!sync) {
+      this.enqueue(session, {
+        type: 'sync.error',
+        id,
+        code: 'storage',
+        message: 'Client sync storage is not available on this agent',
+      })
+      return
+    }
+    if (!this.canSync()) {
+      this.enqueueSyncDisabled(session, id)
+      return
+    }
+
+    this.enqueueSyncCheckResult(session, id, sync.check(action.namespace))
+  }
+
   private handleSyncPull(session: Session, action: SyncPullAction): void {
     const sync = this.options.sync
     const id = typeof action.id === 'string' ? action.id : ''
@@ -536,6 +562,10 @@ export class Agent {
         code: 'storage',
         message: 'Client sync storage is not available on this agent',
       })
+      return
+    }
+    if (!this.canSync()) {
+      this.enqueueSyncDisabled(session, id)
       return
     }
 
@@ -555,9 +585,45 @@ export class Agent {
       })
       return
     }
+    if (!this.canSync()) {
+      this.enqueueSyncDisabled(session, id)
+      return
+    }
 
     const result = sync.push(action, session.sid)
     this.enqueueSyncResult(session, id, result)
+  }
+
+  private enqueueSyncCheckResult(session: Session, id: string, result: SyncCheckResult): void {
+    if (result.ok) {
+      this.enqueue(session, {
+        type: 'sync.revision',
+        id,
+        namespace: result.namespace,
+        revision: result.revision,
+      })
+      return
+    }
+
+    this.enqueue(session, {
+      type: 'sync.error',
+      id,
+      code: result.code,
+      message: result.message,
+      ...(result.namespace ? { namespace: result.namespace } : {}),
+      ...(result.snapshot
+        ? { revision: result.snapshot.revision, entries: result.snapshot.entries }
+        : {}),
+    })
+  }
+
+  private enqueueSyncDisabled(session: Session, id: string): void {
+    this.enqueue(session, {
+      type: 'sync.error',
+      id,
+      code: 'disabled',
+      message: 'Client settings sync is disabled by an admin setting',
+    })
   }
 
   private enqueueSyncResult(session: Session, id: string, result: SyncResult): void {
@@ -586,6 +652,17 @@ export class Agent {
 
   private canPush(): boolean {
     return this.options.policy?.canPush?.() ?? true
+  }
+
+  private canSync(): boolean {
+    return this.options.policy?.canSync?.() ?? true
+  }
+
+  /** Tell every connected client that the agent info changed. */
+  broadcastAgentInfo(): void {
+    if (this.sessions.size === 0) return
+    const payload = { type: 'agent.status' as const, online: true, agent: this.options.info }
+    for (const session of this.sessions.values()) this.enqueue(session, payload)
   }
 
   private startRequest(session: Session, action: HttpRequestAction): void {

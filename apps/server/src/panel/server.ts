@@ -2,7 +2,11 @@ import { createServer, type IncomingMessage, type ServerResponse } from 'node:ht
 import { readFileSync, realpathSync, statSync } from 'node:fs'
 import { extname, join, resolve, sep } from 'node:path'
 import type { Server } from 'node:http'
-import type { PanelFeatureName, PanelMutationResponse } from '@clara/shared-types'
+import {
+  isSyncIntervalMs,
+  type PanelFeatureName,
+  type PanelMutationResponse,
+} from '@clara/shared-types'
 import { readControlFailure, type PanelControlService } from './controls.ts'
 import { checkPanelRequest } from './security.ts'
 import type { PanelDataSource } from './runtime.ts'
@@ -13,6 +17,7 @@ const FEATURES_PATH = '/panel/api/v1/features'
 const AGENT_PATH = '/panel/api/v1/agent'
 const SHELL_PATH = '/panel/api/v1/shell'
 const MONITORING_PATH = '/panel/api/v1/monitoring'
+const SYNC_PATH = '/panel/api/v1/sync'
 const ASSETS_PREFIX = '/assets/'
 const PANEL_HEADER = 'x-clara-panel'
 const MAX_BODY_BYTES = 8 * 1024
@@ -243,7 +248,9 @@ async function handleMutation(
           ? 'shell'
           : pathname === MONITORING_PATH
             ? 'monitoring'
-            : undefined
+            : pathname === SYNC_PATH
+              ? 'sync'
+              : undefined
   if (!kind) {
     sendJson(response, method, 404, {
       error: { code: 'not_found', message: 'Unknown panel endpoint' },
@@ -321,13 +328,26 @@ async function handleMutation(
         return
       }
       updated = await controls.setShellPolicy(parsed.policy)
-    } else {
+    } else if (kind === 'monitoring') {
       const unknown = unknownFields(body.value, ['enabled'])
       if (unknown) return invalidField(response, method, unknown)
       if (typeof body.value.enabled !== 'boolean') {
         return invalidField(response, method, 'enabled')
       }
       updated = await controls.setMonitoring(body.value.enabled)
+    } else {
+      const unknown = unknownFields(body.value, ['enabled', 'intervalMs'])
+      if (unknown) return invalidField(response, method, unknown)
+      if (typeof body.value.enabled !== 'boolean') {
+        return invalidField(response, method, 'enabled')
+      }
+      if (!isSyncIntervalMs(body.value.intervalMs)) {
+        return invalidField(response, method, 'intervalMs')
+      }
+      updated = await controls.setSync({
+        enabled: body.value.enabled,
+        intervalMs: body.value.intervalMs,
+      })
     }
 
     const payload: PanelMutationResponse = { controls: updated }

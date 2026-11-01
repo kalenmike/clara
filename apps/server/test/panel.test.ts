@@ -98,6 +98,7 @@ function snapshot(): PanelSnapshot {
       ],
       shell: { mode: 'off', commands: [], blocked: 0 },
       monitoring: { enabled: true },
+      sync: { enabled: true, intervalMs: 30_000 },
     },
     storage: [],
     events: [],
@@ -152,6 +153,7 @@ type FakeControls = PanelControlService & {
   stops: boolean[]
   shells: ShellPolicy[]
   monitorings: boolean[]
+  syncs: Array<{ enabled: boolean; intervalMs: number }>
 }
 
 function fakeControls(initial: Partial<PanelControls> = {}): FakeControls {
@@ -165,18 +167,21 @@ function fakeControls(initial: Partial<PanelControls> = {}): FakeControls {
     ],
     shell: { mode: 'off', commands: [], blocked: 0 },
     monitoring: { enabled: true },
+    sync: { enabled: true, intervalMs: 30_000 },
     ...initial,
   }
   const features: Array<{ feature: string; enabled: boolean }> = []
   const stops: boolean[] = []
   const shells: ShellPolicy[] = []
   const monitorings: boolean[] = []
+  const syncs: Array<{ enabled: boolean; intervalMs: number }> = []
   return {
     state,
     features,
     stops,
     shells,
     monitorings,
+    syncs,
     controls: () => state,
     setFeature: async (feature, enabled) => {
       if (state.stopped) {
@@ -204,6 +209,11 @@ function fakeControls(initial: Partial<PanelControls> = {}): FakeControls {
     setMonitoring: async (enabled) => {
       monitorings.push(enabled)
       state.monitoring = { enabled }
+      return state
+    },
+    setSync: async (update) => {
+      syncs.push(update)
+      state.sync = { ...update }
       return state
     },
   }
@@ -468,6 +478,34 @@ describe('panel server', () => {
     const on = await post(server, 'monitoring', { enabled: true })
     expect(on.status).toBe(200)
     expect(controls.monitorings).toEqual([false, true])
+  })
+
+  it('updates the global sync gate and interval even while the agent is stopped', async () => {
+    const controls = fakeControls({ stopped: true })
+    const server = await start(undefined, controls)
+
+    const response = await post(server, 'sync', { enabled: false, intervalMs: 5_000 })
+    expect(response.status).toBe(200)
+    expect(((await response.json()) as PanelMutationResponse).controls.sync).toEqual({
+      enabled: false,
+      intervalMs: 5_000,
+    })
+    expect(controls.syncs).toEqual([{ enabled: false, intervalMs: 5_000 }])
+  })
+
+  it('rejects invalid sync settings', async () => {
+    const controls = fakeControls()
+    const server = await start(undefined, controls)
+
+    expect((await post(server, 'sync', { enabled: false, intervalMs: 1_000 })).status).toBe(400)
+    expect((await post(server, 'sync', { enabled: false, intervalMs: 16 * 60_000 })).status).toBe(
+      400
+    )
+    expect((await post(server, 'sync', { enabled: 'no', intervalMs: 5_000 })).status).toBe(400)
+    expect(
+      (await post(server, 'sync', { enabled: false, intervalMs: 5_000, extra: true })).status
+    ).toBe(400)
+    expect(controls.syncs).toEqual([])
   })
 
   it('rejects a monitoring body with an unknown or mistyped field', async () => {

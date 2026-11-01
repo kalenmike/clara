@@ -1,6 +1,7 @@
 import { accessSync, constants, statSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import {
+  DEFAULT_SYNC_INTERVAL_MS,
   PANEL_API_VERSION,
   PROTOCOL_VERSION,
   type PanelClientInfo,
@@ -288,6 +289,7 @@ export class PanelRuntime implements PanelDataSource {
       ],
       shell: { ...DEFAULT_SHELL_POLICY, blocked: 0 },
       monitoring: { enabled: this.options.traffic?.enabled ?? false },
+      sync: { enabled: true, intervalMs: DEFAULT_SYNC_INTERVAL_MS },
     }
   }
 

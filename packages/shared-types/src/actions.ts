@@ -57,6 +57,12 @@ export type SyncPullAction = {
   namespace?: string
 }
 
+export type SyncCheckAction = {
+  type: 'sync.check'
+  id: string
+  namespace?: string
+}
+
 export type SyncPushAction = {
   type: 'sync.push'
   id: string
@@ -87,6 +93,7 @@ export type ClaraAction =
   | PushSubscribeAction
   | PushUnsubscribeAction
   | PushTestAction
+  | SyncCheckAction
   | SyncPullAction
   | SyncPushAction
 

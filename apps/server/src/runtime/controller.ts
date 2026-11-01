@@ -2,6 +2,7 @@ import type {
   AgentInfo,
   PanelControls,
   PanelFeatureControl,
+  PanelSyncUpdate,
   ShellPolicy,
 } from '@clara/shared-types'
 import type { WebSocket } from 'ws'
@@ -53,6 +54,9 @@ export class RuntimeController {
     this.options = options
     const { config } = options
     this.trafficMeter = new TrafficMeter({ enabled: options.settings.getMonitoring() })
+    const sync = options.settings.getSync()
+    options.info.syncEnabled = sync.enabled
+    options.info.syncIntervalMs = sync.intervalMs
 
     this.localAgent = new Agent({
       openCode: options.openCode,
@@ -66,6 +70,7 @@ export class RuntimeController {
       policy: {
         canProxy: () => this.canProxy(),
         canPush: () => this.canPush(),
+        canSync: () => this.canSync(),
         shellPolicy: () => this.shellPolicy(),
         onShellDenied: () => {
           this.shellDenied += 1
@@ -87,6 +92,7 @@ export class RuntimeController {
         policy: {
           canProxy: () => this.canProxy(),
           canPush: () => this.canPush(),
+          canSync: () => this.canSync(),
           shellPolicy: () => this.shellPolicy(),
           onShellDenied: () => {
             this.shellDenied += 1
@@ -161,6 +167,11 @@ export class RuntimeController {
     return this.options.settings.getFeature('push') && Boolean(this.options.push)
   }
 
+  canSync(): boolean {
+    if (this.options.settings.getStopped()) return false
+    return this.options.settings.getSyncEnabled()
+  }
+
   /** Read per request so a panel change applies to the next command. */
   shellPolicy(): ShellPolicy {
     return this.options.settings.getShellPolicy()
@@ -186,6 +197,7 @@ export class RuntimeController {
       features,
       shell: { ...settings.shell, blocked: this.shellDenied },
       monitoring: { enabled: settings.monitoring },
+      sync: { ...settings.sync },
     }
   }
 
@@ -236,6 +248,26 @@ export class RuntimeController {
     this.options.settings.setMonitoring(enabled)
     this.trafficMeter.setEnabled(enabled)
     this.options.log(enabled ? 'traffic monitoring enabled' : 'traffic monitoring disabled')
+    return this.controls()
+  }
+
+  /** Update the global sync gate and cadence, then tell connected clients. */
+  async setSync(update: PanelSyncUpdate): Promise<PanelControls> {
+    const previous = this.options.settings.getSync()
+    this.options.settings.setSync(update)
+    this.options.info.syncEnabled = update.enabled
+    this.options.info.syncIntervalMs = update.intervalMs
+    this.localAgent.broadcastAgentInfo()
+    this.relayAgent?.broadcastAgentInfo()
+
+    if (previous.enabled !== update.enabled) {
+      this.options.log(
+        update.enabled ? 'client settings sync enabled' : 'client settings sync disabled'
+      )
+    }
+    if (previous.intervalMs !== update.intervalMs) {
+      this.options.log(`client settings sync check interval set to ${update.intervalMs}ms`)
+    }
     return this.controls()
   }
 

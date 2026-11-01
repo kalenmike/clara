@@ -36,6 +36,7 @@ describe('SQLite settings store', () => {
         stopped: false,
         shell: { mode: 'off', commands: [] },
         monitoring: true,
+        sync: { enabled: true, intervalMs: 30_000 },
       })
       const rows = db.prepare('SELECT key FROM settings ORDER BY key').all() as Array<{
         key: string
@@ -70,6 +71,7 @@ describe('SQLite settings store', () => {
         stopped: true,
         shell: { mode: 'allowlist', commands: ['git log'] },
         monitoring: false,
+        sync: { enabled: true, intervalMs: 30_000 },
       })
     } finally {
       closeDatabase(second)
@@ -100,6 +102,7 @@ describe('SQLite settings store', () => {
         stopped: false,
         shell: { mode: 'off', commands: [] },
         monitoring: true,
+        sync: { enabled: true, intervalMs: 30_000 },
       })
     } finally {
       closeDatabase(db)
@@ -128,6 +131,25 @@ describe('SQLite settings store', () => {
     try {
       expect(schemaVersion(db)).toBe(SCHEMA_VERSION)
       expect(new SettingsStore(db).getMonitoring()).toBe(true)
+    } finally {
+      closeDatabase(db)
+    }
+  })
+
+  it('persists and validates the client sync settings', () => {
+    const path = join(tempDir(), 'clara.db')
+    const db = openDatabase(path)
+    try {
+      const settings = new SettingsStore(db)
+      settings.setSync({ enabled: false, intervalMs: 5_000 })
+      expect(settings.getSync()).toEqual({ enabled: false, intervalMs: 5_000 })
+
+      expect(() => settings.setSync({ enabled: false, intervalMs: 1_000 })).toThrow(
+        /sync\.intervalMs/
+      )
+      expect(() => settings.setSync({ enabled: false, intervalMs: 16 * 60_000 })).toThrow(
+        /sync\.intervalMs/
+      )
     } finally {
       closeDatabase(db)
     }

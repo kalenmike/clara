@@ -2,6 +2,7 @@ import { CircleAlert, LoaderCircle, RefreshCw, ShieldCheck } from 'lucide-react'
 import { PANEL_API_VERSION } from '@clara/shared-types'
 import { formatTimestamp } from './lib/format.ts'
 import { useAgentSnapshot } from './lib/use-agent-snapshot.ts'
+import { ClientSyncCard } from './components/client-sync-card.tsx'
 import { ClientsTable } from './components/clients-table.tsx'
 import { EventsCard } from './components/events-list.tsx'
 import {
@@ -138,8 +139,10 @@ export function App() {
 
             <div className="grid items-start gap-4 md:grid-cols-2">
               <PushCard push={data.push} controls={data.controls} onChanged={refresh} />
-              <StorageCard storage={data.storage} now={clock} />
+              <ClientSyncCard sync={data.controls.sync} onChanged={refresh} />
             </div>
+
+            <StorageCard storage={data.storage} now={clock} />
           </div>
         ) : (
           <ErrorState error={error} onRetry={refresh} />

@@ -50,15 +50,17 @@ const info: AgentInfo = { version: 'test', protocol: 1 }
 async function createController(port = 0): Promise<{
   controller: RuntimeController
   settings: SettingsStore
+  info: AgentInfo
   close: () => Promise<void>
 }> {
   const serverConfig = config(port)
   const db = openDatabase(serverConfig.dbPath)
   const settings = new SettingsStore(db)
+  const controllerInfo: AgentInfo = { ...info }
   const controller = new RuntimeController({
     config: serverConfig,
     openCode: new OpenCodeClient('http://127.0.0.1:4096'),
-    info,
+    info: controllerInfo,
     settings,
     log: () => undefined,
   })
@@ -66,6 +68,7 @@ async function createController(port = 0): Promise<{
   return {
     controller,
     settings,
+    info: controllerInfo,
     close: async () => {
       await controller.close()
       closeDatabase(db)
@@ -147,6 +150,21 @@ describe('RuntimeController', () => {
       await controller.setMonitoring(true)
       expect(controller.controls().monitoring).toEqual({ enabled: true })
       expect(controller.traffic.enabled).toBe(true)
+    } finally {
+      await close()
+    }
+  })
+
+  it('persists and broadcasts the client sync gate and interval', async () => {
+    const { controller, settings, info, close } = await createController()
+    await controller.start()
+    try {
+      expect(controller.controls().sync).toEqual({ enabled: true, intervalMs: 30_000 })
+
+      await controller.setSync({ enabled: false, intervalMs: 5_000 })
+      expect(settings.getSync()).toEqual({ enabled: false, intervalMs: 5_000 })
+      expect(controller.controls().sync).toEqual({ enabled: false, intervalMs: 5_000 })
+      expect(info).toMatchObject({ syncEnabled: false, syncIntervalMs: 5_000 })
     } finally {
       await close()
     }
