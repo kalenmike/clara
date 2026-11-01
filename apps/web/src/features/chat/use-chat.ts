@@ -208,13 +208,19 @@ export function useRunCommand(sessionID: string) {
   const queryClient = useQueryClient()
 
   return useMutation({
-    mutationFn: async (input: { name: string; text: string; files?: PromptFile[] }) => {
+    mutationFn: async (input: {
+      name: string
+      text: string
+      files?: PromptFile[]
+      delivery?: 'steer' | 'queue'
+    }) => {
       await unsnoozeSessionOnEngage(client!, queryClient, sessionID)
       return client!.session.command({
         sessionID,
         name: input.name,
         text: input.text,
         files: input.files,
+        delivery: input.delivery,
       })
     },
     onSuccess: () => {

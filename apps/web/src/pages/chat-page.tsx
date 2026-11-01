@@ -18,6 +18,7 @@ import { ReplyDock } from '@/components/chat/reply-dock'
 import { SidePanel } from '@/components/layout/side-panel'
 import { useDefaultAgent } from '@/features/agents/use-default-agent'
 import { useAgents, useModels } from '@/features/catalog/use-catalog'
+import { composerMenuMode } from '@/features/chat/composer-menu'
 import { getVisibleMessages } from '@/features/chat/message-visibility'
 import { findPlanReadyReply } from '@/features/chat/plan-ready'
 import { buildTimeline } from '@/features/chat/timeline'
@@ -120,7 +121,7 @@ export function ChatPage() {
     () => allMessages.some((message) => message.type === 'assistant'),
     [allMessages]
   )
-  const canSaveAsDraft = messagesReady && !hasAssistant
+  const composerMenu = composerMenuMode({ ready: messagesReady, busy, hasAssistant })
   const draftCount = pendingDrafts.length
   const emptySession = useMemo(
     () => !allMessages.some((message) => message.type === 'user' || message.type === 'assistant'),
@@ -464,7 +465,7 @@ export function ChatPage() {
           disabled={sessionQuery.isError}
           empty={emptySession}
           ready={messagesReady}
-          canSaveAsDraft={canSaveAsDraft}
+          menuMode={composerMenu}
           hasDraft={hasLocalDraft}
           autoOpen={isDraftSession && storedHasLocalDraft}
           startExpanded={startExpanded}

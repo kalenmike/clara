@@ -6,6 +6,7 @@ import {
   Bot,
   ChevronDown,
   FileText,
+  ListEnd,
   Paperclip,
   Save,
   Send,
@@ -27,6 +28,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip
 import { AgentPicker } from '@/components/chat/agent-picker'
 import { ModelPicker, VariantPicker } from '@/components/chat/model-picker'
 import { useAgents, useCommands, useReferences, useSkills } from '@/features/catalog/use-catalog'
+import type { ComposerMenuMode } from '@/features/chat/composer-menu'
 import {
   useRunCommand,
   useSaveDraft,
@@ -56,7 +58,7 @@ export function Composer({
   focusSignal,
   modelRequest,
   agentRequest,
-  canSaveAsDraft,
+  menuMode,
   draft = false,
   startText,
   startFiles,
@@ -73,7 +75,7 @@ export function Composer({
   focusSignal: number
   modelRequest: number
   agentRequest: number
-  canSaveAsDraft: boolean
+  menuMode: ComposerMenuMode
   draft?: boolean
   /** Text handed over by a forward action; local storage is the fallback. */
   startText?: string
@@ -250,7 +252,7 @@ export function Composer({
     onSent()
   }
 
-  const submit = () => {
+  const send = (delivery: 'steer' | 'queue') => {
     const value = text.trim()
     if (!value || disabled) return
 
@@ -259,7 +261,7 @@ export function Composer({
       const command = commands.find((item) => item.name === name)
       if (command) {
         runCommand.mutate(
-          { name: command.name, text: rest.join(' '), files },
+          { name: command.name, text: rest.join(' '), files, delivery },
           {
             onSuccess: clear,
             onError: (cause) =>
@@ -273,16 +275,20 @@ export function Composer({
     }
 
     sendPrompt.mutate(
-      { text: value, files, delivery: 'steer' },
+      { text: value, files, delivery },
       {
         onSuccess: clear,
         onError: (cause) =>
-          toast.error('Could not send the message', {
-            description: describeConnectionError(cause),
-          }),
+          toast.error(
+            delivery === 'queue' ? 'Could not queue the message' : 'Could not send the message',
+            { description: describeConnectionError(cause) }
+          ),
       }
     )
   }
+
+  const submit = () => send('steer')
+  const queueMessage = () => send('queue')
 
   const saveDraftMessage = () => {
     const value = text.trim()
@@ -514,7 +520,7 @@ export function Composer({
                 <Button
                   type="button"
                   size="sm"
-                  className={cn('h-8 gap-1 max-md:h-11', canSaveAsDraft && 'rounded-r-none')}
+                  className={cn('h-8 gap-1 max-md:h-11', menuMode && 'rounded-r-none')}
                   onClick={submit}
                   disabled={!canSend}
                 >
@@ -531,7 +537,7 @@ export function Composer({
               </TooltipContent>
             </Tooltip>
 
-            {canSaveAsDraft && (
+            {menuMode && (
               <DropdownMenu>
                 <Tooltip>
                   <TooltipTrigger asChild>
@@ -547,14 +553,26 @@ export function Composer({
                       </Button>
                     </DropdownMenuTrigger>
                   </TooltipTrigger>
-                  <TooltipContent>Save this message as a draft</TooltipContent>
+                  <TooltipContent>
+                    {menuMode === 'draft'
+                      ? 'Save this message as a draft'
+                      : 'Send this message as queued'}
+                  </TooltipContent>
                 </Tooltip>
                 <DropdownMenuContent side="top" align="end" className="w-56">
-                  <DropdownMenuItem onSelect={saveDraftMessage}>
-                    <Save className="size-3.5" />
-                    <span className="flex-1">Save as draft</span>
-                    <span className="text-[10px] text-muted-foreground">no reply</span>
-                  </DropdownMenuItem>
+                  {menuMode === 'draft' ? (
+                    <DropdownMenuItem onSelect={saveDraftMessage}>
+                      <Save className="size-3.5" />
+                      <span className="flex-1">Save as draft</span>
+                      <span className="text-[10px] text-muted-foreground">no reply</span>
+                    </DropdownMenuItem>
+                  ) : (
+                    <DropdownMenuItem onSelect={queueMessage}>
+                      <ListEnd className="size-3.5" />
+                      <span className="flex-1">Send as queued</span>
+                      <span className="text-[10px] text-muted-foreground">after this run</span>
+                    </DropdownMenuItem>
+                  )}
                 </DropdownMenuContent>
               </DropdownMenu>
             )}

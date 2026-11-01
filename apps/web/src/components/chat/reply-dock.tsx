@@ -14,6 +14,7 @@ import type { SessionInfo } from '@opencode/client'
 import { Button } from '@/components/ui/button'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { Composer } from '@/components/chat/composer'
+import type { ComposerMenuMode } from '@/features/chat/composer-menu'
 import type { PromptFile } from '@/features/chat/use-chat'
 import { DoneButton } from '@/components/chat/done-button'
 import { isArchivedSession } from '@/features/sessions/session-archive'
@@ -37,7 +38,7 @@ export function ReplyDock({
   disabled,
   empty,
   ready,
-  canSaveAsDraft,
+  menuMode,
   hasDraft,
   autoOpen,
   startExpanded,
@@ -57,7 +58,7 @@ export function ReplyDock({
   disabled?: boolean
   empty: boolean
   ready: boolean
-  canSaveAsDraft: boolean
+  menuMode: ComposerMenuMode
   hasDraft: boolean
   autoOpen?: boolean
   startExpanded?: boolean
@@ -398,7 +399,7 @@ export function ReplyDock({
             focusSignal={focusSignal}
             modelRequest={modelRequest}
             agentRequest={agentRequest}
-            canSaveAsDraft={canSaveAsDraft}
+            menuMode={menuMode}
             draft={empty}
             startText={startText}
             startFiles={startFiles}
