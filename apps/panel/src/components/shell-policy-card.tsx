@@ -163,10 +163,13 @@ export function ShellPolicyCard({
             className="w-full resize-y rounded-lg border border-neutral-200 bg-white px-2.5 py-2 font-mono text-xs text-neutral-900 shadow-sm outline-none transition placeholder:text-neutral-400 focus:border-neutral-400 disabled:cursor-not-allowed disabled:bg-neutral-50 disabled:text-neutral-500 dark:border-neutral-800 dark:bg-neutral-950 dark:text-neutral-100 dark:focus:border-neutral-600 dark:disabled:bg-neutral-900"
           />
           <p className="text-[11px] text-neutral-500 dark:text-neutral-400">
-            <code className="font-mono">{PRESET}</code> also allows{' '}
-            <code className="font-mono">git log --oneline -n 10</code>. Interpreters such as{' '}
-            <code className="font-mono">sh</code> or <code className="font-mono">env</code> cannot
-            be allowed.
+            <code className="font-mono">{PRESET}</code> also allows the formatted history command,
+            for example{' '}
+            <code className="break-all font-mono">
+              git log -n 10 --format=%H%x1f%an%x1f%ae%x1f%aI%x1f%s%x1f%b%x1e
+            </code>
+            . Interpreters such as <code className="font-mono">sh</code> or{' '}
+            <code className="font-mono">env</code> cannot be allowed.
           </p>
         </div>
 
