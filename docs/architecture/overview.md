@@ -187,8 +187,8 @@ directory from the session record. Moving a session to a worktree changes only
 ## Host command policy
 
 The web client normally only reads OpenCode state. The one exception is Git
-history: the Git tab asks the home agent to run `git log --oneline -n 10` through
-OpenCode's shell API.
+history: the Git tab asks the home agent to run `git log -n 10` with a
+machine-readable `--format` through OpenCode's shell API.
 
 The agent inspects every proxied request before forwarding it. Command-capable
 routes — `/api/shell`, `/api/session/:id/shell`, `/api/pty`,

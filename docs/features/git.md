@@ -5,8 +5,8 @@
 The Git tab answers "what branch am I on, what has changed, what did I just
 commit, and where are my worktrees?" without leaving the chat. It has three
 views: **Changes** for the working tree and commit ranges, **Commits** for the
-last ten one-line commit messages, and **Worktrees** for every worktree the
-project knows about.
+last ten commits with a conventional-commit preview, and **Worktrees** for
+every worktree the project knows about.
 
 All three read the repository on the **OpenCode host**, at the selected
 session's own directory. The browser never reads its own filesystem.
@@ -25,8 +25,15 @@ session's own directory. The browser never reads its own filesystem.
      bar, and the per-file rows. Each row shows `A`, `M`, or `D`, the file name,
      its directory, line counts, and a small churn bar.
 5. **Commits**:
-   - Read the last ten commits as `short-hash subject`.
-   - The subject is truncated to the panel width with the full text in a tooltip.
+   - Read the last ten commits. Each row shows the short hash and the subject,
+     parsed into a conventional `type(scope): description` when it follows the
+     convention.
+   - The type is colored by kind, the scope in its own color, and the
+     description in the normal text color. Non-conventional subjects render as
+     written.
+   - Click a row to expand it. The expanded row shows the author date, the
+     author, any co-authors, and the rest of the commit message.
+   - Rows open independently, so several commits can be expanded at once.
 6. **Worktrees**:
    - Read every worktree in the project. The project's canonical directory is
      marked `default`; the directory this session runs in is marked `current`
@@ -47,9 +54,12 @@ session's own directory. The browser never reads its own filesystem.
    endpoint. It is the default range because it is the most frequently useful.
 3. **Last 3 commits** compares `HEAD~3..HEAD`. **Base branch** compares the
    branch against its default base. Neither includes uncommitted work.
-4. **Commits** runs exactly one command on the host: `git log --oneline -n 10`.
-   Clara never accepts a command from the page or the user; the string is fixed
-   in `use-git.ts`.
+4. **Commits** runs exactly one command on the host:
+   `git log -n 10 --format=%H%x1f%an%x1f%ae%x1f%aI%x1f%s%x1f%b%x1e`. The field
+   and record separators keep multiline bodies intact. Clara never accepts a
+   command from the page or the user; the string is fixed in `use-git.ts`.
+   Conventional headers are split into type, scope, and description for the
+   preview, and `Co-authored-by:` trailers are lifted out of the body.
 5. **Commits only work through the home agent.** The request travels over the
    encrypted session, the agent applies the admin shell policy, and only then is
    it forwarded to OpenCode's shell API. A direct OpenCode connection has no
@@ -84,6 +94,11 @@ session's own directory. The browser never reads its own filesystem.
   hidden, and `git log` still works.
 - **No commits yet** — `git log` exits non-zero; the view shows "No commits
   yet." instead of an error.
+- **Non-conventional subject** — the row shows the subject unchanged, with no
+  type or scope colors.
+- **No commit body** — the expanded row shows the date and author only.
+- **Co-author trailers** — each `Co-authored-by:` line is shown under
+  Co-authors and removed from the message; other trailers stay in the message.
 - **No default branch or base** — **Base branch** is disabled and the panel falls
   back to the working tree.
 - **Clean tree or empty range** — the file list is replaced by "No changes in
@@ -134,9 +149,9 @@ hostile client or a compromised origin.
 
 - Staging, committing, discarding, checking out, pushing, or resetting
 - Patch or line-by-line diff review
-- Blame, per-file history, or browsing an individual commit
+- Blame, per-file history, or a commit-diff/browse view
 - Creating, removing, switching, or moving sessions between worktrees
-- A configurable history length, pagination, or a commit-detail view
+- A configurable history length, pagination, or a diff-level commit detail view
 - Working tree status for each worktree row
 - Initializing a repository from Clara
 
@@ -151,6 +166,11 @@ hostile client or a compromised origin.
 - **Each history read spawns a process** on the host and writes a small shell job
   file that Clara removes afterwards. On a slow volume or a very large
   repository, expect a short delay; the request is capped at ten seconds.
+  Expanding a row never starts another process; the details arrive with the
+  same log.
+- **The allowlist must cover the formatted command.** The panel preset `git log`
+  covers it, but an entry pinned to the old `git log --oneline -n 10` string
+  blocks the new command until it is updated.
 - **The worktree list has no branch names, HEAD, or dirty state.** Enriching rows
   would need one `vcs.get` call per worktree.
 - **The worktree list is stored by OpenCode**, not read live, so it can be stale
@@ -168,15 +188,17 @@ hostile client or a compromised origin.
 - Panel shell and tabs: `src/components/layout/side-panel.tsx`
 - Git view: `src/components/layout/git-panel.tsx`
 - Commit view: `src/components/layout/git-commit-list.tsx`
+- Commit row: `src/components/layout/git-commit-row.tsx`
 - Worktree view: `src/components/layout/git-worktree-list.tsx`
 - Shared messages: `src/components/layout/git-panel-parts.tsx`
-- Hooks: `src/features/git/use-git.ts`
+- Hooks and parsers: `src/features/git/use-git.ts` (`parseGitLog`,
+  `parseConventionalHeader`, `splitCommitBody`)
 - Branch and provider: `client.vcs.get({ location: { directory } })`
 - Review base: `client.vcs.base({ location: { directory } })`
 - Working tree: `client.vcs.status({ location: { directory } })`
 - Committed and branch ranges: `client.vcs.diff({ mode, base, context: 0 })`
-- History: `client.shell.create({ command: 'git log --oneline -n 10', cwd })`,
-  polled with `shell.get`, read with `shell.output`, cleaned with `shell.remove`
+- History: `client.shell.create({ command: GIT_LOG_COMMAND, cwd })`, polled with
+  `shell.get`, read with `shell.output`, cleaned with `shell.remove`
 - Worktrees: `client.worktree.list({ projectID })` and
   `client.worktree.refresh({ projectID })`
 - Project ID: the canonical project record for the route, passed from the chat

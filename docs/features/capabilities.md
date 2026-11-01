@@ -62,11 +62,13 @@ scope; feature docs describe behavior, not status.
 - **Client settings sync** has a revisioned, tombstone-aware server store over
   the E2EE session, with secret-key rejection and size limits. The web client
   does not pull or push settings yet, so no device syncs today.
-- **Git history** runs one fixed `git log --oneline -n 10` in the session's
-  directory and only through the home agent, where the admin shell policy
-  applies. Direct connections show an unavailable state. The policy is a
-  guardrail, not a sandbox: it does not restrict file writes, agent prompts,
-  plugin RPC, or any other OpenCode API.
+- **Git history** runs one fixed `git log -n 10` with a machine-readable
+  `--format` in the session's directory and only through the home agent, where
+  the admin shell policy applies. Rows preview conventional headers and expand
+  to the author date, author, co-authors, and message body. Direct connections
+  show an unavailable state. The policy is a guardrail, not a sandbox: it does
+  not restrict file writes, agent prompts, plugin RPC, or any other OpenCode
+  API.
 
 ## Not built
 
