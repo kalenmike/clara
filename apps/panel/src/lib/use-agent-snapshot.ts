@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import type { PanelSnapshot } from '@clara/shared-types'
+import { PANEL_API_VERSION, type PanelSnapshot } from '@clara/shared-types'
 
 const POLL_MS = 5_000
 
@@ -39,7 +39,7 @@ export function useAgentSnapshot(): SnapshotState & { refresh: () => void } {
       }
 
       const data = (await response.json()) as PanelSnapshot
-      if (data.apiVersion !== 1) {
+      if (data.apiVersion !== PANEL_API_VERSION) {
         throw new Error(`The panel UI and agent API versions do not match (${data.apiVersion}).`)
       }
       if (!mounted.current || controller.signal.aborted) return

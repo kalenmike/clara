@@ -1,5 +1,6 @@
 import { CircleAlert, LoaderCircle, RefreshCw, ShieldCheck } from 'lucide-react'
-import { formatRelative, formatTimestamp } from './lib/format.ts'
+import { PANEL_API_VERSION } from '@clara/shared-types'
+import { formatTimestamp } from './lib/format.ts'
 import { useAgentSnapshot } from './lib/use-agent-snapshot.ts'
 import { ClientsTable } from './components/clients-table.tsx'
 import { EventsCard } from './components/events-list.tsx'
@@ -49,7 +50,7 @@ export function App() {
                 className="text-[11px] text-neutral-500 dark:text-neutral-400"
                 title={formatTimestamp(new Date(updatedAt).toISOString())}
               >
-                Updated {formatRelative(new Date(updatedAt).toISOString(), clock)}
+                Updated {formatTimestamp(new Date(updatedAt).toISOString())}
               </span>
             ) : null}
             <button
@@ -107,8 +108,8 @@ export function App() {
             Loopback only · read-only API · secrets are never shown
           </span>
           <span>
-            API v{data?.apiVersion ?? 1} · generated{' '}
-            {data ? formatRelative(data.generatedAt, clock) : '—'}
+            API v{data?.apiVersion ?? PANEL_API_VERSION} · generated{' '}
+            {data ? formatTimestamp(data.generatedAt) : '—'}
           </span>
         </footer>
       </main>
