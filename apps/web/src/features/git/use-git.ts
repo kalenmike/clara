@@ -8,7 +8,23 @@ export type GitRange = 'working' | 'commits' | 'branch'
 
 export type GitCommit = {
   hash: string
+  authorName: string
+  authorEmail: string
+  authoredAt: string
   subject: string
+  body: string
+}
+
+export type GitCoAuthor = {
+  name: string
+  email: string
+}
+
+export type ConventionalHeader = {
+  type: string
+  scope: string | undefined
+  breaking: boolean
+  description: string
 }
 
 export type GitWorktree = WorktreeDirectory & {
@@ -16,8 +32,12 @@ export type GitWorktree = WorktreeDirectory & {
   isCurrent: boolean
 }
 
-/** The one command Clara runs on the host. The server policy must allow it. */
-export const GIT_LOG_COMMAND = 'git log --oneline -n 10'
+/**
+ * The one command Clara runs on the host. The server policy must allow it.
+ * `%x1f` separates fields and `%x1e` separates records so multiline bodies
+ * survive; neither byte appears in a normal commit message.
+ */
+export const GIT_LOG_COMMAND = 'git log -n 10 --format=%H%x1f%an%x1f%ae%x1f%aI%x1f%s%x1f%b%x1e'
 const COMMIT_COUNT = 10
 const SHELL_TIMEOUT_MS = 10_000
 const SHELL_POLL_MS = 150
@@ -166,21 +186,74 @@ async function runGitLog(
       throw new Error(message || `git log exited with status ${status.exit}`)
     }
 
-    return parseOneline(text).slice(0, COMMIT_COUNT)
+    return parseGitLog(text).slice(0, COMMIT_COUNT)
   } finally {
     await client.shell.remove({ id, location: { directory } }).catch(() => {})
   }
 }
 
-export function parseOneline(value: string): GitCommit[] {
+const FIELD_SEPARATOR = '\x1f'
+const RECORD_SEPARATOR = '\x1e'
+const HASH_PATTERN = /^[0-9a-f]{7,40}$/
+const CONVENTIONAL_HEADER = /^([a-z]+)(?:\(([^()]+)\))?(!)?:\s+(.+)$/i
+const CO_AUTHOR_TRAILER = /^co-authored-by:\s*(.*?)\s*<([^<>]+)>\s*$/i
+
+/** Read one `git log` run in the record format above. */
+export function parseGitLog(value: string): GitCommit[] {
   const commits: GitCommit[] = []
-  for (const raw of value.split('\n')) {
-    const line = raw.trim()
-    if (!line) continue
-    const match = /^([0-9a-f]{7,40})\s+(.+)$/.exec(line)
-    if (match?.[1] && match[2]) commits.push({ hash: match[1], subject: match[2] })
+  for (const raw of value.split(RECORD_SEPARATOR)) {
+    // Git prints a newline between records, so every record after the first
+    // starts with one.
+    const record = raw.replace(/^\r?\n/, '').trimEnd()
+    if (!record.trim()) continue
+
+    const [hash, authorName, authorEmail, authoredAt, subject, ...body] =
+      record.split(FIELD_SEPARATOR)
+    if (!hash || !HASH_PATTERN.test(hash)) continue
+
+    commits.push({
+      hash,
+      authorName: authorName?.trim() ?? '',
+      authorEmail: authorEmail?.trim() ?? '',
+      authoredAt: authoredAt?.trim() ?? '',
+      subject: subject?.trim() ?? '',
+      body: body.join(FIELD_SEPARATOR).trim(),
+    })
   }
   return commits
+}
+
+/** Split `fix(web): subject` into its conventional parts when it has them. */
+export function parseConventionalHeader(subject: string): ConventionalHeader | undefined {
+  const match = CONVENTIONAL_HEADER.exec(subject.trim())
+  if (!match?.[1] || !match[4]) return undefined
+  return {
+    type: match[1].toLowerCase(),
+    scope: match[2],
+    breaking: Boolean(match[3]),
+    description: match[4].trim(),
+  }
+}
+
+/**
+ * Co-author trailers are shown on their own, so remove those lines from the
+ * message body. Every other trailer stays with the message.
+ */
+export function splitCommitBody(body: string): { message: string; coAuthors: GitCoAuthor[] } {
+  const coAuthors: GitCoAuthor[] = []
+  const message: string[] = []
+
+  for (const line of body.split('\n')) {
+    const match = CO_AUTHOR_TRAILER.exec(line.trim())
+    if (match?.[2]) {
+      const email = match[2].trim()
+      coAuthors.push({ name: match[1]?.trim() || email, email })
+      continue
+    }
+    message.push(line)
+  }
+
+  return { message: message.join('\n').trim(), coAuthors }
 }
 
 /**
