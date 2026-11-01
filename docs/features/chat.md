@@ -52,7 +52,8 @@ brief, and each user or assistant message has fork and forward actions; see
 7. Tool calls appear as cards that expand to show input, output, duration, and
    status when internal output is on.
 8. If a tool needs approval, a permission panel appears above the message list
-   with allow once, always allow, and reject.
+   with allow once, always allow, and reject. A collapsed **Agent's thinking**
+   option expands to the reasoning that led to the request.
 9. Use **Stop** or Escape to interrupt a run; sending another message while the
    agent is working steers the active run.
 10. When the run finishes the header returns to "idle" and usage settles.
@@ -82,7 +83,11 @@ brief, and each user or assistant message has fork and forward actions; see
 2. Streaming text and reasoning are appended to ordered content parts, and tool
    cards are keyed by tool call ID.
 3. Permissions block tool execution until the person chooses once, always, or
-   reject.
+   reject. Each prompt offers a collapsed **Agent's thinking** disclosure. It
+   uses the request's tool source to show the reasoning that came before that
+   tool call in the same assistant step, falls back to the newest assistant step
+   when the source is unavailable, and stays hidden when no reasoning was
+   recorded. It is available whether or not internal output is on.
 4. History loads the newest 100 messages first. Opening a thread positions the
    top of the newest message at the top of the view unless the session is
    running, in which case the view follows new output; scrolling near the top
@@ -269,7 +274,8 @@ brief, and each user or assistant message has fork and forward actions; see
 - Delete empty draft: `client.session.remove({ sessionID })`; the button is
   rendered by `src/components/chat/reply-dock.tsx`
 - Interrupt: `client.session.interrupt({ sessionID })`
-- Approvals: `client.permission.request.list`, `client.permission.reply`
+- Approvals: `client.permission.request.list`, `client.permission.reply`;
+  request thinking comes from `src/features/chat/permission-thinking.ts`
 - Forms: `client.session.form.list`, `client.session.form.reply`
 - Plan handoff: `src/features/chat/plan-ready.ts`,
   `src/components/chat/plan-ready-panel.tsx`; the Start Work button plays
