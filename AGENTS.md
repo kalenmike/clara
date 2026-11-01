@@ -119,6 +119,14 @@ step.
   - Scopes are optional: `web`, `server`, `relay`, `crypto`, `types`, `docs`.
   - Subject: imperative, lowercase, no trailing period, 72 characters or less.
   - Body: explain why and any user-visible behavior change; wrap at 72.
+- Add the harness and yourself as co-authors on every commit you create, in a
+  trailer block after a blank line below the body:
+  - `Co-authored-by: OpenCode <noreply@opencode.ai>` comes first, then
+  - `Co-authored-by: <model name> <model address>` using the name the harness
+    reports in its model section, not the provider or model ID. Derive the
+    address from the vendor's convention; for example
+    `DeepSeek V4.1 Flash <flash-v41@deepseek.ai>`.
+  - Never add a co-author for a human who did not work on the change.
 - Commit separable docs and capability updates on their own, e.g.
   `docs(chat): describe the plan-ready panel`. Fold docs into the feature commit
   only when they are not separable.
@@ -132,6 +140,16 @@ Examples:
 
 ```text
 feat(web): show plan-ready panel in the session side panel
+
+Keep the plan summary visible while the user reviews the task list.
+
+Co-authored-by: OpenCode <noreply@opencode.ai>
+Co-authored-by: DeepSeek V4.1 Flash <flash-v41@deepseek.ai>
+```
+
+Subject-only examples:
+
+```text
 fix(server): keep push subscriptions across reconnects
 test(web): cover timeline gap detection
 docs(sessions): document archived session filters
@@ -169,5 +187,6 @@ docs(sessions): document archived session filters
    [docs/features/capabilities.md](docs/features/capabilities.md) in the same
    change.
 5. No secrets, generated output, or unrelated files are staged.
-6. Work is committed as coherent Conventional Commits; `git status` shows only
-   intentionally uncommitted follow-up work.
+6. Work is committed as coherent Conventional Commits, each carrying the
+   OpenCode and model co-author trailers; `git status` shows only intentionally
+   uncommitted follow-up work.
