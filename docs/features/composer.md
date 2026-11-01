@@ -6,8 +6,9 @@ The reply composer is a Gmail-style window docked to the bottom-right of a chat.
 It opens from the **Reply** or **New** button, automatically when a new session
 is created or an empty draft with locally saved text is opened, and from Adjust
 Plan on the plan-ready card. It sends prompts that steer the run by default, can
-save the first message as a draft without starting a run, and carries commands,
-mentions, attachments, model selection, and agent selection.
+save the first message as a draft without starting a run, can queue a follow-up
+behind an active run, and carries commands, mentions, attachments, model
+selection, and agent selection.
 
 ## User flow
 
@@ -25,22 +26,27 @@ mentions, attachments, model selection, and agent selection.
    updates an untitled session to a short title, and leaves the session in
    Drafts. The draft message appears in the thread and a **Start** panel appears
    above it.
-5. Type `/` to open the command palette or `@` to search files, agents, skills,
+5. While the agent is working, use the same chevron menu and choose **Send as
+   queued**. The message waits in the session inbox and starts as the next turn
+   after the active run settles instead of steering it.
+6. Type `/` to open the command palette or `@` to search files, agents, skills,
    and references.
-6. Attach files with the paperclip, paste an image, or paste files from the
+7. Attach files with the paperclip, paste an image, or paste files from the
    clipboard; attachments appear as removable chips.
-7. Set the model and variant in the **To** row, and switch the active agent from
+8. Set the model and variant in the **To** row, and switch the active agent from
    the footer next to Send.
-8. Minimize, maximize, or close the window at any time. Switching between the
+9. Minimize, maximize, or close the window at any time. Switching between the
    expanded panel and the smaller dock is remembered in local storage. The draft
    stays in place until it is sent.
 
 ## Core business rules
 
-1. Enter and the main Send button steer the session. The chevron menu only
-   offers **Save as draft**; there is no separate queue action.
-2. `/command` input runs a command instead of a prompt. Commands always run
-   immediately. **Save as draft** never executes a command: it stores the text
+1. Enter and the main Send button steer the session. The chevron menu offers
+   **Save as draft** before the first assistant reply, and **Send as queued**
+   while a run is active. An idle session that already has a reply has no menu.
+2. `/command` input runs a command instead of a prompt. A command runs
+   immediately on Send; **Send as queued** keeps it pending until the active run
+   settles. **Save as draft** never executes a command: it stores the text
    literally in the draft.
 3. The To row owns model and variant; the footer owns the agent. Both reflect the
    session and change it immediately.
@@ -64,12 +70,18 @@ mentions, attachments, model selection, and agent selection.
    renamed to the first 50 characters of the message plus `…` when truncated.
    The session stays in Drafts because OpenCode has no projected messages yet.
 9. Pending inbox messages are rendered in the thread as draft user messages. A
-   **Start** panel above the thread sends the prompt `Start` with steering,
-   which delivers the queued draft and starts the run.
+   **Start** panel above the thread appears when an idle session still has a
+   pending user item; it sends the prompt `Start` with steering, which delivers
+   the queued draft and starts the run.
+10. **Send as queued** calls `session.prompt` or `session.command` with
+    `delivery: 'queue'`. OpenCode keeps the input pending and promotes it as the
+    next turn when the session would otherwise become idle, so the active run is
+    not redirected. The queued message renders in the thread while it waits.
 
 ## Edge cases
 
-- **Empty or whitespace-only prompt** — Send and Save as draft are disabled.
+- **Empty or whitespace-only prompt** — Send, Save as draft, and Send as queued
+  are disabled.
 - **Mobile focus zoom** — every text input and textarea renders at 16px or more
   on phones (`text-base md:text-sm` or `text-base md:text-xs`). iOS Safari zooms
   the page when a focused field is smaller than 16px, which crops the composer's
@@ -85,11 +97,18 @@ mentions, attachments, model selection, and agent selection.
   Reply/New cluster sits further from the bottom-right corner. The expanded
   window also insets its bottom edge, so iPhone rounded corners and the home
   indicator do not clip the attach/Send controls.
-- **Unknown slash command** — the text is sent as a normal prompt with steering.
+- **Unknown slash command** — the text is sent as a normal prompt with the chosen
+  delivery.
 - **Busy session with Send** — the prompt steers the active run instead of
   interrupting it.
-- **Save as draft after a reply** — the chevron is hidden; the action is only
-  available before the first assistant message.
+- **Busy session with Send as queued** — the prompt waits in the inbox and runs
+  as the next turn after the active run settles.
+- **Save as draft after a reply** — the chevron offers Send as queued while the
+  agent is running and is hidden once the session is idle.
+- **Send as queued failure** — the window stays open with the draft and
+  attachments intact.
+- **Command with Send as queued** — a recognised command is queued and runs as
+  the next turn instead of executing immediately.
 - **Save as draft failure** — the window stays open with the draft and
   attachments intact.
 - **Default agent unavailable** — when the specific agent saved in Settings is
@@ -107,8 +126,8 @@ mentions, attachments, model selection, and agent selection.
   it as a user message instead of executing it as a command.
 - **Start failure** — the draft stays queued and Start can be retried.
 - **Send failure** — the window stays open with the draft and attachments intact.
-- **Snoozed session** — sending, starting the draft, or saving as a draft clears
-  the server's snooze marker first, so the session leaves Snoozed.
+- **Snoozed session** — sending, queuing, starting the draft, or saving as a draft
+  clears the server's snooze marker first, so the session leaves Snoozed.
 - **Empty draft** — New replaces Reply and Delete replaces Done. The composer
   opens automatically when locally saved text exists; otherwise New opens it in
   the last-used size (expanded by default).
@@ -161,6 +180,8 @@ mentions, attachments, model selection, and agent selection.
 - Loaded from: `/p/:projectId/s/:sessionId`
 - Send: `client.session.prompt({ sessionID, text, files, delivery })` with
   `delivery: 'steer'`
+- Queue: the same call with `delivery: 'queue'`; commands use
+  `client.session.command({ ..., delivery: 'queue' })`
 - Default agent: `clara.defaultAgent` (`{ mode: 'last' | 'fixed', agent }`) and
   `clara.lastAgent` in `localStorage`; resolved in
   `src/features/agents/default-agent.ts`

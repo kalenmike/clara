@@ -55,7 +55,8 @@ brief, and each user or assistant message has fork and forward actions; see
    with allow once, always allow, and reject. A collapsed **Agent's thinking**
    option expands to the reasoning that led to the request.
 9. Use **Stop** or Escape to interrupt a run; sending another message while the
-   agent is working steers the active run.
+   agent is working steers the active run, or use the composer's chevron menu to
+   send it as queued for the next turn.
 10. When the run finishes the header returns to "idle" and usage settles.
 11. When a Plan run ends with a final reply, a plan-ready card appears above the
     thread. **Adjust Plan** opens the reply window for changes; **Start Work**
@@ -176,6 +177,9 @@ brief, and each user or assistant message has fork and forward actions; see
 - **Saved draft** — the draft is a pending inbox item, not a projected message.
   It is rendered in the thread and the Start card appears; Done archives rather
   than deletes because the draft counts as a message.
+- **Queued follow-up** — while the agent is running, the composer's chevron menu
+  can send the message as queued. It waits as a pending inbox item in the thread
+  and starts as the next turn after the active run settles.
 - **Inbox lookup fails** — the draft and Start card are unavailable, but the rest
   of the chat still loads.
 - **Start fails** — the draft stays queued and Start can be retried.

@@ -99,6 +99,9 @@ by default, and the noun is configurable in Settings.
    Inbox; a running session stays in Outbox even after the agent writes; once
    idle, the latest message author decides (agent → Inbox, user → Outbox).
    Internal messages such as `idle`, `system`, and model switches are ignored.
+   A follow-up queued from the composer while a run is active is a pending inbox
+   item; OpenCode promotes it as the next turn when the session would otherwise
+   become idle.
 6. Drafts contains sessions with no projected user or assistant messages that
    are not running. This includes new empty sessions and sessions whose first
    message was saved with OpenCode's no-reply mode and still sits in the session
