@@ -1,4 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { unsnoozeSessionOnEngage } from '@/features/sessions/unsnooze'
 import { queryKeys } from '@/lib/query-keys'
 import { useConnection } from '@/providers/connection-provider'
 
@@ -17,12 +18,15 @@ export function useReplyPermission() {
   const { client } = useConnection()
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: (input: {
+    mutationFn: async (input: {
       sessionID: string
       requestID: string
       decision: 'once' | 'always' | 'reject'
       message?: string
-    }) => client!.permission.reply(input),
+    }) => {
+      await unsnoozeSessionOnEngage(client!, queryClient, input.sessionID)
+      return client!.permission.reply(input)
+    },
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: queryKeys.permissions })
     },

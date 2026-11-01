@@ -1,4 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { unsnoozeSessionOnEngage } from '@/features/sessions/unsnooze'
 import { queryKeys } from '@/lib/query-keys'
 import { useConnection } from '@/providers/connection-provider'
 
@@ -18,12 +19,14 @@ export function useReplyForm(sessionID: string) {
   const { client } = useConnection()
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: (input: { formID: string; answer: Record<string, FormAnswerValue> }) =>
-      client!.session.form.reply({
+    mutationFn: async (input: { formID: string; answer: Record<string, FormAnswerValue> }) => {
+      await unsnoozeSessionOnEngage(client!, queryClient, sessionID)
+      return client!.session.form.reply({
         sessionID,
         formID: input.formID,
         answer: input.answer,
-      }),
+      })
+    },
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: queryKeys.forms(sessionID) })
     },
@@ -34,8 +37,14 @@ export function useRejectForm(sessionID: string) {
   const { client } = useConnection()
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: (input: { formID: string; message?: string }) =>
-      client!.session.form.cancel({ sessionID, formID: input.formID, message: input.message }),
+    mutationFn: async (input: { formID: string; message?: string }) => {
+      await unsnoozeSessionOnEngage(client!, queryClient, sessionID)
+      return client!.session.form.cancel({
+        sessionID,
+        formID: input.formID,
+        message: input.message,
+      })
+    },
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: queryKeys.forms(sessionID) })
     },
