@@ -40,7 +40,7 @@ import {
 import { useNotificationPermission } from '@/features/notifications/use-notification-permission'
 import { useNotificationSettings } from '@/features/notifications/use-notification-settings'
 import { playAttentionSound, playDoneSound } from '@/features/notifications/sounds'
-import { DESK_IDLE_OPTIONS_MS } from '@/features/notifications/settings'
+import { DESK_IDLE_OPTIONS_MS, allInboxSoundKinds } from '@/features/notifications/settings'
 import { usePush } from '@/providers/push-provider'
 import { useSessionWording } from '@/features/sessions/use-wording'
 
@@ -51,7 +51,13 @@ const KIND_ICONS: Record<AttentionKind, typeof Eye> = {
   error: CircleAlert,
 }
 
-export function NotificationsCard({ isTouchDevice }: { isTouchDevice: boolean }) {
+export function NotificationsCard({
+  isTouchDevice,
+  simplified,
+}: {
+  isTouchDevice: boolean
+  simplified: boolean
+}) {
   const { settings, update } = useNotificationSettings()
   const { permission, setPermission } = useNotificationPermission()
   const { lowerSingular } = useSessionWording()
@@ -59,6 +65,14 @@ export function NotificationsCard({ isTouchDevice }: { isTouchDevice: boolean })
   // Hide the desktop-only row on touch devices, but keep it reachable while a
   // previous session has it enabled so it can still be switched off.
   const showDesktop = !isTouchDevice || settings.desktop
+
+  const toggleInboxSounds = (enabled: boolean) => {
+    update(
+      simplified
+        ? { sounds: enabled, soundKinds: allInboxSoundKinds(enabled) }
+        : { sounds: enabled }
+    )
+  }
 
   const toggleSound = (kind: AttentionKind, enabled: boolean) => {
     update({ soundKinds: { ...settings.soundKinds, [kind]: enabled } })
@@ -103,7 +117,7 @@ export function NotificationsCard({ isTouchDevice }: { isTouchDevice: boolean })
           </div>
           <Switch
             checked={settings.sounds}
-            onCheckedChange={(checked) => update({ sounds: checked })}
+            onCheckedChange={toggleInboxSounds}
             aria-label="Inbox notification sounds"
           />
         </div>
@@ -121,40 +135,42 @@ export function NotificationsCard({ isTouchDevice }: { isTouchDevice: boolean })
           </span>
         </div>
 
-        <div className="space-y-1 rounded-lg border p-2">
-          {ATTENTION_KINDS.map((kind) => {
-            const Icon = KIND_ICONS[kind]
-            return (
-              <div key={kind} className="flex items-center gap-2 rounded-md px-1 py-1.5">
-                <Icon className="size-3.5 shrink-0 text-muted-foreground" />
-                <div className="min-w-0 flex-1">
-                  <div className="text-xs font-medium">{ATTENTION_LABELS[kind]}</div>
-                  <p className="truncate text-[11px] text-muted-foreground">
-                    {ATTENTION_DESCRIPTIONS[kind]}
-                  </p>
+        {!simplified && (
+          <div className="space-y-1 rounded-lg border p-2">
+            {ATTENTION_KINDS.map((kind) => {
+              const Icon = KIND_ICONS[kind]
+              return (
+                <div key={kind} className="flex items-center gap-2 rounded-md px-1 py-1.5">
+                  <Icon className="size-3.5 shrink-0 text-muted-foreground" />
+                  <div className="min-w-0 flex-1">
+                    <div className="text-xs font-medium">{ATTENTION_LABELS[kind]}</div>
+                    <p className="truncate text-[11px] text-muted-foreground">
+                      {ATTENTION_DESCRIPTIONS[kind]}
+                    </p>
+                  </div>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon-xs"
+                    className="max-md:size-11"
+                    onClick={() => playAttentionSound(kind, settings.volume, true)}
+                    aria-label={`Preview the ${ATTENTION_LABELS[kind]} sound`}
+                    title="Preview"
+                  >
+                    <Play className="size-3 max-md:size-5" />
+                  </Button>
+                  <Switch
+                    size="sm"
+                    checked={settings.soundKinds[kind]}
+                    onCheckedChange={(checked) => toggleSound(kind, checked)}
+                    disabled={!settings.sounds}
+                    aria-label={`${ATTENTION_LABELS[kind]} sound`}
+                  />
                 </div>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon-xs"
-                  className="max-md:size-11"
-                  onClick={() => playAttentionSound(kind, settings.volume, true)}
-                  aria-label={`Preview the ${ATTENTION_LABELS[kind]} sound`}
-                  title="Preview"
-                >
-                  <Play className="size-3 max-md:size-5" />
-                </Button>
-                <Switch
-                  size="sm"
-                  checked={settings.soundKinds[kind]}
-                  onCheckedChange={(checked) => toggleSound(kind, checked)}
-                  disabled={!settings.sounds}
-                  aria-label={`${ATTENTION_LABELS[kind]} sound`}
-                />
-              </div>
-            )
-          })}
-        </div>
+              )
+            })}
+          </div>
+        )}
 
         <Separator />
 

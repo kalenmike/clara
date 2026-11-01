@@ -1,23 +1,17 @@
-import { useNavigate } from 'react-router'
-import { Loader2, LogOut, RefreshCw, Server } from 'lucide-react'
-import { toast } from 'sonner'
 import { PageShell } from '@/components/layout/page-shell'
-import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
-import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import { Separator } from '@/components/ui/separator'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { AgentCard } from '@/components/settings/agent-card'
 import { AppCard } from '@/components/settings/app-card'
 import { NotificationsCard } from '@/components/settings/notifications-card'
+import { ServerCard } from '@/components/settings/server-card'
+import { SettingsFilter } from '@/components/settings/settings-filter'
 import { ThemeCard } from '@/components/settings/theme-card'
 import { WordingCard } from '@/components/settings/wording-card'
+import { useSimplifySettings } from '@/features/settings/use-simplify-settings'
 import { useSessionWording } from '@/features/sessions/use-wording'
 import type { SessionWording } from '@/features/sessions/wording'
 import { useIsTouchDevice } from '@/hooks/use-is-touch-device'
-import { connectionUrl, isRelayConfig } from '@/lib/client'
-import { useConnection } from '@/providers/connection-provider'
-import { useEventStream } from '@/providers/event-provider'
-import { usePush } from '@/providers/push-provider'
 
 function shortcutList(wording: SessionWording): Array<[string, string]> {
   return [
@@ -41,125 +35,72 @@ function shortcutList(wording: SessionWording): Array<[string, string]> {
 }
 
 export function SettingsPage() {
-  const navigate = useNavigate()
-  const { config, info, disconnect, reconnect, reconnecting, reconnectError, relayStatus } =
-    useConnection()
-  const { state: streamState, lastError } = useEventStream()
-  const push = usePush()
   const isTouchDevice = useIsTouchDevice()
+  const { simplified } = useSimplifySettings()
   const wording = useSessionWording()
   const shortcuts = isTouchDevice ? [] : shortcutList(wording)
-
-  const signOut = async () => {
-    await push.disable()
-    disconnect()
-    navigate('/connect', { replace: true })
-  }
-
-  const retry = async () => {
-    const ok = await reconnect()
-    if (ok) toast.success('Reconnected to OpenCode')
-    else toast.error('Could not reach the server. Check that OpenCode is running.')
-  }
 
   return (
     <PageShell
       title="Settings"
-      description={
-        isTouchDevice
-          ? 'Connection, appearance, wording, agents, notifications, sounds, and the app build.'
-          : 'Connection, appearance, wording, agents, notifications, sounds, shortcuts, and the app build.'
-      }
+      description={`Appearance, preferences, notifications,${isTouchDevice ? '' : ' shortcuts,'} and advanced options.`}
+      actions={<SettingsFilter />}
     >
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2 text-sm">
-            <Server className="size-4" /> Server
-          </CardTitle>
-          <CardDescription>The OpenCode instance this browser is connected to.</CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-3 text-sm">
-          <Row label="URL" value={connectionUrl(config)} />
-          <Row label="Mode" value={config && isRelayConfig(config) ? 'E2EE relay' : 'direct'} />
-          {relayStatus && <Row label="Relay" value={relayStatus.state} />}
-          {relayStatus?.agent?.opencodeVersion && (
-            <Row label="OpenCode" value={relayStatus.agent.opencodeVersion} />
-          )}
-          <Row label="Version" value={info?.version ?? 'unknown'} />
-          <Row label="PID" value={info ? String(info.pid) : 'unknown'} />
-          <Row label="URLs" value={info?.urls.join(', ') ?? 'unknown'} />
-          <Row label="Stream" value={streamState} />
-          {lastError && <Row label="Stream error" value={lastError} />}
-          <Separator />
-          <div className="flex flex-wrap items-center gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => void retry()}
-              disabled={reconnecting}
-            >
-              {reconnecting ? (
-                <Loader2 className="size-4 animate-spin" />
-              ) : (
-                <RefreshCw className="size-4" />
-              )}
-              Reconnect
-            </Button>
-            <Button variant="outline" size="sm" onClick={() => void signOut()}>
-              <LogOut className="size-4" /> Disconnect
-            </Button>
-          </div>
-          {reconnectError && (
-            <Alert variant="destructive">
-              <AlertTitle>Reconnect failed</AlertTitle>
-              <AlertDescription>{reconnectError}</AlertDescription>
-            </Alert>
-          )}
-        </CardContent>
-      </Card>
+      <Tabs defaultValue="appearance" className="gap-4">
+        <div className="-mx-1 overflow-x-auto px-1">
+          <TabsList className="w-full min-w-max">
+            <TabsTrigger value="appearance">Appearance</TabsTrigger>
+            <TabsTrigger value="preferences">Preferences</TabsTrigger>
+            <TabsTrigger value="notifications">Notifications</TabsTrigger>
+            {!isTouchDevice && <TabsTrigger value="shortcuts">Shortcuts</TabsTrigger>}
+            <TabsTrigger value="advanced">Advanced</TabsTrigger>
+          </TabsList>
+        </div>
 
-      <ThemeCard />
+        <TabsContent value="appearance" className="space-y-4">
+          <ThemeCard />
+        </TabsContent>
 
-      <WordingCard />
+        <TabsContent value="preferences" className="space-y-4">
+          <WordingCard />
+          <AgentCard />
+        </TabsContent>
 
-      <AgentCard />
+        <TabsContent value="notifications" className="space-y-4">
+          <NotificationsCard isTouchDevice={isTouchDevice} simplified={simplified} />
+        </TabsContent>
 
-      <NotificationsCard isTouchDevice={isTouchDevice} />
-
-      <AppCard />
-
-      {!isTouchDevice && (
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-sm">Keyboard shortcuts</CardTitle>
-            <CardDescription>
-              Based on the standard OpenCode keybinds. The ctrl+x leader stays off while typing so
-              cut keeps working.
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="grid gap-x-8 gap-y-2 sm:grid-cols-2">
-              {shortcuts.map(([keys, action]) => (
-                <div key={keys} className="flex items-center justify-between gap-3 text-xs">
-                  <span className="text-muted-foreground">{action}</span>
-                  <kbd className="rounded border bg-muted px-1.5 py-0.5 font-mono text-[10px]">
-                    {keys}
-                  </kbd>
+        {!isTouchDevice && (
+          <TabsContent value="shortcuts">
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-sm">Keyboard shortcuts</CardTitle>
+                <CardDescription>
+                  Based on the standard OpenCode keybinds. The ctrl+x leader stays off while typing
+                  so cut keeps working.
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="grid gap-x-8 gap-y-2 sm:grid-cols-2">
+                  {shortcuts.map(([keys, action]) => (
+                    <div key={keys} className="flex items-center justify-between gap-3 text-xs">
+                      <span className="text-muted-foreground">{action}</span>
+                      <kbd className="rounded border bg-muted px-1.5 py-0.5 font-mono text-[10px]">
+                        {keys}
+                      </kbd>
+                    </div>
+                  ))}
                 </div>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
-      )}
-    </PageShell>
-  )
-}
+              </CardContent>
+            </Card>
+          </TabsContent>
+        )}
 
-function Row({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="flex items-start justify-between gap-4">
-      <span className="text-muted-foreground">{label}</span>
-      <span className="max-w-[70%] truncate text-right font-mono text-xs">{value}</span>
-    </div>
+        <TabsContent value="advanced" className="space-y-4">
+          <ServerCard simplified={simplified} />
+          <AppCard simplified={simplified} />
+        </TabsContent>
+      </Tabs>
+    </PageShell>
   )
 }

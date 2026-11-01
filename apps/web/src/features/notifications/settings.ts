@@ -19,6 +19,13 @@ export const DESK_IDLE_DEFAULT_MS = 5 * 60_000
 const DESK_IDLE_MIN_MS = 60_000
 const DESK_IDLE_MAX_MS = 60 * 60_000
 
+/** Simplified settings expose one inbox sound switch; apply it to every state. */
+export function allInboxSoundKinds(enabled: boolean): NotificationSettings['soundKinds'] {
+  const soundKinds = {} as Record<AttentionKind, boolean>
+  for (const kind of ATTENTION_KINDS) soundKinds[kind] = enabled
+  return soundKinds
+}
+
 export const DEFAULT_NOTIFICATION_SETTINGS: NotificationSettings = {
   desktop: false,
   push: false,
