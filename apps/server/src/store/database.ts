@@ -4,7 +4,7 @@ import Database from 'better-sqlite3'
 
 export type ClaraDatabase = Database.Database
 
-export const SCHEMA_VERSION = 2
+export const SCHEMA_VERSION = 3
 
 const BUSY_TIMEOUT_MS = 5_000
 const DATABASE_MODE = 0o600
@@ -62,6 +62,16 @@ const MIGRATIONS: Migration[] = [
     insert.run('shell.mode', JSON.stringify('off'), now)
     insert.run('shell.commands', JSON.stringify([]), now)
   },
+  /**
+   * Traffic monitoring arrived after the first release. Existing agents keep
+   * measuring so the panel does not start blind after an upgrade.
+   */
+  (db) => {
+    const insert = db.prepare(
+      'INSERT INTO settings (key, value, updated_at) VALUES (?, ?, ?) ON CONFLICT (key) DO NOTHING'
+    )
+    insert.run('monitoring.enabled', JSON.stringify(true), Date.now())
+  },
 ]
 
 /** The settings seeded into every new database. */
@@ -73,6 +83,7 @@ export const DEFAULT_SETTINGS = {
   'agent.stopped': false,
   'shell.mode': 'off',
   'shell.commands': [],
+  'monitoring.enabled': true,
 } as const
 
 export function openDatabase(path: string): ClaraDatabase {

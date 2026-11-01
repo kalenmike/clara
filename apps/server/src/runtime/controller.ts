@@ -14,6 +14,7 @@ import type { PushService } from '../push/service.ts'
 import { RelayClient, type RelayStatus } from '../relay-client.ts'
 import type { ClientStorageStore } from '../store/client-storage.ts'
 import { FEATURE_NAMES, type FeatureName, type SettingsStore } from '../store/settings.ts'
+import { TrafficMeter } from '../traffic.ts'
 
 export type ControllerOptions = {
   config: ServerConfig
@@ -44,12 +45,14 @@ export class RuntimeController {
   private readonly pushMonitor?: PushMonitor
   private pushMonitorRunning = false
   private readonly errors = new Map<FeatureName, string>()
+  private readonly trafficMeter: TrafficMeter
   /** Command requests refused since this process started. */
   private shellDenied = 0
 
   constructor(options: ControllerOptions) {
     this.options = options
     const { config } = options
+    this.trafficMeter = new TrafficMeter({ enabled: options.settings.getMonitoring() })
 
     this.localAgent = new Agent({
       openCode: options.openCode,
@@ -58,6 +61,8 @@ export class RuntimeController {
       send: (frame) => broadcast(this.localSockets, frame),
       push: options.push,
       sync: options.sync,
+      traffic: this.trafficMeter,
+      transport: 'local',
       policy: {
         canProxy: () => this.canProxy(),
         canPush: () => this.canPush(),
@@ -77,6 +82,8 @@ export class RuntimeController {
         send: (frame) => this.relayClient?.send(frame),
         push: options.push,
         sync: options.sync,
+        traffic: this.trafficMeter,
+        transport: 'relay',
         policy: {
           canProxy: () => this.canProxy(),
           canPush: () => this.canPush(),
@@ -140,6 +147,10 @@ export class RuntimeController {
     return this.localTransport.connections
   }
 
+  get traffic(): TrafficMeter {
+    return this.trafficMeter
+  }
+
   canProxy(): boolean {
     if (this.options.settings.getStopped()) return false
     return this.options.settings.getFeature('opencode')
@@ -170,7 +181,12 @@ export class RuntimeController {
       if (error) control.error = error
       return control
     })
-    return { stopped, features, shell: { ...settings.shell, blocked: this.shellDenied } }
+    return {
+      stopped,
+      features,
+      shell: { ...settings.shell, blocked: this.shellDenied },
+      monitoring: { enabled: settings.monitoring },
+    }
   }
 
   async start(): Promise<void> {
@@ -208,6 +224,18 @@ export class RuntimeController {
           ? 'shell commands enabled with no filters'
           : `shell filter updated (${policy.commands.length} command(s))`
     )
+    return this.controls()
+  }
+
+  /**
+   * Monitoring is a panel concern, not a transport: it stays switchable while
+   * the agent is stopped. Turning it off discards the window so no stale
+   * numbers survive the decision.
+   */
+  async setMonitoring(enabled: boolean): Promise<PanelControls> {
+    this.options.settings.setMonitoring(enabled)
+    this.trafficMeter.setEnabled(enabled)
+    this.options.log(enabled ? 'traffic monitoring enabled' : 'traffic monitoring disabled')
     return this.controls()
   }
 

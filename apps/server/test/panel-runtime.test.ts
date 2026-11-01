@@ -10,6 +10,7 @@ import type { PushService } from '../src/push/service.ts'
 import type { RelayClient, RelaySnapshot } from '../src/relay-client.ts'
 import { PanelLog } from '../src/panel/log.ts'
 import { PanelRuntime, type PanelRuntimeOptions } from '../src/panel/runtime.ts'
+import { TrafficMeter } from '../src/traffic.ts'
 
 const tempDirs: string[] = []
 
@@ -74,6 +75,7 @@ function createRuntime(
     probe?: OpenCodeProbe
     probeCalls?: { value: number }
     relay?: RelaySnapshot
+    traffic?: TrafficMeter
   } = {}
 ): PanelRuntime {
   const runtimeOptions: PanelRuntimeOptions = {
@@ -97,6 +99,9 @@ function createRuntime(
         connectedAt: Date.now() - 5_000,
         lastSeen: Date.now() - 1_000,
         requests: 2,
+        bytesIn: 2_048,
+        bytesOut: 1_024,
+        requestsTotal: 7,
         deviceClass: 'desktop',
         presenceAt: Date.now() - 1_000,
         holdPhone: true,
@@ -108,6 +113,9 @@ function createRuntime(
         connectedAt: Date.now() - 3_000,
         lastSeen: Date.now() - 500,
         requests: 0,
+        bytesIn: 512,
+        bytesOut: 256,
+        requestsTotal: 1,
         deviceClass: 'mobile',
         presenceAt: Date.now() - 500,
         holdPhone: false,
@@ -122,6 +130,7 @@ function createRuntime(
       }
     ),
     localConnections: () => 1,
+    ...(options.traffic ? { traffic: options.traffic } : {}),
     push: pushService(),
     pushError: 'push disabled for sentinel-password',
     fingerprint: 'fingerprint-123',
@@ -214,5 +223,39 @@ describe('PanelRuntime', () => {
 
     expect(configEntry?.exists).toBe(false)
     expect(configEntry?.status).toBe('warn')
+  })
+
+  it('reports traffic totals and per-client counters while monitoring is on', async () => {
+    const dir = tempDir()
+    writeFileSync(join(dir, 'server.json'), '{}', { mode: 0o600 })
+    const traffic = new TrafficMeter({ enabled: true })
+    traffic.recordInbound(1_000, 'local')
+    traffic.recordOutbound(2_000, 'local')
+    traffic.recordRequest('local')
+    traffic.recordError('refused')
+
+    const runtime = createRuntime(dir, { traffic })
+    const snapshot = await runtime.snapshot()
+
+    expect(snapshot.traffic.enabled).toBe(true)
+    expect(snapshot.traffic.totals).toMatchObject({ bytesIn: 1_000, bytesOut: 2_000, requests: 1 })
+    expect(snapshot.traffic.errors.refused).toBe(1)
+    expect(snapshot.traffic.byTransport.local.requests).toBe(1)
+    expect(snapshot.traffic.series).toHaveLength(1)
+    expect(snapshot.controls.monitoring).toEqual({ enabled: true })
+    expect(snapshot.clients[0]).toMatchObject({ bytesIn: 2_048, requestsTotal: 7 })
+  })
+
+  it('omits per-client counters while monitoring is off', async () => {
+    const dir = tempDir()
+    writeFileSync(join(dir, 'server.json'), '{}', { mode: 0o600 })
+    const runtime = createRuntime(dir, { traffic: new TrafficMeter({ enabled: false }) })
+    const snapshot = await runtime.snapshot()
+
+    expect(snapshot.traffic.enabled).toBe(false)
+    expect(snapshot.traffic.series).toEqual([])
+    expect(snapshot.clients[0]?.bytesIn).toBeUndefined()
+    expect(snapshot.clients[0]?.requestsTotal).toBeUndefined()
+    expect(snapshot.controls.monitoring).toEqual({ enabled: false })
   })
 })

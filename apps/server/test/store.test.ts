@@ -35,6 +35,7 @@ describe('SQLite settings store', () => {
         features: { opencode: true, local: true, relay: true, push: true },
         stopped: false,
         shell: { mode: 'off', commands: [] },
+        monitoring: true,
       })
       const rows = db.prepare('SELECT key FROM settings ORDER BY key').all() as Array<{
         key: string
@@ -53,6 +54,7 @@ describe('SQLite settings store', () => {
     settings.setFeature('push', false)
     settings.setStopped(true)
     settings.setShellPolicy({ mode: 'allowlist', commands: ['git log'] })
+    settings.setMonitoring(false)
     closeDatabase(first)
 
     const second = openDatabase(path)
@@ -67,13 +69,14 @@ describe('SQLite settings store', () => {
         },
         stopped: true,
         shell: { mode: 'allowlist', commands: ['git log'] },
+        monitoring: false,
       })
     } finally {
       closeDatabase(second)
     }
   })
 
-  it('adds the shell policy to a database created before it existed', () => {
+  it('adds the shell policy and monitoring to a database created before them', () => {
     const path = join(tempDir(), 'clara.db')
     const legacy = new Database(path)
     legacy.exec(
@@ -96,7 +99,35 @@ describe('SQLite settings store', () => {
         features: { opencode: false, local: true, relay: true, push: true },
         stopped: false,
         shell: { mode: 'off', commands: [] },
+        monitoring: true,
       })
+    } finally {
+      closeDatabase(db)
+    }
+  })
+
+  it('seeds monitoring when upgrading from a version without it', () => {
+    const path = join(tempDir(), 'clara.db')
+    const legacy = new Database(path)
+    legacy.exec(
+      'CREATE TABLE settings (key TEXT PRIMARY KEY, value TEXT NOT NULL, updated_at INTEGER NOT NULL)'
+    )
+    const insert = legacy.prepare('INSERT INTO settings (key, value, updated_at) VALUES (?, ?, ?)')
+    const now = Date.now()
+    insert.run('features.opencode', 'true', now)
+    insert.run('features.local', 'true', now)
+    insert.run('features.relay', 'true', now)
+    insert.run('features.push', 'true', now)
+    insert.run('agent.stopped', 'false', now)
+    insert.run('shell.mode', '"off"', now)
+    insert.run('shell.commands', '[]', now)
+    legacy.pragma('user_version = 2')
+    legacy.close()
+
+    const db = openDatabase(path)
+    try {
+      expect(schemaVersion(db)).toBe(SCHEMA_VERSION)
+      expect(new SettingsStore(db).getMonitoring()).toBe(true)
     } finally {
       closeDatabase(db)
     }

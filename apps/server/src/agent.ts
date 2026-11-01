@@ -17,6 +17,7 @@ import {
   type ClaraAction,
   type ClaraState,
   type DeviceClass,
+  type PanelTransport,
   type PushSubscribeAction,
   type PushTestAction,
   type PushUnsubscribeAction,
@@ -29,6 +30,7 @@ import { OpenCodeClient, responseHeaders, type HttpRequestAction } from './openc
 import type { PushService } from './push/service.ts'
 import { DEFAULT_SHELL_POLICY, evaluateShellRequest, type ShellDecision } from './shell-policy.ts'
 import type { ClientStorageStore, SyncResult } from './store/client-storage.ts'
+import type { TrafficMeter } from './traffic.ts'
 
 const MAX_REQUESTS_PER_SESSION = 32
 const MAX_PAYLOAD_BYTES = 10 * 1024 * 1024
@@ -53,6 +55,10 @@ type Session = {
   presence?: SessionPresence
   sendChain: Promise<void>
   requests: Map<string, AbortController>
+  /** Traffic counters, frozen while monitoring is off. */
+  bytesIn: number
+  bytesOut: number
+  requestsTotal: number
 }
 
 export type AgentSessionInfo = {
@@ -60,6 +66,9 @@ export type AgentSessionInfo = {
   connectedAt: number
   lastSeen: number
   requests: number
+  bytesIn: number
+  bytesOut: number
+  requestsTotal: number
   deviceClass?: DeviceClass
   presenceAt?: number
   holdPhone: boolean
@@ -87,6 +96,10 @@ export type AgentOptions = {
   push?: PushService
   sync?: ClientStorageStore
   policy?: AgentPolicy
+  /** Shared traffic counters for the panel; absent in tests. */
+  traffic?: TrafficMeter
+  /** Which transport this agent serves, for the per-transport split. */
+  transport?: PanelTransport
   log?: (message: string, detail?: unknown) => void
 }
 
@@ -114,28 +127,46 @@ export class Agent {
     } catch {
       return
     }
+    const bytes = Buffer.byteLength(text)
 
     let parsed: unknown
     try {
       parsed = JSON.parse(text)
     } catch {
+      this.options.traffic?.recordError('dropped')
       return
     }
 
     const frame = parseWireFrame(parsed)
-    if (!frame) return
+    if (!frame) {
+      this.options.traffic?.recordError('dropped')
+      return
+    }
+
+    this.options.traffic?.recordInbound(bytes, this.transport)
 
     if (isHelloFrame(frame)) {
       void this.handleHello(frame.sid, frame.nonce, frame.role)
       return
     }
     if (isSealedFrame(frame)) {
-      void this.handleSealed(frame)
+      const session = this.sessions.get(frame.sid)
+      if (!session) {
+        // A sealed frame for a session this agent does not hold is either a
+        // stale client or someone probing with a guessed session id.
+        this.options.traffic?.recordError('orphan')
+        return
+      }
+      if (this.monitoring) session.bytesIn += bytes
+      void this.handleSealed(session, frame)
     }
   }
 
   reset(): void {
-    for (const session of this.sessions.values()) this.abortSession(session)
+    for (const session of this.sessions.values()) {
+      this.abortSession(session)
+      this.options.traffic?.recordSessionClosed()
+    }
     this.sessions.clear()
   }
 
@@ -162,12 +193,23 @@ export class Agent {
         connectedAt: session.connectedAt,
         lastSeen: session.lastSeen,
         requests: session.requests.size,
+        bytesIn: session.bytesIn,
+        bytesOut: session.bytesOut,
+        requestsTotal: session.requestsTotal,
         ...(presence?.deviceClass ? { deviceClass: presence.deviceClass } : {}),
         ...(presence ? { presenceAt: presence.at } : {}),
         holdPhone: presenceActive && presence.holdPhone,
       })
     }
     return sessions.sort((left, right) => left.connectedAt - right.connectedAt)
+  }
+
+  private get transport(): PanelTransport {
+    return this.options.transport ?? 'local'
+  }
+
+  private get monitoring(): boolean {
+    return this.options.traffic?.enabled ?? false
   }
 
   /**
@@ -193,7 +235,10 @@ export class Agent {
     if (role !== 'client' || !sid || !clientNonce) return
 
     const existing = this.sessions.get(sid)
-    if (existing) this.abortSession(existing)
+    if (existing) {
+      this.abortSession(existing)
+      this.options.traffic?.recordSessionClosed()
+    }
 
     const agentNonce = bytesToBase64Url(randomBytes(16))
     let keys: SessionKeys
@@ -205,6 +250,7 @@ export class Agent {
         agentNonce,
       })
     } catch (cause) {
+      this.options.traffic?.recordError('handshake')
       this.options.log?.('handshake failed', cause)
       return
     }
@@ -218,10 +264,14 @@ export class Agent {
       lastSeen: Date.now(),
       sendChain: Promise.resolve(),
       requests: new Map(),
+      bytesIn: 0,
+      bytesOut: 0,
+      requestsTotal: 0,
     }
     this.sessions.set(sid, session)
+    this.options.traffic?.recordSessionOpened()
 
-    this.options.send({
+    this.transmit(undefined, {
       t: 'hello',
       v: PROTOCOL_VERSION,
       sid,
@@ -231,14 +281,16 @@ export class Agent {
     this.enqueue(session, { type: 'ready', agent: this.options.info })
   }
 
-  private async handleSealed(frame: Extract<WireFrame, { t: 'sealed' }>): Promise<void> {
-    const session = this.sessions.get(frame.sid)
-    if (!session) return
+  private async handleSealed(
+    session: Session,
+    frame: Extract<WireFrame, { t: 'sealed' }>
+  ): Promise<void> {
     session.lastSeen = Date.now()
 
     try {
       session.receive.check(frame.seq)
     } catch (cause) {
+      this.options.traffic?.recordError('crypto')
       this.options.log?.('rejected an out-of-order frame', cause)
       this.abortSession(session)
       this.sessions.delete(frame.sid)
@@ -253,6 +305,7 @@ export class Agent {
         frame
       )
     } catch (cause) {
+      this.options.traffic?.recordError('crypto')
       this.options.log?.('could not decrypt a client frame', cause)
       this.abortSession(session)
       this.sessions.delete(frame.sid)
@@ -260,6 +313,7 @@ export class Agent {
     }
 
     if (plaintext.byteLength > MAX_PAYLOAD_BYTES) {
+      this.options.traffic?.recordError('dropped')
       this.abortSession(session)
       this.sessions.delete(frame.sid)
       return
@@ -269,9 +323,13 @@ export class Agent {
     try {
       payload = JSON.parse(new TextDecoder().decode(plaintext))
     } catch {
+      this.options.traffic?.recordError('dropped')
       return
     }
-    if (!isClaraPayload(payload)) return
+    if (!isClaraPayload(payload)) {
+      this.options.traffic?.recordError('dropped')
+      return
+    }
     this.handlePayload(session, payload)
   }
 
@@ -548,6 +606,7 @@ export class Agent {
       action
     )
     if (!decision.allowed) {
+      this.options.traffic?.recordError('refused')
       this.options.policy?.onShellDenied?.()
       this.options.log?.(`refused ${action.method} ${action.path}`, decision.code)
       this.respondRefused(session, action.id, decision)
@@ -566,6 +625,8 @@ export class Agent {
 
     const controller = new AbortController()
     session.requests.set(action.id, controller)
+    this.options.traffic?.recordRequest(this.transport)
+    if (this.monitoring) session.requestsTotal += 1
     void this.runRequest(session, action, controller)
   }
 
@@ -627,6 +688,7 @@ export class Agent {
       this.enqueue(session, { type: 'http.end', id: action.id })
     } catch (cause) {
       const aborted = controller.signal.aborted
+      if (!aborted) this.options.traffic?.recordError('upstream')
       this.enqueue(session, {
         type: 'http.error',
         id: action.id,
@@ -650,7 +712,7 @@ export class Agent {
           { sid: session.sid, direction: 's2c', seq },
           utf8(text)
         )
-        this.options.send({
+        this.transmit(session, {
           t: 'sealed',
           v: PROTOCOL_VERSION,
           sid: session.sid,
@@ -665,6 +727,14 @@ export class Agent {
     session.sendChain = next
   }
 
+  /** Measure an outbound frame once, then hand it to the transport. */
+  private transmit(session: Session | undefined, frame: WireFrame): void {
+    const bytes = Buffer.byteLength(JSON.stringify(frame))
+    this.options.traffic?.recordOutbound(bytes, this.transport)
+    if (session && this.monitoring) session.bytesOut += bytes
+    this.options.send(frame)
+  }
+
   private abortSession(session: Session): void {
     for (const controller of session.requests.values()) controller.abort()
     session.requests.clear()
@@ -676,6 +746,8 @@ export class Agent {
       if (now - session.lastSeen <= SESSION_IDLE_MS) continue
       this.abortSession(session)
       this.sessions.delete(sid)
+      this.options.traffic?.recordError('expired')
+      this.options.traffic?.recordSessionClosed()
     }
   }
 }

@@ -10,6 +10,7 @@ export type PanelControlService = {
   setFeature: (feature: PanelFeatureName, enabled: boolean) => Promise<PanelControls>
   setStopped: (stopped: boolean) => Promise<PanelControls>
   setShellPolicy: (policy: ShellPolicy) => Promise<PanelControls>
+  setMonitoring: (enabled: boolean) => Promise<PanelControls>
 }
 
 export type PanelControlFailure = {

@@ -12,6 +12,7 @@ const API_PATH = '/panel/api/v1/status'
 const FEATURES_PATH = '/panel/api/v1/features'
 const AGENT_PATH = '/panel/api/v1/agent'
 const SHELL_PATH = '/panel/api/v1/shell'
+const MONITORING_PATH = '/panel/api/v1/monitoring'
 const ASSETS_PREFIX = '/assets/'
 const PANEL_HEADER = 'x-clara-panel'
 const MAX_BODY_BYTES = 8 * 1024
@@ -240,7 +241,9 @@ async function handleMutation(
         ? 'agent'
         : pathname === SHELL_PATH
           ? 'shell'
-          : undefined
+          : pathname === MONITORING_PATH
+            ? 'monitoring'
+            : undefined
   if (!kind) {
     sendJson(response, method, 404, {
       error: { code: 'not_found', message: 'Unknown panel endpoint' },
@@ -307,7 +310,7 @@ async function handleMutation(
         return invalidField(response, method, 'stopped')
       }
       updated = await controls.setStopped(body.value.stopped)
-    } else {
+    } else if (kind === 'shell') {
       const unknown = unknownFields(body.value, ['mode', 'commands'])
       if (unknown) return invalidField(response, method, unknown)
       const parsed = parseShellPolicy(body.value.mode, body.value.commands)
@@ -318,6 +321,13 @@ async function handleMutation(
         return
       }
       updated = await controls.setShellPolicy(parsed.policy)
+    } else {
+      const unknown = unknownFields(body.value, ['enabled'])
+      if (unknown) return invalidField(response, method, unknown)
+      if (typeof body.value.enabled !== 'boolean') {
+        return invalidField(response, method, 'enabled')
+      }
+      updated = await controls.setMonitoring(body.value.enabled)
     }
 
     const payload: PanelMutationResponse = { controls: updated }

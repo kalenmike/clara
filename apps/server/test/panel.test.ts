@@ -97,9 +97,48 @@ function snapshot(): PanelSnapshot {
         { name: 'push', configured: false, desired: false, effective: false },
       ],
       shell: { mode: 'off', commands: [], blocked: 0 },
+      monitoring: { enabled: true },
     },
     storage: [],
     events: [],
+    traffic: {
+      enabled: true,
+      since: new Date(0).toISOString(),
+      windowMs: 3_600_000,
+      warmup: false,
+      totals: {
+        bytesIn: 0,
+        bytesOut: 0,
+        framesIn: 0,
+        framesOut: 0,
+        requests: 0,
+        sessionsOpened: 0,
+        sessionsClosed: 0,
+      },
+      rate: {
+        windowMs: 60_000,
+        bytesInPerSecond: 0,
+        bytesOutPerSecond: 0,
+        requestsPerMinute: 0,
+        errorsPerMinute: 0,
+      },
+      errors: {
+        handshake: 0,
+        crypto: 0,
+        orphan: 0,
+        dropped: 0,
+        refused: 0,
+        upstream: 0,
+        expired: 0,
+      },
+      peak: { bytesIn: 0, bytesOut: 0, requests: 0, errors: 0 },
+      series: [],
+      byTransport: {
+        local: { bytesIn: 0, bytesOut: 0, framesIn: 0, framesOut: 0, requests: 0 },
+        relay: { bytesIn: 0, bytesOut: 0, framesIn: 0, framesOut: 0, requests: 0 },
+      },
+      spike: [],
+    },
   }
 }
 
@@ -112,6 +151,7 @@ type FakeControls = PanelControlService & {
   features: Array<{ feature: string; enabled: boolean }>
   stops: boolean[]
   shells: ShellPolicy[]
+  monitorings: boolean[]
 }
 
 function fakeControls(initial: Partial<PanelControls> = {}): FakeControls {
@@ -124,16 +164,19 @@ function fakeControls(initial: Partial<PanelControls> = {}): FakeControls {
       { name: 'push', configured: false, desired: false, effective: false },
     ],
     shell: { mode: 'off', commands: [], blocked: 0 },
+    monitoring: { enabled: true },
     ...initial,
   }
   const features: Array<{ feature: string; enabled: boolean }> = []
   const stops: boolean[] = []
   const shells: ShellPolicy[] = []
+  const monitorings: boolean[] = []
   return {
     state,
     features,
     stops,
     shells,
+    monitorings,
     controls: () => state,
     setFeature: async (feature, enabled) => {
       if (state.stopped) {
@@ -156,6 +199,11 @@ function fakeControls(initial: Partial<PanelControls> = {}): FakeControls {
     setShellPolicy: async (policy) => {
       shells.push(policy)
       state.shell = { ...policy, blocked: state.shell.blocked }
+      return state
+    },
+    setMonitoring: async (enabled) => {
+      monitorings.push(enabled)
+      state.monitoring = { enabled }
       return state
     },
   }
@@ -405,6 +453,33 @@ describe('panel server', () => {
     const badMode = await post(server, 'shell', { mode: 'ask', commands: [] })
     expect(badMode.status).toBe(400)
     expect(controls.shells).toHaveLength(1)
+  })
+
+  it('toggles traffic monitoring even while the agent is stopped', async () => {
+    const controls = fakeControls({ stopped: true })
+    const server = await start(undefined, controls)
+
+    const off = await post(server, 'monitoring', { enabled: false })
+    expect(off.status).toBe(200)
+    expect(((await off.json()) as PanelMutationResponse).controls.monitoring).toEqual({
+      enabled: false,
+    })
+
+    const on = await post(server, 'monitoring', { enabled: true })
+    expect(on.status).toBe(200)
+    expect(controls.monitorings).toEqual([false, true])
+  })
+
+  it('rejects a monitoring body with an unknown or mistyped field', async () => {
+    const controls = fakeControls()
+    const server = await start(undefined, controls)
+
+    const unknown = await post(server, 'monitoring', { enabled: true, extra: true })
+    expect(unknown.status).toBe(400)
+
+    const wrongType = await post(server, 'monitoring', { enabled: 'yes' })
+    expect(wrongType.status).toBe(400)
+    expect(controls.monitorings).toEqual([])
   })
 })
 

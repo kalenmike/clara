@@ -113,6 +113,7 @@ async function main(): Promise<void> {
       relayAgent: controller.relay,
       relayClient: controller.relayTransport,
       localConnections: () => controller.localConnections,
+      traffic: controller.traffic,
       push,
       pushError,
       fingerprint,

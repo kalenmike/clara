@@ -131,6 +131,27 @@ describe('RuntimeController', () => {
     }
   })
 
+  it('toggles traffic monitoring without stopping the agent', async () => {
+    const { controller, settings, close } = await createController()
+    await controller.start()
+    try {
+      expect(controller.controls().monitoring).toEqual({ enabled: true })
+      expect(controller.traffic.enabled).toBe(true)
+
+      await controller.setMonitoring(false)
+      expect(settings.getMonitoring()).toBe(false)
+      expect(controller.traffic.enabled).toBe(false)
+      expect(controller.controls().monitoring).toEqual({ enabled: false })
+
+      await controller.setStopped(true)
+      await controller.setMonitoring(true)
+      expect(controller.controls().monitoring).toEqual({ enabled: true })
+      expect(controller.traffic.enabled).toBe(true)
+    } finally {
+      await close()
+    }
+  })
+
   it('stops and restarts the local listener without losing its socket set', async () => {
     const { controller, close } = await createController()
     await controller.start()

@@ -6,7 +6,7 @@
  * agent on a loopback listener; it never travels through the relay.
  */
 
-export const PANEL_API_VERSION = 3
+export const PANEL_API_VERSION = 4
 
 export type PanelValueSource = 'env' | 'file' | 'service' | 'default' | 'generated' | 'none'
 
@@ -98,7 +98,15 @@ export type PanelClientInfo = {
   connectedAt: string
   lastSeenAt: string
   idleMs: number
+  /** Requests in flight right now. */
   requests: number
+  /**
+   * Lifetime counters for this session. Absent while traffic monitoring is
+   * off, so an idle agent cannot be mistaken for an unused one.
+   */
+  bytesIn?: number
+  bytesOut?: number
+  requestsTotal?: number
   holdPhone: boolean
 }
 
@@ -176,6 +184,11 @@ export type PanelControls = {
   stopped: boolean
   features: PanelFeatureControl[]
   shell: PanelShellControl
+  monitoring: PanelMonitoringControl
+}
+
+export type PanelMonitoringControl = {
+  enabled: boolean
 }
 
 export type PanelFeatureUpdate = {
@@ -189,8 +202,81 @@ export type PanelAgentUpdate = {
   stopped: boolean
 }
 
+export type PanelMonitoringUpdate = {
+  enabled: boolean
+}
+
 export type PanelMutationResponse = {
   controls: PanelControls
+}
+
+/**
+ * Error counters for the traffic meter. They are named for what the agent
+ * observed, never for a payload it decrypted and kept.
+ */
+export type PanelTrafficErrorKey =
+  'handshake' | 'crypto' | 'orphan' | 'dropped' | 'refused' | 'upstream' | 'expired'
+
+export type PanelTrafficTotals = {
+  bytesIn: number
+  bytesOut: number
+  framesIn: number
+  framesOut: number
+  requests: number
+  sessionsOpened: number
+  sessionsClosed: number
+}
+
+export type PanelTrafficTransport = {
+  bytesIn: number
+  bytesOut: number
+  framesIn: number
+  framesOut: number
+  requests: number
+}
+
+export type PanelTrafficRate = {
+  /** Length of the window the rate is measured over. */
+  windowMs: number
+  bytesInPerSecond: number
+  bytesOutPerSecond: number
+  requestsPerMinute: number
+  errorsPerMinute: number
+}
+
+/** One minute of traffic, oldest first. */
+export type PanelTrafficSample = {
+  at: string
+  bytesIn: number
+  bytesOut: number
+  requests: number
+  errors: number
+}
+
+export type PanelTrafficPeak = {
+  bytesIn: number
+  bytesOut: number
+  requests: number
+  errors: number
+}
+
+export type PanelTrafficSpike = 'bytes' | 'requests' | 'errors'
+
+export type PanelTraffic = {
+  enabled: boolean
+  /** When the current measurement window started; absent while off. */
+  since?: string
+  windowMs: number
+  /** True until the first complete minute has been measured. */
+  warmup: boolean
+  totals: PanelTrafficTotals
+  rate: PanelTrafficRate
+  errors: Record<PanelTrafficErrorKey, number>
+  peak: PanelTrafficPeak
+  series: PanelTrafficSample[]
+  byTransport: Record<PanelTransport, PanelTrafficTransport>
+  /** Signals that crossed the spike threshold on the last complete minute. */
+  spike: PanelTrafficSpike[]
 }
 
 export type PanelSnapshot = {
@@ -206,4 +292,5 @@ export type PanelSnapshot = {
   controls: PanelControls
   storage: PanelStorageEntry[]
   events: PanelEvent[]
+  traffic: PanelTraffic
 }

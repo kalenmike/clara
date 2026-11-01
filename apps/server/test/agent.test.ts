@@ -28,6 +28,7 @@ import {
   MAX_SYNC_VALUE_BYTES,
 } from '../src/store/client-storage.ts'
 import { closeDatabase, openDatabase, type ClaraDatabase } from '../src/store/database.ts'
+import { TrafficMeter } from '../src/traffic.ts'
 
 type FakeOpenCode = {
   url: string
@@ -91,7 +92,8 @@ async function connect(
   fake: FakeOpenCode,
   push?: PushService,
   sync?: ClientStorageStore,
-  policy?: AgentPolicy
+  policy?: AgentPolicy,
+  traffic?: TrafficMeter
 ): Promise<{
   agent: Agent
   client: Client
@@ -109,6 +111,7 @@ async function connect(
     push,
     sync,
     ...(policy ? { policy } : {}),
+    ...(traffic ? { traffic } : {}),
   })
   agents.push(agent)
 
@@ -714,5 +717,79 @@ describe('agent client sync', () => {
       expect.objectContaining({ key: 'clara.sidebar', value: null }),
       expect.objectContaining({ key: 'clara.theme', value: 'dark' }),
     ])
+  })
+
+  it('counts frames, requests, and per-session traffic in the meter', async () => {
+    const fake = await startFakeOpenCode()
+    try {
+      const traffic = new TrafficMeter()
+      const { agent, client, frames } = await connect(
+        fake,
+        undefined,
+        undefined,
+        undefined,
+        traffic
+      )
+      await waitFor(() => (frames.length >= 2 ? true : undefined))
+      await send(client, agent, { type: 'ready.ack', agent: { version: 'web', protocol: 1 } })
+      await send(client, agent, {
+        type: 'http.request',
+        id: 'request-metered',
+        method: 'GET',
+        path: '/api/info',
+      })
+      await waitFor(async () => {
+        const states = await readStates(client, frames)
+        return states.some((state) => state.type === 'http.end') ? states : undefined
+      })
+
+      const snapshot = traffic.snapshot()
+      expect(snapshot.enabled).toBe(true)
+      expect(snapshot.totals.requests).toBe(1)
+      expect(snapshot.totals.framesIn).toBeGreaterThan(1)
+      expect(snapshot.byTransport.local.requests).toBe(1)
+      expect(snapshot.byTransport.relay.requests).toBe(0)
+      expect(snapshot.totals.sessionsOpened).toBe(1)
+
+      const [session] = agent.getSnapshot()
+      expect(session).toMatchObject({ requestsTotal: 1 })
+      expect(session?.bytesIn).toBeGreaterThan(0)
+      expect(session?.bytesOut).toBeGreaterThan(0)
+    } finally {
+      await fake.close()
+    }
+  })
+
+  it('keeps session counters frozen while monitoring is off', async () => {
+    const fake = await startFakeOpenCode()
+    try {
+      const traffic = new TrafficMeter({ enabled: false })
+      const { agent, client, frames } = await connect(
+        fake,
+        undefined,
+        undefined,
+        undefined,
+        traffic
+      )
+      await waitFor(() => (frames.length >= 2 ? true : undefined))
+      await send(client, agent, { type: 'ready.ack', agent: { version: 'web', protocol: 1 } })
+      await send(client, agent, {
+        type: 'http.request',
+        id: 'request-unmetered',
+        method: 'GET',
+        path: '/api/info',
+      })
+      await waitFor(async () => {
+        const states = await readStates(client, frames)
+        return states.some((state) => state.type === 'http.end') ? states : undefined
+      })
+
+      expect(traffic.snapshot().enabled).toBe(false)
+      expect(traffic.snapshot().totals.requests).toBe(0)
+      const [session] = agent.getSnapshot()
+      expect(session).toMatchObject({ bytesIn: 0, bytesOut: 0, requestsTotal: 0 })
+    } finally {
+      await fake.close()
+    }
   })
 })

@@ -13,6 +13,7 @@ export const FEATURE_SETTINGS = {
 export const AGENT_STOPPED_SETTING = 'agent.stopped'
 export const SHELL_MODE_SETTING = 'shell.mode'
 export const SHELL_COMMANDS_SETTING = 'shell.commands'
+export const MONITORING_SETTING = 'monitoring.enabled'
 
 export type FeatureName = keyof typeof FEATURE_SETTINGS
 
@@ -21,6 +22,7 @@ export type SettingKey =
   | typeof AGENT_STOPPED_SETTING
   | typeof SHELL_MODE_SETTING
   | typeof SHELL_COMMANDS_SETTING
+  | typeof MONITORING_SETTING
 
 export type FeatureSettings = Record<FeatureName, boolean>
 
@@ -28,6 +30,8 @@ export type AgentSettings = {
   features: FeatureSettings
   stopped: boolean
   shell: ShellPolicy
+  /** The panel traffic meter records nothing while this is false. */
+  monitoring: boolean
 }
 
 export const FEATURE_NAMES = Object.keys(FEATURE_SETTINGS) as FeatureName[]
@@ -37,6 +41,7 @@ const SETTING_KEYS = new Set<string>([
   AGENT_STOPPED_SETTING,
   SHELL_MODE_SETTING,
   SHELL_COMMANDS_SETTING,
+  MONITORING_SETTING,
 ])
 
 /**
@@ -68,6 +73,7 @@ export class SettingsStore {
       features,
       stopped: this.readBoolean(AGENT_STOPPED_SETTING),
       shell: this.getShellPolicy(),
+      monitoring: this.readBoolean(MONITORING_SETTING),
     }
   }
 
@@ -86,6 +92,10 @@ export class SettingsStore {
     )
   }
 
+  getMonitoring(): boolean {
+    return this.readBoolean(MONITORING_SETTING)
+  }
+
   setFeature(feature: FeatureName, enabled: boolean): AgentSettings {
     this.assertFeature(feature)
     assertBoolean(enabled, FEATURE_SETTINGS[feature])
@@ -102,6 +112,12 @@ export class SettingsStore {
   setShellPolicy(policy: ShellPolicy): AgentSettings {
     this.writeValue(SHELL_MODE_SETTING, policy.mode)
     this.writeValue(SHELL_COMMANDS_SETTING, policy.commands)
+    return this.get()
+  }
+
+  setMonitoring(enabled: boolean): AgentSettings {
+    assertBoolean(enabled, MONITORING_SETTING)
+    this.writeValue(MONITORING_SETTING, enabled)
     return this.get()
   }
 

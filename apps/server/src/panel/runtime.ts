@@ -13,6 +13,7 @@ import {
   type PanelRelayTransport,
   type PanelSnapshot,
   type PanelStorageEntry,
+  type PanelTraffic,
 } from '@clara/shared-types'
 import { DEFAULT_SHELL_POLICY } from '../shell-policy.ts'
 import type { Agent } from '../agent.ts'
@@ -21,6 +22,7 @@ import type { OpenCodeClient, OpenCodeProbe } from '../opencode.ts'
 import type { PushService } from '../push/service.ts'
 import type { RelayClient } from '../relay-client.ts'
 import type { ClientStorageStats } from '../store/client-storage.ts'
+import { emptyTraffic, type TrafficMeter } from '../traffic.ts'
 import { SERVER_VERSION } from '../version.ts'
 import type { PanelLog } from './log.ts'
 
@@ -40,6 +42,7 @@ export type PanelRuntimeOptions = {
   relayAgent?: Agent
   relayClient?: RelayClient
   localConnections: () => number
+  traffic?: TrafficMeter
   push?: PushService
   pushError?: string
   fingerprint?: string
@@ -72,6 +75,7 @@ export class PanelRuntime implements PanelDataSource {
     const now = Date.now()
     const controls = this.controlsSnapshot()
     const probe = await this.getProbe(controls)
+    const traffic = this.trafficSnapshot()
     const { config } = this.options
     const local = controlFor(controls, 'local')
     const relay = controlFor(controls, 'relay')
@@ -109,7 +113,7 @@ export class PanelRuntime implements PanelDataSource {
         ...(local.error ? { error: this.redact(local.error) } : {}),
       },
       relay: this.relaySnapshot(controls.stopped, relay),
-      clients: this.clientsSnapshot(now),
+      clients: this.clientsSnapshot(now, traffic.enabled),
       push: {
         enabled: push.effective,
         desired: push.desired,
@@ -124,6 +128,7 @@ export class PanelRuntime implements PanelDataSource {
       controls,
       storage: this.storageEntries(),
       events: this.events(),
+      traffic,
     }
   }
 
@@ -216,15 +221,19 @@ export class PanelRuntime implements PanelDataSource {
     }
   }
 
-  private clientsSnapshot(now: number): PanelClientInfo[] {
+  private clientsSnapshot(now: number, includeTraffic: boolean): PanelClientInfo[] {
     const clients: PanelClientInfo[] = []
     for (const session of this.options.localAgent.getSnapshot(now)) {
-      clients.push(toClient(session, 'local', now))
+      clients.push(toClient(session, 'local', now, includeTraffic))
     }
     for (const session of this.options.relayAgent?.getSnapshot(now) ?? []) {
-      clients.push(toClient(session, 'relay', now))
+      clients.push(toClient(session, 'relay', now, includeTraffic))
     }
     return clients.sort((left, right) => left.connectedAt.localeCompare(right.connectedAt))
+  }
+
+  private trafficSnapshot(): PanelTraffic {
+    return this.options.traffic?.snapshot() ?? emptyTraffic()
   }
 
   private events(): PanelEvent[] {
@@ -278,6 +287,7 @@ export class PanelRuntime implements PanelDataSource {
         },
       ],
       shell: { ...DEFAULT_SHELL_POLICY, blocked: 0 },
+      monitoring: { enabled: this.options.traffic?.enabled ?? false },
     }
   }
 
@@ -329,7 +339,8 @@ export class PanelRuntime implements PanelDataSource {
 function toClient(
   session: ReturnType<Agent['getSnapshot']>[number],
   transport: 'local' | 'relay',
-  now: number
+  now: number,
+  includeTraffic: boolean
 ): PanelClientInfo {
   return {
     sid: session.sid,
@@ -339,6 +350,13 @@ function toClient(
     lastSeenAt: new Date(session.lastSeen).toISOString(),
     idleMs: Math.max(0, now - session.lastSeen),
     requests: session.requests,
+    ...(includeTraffic
+      ? {
+          bytesIn: session.bytesIn,
+          bytesOut: session.bytesOut,
+          requestsTotal: session.requestsTotal,
+        }
+      : {}),
     holdPhone: session.holdPhone,
   }
 }
