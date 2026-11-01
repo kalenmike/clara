@@ -14,8 +14,16 @@ const STATUSES = new Set<PlanTodoStatus>(['pending', 'in_progress', 'completed',
  * The v2 API does not expose todos. OpenCode keeps the current list in the
  * input of the newest completed `todowrite` tool call, so read it from the
  * transcript. An empty list means the agent cleared the plan.
+ *
+ * A fork copies the parent's transcript, including its `todowrite` calls, but
+ * the copies keep the parent's creation times. `forkedAt` is the child's
+ * creation time: plans written before it belong to the parent and stay hidden
+ * so the branch starts with its own checklist.
  */
-export function findPlanTodos(messages: SessionMessageInfo[]): PlanTodo[] | undefined {
+export function findPlanTodos(
+  messages: SessionMessageInfo[],
+  options: { forkedAt?: number } = {}
+): PlanTodo[] | undefined {
   for (let index = messages.length - 1; index >= 0; index -= 1) {
     const message = messages[index]
     if (message.type !== 'assistant') continue
@@ -24,6 +32,9 @@ export function findPlanTodos(messages: SessionMessageInfo[]): PlanTodo[] | unde
       const part = message.content[partIndex]
       if (part.type !== 'tool' || part.name !== TODO_TOOL) continue
       if (part.state.status !== 'completed') continue
+      if (options.forkedAt !== undefined && message.time.created < options.forkedAt) {
+        return undefined
+      }
       return parseTodos(part.state.input.todos)
     }
   }

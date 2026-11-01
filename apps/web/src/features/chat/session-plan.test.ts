@@ -2,11 +2,14 @@ import { describe, expect, it } from 'vitest'
 import type { JsonValue, SessionMessageAssistant } from '@opencode/client'
 import { findPlanTodos } from './session-plan'
 
-function assistant(content: SessionMessageAssistant['content']): SessionMessageAssistant {
+function assistant(
+  content: SessionMessageAssistant['content'],
+  created = 1
+): SessionMessageAssistant {
   return {
     id: 'message',
     type: 'assistant',
-    time: { created: 1 },
+    time: { created },
     agent: 'plan',
     model: { id: 'model', providerID: 'provider' },
     content,
@@ -64,6 +67,31 @@ describe('findPlanTodos', () => {
     ]
 
     expect(findPlanTodos(messages)).toEqual([{ content: 'Valid', status: 'pending' }])
+  })
+
+  it('hides a plan inherited by a fork', () => {
+    const messages = [assistant([todoCall([{ content: 'Parent', status: 'in_progress' }])], 100)]
+
+    expect(findPlanTodos(messages, { forkedAt: 200 })).toBeUndefined()
+  })
+
+  it('reads a plan written in the fork', () => {
+    const messages = [
+      assistant([todoCall([{ content: 'Parent', status: 'completed' }])], 100),
+      assistant([todoCall([{ content: 'Branch', status: 'in_progress' }])], 300),
+    ]
+
+    expect(findPlanTodos(messages, { forkedAt: 200 })).toEqual([
+      { content: 'Branch', status: 'in_progress' },
+    ])
+  })
+
+  it('keeps a plan written at the fork time', () => {
+    const messages = [assistant([todoCall([{ content: 'Branch', status: 'pending' }])], 200)]
+
+    expect(findPlanTodos(messages, { forkedAt: 200 })).toEqual([
+      { content: 'Branch', status: 'pending' },
+    ])
   })
 
   it('returns undefined without a todo plan', () => {

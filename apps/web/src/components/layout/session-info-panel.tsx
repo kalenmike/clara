@@ -33,9 +33,11 @@ export function SessionInfoPanel({
   const contextQuery = useSessionContext(session?.id ?? '', Boolean(session))
   const { singular } = useSessionWording()
   const modelsQuery = useModels()
+  const forkedAt = session?.fork ? session.time.created : undefined
   const todos = useMemo(
-    () => findPlanTodos(messages) ?? findPlanTodos(contextQuery.data ?? []),
-    [contextQuery.data, messages]
+    () =>
+      findPlanTodos(messages, { forkedAt }) ?? findPlanTodos(contextQuery.data ?? [], { forkedAt }),
+    [contextQuery.data, forkedAt, messages]
   )
   const model = modelsQuery.data?.find(
     (item) => item.modelID === session?.model?.id && item.providerID === session?.model?.providerID
