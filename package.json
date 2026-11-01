@@ -17,6 +17,8 @@
     "test": "pnpm -r --if-present test",
     "knip": "knip",
     "check": "pnpm typecheck && pnpm lint && pnpm format:check && pnpm knip && pnpm test",
+    "commitlint": "commitlint --last",
+    "prepare": "husky",
     "deploy:web": "pnpm --filter @clara/web run deploy",
     "deploy:relay": "pnpm --filter @clara/relay run deploy",
     "clara:serve": "pnpm --filter @clara/server exec node dist/index.js",
@@ -24,6 +26,8 @@
     "clara:pass": "jq -r '.password' $HOME/.local/state/opencode/service.json"
   },
   "devDependencies": {
+    "@commitlint/cli": "^21.2.4",
+    "@commitlint/config-conventional": "^21.2.4",
     "@eslint/js": "^10.0.1",
     "@types/node": "^24.19.2",
     "eslint": "^10.13.0",
@@ -31,6 +35,7 @@
     "eslint-plugin-react-hooks": "^7.1.1",
     "eslint-plugin-react-refresh": "^0.5.7",
     "globals": "^17.13.0",
+    "husky": "^9.1.7",
     "knip": "^6.44.0",
     "prettier": "^3.9.10",
     "typescript": "~6.0.3",
