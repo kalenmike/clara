@@ -204,7 +204,9 @@ export class RuntimeController {
     this.options.log(
       policy.mode === 'off'
         ? 'shell commands blocked by an admin setting'
-        : `shell allowlist updated (${policy.commands.length} command(s))`
+        : policy.commands.length === 0
+          ? 'shell commands enabled with no filters'
+          : `shell filter updated (${policy.commands.length} command(s))`
     )
     return this.controls()
   }

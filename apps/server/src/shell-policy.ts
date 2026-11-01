@@ -8,9 +8,9 @@ export const MAX_SHELL_COMMANDS = 32
 export const MAX_SHELL_COMMAND_LENGTH = 200
 
 /**
- * A command string is handed to a shell, so an allowlist that matched shell
- * syntax would be trivial to escape. These characters never appear in an
- * allowed request, which keeps entries literal.
+ * A command string is handed to a shell, so a filter entry that matched shell
+ * syntax would be trivial to escape. These characters never appear in a
+ * filtered request, which keeps entries literal.
  */
 const METACHARACTERS = [
   '\n',
@@ -39,8 +39,8 @@ const METACHARACTERS = [
 ]
 
 /**
- * Allowing an interpreter turns the allowlist into "run anything". Entries that
- * name one are rejected instead of being silently accepted.
+ * Allowing an interpreter in a filter turns it into "run anything". Entries
+ * that name one are rejected instead of being silently accepted.
  */
 const INTERPRETERS = new Set([
   'sh',
@@ -138,6 +138,11 @@ export function evaluateShellRequest(
     }
   }
 
+  // An empty filter list is an explicit "allow every command" policy. The
+  // location and working-directory checks above still apply, but there is
+  // nothing left to match the command against.
+  if (policy.commands.length === 0) return { allowed: true }
+
   if (parsed.tokens.some((token) => containsMetacharacter(token))) {
     return metacharacterDenial()
   }
@@ -150,15 +155,16 @@ export function evaluateShellRequest(
 
   const allowed = policy.commands.some((entry) => isPrefix(entry, parsed.tokens))
   if (!allowed) {
-    return deny('shell_denied', 'The command is not in the Clara shell allowlist')
+    return deny('shell_denied', 'The command does not match any Clara shell filter')
   }
 
   return { allowed: true }
 }
 
 /**
- * Validate a policy coming from the panel. `off` keeps the saved command list
- * so switching back to `allowlist` does not lose it.
+ * Validate a policy coming from the panel. `off` keeps the saved filter list so
+ * switching back to `allowlist` does not lose it. An empty list in `allowlist`
+ * mode allows every command.
  */
 export function parseShellPolicy(mode: unknown, commands: unknown): ShellPolicyParse {
   if (mode !== 'off' && mode !== 'allowlist') {
@@ -275,7 +281,7 @@ function readCommand(
   if (!binary) return invalid('The command request does not name a command')
 
   // PTY requests pass the binary and its arguments separately, so both belong
-  // to the prefix an allowlist entry has to cover.
+  // to the prefix a filter entry has to cover.
   const allTokens = args.length > 0 && tokens.length === 1 ? [binary, ...args] : tokens
 
   const cwd = typeof record.cwd === 'string' && record.cwd.trim() ? record.cwd.trim() : undefined
