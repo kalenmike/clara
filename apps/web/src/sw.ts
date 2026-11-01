@@ -1,5 +1,6 @@
 /// <reference lib="webworker" />
 import { clientsClaim } from 'workbox-core'
+import { ExpirationPlugin } from 'workbox-expiration'
 import {
   cleanupOutdatedCaches,
   createHandlerBoundToURL,
@@ -41,6 +42,9 @@ registerRoute(
     new NetworkFirst({
       cacheName: DOCUMENT_CACHE,
       networkTimeoutSeconds: DOCUMENT_TIMEOUT_MS,
+      // One entry per visited route; a long-lived install should not keep them
+      // all, and an old document is only useful for the next few launches.
+      plugins: [new ExpirationPlugin({ maxEntries: 25, maxAgeSeconds: 7 * 24 * 60 * 60 })],
     }),
     { denylist: [/^\/api\//, /^\/oc\//] }
   )
