@@ -79,7 +79,7 @@ export function App() {
           <LoadingState />
         ) : data ? (
           <div className="space-y-4">
-            <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+            <div className="grid items-start gap-4 md:grid-cols-2 xl:grid-cols-3">
               <AgentCard agent={data.agent} now={clock} />
               <OpenCodeCard opencode={data.opencode} now={clock} />
               <LocalCard
@@ -93,7 +93,7 @@ export function App() {
 
             <ClientsTable clients={data.clients} now={clock} />
 
-            <div className="grid gap-4 xl:grid-cols-2">
+            <div className="grid items-start gap-4 xl:grid-cols-2">
               <StorageCard storage={data.storage} now={clock} />
               <EventsCard events={data.events} now={clock} />
             </div>

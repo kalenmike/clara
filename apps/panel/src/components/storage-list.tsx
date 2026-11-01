@@ -30,9 +30,7 @@ export function StorageCard({ storage, now }: { storage: PanelStorageEntry[]; no
                     {entry.path}
                   </p>
                   {entry.detail ? (
-                    <p className="mt-1 text-xs text-amber-700 dark:text-amber-300">
-                      {entry.detail}
-                    </p>
+                    <p className={`mt-1 text-xs ${detailClass(entry.status)}`}>{entry.detail}</p>
                   ) : null}
                 </div>
                 <div className="shrink-0 text-right text-[11px] text-neutral-500 dark:text-neutral-400">
@@ -63,5 +61,16 @@ function toneFor(status: PanelStorageEntry['status']): Tone {
       return 'danger'
     default:
       return 'neutral'
+  }
+}
+
+function detailClass(status: PanelStorageEntry['status']): string {
+  switch (status) {
+    case 'error':
+      return 'text-red-700 dark:text-red-300'
+    case 'warn':
+      return 'text-amber-700 dark:text-amber-300'
+    default:
+      return 'text-neutral-500 dark:text-neutral-400'
   }
 }

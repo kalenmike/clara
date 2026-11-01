@@ -8,7 +8,7 @@ export function ClientsTable({ clients, now }: { clients: PanelClientInfo[]; now
     <Card>
       <CardHeader
         title="Connected clients"
-        description="Live end-to-end encrypted sessions, strongest first"
+        description="Live end-to-end encrypted sessions"
         icon={<Users className="size-4" aria-hidden="true" />}
         action={
           <Badge tone={clients.length > 0 ? 'info' : 'neutral'}>{clients.length} active</Badge>
