@@ -25,6 +25,7 @@
     "clara:serve": "pnpm --filter @clara/server exec node dist/index.js",
     "clara:control": "node scripts/control.mjs",
     "clara:pair": "pnpm --filter @clara/server exec node dist/index.js pair",
+    "clara:pair:local": "pnpm --filter @clara/server exec node dist/index.js pair --local",
     "clara:pass": "jq -r '.password' $HOME/.local/state/opencode/service.json"
   },
   "devDependencies": {

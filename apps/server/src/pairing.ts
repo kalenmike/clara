@@ -9,6 +9,14 @@ import {
 } from '@clara/shared-types'
 import type { ServerConfig } from './config.ts'
 
+export type PairingOptions = {
+  /**
+   * The command asked for a local-only code. The relay is already absent from
+   * the config in that case, but the printed guidance differs.
+   */
+  local?: boolean
+}
+
 export async function createPairingPayload(config: ServerConfig): Promise<PairingPayload> {
   const relay = config.relay
   const wsUrl = relay
@@ -25,7 +33,11 @@ export async function createPairingPayload(config: ServerConfig): Promise<Pairin
   }
 }
 
-export async function printPairing(config: ServerConfig, withQr = true): Promise<PairingPayload> {
+export async function printPairing(
+  config: ServerConfig,
+  withQr = true,
+  options: PairingOptions = {}
+): Promise<PairingPayload> {
   const payload = await createPairingPayload(config)
   const url = buildPairingUrl(config.pairingBaseUrl, payload)
   const code = `${PAIRING_CODE_PREFIX}${encodePairingCode(payload)}`
@@ -37,13 +49,24 @@ export async function printPairing(config: ServerConfig, withQr = true): Promise
   console.log(`  Room:        ${payload.room}`)
   console.log(`  Fingerprint: ${payload.fingerprint}`)
   if (!config.relay) {
-    console.log('  Relay:       not configured; this code only works on the local machine.')
+    console.log(
+      options.local
+        ? '  Relay:       bypassed by --local; this code only works on the local machine.'
+        : '  Relay:       not configured; this code only works on the local machine.'
+    )
     if (!isLoopbackUrl(config.pairingBaseUrl)) {
       console.log('  Warning:     this link opens a remote page, but the code is local-only.')
-      console.log('               Set CLARA_RELAY_URL, CLARA_RELAY_ROOM, CLARA_AGENT_TOKEN, and')
-      console.log(
-        '               CLARA_CLIENT_TOKEN on the home agent, restart it, and pair again.'
-      )
+      if (options.local) {
+        console.log('               Use the code in the local app, or set')
+        console.log(
+          '               CLARA_PAIRING_BASE_URL=http://localhost:5173 to print a local link.'
+        )
+      } else {
+        console.log('               Set CLARA_RELAY_URL, CLARA_RELAY_ROOM, CLARA_AGENT_TOKEN, and')
+        console.log(
+          '               CLARA_CLIENT_TOKEN on the home agent, restart it, and pair again.'
+        )
+      }
     }
   }
   console.log('')

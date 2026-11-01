@@ -67,7 +67,7 @@ const DEFAULT_LOCAL_HOST = '127.0.0.1'
 const DEFAULT_LOCAL_PORT = 8788
 const DEFAULT_PAIRING_BASE_URL = 'https://clara.kalenmichael.com'
 
-export function loadConfig(options: { rotate?: boolean } = {}): ServerConfig {
+export function loadConfig(options: { rotate?: boolean; local?: boolean } = {}): ServerConfig {
   const configDir = process.env.CLARA_CONFIG_DIR ?? join(homedir(), '.config', 'clara')
   const configPath = join(configDir, 'server.json')
   const file = readConfig(configPath)
@@ -141,14 +141,18 @@ export function loadConfig(options: { rotate?: boolean } = {}): ServerConfig {
         ? 'file'
         : 'none'
 
-  const relay = relayUrl
-    ? {
-        url: normalizeRelayUrl(relayUrl),
-        room: relayRoom,
-        agentToken: agentToken ?? '',
-        clientToken: clientToken ?? '',
-      }
-    : undefined
+  // A local-only pairing command skips the relay entirely: it neither needs the
+  // tokens nor emits a relay room, and the local listener runs independently of
+  // the relay client on a serving agent.
+  const relay =
+    !options.local && relayUrl
+      ? {
+          url: normalizeRelayUrl(relayUrl),
+          room: relayRoom,
+          agentToken: agentToken ?? '',
+          clientToken: clientToken ?? '',
+        }
+      : undefined
 
   if (relay && (!relay.agentToken || !relay.clientToken)) {
     const missing = [

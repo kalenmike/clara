@@ -28,11 +28,15 @@ async function main(): Promise<void> {
   if (command !== 'serve' && command !== 'pair') {
     console.error(`Unknown command: ${command}`)
     console.error('Usage: clara-server [serve|pair] [--rotate] [--no-panel]')
+    console.error('       clara-server pair [--local] [--no-qr]')
     process.exitCode = 2
     return
   }
 
-  const config = loadConfig({ rotate })
+  // A local-only code is a pairing command option; serving must keep its relay
+  // config so the outbound transport still starts.
+  const localPairing = command === 'pair' && args.includes('--local')
+  const config = loadConfig({ rotate, local: localPairing })
 
   if (rotate) {
     const removed = clearPushSubscriptions(join(config.configDir, 'subscriptions.json'))
@@ -40,7 +44,7 @@ async function main(): Promise<void> {
   }
 
   if (command === 'pair') {
-    await printPairing(config, !args.includes('--no-qr'))
+    await printPairing(config, !args.includes('--no-qr'), { local: localPairing })
     return
   }
 
@@ -142,7 +146,7 @@ async function main(): Promise<void> {
   log(`pairing config: ${config.configPath}`)
   log('print a pairing code with: clara-server pair')
   if (args.includes('--pair') || args.includes('--qr')) {
-    await printPairing(config, true)
+    await printPairing(config, true, { local: localPairing })
   }
 
   let stopping = false
