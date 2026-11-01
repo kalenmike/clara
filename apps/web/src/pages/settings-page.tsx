@@ -1,5 +1,16 @@
+import { useState } from 'react'
+import { Check, ChevronDown } from 'lucide-react'
 import { PageShell } from '@/components/layout/page-shell'
+import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { AgentCard } from '@/components/settings/agent-card'
 import { AppCard } from '@/components/settings/app-card'
@@ -12,6 +23,16 @@ import { useSimplifySettings } from '@/features/settings/use-simplify-settings'
 import { useSessionWording } from '@/features/sessions/use-wording'
 import type { SessionWording } from '@/features/sessions/wording'
 import { useIsTouchDevice } from '@/hooks/use-is-touch-device'
+
+type SettingsTab = 'appearance' | 'preferences' | 'notifications' | 'shortcuts' | 'advanced'
+
+const SETTINGS_TABS: Array<{ value: SettingsTab; label: string }> = [
+  { value: 'appearance', label: 'Appearance' },
+  { value: 'preferences', label: 'Preferences' },
+  { value: 'notifications', label: 'Notifications' },
+  { value: 'shortcuts', label: 'Shortcuts' },
+  { value: 'advanced', label: 'Advanced' },
+]
 
 function shortcutList(wording: SessionWording): Array<[string, string]> {
   return [
@@ -38,7 +59,12 @@ export function SettingsPage() {
   const isTouchDevice = useIsTouchDevice()
   const { simplified } = useSimplifySettings()
   const wording = useSessionWording()
+  const [tab, setTab] = useState<SettingsTab>('appearance')
   const shortcuts = isTouchDevice ? [] : shortcutList(wording)
+  const tabs = isTouchDevice
+    ? SETTINGS_TABS.filter((item) => item.value !== 'shortcuts')
+    : SETTINGS_TABS
+  const activeTab = tabs.find((item) => item.value === tab) ?? SETTINGS_TABS[0]
 
   return (
     <PageShell
@@ -46,16 +72,49 @@ export function SettingsPage() {
       description={`Appearance, preferences, notifications,${isTouchDevice ? '' : ' shortcuts,'} and advanced options.`}
       actions={<SettingsFilter />}
     >
-      <Tabs defaultValue="appearance" className="gap-4">
-        <div className="-mx-1 overflow-x-auto px-1">
-          <TabsList className="w-full min-w-max">
-            <TabsTrigger value="appearance">Appearance</TabsTrigger>
-            <TabsTrigger value="preferences">Preferences</TabsTrigger>
-            <TabsTrigger value="notifications">Notifications</TabsTrigger>
-            {!isTouchDevice && <TabsTrigger value="shortcuts">Shortcuts</TabsTrigger>}
-            <TabsTrigger value="advanced">Advanced</TabsTrigger>
-          </TabsList>
-        </div>
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <Button
+            variant="outline"
+            className="w-full justify-between md:hidden"
+            aria-label={`Settings section: ${activeTab.label}`}
+          >
+            {activeTab.label}
+            <ChevronDown className="size-4" />
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="start">
+          <DropdownMenuLabel>Settings sections</DropdownMenuLabel>
+          <DropdownMenuSeparator />
+          {tabs.map((item) => {
+            const active = item.value === activeTab.value
+            return (
+              <DropdownMenuItem
+                key={item.value}
+                onSelect={() => setTab(item.value)}
+                aria-current={active ? 'page' : undefined}
+                className={active ? 'bg-accent text-accent-foreground' : undefined}
+              >
+                {item.label}
+                {active && <Check className="ml-auto size-4" />}
+              </DropdownMenuItem>
+            )
+          })}
+        </DropdownMenuContent>
+      </DropdownMenu>
+
+      <Tabs
+        value={activeTab.value}
+        onValueChange={(value) => setTab(value as SettingsTab)}
+        className="gap-4"
+      >
+        <TabsList className="hidden md:inline-flex">
+          {tabs.map((item) => (
+            <TabsTrigger key={item.value} value={item.value}>
+              {item.label}
+            </TabsTrigger>
+          ))}
+        </TabsList>
 
         <TabsContent value="appearance" className="space-y-4">
           <ThemeCard />
