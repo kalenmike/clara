@@ -2,9 +2,10 @@
 
 ## Summary
 
-Settings groups every Clara preference into five tabs: Appearance, Preferences,
-Notifications, Shortcuts, and Advanced. A device-local simplify switch keeps the
-common controls in view and hides the detail rows that most people leave alone.
+Settings groups every Clara preference into six tabs: Appearance, Preferences,
+Notifications, Sync, Shortcuts, and Advanced. A device-local simplify switch
+keeps the common controls in view and hides the detail rows that most people
+leave alone.
 
 ## User flow
 
@@ -12,9 +13,10 @@ common controls in view and hides the detail rows that most people leave alone.
 2. The page opens on **Appearance**, where the light/dark/system mode and color
    theme live.
 3. Use the tabs to reach **Preferences** for session wording and the default
-   agent, **Notifications** for alerts and sounds, **Shortcuts** for the
-   keyboard reference, and **Advanced** for the server connection and app build.
-   On narrow screens the tab strip becomes a section menu.
+   agent, **Notifications** for alerts and sounds, **Sync** for per-category
+   settings sync, **Shortcuts** for the keyboard reference, and **Advanced** for
+   the server connection and app build. On narrow screens the tab strip becomes
+   a section menu.
 4. Press the filter icon in the header to open **Filter settings**.
 5. **Simplify settings** is on by default. Turn it off to see the full page.
 6. With it on, the Notifications card shows one Inbox sounds switch instead of
@@ -23,7 +25,10 @@ common controls in view and hides the detail rows that most people leave alone.
    state, and cache reset.
 7. Reload Clara or open it later; the same simplify choice is restored on this
    device.
-8. The Shortcuts tab is hidden on touch-first devices, where the reference does
+8. The Sync tab is hidden when the home agent admin disables settings sync. In
+   direct HTTP mode it stays visible with an explanation that the feature needs
+   the Clara home agent.
+9. The Shortcuts tab is hidden on touch-first devices, where the reference does
    not apply.
 
 ## Core business rules
@@ -40,7 +45,10 @@ common controls in view and hides the detail rows that most people leave alone.
    hiding connection details. Simplified App keeps the version, update state,
    update action, and the clear-cache recovery action, while hiding build and
    runtime details.
-5. Every remaining control behaves the same as before. Simplification is a view
+5. The Sync tab contains category switches only. Each device stores its own
+   choices; enabling a category can pull or push values, but the tab itself is
+   never synchronized. See [sync](sync.md).
+6. Every remaining control behaves the same as before. Simplification is a view
    filter, not a second settings model.
 
 ## Edge cases
@@ -61,13 +69,15 @@ common controls in view and hides the detail rows that most people leave alone.
   simplified mode.
 - **Touch-first device** — the Shortcuts tab is absent, and the Notifications
   card keeps its existing desktop-only row rules.
+- **Sync disabled by the agent** — the Sync tab disappears and the active section
+  falls back to Appearance. Re-enabling sync makes it available again.
 - **Older stored values** — a missing or unknown simplify value counts as on;
   no migration is needed.
 
 ## Out of scope
 
-- Syncing the simplify choice or any settings between devices. Client settings
-  sync has no web UI yet.
+- Syncing the simplify choice, the Sync category choices, or the server-owned
+  sync cadence between devices.
 - Per-tab deep links or remembering the last open tab.
 - Reordering or customizing the tab set.
 - Hiding controls beyond the three simplified adjustments above.
@@ -83,9 +93,11 @@ common controls in view and hides the detail rows that most people leave alone.
   `src/features/settings/use-simplify-settings.ts`
 - Filter control: `src/components/settings/settings-filter.tsx`
 - Page and tabs: `src/pages/settings-page.tsx`
+- Sync card: `src/components/settings/sync-card.tsx`
+- Sync categories and per-client preferences: `src/features/sync/`
 - Simplified sound patch: `simplifiedInboxSoundPatch` and
   `DEFAULT_SOUND_VOLUME` in `src/features/notifications/settings.ts`
-- Related: [theme](theme.md), [notifications](notifications.md),
+- Related: [theme](theme.md), [notifications](notifications.md), [sync](sync.md),
   [shortcuts](shortcuts.md), [connection](connection.md), [install](install.md),
   [capabilities](capabilities.md)
 

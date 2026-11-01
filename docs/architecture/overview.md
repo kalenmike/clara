@@ -134,15 +134,20 @@ ConnectionProvider
   live in `~/.config/clara/vapid.json`.
 - The home agent serves `apps/panel` on a second loopback listener (default
   `127.0.0.1:8790`). It reads one allowlisted runtime snapshot, exposes guarded
-  controls for the four external features and a master stop, and never exposes
-  the PSK, secrets, sync values, or file contents. See
+  controls for the four external features, the master stop, the shell policy,
+  monitoring, and the client-sync gate and cadence, and never exposes the PSK,
+  secrets, sync values, or file contents. See
   [panel.md](../features/panel.md) and
   [agent-controls.md](../features/agent-controls.md).
-- Feature choices and the stopped flag live in a `better-sqlite3` database at
+- Feature choices, the stopped flag, shell policy, monitoring, and the
+  client-sync gate and interval live in a `better-sqlite3` database at
   `CLARA_DB_PATH` or `<config dir>/clara.db`. Desired state is persisted first;
   effective state also requires the transport to start. The same database holds
-  non-secret client settings for a future cross-device sync UI, described in
+  the non-secret client sync namespace, described in
   [sync.md](../features/sync.md).
+- The web `SettingsSyncProvider` pulls enabled categories on connect, pushes
+  debounced local edits, and checks a lightweight namespace revision on the
+  server-selected cadence. A revision match skips the full pull.
 
 ## Routing
 
@@ -152,7 +157,7 @@ ConnectionProvider
 | `/`                          | Start view; creates a session and opens its draft composer |
 | `/p/:projectId`              | Project details and session grid                           |
 | `/p/:projectId/s/:sessionId` | Chat                                                       |
-| `/settings`                  | Connection, appearance, notifications, shortcuts           |
+| `/settings`                  | Appearance, preferences, notifications, sync, shortcuts    |
 
 The start view is reused inside `/p/:projectId/s/:sessionId` when the session has
 no messages. Its action opens the reply window in the last-used size (expanded by

@@ -57,9 +57,12 @@ broadcast frames:
 
 - Actions (browser → agent): `http.request`, `http.abort`, `ping`, `pong`,
   `ready`, `ready.ack`, `push.subscribe`, `push.unsubscribe`, `push.test`,
-  `sync.pull`, `sync.push`.
+  `sync.check`, `sync.pull`, `sync.push`.
 - States (agent → browser): `http.response`, `http.chunk`, `http.end`,
-  `http.error`, `agent.status`, `push.status`, `sync.snapshot`, `sync.error`.
+  `http.error`, `agent.status`, `push.status`, `sync.revision`,
+  `sync.snapshot`, `sync.error`.
+- `agent.status` also carries the current agent info when an admin changes the
+  client-sync gate or cadence, so connected clients update without reconnecting.
 
 The agent refuses paths outside `/api/`, strips hop-by-hop headers, adds OpenCode
 basic auth, and prevents origin changes. The browser never receives the OpenCode

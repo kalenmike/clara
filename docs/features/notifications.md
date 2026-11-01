@@ -88,6 +88,10 @@ sidebar.
 11. Toasts show no close control. Clicking or tapping anywhere on the toast
     dismisses it, on desktop and touch alike; the surface keeps auto-dismiss
     timing and swipe-away.
+12. Optional settings sync shares sound and alert preferences only:
+    Inbox sounds, UI sounds, volume, per-state switches, and the desk idle
+    window. Browser notification permission, the desktop switch, and this
+    device's push subscription stay local. See [sync](sync.md).
 
 ## Edge cases
 
@@ -174,6 +178,8 @@ sidebar.
 - Push notifications in direct HTTP mode.
 - Per-project or per-kind push filters; all four attention states share the push
   switch.
+- Syncing browser notification permission, the desktop switch, or a device's
+  push subscription through client settings sync.
 - Cross-tab de-duplication beyond the visible-window rule.
 - A manual "send to phone" override, a per-device push list, or manual device
   roles; holding is automatic and keyed on the desktop idle window.

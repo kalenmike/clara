@@ -7,8 +7,8 @@ agent's live state, transports, connected clients, OpenCode probe, push health,
 configuration sources, database health, storage files, and a live traffic meter
 without exposing secrets. It also lets the person at the machine switch external
 connections on and off, stop the agent without stopping the process, decide
-which shell commands a Clara client may relay to OpenCode, and turn traffic
-monitoring on or off.
+which shell commands a Clara client may relay to OpenCode, turn traffic
+monitoring on or off, and gate or pace client settings sync.
 
 ## User flow
 
@@ -21,9 +21,9 @@ monitoring on or off.
 3. The **Agent**, **Effective configuration**, **Connected clients**, and
    **Recent activity** cards start expanded. Every other card starts collapsed.
    Review the headers for the agent process, OpenCode, local transport, relay,
-   push, effective configuration, clients, activity, shell policy, and storage.
-   Status chips sit beside each card title, including a storage health summary
-   that turns amber for warnings and red for errors.
+   push, client sync, effective configuration, clients, activity, shell policy,
+   and storage. Status chips sit beside each card title, including a storage
+   health summary that turns amber for warnings and red for errors.
 4. Click a card header to expand or collapse its contents. Cards with a feature
    switch can only be expanded while that feature is enabled; open the header
    again to collapse it.
@@ -56,7 +56,11 @@ monitoring on or off.
     collapses to its header, the counters are discarded, and the client table
     drops its traffic columns. Turning it back on starts a fresh window with a
     one-minute warm-up. The switch stays usable while the agent is stopped.
-12. Leave the page open. It refreshes every five seconds while visible and
+12. In **Client sync**, turn settings sync on or off for every paired client, and
+    choose the interval at which those clients check for changes. Turning it off
+    hides the web Sync tab and rejects sync requests; the stored namespace and
+    each device's category choices remain. The interval defaults to 30 seconds.
+13. Leave the page open. It refreshes every five seconds while visible and
     pauses when the tab is hidden. Use **Refresh** for an immediate check.
 
 ## Core business rules
@@ -66,8 +70,9 @@ monitoring on or off.
    the panel. It is never served through the relay or the Pages deployment.
 2. **Reads are open to loopback; writes are narrow.** `GET` and `HEAD` serve the
    snapshot and assets. `POST` is accepted only at
-   `/panel/api/v1/features`, `/panel/api/v1/agent`, `/panel/api/v1/shell`, and
-   `/panel/api/v1/monitoring`; every other mutating method returns `405`.
+   `/panel/api/v1/features`, `/panel/api/v1/agent`, `/panel/api/v1/shell`,
+   `/panel/api/v1/monitoring`, and `/panel/api/v1/sync`; every other mutating
+   method returns `405`.
 3. **Secrets stay out.** The snapshot is built from an explicit allowlist. The
    PSK, pairing code, OpenCode password, relay tokens, push endpoints, sync
    values, and file contents are never returned. The PSK fingerprint, token
@@ -78,9 +83,10 @@ monitoring on or off.
    fields, and cap the body at 8 KB. The custom header forces a CORS preflight
    for cross-origin pages, which the server rejects. No CORS headers are sent.
 5. **Settings are durable.** Feature choices, the stopped flag, the shell
-   policy, and the monitoring choice live in the agent's SQLite database and are
-   loaded before any transport starts. The panel can fail without stopping the
-   agent; a busy panel port only loses the panel.
+   policy, the monitoring choice, and the client-sync gate and interval live in
+   the agent's SQLite database and are loaded before any transport starts. The
+   panel can fail without stopping the agent; a busy panel port only loses the
+   panel.
 6. **The shell policy is read per request.** The agent consults it before
    forwarding a command request, so Apply takes effect on the next command
    without a restart. `off` refuses them all. `allowlist` with an empty filter
@@ -117,6 +123,11 @@ monitoring on or off.
 - **Push is off or unavailable** — the card shows the saved choice, the
   effective state, the startup error, and the subscription count. Existing
   subscriptions are kept.
+- **Client sync is off** — the web Sync tab disappears, sync actions return
+  `disabled`, and the stored namespace and per-device category choices are kept
+  for the next enable.
+- **Sync interval changes** — connected clients receive the new cadence in an
+  agent-info update and reschedule their next check without reconnecting.
 - **The agent is stopped** — a banner says external connections are off, every
   transport card shows a stopped state, and feature switches are disabled. The
   shell toggle and draft stay editable.
@@ -162,7 +173,8 @@ monitoring on or off.
 - Rate limiting, blocking, or alerts driven by the traffic meter
 - Historical metrics beyond the sixty-minute window, persisted logs, or an audit
   trail
-- A sync settings page (server storage exists, the web UI does not)
+- Reading, editing, or deleting individual synced values or namespaces from the
+  panel; it controls only the global gate and cadence
 
 ## Known gaps
 
@@ -187,12 +199,13 @@ monitoring on or off.
 
 - Panel listener: `127.0.0.1:8790` by default
 - Page: `GET /`
-- Read API: `GET /panel/api/v1/status` (API version `4`)
+- Read API: `GET /panel/api/v1/status` (API version `5`)
 - Mutations:
   - `POST /panel/api/v1/features` with `{ "feature": "...", "enabled": true }`
   - `POST /panel/api/v1/agent` with `{ "stopped": true }`
   - `POST /panel/api/v1/shell` with `{ "mode": "off" | "allowlist", "commands": ["git log"] }`
   - `POST /panel/api/v1/monitoring` with `{ "enabled": false }`
+  - `POST /panel/api/v1/sync` with `{ "enabled": true, "intervalMs": 30000 }`
 - Required mutation headers: `content-type: application/json`,
   `x-clara-panel: 1`
 - Assets: `GET /assets/<hashed file>` and `GET /favicon.svg`
@@ -209,7 +222,8 @@ monitoring on or off.
 - Dev UI: `pnpm dev:panel` (Vite on `5174`, proxying `/panel/api` to `8790`; the
   proxy rewrites `Host` and `Origin` so guarded mutations pass)
 - Snapshot sections: agent, config, OpenCode, local transport, relay, clients,
-  push, controls, storage, events, traffic
+  push, controls (feature switches, shell, monitoring, sync), storage, events,
+  traffic
 - Shell policy: `apps/server/src/shell-policy.ts` (matching, validation, and the
   `403` decision), `apps/server/src/agent.ts` (enforcement), and the
   `ShellPolicyCard` in `apps/panel/src/components/shell-policy-card.tsx`
@@ -219,14 +233,16 @@ monitoring on or off.
   `apps/panel/src/components/traffic-card.tsx`
 - Panel controls: per-card switches in
   `apps/panel/src/components/overview-cards.tsx`, the stop/start action in
-  `AgentCard`, the monitoring switch in `TrafficCard`, and `useFeatureControl`
-  in `apps/panel/src/lib/feature-control.ts`
+  `AgentCard`, the monitoring switch in `TrafficCard`, the gate and interval in
+  `apps/panel/src/components/client-sync-card.tsx`, and `useFeatureControl` in
+  `apps/panel/src/lib/feature-control.ts`
 - Policy storage: `shell.mode` and `shell.commands` in the settings table,
-  added by database migration `2`; `monitoring.enabled`, added by migration `3`
+  added by database migration `2`; `monitoring.enabled`, added by migration `3`;
+  `sync.enabled` and `sync.intervalMs`, added by migration `4`
 - Database health: path, existence, mode, bytes, schema version, client-sync
   counts and bytes (never values)
 - Guards: loopback remote address, `Host`, `Origin`, `Sec-Fetch-Site`,
-  `GET`/`HEAD` reads, four guarded `POST` routes, path allowlist, CSP,
+  `GET`/`HEAD` reads, five guarded `POST` routes, path allowlist, CSP,
   `no-store`, no CORS
 - Related: [agent-controls.md](agent-controls.md), [git.md](git.md),
   [sync.md](sync.md), [overview.md](../architecture/overview.md),

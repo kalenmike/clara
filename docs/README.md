@@ -43,7 +43,7 @@ here, it is not part of the canonical set.
 | [pairing.md](features/pairing.md)               | You are working on QR/code pairing, device storage, or key rotation      |
 | [panel.md](features/panel.md)                   | You are working on the local agent dashboard                             |
 | [agent-controls.md](features/agent-controls.md) | You are working on feature toggles or the master stop control            |
-| [sync.md](features/sync.md)                     | You are working on client settings storage or the sync protocol          |
+| [sync.md](features/sync.md)                     | You are working on client settings sync, its protocol, or the Sync tab   |
 | [sessions.md](features/sessions.md)             | You are working on the project/session browser                           |
 | [chat.md](features/chat.md)                     | You are working on messages, streaming, tools, or permissions            |
 | [fork.md](features/fork.md)                     | You are working on forking a session or forwarding a message             |

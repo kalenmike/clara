@@ -5,7 +5,8 @@
 The home agent can be stopped, and its external connections switched on or
 off, from the loopback panel without editing files or restarting the service.
 The process, panel, and database stay available so the agent can always be
-started again.
+started again. The panel also owns the global gate and check cadence for client
+settings sync.
 
 ## User flow
 
@@ -22,13 +23,17 @@ started again.
 5. Read the **Desired** and **Effective** values on the switch and on the
    matching transport card. A failed start shows an error instead of pretending
    the feature works.
-6. Choose **Stop agent** at the top right of the **Agent** card and confirm. All
+6. In **Client sync**, turn settings sync on or off and choose the client check
+   interval. Turning it off hides the web Sync tab and rejects sync requests;
+   stored values and per-device category choices are kept.
+7. Choose **Stop agent** at the top right of the **Agent** card and confirm. All
    external connections close, the E2EE sessions are reset, and the page shows
    the stopped banner.
-7. While stopped, feature switches are disabled. Choose **Start agent** in the
+8. While stopped, feature switches are disabled. Choose **Start agent** in the
    same place to restore every saved on/off choice, including features that were
-   off before the stop.
-8. Restart the process at any time; the saved choices and the stopped state are
+   off before the stop. The shell policy, monitoring, and client-sync controls
+   stay editable because they do not start a transport.
+9. Restart the process at any time; the saved choices and the stopped state are
    loaded before any transport starts.
 
 ## Core business rules
@@ -53,7 +58,9 @@ started again.
    opens from its header. A disabled feature hides its details and cannot be
    opened; the header keeps the switch and status chip. The shell card is
    expandable while its switch is on, and the switch stays amber until Apply
-   saves the draft.
+   saves the draft. The client-sync card keeps its interval select editable even
+   while the global sync gate is off, so the cadence can be prepared before sync
+   is enabled.
 
 ## Edge cases
 
@@ -61,7 +68,8 @@ started again.
   agent was stopped by an admin setting, and every transport stays off.
 - **Feature change while stopped** — the panel disables the feature switches,
   the API returns `409`, and enabled cards remain readable; the saved choices
-  cannot drift while the agent is off. The separate shell policy stays editable.
+  cannot drift while the agent is off. The separate shell policy, monitoring, and
+  client-sync controls stay editable.
 - **Local port busy** — the saved local setting stays on, the listener reports
   `effective: false`, and retrying after the port is free starts a fresh
   listener.
@@ -102,11 +110,13 @@ started again.
 
 - Settings file: `CLARA_DB_PATH` or `<CLARA_CONFIG_DIR>/clara.db` (mode `0600`)
 - Settings keys: `features.opencode`, `features.local`, `features.relay`,
-  `features.push`, `agent.stopped`, plus `shell.mode` and `shell.commands` for
-  the separate shell policy
+  `features.push`, `agent.stopped`, `shell.mode` and `shell.commands` for the
+  separate shell policy, `monitoring.enabled`, and `sync.enabled` plus
+  `sync.intervalMs` for client settings sync
 - Read API: `GET /panel/api/v1/status`
-- Mutations: `POST /panel/api/v1/features`, `POST /panel/api/v1/agent`, and
-  `POST /panel/api/v1/shell`
+- Mutations: `POST /panel/api/v1/features`, `POST /panel/api/v1/agent`,
+  `POST /panel/api/v1/shell`, `POST /panel/api/v1/monitoring`, and
+  `POST /panel/api/v1/sync`
 - Mutation guards: loopback, `Host`, `Origin`, `Sec-Fetch-Site`,
   `content-type: application/json`, `x-clara-panel: 1`, 8 KB body limit,
   no unknown fields, no CORS headers

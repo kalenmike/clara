@@ -30,7 +30,8 @@ taste without giving up automatic appearance changes.
    existing users see no change until they choose another theme.
 3. The color theme is stored locally in `clara.colorTheme`; the mode remains
    stored under `clara.theme` by `next-themes`. Neither is sent to the OpenCode
-   server.
+   server. When **Theme** sync is enabled on this device, the Clara home agent
+   stores both keys and its values win on a pull; see [sync](sync.md).
 4. The selected palette is applied as `data-theme` on the document root, while
    the mode is applied as the existing `.dark` class. Theme tokens are CSS
    custom properties, so choosing a theme does not remount the app.
@@ -67,7 +68,9 @@ taste without giving up automatic appearance changes.
 
 - A theme editor or user-defined palettes.
 - Per-project, per-session, or per-agent themes.
-- Syncing appearance settings to the OpenCode server or across devices.
+- Syncing appearance settings to the OpenCode server. Cross-device sharing is
+  available only through the optional Clara settings sync described in
+  [sync](sync.md).
 - Importing VS Code, Neovim, or terminal color schemes.
 - Theming the pair terminal, diff colors, or non-notification semantic status
   colors.
@@ -94,7 +97,8 @@ taste without giving up automatic appearance changes.
 - Palette CSS: `src/styles/color-themes.css`, imported by `src/index.css`
 - Default palette: `:root` and `.dark` in `src/index.css`
 - Mode provider: `src/providers/theme-provider.tsx` (wraps `next-themes`)
-- Storage keys: `clara.theme` (mode), `clara.colorTheme` (palette)
+- Storage keys: `clara.theme` (mode), `clara.colorTheme` (palette); both are
+  eligible for optional client settings sync
 - Root markers: `class="dark"` (mode), `data-theme="<value>"` (palette)
 - Theme values: `default`, `solarized`, `tokyo-night`, `gruvbox`, `nord`,
   `rose-pine`, `catppuccin`, `clara`
