@@ -42,7 +42,7 @@ const DONE_MOTIF: Note[] = [
 ]
 
 /** Two soft hammer taps, then a rising arpeggio that resolves bright. */
-const BUILD_MOTIF: Note[] = [
+const START_WORK_MOTIF: Note[] = [
   { frequency: 130.81, start: 0, duration: 0.1, type: 'square', gain: 0.35 },
   { frequency: 196, start: 0.09, duration: 0.1, type: 'square', gain: 0.3 },
   { frequency: 392, start: 0.18, duration: 0.14, type: 'triangle', gain: 0.7 },
@@ -159,7 +159,7 @@ export function playDoneSound(volume: number): void {
   playMotif(DONE_MOTIF, volume)
 }
 
-/** Play the build chime when a plan hands off to the Build agent. */
-export function playBuildSound(volume: number): void {
-  playMotif(BUILD_MOTIF, volume)
+/** Play the start-work chime when a plan hands off to work. */
+export function playStartWorkSound(volume: number): void {
+  playMotif(START_WORK_MOTIF, volume)
 }

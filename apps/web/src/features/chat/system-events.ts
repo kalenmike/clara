@@ -17,7 +17,7 @@ export type SystemEvent = {
 const CLARA_LABELS: Record<ClaraEventKind, string> = {
   'plan-request': 'Requested a plan',
   'plan-update': 'Requested a plan update',
-  'build-start': 'Started build',
+  'build-start': 'Started work',
 }
 
 /**

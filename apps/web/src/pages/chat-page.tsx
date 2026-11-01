@@ -227,7 +227,7 @@ export function ChatPage() {
     },
     [sessionId]
   )
-  const steerFromPlan = useCallback(() => {
+  const adjustFromPlan = useCallback(() => {
     setReplyOpen(true)
     window.dispatchEvent(new Event('clara:open-reply'))
   }, [])
@@ -404,8 +404,8 @@ export function ChatPage() {
           <PlanReadyPanel
             key={planReady.id}
             sessionID={sessionId}
-            onSteer={steerFromPlan}
-            onBuild={advanceInbox}
+            onAdjustPlan={adjustFromPlan}
+            onStartWork={advanceInbox}
           />
         )}
 
