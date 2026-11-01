@@ -326,4 +326,76 @@ describe('agent', () => {
       await fake.close()
     }
   })
+
+  it('rejects proxying and push when the runtime policy disables them', async () => {
+    const fake = await startFakeOpenCode()
+    try {
+      const psk = generatePsk()
+      const sid = 'policy-session'
+      const clientNonce = bytesToBase64Url(randomBytes(16))
+      const frames: WireFrame[] = []
+      const agent = new Agent({
+        openCode: new OpenCodeClient(fake.url),
+        psk,
+        info: { version: 'test', protocol: PROTOCOL_VERSION },
+        send: (frame) => frames.push(frame),
+        policy: { canProxy: () => false, canPush: () => false },
+      })
+      agents.push(agent)
+      agent.handleMessage(
+        JSON.stringify({
+          t: 'hello',
+          v: PROTOCOL_VERSION,
+          sid,
+          nonce: clientNonce,
+          role: 'client',
+        })
+      )
+      const hello = await waitFor(() => frames.find((frame) => frame.t === 'hello'))
+      if (hello.t !== 'hello') throw new Error('No hello frame')
+      const keys = await deriveSessionKeys({
+        psk,
+        sid,
+        clientNonce,
+        agentNonce: hello.nonce,
+      })
+      const client: Client = { sid, keys, sendSeq: 0, receiveSeq: 0 }
+      await waitFor(() => (frames.length >= 2 ? true : undefined))
+
+      await send(client, agent, {
+        type: 'http.request',
+        id: 'disabled-1',
+        method: 'GET',
+        path: '/api/info',
+      })
+      const states = await waitFor(async () => {
+        const parsed = await readStates(client, frames)
+        return parsed.some((state) => state.type === 'http.error') ? parsed : undefined
+      })
+      expect(states).toContainEqual({
+        type: 'http.error',
+        id: 'disabled-1',
+        code: 'disabled',
+        message: 'OpenCode access is disabled by an admin setting',
+      })
+
+      await send(client, agent, {
+        type: 'push.test',
+        id: 'push-disabled',
+      })
+      const pushStates = await waitFor(async () => {
+        const parsed = await readStates(client, frames)
+        return parsed.some((state) => state.type === 'push.status') ? parsed : undefined
+      })
+      expect(pushStates).toContainEqual({
+        type: 'push.status',
+        id: 'push-disabled',
+        subscribed: false,
+        tested: true,
+        error: 'Push notifications are disabled by an admin setting',
+      })
+    } finally {
+      await fake.close()
+    }
+  })
 })
