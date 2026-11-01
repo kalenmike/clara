@@ -181,11 +181,15 @@ export default defineConfig(({ command }) => ({
           },
         ],
       },
-      workbox: {
-        navigateFallback: 'index.html',
+      strategies: 'injectManifest',
+      // The plugin locates the custom worker as `<srcDir>/<filename>`.
+      srcDir: 'src',
+      filename: 'sw.ts',
+      injectManifest: {
         globPatterns: ['**/*.{js,css,html,svg,png,woff2}'],
-        runtimeCaching: [],
-        importScripts: ['push-sw.js'],
+        // A classic worker keeps `importScripts` available and avoids module
+        // service worker support gaps on iOS.
+        rollupFormat: 'iife',
       },
     }),
   ],
