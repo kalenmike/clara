@@ -56,9 +56,7 @@ describe('unsnoozeSessionOnEngage', () => {
     vi.mocked(client.session.update).mockRejectedValueOnce(new Error('offline'))
     vi.stubGlobal('window', { localStorage: { getItem: () => null } })
 
-    await expect(
-      unsnoozeSessionOnEngage(client, queryClient, 'ses_1')
-    ).resolves.toBeUndefined()
+    await expect(unsnoozeSessionOnEngage(client, queryClient, 'ses_1')).resolves.toBeUndefined()
     expect(queryClient.setQueryData).not.toHaveBeenCalled()
     vi.unstubAllGlobals()
   })

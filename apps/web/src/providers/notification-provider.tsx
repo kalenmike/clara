@@ -11,10 +11,7 @@ import {
   readNotificationPermission,
   showDesktopNotification,
 } from '@/features/notifications/notifier'
-import {
-  loadSessionAttention,
-  resolveProjectID,
-} from '@/features/notifications/session-attention'
+import { loadSessionAttention, resolveProjectID } from '@/features/notifications/session-attention'
 import { isPushActive } from '@/features/notifications/push'
 import { readNotificationSettings } from '@/features/notifications/settings'
 import { ensureSoundUnlock, playAttentionSound } from '@/features/notifications/sounds'
