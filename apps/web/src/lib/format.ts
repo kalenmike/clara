@@ -39,6 +39,20 @@ export function formatDateTime(timestamp: number | undefined): string {
   })
 }
 
+/** Commit dates can be older than a year, so keep the year in view. */
+export function formatCommitDate(value: string | undefined): string {
+  if (!value) return 'unknown'
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return value
+  return date.toLocaleString(undefined, {
+    year: 'numeric',
+    month: 'short',
+    day: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  })
+}
+
 export function formatDuration(start: number, end?: number): string {
   if (!end) return 'running'
   const ms = Math.max(0, end - start)

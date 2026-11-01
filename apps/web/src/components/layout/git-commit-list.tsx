@@ -3,6 +3,7 @@ import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
 import { shellFailure, useGitCommits } from '@/features/git/use-git'
 import { errorMessage } from '@/lib/errors'
+import { GitCommitRow } from './git-commit-row'
 import { GitPanelMessage } from './git-panel-parts'
 
 /** Recent commits from the session's own directory, via the host agent. */
@@ -78,14 +79,7 @@ export function GitCommitList({ directory }: { directory: string }) {
   return (
     <ul className="space-y-1.5">
       {commits.map((commit) => (
-        <li key={commit.hash} className="flex items-start gap-1.5">
-          <span className="shrink-0 font-mono text-[10px] text-muted-foreground">
-            {commit.hash.slice(0, 7)}
-          </span>
-          <span className="min-w-0 truncate text-[10px]" title={commit.subject}>
-            {commit.subject}
-          </span>
-        </li>
+        <GitCommitRow key={commit.hash} commit={commit} />
       ))}
     </ul>
   )
