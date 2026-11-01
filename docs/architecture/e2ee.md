@@ -56,9 +56,10 @@ broadcast frames:
 `packages/shared-types` defines the payload unions:
 
 - Actions (browser → agent): `http.request`, `http.abort`, `ping`, `pong`,
-  `ready`, `ready.ack`, `push.subscribe`, `push.unsubscribe`, `push.test`.
+  `ready`, `ready.ack`, `push.subscribe`, `push.unsubscribe`, `push.test`,
+  `sync.pull`, `sync.push`.
 - States (agent → browser): `http.response`, `http.chunk`, `http.end`,
-  `http.error`, `agent.status`, `push.status`.
+  `http.error`, `agent.status`, `push.status`, `sync.snapshot`, `sync.error`.
 
 The agent refuses paths outside `/api/`, strips hop-by-hop headers, adds OpenCode
 basic auth, and prevents origin changes. The browser never receives the OpenCode

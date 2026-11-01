@@ -35,20 +35,22 @@ here, it is not part of the canonical set.
 
 ### Features
 
-| Document                                      | Read when…                                                               |
-| --------------------------------------------- | ------------------------------------------------------------------------ |
-| [capabilities.md](features/capabilities.md)   | You need to know what ships, what is partial, or what is missing         |
-| [install.md](features/install.md)             | You are working on install, updates, caching, or offline behavior        |
-| [connection.md](features/connection.md)       | You are working on connecting Clara to an OpenCode server                |
-| [pairing.md](features/pairing.md)             | You are working on QR/code pairing, device storage, or key rotation      |
-| [panel.md](features/panel.md)                 | You are working on the local read-only agent dashboard                   |
-| [sessions.md](features/sessions.md)           | You are working on the project/session browser                           |
-| [chat.md](features/chat.md)                   | You are working on messages, streaming, tools, or permissions            |
-| [fork.md](features/fork.md)                   | You are working on forking a session or forwarding a message             |
-| [pair-terminal.md](features/pair-terminal.md) | You are working on the read-only terminal that follows a running session |
-| [composer.md](features/composer.md)           | You are working on the reply window, commands, mentions, or attachments  |
-| [session-info.md](features/session-info.md)   | You are working on cost, tokens, context, or message counts              |
-| [notifications.md](features/notifications.md) | You are working on Inbox alerts, desktop notifications, or alert sounds  |
-| [theme.md](features/theme.md)                 | You are working on appearance, color themes, or light/dark mode          |
-| [git.md](features/git.md)                     | You are working on the branch and change summary in the right panel      |
-| [shortcuts.md](features/shortcuts.md)         | You are working on keyboard behavior                                     |
+| Document                                        | Read when…                                                               |
+| ----------------------------------------------- | ------------------------------------------------------------------------ |
+| [capabilities.md](features/capabilities.md)     | You need to know what ships, what is partial, or what is missing         |
+| [install.md](features/install.md)               | You are working on install, updates, caching, or offline behavior        |
+| [connection.md](features/connection.md)         | You are working on connecting Clara to an OpenCode server                |
+| [pairing.md](features/pairing.md)               | You are working on QR/code pairing, device storage, or key rotation      |
+| [panel.md](features/panel.md)                   | You are working on the local agent dashboard                             |
+| [agent-controls.md](features/agent-controls.md) | You are working on feature toggles or the master stop control            |
+| [sync.md](features/sync.md)                     | You are working on client settings storage or the sync protocol          |
+| [sessions.md](features/sessions.md)             | You are working on the project/session browser                           |
+| [chat.md](features/chat.md)                     | You are working on messages, streaming, tools, or permissions            |
+| [fork.md](features/fork.md)                     | You are working on forking a session or forwarding a message             |
+| [pair-terminal.md](features/pair-terminal.md)   | You are working on the read-only terminal that follows a running session |
+| [composer.md](features/composer.md)             | You are working on the reply window, commands, mentions, or attachments  |
+| [session-info.md](features/session-info.md)     | You are working on cost, tokens, context, or message counts              |
+| [notifications.md](features/notifications.md)   | You are working on Inbox alerts, desktop notifications, or alert sounds  |
+| [theme.md](features/theme.md)                   | You are working on appearance, color themes, or light/dark mode          |
+| [git.md](features/git.md)                       | You are working on the branch and change summary in the right panel      |
+| [shortcuts.md](features/shortcuts.md)           | You are working on keyboard behavior                                     |

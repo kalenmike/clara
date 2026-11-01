@@ -39,7 +39,7 @@ browser-safe, so Clara uses the browser client from the same family.
 ```text
 apps/
   web/                 React SPA, deployed to Cloudflare Pages
-  panel/               Read-only loopback dashboard served by the home agent
+  panel/               Loopback dashboard and admin controls served by the home agent
   server/              Node home agent, outbound relay client, local WS listener
 packages/
   shared-types/        Wire frames, actions, states, pairing payloads
@@ -64,7 +64,7 @@ Clara home agent ──outbound WSS──▶ Worker ──▶ RelayRoom DO ◀�
 
 Local mode: web ──WSS──▶ home agent ──▶ OpenCode
 Direct mode: web ──HTTP/SSE──▶ OpenCode (legacy / operator-managed)
-Panel: browser ──HTTP 127.0.0.1:8790──▶ home agent (read-only)
+Panel: browser ──HTTP 127.0.0.1:8790──▶ home agent (status + controls)
 ```
 
 The relay forwards opaque frames. It does not parse, store, or replay payloads.
@@ -133,9 +133,16 @@ ConnectionProvider
   Web Push subscriptions at `~/.config/clara/subscriptions.json`. VAPID keys
   live in `~/.config/clara/vapid.json`.
 - The home agent serves `apps/panel` on a second loopback listener (default
-  `127.0.0.1:8790`). It reads one allowlisted runtime snapshot; it does not
-  proxy OpenCode, expose the PSK, or write settings in v1. See
-  [panel.md](../features/panel.md).
+  `127.0.0.1:8790`). It reads one allowlisted runtime snapshot, exposes guarded
+  controls for the four external features and a master stop, and never exposes
+  the PSK, secrets, sync values, or file contents. See
+  [panel.md](../features/panel.md) and
+  [agent-controls.md](../features/agent-controls.md).
+- Feature choices and the stopped flag live in a `better-sqlite3` database at
+  `CLARA_DB_PATH` or `<config dir>/clara.db`. Desired state is persisted first;
+  effective state also requires the transport to start. The same database holds
+  non-secret client settings for a future cross-device sync UI, described in
+  [sync.md](../features/sync.md).
 
 ## Routing
 
@@ -199,6 +206,7 @@ re-subscribes through the transport.
 
 - Never commit `service.json`, passwords, pairing codes, PSKs, or relay tokens.
 - The home agent's config is `~/.config/clara/server.json` (mode `0600`).
+  Settings and non-secret client sync data live in `clara.db` (mode `0600`).
   `vapid.json` and `subscriptions.json` use the same directory and mode.
 - The relay sees metadata only; all payloads are E2EE. Web Push payloads use
   Web Push encryption to the browser subscription, not Clara's PSK envelope.
@@ -208,10 +216,10 @@ re-subscribes through the transport.
 - The Worker uses separate agent/client tokens so a paired client cannot
   impersonate the home agent.
 - The agent panel is loopback-only and independent of `CLARA_LOCAL_HOST`. It
-  checks the socket address, `Host`, `Origin`, and fetch metadata, allows only
-  `GET`/`HEAD`, and never returns the PSK, password, tokens, push endpoints, or
-  file contents. Loopback is not user isolation; v1 assumes a single-user
-  machine.
+  checks the socket address, `Host`, `Origin`, and fetch metadata, allows
+  `GET`/`HEAD` reads plus two guarded `POST` control routes, and never returns
+  the PSK, password, tokens, push endpoints, sync values, or file contents.
+  Loopback is not user isolation; the panel assumes a single-user machine.
 
 ## Related
 

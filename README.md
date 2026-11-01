@@ -17,7 +17,7 @@ Cloudflare relay, or connect directly on a trusted network.
 
 ```text
 apps/web              React/Vite SPA, deployed to Cloudflare Pages
-apps/panel            Read-only loopback dashboard served by the home agent
+apps/panel            Loopback dashboard and admin controls served by the home agent
 apps/server           Node home agent, local WS + outbound relay
 packages/shared-types Wire frames, actions, states, pairing payloads
 packages/crypto       PSK derivation, AES-GCM envelopes, replay guard
@@ -41,8 +41,8 @@ ${XDG_STATE_HOME:-~/.local/state}/opencode/service.json
 
 ### Agent panel
 
-The home agent serves a read-only dashboard on its own loopback listener. In
-development, run the API and the panel separately:
+The home agent serves a loopback dashboard and control surface on its own
+listener. In development, run the API and the panel separately:
 
 ```bash
 pnpm dev:server
@@ -51,9 +51,13 @@ pnpm dev:panel   # http://localhost:5174
 
 In a production build, the panel ships inside the agent and is available at
 <http://127.0.0.1:8790> after `pnpm build` and `pnpm clara:serve`. It is
-loopback-only, never routed through the relay, and shows no PSK, OpenCode
-password, relay tokens, push endpoints, or file contents. See
-[docs/features/panel.md](docs/features/panel.md).
+loopback-only and never routed through the relay. From it you can disable the
+OpenCode connection, local transport, relay, or push, and stop every external
+connection while the process, panel, and database stay alive. Settings are
+stored at `CLARA_DB_PATH` or `~/.config/clara/clara.db` (mode `0600`). The panel
+shows no PSK, OpenCode password, relay tokens, push endpoints, sync values, or
+file contents. See [docs/features/panel.md](docs/features/panel.md) and
+[docs/features/agent-controls.md](docs/features/agent-controls.md).
 
 ### Local WebSocket mode
 
@@ -134,6 +138,13 @@ subscriptions at `~/.config/clara/subscriptions.json`.
   (`VITE_CLARA_WS_URL=ws://127.0.0.1:8788 pnpm build && pnpm preview`) or the
   deployed PWA; the Vite dev server does not enable the service worker.
 
+## Client settings sync
+
+The agent can store non-secret browser preferences for paired devices, with
+per-namespace revisions, deletes, and size limits over the E2EE session. The
+storage and protocol exist; the web client does not sync settings yet and there
+is no UI for it. See [docs/features/sync.md](docs/features/sync.md).
+
 ## Direct mode
 
 Start OpenCode with Clara's origin allowed:
@@ -176,9 +187,14 @@ or the relay.
   at `~/.config/clara/server.json` (mode `0600`) on the agent.
 - Web Push subscriptions live at `~/.config/clara/subscriptions.json`; VAPID
   keys live at `~/.config/clara/vapid.json`. Both use mode `0600`.
-- The agent panel listens only on `127.0.0.1:8790`, is read-only in v1, and
-  never returns the PSK, OpenCode password, relay tokens, push endpoints, or
-  file contents. It is not exposed through the relay or Pages.
+- Agent settings and non-secret client sync data live in
+  `~/.config/clara/clara.db` (mode `0600`). Credentials, push endpoints, and
+  sync secrets are never written there.
+- The agent panel listens only on `127.0.0.1:8790`, guards reads with
+  Host/Origin/fetch-metadata checks, and accepts only two JSON control routes
+  with a custom header and an 8 KB body limit. It never returns the PSK,
+  OpenCode password, relay tokens, push endpoints, sync values, or file
+  contents. It is not exposed through the relay or Pages.
 - Never commit `.env`, `.dev.vars`, `service.json`, push subscriptions, VAPID
   keys, pairing codes, tokens, or the PSK.
 - Rotate with `node apps/server/dist/index.js pair --rotate`; this also clears
