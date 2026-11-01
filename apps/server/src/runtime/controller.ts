@@ -234,6 +234,7 @@ export class RuntimeController {
           )
         } else {
           await this.stopLocal('local transport disabled by an admin setting')
+          this.localAgent.reset()
         }
         return
       case 'relay':
@@ -241,9 +242,7 @@ export class RuntimeController {
           this.relayClient?.close()
           return
         }
-        if (!this.relayClient || !this.relayConfigured()) {
-          throw new Error('Relay is not configured; set a URL and both tokens to enable it')
-        }
+        if (!this.relayClient) return
         this.relayClient.start()
         return
       case 'push':
