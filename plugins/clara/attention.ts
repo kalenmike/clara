@@ -1,7 +1,7 @@
 // Clara — human attention.
 //
 // The ledger decides that an exception needs a person. Clara presents it in the
-// session that already carries the feature, using a standard OpenCode form when
+// session that already carries the request, using a standard OpenCode form when
 // an answer is required and a plain message when it is only information.
 //
 // This module owns the form shape and the small wait loop. The tool definition
@@ -13,7 +13,7 @@ const POLL_MS = 1_000
 const WAIT_MS = 24 * 60 * 60 * 1_000
 const ALERT_LIMIT = 3
 
-/** A session created only because the feature had no usable Clara session. */
+/** A session created only because the request had no usable Clara session. */
 export const ATTENTION_SESSION_METADATA = {
   initiatedBy: 'clara',
   ledgerAlert: true,
@@ -248,7 +248,7 @@ export type AttentionSessionApi = {
 
 export type CreateAttentionSession = (input: {
   alert: Row
-  feature?: Row
+  request?: Row
   workspacePath: string
   title: string
   metadata: Record<string, unknown>
@@ -268,7 +268,7 @@ export type DeliverAttentionOptions = {
 
 /**
  * Hand every undelivered exception to the Clara session that already carries
- * its feature. If that session is gone, archived, or is not a Clara session,
+ * its request. If that session is gone, archived, or is not a Clara session,
  * create one and write it back to the ledger so the next alert returns there.
  *
  * The alert is marked only after the prompt is accepted. A failed prompt leaves
@@ -281,21 +281,21 @@ export async function deliverAttention(options: DeliverAttentionOptions): Promis
   const rows = db
     .prepare(
       `SELECT a.*,
-              f.session_id AS feature_session_id,
-              f.workspace_id AS feature_workspace_id,
-              f.slug AS feature_slug,
-              fw.path AS feature_path,
-              fw.session_id AS feature_workspace_session,
+              f.session_id AS request_session_id,
+              f.workspace_id AS request_workspace_id,
+              f.slug AS request_slug,
+              fw.path AS request_path,
+              fw.session_id AS request_workspace_session,
               aw.id AS alert_workspace_id,
               aw.path AS alert_workspace_path,
               aw.session_id AS alert_workspace_session
          FROM alerts a
-         LEFT JOIN features f ON f.id = a.feature_id
+         LEFT JOIN requests f ON f.id = a.request_id
          LEFT JOIN workspaces fw ON fw.id = f.workspace_id
          LEFT JOIN workspaces aw ON aw.name = a.workspace
         WHERE a.session_id IS NULL
           AND (a.resolved_at IS NULL
-               OR (a.key LIKE 'kill:%' AND a.created_at >= ?))
+               OR (a.key LIKE 'cancelled:%' AND a.created_at >= ?))
         ORDER BY a.id
         LIMIT ?`
     )
@@ -305,13 +305,13 @@ export async function deliverAttention(options: DeliverAttentionOptions): Promis
 
   for (const row of rows) {
     const label = alertLabel(row)
-    const feature = row.feature_id
-      ? (db.prepare('SELECT * FROM features WHERE id = ?').get(row.feature_id) as Row | undefined)
+    const request = row.request_id
+      ? (db.prepare('SELECT * FROM requests WHERE id = ?').get(row.request_id) as Row | undefined)
       : undefined
-    const workspaceID = row.feature_workspace_id ?? row.alert_workspace_id
+    const workspaceID = row.request_workspace_id ?? row.alert_workspace_id
     const workspacePath =
-      row.feature_path ?? row.alert_workspace_path ?? options.fallbackDirectory ?? undefined
-    const target = row.feature_session_id ?? row.alert_workspace_session ?? undefined
+      row.request_path ?? row.alert_workspace_path ?? options.fallbackDirectory ?? undefined
+    const target = row.request_session_id ?? row.alert_workspace_session ?? undefined
 
     let sessionID = await usableSession(session, target)
     let created = false
@@ -326,7 +326,7 @@ export async function deliverAttention(options: DeliverAttentionOptions): Promis
       try {
         newSession = await options.createSession({
           alert: row,
-          feature,
+          request,
           workspacePath,
           title: `Clara · needs you · ${label}`,
           metadata: { ...ATTENTION_SESSION_METADATA },
@@ -366,10 +366,10 @@ export async function deliverAttention(options: DeliverAttentionOptions): Promis
       row.id
     )
 
-    if (row.feature_id) {
-      db.prepare('UPDATE features SET session_id = ? WHERE id = ?').run(sessionID, row.feature_id)
+    if (row.request_id) {
+      db.prepare('UPDATE requests SET session_id = ? WHERE id = ?').run(sessionID, row.request_id)
     }
-    if (!row.feature_id && workspaceID) {
+    if (!row.request_id && workspaceID) {
       db.prepare('UPDATE workspaces SET session_id = ? WHERE id = ?').run(sessionID, workspaceID)
     }
 
@@ -399,30 +399,30 @@ async function usableSession(
 }
 
 function alertLabel(row: Row): string {
-  if (!row.feature_id) return `workspace${row.workspace ? ` ${row.workspace}` : ''}`
-  const id = String(Number(row.feature_id)).padStart(3, '0')
-  return `${id} ${row.feature_slug ?? row.slug ?? 'feature'}`
+  if (!row.request_id) return `workspace${row.workspace ? ` ${row.workspace}` : ''}`
+  const id = String(Number(row.request_id)).padStart(3, '0')
+  return `${id} ${row.request_slug ?? row.slug ?? 'request'}`
 }
 
 function attentionPrompt(row: Row, label: string): string {
-  const feature = row.feature_id
-    ? `feature ${row.feature_id} (${label})`
+  const request = row.request_id
+    ? `request ${row.request_id} (${label})`
     : `workspace ${row.workspace ?? label}`
   const stateHint =
-    row.kind === 'kill'
-      ? 'This is a stopped feature: use state info; no answer is needed.'
+    row.kind === 'cancelled'
+      ? 'This is a cancelled request: use state info; no answer is needed.'
       : row.kind === 'stalled'
-        ? 'This feature is stalled: use info when there is nothing to decide, otherwise feedback.'
+        ? 'This request is stalled: use info when there is nothing to decide, otherwise feedback.'
         : 'Use the state that fits: feedback for a free-text answer, form for structured answers, confirm for a go/no-go, or info when nothing is needed.'
 
   return [
-    `Clara daemon: ledger alert "${row.key}" for ${feature}.`,
+    `Clara daemon: ledger alert "${row.key}" for ${request}.`,
     '',
     String(row.title),
     String(row.body),
     '',
     `The human is already in this session. Confirm the item is still open with clara_ask${
-      row.feature_id ? ` (${row.feature_id})` : ''
+      row.request_id ? ` (${row.request_id})` : ''
     }; if it has resolved, say so and stop.`,
     `Otherwise call clara_attention with alert "${row.key}". ${stateHint}`,
     'Write the context yourself in a short message; the form is only the question.',

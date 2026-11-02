@@ -17,7 +17,7 @@ import { deliverAttention } from './attention.ts'
 import { appendEvent, decide, tick as ledgerTick, workspaceOf } from './queries.ts'
 import {
   acquireDaemonLock,
-  activeFeatures,
+  activeRequests,
   finishRun,
   hasCriteria,
   hasOpenDecision,
@@ -29,7 +29,7 @@ import {
   waitingRuns,
   type NextStage,
   type RunRow,
-  type RunWithFeature,
+  type RunWithRequest,
   type Stage,
 } from './runs.ts'
 
@@ -387,21 +387,21 @@ export async function advance(options: TickOptions): Promise<string[]> {
 
   let spawned = 0
 
-  for (const feature of activeFeatures(options.db)) {
+  for (const request of activeRequests(options.db)) {
     if (spawned >= options.maxSpawns) break
-    if (feature.stalled_at) continue
-    if (hasOpenDecision(options.db, Number(feature.id))) continue
+    if (request.stalled_at) continue
+    if (hasOpenDecision(options.db, Number(request.id))) continue
 
-    const next = nextStage(options.db, feature)
+    const next = nextStage(options.db, request)
     if (!next) continue
 
-    const latest = latestRun(options.db, Number(feature.id), next.stage)
+    const latest = latestRun(options.db, Number(request.id), next.stage)
     if (latest && (latest.status === 'starting' || latest.status === 'running')) continue
 
     if (latest && latest.status === 'done') {
       ensureDecision(
         options,
-        feature,
+        request,
         next,
         `The ${next.stage} stage is recorded done but the ledger still asks for it.`,
         'blocked'
@@ -413,7 +413,7 @@ export async function advance(options: TickOptions): Promise<string[]> {
       if (!retryAllowed(options.db, latest)) {
         ensureDecision(
           options,
-          feature,
+          request,
           next,
           `The ${next.stage} stage failed and is waiting for a resolved decision.`,
           'blocked'
@@ -422,29 +422,29 @@ export async function advance(options: TickOptions): Promise<string[]> {
       }
     }
 
-    if (next.stage === 'build' && feature.state === 'planned') {
+    if (next.stage === 'build' && request.state === 'approved') {
       try {
         appendEvent(options.db, {
-          feature: feature.id,
+          request: request.id,
           type: 'build.started',
           actor: 'ai_0',
-          state: 'building',
+          state: 'running',
           payload: { stage: 'build', reason: next.reason },
         })
       } catch (error) {
         ensureDecision(
           options,
-          feature,
+          request,
           next,
-          `Could not move the feature to building: ${message(error)}`,
+          `Could not move the request to running: ${message(error)}`,
           'failed'
         )
         continue
       }
-      feature.state = 'building'
+      request.state = 'running'
     }
 
-    actions.push(await spawnStage(options, feature, next))
+    actions.push(await spawnStage(options, request, next))
     spawned++
   }
 
@@ -460,11 +460,11 @@ async function reconcileRuns(options: TickOptions): Promise<void> {
   if (!session) return
 
   for (const run of waitingRuns(options.db)) {
-    const terminal = run.feature_state === 'done' || run.feature_state === 'scrapped'
+    const terminal = run.request_state === 'completed' || run.request_state === 'cancelled'
 
     if (!run.session_id) {
       if (terminal) {
-        finishRun(options.db, run.id, 'interrupted', 'feature closed before the stage started')
+        finishRun(options.db, run.id, 'interrupted', 'request closed before the stage started')
         continue
       }
       // A crash between startRun and markRunning leaves a starting row. Give
@@ -489,27 +489,27 @@ async function reconcileRuns(options: TickOptions): Promise<void> {
             options.logger.error(`daemon: could not interrupt ${run.session_id}`, error)
           }
         }
-        finishRun(options.db, run.id, 'interrupted', 'feature closed before the stage finished')
+        finishRun(options.db, run.id, 'interrupted', 'request closed before the stage finished')
         continue
       }
 
-      const feature = options.db
-        .prepare('SELECT * FROM features WHERE id = ?')
-        .get(run.feature_id) as Row
+      const request = options.db
+        .prepare('SELECT * FROM requests WHERE id = ?')
+        .get(run.request_id) as Row
 
-      if (info.outcome === 'succeeded' && stageSatisfied(options.db, feature, run.stage)) {
+      if (info.outcome === 'succeeded' && stageSatisfied(options.db, request, run.stage)) {
         finishRun(options.db, run.id, 'done', 'stage completed')
         writeRunEvent(options.db, options.logger, run, 'stage.done')
         continue
       }
 
       if (terminal) {
-        finishRun(options.db, run.id, 'interrupted', 'feature closed before the stage finished')
+        finishRun(options.db, run.id, 'interrupted', 'request closed before the stage finished')
         continue
       }
 
       const status = info.outcome === 'interrupted' ? 'interrupted' : 'failed'
-      const reason = failureReason(options.db, feature, run.stage, info.outcome)
+      const reason = failureReason(options.db, request, run.stage, info.outcome)
       finishRun(options.db, run.id, status, reason)
       writeRunEvent(
         options.db,
@@ -521,7 +521,7 @@ async function reconcileRuns(options: TickOptions): Promise<void> {
       ensureRunDecision(options, run, reason)
     } catch (error) {
       if (terminal) {
-        finishRun(options.db, run.id, 'interrupted', 'feature closed before the stage finished')
+        finishRun(options.db, run.id, 'interrupted', 'request closed before the stage finished')
         continue
       }
       const reason = `session ${run.session_id} could not be read: ${message(error)}`
@@ -532,18 +532,18 @@ async function reconcileRuns(options: TickOptions): Promise<void> {
   }
 }
 
-async function spawnStage(options: TickOptions, feature: Row, next: NextStage): Promise<string> {
+async function spawnStage(options: TickOptions, request: Row, next: NextStage): Promise<string> {
   const { db, ctx, logger } = options
   const session = sessionApi(ctx)
   if (!session) return 'daemon: session API unavailable'
 
-  const label = `${pad(Number(feature.id))} ${feature.slug}`
-  const workspace = workspaceOf(db, feature)
+  const label = `${pad(Number(request.id))} ${request.slug}`
+  const workspace = workspaceOf(db, request)
   const path = String(workspace.path)
 
   if (!existsSync(path)) {
     const reason = `workspace path ${path} does not exist`
-    ensureDecision(options, feature, next, reason, 'blocked')
+    ensureDecision(options, request, next, reason, 'blocked')
     return `${label}: skipped ${next.stage} — ${reason}`
   }
 
@@ -551,11 +551,11 @@ async function spawnStage(options: TickOptions, feature: Row, next: NextStage): 
   if (!model) {
     const reason =
       'no model is available for a worker session; set daemonModel or submit from a session with a model'
-    ensureDecision(options, feature, next, reason, 'blocked')
+    ensureDecision(options, request, next, reason, 'blocked')
     return `${label}: skipped ${next.stage} — ${reason}`
   }
 
-  const runID = startRun(db, Number(feature.id), next.stage, next.agent)
+  const runID = startRun(db, Number(request.id), next.stage, next.agent)
   let sessionID: string | undefined
 
   try {
@@ -574,7 +574,7 @@ async function spawnStage(options: TickOptions, feature: Row, next: NextStage): 
       logger,
       {
         id: runID,
-        feature_id: Number(feature.id),
+        request_id: Number(request.id),
         stage: next.stage,
         agent: next.agent,
         session_id: sessionID,
@@ -585,7 +585,7 @@ async function spawnStage(options: TickOptions, feature: Row, next: NextStage): 
 
     await session.prompt({
       sessionID,
-      text: stagePrompt(next.stage, feature, path),
+      text: stagePrompt(next.stage, request, path),
       metadata: DAEMON_PROMPT_METADATA,
     })
 
@@ -598,7 +598,7 @@ async function spawnStage(options: TickOptions, feature: Row, next: NextStage): 
       logger,
       {
         id: runID,
-        feature_id: Number(feature.id),
+        request_id: Number(request.id),
         stage: next.stage,
         agent: next.agent,
         session_id: sessionID ?? null,
@@ -606,7 +606,7 @@ async function spawnStage(options: TickOptions, feature: Row, next: NextStage): 
       'stage.failed',
       reason
     )
-    ensureDecision(options, feature, next, reason, 'failed')
+    ensureDecision(options, request, next, reason, 'failed')
 
     if (sessionID && session.remove) {
       try {
@@ -625,24 +625,24 @@ async function spawnStage(options: TickOptions, feature: Row, next: NextStage): 
 // what a stage means
 // ---------------------------------------------------------------------------
 
-function stageSatisfied(db: Db, feature: Row, stage: Stage): boolean {
+function stageSatisfied(db: Db, request: Row, stage: Stage): boolean {
   switch (stage) {
     case 'spec':
-      return hasCriteria(db, Number(feature.id))
+      return hasCriteria(db, Number(request.id))
     case 'test':
-      return Boolean(feature.tests_hash)
+      return Boolean(request.tests_hash)
     case 'build':
-      return ['review', 'done', 'scrapped'].includes(String(feature.state))
+      return ['review', 'completed', 'cancelled'].includes(String(request.state))
     case 'docs':
       // The docs agent has no ledger mutation of its own. A successful session
       // is the completion signal; the close gate still belongs to judge.
       return true
     case 'judge':
-      return ['done', 'scrapped'].includes(String(feature.state))
+      return ['completed', 'cancelled'].includes(String(request.state))
   }
 }
 
-function failureReason(db: Db, feature: Row, stage: Stage, outcome: string): string {
+function failureReason(db: Db, request: Row, stage: Stage, outcome: string): string {
   const lead =
     outcome === 'interrupted'
       ? `The ${stage} agent was interrupted.`
@@ -651,9 +651,9 @@ function failureReason(db: Db, feature: Row, stage: Stage, outcome: string): str
   if (stage === 'build') {
     const checkpoint = db
       .prepare(
-        'SELECT blocked_on, next_step FROM checkpoints WHERE feature_id = ? ORDER BY n DESC LIMIT 1'
+        'SELECT blocked_on, next_step FROM checkpoints WHERE request_id = ? ORDER BY n DESC LIMIT 1'
       )
-      .get(feature.id)
+      .get(request.id)
     if (checkpoint?.blocked_on)
       return `${lead} Last checkpoint blocked on: ${checkpoint.blocked_on}.`
     if (checkpoint?.next_step) return `${lead} Last checkpoint next step: ${checkpoint.next_step}.`
@@ -668,10 +668,10 @@ function retryAllowed(db: Db, run: RunRow): boolean {
     db
       .prepare(
         `SELECT 1 FROM decisions
-          WHERE feature_id = ? AND resolved_at IS NOT NULL AND resolved_at > ?
+          WHERE request_id = ? AND resolved_at IS NOT NULL AND resolved_at > ?
           LIMIT 1`
       )
-      .get(run.feature_id, at)
+      .get(run.request_id, at)
   )
 }
 
@@ -679,48 +679,48 @@ function retryAllowed(db: Db, run: RunRow): boolean {
 // decisions + events
 // ---------------------------------------------------------------------------
 
-function ensureRunDecision(options: TickOptions, run: RunWithFeature, reason: string): void {
-  const feature = options.db.prepare('SELECT * FROM features WHERE id = ?').get(run.feature_id) as
+function ensureRunDecision(options: TickOptions, run: RunWithRequest, reason: string): void {
+  const request = options.db.prepare('SELECT * FROM requests WHERE id = ?').get(run.request_id) as
     Row | undefined
-  if (!feature) return
+  if (!request) return
 
-  ensureDecision(options, feature, { stage: run.stage, agent: run.agent, reason }, reason, 'failed')
+  ensureDecision(options, request, { stage: run.stage, agent: run.agent, reason }, reason, 'failed')
 }
 
 function ensureDecision(
   options: TickOptions,
-  feature: Row,
+  request: Row,
   next: NextStage,
   reason: string,
   kind: 'failed' | 'blocked'
 ): void {
-  if (hasOpenDecision(options.db, Number(feature.id))) return
+  if (hasOpenDecision(options.db, Number(request.id))) return
 
   try {
     decide(options.db, {
-      feature: Number(feature.id),
+      request: Number(request.id),
       kind,
-      question: `${pad(Number(feature.id))} ${feature.slug}: ${reason} Retry, or should this be scrapped?`,
+      question: `${pad(Number(request.id))} ${request.slug}: ${reason} Retry, or should this be scrapped?`,
       recommendation: 'retry',
-      evidence: `stage=${next.stage} agent=${next.agent} state=${feature.state}`,
+      evidence: `stage=${next.stage} agent=${next.agent} state=${request.state}`,
       reversible: true,
       default_if_silent: 'block',
     })
   } catch (error) {
-    options.logger.error(`daemon: could not open a decision for feature ${feature.id}`, error)
+    options.logger.error(`daemon: could not open a decision for request ${request.id}`, error)
   }
 }
 
 function writeRunEvent(
   db: Db,
   logger: DaemonLogger,
-  run: Pick<RunRow, 'id' | 'feature_id' | 'stage' | 'agent' | 'session_id'>,
+  run: Pick<RunRow, 'id' | 'request_id' | 'stage' | 'agent' | 'session_id'>,
   type: string,
   reason?: string
 ): void {
   try {
     appendEvent(db, {
-      feature: run.feature_id,
+      request: run.request_id,
       type,
       actor: 'ai_0',
       payload: {
@@ -737,31 +737,31 @@ function writeRunEvent(
 }
 
 // ---------------------------------------------------------------------------
-// feature records
+// request records
 // ---------------------------------------------------------------------------
 
 /**
- * Commit the generated record once the judge closes a feature. The docs agent
- * owns canonical docs; this step owns the per-feature audit record, so a close
+ * Commit the generated record once the judge closes a request. The docs agent
+ * owns canonical docs; this step owns the per-request audit record, so a close
  * does not leave an untracked file behind.
  */
 function commitClosedRecords(options: TickOptions): void {
   const rows = options.db
     .prepare(
       `SELECT f.*, w.path AS workspace_path
-         FROM features f
+         FROM requests f
          JOIN workspaces w ON w.id = f.workspace_id
-        WHERE f.state IN ('done', 'scrapped')
+        WHERE f.state IN ('completed', 'cancelled')
           AND f.closed_at IS NOT NULL
-          AND f.spec_path IS NOT NULL
+          AND f.record_path IS NOT NULL
           AND f.record_committed_at IS NULL
         ORDER BY f.id`
     )
     .all()
 
-  for (const feature of rows) {
-    const path = String(feature.spec_path)
-    const directory = String(feature.workspace_path)
+  for (const request of rows) {
+    const path = String(request.record_path)
+    const directory = String(request.workspace_path)
     if (!existsSync(path)) continue
 
     try {
@@ -771,9 +771,9 @@ function commitClosedRecords(options: TickOptions): void {
         encoding: 'utf8',
       })
       if (staged.trim()) {
-        const subject = `docs(record): close ${pad(Number(feature.id))} ${feature.slug}`
+        const subject = `docs(record): close ${pad(Number(request.id))} ${request.slug}`
         const body =
-          `Record the final state and checkpoint history for feature ${feature.id}.\n\n` +
+          `Record the final state and checkpoint history for request ${request.id}.\n\n` +
           'Co-authored-by: OpenCode <noreply@opencode.ai>'
         execFileSync('git', ['commit', '-m', subject, '-m', body, '--', path], {
           cwd: directory,
@@ -782,14 +782,14 @@ function commitClosedRecords(options: TickOptions): void {
         options.logger.info(`record committed: ${subject}`)
       }
       options.db
-        .prepare('UPDATE features SET record_committed_at = ? WHERE id = ?')
-        .run(new Date().toISOString(), feature.id)
-      recordCommitFailures.delete(Number(feature.id))
+        .prepare('UPDATE requests SET record_committed_at = ? WHERE id = ?')
+        .run(new Date().toISOString(), request.id)
+      recordCommitFailures.delete(Number(request.id))
     } catch (error) {
-      if (!recordCommitFailures.has(Number(feature.id))) {
-        recordCommitFailures.add(Number(feature.id))
+      if (!recordCommitFailures.has(Number(request.id))) {
+        recordCommitFailures.add(Number(request.id))
         options.logger.error(
-          `could not commit the feature record for ${pad(Number(feature.id))} ${feature.slug}`,
+          `could not commit the request record for ${pad(Number(request.id))} ${request.slug}`,
           error
         )
       }
@@ -816,19 +816,19 @@ function stageLabel(stage: Stage): string {
   }
 }
 
-function stagePrompt(stage: Stage, feature: Row, path: string): string {
-  const head = `Clara daemon: feature ${pad(Number(feature.id))} "${feature.slug}" in ${path}. Read the ledger first with clara_ask (feature ${feature.id}); this message is only the handoff.`
+function stagePrompt(stage: Stage, request: Row, path: string): string {
+  const head = `Clara daemon: request ${pad(Number(request.id))} "${request.slug}" in ${path}. Read the ledger first with clara_ask (request ${request.id}); this message is only the handoff.`
 
   switch (stage) {
     case 'spec':
-      return `${head}\n\nPropose the acceptance criteria with clara_criteria. Every criterion needs a test_path or human_gate=true. Do not read source code; use the feature record and the docs it points at. Call clara_criteria before you run out of steps, then stop. A human must approve.`
+      return `${head}\n\nPropose the acceptance criteria with clara_criteria. Every criterion needs a test_path or human_gate=true. Do not read source code; use the request record and the docs it points at. Call clara_criteria before you run out of steps, then stop. A human must approve.`
     case 'test':
       return `${head}\n\nWrite the tests that define done for the approved criteria. Use clara_ask to read them. Freeze the suite with clara_freeze and record the hash. Do not edit source.`
     case 'build':
-      return `${head}\n\nImplement the feature against the frozen tests. Use clara_checkpoint at each boundary. Do not edit tests. When complete, call clara_event with type "build.review" and state "review". If a kill criterion fires, write a checkpoint with blocked_on and stop.`
+      return `${head}\n\nImplement the request against the frozen tests. Use clara_checkpoint at each boundary. Do not edit tests. When complete, call clara_event with type "build.review" and state "review". If a kill criterion fires, write a checkpoint with blocked_on and stop.`
     case 'docs':
-      return `${head}\n\nApply the feature's docs_impact to the workspace docs. Never edit docs/features or docs/index.md. If the impact no longer applies cleanly, reconcile against current truth and record it. If you cannot reconcile, open a decision with clara_decide and stop.`
+      return `${head}\n\nApply the request's docs_impact to the workspace docs. Never edit docs/features or docs/index.md. If the impact no longer applies cleanly, reconcile against current truth and record it. If you cannot reconcile, open a decision with clara_decide and stop.`
     case 'judge':
-      return `${head}\n\nClose only from ledger evidence: call clara_ask once and check tests, docs, and human gates. Do not read source or run commands; there is no shell and the close gate does not re-hash. If every gate is recorded and the docs stage is done, call clara_event with type "feature.done" and state "done". Otherwise open one decision with clara_decide and stop. Do not write code.`
+      return `${head}\n\nClose only from ledger evidence: call clara_ask once and check tests, docs, and human gates. Do not read source or run commands; there is no shell and the close gate does not re-hash. If every gate is recorded and the docs stage is done, call clara_event with type "request.done" and state "done". Otherwise open one decision with clara_decide and stop. Do not write code.`
   }
 }

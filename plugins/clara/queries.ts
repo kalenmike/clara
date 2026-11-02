@@ -14,16 +14,16 @@ export const ATTEMPT_LIMIT = 3
 
 /** Legal state transitions. Anything else is rejected. */
 const TRANSITIONS: Record<string, string[]> = {
-  spec: ['planned', 'scrapped'],
-  planned: ['building', 'scrapped'],
-  building: ['review', 'scrapped'],
-  review: ['done', 'building', 'scrapped'],
-  done: [],
-  scrapped: [],
+  draft: ['approved', 'cancelled'],
+  approved: ['running', 'cancelled'],
+  running: ['review', 'cancelled'],
+  review: ['completed', 'running', 'cancelled'],
+  completed: [],
+  cancelled: [],
 }
 
-/** Only the supervisor may close a feature. An implementer cannot mark its own work done. */
-const CLOSERS = new Set(['done', 'scrapped'])
+/** Only the supervisor may close a request. An implementer cannot mark its own work done. */
+const TERMINAL = new Set(['completed', 'cancelled'])
 
 const pad = (n: number): string => String(n).padStart(3, '0')
 const json = (value: unknown): string => JSON.stringify(value ?? null)
@@ -32,28 +32,28 @@ const json = (value: unknown): string => JSON.stringify(value ?? null)
 // Lookup
 // ---------------------------------------------------------------------------
 
-export function featureByRef(db: Db, ref: string | number): Row | undefined {
+export function requestByRef(db: Db, ref: string | number): Row | undefined {
   const key = String(ref).trim()
   if (/^\d+$/.test(key)) {
-    const row = db.prepare('SELECT * FROM features WHERE id = ?').get(Number(key))
+    const row = db.prepare('SELECT * FROM requests WHERE id = ?').get(Number(key))
     if (row) return row
   }
-  return db.prepare('SELECT * FROM features WHERE slug = ? ORDER BY id DESC LIMIT 1').get(key)
+  return db.prepare('SELECT * FROM requests WHERE slug = ? ORDER BY id DESC LIMIT 1').get(key)
 }
 
-function requireFeature(db: Db, ref: string | number): Row {
-  const row = featureByRef(db, ref)
-  if (!row) throw new Error(`Clara: no feature matching "${ref}"`)
+function requireRequest(db: Db, ref: string | number): Row {
+  const row = requestByRef(db, ref)
+  if (!row) throw new Error(`Clara: no request matching "${ref}"`)
   return row
 }
 
-export function workspaceOf(db: Db, feature: Row): Row {
-  return db.prepare('SELECT * FROM workspaces WHERE id = ?').get(feature.workspace_id)!
+export function workspaceOf(db: Db, request: Row): Row {
+  return db.prepare('SELECT * FROM workspaces WHERE id = ?').get(request.workspace_id)!
 }
 
-/** Remember which Clara session carries a feature's human-facing alerts. */
-export function setFeatureSession(db: Db, featureID: number, sessionID: string): void {
-  db.prepare('UPDATE features SET session_id = ? WHERE id = ?').run(sessionID, featureID)
+/** Remember which Clara session carries a request's human-facing alerts. */
+export function setRequestSession(db: Db, requestID: number, sessionID: string): void {
+  db.prepare('UPDATE requests SET session_id = ? WHERE id = ?').run(sessionID, requestID)
 }
 
 /** Workspace-level exceptions use the workspace session as a fallback. */
@@ -80,15 +80,15 @@ export function ensureWorkspace(db: Db, name: string, path?: string): Row {
 }
 
 // ---------------------------------------------------------------------------
-// Feature records (prose, in the workspace repo)
+// Request records (prose, in the workspace repo)
 // ---------------------------------------------------------------------------
 
-function recordPath(feature: Row): string | null {
-  return feature.spec_path ?? null
+function recordPath(request: Row): string | null {
+  return request.record_path ?? null
 }
 
-function writeInitialRecord(feature: Row, meta: Row): void {
-  const path = recordPath(feature)
+function writeInitialRecord(request: Row, meta: Row): void {
+  const path = recordPath(request)
   if (!path) return
   mkdirSync(dirname(path), { recursive: true })
   if (existsSync(path)) return
@@ -99,18 +99,18 @@ function writeInitialRecord(feature: Row, meta: Row): void {
   writeFileSync(
     path,
     `---
-feature: ${feature.id}
-slug: ${feature.slug}
+request: ${request.id}
+slug: ${request.slug}
 workspace: ${meta.workspace}
-state: ${feature.state}
-created: ${feature.created_at}
+state: ${request.state}
+created: ${request.created_at}
 ---
 
-# ${pad(feature.id)} — ${feature.title}
+# ${pad(request.id)} — ${request.title}
 
 ## Intent
 
-${feature.intent}
+${request.intent}
 
 ## Why
 
@@ -130,7 +130,7 @@ ${meta.not_worth_it || '_not stated_'}
 
 ## Budget
 
-soft: ${feature.soft_budget ?? '_unset_'} · hard: ${feature.hard_budget ?? '_unset_'}
+soft: ${request.soft_budget ?? '_unset_'} · hard: ${request.hard_budget ?? '_unset_'}
 
 ## Checkpoints
 
@@ -140,8 +140,8 @@ _None yet._
   )
 }
 
-function appendRecord(feature: Row, text: string): void {
-  const path = recordPath(feature)
+function appendRecord(request: Row, text: string): void {
+  const path = recordPath(request)
   if (!path || !existsSync(path)) return
   appendFileSync(path, text, 'utf8')
 }
@@ -163,18 +163,18 @@ export interface SubmitInput {
   soft_budget?: number
   hard_budget?: number
   time_limit_minutes?: number
-  /** The Clara session where the human submitted this feature. */
+  /** The Clara session where the human submitted this request. */
   session_id?: string
 }
 
 export function submit(db: Db, input: SubmitInput): string {
   const ws = ensureWorkspace(db, input.workspace, input.path)
 
-  const base = slugify(input.title) || 'feature'
+  const base = slugify(input.title) || 'request'
   let slug = base
   let suffix = 2
   while (
-    db.prepare('SELECT 1 FROM features WHERE workspace_id = ? AND slug = ?').get(ws.id, slug)
+    db.prepare('SELECT 1 FROM requests WHERE workspace_id = ? AND slug = ?').get(ws.id, slug)
   ) {
     slug = `${base}-${suffix++}`
   }
@@ -191,10 +191,10 @@ export function submit(db: Db, input: SubmitInput): string {
 
   const result = db
     .prepare(
-      `INSERT INTO features
+      `INSERT INTO requests
         (workspace_id, slug, title, intent, meta, state, soft_budget, hard_budget,
          time_limit_minutes, session_id, last_event_at, created_at)
-       VALUES (?, ?, ?, ?, ?, 'spec', ?, ?, ?, ?, ?, ?)`
+       VALUES (?, ?, ?, ?, ?, 'draft', ?, ?, ?, ?, ?, ?)`
     )
     .run(
       ws.id,
@@ -218,26 +218,26 @@ export function submit(db: Db, input: SubmitInput): string {
   }
 
   const id = Number(result.lastInsertRowid)
-  const specPath = join(ws.path, 'docs', 'records', `${pad(id)}-${slug}.md`)
-  db.prepare('UPDATE features SET spec_path = ? WHERE id = ?').run(specPath, id)
+  const recordPath = join(ws.path, 'docs', 'records', `${pad(id)}-${slug}.md`)
+  db.prepare('UPDATE requests SET record_path = ? WHERE id = ?').run(recordPath, id)
 
-  const feature = requireFeature(db, id)
-  writeInitialRecord(feature, meta)
+  const request = requireRequest(db, id)
+  writeInitialRecord(request, meta)
 
   db.prepare(
-    'INSERT INTO events (feature_id, at, type, actor, payload) VALUES (?, ?, ?, ?, ?)'
+    'INSERT INTO events (request_id, at, type, actor, payload) VALUES (?, ?, ?, ?, ?)'
   ).run(
     id,
     at,
-    'feature.registered',
+    'request.submitted',
     'human',
     json({ priority: meta.priority, session: input.session_id ?? null })
   )
 
   return [
-    `registered ${pad(id)} ${slug} [${ws.name}] state=spec`,
-    `record: ${existsSync(specPath) ? specPath : `${specPath} (workspace path missing — record not written)`}`,
-    `next: spec agent proposes acceptance criteria; human approves before tests are written.`,
+    `submitted ${pad(id)} ${slug} [${ws.name}] state=draft`,
+    `record: ${existsSync(recordPath) ? recordPath : `${recordPath} (workspace path missing — record not written)`}`,
+    `next: the contract stage proposes acceptance criteria; a human approves before work starts.`,
   ].join('\n')
 }
 
@@ -254,16 +254,16 @@ export interface CriterionInput {
 export function setCriteria(
   db: Db,
   input: {
-    feature: string | number
+    request: string | number
     criteria: CriterionInput[]
     kill_criteria?: string[]
     docs_impact?: string
   }
 ): string {
-  const feature = requireFeature(db, input.feature)
-  if (feature.state !== 'spec') {
+  const request = requireRequest(db, input.request)
+  if (request.state !== 'draft') {
     throw new Error(
-      `Clara: criteria can only be proposed in state=spec (feature ${pad(feature.id)} is ${feature.state})`
+      `Clara: criteria can only be proposed in state=draft (request ${pad(request.id)} is ${request.state})`
     )
   }
   if (!input.criteria.length) throw new Error('Clara: at least one criterion is required')
@@ -278,12 +278,12 @@ export function setCriteria(
 
   db.exec('BEGIN')
   try {
-    db.prepare('DELETE FROM criteria WHERE feature_id = ?').run(feature.id)
+    db.prepare('DELETE FROM criteria WHERE request_id = ?').run(request.id)
     const insert = db.prepare(
-      'INSERT INTO criteria (feature_id, position, text, test_path, human_gate) VALUES (?, ?, ?, ?, ?)'
+      'INSERT INTO criteria (request_id, position, text, test_path, human_gate) VALUES (?, ?, ?, ?, ?)'
     )
     input.criteria.forEach((c, i) => {
-      insert.run(feature.id, i + 1, c.text, c.test_path ?? null, c.human_gate ? 1 : 0)
+      insert.run(request.id, i + 1, c.text, c.test_path ?? null, c.human_gate ? 1 : 0)
     })
     db.exec('COMMIT')
   } catch (error) {
@@ -298,12 +298,12 @@ export function setCriteria(
     sets.push('docs_impact = ?')
     values.push(input.docs_impact)
   }
-  values.push(feature.id)
-  db.prepare(`UPDATE features SET ${sets.join(', ')} WHERE id = ?`).run(...values)
+  values.push(request.id)
+  db.prepare(`UPDATE requests SET ${sets.join(', ')} WHERE id = ?`).run(...values)
   db.prepare(
-    'INSERT INTO events (feature_id, at, type, actor, payload) VALUES (?, ?, ?, ?, ?)'
+    'INSERT INTO events (request_id, at, type, actor, payload) VALUES (?, ?, ?, ?, ?)'
   ).run(
-    feature.id,
+    request.id,
     at,
     'criteria.proposed',
     'ai_1',
@@ -326,80 +326,80 @@ export function setCriteria(
     '',
   ].join('\n')
 
-  appendRecord(feature, table)
+  appendRecord(request, table)
 
   appendRecord(
-    feature,
+    request,
     `\n## Docs impact\n\n${String(input.docs_impact ?? 'none').trim() || 'none'}\n`
   )
 
   if (input.kill_criteria?.length) {
     appendRecord(
-      feature,
+      request,
       `\n## Kill criteria\n\n${input.kill_criteria.map((k) => `- ${k}`).join('\n')}\n`
     )
   }
 
   return [
-    `${pad(feature.id)} ${feature.slug}: ${input.criteria.length} criteria proposed`,
+    `${pad(request.id)} ${request.slug}: ${input.criteria.length} criteria proposed`,
     `${input.criteria.filter((c) => c.human_gate).length} human gate(s)`,
     `awaiting human approval — nothing proceeds until clara_approve.`,
   ].join('\n')
 }
 
-export function approve(db: Db, input: { feature: string | number; approved_by?: string }): string {
-  const feature = requireFeature(db, input.feature)
-  const criteria = db.prepare('SELECT * FROM criteria WHERE feature_id = ?').all(feature.id)
+export function approve(db: Db, input: { request: string | number; approved_by?: string }): string {
+  const request = requireRequest(db, input.request)
+  const criteria = db.prepare('SELECT * FROM criteria WHERE request_id = ?').all(request.id)
   if (!criteria.length) throw new Error('Clara: no criteria to approve')
-  if (feature.state !== 'spec') {
-    throw new Error(`Clara: approval is only valid in state=spec (feature is ${feature.state})`)
+  if (request.state !== 'draft') {
+    throw new Error(`Clara: approval is only valid in state=draft (request is ${request.state})`)
   }
 
   const at = now()
   db.prepare(
-    'UPDATE criteria SET approved_at = ? WHERE feature_id = ? AND approved_at IS NULL'
-  ).run(at, feature.id)
-  db.prepare("UPDATE features SET state = 'planned', last_event_at = ? WHERE id = ?").run(
+    'UPDATE criteria SET approved_at = ? WHERE request_id = ? AND approved_at IS NULL'
+  ).run(at, request.id)
+  db.prepare("UPDATE requests SET state = 'approved', last_event_at = ? WHERE id = ?").run(
     at,
-    feature.id
+    request.id
   )
   db.prepare(
-    'INSERT INTO events (feature_id, at, type, actor, payload) VALUES (?, ?, ?, ?, ?)'
+    'INSERT INTO events (request_id, at, type, actor, payload) VALUES (?, ?, ?, ?, ?)'
   ).run(
-    feature.id,
+    request.id,
     at,
     'criteria.approved',
     'human',
     json({ by: input.approved_by ?? 'human', count: criteria.length })
   )
 
-  return `${pad(feature.id)} ${feature.slug}: criteria approved → state=planned. Tests may now be written and frozen.`
+  return `${pad(request.id)} ${request.slug}: criteria approved → state=approved. Work may now start.`
 }
 
 export function freeze(
   db: Db,
-  input: { feature: string | number; tests_hash: string; tests_total?: number }
+  input: { request: string | number; tests_hash: string; tests_total?: number }
 ): string {
-  const feature = requireFeature(db, input.feature)
-  if (feature.state !== 'planned') {
-    throw new Error(`Clara: tests freeze in state=planned (feature is ${feature.state})`)
+  const request = requireRequest(db, input.request)
+  if (request.state !== 'approved') {
+    throw new Error(`Clara: tests freeze in state=approved (request is ${request.state})`)
   }
   const at = now()
-  db.prepare('UPDATE features SET tests_hash = ?, last_event_at = ? WHERE id = ?').run(
+  db.prepare('UPDATE requests SET tests_hash = ?, last_event_at = ? WHERE id = ?').run(
     input.tests_hash,
     at,
-    feature.id
+    request.id
   )
   db.prepare(
-    'INSERT INTO events (feature_id, at, type, actor, payload) VALUES (?, ?, ?, ?, ?)'
+    'INSERT INTO events (request_id, at, type, actor, payload) VALUES (?, ?, ?, ?, ?)'
   ).run(
-    feature.id,
+    request.id,
     at,
     'tests.frozen',
     'ai_2',
     json({ hash: input.tests_hash, total: input.tests_total ?? null })
   )
-  return `${pad(feature.id)} ${feature.slug}: tests frozen at ${input.tests_hash.slice(0, 12)}… — these files may not change from here.`
+  return `${pad(request.id)} ${request.slug}: tests frozen at ${input.tests_hash.slice(0, 12)}… — these files may not change from here.`
 }
 
 // ---------------------------------------------------------------------------
@@ -409,34 +409,34 @@ export function freeze(
 export function appendEvent(
   db: Db,
   input: {
-    feature: string | number
+    request: string | number
     type: string
     actor: string
     payload?: unknown
     state?: string
   }
 ): string {
-  const feature = requireFeature(db, input.feature)
+  const request = requireRequest(db, input.request)
   const at = now()
-  const previousState = String(feature.state)
+  const previousState = String(request.state)
 
   if (input.state) {
-    const allowed = TRANSITIONS[feature.state] ?? []
+    const allowed = TRANSITIONS[request.state] ?? []
     if (!allowed.includes(input.state)) {
       throw new Error(
-        `Clara: illegal transition ${feature.state} → ${input.state} (allowed: ${allowed.join(', ') || 'none'})`
+        `Clara: illegal transition ${request.state} → ${input.state} (allowed: ${allowed.join(', ') || 'none'})`
       )
     }
-    if (CLOSERS.has(input.state) && input.actor !== 'ai_0') {
-      throw new Error(`Clara: only ai_0 may move a feature to ${input.state}`)
+    if (TERMINAL.has(input.state) && input.actor !== 'ai_0') {
+      throw new Error(`Clara: only ai_0 may move a request to ${input.state}`)
     }
   }
 
   db.exec('BEGIN')
   try {
     db.prepare(
-      'INSERT INTO events (feature_id, at, type, actor, payload) VALUES (?, ?, ?, ?, ?)'
-    ).run(feature.id, at, input.type, input.actor, json(input.payload))
+      'INSERT INTO events (request_id, at, type, actor, payload) VALUES (?, ?, ?, ?, ?)'
+    ).run(request.id, at, input.type, input.actor, json(input.payload))
 
     const sets = ['last_event_at = ?', 'stalled_at = NULL']
     const values: any[] = [at]
@@ -444,15 +444,15 @@ export function appendEvent(
     if (input.state) {
       sets.push('state = ?')
       values.push(input.state)
-      if (input.state === 'building' && !feature.started_at) {
+      if (input.state === 'running' && !request.started_at) {
         sets.push('started_at = ?')
         values.push(at)
       }
       // Review or closure invalidates any blocker left by the build stage.
-      if (input.state === 'review' || CLOSERS.has(input.state)) {
+      if (input.state === 'review' || TERMINAL.has(input.state)) {
         sets.push('blocked_on = NULL')
       }
-      if (CLOSERS.has(input.state)) {
+      if (TERMINAL.has(input.state)) {
         sets.push('closed_at = ?')
         values.push(at)
       }
@@ -462,20 +462,20 @@ export function appendEvent(
       sets.push('attempts = attempts + 1')
     }
 
-    values.push(feature.id)
-    db.prepare(`UPDATE features SET ${sets.join(', ')} WHERE id = ?`).run(...values)
+    values.push(request.id)
+    db.prepare(`UPDATE requests SET ${sets.join(', ')} WHERE id = ?`).run(...values)
     db.exec('COMMIT')
   } catch (error) {
     db.exec('ROLLBACK')
     throw error
   }
 
-  const updated = requireFeature(db, feature.id)
+  const updated = requireRequest(db, request.id)
   if (input.state) {
     appendRecord(
-      feature,
+      request,
       `\n- **${at}** state ${previousState} → ${input.state} (${input.actor})` +
-        (updated.scrap_reason ? ` · ${updated.scrap_reason}` : '') +
+        (updated.cancel_reason ? ` · ${updated.cancel_reason}` : '') +
         `\n`
     )
   }
@@ -483,7 +483,7 @@ export function appendEvent(
 }
 
 export interface CheckpointInput {
-  feature: string | number
+  request: string | number
   tests_passed: number
   tests_total: number
   files_changed?: number
@@ -496,14 +496,14 @@ export interface CheckpointInput {
 }
 
 export function checkpoint(db: Db, input: CheckpointInput): string {
-  const feature = requireFeature(db, input.feature)
-  if (feature.state !== 'building') {
-    throw new Error(`Clara: checkpoints belong to state=building (feature is ${feature.state})`)
+  const request = requireRequest(db, input.request)
+  if (request.state !== 'running') {
+    throw new Error(`Clara: checkpoints belong to state=running (request is ${request.state})`)
   }
 
   const last = db
-    .prepare('SELECT n FROM checkpoints WHERE feature_id = ? ORDER BY n DESC LIMIT 1')
-    .get(feature.id)
+    .prepare('SELECT n FROM checkpoints WHERE request_id = ? ORDER BY n DESC LIMIT 1')
+    .get(request.id)
   const n = Number(last?.n ?? 0) + 1
   const at = now()
 
@@ -511,11 +511,11 @@ export function checkpoint(db: Db, input: CheckpointInput): string {
   try {
     db.prepare(
       `INSERT INTO checkpoints
-        (feature_id, n, at, tests_passed, tests_total, files_changed,
+        (request_id, n, at, tests_passed, tests_total, files_changed,
          criteria_addressed, blocked_on, next_step, open_question, tokens)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
     ).run(
-      feature.id,
+      request.id,
       n,
       at,
       input.tests_passed,
@@ -542,13 +542,13 @@ export function checkpoint(db: Db, input: CheckpointInput): string {
       sets.push('docs_impact = ?')
       values.push(input.docs_impact)
     }
-    values.push(feature.id)
-    db.prepare(`UPDATE features SET ${sets.join(', ')} WHERE id = ?`).run(...values)
+    values.push(request.id)
+    db.prepare(`UPDATE requests SET ${sets.join(', ')} WHERE id = ?`).run(...values)
 
     db.prepare(
-      'INSERT INTO events (feature_id, at, type, actor, payload) VALUES (?, ?, ?, ?, ?)'
+      'INSERT INTO events (request_id, at, type, actor, payload) VALUES (?, ?, ?, ?, ?)'
     ).run(
-      feature.id,
+      request.id,
       at,
       'checkpoint',
       'ai_3',
@@ -565,7 +565,7 @@ export function checkpoint(db: Db, input: CheckpointInput): string {
   }
 
   appendRecord(
-    feature,
+    request,
     `\n- **#${n}** ${at} — tests ${input.tests_passed}/${input.tests_total}, ` +
       `${input.files_changed ?? 0} files` +
       (input.blocked_on ? `, blocked: ${input.blocked_on}` : '') +
@@ -573,7 +573,7 @@ export function checkpoint(db: Db, input: CheckpointInput): string {
       `\n`
   )
 
-  return `${pad(feature.id)} ${feature.slug}: checkpoint #${n} — ${input.tests_passed}/${input.tests_total} tests`
+  return `${pad(request.id)} ${request.slug}: checkpoint #${n} — ${input.tests_passed}/${input.tests_total} tests`
 }
 
 // ---------------------------------------------------------------------------
@@ -583,7 +583,7 @@ export function checkpoint(db: Db, input: CheckpointInput): string {
 export function decide(
   db: Db,
   input: {
-    feature?: string | number
+    request?: string | number
     kind: 'decision' | 'blocked' | 'failed' | 'done'
     question: string
     recommendation?: string
@@ -593,17 +593,17 @@ export function decide(
     default_if_silent?: string
   }
 ): string {
-  const feature = input.feature ? requireFeature(db, input.feature) : undefined
+  const request = input.request ? requireRequest(db, input.request) : undefined
   const at = now()
 
   const result = db
     .prepare(
       `INSERT INTO decisions
-        (feature_id, at, kind, question, recommendation, evidence, reversible, cost, default_if_silent)
+        (request_id, at, kind, question, recommendation, evidence, reversible, cost, default_if_silent)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
     )
     .run(
-      feature?.id ?? null,
+      request?.id ?? null,
       at,
       input.kind,
       input.question,
@@ -616,14 +616,14 @@ export function decide(
 
   const id = Number(result.lastInsertRowid)
 
-  if (feature) {
-    db.prepare('UPDATE features SET last_event_at = ? WHERE id = ?').run(at, feature.id)
+  if (request) {
+    db.prepare('UPDATE requests SET last_event_at = ? WHERE id = ?').run(at, request.id)
     db.prepare(
-      'INSERT INTO events (feature_id, at, type, actor, payload) VALUES (?, ?, ?, ?, ?)'
-    ).run(feature.id, at, 'decision.opened', 'ai_0', json({ decision: id, kind: input.kind }))
+      'INSERT INTO events (request_id, at, type, actor, payload) VALUES (?, ?, ?, ?, ?)'
+    ).run(request.id, at, 'decision.opened', 'ai_0', json({ decision: id, kind: input.kind }))
   }
 
-  return `decision #${id} opened${feature ? ` for ${pad(feature.id)} ${feature.slug}` : ''} — ${input.kind}: ${input.question}`
+  return `decision #${id} opened${request ? ` for ${pad(request.id)} ${request.slug}` : ''} — ${input.kind}: ${input.question}`
 }
 
 export function resolveDecision(
@@ -641,17 +641,17 @@ export function resolveDecision(
     input.id
   )
 
-  if (row.feature_id) {
+  if (row.request_id) {
     // The human acted on the blocker, so the displayed one is stale even when
     // the stage is about to retry and fail again.
-    db.prepare('UPDATE features SET blocked_on = NULL, last_event_at = ? WHERE id = ?').run(
+    db.prepare('UPDATE requests SET blocked_on = NULL, last_event_at = ? WHERE id = ?').run(
       at,
-      row.feature_id
+      row.request_id
     )
     db.prepare(
-      'INSERT INTO events (feature_id, at, type, actor, payload) VALUES (?, ?, ?, ?, ?)'
+      'INSERT INTO events (request_id, at, type, actor, payload) VALUES (?, ?, ?, ?, ?)'
     ).run(
-      row.feature_id,
+      row.request_id,
       at,
       'decision.resolved',
       'human',
@@ -667,7 +667,7 @@ export function resolveDecision(
 // ---------------------------------------------------------------------------
 
 export interface GateInput {
-  feature: string | number
+  request: string | number
   criteria?: number[]
   evidence?: string
   result?: 'verified' | 'rejected'
@@ -679,28 +679,28 @@ export interface GateInput {
  * human gate itself.
  */
 export function gate(db: Db, input: GateInput): string {
-  const feature = requireFeature(db, input.feature)
-  if (feature.state !== 'review') {
+  const request = requireRequest(db, input.request)
+  if (request.state !== 'review') {
     throw new Error(
-      `Clara: human gates confirm in state=review (feature ${pad(feature.id)} is ${feature.state})`
+      `Clara: human gates confirm in state=review (request ${pad(request.id)} is ${request.state})`
     )
   }
 
   const gatePositions = db
     .prepare(
-      'SELECT position FROM criteria WHERE feature_id = ? AND human_gate = 1 ORDER BY position'
+      'SELECT position FROM criteria WHERE request_id = ? AND human_gate = 1 ORDER BY position'
     )
-    .all(feature.id)
+    .all(request.id)
     .map((row) => Number(row.position))
   if (!gatePositions.length) {
-    throw new Error(`Clara: feature ${pad(feature.id)} has no human-gate criteria`)
+    throw new Error(`Clara: request ${pad(request.id)} has no human-gate criteria`)
   }
 
   const positions = (input.criteria?.length ? input.criteria : gatePositions).map(Number)
   const unknown = positions.filter((position) => !gatePositions.includes(position))
   if (unknown.length) {
     throw new Error(
-      `Clara: criteria ${unknown.join(', ')} are not human gates for feature ${pad(feature.id)} ` +
+      `Clara: criteria ${unknown.join(', ')} are not human gates for request ${pad(request.id)} ` +
         `(gates: ${gatePositions.join(', ')})`
     )
   }
@@ -708,20 +708,20 @@ export function gate(db: Db, input: GateInput): string {
   const at = now()
   const result = input.result === 'rejected' ? 'rejected' : 'verified'
   db.prepare(
-    'INSERT INTO events (feature_id, at, type, actor, payload) VALUES (?, ?, ?, ?, ?)'
+    'INSERT INTO events (request_id, at, type, actor, payload) VALUES (?, ?, ?, ?, ?)'
   ).run(
-    feature.id,
+    request.id,
     at,
     'human.gates',
     'human',
     json({ criteria: positions, result, evidence: input.evidence ?? null })
   )
   db.prepare(
-    'UPDATE features SET last_event_at = ?, stalled_at = NULL, blocked_on = NULL WHERE id = ?'
-  ).run(at, feature.id)
+    'UPDATE requests SET last_event_at = ?, stalled_at = NULL, blocked_on = NULL WHERE id = ?'
+  ).run(at, request.id)
 
   return (
-    `${pad(feature.id)} ${feature.slug}: human gates ${result} — ${positions.join(', ')}` +
+    `${pad(request.id)} ${request.slug}: human gates ${result} — ${positions.join(', ')}` +
     (input.evidence ? ` (${input.evidence})` : '')
   )
 }
@@ -740,7 +740,7 @@ export function inbox(db: Db, input: { workspace?: string } = {}): string {
     .prepare(
       `SELECT d.*, f.slug, f.id AS fid, w.name AS workspace
          FROM decisions d
-         LEFT JOIN features f ON f.id = d.feature_id
+         LEFT JOIN requests f ON f.id = d.request_id
          LEFT JOIN workspaces w ON w.id = f.workspace_id
         WHERE d.resolved_at IS NULL
           ${ws ? 'AND f.workspace_id = ?' : ''}
@@ -751,8 +751,8 @@ export function inbox(db: Db, input: { workspace?: string } = {}): string {
   const stalled = db
     .prepare(
       `SELECT f.*, w.name AS workspace
-         FROM features f JOIN workspaces w ON w.id = f.workspace_id
-        WHERE f.state = 'building' AND f.stalled_at IS NOT NULL
+         FROM requests f JOIN workspaces w ON w.id = f.workspace_id
+        WHERE f.state = 'running' AND f.stalled_at IS NOT NULL
           ${ws ? 'AND f.workspace_id = ?' : ''}
         ORDER BY f.stalled_at ASC`
     )
@@ -761,9 +761,9 @@ export function inbox(db: Db, input: { workspace?: string } = {}): string {
   const over = db
     .prepare(
       `SELECT f.*, w.name AS workspace
-         FROM features f JOIN workspaces w ON w.id = f.workspace_id
+         FROM requests f JOIN workspaces w ON w.id = f.workspace_id
         WHERE f.soft_budget IS NOT NULL AND f.tokens > f.soft_budget
-          AND f.state NOT IN ('done', 'scrapped')
+          AND f.state NOT IN ('completed', 'cancelled')
           ${ws ? 'AND f.workspace_id = ?' : ''}
         ORDER BY f.tokens DESC`
     )
@@ -771,7 +771,7 @@ export function inbox(db: Db, input: { workspace?: string } = {}): string {
 
   const waits = pendingHumanWork(db).filter(
     (item) =>
-      (item.kind === 'approval' || item.kind === 'gates') &&
+      (item.kind === 'approval' || item.kind === 'review_gate' || item.kind === 'stage_gate') &&
       (!input.workspace || item.workspace === input.workspace)
   )
 
@@ -821,18 +821,18 @@ export function inbox(db: Db, input: { workspace?: string } = {}): string {
 
 export function ask(
   db: Db,
-  input: { question?: string; feature?: string | number; workspace?: string; limit?: number }
+  input: { question?: string; request?: string | number; workspace?: string; limit?: number }
 ): string {
   const limit = Math.min(Math.max(input.limit ?? 20, 1), 100)
   const question = input.question ?? 'unanswerable ledger query'
 
-  if (input.feature !== undefined) {
-    const feature = featureByRef(db, input.feature)
-    if (!feature) {
-      recordGap(db, question, `no feature matching "${input.feature}"`)
-      return `The ledger has no feature matching "${input.feature}". Gap recorded.`
+  if (input.request !== undefined) {
+    const request = requestByRef(db, input.request)
+    if (!request) {
+      recordGap(db, question, `no request matching "${input.request}"`)
+      return `The ledger has no request matching "${input.request}". Gap recorded.`
     }
-    return renderFeature(db, feature)
+    return renderRequest(db, request)
   }
 
   let rows: Row[]
@@ -844,39 +844,39 @@ export function ask(
     }
     rows = db
       .prepare(
-        `SELECT f.*, w.name AS workspace FROM features f
+        `SELECT f.*, w.name AS workspace FROM requests f
            JOIN workspaces w ON w.id = f.workspace_id
           WHERE f.workspace_id = ?
-          ORDER BY f.state = 'done', f.id DESC LIMIT ?`
+          ORDER BY f.state = 'completed', f.id DESC LIMIT ?`
       )
       .all(ws.id, limit)
   } else {
     rows = db
       .prepare(
-        `SELECT f.*, w.name AS workspace FROM features f
+        `SELECT f.*, w.name AS workspace FROM requests f
            JOIN workspaces w ON w.id = f.workspace_id
-          ORDER BY f.state IN ('done', 'scrapped'), f.id DESC LIMIT ?`
+          ORDER BY f.state IN ('completed', 'cancelled'), f.id DESC LIMIT ?`
       )
       .all(limit)
   }
 
   if (!rows.length) {
-    recordGap(db, question, 'no features in ledger')
+    recordGap(db, question, 'no requests in ledger')
     return 'The ledger is empty. Gap recorded — nothing has been submitted yet.'
   }
 
   const lines = rows.map((f) => summaryLine(db, f))
-  return [`${rows.length} feature(s):`, '', ...lines].join('\n')
+  return [`${rows.length} request(s):`, '', ...lines].join('\n')
 }
 
 function summaryLine(db: Db, f: Row): string {
   const ws = f.workspace ?? workspaceOf(db, f).name
   const open = db
-    .prepare('SELECT COUNT(*) AS c FROM decisions WHERE feature_id = ? AND resolved_at IS NULL')
+    .prepare('SELECT COUNT(*) AS c FROM decisions WHERE request_id = ? AND resolved_at IS NULL')
     .get(f.id)
   const cp = db
     .prepare(
-      'SELECT tests_passed, tests_total FROM checkpoints WHERE feature_id = ? ORDER BY n DESC LIMIT 1'
+      'SELECT tests_passed, tests_total FROM checkpoints WHERE request_id = ? ORDER BY n DESC LIMIT 1'
     )
     .get(f.id)
   const openCount = Number(open?.c ?? 0)
@@ -891,7 +891,7 @@ function summaryLine(db: Db, f: Row): string {
   ]
   if (openCount > 0) parts.push(`${openCount} open decision(s)`)
   if (f.blocked_on) parts.push(`blocked: ${f.blocked_on}`)
-  if (f.scrap_reason) parts.push(`scrapped: ${f.scrap_reason}`)
+  if (f.cancel_reason) parts.push(`cancelled: ${f.cancel_reason}`)
   return parts.join(' · ')
 }
 
@@ -903,16 +903,16 @@ interface GateStatus {
 }
 
 /** A later rejection removes a position; verification accumulates. */
-function gateStatus(db: Db, featureID: number, criteria: Row[]): GateStatus {
+function gateStatus(db: Db, requestID: number, criteria: Row[]): GateStatus {
   const gates = criteria.filter((c) => c.human_gate).map((c) => Number(c.position))
   const verified = new Set<number>()
   let at: string | null = null
 
   const records = db
     .prepare(
-      "SELECT at, payload FROM events WHERE feature_id = ? AND type = 'human.gates' ORDER BY id"
+      "SELECT at, payload FROM events WHERE request_id = ? AND type = 'human.gates' ORDER BY id"
     )
-    .all(featureID)
+    .all(requestID)
   for (const record of records) {
     let payload: any
     try {
@@ -984,24 +984,24 @@ function eventDetail(row: Row): string {
   }
 }
 
-function renderFeature(db: Db, f: Row): string {
+function renderRequest(db: Db, f: Row): string {
   const ws = workspaceOf(db, f)
   const criteria = db
-    .prepare('SELECT * FROM criteria WHERE feature_id = ? ORDER BY position')
+    .prepare('SELECT * FROM criteria WHERE request_id = ? ORDER BY position')
     .all(f.id)
   const checkpoints = db
-    .prepare('SELECT * FROM checkpoints WHERE feature_id = ? ORDER BY n DESC LIMIT 5')
+    .prepare('SELECT * FROM checkpoints WHERE request_id = ? ORDER BY n DESC LIMIT 5')
     .all(f.id)
   const events = db
-    .prepare('SELECT * FROM events WHERE feature_id = ? ORDER BY id DESC LIMIT 10')
+    .prepare('SELECT * FROM events WHERE request_id = ? ORDER BY id DESC LIMIT 10')
     .all(f.id)
   const decisions = db
-    .prepare('SELECT * FROM decisions WHERE feature_id = ? ORDER BY id DESC LIMIT 5')
+    .prepare('SELECT * FROM decisions WHERE request_id = ? ORDER BY id DESC LIMIT 5')
     .all(f.id)
   const runs = db
     .prepare(
       `SELECT stage, agent, status, session_id, note FROM runs
-        WHERE feature_id = ? ORDER BY id DESC LIMIT 6`
+        WHERE request_id = ? ORDER BY id DESC LIMIT 6`
     )
     .all(f.id)
 
@@ -1011,7 +1011,7 @@ function renderFeature(db: Db, f: Row): string {
 
   const frozen = db
     .prepare(
-      "SELECT payload FROM events WHERE feature_id = ? AND type = 'tests.frozen' ORDER BY id DESC LIMIT 1"
+      "SELECT payload FROM events WHERE request_id = ? AND type = 'tests.frozen' ORDER BY id DESC LIMIT 1"
     )
     .get(f.id)
   let frozenTotal: number | null = null
@@ -1028,7 +1028,7 @@ function renderFeature(db: Db, f: Row): string {
   const docsNeeded = impact !== '' && !['none', 'n/a', 'no'].includes(impact.toLowerCase())
   const docsRun = db
     .prepare(
-      "SELECT status FROM runs WHERE feature_id = ? AND stage = 'docs' ORDER BY id DESC LIMIT 1"
+      "SELECT status FROM runs WHERE request_id = ? AND stage = 'docs' ORDER BY id DESC LIMIT 1"
     )
     .get(f.id)
   const docsState = !docsNeeded
@@ -1050,7 +1050,9 @@ function renderFeature(db: Db, f: Row): string {
     `state:     ${f.state}`,
     `intent:    ${f.intent}`,
     `record:    ${
-      f.spec_path ? `${f.spec_path} (frontmatter is historical; this row is authoritative)` : '—'
+      f.record_path
+        ? `${f.record_path} (frontmatter is historical; this row is authoritative)`
+        : '—'
     }`,
     `branch:    ${f.branch ?? '—'}   worktree: ${f.worktree ?? '—'}`,
     `cost:      ${f.tokens} tokens${f.usd ? ` · $${f.usd}` : ''}` +
@@ -1069,7 +1071,7 @@ function renderFeature(db: Db, f: Row): string {
 
   if (f.stalled_at) lines.push(`stalled:   since ${f.stalled_at}`)
   if (f.blocked_on) lines.push(`blocked:   ${f.blocked_on}`)
-  if (f.scrap_reason) lines.push(`scrapped:  ${f.scrap_reason}`)
+  if (f.cancel_reason) lines.push(`cancelled:  ${f.cancel_reason}`)
   if (meta.non_goals?.length) lines.push(`non-goals: ${meta.non_goals.join('; ')}`)
 
   lines.push(
@@ -1148,9 +1150,9 @@ export function tick(db: Db, input: { workspace?: string; dry_run?: boolean } = 
 
   const active = db
     .prepare(
-      `SELECT f.*, w.name AS workspace FROM features f
+      `SELECT f.*, w.name AS workspace FROM requests f
          JOIN workspaces w ON w.id = f.workspace_id
-        WHERE f.state IN ('planned', 'building', 'review')
+        WHERE f.state IN ('approved', 'running', 'review')
           ${ws ? 'AND f.workspace_id = ?' : ''}
         ORDER BY f.id`
     )
@@ -1161,17 +1163,17 @@ export function tick(db: Db, input: { workspace?: string; dry_run?: boolean } = 
 
   const kill = (f: Row, reason: string) => {
     if (dry) {
-      actions.push(`${pad(f.id)} ${f.slug}: WOULD kill (${reason})`)
+      actions.push(`${pad(f.id)} ${f.slug}: WOULD cancel (${reason})`)
       return
     }
     db.prepare(
-      "UPDATE features SET state = 'scrapped', scrap_reason = ?, closed_at = ?, last_event_at = ? WHERE id = ?"
+      "UPDATE requests SET state = 'cancelled', cancel_reason = ?, closed_at = ?, last_event_at = ? WHERE id = ?"
     ).run(reason, at, at, f.id)
     db.prepare(
-      'INSERT INTO events (feature_id, at, type, actor, payload) VALUES (?, ?, ?, ?, ?)'
-    ).run(f.id, at, 'feature.killed', 'ai_0', json({ reason }))
-    appendRecord(f, `\n- **${at}** state ${f.state} → scrapped (ai_0) · ${reason}\n`)
-    actions.push(`${pad(f.id)} ${f.slug}: killed (${reason})`)
+      'INSERT INTO events (request_id, at, type, actor, payload) VALUES (?, ?, ?, ?, ?)'
+    ).run(f.id, at, 'request.cancelled', 'ai_0', json({ reason }))
+    appendRecord(f, `\n- **${at}** state ${f.state} → cancelled (ai_0) · ${reason}\n`)
+    actions.push(`${pad(f.id)} ${f.slug}: cancelled (${reason})`)
   }
 
   for (const f of active) {
@@ -1199,16 +1201,16 @@ export function tick(db: Db, input: { workspace?: string; dry_run?: boolean } = 
     }
 
     // Heartbeat
-    if (f.state === 'building' && !f.stalled_at) {
+    if (f.state === 'running' && !f.stalled_at) {
       const mins = (Date.now() - new Date(f.last_event_at).getTime()) / 60_000
       if (mins > STALL_MINUTES) {
         if (dry) {
           actions.push(`${label}: WOULD mark stalled (no event in ${Math.round(mins)}m)`)
         } else {
-          db.prepare('UPDATE features SET stalled_at = ? WHERE id = ?').run(at, f.id)
+          db.prepare('UPDATE requests SET stalled_at = ? WHERE id = ?').run(at, f.id)
           db.prepare(
-            'INSERT INTO events (feature_id, at, type, actor, payload) VALUES (?, ?, ?, ?, ?)'
-          ).run(f.id, at, 'feature.stalled', 'ai_0', json({ minutes: Math.round(mins) }))
+            'INSERT INTO events (request_id, at, type, actor, payload) VALUES (?, ?, ?, ?, ?)'
+          ).run(f.id, at, 'request.stalled', 'ai_0', json({ minutes: Math.round(mins) }))
           actions.push(`${label}: marked stalled (no event in ${Math.round(mins)}m)`)
         }
       }
@@ -1217,7 +1219,7 @@ export function tick(db: Db, input: { workspace?: string; dry_run?: boolean } = 
     // Soft budget → one open decision, not one per tick
     if (f.soft_budget != null && f.tokens > f.soft_budget) {
       const open = db
-        .prepare('SELECT 1 FROM decisions WHERE feature_id = ? AND resolved_at IS NULL')
+        .prepare('SELECT 1 FROM decisions WHERE request_id = ? AND resolved_at IS NULL')
         .get(f.id)
       if (!open) {
         if (dry) {
@@ -1226,7 +1228,7 @@ export function tick(db: Db, input: { workspace?: string; dry_run?: boolean } = 
           )
         } else {
           decide(db, {
-            feature: f.id,
+            request: f.id,
             kind: 'decision',
             question: `Spend has passed the soft budget (${f.tokens}/${f.soft_budget} tokens). Finish or kill?`,
             recommendation: 'kill',
@@ -1243,7 +1245,7 @@ export function tick(db: Db, input: { workspace?: string; dry_run?: boolean } = 
     // Flat progress with rising spend
     const cps = db
       .prepare(
-        'SELECT n, tests_passed, tests_total, tokens FROM checkpoints WHERE feature_id = ? ORDER BY n DESC LIMIT 3'
+        'SELECT n, tests_passed, tests_total, tokens FROM checkpoints WHERE request_id = ? ORDER BY n DESC LIMIT 3'
       )
       .all(f.id)
     if (cps.length === 3) {
@@ -1254,14 +1256,14 @@ export function tick(db: Db, input: { workspace?: string; dry_run?: boolean } = 
         Number(cps[0].tokens) > Number(cps[2].tokens)
       if (flat && rising) {
         const open = db
-          .prepare('SELECT 1 FROM decisions WHERE feature_id = ? AND resolved_at IS NULL')
+          .prepare('SELECT 1 FROM decisions WHERE request_id = ? AND resolved_at IS NULL')
           .get(f.id)
         if (!open) {
           if (dry) {
             actions.push(`${label}: WOULD open decision (flat progress, rising spend)`)
           } else {
             decide(db, {
-              feature: f.id,
+              request: f.id,
               kind: 'decision',
               question:
                 'Test count has been flat across three checkpoints while spend rose. Is this thrashing?',
@@ -1280,6 +1282,6 @@ export function tick(db: Db, input: { workspace?: string; dry_run?: boolean } = 
   }
 
   if (!actions.length)
-    return `tick (${dry ? 'dry run' : 'live'}): nothing to do across ${active.length} active feature(s)`
+    return `tick (${dry ? 'dry run' : 'live'}): nothing to do across ${active.length} active request(s)`
   return [`tick (${dry ? 'dry run' : 'live'}): ${actions.length} action(s)`, ...actions].join('\n')
 }

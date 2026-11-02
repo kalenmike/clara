@@ -16,7 +16,7 @@ export type RunStatus = 'starting' | 'running' | 'done' | 'failed' | 'interrupte
 
 export interface RunRow {
   id: number
-  feature_id: number
+  request_id: number
   stage: Stage
   agent: string
   session_id: string | null
@@ -27,9 +27,9 @@ export interface RunRow {
   note: string | null
 }
 
-export interface RunWithFeature extends RunRow {
-  feature_state: string
-  feature_slug: string
+export interface RunWithRequest extends RunRow {
+  request_state: string
+  request_slug: string
 }
 
 export interface NextStage {
@@ -39,65 +39,65 @@ export interface NextStage {
 }
 
 // ---------------------------------------------------------------------------
-// feature predicates
+// request predicates
 // ---------------------------------------------------------------------------
 
-export function hasCriteria(db: Db, featureID: number): boolean {
-  const row = db.prepare('SELECT COUNT(*) AS c FROM criteria WHERE feature_id = ?').get(featureID)
+export function hasCriteria(db: Db, requestID: number): boolean {
+  const row = db.prepare('SELECT COUNT(*) AS c FROM criteria WHERE request_id = ?').get(requestID)
   return Number(row?.c ?? 0) > 0
 }
 
-export function hasOpenDecision(db: Db, featureID: number): boolean {
+export function hasOpenDecision(db: Db, requestID: number): boolean {
   return Boolean(
     db
-      .prepare('SELECT 1 FROM decisions WHERE feature_id = ? AND resolved_at IS NULL LIMIT 1')
-      .get(featureID)
+      .prepare('SELECT 1 FROM decisions WHERE request_id = ? AND resolved_at IS NULL LIMIT 1')
+      .get(requestID)
   )
 }
 
-/** Active features, in creation order. */
-export function activeFeatures(db: Db): Row[] {
+/** Active requests, in creation order. */
+export function activeRequests(db: Db): Row[] {
   return db
     .prepare(
-      `SELECT * FROM features
-        WHERE state IN ('spec', 'planned', 'building', 'review')
+      `SELECT * FROM requests
+        WHERE state IN ('draft', 'approved', 'running', 'review')
         ORDER BY id`
     )
     .all()
 }
 
 /**
- * The next stage a feature needs, or undefined when it is waiting on a human.
+ * The next stage a request needs, or undefined when it is waiting on a human.
  * This is pure ledger state; it does not look at sessions.
  */
-export function nextStage(db: Db, feature: Row): NextStage | undefined {
-  if (feature.state === 'done' || feature.state === 'scrapped') return
-  if (feature.stalled_at) return
-  if (hasOpenDecision(db, Number(feature.id))) return
+export function nextStage(db: Db, request: Row): NextStage | undefined {
+  if (request.state === 'completed' || request.state === 'cancelled') return
+  if (request.stalled_at) return
+  if (hasOpenDecision(db, Number(request.id))) return
 
-  switch (feature.state) {
-    case 'spec':
-      if (!hasCriteria(db, Number(feature.id))) {
+  switch (request.state) {
+    case 'draft':
+      if (!hasCriteria(db, Number(request.id))) {
         return { stage: 'spec', agent: '001', reason: 'no acceptance criteria' }
       }
       // Criteria are proposed. Only clara_approve may move this forward.
       return
 
-    case 'planned':
-      if (!feature.tests_hash) {
+    case 'approved':
+      if (!request.tests_hash) {
         return { stage: 'test', agent: '002', reason: 'tests not frozen' }
       }
       return { stage: 'build', agent: '003', reason: 'tests frozen' }
 
-    case 'building':
-      return { stage: 'build', agent: '003', reason: 'building' }
+    case 'running':
+      return { stage: 'build', agent: '003', reason: 'running' }
 
     case 'review': {
-      const impact = String(feature.docs_impact ?? '')
+      const impact = String(request.docs_impact ?? '')
         .trim()
         .toLowerCase()
       const needsDocs = impact !== '' && impact !== 'none' && impact !== 'n/a' && impact !== 'no'
-      if (needsDocs && latestRun(db, Number(feature.id), 'docs')?.status !== 'done') {
+      if (needsDocs && latestRun(db, Number(request.id), 'docs')?.status !== 'done') {
         return { stage: 'docs', agent: '004', reason: 'docs impact' }
       }
       return { stage: 'judge', agent: 'judge', reason: 'ready to close' }
@@ -112,19 +112,19 @@ export function nextStage(db: Db, feature: Row): NextStage | undefined {
 // runs
 // ---------------------------------------------------------------------------
 
-export function latestRun(db: Db, featureID: number, stage: Stage): RunRow | undefined {
+export function latestRun(db: Db, requestID: number, stage: Stage): RunRow | undefined {
   return db
-    .prepare('SELECT * FROM runs WHERE feature_id = ? AND stage = ? ORDER BY id DESC LIMIT 1')
-    .get(featureID, stage) as RunRow | undefined
+    .prepare('SELECT * FROM runs WHERE request_id = ? AND stage = ? ORDER BY id DESC LIMIT 1')
+    .get(requestID, stage) as RunRow | undefined
 }
 
-export function startRun(db: Db, featureID: number, stage: Stage, agent: string): number {
+export function startRun(db: Db, requestID: number, stage: Stage, agent: string): number {
   const result = db
     .prepare(
-      `INSERT INTO runs (feature_id, stage, agent, status, created_at)
+      `INSERT INTO runs (request_id, stage, agent, status, created_at)
        VALUES (?, ?, ?, 'starting', ?)`
     )
-    .run(featureID, stage, agent, now())
+    .run(requestID, stage, agent, now())
   return Number(result.lastInsertRowid)
 }
 
@@ -150,16 +150,16 @@ export function finishRun(
 }
 
 /** Runs that may still own a live session. */
-export function waitingRuns(db: Db): RunWithFeature[] {
+export function waitingRuns(db: Db): RunWithRequest[] {
   return db
     .prepare(
-      `SELECT r.*, f.state AS feature_state, f.slug AS feature_slug
+      `SELECT r.*, f.state AS request_state, f.slug AS request_slug
          FROM runs r
-         JOIN features f ON f.id = r.feature_id
+         JOIN requests f ON f.id = r.request_id
         WHERE r.status IN ('starting', 'running')
         ORDER BY r.id`
     )
-    .all() as RunWithFeature[]
+    .all() as RunWithRequest[]
 }
 
 // ---------------------------------------------------------------------------

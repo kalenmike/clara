@@ -88,7 +88,7 @@ serverDb.close()
 console.log('\n0. plugin registration')
 const index = await import('./index.ts')
 const plugin = index.default
-const registered = new Map<string, any>()
+const tools = new Map<string, any>()
 let namespaceName = ''
 
 // Mirror OpenCode 2.2.5's id derivation. `editor.namespace()` only describes a
@@ -108,7 +108,7 @@ await plugin.setup({
           namespaceName = ns.name
         },
         add: (tool: any) => {
-          registered.set(idOf(tool), tool)
+          tools.set(idOf(tool), tool)
         },
       }),
   },
@@ -131,15 +131,15 @@ const expected = [
 ]
 check('plugin id is clara', plugin.id === 'clara')
 check('namespace is clara', namespaceName === 'clara')
-check('registers 13 tools', registered.size === 13, `got ${[...registered.keys()].join(', ')}`)
-for (const name of expected) check(`tool ${name}`, registered.has(name))
+check('registers 13 tools', tools.size === 13, `got ${[...tools.keys()].join(', ')}`)
+for (const name of expected) check(`tool ${name}`, tools.has(name))
 check(
   'every tool carries the clara namespace',
-  [...registered.values()].every((t) => t.options?.namespace === 'clara')
+  [...tools.values()].every((t) => t.options?.namespace === 'clara')
 )
 check(
-  'no tool is registered under its bare name',
-  ![...registered.keys()].some((id) => !id.startsWith('clara_'))
+  'no tool is reachable under its bare name',
+  ![...tools.keys()].some((id) => !id.startsWith('clara_'))
 )
 
 const agents = JSON.parse(readFileSync(new URL('./agents.json', import.meta.url), 'utf8'))
@@ -157,13 +157,13 @@ for (const definition of Object.values(agents.agents) as any[]) {
 }
 check(
   'every explicit agent permission names a registered tool',
-  [...allowed].every((name) => registered.has(name)),
-  [...allowed].filter((name) => !registered.has(name)).join(', ')
+  [...allowed].every((name) => tools.has(name)),
+  [...allowed].filter((name) => !tools.has(name)).join(', ')
 )
 check(
   'every tool is allowed for at least one agent',
-  [...registered.keys()].every((id) => allowed.has(id)),
-  [...registered.keys()].filter((id) => !allowed.has(id)).join(', ')
+  [...tools.keys()].every((id) => allowed.has(id)),
+  [...tools.keys()].filter((id) => !allowed.has(id)).join(', ')
 )
 
 const buildPermissions = ((agents.agents as any)['003'].permissions ?? []) as any[]
@@ -223,15 +223,15 @@ check('docs agent maps to ai_4', index.AGENT_ACTORS['004'] === 'ai_4')
 
 check(
   'every tool has a description',
-  [...registered.values()].every((t) => !!t.description)
+  [...tools.values()].every((t) => !!t.description)
 )
 check(
   'every tool has an input schema',
-  [...registered.values()].every((t) => !!t.input)
+  [...tools.values()].every((t) => !!t.input)
 )
 check(
   'every tool has execute',
-  [...registered.values()].every((t) => typeof t.execute === 'function')
+  [...tools.values()].every((t) => typeof t.execute === 'function')
 )
 
 const controlDb = new DatabaseSync(serverDbPath)
@@ -240,7 +240,7 @@ controlDb
   .run(JSON.stringify(false), 'management.enabled')
 let guarded = false
 try {
-  await registered.get('clara_inbox')!.execute({})
+  await tools.get('clara_inbox')!.execute({})
 } catch (error) {
   guarded = (error as Error).message.includes('Clara management is disabled')
 }
@@ -250,7 +250,7 @@ controlDb
   .run(JSON.stringify(true), 'management.enabled')
 controlDb.close()
 
-const wired = await registered.get('clara_inbox')!.execute({})
+const wired = await tools.get('clara_inbox')!.execute({})
 check('tool execute reaches the ledger', String(wired.content).startsWith('inbox: empty'))
 
 console.log('\n1. submit')
@@ -267,18 +267,18 @@ const submitted = q.submit(db, {
   hard_budget: 1_200_000,
 })
 console.log(submitted)
-const feature = db.prepare('SELECT * FROM features ORDER BY id DESC LIMIT 1').get()!
-check('feature exists', !!feature)
-check('state is spec', feature.state === 'spec')
-check('record written', existsSync(String(feature.spec_path)))
+const request = db.prepare('SELECT * FROM requests ORDER BY id DESC LIMIT 1').get()!
+check('request exists', !!request)
+check('state is draft', request.state === 'draft')
+check('record written', existsSync(String(request.record_path)))
 check(
   'record lives under docs/records',
-  String(feature.spec_path).includes('/docs/records/'),
-  String(feature.spec_path)
+  String(request.record_path).includes('/docs/records/'),
+  String(request.record_path)
 )
 check(
   'event recorded',
-  db.prepare('SELECT COUNT(*) c FROM events WHERE feature_id = ?').get(feature.id)!.c === 1
+  db.prepare('SELECT COUNT(*) c FROM events WHERE request_id = ?').get(request.id)!.c === 1
 )
 
 const sessionDir = join(dir, 'session-workspace')
@@ -294,17 +294,17 @@ await sessionSubmit.execute(
   },
   { agent: 'clara', sessionID: 'ses_origin' }
 )
-const sessionFeature = sessionDb.prepare('SELECT * FROM features ORDER BY id DESC LIMIT 1').get()!
+const sessionRequest = sessionDb.prepare('SELECT * FROM requests ORDER BY id DESC LIMIT 1').get()!
 const sessionWorkspace = sessionDb
   .prepare('SELECT * FROM workspaces WHERE name = ?')
   .get('session')!
-check('submit records the originating session', sessionFeature.session_id === 'ses_origin')
+check('submit records the originating session', sessionRequest.session_id === 'ses_origin')
 check('submit records the workspace session', sessionWorkspace.session_id === 'ses_origin')
 check(
-  'registered event names the session',
+  'request.submitted event names the session',
   JSON.parse(
     String(
-      sessionDb.prepare('SELECT payload FROM events WHERE feature_id = ?').get(sessionFeature.id)!
+      sessionDb.prepare('SELECT payload FROM events WHERE request_id = ?').get(sessionRequest.id)!
         .payload
     )
   ).session === 'ses_origin'
@@ -314,12 +314,12 @@ sessionDb.close()
 console.log('\n2. criteria')
 expectThrow(
   'rejects a criterion with no test and no human gate',
-  () => q.setCriteria(db, { feature: feature.id, criteria: [{ text: 'it feels right' }] }),
+  () => q.setCriteria(db, { request: request.id, criteria: [{ text: 'it feels right' }] }),
   'neither a test_path nor human_gate'
 )
 
 q.setCriteria(db, {
-  feature: feature.id,
+  request: request.id,
   criteria: [
     {
       text: 'requesting a key for a known email sends exactly one email',
@@ -337,7 +337,7 @@ q.setCriteria(db, {
     'if the mailer is unreachable from tests, stop — do not mock the auth path',
   ],
 })
-const criteria = db.prepare('SELECT * FROM criteria WHERE feature_id = ?').all(feature.id)
+const criteria = db.prepare('SELECT * FROM criteria WHERE request_id = ?').all(request.id)
 check('four criteria stored', criteria.length === 4)
 check('one human gate', criteria.filter((c: any) => c.human_gate).length === 1)
 check(
@@ -348,36 +348,36 @@ check(
 console.log('\n3. approval gate')
 let blocked = ''
 try {
-  await registered.get('clara_approve')!.execute({ feature: feature.id }, { agent: '003' })
+  await tools.get('clara_approve')!.execute({ request: request.id }, { agent: '003' })
 } catch (error) {
   blocked = (error as Error).message
 }
 check('implementer cannot approve criteria', blocked.includes('not available to 003'), blocked)
 
-q.approve(db, { feature: feature.id })
-const afterApprove = q.featureByRef(db, feature.id)!
-check('state is planned', afterApprove.state === 'planned')
+q.approve(db, { request: request.id })
+const afterApprove = q.requestByRef(db, request.id)!
+check('state is approved', afterApprove.state === 'approved')
 check(
   'criteria approved',
   db
-    .prepare('SELECT * FROM criteria WHERE feature_id = ?')
-    .all(feature.id)
+    .prepare('SELECT * FROM criteria WHERE request_id = ?')
+    .all(request.id)
     .every((c: any) => c.approved_at)
 )
 
 console.log('\n4. freeze + build')
 expectThrow(
   'cannot checkpoint before building',
-  () => q.checkpoint(db, { feature: feature.id, tests_passed: 1, tests_total: 4 }),
-  'state=building'
+  () => q.checkpoint(db, { request: request.id, tests_passed: 1, tests_total: 4 }),
+  'state=running'
 )
 
-q.freeze(db, { feature: feature.id, tests_hash: '8f3ac21d', tests_total: 4 })
-q.appendEvent(db, { feature: feature.id, type: 'build.started', actor: 'ai_3', state: 'building' })
-check('state is building', q.featureByRef(db, feature.id)!.state === 'building')
+q.freeze(db, { request: request.id, tests_hash: '8f3ac21d', tests_total: 4 })
+q.appendEvent(db, { request: request.id, type: 'build.started', actor: 'ai_3', state: 'running' })
+check('state is running', q.requestByRef(db, request.id)!.state === 'running')
 
 q.checkpoint(db, {
-  feature: feature.id,
+  request: request.id,
   tests_passed: 1,
   tests_total: 4,
   files_changed: 3,
@@ -386,16 +386,16 @@ q.checkpoint(db, {
   tokens: 40_000,
 })
 q.checkpoint(db, {
-  feature: feature.id,
+  request: request.id,
   tests_passed: 1,
   tests_total: 4,
   files_changed: 5,
   blocked_on: 'clock abstraction missing from the harness',
   tokens: 55_000,
 })
-const cps = db.prepare('SELECT * FROM checkpoints WHERE feature_id = ? ORDER BY n').all(feature.id)
+const cps = db.prepare('SELECT * FROM checkpoints WHERE request_id = ? ORDER BY n').all(request.id)
 check('two checkpoints', cps.length === 2)
-check('tokens accumulated', q.featureByRef(db, feature.id)!.tokens === 95_000)
+check('tokens accumulated', q.requestByRef(db, request.id)!.tokens === 95_000)
 
 console.log('\n5. inbox')
 check('inbox empty when nothing needs a human', q.inbox(db).startsWith('inbox: empty'))
@@ -403,7 +403,7 @@ check('inbox empty when nothing needs a human', q.inbox(db).startsWith('inbox: e
 const decisionId = Number(
   q
     .decide(db, {
-      feature: feature.id,
+      request: request.id,
       kind: 'decision',
       question: 'The clock abstraction is missing. Add it, or drop the expiry criterion?',
       recommendation: 'add an injectable clock — dropping expiry is a security regression',
@@ -420,8 +420,8 @@ check('inbox shows the decision', inbox.includes('clock abstraction'))
 check('inbox shows the default', inbox.includes('default if silent: block'))
 
 console.log('\n6. ask')
-const asked = q.ask(db, { question: 'what is 001 doing?', feature: feature.id })
-check('ask reports state', asked.includes('state:     building'))
+const asked = q.ask(db, { question: 'what is 001 doing?', request: request.id })
+check('ask reports state', asked.includes('state:     running'))
 check('ask reports criteria', asked.includes('4/4 approved'))
 check('ask reports checkpoints', asked.includes('checkpoint'))
 check('ask reports criteria covered by a checkpoint', asked.includes('criteria 1'))
@@ -431,20 +431,18 @@ check('ask reports unverified human gates', asked.includes('human:     UNVERIFIE
 check('ask reports the current blocker', asked.includes('blocked:   clock abstraction'))
 check('ask marks the record frontmatter historical', asked.includes('frontmatter is historical'))
 check(
-  'ask works without a question when scoped to a feature',
-  q.ask(db, { feature: feature.id }).includes('state:     building')
+  'ask works without a question when scoped to a request',
+  q.ask(db, { request: request.id }).includes('state:     running')
 )
-const askTool = await registered
-  .get('clara_ask')!
-  .execute({ feature: feature.id }, { agent: 'clara' })
+const askTool = await tools.get('clara_ask')!.execute({ request: request.id }, { agent: 'clara' })
 check(
-  'ask tool accepts a feature without a question',
-  String(askTool.content).includes('state:     building')
+  'ask tool accepts a request without a question',
+  String(askTool.content).includes('state:     running')
 )
 
 const missing = q.ask(db, {
   question: 'what did we decide about billing?',
-  feature: 'does-not-exist',
+  request: 'does-not-exist',
 })
 check('unanswerable question records a gap', missing.includes('Gap recorded'))
 check('gap persisted', db.prepare('SELECT COUNT(*) c FROM schema_gaps').get()!.c === 1)
@@ -452,21 +450,21 @@ check('gap persisted', db.prepare('SELECT COUNT(*) c FROM schema_gaps').get()!.c
 console.log('\n7. state machine')
 expectThrow(
   'building cannot jump to done',
-  () => q.appendEvent(db, { feature: feature.id, type: 'x', actor: 'ai_0', state: 'done' }),
+  () => q.appendEvent(db, { request: request.id, type: 'x', actor: 'ai_0', state: 'completed' }),
   'illegal transition'
 )
 
-q.appendEvent(db, { feature: feature.id, type: 'close.requested', actor: 'ai_3', state: 'review' })
-check('state is review', q.featureByRef(db, feature.id)!.state === 'review')
-check('review clears the stale blocker', !q.featureByRef(db, feature.id)!.blocked_on)
+q.appendEvent(db, { request: request.id, type: 'close.requested', actor: 'ai_3', state: 'review' })
+check('state is review', q.requestByRef(db, request.id)!.state === 'review')
+check('review clears the stale blocker', !q.requestByRef(db, request.id)!.blocked_on)
 check(
   'ask no longer shows the blocked header',
-  !q.ask(db, { feature: feature.id }).includes('blocked:   clock abstraction')
+  !q.ask(db, { request: request.id }).includes('blocked:   clock abstraction')
 )
 
 let gateRole = ''
 try {
-  await registered.get('clara_gate')!.execute({ feature: feature.id }, { agent: 'judge' })
+  await tools.get('clara_gate')!.execute({ request: request.id }, { agent: 'judge' })
 } catch (error) {
   gateRole = (error as Error).message
 }
@@ -474,48 +472,48 @@ check('judge cannot record a human gate', gateRole.includes('not available to ju
 
 expectThrow(
   'only human-gate criteria can be confirmed',
-  () => q.gate(db, { feature: feature.id, criteria: [1] }),
+  () => q.gate(db, { request: request.id, criteria: [1] }),
   'not human gates'
 )
 
-const gated = await registered
+const gated = await tools
   .get('clara_gate')!
-  .execute({ feature: feature.id, evidence: 'email copy reviewed' }, { agent: 'clara' })
+  .execute({ request: request.id, evidence: 'email copy reviewed' }, { agent: 'clara' })
 check(
   'human records the gate through the tool',
   String(gated.content).includes('human gates verified — 4'),
   String(gated.content)
 )
-const afterGate = q.ask(db, { feature: feature.id })
+const afterGate = q.ask(db, { request: request.id })
 check('ask shows the gate verified', afterGate.includes('human:     verified 4'))
 check('recent events explain the gate', afterGate.includes('human.gates (4 verified)'))
 
-q.gate(db, { feature: feature.id, criteria: [4], result: 'rejected' })
-check('a rejection reopens the gate', q.ask(db, { feature: feature.id }).includes('UNVERIFIED (4)'))
-q.gate(db, { feature: feature.id, criteria: [4] })
+q.gate(db, { request: request.id, criteria: [4], result: 'rejected' })
+check('a rejection reopens the gate', q.ask(db, { request: request.id }).includes('UNVERIFIED (4)'))
+q.gate(db, { request: request.id, criteria: [4] })
 check(
   'a later verification wins',
-  q.ask(db, { feature: feature.id }).includes('human:     verified 4')
+  q.ask(db, { request: request.id }).includes('human:     verified 4')
 )
 
 expectThrow(
-  'ai_3 cannot close a feature',
+  'ai_3 cannot close a request',
   () =>
     q.appendEvent(db, {
-      feature: feature.id,
+      request: request.id,
       type: 'close.confirmed',
       actor: 'ai_3',
-      state: 'done',
+      state: 'completed',
     }),
   'only ai_0'
 )
 
 let spoofed = ''
 try {
-  await registered
+  await tools
     .get('clara_event')!
     .execute(
-      { feature: feature.id, type: 'close.confirmed', actor: 'ai_0', state: 'done' },
+      { request: request.id, type: 'close.confirmed', actor: 'ai_0', state: 'completed' },
       { agent: '003' }
     )
 } catch (error) {
@@ -523,12 +521,12 @@ try {
 }
 check('implementer cannot spoof actor=ai_0', spoofed.includes('only ai_0'), spoofed)
 
-const confirmed = await registered
+const confirmed = await tools
   .get('clara_event')!
-  .execute({ feature: feature.id, type: 'close.confirmed', state: 'done' }, { agent: 'judge' })
-check('ai_0 confirms close through the tool', String(confirmed.content).includes('state=done'))
-const done = q.featureByRef(db, feature.id)!
-check('state is done', done.state === 'done')
+  .execute({ request: request.id, type: 'close.confirmed', state: 'completed' }, { agent: 'judge' })
+check('ai_0 confirms close through the tool', String(confirmed.content).includes('state=completed'))
+const done = q.requestByRef(db, request.id)!
+check('state is completed', done.state === 'completed')
 check('closed_at set', !!done.closed_at)
 
 console.log('\n8. resolve')
@@ -547,31 +545,31 @@ const stalled = q.submit(db, {
   soft_budget: 1000,
   hard_budget: 5000,
 })
-const stalledId = Number(stalled.match(/registered (\d+)/)![1])
+const stalledId = Number(stalled.match(/submitted (\d+)/)![1])
 q.setCriteria(db, {
-  feature: stalledId,
+  request: stalledId,
   criteria: [{ text: 'export works', test_path: 'tests/export.test.ts' }],
 })
-q.approve(db, { feature: stalledId })
-q.freeze(db, { feature: stalledId, tests_hash: 'abc123', tests_total: 1 })
-q.appendEvent(db, { feature: stalledId, type: 'build.started', actor: 'ai_3', state: 'building' })
-db.prepare('UPDATE features SET tokens = 6000, last_event_at = ? WHERE id = ?').run(
+q.approve(db, { request: stalledId })
+q.freeze(db, { request: stalledId, tests_hash: 'abc123', tests_total: 1 })
+q.appendEvent(db, { request: stalledId, type: 'build.started', actor: 'ai_3', state: 'running' })
+db.prepare('UPDATE requests SET tokens = 6000, last_event_at = ? WHERE id = ?').run(
   new Date(Date.now() - 30 * 60_000).toISOString(),
   stalledId
 )
 
 const dry = q.tick(db, { dry_run: true })
 check('tick dry run reports but does not act', dry.includes('WOULD'))
-check('dry run did not kill', q.featureByRef(db, stalledId)!.state === 'building')
+check('dry run did not kill', q.requestByRef(db, stalledId)!.state === 'running')
 
 const live = q.tick(db, { dry_run: false })
-check('tick kills over hard budget', q.featureByRef(db, stalledId)!.state === 'scrapped')
-check('scrap reason recorded', q.featureByRef(db, stalledId)!.scrap_reason === 'budget')
-check('tick output mentions the kill', live.includes('killed'))
+check('tick kills over hard budget', q.requestByRef(db, stalledId)!.state === 'cancelled')
+check('scrap reason recorded', q.requestByRef(db, stalledId)!.cancel_reason === 'budget')
+check('tick output mentions the kill', live.includes('cancelled'))
 
 console.log('\n10. record file')
 const record = await import('node:fs').then((fs) =>
-  fs.readFileSync(String(q.featureByRef(db, feature.id)!.spec_path), 'utf8')
+  fs.readFileSync(String(q.requestByRef(db, request.id)!.record_path), 'utf8')
 )
 check('record has front matter', record.startsWith('---'))
 check('record has non-goals', record.includes('password login'))
@@ -649,10 +647,10 @@ const supervisor = daemon.createDaemon({
 const daemonSubmit = q.submit(ddb, {
   workspace: 'daemon',
   path: daemonWorkspace,
-  title: 'The daemon drives a feature',
-  intent: 'A feature reaches done without a human launching each stage.',
+  title: 'The daemon drives a request',
+  intent: 'A request reaches done without a human launching each stage.',
 })
-const daemonId = Number(daemonSubmit.match(/registered (\d+)/)![1])
+const daemonId = Number(daemonSubmit.match(/submitted (\d+)/)![1])
 
 await supervisor.runOnce()
 check(
@@ -678,20 +676,20 @@ check(
 check('handoff prompt names the stage', sessions[0].prompt.includes('acceptance criteria'))
 
 q.setCriteria(ddb, {
-  feature: daemonId,
-  criteria: [{ text: 'the daemon drives the feature', test_path: 'tests/daemon.test.ts' }],
+  request: daemonId,
+  criteria: [{ text: 'the daemon drives the request', test_path: 'tests/daemon.test.ts' }],
   docs_impact: 'update docs/features/daemon.md',
 })
 check(
   'criteria records the docs impact',
-  q.featureByRef(ddb, daemonId)!.docs_impact === 'update docs/features/daemon.md'
+  q.requestByRef(ddb, daemonId)!.docs_impact === 'update docs/features/daemon.md'
 )
 sessions[0].outcome = 'succeeded'
 await supervisor.runOnce()
 check('spec run is done', runs.latestRun(ddb, daemonId, 'spec')?.status === 'done')
 check('daemon waits for approval', sessions.length === 1)
 
-q.approve(ddb, { feature: daemonId })
+q.approve(ddb, { request: daemonId })
 await supervisor.runOnce()
 check(
   'daemon starts the test stage after approval',
@@ -703,15 +701,15 @@ check(
   JSON.stringify({ session: sessions[1].metadata, prompt: sessions[1].promptMetadata })
 )
 
-q.freeze(ddb, { feature: daemonId, tests_hash: 'daemon-hash', tests_total: 1 })
+q.freeze(ddb, { request: daemonId, tests_hash: 'daemon-hash', tests_total: 1 })
 sessions[1].outcome = 'succeeded'
 await supervisor.runOnce()
 check('test run is done', runs.latestRun(ddb, daemonId, 'test')?.status === 'done')
 check('daemon starts the build stage', sessions.length === 3 && sessions[2].agent === '003')
-check('daemon moved the feature to building', q.featureByRef(ddb, daemonId)!.state === 'building')
+check('daemon moved the request to building', q.requestByRef(ddb, daemonId)!.state === 'running')
 
 q.checkpoint(ddb, {
-  feature: daemonId,
+  request: daemonId,
   tests_passed: 1,
   tests_total: 1,
   files_changed: 2,
@@ -719,9 +717,9 @@ q.checkpoint(ddb, {
 })
 check(
   'checkpoint refines the docs impact',
-  q.featureByRef(ddb, daemonId)!.docs_impact === 'update docs/features/ledger.md'
+  q.requestByRef(ddb, daemonId)!.docs_impact === 'update docs/features/ledger.md'
 )
-const daemonAsk = q.ask(ddb, { feature: daemonId })
+const daemonAsk = q.ask(ddb, { request: daemonId })
 check(
   'ask reports the docs impact as pending',
   daemonAsk.includes('docs:      pending (update docs/features/ledger.md)')
@@ -730,10 +728,10 @@ check(
   'ask lists the live run with its session',
   daemonAsk.includes('build running (003 ses_daemon_3')
 )
-check('ask reports no human gates for this feature', daemonAsk.includes('human:     no gates'))
+check('ask reports no human gates for this request', daemonAsk.includes('human:     no gates'))
 
 q.appendEvent(ddb, {
-  feature: daemonId,
+  request: daemonId,
   type: 'build.review',
   actor: 'ai_3',
   state: 'review',
@@ -748,7 +746,7 @@ await supervisor.runOnce()
 check('docs run is done', runs.latestRun(ddb, daemonId, 'docs')?.status === 'done')
 check(
   'ask reports the docs impact as applied',
-  q.ask(ddb, { feature: daemonId }).includes('docs:      applied (update docs/features/ledger.md)')
+  q.ask(ddb, { request: daemonId }).includes('docs:      applied (update docs/features/ledger.md)')
 )
 check('daemon starts the judge stage', sessions.length === 5 && sessions[4].agent === 'judge')
 check(
@@ -757,16 +755,16 @@ check(
 )
 
 q.appendEvent(ddb, {
-  feature: daemonId,
-  type: 'feature.done',
+  request: daemonId,
+  type: 'request.completed',
   actor: 'ai_0',
-  state: 'done',
+  state: 'completed',
 })
 sessions[4].outcome = 'succeeded'
 await supervisor.runOnce()
 check('judge run is done', runs.latestRun(ddb, daemonId, 'judge')?.status === 'done')
 check('daemon does not spawn after done', sessions.length === 5)
-check('feature is done', q.featureByRef(ddb, daemonId)!.state === 'done')
+check('request is completed', q.requestByRef(ddb, daemonId)!.state === 'completed')
 
 const failedSubmit = q.submit(ddb, {
   workspace: 'daemon',
@@ -774,11 +772,11 @@ const failedSubmit = q.submit(ddb, {
   title: 'The daemon handles a failed stage',
   intent: 'A failed stage asks the human instead of retrying blindly.',
 })
-const failedId = Number(failedSubmit.match(/registered (\d+)/)![1])
+const failedId = Number(failedSubmit.match(/submitted (\d+)/)![1])
 await supervisor.runOnce()
 const failedSession = sessions[sessions.length - 1]
 check(
-  'failed feature starts a spec session',
+  'failed request starts a spec session',
   failedSession.agent === '001',
   JSON.stringify(sessions.map((s) => `${s.id}:${s.agent}`))
 )
@@ -786,7 +784,7 @@ failedSession.outcome = 'failed'
 await supervisor.runOnce()
 check('failed run is recorded', runs.latestRun(ddb, failedId, 'spec')?.status === 'failed')
 const open = ddb
-  .prepare('SELECT * FROM decisions WHERE feature_id = ? AND resolved_at IS NULL')
+  .prepare('SELECT * FROM decisions WHERE request_id = ? AND resolved_at IS NULL')
   .get(failedId)
 check('failed run opens a decision', Boolean(open))
 check('failed run does not spawn again', sessions.length === 6)
@@ -817,9 +815,9 @@ const waitSubmit = q.submit(db, {
   title: 'Wait states produce alerts',
   intent: 'The outbox names approval and gate waits as well as decisions.',
 })
-const waitId = Number(waitSubmit.match(/registered (\d+)/)![1])
+const waitId = Number(waitSubmit.match(/submitted (\d+)/)![1])
 q.setCriteria(db, {
-  feature: waitId,
+  request: waitId,
   criteria: [{ text: 'a human verifies the wait state', human_gate: true }],
   docs_impact: 'none',
 })
@@ -829,35 +827,37 @@ const approvalAlert = db
   .get(`approval:${waitId}`)
 check('criteria approval creates an alert', Boolean(approvalAlert))
 
-q.approve(db, { feature: waitId })
+q.approve(db, { request: waitId })
 collectAlerts(db)
 const approvalClosed = db
   .prepare('SELECT resolved_at FROM alerts WHERE key = ?')
   .get(`approval:${waitId}`)
 check('approval resolves the alert', Boolean(approvalClosed?.resolved_at))
 
-q.freeze(db, { feature: waitId, tests_hash: 'sha256:wait', tests_total: 1 })
-q.appendEvent(db, { feature: waitId, type: 'build.started', actor: 'ai_0', state: 'building' })
-q.appendEvent(db, { feature: waitId, type: 'build.review', actor: 'ai_0', state: 'review' })
+q.freeze(db, { request: waitId, tests_hash: 'sha256:wait', tests_total: 1 })
+q.appendEvent(db, { request: waitId, type: 'build.started', actor: 'ai_0', state: 'running' })
+q.appendEvent(db, { request: waitId, type: 'build.review', actor: 'ai_0', state: 'review' })
 collectAlerts(db)
 const gateAlert = db
   .prepare('SELECT * FROM alerts WHERE key = ? AND resolved_at IS NULL')
-  .get(`gates:${waitId}`)
+  .get(`review_gate:${waitId}`)
 check('review gates create an alert', Boolean(gateAlert))
 
-q.gate(db, { feature: waitId, criteria: [1] })
+q.gate(db, { request: waitId, criteria: [1] })
 collectAlerts(db)
-const gateClosed = db.prepare('SELECT resolved_at FROM alerts WHERE key = ?').get(`gates:${waitId}`)
+const gateClosed = db
+  .prepare('SELECT resolved_at FROM alerts WHERE key = ?')
+  .get(`review_gate:${waitId}`)
 check('gate verification resolves the alert', Boolean(gateClosed?.resolved_at))
 
 db.prepare(
   "UPDATE alerts SET session_id = 'ses_gate', notified_at = ?, attention_state = 'info' WHERE key = ?"
-).run(new Date().toISOString(), `gates:${waitId}`)
-q.gate(db, { feature: waitId, criteria: [1], result: 'rejected' })
+).run(new Date().toISOString(), `review_gate:${waitId}`)
+q.gate(db, { request: waitId, criteria: [1], result: 'rejected' })
 collectAlerts(db)
 const gateReopened = db
   .prepare('SELECT session_id, notified_at, attention_state FROM alerts WHERE key = ?')
-  .get(`gates:${waitId}`)
+  .get(`review_gate:${waitId}`)
 check(
   'a reopened gate clears its delivery',
   gateReopened?.session_id === null &&
@@ -866,7 +866,7 @@ check(
 )
 
 const decisionAlert = q.decide(db, {
-  feature: waitId,
+  request: waitId,
   kind: 'decision',
   question: 'Should this wait state be tested?',
 })
@@ -887,26 +887,26 @@ q.submit(attentionDb, {
   intent: 'Clara asks the human in the session that already has the context.',
   session_id: 'ses_attention',
 })
-const attentionFeature = attentionDb
-  .prepare('SELECT * FROM features ORDER BY id DESC LIMIT 1')
+const attentionRequest = attentionDb
+  .prepare('SELECT * FROM requests ORDER BY id DESC LIMIT 1')
   .get()!
 attentionDb
   .prepare(
     `INSERT INTO alerts
-      (key, feature_id, slug, workspace, kind, title, body, created_at)
+      (key, request_id, slug, workspace, kind, title, body, created_at)
      VALUES (?, ?, ?, ?, 'approval', ?, ?, ?)`
   )
   .run(
-    `approval:${attentionFeature.id}`,
-    attentionFeature.id,
-    attentionFeature.slug,
+    `approval:${attentionRequest.id}`,
+    attentionRequest.id,
+    attentionRequest.slug,
     'attention',
-    `${String(attentionFeature.id).padStart(3, '0')} ${attentionFeature.slug} · criteria awaiting approval`,
+    `${String(attentionRequest.id).padStart(3, '0')} ${attentionRequest.slug} · criteria awaiting approval`,
     '2 criteria proposed; 2 still need clara_approve.',
     new Date().toISOString()
   )
-const attentionAlertKey = `approval:${attentionFeature.id}`
-const attentionFeatureId = Number(attentionFeature.id)
+const attentionAlertKey = `approval:${attentionRequest.id}`
+const attentionRequestId = Number(attentionRequest.id)
 const attentionTools = index.createTools(attentionDb)
 const attentionTool = attentionTools.find((tool) => tool.name === 'attention')!
 
@@ -921,10 +921,10 @@ check(
     .attention_state === 'info'
 )
 check(
-  'info writes a feature event',
+  'info writes a request event',
   attentionDb
-    .prepare("SELECT COUNT(*) c FROM events WHERE feature_id = ? AND type = 'attention.info'")
-    .get(attentionFeatureId)!.c === 1
+    .prepare("SELECT COUNT(*) c FROM events WHERE request_id = ? AND type = 'attention.info'")
+    .get(attentionRequestId)!.c === 1
 )
 
 const prose = await attentionTool.execute(
@@ -963,8 +963,8 @@ check('feedback returns the answer to Clara', String(answered.content).includes(
 check(
   'feedback records the answer',
   attentionDb
-    .prepare("SELECT COUNT(*) c FROM events WHERE feature_id = ? AND type = 'attention.answered'")
-    .get(attentionFeatureId)!.c === 1
+    .prepare("SELECT COUNT(*) c FROM events WHERE request_id = ? AND type = 'attention.answered'")
+    .get(attentionRequestId)!.c === 1
 )
 
 const confirmForms = {
@@ -1009,31 +1009,31 @@ q.submit(deliveryDb, {
   workspace: 'delivery',
   path: deliveryWorkspace,
   title: 'Alerts return to the submitting session',
-  intent: 'The human keeps one conversation per feature.',
+  intent: 'The human keeps one conversation per request.',
   session_id: 'ses_existing',
 })
-const deliveryFeature = deliveryDb.prepare('SELECT * FROM features ORDER BY id DESC LIMIT 1').get()!
-const insertDeliveryAlert = (key: string, featureId: number, slug: string, workspace: string) => {
+const deliveryRequest = deliveryDb.prepare('SELECT * FROM requests ORDER BY id DESC LIMIT 1').get()!
+const insertDeliveryAlert = (key: string, requestId: number, slug: string, workspace: string) => {
   deliveryDb
     .prepare(
       `INSERT INTO alerts
-        (key, feature_id, slug, workspace, kind, title, body, created_at)
+        (key, request_id, slug, workspace, kind, title, body, created_at)
        VALUES (?, ?, ?, ?, 'decision', ?, ?, ?)`
     )
     .run(
       key,
-      featureId,
+      requestId,
       slug,
       workspace,
-      `${String(featureId).padStart(3, '0')} ${slug} · decision`,
+      `${String(requestId).padStart(3, '0')} ${slug} · decision`,
       'Choose one.',
       new Date().toISOString()
     )
 }
 insertDeliveryAlert(
-  `decision:${deliveryFeature.id}`,
-  Number(deliveryFeature.id),
-  String(deliveryFeature.slug),
+  `decision:${deliveryRequest.id}`,
+  Number(deliveryRequest.id),
+  String(deliveryRequest.slug),
   'delivery'
 )
 
@@ -1084,7 +1084,7 @@ check(
   'attention marks the alert delivered',
   deliveryDb
     .prepare('SELECT session_id FROM alerts WHERE key = ?')
-    .get(`decision:${deliveryFeature.id}`)!.session_id === 'ses_existing'
+    .get(`decision:${deliveryRequest.id}`)!.session_id === 'ses_existing'
 )
 check('attention reports what it did', delivered[0]?.includes('alerted ses_existing'))
 
@@ -1101,14 +1101,14 @@ mkdirSync(missingWorkspace, { recursive: true })
 q.submit(deliveryDb, {
   workspace: 'delivery-missing',
   path: missingWorkspace,
-  title: 'A feature without a session gets one',
+  title: 'A request without a session gets one',
   intent: 'The daemon creates and links a Clara session.',
 })
-const missingFeature = deliveryDb.prepare('SELECT * FROM features ORDER BY id DESC LIMIT 1').get()!
+const missingRequest = deliveryDb.prepare('SELECT * FROM requests ORDER BY id DESC LIMIT 1').get()!
 insertDeliveryAlert(
-  `decision:${missingFeature.id}`,
-  Number(missingFeature.id),
-  String(missingFeature.slug),
+  `decision:${missingRequest.id}`,
+  Number(missingRequest.id),
+  String(missingRequest.slug),
   'delivery-missing'
 )
 await deliverAttention({
@@ -1126,8 +1126,8 @@ check(
 )
 check('attention prompts the created session', prompts[1]?.sessionID === 'ses_created_1')
 check(
-  'attention links the new session to the feature',
-  deliveryDb.prepare('SELECT session_id FROM features WHERE id = ?').get(missingFeature.id)!
+  'attention links the new session to the request',
+  deliveryDb.prepare('SELECT session_id FROM requests WHERE id = ?').get(missingRequest.id)!
     .session_id === 'ses_created_1'
 )
 
@@ -1140,7 +1140,7 @@ q.submit(deliveryDb, {
   intent: 'The alert does not disappear into archive.',
   session_id: 'ses_archived',
 })
-const archivedFeature = deliveryDb.prepare('SELECT * FROM features ORDER BY id DESC LIMIT 1').get()!
+const archivedRequest = deliveryDb.prepare('SELECT * FROM requests ORDER BY id DESC LIMIT 1').get()!
 knownSessions.set('ses_archived', {
   id: 'ses_archived',
   agent: 'clara',
@@ -1148,9 +1148,9 @@ knownSessions.set('ses_archived', {
   time: { archived: Date.now() },
 })
 insertDeliveryAlert(
-  `decision:${archivedFeature.id}`,
-  Number(archivedFeature.id),
-  String(archivedFeature.slug),
+  `decision:${archivedRequest.id}`,
+  Number(archivedRequest.id),
+  String(archivedRequest.slug),
   'delivery-archived'
 )
 await deliverAttention({
@@ -1161,8 +1161,8 @@ await deliverAttention({
 })
 check('attention replaces an archived session', createdSessions.length === 2)
 check(
-  'attention relinks an archived feature',
-  deliveryDb.prepare('SELECT session_id FROM features WHERE id = ?').get(archivedFeature.id)!
+  'attention relinks an archived request',
+  deliveryDb.prepare('SELECT session_id FROM requests WHERE id = ?').get(archivedRequest.id)!
     .session_id === 'ses_created_2'
 )
 
@@ -1173,17 +1173,17 @@ q.submit(failureDb, {
   title: 'A failed prompt is retried',
   intent: 'No alert is lost when the session API fails.',
 })
-const failureFeature = failureDb.prepare('SELECT * FROM features ORDER BY id DESC LIMIT 1').get()!
+const failureRequest = failureDb.prepare('SELECT * FROM requests ORDER BY id DESC LIMIT 1').get()!
 failureDb
   .prepare(
     `INSERT INTO alerts
-      (key, feature_id, slug, workspace, kind, title, body, created_at)
+      (key, request_id, slug, workspace, kind, title, body, created_at)
      VALUES (?, ?, ?, ?, 'decision', ?, ?, ?)`
   )
   .run(
-    `decision:${failureFeature.id}`,
-    failureFeature.id,
-    failureFeature.slug,
+    `decision:${failureRequest.id}`,
+    failureRequest.id,
+    failureRequest.slug,
     'delivery-failure',
     'Fails to prompt',
     'Choose one.',
@@ -1209,7 +1209,7 @@ check(
   'a failed prompt leaves the alert undelivered',
   failureDb
     .prepare('SELECT session_id FROM alerts WHERE key = ?')
-    .get(`decision:${failureFeature.id}`)!.session_id === null
+    .get(`decision:${failureRequest.id}`)!.session_id === null
 )
 check('a failed prompt removes the new session', removedSessions.includes('ses_failure'))
 failureDb.close()

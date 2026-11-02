@@ -10,11 +10,12 @@
 
 import { now, type Db, type Row } from './db.ts'
 
-export type AlertKind = 'decision' | 'stalled' | 'budget' | 'approval' | 'gates' | 'kill'
+export type AlertKind =
+  'decision' | 'stalled' | 'budget' | 'approval' | 'stage_gate' | 'review_gate' | 'cancelled'
 
 export type AlertItem = {
   key: string
-  featureId: number
+  requestId: number
   slug: string
   workspace: string
   kind: AlertKind
@@ -27,7 +28,7 @@ export type AlertItem = {
 export type AlertRow = {
   id: number
   key: string
-  feature_id: number | null
+  request_id: number | null
   slug: string | null
   workspace: string | null
   kind: AlertKind
@@ -39,9 +40,9 @@ export type AlertRow = {
 
 const pad = (n: number): string => String(n).padStart(3, '0')
 
-function label(feature: Row): string {
-  const workspace = feature.workspace ? ` [${feature.workspace}]` : ''
-  return `${pad(Number(feature.id))} ${feature.slug}${workspace}`
+function label(request: Row): string {
+  const workspace = request.workspace ? ` [${request.workspace}]` : ''
+  return `${pad(Number(request.id))} ${request.slug}${workspace}`
 }
 
 /**
@@ -55,14 +56,14 @@ export function pendingHumanWork(db: Db): AlertItem[] {
     .prepare(
       `SELECT d.*, f.id AS fid, f.slug, w.name AS workspace
          FROM decisions d
-         LEFT JOIN features f ON f.id = d.feature_id
+         LEFT JOIN requests f ON f.id = d.request_id
          LEFT JOIN workspaces w ON w.id = f.workspace_id
         WHERE d.resolved_at IS NULL
         ORDER BY d.at ASC`
     )
     .all()
   for (const decision of decisions) {
-    const feature = {
+    const request = {
       id: decision.fid ?? 0,
       slug: decision.slug ?? 'workspace',
       workspace: decision.workspace ?? 'workspace',
@@ -75,11 +76,11 @@ export function pendingHumanWork(db: Db): AlertItem[] {
     ].filter(Boolean)
     items.push({
       key: `decision:${decision.id}`,
-      featureId: Number(feature.id),
-      slug: String(feature.slug),
-      workspace: String(feature.workspace),
+      requestId: Number(request.id),
+      slug: String(request.slug),
+      workspace: String(request.workspace),
       kind: 'decision',
-      title: decision.fid ? `${label(feature)} · ${decision.kind}` : `workspace · ${decision.kind}`,
+      title: decision.fid ? `${label(request)} · ${decision.kind}` : `workspace · ${decision.kind}`,
       body: details.join('\n'),
     })
   }
@@ -87,97 +88,97 @@ export function pendingHumanWork(db: Db): AlertItem[] {
   const stalled = db
     .prepare(
       `SELECT f.*, w.name AS workspace
-         FROM features f
+         FROM requests f
          JOIN workspaces w ON w.id = f.workspace_id
-        WHERE f.state = 'building' AND f.stalled_at IS NOT NULL
+        WHERE f.state = 'running' AND f.stalled_at IS NOT NULL
         ORDER BY f.stalled_at ASC`
     )
     .all()
-  for (const feature of stalled) {
+  for (const request of stalled) {
     items.push({
-      key: `stalled:${feature.id}`,
-      featureId: Number(feature.id),
-      slug: String(feature.slug),
-      workspace: String(feature.workspace),
+      key: `stalled:${request.id}`,
+      requestId: Number(request.id),
+      slug: String(request.slug),
+      workspace: String(request.workspace),
       kind: 'stalled',
-      title: `${label(feature)} · stalled`,
+      title: `${label(request)} · stalled`,
       body:
-        `No ledger event since ${feature.last_event_at}.` +
-        (feature.blocked_on ? `\nLast blocker: ${feature.blocked_on}` : ''),
+        `No ledger event since ${request.last_event_at}.` +
+        (request.blocked_on ? `\nLast blocker: ${request.blocked_on}` : ''),
     })
   }
 
   const overBudget = db
     .prepare(
       `SELECT f.*, w.name AS workspace
-         FROM features f
+         FROM requests f
          JOIN workspaces w ON w.id = f.workspace_id
         WHERE f.soft_budget IS NOT NULL AND f.tokens > f.soft_budget
-          AND f.state NOT IN ('done', 'scrapped')
+          AND f.state NOT IN ('completed', 'cancelled')
           AND NOT EXISTS (
             SELECT 1 FROM decisions d
-             WHERE d.feature_id = f.id AND d.resolved_at IS NULL
+             WHERE d.request_id = f.id AND d.resolved_at IS NULL
           )
         ORDER BY f.tokens DESC`
     )
     .all()
-  for (const feature of overBudget) {
+  for (const request of overBudget) {
     items.push({
-      key: `budget:${feature.id}`,
-      featureId: Number(feature.id),
-      slug: String(feature.slug),
-      workspace: String(feature.workspace),
+      key: `budget:${request.id}`,
+      requestId: Number(request.id),
+      slug: String(request.slug),
+      workspace: String(request.workspace),
       kind: 'budget',
-      title: `${label(feature)} · over soft budget`,
-      body: `${feature.tokens} tokens spent against a soft budget of ${feature.soft_budget}.`,
+      title: `${label(request)} · over soft budget`,
+      body: `${request.tokens} tokens spent against a soft budget of ${request.soft_budget}.`,
     })
   }
 
   const approvals = db
     .prepare(
       `SELECT f.*, w.name AS workspace,
-              (SELECT COUNT(*) FROM criteria c WHERE c.feature_id = f.id) AS total,
-              (SELECT COUNT(*) FROM criteria c WHERE c.feature_id = f.id AND c.approved_at IS NULL) AS pending
-         FROM features f
+              (SELECT COUNT(*) FROM criteria c WHERE c.request_id = f.id) AS total,
+              (SELECT COUNT(*) FROM criteria c WHERE c.request_id = f.id AND c.approved_at IS NULL) AS pending
+         FROM requests f
          JOIN workspaces w ON w.id = f.workspace_id
-        WHERE f.state = 'spec'
-          AND EXISTS (SELECT 1 FROM criteria c WHERE c.feature_id = f.id)
+        WHERE f.state = 'draft'
+          AND EXISTS (SELECT 1 FROM criteria c WHERE c.request_id = f.id)
         ORDER BY f.id`
     )
     .all()
-  for (const feature of approvals) {
-    if (Number(feature.pending) === 0) continue
+  for (const request of approvals) {
+    if (Number(request.pending) === 0) continue
     items.push({
-      key: `approval:${feature.id}`,
-      featureId: Number(feature.id),
-      slug: String(feature.slug),
-      workspace: String(feature.workspace),
+      key: `approval:${request.id}`,
+      requestId: Number(request.id),
+      slug: String(request.slug),
+      workspace: String(request.workspace),
       kind: 'approval',
-      title: `${label(feature)} · criteria awaiting approval`,
-      body: `${feature.total} criteria proposed; ${feature.pending} still need clara_approve.`,
+      title: `${label(request)} · criteria awaiting approval`,
+      body: `${request.total} criteria proposed; ${request.pending} still need clara_approve.`,
     })
   }
 
   const reviews = db
     .prepare(
       `SELECT f.*, w.name AS workspace
-         FROM features f
+         FROM requests f
          JOIN workspaces w ON w.id = f.workspace_id
         WHERE f.state = 'review'
-          AND EXISTS (SELECT 1 FROM criteria c WHERE c.feature_id = f.id AND c.human_gate = 1)
+          AND EXISTS (SELECT 1 FROM criteria c WHERE c.request_id = f.id AND c.human_gate = 1)
         ORDER BY f.id`
     )
     .all()
-  for (const feature of reviews) {
-    const unverified = unverifiedGates(db, Number(feature.id))
+  for (const request of reviews) {
+    const unverified = unverifiedGates(db, Number(request.id))
     if (!unverified.length) continue
     items.push({
-      key: `gates:${feature.id}`,
-      featureId: Number(feature.id),
-      slug: String(feature.slug),
-      workspace: String(feature.workspace),
-      kind: 'gates',
-      title: `${label(feature)} · human gates awaiting verification`,
+      key: `review_gate:${request.id}`,
+      requestId: Number(request.id),
+      slug: String(request.slug),
+      workspace: String(request.workspace),
+      kind: 'review_gate',
+      title: `${label(request)} · human gates awaiting verification`,
       body: `Criteria ${unverified.join(', ')} still need clara_gate.`,
     })
   }
@@ -185,15 +186,15 @@ export function pendingHumanWork(db: Db): AlertItem[] {
   return items
 }
 
-/** One-time terminal kills deserve a notification but not a permanent inbox row. */
-export function recentKills(db: Db): AlertItem[] {
+/** One-time terminal cancellations deserve a notification but not a permanent inbox row. */
+export function recentCancellations(db: Db): AlertItem[] {
   const rows = db
     .prepare(
       `SELECT f.*, w.name AS workspace
-         FROM features f
+         FROM requests f
          JOIN workspaces w ON w.id = f.workspace_id
-        WHERE f.state = 'scrapped'
-          AND f.scrap_reason IN ('budget', 'attempts', 'time')
+        WHERE f.state = 'cancelled'
+          AND f.cancel_reason IN ('budget', 'attempts', 'time')
           AND f.closed_at IS NOT NULL
         ORDER BY f.closed_at`
     )
@@ -201,18 +202,18 @@ export function recentKills(db: Db): AlertItem[] {
 
   const cutoff = Date.now() - 3_600_000
   return rows
-    .filter((feature) => {
-      const closed = Date.parse(String(feature.closed_at))
+    .filter((request) => {
+      const closed = Date.parse(String(request.closed_at))
       return Number.isFinite(closed) && closed >= cutoff
     })
-    .map((feature) => ({
-      key: `kill:${feature.id}:${feature.closed_at}`,
-      featureId: Number(feature.id),
-      slug: String(feature.slug),
-      workspace: String(feature.workspace),
-      kind: 'kill' as const,
-      title: `${label(feature)} · stopped (${feature.scrap_reason})`,
-      body: `Clara killed this feature: ${feature.scrap_reason}.`,
+    .map((request) => ({
+      key: `cancelled:${request.id}:${request.closed_at}`,
+      requestId: Number(request.id),
+      slug: String(request.slug),
+      workspace: String(request.workspace),
+      kind: 'cancelled' as const,
+      title: `${label(request)} · stopped (${request.cancel_reason})`,
+      body: `Clara cancelled this request: ${request.cancel_reason}.`,
       oneTime: true,
     }))
 }
@@ -223,8 +224,8 @@ export function recentKills(db: Db): AlertItem[] {
  */
 export function collectAlerts(db: Db): AlertRow[] {
   const pending = pendingHumanWork(db)
-  const kills = recentKills(db)
-  const all = [...pending, ...kills]
+  const cancellations = recentCancellations(db)
+  const all = [...pending, ...cancellations]
   const at = now()
 
   const existing = new Map(
@@ -244,12 +245,12 @@ export function collectAlerts(db: Db): AlertRow[] {
         const result = db
           .prepare(
             `INSERT INTO alerts
-              (key, feature_id, slug, workspace, kind, title, body, created_at, resolved_at)
+              (key, request_id, slug, workspace, kind, title, body, created_at, resolved_at)
              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
           )
           .run(
             item.key,
-            item.featureId,
+            item.requestId,
             item.slug,
             item.workspace,
             item.kind,
@@ -280,7 +281,7 @@ export function collectAlerts(db: Db): AlertRow[] {
     }
 
     for (const [key, resolved] of existing) {
-      if (resolved !== null || pendingKeys.has(key) || key.startsWith('kill:')) continue
+      if (resolved !== null || pendingKeys.has(key) || key.startsWith('cancelled:')) continue
       db.prepare('UPDATE alerts SET resolved_at = ? WHERE key = ? AND resolved_at IS NULL').run(
         at,
         key
@@ -296,19 +297,19 @@ export function collectAlerts(db: Db): AlertRow[] {
   return inserted
 }
 
-function unverifiedGates(db: Db, featureID: number): number[] {
+function unverifiedGates(db: Db, requestID: number): number[] {
   const gates = db
     .prepare(
-      'SELECT position FROM criteria WHERE feature_id = ? AND human_gate = 1 ORDER BY position'
+      'SELECT position FROM criteria WHERE request_id = ? AND human_gate = 1 ORDER BY position'
     )
-    .all(featureID)
+    .all(requestID)
     .map((row) => Number(row.position))
   if (!gates.length) return []
 
   const verified = new Set<number>()
   const records = db
-    .prepare("SELECT payload FROM events WHERE feature_id = ? AND type = 'human.gates' ORDER BY id")
-    .all(featureID)
+    .prepare("SELECT payload FROM events WHERE request_id = ? AND type = 'human.gates' ORDER BY id")
+    .all(requestID)
 
   for (const record of records) {
     let payload: any

@@ -46,9 +46,9 @@ export function toolId(name: string): string {
   return `${NAMESPACE}_${name}`
 }
 
-const featureRef = {
+const requestRef = {
   anyOf: [{ type: 'string' }, { type: 'number' }],
-  description: 'Feature id (e.g. 42) or slug (e.g. remote-key-login)',
+  description: 'Request id (e.g. 42) or slug (e.g. remote-key-login)',
 }
 
 // Who is acting is decided by the agent that invoked the tool, never by the
@@ -93,7 +93,7 @@ export function createTools(
     {
       name: 'submit',
       description:
-        'Register a feature spec. Creates the ledger row, the state=spec record in the workspace, and the first event. Nothing is built until criteria are approved.',
+        'Register a request. Creates the ledger row, the draft record in the workspace, and the first event. Nothing runs until the criteria are approved.',
       input: {
         type: 'object',
         properties: {
@@ -117,7 +117,7 @@ export function createTools(
           priority: { type: 'string', enum: ['now', 'next', 'whenever'] },
           not_worth_it: {
             type: 'string',
-            description: 'The condition under which this feature should be abandoned',
+            description: 'The condition under which this request should be abandoned',
           },
           soft_budget: { type: 'number', description: 'Tokens. Above this, Clara must ask.' },
           hard_budget: { type: 'number', description: 'Tokens. Above this, Clara kills.' },
@@ -140,7 +140,7 @@ export function createTools(
     {
       name: 'inbox',
       description:
-        'List everything that needs a human: open decisions, stalled features, features over soft budget. Silent when nothing needs you.',
+        'List everything that needs a human: open decisions, stalled requests, requests over soft budget. Silent when nothing needs you.',
       input: {
         type: 'object',
         properties: { workspace: { type: 'string' } },
@@ -219,7 +219,7 @@ export function createTools(
           throw new Error(`Clara: attention state must be one of ${ATTENTION_STATES.join(', ')}`)
         }
 
-        const oneTime = String(alert.key).startsWith('kill:')
+        const oneTime = String(alert.key).startsWith('cancelled:')
         if (state !== 'info' && alert.resolved_at && !oneTime) {
           return { content: `Clara: "${alert.key}" is already resolved. Nothing to ask.` }
         }
@@ -267,16 +267,16 @@ export function createTools(
     {
       name: 'ask',
       description:
-        'Read ledger state. Scope to one feature, one workspace, or all. Returns facts only — never reads session history and never guesses.',
+        'Read ledger state. Scope to one request, one workspace, or all. Returns facts only — never reads session history and never guesses.',
       input: {
         type: 'object',
         properties: {
           question: {
             type: 'string',
             description:
-              'What the human asked. Optional when scoped to a feature; recorded only if unanswerable.',
+              'What the human asked. Optional when scoped to a request; recorded only if unanswerable.',
           },
-          feature: featureRef,
+          request: requestRef,
           workspace: { type: 'string' },
           limit: { type: 'number' },
         },
@@ -288,14 +288,14 @@ export function createTools(
     {
       name: 'approve',
       description:
-        "Human approval of the proposed acceptance criteria. Moves the feature from spec to planned. Never call this on the human's behalf.",
+        "Human approval of the proposed acceptance criteria. Moves the request from spec to planned. Never call this on the human's behalf.",
       input: {
         type: 'object',
         properties: {
-          feature: featureRef,
+          request: requestRef,
           approved_by: { type: 'string' },
         },
-        required: ['feature'],
+        required: ['request'],
         additionalProperties: false,
       },
       execute: async (input: any, context: any) => {
@@ -307,11 +307,11 @@ export function createTools(
     {
       name: 'gate',
       description:
-        'Record that a human verified the human-gate criteria of a feature in review. The judge closes only when every gate is recorded.',
+        'Record that a human verified the human-gate criteria of a request in review. The judge closes only when every gate is recorded.',
       input: {
         type: 'object',
         properties: {
-          feature: featureRef,
+          request: requestRef,
           criteria: {
             type: 'array',
             items: { type: 'number' },
@@ -324,7 +324,7 @@ export function createTools(
           },
           evidence: { type: 'string', description: 'What the human checked, in one line.' },
         },
-        required: ['feature'],
+        required: ['request'],
         additionalProperties: false,
       },
       execute: async (input: any, context: any) => {
@@ -342,7 +342,7 @@ export function createTools(
       input: {
         type: 'object',
         properties: {
-          feature: featureRef,
+          request: requestRef,
           criteria: {
             type: 'array',
             items: {
@@ -362,7 +362,7 @@ export function createTools(
             description: 'Workspace docs that must change, or "none".',
           },
         },
-        required: ['feature', 'criteria'],
+        required: ['request', 'criteria'],
         additionalProperties: false,
       },
       execute: async (input: any, context: any) => {
@@ -380,11 +380,11 @@ export function createTools(
       input: {
         type: 'object',
         properties: {
-          feature: featureRef,
+          request: requestRef,
           tests_hash: { type: 'string' },
           tests_total: { type: 'number' },
         },
-        required: ['feature', 'tests_hash'],
+        required: ['request', 'tests_hash'],
         additionalProperties: false,
       },
       execute: async (input: any, context: any) => {
@@ -402,7 +402,7 @@ export function createTools(
       input: {
         type: 'object',
         properties: {
-          feature: featureRef,
+          request: requestRef,
           tests_passed: { type: 'number' },
           tests_total: { type: 'number' },
           files_changed: { type: 'number' },
@@ -416,7 +416,7 @@ export function createTools(
             description: 'Workspace docs that must change, or "none".',
           },
         },
-        required: ['feature', 'tests_passed', 'tests_total'],
+        required: ['request', 'tests_passed', 'tests_total'],
         additionalProperties: false,
       },
       execute: async (input: any, context: any) => {
@@ -430,19 +430,19 @@ export function createTools(
     {
       name: 'event',
       description:
-        'Append an event and optionally transition state. Legal transitions only. Only ai_0 may move a feature to done or scrapped.',
+        'Append an event and optionally transition state. Legal transitions only. Only the closer role may complete or cancel a request.',
       input: {
         type: 'object',
         properties: {
-          feature: featureRef,
+          request: requestRef,
           type: { type: 'string' },
           payload: { type: 'object' },
           state: {
             type: 'string',
-            enum: ['spec', 'planned', 'building', 'review', 'done', 'scrapped'],
+            enum: ['draft', 'approved', 'running', 'review', 'completed', 'cancelled'],
           },
         },
-        required: ['feature', 'type'],
+        required: ['request', 'type'],
         additionalProperties: false,
       },
       execute: async (input: any, context: any) => ({
@@ -457,7 +457,7 @@ export function createTools(
       input: {
         type: 'object',
         properties: {
-          feature: featureRef,
+          request: requestRef,
           kind: { type: 'string', enum: ['decision', 'blocked', 'failed', 'done'] },
           question: { type: 'string' },
           recommendation: { type: 'string' },
@@ -529,7 +529,7 @@ export function createTools(
 
 /**
  * Record what Clara showed and what the human answered. The alert keeps the
- * last state for history; the feature event makes the exchange visible from
+ * last state for history; the request event makes the exchange visible from
  * `clara_ask` without reconstructing a session.
  */
 function recordAttention(
@@ -542,17 +542,17 @@ function recordAttention(
     String(payload.state ?? type),
     alert.key
   )
-  if (!alert.feature_id) return
+  if (!alert.request_id) return
 
   try {
     q.appendEvent(db, {
-      feature: Number(alert.feature_id),
+      request: Number(alert.request_id),
       type: `attention.${type}`,
       actor: 'human',
       payload: { alert: alert.key, ...payload },
     })
   } catch {
-    // A feature can close while the form is open. The alert row is enough then.
+    // A request can close while the form is open. The alert row is enough then.
   }
 }
 

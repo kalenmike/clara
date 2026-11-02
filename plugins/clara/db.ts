@@ -149,6 +149,10 @@ export async function migrate(db: Db): Promise<string[]> {
     if (applied.has(file)) continue
     const sql = await readFile(resolve(MIGRATIONS_DIR, file), 'utf8')
 
+    // SQLite ignores `PRAGMA foreign_keys` inside a transaction. A schema
+    // rebuild has to drop and rename tables that other rows reference, so
+    // disable the checks before BEGIN and verify the whole database after.
+    db.exec('PRAGMA foreign_keys = OFF')
     db.exec('BEGIN')
     try {
       db.exec(sql)
@@ -162,8 +166,20 @@ export async function migrate(db: Db): Promise<string[]> {
       throw new Error(`Clara: migration ${file} failed: ${(error as Error).message}`, {
         cause: error,
       })
+    } finally {
+      db.exec('PRAGMA foreign_keys = ON')
     }
     ran.push(file)
+  }
+
+  if (ran.length) {
+    const violations = db.prepare('PRAGMA foreign_key_check').all()
+    if (violations.length) {
+      throw new Error(
+        `Clara: migrations left ${violations.length} foreign-key violation(s): ` +
+          JSON.stringify(violations)
+      )
+    }
   }
 
   return ran
