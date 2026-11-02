@@ -81,6 +81,7 @@ const expected = [
   'clara_inbox',
   'clara_ask',
   'clara_approve',
+  'clara_gate',
   'clara_criteria',
   'clara_freeze',
   'clara_checkpoint',
@@ -91,7 +92,7 @@ const expected = [
 ]
 check('plugin id is clara', plugin.id === 'clara')
 check('namespace is clara', namespaceName === 'clara')
-check('registers 11 tools', registered.size === 11, `got ${[...registered.keys()].join(', ')}`)
+check('registers 12 tools', registered.size === 12, `got ${[...registered.keys()].join(', ')}`)
 for (const name of expected) check(`tool ${name}`, registered.has(name))
 check(
   'every tool carries the clara namespace',
@@ -303,7 +304,16 @@ const asked = q.ask(db, { question: 'what is 001 doing?', feature: feature.id })
 check('ask reports state', asked.includes('state:     building'))
 check('ask reports criteria', asked.includes('4/4 approved'))
 check('ask reports checkpoints', asked.includes('checkpoint'))
-check('ask does not mention sessions', !asked.toLowerCase().includes('session'))
+check('ask reports criteria covered by a checkpoint', asked.includes('criteria 1'))
+check('ask reports the frozen test hash', asked.includes('tests:     8f3ac21d (4 tests)'))
+check('ask reports docs state', asked.includes('docs:      none'))
+check('ask reports unverified human gates', asked.includes('human:     UNVERIFIED (4)'))
+check('ask reports the current blocker', asked.includes('blocked:   clock abstraction'))
+check('ask marks the record frontmatter historical', asked.includes('frontmatter is historical'))
+check(
+  'ask works without a question when scoped to a feature',
+  q.ask(db, { feature: feature.id }).includes('state:     building')
+)
 
 const missing = q.ask(db, {
   question: 'what did we decide about billing?',
@@ -321,6 +331,45 @@ expectThrow(
 
 q.appendEvent(db, { feature: feature.id, type: 'close.requested', actor: 'ai_3', state: 'review' })
 check('state is review', q.featureByRef(db, feature.id)!.state === 'review')
+check('review clears the stale blocker', !q.featureByRef(db, feature.id)!.blocked_on)
+check(
+  'ask no longer shows the blocked header',
+  !q.ask(db, { feature: feature.id }).includes('blocked:   clock abstraction')
+)
+
+let gateRole = ''
+try {
+  await registered.get('clara_gate')!.execute({ feature: feature.id }, { agent: 'judge' })
+} catch (error) {
+  gateRole = (error as Error).message
+}
+check('judge cannot record a human gate', gateRole.includes('not available to judge'), gateRole)
+
+expectThrow(
+  'only human-gate criteria can be confirmed',
+  () => q.gate(db, { feature: feature.id, criteria: [1] }),
+  'not human gates'
+)
+
+const gated = await registered
+  .get('clara_gate')!
+  .execute({ feature: feature.id, evidence: 'email copy reviewed' }, { agent: 'clara' })
+check(
+  'human records the gate through the tool',
+  String(gated.content).includes('human gates verified — 4'),
+  String(gated.content)
+)
+const afterGate = q.ask(db, { feature: feature.id })
+check('ask shows the gate verified', afterGate.includes('human:     verified 4'))
+check('recent events explain the gate', afterGate.includes('human.gates (4 verified)'))
+
+q.gate(db, { feature: feature.id, criteria: [4], result: 'rejected' })
+check('a rejection reopens the gate', q.ask(db, { feature: feature.id }).includes('UNVERIFIED (4)'))
+q.gate(db, { feature: feature.id, criteria: [4] })
+check(
+  'a later verification wins',
+  q.ask(db, { feature: feature.id }).includes('human:     verified 4')
+)
 
 expectThrow(
   'ai_3 cannot close a feature',
@@ -524,6 +573,17 @@ check(
   'checkpoint refines the docs impact',
   q.featureByRef(ddb, daemonId)!.docs_impact === 'update docs/features/ledger.md'
 )
+const daemonAsk = q.ask(ddb, { feature: daemonId })
+check(
+  'ask reports the docs impact as pending',
+  daemonAsk.includes('docs:      pending (update docs/features/ledger.md)')
+)
+check(
+  'ask lists the live run with its session',
+  daemonAsk.includes('build running (003 ses_daemon_3')
+)
+check('ask reports no human gates for this feature', daemonAsk.includes('human:     no gates'))
+
 q.appendEvent(ddb, {
   feature: daemonId,
   type: 'build.review',
@@ -538,7 +598,15 @@ check('daemon starts the docs stage', sessions.length === 4 && sessions[3].agent
 sessions[3].outcome = 'succeeded'
 await supervisor.runOnce()
 check('docs run is done', runs.latestRun(ddb, daemonId, 'docs')?.status === 'done')
+check(
+  'ask reports the docs impact as applied',
+  q.ask(ddb, { feature: daemonId }).includes('docs:      applied (update docs/features/ledger.md)')
+)
 check('daemon starts the judge stage', sessions.length === 5 && sessions[4].agent === 'judge')
+check(
+  'judge handoff points at the ledger and the gates',
+  sessions[4].prompt.includes('clara_ask') && sessions[4].prompt.includes('human gates')
+)
 
 q.appendEvent(ddb, {
   feature: daemonId,

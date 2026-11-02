@@ -670,6 +670,6 @@ function stagePrompt(stage: Stage, feature: Row, path: string): string {
     case 'docs':
       return `${head}\n\nApply the feature's docs_impact to the workspace docs. Never edit docs/features or docs/index.md. If the impact no longer applies cleanly, reconcile against current truth and record it. If you cannot reconcile, open a decision with clara_decide and stop.`
     case 'judge':
-      return `${head}\n\nVerify the frozen test hash, the criteria, and the last five checkpoints. If the evidence supports closing, call clara_event with type "feature.done" and state "done". If not, open a decision with clara_decide and stop. Do not write code.`
+      return `${head}\n\nClose only from ledger evidence: call clara_ask once and check tests, docs, and human gates. Do not read source or run commands; there is no shell and the close gate does not re-hash. If every gate is recorded and the docs stage is done, call clara_event with type "feature.done" and state "done". Otherwise open one decision with clara_decide and stop. Do not write code.`
   }
 }

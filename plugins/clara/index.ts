@@ -138,13 +138,13 @@ export function createTools(db: Db): ClaraTool[] {
         properties: {
           question: {
             type: 'string',
-            description: 'What the human asked. Recorded only if unanswerable.',
+            description:
+              'What the human asked. Optional when scoped to a feature; recorded only if unanswerable.',
           },
           feature: featureRef,
           workspace: { type: 'string' },
           limit: { type: 'number' },
         },
-        required: ['question'],
         additionalProperties: false,
       },
       execute: async (input: any) => ({ content: q.ask(db, input) }),
@@ -166,6 +166,35 @@ export function createTools(db: Db): ClaraTool[] {
       execute: async (input: any, context: any) => {
         requireRole('approve', context, ['human'])
         return { content: q.approve(db, input) }
+      },
+    },
+
+    {
+      name: 'gate',
+      description:
+        'Record that a human verified the human-gate criteria of a feature in review. The judge closes only when every gate is recorded.',
+      input: {
+        type: 'object',
+        properties: {
+          feature: featureRef,
+          criteria: {
+            type: 'array',
+            items: { type: 'number' },
+            description: 'Gate positions. Defaults to every human gate.',
+          },
+          result: {
+            type: 'string',
+            enum: ['verified', 'rejected'],
+            description: 'Defaults to verified.',
+          },
+          evidence: { type: 'string', description: 'What the human checked, in one line.' },
+        },
+        required: ['feature'],
+        additionalProperties: false,
+      },
+      execute: async (input: any, context: any) => {
+        requireRole('gate', context, ['human'])
+        return { content: q.gate(db, input) }
       },
     },
 

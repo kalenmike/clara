@@ -419,6 +419,10 @@ export function appendEvent(
         sets.push('started_at = ?')
         values.push(at)
       }
+      // Review or closure invalidates any blocker left by the build stage.
+      if (input.state === 'review' || CLOSERS.has(input.state)) {
+        sets.push('blocked_on = NULL')
+      }
       if (CLOSERS.has(input.state)) {
         sets.push('closed_at = ?')
         values.push(at)
@@ -493,10 +497,10 @@ export function checkpoint(db: Db, input: CheckpointInput): string {
       sets.push('tokens = tokens + ?')
       values.push(input.tokens)
     }
-    if (input.blocked_on) {
-      sets.push('blocked_on = ?')
-      values.push(input.blocked_on)
-    }
+    // A checkpoint without a blocker clears the previous one. The column is
+    // current state, not a log; the checkpoints table keeps the history.
+    sets.push('blocked_on = ?')
+    values.push(input.blocked_on ?? null)
     if (input.docs_impact !== undefined) {
       sets.push('docs_impact = ?')
       values.push(input.docs_impact)
@@ -601,6 +605,12 @@ export function resolveDecision(
   )
 
   if (row.feature_id) {
+    // The human acted on the blocker, so the displayed one is stale even when
+    // the stage is about to retry and fail again.
+    db.prepare('UPDATE features SET blocked_on = NULL, last_event_at = ? WHERE id = ?').run(
+      at,
+      row.feature_id
+    )
     db.prepare(
       'INSERT INTO events (feature_id, at, type, actor, payload) VALUES (?, ?, ?, ?, ?)'
     ).run(
@@ -613,6 +623,70 @@ export function resolveDecision(
   }
 
   return `decision #${input.id} resolved: ${input.resolution}`
+}
+
+// ---------------------------------------------------------------------------
+// human gates
+// ---------------------------------------------------------------------------
+
+export interface GateInput {
+  feature: string | number
+  criteria?: number[]
+  evidence?: string
+  result?: 'verified' | 'rejected'
+}
+
+/**
+ * Record that a human verified (or rejected) the human-gate criteria. The
+ * judge uses this event to decide whether it may close; it cannot verify a
+ * human gate itself.
+ */
+export function gate(db: Db, input: GateInput): string {
+  const feature = requireFeature(db, input.feature)
+  if (feature.state !== 'review') {
+    throw new Error(
+      `Clara: human gates confirm in state=review (feature ${pad(feature.id)} is ${feature.state})`
+    )
+  }
+
+  const gatePositions = db
+    .prepare(
+      'SELECT position FROM criteria WHERE feature_id = ? AND human_gate = 1 ORDER BY position'
+    )
+    .all(feature.id)
+    .map((row) => Number(row.position))
+  if (!gatePositions.length) {
+    throw new Error(`Clara: feature ${pad(feature.id)} has no human-gate criteria`)
+  }
+
+  const positions = (input.criteria?.length ? input.criteria : gatePositions).map(Number)
+  const unknown = positions.filter((position) => !gatePositions.includes(position))
+  if (unknown.length) {
+    throw new Error(
+      `Clara: criteria ${unknown.join(', ')} are not human gates for feature ${pad(feature.id)} ` +
+        `(gates: ${gatePositions.join(', ')})`
+    )
+  }
+
+  const at = now()
+  const result = input.result === 'rejected' ? 'rejected' : 'verified'
+  db.prepare(
+    'INSERT INTO events (feature_id, at, type, actor, payload) VALUES (?, ?, ?, ?, ?)'
+  ).run(
+    feature.id,
+    at,
+    'human.gates',
+    'human',
+    json({ criteria: positions, result, evidence: input.evidence ?? null })
+  )
+  db.prepare(
+    'UPDATE features SET last_event_at = ?, stalled_at = NULL, blocked_on = NULL WHERE id = ?'
+  ).run(at, feature.id)
+
+  return (
+    `${pad(feature.id)} ${feature.slug}: human gates ${result} — ${positions.join(', ')}` +
+    (input.evidence ? ` (${input.evidence})` : '')
+  )
 }
 
 // ---------------------------------------------------------------------------
@@ -698,14 +772,15 @@ export function inbox(db: Db, input: { workspace?: string } = {}): string {
 
 export function ask(
   db: Db,
-  input: { question: string; feature?: string | number; workspace?: string; limit?: number }
+  input: { question?: string; feature?: string | number; workspace?: string; limit?: number }
 ): string {
   const limit = Math.min(Math.max(input.limit ?? 20, 1), 100)
+  const question = input.question ?? 'unanswerable ledger query'
 
   if (input.feature !== undefined) {
     const feature = featureByRef(db, input.feature)
     if (!feature) {
-      recordGap(db, input.question, `no feature matching "${input.feature}"`)
+      recordGap(db, question, `no feature matching "${input.feature}"`)
       return `The ledger has no feature matching "${input.feature}". Gap recorded.`
     }
     return renderFeature(db, feature)
@@ -715,7 +790,7 @@ export function ask(
   if (input.workspace) {
     const ws = db.prepare('SELECT * FROM workspaces WHERE name = ?').get(input.workspace)
     if (!ws) {
-      recordGap(db, input.question, `no workspace "${input.workspace}"`)
+      recordGap(db, question, `no workspace "${input.workspace}"`)
       return `The ledger has no workspace "${input.workspace}". Gap recorded.`
     }
     rows = db
@@ -737,7 +812,7 @@ export function ask(
   }
 
   if (!rows.length) {
-    recordGap(db, input.question, 'no features in ledger')
+    recordGap(db, question, 'no features in ledger')
     return 'The ledger is empty. Gap recorded — nothing has been submitted yet.'
   }
 
@@ -771,6 +846,95 @@ function summaryLine(db: Db, f: Row): string {
   return parts.join(' · ')
 }
 
+interface GateStatus {
+  gates: number[]
+  verified: number[]
+  unverified: number[]
+  at: string | null
+}
+
+/** A later rejection removes a position; verification accumulates. */
+function gateStatus(db: Db, featureID: number, criteria: Row[]): GateStatus {
+  const gates = criteria.filter((c) => c.human_gate).map((c) => Number(c.position))
+  const verified = new Set<number>()
+  let at: string | null = null
+
+  const records = db
+    .prepare(
+      "SELECT at, payload FROM events WHERE feature_id = ? AND type = 'human.gates' ORDER BY id"
+    )
+    .all(featureID)
+  for (const record of records) {
+    let payload: any
+    try {
+      payload = JSON.parse(record.payload ?? '{}')
+    } catch {
+      continue
+    }
+    const positions = Array.isArray(payload?.criteria) ? payload.criteria.map(Number) : []
+    if (payload?.result === 'rejected') {
+      for (const position of positions) verified.delete(position)
+    } else {
+      for (const position of positions) verified.add(position)
+    }
+    at = String(record.at)
+  }
+
+  return {
+    gates,
+    verified: gates.filter((position) => verified.has(position)),
+    unverified: gates.filter((position) => !verified.has(position)),
+    at,
+  }
+}
+
+function listPositions(positions: number[]): string {
+  if (
+    positions.length > 1 &&
+    positions.every((position, index) => index === 0 || position === positions[index - 1] + 1)
+  ) {
+    return `${positions[0]}–${positions[positions.length - 1]}`
+  }
+  return positions.join(', ')
+}
+
+function eventDetail(row: Row): string {
+  let payload: any
+  try {
+    payload = JSON.parse(row.payload ?? '{}')
+  } catch {
+    return ''
+  }
+  if (!payload || typeof payload !== 'object') return ''
+
+  switch (row.type) {
+    case 'stage.started':
+    case 'stage.done':
+    case 'stage.failed':
+    case 'ci.failed':
+      return payload.stage ? ` (${payload.stage})` : ''
+    case 'tests.frozen':
+      return payload.hash ? ` (${String(payload.hash).slice(0, 12)}…)` : ''
+    case 'build.review':
+      return payload.tests ? ` (${payload.tests})` : ''
+    case 'checkpoint':
+      return ` (#${payload.n ?? '?'} ${payload.tests ?? ''})`.trimEnd()
+    case 'decision.opened':
+      return ` (#${payload.decision ?? '?'}${payload.kind ? ` ${payload.kind}` : ''})`
+    case 'decision.resolved':
+      return ` (#${payload.decision ?? '?'})`
+    case 'human.gates':
+      return ` (${listPositions(
+        Array.isArray(payload.criteria) ? payload.criteria.map(Number) : []
+      )} ${payload.result ?? ''})`
+    case 'criteria.proposed':
+    case 'criteria.approved':
+      return payload.count !== undefined ? ` (${payload.count})` : ''
+    default:
+      return ''
+  }
+}
+
 function renderFeature(db: Db, f: Row): string {
   const ws = workspaceOf(db, f)
   const criteria = db
@@ -785,20 +949,72 @@ function renderFeature(db: Db, f: Row): string {
   const decisions = db
     .prepare('SELECT * FROM decisions WHERE feature_id = ? ORDER BY id DESC LIMIT 5')
     .all(f.id)
+  const runs = db
+    .prepare(
+      `SELECT stage, agent, status, session_id, note FROM runs
+        WHERE feature_id = ? ORDER BY id DESC LIMIT 6`
+    )
+    .all(f.id)
 
   const meta = f.meta ? JSON.parse(f.meta) : {}
   const approved = criteria.filter((c) => c.approved_at).length
+  const gates = gateStatus(db, Number(f.id), criteria)
+
+  const frozen = db
+    .prepare(
+      "SELECT payload FROM events WHERE feature_id = ? AND type = 'tests.frozen' ORDER BY id DESC LIMIT 1"
+    )
+    .get(f.id)
+  let frozenTotal: number | null = null
+  if (frozen) {
+    try {
+      const payload = JSON.parse(frozen.payload ?? '{}')
+      frozenTotal = typeof payload?.total === 'number' ? payload.total : null
+    } catch {
+      frozenTotal = null
+    }
+  }
+
+  const impact = String(f.docs_impact ?? '').trim()
+  const docsNeeded = impact !== '' && !['none', 'n/a', 'no'].includes(impact.toLowerCase())
+  const docsRun = db
+    .prepare(
+      "SELECT status FROM runs WHERE feature_id = ? AND stage = 'docs' ORDER BY id DESC LIMIT 1"
+    )
+    .get(f.id)
+  const docsState = !docsNeeded
+    ? 'none'
+    : docsRun?.status === 'done'
+      ? `applied (${impact})`
+      : `pending (${impact})`
+
+  const human =
+    gates.gates.length === 0
+      ? 'no gates'
+      : gates.unverified.length === 0
+        ? `verified ${listPositions(gates.verified)}${gates.at ? ` at ${gates.at}` : ''}`
+        : `UNVERIFIED (${listPositions(gates.unverified)})` +
+          (gates.verified.length ? ` · verified ${listPositions(gates.verified)}` : '')
 
   const lines: string[] = [
     `${pad(Number(f.id))} ${f.slug} [${ws.name}]`,
     `state:     ${f.state}`,
     `intent:    ${f.intent}`,
-    `record:    ${f.spec_path ?? '—'}`,
+    `record:    ${
+      f.spec_path ? `${f.spec_path} (frontmatter is historical; this row is authoritative)` : '—'
+    }`,
     `branch:    ${f.branch ?? '—'}   worktree: ${f.worktree ?? '—'}`,
     `cost:      ${f.tokens} tokens${f.usd ? ` · $${f.usd}` : ''}` +
       (f.soft_budget ? ` · soft ${f.soft_budget}` : '') +
       (f.hard_budget ? ` · hard ${f.hard_budget}` : ''),
     `attempts:  ${f.attempts}${f.attempts > ATTEMPT_LIMIT ? ' (over limit)' : ''}`,
+    `tests:     ${
+      f.tests_hash
+        ? `${f.tests_hash}${frozenTotal !== null ? ` (${frozenTotal} tests)` : ''}`
+        : 'not frozen'
+    }`,
+    `docs:      ${docsState}`,
+    `human:     ${human}`,
     `last:      ${f.last_event_at} (${ago(f.last_event_at)})`,
   ]
 
@@ -816,13 +1032,31 @@ function renderFeature(db: Db, f: Row): string {
     lines.push(`  ${c.position}. ${c.text} — ${gate}`)
   }
 
+  if (runs.length) {
+    lines.push('', 'runs (latest first):')
+    for (const r of runs) {
+      const note = r.note ? ` — ${String(r.note).slice(0, 90)}` : ''
+      lines.push(
+        `  ${r.stage} ${r.status} (${r.agent}${r.session_id ? ` ${r.session_id}` : ''})${note}`
+      )
+    }
+  }
+
   if (checkpoints.length) {
     lines.push('', 'checkpoints (latest first):')
     for (const c of checkpoints) {
+      let addressed: number[] = []
+      try {
+        const parsed = JSON.parse(c.criteria_addressed ?? '[]')
+        if (Array.isArray(parsed)) addressed = parsed.map(Number)
+      } catch {
+        addressed = []
+      }
       lines.push(
         `  #${c.n} ${c.at} — ${c.tests_passed}/${c.tests_total} tests, ${c.files_changed} files` +
+          (addressed.length ? `, criteria ${listPositions(addressed)}` : '') +
           (c.blocked_on ? `, blocked: ${c.blocked_on}` : '') +
-          (c.next_step ? `, next: ${c.next_step}` : '')
+          (c.next_step ? `, next at the time: ${c.next_step}` : '')
       )
     }
   }
@@ -838,7 +1072,7 @@ function renderFeature(db: Db, f: Row): string {
 
   if (events.length) {
     lines.push('', 'recent events:')
-    for (const e of events) lines.push(`  ${e.at} ${e.type} (${e.actor})`)
+    for (const e of events) lines.push(`  ${e.at} ${e.type}${eventDetail(e)} (${e.actor})`)
   }
 
   return lines.join('\n')
