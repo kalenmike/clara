@@ -71,6 +71,10 @@ between them.
 - Tools: `clara_submit`, `clara_inbox`, `clara_ask`, `clara_approve`,
   `clara_criteria`, `clara_freeze`, `clara_checkpoint`, `clara_event`,
   `clara_decide`, `clara_resolve`, `clara_tick`
+- CLI: `pnpm clara:ledger list` and
+  `pnpm clara:ledger run <tool> [json] [--agent <id>] [--db <path>]`. It calls
+  the same tool definitions against the same ledger and still derives the actor
+  from the agent id.
 - OpenCode 2.2.5 discovers agents only from markdown or an `agents` config map,
   not from plugin code. The installer renders `agents.json` for that reason.
 - See [plugins/clara/README.md](../../plugins/clara/README.md) for the full tool

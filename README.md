@@ -186,6 +186,7 @@ or the relay.
 | `pnpm dev:relay`     | Local `wrangler dev` for the Worker/DO              |
 | `pnpm build`         | Build every workspace package                       |
 | `pnpm clara:control` | Serve the built panel and open it in a browser      |
+| `pnpm clara:ledger`  | List or invoke the Clara ledger tools directly      |
 | `pnpm test`          | Run crypto, protocol, server, web, and Worker tests |
 | `pnpm check`         | Typecheck + lint + format + Knip + tests            |
 | `pnpm commitlint`    | Lint the last commit message                        |

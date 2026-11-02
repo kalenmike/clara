@@ -1,7 +1,8 @@
 # Clara ledger plugin
 
 The ledger is one OpenCode plugin, one SQLite file, and the tools the Clara
-agents call. There is no CLI and no long-running process here yet — this is the
+agents call. A small [CLI](#cli) invokes the same tools directly so you can test
+a call without an agent. There is no long-running process here yet — this is the
 state layer everything else will sit on.
 
 The rule the whole thing is built around: **state crosses agent boundaries,
@@ -16,6 +17,7 @@ ledger cannot answer a question, it records a schema gap instead of guessing.
 | `db.ts`            | SQLite driver selection, WAL, migration runner, path resolution. |
 | `queries.ts`       | Every ledger operation. Deterministic — no model calls.          |
 | `selftest.ts`      | End-to-end check against a throwaway DB.                         |
+| `cli.ts`           | Run one tool directly against the ledger, without an agent.      |
 | `agents.json`      | The six Clara agents, in OpenCode agent-config shape.            |
 | `migrations/*.sql` | Schema, applied in filename order.                               |
 
@@ -74,7 +76,11 @@ On load the plugin prints:
 [clara] ledger ready at /home/you/.config/clara/ledger.db
 ```
 
-Tool ids are namespaced: `clara_submit`, `clara_inbox`, and so on.
+Tool ids are namespaced: `clara_submit`, `clara_inbox`, and so on. OpenCode
+derives the id from each tool's `options.namespace`; the
+`editor.namespace({ name: 'clara' })` call only describes the group. Every tool
+must set `options: { namespace: 'clara' }`, or its id stays bare (`submit`) and
+the `clara_*` permissions in `agents.json` will not match it.
 
 ## The tools
 
@@ -113,6 +119,37 @@ Tool ids are namespaced: `clara_submit`, `clara_inbox`, and so on.
 | `clara_event`  | Append an event and optionally transition state.              |
 | `clara_decide` | Open a decision packet. It stays in the inbox until resolved. |
 | `clara_tick`   | Run the deterministic rules once. Dry run by default.         |
+
+## CLI
+
+The CLI calls the same tool definitions against the same ledger, without
+starting OpenCode. Role checks still apply: `--agent` decides who is acting,
+and the actor is derived exactly as it is inside a session.
+
+```sh
+pnpm clara:ledger list
+pnpm clara:ledger run clara_inbox
+pnpm clara:ledger run clara_ask '{"question":"what is in flight?"}'
+pnpm clara:ledger run clara_tick '{"dry_run":true}' --agent judge
+```
+
+`run` takes a tool id (with or without the `clara_` prefix), an optional JSON
+argument, and these options:
+
+| Option         | Meaning                                                                         |
+| -------------- | ------------------------------------------------------------------------------- |
+| `--agent <id>` | `clara` (default), `001`–`004`, `judge`, or any other agent id.                 |
+| `--db <path>`  | Ledger path. Defaults to `CLARA_LEDGER_DB_PATH` or `~/.config/clara/ledger.db`. |
+| `--json`       | Print the whole `{ content }` result instead of only `content`.                 |
+
+The JSON argument can be inline, `-` for stdin, or `@path` to read a file. The
+actor and ledger path are printed to stderr; only the tool's content goes to
+stdout, so `> result.txt` captures just the result.
+
+```sh
+echo '{"question":"what is in flight?"}' | pnpm clara:ledger run clara_ask -
+pnpm clara:ledger run clara_submit @spec.json --agent clara
+```
 
 ## State machine
 
@@ -189,7 +226,9 @@ It creates a temp DB and workspace, registers the plugin through a mock
 editor to confirm all 11 tools wire up, then walks a feature from `submit`
 through approval, freeze, build, review, close, plus the failure paths
 (no unbacked criteria, illegal transitions, implementer closing, dry-run vs
-live tick). Expect `60/60 checks passed`.
+live tick). It also checks that every tool is registered as `clara_*` and that
+every explicit `clara_*` permission in `agents.json` names a real tool. Expect
+`64/64 checks passed`.
 
 ## Not built yet
 
