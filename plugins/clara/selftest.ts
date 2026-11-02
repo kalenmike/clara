@@ -16,6 +16,7 @@ import * as runs from './runs.ts'
 import {
   CONTENT_PIPELINE,
   SOFTWARE_PIPELINE,
+  evaluateCondition,
   loadPipeline,
   pipelineForRequest,
   pipelineHash,
@@ -272,6 +273,21 @@ check('content example validates', validatePipeline(CONTENT_PIPELINE).errors.len
 check(
   'invalid pipeline reports errors',
   validatePipeline({ schemaVersion: 1, id: 'bad', stages: [] }).errors.length > 0
+)
+check(
+  'condition sees prior evidence',
+  evaluateCondition(
+    { evidence: 'docs_impact', notIn: ['', 'none'] },
+    new Map([['docs_impact', 'docs/features/ledger.md']])
+  )
+)
+check(
+  'a missing evidence key makes a condition false',
+  !evaluateCondition({ evidence: 'docs_impact', notIn: ['', 'none'] }, new Map())
+)
+check(
+  'an exists condition handles a missing key',
+  !evaluateCondition({ evidence: 'docs_impact', exists: true }, new Map())
 )
 check(
   'software preset has one contract and one close stage',

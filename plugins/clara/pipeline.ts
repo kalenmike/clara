@@ -667,6 +667,7 @@ export function evaluateCondition(
   if ('exists' in condition) {
     return condition.exists === (value !== undefined && value !== null)
   }
+  if (value === undefined || value === null) return false
   if ('equals' in condition) return canonical(value) === canonical(condition.equals)
   if ('notEquals' in condition) return canonical(value) !== canonical(condition.notEquals)
   if ('in' in condition)
