@@ -48,7 +48,8 @@ management in three layers:
 3. **Uninstall.** `pnpm clara:plugin:uninstall` removes the plugin link and the
    generated agent files. Add `--purge` to remove the ledger database, the
    alert delivery sidecar, the management setting, and the legacy delivery
-   tables from the agent database.
+   tables from the agent database. Stop the home agent first so its settings
+   database is not locked.
 
 The alert inbox is read directly from `ledger.db`. Delivery state (the cursor
 and dedupe keys) lives in `~/.config/clara/ledger-alerts.db`, a Clara-owned
