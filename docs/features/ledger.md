@@ -39,8 +39,12 @@ management in three layers:
 
 1. **Build inclusion.** `CLARA_MANAGEMENT` (server) and
    `VITE_CLARA_MANAGEMENT` (web and panel) exclude the feature when set to `0`,
-   `false`, or `off`. An excluded build does not load the ledger modules, does
-   not register the Clara route, and does not show the panel switch.
+   `false`, or `off`. The repository scripts default both to `1`, so a normal
+   `pnpm build` or `pnpm dev` includes Clara management; override with
+   `CLARA_MANAGEMENT=0 VITE_CLARA_MANAGEMENT=0 pnpm build` (or set just the
+   side you want to exclude). An excluded build does not load the ledger
+   modules, does not register the Clara route, and does not show the panel
+   switch.
 2. **Runtime switch.** `management.enabled` is the master switch described
    below. It defaults off. When off, the plugin does not open the ledger or
    register tools, the daemon is not constructed, the home agent does not start

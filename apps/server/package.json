@@ -7,10 +7,10 @@
     "clara-server": "./dist/index.js"
   },
   "scripts": {
-    "dev": "tsx watch src/index.ts",
-    "start": "node dist/index.js",
+    "dev": "export CLARA_MANAGEMENT=${CLARA_MANAGEMENT:-1}; tsx watch src/index.ts",
+    "start": "export CLARA_MANAGEMENT=${CLARA_MANAGEMENT:-1}; node dist/index.js",
     "prebuild": "pnpm --filter @clara/panel build",
-    "build": "tsup && node scripts/copy-panel.mjs",
+    "build": "export CLARA_MANAGEMENT=${CLARA_MANAGEMENT:-1}; tsup && node scripts/copy-panel.mjs",
     "typecheck": "tsc -p tsconfig.json",
     "test": "vitest run",
     "pair": "tsx src/index.ts pair",
