@@ -8,6 +8,7 @@ import {
   Sparkles,
   Terminal,
   User,
+  Zap,
 } from 'lucide-react'
 import type {
   SessionMessageAssistant,
@@ -21,6 +22,7 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/component
 import { Markdown } from '@/components/chat/markdown'
 import { MessageActions } from '@/components/chat/message-actions'
 import { ToolCard } from '@/components/chat/tool-card'
+import { isSyntheticMessage } from '@/features/chat/message-attribution'
 import { assistantHasContent, assistantHasFailed } from '@/features/chat/message-visibility'
 import { formatCost, formatDateTime, formatRelativeTime, formatTokens } from '@/lib/format'
 import { cn } from '@/lib/utils'
@@ -106,7 +108,7 @@ function MessageRow({
   onToggle,
   children,
 }: {
-  role: 'user' | 'agent'
+  role: 'user' | 'agent' | 'automation'
   sender: string
   senderSuffix?: React.ReactNode
   timestamp: number
@@ -179,7 +181,7 @@ function MessageRow({
   )
 }
 
-function MessageAvatar({ role }: { role: 'user' | 'agent' }) {
+function MessageAvatar({ role }: { role: 'user' | 'agent' | 'automation' }) {
   return (
     <Avatar aria-hidden="true" className="size-9">
       <AvatarFallback
@@ -190,6 +192,8 @@ function MessageAvatar({ role }: { role: 'user' | 'agent' }) {
       >
         {role === 'user' ? (
           <User className="size-4" aria-hidden="true" />
+        ) : role === 'automation' ? (
+          <Zap className="size-4" aria-hidden="true" />
         ) : (
           <Bot className="size-4" aria-hidden="true" />
         )}
@@ -209,10 +213,12 @@ function UserMessage({
   actions?: MessageItemActions
   onToggle?: () => void
 }) {
+  const automation = isSyntheticMessage(message)
+
   return (
     <MessageRow
-      role="user"
-      sender="User"
+      role={automation ? 'automation' : 'user'}
+      sender={automation ? 'Automation' : 'User'}
       timestamp={message.time.created}
       collapsed={collapsed}
       preview={userPreview(message)}

@@ -6,6 +6,7 @@ import { Badge } from '@/components/ui/badge'
 import { Separator } from '@/components/ui/separator'
 import { useModels } from '@/features/catalog/use-catalog'
 import type { ChatSnapshot } from '@/features/chat/chat-store'
+import { isSyntheticMessage } from '@/features/chat/message-attribution'
 import { findPlanTodos } from '@/features/chat/session-plan'
 import { useSessionContext } from '@/features/chat/use-session-context'
 import { useSessionWording } from '@/features/sessions/use-wording'
@@ -54,16 +55,20 @@ export function SessionInfoPanel({
   const counts = useMemo(() => {
     const messages = contextQuery.data ?? []
     let user = 0
+    let automation = 0
     let assistant = 0
     let tools = 0
     for (const message of messages) {
-      if (message.type === 'user') user += 1
+      if (message.type === 'user') {
+        if (isSyntheticMessage(message)) automation += 1
+        else user += 1
+      }
       if (message.type === 'assistant') {
         assistant += 1
         tools += message.content.filter((part) => part.type === 'tool').length
       }
     }
-    return { user, assistant, tools, total: messages.length }
+    return { user, automation, assistant, tools, total: messages.length }
   }, [contextQuery.data])
 
   const tokens = snapshot.tokens ?? session?.tokens
@@ -148,6 +153,12 @@ export function SessionInfoPanel({
         <div className="grid grid-cols-2 gap-1 text-[10px]">
           <span>from you</span>
           <span className="text-right font-mono">{formatCount(counts.user)}</span>
+          {counts.automation > 0 && (
+            <>
+              <span>from automation</span>
+              <span className="text-right font-mono">{formatCount(counts.automation)}</span>
+            </>
+          )}
           <span>from agent</span>
           <span className="text-right font-mono">{formatCount(counts.assistant)}</span>
           <span>tool calls</span>
