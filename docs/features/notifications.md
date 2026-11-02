@@ -6,7 +6,7 @@ Clara tells the person when a session lands in the Inbox with a system
 notification and a distinct sound for each kind of attention. When the Clara
 home agent is connected, the same alert can arrive as a Web Push notification
 after the last Clara window is closed. Clara management adds a second source:
-ledger exceptions such as an open decision, a stalled feature, a missing
+ledger exceptions such as an open decision, a stalled request, a missing
 approval, or an unverified human gate. The settings card also controls optional
 chimes for UI actions such as Done and starting a Build. It is for people who
 start an agent run and move on, so they do not have to watch the sidebar.
@@ -33,9 +33,9 @@ start an agent run and move on, so they do not have to watch the sidebar.
    are held so the desk is alerted once; after the idle window, or when the
    desktop window is hidden, the phone starts receiving alerts again. Clicking
    any notification focuses Clara and opens the session.
-8. When Clara management is on and a ledger feature needs a person — a
+8. When Clara management is on and a ledger request needs a person — a
    decision, stalled work, an approval, a gate, or a budget kill — the daemon
-   prompts the Clara session that owns the feature. The standard session alert
+   prompts the Clara session that owns the request. The standard session alert
    fires: a form means Needs Input, while an information message means Ready for
    Review.
 9. When the person marks a session Done or starts work from a ready plan, Clara
@@ -104,10 +104,8 @@ start an agent run and move on, so they do not have to watch the sidebar.
     An information-only exception is a normal assistant message, so it stays
     **Ready for Review** and reads as the lower-priority state.
 14. While Clara management is on, sessions with `metadata.automation === true`
-    do not raise their own session alerts. The existing `Spec`, `Test`, `Build`,
-    `Docs`, and `Judge` title prefix remains a fallback for sessions created
-    before the metadata existed. Worker completion is noise; the exception
-    conversation is the actionable alert.
+    do not raise their own session alerts. Worker completion is noise; the
+    exception conversation is the actionable alert.
 
 ## Edge cases
 
@@ -189,13 +187,12 @@ start an agent run and move on, so they do not have to watch the sidebar.
 - **An exception arrives twice** — the alert row keeps `session_id` and
   `notified_at`, so the daemon prompts once across restarts. A failed prompt is
   retried on the next tick.
-- **The feature session is gone** — the daemon creates a Clara session, links it
-  to the feature, and prompts there.
+- **The request session is gone** — the daemon creates a Clara session, links it
+  to the request, and prompts there.
 - **The exception resolves while Clara is composing** — `clara_attention`
   refuses the form and Clara stops instead of asking a stale question.
 - **Clara worker completes** — with management on, its automation metadata
-  suppresses the session alert. A pre-metadata worker is suppressed by its
-  stage title prefix.
+  suppresses the session alert.
 - **External OpenCode notifier** — the TUI notifier is a separate plugin and
   does not read the Clara management switch.
 - **Pairing rotated** — `pair --rotate` clears every stored push subscription, so
@@ -296,8 +293,8 @@ start an agent run and move on, so they do not have to watch the sidebar.
 - Ledger exceptions: `plugins/clara/alerts.ts` writes the outbox;
   `plugins/clara/attention.ts` prompts the linked Clara session with a synthetic
   daemon handoff. `clara_attention` posts the standard form.
-- Exception destination: the Clara session in `features.session_id`, or a new
-  session linked back to the feature when that session is unusable.
+- Exception destination: the Clara session in `requests.session_id`, or a new
+  session linked back to the request when that session is unusable.
 - Worker filter: `isClaraWorkerTitle` in
   `packages/shared-types/src/session-signals.ts`, shared by the home agent and
   the web notification provider

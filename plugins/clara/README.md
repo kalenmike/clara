@@ -3,11 +3,14 @@
 The ledger is one OpenCode plugin, one SQLite file, and the tools the Clara
 agents call. A small [CLI](#cli) invokes the same tools directly so you can test
 a call without an agent. The daemon turns ledger state into worker sessions and
-turns exceptions into Clara conversations in the session that owns the feature.
+turns exceptions into Clara conversations in the session that owns the request.
 
 The rule the whole thing is built around: **state crosses agent boundaries,
 sessions do not.** Nothing in here reads or reconstructs a conversation. If the
 ledger cannot answer a question, it records a schema gap instead of guessing.
+
+A **request** is the unit of work. A [pipeline](#pipelines) defines the stages
+that turn a request into a result.
 
 ## Files
 
@@ -15,12 +18,15 @@ ledger cannot answer a question, it records a schema gap instead of guessing.
 | ------------------ | ------------------------------------------------------------------ |
 | `index.ts`         | Plugin entry. Registers the `clara_*` tools and starts the daemon. |
 | `db.ts`            | SQLite driver selection, WAL, migration runner, path resolution.   |
+| `pipeline.ts`      | Pipeline types, validation, hashing, conditions, and templates.    |
 | `queries.ts`       | Every ledger operation. Deterministic — no model calls.            |
 | `daemon.ts`        | Scheduler: reconciles worker sessions and launches the next stage. |
-| `runs.ts`          | Run tracking and the single-writer lock.                           |
+| `runs.ts`          | Stage resolution, run tracking, and the single-writer lock.        |
+| `attention.ts`     | Exception forms and delivery.                                      |
 | `selftest.ts`      | End-to-end check against a throwaway DB.                           |
-| `cli.ts`           | Run one tool directly against the ledger, without an agent.        |
+| `cli.ts`           | Run one tool or pipeline command directly, without an agent.       |
 | `agents.json`      | The six Clara agents, in OpenCode agent-config shape.              |
+| `pipelines/*.json` | Reference copies of the software and content pipelines.            |
 | `migrations/*.sql` | Schema, applied in filename order.                                 |
 
 ## Install
@@ -49,21 +55,14 @@ OpenCode discovers global plugins in `~/.config/opencode/plugins/`. A local
 plugin directory needs a `package.json` with a `name` and `exports`; this one
 exports `index.ts`.
 
-`--force` replaces an existing non-symlink plugin directory and overwrites
-agent files that were edited after installation.
-
-OpenCode 2.2.5 cannot register new agents from plugin code. Agents are
-discovered only from markdown under a config root or from the `agents` map in an
-`opencode.json(c)`. `agents.json` is the source of truth here, and the installer
-materializes it where OpenCode looks.
-
 ## Storage
 
 ```text
 ~/.config/clara/ledger.db
+~/.config/clara/pipelines/*.json
 ```
 
-Resolution order:
+Resolution order for the ledger:
 
 1. plugin option `db`
 2. `CLARA_LEDGER_DB_PATH`
@@ -107,39 +106,92 @@ derives the id from each tool's `options.namespace`; the
 must set `options: { namespace: 'clara' }`, or its id stays bare (`submit`) and
 the `clara_*` permissions in `agents.json` will not match it.
 
+## Pipelines
+
+A pipeline is a versioned JSON file:
+
+```json
+{
+  "schemaVersion": 1,
+  "id": "content",
+  "name": "Content request",
+  "version": 1,
+  "stages": [
+    {
+      "id": "brief",
+      "title": "Brief",
+      "phase": "contract",
+      "agent": "clara-brief",
+      "role": "worker",
+      "instructions": "Turn the request into a brief..."
+    },
+    {
+      "id": "draft",
+      "title": "Draft",
+      "phase": "work",
+      "agent": "clara-writer",
+      "role": "worker",
+      "instructions": "Write the draft...",
+      "evidence": {
+        "copy": { "type": "string", "required": true },
+        "word_count": { "type": "number" }
+      }
+    },
+    {
+      "id": "deliver",
+      "title": "Deliver",
+      "phase": "close",
+      "agent": "clara-closer",
+      "role": "closer",
+      "instructions": "Deliver the copy and record the result.",
+      "evidence": {
+        "result": { "type": "string", "required": true },
+        "artifacts": { "type": "array" }
+      }
+    }
+  ]
+}
+```
+
+Rules:
+
+- Exactly one `contract` stage, first; exactly one `close` stage, last.
+- `contract`, `work`, and `review` stages use `role: "worker"`; the close stage
+  uses `role: "closer"`.
+- `stages` are linear. `when` can skip a stage with one simple evidence
+  condition. `gate` can require `clara_stage_gate` before or after a stage.
+- Agents are existing OpenCode agents. Clara does not generate them.
+- Files live under the user config directory, never in the workspace. A
+  repository cannot define shell-capable agents.
+- Each request pins `pipeline_id`, `pipeline_version`, `pipeline_hash`, and the
+  full snapshot. Editing a file never changes an in-flight request.
+
+Reference copies: `pipelines/software.json` and `pipelines/content.json`.
+
 ## The tools
 
 ### Human-facing
 
-| Tool              | Purpose                                                                                                                                                    |
-| ----------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `clara_submit`    | Register a feature. Writes the ledger row, the `docs/records/NNN-slug.md` record, and the first event. Starts in `spec`.                                   |
-| `clara_attention` | Present one alert in this session. `info` needs no answer; `feedback`, `form`, and `confirm` post a standard form. Refuses an alert that already resolved. |
-| `clara_inbox`     | Everything that needs a human: open decisions, stalled features, features over soft budget. Empty output when nothing needs you.                           |
-| `clara_ask`       | Read state for one feature, one workspace, or all. Facts only. If the ledger can't answer, it records a schema gap.                                        |
-| `clara_approve`   | Record human approval of the proposed criteria. `spec → planned`.                                                                                          |
-| `clara_gate`      | Record the human's verification of the human-gate criteria in `review`. The judge closes only when every gate is recorded.                                 |
-| `clara_resolve`   | Close an open decision by id.                                                                                                                              |
+| Tool               | Purpose                                                                                                                   |
+| ------------------ | ------------------------------------------------------------------------------------------------------------------------- |
+| `clara_submit`     | Register a request. Writes the ledger row, the `docs/records/NNN-slug.md` record, and the first event. Starts in `draft`. |
+| `clara_attention`  | Present one alert in this session. `info` needs no answer; `feedback`, `form`, and `confirm` post a standard form.        |
+| `clara_inbox`      | Everything that needs a human: open decisions, stalled requests, over-budget work, approvals, stage gates, review gates.  |
+| `clara_ask`        | Read state for one request, one workspace, or all. Facts only.                                                            |
+| `clara_approve`    | Record human approval of the contract. `draft → approved`.                                                                |
+| `clara_gate`       | Record the human verification of human-verification criteria in `review`.                                                 |
+| `clara_stage_gate` | Record a human gate before or after a configured pipeline stage.                                                          |
+| `clara_resolve`    | Close an open decision by id.                                                                                             |
 
-### Spec agent (`ai_1`)
+### Stage agents
 
-| Tool             | Purpose                                                                                                  |
-| ---------------- | -------------------------------------------------------------------------------------------------------- |
-| `clara_criteria` | Propose acceptance criteria. Each needs a `test_path` or `human_gate: true`; also records `docs_impact`. |
+| Tool               | Purpose                                                                        |
+| ------------------ | ------------------------------------------------------------------------------ |
+| `clara_criteria`   | Propose the acceptance contract: automated, human, or artifact criteria.       |
+| `clara_stage_done` | Complete the current stage with the evidence its pipeline definition requires. |
+| `clara_progress`   | Record arbitrary stage metrics, a blocker, a next step, and tokens.            |
 
-### Test agent (`ai_2`)
-
-| Tool           | Purpose                                                           |
-| -------------- | ----------------------------------------------------------------- |
-| `clara_freeze` | Record the test-suite hash. After this, the tests may not change. |
-
-### Build agent (`ai_3`)
-
-| Tool               | Purpose                                                                                             |
-| ------------------ | --------------------------------------------------------------------------------------------------- |
-| `clara_checkpoint` | Report tests passed/total, files changed, blockers, next step, tokens, and a refined `docs_impact`. |
-
-### Supervisor (`ai_0`)
+### Supervisor
 
 | Tool           | Purpose                                                       |
 | -------------- | ------------------------------------------------------------- |
@@ -151,7 +203,7 @@ the `clara_*` permissions in `agents.json` will not match it.
 
 The CLI calls the same tool definitions against the same ledger, without
 starting OpenCode. Role checks still apply: `--agent` decides who is acting,
-and the actor is derived exactly as it is inside a session.
+and the role is derived exactly as it is inside a session.
 
 ```sh
 pnpm clara:ledger list
@@ -165,7 +217,7 @@ argument, and these options:
 
 | Option         | Meaning                                                                         |
 | -------------- | ------------------------------------------------------------------------------- |
-| `--agent <id>` | `clara` (default), `001`–`004`, `judge`, or any other agent id.                 |
+| `--agent <id>` | `clara` (human), `001`–`004` (worker), `judge` (closer), or another agent id.   |
 | `--db <path>`  | Ledger path. Defaults to `CLARA_LEDGER_DB_PATH` or `~/.config/clara/ledger.db`. |
 | `--json`       | Print the whole `{ content }` result instead of only `content`.                 |
 
@@ -173,99 +225,99 @@ The JSON argument can be inline, `-` for stdin, or `@path` to read a file. The
 actor and ledger path are printed to stderr; only the tool's content goes to
 stdout, so `> result.txt` captures just the result.
 
+Pipeline commands:
+
 ```sh
-echo '{"question":"what is in flight?"}' | pnpm clara:ledger run clara_ask -
-pnpm clara:ledger run clara_submit @spec.json --agent clara
+pnpm clara:ledger pipeline list
+pnpm clara:ledger pipeline validate software
+pnpm clara:ledger pipeline validate ./my-pipeline.json
+pnpm clara:ledger pipeline select clara content --path /path/to/repo
+pnpm clara:ledger pipeline show clara
+pnpm clara:ledger pipeline show 42
 ```
 
 ## State machine
 
 ```text
-spec ──approve──▶ planned ──build──▶ building ──close──▶ review ──confirm──▶ done
-  │                  │                  │                  │
-  └──────────────────┴──────────────────┴──────────────────┴──▶ scrapped
+draft ──approve──▶ approved ──work──▶ running ──review──▶ review ──close──▶ completed
+  │                   │                  │                  │
+  └───────────────────┴──────────────────┴──────────────────┴──▶ cancelled
 ```
 
 Legal transitions are enforced in `appendEvent`:
 
-| From       | To                             |
-| ---------- | ------------------------------ |
-| `spec`     | `planned`, `scrapped`          |
-| `planned`  | `building`, `scrapped`         |
-| `building` | `review`, `scrapped`           |
-| `review`   | `done`, `building`, `scrapped` |
-| `done`     | —                              |
-| `scrapped` | —                              |
+| From        | To                                  |
+| ----------- | ----------------------------------- |
+| `draft`     | `approved`, `cancelled`             |
+| `approved`  | `running`, `review`, `cancelled`    |
+| `running`   | `review`, `cancelled`               |
+| `review`    | `completed`, `running`, `cancelled` |
+| `completed` | —                                   |
+| `cancelled` | —                                   |
 
-Actor rules:
+Role rules:
 
-- The actor is derived from the calling agent (`001`→`ai_1`, `002`→`ai_2`,
-  `003`→`ai_3`, `004`→`ai_4`, `judge`→`ai_0`, `clara`→`human`), not from the
-  arguments. An implementer cannot pass `actor: "ai_0"`.
-- Only `ai_0` may move a feature to `done` or `scrapped`. An implementer can
-  request `review`, never close its own work.
-- `clara_approve`, `clara_gate`, and `clara_resolve` are human-only.
-- `clara_criteria` is `ai_1`/human; `clara_freeze` is `ai_2`/human;
-  `clara_checkpoint` is `ai_3`/human; `clara_decide` is `ai_0`/`ai_4`/human;
-  `clara_tick` is `ai_0`/human.
-- Criteria can only be proposed in `spec` and approved in `spec`.
-- Tests freeze only in `planned`.
-- Checkpoints only exist in `building`.
+- The role comes from the live run behind the session, not from tool arguments.
+  A custom pipeline agent gets the role its stage declares.
+- An unknown agent with no live run has no write privileges.
+- Only the closer role may complete or cancel a request.
+- `clara_approve`, `clara_gate`, `clara_stage_gate`, and `clara_resolve` are
+  human-only.
+- `clara_criteria` is worker/human; `clara_stage_done` and `clara_progress` are
+  worker/closer and must match the session's current stage.
+- `clara_tick` is closer/human.
 
 ## Gates
 
-- **Nothing builds before approval.** `submit` leaves the feature in `spec`;
-  `approve` is the only path to `planned`.
-- **Tests are frozen.** `freeze` records a hash; the close gate requires it.
-  The daemon does not re-hash the files yet.
-- **Human gates are recorded.** `clara_gate` records the human's verification
-  of each `human_gate: true` criterion. The judge cannot verify them and closes
-  only when every gate is recorded.
-- **Silence is not approval.** Every decision carries
-  `default_if_silent`, defaulting to `block`.
+- **Nothing runs before approval.** `submit` leaves the request in `draft`;
+  `clara_approve` is the only path to `approved`.
+- **Stages complete with evidence.** `clara_stage_done` validates required keys,
+  types, and immutable values.
+- **Human gates are recorded.** `clara_gate` records a human-verification
+  criterion; `clara_stage_gate` records a pipeline stage gate.
+- **Silence is not approval.** Every decision carries `default_if_silent`,
+  defaulting to `block`.
 - **No model in the loop for state.** `tick` is pure SQL and comparisons.
 - **One daemon.** A lock row keeps multiple plugin instances from spawning
   duplicate workers.
-- **No duplicate stage.** A live session in `runs` blocks a second launch of
-  the same stage.
+- **No duplicate stage.** A live session in `runs` blocks a second launch of the
+  same stage.
 
 ## Daemon
 
-The plugin starts a daemon when OpenCode loads it. The daemon owns the loop;
-the `clara` agent only submits, asks, approves, and resolves. It ticks every
+The plugin starts a daemon when OpenCode loads it. The daemon owns the loop; the
+`clara` agent only submits, asks, approves, resolves, and gates. It ticks every
 15 seconds by default:
 
 1. reconcile the sessions recorded in `runs`;
 2. run `clara_tick` with `dry_run: false`;
-3. launch at most one missing stage.
+3. deliver alerts;
+4. launch at most one missing stage from each request's pinned pipeline.
 
-| Ledger state               | Stage                           | Agent   |
-| -------------------------- | ------------------------------- | ------- |
-| `spec`, no criteria        | propose criteria                | `001`   |
-| `spec`, criteria proposed  | wait for `clara_approve`        | —       |
-| `planned`, no `tests_hash` | write and freeze tests          | `002`   |
-| `planned`, tests frozen    | move to `building`              | `003`   |
-| `building`                 | implement and request `review`  | `003`   |
-| `review`, docs impact      | apply docs                      | `004`   |
-| `review`                   | close, or ask for missing gates | `judge` |
+| Lifecycle state | What the daemon does                                  |
+| --------------- | ----------------------------------------------------- |
+| `draft`         | run the contract stage, then wait for `clara_approve` |
+| `approved`      | run the first work stage and move to `running`        |
+| `running`       | run remaining work stages, then move to `review`      |
+| `review`        | run review stages, then the close stage               |
+| `completed`     | commit the request record                             |
 
-Each stage runs in a child session in the feature's workspace. Its id and
-status live in `runs`. A stage with a live run is never launched twice. If a
-session ends without advancing the ledger, the daemon opens a decision and
-waits; it retries that stage only after the human resolves the decision.
+Each stage runs in a child session in the request's workspace. Its id, agent,
+role, and status live in `runs`. A stage with a live run is never launched
+twice. If a session ends without `clara_stage_done`, the daemon opens a decision
+and waits; it retries that stage only after the human resolves the decision.
 
 The worker session is created with `initiatedBy: "daemon"` and
 `automation: true` metadata, and the initial handoff is sent with
-`source: "daemon"` and `synthetic: true`. Clients use the session marker to keep
-workers out of the human mailbox and the prompt marker to avoid attributing the
-handoff to the person. The stage title prefix remains a compatibility fallback
-for sessions created before the metadata existed.
+`source: "daemon"` and `synthetic: true`. Clients use the automation marker to
+keep workers out of the human mailbox and the synthetic marker to avoid
+attributing the handoff to the person.
 
-Exception sessions are the opposite. The daemon prompts the feature's existing
+Exception sessions are the opposite. The daemon prompts the request's existing
 Clara session with the same synthetic daemon marker and `delivery: "queue"`.
 Only when that session is missing, archived, a worker, or not a Clara session
 does it create one, with `initiatedBy: "clara"` and `ledgerAlert: true` but no
-`automation` flag, then writes the new id back to `features.session_id`.
+`automation` flag, then writes the new id back to `requests.session_id`.
 
 `daemon_lock` has one row. An instance must own it to tick, so several OpenCode
 locations can load the plugin without spawning duplicate workers. A heartbeat
@@ -289,26 +341,27 @@ workspace. Set `daemon: false` or `CLARA_DAEMON=0` to turn it off.
 
 `clara_tick` defaults to `dry_run: true` and reports what it _would_ do.
 Pass `false` to apply. The daemon calls the live form on every tick before it
-launches a stage. Checks, per active feature:
+launches a stage. Checks, per active request:
 
-1. over hard budget → kill (`budget`)
-2. more than 3 failed attempts → kill (`attempts`)
-3. past the wall clock → kill (`time`)
-4. no event for 10 minutes while `building` → mark stalled
+1. over hard budget → cancel (`budget`)
+2. more than 3 failed attempts → cancel (`attempts`)
+3. past the wall clock → cancel (`time`)
+4. a live worker with no event for 10 minutes → mark stalled
 5. over soft budget → open one decision (never one per tick)
-6. three flat checkpoints with rising spend → open one decision
+6. the pipeline's optional progress guard sees a flat metric with rising spend
+   → open one decision
 
-Kills only happen for hard budget, attempts, and wall clock. Soft budget
+Cancellations only happen for hard budget, attempts, and wall clock. Soft budget
 always asks first.
 
-## Feature records
+## Request records
 
-Each feature gets `<workspace>/docs/records/NNN-slug.md`. The ledger owns the
+Each request gets `<workspace>/docs/records/NNN-slug.md`. The ledger owns the
 row; the record is prose for humans and is append-only. If the workspace path
 does not exist, the record is skipped and `submit` says so. Canonical docs stay
-under `docs/features/**` and are the docs agent's only writable target.
+under `docs/features/**` and are the docs stage's only writable target.
 
-The daemon commits a closed feature's record after the judge finishes, with an
+The daemon commits a closed request's record after the closer finishes, with an
 explicit path and no unrelated staging.
 
 ## Self-test
@@ -317,24 +370,25 @@ explicit path and no unrelated staging.
 pnpm --filter @clara/opencode-plugin test
 ```
 
-It creates a temp DB and workspace, registers the plugin through a mock
-editor to confirm all 13 tools wire up, then walks a feature from `submit`
-through approval, freeze, build, review, close, plus the failure paths
+It creates a temp DB and workspace, registers the plugin through a mock editor
+to confirm all 14 tools wire up, then walks the software pipeline from `submit`
+through approval, evidence, progress, review, close, plus the failure paths
 (no unbacked criteria, illegal transitions, implementer closing, dry-run vs
-live tick). It also drives a feature through the daemon with a mock session
-API, checks the lock and retry path, and verifies that every tool is registered
-as `clara_*` and that every explicit `clara_*` permission in `agents.json`
-names a real tool. It also exercises the attention tool and the delivery loop
-against mock session and form APIs. Expect `171/171 checks passed`.
+live tick). It also drives a request through the daemon with a mock session API,
+checks the lock and retry path, and verifies that every tool is registered as
+`clara_*` and that every explicit `clara_*` permission in `agents.json` names a
+real tool. It also drives a non-software content pipeline end to end, including
+an optional stage gate, and exercises the attention tool and delivery loop
+against mock session and form APIs.
 
 ## Alerts
 
 `collectAlerts` writes one row per human-wait exception into `alerts`:
-decisions, stalled features, over-budget work, criteria awaiting approval,
-human gates awaiting verification, and recent hard kills. On each tick,
-`deliverAttention` prompts the Clara session linked to the feature, marks the
-alert with `session_id` and `notified_at`, and leaves failed prompts for the
-next tick. A reopened gate clears its delivery marker.
+decisions, stalled requests, over-budget work, criteria awaiting approval,
+pipeline stage gates, human gates awaiting verification, and recent hard
+cancellations. On each tick, `deliverAttention` prompts the Clara session linked
+to the request, marks the alert with `session_id` and `notified_at`, and leaves
+failed prompts for the next tick. A reopened gate clears its delivery marker.
 
 `clara_attention` turns the alert into a standard OpenCode form (`feedback`,
 `form`, or `confirm`) or a plain information message (`info`). Forms make the
@@ -344,12 +398,11 @@ composer.
 
 ## Not built yet
 
-- Worktree and branch creation. Workers run in the workspace directory; the
-  daemon does not create a separate checkout.
-- Cost rollups for accepted features.
-- Scrap-reason classification for `spec`, `context`, `model`, and `taste`.
+- Worktree and branch creation. Workers run in the workspace directory.
+- Cost rollups for accepted requests.
+- A pipeline editor; JSON files and the CLI are the authoring surface.
+- Generated user agents; a stage references an agent the user installs.
+- Parallel stages, branching, or loops.
 - A panel view of the alert outbox; the panel shows ledger storage health.
 - A one-click confirmation control; `confirm` uses a boolean form field plus
   Submit.
-- A form API on every host; the tool falls back to prose when the plugin cannot
-  create one.

@@ -3,7 +3,7 @@
   "private": true,
   "version": "0.1.0",
   "type": "module",
-  "description": "Clara ledger plugin for OpenCode: deterministic feature state across agent sessions.",
+  "description": "Clara ledger plugin for OpenCode: deterministic request state and configurable pipelines across agent sessions.",
   "exports": {
     ".": "./index.ts"
   },

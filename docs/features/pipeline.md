@@ -1,0 +1,125 @@
+# Pipeline
+
+## Summary
+
+A pipeline is the configurable part of a Clara request: the ordered stages, the
+agent that runs each one, the handoff instructions, and the evidence a stage
+must record before the daemon advances. The Clara lifecycle stays fixed, so the
+same ledger can run software work, content work, research, or any other linear
+process.
+
+## User flow
+
+1. Create a pipeline JSON file under
+   `${CLARA_CONFIG_DIR:-~/.config/clara}/pipelines/`.
+2. Validate it with `pnpm clara:ledger pipeline validate <id-or-file>`.
+3. Select it for a workspace with
+   `pnpm clara:ledger pipeline select <workspace> <id>`, or pass `pipeline` on
+   `clara_submit`.
+4. Submit a request. The request stores the pipeline id, version, hash, and a
+   full snapshot.
+5. The daemon runs the contract stage. The agent proposes criteria and calls
+   `clara_stage_done`.
+6. A human approves the criteria with `clara_approve`. Work stages run in order.
+7. If a stage declares a human gate, a human records it with
+   `clara_stage_gate`.
+8. Review stages run, then the close stage records `result` and `artifacts`.
+9. The request completes. `clara_ask` shows the result and the evidence.
+
+## Core business rules
+
+1. **The lifecycle is fixed.** A request moves through `draft`, `approved`,
+   `running`, `review`, `completed`, or `cancelled`. Pipelines cannot add or
+   remove lifecycle states.
+2. **A pipeline has one contract stage and one close stage.** The contract stage
+   is first; the close stage is last. Work and review stages may be empty.
+3. **Stages are linear.** Each stage runs once, in order. A stage may be skipped
+   by a simple `when` condition. There is no branching, parallelism, or looping.
+4. **Completion is explicit evidence.** The stage agent calls
+   `clara_stage_done` with the evidence its definition declares. A session that
+   ends without that call is a failed stage and opens a decision.
+5. **Definitions are user-level.** Pipeline files live outside the workspace. A
+   repository cannot define an agent with shell access.
+6. **Requests pin their pipeline.** Editing a file never reinterprets an
+   in-flight request. New requests use the new definition.
+7. **Agents are referenced, not generated.** A stage names an existing OpenCode
+   agent. Clara validates the definition shape; a missing agent opens a decision
+   when the stage is due.
+8. **Only the closer closes.** The close stage must use `role: "closer"`. The
+   human approval and review gates remain the only way to bypass a stage
+   failure.
+
+## Edge cases
+
+- The pipeline file is invalid: `validate`, `submit`, and `select` fail with the
+  field path. In-flight requests are unaffected because they use snapshots.
+- The workspace has no selected pipeline: `software` is used.
+- The selected pipeline file is deleted: new requests fail; in-flight requests
+  keep their snapshot.
+- A stage condition references evidence that was not produced: the condition is
+  false and the stage is recorded as skipped.
+- A stage declares a human gate: the daemon waits and the alert outbox reports
+  `stage_gate` until a human records `clara_stage_gate`.
+- A required evidence key is missing or has the wrong type: `clara_stage_done`
+  refuses the completion.
+- An immutable evidence key gets a different value: the completion is refused.
+- A worker tries to complete another stage: the tool refuses because the live
+  run owns one stage.
+- A missing agent or model: the daemon opens a blocked decision instead of
+  crashing.
+- The close stage is reached before every prior stage completes: the completion
+  is refused.
+- A human-verification criterion is unverified: the close stage cannot complete.
+
+## Out of scope
+
+- A pipeline editor in the panel or web app.
+- Clara generating or overwriting agent definitions.
+- Parallel stages, branching, loops, or a general expression language.
+- Auto-loading a pipeline file committed inside a workspace.
+- Multiple pipelines running at once for one request.
+- Mid-flight pipeline switching.
+- Blob artifact storage; artifacts are paths, URLs, or text.
+
+## Known gaps
+
+- Agent existence is checked when the stage is about to spawn, not at submit.
+- Automated and artifact criteria rely on the stage's declared evidence; Clara
+  does not execute a check command.
+- The optional progress guard compares one numeric metric across reports. It
+  does not understand compound metrics.
+
+## Technical appendix
+
+<details>
+<summary>File shape, CLI, and integration</summary>
+
+- Directory: `${CLARA_CONFIG_DIR:-${XDG_CONFIG_HOME:-~/.config}/clara}/pipelines`
+- One JSON file per pipeline. A file whose `id` is `software` overrides the
+  built-in preset.
+- Built-in examples: `plugins/clara/pipelines/software.json` and
+  `plugins/clara/pipelines/content.json`.
+- Commands:
+  - `pnpm clara:ledger pipeline list`
+  - `pnpm clara:ledger pipeline validate <id-or-file>`
+  - `pnpm clara:ledger pipeline select <workspace> <id> [--path <workspace>]`
+  - `pnpm clara:ledger pipeline show <request|workspace|id>`
+- Stage fields: `id`, `title`, `phase`, `agent`, `role`, `instructions`,
+  `evidence`, `when`, `gate`.
+- Phases: `contract`, `work`, `review`, `close`.
+- Evidence types: `string`, `number`, `boolean`, `object`, `array`; flags:
+  `required`, `immutable`.
+- Conditions support one operator: `equals`, `notEquals`, `in`, `notIn`, or
+  `exists`, evaluated against evidence from earlier stages.
+- Template variables: `request.*`, `workspace.*`, `pipeline.*`, and `stage.*`.
+- Requests store `pipeline_id`, `pipeline_version`, `pipeline_hash`,
+  `pipeline_snapshot`, and `current_stage_id`.
+- Stage evidence lives in `evidence`; progress lives in `progress`; stage gates
+  live in `stage_gates`.
+- Tools: `clara_stage_done`, `clara_stage_gate`, `clara_progress`,
+  `clara_criteria`, `clara_ask`, `clara_inbox`, `clara_approve`, `clara_gate`,
+  `clara_resolve`, `clara_tick`.
+- The daemon never reads a workspace pipeline file; only the plugin loader and
+  CLI do.
+
+</details>

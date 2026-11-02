@@ -6,7 +6,7 @@ Feature docs live in `docs/features/<topic>.md` and are listed in
 [docs/README.md](../README.md). Keep one canonical doc per topic and edit the
 existing file instead of adding a second version.
 
-Generated per-feature records live in `docs/records/NNN-slug.md`. They are
+Generated per-request records live in `docs/records/NNN-slug.md`. They are
 append-only audit artifacts, not canonical docs, and are not listed in the
 index.
 

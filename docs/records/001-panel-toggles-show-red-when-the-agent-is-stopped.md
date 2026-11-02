@@ -1,8 +1,9 @@
 ---
-feature: 1
+request: 1
 slug: panel-toggles-show-red-when-the-agent-is-stopped
 workspace: clara
-state: spec
+pipeline: software@1
+state: draft
 created: 2026-11-02T01:47:01.197Z
 ---
 
