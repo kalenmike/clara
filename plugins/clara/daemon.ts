@@ -14,12 +14,12 @@ import { execFileSync } from 'node:child_process'
 import type { Db, Row } from './db.ts'
 import { collectAlerts } from './alerts.ts'
 import { deliverAttention } from './attention.ts'
-import { appendEvent, decide, tick as ledgerTick, workspaceOf } from './queries.ts'
+import { pipelineForRequest, renderInstructions } from './pipeline.ts'
+import { appendEvent, decide, stageCompleted, tick as ledgerTick, workspaceOf } from './queries.ts'
 import {
   acquireDaemonLock,
   activeRequests,
   finishRun,
-  hasCriteria,
   hasOpenDecision,
   latestRun,
   markRunning,
@@ -27,10 +27,10 @@ import {
   releaseDaemonLock,
   startRun,
   waitingRuns,
-  type NextStage,
   type RunRow,
   type RunWithRequest,
-  type Stage,
+  type StageStep,
+  type TransitionStep,
 } from './runs.ts'
 
 export interface DaemonModel {
@@ -395,15 +395,21 @@ export async function advance(options: TickOptions): Promise<string[]> {
     const next = nextStage(options.db, request)
     if (!next) continue
 
-    const latest = latestRun(options.db, Number(request.id), next.stage)
+    if (next.kind === 'transition') {
+      actions.push(transitionRequest(options, request, next))
+      continue
+    }
+
+    const stage = next.stage
+    const latest = latestRun(options.db, Number(request.id), stage.id)
     if (latest && (latest.status === 'starting' || latest.status === 'running')) continue
 
     if (latest && latest.status === 'done') {
       ensureDecision(
         options,
         request,
-        next,
-        `The ${next.stage} stage is recorded done but the ledger still asks for it.`,
+        { stage: stage.id, agent: stage.agent },
+        `The ${stage.id} stage is recorded done but the ledger still asks for it.`,
         'blocked'
       )
       continue
@@ -414,34 +420,40 @@ export async function advance(options: TickOptions): Promise<string[]> {
         ensureDecision(
           options,
           request,
-          next,
-          `The ${next.stage} stage failed and is waiting for a resolved decision.`,
+          { stage: stage.id, agent: stage.agent },
+          `The ${stage.id} stage failed and is waiting for a resolved decision.`,
           'blocked'
         )
         continue
       }
     }
 
-    if (next.stage === 'build' && request.state === 'approved') {
+    const desired =
+      stage.phase === 'work'
+        ? 'running'
+        : stage.phase === 'review' || stage.phase === 'close'
+          ? 'review'
+          : undefined
+    if (desired && request.state !== desired) {
       try {
         appendEvent(options.db, {
           request: request.id,
-          type: 'build.started',
+          type: `request.${desired}`,
           actor: 'ai_0',
-          state: 'running',
-          payload: { stage: 'build', reason: next.reason },
+          state: desired,
+          payload: { stage: stage.id, reason: next.reason },
         })
       } catch (error) {
         ensureDecision(
           options,
           request,
-          next,
-          `Could not move the request to running: ${message(error)}`,
+          { stage: stage.id, agent: stage.agent },
+          `Could not move the request to ${desired}: ${message(error)}`,
           'failed'
         )
         continue
       }
-      request.state = 'running'
+      request.state = desired
     }
 
     actions.push(await spawnStage(options, request, next))
@@ -511,13 +523,7 @@ async function reconcileRuns(options: TickOptions): Promise<void> {
       const status = info.outcome === 'interrupted' ? 'interrupted' : 'failed'
       const reason = failureReason(options.db, request, run.stage, info.outcome)
       finishRun(options.db, run.id, status, reason)
-      writeRunEvent(
-        options.db,
-        options.logger,
-        run,
-        run.stage === 'build' ? 'ci.failed' : 'stage.failed',
-        reason
-      )
+      writeRunEvent(options.db, options.logger, run, 'stage.failed', reason)
       ensureRunDecision(options, run, reason)
     } catch (error) {
       if (terminal) {
@@ -532,42 +538,43 @@ async function reconcileRuns(options: TickOptions): Promise<void> {
   }
 }
 
-async function spawnStage(options: TickOptions, request: Row, next: NextStage): Promise<string> {
+async function spawnStage(options: TickOptions, request: Row, next: StageStep): Promise<string> {
   const { db, ctx, logger } = options
   const session = sessionApi(ctx)
   if (!session) return 'daemon: session API unavailable'
 
+  const stage = next.stage
   const label = `${pad(Number(request.id))} ${request.slug}`
   const workspace = workspaceOf(db, request)
   const path = String(workspace.path)
 
   if (!existsSync(path)) {
     const reason = `workspace path ${path} does not exist`
-    ensureDecision(options, request, next, reason, 'blocked')
-    return `${label}: skipped ${next.stage} — ${reason}`
+    ensureDecision(options, request, { stage: stage.id, agent: stage.agent }, reason, 'blocked')
+    return `${label}: skipped ${stage.id} — ${reason}`
   }
 
   const model = await resolveModel(ctx, path)
   if (!model) {
     const reason =
       'no model is available for a worker session; set daemonModel or submit from a session with a model'
-    ensureDecision(options, request, next, reason, 'blocked')
-    return `${label}: skipped ${next.stage} — ${reason}`
+    ensureDecision(options, request, { stage: stage.id, agent: stage.agent }, reason, 'blocked')
+    return `${label}: skipped ${stage.id} — ${reason}`
   }
 
-  const runID = startRun(db, Number(request.id), next.stage, next.agent)
+  const runID = startRun(db, Number(request.id), stage.id, stage.agent, stage.role)
   let sessionID: string | undefined
 
   try {
     const created = await session.create({
-      title: `${stageLabel(next.stage)} · ${label}`,
+      title: `${stage.title} · ${label}`,
       location: { directory: path },
       model,
       metadata: DAEMON_SESSION_METADATA,
     })
     sessionID = created.id
 
-    await session.switchAgent({ sessionID, agent: next.agent })
+    await session.switchAgent({ sessionID, agent: stage.agent })
     markRunning(db, runID, sessionID)
     writeRunEvent(
       db,
@@ -575,8 +582,8 @@ async function spawnStage(options: TickOptions, request: Row, next: NextStage): 
       {
         id: runID,
         request_id: Number(request.id),
-        stage: next.stage,
-        agent: next.agent,
+        stage: stage.id,
+        agent: stage.agent,
         session_id: sessionID,
       },
       'stage.started',
@@ -585,13 +592,13 @@ async function spawnStage(options: TickOptions, request: Row, next: NextStage): 
 
     await session.prompt({
       sessionID,
-      text: stagePrompt(next.stage, request, path),
+      text: stagePrompt(db, stage, request),
       metadata: DAEMON_PROMPT_METADATA,
     })
 
-    return `${label}: started ${next.stage} (${next.agent}) in ${sessionID}`
+    return `${label}: started ${stage.id} (${stage.agent}) in ${sessionID}`
   } catch (error) {
-    const reason = `could not start ${next.stage}: ${message(error)}`
+    const reason = `could not start ${stage.id}: ${message(error)}`
     finishRun(db, runID, 'failed', reason)
     writeRunEvent(
       db,
@@ -599,14 +606,14 @@ async function spawnStage(options: TickOptions, request: Row, next: NextStage): 
       {
         id: runID,
         request_id: Number(request.id),
-        stage: next.stage,
-        agent: next.agent,
+        stage: stage.id,
+        agent: stage.agent,
         session_id: sessionID ?? null,
       },
       'stage.failed',
       reason
     )
-    ensureDecision(options, request, next, reason, 'failed')
+    ensureDecision(options, request, { stage: stage.id, agent: stage.agent }, reason, 'failed')
 
     if (sessionID && session.remove) {
       try {
@@ -621,43 +628,53 @@ async function spawnStage(options: TickOptions, request: Row, next: NextStage): 
   }
 }
 
+function transitionRequest(options: TickOptions, request: Row, next: TransitionStep): string {
+  const label = `${pad(Number(request.id))} ${request.slug}`
+  try {
+    appendEvent(options.db, {
+      request: request.id,
+      type: `request.${next.state}`,
+      actor: 'ai_0',
+      state: next.state,
+      payload: { reason: next.reason },
+    })
+    return `${label}: moved to ${next.state}`
+  } catch (error) {
+    const reason = `could not move the request to ${next.state}: ${message(error)}`
+    ensureDecision(options, request, { stage: 'transition', agent: 'ai_0' }, reason, 'failed')
+    return `${label}: ${reason}`
+  }
+}
+
 // ---------------------------------------------------------------------------
 // what a stage means
 // ---------------------------------------------------------------------------
 
-function stageSatisfied(db: Db, request: Row, stage: Stage): boolean {
-  switch (stage) {
-    case 'spec':
-      return hasCriteria(db, Number(request.id))
-    case 'test':
-      return Boolean(request.tests_hash)
-    case 'build':
-      return ['review', 'completed', 'cancelled'].includes(String(request.state))
-    case 'docs':
-      // The docs agent has no ledger mutation of its own. A successful session
-      // is the completion signal; the close gate still belongs to judge.
-      return true
-    case 'judge':
-      return ['completed', 'cancelled'].includes(String(request.state))
-  }
+function stageSatisfied(db: Db, request: Row, stage: string): boolean {
+  return stageCompleted(db, Number(request.id), stage)
 }
 
-function failureReason(db: Db, request: Row, stage: Stage, outcome: string): string {
+function failureReason(db: Db, request: Row, stage: string, outcome: string): string {
   const lead =
     outcome === 'interrupted'
       ? `The ${stage} agent was interrupted.`
       : `The ${stage} agent finished without completing its stage.`
 
-  if (stage === 'build') {
-    const checkpoint = db
-      .prepare(
-        'SELECT blocked_on, next_step FROM checkpoints WHERE request_id = ? ORDER BY n DESC LIMIT 1'
-      )
-      .get(request.id)
-    if (checkpoint?.blocked_on)
-      return `${lead} Last checkpoint blocked on: ${checkpoint.blocked_on}.`
-    if (checkpoint?.next_step) return `${lead} Last checkpoint next step: ${checkpoint.next_step}.`
-  }
+  const progress = db
+    .prepare(
+      'SELECT blocked_on, next_step FROM progress WHERE request_id = ? AND stage_id = ? ORDER BY n DESC LIMIT 1'
+    )
+    .get(request.id, stage)
+  if (progress?.blocked_on) return `${lead} Last progress blocked on: ${progress.blocked_on}.`
+  if (progress?.next_step) return `${lead} Last progress next step: ${progress.next_step}.`
+
+  const checkpoint = db
+    .prepare(
+      'SELECT blocked_on, next_step FROM checkpoints WHERE request_id = ? ORDER BY n DESC LIMIT 1'
+    )
+    .get(request.id)
+  if (checkpoint?.blocked_on) return `${lead} Last checkpoint blocked on: ${checkpoint.blocked_on}.`
+  if (checkpoint?.next_step) return `${lead} Last checkpoint next step: ${checkpoint.next_step}.`
 
   return lead
 }
@@ -684,13 +701,13 @@ function ensureRunDecision(options: TickOptions, run: RunWithRequest, reason: st
     Row | undefined
   if (!request) return
 
-  ensureDecision(options, request, { stage: run.stage, agent: run.agent, reason }, reason, 'failed')
+  ensureDecision(options, request, { stage: run.stage, agent: run.agent }, reason, 'failed')
 }
 
 function ensureDecision(
   options: TickOptions,
   request: Row,
-  next: NextStage,
+  next: { stage: string; agent: string },
   reason: string,
   kind: 'failed' | 'blocked'
 ): void {
@@ -700,7 +717,7 @@ function ensureDecision(
     decide(options.db, {
       request: Number(request.id),
       kind,
-      question: `${pad(Number(request.id))} ${request.slug}: ${reason} Retry, or should this be scrapped?`,
+      question: `${pad(Number(request.id))} ${request.slug}: ${reason} Retry, or should this be cancelled?`,
       recommendation: 'retry',
       evidence: `stage=${next.stage} agent=${next.agent} state=${request.state}`,
       reversible: true,
@@ -801,34 +818,12 @@ function commitClosedRecords(options: TickOptions): void {
 // handoff text
 // ---------------------------------------------------------------------------
 
-function stageLabel(stage: Stage): string {
-  switch (stage) {
-    case 'spec':
-      return 'Spec'
-    case 'test':
-      return 'Test'
-    case 'build':
-      return 'Build'
-    case 'docs':
-      return 'Docs'
-    case 'judge':
-      return 'Judge'
-  }
-}
-
-function stagePrompt(stage: Stage, request: Row, path: string): string {
-  const head = `Clara daemon: request ${pad(Number(request.id))} "${request.slug}" in ${path}. Read the ledger first with clara_ask (request ${request.id}); this message is only the handoff.`
-
-  switch (stage) {
-    case 'spec':
-      return `${head}\n\nPropose the acceptance criteria with clara_criteria. Every criterion needs a test_path or human_gate=true. Do not read source code; use the request record and the docs it points at. Call clara_criteria before you run out of steps, then stop. A human must approve.`
-    case 'test':
-      return `${head}\n\nWrite the tests that define done for the approved criteria. Use clara_ask to read them. Freeze the suite with clara_freeze and record the hash. Do not edit source.`
-    case 'build':
-      return `${head}\n\nImplement the request against the frozen tests. Use clara_checkpoint at each boundary. Do not edit tests. When complete, call clara_event with type "build.review" and state "review". If a kill criterion fires, write a checkpoint with blocked_on and stop.`
-    case 'docs':
-      return `${head}\n\nApply the request's docs_impact to the workspace docs. Never edit docs/features or docs/index.md. If the impact no longer applies cleanly, reconcile against current truth and record it. If you cannot reconcile, open a decision with clara_decide and stop.`
-    case 'judge':
-      return `${head}\n\nClose only from ledger evidence: call clara_ask once and check tests, docs, and human gates. Do not read source or run commands; there is no shell and the close gate does not re-hash. If every gate is recorded and the docs stage is done, call clara_event with type "request.done" and state "done". Otherwise open one decision with clara_decide and stop. Do not write code.`
-  }
+function stagePrompt(db: Db, stage: StageStep['stage'], request: Row): string {
+  const pipeline = pipelineForRequest(db, request)
+  const workspace = workspaceOf(db, request)
+  const head =
+    `Clara daemon: request ${pad(Number(request.id))} "${request.slug}" in ${workspace.path}. ` +
+    `Pipeline ${pipeline.id}@${pipeline.version}, stage ${stage.id} (${stage.title}). ` +
+    `Read the ledger first with clara_ask (request ${request.id}); this message is only the handoff.`
+  return `${head}\n\n${renderInstructions(stage, pipeline, request, workspace)}`
 }

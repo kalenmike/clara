@@ -24,7 +24,7 @@ export const ATTEMPT_LIMIT = 3
 /** Legal state transitions. Anything else is rejected. */
 const TRANSITIONS: Record<string, string[]> = {
   draft: ['approved', 'cancelled'],
-  approved: ['running', 'cancelled'],
+  approved: ['running', 'review', 'cancelled'],
   running: ['review', 'cancelled'],
   review: ['completed', 'running', 'cancelled'],
   completed: [],
@@ -423,6 +423,13 @@ export function approve(db: Db, input: { request: string | number; approved_by?:
   if (request.state !== 'draft') {
     throw new Error(`Clara: approval is only valid in state=draft (request is ${request.state})`)
   }
+  const pipeline = pipelineForRequest(db, request)
+  const contract = pipeline.stages.find((stage) => stage.phase === 'contract')
+  if (contract && !stageCompleted(db, Number(request.id), contract.id)) {
+    throw new Error(
+      `Clara: the contract stage "${contract.id}" must complete before approval (request ${pad(request.id)})`
+    )
+  }
 
   const at = now()
   db.prepare(
@@ -450,8 +457,10 @@ export function freeze(
   input: { request: string | number; tests_hash: string; tests_total?: number }
 ): string {
   const request = requireRequest(db, input.request)
-  if (request.state !== 'approved') {
-    throw new Error(`Clara: tests freeze in state=approved (request is ${request.state})`)
+  if (request.state !== 'approved' && request.state !== 'running') {
+    throw new Error(
+      `Clara: tests freeze in state=approved or running (request is ${request.state})`
+    )
   }
   const at = now()
   db.prepare('UPDATE requests SET tests_hash = ?, last_event_at = ? WHERE id = ?').run(
@@ -527,7 +536,7 @@ export function appendEvent(
       }
     }
 
-    if (input.type === 'ci.failed') {
+    if (input.type === 'ci.failed' || input.type === 'stage.failed') {
       sets.push('attempts = attempts + 1')
     }
 
@@ -749,6 +758,30 @@ export function stageDone(db: Db, input: StageDoneInput): string {
     }
   }
 
+  if (stage.phase === 'close') {
+    if (input.actor !== 'ai_0') {
+      throw new Error('Clara: only the closer role may complete a request')
+    }
+    const pipeline = pipelineForRequest(db, request)
+    const done = completedOrSkippedStages(db, Number(request.id))
+    const missing = pipeline.stages
+      .filter((candidate) => candidate.phase !== 'close')
+      .filter((candidate) => !done.has(candidate.id))
+      .map((candidate) => candidate.id)
+    if (missing.length) {
+      throw new Error(`Clara: cannot close before stages ${missing.join(', ')} are complete`)
+    }
+    const criteria = db
+      .prepare('SELECT * FROM criteria WHERE request_id = ? ORDER BY position')
+      .all(request.id) as Row[]
+    const gates = gateStatus(db, Number(request.id), criteria)
+    if (gates.unverified.length) {
+      throw new Error(
+        `Clara: cannot close before human gates ${gates.unverified.join(', ')} are verified`
+      )
+    }
+  }
+
   const at = now()
   const written: string[] = []
 
@@ -893,6 +926,26 @@ export function progress(db: Db, input: ProgressInput): string {
   )
 
   return `${pad(request.id)} ${request.slug}: progress #${n} on ${stage.id}`
+}
+
+export function completedOrSkippedStages(db: Db, requestID: number): Set<string> {
+  const rows = db
+    .prepare(
+      `SELECT type, payload FROM events
+        WHERE request_id = ? AND type IN ('stage.completed', 'stage.skipped')
+        ORDER BY id`
+    )
+    .all(requestID) as Row[]
+  const stages = new Set<string>()
+  for (const row of rows) {
+    try {
+      const payload = JSON.parse(String(row.payload ?? '{}'))
+      if (typeof payload?.stage === 'string') stages.add(payload.stage)
+    } catch {
+      // Ignore malformed event payloads.
+    }
+  }
+  return stages
 }
 
 export function stageCompleted(db: Db, requestID: number, stageID: string): boolean {
@@ -1272,7 +1325,7 @@ interface GateStatus {
 }
 
 /** A later rejection removes a position; verification accumulates. */
-function gateStatus(db: Db, requestID: number, criteria: Row[]): GateStatus {
+export function gateStatus(db: Db, requestID: number, criteria: Row[]): GateStatus {
   const gates = criteria.filter((c) => c.verification === 'human').map((c) => Number(c.position))
   const verified = new Set<number>()
   let at: string | null = null

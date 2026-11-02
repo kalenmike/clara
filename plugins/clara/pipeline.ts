@@ -117,7 +117,7 @@ export const SOFTWARE_PIPELINE: Pipeline = {
       agent: '001',
       role: 'worker',
       instructions:
-        'Propose the acceptance criteria with clara_criteria. Every criterion needs a test_path or human_gate=true. Do not read source code; use the request record and the docs it points at. Call clara_criteria before you run out of steps, then stop. A human must approve.',
+        'Propose the acceptance criteria with clara_criteria. Every criterion needs a test_path or human_gate=true. Do not read source code; use the request record and the docs it points at. Then call clara_stage_done with {"criteria_count": <n>, "docs_impact": "<impact or none>"}. A human must approve.',
       evidence: {
         criteria_count: { type: 'number', required: true },
         docs_impact: { type: 'string' },
@@ -130,7 +130,7 @@ export const SOFTWARE_PIPELINE: Pipeline = {
       agent: '002',
       role: 'worker',
       instructions:
-        'Write the tests that define done for the approved criteria. Use clara_ask to read them. Freeze the suite with clara_freeze and record the hash. Do not edit source.',
+        'Write the tests that define done for the approved criteria. Use clara_ask to read them. Freeze the suite with clara_freeze, then call clara_stage_done with {"tests_hash": "<hash>", "tests_total": <n>}. Do not edit source.',
       evidence: {
         tests_hash: { type: 'string', required: true, immutable: true },
         tests_total: { type: 'number' },
@@ -143,7 +143,7 @@ export const SOFTWARE_PIPELINE: Pipeline = {
       agent: '003',
       role: 'worker',
       instructions:
-        'Implement the request against the frozen tests. Use clara_checkpoint at each boundary. Do not edit tests. When complete, call clara_event with type "build.review" and state "review". If a kill criterion fires, write a checkpoint with blocked_on and stop.',
+        'Implement the request against the frozen tests. Use clara_checkpoint at each boundary. Do not edit tests. When complete, call clara_stage_done with {"summary": "<what changed>", "criteria_addressed": [<positions>]}. If a kill criterion fires, write a checkpoint with blocked_on and stop.',
       evidence: {
         summary: { type: 'string', required: true },
         criteria_addressed: { type: 'array' },
@@ -156,7 +156,7 @@ export const SOFTWARE_PIPELINE: Pipeline = {
       agent: '004',
       role: 'worker',
       instructions:
-        "Apply the request's docs_impact to the workspace docs. Never edit docs/features or docs/index.md. If the impact no longer applies cleanly, reconcile against current truth and record it. If you cannot reconcile, open a decision with clara_decide and stop.",
+        "Apply the request's docs_impact to the workspace docs. Never edit docs/features or docs/index.md. If the impact no longer applies cleanly, reconcile against current truth and record it. When done, call clara_stage_done for this stage. If you cannot reconcile, open a decision with clara_decide and stop.",
       when: { evidence: 'docs_impact', notIn: ['', 'none', 'n/a', 'no'] },
     },
     {
@@ -166,7 +166,7 @@ export const SOFTWARE_PIPELINE: Pipeline = {
       agent: 'judge',
       role: 'closer',
       instructions:
-        'Close only from ledger evidence: call clara_ask once and check tests, docs, and human gates. Do not read source or run commands; there is no shell and the close gate does not re-hash. If every gate is recorded and the docs stage is done, call clara_event with type "request.completed" and state "completed". Otherwise open one decision with clara_decide and stop. Do not write code.',
+        'Close only from ledger evidence: call clara_ask once and check the criteria, stage evidence, and human gates. Do not read source or run commands; there is no shell and the close gate does not re-hash. If every gate is recorded, call clara_stage_done with {"result": "<final result>", "artifacts": [<paths, URLs, or text>]}. Otherwise open one decision with clara_decide and stop. Do not write code.',
       evidence: {
         result: { type: 'string', required: true },
         artifacts: { type: 'array' },
@@ -193,7 +193,7 @@ export const CONTENT_PIPELINE: Pipeline = {
       agent: 'clara-brief',
       role: 'worker',
       instructions:
-        'Turn the request into a content brief with clara_criteria. Include audience, tone, length, and the call to action. Every criterion needs a human_gate or an artifact reference.',
+        'Turn the request into a content brief with clara_criteria. Include audience, tone, length, and the call to action. Every criterion needs a human_gate or an artifact reference. Then call clara_stage_done with {"brief": "<brief>"}.',
       evidence: {
         brief: { type: 'string', required: true },
       },
@@ -205,7 +205,7 @@ export const CONTENT_PIPELINE: Pipeline = {
       agent: 'clara-writer',
       role: 'worker',
       instructions:
-        'Write the draft from the approved brief. Record the copy and its word count as evidence.',
+        'Write the draft from the approved brief. Call clara_stage_done with {"copy": "<draft>", "word_count": <n>}.',
       evidence: {
         copy: { type: 'string', required: true },
         word_count: { type: 'number' },
@@ -219,7 +219,7 @@ export const CONTENT_PIPELINE: Pipeline = {
       agent: 'clara-editor',
       role: 'worker',
       instructions:
-        'Edit the draft against the brief. Record the final copy and a short change summary.',
+        'Edit the draft against the brief. Call clara_stage_done with {"final_copy": "<final copy>", "changes": "<summary>"}.',
       evidence: {
         final_copy: { type: 'string', required: true },
         changes: { type: 'string' },
@@ -232,7 +232,7 @@ export const CONTENT_PIPELINE: Pipeline = {
       agent: 'clara-closer',
       role: 'closer',
       instructions:
-        'Deliver the final copy. Record the result and any artifact paths or URLs, then complete the request.',
+        'Deliver the final copy. Call clara_stage_done with {"result": "<delivery summary>", "artifacts": [<paths or URLs>]} to complete the request.',
       evidence: {
         result: { type: 'string', required: true },
         artifacts: { type: 'array' },

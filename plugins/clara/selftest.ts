@@ -506,6 +506,12 @@ check(
   'none approved yet',
   criteria.every((c: any) => !c.approved_at)
 )
+q.stageDone(db, {
+  request: request.id,
+  stage: 'spec',
+  evidence: { criteria_count: 4, docs_impact: 'none' },
+  actor: 'ai_1',
+})
 
 console.log('\n3. approval gate')
 let blocked = ''
@@ -715,6 +721,12 @@ q.setCriteria(db, {
   request: stalledId,
   criteria: [{ text: 'export works', test_path: 'tests/export.test.ts' }],
 })
+q.stageDone(db, {
+  request: stalledId,
+  stage: 'spec',
+  evidence: { criteria_count: 1, docs_impact: 'none' },
+  actor: 'ai_1',
+})
 q.approve(db, { request: stalledId })
 q.freeze(db, { request: stalledId, tests_hash: 'abc123', tests_total: 1 })
 q.appendEvent(db, { request: stalledId, type: 'build.started', actor: 'ai_3', state: 'running' })
@@ -849,6 +861,12 @@ check(
   'criteria records the docs impact',
   q.requestByRef(ddb, daemonId)!.docs_impact === 'update docs/features/daemon.md'
 )
+q.stageDone(ddb, {
+  request: daemonId,
+  stage: 'spec',
+  evidence: { criteria_count: 1, docs_impact: 'update docs/features/daemon.md' },
+  actor: 'ai_1',
+})
 sessions[0].outcome = 'succeeded'
 await supervisor.runOnce()
 check('spec run is done', runs.latestRun(ddb, daemonId, 'spec')?.status === 'done')
@@ -867,11 +885,17 @@ check(
 )
 
 q.freeze(ddb, { request: daemonId, tests_hash: 'daemon-hash', tests_total: 1 })
+q.stageDone(ddb, {
+  request: daemonId,
+  stage: 'test',
+  evidence: { tests_hash: 'daemon-hash', tests_total: 1 },
+  actor: 'ai_2',
+})
 sessions[1].outcome = 'succeeded'
 await supervisor.runOnce()
 check('test run is done', runs.latestRun(ddb, daemonId, 'test')?.status === 'done')
 check('daemon starts the build stage', sessions.length === 3 && sessions[2].agent === '003')
-check('daemon moved the request to building', q.requestByRef(ddb, daemonId)!.state === 'running')
+check('daemon moved the request to running', q.requestByRef(ddb, daemonId)!.state === 'running')
 
 q.checkpoint(ddb, {
   request: daemonId,
@@ -895,17 +919,18 @@ check(
 )
 check('ask reports no human gates for this request', daemonAsk.includes('human:     no gates'))
 
-q.appendEvent(ddb, {
+q.stageDone(ddb, {
   request: daemonId,
-  type: 'build.review',
+  stage: 'build',
+  evidence: { summary: 'daemon request implemented', criteria_addressed: [1] },
   actor: 'ai_3',
-  state: 'review',
 })
 sessions[2].outcome = 'succeeded'
 await supervisor.runOnce()
 check('build run is done', runs.latestRun(ddb, daemonId, 'build')?.status === 'done')
 check('daemon starts the docs stage', sessions.length === 4 && sessions[3].agent === '004')
 
+q.stageDone(ddb, { request: daemonId, stage: 'docs', actor: 'ai_4' })
 sessions[3].outcome = 'succeeded'
 await supervisor.runOnce()
 check('docs run is done', runs.latestRun(ddb, daemonId, 'docs')?.status === 'done')
@@ -919,11 +944,11 @@ check(
   sessions[4].prompt.includes('clara_ask') && sessions[4].prompt.includes('human gates')
 )
 
-q.appendEvent(ddb, {
+q.stageDone(ddb, {
   request: daemonId,
-  type: 'request.completed',
+  stage: 'judge',
+  evidence: { result: 'request delivered', artifacts: [] },
   actor: 'ai_0',
-  state: 'completed',
 })
 sessions[4].outcome = 'succeeded'
 await supervisor.runOnce()
@@ -958,6 +983,87 @@ q.resolveDecision(ddb, { id: Number(open!.id), resolution: 'retry' })
 await supervisor.runOnce()
 check('resolved decision retries the stage', sessions.length === 7 && sessions[6].agent === '001')
 
+// A non-software pipeline with no tests and no docs must run through the same
+// daemon loop. The mock session API does not care which agents exist.
+const contentWorkspace = join(daemonDir, 'content-workspace')
+mkdirSync(contentWorkspace, { recursive: true })
+const contentSubmit = q.submit(ddb, {
+  workspace: 'content',
+  path: contentWorkspace,
+  title: 'Write launch page copy',
+  intent: 'A landing page has final copy ready to publish.',
+  pipeline: 'content',
+})
+const contentId = Number(contentSubmit.match(/submitted (\d+)/)![1])
+q.setCriteria(ddb, {
+  request: contentId,
+  criteria: [{ text: 'the copy matches the brief', verification: 'artifact', check: 'copy' }],
+})
+
+await supervisor.runOnce()
+const briefSession = sessions[sessions.length - 1]
+check('content pipeline starts its contract agent', briefSession.agent === 'clara-brief')
+q.stageDone(ddb, {
+  request: contentId,
+  stage: 'brief',
+  evidence: { brief: 'audience: developers; tone: direct; length: 300 words' },
+  actor: 'ai_1',
+})
+briefSession.outcome = 'succeeded'
+await supervisor.runOnce()
+check('content contract waits for approval', sessions.length === 8)
+q.approve(ddb, { request: contentId })
+await supervisor.runOnce()
+const draftSession = sessions[sessions.length - 1]
+check('content pipeline starts its work agent', draftSession.agent === 'clara-writer')
+check('content request is running', q.requestByRef(ddb, contentId)!.state === 'running')
+q.stageDone(ddb, {
+  request: contentId,
+  stage: 'draft',
+  evidence: { copy: 'Build faster with Clara.', word_count: 4 },
+  actor: 'ai_1',
+})
+q.stageGate(ddb, {
+  request: contentId,
+  stage: 'draft',
+  result: 'verified',
+  evidence: 'draft approved',
+  actor: 'human',
+})
+draftSession.outcome = 'succeeded'
+await supervisor.runOnce()
+check(
+  'content gate lets the review stage start',
+  sessions[sessions.length - 1].agent === 'clara-editor'
+)
+q.stageDone(ddb, {
+  request: contentId,
+  stage: 'edit',
+  evidence: { final_copy: 'Build faster with Clara.', changes: 'kept it short' },
+  actor: 'ai_1',
+})
+sessions[sessions.length - 1].outcome = 'succeeded'
+await supervisor.runOnce()
+check('content pipeline starts its closer', sessions[sessions.length - 1].agent === 'clara-closer')
+q.stageDone(ddb, {
+  request: contentId,
+  stage: 'deliver',
+  evidence: { result: 'Launch copy delivered', artifacts: ['https://example.test/copy'] },
+  actor: 'ai_0',
+})
+sessions[sessions.length - 1].outcome = 'succeeded'
+await supervisor.runOnce()
+const contentDone = q.requestByRef(ddb, contentId)!
+check('content request completes', contentDone.state === 'completed')
+check(
+  'content result is recorded',
+  q.stageEvidence(ddb, contentId).get('result') === 'Launch copy delivered'
+)
+check(
+  'ask shows the content result',
+  q.ask(ddb, { request: contentId }).includes('Launch copy delivered')
+)
+
 supervisor.stop()
 check('daemon releases its lock', !ddb.prepare('SELECT 1 FROM daemon_lock WHERE id = 1').get())
 
@@ -985,6 +1091,12 @@ q.setCriteria(db, {
   request: waitId,
   criteria: [{ text: 'a human verifies the wait state', human_gate: true }],
   docs_impact: 'none',
+})
+q.stageDone(db, {
+  request: waitId,
+  stage: 'spec',
+  evidence: { criteria_count: 1, docs_impact: 'none' },
+  actor: 'ai_1',
 })
 collectAlerts(db)
 const approvalAlert = db
