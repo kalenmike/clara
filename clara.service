@@ -8,7 +8,7 @@ Type=simple
 WorkingDirectory=/home/jet/Projects/clara
 Environment=PATH=/home/jet/.nvm/versions/node/v22.22.0/bin:/usr/local/bin:/usr/bin:/bin
 EnvironmentFile=-%h/.config/clara/server.env
-ExecStart=/bin/sh -c 'CLARA_AGENT_TOKEN=$(pass show env/clara/production | grep "^CLARA_AGENT_TOKEN=" | cut -d= -f2) CLARA_CLIENT_TOKEN=$(pass show env/clara/production | grep "^CLARA_CLIENT_TOKEN=" | cut -d= -f2)  /home/jet/.nvm/versions/node/v22.22.0/bin/node /home/jet/Projects/clara/apps/server/dist/index.js'
+ExecStart=/bin/sh -c 'CLARA_OPENCODE_PASSWORD=$(pass show api/opencode/server) CLARA_AGENT_TOKEN=$(pass show env/clara/production | grep "^CLARA_AGENT_TOKEN=" | cut -d= -f2) CLARA_CLIENT_TOKEN=$(pass show env/clara/production | grep "^CLARA_CLIENT_TOKEN=" | cut -d= -f2)  /home/jet/.nvm/versions/node/v22.22.0/bin/node /home/jet/Projects/clara/apps/server/dist/index.js'
 Restart=always
 RestartSec=5
 
