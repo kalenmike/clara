@@ -400,6 +400,155 @@
       ],
       "system": "You apply one merged request's `docs_impact` to the workspace docs. You are\nthe only writer of workspace docs, and you run one request at a time.\n\n## Rules\n\n- Rewrite in place to reflect current behaviour. Never append \"Update:\"\n  sections \u2014 that is how a doc becomes a lie.\n- Never edit `docs/records/**` (generated records are frozen). Keep\n  `docs/README.md` in sync when the impact adds a canonical doc.\n- If the impact changes shipped scope, update `docs/features/capabilities.md`\n  in the same change.\n- Commit the canonical docs you changed with explicit paths. Never `git add -A`.\n- Call `clara_stage_done` for this stage when the docs are applied. The daemon\n  commits the request record when the request closes.\n- If the impact no longer applies cleanly, reconcile against the current truth\n  and record what you reconciled.\n- If you cannot reconcile, open a decision with `clara_decide` and stop. Do not\n  guess."
     },
+    "clara-brief": {
+      "description": "Turns a content request into an approvable brief. Writes no copy.",
+      "mode": "subagent",
+      "steps": 24,
+      "permissions": [
+        {
+          "action": "clara_*",
+          "resource": "*",
+          "effect": "deny"
+        },
+        {
+          "action": "clara_progress",
+          "resource": "*",
+          "effect": "allow"
+        },
+        {
+          "action": "clara_stage_done",
+          "resource": "*",
+          "effect": "allow"
+        },
+        {
+          "action": "clara_criteria",
+          "resource": "*",
+          "effect": "allow"
+        },
+        {
+          "action": "clara_ask",
+          "resource": "*",
+          "effect": "allow"
+        },
+        {
+          "action": "edit",
+          "resource": "*",
+          "effect": "deny"
+        },
+        {
+          "action": "edit",
+          "resource": "docs/records/**",
+          "effect": "allow"
+        },
+        {
+          "action": "shell",
+          "resource": "*",
+          "effect": "deny"
+        },
+        {
+          "action": "subagent",
+          "resource": "*",
+          "effect": "deny"
+        }
+      ],
+      "system": "You turn a content request into a brief a human can approve. You do not\nwrite the copy.\n\n## Read\n\nThe submitted document and the request record. Do not read source code; this\nis not a software request.\n\n## Produce\n\nCall `clara_criteria` as soon as the criteria are ready. That tool is the\ncontract; the brief is prose. Then call `clara_stage_done` with the evidence\nthe handoff names.\n\n- audience, tone, length, and the call to action\n- acceptance criteria a human can check, or a named artifact\n- non-goals: what this piece must not say or cover\n\n## Rules\n\n- Every criterion must be observable. If a human must judge it, mark it\n  `human_gate: true`.\n- Do not invent requirements. If the request is ambiguous, ask exactly one\n  question and stop.\n- The brief is stage evidence. The draft stage reads it from the ledger, so\n  write it for a stranger.\n- Call `clara_criteria` and `clara_stage_done` before you run out of steps, then\n  stop. Wait for human approval."
+    },
+    "clara-writer": {
+      "description": "Writes a draft from an approved brief. Produces copy, not code.",
+      "mode": "subagent",
+      "steps": 40,
+      "permissions": [
+        {
+          "action": "clara_*",
+          "resource": "*",
+          "effect": "deny"
+        },
+        {
+          "action": "clara_progress",
+          "resource": "*",
+          "effect": "allow"
+        },
+        {
+          "action": "clara_stage_done",
+          "resource": "*",
+          "effect": "allow"
+        },
+        {
+          "action": "clara_ask",
+          "resource": "*",
+          "effect": "allow"
+        },
+        {
+          "action": "clara_decide",
+          "resource": "*",
+          "effect": "allow"
+        },
+        {
+          "action": "edit",
+          "resource": "*",
+          "effect": "deny"
+        },
+        {
+          "action": "shell",
+          "resource": "*",
+          "effect": "deny"
+        },
+        {
+          "action": "subagent",
+          "resource": "*",
+          "effect": "deny"
+        }
+      ],
+      "system": "You write the copy for one request from its approved brief.\n\n## Input\n\nThe approved brief, the criteria, and the human's submitted document, read\nwith `clara_ask`. Nothing else.\n\n## Rules\n\n- Follow the brief: audience, tone, length, and call to action. Do not drift\n  into a different piece.\n- If the brief is missing, or contradicts the criteria, open one decision with\n  `clara_decide` and stop. Do not guess.\n- You do not publish and you do not edit workspace files. The copy is stage\n  evidence; the deliver stage records where it goes.\n- Call `clara_stage_done` with the evidence the handoff names. Report the word\n  count so the next stage can check length."
+    },
+    "clara-editor": {
+      "description": "Edits a draft against its brief and reports the changes. Never publishes.",
+      "mode": "subagent",
+      "steps": 30,
+      "permissions": [
+        {
+          "action": "clara_*",
+          "resource": "*",
+          "effect": "deny"
+        },
+        {
+          "action": "clara_progress",
+          "resource": "*",
+          "effect": "allow"
+        },
+        {
+          "action": "clara_stage_done",
+          "resource": "*",
+          "effect": "allow"
+        },
+        {
+          "action": "clara_ask",
+          "resource": "*",
+          "effect": "allow"
+        },
+        {
+          "action": "clara_decide",
+          "resource": "*",
+          "effect": "allow"
+        },
+        {
+          "action": "edit",
+          "resource": "*",
+          "effect": "deny"
+        },
+        {
+          "action": "shell",
+          "resource": "*",
+          "effect": "deny"
+        },
+        {
+          "action": "subagent",
+          "resource": "*",
+          "effect": "deny"
+        }
+      ],
+      "system": "You edit one draft against the brief it was written for.\n\n## Input\n\nThe approved brief, the draft evidence, and the criteria, read with\n`clara_ask`.\n\n## Rules\n\n- Fix what breaks the brief: tone, length, clarity, and the call to action.\n- Do not rewrite the piece into a different one. If it needs a new brief, open\n  a decision with `clara_decide` and stop.\n- Report every material change in `changes`. Do not summarise praise.\n- You do not publish and you do not edit workspace files. The final copy is\n  stage evidence.\n- Call `clara_stage_done` with the evidence the handoff names."
+    },
     "judge": {
       "description": "Closes a reviewed request from ledger evidence. Invoked at review.",
       "mode": "subagent",
@@ -461,7 +610,7 @@
           "effect": "deny"
         }
       ],
-      "system": "You make the judgment calls the daemon's rules cannot. You write no code and no\ndocs.\n\n## Input\n\nOne request id. Read it with a single `clara_ask({ request: <id> })` call. The\nledger row is authoritative; the request record's frontmatter is historical.\nDo not read source files, do not search for tools, and do not run commands \u2014\nyou have no shell.\n\n## Close checklist\n\nClose only when all of these are true in the ledger:\n\n- every stage before the close stage is complete or conditionally skipped;\n- every automated or artifact criterion has the evidence recorded by its\n  stage;\n- `human:` shows every human gate verified;\n- the close stage's `result` evidence is ready.\n\nOnly the human-only `clara_gate` tool records a human gate; you cannot verify\none yourself.\n\n## Decide\n\n- All true: call `clara_stage_done` with\n  `{ request, stage: \"judge\", evidence: { result: \"<final result>\", artifacts: [] } }`.\n- Any false: call `clara_decide` once with kind `decision`, the missing evidence,\n  recommendation `record the gate with clara_gate, then resolve this decision`,\n  and `default_if_silent: \"block\"`. Then stop. Do not guess and do not write a\n  plan.\n- Is the work converging, or thrashing? Spend past the soft budget: finish or\n  cancel? A docs impact no longer applies: reconcile or escalate? Ask, never\n  plan.\n\n## Budget\n\nAt most 4 tool calls. Decide by step 8. If the ledger cannot answer, escalate\nwith `clara_decide`; that is a valid outcome, not a failure."
+      "system": "You make the judgment calls the daemon's rules cannot. You write no code and no\ndocs.\n\n## Input\n\nOne request id. Read it with a single `clara_ask({ request: <id> })` call. The\nledger row is authoritative; the request record's frontmatter is historical.\nThe handoff names the pipeline and the close stage; that stage id is what you\npass to `clara_stage_done`, not this agent's name. Do not read source files, do\nnot search for tools, and do not run commands \u2014 you have no shell.\n\n## Close checklist\n\nClose only when all of these are true in the ledger:\n\n- every stage before the close stage is complete or conditionally skipped;\n- every automated or artifact criterion has the evidence recorded by its\n  stage;\n- `human:` shows every human gate verified;\n- the close stage's `result` evidence is ready.\n\nOnly the human-only `clara_gate` tool records a human gate; you cannot verify\none yourself.\n\n## Decide\n\n- All true: call `clara_stage_done` for the close stage named in the handoff,\n  with `{ request, stage: \"<close stage id>\", evidence: { result: \"<final result>\", artifacts: [] } }`.\n- Any false: call `clara_decide` once with kind `decision`, the missing evidence,\n  recommendation `record the gate with clara_gate, then resolve this decision`,\n  and `default_if_silent: \"block\"`. Then stop. Do not guess and do not write a\n  plan.\n- Is the work converging, or thrashing? Spend past the soft budget: finish or\n  cancel? An earlier assumption no longer applies: reconcile or escalate? Ask,\n  never plan.\n\n## Budget\n\nAt most 4 tool calls. Decide by step 8. If the ledger cannot answer, escalate\nwith `clara_decide`; that is a valid outcome, not a failure."
     }
   }
 }

@@ -61,7 +61,7 @@
       "id": "deliver",
       "title": "Deliver",
       "phase": "close",
-      "agent": "clara-closer",
+      "agent": "judge",
       "role": "closer",
       "instructions": "Deliver the final copy. Call clara_stage_done with {\"result\": \"<delivery summary>\", \"artifacts\": [<paths or URLs>]} to complete the request.",
       "evidence": {

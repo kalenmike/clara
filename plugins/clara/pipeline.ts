@@ -236,7 +236,7 @@ export const CONTENT_PIPELINE: Pipeline = {
       id: 'deliver',
       title: 'Deliver',
       phase: 'close',
-      agent: 'clara-closer',
+      agent: 'judge',
       role: 'closer',
       instructions:
         'Deliver the final copy. Call clara_stage_done with {"result": "<delivery summary>", "artifacts": [<paths or URLs>]} to complete the request.',
@@ -576,11 +576,13 @@ export function catalogPipelines(dir: string = pipelineDir()): {
   const byId = new Map<string, LoadedPipeline>()
   const errors: PipelineLoadError[] = []
 
-  const builtin = validatePipeline(SOFTWARE_PIPELINE)
-  if (builtin.pipeline) {
-    byId.set(builtin.pipeline.id, { pipeline: builtin.pipeline, source: 'builtin' })
-  } else {
-    errors.push({ id: SOFTWARE_PIPELINE_ID, errors: builtin.errors })
+  for (const preset of [SOFTWARE_PIPELINE, CONTENT_PIPELINE]) {
+    const builtin = validatePipeline(preset)
+    if (builtin.pipeline) {
+      byId.set(builtin.pipeline.id, { pipeline: builtin.pipeline, source: 'builtin' })
+    } else {
+      errors.push({ id: preset.id, errors: builtin.errors })
+    }
   }
 
   if (!existsSync(dir)) return { pipelines: [...byId.values()], errors }

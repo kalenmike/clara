@@ -62,6 +62,9 @@ export const ROLE_FOR_AGENT: Record<string, CallRole> = {
   '002': 'worker',
   '003': 'worker',
   '004': 'worker',
+  'clara-brief': 'worker',
+  'clara-writer': 'worker',
+  'clara-editor': 'worker',
   judge: 'closer',
   clara: 'human',
 }

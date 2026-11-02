@@ -16,6 +16,7 @@ import * as runs from './runs.ts'
 import {
   CONTENT_PIPELINE,
   SOFTWARE_PIPELINE,
+  catalogPipelines,
   evaluateCondition,
   loadPipeline,
   pipelineForRequest,
@@ -231,6 +232,13 @@ check(
   )
 )
 check('docs agent maps to the worker role', index.ROLE_FOR_AGENT['004'] === 'worker')
+check(
+  'content agents map to the worker role',
+  ['clara-brief', 'clara-writer', 'clara-editor'].every(
+    (agent) => index.ROLE_FOR_AGENT[agent] === 'worker'
+  )
+)
+check('the shared closer maps to the closer role', index.ROLE_FOR_AGENT['judge'] === 'closer')
 
 check(
   'every tool has a description',
@@ -270,6 +278,12 @@ check(
   validatePipeline(SOFTWARE_PIPELINE).errors.length === 0
 )
 check('content example validates', validatePipeline(CONTENT_PIPELINE).errors.length === 0)
+const builtinCatalog = catalogPipelines(join(dir, 'no-pipelines'))
+const builtinIds = builtinCatalog.pipelines
+  .map((item) => item.pipeline.id)
+  .sort()
+  .join(',')
+check('both example pipelines ship as built-ins', builtinIds === 'content,software')
 check(
   'invalid pipeline reports errors',
   validatePipeline({ schemaVersion: 1, id: 'bad', stages: [] }).errors.length > 0
@@ -294,6 +308,29 @@ check(
   SOFTWARE_PIPELINE.stages.filter((stage) => stage.phase === 'contract').length === 1 &&
     SOFTWARE_PIPELINE.stages.filter((stage) => stage.phase === 'close').length === 1
 )
+
+// A shipped pipeline that names an agent nobody installs fails at the first
+// stage, so the example must reference agents that exist in agents.json. User
+// pipelines still get the runtime blocked decision; this only guards examples.
+const definedAgents = new Set(Object.keys(agents.agents))
+const shippedPipelines: Array<[string, { stages: Array<{ agent: string }> }]> = [
+  ['built-in software', SOFTWARE_PIPELINE],
+  ['built-in content', CONTENT_PIPELINE],
+  [
+    'reference software.json',
+    JSON.parse(readFileSync(new URL('./pipelines/software.json', import.meta.url), 'utf8')),
+  ],
+  [
+    'reference content.json',
+    JSON.parse(readFileSync(new URL('./pipelines/content.json', import.meta.url), 'utf8')),
+  ],
+]
+for (const [label, shipped] of shippedPipelines) {
+  const missing = shipped.stages
+    .map((stage) => stage.agent)
+    .filter((agent) => !definedAgents.has(agent))
+  check(`shipped ${label} names defined agents`, missing.length === 0, missing.join(', '))
+}
 
 const pipelineRoot = join(dir, 'pipelines')
 mkdirSync(pipelineRoot, { recursive: true })
@@ -1120,7 +1157,7 @@ q.stageDone(ddb, {
 })
 sessions[sessions.length - 1].outcome = 'succeeded'
 await supervisor.runOnce()
-check('content pipeline starts its closer', sessions[sessions.length - 1].agent === 'clara-closer')
+check('content pipeline starts its closer', sessions[sessions.length - 1].agent === 'judge')
 await daemonTools
   .find((tool) => tool.name === 'stage_done')!
   .execute(
@@ -1129,7 +1166,7 @@ await daemonTools
       stage: 'deliver',
       evidence: { result: 'Launch copy delivered', artifacts: ['https://example.test/copy'] },
     },
-    { agent: 'clara-closer', sessionID: sessions[sessions.length - 1].id }
+    { agent: 'judge', sessionID: sessions[sessions.length - 1].id }
   )
 sessions[sessions.length - 1].outcome = 'succeeded'
 await supervisor.runOnce()
