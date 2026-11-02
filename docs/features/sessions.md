@@ -31,9 +31,11 @@ by default, and the noun is configurable in Settings.
    has not produced a projected message yet. Snoozed holds sessions postponed
    with the server's `snoozed` metadata. Archived holds sessions archived on the
    server and wins over Snoozed when both apply.
-6. Workers sits above the sidebar footer and expands upward. Its trigger stays
-   visible when the section is closed, and the session rows keep the same
-   running, blocked, and error dots as the mailbox sections.
+6. Workers sits above the sidebar footer. Only its trigger shows when the section
+   is closed, resting at the bottom edge; opening it raises the header and
+   reveals the session rows underneath, so the rows read as part of Workers
+   rather than the tail of Archived. The rows keep the same running, blocked,
+   and error dots as the mailbox sections.
 7. The search box filters sessions by title using the server's search parameter
    and temporarily expands every section so matching titles are visible. A
    toggle button beside the search box opens or closes every section at once;
@@ -380,9 +382,10 @@ by default, and the noun is configurable in Settings.
   when `CLARA_FEATURE_INCLUDED` and the relay status reports
   `management === true`. The predicate is checked before archived and snoozed,
   so workers never enter a mailbox group while the feature is on.
-- Workers section: anchored above the sidebar footer, closed by default, expands
-  upward, caps its scroll area at `max-h-64`, and is included in search and the
-  open/close-all toggle.
+- Workers section: anchored above the sidebar footer, closed by default. Its
+  header is first in the drawer, so opening raises the header and lays the rows
+  out beneath it; the body caps at `min(16rem, 45dvh)` with its own scroll. It is
+  included in search and the open/close-all toggle.
 - Pending drafts: `client.session.inbox.list({ sessionID })`
 - Save draft: `client.session.prompt({ sessionID, text, files, resume: false })`
 - Start draft: `client.session.prompt({ sessionID, text: 'Start', delivery: 'steer' })`
