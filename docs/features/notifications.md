@@ -5,10 +5,11 @@
 Clara tells the person when a session lands in the Inbox with a system
 notification and a distinct sound for each kind of attention. When the Clara
 home agent is connected, the same alert can arrive as a Web Push notification
-after the last Clara window is closed. The settings card also controls
-optional chimes for UI actions such as Done and starting a Build. It is for
-people who start an agent run and move on, so they do not have to watch the
-sidebar.
+after the last Clara window is closed. Clara management adds a second source:
+ledger exceptions such as an open decision, a stalled feature, a missing
+approval, or an unverified human gate. The settings card also controls optional
+chimes for UI actions such as Done and starting a Build. It is for people who
+start an agent run and move on, so they do not have to watch the sidebar.
 
 ## User flow
 
@@ -32,10 +33,14 @@ sidebar.
    are held so the desk is alerted once; after the idle window, or when the
    desktop window is hidden, the phone starts receiving alerts again. Clicking
    any notification focuses Clara and opens the session.
-8. When the person marks a session Done or starts work from a ready plan, Clara
+8. When Clara management is on and a ledger feature needs a person — a
+   decision, stalled work, an approval, a gate, or a budget kill — the home
+   agent sends one ledger alert. Tapping it opens **Clara inbox**; the exception
+   is not tied to a worker session.
+9. When the person marks a session Done or starts work from a ready plan, Clara
    plays the matching UI chime if **UI sounds** is on.
-9. The sidebar still shows the same state with its dot, and the person can
-   preview every sound before relying on it.
+10. The sidebar still shows the same state with its dot, and the person can
+    preview every sound before relying on it.
 
 ## Core business rules
 
@@ -92,6 +97,13 @@ sidebar.
     Inbox sounds, UI sounds, volume, per-state switches, and the desk idle
     window. Browser notification permission, the desktop switch, and this
     device's push subscription stay local. See [sync](sync.md).
+13. Ledger alerts are separate from the four session attention states. They
+    come from the home agent's read-only view of the ledger outbox, are
+    deduplicated by alert key, and map to **Needs Input** or **Error** for sound
+    and push. They are off while Clara management is off.
+14. While Clara management is on, the Clara worker sessions (`Spec`, `Test`,
+    `Build`, `Docs`, `Judge`) do not raise their own session alerts. The ledger
+    alert is the actionable notification; the worker completion is noise.
 
 ## Edge cases
 
@@ -166,6 +178,18 @@ sidebar.
   reconciled the next time Clara opens.
 - **Home agent stopped or asleep** — events during the gap are not replayed, so
   a run that finishes while the agent is down does not push later.
+- **Clara management off** — no ledger alerts, no Clara inbox, and Clara worker
+  sessions keep their ordinary session alerts. The ledger tools are inert.
+- **No Clara client connected** — the home agent raises a local OS notification
+  for a ledger alert instead of relying on the browser.
+- **A ledger alert arrives twice** — the delivery key and cursor suppress the
+  duplicate across reconnects and restarts; one-time kills never enter the open
+  inbox.
+- **Clara worker completes** — with management on, its session alert is
+  suppressed and the ledger exception is the only actionable alert.
+- **External OpenCode notifier** — the TUI notifier is a separate plugin and
+  does not read the Clara management switch. The home agent's local OS
+  notification covers the case where no Clara client is connected.
 - **Pairing rotated** — `pair --rotate` clears every stored push subscription, so
   a lost device stops receiving notifications.
 - **Push notification tapped while Clara is open** — the existing window is
@@ -261,6 +285,15 @@ sidebar.
   actions; the agent acknowledges with `push.status`
 - Push monitor: `apps/server/src/push/` reads `/api/event`, applies the same
   750 ms evaluation delay and 5 s cooldown, then sends through `web-push`
+- Ledger alerts: `plugins/clara/alerts.ts` writes the outbox;
+  `apps/server/src/ledger/` reads it read-only, keeps its cursor in `clara.db`,
+  sends push/local alerts, and broadcasts `ledger.alert`; the web inbox requests
+  `ledger.inbox`
+- Ledger alert destination: `/clara` in the web client, backed by the
+  read-only `alerts` table in `ledger.db`
+- Worker filter: `isClaraWorkerTitle` in
+  `packages/shared-types/src/session-signals.ts`, shared by the home agent and
+  the web notification provider
 - Push storage: `${CLARA_CONFIG_DIR:-~/.config/clara}/subscriptions.json` (mode
   `0600`); VAPID keys live in `vapid.json` next to it
 - Push service worker: `apps/web/public/push-sw.js`, loaded by the Clara worker

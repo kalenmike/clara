@@ -66,6 +66,11 @@ monitoring on or off, and gate or pace client settings sync.
     each device's category choices remain. The interval defaults to 30 seconds.
 13. Leave the page open. It refreshes every five seconds while visible and
     pauses when the tab is hidden. Use **Refresh** for an immediate check.
+14. Use **Clara management** to turn the ledger daemon, ledger alerts, and the
+    web Clara inbox on or off. Turning it off disables the Clara tools and
+    daemon immediately and leaves ordinary session alerts unchanged. Run
+    `pnpm clara:plugin:install` and reload OpenCode to hide or restore the
+    agent files.
 
 ## Core business rules
 
@@ -75,8 +80,8 @@ monitoring on or off, and gate or pace client settings sync.
 2. **Reads are open to loopback; writes are narrow.** `GET` and `HEAD` serve the
    snapshot and assets. `POST` is accepted only at
    `/panel/api/v1/features`, `/panel/api/v1/agent`, `/panel/api/v1/shell`,
-   `/panel/api/v1/monitoring`, and `/panel/api/v1/sync`; every other mutating
-   method returns `405`.
+   `/panel/api/v1/monitoring`, `/panel/api/v1/sync`, and
+   `/panel/api/v1/management`; every other mutating method returns `405`.
 3. **Secrets stay out.** The snapshot is built from an explicit allowlist. The
    PSK, pairing code, OpenCode password, relay tokens, push endpoints, sync
    values, and file contents are never returned. The PSK fingerprint, token
@@ -87,10 +92,10 @@ monitoring on or off, and gate or pace client settings sync.
    fields, and cap the body at 8 KB. The custom header forces a CORS preflight
    for cross-origin pages, which the server rejects. No CORS headers are sent.
 5. **Settings are durable.** Feature choices, the stopped flag, the shell
-   policy, the monitoring choice, and the client-sync gate and interval live in
-   the agent's SQLite database and are loaded before any transport starts. The
-   panel can fail without stopping the agent; a busy panel port only loses the
-   panel.
+   policy, the monitoring choice, the Clara management switch, and the
+   client-sync gate and interval live in the agent's SQLite database and are
+   loaded before any transport starts. The panel can fail without stopping the
+   agent; a busy panel port only loses the panel.
 6. **The shell policy is read per request.** The agent consults it before
    forwarding a command request, so Apply takes effect on the next command
    without a restart. `off` refuses them all. `allowlist` with an empty filter
@@ -209,6 +214,7 @@ monitoring on or off, and gate or pace client settings sync.
 - Mutations:
   - `POST /panel/api/v1/features` with `{ "feature": "...", "enabled": true }`
   - `POST /panel/api/v1/agent` with `{ "stopped": true }`
+  - `POST /panel/api/v1/management` with `{ "enabled": true }`
   - `POST /panel/api/v1/shell` with `{ "mode": "off" | "allowlist", "commands": ["git log"] }`
   - `POST /panel/api/v1/monitoring` with `{ "enabled": false }`
   - `POST /panel/api/v1/sync` with `{ "enabled": true, "intervalMs": 30000 }`

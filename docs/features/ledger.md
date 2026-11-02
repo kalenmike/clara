@@ -11,18 +11,24 @@ build, docs, and judge agents in child sessions.
 ## User flow
 
 1. Run `pnpm clara:plugin:install` from the Clara repository.
-2. Reload OpenCode. The `clara`, `001`–`004`, and `judge` agents appear.
-3. Select the `clara` agent and submit a feature with `clara_submit`.
-4. Ask for status at any time with `clara_ask` or `clara_inbox`.
-5. Approve the proposed criteria with `clara_approve`; nothing builds before
+2. Enable **Clara management** in the agent panel. Turning it on is the master
+   switch for the ledger daemon, ledger alerts, and the Clara inbox.
+3. Reload OpenCode. The `clara`, `001`–`004`, and `judge` agents appear while the
+   switch is on.
+4. Select the `clara` agent and submit a feature with `clara_submit`.
+5. Ask for status at any time with `clara_ask` or `clara_inbox`.
+6. Approve the proposed criteria with `clara_approve`; nothing builds before
    that.
-6. The daemon launches the spec agent to propose criteria; after approval it
+7. The daemon launches the spec agent to propose criteria; after approval it
    launches the test, build, docs, and judge agents as each stage completes.
-7. At `review`, the person verifies the human-gate criteria with `clara_gate`;
+8. At `review`, the person verifies the human-gate criteria with `clara_gate`;
    the daemon launches the docs agent when there is a docs impact, then the
    judge. The judge closes only when every gate is recorded.
-8. Resolve any open decision with `clara_resolve`. Only `ai_0` can mark a
+9. Resolve any open decision with `clara_resolve`. Only `ai_0` can mark a
    feature done.
+10. Open **Clara inbox** in the web client, or wait for a ledger alert, to see
+    decisions, approvals, gates, stalls, and budget exceptions from every paired
+    device.
 
 ## Core business rules
 
@@ -42,6 +48,12 @@ build, docs, and judge agents in child sessions.
 7. **The daemon spawns, the ledger decides.** The `clara` agent never launches
    a worker. A single-owner lock and the `runs` table keep one daemon and one
    live session per stage.
+8. **One master switch.** `management.enabled` in the home agent panel gates
+   the daemon, the tools, ledger alerts, and the Clara inbox. When it is off,
+   ordinary OpenCode session alerts continue unchanged.
+9. **The ledger records exceptions; the home agent delivers them.** The plugin
+   writes the `alerts` outbox and never sends push or a system notification.
+   The home agent reads it read-only and owns delivery and deduplication.
 
 ## Edge cases
 
@@ -67,6 +79,13 @@ build, docs, and judge agents in child sessions.
   decision instead of creating a session.
 - The host has no session API, or `daemon: false` / `CLARA_DAEMON=0` is set;
   the ledger still records state, but nothing is launched.
+- Clara management is disabled; every `clara_*` tool refuses, the daemon stays
+  loaded but idle, and the agents are hidden on the next install/reload.
+- The home agent database is missing; management defaults to off.
+- A ledger alert is delivered once even across an agent restart; the delivery
+  cursor and keys live in the home agent database, not the ledger.
+- A feature closes but its record is missing; the daemon leaves it uncommitted
+  instead of inventing a file.
 - The plugin falls back from `node:sqlite` to `bun:sqlite` at runtime.
 - Migrations apply in filename order and are recorded in `schema_migrations`.
 - The previous scratch ledger is not reused; a fresh database is created on
@@ -78,7 +97,8 @@ build, docs, and judge agents in child sessions.
 - Automatic approval or resolution; the human gates stay human
 - Cost rollups for accepted features
 - Scrap-reason classification for `spec`, `context`, `model`, and `taste`
-- A web or panel view of the ledger
+- A general web or panel view of features, criteria, and checkpoints; the web
+  Clara inbox lists only unresolved exceptions.
 
 ## Known gaps
 
@@ -86,6 +106,8 @@ build, docs, and judge agents in child sessions.
   files. The judge trusts the frozen hash recorded by the test agent.
 - Workers run in the workspace directory. There is no separate worktree or
   branch per feature yet.
+- The daemon commits the feature record with a system commit that carries the
+  OpenCode co-author trailer, not a model trailer.
 
 ## Technical appendix
 
@@ -96,8 +118,14 @@ build, docs, and judge agents in child sessions.
 - Ledger: `${CLARA_CONFIG_DIR:-${XDG_CONFIG_HOME:-~/.config}/clara}/ledger.db`
 - Override: `CLARA_LEDGER_DB_PATH` or the plugin `db` option
 - Home agent settings database: `~/.config/clara/clara.db` (separate)
+- Management switch: `management.enabled` in the home agent database, owned by
+  the panel and read by the plugin. Default off.
 - Daemon: `plugins/clara/daemon.ts` ticks every 15s, reconciles `runs`, and
   launches one missing stage per tick through the OpenCode session API.
+- Alert outbox: `alerts` in `ledger.db`, written by `collectAlerts` and read
+  read-only by `apps/server/src/ledger`.
+- Delivery state: `ledger_alert_state` and `ledger_alert_delivery` in the home
+  agent database.
 - Run state: `runs` (feature, stage, agent, session, status) and
   `daemon_lock` (one heartbeat row shared by every plugin instance).
 - Stage agents: `001` spec, `002` test, `003` build, `004` docs, `judge` close.
@@ -115,6 +143,9 @@ build, docs, and judge agents in child sessions.
 - `clara_ask` reports the frozen hash, the docs stage, the latest runs, the
   human-gate status, and an event summary, so the judge never needs the
   filesystem or a shell.
+- Feature records: `docs/records/NNN-slug.md`, append-only and intentionally
+  outside the canonical docs index. The daemon commits one when a feature
+  closes.
 - CLI: `pnpm clara:ledger list` and
   `pnpm clara:ledger run <tool> [json] [--agent <id>] [--db <path>]`. It calls
   the same tool definitions against the same ledger and still derives the actor

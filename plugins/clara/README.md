@@ -2,8 +2,8 @@
 
 The ledger is one OpenCode plugin, one SQLite file, and the tools the Clara
 agents call. A small [CLI](#cli) invokes the same tools directly so you can test
-a call without an agent. There is no long-running process here yet — this is the
-state layer everything else will sit on.
+a call without an agent. The daemon turns ledger state into worker sessions, and
+the home agent reads the alert outbox and delivers exceptions to every client.
 
 The rule the whole thing is built around: **state crosses agent boundaries,
 sessions do not.** Nothing in here reads or reconstructs a conversation. If the
@@ -37,6 +37,10 @@ The installer:
 1. creates `~/.config/clara` and `~/.config/opencode/plugins`,
 2. symlinks `~/.config/opencode/plugins/clara` to this directory,
 3. renders `agents.json` into `~/.config/opencode/agents/*.md`.
+
+The installer reads `management.enabled` from the home agent database. When it
+is off, the agents are rendered with `disabled: true`; enable Clara management
+in the panel, then re-run the installer and reload OpenCode to show them again.
 
 OpenCode discovers global plugins in `~/.config/opencode/plugins/`. A local
 plugin directory needs a `package.json` with a `name` and `exports`; this one
@@ -77,8 +81,14 @@ On load the plugin prints:
 
 ```text
 [clara] ledger ready at /home/you/.config/clara/ledger.db
+[clara] management enabled
 [clara] daemon started (every 15s)
 ```
+
+The plugin reads `management.enabled` from the home agent database
+(`~/.config/clara/clara.db`) without writing it. When the flag is off, every
+`clara_*` tool refuses and the daemon stays loaded but idle. The CLI bypasses
+this guard for manual recovery.
 
 The daemon does not start when the host has no session API, or when it is
 disabled with `daemon: false` or `CLARA_DAEMON=0`.
@@ -95,7 +105,7 @@ the `clara_*` permissions in `agents.json` will not match it.
 
 | Tool            | Purpose                                                                                                                          |
 | --------------- | -------------------------------------------------------------------------------------------------------------------------------- |
-| `clara_submit`  | Register a feature. Writes the ledger row, the `docs/features/NNN-slug.md` record, and the first event. Starts in `spec`.        |
+| `clara_submit`  | Register a feature. Writes the ledger row, the `docs/records/NNN-slug.md` record, and the first event. Starts in `spec`.         |
 | `clara_inbox`   | Everything that needs a human: open decisions, stalled features, features over soft budget. Empty output when nothing needs you. |
 | `clara_ask`     | Read state for one feature, one workspace, or all. Facts only. If the ledger can't answer, it records a schema gap.              |
 | `clara_approve` | Record human approval of the proposed criteria. `spec → planned`.                                                                |
@@ -271,9 +281,13 @@ always asks first.
 
 ## Feature records
 
-Each feature gets `<workspace>/docs/features/NNN-slug.md`. The ledger owns
-the row; the record is prose for humans and is append-only. If the workspace
-path does not exist, the record is skipped and `submit` says so.
+Each feature gets `<workspace>/docs/records/NNN-slug.md`. The ledger owns the
+row; the record is prose for humans and is append-only. If the workspace path
+does not exist, the record is skipped and `submit` says so. Canonical docs stay
+under `docs/features/**` and are the docs agent's only writable target.
+
+The daemon commits a closed feature's record after the judge finishes, with an
+explicit path and no unrelated staging.
 
 ## Self-test
 
@@ -288,7 +302,18 @@ through approval, freeze, build, review, close, plus the failure paths
 live tick). It also drives a feature through the daemon with a mock session
 API, checks the lock and retry path, and verifies that every tool is registered
 as `clara_*` and that every explicit `clara_*` permission in `agents.json`
-names a real tool. Expect `120/120 checks passed`.
+names a real tool. Expect `134/134 checks passed`.
+
+## Alerts
+
+`collectAlerts` writes one row per human-wait exception into `alerts`:
+decisions, stalled features, over-budget work, criteria awaiting approval,
+human gates awaiting verification, and recent hard kills. The home agent reads
+that table read-only and delivers push, local notifications, and `ledger.alert`
+states. The plugin never sends a notification itself.
+
+The `clara_inbox` tool and the home agent's Clara inbox use the same set, so a
+wait cannot appear in one and not the other.
 
 ## Not built yet
 
@@ -296,4 +321,5 @@ names a real tool. Expect `120/120 checks passed`.
   daemon does not create a separate checkout.
 - Cost rollups for accepted features.
 - Scrap-reason classification for `spec`, `context`, `model`, and `taste`.
-- A web or panel view of the ledger.
+- A panel view of the alert outbox; the panel shows ledger storage health and
+  the Clara inbox lives in the web client.
