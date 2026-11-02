@@ -24,7 +24,11 @@
       "project": ["src/**/*.ts", "test/**/*.ts"]
     }
   },
-  "ignore": ["apps/web/src/components/ui/**"],
+  "ignore": [
+    "apps/web/src/components/ui/**",
+    "apps/web/src/features/clara/stub/**",
+    "apps/panel/src/features/clara/stub/**"
+  ],
   "ignoreDependencies": ["cloudflare"],
   "ignoreBinaries": ["jq"],
   "rules": {
