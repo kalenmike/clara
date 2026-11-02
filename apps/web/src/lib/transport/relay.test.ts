@@ -13,6 +13,7 @@ import {
   type SessionKeys,
 } from '@clara/crypto'
 import { PROTOCOL_VERSION, type ClaraAction, type ClaraState } from '@clara/shared-types'
+import { createClaraControl } from '@/features/clara/ledger-channel'
 import { createRelayTransport, type RelayTransport } from './relay.ts'
 
 let server: Server
@@ -106,10 +107,11 @@ describe('relay fetch transport', () => {
   })
 
   it('requests the ledger inbox and receives ledger alerts', async () => {
+    const clara = createClaraControl(transport)
     const alerts: Array<{ key: string }> = []
-    const unsubscribe = transport.subscribeLedgerAlert((alert) => alerts.push(alert))
+    const unsubscribe = clara.subscribeLedgerAlert((alert) => alerts.push(alert))
     try {
-      const result = await transport.requestLedgerInbox('ledger-1')
+      const result = await clara.requestLedgerInbox('ledger-1')
       expect(result).toMatchObject({
         type: 'inbox',
         inbox: { items: [{ key: 'decision:1', kind: 'decision' }] },

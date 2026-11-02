@@ -21,6 +21,7 @@ const KIND_LABELS: Record<LedgerAlertKind, string> = {
 export function ClaraPage() {
   const { control, relayStatus, generation } = useConnection()
   const management = relayStatus?.agent?.management === true
+  const clara = control?.clara
   const [alerts, setAlerts] = useState<LedgerAlert[]>([])
   const [loading, setLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
@@ -28,7 +29,7 @@ export function ClaraPage() {
 
   const load = useCallback(
     async (mode: 'load' | 'refresh' = 'load') => {
-      if (!control || !management) {
+      if (!clara || !management) {
         setAlerts([])
         setLoading(false)
         setRefreshing(false)
@@ -38,7 +39,7 @@ export function ClaraPage() {
       else setLoading(true)
       setError(undefined)
       try {
-        const result = await control.requestLedgerInbox(`inbox-${Date.now()}`)
+        const result = await clara.requestLedgerInbox(`inbox-${Date.now()}`)
         if (result.type === 'inbox') setAlerts(result.inbox.items)
         else setError(result.message)
       } catch (cause) {
@@ -48,7 +49,7 @@ export function ClaraPage() {
         setRefreshing(false)
       }
     },
-    [control, management]
+    [clara, management]
   )
 
   useEffect(() => {
@@ -56,11 +57,11 @@ export function ClaraPage() {
   }, [load, generation])
 
   useEffect(() => {
-    if (!control) return
-    return control.subscribeLedgerAlert(() => {
+    if (!clara) return
+    return clara.subscribeLedgerAlert(() => {
       void load('refresh')
     })
-  }, [control, load])
+  }, [clara, load])
 
   if (!management) {
     return <Navigate to="/" replace />
