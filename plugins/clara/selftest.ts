@@ -553,6 +553,8 @@ type MockSession = {
   title: string
   prompt: string
   model?: string
+  metadata?: Record<string, unknown>
+  promptMetadata?: Record<string, unknown>
   outcome?: 'succeeded' | 'failed' | 'interrupted'
 }
 
@@ -567,6 +569,7 @@ const sessionApi = {
   async create(input: {
     title?: string
     model?: { providerID: string; id: string; variant?: string }
+    metadata?: Record<string, unknown>
   }) {
     const session: MockSession = {
       id: `ses_daemon_${sessions.length + 1}`,
@@ -574,6 +577,7 @@ const sessionApi = {
       title: input.title ?? '',
       prompt: '',
       model: input.model ? `${input.model.providerID}/${input.model.id}` : undefined,
+      metadata: input.metadata,
     }
     sessions.push(session)
     return { id: session.id }
@@ -583,10 +587,11 @@ const sessionApi = {
     if (!session) throw new Error(`no session ${input.sessionID}`)
     session.agent = input.agent
   },
-  async prompt(input: { sessionID: string; text: string }) {
+  async prompt(input: { sessionID: string; text: string; metadata?: Record<string, unknown> }) {
     const session = sessions.find((item) => item.id === input.sessionID)
     if (!session) throw new Error(`no session ${input.sessionID}`)
     session.prompt = input.text
+    session.promptMetadata = input.metadata
   },
   async get(input: { sessionID: string }) {
     const session = sessions.find((item) => item.id === input.sessionID)
@@ -627,6 +632,16 @@ check(
   runs.latestRun(ddb, daemonId, 'spec')?.status === 'running'
 )
 check('daemon passes a model to the worker', sessions[0].model === 'test/model')
+check(
+  'daemon marks the worker session as automation',
+  sessions[0].metadata?.initiatedBy === 'daemon' && sessions[0].metadata?.automation === true,
+  JSON.stringify(sessions[0].metadata)
+)
+check(
+  'daemon marks the handoff prompt as synthetic',
+  sessions[0].promptMetadata?.source === 'daemon' && sessions[0].promptMetadata?.synthetic === true,
+  JSON.stringify(sessions[0].promptMetadata)
+)
 check('handoff prompt names the stage', sessions[0].prompt.includes('acceptance criteria'))
 
 q.setCriteria(ddb, {
@@ -648,6 +663,12 @@ await supervisor.runOnce()
 check(
   'daemon starts the test stage after approval',
   sessions.length === 2 && sessions[1].agent === '002'
+)
+check(
+  'later stages keep the automation metadata',
+  sessions[1].metadata?.automation === true &&
+    sessions[1].promptMetadata?.synthetic === true,
+  JSON.stringify({ session: sessions[1].metadata, prompt: sessions[1].promptMetadata })
 )
 
 q.freeze(ddb, { feature: daemonId, tests_hash: 'daemon-hash', tests_total: 1 })

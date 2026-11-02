@@ -46,14 +46,31 @@ export interface DaemonSessionInfo {
   time?: { idle?: number }
 }
 
+/** Metadata that marks a session as daemon-owned rather than a human session. */
+export const DAEMON_SESSION_METADATA = {
+  initiatedBy: 'daemon',
+  automation: true,
+} as const
+
+/** Metadata that marks the daemon handoff as non-user input in the transcript. */
+export const DAEMON_PROMPT_METADATA = {
+  source: 'daemon',
+  synthetic: true,
+} as const
+
 export interface DaemonSessionApi {
   create(input: {
     title?: string
     location?: { directory: string }
     model?: DaemonModel
+    metadata?: Record<string, unknown>
   }): Promise<{ id: string }>
   switchAgent(input: { sessionID: string; agent: string }): Promise<void>
-  prompt(input: { sessionID: string; text: string }): Promise<unknown>
+  prompt(input: {
+    sessionID: string
+    text: string
+    metadata?: Record<string, unknown>
+  }): Promise<unknown>
   get(input: { sessionID: string }): Promise<DaemonSessionInfo>
   list?(input: { directory?: string; limit?: number }): Promise<unknown>
   interrupt?(input: { sessionID: string; resume?: boolean }): Promise<unknown>
@@ -489,6 +506,7 @@ async function spawnStage(options: TickOptions, feature: Row, next: NextStage): 
       title: `${stageLabel(next.stage)} · ${label}`,
       location: { directory: path },
       model,
+      metadata: DAEMON_SESSION_METADATA,
     })
     sessionID = created.id
 
@@ -511,6 +529,7 @@ async function spawnStage(options: TickOptions, feature: Row, next: NextStage): 
     await session.prompt({
       sessionID,
       text: stagePrompt(next.stage, feature, path),
+      metadata: DAEMON_PROMPT_METADATA,
     })
 
     return `${label}: started ${next.stage} (${next.agent}) in ${sessionID}`
