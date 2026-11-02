@@ -2,8 +2,8 @@
 
 The ledger is one OpenCode plugin, one SQLite file, and the tools the Clara
 agents call. A small [CLI](#cli) invokes the same tools directly so you can test
-a call without an agent. The daemon turns ledger state into worker sessions, and
-the home agent reads the alert outbox and delivers exceptions to every client.
+a call without an agent. The daemon turns ledger state into worker sessions and
+turns exceptions into Clara conversations in the session that owns the feature.
 
 The rule the whole thing is built around: **state crosses agent boundaries,
 sessions do not.** Nothing in here reads or reconstructs a conversation. If the
@@ -95,7 +95,7 @@ daemon. The panel keeps the generated agents marked `disabled`. The CLI
 bypasses this guard for manual recovery.
 
 Remove the plugin with `pnpm clara:plugin:uninstall`. Add `--purge` to remove
-the ledger database, the alert delivery sidecar, the management setting, and
+the ledger database, the legacy delivery sidecar, the management setting, and
 the legacy delivery tables from the agent database.
 
 The daemon does not start when the host has no session API, or when it is
@@ -111,14 +111,15 @@ the `clara_*` permissions in `agents.json` will not match it.
 
 ### Human-facing
 
-| Tool            | Purpose                                                                                                                          |
-| --------------- | -------------------------------------------------------------------------------------------------------------------------------- |
-| `clara_submit`  | Register a feature. Writes the ledger row, the `docs/records/NNN-slug.md` record, and the first event. Starts in `spec`.         |
-| `clara_inbox`   | Everything that needs a human: open decisions, stalled features, features over soft budget. Empty output when nothing needs you. |
-| `clara_ask`     | Read state for one feature, one workspace, or all. Facts only. If the ledger can't answer, it records a schema gap.              |
-| `clara_approve` | Record human approval of the proposed criteria. `spec → planned`.                                                                |
-| `clara_gate`    | Record the human's verification of the human-gate criteria in `review`. The judge closes only when every gate is recorded.       |
-| `clara_resolve` | Close an open decision by id.                                                                                                    |
+| Tool              | Purpose                                                                                                                                                    |
+| ----------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `clara_submit`    | Register a feature. Writes the ledger row, the `docs/records/NNN-slug.md` record, and the first event. Starts in `spec`.                                   |
+| `clara_attention` | Present one alert in this session. `info` needs no answer; `feedback`, `form`, and `confirm` post a standard form. Refuses an alert that already resolved. |
+| `clara_inbox`     | Everything that needs a human: open decisions, stalled features, features over soft budget. Empty output when nothing needs you.                           |
+| `clara_ask`       | Read state for one feature, one workspace, or all. Facts only. If the ledger can't answer, it records a schema gap.                                        |
+| `clara_approve`   | Record human approval of the proposed criteria. `spec → planned`.                                                                                          |
+| `clara_gate`      | Record the human's verification of the human-gate criteria in `review`. The judge closes only when every gate is recorded.                                 |
+| `clara_resolve`   | Close an open decision by id.                                                                                                                              |
 
 ### Spec agent (`ai_1`)
 
@@ -253,12 +254,18 @@ status live in `runs`. A stage with a live run is never launched twice. If a
 session ends without advancing the ledger, the daemon opens a decision and
 waits; it retries that stage only after the human resolves the decision.
 
-The session is created with `initiatedBy: "daemon"` and `automation: true`
-metadata, and the initial handoff is sent with `source: "daemon"` and
-`synthetic: true`. Clients use the session marker to keep workers out of the
-human mailbox and the prompt marker to avoid attributing the handoff to the
-person. The stage title prefix remains a compatibility fallback for sessions
-created before the metadata existed.
+The worker session is created with `initiatedBy: "daemon"` and
+`automation: true` metadata, and the initial handoff is sent with
+`source: "daemon"` and `synthetic: true`. Clients use the session marker to keep
+workers out of the human mailbox and the prompt marker to avoid attributing the
+handoff to the person. The stage title prefix remains a compatibility fallback
+for sessions created before the metadata existed.
+
+Exception sessions are the opposite. The daemon prompts the feature's existing
+Clara session with the same synthetic daemon marker and `delivery: "queue"`.
+Only when that session is missing, archived, a worker, or not a Clara session
+does it create one, with `initiatedBy: "clara"` and `ledgerAlert: true` but no
+`automation` flag, then writes the new id back to `features.session_id`.
 
 `daemon_lock` has one row. An instance must own it to tick, so several OpenCode
 locations can load the plugin without spawning duplicate workers. A heartbeat
@@ -266,13 +273,13 @@ older than five minutes can be taken over after a crash.
 
 Options on the plugin entry:
 
-| Option                   | Default  | Meaning                                               |
-| ------------------------ | -------- | ----------------------------------------------------- |
-| `daemon`                 | `true`   | Start the scheduler.                                  |
-| `daemonIntervalMs`       | `15000`  | Milliseconds between ticks.                           |
-| `daemonLockStaleMs`      | `300000` | Heartbeat age before another instance may take over.  |
-| `daemonMaxSpawnsPerTick` | `1`      | Upper bound on new worker sessions per tick.          |
-| `daemonModel`            | unset    | `provider/model` or `{ providerID, id }` for workers. |
+| Option                   | Default  | Meaning                                                                               |
+| ------------------------ | -------- | ------------------------------------------------------------------------------------- |
+| `daemon`                 | `true`   | Start the scheduler.                                                                  |
+| `daemonIntervalMs`       | `15000`  | Milliseconds between ticks.                                                           |
+| `daemonLockStaleMs`      | `300000` | Heartbeat age before another instance may take over.                                  |
+| `daemonMaxSpawnsPerTick` | `1`      | Upper bound on new worker sessions per tick.                                          |
+| `daemonModel`            | unset    | `provider/model` or `{ providerID, id }` for workers and fallback exception sessions. |
 
 If no model can be resolved, the daemon opens a decision instead of launching a
 worker. Without `daemonModel`, it uses the latest session model in the
@@ -311,24 +318,29 @@ pnpm --filter @clara/opencode-plugin test
 ```
 
 It creates a temp DB and workspace, registers the plugin through a mock
-editor to confirm all 12 tools wire up, then walks a feature from `submit`
+editor to confirm all 13 tools wire up, then walks a feature from `submit`
 through approval, freeze, build, review, close, plus the failure paths
 (no unbacked criteria, illegal transitions, implementer closing, dry-run vs
 live tick). It also drives a feature through the daemon with a mock session
 API, checks the lock and retry path, and verifies that every tool is registered
 as `clara_*` and that every explicit `clara_*` permission in `agents.json`
-names a real tool. Expect `134/134 checks passed`.
+names a real tool. It also exercises the attention tool and the delivery loop
+against mock session and form APIs. Expect `171/171 checks passed`.
 
 ## Alerts
 
 `collectAlerts` writes one row per human-wait exception into `alerts`:
 decisions, stalled features, over-budget work, criteria awaiting approval,
-human gates awaiting verification, and recent hard kills. The home agent reads
-that table read-only and delivers push, local notifications, and `ledger.alert`
-states. The plugin never sends a notification itself.
+human gates awaiting verification, and recent hard kills. On each tick,
+`deliverAttention` prompts the Clara session linked to the feature, marks the
+alert with `session_id` and `notified_at`, and leaves failed prompts for the
+next tick. A reopened gate clears its delivery marker.
 
-The `clara_inbox` tool and the home agent's Clara inbox use the same set, so a
-wait cannot appear in one and not the other.
+`clara_attention` turns the alert into a standard OpenCode form (`feedback`,
+`form`, or `confirm`) or a plain information message (`info`). Forms make the
+session **Needs Input**; information stays **Ready for Review**. If the plugin
+cannot create a form, the tool falls back to a prose question in the normal
+composer.
 
 ## Not built yet
 
@@ -336,5 +348,8 @@ wait cannot appear in one and not the other.
   daemon does not create a separate checkout.
 - Cost rollups for accepted features.
 - Scrap-reason classification for `spec`, `context`, `model`, and `taste`.
-- A panel view of the alert outbox; the panel shows ledger storage health and
-  the Clara inbox lives in the web client.
+- A panel view of the alert outbox; the panel shows ledger storage health.
+- A one-click confirmation control; `confirm` uses a boolean form field plus
+  Submit.
+- A form API on every host; the tool falls back to prose when the plugin cannot
+  create one.

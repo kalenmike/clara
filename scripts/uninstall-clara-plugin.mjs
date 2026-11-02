@@ -2,7 +2,7 @@
 // Remove the Clara ledger plugin from OpenCode.
 //
 // The default removes the plugin link and the generated agent files. `--purge`
-// also removes the ledger database, the alert delivery sidecar, and the
+// also removes the ledger database, the legacy alert delivery sidecar, and the
 // management traces in the home agent database. Edited agent files are left
 // alone unless `--force` is given.
 

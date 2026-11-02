@@ -34,9 +34,10 @@ start an agent run and move on, so they do not have to watch the sidebar.
    desktop window is hidden, the phone starts receiving alerts again. Clicking
    any notification focuses Clara and opens the session.
 8. When Clara management is on and a ledger feature needs a person — a
-   decision, stalled work, an approval, a gate, or a budget kill — the home
-   agent sends one ledger alert. Tapping it opens **Clara inbox**; the exception
-   is not tied to a worker session.
+   decision, stalled work, an approval, a gate, or a budget kill — the daemon
+   prompts the Clara session that owns the feature. The standard session alert
+   fires: a form means Needs Input, while an information message means Ready for
+   Review.
 9. When the person marks a session Done or starts work from a ready plan, Clara
    plays the matching UI chime if **UI sounds** is on.
 10. The sidebar still shows the same state with its dot, and the person can
@@ -97,15 +98,16 @@ start an agent run and move on, so they do not have to watch the sidebar.
     Inbox sounds, UI sounds, volume, per-state switches, and the desk idle
     window. Browser notification permission, the desktop switch, and this
     device's push subscription stay local. See [sync](sync.md).
-13. Ledger alerts are separate from the four session attention states. They
-    come from the home agent's read-only view of the ledger outbox, are
-    deduplicated by alert key, and map to **Needs Input** or **Error** for sound
-    and push. They are off while Clara management is off.
+13. Ledger exceptions use the same four session attention states as every
+    other session. `clara_attention` posts a standard form for feedback,
+    structured answers, or confirmation, so the session becomes **Needs Input**.
+    An information-only exception is a normal assistant message, so it stays
+    **Ready for Review** and reads as the lower-priority state.
 14. While Clara management is on, sessions with `metadata.automation === true`
     do not raise their own session alerts. The existing `Spec`, `Test`, `Build`,
     `Docs`, and `Judge` title prefix remains a fallback for sessions created
-    before the metadata existed. The ledger alert is the actionable
-    notification; the worker completion is noise.
+    before the metadata existed. Worker completion is noise; the exception
+    conversation is the actionable alert.
 
 ## Edge cases
 
@@ -180,19 +182,22 @@ start an agent run and move on, so they do not have to watch the sidebar.
   reconciled the next time Clara opens.
 - **Home agent stopped or asleep** — events during the gap are not replayed, so
   a run that finishes while the agent is down does not push later.
-- **Clara management off** — no ledger alerts, no Clara inbox, no registered
-  Clara tools, and Clara worker sessions keep their ordinary session alerts.
-- **No Clara client connected** — the home agent raises a local OS notification
-  for a ledger alert instead of relying on the browser.
-- **A ledger alert arrives twice** — the delivery cursor and dedupe keys in the
-  Clara-owned sidecar suppress the duplicate across reconnects and restarts;
-  one-time kills never enter the open inbox.
+- **Clara management off** — no exception sessions, no registered Clara tools,
+  and Clara worker sessions keep their ordinary session alerts.
+- **No Clara client connected** — the exception still waits in its session; the
+  standard push path covers a closed client when a subscription exists.
+- **An exception arrives twice** — the alert row keeps `session_id` and
+  `notified_at`, so the daemon prompts once across restarts. A failed prompt is
+  retried on the next tick.
+- **The feature session is gone** — the daemon creates a Clara session, links it
+  to the feature, and prompts there.
+- **The exception resolves while Clara is composing** — `clara_attention`
+  refuses the form and Clara stops instead of asking a stale question.
 - **Clara worker completes** — with management on, its automation metadata
-  suppresses the session alert and the ledger exception is the only actionable
-  alert. A pre-metadata worker is suppressed by its stage title prefix.
+  suppresses the session alert. A pre-metadata worker is suppressed by its
+  stage title prefix.
 - **External OpenCode notifier** — the TUI notifier is a separate plugin and
-  does not read the Clara management switch. The home agent's local OS
-  notification covers the case where no Clara client is connected.
+  does not read the Clara management switch.
 - **Pairing rotated** — `pair --rotate` clears every stored push subscription, so
   a lost device stops receiving notifications.
 - **Push notification tapped while Clara is open** — the existing window is
@@ -288,12 +293,11 @@ start an agent run and move on, so they do not have to watch the sidebar.
   actions; the agent acknowledges with `push.status`
 - Push monitor: `apps/server/src/push/` reads `/api/event`, applies the same
   750 ms evaluation delay and 5 s cooldown, then sends through `web-push`
-- Ledger alerts: `plugins/clara/alerts.ts` writes the outbox;
-  `apps/server/src/ledger/` reads it read-only, keeps its cursor in `clara.db`,
-  sends push/local alerts, and broadcasts `ledger.alert`; the web inbox requests
-  `ledger.inbox`
-- Ledger alert destination: `/clara` in the web client, backed by the
-  read-only `alerts` table in `ledger.db`
+- Ledger exceptions: `plugins/clara/alerts.ts` writes the outbox;
+  `plugins/clara/attention.ts` prompts the linked Clara session with a synthetic
+  daemon handoff. `clara_attention` posts the standard form.
+- Exception destination: the Clara session in `features.session_id`, or a new
+  session linked back to the feature when that session is unusable.
 - Worker filter: `isClaraWorkerTitle` in
   `packages/shared-types/src/session-signals.ts`, shared by the home agent and
   the web notification provider

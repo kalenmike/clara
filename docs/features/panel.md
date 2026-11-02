@@ -66,10 +66,10 @@ monitoring on or off, and gate or pace client settings sync.
     each device's category choices remain. The interval defaults to 30 seconds.
 13. Leave the page open. It refreshes every five seconds while visible and
     pauses when the tab is hidden. Use **Refresh** for an immediate check.
-14. Use **Clara management** to turn the ledger daemon, ledger alerts, the web
-    Clara inbox, and the Clara agents on or off. Turning it off unregisters the
-    Clara tools, stops the daemon without opening the ledger, and leaves
-    ordinary session alerts unchanged. It also marks the generated agent files
+14. Use **Clara management** to turn the ledger daemon, exception sessions, and
+    the Clara agents on or off. Turning it off unregisters the Clara tools,
+    stops the daemon without opening the ledger, and leaves ordinary session
+    alerts unchanged. It also marks the generated agent files
     disabled and reloads OpenCode, so the agents leave the catalog without a
     reinstall; turning it back on restores them. The switch is hidden when the
     build excludes the feature with `VITE_CLARA_MANAGEMENT=0`.

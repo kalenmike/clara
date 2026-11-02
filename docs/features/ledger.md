@@ -6,21 +6,22 @@ The Clara ledger is an OpenCode plugin that records feature state, acceptance
 criteria, decisions, checkpoints, and events in one SQLite database. It gives
 the Clara agents a shared source of truth without passing session history
 between them. A daemon turns that state into work by launching the spec, test,
-build, docs, and judge agents in child sessions.
+build, docs, and judge agents in child sessions, and turns exceptions into
+Clara conversations in the session that owns the feature.
 
 ## User flow
 
 1. Run `pnpm clara:plugin:install` from the Clara repository.
 2. Enable **Clara management** in the agent panel. Turning it on is the master
-   switch for the ledger daemon, ledger alerts, the Clara inbox, and the Clara
-   agents in OpenCode.
+   switch for the ledger daemon, exception sessions, and the Clara agents in
+   OpenCode.
 3. The `clara`, `001`–`004`, and `judge` agents appear while the switch is on.
    The home agent rewrites their generated files and reloads OpenCode whenever
    the switch changes, so no reinstall is needed.
 4. Select the `clara` agent and submit a feature with `clara_submit`.
 5. Ask for status at any time with `clara_ask` or `clara_inbox`.
 6. Approve the proposed criteria with `clara_approve`; nothing builds before
-   that.
+   that. The feature remembers the session where it was submitted.
 7. The daemon launches the spec agent to propose criteria; after approval it
    launches the test, build, docs, and judge agents as each stage completes.
    Every worker session is created with `initiatedBy: "daemon"` and
@@ -33,9 +34,10 @@ build, docs, and judge agents in child sessions.
    judge. The judge closes only when every gate is recorded.
 9. Resolve any open decision with `clara_resolve`. Only `ai_0` can mark a
    feature done.
-10. Open **Clara inbox** in the web client, or wait for a ledger alert, to see
-    decisions, approvals, gates, stalls, and budget exceptions from every paired
-    device.
+10. When a decision, approval, gate, stall, budget, or kill needs a person, the
+    daemon returns to the Clara session that owns the feature and asks there.
+    The existing session inbox and notifications carry the alert; there is no
+    separate ledger inbox.
 
 ## Feature boundary
 
@@ -48,22 +50,22 @@ management in three layers:
    `pnpm build` or `pnpm dev` includes Clara management; override with
    `CLARA_MANAGEMENT=0 VITE_CLARA_MANAGEMENT=0 pnpm build` (or set just the
    side you want to exclude). An excluded build does not load the ledger
-   modules, does not register the Clara route, and does not show the panel
-   switch.
+   modules and does not show the panel switch.
 2. **Runtime switch.** `management.enabled` is the master switch described
    below. It defaults off. When off, the plugin does not open the ledger or
-   register tools, the daemon is not constructed, the home agent does not start
-   the alert monitor, and the web client does not show the inbox.
+   register tools, the daemon is not constructed, and no exception sessions are
+   opened.
 3. **Uninstall.** `pnpm clara:plugin:uninstall` removes the plugin link and the
    generated agent files. Add `--purge` to remove the ledger database, the
-   alert delivery sidecar, the management setting, and the legacy delivery
+   legacy delivery sidecar, the management setting, and the legacy delivery
    tables from the agent database. Stop the home agent first so its settings
    database is not locked.
 
-The alert inbox is read directly from `ledger.db`. Delivery state (the cursor
-and dedupe keys) lives in `~/.config/clara/ledger-alerts.db`, a Clara-owned
-sidecar. The home agent never writes `ledger.db`, and `clara.db` contains no
-Clara management tables.
+A feature stores the Clara session where the human submitted it. Every later
+exception for that feature is prompted into the same session. If the session is
+missing, archived, or not a Clara session, the daemon creates one and writes it
+back to the feature. The `alerts` table stays as the deterministic outbox and
+delivery record; the old cursor sidecar is only a legacy uninstall target.
 
 ## Core business rules
 
@@ -84,17 +86,21 @@ Clara management tables.
    a worker. A single-owner lock and the `runs` table keep one daemon and one
    live session per stage.
 8. **One master switch.** `management.enabled` in the home agent panel gates
-   the daemon, the tools, ledger alerts, the Clara inbox, and the Clara agent
-   catalog. When it is off, the plugin registers no tools and starts no
-   daemon, and ordinary OpenCode session alerts continue unchanged.
-9. **The ledger records exceptions; the home agent delivers them.** The plugin
-   writes the `alerts` outbox and never sends push or a system notification.
-   The home agent reads `ledger.db` read-only and keeps its delivery cursor and
-   dedupe keys in a separate Clara-owned sidecar database.
+   the daemon, the tools, exception sessions, and the Clara agent catalog. When
+   it is off, the plugin registers no tools and starts no daemon, and ordinary
+   OpenCode session alerts continue unchanged.
+9. **The ledger records exceptions; the daemon turns them into conversations.**
+   The plugin writes the `alerts` outbox and prompts the feature's Clara
+   session with a synthetic, queued handoff. The notification is the standard
+   session alert: a form means Needs Input, while an information message means
+   Ready for Review.
 10. **Worker identity is explicit, not inferred from a title.** The daemon
-    writes `automation: true` on the session and `synthetic: true` on its
-    handoff prompt. The title prefix stays only as a compatibility fallback for
-    older worker sessions.
+    writes `automation: true` on worker sessions and `synthetic: true` on their
+    handoff prompts. Exception sessions are the opposite: they have no
+    automation flag, so they stay in the human inbox and raise their own
+    alerts. Their handoff is still `source: "daemon"` and `synthetic: true`.
+    The title prefix stays only as a compatibility fallback for older worker
+    sessions.
 
 ## Edge cases
 
@@ -126,8 +132,20 @@ Clara management tables.
   reloads OpenCode so the agents leave the catalog. Agent files edited after
   installation are reported and left untouched.
 - The home agent database is missing; management defaults to off.
-- A ledger alert is delivered once even across an agent restart; the delivery
-  cursor and keys live in the home agent database, not the ledger.
+- An alert is delivered once even across an agent restart; the alert row keeps
+  the session and delivery time.
+- The feature's session is missing, archived, a worker, or not a Clara session;
+  the daemon creates a new one and writes it back to the feature.
+- The linked session is snoozed; the prompt still arrives, but the user's snooze
+  keeps its notifications quiet.
+- No model or workspace path is available for a replacement session; the alert
+  stays undelivered and the next tick retries.
+- A form is skipped or times out; Clara does not act, and the ledger exception
+  stays open.
+- The alert resolves while Clara is composing; `clara_attention` refuses the
+  form and Clara stops.
+- A gate is rejected after it was verified; the reopened alert clears its
+  delivery marker so the exception reaches the session again.
 - A feature closes but its record is missing; the daemon leaves it uncommitted
   instead of inventing a file.
 - The plugin falls back from `node:sqlite` to `bun:sqlite` at runtime.
@@ -135,14 +153,28 @@ Clara management tables.
 - The previous scratch ledger is not reused; a fresh database is created on
   first load at the new path.
 
+## Attention states
+
+`clara_attention` presents an exception in one of four states:
+
+| State      | Presentation                                           | Session state    |
+| ---------- | ------------------------------------------------------ | ---------------- |
+| `feedback` | a form with one text field for an open answer          | Needs Input      |
+| `form`     | a standard form with the supplied structured fields    | Needs Input      |
+| `confirm`  | a standard form with one boolean field, e.g. “Start”   | Needs Input      |
+| `info`     | a normal Clara message; no form and no answer required | Ready for Review |
+
+The form is also the stale check. If the alert resolved while Clara was
+composing, the tool refuses to post it and Clara stops.
+
 ## Out of scope
 
 - Worktree and branch creation; workers run in the workspace directory
 - Automatic approval or resolution; the human gates stay human
 - Cost rollups for accepted features
 - Scrap-reason classification for `spec`, `context`, `model`, and `taste`
-- A general web or panel view of features, criteria, and checkpoints; the web
-  Clara inbox lists only unresolved exceptions.
+- A general web or panel view of features, criteria, and checkpoints; open
+  exceptions are read with `clara_inbox` or raised in a Clara session.
 
 ## Known gaps
 
@@ -152,6 +184,11 @@ Clara management tables.
   branch per feature yet.
 - The daemon commits the feature record with a system commit that carries the
   OpenCode co-author trailer, not a model trailer.
+- `clara_attention` uses the session form API when the plugin exposes it. If
+  the host does not, Clara falls back to a prose question and the standard
+  composer; the four attention states still record, but the form is absent.
+- A confirmation is a boolean field plus the form's Submit control, not a
+  single-click action.
 
 ## Technical appendix
 
@@ -167,20 +204,27 @@ Clara management tables.
   generated agent files and reloads OpenCode. Default off.
 - Build inclusion: `CLARA_MANAGEMENT` (server) and `VITE_CLARA_MANAGEMENT` (web
   and panel) exclude the feature when set to `0`, `false`, or `off`. An
-  excluded build does not load the server facade or register the web route.
+  excluded build does not load the server facade or the web session policy.
 - Uninstall: `pnpm clara:plugin:uninstall` removes the plugin link and generated
-  agents; `--purge` also removes the ledger, sidecar, management setting, and
-  legacy delivery tables.
+  agents; `--purge` also removes the ledger, the legacy delivery sidecar, the
+  management setting, and legacy delivery tables.
 - Daemon: `plugins/clara/daemon.ts` ticks every 15s, reconciles `runs`, and
   launches one missing stage per tick through the OpenCode session API. It
   exports `DAEMON_SESSION_METADATA` (`initiatedBy: daemon`, `automation: true`)
   and `DAEMON_PROMPT_METADATA` (`source: daemon`, `synthetic: true`) and passes
   them to `session.create` and the initial `session.prompt`.
-- Alert outbox: `alerts` in `ledger.db`, written by `collectAlerts` and read
-  read-only by `apps/server/src/clara/ledger`.
-- Delivery state: `~/.config/clara/ledger-alerts.db`, a Clara-owned sidecar
-  with a cursor and dedupe keys. It is separate from both the ledger and the
-  home agent database, and `--purge` removes it.
+- Attention delivery: `plugins/clara/attention.ts` selects undelivered rows from
+  `alerts`, resolves the feature's session, creates one only when needed with
+  `initiatedBy: clara` / `ledgerAlert: true`, and prompts it with
+  `source: daemon` / `synthetic: true` and `delivery: queue`. The prompt names
+  `clara_attention` and the alert key.
+- Session links: `features.session_id` and `workspaces.session_id` point at the
+  conversation that owns the feature. `alerts.session_id` and `notified_at`
+  record delivery; `attention_state` records the last presentation Clara chose.
+- Alert outbox: `alerts` in `ledger.db`, written by `collectAlerts` and consumed
+  by `deliverAttention` on the daemon's next tick.
+- Legacy delivery state: `~/.config/clara/ledger-alerts.db` is no longer used.
+  `--purge` still removes it for upgrades.
 - Run state: `runs` (feature, stage, agent, session, status) and
   `daemon_lock` (one heartbeat row shared by every plugin instance).
 - Stage agents: `001` spec, `002` test, `003` build, `004` docs, `judge` close.
@@ -192,9 +236,12 @@ Clara management tables.
 - Agents: `plugins/clara/agents.json`, rendered to
   `~/.config/opencode/agents/*.md`
 - Plugin link: `~/.config/opencode/plugins/clara`
-- Tools: `clara_submit`, `clara_inbox`, `clara_ask`, `clara_approve`,
-  `clara_criteria`, `clara_freeze`, `clara_checkpoint`, `clara_event`,
-  `clara_decide`, `clara_gate`, `clara_resolve`, `clara_tick`
+- Tools: `clara_submit`, `clara_attention`, `clara_inbox`, `clara_ask`,
+  `clara_approve`, `clara_criteria`, `clara_freeze`, `clara_checkpoint`,
+  `clara_event`, `clara_decide`, `clara_gate`, `clara_resolve`, `clara_tick`
+- `clara_attention` presents one alert with a standard form (`feedback`,
+  `form`, or `confirm`) or a plain information message (`info`). It refuses an
+  alert that already resolved and records the answer as an `attention.*` event.
 - `clara_ask` reports the frozen hash, the docs stage, the latest runs, the
   human-gate status, and an event summary, so the judge never needs the
   filesystem or a shell.
