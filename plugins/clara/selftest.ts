@@ -4,7 +4,7 @@
 //
 // This is not a unit test suite. It is the "does the whole shape hold" check.
 
-import { mkdtempSync, rmSync, existsSync } from 'node:fs'
+import { mkdtempSync, readFileSync, rmSync, existsSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { getDb } from './db.ts'
@@ -50,6 +50,14 @@ const plugin = (await import('./index.ts')).default
 const registered = new Map<string, any>()
 let namespaceName = ''
 
+// Mirror OpenCode 2.2.5's id derivation. `editor.namespace()` only describes a
+// group; the tool id is prefixed from `options.namespace`.
+const safeName = (name: string) => name.replace(/[^a-zA-Z0-9_-]/g, '_')
+const idOf = (tool: any) =>
+  tool.options?.namespace === undefined
+    ? safeName(tool.name)
+    : `${tool.options.namespace.replaceAll('.', '_')}_${safeName(tool.name)}`
+
 await plugin.setup({
   options: { db: dbPath },
   tool: {
@@ -59,29 +67,62 @@ await plugin.setup({
           namespaceName = ns.name
         },
         add: (tool: any) => {
-          registered.set(tool.name, tool)
+          registered.set(idOf(tool), tool)
         },
       }),
   },
 })
 
 const expected = [
-  'submit',
-  'inbox',
-  'ask',
-  'approve',
-  'criteria',
-  'freeze',
-  'checkpoint',
-  'event',
-  'decide',
-  'resolve',
-  'tick',
+  'clara_submit',
+  'clara_inbox',
+  'clara_ask',
+  'clara_approve',
+  'clara_criteria',
+  'clara_freeze',
+  'clara_checkpoint',
+  'clara_event',
+  'clara_decide',
+  'clara_resolve',
+  'clara_tick',
 ]
 check('plugin id is clara', plugin.id === 'clara')
 check('namespace is clara', namespaceName === 'clara')
 check('registers 11 tools', registered.size === 11, `got ${[...registered.keys()].join(', ')}`)
 for (const name of expected) check(`tool ${name}`, registered.has(name))
+check(
+  'every tool carries the clara namespace',
+  [...registered.values()].every((t) => t.options?.namespace === 'clara')
+)
+check(
+  'no tool is registered under its bare name',
+  ![...registered.keys()].some((id) => !id.startsWith('clara_'))
+)
+
+const agents = JSON.parse(readFileSync(new URL('./agents.json', import.meta.url), 'utf8'))
+const allowed = new Set<string>()
+for (const definition of Object.values(agents.agents) as any[]) {
+  for (const permission of definition.permissions ?? []) {
+    if (
+      permission.effect === 'allow' &&
+      permission.action.startsWith('clara_') &&
+      !permission.action.includes('*')
+    ) {
+      allowed.add(permission.action)
+    }
+  }
+}
+check(
+  'every explicit agent permission names a registered tool',
+  [...allowed].every((name) => registered.has(name)),
+  [...allowed].filter((name) => !registered.has(name)).join(', ')
+)
+check(
+  'every tool is allowed for at least one agent',
+  [...registered.keys()].every((id) => allowed.has(id)),
+  [...registered.keys()].filter((id) => !allowed.has(id)).join(', ')
+)
+
 check(
   'every tool has a description',
   [...registered.values()].every((t) => !!t.description)
@@ -94,7 +135,7 @@ check(
   'every tool has execute',
   [...registered.values()].every((t) => typeof t.execute === 'function')
 )
-const wired = await registered.get('inbox')!.execute({})
+const wired = await registered.get('clara_inbox')!.execute({})
 check('tool execute reaches the ledger', String(wired.content).startsWith('inbox: empty'))
 
 console.log('\n1. submit')
@@ -157,7 +198,7 @@ check(
 console.log('\n3. approval gate')
 let blocked = ''
 try {
-  await registered.get('approve')!.execute({ feature: feature.id }, { agent: '003' })
+  await registered.get('clara_approve')!.execute({ feature: feature.id }, { agent: '003' })
 } catch (error) {
   blocked = (error as Error).message
 }
@@ -267,7 +308,7 @@ expectThrow(
 let spoofed = ''
 try {
   await registered
-    .get('event')!
+    .get('clara_event')!
     .execute(
       { feature: feature.id, type: 'close.confirmed', actor: 'ai_0', state: 'done' },
       { agent: '003' }
@@ -278,7 +319,7 @@ try {
 check('implementer cannot spoof actor=ai_0', spoofed.includes('only ai_0'), spoofed)
 
 const confirmed = await registered
-  .get('event')!
+  .get('clara_event')!
   .execute({ feature: feature.id, type: 'close.confirmed', state: 'done' }, { agent: 'judge' })
 check('ai_0 confirms close through the tool', String(confirmed.content).includes('state=done'))
 const done = q.featureByRef(db, feature.id)!
