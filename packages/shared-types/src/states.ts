@@ -1,6 +1,6 @@
 import type { ClaraAction } from './actions.ts'
 import type { AgentInfo } from './protocol.ts'
-import type { LedgerAlert, LedgerInbox } from './ledger.ts'
+import type { LedgerAlert, LedgerInbox } from './clara/ledger.ts'
 
 export type SyncEntry = {
   key: string

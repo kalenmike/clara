@@ -130,7 +130,7 @@ export class RuntimeController {
         push: options.push,
         isDeskActive: () =>
           this.localAgent.deskHoldActive() || (this.relayAgent?.deskHoldActive() ?? false),
-        isManagementEnabled: () => Boolean(options.clara) && options.settings.getManagement(),
+        suppressSession: options.clara?.suppressSession,
         log: options.log,
       })
     }

@@ -1,4 +1,4 @@
-import type { LedgerAlert, LedgerInbox } from '@clara/shared-types'
+import { isClaraWorkerTitle, type LedgerAlert, type LedgerInbox } from '@clara/shared-types'
 import { join } from 'node:path'
 import type { OpenCodeClient } from '../opencode.ts'
 import type { PushService } from '../push/service.ts'
@@ -52,6 +52,10 @@ export class ClaraManagement {
       inbox: () => this.reader().inbox(),
     }
   }
+
+  /** Generic session suppression supplied to the push monitor. */
+  suppressSession = (session: { title?: string }): boolean =>
+    this.options.settings.getManagement() && isClaraWorkerTitle(session.title)
 
   /**
    * Keep the generated agent files aligned with the switch and reload

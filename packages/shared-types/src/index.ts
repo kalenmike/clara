@@ -1,6 +1,6 @@
 export * from './actions.ts'
+export * from './clara/index.ts'
 export * from './frames.ts'
-export * from './ledger.ts'
 export * from './pairing.ts'
 export * from './panel.ts'
 export * from './protocol.ts'
