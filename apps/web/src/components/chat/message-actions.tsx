@@ -10,11 +10,13 @@ import { useSessionWording } from '@/features/sessions/use-wording'
 
 export function MessageActions({
   disabled,
+  canFork,
   canForward,
   onFork,
   onForward,
 }: {
   disabled?: boolean
+  canFork: boolean
   canForward: boolean
   onFork: () => void
   onForward: () => void
@@ -25,18 +27,20 @@ export function MessageActions({
   return (
     <>
       <div className="hidden shrink-0 items-center gap-0.5 opacity-0 transition-opacity group-hover/row:opacity-100 focus-within:opacity-100 md:flex">
-        <Button
-          type="button"
-          variant="ghost"
-          size="icon"
-          onClick={onFork}
-          disabled={disabled}
-          title="Fork from this message"
-          className="size-8"
-        >
-          <GitFork className="size-3.5" />
-          <span className="sr-only">Fork from this message</span>
-        </Button>
+        {canFork && (
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            onClick={onFork}
+            disabled={disabled}
+            title="Fork from this message"
+            className="size-8"
+          >
+            <GitFork className="size-3.5" />
+            <span className="sr-only">Fork from this message</span>
+          </Button>
+        )}
         <Button
           type="button"
           variant="ghost"
@@ -65,9 +69,11 @@ export function MessageActions({
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end">
-            <DropdownMenuItem onSelect={onFork} disabled={disabled}>
-              <GitFork className="size-3.5" /> Fork from here
-            </DropdownMenuItem>
+            {canFork && (
+              <DropdownMenuItem onSelect={onFork} disabled={disabled}>
+                <GitFork className="size-3.5" /> Fork from here
+              </DropdownMenuItem>
+            )}
             <DropdownMenuItem onSelect={onForward} disabled={forwardDisabled}>
               <Forward className="size-3.5" /> Forward to new {lowerSingular}
             </DropdownMenuItem>

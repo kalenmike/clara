@@ -25,6 +25,7 @@ export function MessageList({
   onForkMessage,
   onForwardMessage,
   canActOnMessage,
+  canFork,
   actionsDisabled,
 }: {
   sessionID: string
@@ -42,6 +43,7 @@ export function MessageList({
   onForkMessage: (message: SessionMessageInfo) => void
   onForwardMessage: (message: SessionMessageInfo) => void
   canActOnMessage: (message: SessionMessageInfo) => boolean
+  canFork: boolean
   actionsDisabled: boolean
 }) {
   const parentRef = useRef<HTMLDivElement>(null)
@@ -291,6 +293,7 @@ export function MessageList({
                         ? {
                             onFork: () => onForkMessage(entry.message),
                             onForward: () => onForwardMessage(entry.message),
+                            canFork,
                             canForward: canForwardMessage(entry.message),
                             disabled:
                               actionsDisabled || (streaming && item.index === lastMessageIndex),

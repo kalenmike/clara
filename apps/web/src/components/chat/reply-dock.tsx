@@ -50,6 +50,7 @@ export function ReplyDock({
   onDone,
   onSent,
   onCycleAgent,
+  worker,
 }: {
   session: SessionInfo | undefined
   sessionID: string
@@ -70,6 +71,7 @@ export function ReplyDock({
   onDone: () => void
   onSent?: () => void
   onCycleAgent: (direction: 1 | -1) => void
+  worker?: boolean
 }) {
   const [mode, setMode] = useState<WindowMode>(() =>
     startExpanded ? readComposerSize() : 'closed'
@@ -86,7 +88,7 @@ export function ReplyDock({
   const { singular, lowerSingular } = useSessionWording()
   const archived = session != null && isArchivedSession(session)
   const snoozed = session != null && isSnoozedSession(session)
-  const canFinish = session != null && ready && !busy && !archived && !snoozed
+  const canFinish = session != null && ready && !busy && !archived && !snoozed && !worker
   const canArchive = canFinish && !empty
   const canDeleteEmpty = canFinish && empty
   const canNew = canFinish && empty
@@ -228,7 +230,7 @@ export function ReplyDock({
 
   return (
     <>
-      {mode === 'closed' && (canFinish || canReopen || !empty || leaving) && (
+      {mode === 'closed' && (canReopen || (!worker && (canFinish || !empty || leaving))) && (
         <div className="absolute right-4 bottom-4 z-30 flex items-center gap-2 max-md:right-5 max-md:bottom-6">
           {(canArchive || leaving) && (
             <DoneButton pending={done.isPending || leaving} onConfirm={archiveSession} />
@@ -272,7 +274,7 @@ export function ReplyDock({
             </Button>
           )}
 
-          {!empty && (
+          {!empty && !worker && (
             <Button
               ref={triggerRef}
               type="button"
@@ -312,103 +314,109 @@ export function ReplyDock({
         </div>
       )}
 
-      <section
-        role="dialog"
-        aria-label={panelLabel}
-        aria-modal={false}
-        aria-hidden={mode === 'closed'}
-        className={cn(
-          'flex flex-col overflow-hidden border bg-popover text-popover-foreground shadow-2xl',
-          mode === 'maximized'
-            ? 'fixed inset-2 z-50 rounded-xl max-md:inset-x-2 max-md:top-[max(0.5rem,env(safe-area-inset-top))] max-md:bottom-[max(1.25rem,env(safe-area-inset-bottom))] sm:inset-3'
-            : mode === 'minimized'
-              ? 'absolute right-3 bottom-3 z-40 h-auto w-[min(32rem,calc(100vw-1.5rem))] rounded-xl max-md:inset-x-0 max-md:bottom-0 max-md:w-full max-md:rounded-b-none'
-              : 'absolute right-3 bottom-3 z-40 h-[min(34rem,calc(100dvh-5rem))] w-[min(32rem,calc(100vw-1.5rem))] rounded-xl max-md:inset-x-0 max-md:bottom-0 max-md:h-[85%] max-md:w-full max-md:rounded-b-none',
-          mode === 'closed' && 'hidden'
-        )}
-      >
-        <div className="flex shrink-0 items-center gap-1 border-b px-3 py-2">
-          <div className="min-w-0 flex-1">
-            <div className="text-sm font-medium">{panelLabel}</div>
-            {session?.title && (
-              <div className="truncate text-[10px] text-muted-foreground">{session.title}</div>
-            )}
+      {!worker && (
+        <section
+          role="dialog"
+          aria-label={panelLabel}
+          aria-modal={false}
+          aria-hidden={mode === 'closed'}
+          className={cn(
+            'flex flex-col overflow-hidden border bg-popover text-popover-foreground shadow-2xl',
+            mode === 'maximized'
+              ? 'fixed inset-2 z-50 rounded-xl max-md:inset-x-2 max-md:top-[max(0.5rem,env(safe-area-inset-top))] max-md:bottom-[max(1.25rem,env(safe-area-inset-bottom))] sm:inset-3'
+              : mode === 'minimized'
+                ? 'absolute right-3 bottom-3 z-40 h-auto w-[min(32rem,calc(100vw-1.5rem))] rounded-xl max-md:inset-x-0 max-md:bottom-0 max-md:w-full max-md:rounded-b-none'
+                : 'absolute right-3 bottom-3 z-40 h-[min(34rem,calc(100dvh-5rem))] w-[min(32rem,calc(100vw-1.5rem))] rounded-xl max-md:inset-x-0 max-md:bottom-0 max-md:h-[85%] max-md:w-full max-md:rounded-b-none',
+            mode === 'closed' && 'hidden'
+          )}
+        >
+          <div className="flex shrink-0 items-center gap-1 border-b px-3 py-2">
+            <div className="min-w-0 flex-1">
+              <div className="text-sm font-medium">{panelLabel}</div>
+              {session?.title && (
+                <div className="truncate text-[10px] text-muted-foreground">{session.title}</div>
+              )}
+            </div>
+
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon-sm"
+                  className="max-md:size-11"
+                  onClick={toggleMinimize}
+                  aria-label={
+                    mode === 'minimized' ? 'Restore reply window' : 'Minimize reply window'
+                  }
+                >
+                  <Minus className="size-3.5 max-md:size-5" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>{mode === 'minimized' ? 'Restore' : 'Minimize'}</TooltipContent>
+            </Tooltip>
+
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon-sm"
+                  className="max-md:size-11"
+                  onClick={toggleMaximize}
+                  aria-label={
+                    mode === 'maximized' ? 'Restore reply window' : 'Maximize reply window'
+                  }
+                >
+                  {mode === 'maximized' ? (
+                    <Minimize2 className="size-3.5 max-md:size-5" />
+                  ) : (
+                    <Maximize2 className="size-3.5 max-md:size-5" />
+                  )}
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>{mode === 'maximized' ? 'Restore' : 'Maximize'}</TooltipContent>
+            </Tooltip>
+
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon-sm"
+                  className="max-md:size-11"
+                  onClick={closePanel}
+                  aria-label="Close reply window"
+                >
+                  <X className="size-3.5 max-md:size-5" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>Close</TooltipContent>
+            </Tooltip>
           </div>
 
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon-sm"
-                className="max-md:size-11"
-                onClick={toggleMinimize}
-                aria-label={mode === 'minimized' ? 'Restore reply window' : 'Minimize reply window'}
-              >
-                <Minus className="size-3.5 max-md:size-5" />
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent>{mode === 'minimized' ? 'Restore' : 'Minimize'}</TooltipContent>
-          </Tooltip>
-
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon-sm"
-                className="max-md:size-11"
-                onClick={toggleMaximize}
-                aria-label={mode === 'maximized' ? 'Restore reply window' : 'Maximize reply window'}
-              >
-                {mode === 'maximized' ? (
-                  <Minimize2 className="size-3.5 max-md:size-5" />
-                ) : (
-                  <Maximize2 className="size-3.5 max-md:size-5" />
-                )}
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent>{mode === 'maximized' ? 'Restore' : 'Maximize'}</TooltipContent>
-          </Tooltip>
-
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon-sm"
-                className="max-md:size-11"
-                onClick={closePanel}
-                aria-label="Close reply window"
-              >
-                <X className="size-3.5 max-md:size-5" />
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent>Close</TooltipContent>
-          </Tooltip>
-        </div>
-
-        <div className={cn('flex min-h-0 flex-1 flex-col', mode === 'minimized' && 'hidden')}>
-          <Composer
-            session={session}
-            sessionID={sessionID}
-            directory={directory}
-            busy={busy}
-            disabled={disabled}
-            active={mode !== 'closed'}
-            focusSignal={focusSignal}
-            modelRequest={modelRequest}
-            agentRequest={agentRequest}
-            menuMode={menuMode}
-            draft={empty}
-            startText={startText}
-            startFiles={startFiles}
-            onDraftChange={onDraftChange}
-            onSent={handleSent}
-            onCycleAgent={onCycleAgent}
-          />
-        </div>
-      </section>
+          <div className={cn('flex min-h-0 flex-1 flex-col', mode === 'minimized' && 'hidden')}>
+            <Composer
+              session={session}
+              sessionID={sessionID}
+              directory={directory}
+              busy={busy}
+              disabled={disabled}
+              active={mode !== 'closed'}
+              focusSignal={focusSignal}
+              modelRequest={modelRequest}
+              agentRequest={agentRequest}
+              menuMode={menuMode}
+              draft={empty}
+              startText={startText}
+              startFiles={startFiles}
+              onDraftChange={onDraftChange}
+              onSent={handleSent}
+              onCycleAgent={onCycleAgent}
+            />
+          </div>
+        </section>
+      )}
     </>
   )
 }

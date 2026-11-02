@@ -30,6 +30,7 @@ import { cn } from '@/lib/utils'
 export type MessageItemActions = {
   onFork: () => void
   onForward: () => void
+  canFork: boolean
   canForward: boolean
   disabled?: boolean
 }

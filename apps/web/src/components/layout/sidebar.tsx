@@ -223,7 +223,7 @@ export function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
     [claraEnabled, sections, workerSection]
   )
 
-  const latest = sessions[0]
+  const latest = sessions.find((session) => !(claraEnabled && isAutomationSession(session)))
   const { startSession: newSession, pending: createPending } = useStartSession({
     projectID: selectedProject?.id,
     directory: selectedProject?.canonical,
@@ -272,11 +272,7 @@ export function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
 
     return section.sessions.map((session) => {
       const signals = mailboxSignals.get(session.id)
-      const attention = resolveAttentionKind(
-        signals,
-        session.agent,
-        awaitingInput.has(session.id)
-      )
+      const attention = resolveAttentionKind(signals, session.agent, awaitingInput.has(session.id))
       return (
         <SidebarSessionRow
           key={session.id}
@@ -543,7 +539,9 @@ export function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
             }}
           >
             <CollapsibleContent>
-              <div className="max-h-64 overflow-y-auto pb-1">{renderSessionRows(workerSection)}</div>
+              <div className="max-h-64 overflow-y-auto pb-1">
+                {renderSessionRows(workerSection)}
+              </div>
             </CollapsibleContent>
             <CollapsibleTrigger className="flex w-full items-center gap-1.5 rounded-md px-2.5 py-2.5 text-xs font-medium uppercase tracking-wider text-muted-foreground transition-colors hover:bg-sidebar-accent/60 hover:text-foreground md:px-2 md:py-1.5 md:text-[10px]">
               <ChevronRight

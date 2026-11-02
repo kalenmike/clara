@@ -18,6 +18,7 @@ import { ReplyDock } from '@/components/chat/reply-dock'
 import { SidePanel } from '@/components/layout/side-panel'
 import { useDefaultAgent } from '@/features/agents/use-default-agent'
 import { useAgents, useModels } from '@/features/catalog/use-catalog'
+import { CLARA_FEATURE_INCLUDED } from '@/features/clara/flag'
 import { composerMenuMode } from '@/features/chat/composer-menu'
 import { getVisibleMessages } from '@/features/chat/message-visibility'
 import { findPlanReadyReply } from '@/features/chat/plan-ready'
@@ -35,6 +36,7 @@ import { useInboxMonitor } from '@/features/sessions/inbox-monitor'
 import { canonicalProject, useProjects } from '@/features/projects/use-projects'
 import { planMessageFork } from '@/features/sessions/fork'
 import { isArchivedSession } from '@/features/sessions/session-archive'
+import { isAutomationSession } from '@/features/sessions/session-automation'
 import { isSnoozedSession } from '@/features/sessions/session-snooze'
 import { useForkSession } from '@/features/sessions/use-fork-session'
 import { useForwardMessage } from '@/features/sessions/use-forward-message'
@@ -58,7 +60,8 @@ export function ChatPage() {
   const { projectId, sessionId } = useParams<{ projectId: string; sessionId: string }>()
   const navigate = useNavigate()
   const location = useLocation()
-  const { status } = useConnection()
+  const { status, relayStatus } = useConnection()
+  const claraEnabled = CLARA_FEATURE_INCLUDED && relayStatus?.agent?.management === true
   const { singular, lowerSingular, lowerPlural } = useSessionWording()
   const inboxMonitor = useInboxMonitor()
   const { setTheme, resolvedTheme } = useTheme()
@@ -68,6 +71,7 @@ export function ChatPage() {
   const owningProject = canonicalProject(projectsQuery.data ?? [], projectId)
   const sessionQuery = useSession(sessionId ?? null)
   const session = sessionQuery.data
+  const worker = claraEnabled && session != null && isAutomationSession(session)
   const snapshot = useChatSnapshot(sessionId ?? '')
   const messagesQuery = useSessionMessages(sessionId ?? '')
   const inboxQuery = useSessionInbox(sessionId ?? '')
@@ -132,14 +136,15 @@ export function ChatPage() {
     emptySession &&
     !busy &&
     session != null &&
+    !worker &&
     !isArchivedSession(session) &&
     !isSnoozedSession(session)
   const planReady = useMemo(
     () =>
-      session && !isArchivedSession(session)
+      session && !worker && !isArchivedSession(session)
         ? findPlanReadyReply(allMessages, session.agent, busy)
         : undefined,
-    [allMessages, busy, session]
+    [allMessages, busy, session, worker]
   )
   const { collapsedIDs, allCollapsed, canToggleAll, toggleMessage, toggleAll } =
     useCollapsedMessages(sessionId ?? '', timelineMessages)
@@ -396,9 +401,10 @@ export function ChatPage() {
           onToggleAll={toggleAll}
           showInternal={showInternal}
           onToggleInternal={toggleInternal}
+          worker={worker}
         />
 
-        {draftCount > 0 && !busy && !isArchivedSession(session) && (
+        {draftCount > 0 && !busy && !worker && !isArchivedSession(session) && (
           <DraftStartPanel sessionID={sessionId} count={draftCount} />
         )}
         <FormPanel sessionID={sessionId} />
@@ -452,6 +458,7 @@ export function ChatPage() {
             onForkMessage={handleForkMessage}
             onForwardMessage={handleForwardMessage}
             canActOnMessage={canActOnMessage}
+            canFork={!worker}
             actionsDisabled={forkPending || forwardPending}
           />
         )}
@@ -483,6 +490,7 @@ export function ChatPage() {
           }}
           onSent={handleSent}
           onCycleAgent={cycleAgent}
+          worker={worker}
         />
       </div>
 
