@@ -668,14 +668,6 @@ function failureReason(db: Db, request: Row, stage: string, outcome: string): st
   if (progress?.blocked_on) return `${lead} Last progress blocked on: ${progress.blocked_on}.`
   if (progress?.next_step) return `${lead} Last progress next step: ${progress.next_step}.`
 
-  const checkpoint = db
-    .prepare(
-      'SELECT blocked_on, next_step FROM checkpoints WHERE request_id = ? ORDER BY n DESC LIMIT 1'
-    )
-    .get(request.id)
-  if (checkpoint?.blocked_on) return `${lead} Last checkpoint blocked on: ${checkpoint.blocked_on}.`
-  if (checkpoint?.next_step) return `${lead} Last checkpoint next step: ${checkpoint.next_step}.`
-
   return lead
 }
 

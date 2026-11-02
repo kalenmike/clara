@@ -4,6 +4,10 @@
   "name": "Software request",
   "version": 1,
   "description": "Spec, freeze tests, build, apply docs, close.",
+  "progressGuard": {
+    "metric": "tests_passed",
+    "samples": 3
+  },
   "stages": [
     {
       "id": "spec",
@@ -28,7 +32,7 @@
       "phase": "work",
       "agent": "002",
       "role": "worker",
-      "instructions": "Write the tests that define done for the approved criteria. Use clara_ask to read them. Freeze the suite with clara_freeze, then call clara_stage_done with {\"tests_hash\": \"<hash>\", \"tests_total\": <n>}. Do not edit source.",
+      "instructions": "Write the tests that define done for the approved criteria. Use clara_ask to read them. Then call clara_stage_done with {\"tests_hash\": \"<hash>\", \"tests_total\": <n>}. The hash is immutable after that. Do not edit source.",
       "evidence": {
         "tests_hash": {
           "type": "string",
@@ -46,7 +50,7 @@
       "phase": "work",
       "agent": "003",
       "role": "worker",
-      "instructions": "Implement the request against the frozen tests. Use clara_checkpoint at each boundary. Do not edit tests. When complete, call clara_stage_done with {\"summary\": \"<what changed>\", \"criteria_addressed\": [<positions>]}. If a kill criterion fires, write a checkpoint with blocked_on and stop.",
+      "instructions": "Implement the request against the frozen tests. Use clara_progress at each boundary. Do not edit tests. When complete, call clara_stage_done with {\"summary\": \"<what changed>\", \"criteria_addressed\": [<positions>]}. If a kill criterion fires, write progress with blocked_on and stop.",
       "evidence": {
         "summary": {
           "type": "string",

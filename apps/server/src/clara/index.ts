@@ -1,4 +1,3 @@
-import { isClaraWorkerTitle } from '@clara/shared-types'
 import type { OpenCodeClient } from '../opencode.ts'
 import type { SettingsStore } from '../store/settings.ts'
 import { syncClaraAgentVisibility, type ClaraAgentSyncResult } from './agents.ts'
@@ -30,8 +29,8 @@ export class ClaraManagement {
   }
 
   /** Generic session suppression supplied to the push monitor. */
-  suppressSession = (session: { title?: string }): boolean =>
-    this.options.settings.getManagement() && isClaraWorkerTitle(session.title)
+  suppressSession = (session: { metadata?: Record<string, unknown> }): boolean =>
+    this.options.settings.getManagement() && session.metadata?.automation === true
 
   /**
    * Keep the generated agent files aligned with the switch and reload

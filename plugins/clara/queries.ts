@@ -359,14 +359,7 @@ export function setCriteria(
   }
 
   const at = now()
-  const sets = ['last_event_at = ?']
-  const values: any[] = [at]
-  if (input.docs_impact !== undefined) {
-    sets.push('docs_impact = ?')
-    values.push(input.docs_impact)
-  }
-  values.push(request.id)
-  db.prepare(`UPDATE requests SET ${sets.join(', ')} WHERE id = ?`).run(...values)
+  db.prepare('UPDATE requests SET last_event_at = ? WHERE id = ?').run(at, request.id)
   db.prepare(
     'INSERT INTO events (request_id, at, type, actor, payload) VALUES (?, ?, ?, ?, ?)'
   ).run(
@@ -452,36 +445,8 @@ export function approve(db: Db, input: { request: string | number; approved_by?:
   return `${pad(request.id)} ${request.slug}: criteria approved → state=approved. Work may now start.`
 }
 
-export function freeze(
-  db: Db,
-  input: { request: string | number; tests_hash: string; tests_total?: number }
-): string {
-  const request = requireRequest(db, input.request)
-  if (request.state !== 'approved' && request.state !== 'running') {
-    throw new Error(
-      `Clara: tests freeze in state=approved or running (request is ${request.state})`
-    )
-  }
-  const at = now()
-  db.prepare('UPDATE requests SET tests_hash = ?, last_event_at = ? WHERE id = ?').run(
-    input.tests_hash,
-    at,
-    request.id
-  )
-  db.prepare(
-    'INSERT INTO events (request_id, at, type, actor, payload) VALUES (?, ?, ?, ?, ?)'
-  ).run(
-    request.id,
-    at,
-    'tests.frozen',
-    'ai_2',
-    json({ hash: input.tests_hash, total: input.tests_total ?? null })
-  )
-  return `${pad(request.id)} ${request.slug}: tests frozen at ${input.tests_hash.slice(0, 12)}… — these files may not change from here.`
-}
-
 // ---------------------------------------------------------------------------
-// events + checkpoints
+// events
 // ---------------------------------------------------------------------------
 
 export function appendEvent(
@@ -558,100 +523,6 @@ export function appendEvent(
     )
   }
   return `${pad(updated.id)} ${updated.slug}: ${input.type} by ${input.actor}${input.state ? ` → state=${updated.state}` : ''}`
-}
-
-export interface CheckpointInput {
-  request: string | number
-  tests_passed: number
-  tests_total: number
-  files_changed?: number
-  criteria_addressed?: number[]
-  blocked_on?: string
-  next?: string
-  open_question?: string
-  tokens?: number
-  docs_impact?: string
-}
-
-export function checkpoint(db: Db, input: CheckpointInput): string {
-  const request = requireRequest(db, input.request)
-  if (request.state !== 'running') {
-    throw new Error(`Clara: checkpoints belong to state=running (request is ${request.state})`)
-  }
-
-  const last = db
-    .prepare('SELECT n FROM checkpoints WHERE request_id = ? ORDER BY n DESC LIMIT 1')
-    .get(request.id)
-  const n = Number(last?.n ?? 0) + 1
-  const at = now()
-
-  db.exec('BEGIN')
-  try {
-    db.prepare(
-      `INSERT INTO checkpoints
-        (request_id, n, at, tests_passed, tests_total, files_changed,
-         criteria_addressed, blocked_on, next_step, open_question, tokens)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
-    ).run(
-      request.id,
-      n,
-      at,
-      input.tests_passed,
-      input.tests_total,
-      input.files_changed ?? 0,
-      json(input.criteria_addressed ?? []),
-      input.blocked_on ?? null,
-      input.next ?? null,
-      input.open_question ?? null,
-      input.tokens ?? null
-    )
-
-    const sets = ['last_event_at = ?', 'stalled_at = NULL']
-    const values: any[] = [at]
-    if (typeof input.tokens === 'number') {
-      sets.push('tokens = tokens + ?')
-      values.push(input.tokens)
-    }
-    // A checkpoint without a blocker clears the previous one. The column is
-    // current state, not a log; the checkpoints table keeps the history.
-    sets.push('blocked_on = ?')
-    values.push(input.blocked_on ?? null)
-    if (input.docs_impact !== undefined) {
-      sets.push('docs_impact = ?')
-      values.push(input.docs_impact)
-    }
-    values.push(request.id)
-    db.prepare(`UPDATE requests SET ${sets.join(', ')} WHERE id = ?`).run(...values)
-
-    db.prepare(
-      'INSERT INTO events (request_id, at, type, actor, payload) VALUES (?, ?, ?, ?, ?)'
-    ).run(
-      request.id,
-      at,
-      'checkpoint',
-      'ai_3',
-      json({
-        n,
-        tests: `${input.tests_passed}/${input.tests_total}`,
-        blocked_on: input.blocked_on ?? null,
-      })
-    )
-    db.exec('COMMIT')
-  } catch (error) {
-    db.exec('ROLLBACK')
-    throw error
-  }
-
-  appendRecord(
-    request,
-    `\n- **#${n}** ${at} — tests ${input.tests_passed}/${input.tests_total}, ` +
-      `${input.files_changed ?? 0} files` +
-      (input.blocked_on ? `, blocked: ${input.blocked_on}` : '') +
-      (input.next ? `, next: ${input.next}` : '') +
-      `\n`
-  )
-
-  return `${pad(request.id)} ${request.slug}: checkpoint #${n} — ${input.tests_passed}/${input.tests_total} tests`
 }
 
 // ---------------------------------------------------------------------------
@@ -1291,16 +1162,25 @@ export function ask(
   return [`${rows.length} request(s):`, '', ...lines].join('\n')
 }
 
+function compactMetrics(value: unknown): string {
+  try {
+    const metrics = typeof value === 'string' ? JSON.parse(value) : value
+    if (!metrics || typeof metrics !== 'object') return String(metrics ?? '—')
+    const entries = Object.entries(metrics as Record<string, unknown>).map(
+      ([key, item]) => `${key}=${Array.isArray(item) ? item.join('/') : String(item)}`
+    )
+    return entries.length ? entries.join(', ') : '—'
+  } catch {
+    return String(value ?? '—')
+  }
+}
+
 function summaryLine(db: Db, f: Row): string {
   const ws = f.workspace ?? workspaceOf(db, f).name
   const open = db
     .prepare('SELECT COUNT(*) AS c FROM decisions WHERE request_id = ? AND resolved_at IS NULL')
     .get(f.id)
-  const cp = db
-    .prepare(
-      'SELECT tests_passed, tests_total FROM checkpoints WHERE request_id = ? ORDER BY n DESC LIMIT 1'
-    )
-    .get(f.id)
+  const cp = latestProgress(db, Number(f.id))
   const openCount = Number(open?.c ?? 0)
 
   const parts = [
@@ -1308,7 +1188,7 @@ function summaryLine(db: Db, f: Row): string {
     `[${ws}]`,
     f.state,
     `${f.tokens} tok`,
-    cp ? `${cp.tests_passed}/${cp.tests_total} tests` : 'no checkpoints',
+    cp ? `progress ${compactMetrics(cp.metrics)}` : 'no progress',
     `last event ${ago(f.last_event_at)}`,
   ]
   if (openCount > 0) parts.push(`${openCount} open decision(s)`)
@@ -1411,9 +1291,9 @@ function renderRequest(db: Db, f: Row): string {
   const criteria = db
     .prepare('SELECT * FROM criteria WHERE request_id = ? ORDER BY position')
     .all(f.id)
-  const checkpoints = db
-    .prepare('SELECT * FROM checkpoints WHERE request_id = ? ORDER BY n DESC LIMIT 5')
-    .all(f.id)
+  const progressRows = db
+    .prepare('SELECT * FROM progress WHERE request_id = ? ORDER BY n DESC LIMIT 5')
+    .all(f.id) as Row[]
   const events = db
     .prepare('SELECT * FROM events WHERE request_id = ? ORDER BY id DESC LIMIT 10')
     .all(f.id)
@@ -1430,34 +1310,6 @@ function renderRequest(db: Db, f: Row): string {
   const meta = f.meta ? JSON.parse(f.meta) : {}
   const approved = criteria.filter((c) => c.approved_at).length
   const gates = gateStatus(db, Number(f.id), criteria)
-
-  const frozen = db
-    .prepare(
-      "SELECT payload FROM events WHERE request_id = ? AND type = 'tests.frozen' ORDER BY id DESC LIMIT 1"
-    )
-    .get(f.id)
-  let frozenTotal: number | null = null
-  if (frozen) {
-    try {
-      const payload = JSON.parse(frozen.payload ?? '{}')
-      frozenTotal = typeof payload?.total === 'number' ? payload.total : null
-    } catch {
-      frozenTotal = null
-    }
-  }
-
-  const impact = String(f.docs_impact ?? '').trim()
-  const docsNeeded = impact !== '' && !['none', 'n/a', 'no'].includes(impact.toLowerCase())
-  const docsRun = db
-    .prepare(
-      "SELECT status FROM runs WHERE request_id = ? AND stage = 'docs' ORDER BY id DESC LIMIT 1"
-    )
-    .get(f.id)
-  const docsState = !docsNeeded
-    ? 'none'
-    : docsRun?.status === 'done'
-      ? `applied (${impact})`
-      : `pending (${impact})`
 
   const human =
     gates.gates.length === 0
@@ -1481,12 +1333,8 @@ function renderRequest(db: Db, f: Row): string {
       (f.soft_budget ? ` · soft ${f.soft_budget}` : '') +
       (f.hard_budget ? ` · hard ${f.hard_budget}` : ''),
     `attempts:  ${f.attempts}${f.attempts > ATTEMPT_LIMIT ? ' (over limit)' : ''}`,
-    `tests:     ${
-      f.tests_hash
-        ? `${f.tests_hash}${frozenTotal !== null ? ` (${frozenTotal} tests)` : ''}`
-        : 'not frozen'
-    }`,
-    `docs:      ${docsState}`,
+    `pipeline:  ${f.pipeline_id ?? 'software'}@${f.pipeline_version ?? 1}` +
+      (f.current_stage_id ? ` · stage ${f.current_stage_id}` : ''),
     `human:     ${human}`,
     `last:      ${f.last_event_at} (${ago(f.last_event_at)})`,
   ]
@@ -1538,21 +1386,13 @@ function renderRequest(db: Db, f: Row): string {
     }
   }
 
-  if (checkpoints.length) {
-    lines.push('', 'checkpoints (latest first):')
-    for (const c of checkpoints) {
-      let addressed: number[] = []
-      try {
-        const parsed = JSON.parse(c.criteria_addressed ?? '[]')
-        if (Array.isArray(parsed)) addressed = parsed.map(Number)
-      } catch {
-        addressed = []
-      }
+  if (progressRows.length) {
+    lines.push('', 'progress (latest first):')
+    for (const row of progressRows) {
       lines.push(
-        `  #${c.n} ${c.at} — ${c.tests_passed}/${c.tests_total} tests, ${c.files_changed} files` +
-          (addressed.length ? `, criteria ${listPositions(addressed)}` : '') +
-          (c.blocked_on ? `, blocked: ${c.blocked_on}` : '') +
-          (c.next_step ? `, next at the time: ${c.next_step}` : '')
+        `  #${row.n} ${row.at} — ${row.stage_id} · ${compactMetrics(row.metrics)}` +
+          (row.blocked_on ? `, blocked: ${row.blocked_on}` : '') +
+          (row.next_step ? `, next at the time: ${row.next_step}` : '')
       )
     }
   }
@@ -1645,8 +1485,14 @@ export function tick(db: Db, input: { workspace?: string; dry_run?: boolean } = 
       }
     }
 
-    // Heartbeat
-    if (f.state === 'running' && !f.stalled_at) {
+    // Heartbeat. Only a live worker can stall; waiting on a human gate is not a
+    // stalled stage.
+    const liveRun = db
+      .prepare(
+        "SELECT 1 FROM runs WHERE request_id = ? AND status IN ('starting', 'running') LIMIT 1"
+      )
+      .get(f.id)
+    if ((f.state === 'running' || f.state === 'review') && liveRun && !f.stalled_at) {
       const mins = (Date.now() - new Date(f.last_event_at).getTime()) / 60_000
       if (mins > STALL_MINUTES) {
         if (dry) {
@@ -1675,8 +1521,8 @@ export function tick(db: Db, input: { workspace?: string; dry_run?: boolean } = 
           decide(db, {
             request: f.id,
             kind: 'decision',
-            question: `Spend has passed the soft budget (${f.tokens}/${f.soft_budget} tokens). Finish or kill?`,
-            recommendation: 'kill',
+            question: `Spend has passed the soft budget (${f.tokens}/${f.soft_budget} tokens). Finish or cancel?`,
+            recommendation: 'cancel',
             evidence: `state=${f.state}, attempts=${f.attempts}`,
             reversible: false,
             cost: `${f.tokens} tokens spent so far`,
@@ -1687,39 +1533,51 @@ export function tick(db: Db, input: { workspace?: string; dry_run?: boolean } = 
       }
     }
 
-    // Flat progress with rising spend
-    const cps = db
-      .prepare(
-        'SELECT n, tests_passed, tests_total, tokens FROM checkpoints WHERE request_id = ? ORDER BY n DESC LIMIT 3'
-      )
-      .all(f.id)
-    if (cps.length === 3) {
-      const flat = cps.every((c) => Number(c.tests_passed) === Number(cps[0].tests_passed))
-      const rising =
-        cps[0].tokens != null &&
-        cps[2].tokens != null &&
-        Number(cps[0].tokens) > Number(cps[2].tokens)
-      if (flat && rising) {
-        const open = db
-          .prepare('SELECT 1 FROM decisions WHERE request_id = ? AND resolved_at IS NULL')
-          .get(f.id)
-        if (!open) {
-          if (dry) {
-            actions.push(`${label}: WOULD open decision (flat progress, rising spend)`)
-          } else {
-            decide(db, {
-              request: f.id,
-              kind: 'decision',
-              question:
-                'Test count has been flat across three checkpoints while spend rose. Is this thrashing?',
-              recommendation: 'kill',
-              evidence: `tests ${cps[0].tests_passed}/${cps[0].tests_total} across checkpoints ${cps
-                .map((c) => c.n)
-                .join(', ')}`,
-              reversible: false,
-              default_if_silent: 'block',
-            })
-            actions.push(`${label}: opened flat-progress decision`)
+    // Flat progress with rising spend. Pipelines opt in with a metric name.
+    const pipeline = pipelineForRequest(db, f)
+    const guard = pipeline.progressGuard
+    if (guard) {
+      const samples = guard.samples ?? 3
+      const rows = db
+        .prepare(
+          'SELECT n, metrics, tokens FROM progress WHERE request_id = ? ORDER BY n DESC LIMIT ?'
+        )
+        .all(f.id, samples) as Row[]
+      if (rows.length === samples) {
+        const values = rows.map((row) => {
+          try {
+            const metrics = JSON.parse(String(row.metrics ?? '{}'))
+            return Number(metrics?.[guard.metric])
+          } catch {
+            return Number.NaN
+          }
+        })
+        const flat = values.every((value) => Number.isFinite(value) && value === values[0])
+        const rising =
+          rows[0].tokens != null &&
+          rows[samples - 1].tokens != null &&
+          Number(rows[0].tokens) > Number(rows[samples - 1].tokens)
+        if (flat && rising) {
+          const open = db
+            .prepare('SELECT 1 FROM decisions WHERE request_id = ? AND resolved_at IS NULL')
+            .get(f.id)
+          if (!open) {
+            if (dry) {
+              actions.push(`${label}: WOULD open decision (flat progress, rising spend)`)
+            } else {
+              decide(db, {
+                request: f.id,
+                kind: 'decision',
+                question: `${guard.metric} has been flat across ${samples} progress reports while spend rose. Is this thrashing?`,
+                recommendation: 'cancel',
+                evidence: `${guard.metric}=${values[0]} across progress ${rows
+                  .map((row) => row.n)
+                  .join(', ')}`,
+                reversible: false,
+                default_if_silent: 'block',
+              })
+              actions.push(`${label}: opened flat-progress decision`)
+            }
           }
         }
       }

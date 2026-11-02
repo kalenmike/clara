@@ -52,29 +52,80 @@ const requestRef = {
   description: 'Request id (e.g. 42) or slug (e.g. remote-key-login)',
 }
 
-// Who is acting is decided by the agent that invoked the tool, never by the
-// arguments. Otherwise ai_3 could pass actor="ai_0" and close its own work.
-export const AGENT_ACTORS: Record<string, string> = {
-  '001': 'ai_1',
-  '002': 'ai_2',
-  '003': 'ai_3',
-  '004': 'ai_4',
-  judge: 'ai_0',
+// Who is acting is decided by the live run behind the session, never by the
+// arguments. A custom pipeline agent gets the role its stage declares; an
+// unknown agent with no run gets no write privileges.
+export type CallRole = 'human' | 'worker' | 'closer' | 'unknown'
+
+export const ROLE_FOR_AGENT: Record<string, CallRole> = {
+  '001': 'worker',
+  '002': 'worker',
+  '003': 'worker',
+  '004': 'worker',
+  judge: 'closer',
   clara: 'human',
 }
 
-const actorOf = (context: any): string => AGENT_ACTORS[String(context?.agent ?? '')] ?? 'human'
-const STAGE_ACTORS = ['ai_1', 'ai_2', 'ai_3', 'ai_4', 'ai_0']
+export type CallContext = {
+  agent: string
+  role: CallRole
+  actor: string
+  run?: Row
+}
 
-function requireRole(name: string, context: any, allowed: string[]): string {
-  const actor = actorOf(context)
-  if (!allowed.includes(actor)) {
+function callContext(db: Db, context: any): CallContext {
+  const agent = String(context?.agent ?? '').trim()
+  const sessionID = typeof context?.sessionID === 'string' ? context.sessionID : undefined
+
+  if (sessionID) {
+    const run = db
+      .prepare(
+        `SELECT r.*, f.state AS request_state
+           FROM runs r
+           JOIN requests f ON f.id = r.request_id
+          WHERE r.session_id = ? AND r.status IN ('starting', 'running')
+          ORDER BY r.id DESC LIMIT 1`
+      )
+      .get(sessionID) as Row | undefined
+    if (run) {
+      const role = run.role === 'closer' ? 'closer' : 'worker'
+      return { agent, role, actor: role === 'closer' ? 'ai_0' : 'worker', run }
+    }
+  }
+
+  const role = ROLE_FOR_AGENT[agent] ?? 'unknown'
+  return {
+    agent,
+    role,
+    actor:
+      role === 'human'
+        ? 'human'
+        : role === 'closer'
+          ? 'ai_0'
+          : role === 'worker'
+            ? 'worker'
+            : 'unknown',
+  }
+}
+
+function requireRole(name: string, call: CallContext, allowed: CallRole[]): CallContext {
+  if (!allowed.includes(call.role)) {
     throw new Error(
-      `Clara: ${name} is not available to ${context?.agent ?? 'unknown'} (actor ${actor}); ` +
+      `Clara: ${name} is not available to ${call.agent || 'unknown'} (role ${call.role}); ` +
         `allowed: ${allowed.join(', ')}`
     )
   }
-  return actor
+  return call
+}
+
+function requireRunStage(call: CallContext, request: unknown, stage: unknown): void {
+  if (!call.run) return
+  if (Number(call.run.request_id) !== Number(request) || call.run.stage !== String(stage)) {
+    throw new Error(
+      `Clara: this session owns ${call.run.stage} for request ${call.run.request_id}, not ` +
+        `${String(stage)} for request ${String(request)}`
+    )
+  }
 }
 
 /**
@@ -134,7 +185,7 @@ export function createTools(
         additionalProperties: false,
       },
       execute: async (input: any, context: any) => {
-        requireRole('submit', context, ['human'])
+        requireRole('submit', callContext(db, context), ['human'])
         return {
           content: q.submit(db, {
             ...input,
@@ -216,7 +267,7 @@ export function createTools(
         additionalProperties: false,
       },
       execute: async (input: any, context: any) => {
-        requireRole('attention', context, ['human'])
+        requireRole('attention', callContext(db, context), ['human'])
         const alert = db.prepare('SELECT * FROM alerts WHERE key = ?').get(String(input.alert)) as
           Row | undefined
         if (!alert) return { content: `Clara: no alert "${input.alert}".` }
@@ -306,7 +357,7 @@ export function createTools(
         additionalProperties: false,
       },
       execute: async (input: any, context: any) => {
-        requireRole('approve', context, ['human'])
+        requireRole('approve', callContext(db, context), ['human'])
         return { content: q.approve(db, input) }
       },
     },
@@ -335,7 +386,7 @@ export function createTools(
         additionalProperties: false,
       },
       execute: async (input: any, context: any) => {
-        requireRole('gate', context, ['human'])
+        requireRole('gate', callContext(db, context), ['human'])
         return { content: q.gate(db, input) }
       },
     },
@@ -387,62 +438,8 @@ export function createTools(
         additionalProperties: false,
       },
       execute: async (input: any, context: any) => {
-        requireRole('criteria', context, ['ai_1', 'human'])
+        requireRole('criteria', callContext(db, context), ['worker', 'human'])
         return { content: q.setCriteria(db, input) }
-      },
-    },
-
-    // -- test agent (ai_2) -------------------------------------------------
-
-    {
-      name: 'freeze',
-      description:
-        'Record the hash of the finished test suite. After this the tests may not change; the close gate compares against this hash.',
-      input: {
-        type: 'object',
-        properties: {
-          request: requestRef,
-          tests_hash: { type: 'string' },
-          tests_total: { type: 'number' },
-        },
-        required: ['request', 'tests_hash'],
-        additionalProperties: false,
-      },
-      execute: async (input: any, context: any) => {
-        requireRole('freeze', context, ['ai_2', 'human'])
-        return { content: q.freeze(db, input) }
-      },
-    },
-
-    // -- build agent (ai_3) ------------------------------------------------
-
-    {
-      name: 'checkpoint',
-      description:
-        'Report progress at a checkpoint boundary. Numbers must come from CI and git, not from self-assessment.',
-      input: {
-        type: 'object',
-        properties: {
-          request: requestRef,
-          tests_passed: { type: 'number' },
-          tests_total: { type: 'number' },
-          files_changed: { type: 'number' },
-          criteria_addressed: { type: 'array', items: { type: 'number' } },
-          blocked_on: { type: 'string' },
-          next: { type: 'string' },
-          open_question: { type: 'string' },
-          tokens: { type: 'number' },
-          docs_impact: {
-            type: 'string',
-            description: 'Workspace docs that must change, or "none".',
-          },
-        },
-        required: ['request', 'tests_passed', 'tests_total'],
-        additionalProperties: false,
-      },
-      execute: async (input: any, context: any) => {
-        requireRole('checkpoint', context, ['ai_3', 'human'])
-        return { content: q.checkpoint(db, input) }
       },
     },
 
@@ -467,8 +464,9 @@ export function createTools(
         additionalProperties: false,
       },
       execute: async (input: any, context: any) => {
-        const actor = requireRole('stage_done', context, STAGE_ACTORS)
-        return { content: q.stageDone(db, { ...input, actor }) }
+        const call = requireRole('stage_done', callContext(db, context), ['worker', 'closer'])
+        requireRunStage(call, input.request, input.stage)
+        return { content: q.stageDone(db, { ...input, actor: call.actor }) }
       },
     },
 
@@ -488,8 +486,8 @@ export function createTools(
         additionalProperties: false,
       },
       execute: async (input: any, context: any) => {
-        const actor = requireRole('stage_gate', context, ['human'])
-        return { content: q.stageGate(db, { ...input, actor }) }
+        const call = requireRole('stage_gate', callContext(db, context), ['human'])
+        return { content: q.stageGate(db, { ...input, actor: call.actor }) }
       },
     },
 
@@ -516,8 +514,9 @@ export function createTools(
         additionalProperties: false,
       },
       execute: async (input: any, context: any) => {
-        const actor = requireRole('progress', context, STAGE_ACTORS)
-        return { content: q.progress(db, { ...input, actor }) }
+        const call = requireRole('progress', callContext(db, context), ['worker', 'closer'])
+        requireRunStage(call, input.request, input.stage)
+        return { content: q.progress(db, { ...input, actor: call.actor }) }
       },
     },
 
@@ -541,9 +540,10 @@ export function createTools(
         required: ['request', 'type'],
         additionalProperties: false,
       },
-      execute: async (input: any, context: any) => ({
-        content: q.appendEvent(db, { ...input, actor: actorOf(context) }),
-      }),
+      execute: async (input: any, context: any) => {
+        const call = requireRole('event', callContext(db, context), ['worker', 'closer', 'human'])
+        return { content: q.appendEvent(db, { ...input, actor: call.actor }) }
+      },
     },
 
     {
@@ -566,7 +566,7 @@ export function createTools(
         additionalProperties: false,
       },
       execute: async (input: any, context: any) => {
-        requireRole('decide', context, ['ai_0', 'ai_4', 'human'])
+        requireRole('decide', callContext(db, context), ['worker', 'closer', 'human'])
         return { content: q.decide(db, input) }
       },
     },
@@ -585,7 +585,7 @@ export function createTools(
         additionalProperties: false,
       },
       execute: async (input: any, context: any) => {
-        requireRole('resolve', context, ['human'])
+        requireRole('resolve', callContext(db, context), ['human'])
         return { content: q.resolveDecision(db, input) }
       },
     },
@@ -603,7 +603,7 @@ export function createTools(
         additionalProperties: false,
       },
       execute: async (input: any, context: any) => {
-        requireRole('tick', context, ['ai_0', 'human'])
+        requireRole('tick', callContext(db, context), ['closer', 'human'])
         return { content: q.tick(db, input ?? {}) }
       },
     },

@@ -9,6 +9,7 @@
 // it must not stay in the open inbox forever.
 
 import { now, type Db, type Row } from './db.ts'
+import { pipelineForRequest } from './pipeline.ts'
 
 export type AlertKind =
   'decision' | 'stalled' | 'budget' | 'approval' | 'stage_gate' | 'review_gate' | 'cancelled'
@@ -90,7 +91,7 @@ export function pendingHumanWork(db: Db): AlertItem[] {
       `SELECT f.*, w.name AS workspace
          FROM requests f
          JOIN workspaces w ON w.id = f.workspace_id
-        WHERE f.state = 'running' AND f.stalled_at IS NOT NULL
+        WHERE f.state IN ('running', 'review') AND f.stalled_at IS NOT NULL
         ORDER BY f.stalled_at ASC`
     )
     .all()
@@ -183,7 +184,91 @@ export function pendingHumanWork(db: Db): AlertItem[] {
     })
   }
 
+  const gateRequests = db
+    .prepare(
+      `SELECT f.*, w.name AS workspace
+         FROM requests f
+         JOIN workspaces w ON w.id = f.workspace_id
+        WHERE f.state IN ('draft', 'approved', 'running', 'review')
+          AND f.stalled_at IS NULL
+          AND NOT EXISTS (
+            SELECT 1 FROM decisions d
+             WHERE d.request_id = f.id AND d.resolved_at IS NULL
+          )
+        ORDER BY f.id`
+    )
+    .all()
+  for (const request of gateRequests) {
+    let pipeline
+    try {
+      pipeline = pipelineForRequest(db, request)
+    } catch {
+      continue
+    }
+    const statuses = requestStageStatuses(db, Number(request.id))
+    let priorComplete = true
+    for (const stage of pipeline.stages) {
+      if (stage.gate && priorComplete) {
+        const verified = stageGateVerified(db, Number(request.id), stage.id, stage.gate.position)
+        const reached =
+          stage.gate.position === 'before'
+            ? !statuses.has(stage.id)
+            : statuses.get(stage.id) === 'completed'
+        if (reached && !verified) {
+          items.push({
+            key: `stage_gate:${request.id}:${stage.id}:${stage.gate.position}`,
+            requestId: Number(request.id),
+            slug: String(request.slug),
+            workspace: String(request.workspace),
+            kind: 'stage_gate',
+            title: `${label(request)} · stage gate · ${stage.title}`,
+            body: `Stage ${stage.id} (${stage.title}) needs clara_stage_gate (${stage.gate.position}).`,
+          })
+        }
+      }
+      priorComplete = priorComplete && statuses.has(stage.id)
+    }
+  }
+
   return items
+}
+
+function requestStageStatuses(db: Db, requestID: number): Map<string, 'completed' | 'skipped'> {
+  const rows = db
+    .prepare(
+      `SELECT type, payload FROM events
+        WHERE request_id = ? AND type IN ('stage.completed', 'stage.skipped')
+        ORDER BY id`
+    )
+    .all(requestID) as Row[]
+  const statuses = new Map<string, 'completed' | 'skipped'>()
+  for (const row of rows) {
+    try {
+      const payload = JSON.parse(String(row.payload ?? '{}'))
+      if (typeof payload?.stage === 'string') {
+        statuses.set(payload.stage, row.type === 'stage.completed' ? 'completed' : 'skipped')
+      }
+    } catch {
+      // Ignore malformed event payloads.
+    }
+  }
+  return statuses
+}
+
+function stageGateVerified(
+  db: Db,
+  requestID: number,
+  stageID: string,
+  position: 'before' | 'after'
+): boolean {
+  const row = db
+    .prepare(
+      `SELECT result FROM stage_gates
+        WHERE request_id = ? AND stage_id = ? AND position = ?
+        ORDER BY id DESC LIMIT 1`
+    )
+    .get(requestID, stageID, position)
+  return row?.result === 'verified'
 }
 
 /** One-time terminal cancellations deserve a notification but not a permanent inbox row. */

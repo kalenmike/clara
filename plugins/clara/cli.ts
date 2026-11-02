@@ -9,12 +9,12 @@
 //   pnpm clara:ledger run clara_inbox
 //   pnpm clara:ledger run clara_ask '{"question":"what is in flight?"}'
 //
-// The actor is derived from --agent exactly as it is inside OpenCode:
-// clara -> human, 001 -> ai_1, 002 -> ai_2, 003 -> ai_3, judge -> ai_0.
+// The role is derived from --agent exactly as it is inside OpenCode:
+// clara -> human, 001-004 -> worker, judge -> closer.
 
 import { existsSync, readFileSync } from 'node:fs'
 import { DEFAULT_DB_PATH, getDb } from './db.ts'
-import { AGENT_ACTORS, createTools, toolId, type ClaraTool } from './index.ts'
+import { ROLE_FOR_AGENT, createTools, toolId, type ClaraTool } from './index.ts'
 import {
   catalogPipelines,
   loadPipeline,
@@ -121,15 +121,15 @@ function render(content: unknown): string {
 }
 
 function actorFor(agent: string): string {
-  return AGENT_ACTORS[agent] ?? 'human'
+  return ROLE_FOR_AGENT[agent] ?? 'unknown'
 }
 
 function printHelp(): void {
   console.log(`Clara ledger CLI
 
 Invoke the ledger tools directly. Role checks still apply: --agent decides who
-is acting (clara -> human, 001 -> ai_1, 002 -> ai_2, 003 -> ai_3, judge -> ai_0,
-unknown -> human).
+is acting (clara -> human, 001-004 -> worker, judge -> closer, unknown -> no
+write privileges).
 
 Usage:
   pnpm clara:ledger list

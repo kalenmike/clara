@@ -131,8 +131,6 @@ const expected = [
   'clara_approve',
   'clara_gate',
   'clara_criteria',
-  'clara_freeze',
-  'clara_checkpoint',
   'clara_stage_done',
   'clara_stage_gate',
   'clara_progress',
@@ -143,7 +141,7 @@ const expected = [
 ]
 check('plugin id is clara', plugin.id === 'clara')
 check('namespace is clara', namespaceName === 'clara')
-check('registers 16 tools', tools.size === 16, `got ${[...tools.keys()].join(', ')}`)
+check('registers 14 tools', tools.size === 14, `got ${[...tools.keys()].join(', ')}`)
 for (const name of expected) check(`tool ${name}`, tools.has(name))
 check(
   'every tool carries the clara namespace',
@@ -231,7 +229,7 @@ check(
     (p) => p.action === 'edit' && p.resource === 'docs/records/**' && p.effect === 'allow'
   )
 )
-check('docs agent maps to ai_4', index.AGENT_ACTORS['004'] === 'ai_4')
+check('docs agent maps to the worker role', index.ROLE_FOR_AGENT['004'] === 'worker')
 
 check(
   'every tool has a description',
@@ -521,6 +519,13 @@ try {
   blocked = (error as Error).message
 }
 check('implementer cannot approve criteria', blocked.includes('not available to 003'), blocked)
+let unknownRole = ''
+try {
+  await tools.get('clara_approve')!.execute({ request: request.id }, { agent: 'custom-agent' })
+} catch (error) {
+  unknownRole = (error as Error).message
+}
+check('an unknown agent has no write privileges', unknownRole.includes('role unknown'), unknownRole)
 
 q.approve(db, { request: request.id })
 const afterApprove = q.requestByRef(db, request.id)!
@@ -533,36 +538,34 @@ check(
     .every((c: any) => c.approved_at)
 )
 
-console.log('\n4. freeze + build')
-expectThrow(
-  'cannot checkpoint before building',
-  () => q.checkpoint(db, { request: request.id, tests_passed: 1, tests_total: 4 }),
-  'state=running'
-)
-
-q.freeze(db, { request: request.id, tests_hash: '8f3ac21d', tests_total: 4 })
+console.log('\n4. evidence + progress')
+q.stageDone(db, {
+  request: request.id,
+  stage: 'test',
+  evidence: { tests_hash: '8f3ac21d', tests_total: 4 },
+  actor: 'ai_2',
+})
 q.appendEvent(db, { request: request.id, type: 'build.started', actor: 'ai_3', state: 'running' })
 check('state is running', q.requestByRef(db, request.id)!.state === 'running')
 
-q.checkpoint(db, {
+q.progress(db, {
   request: request.id,
-  tests_passed: 1,
-  tests_total: 4,
-  files_changed: 3,
-  criteria_addressed: [1],
+  stage: 'build',
+  metrics: { tests_passed: 1, tests_total: 4, files_changed: 3, criteria_addressed: [1] },
   next: 'add injectable clock',
   tokens: 40_000,
+  actor: 'ai_3',
 })
-q.checkpoint(db, {
+q.progress(db, {
   request: request.id,
-  tests_passed: 1,
-  tests_total: 4,
-  files_changed: 5,
+  stage: 'build',
+  metrics: { tests_passed: 1, tests_total: 4, files_changed: 5, criteria_addressed: [1] },
   blocked_on: 'clock abstraction missing from the harness',
   tokens: 55_000,
+  actor: 'ai_3',
 })
-const cps = db.prepare('SELECT * FROM checkpoints WHERE request_id = ? ORDER BY n').all(request.id)
-check('two checkpoints', cps.length === 2)
+const cps = db.prepare('SELECT * FROM progress WHERE request_id = ? ORDER BY n').all(request.id)
+check('two progress reports', cps.length === 2)
 check('tokens accumulated', q.requestByRef(db, request.id)!.tokens === 95_000)
 
 console.log('\n5. inbox')
@@ -578,7 +581,7 @@ const decisionId = Number(
       kind: 'decision',
       question: 'The clock abstraction is missing. Add it, or drop the expiry criterion?',
       recommendation: 'add an injectable clock — dropping expiry is a security regression',
-      evidence: '2 checkpoints, tests stuck at 1/4',
+      evidence: '2 progress reports, tests stuck at 1/4',
       reversible: true,
       cost: '~80k tokens',
       default_if_silent: 'block',
@@ -594,10 +597,9 @@ console.log('\n6. ask')
 const asked = q.ask(db, { question: 'what is 001 doing?', request: request.id })
 check('ask reports state', asked.includes('state:     running'))
 check('ask reports criteria', asked.includes('4/4 approved'))
-check('ask reports checkpoints', asked.includes('checkpoint'))
-check('ask reports criteria covered by a checkpoint', asked.includes('criteria 1'))
-check('ask reports the frozen test hash', asked.includes('tests:     8f3ac21d (4 tests)'))
-check('ask reports docs state', asked.includes('docs:      none'))
+check('ask reports progress', asked.includes('progress (latest first)'))
+check('ask reports criteria covered by progress', asked.includes('criteria_addressed=1'))
+check('ask reports the frozen test hash', asked.includes('test.tests_hash: 8f3ac21d'))
 check('ask reports unverified human gates', asked.includes('human:     UNVERIFIED (4)'))
 check('ask reports the current blocker', asked.includes('blocked:   clock abstraction'))
 check('ask marks the record frontmatter historical', asked.includes('frontmatter is historical'))
@@ -728,7 +730,6 @@ q.stageDone(db, {
   actor: 'ai_1',
 })
 q.approve(db, { request: stalledId })
-q.freeze(db, { request: stalledId, tests_hash: 'abc123', tests_total: 1 })
 q.appendEvent(db, { request: stalledId, type: 'build.started', actor: 'ai_3', state: 'running' })
 db.prepare('UPDATE requests SET tokens = 6000, last_event_at = ? WHERE id = ?').run(
   new Date(Date.now() - 30 * 60_000).toISOString(),
@@ -744,6 +745,35 @@ check('tick kills over hard budget', q.requestByRef(db, stalledId)!.state === 'c
 check('scrap reason recorded', q.requestByRef(db, stalledId)!.cancel_reason === 'budget')
 check('tick output mentions the kill', live.includes('cancelled'))
 
+const stallSubmit = q.submit(db, {
+  workspace: 'clara',
+  title: 'A live worker can stall',
+  intent: 'A stalled request asks a human instead of waiting forever.',
+})
+const stallId = Number(stallSubmit.match(/submitted (\d+)/)![1])
+q.setCriteria(db, {
+  request: stallId,
+  criteria: [{ text: 'stall detection works', test_path: 'tests/stall.test.ts' }],
+})
+q.stageDone(db, {
+  request: stallId,
+  stage: 'spec',
+  evidence: { criteria_count: 1, docs_impact: 'none' },
+  actor: 'ai_1',
+})
+q.approve(db, { request: stallId })
+q.appendEvent(db, { request: stallId, type: 'build.started', actor: 'ai_3', state: 'running' })
+runs.startRun(db, stallId, 'build', '003', 'worker')
+db.prepare('UPDATE requests SET last_event_at = ? WHERE id = ?').run(
+  new Date(Date.now() - 20 * 60_000).toISOString(),
+  stallId
+)
+q.tick(db, { dry_run: false })
+check(
+  'a live worker with no events is marked stalled',
+  Boolean(q.requestByRef(db, stallId)!.stalled_at)
+)
+
 console.log('\n10. record file')
 const record = await import('node:fs').then((fs) =>
   fs.readFileSync(String(q.requestByRef(db, request.id)!.record_path), 'utf8')
@@ -751,7 +781,7 @@ const record = await import('node:fs').then((fs) =>
 check('record has front matter', record.startsWith('---'))
 check('record has non-goals', record.includes('password login'))
 check('record has criteria table', record.includes('| # | Criterion | Verification | Check |'))
-check('record has checkpoints', record.includes('**#2**'))
+check('record has progress', record.includes('**#2**'))
 
 console.log('\n11. daemon')
 type MockSession = {
@@ -857,10 +887,6 @@ q.setCriteria(ddb, {
   criteria: [{ text: 'the daemon drives the request', test_path: 'tests/daemon.test.ts' }],
   docs_impact: 'update docs/features/daemon.md',
 })
-check(
-  'criteria records the docs impact',
-  q.requestByRef(ddb, daemonId)!.docs_impact === 'update docs/features/daemon.md'
-)
 q.stageDone(ddb, {
   request: daemonId,
   stage: 'spec',
@@ -884,7 +910,6 @@ check(
   JSON.stringify({ session: sessions[1].metadata, prompt: sessions[1].promptMetadata })
 )
 
-q.freeze(ddb, { request: daemonId, tests_hash: 'daemon-hash', tests_total: 1 })
 q.stageDone(ddb, {
   request: daemonId,
   stage: 'test',
@@ -897,22 +922,16 @@ check('test run is done', runs.latestRun(ddb, daemonId, 'test')?.status === 'don
 check('daemon starts the build stage', sessions.length === 3 && sessions[2].agent === '003')
 check('daemon moved the request to running', q.requestByRef(ddb, daemonId)!.state === 'running')
 
-q.checkpoint(ddb, {
+q.progress(ddb, {
   request: daemonId,
-  tests_passed: 1,
-  tests_total: 1,
-  files_changed: 2,
-  docs_impact: 'update docs/features/ledger.md',
+  stage: 'build',
+  metrics: { tests_passed: 1, tests_total: 1, files_changed: 2 },
+  next: 'finish the last edge case',
+  tokens: 2000,
+  actor: 'ai_3',
 })
-check(
-  'checkpoint refines the docs impact',
-  q.requestByRef(ddb, daemonId)!.docs_impact === 'update docs/features/ledger.md'
-)
 const daemonAsk = q.ask(ddb, { request: daemonId })
-check(
-  'ask reports the docs impact as pending',
-  daemonAsk.includes('docs:      pending (update docs/features/ledger.md)')
-)
+check('ask reports progress', daemonAsk.includes('progress (latest first)'))
 check(
   'ask lists the live run with its session',
   daemonAsk.includes('build running (003 ses_daemon_3')
@@ -934,10 +953,6 @@ q.stageDone(ddb, { request: daemonId, stage: 'docs', actor: 'ai_4' })
 sessions[3].outcome = 'succeeded'
 await supervisor.runOnce()
 check('docs run is done', runs.latestRun(ddb, daemonId, 'docs')?.status === 'done')
-check(
-  'ask reports the docs impact as applied',
-  q.ask(ddb, { request: daemonId }).includes('docs:      applied (update docs/features/ledger.md)')
-)
 check('daemon starts the judge stage', sessions.length === 5 && sessions[4].agent === 'judge')
 check(
   'judge handoff points at the ledger and the gates',
@@ -987,6 +1002,8 @@ check('resolved decision retries the stage', sessions.length === 7 && sessions[6
 // daemon loop. The mock session API does not care which agents exist.
 const contentWorkspace = join(daemonDir, 'content-workspace')
 mkdirSync(contentWorkspace, { recursive: true })
+const daemonTools = index.createTools(ddb)
+
 const contentSubmit = q.submit(ddb, {
   workspace: 'content',
   path: contentWorkspace,
@@ -1017,12 +1034,33 @@ await supervisor.runOnce()
 const draftSession = sessions[sessions.length - 1]
 check('content pipeline starts its work agent', draftSession.agent === 'clara-writer')
 check('content request is running', q.requestByRef(ddb, contentId)!.state === 'running')
-q.stageDone(ddb, {
-  request: contentId,
-  stage: 'draft',
-  evidence: { copy: 'Build faster with Clara.', word_count: 4 },
-  actor: 'ai_1',
-})
+await daemonTools
+  .find((tool) => tool.name === 'stage_done')!
+  .execute(
+    {
+      request: contentId,
+      stage: 'draft',
+      evidence: { copy: 'Build faster with Clara.', word_count: 4 },
+    },
+    { agent: 'clara-writer', sessionID: draftSession.id }
+  )
+let wrongStage = ''
+try {
+  await daemonTools
+    .find((tool) => tool.name === 'stage_done')!
+    .execute(
+      { request: contentId, stage: 'deliver', evidence: { result: 'too early', artifacts: [] } },
+      { agent: 'clara-writer', sessionID: draftSession.id }
+    )
+} catch (error) {
+  wrongStage = (error as Error).message
+}
+check('a worker cannot complete another stage', wrongStage.includes('owns draft'), wrongStage)
+collectAlerts(ddb)
+const pendingStageGate = ddb
+  .prepare('SELECT * FROM alerts WHERE key = ? AND resolved_at IS NULL')
+  .get(`stage_gate:${contentId}:draft:after`)
+check('a pending stage gate creates an alert', Boolean(pendingStageGate))
 q.stageGate(ddb, {
   request: contentId,
   stage: 'draft',
@@ -1030,6 +1068,11 @@ q.stageGate(ddb, {
   evidence: 'draft approved',
   actor: 'human',
 })
+collectAlerts(ddb)
+const closedStageGate = ddb
+  .prepare('SELECT resolved_at FROM alerts WHERE key = ?')
+  .get(`stage_gate:${contentId}:draft:after`)
+check('verifying a stage gate resolves the alert', Boolean(closedStageGate?.resolved_at))
 draftSession.outcome = 'succeeded'
 await supervisor.runOnce()
 check(
@@ -1045,12 +1088,16 @@ q.stageDone(ddb, {
 sessions[sessions.length - 1].outcome = 'succeeded'
 await supervisor.runOnce()
 check('content pipeline starts its closer', sessions[sessions.length - 1].agent === 'clara-closer')
-q.stageDone(ddb, {
-  request: contentId,
-  stage: 'deliver',
-  evidence: { result: 'Launch copy delivered', artifacts: ['https://example.test/copy'] },
-  actor: 'ai_0',
-})
+await daemonTools
+  .find((tool) => tool.name === 'stage_done')!
+  .execute(
+    {
+      request: contentId,
+      stage: 'deliver',
+      evidence: { result: 'Launch copy delivered', artifacts: ['https://example.test/copy'] },
+    },
+    { agent: 'clara-closer', sessionID: sessions[sessions.length - 1].id }
+  )
 sessions[sessions.length - 1].outcome = 'succeeded'
 await supervisor.runOnce()
 const contentDone = q.requestByRef(ddb, contentId)!
@@ -1111,7 +1158,6 @@ const approvalClosed = db
   .get(`approval:${waitId}`)
 check('approval resolves the alert', Boolean(approvalClosed?.resolved_at))
 
-q.freeze(db, { request: waitId, tests_hash: 'sha256:wait', tests_total: 1 })
 q.appendEvent(db, { request: waitId, type: 'build.started', actor: 'ai_0', state: 'running' })
 q.appendEvent(db, { request: waitId, type: 'build.review', actor: 'ai_0', state: 'review' })
 collectAlerts(db)

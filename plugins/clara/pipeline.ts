@@ -58,12 +58,18 @@ export type PipelineStage = {
   gate?: StageGate
 }
 
+export type ProgressGuard = {
+  metric: string
+  samples?: number
+}
+
 export type Pipeline = {
   schemaVersion: number
   id: string
   name: string
   version: number
   description?: string
+  progressGuard?: ProgressGuard
   stages: PipelineStage[]
 }
 
@@ -109,6 +115,7 @@ export const SOFTWARE_PIPELINE: Pipeline = {
   name: 'Software request',
   version: 1,
   description: 'Spec, freeze tests, build, apply docs, close.',
+  progressGuard: { metric: 'tests_passed', samples: 3 },
   stages: [
     {
       id: 'spec',
@@ -130,7 +137,7 @@ export const SOFTWARE_PIPELINE: Pipeline = {
       agent: '002',
       role: 'worker',
       instructions:
-        'Write the tests that define done for the approved criteria. Use clara_ask to read them. Freeze the suite with clara_freeze, then call clara_stage_done with {"tests_hash": "<hash>", "tests_total": <n>}. Do not edit source.',
+        'Write the tests that define done for the approved criteria. Use clara_ask to read them. Then call clara_stage_done with {"tests_hash": "<hash>", "tests_total": <n>}. The hash is immutable after that. Do not edit source.',
       evidence: {
         tests_hash: { type: 'string', required: true, immutable: true },
         tests_total: { type: 'number' },
@@ -143,7 +150,7 @@ export const SOFTWARE_PIPELINE: Pipeline = {
       agent: '003',
       role: 'worker',
       instructions:
-        'Implement the request against the frozen tests. Use clara_checkpoint at each boundary. Do not edit tests. When complete, call clara_stage_done with {"summary": "<what changed>", "criteria_addressed": [<positions>]}. If a kill criterion fires, write a checkpoint with blocked_on and stop.',
+        'Implement the request against the frozen tests. Use clara_progress at each boundary. Do not edit tests. When complete, call clara_stage_done with {"summary": "<what changed>", "criteria_addressed": [<positions>]}. If a kill criterion fires, write progress with blocked_on and stop.',
       evidence: {
         summary: { type: 'string', required: true },
         criteria_addressed: { type: 'array' },
@@ -408,6 +415,31 @@ function validateInstructions(value: unknown, prefix: string, errors: string[]):
   return value
 }
 
+function validateProgressGuard(value: unknown, errors: string[]): ProgressGuard | undefined {
+  if (value === undefined) return
+  if (!isRecord(value)) {
+    errors.push('progressGuard: must be an object')
+    return
+  }
+  if (!nonEmptyString(value.metric)) {
+    errors.push('progressGuard.metric: must be a non-empty string')
+    return
+  }
+  if (
+    value.samples !== undefined &&
+    (typeof value.samples !== 'number' ||
+      !Number.isInteger(value.samples) ||
+      value.samples < 2 ||
+      value.samples > 10)
+  ) {
+    errors.push('progressGuard.samples: must be an integer between 2 and 10')
+  }
+  return {
+    metric: value.metric,
+    ...(typeof value.samples === 'number' ? { samples: value.samples } : {}),
+  }
+}
+
 export function validatePipeline(value: unknown): PipelineValidation {
   const errors: string[] = []
   if (!isRecord(value)) return { errors: ['pipeline: must be a JSON object'] }
@@ -425,6 +457,7 @@ export function validatePipeline(value: unknown): PipelineValidation {
   if (value.description !== undefined && typeof value.description !== 'string') {
     errors.push('description: must be a string')
   }
+  const progressGuard = validateProgressGuard(value.progressGuard, errors)
   if (!Array.isArray(value.stages) || value.stages.length === 0) {
     errors.push('stages: must be a non-empty array')
     return { errors }
@@ -514,6 +547,7 @@ export function validatePipeline(value: unknown): PipelineValidation {
       name: value.name as string,
       version: value.version as number,
       ...(typeof value.description === 'string' ? { description: value.description } : {}),
+      ...(progressGuard ? { progressGuard } : {}),
       stages,
     },
   }

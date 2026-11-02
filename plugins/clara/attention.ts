@@ -413,7 +413,9 @@ function attentionPrompt(row: Row, label: string): string {
       ? 'This is a cancelled request: use state info; no answer is needed.'
       : row.kind === 'stalled'
         ? 'This request is stalled: use info when there is nothing to decide, otherwise feedback.'
-        : 'Use the state that fits: feedback for a free-text answer, form for structured answers, confirm for a go/no-go, or info when nothing is needed.'
+        : row.kind === 'stage_gate'
+          ? 'This stage gate needs a human: use confirm for a go/no-go, or feedback for a note.'
+          : 'Use the state that fits: feedback for a free-text answer, form for structured answers, confirm for a go/no-go, or info when nothing is needed.'
 
   return [
     `Clara daemon: ledger alert "${row.key}" for ${request}.`,
