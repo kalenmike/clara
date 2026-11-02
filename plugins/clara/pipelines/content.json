@@ -1,0 +1,74 @@
+{
+  "schemaVersion": 1,
+  "id": "content",
+  "name": "Content request",
+  "version": 1,
+  "description": "Brief, draft, edit, deliver.",
+  "stages": [
+    {
+      "id": "brief",
+      "title": "Brief",
+      "phase": "contract",
+      "agent": "clara-brief",
+      "role": "worker",
+      "instructions": "Turn the request into a content brief with clara_criteria. Include audience, tone, length, and the call to action. Every criterion needs a human_gate or an artifact reference.",
+      "evidence": {
+        "brief": {
+          "type": "string",
+          "required": true
+        }
+      }
+    },
+    {
+      "id": "draft",
+      "title": "Draft",
+      "phase": "work",
+      "agent": "clara-writer",
+      "role": "worker",
+      "instructions": "Write the draft from the approved brief. Record the copy and its word count as evidence.",
+      "evidence": {
+        "copy": {
+          "type": "string",
+          "required": true
+        },
+        "word_count": {
+          "type": "number"
+        }
+      }
+    },
+    {
+      "id": "edit",
+      "title": "Edit",
+      "phase": "review",
+      "agent": "clara-editor",
+      "role": "worker",
+      "instructions": "Edit the draft against the brief. Record the final copy and a short change summary.",
+      "evidence": {
+        "final_copy": {
+          "type": "string",
+          "required": true
+        },
+        "changes": {
+          "type": "string"
+        }
+      }
+    },
+    {
+      "id": "deliver",
+      "title": "Deliver",
+      "phase": "close",
+      "agent": "clara-closer",
+      "role": "closer",
+      "instructions": "Deliver the final copy. Record the result and any artifact paths or URLs, then complete the request.",
+      "evidence": {
+        "result": {
+          "type": "string",
+          "required": true
+        },
+        "artifacts": {
+          "type": "array"
+        }
+      }
+    }
+  ]
+}

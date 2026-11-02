@@ -8,6 +8,13 @@ import { appendFileSync, existsSync, mkdirSync, writeFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { pendingHumanWork } from './alerts.ts'
 import { ago, now, slugify, type Db, type Row } from './db.ts'
+import {
+  ensurePipelineSnapshots,
+  loadPipeline,
+  pipelineHash,
+  pipelineSnapshot,
+  workspacePipelineId,
+} from './pipeline.ts'
 
 export const STALL_MINUTES = 10
 export const ATTEMPT_LIMIT = 3
@@ -102,6 +109,7 @@ function writeInitialRecord(request: Row, meta: Row): void {
 request: ${request.id}
 slug: ${request.slug}
 workspace: ${meta.workspace}
+pipeline: ${request.pipeline_id ?? 'software'}@${request.pipeline_version ?? 1}
 state: ${request.state}
 created: ${request.created_at}
 ---
@@ -163,12 +171,18 @@ export interface SubmitInput {
   soft_budget?: number
   hard_budget?: number
   time_limit_minutes?: number
+  /** Pipeline id. Defaults to the workspace pipeline, then `software`. */
+  pipeline?: string
   /** The Clara session where the human submitted this request. */
   session_id?: string
 }
 
 export function submit(db: Db, input: SubmitInput): string {
+  ensurePipelineSnapshots(db)
   const ws = ensureWorkspace(db, input.workspace, input.path)
+  const loaded = loadPipeline(input.pipeline?.trim() || workspacePipelineId(ws))
+  const contract = loaded.pipeline.stages.find((stage) => stage.phase === 'contract')
+  if (!contract) throw new Error(`Clara: pipeline ${loaded.pipeline.id} has no contract stage`)
 
   const base = slugify(input.title) || 'request'
   let slug = base
@@ -193,8 +207,10 @@ export function submit(db: Db, input: SubmitInput): string {
     .prepare(
       `INSERT INTO requests
         (workspace_id, slug, title, intent, meta, state, soft_budget, hard_budget,
-         time_limit_minutes, session_id, last_event_at, created_at)
-       VALUES (?, ?, ?, ?, ?, 'draft', ?, ?, ?, ?, ?, ?)`
+         time_limit_minutes, session_id, last_event_at, created_at,
+         pipeline_id, pipeline_version, pipeline_hash, pipeline_snapshot,
+         current_stage_id)
+       VALUES (?, ?, ?, ?, ?, 'draft', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
     )
     .run(
       ws.id,
@@ -207,7 +223,12 @@ export function submit(db: Db, input: SubmitInput): string {
       input.time_limit_minutes ?? null,
       input.session_id ?? null,
       at,
-      at
+      at,
+      loaded.pipeline.id,
+      loaded.pipeline.version,
+      pipelineHash(loaded.pipeline),
+      pipelineSnapshot(loaded.pipeline),
+      contract.id
     )
 
   if (input.session_id) {
@@ -231,11 +252,16 @@ export function submit(db: Db, input: SubmitInput): string {
     at,
     'request.submitted',
     'human',
-    json({ priority: meta.priority, session: input.session_id ?? null })
+    json({
+      priority: meta.priority,
+      session: input.session_id ?? null,
+      pipeline: `${loaded.pipeline.id}@${loaded.pipeline.version}`,
+    })
   )
 
   return [
     `submitted ${pad(id)} ${slug} [${ws.name}] state=draft`,
+    `pipeline: ${loaded.pipeline.id}@${loaded.pipeline.version} (${loaded.pipeline.name})`,
     `record: ${existsSync(recordPath) ? recordPath : `${recordPath} (workspace path missing — record not written)`}`,
     `next: the contract stage proposes acceptance criteria; a human approves before work starts.`,
   ].join('\n')

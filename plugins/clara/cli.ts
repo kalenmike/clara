@@ -12,15 +12,26 @@
 // The actor is derived from --agent exactly as it is inside OpenCode:
 // clara -> human, 001 -> ai_1, 002 -> ai_2, 003 -> ai_3, judge -> ai_0.
 
-import { readFileSync } from 'node:fs'
+import { existsSync, readFileSync } from 'node:fs'
 import { DEFAULT_DB_PATH, getDb } from './db.ts'
 import { AGENT_ACTORS, createTools, toolId, type ClaraTool } from './index.ts'
+import {
+  catalogPipelines,
+  loadPipeline,
+  pipelineDir,
+  pipelineForRequest,
+  readPipelineFile,
+  selectWorkspacePipeline,
+  type Pipeline,
+} from './pipeline.ts'
+import { ensureWorkspace, requestByRef } from './queries.ts'
 
 type Options = {
   command: string
   args: string[]
   agent: string
   db?: string
+  path?: string
   json: boolean
 }
 
@@ -33,12 +44,14 @@ function parseArgs(argv: string[]): Options {
   const positional: string[] = []
   let agent = 'clara'
   let db: string | undefined
+  let path: string | undefined
   let json = false
 
   for (let index = 0; index < argv.length; index++) {
     const arg = argv[index]
 
-    if (arg === '--help' || arg === '-h') return { command: 'help', args: [], agent, db, json }
+    if (arg === '--help' || arg === '-h')
+      return { command: 'help', args: [], agent, db, path, json }
     if (arg === '--json') {
       json = true
       continue
@@ -59,13 +72,21 @@ function parseArgs(argv: string[]): Options {
       db = arg.slice('--db='.length)
       continue
     }
+    if (arg === '--path') {
+      path = argv[++index] ?? fail('--path needs a value')
+      continue
+    }
+    if (arg.startsWith('--path=')) {
+      path = arg.slice('--path='.length)
+      continue
+    }
     if (arg.startsWith('-') && arg !== '-') fail(`unknown option ${arg}`)
 
     positional.push(arg)
   }
 
   const [command = 'help', ...args] = positional
-  return { command, args, agent, db, json }
+  return { command, args, agent, db, path, json }
 }
 
 function resolveTool(tools: ClaraTool[], requested: string): ClaraTool {
@@ -113,6 +134,7 @@ unknown -> human).
 Usage:
   pnpm clara:ledger list
   pnpm clara:ledger run <tool> [json] [--agent <id>] [--db <path>] [--json]
+  pnpm clara:ledger pipeline list|validate|select|show ...
   pnpm clara:ledger help
 
 Input:
@@ -128,8 +150,131 @@ Examples:
   pnpm clara:ledger run clara_tick '{"dry_run":true}' --agent judge
   echo '{"question":"what is in flight?"}' | pnpm clara:ledger run clara_ask -
 
+Pipeline commands:
+  pnpm clara:ledger pipeline list
+  pnpm clara:ledger pipeline validate software
+  pnpm clara:ledger pipeline validate ./my-pipeline.json
+  pnpm clara:ledger pipeline select clara content
+  pnpm clara:ledger pipeline show clara
+  pnpm clara:ledger pipeline show 42
+
 The actor is printed to stderr. Only the tool's content goes to stdout, so
 redirecting the output captures the result without the header.`)
+}
+
+function formatPipeline(pipeline: Pipeline, label: string): string {
+  const lines = [
+    `${pipeline.id}@${pipeline.version} — ${pipeline.name} [${label}]`,
+    ...(pipeline.description ? [pipeline.description] : []),
+    '',
+  ]
+  pipeline.stages.forEach((stage, index) => {
+    lines.push(
+      `${index + 1}. ${stage.id} — ${stage.title} · ${stage.phase} · agent ${stage.agent} · ${stage.role}`
+    )
+    if (stage.evidence) {
+      lines.push(
+        `   evidence: ${Object.entries(stage.evidence)
+          .map(
+            ([key, spec]) =>
+              `${key}:${spec.type}${spec.required ? ' required' : ''}${spec.immutable ? ' immutable' : ''}`
+          )
+          .join(', ')}`
+      )
+    }
+    if (stage.when) lines.push(`   when: ${JSON.stringify(stage.when)}`)
+    if (stage.gate) lines.push(`   gate: ${stage.gate.position} ${stage.gate.kind}`)
+  })
+  return lines.join('\n')
+}
+
+async function runPipeline(options: Options): Promise<void> {
+  const [subcommand = 'list', ...args] = options.args
+
+  if (subcommand === 'list') {
+    if (args.length) fail('pipeline list does not take arguments')
+    const catalog = catalogPipelines()
+    console.log(`pipelines in ${pipelineDir()}`)
+    for (const entry of catalog.pipelines) {
+      const location = entry.source === 'builtin' ? 'builtin' : entry.path
+      console.log(
+        `  ${entry.pipeline.id}@${entry.pipeline.version}  ${entry.pipeline.name}  ` +
+          `[${entry.source}] ${entry.pipeline.stages.length} stage(s)  ${location}`
+      )
+    }
+    if (catalog.errors.length) {
+      for (const error of catalog.errors) {
+        console.error(`  invalid ${error.id ?? error.path}: ${error.errors.join('; ')}`)
+      }
+      process.exit(1)
+    }
+    return
+  }
+
+  if (subcommand === 'validate') {
+    const target = args[0]
+    if (!target) fail('pipeline validate needs an id or a file path')
+    if (existsSync(target)) {
+      const result = readPipelineFile(target)
+      if (!result.pipeline) {
+        for (const error of result.errors) console.error(`  ${error}`)
+        process.exit(1)
+        return
+      }
+      console.log(
+        `ok ${result.pipeline.id}@${result.pipeline.version} — ${result.pipeline.stages.length} stage(s) · ${target}`
+      )
+      return
+    }
+    try {
+      const loaded = loadPipeline(target)
+      console.log(
+        `ok ${loaded.pipeline.id}@${loaded.pipeline.version} — ${loaded.pipeline.stages.length} stage(s) · ${loaded.source}`
+      )
+    } catch (error) {
+      fail((error as Error).message)
+    }
+    return
+  }
+
+  if (subcommand === 'select') {
+    const [workspace, id] = args
+    if (!workspace || !id) fail('pipeline select needs a workspace and a pipeline id')
+    const dbPath = options.db ?? process.env.CLARA_LEDGER_DB_PATH ?? DEFAULT_DB_PATH
+    const db = await getDb(dbPath)
+    if (options.path) ensureWorkspace(db, workspace, options.path)
+    console.log(selectWorkspacePipeline(db, workspace, id))
+    return
+  }
+
+  if (subcommand === 'show') {
+    const target = args[0]
+    if (!target) fail('pipeline show needs a request id, slug, or workspace')
+    const dbPath = options.db ?? process.env.CLARA_LEDGER_DB_PATH ?? DEFAULT_DB_PATH
+    const db = await getDb(dbPath)
+    const request = requestByRef(db, target)
+    if (request) {
+      console.log(formatPipeline(pipelineForRequest(db, request), 'pinned'))
+      return
+    }
+    const workspace = db.prepare('SELECT * FROM workspaces WHERE name = ?').get(target)
+    if (!workspace) {
+      try {
+        console.log(formatPipeline(loadPipeline(target).pipeline, 'pipeline'))
+        return
+      } catch {
+        fail(`no request, workspace, or pipeline "${target}"`)
+      }
+    }
+    const id =
+      typeof workspace.pipeline_id === 'string' && workspace.pipeline_id
+        ? workspace.pipeline_id
+        : 'software'
+    console.log(formatPipeline(loadPipeline(id).pipeline, `workspace ${target}`))
+    return
+  }
+
+  fail(`unknown pipeline command "${subcommand}". Try \`pnpm clara:ledger pipeline list\`.`)
 }
 
 async function main(): Promise<void> {
@@ -137,6 +282,11 @@ async function main(): Promise<void> {
 
   if (options.command === 'help') {
     printHelp()
+    return
+  }
+
+  if (options.command === 'pipeline') {
+    await runPipeline(options)
     return
   }
 

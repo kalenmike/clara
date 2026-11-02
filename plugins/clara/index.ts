@@ -30,6 +30,7 @@ import {
 } from './attention.ts'
 import { createDaemon } from './daemon.ts'
 import { DEFAULT_DB_PATH, getDb, managementEnabled, type Db, type Row } from './db.ts'
+import { ensurePipelineSnapshots } from './pipeline.ts'
 import * as q from './queries.ts'
 
 export const NAMESPACE = 'clara'
@@ -87,6 +88,7 @@ export function createTools(
   guard?: () => Promise<boolean>,
   forms?: AttentionFormApi
 ): ClaraTool[] {
+  ensurePipelineSnapshots(db)
   const tools: ClaraTool[] = [
     // -- human facing ------------------------------------------------------
 
@@ -122,6 +124,10 @@ export function createTools(
           soft_budget: { type: 'number', description: 'Tokens. Above this, Clara must ask.' },
           hard_budget: { type: 'number', description: 'Tokens. Above this, Clara kills.' },
           time_limit_minutes: { type: 'number' },
+          pipeline: {
+            type: 'string',
+            description: 'Pipeline id. Defaults to the workspace pipeline, then software.',
+          },
         },
         required: ['workspace', 'title', 'intent'],
         additionalProperties: false,

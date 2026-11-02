@@ -4,7 +4,7 @@
 //
 // This is not a unit test suite. It is the "does the whole shape hold" check.
 
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, existsSync } from 'node:fs'
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import * as daemon from './daemon.ts'
@@ -13,6 +13,15 @@ import { deliverAttention } from './attention.ts'
 import { getDb, managementEnabled } from './db.ts'
 import * as q from './queries.ts'
 import * as runs from './runs.ts'
+import {
+  CONTENT_PIPELINE,
+  SOFTWARE_PIPELINE,
+  loadPipeline,
+  pipelineForRequest,
+  pipelineHash,
+  selectWorkspacePipeline,
+  validatePipeline,
+} from './pipeline.ts'
 
 let failures = 0
 let checks = 0
@@ -252,6 +261,91 @@ controlDb.close()
 
 const wired = await tools.get('clara_inbox')!.execute({})
 check('tool execute reaches the ledger', String(wired.content).startsWith('inbox: empty'))
+
+console.log('\n0b. pipelines')
+check(
+  'built-in software pipeline validates',
+  validatePipeline(SOFTWARE_PIPELINE).errors.length === 0
+)
+check('content example validates', validatePipeline(CONTENT_PIPELINE).errors.length === 0)
+check(
+  'invalid pipeline reports errors',
+  validatePipeline({ schemaVersion: 1, id: 'bad', stages: [] }).errors.length > 0
+)
+check(
+  'software preset has one contract and one close stage',
+  SOFTWARE_PIPELINE.stages.filter((stage) => stage.phase === 'contract').length === 1 &&
+    SOFTWARE_PIPELINE.stages.filter((stage) => stage.phase === 'close').length === 1
+)
+
+const pipelineRoot = join(dir, 'pipelines')
+mkdirSync(pipelineRoot, { recursive: true })
+const contentPath = join(pipelineRoot, 'content.json')
+writeFileSync(contentPath, `${JSON.stringify(CONTENT_PIPELINE, null, 2)}\n`)
+check(
+  'user pipeline loads from the config directory',
+  loadPipeline('content').pipeline.name === CONTENT_PIPELINE.name
+)
+
+const pipelineWorkspace = join(dir, 'pipeline-workspace')
+mkdirSync(pipelineWorkspace, { recursive: true })
+const pinned = q.submit(db, {
+  workspace: 'pipelines',
+  path: pipelineWorkspace,
+  title: 'Write the launch page copy',
+  intent: 'A landing page has final copy ready to publish.',
+  pipeline: 'content',
+})
+const pinnedId = Number(pinned.match(/submitted (\d+)/)![1])
+const pinnedRequest = q.requestByRef(db, pinnedId)!
+check('submit pins the chosen pipeline', pinnedRequest.pipeline_id === 'content')
+check('submit pins the contract stage', pinnedRequest.current_stage_id === 'brief')
+check(
+  'submit stores a snapshot hash',
+  pinnedRequest.pipeline_hash === pipelineHash(CONTENT_PIPELINE)
+)
+check(
+  'submit stores the full snapshot',
+  pipelineForRequest(db, pinnedRequest).stages.length === CONTENT_PIPELINE.stages.length
+)
+
+const changedContent = { ...CONTENT_PIPELINE, version: 2, name: 'Content request v2' }
+writeFileSync(contentPath, `${JSON.stringify(changedContent, null, 2)}\n`)
+check(
+  'editing the file changes the loadable pipeline',
+  loadPipeline('content').pipeline.version === 2
+)
+check(
+  'in-flight requests keep their pinned snapshot',
+  pipelineForRequest(db, q.requestByRef(db, pinnedId)!).name === CONTENT_PIPELINE.name
+)
+
+selectWorkspacePipeline(db, 'pipelines', 'content')
+const defaulted = q.submit(db, {
+  workspace: 'pipelines',
+  title: 'Write the follow-up email',
+  intent: 'The launch follow-up email is ready to send.',
+})
+const defaultedId = Number(defaulted.match(/submitted (\d+)/)![1])
+check(
+  'a workspace default pins the selected version',
+  q.requestByRef(db, defaultedId)!.pipeline_version === 2
+)
+
+const badPath = join(pipelineRoot, 'bad.json')
+writeFileSync(badPath, JSON.stringify({ schemaVersion: 1, id: 'bad' }))
+let pipelineError = ''
+try {
+  loadPipeline('bad')
+} catch (error) {
+  pipelineError = (error as Error).message
+}
+check(
+  'invalid pipeline is refused',
+  pipelineError.includes('invalid pipeline "bad"'),
+  pipelineError
+)
+rmSync(badPath)
 
 console.log('\n1. submit')
 const submitted = q.submit(db, {
