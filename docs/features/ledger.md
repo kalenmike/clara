@@ -12,9 +12,11 @@ build, docs, and judge agents in child sessions.
 
 1. Run `pnpm clara:plugin:install` from the Clara repository.
 2. Enable **Clara management** in the agent panel. Turning it on is the master
-   switch for the ledger daemon, ledger alerts, and the Clara inbox.
-3. Reload OpenCode. The `clara`, `001`–`004`, and `judge` agents appear while the
-   switch is on.
+   switch for the ledger daemon, ledger alerts, the Clara inbox, and the Clara
+   agents in OpenCode.
+3. The `clara`, `001`–`004`, and `judge` agents appear while the switch is on.
+   The home agent rewrites their generated files and reloads OpenCode whenever
+   the switch changes, so no reinstall is needed.
 4. Select the `clara` agent and submit a feature with `clara_submit`.
 5. Ask for status at any time with `clara_ask` or `clara_inbox`.
 6. Approve the proposed criteria with `clara_approve`; nothing builds before
@@ -49,8 +51,8 @@ build, docs, and judge agents in child sessions.
    a worker. A single-owner lock and the `runs` table keep one daemon and one
    live session per stage.
 8. **One master switch.** `management.enabled` in the home agent panel gates
-   the daemon, the tools, ledger alerts, and the Clara inbox. When it is off,
-   ordinary OpenCode session alerts continue unchanged.
+   the daemon, the tools, ledger alerts, the Clara inbox, and the Clara agent
+   catalog. When it is off, ordinary OpenCode session alerts continue unchanged.
 9. **The ledger records exceptions; the home agent delivers them.** The plugin
    writes the `alerts` outbox and never sends push or a system notification.
    The home agent reads it read-only and owns delivery and deduplication.
@@ -80,7 +82,9 @@ build, docs, and judge agents in child sessions.
 - The host has no session API, or `daemon: false` / `CLARA_DAEMON=0` is set;
   the ledger still records state, but nothing is launched.
 - Clara management is disabled; every `clara_*` tool refuses, the daemon stays
-  loaded but idle, and the agents are hidden on the next install/reload.
+  loaded but idle, and the panel marks the generated agent files disabled and
+  reloads OpenCode so the agents leave the catalog. Agent files edited after
+  installation are reported and left untouched.
 - The home agent database is missing; management defaults to off.
 - A ledger alert is delivered once even across an agent restart; the delivery
   cursor and keys live in the home agent database, not the ledger.
@@ -119,7 +123,8 @@ build, docs, and judge agents in child sessions.
 - Override: `CLARA_LEDGER_DB_PATH` or the plugin `db` option
 - Home agent settings database: `~/.config/clara/clara.db` (separate)
 - Management switch: `management.enabled` in the home agent database, owned by
-  the panel and read by the plugin. Default off.
+  the panel and read by the plugin. Changing it also toggles `disabled` in the
+  generated agent files and reloads OpenCode. Default off.
 - Daemon: `plugins/clara/daemon.ts` ticks every 15s, reconciles `runs`, and
   launches one missing stage per tick through the OpenCode session API.
 - Alert outbox: `alerts` in `ledger.db`, written by `collectAlerts` and read
@@ -151,7 +156,8 @@ build, docs, and judge agents in child sessions.
   the same tool definitions against the same ledger and still derives the actor
   from the agent id.
 - OpenCode 2.2.5 discovers agents only from markdown or an `agents` config map,
-  not from plugin code. The installer renders `agents.json` for that reason.
+  not from plugin code. The installer renders `agents.json`, and the home agent
+  keeps the generated files' `disabled` field in sync with management.
 - See [plugins/clara/README.md](../../plugins/clara/README.md) for the full tool
   reference and state machine.
 

@@ -66,11 +66,12 @@ monitoring on or off, and gate or pace client settings sync.
     each device's category choices remain. The interval defaults to 30 seconds.
 13. Leave the page open. It refreshes every five seconds while visible and
     pauses when the tab is hidden. Use **Refresh** for an immediate check.
-14. Use **Clara management** to turn the ledger daemon, ledger alerts, and the
-    web Clara inbox on or off. Turning it off disables the Clara tools and
-    daemon immediately and leaves ordinary session alerts unchanged. Run
-    `pnpm clara:plugin:install` and reload OpenCode to hide or restore the
-    agent files.
+14. Use **Clara management** to turn the ledger daemon, ledger alerts, the web
+    Clara inbox, and the Clara agents on or off. Turning it off disables the
+    Clara tools and daemon immediately and leaves ordinary session alerts
+    unchanged. It also marks the generated agent files disabled and reloads
+    OpenCode, so the agents leave the catalog without a reinstall; turning it
+    back on restores them.
 
 ## Core business rules
 
@@ -152,6 +153,9 @@ monitoring on or off, and gate or pace client settings sync.
   policy unchanged; the textarea keeps the draft so it can be fixed.
 - **The policy is off** — Clara's Git tab shows that commit history is disabled
   and does not retry.
+- **Clara management changes** — the panel rewrites `disabled` in the generated
+  Clara agent files and reloads OpenCode before it broadcasts the new flag.
+  Files edited after installation are left alone and reported in the agent log.
 - **A feature fails to start** — the saved choice remains, the card shows the
   error, and the rest of the agent keeps running.
 - **No clients** — the client table shows an empty state.

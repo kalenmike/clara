@@ -44,7 +44,7 @@ export function ManagementCard({
   return (
     <CollapsibleCard
       title="Clara management"
-      description="Ledger daemon, exception alerts, and the Clara inbox"
+      description="Ledger daemon, Clara agents, exception alerts, and the inbox"
       icon={<Workflow className="size-4" aria-hidden="true" />}
       action={
         <Badge tone={management.enabled ? 'success' : 'neutral'}>
@@ -70,17 +70,16 @@ export function ManagementCard({
     >
       <CardBody>
         <p className="text-xs text-neutral-500 dark:text-neutral-400">
-          When on, the OpenCode plugin may run the Clara ledger daemon and the home agent delivers
-          ledger exceptions as Clara alerts. Turning it off disables the Clara tools and daemon
-          immediately and leaves ordinary session alerts unchanged.
+          When on, the OpenCode plugin may run the Clara ledger daemon, the Clara agents are
+          available, and the home agent delivers ledger exceptions as Clara alerts. Turning it off
+          disables the Clara tools, daemon, and agents immediately and leaves ordinary session
+          alerts unchanged.
         </p>
 
         <p className="pt-2 text-[11px] text-neutral-500 dark:text-neutral-400">
-          To hide or restore the Clara agents in OpenCode, run{' '}
-          <code className="rounded bg-neutral-100 px-1 py-0.5 dark:bg-neutral-800">
-            pnpm clara:plugin:install
-          </code>{' '}
-          and reload OpenCode. Tool access changes without a reload.
+          The switch also hides or restores the Clara agents in OpenCode. The home agent rewrites
+          the installed agent files and reloads OpenCode; files edited after installation are left
+          untouched. Tool access changes without a reload.
         </p>
       </CardBody>
     </CollapsibleCard>

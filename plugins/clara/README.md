@@ -38,9 +38,11 @@ The installer:
 2. symlinks `~/.config/opencode/plugins/clara` to this directory,
 3. renders `agents.json` into `~/.config/opencode/agents/*.md`.
 
-The installer reads `management.enabled` from the home agent database. When it
-is off, the agents are rendered with `disabled: true`; enable Clara management
-in the panel, then re-run the installer and reload OpenCode to show them again.
+The installer reads `management.enabled` from the home agent database and uses
+it for the first render. After installation the home agent panel keeps the
+agents in sync: changing the switch rewrites `disabled: true` in the generated
+files and reloads OpenCode, so no reinstall is needed. Files edited after
+installation are left untouched; re-run with `--force` to replace them.
 
 OpenCode discovers global plugins in `~/.config/opencode/plugins/`. A local
 plugin directory needs a `package.json` with a `name` and `exports`; this one
@@ -87,8 +89,9 @@ On load the plugin prints:
 
 The plugin reads `management.enabled` from the home agent database
 (`~/.config/clara/clara.db`) without writing it. When the flag is off, every
-`clara_*` tool refuses and the daemon stays loaded but idle. The CLI bypasses
-this guard for manual recovery.
+`clara_*` tool refuses, the daemon stays loaded but idle, and the panel keeps
+the generated agents marked `disabled`. The CLI bypasses this guard for manual
+recovery.
 
 The daemon does not start when the host has no session API, or when it is
 disabled with `daemon: false` or `CLARA_DAEMON=0`.
