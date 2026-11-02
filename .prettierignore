@@ -5,3 +5,5 @@ pnpm-lock.yaml
 **/dist
 **/.wrangler
 **/*.tsbuildinfo
+# Clara ledger feature records are generated and append-only.
+docs/features/[0-9][0-9][0-9]-*.md
