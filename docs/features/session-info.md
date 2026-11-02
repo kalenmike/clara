@@ -24,11 +24,13 @@ the [Git](git.md) tab and the [pair terminal](pair-terminal.md).
    thread as a system event rather than a prompt the person typed. The button
    stays available while the agent is working: steering is delivered at the next
    safe boundary and the input tells the agent to update the checklist and carry
-   on. An empty draft shows "Send your brief to view the plan" instead.
+   on. An empty draft shows "Send your brief to view the plan" instead. A worker
+   session keeps the Plan section and both request actions even though its
+   composer is hidden.
 5. Read context usage as a percentage and bar, then cost and the input, output,
    reasoning, cache-read, and cache-write totals.
-6. Read message counts: prompts from you, replies from the agent, tool calls, and
-   total context entries.
+6. Read message counts: prompts from you, prompts from automation when present,
+   replies from the agent, tool calls, and total context entries.
 7. Read session timing and the model's context and output limits.
 8. Leave the panel open; it updates as usage events arrive.
 
@@ -39,7 +41,8 @@ the [Git](git.md) tab and the [pair terminal](pair-terminal.md).
 2. Cost and token totals prefer live usage events, then fall back to the session
    record.
 3. Message counts come from the full session context, not the pages loaded in
-   the chat.
+   the chat. A user message with `metadata.synthetic === true` counts under
+   **from automation**, never **from you**.
 4. The panel is available on every session, including empty ones.
 5. The panel is read-only except for the Plan requests. The selected tab and the
    panel width are remembered across reloads, and only the visible tab loads its

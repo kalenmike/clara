@@ -23,6 +23,11 @@ build, docs, and judge agents in child sessions.
    that.
 7. The daemon launches the spec agent to propose criteria; after approval it
    launches the test, build, docs, and judge agents as each stage completes.
+   Every worker session is created with `initiatedBy: "daemon"` and
+   `automation: true` metadata, and its initial handoff prompt carries
+   `source: "daemon"` and `synthetic: true`. Clients use those markers to keep
+   worker sessions and daemon input out of the human mailbox and transcript
+   attribution.
 8. At `review`, the person verifies the human-gate criteria with `clara_gate`;
    the daemon launches the docs agent when there is a docs impact, then the
    judge. The judge closes only when every gate is recorded.
@@ -86,6 +91,10 @@ Clara management tables.
    writes the `alerts` outbox and never sends push or a system notification.
    The home agent reads `ledger.db` read-only and keeps its delivery cursor and
    dedupe keys in a separate Clara-owned sidecar database.
+10. **Worker identity is explicit, not inferred from a title.** The daemon
+    writes `automation: true` on the session and `synthetic: true` on its
+    handoff prompt. The title prefix stays only as a compatibility fallback for
+    older worker sessions.
 
 ## Edge cases
 
@@ -163,7 +172,10 @@ Clara management tables.
   agents; `--purge` also removes the ledger, sidecar, management setting, and
   legacy delivery tables.
 - Daemon: `plugins/clara/daemon.ts` ticks every 15s, reconciles `runs`, and
-  launches one missing stage per tick through the OpenCode session API.
+  launches one missing stage per tick through the OpenCode session API. It
+  exports `DAEMON_SESSION_METADATA` (`initiatedBy: daemon`, `automation: true`)
+  and `DAEMON_PROMPT_METADATA` (`source: daemon`, `synthetic: true`) and passes
+  them to `session.create` and the initial `session.prompt`.
 - Alert outbox: `alerts` in `ledger.db`, written by `collectAlerts` and read
   read-only by `apps/server/src/clara/ledger`.
 - Delivery state: `~/.config/clara/ledger-alerts.db`, a Clara-owned sidecar

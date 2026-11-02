@@ -18,8 +18,11 @@ by default, and the noun is configurable in Settings.
    projects, skipping projects without sessions by default, plus the current
    project when it falls outside that window. Each row shows its name and
    canonical path; **All projects** at the end opens the projects page.
-3. Choosing a project loads its sessions into five collapsible sections: Inbox,
-   Outbox, Drafts, Snoozed, and Archived.
+3. Choosing a project loads its sessions into five collapsible mailbox
+   sections: Inbox, Outbox, Drafts, Snoozed, and Archived. While Clara
+   management is on, daemon-created sessions are removed from those sections
+   and shown in a separately anchored **Workers** section at the bottom of the
+   sidebar.
 4. Inbox holds sessions that need the person: a pending approval or question,
    or an idle session whose latest conversational message is from the agent.
    Outbox holds sessions where the agent still owes a reply, including every
@@ -28,30 +31,33 @@ by default, and the noun is configurable in Settings.
    has not produced a projected message yet. Snoozed holds sessions postponed
    with the server's `snoozed` metadata. Archived holds sessions archived on the
    server and wins over Snoozed when both apply.
-6. The search box filters sessions by title using the server's search parameter
+6. Workers sits above the sidebar footer and expands upward. Its trigger stays
+   visible when the section is closed, and the session rows keep the same
+   running, blocked, and error dots as the mailbox sections.
+7. The search box filters sessions by title using the server's search parameter
    and temporarily expands every section so matching titles are visible. A
    toggle button beside the search box opens or closes every section at once;
    it is disabled while a search is active.
-7. **New session** creates a session in the selected project and opens the reply
+8. **New session** creates a session in the selected project and opens the reply
    composer in the last-used size (expanded by default), ready for the first
    prompt; the empty session appears in Drafts. Opening an empty draft with
    locally saved text opens the composer too.
-8. The All projects page shows one card per canonical, non-empty project with
+9. The All projects page shows one card per canonical, non-empty project with
    its directory, last activity, and active/archived session counts. A filter
    icon at the far right of the header opens a **Show empty projects** switch,
    off by default. The card menu renames the project on the OpenCode server; the
    directory does not change.
-9. The project page uses the same page shell as Settings and All projects. A
-   project info card shows the directory, ID, icon, VCS, commands, sandboxes,
-   created/updated/active/archived timestamps, and active/inactive/total session
-   counts. Its menu archives every session or deletes every session after
-   confirmation; the project record itself stays on the server. Below the card,
-   a project settings card edits the icon, avatar color, and workspace startup
-   script on the server. Below that, a sessions heading introduces the session
-   cards with agent, model, token totals, cost, and update time.
-10. Opening a session shows it in the sidebar and loads the chat view, or a
+10. The project page uses the same page shell as Settings and All projects. A
+    project info card shows the directory, ID, icon, VCS, commands, sandboxes,
+    created/updated/active/archived timestamps, and active/inactive/total session
+    counts. Its menu archives every session or deletes every session after
+    confirmation; the project record itself stays on the server. Below the card,
+    a project settings card edits the icon, avatar color, and workspace startup
+    script on the server. Below that, a sessions heading introduces the session
+    cards with agent, model, token totals, cost, and update time.
+11. Opening a session shows it in the sidebar and loads the chat view, or a
     dedicated New message view when it has no messages and no pending draft.
-11. A **Monitor Inbox** switch on the start view, below **New Session**, jumps
+12. A **Monitor Inbox** switch on the start view, below **New Session**, jumps
     to the newest Inbox session when turned on. While active it advances after
     Done, Send, Build, or saving a draft: Clara opens the next newest Inbox
     session, or the start view when the Inbox is empty. It also opens a session
@@ -60,13 +66,13 @@ by default, and the noun is configurable in Settings.
     otherwise never redirected. The switch shows whether monitoring is active
     whenever the start view is shown, and reports how many agents are working in
     the project's Outbox with a pulsing dot while any run is active.
-12. The chat header can rename, snooze, archive, or delete the current session. A
+13. The chat header can rename, snooze, archive, or delete the current session. A
     home button to the left of the title returns to the start view.
-13. The Done button in the reply dock archives the session without renaming it,
+14. The Done button in the reply dock archives the session without renaming it,
     briefly celebrates, and returns to the start view (or opens the next Inbox
     session while Monitor Inbox is active). An empty draft shows a simple
     **Delete** action instead, which removes the session immediately.
-14. Opening an archived or snoozed session shows a Reopen button next to Reply.
+15. Opening an archived or snoozed session shows a Reopen button next to Reply.
     Reopening clears the server's archived and snoozed flags as applicable and
     leaves the title untouched.
 
@@ -172,10 +178,16 @@ by default, and the noun is configurable in Settings.
     `icon.override` as a 128×128 PNG data URL, writes one of OpenCode's six
     avatar colors to `icon.color`, and writes the workspace startup command to
     `commands.start`. It never writes the server-discovered `icon.url`.
+19. While Clara management is on, a session whose metadata says
+    `automation === true` never enters Inbox, Outbox, Drafts, Snoozed, or
+    Archived. It stays in Workers even when archived, and New session does not
+    inherit its agent or model. When the build excludes Clara management or the
+    panel switch is off, the same session is treated as an ordinary session and
+    returns to the normal mailbox groups.
     Removing a custom image reveals the selected color or discovered favicon.
     Every project avatar in the sidebar, All projects cards, and project page
     follows that order.
-19. OpenCode runs `commands.start` after it creates a new worktree. Clara does
+20. OpenCode runs `commands.start` after it creates a new worktree. Clara does
     not create worktrees, so New brief does not run the startup script; the
     setting is for OpenCode Desktop, the CLI, and future workspace support.
 
@@ -285,9 +297,12 @@ by default, and the noun is configurable in Settings.
 - **Very long titles** — rows and cards truncate or clamp; the full title is in
   the chat header.
 - **Archived sessions** — shown only in the Archived section, even when they
-  also carry snooze metadata.
+  also carry snooze metadata. An automation worker is the exception: while
+  Clara management is on it stays in Workers.
 - **Snoozed sessions** — shown only in the Snoozed section until reopened; they
   keep their title, messages, and run state.
+- **Clara management off** — automation sessions lose the Workers treatment
+  and behave like ordinary sessions in every mailbox group.
 - **Snoozed and archived** — Archived wins; reopening the session clears both
   flags and returns it to its mailbox bucket.
 - **Snoozing while running** — the run continues but the session stays out of
@@ -361,6 +376,13 @@ by default, and the noun is configurable in Settings.
 - Archived list: `client.session.list({ project: projectID, search, archived: true, limit: 50 })`
 - Mailbox signals: `client.message.list({ sessionID, order: 'desc', limit: 1, type })`
   for `user` and `assistant`, plus `client.session.form.list({ sessionID })`
+- Automation grouping: `session.metadata.automation === true`; applied only
+  when `CLARA_FEATURE_INCLUDED` and the relay status reports
+  `management === true`. The predicate is checked before archived and snoozed,
+  so workers never enter a mailbox group while the feature is on.
+- Workers section: anchored above the sidebar footer, closed by default, expands
+  upward, caps its scroll area at `max-h-64`, and is included in search and the
+  open/close-all toggle.
 - Pending drafts: `client.session.inbox.list({ sessionID })`
 - Save draft: `client.session.prompt({ sessionID, text, files, resume: false })`
 - Start draft: `client.session.prompt({ sessionID, text: 'Start', delivery: 'steer' })`

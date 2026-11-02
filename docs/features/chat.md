@@ -9,18 +9,23 @@ like an email thread: each one is full width and left aligned, with a small
 avatar, the sender name, and a timestamp above the content, separated by a
 divider. Older messages start collapsed so the newest reply stays in view, and
 either header can be folded with a click. Assistant headers show the model name
-and the agent that produced the reply. A header toggle reveals internal output
-such as thinking, tool calls, and commands; internal output is hidden by
-default. Actions Clara triggers on the person's behalf — requesting a plan,
+and the agent that produced the reply. A user message whose metadata says
+`synthetic: true` is attributed to **Automation** with a Zap avatar instead of
+the person, even when Clara management is off or excluded from the build. A
+header toggle reveals internal output such as thinking, tool calls, and
+commands; internal output is hidden by default. Actions Clara triggers on the person's behalf — requesting a plan,
 refreshing it, and starting work — and the person's answers to an agent
 question appear as compact system rows in the thread rather than as if the
 person had typed them. When a
 Plan run finishes, a plan-ready card appears above the thread so the person can
 adjust the plan or start work. A session with no messages shows a
 dedicated New message view, and a session saved as a draft shows its queued user
-message in the thread and a Start card above it. The header can fork the whole
-brief, and each user or assistant message has fork and forward actions; see
-[fork.md](fork.md).
+message in the thread and a Start card above it. A daemon worker session shown
+while Clara management is on stays readable and stoppable but hides Reply,
+Done, the composer, fork actions, and the plan-ready card; Forward, Reopen,
+Archive, Delete, Stop, and the right-panel Plan request stay available. On
+normal sessions the header can fork the whole brief, and each user or assistant
+message has fork and forward actions; see [fork.md](fork.md).
 
 ## User flow
 
@@ -78,6 +83,12 @@ brief, and each user or assistant message has fork and forward actions; see
     with Reopen. Replying, starting work, saving a draft, or answering the agent
     on a snoozed session clears the snooze first and returns it to its mailbox
     section.
+17. Open a daemon worker from the Workers section. While Clara management is on,
+    the thread streams normally and Stop remains available, but there is no
+    composer, Done, Reply, session fork, message fork, compact, snooze, or
+    plan-ready card. Messages can still be forwarded, the header can archive or
+    delete the worker, an archived worker shows Reopen, and the right-panel Plan
+    section can request or refresh its checklist.
 
 ## Core business rules
 
@@ -100,8 +111,10 @@ brief, and each user or assistant message has fork and forward actions; see
    newest message starts just below it without any extra offset.
 5. Unknown event types are ignored so a newer server does not break the view.
 6. Each message renders as a full-width row with a `U`/`A` avatar, sender name,
-   timestamp, and a divider. Assistant headers show the model name and an agent
-   chip with the bot icon. Token and cost details appear in a muted footer under
+   timestamp, and a divider. A user message with `metadata.synthetic === true`
+   uses a Zap avatar and the sender name **Automation** instead of `U` and
+   **User**; this attribution is not gated by Clara management. Assistant
+   headers show the model name and an agent chip with the bot icon. Token and cost details appear in a muted footer under
    the content; while a thinking assistant has internal output hidden, its
    usage sits inline with the “Thinking…” indicator instead, so streaming
    counts do not add or remove a footer row. System events render as compact
@@ -158,6 +171,14 @@ brief, and each user or assistant message has fork and forward actions; see
     before it is delivered and disappears cleanly once it becomes a real
     message. Start sends `Start` with steering and disables while the request is
     in flight.
+16. A session is a worker when Clara management is on and its metadata says
+    `automation === true`. Worker mode suppresses the composer, Done, Reply,
+    New, message and session fork, compact, snooze, the plan-ready card, and
+    draft views. It keeps Stop, Forward, Reopen for archived workers, Archive,
+    Delete, permission and question panels, and the Plan section with its
+    Request Plan and Request Update actions. When management is off or the
+    feature is excluded from the build, the same session uses the normal chat
+    controls.
 
 ## Edge cases
 
@@ -229,6 +250,12 @@ brief, and each user or assistant message has fork and forward actions; see
   start view returns; the title is left untouched.
 - **Done on an archived or snoozed session** — the button is hidden and Reopen
   is shown instead; the chat remains readable.
+- **Worker session** — the composer, Done, Reply, New, fork, compact, snooze,
+  plan-ready card, and draft views are hidden while Clara management is on.
+  Stop, Forward, Archive, Delete, Reopen, and the Plan request remain.
+- **Worker session with management off** — the automation-session treatment is
+  removed, so the session uses the normal composer and actions; synthetic
+  messages still show the Automation sender.
 - **Snoozing while running** — the session moves to Snoozed, but Reopen stays
   hidden until the run finishes.
 - **UI sounds off** — Done archives silently, but the button animation and
@@ -275,6 +302,13 @@ brief, and each user or assistant message has fork and forward actions; see
   into `chatStore`
 - Stream: `client.event.subscribe()` through `EventProvider`
 - Send: `client.session.prompt({ sessionID, text, files, delivery })`
+- Synthetic attribution: `src/features/chat/message-attribution.ts` reads
+  `message.metadata.synthetic === true`; the base build always renders the Zap
+  avatar and Automation sender through `src/components/chat/message-item.tsx`
+- Worker mode: `session.metadata.automation === true` combined with
+  `CLARA_FEATURE_INCLUDED` and the relay status management flag; it gates
+  `src/pages/chat-page.tsx`, `reply-dock.tsx`, `chat-header.tsx`,
+  `message-list.tsx`, and `message-actions.tsx`
 - Pending drafts: `client.session.inbox.list({ sessionID })`, merged into the
   thread by message ID
 - Start draft: `client.session.prompt({ sessionID, text: 'Start', delivery: 'steer' })`

@@ -101,9 +101,11 @@ start an agent run and move on, so they do not have to watch the sidebar.
     come from the home agent's read-only view of the ledger outbox, are
     deduplicated by alert key, and map to **Needs Input** or **Error** for sound
     and push. They are off while Clara management is off.
-14. While Clara management is on, the Clara worker sessions (`Spec`, `Test`,
-    `Build`, `Docs`, `Judge`) do not raise their own session alerts. The ledger
-    alert is the actionable notification; the worker completion is noise.
+14. While Clara management is on, sessions with `metadata.automation === true`
+    do not raise their own session alerts. The existing `Spec`, `Test`, `Build`,
+    `Docs`, and `Judge` title prefix remains a fallback for sessions created
+    before the metadata existed. The ledger alert is the actionable
+    notification; the worker completion is noise.
 
 ## Edge cases
 
@@ -185,8 +187,9 @@ start an agent run and move on, so they do not have to watch the sidebar.
 - **A ledger alert arrives twice** — the delivery cursor and dedupe keys in the
   Clara-owned sidecar suppress the duplicate across reconnects and restarts;
   one-time kills never enter the open inbox.
-- **Clara worker completes** — with management on, its session alert is
-  suppressed and the ledger exception is the only actionable alert.
+- **Clara worker completes** — with management on, its automation metadata
+  suppresses the session alert and the ledger exception is the only actionable
+  alert. A pre-metadata worker is suppressed by its stage title prefix.
 - **External OpenCode notifier** — the TUI notifier is a separate plugin and
   does not read the Clara management switch. The home agent's local OS
   notification covers the case where no Clara client is connected.

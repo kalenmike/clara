@@ -253,6 +253,13 @@ status live in `runs`. A stage with a live run is never launched twice. If a
 session ends without advancing the ledger, the daemon opens a decision and
 waits; it retries that stage only after the human resolves the decision.
 
+The session is created with `initiatedBy: "daemon"` and `automation: true`
+metadata, and the initial handoff is sent with `source: "daemon"` and
+`synthetic: true`. Clients use the session marker to keep workers out of the
+human mailbox and the prompt marker to avoid attributing the handoff to the
+person. The stage title prefix remains a compatibility fallback for sessions
+created before the metadata existed.
+
 `daemon_lock` has one row. An instance must own it to tick, so several OpenCode
 locations can load the plugin without spawning duplicate workers. A heartbeat
 older than five minutes can be taken over after a crash.
