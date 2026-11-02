@@ -10,8 +10,8 @@ process.
 
 ## User flow
 
-1. Create a pipeline JSON file under
-   `${CLARA_CONFIG_DIR:-~/.config/clara}/pipelines/`.
+1. Start from the built-in `software` or `content` preset, or create a pipeline
+   JSON file under `${CLARA_CONFIG_DIR:-~/.config/clara}/pipelines/`.
 2. Validate it with `pnpm clara:ledger pipeline validate <id-or-file>`.
 3. Select it for a workspace with
    `pnpm clara:ledger pipeline select <workspace> <id>`, or pass `pipeline` on
@@ -44,7 +44,8 @@ process.
    in-flight request. New requests use the new definition.
 7. **Agents are referenced, not generated.** A stage names an existing OpenCode
    agent. Clara validates the definition shape; a missing agent opens a decision
-   when the stage is due.
+   when the stage is due. The pipelines Clara ships only name agents defined in
+   `agents.json`, and the self-test checks that.
 8. **Only the closer closes.** The close stage must use `role: "closer"`. The
    human approval and review gates remain the only way to bypass a stage
    failure.
@@ -53,7 +54,8 @@ process.
 
 - The pipeline file is invalid: `validate`, `submit`, and `select` fail with the
   field path. In-flight requests are unaffected because they use snapshots.
-- The workspace has no selected pipeline: `software` is used.
+- The workspace has no selected pipeline: `software` is used. `content` is
+  available as a second built-in preset; select it per workspace or per submit.
 - The selected pipeline file is deleted: new requests fail; in-flight requests
   keep their snapshot.
 - A stage condition references evidence that was not produced: the condition is
@@ -84,6 +86,8 @@ process.
 ## Known gaps
 
 - Agent existence is checked when the stage is about to spawn, not at submit.
+  The shipped examples are audited against `agents.json`; a user pipeline that
+  names an uninstalled agent fails only when that stage comes due.
 - Automated and artifact criteria rely on the stage's declared evidence; Clara
   does not execute a check command.
 - The optional progress guard compares one numeric metric across reports. It
@@ -95,10 +99,15 @@ process.
 <summary>File shape, CLI, and integration</summary>
 
 - Directory: `${CLARA_CONFIG_DIR:-${XDG_CONFIG_HOME:-~/.config}/clara}/pipelines`
-- One JSON file per pipeline. A file whose `id` is `software` overrides the
-  built-in preset.
-- Built-in examples: `plugins/clara/pipelines/software.json` and
-  `plugins/clara/pipelines/content.json`.
+- One JSON file per pipeline. A file whose `id` matches a preset (`software` or
+  `content`) overrides that preset.
+- Built-in presets: `software` and `content`; reference copies live in
+  `plugins/clara/pipelines/`.
+- Example agents: `software` uses `001`–`004` and `judge`; `content` uses
+  `clara-brief`, `clara-writer`, `clara-editor`, and the same `judge` closer.
+  All of them are installed by `pnpm clara:plugin:install`. The content agents
+  keep their copy in stage evidence and have no shell; add an `edit` scope to a
+  copied pipeline if your stages must write files.
 - Commands:
   - `pnpm clara:ledger pipeline list`
   - `pnpm clara:ledger pipeline validate <id-or-file>`

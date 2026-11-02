@@ -25,7 +25,7 @@ that turn a request into a result.
 | `attention.ts`     | Exception forms and delivery.                                      |
 | `selftest.ts`      | End-to-end check against a throwaway DB.                           |
 | `cli.ts`           | Run one tool or pipeline command directly, without an agent.       |
-| `agents.json`      | The six Clara agents, in OpenCode agent-config shape.              |
+| `agents.json`      | The nine Clara agents, in OpenCode agent-config shape.             |
 | `pipelines/*.json` | Reference copies of the software and content pipelines.            |
 | `migrations/*.sql` | Schema, applied in filename order.                                 |
 
@@ -50,6 +50,10 @@ sync: at startup and whenever the switch changes it rewrites `disabled: true`
 in the generated files and reloads OpenCode, so no reinstall is needed. Files
 edited after installation are left untouched; re-run with `--force` to replace
 them.
+
+The home agent only toggles files already in the manifest. Adding an agent to
+`agents.json` therefore needs `pnpm clara:plugin:install` again; the sync alone
+will not create it.
 
 OpenCode discovers global plugins in `~/.config/opencode/plugins/`. A local
 plugin directory needs a `package.json` with a `name` and `exports`; this one
@@ -141,7 +145,7 @@ A pipeline is a versioned JSON file:
       "id": "deliver",
       "title": "Deliver",
       "phase": "close",
-      "agent": "clara-closer",
+      "agent": "judge",
       "role": "closer",
       "instructions": "Deliver the copy and record the result.",
       "evidence": {
@@ -166,7 +170,16 @@ Rules:
 - Each request pins `pipeline_id`, `pipeline_version`, `pipeline_hash`, and the
   full snapshot. Editing a file never changes an in-flight request.
 
-Reference copies: `pipelines/software.json` and `pipelines/content.json`.
+Both examples are built-in presets, `software` and `content`, so `pipeline
+select <workspace> content` works without copying a file. Reference copies live
+in `pipelines/`; a file with the same id overrides the preset.
+
+Shipped pipelines only name agents that ship in `agents.json`. `software` uses
+`001`–`004` and the `judge` closer. `content` uses `clara-brief`, `clara-writer`,
+and `clara-editor`, and shares the same `judge` closer. A user pipeline that
+names an agent which is not installed is still valid, but the daemon opens a
+blocked decision when that stage comes due, so check the agent names before
+selecting a pipeline in a new workspace.
 
 ## The tools
 
@@ -224,6 +237,9 @@ argument, and these options:
 The JSON argument can be inline, `-` for stdin, or `@path` to read a file. The
 actor and ledger path are printed to stderr; only the tool's content goes to
 stdout, so `> result.txt` captures just the result.
+
+The shipped workers are `001`–`004`, `clara-brief`, `clara-writer`, and
+`clara-editor`; `judge` is the closer for both example pipelines.
 
 Pipeline commands:
 
@@ -376,8 +392,9 @@ through approval, evidence, progress, review, close, plus the failure paths
 (no unbacked criteria, illegal transitions, implementer closing, dry-run vs
 live tick). It also drives a request through the daemon with a mock session API,
 checks the lock and retry path, and verifies that every tool is registered as
-`clara_*` and that every explicit `clara_*` permission in `agents.json` names a
-real tool. It also drives a non-software content pipeline end to end, including
+`clara_*`, that every explicit `clara_*` permission in `agents.json` names a
+real tool, and that every shipped pipeline names an agent defined there. It also
+drives a non-software content pipeline end to end, including
 an optional stage gate, and exercises the attention tool and delivery loop
 against mock session and form APIs.
 
