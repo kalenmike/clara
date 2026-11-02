@@ -34,6 +34,10 @@
         "word_count": {
           "type": "number"
         }
+      },
+      "gate": {
+        "position": "after",
+        "kind": "human"
       }
     },
     {

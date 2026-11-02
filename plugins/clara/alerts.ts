@@ -165,7 +165,7 @@ export function pendingHumanWork(db: Db): AlertItem[] {
          FROM requests f
          JOIN workspaces w ON w.id = f.workspace_id
         WHERE f.state = 'review'
-          AND EXISTS (SELECT 1 FROM criteria c WHERE c.request_id = f.id AND c.human_gate = 1)
+          AND EXISTS (SELECT 1 FROM criteria c WHERE c.request_id = f.id AND c.verification = 'human')
         ORDER BY f.id`
     )
     .all()
@@ -300,7 +300,7 @@ export function collectAlerts(db: Db): AlertRow[] {
 function unverifiedGates(db: Db, requestID: number): number[] {
   const gates = db
     .prepare(
-      'SELECT position FROM criteria WHERE request_id = ? AND human_gate = 1 ORDER BY position'
+      "SELECT position FROM criteria WHERE request_id = ? AND verification = 'human' ORDER BY position"
     )
     .all(requestID)
     .map((row) => Number(row.position))

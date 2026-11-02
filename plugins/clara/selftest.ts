@@ -133,6 +133,9 @@ const expected = [
   'clara_criteria',
   'clara_freeze',
   'clara_checkpoint',
+  'clara_stage_done',
+  'clara_stage_gate',
+  'clara_progress',
   'clara_event',
   'clara_decide',
   'clara_resolve',
@@ -140,7 +143,7 @@ const expected = [
 ]
 check('plugin id is clara', plugin.id === 'clara')
 check('namespace is clara', namespaceName === 'clara')
-check('registers 13 tools', tools.size === 13, `got ${[...tools.keys()].join(', ')}`)
+check('registers 16 tools', tools.size === 16, `got ${[...tools.keys()].join(', ')}`)
 for (const name of expected) check(`tool ${name}`, tools.has(name))
 check(
   'every tool carries the clara namespace',
@@ -347,6 +350,71 @@ check(
 )
 rmSync(badPath)
 
+console.log('\n0c. stage evidence')
+q.setCriteria(db, {
+  request: pinnedId,
+  criteria: [{ text: 'the copy matches the brief', verification: 'artifact', check: 'copy' }],
+})
+expectThrow(
+  'stage completion requires declared evidence',
+  () =>
+    q.stageDone(db, {
+      request: pinnedId,
+      stage: 'brief',
+      evidence: {},
+      actor: 'ai_1',
+    }),
+  'missing required evidence'
+)
+q.stageDone(db, {
+  request: pinnedId,
+  stage: 'brief',
+  evidence: { brief: 'launch brief' },
+  actor: 'ai_1',
+})
+check('stage completion is recorded', q.stageCompleted(db, pinnedId, 'brief'))
+check('stage evidence is readable', q.stageEvidence(db, pinnedId).get('brief') === 'launch brief')
+expectThrow(
+  'unknown evidence is refused',
+  () =>
+    q.stageDone(db, {
+      request: pinnedId,
+      stage: 'brief',
+      evidence: { brief: 'updated', mystery: true },
+      actor: 'ai_1',
+    }),
+  'does not declare evidence'
+)
+q.progress(db, {
+  request: pinnedId,
+  stage: 'draft',
+  metrics: { words: 240 },
+  next: 'tighten the opening',
+  tokens: 1200,
+  actor: 'ai_1',
+})
+check('progress is recorded', q.latestProgress(db, pinnedId)?.n === 1)
+check('progress updates tokens', q.requestByRef(db, pinnedId)!.tokens === 1200)
+q.stageGate(db, {
+  request: pinnedId,
+  stage: 'draft',
+  result: 'verified',
+  evidence: 'copy reviewed',
+  actor: 'human',
+})
+check('a stage gate is recorded', q.stageGateVerified(db, pinnedId, 'draft', 'after'))
+expectThrow(
+  'a stage without a gate refuses one',
+  () =>
+    q.stageGate(db, {
+      request: pinnedId,
+      stage: 'brief',
+      result: 'verified',
+      actor: 'human',
+    }),
+  'does not declare a human gate'
+)
+
 console.log('\n1. submit')
 const submitted = q.submit(db, {
   workspace: 'clara',
@@ -409,7 +477,7 @@ console.log('\n2. criteria')
 expectThrow(
   'rejects a criterion with no test and no human gate',
   () => q.setCriteria(db, { request: request.id, criteria: [{ text: 'it feels right' }] }),
-  'neither a test_path nor human_gate'
+  'no verification and no test_path or human_gate'
 )
 
 q.setCriteria(db, {
@@ -433,7 +501,7 @@ q.setCriteria(db, {
 })
 const criteria = db.prepare('SELECT * FROM criteria WHERE request_id = ?').all(request.id)
 check('four criteria stored', criteria.length === 4)
-check('one human gate', criteria.filter((c: any) => c.human_gate).length === 1)
+check('one human gate', criteria.filter((c: any) => c.verification === 'human').length === 1)
 check(
   'none approved yet',
   criteria.every((c: any) => !c.approved_at)
@@ -492,7 +560,10 @@ check('two checkpoints', cps.length === 2)
 check('tokens accumulated', q.requestByRef(db, request.id)!.tokens === 95_000)
 
 console.log('\n5. inbox')
-check('inbox empty when nothing needs a human', q.inbox(db).startsWith('inbox: empty'))
+check(
+  'inbox empty when nothing needs a human',
+  q.inbox(db, { workspace: 'clara' }).startsWith('inbox: empty')
+)
 
 const decisionId = Number(
   q
@@ -509,7 +580,7 @@ const decisionId = Number(
     .match(/#(\d+)/)![1]
 )
 
-const inbox = q.inbox(db)
+const inbox = q.inbox(db, { workspace: 'clara' })
 check('inbox shows the decision', inbox.includes('clock abstraction'))
 check('inbox shows the default', inbox.includes('default if silent: block'))
 
@@ -629,7 +700,7 @@ check(
   'decision resolved',
   !!db.prepare('SELECT * FROM decisions WHERE id = ?').get(decisionId)!.resolved_at
 )
-check('inbox empty again', q.inbox(db).startsWith('inbox: empty'))
+check('inbox empty again', q.inbox(db, { workspace: 'clara' }).startsWith('inbox: empty'))
 
 console.log('\n9. tick')
 const stalled = q.submit(db, {
@@ -667,7 +738,7 @@ const record = await import('node:fs').then((fs) =>
 )
 check('record has front matter', record.startsWith('---'))
 check('record has non-goals', record.includes('password login'))
-check('record has criteria table', record.includes('| # | Criterion | Test | Human gate |'))
+check('record has criteria table', record.includes('| # | Criterion | Verification | Check |'))
 check('record has checkpoints', record.includes('**#2**'))
 
 console.log('\n11. daemon')

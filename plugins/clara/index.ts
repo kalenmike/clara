@@ -64,6 +64,7 @@ export const AGENT_ACTORS: Record<string, string> = {
 }
 
 const actorOf = (context: any): string => AGENT_ACTORS[String(context?.agent ?? '')] ?? 'human'
+const STAGE_ACTORS = ['ai_1', 'ai_2', 'ai_3', 'ai_4', 'ai_0']
 
 function requireRole(name: string, context: any, allowed: string[]): string {
   const actor = actorOf(context)
@@ -344,7 +345,7 @@ export function createTools(
     {
       name: 'criteria',
       description:
-        'Propose the acceptance criteria. Every criterion needs either a test_path or human_gate=true. Replaces any previous proposal.',
+        'Propose the acceptance criteria. Each criterion needs a verification kind (automated, human, or artifact) with a check reference where relevant. Replaces any previous proposal.',
       input: {
         type: 'object',
         properties: {
@@ -355,8 +356,22 @@ export function createTools(
               type: 'object',
               properties: {
                 text: { type: 'string' },
-                test_path: { type: 'string' },
-                human_gate: { type: 'boolean' },
+                verification: {
+                  type: 'string',
+                  enum: ['automated', 'human', 'artifact'],
+                },
+                check: {
+                  type: 'string',
+                  description: 'Test path, command, artifact path, or other check reference.',
+                },
+                test_path: {
+                  type: 'string',
+                  description: 'Shorthand for verification=automated.',
+                },
+                human_gate: {
+                  type: 'boolean',
+                  description: 'Shorthand for verification=human.',
+                },
               },
               required: ['text'],
               additionalProperties: false,
@@ -428,6 +443,81 @@ export function createTools(
       execute: async (input: any, context: any) => {
         requireRole('checkpoint', context, ['ai_3', 'human'])
         return { content: q.checkpoint(db, input) }
+      },
+    },
+
+    // -- generic stages ----------------------------------------------------
+
+    {
+      name: 'stage_done',
+      description:
+        'Complete one pipeline stage with the evidence its definition requires. The daemon advances only after this call.',
+      input: {
+        type: 'object',
+        properties: {
+          request: requestRef,
+          stage: { type: 'string', description: 'Stage id from the pinned pipeline.' },
+          evidence: {
+            type: 'object',
+            description: 'Evidence declared by the stage definition.',
+            additionalProperties: true,
+          },
+        },
+        required: ['request', 'stage'],
+        additionalProperties: false,
+      },
+      execute: async (input: any, context: any) => {
+        const actor = requireRole('stage_done', context, STAGE_ACTORS)
+        return { content: q.stageDone(db, { ...input, actor }) }
+      },
+    },
+
+    {
+      name: 'stage_gate',
+      description:
+        'Record that a human verified or rejected a pipeline stage gate. Only stages that declare a gate accept this.',
+      input: {
+        type: 'object',
+        properties: {
+          request: requestRef,
+          stage: { type: 'string', description: 'Stage id from the pinned pipeline.' },
+          result: { type: 'string', enum: ['verified', 'rejected'] },
+          evidence: { type: 'string', description: 'What the human checked, in one line.' },
+        },
+        required: ['request', 'stage'],
+        additionalProperties: false,
+      },
+      execute: async (input: any, context: any) => {
+        const actor = requireRole('stage_gate', context, ['human'])
+        return { content: q.stageGate(db, { ...input, actor }) }
+      },
+    },
+
+    {
+      name: 'progress',
+      description:
+        'Record a progress checkpoint for the active stage with arbitrary metrics, a blocker, a next step, and tokens.',
+      input: {
+        type: 'object',
+        properties: {
+          request: requestRef,
+          stage: { type: 'string', description: 'Stage id from the pinned pipeline.' },
+          metrics: {
+            type: 'object',
+            description: 'Stage-specific metrics, for example test counts or word count.',
+            additionalProperties: true,
+          },
+          blocked_on: { type: 'string' },
+          next: { type: 'string' },
+          open_question: { type: 'string' },
+          tokens: { type: 'number' },
+        },
+        required: ['request', 'stage'],
+        additionalProperties: false,
+      },
+      execute: async (input: any, context: any) => {
+        const actor = requireRole('progress', context, STAGE_ACTORS)
+        return { content: q.progress(db, { ...input, actor }) }
       },
     },
 

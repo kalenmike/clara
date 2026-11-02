@@ -210,6 +210,7 @@ export const CONTENT_PIPELINE: Pipeline = {
         copy: { type: 'string', required: true },
         word_count: { type: 'number' },
       },
+      gate: { position: 'after', kind: 'human' },
     },
     {
       id: 'edit',

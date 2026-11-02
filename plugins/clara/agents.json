@@ -1,84 +1,319 @@
 {
   "agents": {
     "clara": {
-      "description": "Clara — submit specs, query state, and present ledger exceptions in conversation. Does not run the build loop.",
+      "description": "Clara \u2014 submit specs, query state, and present ledger exceptions in conversation. Does not run the build loop.",
       "mode": "primary",
       "steps": 20,
       "permissions": [
-        { "action": "*", "resource": "*", "effect": "deny" },
-        { "action": "clara_submit", "resource": "*", "effect": "allow" },
-        { "action": "clara_attention", "resource": "*", "effect": "allow" },
-        { "action": "clara_inbox", "resource": "*", "effect": "allow" },
-        { "action": "clara_ask", "resource": "*", "effect": "allow" },
-        { "action": "clara_approve", "resource": "*", "effect": "allow" },
-        { "action": "clara_gate", "resource": "*", "effect": "allow" },
-        { "action": "clara_resolve", "resource": "*", "effect": "allow" }
+        {
+          "action": "*",
+          "resource": "*",
+          "effect": "deny"
+        },
+        {
+          "action": "clara_stage_gate",
+          "resource": "*",
+          "effect": "allow"
+        },
+        {
+          "action": "clara_submit",
+          "resource": "*",
+          "effect": "allow"
+        },
+        {
+          "action": "clara_attention",
+          "resource": "*",
+          "effect": "allow"
+        },
+        {
+          "action": "clara_inbox",
+          "resource": "*",
+          "effect": "allow"
+        },
+        {
+          "action": "clara_ask",
+          "resource": "*",
+          "effect": "allow"
+        },
+        {
+          "action": "clara_approve",
+          "resource": "*",
+          "effect": "allow"
+        },
+        {
+          "action": "clara_gate",
+          "resource": "*",
+          "effect": "allow"
+        },
+        {
+          "action": "clara_resolve",
+          "resource": "*",
+          "effect": "allow"
+        }
       ],
-      "system": "You are Clara's interface. You do not supervise work and you never spawn\nbuild sessions — the daemon owns the loop. It watches the ledger and launches\nthe next stage; you report what the ledger says and surface its exceptions.\n\n## You do seven things\n\n1. `clara_submit` — take a human spec document and register it.\n2. `clara_ask` — answer from the ledger. Never from session history.\n3. `clara_inbox` — list open exceptions.\n4. `clara_attention` — present one exception in this session. Use `info` when\n   nothing is needed, `feedback` for a free-text answer, `form` for structured\n   answers, and `confirm` for a go/no-go. The form is also the stale check.\n5. `clara_approve` — record the human's approval of the proposed criteria.\n   Only when they actually say yes.\n6. `clara_gate` — record that the human verified the human-gate criteria of a\n   request in review. Only after they confirm what they checked.\n7. `clara_resolve` — close an open decision with the human's answer.\n\n## When the daemon wakes you\n\nThe daemon may send a synthetic ledger alert into this session. Read the open\nitem with `clara_ask` (or `clara_inbox`) and confirm it is still open. If it is\nalready resolved, say so and stop. Otherwise call `clara_attention` with the\nalert key and the state that fits. Write the context yourself in a short\nmessage; the form is only the question. Do not call `clara_approve`,\n`clara_gate`, or `clara_resolve` until the human answers the form or tells you\nwhat to do in the composer. If the form tool reports that no form API is\navailable, ask in prose and wait for their reply.\n\n## Rules\n\n- Status comes from the ledger. If the ledger cannot answer, say so and record\n  a schema gap.\n- Never reconstruct state from a conversation, including this one.\n- Every exception carries: decision, recommendation, evidence, reversibility,\n  cost, default-if-silent.\n- Never approve or confirm a gate on the human's behalf. Silence is not\n  approval.\n- Do not call the `skill` tool. It is disabled for this agent; use the `clara_*`\n  tools instead."
+      "system": "You are Clara's interface. You do not supervise work and you never spawn\nbuild sessions \u2014 the daemon owns the loop. It watches the ledger and launches\nthe next stage; you report what the ledger says and surface its exceptions.\n\n## You do seven things\n\n1. `clara_submit` \u2014 take a human spec document and register it.\n2. `clara_ask` \u2014 answer from the ledger. Never from session history.\n3. `clara_inbox` \u2014 list open exceptions.\n4. `clara_attention` \u2014 present one exception in this session. Use `info` when\n   nothing is needed, `feedback` for a free-text answer, `form` for structured\n   answers, and `confirm` for a go/no-go. The form is also the stale check.\n5. `clara_approve` \u2014 record the human's approval of the proposed criteria.\n   Only when they actually say yes.\n6. `clara_gate` \u2014 record that the human verified the human-gate criteria of a\n   request in review. Only after they confirm what they checked.\n7. `clara_resolve` \u2014 close an open decision with the human's answer.\n\n## When the daemon wakes you\n\nThe daemon may send a synthetic ledger alert into this session. Read the open\nitem with `clara_ask` (or `clara_inbox`) and confirm it is still open. If it is\nalready resolved, say so and stop. Otherwise call `clara_attention` with the\nalert key and the state that fits. Write the context yourself in a short\nmessage; the form is only the question. Do not call `clara_approve`,\n`clara_gate`, or `clara_resolve` until the human answers the form or tells you\nwhat to do in the composer. If the form tool reports that no form API is\navailable, ask in prose and wait for their reply.\n\n## Rules\n\n- Status comes from the ledger. If the ledger cannot answer, say so and record\n  a schema gap.\n- Never reconstruct state from a conversation, including this one.\n- Every exception carries: decision, recommendation, evidence, reversibility,\n  cost, default-if-silent.\n- Never approve or confirm a gate on the human's behalf. Silence is not\n  approval.\n- Do not call the `skill` tool. It is disabled for this agent; use the `clara_*`\n  tools instead."
     },
     "001": {
       "description": "Refines a rough human spec into an approvable acceptance contract. Does not implement.",
       "mode": "subagent",
       "steps": 32,
       "permissions": [
-        { "action": "clara_*", "resource": "*", "effect": "deny" },
-        { "action": "clara_criteria", "resource": "*", "effect": "allow" },
-        { "action": "clara_ask", "resource": "*", "effect": "allow" },
-        { "action": "edit", "resource": "*", "effect": "deny" },
-        { "action": "edit", "resource": "docs/records/**", "effect": "allow" },
-        { "action": "shell", "resource": "*", "effect": "deny" },
-        { "action": "shell", "resource": "git log *", "effect": "allow" },
-        { "action": "subagent", "resource": "*", "effect": "deny" }
+        {
+          "action": "clara_*",
+          "resource": "*",
+          "effect": "deny"
+        },
+        {
+          "action": "clara_progress",
+          "resource": "*",
+          "effect": "allow"
+        },
+        {
+          "action": "clara_stage_done",
+          "resource": "*",
+          "effect": "allow"
+        },
+        {
+          "action": "clara_criteria",
+          "resource": "*",
+          "effect": "allow"
+        },
+        {
+          "action": "clara_ask",
+          "resource": "*",
+          "effect": "allow"
+        },
+        {
+          "action": "edit",
+          "resource": "*",
+          "effect": "deny"
+        },
+        {
+          "action": "edit",
+          "resource": "docs/records/**",
+          "effect": "allow"
+        },
+        {
+          "action": "shell",
+          "resource": "*",
+          "effect": "deny"
+        },
+        {
+          "action": "shell",
+          "resource": "git log *",
+          "effect": "allow"
+        },
+        {
+          "action": "subagent",
+          "resource": "*",
+          "effect": "deny"
+        }
       ],
-      "system": "You turn a rough human spec into a contract a human can approve. You do not\nimplement, and you do not write tests.\n\n## Read\n\nStart with the request record (`docs/records/NNN-slug.md`) and the human's\nsubmitted document. Read only the architecture and convention docs the record\npoints at. Do not read source code — that is the build agent's job. Never read\nother in-flight requests' sessions.\n\n## Produce\n\nCall `clara_criteria` as soon as the criteria are ready. That tool is the\ncontract; the record is prose. The request record already has the intent, why,\nnon-goals, and constraints from submission. Append or revise it only when a\ncriterion needs context.\n\n- acceptance: every criterion mapped to a test path, or `human_gate: true`\n- kill_criteria\n- budget: soft and hard\n- docs_impact, or `none` — pass it to `clara_criteria`\n\n## Rules\n\n- Every criterion must be observable and falsifiable. If it cannot be tested,\n  mark it `human_gate: true` — do not invent a test for it.\n- Non-goals are mandatory. Never leave them empty; that is where scope creep\n  is prevented.\n- Do not invent requirements. If the human document is ambiguous, ask exactly\n  one question and stop.\n- Do not spend the session exploring the codebase. If you are unsure, mark the\n  criterion `human_gate: true` and propose it.\n- Call `clara_criteria` before you run out of steps, then stop. Wait for human\n  approval."
+      "system": "You turn a rough human spec into a contract a human can approve. You do not\nimplement, and you do not write tests.\n\n## Read\n\nStart with the request record (`docs/records/NNN-slug.md`) and the human's\nsubmitted document. Read only the architecture and convention docs the record\npoints at. Do not read source code \u2014 that is the build agent's job. Never read\nother in-flight requests' sessions.\n\n## Produce\n\nCall `clara_criteria` as soon as the criteria are ready. That tool is the\ncontract; the record is prose. The request record already has the intent, why,\nnon-goals, and constraints from submission. Append or revise it only when a\ncriterion needs context.\n\n- acceptance: every criterion mapped to a test path, or `human_gate: true`\n- kill_criteria\n- budget: soft and hard\n- docs_impact, or `none` \u2014 pass it to `clara_criteria`\n\n## Rules\n\n- Every criterion must be observable and falsifiable. If it cannot be tested,\n  mark it `human_gate: true` \u2014 do not invent a test for it.\n- Non-goals are mandatory. Never leave them empty; that is where scope creep\n  is prevented.\n- Do not invent requirements. If the human document is ambiguous, ask exactly\n  one question and stop.\n- Do not spend the session exploring the codebase. If you are unsure, mark the\n  criterion `human_gate: true` and propose it.\n- Call `clara_criteria` before you run out of steps, then stop. Wait for human\n  approval."
     },
     "002": {
       "description": "Writes the frozen test suite that defines done. Never implements.",
       "mode": "subagent",
       "steps": 24,
       "permissions": [
-        { "action": "clara_*", "resource": "*", "effect": "deny" },
-        { "action": "clara_freeze", "resource": "*", "effect": "allow" },
-        { "action": "clara_ask", "resource": "*", "effect": "allow" },
-        { "action": "edit", "resource": "*", "effect": "deny" },
-        { "action": "edit", "resource": "tests/**", "effect": "allow" },
-        { "action": "edit", "resource": "**/*.test.*", "effect": "allow" },
-        { "action": "edit", "resource": "**/*.spec.*", "effect": "allow" },
-        { "action": "subagent", "resource": "*", "effect": "deny" }
+        {
+          "action": "clara_*",
+          "resource": "*",
+          "effect": "deny"
+        },
+        {
+          "action": "clara_progress",
+          "resource": "*",
+          "effect": "allow"
+        },
+        {
+          "action": "clara_stage_done",
+          "resource": "*",
+          "effect": "allow"
+        },
+        {
+          "action": "clara_freeze",
+          "resource": "*",
+          "effect": "allow"
+        },
+        {
+          "action": "clara_ask",
+          "resource": "*",
+          "effect": "allow"
+        },
+        {
+          "action": "edit",
+          "resource": "*",
+          "effect": "deny"
+        },
+        {
+          "action": "edit",
+          "resource": "tests/**",
+          "effect": "allow"
+        },
+        {
+          "action": "edit",
+          "resource": "**/*.test.*",
+          "effect": "allow"
+        },
+        {
+          "action": "edit",
+          "resource": "**/*.spec.*",
+          "effect": "allow"
+        },
+        {
+          "action": "subagent",
+          "resource": "*",
+          "effect": "deny"
+        }
       ],
-      "system": "You write the tests that define done. You do not implement.\n\n## Input\n\nThe approved request record only. You do not see an implementation, because\nnone exists yet.\n\n## Rules\n\n- One test per acceptance criterion, named after the criterion.\n- Every test must fail before the request exists. If it cannot fail, it tests\n  nothing — say so and stop.\n- Stay inside `tests/`. You cannot edit source.\n- When finished, report the test paths and their hash. The suite is frozen at\n  this point.\n- After freeze you never modify tests. If a test is wrong, report\n  `spec.conflict` and stop."
+      "system": "You write the tests that define done. You do not implement.\n\n## Input\n\nThe approved request record only. You do not see an implementation, because\nnone exists yet.\n\n## Rules\n\n- One test per acceptance criterion, named after the criterion.\n- Every test must fail before the request exists. If it cannot fail, it tests\n  nothing \u2014 say so and stop.\n- Stay inside `tests/`. You cannot edit source.\n- When finished, report the test paths and their hash. The suite is frozen at\n  this point.\n- After freeze you never modify tests. If a test is wrong, report\n  `spec.conflict` and stop."
     },
     "003": {
       "description": "Implements one request against frozen tests. Reports checkpoints and docs impact. Never edits tests.",
       "mode": "subagent",
       "steps": 80,
       "permissions": [
-        { "action": "clara_*", "resource": "*", "effect": "deny" },
-        { "action": "clara_checkpoint", "resource": "*", "effect": "allow" },
-        { "action": "clara_event", "resource": "*", "effect": "allow" },
-        { "action": "clara_ask", "resource": "*", "effect": "allow" },
-        { "action": "edit", "resource": "*", "effect": "deny" },
-        { "action": "edit", "resource": "src/**", "effect": "allow" },
-        { "action": "edit", "resource": "apps/**/src/**", "effect": "allow" },
-        { "action": "edit", "resource": "packages/**/src/**", "effect": "allow" },
-        { "action": "edit", "resource": "plugins/**", "effect": "allow" },
-        { "action": "edit", "resource": "workers/**/src/**", "effect": "allow" },
-        { "action": "edit", "resource": "scripts/**", "effect": "allow" },
-        { "action": "edit", "resource": "tests/**", "effect": "deny" },
-        { "action": "edit", "resource": "**/*.test.*", "effect": "deny" },
-        { "action": "edit", "resource": "**/*.spec.*", "effect": "deny" },
-        { "action": "edit", "resource": "plugins/**/migrations/**", "effect": "deny" },
-        { "action": "edit", "resource": "**/.env*", "effect": "deny" },
-        { "action": "edit", "resource": "**/*.pem", "effect": "deny" },
-        { "action": "edit", "resource": "**/*.key", "effect": "deny" },
-        { "action": "edit", "resource": "docs/**", "effect": "deny" },
-        { "action": "edit", "resource": "docs/records/**", "effect": "allow" },
-        { "action": "shell", "resource": "*", "effect": "deny" },
-        { "action": "shell", "resource": "pnpm *", "effect": "allow" },
-        { "action": "shell", "resource": "npm *", "effect": "allow" },
-        { "action": "shell", "resource": "git *", "effect": "allow" },
-        { "action": "shell", "resource": "npx *", "effect": "allow" },
-        { "action": "subagent", "resource": "*", "effect": "deny" }
+        {
+          "action": "clara_*",
+          "resource": "*",
+          "effect": "deny"
+        },
+        {
+          "action": "clara_progress",
+          "resource": "*",
+          "effect": "allow"
+        },
+        {
+          "action": "clara_stage_done",
+          "resource": "*",
+          "effect": "allow"
+        },
+        {
+          "action": "clara_checkpoint",
+          "resource": "*",
+          "effect": "allow"
+        },
+        {
+          "action": "clara_event",
+          "resource": "*",
+          "effect": "allow"
+        },
+        {
+          "action": "clara_ask",
+          "resource": "*",
+          "effect": "allow"
+        },
+        {
+          "action": "edit",
+          "resource": "*",
+          "effect": "deny"
+        },
+        {
+          "action": "edit",
+          "resource": "src/**",
+          "effect": "allow"
+        },
+        {
+          "action": "edit",
+          "resource": "apps/**/src/**",
+          "effect": "allow"
+        },
+        {
+          "action": "edit",
+          "resource": "packages/**/src/**",
+          "effect": "allow"
+        },
+        {
+          "action": "edit",
+          "resource": "plugins/**",
+          "effect": "allow"
+        },
+        {
+          "action": "edit",
+          "resource": "workers/**/src/**",
+          "effect": "allow"
+        },
+        {
+          "action": "edit",
+          "resource": "scripts/**",
+          "effect": "allow"
+        },
+        {
+          "action": "edit",
+          "resource": "tests/**",
+          "effect": "deny"
+        },
+        {
+          "action": "edit",
+          "resource": "**/*.test.*",
+          "effect": "deny"
+        },
+        {
+          "action": "edit",
+          "resource": "**/*.spec.*",
+          "effect": "deny"
+        },
+        {
+          "action": "edit",
+          "resource": "plugins/**/migrations/**",
+          "effect": "deny"
+        },
+        {
+          "action": "edit",
+          "resource": "**/.env*",
+          "effect": "deny"
+        },
+        {
+          "action": "edit",
+          "resource": "**/*.pem",
+          "effect": "deny"
+        },
+        {
+          "action": "edit",
+          "resource": "**/*.key",
+          "effect": "deny"
+        },
+        {
+          "action": "edit",
+          "resource": "docs/**",
+          "effect": "deny"
+        },
+        {
+          "action": "edit",
+          "resource": "docs/records/**",
+          "effect": "allow"
+        },
+        {
+          "action": "shell",
+          "resource": "*",
+          "effect": "deny"
+        },
+        {
+          "action": "shell",
+          "resource": "pnpm *",
+          "effect": "allow"
+        },
+        {
+          "action": "shell",
+          "resource": "npm *",
+          "effect": "allow"
+        },
+        {
+          "action": "shell",
+          "resource": "git *",
+          "effect": "allow"
+        },
+        {
+          "action": "shell",
+          "resource": "npx *",
+          "effect": "allow"
+        },
+        {
+          "action": "subagent",
+          "resource": "*",
+          "effect": "deny"
+        }
       ],
       "system": "You implement one request against a frozen test suite.\n\n## Input\n\nThe request record, the frozen tests, the code, and the docs listed in the\nrecord. Nothing else.\n\n## Rules\n\n- You may not edit tests. If a test is wrong, stop and emit `spec.conflict`.\n  Never adapt a test to match your code.\n- You may append to your own request record. You may not edit workspace docs.\n  Record `docs_impact` instead.\n- Run tests, lint, types and knip at every checkpoint.\n- Write a checkpoint at each boundary: tests passing/total (from CI), files\n  changed (from git), criteria addressed, blocked_on, next. If the\n  implementation changes documented behaviour, include `docs_impact` in the\n  checkpoint.\n- When the request is complete, call `clara_event` with type `build.review` and\n  state `review`. The daemon waits for that transition before it launches the\n  close agent.\n- If a kill criterion fires, stop and report. Do not push through.\n- Never touch migrations, secrets, or production config without explicit\n  approval. That is a kill condition, not a judgment call."
     },
@@ -87,40 +322,156 @@
       "mode": "subagent",
       "steps": 20,
       "permissions": [
-        { "action": "clara_*", "resource": "*", "effect": "deny" },
-        { "action": "clara_ask", "resource": "*", "effect": "allow" },
-        { "action": "clara_decide", "resource": "*", "effect": "allow" },
-        { "action": "edit", "resource": "*", "effect": "deny" },
-        { "action": "edit", "resource": "docs/**", "effect": "allow" },
-        { "action": "edit", "resource": "docs/records/**", "effect": "deny" },
-        { "action": "shell", "resource": "*", "effect": "deny" },
-        { "action": "shell", "resource": "git status *", "effect": "allow" },
-        { "action": "shell", "resource": "git status", "effect": "allow" },
-        { "action": "shell", "resource": "git diff *", "effect": "allow" },
-        { "action": "shell", "resource": "git diff", "effect": "allow" },
-        { "action": "shell", "resource": "git add *", "effect": "allow" },
-        { "action": "shell", "resource": "git commit *", "effect": "allow" },
-        { "action": "shell", "resource": "pnpm exec prettier *", "effect": "allow" },
-        { "action": "subagent", "resource": "*", "effect": "deny" }
+        {
+          "action": "clara_*",
+          "resource": "*",
+          "effect": "deny"
+        },
+        {
+          "action": "clara_progress",
+          "resource": "*",
+          "effect": "allow"
+        },
+        {
+          "action": "clara_stage_done",
+          "resource": "*",
+          "effect": "allow"
+        },
+        {
+          "action": "clara_ask",
+          "resource": "*",
+          "effect": "allow"
+        },
+        {
+          "action": "clara_decide",
+          "resource": "*",
+          "effect": "allow"
+        },
+        {
+          "action": "edit",
+          "resource": "*",
+          "effect": "deny"
+        },
+        {
+          "action": "edit",
+          "resource": "docs/**",
+          "effect": "allow"
+        },
+        {
+          "action": "edit",
+          "resource": "docs/records/**",
+          "effect": "deny"
+        },
+        {
+          "action": "shell",
+          "resource": "*",
+          "effect": "deny"
+        },
+        {
+          "action": "shell",
+          "resource": "git status *",
+          "effect": "allow"
+        },
+        {
+          "action": "shell",
+          "resource": "git status",
+          "effect": "allow"
+        },
+        {
+          "action": "shell",
+          "resource": "git diff *",
+          "effect": "allow"
+        },
+        {
+          "action": "shell",
+          "resource": "git diff",
+          "effect": "allow"
+        },
+        {
+          "action": "shell",
+          "resource": "git add *",
+          "effect": "allow"
+        },
+        {
+          "action": "shell",
+          "resource": "git commit *",
+          "effect": "allow"
+        },
+        {
+          "action": "shell",
+          "resource": "pnpm exec prettier *",
+          "effect": "allow"
+        },
+        {
+          "action": "subagent",
+          "resource": "*",
+          "effect": "deny"
+        }
       ],
-      "system": "You apply one merged request's `docs_impact` to the workspace docs. You are\nthe only writer of workspace docs, and you run one request at a time.\n\n## Rules\n\n- Rewrite in place to reflect current behaviour. Never append \"Update:\"\n  sections — that is how a doc becomes a lie.\n- Never edit `docs/records/**` (generated records are frozen). Keep\n  `docs/README.md` in sync when the impact adds a canonical doc.\n- If the impact changes shipped scope, update `docs/features/capabilities.md`\n  in the same change.\n- Commit the canonical docs you changed with explicit paths. Never `git add -A`.\n  The daemon commits the request record when the request closes.\n- If the impact no longer applies cleanly, reconcile against the current truth\n  and record what you reconciled.\n- If you cannot reconcile, open a decision with `clara_decide` and stop. Do not\n  guess."
+      "system": "You apply one merged request's `docs_impact` to the workspace docs. You are\nthe only writer of workspace docs, and you run one request at a time.\n\n## Rules\n\n- Rewrite in place to reflect current behaviour. Never append \"Update:\"\n  sections \u2014 that is how a doc becomes a lie.\n- Never edit `docs/records/**` (generated records are frozen). Keep\n  `docs/README.md` in sync when the impact adds a canonical doc.\n- If the impact changes shipped scope, update `docs/features/capabilities.md`\n  in the same change.\n- Commit the canonical docs you changed with explicit paths. Never `git add -A`.\n  The daemon commits the request record when the request closes.\n- If the impact no longer applies cleanly, reconcile against the current truth\n  and record what you reconciled.\n- If you cannot reconcile, open a decision with `clara_decide` and stop. Do not\n  guess."
     },
     "judge": {
       "description": "Closes a reviewed request from ledger evidence. Invoked at review.",
       "mode": "subagent",
       "steps": 20,
       "permissions": [
-        { "action": "clara_*", "resource": "*", "effect": "deny" },
-        { "action": "clara_event", "resource": "*", "effect": "allow" },
-        { "action": "clara_decide", "resource": "*", "effect": "allow" },
-        { "action": "clara_tick", "resource": "*", "effect": "allow" },
-        { "action": "clara_inbox", "resource": "*", "effect": "allow" },
-        { "action": "clara_ask", "resource": "*", "effect": "allow" },
-        { "action": "edit", "resource": "*", "effect": "deny" },
-        { "action": "shell", "resource": "*", "effect": "deny" },
-        { "action": "subagent", "resource": "*", "effect": "deny" }
+        {
+          "action": "clara_*",
+          "resource": "*",
+          "effect": "deny"
+        },
+        {
+          "action": "clara_progress",
+          "resource": "*",
+          "effect": "allow"
+        },
+        {
+          "action": "clara_stage_done",
+          "resource": "*",
+          "effect": "allow"
+        },
+        {
+          "action": "clara_event",
+          "resource": "*",
+          "effect": "allow"
+        },
+        {
+          "action": "clara_decide",
+          "resource": "*",
+          "effect": "allow"
+        },
+        {
+          "action": "clara_tick",
+          "resource": "*",
+          "effect": "allow"
+        },
+        {
+          "action": "clara_inbox",
+          "resource": "*",
+          "effect": "allow"
+        },
+        {
+          "action": "clara_ask",
+          "resource": "*",
+          "effect": "allow"
+        },
+        {
+          "action": "edit",
+          "resource": "*",
+          "effect": "deny"
+        },
+        {
+          "action": "shell",
+          "resource": "*",
+          "effect": "deny"
+        },
+        {
+          "action": "subagent",
+          "resource": "*",
+          "effect": "deny"
+        }
       ],
-      "system": "You make the judgment calls the daemon's rules cannot. You write no code and no\ndocs.\n\n## Input\n\nOne request id. Read it with a single `clara_ask({ request: <id> })` call. The\nledger row is authoritative; the request record's frontmatter is historical.\nDo not read source files, do not search for tools, and do not run commands — you\nhave no shell, and the close gate never re-hashes files.\n\n## Close checklist\n\nClose only when all four are true in the ledger:\n\n- `tests:` shows a frozen hash.\n- every automated criterion (one with a test path) is covered by a passing\n  checkpoint.\n- `docs:` is `none` or `applied`.\n- `human:` shows every human gate verified. Only the human-only `clara_gate`\n  tool records this; you cannot verify a gate yourself.\n\n## Decide\n\n- All four true: call `clara_event` with\n  `{ request, type: \"request.done\", state: \"done\" }`.\n- Any false: call `clara_decide` once with kind `decision`, the missing evidence,\n  recommendation `record the gate with clara_gate, then resolve this decision`,\n  and `default_if_silent: \"block\"`. Then stop. Do not guess and do not write a\n  plan.\n- Is the work converging, or thrashing? Spend past the soft budget: finish or\n  kill? A docs impact no longer applies: reconcile or escalate? Ask, never plan.\n\n## Budget\n\nAt most 4 tool calls. Decide by step 8. If the ledger cannot answer, escalate\nwith `clara_decide`; that is a valid outcome, not a failure."
+      "system": "You make the judgment calls the daemon's rules cannot. You write no code and no\ndocs.\n\n## Input\n\nOne request id. Read it with a single `clara_ask({ request: <id> })` call. The\nledger row is authoritative; the request record's frontmatter is historical.\nDo not read source files, do not search for tools, and do not run commands \u2014 you\nhave no shell, and the close gate never re-hashes files.\n\n## Close checklist\n\nClose only when all four are true in the ledger:\n\n- `tests:` shows a frozen hash.\n- every automated criterion (one with a test path) is covered by a passing\n  checkpoint.\n- `docs:` is `none` or `applied`.\n- `human:` shows every human gate verified. Only the human-only `clara_gate`\n  tool records this; you cannot verify a gate yourself.\n\n## Decide\n\n- All four true: call `clara_event` with\n  `{ request, type: \"request.done\", state: \"done\" }`.\n- Any false: call `clara_decide` once with kind `decision`, the missing evidence,\n  recommendation `record the gate with clara_gate, then resolve this decision`,\n  and `default_if_silent: \"block\"`. Then stop. Do not guess and do not write a\n  plan.\n- Is the work converging, or thrashing? Spend past the soft budget: finish or\n  kill? A docs impact no longer applies: reconcile or escalate? Ask, never plan.\n\n## Budget\n\nAt most 4 tool calls. Decide by step 8. If the ledger cannot answer, escalate\nwith `clara_decide`; that is a valid outcome, not a failure."
     }
   }
 }

@@ -11,9 +11,11 @@ import { ago, now, slugify, type Db, type Row } from './db.ts'
 import {
   ensurePipelineSnapshots,
   loadPipeline,
+  pipelineForRequest,
   pipelineHash,
   pipelineSnapshot,
   workspacePipelineId,
+  type PipelineStage,
 } from './pipeline.ts'
 
 export const STALL_MINUTES = 10
@@ -271,10 +273,44 @@ export function submit(db: Db, input: SubmitInput): string {
 // criteria + approval + freeze
 // ---------------------------------------------------------------------------
 
+export const VERIFICATION_KINDS = ['automated', 'human', 'artifact'] as const
+export type VerificationKind = (typeof VERIFICATION_KINDS)[number]
+
 export interface CriterionInput {
   text: string
+  /** Generic verification kind. The software preset may use test_path instead. */
+  verification?: VerificationKind
+  /** Test path, command, artifact path, or other check reference. */
+  check?: string
+  /** Shorthand for verification=automated. */
   test_path?: string
+  /** Shorthand for verification=human. */
   human_gate?: boolean
+}
+
+type NormalizedCriterion = {
+  text: string
+  verification: VerificationKind
+  check_ref: string | null
+}
+
+function normalizeCriterion(criterion: CriterionInput): NormalizedCriterion | undefined {
+  if (criterion.human_gate) {
+    return { text: criterion.text, verification: 'human', check_ref: null }
+  }
+  if (criterion.test_path) {
+    return { text: criterion.text, verification: 'automated', check_ref: criterion.test_path }
+  }
+  if (criterion.verification) {
+    const check = criterion.check?.trim() ? criterion.check.trim() : null
+    if (criterion.verification === 'automated' && !check) return undefined
+    return {
+      text: criterion.text,
+      verification: criterion.verification,
+      check_ref: criterion.verification === 'human' ? null : check,
+    }
+  }
+  return undefined
 }
 
 export function setCriteria(
@@ -294,22 +330,27 @@ export function setCriteria(
   }
   if (!input.criteria.length) throw new Error('Clara: at least one criterion is required')
 
-  const unresolved = input.criteria.filter((c) => !c.test_path && !c.human_gate)
+  const criteria = input.criteria.map(normalizeCriterion)
+  const unresolved = criteria
+    .map((criterion, index) => (criterion ? undefined : input.criteria[index].text))
+    .filter((text): text is string => Boolean(text))
   if (unresolved.length) {
     throw new Error(
-      `Clara: ${unresolved.length} criteria have neither a test_path nor human_gate: ` +
-        unresolved.map((c) => `"${c.text}"`).join(', ')
+      `Clara: ${unresolved.length} criteria have no verification and no test_path or human_gate: ` +
+        unresolved.map((text) => `"${text}"`).join(', ')
     )
   }
+
+  const normalized = criteria as NormalizedCriterion[]
 
   db.exec('BEGIN')
   try {
     db.prepare('DELETE FROM criteria WHERE request_id = ?').run(request.id)
     const insert = db.prepare(
-      'INSERT INTO criteria (request_id, position, text, test_path, human_gate) VALUES (?, ?, ?, ?, ?)'
+      'INSERT INTO criteria (request_id, position, text, verification, check_ref) VALUES (?, ?, ?, ?, ?)'
     )
-    input.criteria.forEach((c, i) => {
-      insert.run(request.id, i + 1, c.text, c.test_path ?? null, c.human_gate ? 1 : 0)
+    normalized.forEach((criterion, i) => {
+      insert.run(request.id, i + 1, criterion.text, criterion.verification, criterion.check_ref)
     })
     db.exec('COMMIT')
   } catch (error) {
@@ -334,7 +375,8 @@ export function setCriteria(
     'criteria.proposed',
     'ai_1',
     json({
-      count: input.criteria.length,
+      count: normalized.length,
+      human_gates: normalized.filter((criterion) => criterion.verification === 'human').length,
       kill_criteria: input.kill_criteria ?? [],
       docs_impact: input.docs_impact ?? null,
     })
@@ -344,10 +386,11 @@ export function setCriteria(
     '',
     '## Acceptance criteria',
     '',
-    '| # | Criterion | Test | Human gate |',
+    '| # | Criterion | Verification | Check |',
     '|---|---|---|---|',
-    ...input.criteria.map(
-      (c, i) => `| ${i + 1} | ${c.text} | ${c.test_path ?? '—'} | ${c.human_gate ? 'yes' : 'no'} |`
+    ...normalized.map(
+      (criterion, i) =>
+        `| ${i + 1} | ${criterion.text} | ${criterion.verification} | ${criterion.check_ref ?? '—'} |`
     ),
     '',
   ].join('\n')
@@ -367,8 +410,8 @@ export function setCriteria(
   }
 
   return [
-    `${pad(request.id)} ${request.slug}: ${input.criteria.length} criteria proposed`,
-    `${input.criteria.filter((c) => c.human_gate).length} human gate(s)`,
+    `${pad(request.id)} ${request.slug}: ${normalized.length} criteria proposed`,
+    `${normalized.filter((criterion) => criterion.verification === 'human').length} human gate(s)`,
     `awaiting human approval — nothing proceeds until clara_approve.`,
   ].join('\n')
 }
@@ -603,6 +646,306 @@ export function checkpoint(db: Db, input: CheckpointInput): string {
 }
 
 // ---------------------------------------------------------------------------
+// stage evidence, gates, and progress
+// ---------------------------------------------------------------------------
+
+export interface StageDoneInput {
+  request: string | number
+  stage: string
+  evidence?: Record<string, unknown>
+  actor: string
+}
+
+export interface StageGateInput {
+  request: string | number
+  stage: string
+  result?: 'verified' | 'rejected'
+  evidence?: string
+  actor: string
+}
+
+export interface ProgressInput {
+  request: string | number
+  stage: string
+  metrics?: Record<string, unknown>
+  blocked_on?: string
+  next?: string
+  open_question?: string
+  tokens?: number
+  actor: string
+}
+
+function pipelineStage(db: Db, request: Row, stageID: string): PipelineStage {
+  const pipeline = pipelineForRequest(db, request)
+  const stage = pipeline.stages.find((candidate) => candidate.id === stageID)
+  if (!stage) {
+    throw new Error(
+      `Clara: request ${pad(request.id)} has no stage "${stageID}" in pipeline ${pipeline.id}@${pipeline.version}`
+    )
+  }
+  return stage
+}
+
+function evidenceMatchesType(value: unknown, type: string): boolean {
+  switch (type) {
+    case 'string':
+      return typeof value === 'string'
+    case 'number':
+      return typeof value === 'number' && Number.isFinite(value)
+    case 'boolean':
+      return typeof value === 'boolean'
+    case 'object':
+      return typeof value === 'object' && value !== null && !Array.isArray(value)
+    case 'array':
+      return Array.isArray(value)
+    default:
+      return false
+  }
+}
+
+function evidenceJSON(value: unknown): string {
+  return JSON.stringify(value ?? null)
+}
+
+function latestEvidence(db: Db, requestID: number, stageID: string, key: string): Row | undefined {
+  return db
+    .prepare(
+      'SELECT * FROM evidence WHERE request_id = ? AND stage_id = ? AND key = ? ORDER BY id DESC LIMIT 1'
+    )
+    .get(requestID, stageID, key) as Row | undefined
+}
+
+export function stageDone(db: Db, input: StageDoneInput): string {
+  const request = requireRequest(db, input.request)
+  const stage = pipelineStage(db, request, input.stage)
+  if (stage.phase === 'contract') {
+    const count = db
+      .prepare('SELECT COUNT(*) AS c FROM criteria WHERE request_id = ?')
+      .get(request.id)
+    if (!Number(count?.c ?? 0)) {
+      throw new Error(
+        `Clara: the contract stage cannot complete before criteria are proposed (request ${pad(request.id)})`
+      )
+    }
+  }
+
+  const provided = input.evidence ?? {}
+  const declared = stage.evidence ?? {}
+  const unknown = Object.keys(provided).filter((key) => !(key in declared))
+  if (unknown.length) {
+    throw new Error(`Clara: stage "${stage.id}" does not declare evidence ${unknown.join(', ')}`)
+  }
+  const missing = Object.entries(declared)
+    .filter(([, spec]) => spec.required)
+    .map(([key]) => key)
+    .filter((key) => !(key in provided))
+  if (missing.length) {
+    throw new Error(`Clara: stage "${stage.id}" is missing required evidence ${missing.join(', ')}`)
+  }
+  for (const [key, value] of Object.entries(provided)) {
+    const spec = declared[key]
+    if (!evidenceMatchesType(value, spec.type)) {
+      throw new Error(`Clara: evidence "${key}" must be a ${spec.type}`)
+    }
+  }
+
+  const at = now()
+  const written: string[] = []
+
+  db.exec('BEGIN')
+  try {
+    for (const [key, value] of Object.entries(provided)) {
+      const spec = declared[key]
+      const current = latestEvidence(db, Number(request.id), stage.id, key)
+      const encoded = evidenceJSON(value)
+      if (current && spec.immutable && String(current.value) !== encoded) {
+        throw new Error(`Clara: evidence "${key}" is immutable for stage "${stage.id}"`)
+      }
+      if (current && String(current.value) === encoded) continue
+      db.prepare(
+        'INSERT INTO evidence (request_id, stage_id, key, value, actor, at) VALUES (?, ?, ?, ?, ?, ?)'
+      ).run(request.id, stage.id, key, encoded, input.actor, at)
+      written.push(key)
+    }
+
+    db.prepare('UPDATE requests SET last_event_at = ?, stalled_at = NULL WHERE id = ?').run(
+      at,
+      request.id
+    )
+    db.prepare(
+      'INSERT INTO events (request_id, at, type, actor, payload) VALUES (?, ?, ?, ?, ?)'
+    ).run(
+      request.id,
+      at,
+      'stage.completed',
+      input.actor,
+      json({ stage: stage.id, phase: stage.phase, evidence: written })
+    )
+    db.exec('COMMIT')
+  } catch (error) {
+    db.exec('ROLLBACK')
+    throw error
+  }
+
+  appendRecord(
+    request,
+    `\n- **${at}** stage ${stage.id} completed (${input.actor})` +
+      (written.length ? ` · evidence: ${written.join(', ')}` : '') +
+      `\n`
+  )
+
+  return `${pad(request.id)} ${request.slug}: stage ${stage.id} completed${written.length ? ` (${written.join(', ')})` : ''}`
+}
+
+export function stageGate(db: Db, input: StageGateInput): string {
+  const request = requireRequest(db, input.request)
+  const stage = pipelineStage(db, request, input.stage)
+  if (!stage.gate) {
+    throw new Error(`Clara: stage "${stage.id}" does not declare a human gate`)
+  }
+
+  const at = now()
+  const result = input.result === 'rejected' ? 'rejected' : 'verified'
+  db.prepare(
+    `INSERT INTO stage_gates (request_id, stage_id, position, result, evidence, actor, at)
+     VALUES (?, ?, ?, ?, ?, ?, ?)`
+  ).run(request.id, stage.id, stage.gate.position, result, input.evidence ?? null, input.actor, at)
+  db.prepare('UPDATE requests SET last_event_at = ?, stalled_at = NULL WHERE id = ?').run(
+    at,
+    request.id
+  )
+  db.prepare(
+    'INSERT INTO events (request_id, at, type, actor, payload) VALUES (?, ?, ?, ?, ?)'
+  ).run(
+    request.id,
+    at,
+    'stage.gate',
+    input.actor,
+    json({
+      stage: stage.id,
+      position: stage.gate.position,
+      result,
+      evidence: input.evidence ?? null,
+    })
+  )
+
+  return `${pad(request.id)} ${request.slug}: stage ${stage.id} gate ${result}`
+}
+
+export function progress(db: Db, input: ProgressInput): string {
+  const request = requireRequest(db, input.request)
+  const stage = pipelineStage(db, request, input.stage)
+  const last = db
+    .prepare('SELECT n FROM progress WHERE request_id = ? ORDER BY n DESC LIMIT 1')
+    .get(request.id)
+  const n = Number(last?.n ?? 0) + 1
+  const at = now()
+  const metrics = input.metrics ?? {}
+
+  db.exec('BEGIN')
+  try {
+    db.prepare(
+      `INSERT INTO progress
+        (request_id, stage_id, n, at, metrics, blocked_on, next_step, open_question, tokens)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
+    ).run(
+      request.id,
+      stage.id,
+      n,
+      at,
+      JSON.stringify(metrics),
+      input.blocked_on ?? null,
+      input.next ?? null,
+      input.open_question ?? null,
+      input.tokens ?? null
+    )
+
+    const sets = ['last_event_at = ?', 'stalled_at = NULL', 'blocked_on = ?']
+    const values: any[] = [at, input.blocked_on ?? null]
+    if (typeof input.tokens === 'number') {
+      sets.push('tokens = tokens + ?')
+      values.push(input.tokens)
+    }
+    values.push(request.id)
+    db.prepare(`UPDATE requests SET ${sets.join(', ')} WHERE id = ?`).run(...values)
+
+    db.prepare(
+      'INSERT INTO events (request_id, at, type, actor, payload) VALUES (?, ?, ?, ?, ?)'
+    ).run(
+      request.id,
+      at,
+      'progress',
+      input.actor,
+      json({ stage: stage.id, n, metrics, blocked_on: input.blocked_on ?? null })
+    )
+    db.exec('COMMIT')
+  } catch (error) {
+    db.exec('ROLLBACK')
+    throw error
+  }
+
+  appendRecord(
+    request,
+    `\n- **#${n}** ${at} — stage ${stage.id}` +
+      (input.blocked_on ? `, blocked: ${input.blocked_on}` : '') +
+      (input.next ? `, next: ${input.next}` : '') +
+      `\n`
+  )
+
+  return `${pad(request.id)} ${request.slug}: progress #${n} on ${stage.id}`
+}
+
+export function stageCompleted(db: Db, requestID: number, stageID: string): boolean {
+  const row = db
+    .prepare(
+      `SELECT 1 FROM events
+        WHERE request_id = ? AND type = 'stage.completed'
+          AND json_valid(payload)
+          AND json_extract(payload, '$.stage') = ?
+        LIMIT 1`
+    )
+    .get(requestID, stageID)
+  return Boolean(row)
+}
+
+export function stageGateVerified(
+  db: Db,
+  requestID: number,
+  stageID: string,
+  position: 'before' | 'after'
+): boolean {
+  const row = db
+    .prepare(
+      `SELECT result FROM stage_gates
+        WHERE request_id = ? AND stage_id = ? AND position = ?
+        ORDER BY id DESC LIMIT 1`
+    )
+    .get(requestID, stageID, position)
+  return row?.result === 'verified'
+}
+
+export function stageEvidence(db: Db, requestID: number): Map<string, unknown> {
+  const rows = db
+    .prepare('SELECT stage_id, key, value FROM evidence WHERE request_id = ? ORDER BY id')
+    .all(requestID) as Row[]
+  const evidence = new Map<string, unknown>()
+  for (const row of rows) {
+    try {
+      evidence.set(String(row.key), JSON.parse(String(row.value)))
+    } catch {
+      // Ignore malformed evidence; the row is still visible in the raw ledger.
+    }
+  }
+  return evidence
+}
+
+export function latestProgress(db: Db, requestID: number): Row | undefined {
+  return db
+    .prepare('SELECT * FROM progress WHERE request_id = ? ORDER BY n DESC LIMIT 1')
+    .get(requestID) as Row | undefined
+}
+
+// ---------------------------------------------------------------------------
 // decisions (the inbox)
 // ---------------------------------------------------------------------------
 
@@ -714,7 +1057,7 @@ export function gate(db: Db, input: GateInput): string {
 
   const gatePositions = db
     .prepare(
-      'SELECT position FROM criteria WHERE request_id = ? AND human_gate = 1 ORDER BY position'
+      "SELECT position FROM criteria WHERE request_id = ? AND verification = 'human' ORDER BY position"
     )
     .all(request.id)
     .map((row) => Number(row.position))
@@ -930,7 +1273,7 @@ interface GateStatus {
 
 /** A later rejection removes a position; verification accumulates. */
 function gateStatus(db: Db, requestID: number, criteria: Row[]): GateStatus {
-  const gates = criteria.filter((c) => c.human_gate).map((c) => Number(c.position))
+  const gates = criteria.filter((c) => c.verification === 'human').map((c) => Number(c.position))
   const verified = new Set<number>()
   let at: string | null = null
 
@@ -1105,8 +1448,31 @@ function renderRequest(db: Db, f: Row): string {
     `criteria:  ${criteria.length ? `${approved}/${criteria.length} approved` : 'none proposed'}`
   )
   for (const c of criteria) {
-    const gate = c.human_gate ? 'human gate' : c.test_path
-    lines.push(`  ${c.position}. ${c.text} — ${gate}`)
+    const check =
+      c.verification === 'human'
+        ? 'human gate'
+        : String(c.check_ref ?? c.verification ?? 'artifact')
+    lines.push(`  ${c.position}. ${c.text} — ${check}`)
+  }
+
+  const evidenceRows = db
+    .prepare('SELECT stage_id, key, value, at FROM evidence WHERE request_id = ? ORDER BY id')
+    .all(f.id) as Row[]
+  if (evidenceRows.length) {
+    const latest = new Map<string, Row>()
+    for (const row of evidenceRows) latest.set(`${row.stage_id}.${row.key}`, row)
+    lines.push('', 'evidence (latest):')
+    for (const [label, row] of latest) {
+      let rendered = String(row.value)
+      try {
+        const parsed = JSON.parse(String(row.value))
+        rendered = typeof parsed === 'string' ? parsed : JSON.stringify(parsed)
+      } catch {
+        // Keep the raw value.
+      }
+      if (rendered.length > 140) rendered = `${rendered.slice(0, 137)}…`
+      lines.push(`  ${label}: ${rendered}`)
+    }
   }
 
   if (runs.length) {
