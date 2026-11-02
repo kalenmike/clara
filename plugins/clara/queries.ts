@@ -211,9 +211,10 @@ export function submit(db: Db, input: SubmitInput): string {
     )
 
   if (input.session_id) {
-    db.prepare(
-      'UPDATE workspaces SET session_id = ? WHERE id = ? AND session_id IS NULL'
-    ).run(input.session_id, ws.id)
+    db.prepare('UPDATE workspaces SET session_id = ? WHERE id = ? AND session_id IS NULL').run(
+      input.session_id,
+      ws.id
+    )
   }
 
   const id = Number(result.lastInsertRowid)

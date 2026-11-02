@@ -352,9 +352,7 @@ export async function advance(options: TickOptions): Promise<string[]> {
             createSession: async (input) => {
               const model = await resolveModel(options.ctx, input.workspacePath)
               if (!model) {
-                options.logger.error(
-                  `attention: no model available for ${input.title}`
-                )
+                options.logger.error(`attention: no model available for ${input.title}`)
                 return
               }
 

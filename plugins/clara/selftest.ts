@@ -284,9 +284,7 @@ check(
 const sessionDir = join(dir, 'session-workspace')
 mkdirSync(sessionDir, { recursive: true })
 const sessionDb = await getDb(join(dir, 'session-ledger.db'))
-const sessionSubmit = index
-  .createTools(sessionDb)
-  .find((tool) => tool.name === 'submit')!
+const sessionSubmit = index.createTools(sessionDb).find((tool) => tool.name === 'submit')!
 await sessionSubmit.execute(
   {
     workspace: 'session',
@@ -933,7 +931,10 @@ const prose = await attentionTool.execute(
   { alert: attentionAlertKey, state: 'feedback', prompt: 'Ship it?' },
   { agent: 'clara', sessionID: 'ses_attention' }
 )
-check('attention falls back to prose without a form API', String(prose.content).includes('in prose'))
+check(
+  'attention falls back to prose without a form API',
+  String(prose.content).includes('in prose')
+)
 
 const created: any[] = []
 const fakeForms = {
@@ -942,7 +943,10 @@ const fakeForms = {
     return { id: 'form_attention' }
   },
   async get() {
-    return { id: 'form_attention', state: { status: 'answered' as const, answer: { response: 'ship it' } } }
+    return {
+      id: 'form_attention',
+      state: { status: 'answered' as const, answer: { response: 'ship it' } },
+    }
   },
   async cancel() {},
 }
@@ -968,7 +972,10 @@ const confirmForms = {
     return { id: 'form_confirm' }
   },
   async get() {
-    return { id: 'form_confirm', state: { status: 'answered' as const, answer: { confirm: false } } }
+    return {
+      id: 'form_confirm',
+      state: { status: 'answered' as const, answer: { confirm: false } },
+    }
   },
   async cancel() {},
 }
@@ -979,7 +986,10 @@ const refused = await confirmTool.execute(
   { alert: attentionAlertKey, state: 'confirm', confirm_label: 'Start' },
   { agent: 'clara', sessionID: 'ses_attention' }
 )
-check('confirm tells Clara not to start on false', String(refused.content).includes('did not confirm'))
+check(
+  'confirm tells Clara not to start on false',
+  String(refused.content).includes('did not confirm')
+)
 
 attentionDb
   .prepare('UPDATE alerts SET resolved_at = ? WHERE key = ?')
@@ -1002,9 +1012,7 @@ q.submit(deliveryDb, {
   intent: 'The human keeps one conversation per feature.',
   session_id: 'ses_existing',
 })
-const deliveryFeature = deliveryDb
-  .prepare('SELECT * FROM features ORDER BY id DESC LIMIT 1')
-  .get()!
+const deliveryFeature = deliveryDb.prepare('SELECT * FROM features ORDER BY id DESC LIMIT 1').get()!
 const insertDeliveryAlert = (key: string, featureId: number, slug: string, workspace: string) => {
   deliveryDb
     .prepare(
@@ -1067,7 +1075,10 @@ check(
   prompts[0]?.metadata?.source === 'daemon' && prompts[0]?.metadata?.synthetic === true
 )
 check('attention prompt is queued', prompts[0]?.delivery === 'queue')
-check('attention prompt names clara_attention', String(prompts[0]?.text).includes('clara_attention'))
+check(
+  'attention prompt names clara_attention',
+  String(prompts[0]?.text).includes('clara_attention')
+)
 check('attention does not create a session when one exists', createdSessions.length === 0)
 check(
   'attention marks the alert delivered',
@@ -1093,9 +1104,7 @@ q.submit(deliveryDb, {
   title: 'A feature without a session gets one',
   intent: 'The daemon creates and links a Clara session.',
 })
-const missingFeature = deliveryDb
-  .prepare('SELECT * FROM features ORDER BY id DESC LIMIT 1')
-  .get()!
+const missingFeature = deliveryDb.prepare('SELECT * FROM features ORDER BY id DESC LIMIT 1').get()!
 insertDeliveryAlert(
   `decision:${missingFeature.id}`,
   Number(missingFeature.id),
@@ -1118,9 +1127,8 @@ check(
 check('attention prompts the created session', prompts[1]?.sessionID === 'ses_created_1')
 check(
   'attention links the new session to the feature',
-  deliveryDb
-    .prepare('SELECT session_id FROM features WHERE id = ?')
-    .get(missingFeature.id)!.session_id === 'ses_created_1'
+  deliveryDb.prepare('SELECT session_id FROM features WHERE id = ?').get(missingFeature.id)!
+    .session_id === 'ses_created_1'
 )
 
 const archivedWorkspace = join(dir, 'delivery-archived')
@@ -1132,9 +1140,7 @@ q.submit(deliveryDb, {
   intent: 'The alert does not disappear into archive.',
   session_id: 'ses_archived',
 })
-const archivedFeature = deliveryDb
-  .prepare('SELECT * FROM features ORDER BY id DESC LIMIT 1')
-  .get()!
+const archivedFeature = deliveryDb.prepare('SELECT * FROM features ORDER BY id DESC LIMIT 1').get()!
 knownSessions.set('ses_archived', {
   id: 'ses_archived',
   agent: 'clara',
@@ -1156,9 +1162,8 @@ await deliverAttention({
 check('attention replaces an archived session', createdSessions.length === 2)
 check(
   'attention relinks an archived feature',
-  deliveryDb
-    .prepare('SELECT session_id FROM features WHERE id = ?')
-    .get(archivedFeature.id)!.session_id === 'ses_created_2'
+  deliveryDb.prepare('SELECT session_id FROM features WHERE id = ?').get(archivedFeature.id)!
+    .session_id === 'ses_created_2'
 )
 
 const failureDb = await getDb(join(dir, 'delivery-failure.db'))
@@ -1168,9 +1173,7 @@ q.submit(failureDb, {
   title: 'A failed prompt is retried',
   intent: 'No alert is lost when the session API fails.',
 })
-const failureFeature = failureDb
-  .prepare('SELECT * FROM features ORDER BY id DESC LIMIT 1')
-  .get()!
+const failureFeature = failureDb.prepare('SELECT * FROM features ORDER BY id DESC LIMIT 1').get()!
 failureDb
   .prepare(
     `INSERT INTO alerts

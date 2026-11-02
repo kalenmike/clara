@@ -210,9 +210,8 @@ export function createTools(
       },
       execute: async (input: any, context: any) => {
         requireRole('attention', context, ['human'])
-        const alert = db
-          .prepare('SELECT * FROM alerts WHERE key = ?')
-          .get(String(input.alert)) as Row | undefined
+        const alert = db.prepare('SELECT * FROM alerts WHERE key = ?').get(String(input.alert)) as
+          Row | undefined
         if (!alert) return { content: `Clara: no alert "${input.alert}".` }
 
         const state = String(input.state)

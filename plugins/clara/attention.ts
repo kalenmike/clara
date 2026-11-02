@@ -134,7 +134,11 @@ export async function waitForAttentionForm(
 
   while (true) {
     if (input.signal?.aborted) {
-      await forms.cancel?.({ sessionID: input.sessionID, formID: input.formID, message: 'interrupted' })
+      await forms.cancel?.({
+        sessionID: input.sessionID,
+        formID: input.formID,
+        message: 'interrupted',
+      })
       return { status: 'cancelled', message: 'interrupted' }
     }
 
@@ -147,7 +151,11 @@ export async function waitForAttentionForm(
     }
 
     if (Date.now() - started > WAIT_MS) {
-      await forms.cancel?.({ sessionID: input.sessionID, formID: input.formID, message: 'timed out' })
+      await forms.cancel?.({
+        sessionID: input.sessionID,
+        formID: input.formID,
+        message: 'timed out',
+      })
       return { status: 'cancelled', message: 'timed out' }
     }
 
@@ -359,16 +367,10 @@ export async function deliverAttention(options: DeliverAttentionOptions): Promis
     )
 
     if (row.feature_id) {
-      db.prepare('UPDATE features SET session_id = ? WHERE id = ?').run(
-        sessionID,
-        row.feature_id
-      )
+      db.prepare('UPDATE features SET session_id = ? WHERE id = ?').run(sessionID, row.feature_id)
     }
     if (!row.feature_id && workspaceID) {
-      db.prepare('UPDATE workspaces SET session_id = ? WHERE id = ?').run(
-        sessionID,
-        workspaceID
-      )
+      db.prepare('UPDATE workspaces SET session_id = ? WHERE id = ?').run(sessionID, workspaceID)
     }
 
     actions.push(`${label}: alerted ${sessionID}`)
