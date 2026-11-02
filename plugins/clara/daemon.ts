@@ -13,6 +13,7 @@ import { existsSync } from 'node:fs'
 import { execFileSync } from 'node:child_process'
 import type { Db, Row } from './db.ts'
 import { collectAlerts } from './alerts.ts'
+import { deliverAttention } from './attention.ts'
 import { appendEvent, decide, tick as ledgerTick, workspaceOf } from './queries.ts'
 import {
   acquireDaemonLock,
@@ -41,9 +42,11 @@ export interface DaemonModel {
 export interface DaemonSessionInfo {
   id: string
   agent?: string
+  parentID?: string
+  metadata?: Record<string, unknown>
   model?: { id?: string; modelID?: string; providerID: string; variant?: string } | null
   outcome?: 'succeeded' | 'failed' | 'interrupted'
-  time?: { idle?: number }
+  time?: { idle?: number; archived?: number | null }
 }
 
 /** Metadata that marks a session as daemon-owned rather than a human session. */
@@ -70,6 +73,7 @@ export interface DaemonSessionApi {
     sessionID: string
     text: string
     metadata?: Record<string, unknown>
+    delivery?: 'steer' | 'queue'
   }): Promise<unknown>
   get(input: { sessionID: string }): Promise<DaemonSessionInfo>
   list?(input: { directory?: string; limit?: number }): Promise<unknown>
@@ -95,6 +99,8 @@ export interface DaemonOptions {
   intervalMs?: number
   lockStaleMs?: number
   maxSpawnsPerTick?: number
+  /** Deliver ledger exceptions into Clara sessions. Defaults to true. */
+  attention?: boolean
   owner?: string
   pid?: number
   /** When this returns false the loop stays loaded but does no work. */
@@ -112,6 +118,7 @@ interface TickOptions {
   db: Db
   ctx: DaemonContext
   maxSpawns: number
+  attention: boolean
   logger: DaemonLogger
 }
 
@@ -272,7 +279,13 @@ export function createDaemon(options: DaemonOptions): Daemon {
     try {
       if (!acquireDaemonLock(db, owner, pid, lockStaleMs)) return []
       try {
-        const actions = await advance({ db, ctx, maxSpawns, logger })
+        const actions = await advance({
+          db,
+          ctx,
+          maxSpawns,
+          attention: options.attention !== false,
+          logger,
+        })
         for (const action of actions) logger.info(action)
         return actions
       } finally {
@@ -325,9 +338,55 @@ export async function advance(options: TickOptions): Promise<string[]> {
   if (alerts.length) {
     for (const alert of alerts) options.logger.info(`alert: ${alert.title}`)
   }
-  commitClosedRecords(options)
 
   const actions: string[] = []
+  if (options.attention) {
+    const session = sessionApi(options.ctx)
+    if (session) {
+      try {
+        actions.push(
+          ...(await deliverAttention({
+            db: options.db,
+            session,
+            fallbackDirectory: options.ctx.location?.directory,
+            createSession: async (input) => {
+              const model = await resolveModel(options.ctx, input.workspacePath)
+              if (!model) {
+                options.logger.error(
+                  `attention: no model available for ${input.title}`
+                )
+                return
+              }
+
+              const created = await session.create({
+                title: input.title,
+                location: { directory: input.workspacePath },
+                model,
+                metadata: input.metadata,
+              })
+
+              try {
+                await session.switchAgent({ sessionID: created.id, agent: 'clara' })
+              } catch (error) {
+                if (session.remove) {
+                  await session.remove({ sessionID: created.id }).catch(() => {})
+                }
+                throw error
+              }
+
+              return created
+            },
+            logger: options.logger,
+          }))
+        )
+      } catch (error) {
+        options.logger.error('attention delivery failed', error)
+      }
+    }
+  }
+
+  commitClosedRecords(options)
+
   let spawned = 0
 
   for (const feature of activeFeatures(options.db)) {

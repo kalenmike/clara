@@ -267,8 +267,14 @@ export function collectAlerts(db: Db): AlertRow[] {
       }
 
       // A gate can be rejected after it was verified, reopening the same key.
+      // Clear delivery so the reopened exception reaches Clara again.
       if (!item.oneTime && previous !== null) {
-        db.prepare('UPDATE alerts SET resolved_at = NULL WHERE key = ?').run(item.key)
+        db.prepare(
+          `UPDATE alerts
+              SET resolved_at = NULL, session_id = NULL, notified_at = NULL,
+                  attention_state = NULL
+            WHERE key = ?`
+        ).run(item.key)
         existing.set(item.key, null)
       }
     }

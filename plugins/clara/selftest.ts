@@ -9,6 +9,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import * as daemon from './daemon.ts'
 import { collectAlerts } from './alerts.ts'
+import { deliverAttention } from './attention.ts'
 import { getDb, managementEnabled } from './db.ts'
 import * as q from './queries.ts'
 import * as runs from './runs.ts'
@@ -643,6 +644,7 @@ const supervisor = daemon.createDaemon({
   ctx: { session: sessionApi, options: { daemonModel: 'test/model' } },
   intervalMs: 60_000,
   lockStaleMs: 60_000,
+  attention: false,
   logger: silent,
 })
 
@@ -850,6 +852,21 @@ collectAlerts(db)
 const gateClosed = db.prepare('SELECT resolved_at FROM alerts WHERE key = ?').get(`gates:${waitId}`)
 check('gate verification resolves the alert', Boolean(gateClosed?.resolved_at))
 
+db.prepare(
+  "UPDATE alerts SET session_id = 'ses_gate', notified_at = ?, attention_state = 'info' WHERE key = ?"
+).run(new Date().toISOString(), `gates:${waitId}`)
+q.gate(db, { feature: waitId, criteria: [1], result: 'rejected' })
+collectAlerts(db)
+const gateReopened = db
+  .prepare('SELECT session_id, notified_at, attention_state FROM alerts WHERE key = ?')
+  .get(`gates:${waitId}`)
+check(
+  'a reopened gate clears its delivery',
+  gateReopened?.session_id === null &&
+    gateReopened?.notified_at === null &&
+    gateReopened?.attention_state === null
+)
+
 const decisionAlert = q.decide(db, {
   feature: waitId,
   kind: 'decision',
@@ -973,6 +990,227 @@ const stale = await attentionTool.execute(
 )
 check('a resolved alert is refused', String(stale.content).includes('already resolved'))
 attentionDb.close()
+
+console.log('\n16. attention delivery')
+const deliveryWorkspace = join(dir, 'delivery-workspace')
+mkdirSync(deliveryWorkspace, { recursive: true })
+const deliveryDb = await getDb(join(dir, 'delivery-ledger.db'))
+q.submit(deliveryDb, {
+  workspace: 'delivery',
+  path: deliveryWorkspace,
+  title: 'Alerts return to the submitting session',
+  intent: 'The human keeps one conversation per feature.',
+  session_id: 'ses_existing',
+})
+const deliveryFeature = deliveryDb
+  .prepare('SELECT * FROM features ORDER BY id DESC LIMIT 1')
+  .get()!
+const insertDeliveryAlert = (key: string, featureId: number, slug: string, workspace: string) => {
+  deliveryDb
+    .prepare(
+      `INSERT INTO alerts
+        (key, feature_id, slug, workspace, kind, title, body, created_at)
+       VALUES (?, ?, ?, ?, 'decision', ?, ?, ?)`
+    )
+    .run(
+      key,
+      featureId,
+      slug,
+      workspace,
+      `${String(featureId).padStart(3, '0')} ${slug} · decision`,
+      'Choose one.',
+      new Date().toISOString()
+    )
+}
+insertDeliveryAlert(
+  `decision:${deliveryFeature.id}`,
+  Number(deliveryFeature.id),
+  String(deliveryFeature.slug),
+  'delivery'
+)
+
+const prompts: any[] = []
+const createdSessions: any[] = []
+const removedSessions: string[] = []
+const knownSessions = new Map<string, any>([
+  ['ses_existing', { id: 'ses_existing', agent: 'clara', metadata: {}, time: {} }],
+])
+const attentionSessionApi = {
+  async get({ sessionID }: { sessionID: string }) {
+    const found = knownSessions.get(sessionID)
+    if (!found) throw new Error(`no session ${sessionID}`)
+    return found
+  },
+  async prompt(input: any) {
+    prompts.push(input)
+  },
+  async remove({ sessionID }: { sessionID: string }) {
+    removedSessions.push(sessionID)
+  },
+}
+const createDeliverySession = async (input: any) => {
+  createdSessions.push(input)
+  const created = { id: `ses_created_${createdSessions.length}` }
+  knownSessions.set(created.id, { id: created.id, agent: 'clara', metadata: {}, time: {} })
+  return created
+}
+
+const delivered = await deliverAttention({
+  db: deliveryDb,
+  session: attentionSessionApi as any,
+  createSession: createDeliverySession,
+  fallbackDirectory: deliveryWorkspace,
+})
+check('attention prompts the linked session', prompts[0]?.sessionID === 'ses_existing')
+check(
+  'attention handoff is a daemon synthetic prompt',
+  prompts[0]?.metadata?.source === 'daemon' && prompts[0]?.metadata?.synthetic === true
+)
+check('attention prompt is queued', prompts[0]?.delivery === 'queue')
+check('attention prompt names clara_attention', String(prompts[0]?.text).includes('clara_attention'))
+check('attention does not create a session when one exists', createdSessions.length === 0)
+check(
+  'attention marks the alert delivered',
+  deliveryDb
+    .prepare('SELECT session_id FROM alerts WHERE key = ?')
+    .get(`decision:${deliveryFeature.id}`)!.session_id === 'ses_existing'
+)
+check('attention reports what it did', delivered[0]?.includes('alerted ses_existing'))
+
+await deliverAttention({
+  db: deliveryDb,
+  session: attentionSessionApi as any,
+  createSession: createDeliverySession,
+  fallbackDirectory: deliveryWorkspace,
+})
+check('attention delivers each alert once', prompts.length === 1)
+
+const missingWorkspace = join(dir, 'delivery-missing')
+mkdirSync(missingWorkspace, { recursive: true })
+q.submit(deliveryDb, {
+  workspace: 'delivery-missing',
+  path: missingWorkspace,
+  title: 'A feature without a session gets one',
+  intent: 'The daemon creates and links a Clara session.',
+})
+const missingFeature = deliveryDb
+  .prepare('SELECT * FROM features ORDER BY id DESC LIMIT 1')
+  .get()!
+insertDeliveryAlert(
+  `decision:${missingFeature.id}`,
+  Number(missingFeature.id),
+  String(missingFeature.slug),
+  'delivery-missing'
+)
+await deliverAttention({
+  db: deliveryDb,
+  session: attentionSessionApi as any,
+  createSession: createDeliverySession,
+  fallbackDirectory: deliveryWorkspace,
+})
+check('attention creates a session when none exists', createdSessions.length === 1)
+check(
+  'created attention session is not automation',
+  createdSessions[0]?.metadata?.initiatedBy === 'clara' &&
+    createdSessions[0]?.metadata?.ledgerAlert === true &&
+    createdSessions[0]?.metadata?.automation === undefined
+)
+check('attention prompts the created session', prompts[1]?.sessionID === 'ses_created_1')
+check(
+  'attention links the new session to the feature',
+  deliveryDb
+    .prepare('SELECT session_id FROM features WHERE id = ?')
+    .get(missingFeature.id)!.session_id === 'ses_created_1'
+)
+
+const archivedWorkspace = join(dir, 'delivery-archived')
+mkdirSync(archivedWorkspace, { recursive: true })
+q.submit(deliveryDb, {
+  workspace: 'delivery-archived',
+  path: archivedWorkspace,
+  title: 'An archived session is replaced',
+  intent: 'The alert does not disappear into archive.',
+  session_id: 'ses_archived',
+})
+const archivedFeature = deliveryDb
+  .prepare('SELECT * FROM features ORDER BY id DESC LIMIT 1')
+  .get()!
+knownSessions.set('ses_archived', {
+  id: 'ses_archived',
+  agent: 'clara',
+  metadata: {},
+  time: { archived: Date.now() },
+})
+insertDeliveryAlert(
+  `decision:${archivedFeature.id}`,
+  Number(archivedFeature.id),
+  String(archivedFeature.slug),
+  'delivery-archived'
+)
+await deliverAttention({
+  db: deliveryDb,
+  session: attentionSessionApi as any,
+  createSession: createDeliverySession,
+  fallbackDirectory: deliveryWorkspace,
+})
+check('attention replaces an archived session', createdSessions.length === 2)
+check(
+  'attention relinks an archived feature',
+  deliveryDb
+    .prepare('SELECT session_id FROM features WHERE id = ?')
+    .get(archivedFeature.id)!.session_id === 'ses_created_2'
+)
+
+const failureDb = await getDb(join(dir, 'delivery-failure.db'))
+q.submit(failureDb, {
+  workspace: 'delivery-failure',
+  path: deliveryWorkspace,
+  title: 'A failed prompt is retried',
+  intent: 'No alert is lost when the session API fails.',
+})
+const failureFeature = failureDb
+  .prepare('SELECT * FROM features ORDER BY id DESC LIMIT 1')
+  .get()!
+failureDb
+  .prepare(
+    `INSERT INTO alerts
+      (key, feature_id, slug, workspace, kind, title, body, created_at)
+     VALUES (?, ?, ?, ?, 'decision', ?, ?, ?)`
+  )
+  .run(
+    `decision:${failureFeature.id}`,
+    failureFeature.id,
+    failureFeature.slug,
+    'delivery-failure',
+    'Fails to prompt',
+    'Choose one.',
+    new Date().toISOString()
+  )
+await deliverAttention({
+  db: failureDb,
+  session: {
+    async get() {
+      throw new Error('missing')
+    },
+    async prompt() {
+      throw new Error('prompt failed')
+    },
+    async remove({ sessionID }: { sessionID: string }) {
+      removedSessions.push(sessionID)
+    },
+  } as any,
+  createSession: async () => ({ id: 'ses_failure' }),
+  fallbackDirectory: deliveryWorkspace,
+})
+check(
+  'a failed prompt leaves the alert undelivered',
+  failureDb
+    .prepare('SELECT session_id FROM alerts WHERE key = ?')
+    .get(`decision:${failureFeature.id}`)!.session_id === null
+)
+check('a failed prompt removes the new session', removedSessions.includes('ses_failure'))
+failureDb.close()
+deliveryDb.close()
 
 rmSync(dir, { recursive: true, force: true })
 

@@ -7,8 +7,23 @@
 // This module owns the form shape and the small wait loop. The tool definition
 // lives in index.ts; the daemon's delivery loop is added below it.
 
+import { now, type Db, type Row } from './db.ts'
+
 const POLL_MS = 1_000
 const WAIT_MS = 24 * 60 * 60 * 1_000
+const ALERT_LIMIT = 3
+
+/** A session created only because the feature had no usable Clara session. */
+export const ATTENTION_SESSION_METADATA = {
+  initiatedBy: 'clara',
+  ledgerAlert: true,
+} as const
+
+/** The daemon handoff is not human input and must not be attributed to them. */
+export const ATTENTION_PROMPT_METADATA = {
+  source: 'daemon',
+  synthetic: true,
+} as const
 
 export const ATTENTION_STATES = ['feedback', 'form', 'confirm', 'info'] as const
 
@@ -198,4 +213,217 @@ function unwrap<T>(value: any): T {
 
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms))
+}
+
+// ---------------------------------------------------------------------------
+// delivery
+// ---------------------------------------------------------------------------
+
+export type AttentionSessionInfo = {
+  id: string
+  agent?: string
+  parentID?: string
+  metadata?: Record<string, unknown>
+  time?: { archived?: number | null }
+}
+
+export type AttentionSessionApi = {
+  get(input: { sessionID: string }): Promise<AttentionSessionInfo>
+  prompt(input: {
+    sessionID: string
+    text: string
+    metadata?: Record<string, unknown>
+    delivery?: 'steer' | 'queue'
+  }): Promise<unknown>
+  remove?(input: { sessionID: string }): Promise<void>
+}
+
+export type CreateAttentionSession = (input: {
+  alert: Row
+  feature?: Row
+  workspacePath: string
+  title: string
+  metadata: Record<string, unknown>
+}) => Promise<{ id: string } | undefined>
+
+export type DeliverAttentionOptions = {
+  db: Db
+  session: AttentionSessionApi
+  createSession: CreateAttentionSession
+  fallbackDirectory?: string
+  max?: number
+  logger?: {
+    info(message: string): void
+    error(message: string, error?: unknown): void
+  }
+}
+
+/**
+ * Hand every undelivered exception to the Clara session that already carries
+ * its feature. If that session is gone, archived, or is not a Clara session,
+ * create one and write it back to the ledger so the next alert returns there.
+ *
+ * The alert is marked only after the prompt is accepted. A failed prompt leaves
+ * it unmarked so the next tick retries.
+ */
+export async function deliverAttention(options: DeliverAttentionOptions): Promise<string[]> {
+  const { db, session } = options
+  const max = Math.max(1, Math.floor(options.max ?? ALERT_LIMIT))
+  const cutoff = new Date(Date.now() - 60 * 60 * 1_000).toISOString()
+  const rows = db
+    .prepare(
+      `SELECT a.*,
+              f.session_id AS feature_session_id,
+              f.workspace_id AS feature_workspace_id,
+              f.slug AS feature_slug,
+              fw.path AS feature_path,
+              fw.session_id AS feature_workspace_session,
+              aw.id AS alert_workspace_id,
+              aw.path AS alert_workspace_path,
+              aw.session_id AS alert_workspace_session
+         FROM alerts a
+         LEFT JOIN features f ON f.id = a.feature_id
+         LEFT JOIN workspaces fw ON fw.id = f.workspace_id
+         LEFT JOIN workspaces aw ON aw.name = a.workspace
+        WHERE a.session_id IS NULL
+          AND (a.resolved_at IS NULL
+               OR (a.key LIKE 'kill:%' AND a.created_at >= ?))
+        ORDER BY a.id
+        LIMIT ?`
+    )
+    .all(cutoff, max) as Row[]
+
+  const actions: string[] = []
+
+  for (const row of rows) {
+    const label = alertLabel(row)
+    const feature = row.feature_id
+      ? (db.prepare('SELECT * FROM features WHERE id = ?').get(row.feature_id) as Row | undefined)
+      : undefined
+    const workspaceID = row.feature_workspace_id ?? row.alert_workspace_id
+    const workspacePath =
+      row.feature_path ?? row.alert_workspace_path ?? options.fallbackDirectory ?? undefined
+    const target = row.feature_session_id ?? row.alert_workspace_session ?? undefined
+
+    let sessionID = await usableSession(session, target)
+    let created = false
+
+    if (!sessionID) {
+      if (!workspacePath) {
+        options.logger?.error(`attention: no workspace path for ${label}`)
+        continue
+      }
+
+      let newSession: { id: string } | undefined
+      try {
+        newSession = await options.createSession({
+          alert: row,
+          feature,
+          workspacePath,
+          title: `Clara · needs you · ${label}`,
+          metadata: { ...ATTENTION_SESSION_METADATA },
+        })
+      } catch (error) {
+        options.logger?.error(`attention: could not create a session for ${label}`, error)
+        continue
+      }
+
+      if (!newSession) {
+        options.logger?.error(`attention: no session was created for ${label}`)
+        continue
+      }
+
+      sessionID = newSession.id
+      created = true
+    }
+
+    try {
+      await session.prompt({
+        sessionID,
+        text: attentionPrompt(row, label),
+        metadata: { ...ATTENTION_PROMPT_METADATA },
+        delivery: 'queue',
+      })
+    } catch (error) {
+      options.logger?.error(`attention: could not prompt ${sessionID} for ${label}`, error)
+      if (created) {
+        await session.remove?.({ sessionID }).catch(() => {})
+      }
+      continue
+    }
+
+    db.prepare('UPDATE alerts SET session_id = ?, notified_at = ? WHERE id = ?').run(
+      sessionID,
+      now(),
+      row.id
+    )
+
+    if (row.feature_id) {
+      db.prepare('UPDATE features SET session_id = ? WHERE id = ?').run(
+        sessionID,
+        row.feature_id
+      )
+    }
+    if (!row.feature_id && workspaceID) {
+      db.prepare('UPDATE workspaces SET session_id = ? WHERE id = ?').run(
+        sessionID,
+        workspaceID
+      )
+    }
+
+    actions.push(`${label}: alerted ${sessionID}`)
+  }
+
+  return actions
+}
+
+async function usableSession(
+  session: AttentionSessionApi,
+  sessionID: string | undefined
+): Promise<string | undefined> {
+  if (!sessionID) return undefined
+
+  try {
+    const info = await session.get({ sessionID })
+    if (!info) return undefined
+    if (info.time?.archived != null) return undefined
+    if (info.parentID) return undefined
+    if (info.metadata?.automation === true) return undefined
+    if (info.agent !== 'clara') return undefined
+    return info.id
+  } catch {
+    return undefined
+  }
+}
+
+function alertLabel(row: Row): string {
+  if (!row.feature_id) return `workspace${row.workspace ? ` ${row.workspace}` : ''}`
+  const id = String(Number(row.feature_id)).padStart(3, '0')
+  return `${id} ${row.feature_slug ?? row.slug ?? 'feature'}`
+}
+
+function attentionPrompt(row: Row, label: string): string {
+  const feature = row.feature_id
+    ? `feature ${row.feature_id} (${label})`
+    : `workspace ${row.workspace ?? label}`
+  const stateHint =
+    row.kind === 'kill'
+      ? 'This is a stopped feature: use state info; no answer is needed.'
+      : row.kind === 'stalled'
+        ? 'This feature is stalled: use info when there is nothing to decide, otherwise feedback.'
+        : 'Use the state that fits: feedback for a free-text answer, form for structured answers, confirm for a go/no-go, or info when nothing is needed.'
+
+  return [
+    `Clara daemon: ledger alert "${row.key}" for ${feature}.`,
+    '',
+    String(row.title),
+    String(row.body),
+    '',
+    `The human is already in this session. Confirm the item is still open with clara_ask${
+      row.feature_id ? ` (${row.feature_id})` : ''
+    }; if it has resolved, say so and stop.`,
+    `Otherwise call clara_attention with alert "${row.key}". ${stateHint}`,
+    'Write the context yourself in a short message; the form is only the question.',
+    'Do not call clara_approve, clara_gate, or clara_resolve until the human answers.',
+  ].join('\n')
 }
