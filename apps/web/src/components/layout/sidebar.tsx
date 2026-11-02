@@ -527,18 +527,13 @@ export function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
       </ScrollArea>
 
       {claraEnabled && (
-        <div className="border-t px-2.5 md:px-2">
+        <div className="shrink-0 border-t bg-sidebar px-2.5 md:px-2">
           <Collapsible
             open={workersOpen}
             onOpenChange={(next) => {
               if (!searching) setSectionOpen('workers', next)
             }}
           >
-            <CollapsibleContent>
-              <div className="max-h-64 overflow-y-auto pb-1">
-                {renderSessionRows(workerSection)}
-              </div>
-            </CollapsibleContent>
             <CollapsibleTrigger className="flex w-full items-center gap-1.5 rounded-md px-2.5 py-2.5 text-xs font-medium uppercase tracking-wider text-muted-foreground transition-colors hover:bg-sidebar-accent/60 hover:text-foreground md:px-2 md:py-1.5 md:text-[10px]">
               <ChevronRight
                 className={cn(
@@ -551,11 +546,16 @@ export function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
                 {workerSection.sessions.length}
               </span>
             </CollapsibleTrigger>
+            <CollapsibleContent>
+              <div className="max-h-[min(16rem,45dvh)] overflow-y-auto pb-1">
+                {renderSessionRows(workerSection)}
+              </div>
+            </CollapsibleContent>
           </Collapsible>
         </div>
       )}
 
-      <div className="border-t px-3 py-2.5 text-[11px] text-muted-foreground md:py-2 md:text-[10px]">
+      <div className="shrink-0 border-t px-3 py-2.5 text-[11px] text-muted-foreground md:py-2 md:text-[10px]">
         <div className="flex items-center justify-between gap-2">
           <span className="truncate">{info ? `OpenCode ${info.version}` : 'Not connected'}</span>
           <span className="truncate" title={claraBuildTitle}>
