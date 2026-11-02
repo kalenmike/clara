@@ -307,7 +307,7 @@ export class RuntimeController {
     const previous = this.options.settings.getManagement()
     this.options.settings.setManagement(enabled)
     this.options.info.management = enabled
-    await this.applyAgentVisibility(enabled)
+    await this.applyAgentVisibility(enabled, { forceReload: previous !== enabled })
 
     this.localAgent.broadcastAgentInfo()
     this.relayAgent?.broadcastAgentInfo()
@@ -443,22 +443,28 @@ export class RuntimeController {
    * the management switch and reload OpenCode only when a file changed. A
    * reload failure must never block the saved switch or the daemon.
    */
-  private async applyAgentVisibility(enabled: boolean): Promise<void> {
+  private async applyAgentVisibility(
+    enabled: boolean,
+    options: { forceReload?: boolean } = {}
+  ): Promise<void> {
     const sync = this.options.syncClaraAgents ?? syncClaraAgentVisibility
     let synced: ClaraAgentSyncResult | undefined
     try {
       synced = sync(enabled)
     } catch (cause) {
       this.options.log('could not sync the Clara agent files', cause)
-      return
+      if (!options.forceReload) return
     }
-    if (synced.skipped.length) {
+    if (synced?.skipped.length) {
       this.options.log(
         'left edited Clara agent files untouched',
         synced.skipped.map((id) => `${id}.md`).join(', ')
       )
     }
-    if (!synced.updated.length || !this.canProxy()) return
+    if (!this.canProxy()) return
+    // A switch change must reload even when the generated files did not move:
+    // the plugin decides at setup whether to register its tools and daemon.
+    if (!synced?.updated.length && !options.forceReload) return
 
     try {
       await this.options.openCode.reload()

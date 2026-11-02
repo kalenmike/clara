@@ -288,6 +288,32 @@ describe('RuntimeController', () => {
     }
   })
 
+  it('reloads OpenCode on a management change even when no agent file changes', async () => {
+    const requests: string[] = []
+    const openCode = createServer((request, response) => {
+      requests.push(`${request.method} ${request.url}`)
+      response.statusCode = 204
+      response.end()
+    })
+    servers.push(openCode)
+    await new Promise<void>((resolve) => openCode.listen(0, '127.0.0.1', resolve))
+    const address = openCode.address()
+    if (!address || typeof address === 'string') throw new Error('No fake OpenCode address')
+
+    const { controller, close } = await createController(0, {
+      openCodeUrl: `http://127.0.0.1:${address.port}`,
+      syncClaraAgents: () => ({ updated: [], skipped: [], missingManifest: true }),
+    })
+    await controller.start()
+    try {
+      expect(requests).toEqual([])
+      await controller.setManagement(true)
+      expect(requests).toEqual(['POST /api/location/reload'])
+    } finally {
+      await close()
+    }
+  })
+
   it('keeps the management switch when the agent files cannot be written', async () => {
     const synced: boolean[] = []
     const { controller, settings, info, close } = await createController(0, {

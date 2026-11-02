@@ -399,6 +399,15 @@ export default {
   id: 'clara',
 
   async setup(ctx: any) {
+    // The panel owns the master switch and reloads OpenCode when it changes.
+    // Do nothing while it is off: no ledger file, no tool catalog entries, and
+    // no daemon. The per-tool guard below remains as defence in depth for a
+    // setting change that races a reload.
+    if (!(await managementEnabled())) {
+      console.log('[clara] management disabled; plugin is inert')
+      return
+    }
+
     const dbPath: string = ctx.options?.db ?? process.env.CLARA_LEDGER_DB_PATH ?? DEFAULT_DB_PATH
     const db = await getDb(dbPath)
     console.log(`[clara] ledger ready at ${dbPath}`)
@@ -414,12 +423,7 @@ export default {
       }
     })
 
-    const enabled = await managementEnabled()
-    console.log(
-      enabled
-        ? '[clara] management enabled'
-        : '[clara] management disabled; enable it in the Clara panel'
-    )
+    console.log('[clara] management enabled')
 
     if (daemonDisabled(ctx.options)) {
       console.log('[clara] daemon disabled')
