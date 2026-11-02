@@ -51,6 +51,16 @@ export function workspaceOf(db: Db, feature: Row): Row {
   return db.prepare('SELECT * FROM workspaces WHERE id = ?').get(feature.workspace_id)!
 }
 
+/** Remember which Clara session carries a feature's human-facing alerts. */
+export function setFeatureSession(db: Db, featureID: number, sessionID: string): void {
+  db.prepare('UPDATE features SET session_id = ? WHERE id = ?').run(sessionID, featureID)
+}
+
+/** Workspace-level exceptions use the workspace session as a fallback. */
+export function setWorkspaceSession(db: Db, workspaceID: number, sessionID: string): void {
+  db.prepare('UPDATE workspaces SET session_id = ? WHERE id = ?').run(sessionID, workspaceID)
+}
+
 export function ensureWorkspace(db: Db, name: string, path?: string): Row {
   const existing = db.prepare('SELECT * FROM workspaces WHERE name = ?').get(name)
   if (existing) {
@@ -153,6 +163,8 @@ export interface SubmitInput {
   soft_budget?: number
   hard_budget?: number
   time_limit_minutes?: number
+  /** The Clara session where the human submitted this feature. */
+  session_id?: string
 }
 
 export function submit(db: Db, input: SubmitInput): string {
@@ -181,8 +193,8 @@ export function submit(db: Db, input: SubmitInput): string {
     .prepare(
       `INSERT INTO features
         (workspace_id, slug, title, intent, meta, state, soft_budget, hard_budget,
-         time_limit_minutes, last_event_at, created_at)
-       VALUES (?, ?, ?, ?, ?, 'spec', ?, ?, ?, ?, ?)`
+         time_limit_minutes, session_id, last_event_at, created_at)
+       VALUES (?, ?, ?, ?, ?, 'spec', ?, ?, ?, ?, ?, ?)`
     )
     .run(
       ws.id,
@@ -193,9 +205,16 @@ export function submit(db: Db, input: SubmitInput): string {
       input.soft_budget ?? null,
       input.hard_budget ?? null,
       input.time_limit_minutes ?? null,
+      input.session_id ?? null,
       at,
       at
     )
+
+  if (input.session_id) {
+    db.prepare(
+      'UPDATE workspaces SET session_id = ? WHERE id = ? AND session_id IS NULL'
+    ).run(input.session_id, ws.id)
+  }
 
   const id = Number(result.lastInsertRowid)
   const specPath = join(ws.path, 'docs', 'records', `${pad(id)}-${slug}.md`)
@@ -206,7 +225,13 @@ export function submit(db: Db, input: SubmitInput): string {
 
   db.prepare(
     'INSERT INTO events (feature_id, at, type, actor, payload) VALUES (?, ?, ?, ?, ?)'
-  ).run(id, at, 'feature.registered', 'human', json({ priority: meta.priority }))
+  ).run(
+    id,
+    at,
+    'feature.registered',
+    'human',
+    json({ priority: meta.priority, session: input.session_id ?? null })
+  )
 
   return [
     `registered ${pad(id)} ${slug} [${ws.name}] state=spec`,

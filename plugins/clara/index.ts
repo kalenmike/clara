@@ -116,7 +116,12 @@ export function createTools(db: Db, guard?: () => Promise<boolean>): ClaraTool[]
       },
       execute: async (input: any, context: any) => {
         requireRole('submit', context, ['human'])
-        return { content: q.submit(db, input) }
+        return {
+          content: q.submit(db, {
+            ...input,
+            session_id: typeof context?.sessionID === 'string' ? context.sessionID : undefined,
+          }),
+        }
       },
     },
 

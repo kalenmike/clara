@@ -279,6 +279,38 @@ check(
   db.prepare('SELECT COUNT(*) c FROM events WHERE feature_id = ?').get(feature.id)!.c === 1
 )
 
+const sessionDir = join(dir, 'session-workspace')
+mkdirSync(sessionDir, { recursive: true })
+const sessionDb = await getDb(join(dir, 'session-ledger.db'))
+const sessionSubmit = index
+  .createTools(sessionDb)
+  .find((tool) => tool.name === 'submit')!
+await sessionSubmit.execute(
+  {
+    workspace: 'session',
+    path: sessionDir,
+    title: 'A submit remembers the Clara session',
+    intent: 'Later alerts return to the conversation where the human asked.',
+  },
+  { agent: 'clara', sessionID: 'ses_origin' }
+)
+const sessionFeature = sessionDb.prepare('SELECT * FROM features ORDER BY id DESC LIMIT 1').get()!
+const sessionWorkspace = sessionDb
+  .prepare('SELECT * FROM workspaces WHERE name = ?')
+  .get('session')!
+check('submit records the originating session', sessionFeature.session_id === 'ses_origin')
+check('submit records the workspace session', sessionWorkspace.session_id === 'ses_origin')
+check(
+  'registered event names the session',
+  JSON.parse(
+    String(
+      sessionDb.prepare('SELECT payload FROM events WHERE feature_id = ?').get(sessionFeature.id)!
+        .payload
+    )
+  ).session === 'ses_origin'
+)
+sessionDb.close()
+
 console.log('\n2. criteria')
 expectThrow(
   'rejects a criterion with no test and no human gate',
