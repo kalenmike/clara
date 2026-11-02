@@ -230,7 +230,12 @@ export interface CriterionInput {
 
 export function setCriteria(
   db: Db,
-  input: { feature: string | number; criteria: CriterionInput[]; kill_criteria?: string[] }
+  input: {
+    feature: string | number
+    criteria: CriterionInput[]
+    kill_criteria?: string[]
+    docs_impact?: string
+  }
 ): string {
   const feature = requireFeature(db, input.feature)
   if (feature.state !== 'spec') {
@@ -264,7 +269,14 @@ export function setCriteria(
   }
 
   const at = now()
-  db.prepare('UPDATE features SET last_event_at = ? WHERE id = ?').run(at, feature.id)
+  const sets = ['last_event_at = ?']
+  const values: any[] = [at]
+  if (input.docs_impact !== undefined) {
+    sets.push('docs_impact = ?')
+    values.push(input.docs_impact)
+  }
+  values.push(feature.id)
+  db.prepare(`UPDATE features SET ${sets.join(', ')} WHERE id = ?`).run(...values)
   db.prepare(
     'INSERT INTO events (feature_id, at, type, actor, payload) VALUES (?, ?, ?, ?, ?)'
   ).run(
@@ -272,7 +284,11 @@ export function setCriteria(
     at,
     'criteria.proposed',
     'ai_1',
-    json({ count: input.criteria.length, kill_criteria: input.kill_criteria ?? [] })
+    json({
+      count: input.criteria.length,
+      kill_criteria: input.kill_criteria ?? [],
+      docs_impact: input.docs_impact ?? null,
+    })
   )
 
   const table = [
@@ -435,6 +451,7 @@ export interface CheckpointInput {
   next?: string
   open_question?: string
   tokens?: number
+  docs_impact?: string
 }
 
 export function checkpoint(db: Db, input: CheckpointInput): string {
@@ -479,6 +496,10 @@ export function checkpoint(db: Db, input: CheckpointInput): string {
     if (input.blocked_on) {
       sets.push('blocked_on = ?')
       values.push(input.blocked_on)
+    }
+    if (input.docs_impact !== undefined) {
+      sets.push('docs_impact = ?')
+      values.push(input.docs_impact)
     }
     values.push(feature.id)
     db.prepare(`UPDATE features SET ${sets.join(', ')} WHERE id = ?`).run(...values)

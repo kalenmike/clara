@@ -193,6 +193,10 @@ export function createTools(db: Db): ClaraTool[] {
             },
           },
           kill_criteria: { type: 'array', items: { type: 'string' } },
+          docs_impact: {
+            type: 'string',
+            description: 'Workspace docs that must change, or "none".',
+          },
         },
         required: ['feature', 'criteria'],
         additionalProperties: false,
@@ -243,6 +247,10 @@ export function createTools(db: Db): ClaraTool[] {
           next: { type: 'string' },
           open_question: { type: 'string' },
           tokens: { type: 'number' },
+          docs_impact: {
+            type: 'string',
+            description: 'Workspace docs that must change, or "none".',
+          },
         },
         required: ['feature', 'tests_passed', 'tests_total'],
         additionalProperties: false,

@@ -102,9 +102,9 @@ the `clara_*` permissions in `agents.json` will not match it.
 
 ### Spec agent (`ai_1`)
 
-| Tool             | Purpose                                                                      |
-| ---------------- | ---------------------------------------------------------------------------- |
-| `clara_criteria` | Propose acceptance criteria. Each needs a `test_path` or `human_gate: true`. |
+| Tool             | Purpose                                                                                                  |
+| ---------------- | -------------------------------------------------------------------------------------------------------- |
+| `clara_criteria` | Propose acceptance criteria. Each needs a `test_path` or `human_gate: true`; also records `docs_impact`. |
 
 ### Test agent (`ai_2`)
 
@@ -114,9 +114,9 @@ the `clara_*` permissions in `agents.json` will not match it.
 
 ### Build agent (`ai_3`)
 
-| Tool               | Purpose                                                                |
-| ------------------ | ---------------------------------------------------------------------- |
-| `clara_checkpoint` | Report tests passed/total, files changed, blockers, next step, tokens. |
+| Tool               | Purpose                                                                                             |
+| ------------------ | --------------------------------------------------------------------------------------------------- |
+| `clara_checkpoint` | Report tests passed/total, files changed, blockers, next step, tokens, and a refined `docs_impact`. |
 
 ### Supervisor (`ai_0`)
 
@@ -283,7 +283,7 @@ through approval, freeze, build, review, close, plus the failure paths
 live tick). It also drives a feature through the daemon with a mock session
 API, checks the lock and retry path, and verifies that every tool is registered
 as `clara_*` and that every explicit `clara_*` permission in `agents.json`
-names a real tool. Expect `94/94 checks passed`.
+names a real tool. Expect `98/98 checks passed`.
 
 ## Not built yet
 

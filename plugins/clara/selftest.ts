@@ -488,7 +488,12 @@ check('handoff prompt names the stage', sessions[0].prompt.includes('acceptance 
 q.setCriteria(ddb, {
   feature: daemonId,
   criteria: [{ text: 'the daemon drives the feature', test_path: 'tests/daemon.test.ts' }],
+  docs_impact: 'update docs/features/daemon.md',
 })
+check(
+  'criteria records the docs impact',
+  q.featureByRef(ddb, daemonId)!.docs_impact === 'update docs/features/daemon.md'
+)
 sessions[0].outcome = 'succeeded'
 await supervisor.runOnce()
 check('spec run is done', runs.latestRun(ddb, daemonId, 'spec')?.status === 'done')
@@ -513,7 +518,12 @@ q.checkpoint(ddb, {
   tests_passed: 1,
   tests_total: 1,
   files_changed: 2,
+  docs_impact: 'update docs/features/ledger.md',
 })
+check(
+  'checkpoint refines the docs impact',
+  q.featureByRef(ddb, daemonId)!.docs_impact === 'update docs/features/ledger.md'
+)
 q.appendEvent(ddb, {
   feature: daemonId,
   type: 'build.review',
@@ -523,7 +533,12 @@ q.appendEvent(ddb, {
 sessions[2].outcome = 'succeeded'
 await supervisor.runOnce()
 check('build run is done', runs.latestRun(ddb, daemonId, 'build')?.status === 'done')
-check('daemon starts the judge stage', sessions.length === 4 && sessions[3].agent === 'judge')
+check('daemon starts the docs stage', sessions.length === 4 && sessions[3].agent === '004')
+
+sessions[3].outcome = 'succeeded'
+await supervisor.runOnce()
+check('docs run is done', runs.latestRun(ddb, daemonId, 'docs')?.status === 'done')
+check('daemon starts the judge stage', sessions.length === 5 && sessions[4].agent === 'judge')
 
 q.appendEvent(ddb, {
   feature: daemonId,
@@ -531,10 +546,10 @@ q.appendEvent(ddb, {
   actor: 'ai_0',
   state: 'done',
 })
-sessions[3].outcome = 'succeeded'
+sessions[4].outcome = 'succeeded'
 await supervisor.runOnce()
 check('judge run is done', runs.latestRun(ddb, daemonId, 'judge')?.status === 'done')
-check('daemon does not spawn after done', sessions.length === 4)
+check('daemon does not spawn after done', sessions.length === 5)
 check('feature is done', q.featureByRef(ddb, daemonId)!.state === 'done')
 
 const failedSubmit = q.submit(ddb, {
@@ -558,11 +573,11 @@ const open = ddb
   .prepare('SELECT * FROM decisions WHERE feature_id = ? AND resolved_at IS NULL')
   .get(failedId)
 check('failed run opens a decision', Boolean(open))
-check('failed run does not spawn again', sessions.length === 5)
+check('failed run does not spawn again', sessions.length === 6)
 
 q.resolveDecision(ddb, { id: Number(open!.id), resolution: 'retry' })
 await supervisor.runOnce()
-check('resolved decision retries the stage', sessions.length === 6 && sessions[5].agent === '001')
+check('resolved decision retries the stage', sessions.length === 7 && sessions[6].agent === '001')
 
 supervisor.stop()
 check('daemon releases its lock', !ddb.prepare('SELECT 1 FROM daemon_lock WHERE id = 1').get())
