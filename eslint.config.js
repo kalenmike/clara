@@ -44,9 +44,18 @@ export default defineConfig([
     },
   },
   {
-    files: ['apps/server/**/*.ts', 'packages/**/*.ts', 'workers/**/*.ts'],
+    files: ['apps/server/**/*.ts', 'packages/**/*.ts', 'plugins/**/*.ts', 'workers/**/*.ts'],
     languageOptions: {
       globals: globals.node,
+    },
+  },
+  {
+    files: ['plugins/clara/**/*.ts'],
+    rules: {
+      // The ledger's row type is intentionally dynamic: SQLite returns
+      // null-prototype records whose shape depends on the query.
+      '@typescript-eslint/no-explicit-any': 'off',
+      'no-console': 'off',
     },
   },
   {

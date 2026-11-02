@@ -17,6 +17,10 @@
     "packages/crypto": {
       "project": ["src/**/*.ts", "test/**/*.ts"]
     },
+    "plugins/clara": {
+      "entry": ["index.ts", "selftest.ts"],
+      "project": ["*.ts"]
+    },
     "workers/relay": {
       "project": ["src/**/*.ts", "test/**/*.ts"]
     }
