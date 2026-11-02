@@ -12,6 +12,7 @@ export type SessionGroups = {
   drafts: SessionInfo[]
   snoozed: SessionInfo[]
   archived: SessionInfo[]
+  workers: SessionInfo[]
 }
 
 /** Split sessions into the sidebar's mailbox sections, newest first. */
@@ -19,15 +20,21 @@ export function groupSessionsByMailbox(
   sessions: SessionInfo[],
   signals: ReadonlyMap<string, SessionMailboxSignals>,
   running: Readonly<Record<string, unknown>> | undefined,
-  awaitingInput: ReadonlySet<string>
+  awaitingInput: ReadonlySet<string>,
+  isAutomation?: (session: SessionInfo) => boolean
 ): SessionGroups {
   const inbox: SessionInfo[] = []
   const outbox: SessionInfo[] = []
   const drafts: SessionInfo[] = []
   const snoozed: SessionInfo[] = []
   const archived: SessionInfo[] = []
+  const workers: SessionInfo[] = []
 
   for (const session of sessions) {
+    if (isAutomation?.(session)) {
+      workers.push(session)
+      continue
+    }
     if (isArchivedSession(session)) {
       archived.push(session)
       continue
@@ -51,6 +58,7 @@ export function groupSessionsByMailbox(
   drafts.sort(byUpdated)
   snoozed.sort(byUpdated)
   archived.sort((a, b) => (b.time.archived ?? b.time.updated) - (a.time.archived ?? a.time.updated))
+  workers.sort(byUpdated)
 
-  return { inbox, outbox, drafts, snoozed, archived }
+  return { inbox, outbox, drafts, snoozed, archived, workers }
 }

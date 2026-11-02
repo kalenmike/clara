@@ -2,6 +2,7 @@ import { useCallback, type ReactNode } from 'react'
 import type { SessionInfo } from '@opencode/client'
 import { isClaraWorkerTitle } from '@clara/shared-types'
 import { SessionPolicyProvider } from '@/features/notifications/session-policy'
+import { isAutomationSession } from '@/features/sessions/session-automation'
 import { useConnection } from '@/providers/connection-provider'
 import { useClaraAgentRefresh } from './agent-refresh'
 import { ClaraNotificationBridge } from './notifications'
@@ -17,7 +18,8 @@ export function ClaraFeatureProvider({ children }: { children: ReactNode }) {
   useClaraAgentRefresh()
 
   const suppressSession = useCallback(
-    (session: SessionInfo) => management && isClaraWorkerTitle(session.title),
+    (session: SessionInfo) =>
+      management && (isAutomationSession(session) || isClaraWorkerTitle(session.title)),
     [management]
   )
 

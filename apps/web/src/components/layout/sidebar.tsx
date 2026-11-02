@@ -42,6 +42,7 @@ import { useProjectSessionPresence } from '@/features/projects/use-project-prese
 import { useShowEmptyProjects } from '@/features/projects/use-show-empty-projects'
 import { canonicalProject, canonicalProjects, useProjects } from '@/features/projects/use-projects'
 import { isArchivedSession } from '@/features/sessions/session-archive'
+import { isAutomationSession } from '@/features/sessions/session-automation'
 import { groupSessionsByMailbox } from '@/features/sessions/session-sections'
 import { isSnoozedSession } from '@/features/sessions/session-snooze'
 import { useSessionMailboxSignals } from '@/features/sessions/use-session-mailbox'
@@ -66,6 +67,12 @@ import {
 import { useConnection } from '@/providers/connection-provider'
 import { useEventStream } from '@/providers/event-provider'
 import { cn } from '@/lib/utils'
+
+type SidebarSectionView = {
+  id: SidebarSection
+  label: string
+  sessions: SessionInfo[]
+}
 
 export function Sidebar() {
   const { width, dragging, handleProps } = useSidebarWidth()
@@ -108,7 +115,8 @@ export function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
   const location = useLocation()
   const params = useParams<{ projectId: string; sessionId?: string }>()
   const { lowerSingular, lowerPlural } = useSessionWording()
-  const { info, reconnect, reconnecting } = useConnection()
+  const { info, reconnect, reconnecting, relayStatus } = useConnection()
+  const claraEnabled = CLARA_FEATURE_INCLUDED && relayStatus?.agent?.management === true
   const { state } = useEventStream()
   const projectsQuery = useProjects()
   const projects = useMemo(() => projectsQuery.data ?? [], [projectsQuery.data])
@@ -167,8 +175,13 @@ export function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
   const activeQuery = useActiveSessions()
   const mailboxSessions = useMemo(
     () =>
-      allSessions.filter((session) => !isArchivedSession(session) && !isSnoozedSession(session)),
-    [allSessions]
+      allSessions.filter(
+        (session) =>
+          !isArchivedSession(session) &&
+          !isSnoozedSession(session) &&
+          !(claraEnabled && isAutomationSession(session))
+      ),
+    [allSessions, claraEnabled]
   )
   const { signals: mailboxSignals, pending: mailboxesPending } =
     useSessionMailboxSignals(mailboxSessions)
@@ -179,22 +192,36 @@ export function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
     [permissionsQuery.data]
   )
 
-  const sections = useMemo(() => {
-    const grouped = groupSessionsByMailbox(
-      allSessions,
-      mailboxSignals,
-      activeQuery.data,
-      awaitingInput
-    )
+  const grouped = useMemo(
+    () =>
+      groupSessionsByMailbox(
+        allSessions,
+        mailboxSignals,
+        activeQuery.data,
+        awaitingInput,
+        claraEnabled ? isAutomationSession : undefined
+      ),
+    [allSessions, mailboxSignals, activeQuery.data, awaitingInput, claraEnabled]
+  )
 
-    return [
+  const sections = useMemo<SidebarSectionView[]>(
+    () => [
       { id: 'inbox', label: 'Inbox', sessions: grouped.inbox },
       { id: 'outbox', label: 'Outbox', sessions: grouped.outbox },
       { id: 'drafts', label: 'Drafts', sessions: grouped.drafts },
       { id: 'snoozed', label: 'Snoozed', sessions: grouped.snoozed },
       { id: 'archived', label: 'Archived', sessions: grouped.archived },
-    ] satisfies Array<{ id: SidebarSection; label: string; sessions: SessionInfo[] }>
-  }, [allSessions, mailboxSignals, activeQuery.data, awaitingInput])
+    ],
+    [grouped]
+  )
+  const workerSection = useMemo<SidebarSectionView>(
+    () => ({ id: 'workers', label: 'Workers', sessions: grouped.workers }),
+    [grouped.workers]
+  )
+  const allSections = useMemo(
+    () => (claraEnabled ? [...sections, workerSection] : sections),
+    [claraEnabled, sections, workerSection]
+  )
 
   const latest = sessions[0]
   const { startSession: newSession, pending: createPending } = useStartSession({
@@ -223,14 +250,48 @@ export function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
   }
 
   const onSettings = location.pathname === '/settings'
-  const allSectionsOpen = sections.every((section) => openSections[section.id])
+  const allSectionsOpen = allSections.every((section) => openSections[section.id])
+  const workersOpen = searching || openSections.workers
 
   const toggleAllSections = () => {
     const open = !allSectionsOpen
     const next = { ...openSections }
-    for (const section of sections) next[section.id] = open
+    for (const section of allSections) next[section.id] = open
     saveSidebarSections(next)
     setOpenSections(next)
+  }
+
+  const renderSessionRows = (section: SidebarSectionView) => {
+    if (section.sessions.length === 0) {
+      return (
+        <div className="px-2 py-1 text-sm text-muted-foreground md:text-[11px]">
+          No {lowerPlural}
+        </div>
+      )
+    }
+
+    return section.sessions.map((session) => {
+      const signals = mailboxSignals.get(session.id)
+      const attention = resolveAttentionKind(
+        signals,
+        session.agent,
+        awaitingInput.has(session.id)
+      )
+      return (
+        <SidebarSessionRow
+          key={session.id}
+          session={session}
+          projectID={selectedProject?.id ?? session.projectID}
+          selected={session.id === params.sessionId}
+          active={Boolean(activeQuery.data?.[session.id])}
+          snoozed={section.id === 'snoozed'}
+          blocked={attention === 'question'}
+          error={section.id === 'inbox' && attention === 'error'}
+          planReady={section.id === 'inbox' && attention === 'plan'}
+          onNavigate={onNavigate}
+        />
+      )
+    })
   }
 
   return (
@@ -466,41 +527,39 @@ export function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
                       {section.sessions.length}
                     </span>
                   </CollapsibleTrigger>
-                  <CollapsibleContent>
-                    {section.sessions.length === 0 ? (
-                      <div className="px-2 py-1 text-sm text-muted-foreground md:text-[11px]">
-                        No {lowerPlural}
-                      </div>
-                    ) : (
-                      section.sessions.map((session) => {
-                        const signals = mailboxSignals.get(session.id)
-                        const attention = resolveAttentionKind(
-                          signals,
-                          session.agent,
-                          awaitingInput.has(session.id)
-                        )
-                        return (
-                          <SidebarSessionRow
-                            key={session.id}
-                            session={session}
-                            projectID={selectedProject?.id ?? session.projectID}
-                            selected={session.id === params.sessionId}
-                            active={Boolean(activeQuery.data?.[session.id])}
-                            snoozed={section.id === 'snoozed'}
-                            blocked={attention === 'question'}
-                            error={section.id === 'inbox' && attention === 'error'}
-                            planReady={section.id === 'inbox' && attention === 'plan'}
-                            onNavigate={onNavigate}
-                          />
-                        )
-                      })
-                    )}
-                  </CollapsibleContent>
+                  <CollapsibleContent>{renderSessionRows(section)}</CollapsibleContent>
                 </Collapsible>
               </div>
             )
           })}
       </ScrollArea>
+
+      {claraEnabled && (
+        <div className="border-t px-2.5 md:px-2">
+          <Collapsible
+            open={workersOpen}
+            onOpenChange={(next) => {
+              if (!searching) setSectionOpen('workers', next)
+            }}
+          >
+            <CollapsibleContent>
+              <div className="max-h-64 overflow-y-auto pb-1">{renderSessionRows(workerSection)}</div>
+            </CollapsibleContent>
+            <CollapsibleTrigger className="flex w-full items-center gap-1.5 rounded-md px-2.5 py-2.5 text-xs font-medium uppercase tracking-wider text-muted-foreground transition-colors hover:bg-sidebar-accent/60 hover:text-foreground md:px-2 md:py-1.5 md:text-[10px]">
+              <ChevronRight
+                className={cn(
+                  'size-3.5 shrink-0 transition-transform md:size-3',
+                  workersOpen && 'rotate-90'
+                )}
+              />
+              <span>{workerSection.label}</span>
+              <span className="ml-auto min-w-4 pr-1 text-right tabular-nums">
+                {workerSection.sessions.length}
+              </span>
+            </CollapsibleTrigger>
+          </Collapsible>
+        </div>
+      )}
 
       <div className="border-t px-3 py-2.5 text-[11px] text-muted-foreground md:py-2 md:text-[10px]">
         <div className="flex items-center justify-between gap-2">
