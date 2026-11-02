@@ -87,7 +87,7 @@ async function main(): Promise<void> {
     management: false,
   }
 
-  let controller: RuntimeController | undefined
+  const controllerRef: { current?: RuntimeController } = {}
   const clara = claraFeatureIncluded()
     ? await import('./clara/index.ts').then(
         ({ ClaraManagement }) =>
@@ -98,21 +98,21 @@ async function main(): Promise<void> {
             push,
             broadcast: (alert) => {
               const state = { type: 'ledger.alert' as const, alert }
-              controller?.agent.broadcastState(state)
-              controller?.relay?.broadcastState(state)
+              controllerRef.current?.agent.broadcastState(state)
+              controllerRef.current?.relay?.broadcastState(state)
             },
-            canPush: () => controller?.canPush() ?? false,
+            canPush: () => controllerRef.current?.canPush() ?? false,
             isDeskActive: () =>
-              (controller?.agent.deskHoldActive() ?? false) ||
-              (controller?.relay?.deskHoldActive() ?? false),
-            hasClients: () => (controller?.connectedClients() ?? 0) > 0,
-            canProxy: () => controller?.canProxy() ?? false,
+              (controllerRef.current?.agent.deskHoldActive() ?? false) ||
+              (controllerRef.current?.relay?.deskHoldActive() ?? false),
+            hasClients: () => (controllerRef.current?.connectedClients() ?? 0) > 0,
+            canProxy: () => controllerRef.current?.canProxy() ?? false,
             log,
           })
       )
     : undefined
 
-  controller = new RuntimeController({
+  const controller = new RuntimeController({
     config,
     openCode,
     info,
@@ -123,6 +123,7 @@ async function main(): Promise<void> {
     clara,
     log,
   })
+  controllerRef.current = controller
 
   await controller.start()
 

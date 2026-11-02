@@ -122,8 +122,7 @@ export class ClaraManagement {
       reader: this.reader(),
       store: this.store(),
       push: this.options.push,
-      enabled: () =>
-        this.options.settings.getManagement() && !this.options.settings.getStopped(),
+      enabled: () => this.options.settings.getManagement() && !this.options.settings.getStopped(),
       canPush: this.options.canPush,
       isDeskActive: this.options.isDeskActive,
       hasClients: this.options.hasClients,

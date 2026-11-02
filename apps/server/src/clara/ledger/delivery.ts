@@ -21,9 +21,8 @@ export class LedgerDeliveryStore {
   }
 
   cursor(): number | undefined {
-    const row = this.database()
-      .prepare('SELECT cursor FROM delivery_state WHERE id = 1')
-      .get() as { cursor?: number } | undefined
+    const row = this.database().prepare('SELECT cursor FROM delivery_state WHERE id = 1').get() as
+      { cursor?: number } | undefined
     return row?.cursor === undefined ? undefined : Number(row.cursor)
   }
 
@@ -37,9 +36,7 @@ export class LedgerDeliveryStore {
   }
 
   delivered(key: string): boolean {
-    return Boolean(
-      this.database().prepare('SELECT 1 FROM delivered_alerts WHERE key = ?').get(key)
-    )
+    return Boolean(this.database().prepare('SELECT 1 FROM delivered_alerts WHERE key = ?').get(key))
   }
 
   markDelivered(key: string): void {

@@ -50,6 +50,42 @@ export default defineConfig([
     },
   },
   {
+    // Clara management is experimental. Keep it behind the facade so the
+    // feature can be removed without touching core session management.
+    files: [
+      'apps/web/src/**/*.{ts,tsx}',
+      'apps/panel/src/**/*.{ts,tsx}',
+      'apps/server/src/**/*.ts',
+    ],
+    ignores: [
+      'apps/web/src/features/clara/**',
+      'apps/web/src/**/*.test.{ts,tsx}',
+      'apps/web/src/router.tsx',
+      'apps/web/src/components/layout/sidebar.tsx',
+      'apps/web/src/components/layout/app-shell.tsx',
+      'apps/web/src/lib/client.ts',
+      'apps/panel/src/features/clara/**',
+      'apps/panel/src/App.tsx',
+      'apps/server/src/clara/**',
+      'apps/server/src/index.ts',
+      'apps/server/src/runtime/controller.ts',
+    ],
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        {
+          patterns: [
+            {
+              group: ['**/features/clara/**', '**/clara/**'],
+              message:
+                'Import Clara management only from an approved composition point or the server facade.',
+            },
+          ],
+        },
+      ],
+    },
+  },
+  {
     files: ['plugins/clara/**/*.ts'],
     rules: {
       // The ledger's row type is intentionally dynamic: SQLite returns

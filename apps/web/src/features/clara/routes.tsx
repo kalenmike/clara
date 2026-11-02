@@ -1,9 +1,8 @@
+/* eslint-disable react-refresh/only-export-components */
 import { lazy, Suspense } from 'react'
 import type { RouteObject } from 'react-router'
 
-const ClaraPage = lazy(() =>
-  import('./page.tsx').then((module) => ({ default: module.ClaraPage }))
-)
+const ClaraPage = lazy(() => import('./page.tsx').then((module) => ({ default: module.ClaraPage })))
 
 /** The Clara inbox route. Included only when the build flag allows it. */
 export const claraRoutes: RouteObject[] = [
