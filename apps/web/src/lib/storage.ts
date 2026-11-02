@@ -121,13 +121,7 @@ export function saveSidePanelWidth(width: number): void {
   window.localStorage.setItem(SIDE_PANEL_WIDTH_KEY, String(clamped))
 }
 
-export type SidebarSection =
-  | 'inbox'
-  | 'outbox'
-  | 'drafts'
-  | 'snoozed'
-  | 'archived'
-  | 'workers'
+export type SidebarSection = 'inbox' | 'outbox' | 'drafts' | 'snoozed' | 'archived' | 'workers'
 
 const SIDEBAR_SECTIONS_KEY = 'clara.sidebarSections'
 const SIDEBAR_SECTIONS_DEFAULT: Record<SidebarSection, boolean> = {

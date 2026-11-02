@@ -666,8 +666,7 @@ check(
 )
 check(
   'later stages keep the automation metadata',
-  sessions[1].metadata?.automation === true &&
-    sessions[1].promptMetadata?.synthetic === true,
+  sessions[1].metadata?.automation === true && sessions[1].promptMetadata?.synthetic === true,
   JSON.stringify({ session: sessions[1].metadata, prompt: sessions[1].promptMetadata })
 )
 
