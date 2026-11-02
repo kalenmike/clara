@@ -708,6 +708,25 @@ export function stageGate(db: Db, input: StageGateInput): string {
     throw new Error(`Clara: stage "${stage.id}" does not declare a human gate`)
   }
 
+  const pipeline = pipelineForRequest(db, request)
+  const index = pipeline.stages.findIndex((candidate) => candidate.id === stage.id)
+  const done = completedOrSkippedStages(db, Number(request.id))
+  const missingPrior = pipeline.stages
+    .slice(0, index)
+    .filter((candidate) => !done.has(candidate.id))
+    .map((candidate) => candidate.id)
+  if (missingPrior.length) {
+    throw new Error(
+      `Clara: stage ${stage.id} cannot be gated before ${missingPrior.join(', ')} are complete`
+    )
+  }
+  if (stage.gate.position === 'before' && done.has(stage.id)) {
+    throw new Error(`Clara: stage ${stage.id} has already completed`)
+  }
+  if (stage.gate.position === 'after' && !done.has(stage.id)) {
+    throw new Error(`Clara: stage ${stage.id} has not completed yet`)
+  }
+
   const at = now()
   const result = input.result === 'rejected' ? 'rejected' : 'verified'
   db.prepare(

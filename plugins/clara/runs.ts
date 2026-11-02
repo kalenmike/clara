@@ -157,6 +157,11 @@ export function nextStage(db: Db, request: Row): NextStep | undefined {
     return
   }
 
+  const closePending = (): PipelineStage | undefined => {
+    if (statuses.has(close.id)) return
+    return pending([close])
+  }
+
   switch (request.state) {
     case 'draft': {
       if (!statuses.has(contract.id)) {
@@ -173,9 +178,9 @@ export function nextStage(db: Db, request: Row): NextStep | undefined {
       const reviewStage = pending(review)
       if (reviewStage) return { kind: 'stage', stage: reviewStage, reason: 'review pending' }
       if (review.some((stage) => !statuses.has(stage.id))) return
-      if (!statuses.has(close.id)) {
-        return { kind: 'stage', stage: close, reason: 'ready to close' }
-      }
+      const closeStage = closePending()
+      if (closeStage) return { kind: 'stage', stage: closeStage, reason: 'ready to close' }
+      if (!statuses.has(close.id)) return
       return { kind: 'transition', state: 'completed', reason: 'close stage complete' }
     }
 
@@ -186,9 +191,9 @@ export function nextStage(db: Db, request: Row): NextStep | undefined {
       const reviewStage = pending(review)
       if (reviewStage) return { kind: 'stage', stage: reviewStage, reason: 'work complete' }
       if (review.some((stage) => !statuses.has(stage.id))) return
-      if (!statuses.has(close.id)) {
-        return { kind: 'stage', stage: close, reason: 'ready to close' }
-      }
+      const closeStage = closePending()
+      if (closeStage) return { kind: 'stage', stage: closeStage, reason: 'ready to close' }
+      if (!statuses.has(close.id)) return
       return { kind: 'transition', state: 'completed', reason: 'close stage complete' }
     }
 
@@ -196,9 +201,9 @@ export function nextStage(db: Db, request: Row): NextStep | undefined {
       const next = pending(review)
       if (next) return { kind: 'stage', stage: next, reason: 'review stage pending' }
       if (review.some((stage) => !statuses.has(stage.id))) return
-      if (!statuses.has(close.id)) {
-        return { kind: 'stage', stage: close, reason: 'ready to close' }
-      }
+      const closeStage = closePending()
+      if (closeStage) return { kind: 'stage', stage: closeStage, reason: 'ready to close' }
+      if (!statuses.has(close.id)) return
       return { kind: 'transition', state: 'completed', reason: 'close stage complete' }
     }
 

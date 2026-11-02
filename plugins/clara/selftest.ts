@@ -409,6 +409,23 @@ q.progress(db, {
 })
 check('progress is recorded', q.latestProgress(db, pinnedId)?.n === 1)
 check('progress updates tokens', q.requestByRef(db, pinnedId)!.tokens === 1200)
+expectThrow(
+  'a stage gate cannot clear before the stage completes',
+  () =>
+    q.stageGate(db, {
+      request: pinnedId,
+      stage: 'draft',
+      result: 'verified',
+      actor: 'human',
+    }),
+  'has not completed yet'
+)
+q.stageDone(db, {
+  request: pinnedId,
+  stage: 'draft',
+  evidence: { copy: 'Build faster with Clara.', word_count: 4 },
+  actor: 'ai_1',
+})
 q.stageGate(db, {
   request: pinnedId,
   stage: 'draft',
