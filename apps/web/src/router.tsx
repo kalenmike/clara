@@ -1,6 +1,7 @@
 import { createBrowserRouter, Navigate } from 'react-router'
 import { AppShell } from '@/components/layout/app-shell'
 import { ChatPage } from '@/pages/chat-page'
+import { ClaraPage } from '@/pages/clara-page'
 import { ConnectPage } from '@/pages/connect-page'
 import { HomePage } from '@/pages/home-page'
 import { ProjectsPage } from '@/pages/projects-page'
@@ -16,6 +17,7 @@ export const router = createBrowserRouter([
       { path: 'p/:projectId', element: <SessionsPage /> },
       { path: 'projects', element: <ProjectsPage /> },
       { path: 'p/:projectId/s/:sessionId', element: <ChatPage /> },
+      { path: 'clara', element: <ClaraPage /> },
       { path: 'settings', element: <SettingsPage /> },
     ],
   },

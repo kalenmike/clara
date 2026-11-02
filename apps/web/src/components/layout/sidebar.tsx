@@ -6,6 +6,7 @@ import {
   ChevronsDownUp,
   ChevronsUpDown,
   FolderGit2,
+  Inbox,
   LayoutGrid,
   Loader2,
   Plus,
@@ -106,7 +107,7 @@ export function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
   const location = useLocation()
   const params = useParams<{ projectId: string; sessionId?: string }>()
   const { lowerSingular, lowerPlural } = useSessionWording()
-  const { info, reconnect, reconnecting } = useConnection()
+  const { info, relayStatus, reconnect, reconnecting } = useConnection()
   const { state } = useEventStream()
   const projectsQuery = useProjects()
   const projects = useMemo(() => projectsQuery.data ?? [], [projectsQuery.data])
@@ -262,6 +263,14 @@ export function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
             )}
           </div>
         </div>
+        {relayStatus?.agent?.management ? (
+          <Button asChild variant="ghost" size="icon" className="size-11 md:size-8">
+            <Link to="/clara" onClick={onNavigate} title="Clara inbox">
+              <Inbox className="size-5 md:size-4" />
+              <span className="sr-only">Clara inbox</span>
+            </Link>
+          </Button>
+        ) : null}
         <Button asChild variant="ghost" size="icon" className="size-11 md:size-8">
           <Link
             to={onSettings ? '/' : '/settings'}
