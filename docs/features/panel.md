@@ -28,8 +28,10 @@ monitoring on or off, and gate or pace client settings sync.
    switch can only be expanded while that feature is enabled; open the header
    again to collapse it.
 5. Toggle OpenCode, local transport, relay, or push from the switch at the top
-   right of its card. The choice is saved immediately. Turning a feature off
-   hides its details; turning it on makes the header expandable.
+   right of its card. The choice is saved immediately. An enabled switch is
+   green while the agent runs and red while it is stopped; a disabled switch
+   keeps its neutral track in both cases. Turning a feature off hides its
+   details; turning it on makes the header expandable.
 6. In **Shell commands**, use the switch at the top right to enable or block all
    command requests. Enabling makes the header expandable; open it to edit
    **Filter commands**, optionally turn on **Allow Git history**, then choose
@@ -41,8 +43,10 @@ monitoring on or off, and gate or pace client settings sync.
    right of the Agent card and confirm. The page keeps polling; the banner
    explains that the panel is still available.
 8. Choose **Start agent** to restore the saved choices. Feature switches are
-   disabled until the agent is started again; the shell policy stays editable
-   because it only applies while connections are up.
+   disabled until the agent is started again and show red while they are
+   stopped, so the stopped state is readable from the switch colors alone. The
+   shell policy stays editable because it only applies while connections are
+   up.
 9. Review the connected-client table and the storage list. Status badges call
    out degraded OpenCode, relay, push, permissions, or missing files. The
    storage header summarizes the most severe entry and its count.
@@ -129,7 +133,9 @@ monitoring on or off, and gate or pace client settings sync.
 - **Sync interval changes** — connected clients receive the new cadence in an
   agent-info update and reschedule their next check without reconnecting.
 - **The agent is stopped** — a banner says external connections are off, every
-  transport card shows a stopped state, and feature switches are disabled. The
+  transport card shows a stopped state, and feature switches are disabled. An
+  enabled feature switch turns red and a disabled one keeps its neutral track.
+  The shell, Traffic, and Client sync switches keep their usual colors. The
   shell toggle and draft stay editable.
 - **The filter list is empty** — every command is allowed once Apply saves the
   enabled policy, and the card shows a warning. The location requirement and the
