@@ -77,6 +77,9 @@ export async function getDb(
 
   db.exec('PRAGMA journal_mode = WAL')
   db.exec('PRAGMA foreign_keys = ON')
+  // The daemon and a tool call can race for the write lock. Wait briefly
+  // instead of failing the tick.
+  db.exec('PRAGMA busy_timeout = 5000')
 
   await migrate(db)
 
