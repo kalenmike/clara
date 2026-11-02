@@ -32,6 +32,29 @@ build, docs, and judge agents in child sessions.
     decisions, approvals, gates, stalls, and budget exceptions from every paired
     device.
 
+## Feature boundary
+
+Clara management is experimental and is isolated from ordinary session
+management in three layers:
+
+1. **Build inclusion.** `CLARA_MANAGEMENT` (server) and
+   `VITE_CLARA_MANAGEMENT` (web and panel) exclude the feature when set to `0`,
+   `false`, or `off`. An excluded build does not load the ledger modules, does
+   not register the Clara route, and does not show the panel switch.
+2. **Runtime switch.** `management.enabled` is the master switch described
+   below. It defaults off. When off, the plugin does not open the ledger or
+   register tools, the daemon is not constructed, the home agent does not start
+   the alert monitor, and the web client does not show the inbox.
+3. **Uninstall.** `pnpm clara:plugin:uninstall` removes the plugin link and the
+   generated agent files. Add `--purge` to remove the ledger database, the
+   alert delivery sidecar, the management setting, and the legacy delivery
+   tables from the agent database.
+
+The alert inbox is read directly from `ledger.db`. Delivery state (the cursor
+and dedupe keys) lives in `~/.config/clara/ledger-alerts.db`, a Clara-owned
+sidecar. The home agent never writes `ledger.db`, and `clara.db` contains no
+Clara management tables.
+
 ## Core business rules
 
 1. **State crosses agent boundaries; sessions do not.** Every status answer
@@ -52,10 +75,12 @@ build, docs, and judge agents in child sessions.
    live session per stage.
 8. **One master switch.** `management.enabled` in the home agent panel gates
    the daemon, the tools, ledger alerts, the Clara inbox, and the Clara agent
-   catalog. When it is off, ordinary OpenCode session alerts continue unchanged.
+   catalog. When it is off, the plugin registers no tools and starts no
+   daemon, and ordinary OpenCode session alerts continue unchanged.
 9. **The ledger records exceptions; the home agent delivers them.** The plugin
    writes the `alerts` outbox and never sends push or a system notification.
-   The home agent reads it read-only and owns delivery and deduplication.
+   The home agent reads `ledger.db` read-only and keeps its delivery cursor and
+   dedupe keys in a separate Clara-owned sidecar database.
 
 ## Edge cases
 
@@ -81,11 +106,11 @@ build, docs, and judge agents in child sessions.
   decision instead of creating a session.
 - The host has no session API, or `daemon: false` / `CLARA_DAEMON=0` is set;
   the ledger still records state, but nothing is launched.
-- Clara management is disabled; every `clara_*` tool refuses, the daemon stays
-  loaded but idle, and the home agent marks the generated agent files disabled
-  at startup and on every switch change, then reloads OpenCode so the agents
-  leave the catalog. Agent files edited after installation are reported and
-  left untouched.
+- Clara management is disabled; the plugin registers no tools, stays loaded
+  without opening the ledger, and starts no daemon. The home agent marks the
+  generated agent files disabled at startup and on every switch change, then
+  reloads OpenCode so the agents leave the catalog. Agent files edited after
+  installation are reported and left untouched.
 - The home agent database is missing; management defaults to off.
 - A ledger alert is delivered once even across an agent restart; the delivery
   cursor and keys live in the home agent database, not the ledger.
@@ -130,8 +155,9 @@ build, docs, and judge agents in child sessions.
   launches one missing stage per tick through the OpenCode session API.
 - Alert outbox: `alerts` in `ledger.db`, written by `collectAlerts` and read
   read-only by `apps/server/src/ledger`.
-- Delivery state: `ledger_alert_state` and `ledger_alert_delivery` in the home
-  agent database.
+- Delivery state: `~/.config/clara/ledger-alerts.db`, a Clara-owned sidecar
+  with a cursor and dedupe keys. It is separate from both the ledger and the
+  home agent database, and `--purge` removes it.
 - Run state: `runs` (feature, stage, agent, session, status) and
   `daemon_lock` (one heartbeat row shared by every plugin instance).
 - Stage agents: `001` spec, `002` test, `003` build, `004` docs, `judge` close.
