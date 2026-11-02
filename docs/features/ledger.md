@@ -5,7 +5,8 @@
 The Clara ledger is an OpenCode plugin that records feature state, acceptance
 criteria, decisions, checkpoints, and events in one SQLite database. It gives
 the Clara agents a shared source of truth without passing session history
-between them.
+between them. A daemon turns that state into work by launching the spec, test,
+build, docs, and judge agents in child sessions.
 
 ## User flow
 
@@ -15,9 +16,11 @@ between them.
 4. Ask for status at any time with `clara_ask` or `clara_inbox`.
 5. Approve the proposed criteria with `clara_approve`; nothing builds before
    that.
-6. The spec, test, and build workers use their own tools to propose criteria,
-   freeze tests, and record checkpoints.
-7. Resolve any open decision with `clara_resolve`.
+6. The daemon launches the spec agent to propose criteria; after approval it
+   launches the test, build, docs, and judge agents as each stage completes.
+7. When the build requests review, the daemon launches the docs agent if there
+   is a docs impact, then the judge to close. Only `ai_0` can mark it done.
+8. Resolve any open decision with `clara_resolve`.
 
 ## Core business rules
 
@@ -27,10 +30,13 @@ between them.
    answers.
 3. **Only the supervisor closes work.** An implementer can request `review`;
    only `ai_0` can move a feature to `done` or `scrapped`.
-4. **Tests are frozen.** The test agent records a hash, and the close gate
-   compares against it.
+4. **Tests are frozen.** The test agent records a hash and the build agent
+   cannot edit test paths. The close gate requires the hash to be present.
 5. **The ledger is deterministic.** `clara_tick` is pure SQL and comparisons;
    it makes no model calls.
+6. **The daemon spawns, the ledger decides.** The `clara` agent never launches
+   a worker. A single-owner lock and the `runs` table keep one daemon and one
+   live session per stage.
 
 ## Edge cases
 
@@ -42,6 +48,18 @@ between them.
   `ai_0`.
 - Illegal state transitions are rejected.
 - A killed feature records a reason code; terminal states cannot reopen.
+- A second OpenCode location loads the plugin but cannot tick while the daemon
+  lock heartbeat is fresh.
+- The daemon restarts mid-stage; the `runs` row resumes the session instead of
+  launching a duplicate.
+- A worker session ends without advancing the ledger; the daemon opens a
+  decision and retries only after the human resolves it.
+- A feature is killed while a worker is running; the daemon interrupts that
+  session on its next tick.
+- The workspace path is missing when a stage is due; the daemon opens a
+  decision instead of creating a session.
+- The host has no session API, or `daemon: false` / `CLARA_DAEMON=0` is set;
+  the ledger still records state, but nothing is launched.
 - The plugin falls back from `node:sqlite` to `bun:sqlite` at runtime.
 - Migrations apply in filename order and are recorded in `schema_migrations`.
 - The previous scratch ledger is not reused; a fresh database is created on
@@ -49,11 +67,18 @@ between them.
 
 ## Out of scope
 
-- The daemon or scheduler that ticks rules and spawns workers
-- Worker session spawning, worktree creation, and judge invocation
+- Worktree and branch creation; workers run in the workspace directory
+- Automatic approval or resolution; the human gates stay human
 - Cost rollups for accepted features
 - Scrap-reason classification for `spec`, `context`, `model`, and `taste`
 - A web or panel view of the ledger
+
+## Known gaps
+
+- The close gate checks that `tests_hash` is set; it does not re-hash the test
+  files. The judge trusts the frozen hash recorded by the test agent.
+- Workers run in the workspace directory. There is no separate worktree or
+  branch per feature yet.
 
 ## Technical appendix
 
@@ -64,6 +89,15 @@ between them.
 - Ledger: `${CLARA_CONFIG_DIR:-${XDG_CONFIG_HOME:-~/.config}/clara}/ledger.db`
 - Override: `CLARA_LEDGER_DB_PATH` or the plugin `db` option
 - Home agent settings database: `~/.config/clara/clara.db` (separate)
+- Daemon: `plugins/clara/daemon.ts` ticks every 15s, reconciles `runs`, and
+  launches one missing stage per tick through the OpenCode session API.
+- Run state: `runs` (feature, stage, agent, session, status) and
+  `daemon_lock` (one heartbeat row shared by every plugin instance).
+- Stage agents: `001` spec, `002` test, `003` build, `004` docs, `judge` close.
+- Daemon options: `daemon`, `daemonIntervalMs`, `daemonLockStaleMs`,
+  `daemonMaxSpawnsPerTick`, `daemonModel`; `CLARA_DAEMON=0` disables it.
+  Without `daemonModel`, a worker inherits the latest session model in the
+  workspace; if none exists, the daemon opens a decision instead of guessing.
 - Migrations: `plugins/clara/migrations`
 - Agents: `plugins/clara/agents.json`, rendered to
   `~/.config/opencode/agents/*.md`

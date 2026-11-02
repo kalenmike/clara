@@ -11,15 +11,17 @@ ledger cannot answer a question, it records a schema gap instead of guessing.
 
 ## Files
 
-| File               | What it is                                                       |
-| ------------------ | ---------------------------------------------------------------- |
-| `index.ts`         | Plugin entry. Registers the `clara_*` tools.                     |
-| `db.ts`            | SQLite driver selection, WAL, migration runner, path resolution. |
-| `queries.ts`       | Every ledger operation. Deterministic — no model calls.          |
-| `selftest.ts`      | End-to-end check against a throwaway DB.                         |
-| `cli.ts`           | Run one tool directly against the ledger, without an agent.      |
-| `agents.json`      | The six Clara agents, in OpenCode agent-config shape.            |
-| `migrations/*.sql` | Schema, applied in filename order.                               |
+| File               | What it is                                                         |
+| ------------------ | ------------------------------------------------------------------ |
+| `index.ts`         | Plugin entry. Registers the `clara_*` tools and starts the daemon. |
+| `db.ts`            | SQLite driver selection, WAL, migration runner, path resolution.   |
+| `queries.ts`       | Every ledger operation. Deterministic — no model calls.            |
+| `daemon.ts`        | Scheduler: reconciles worker sessions and launches the next stage. |
+| `runs.ts`          | Run tracking and the single-writer lock.                           |
+| `selftest.ts`      | End-to-end check against a throwaway DB.                           |
+| `cli.ts`           | Run one tool directly against the ledger, without an agent.        |
+| `agents.json`      | The six Clara agents, in OpenCode agent-config shape.              |
+| `migrations/*.sql` | Schema, applied in filename order.                                 |
 
 ## Install
 
@@ -74,7 +76,11 @@ On load the plugin prints:
 
 ```text
 [clara] ledger ready at /home/you/.config/clara/ledger.db
+[clara] daemon started (every 15s)
 ```
+
+The daemon does not start when the host has no session API, or when it is
+disabled with `daemon: false` or `CLARA_DAEMON=0`.
 
 Tool ids are namespaced: `clara_submit`, `clara_inbox`, and so on. OpenCode
 derives the id from each tool's `options.namespace`; the
@@ -173,14 +179,14 @@ Legal transitions are enforced in `appendEvent`:
 Actor rules:
 
 - The actor is derived from the calling agent (`001`→`ai_1`, `002`→`ai_2`,
-  `003`→`ai_3`, `judge`→`ai_0`, `clara`→`human`), not from the arguments.
-  An implementer cannot pass `actor: "ai_0"`.
+  `003`→`ai_3`, `004`→`ai_4`, `judge`→`ai_0`, `clara`→`human`), not from the
+  arguments. An implementer cannot pass `actor: "ai_0"`.
 - Only `ai_0` may move a feature to `done` or `scrapped`. An implementer can
   request `review`, never close its own work.
 - `clara_approve` and `clara_resolve` are human-only.
 - `clara_criteria` is `ai_1`/human; `clara_freeze` is `ai_2`/human;
-  `clara_checkpoint` is `ai_3`/human; `clara_decide` and `clara_tick` are
-  `ai_0`/human.
+  `clara_checkpoint` is `ai_3`/human; `clara_decide` is `ai_0`/`ai_4`/human;
+  `clara_tick` is `ai_0`/human.
 - Criteria can only be proposed in `spec` and approved in `spec`.
 - Tests freeze only in `planned`.
 - Checkpoints only exist in `building`.
@@ -189,16 +195,64 @@ Actor rules:
 
 - **Nothing builds before approval.** `submit` leaves the feature in `spec`;
   `approve` is the only path to `planned`.
-- **Tests are frozen.** `freeze` records a hash; the close gate compares
-  against it.
+- **Tests are frozen.** `freeze` records a hash; the close gate requires it.
+  The daemon does not re-hash the files yet.
 - **Silence is not approval.** Every decision carries
   `default_if_silent`, defaulting to `block`.
 - **No model in the loop for state.** `tick` is pure SQL and comparisons.
+- **One daemon.** A lock row keeps multiple plugin instances from spawning
+  duplicate workers.
+- **No duplicate stage.** A live session in `runs` blocks a second launch of
+  the same stage.
+
+## Daemon
+
+The plugin starts a daemon when OpenCode loads it. The daemon owns the loop;
+the `clara` agent only submits, asks, approves, and resolves. It ticks every
+15 seconds by default:
+
+1. reconcile the sessions recorded in `runs`;
+2. run `clara_tick` with `dry_run: false`;
+3. launch at most one missing stage.
+
+| Ledger state               | Stage                          | Agent   |
+| -------------------------- | ------------------------------ | ------- |
+| `spec`, no criteria        | propose criteria               | `001`   |
+| `spec`, criteria proposed  | wait for `clara_approve`       | —       |
+| `planned`, no `tests_hash` | write and freeze tests         | `002`   |
+| `planned`, tests frozen    | move to `building`             | `003`   |
+| `building`                 | implement and request `review` | `003`   |
+| `review`, docs impact      | apply docs                     | `004`   |
+| `review`                   | close or escalate              | `judge` |
+
+Each stage runs in a child session in the feature's workspace. Its id and
+status live in `runs`. A stage with a live run is never launched twice. If a
+session ends without advancing the ledger, the daemon opens a decision and
+waits; it retries that stage only after the human resolves the decision.
+
+`daemon_lock` has one row. An instance must own it to tick, so several OpenCode
+locations can load the plugin without spawning duplicate workers. A heartbeat
+older than five minutes can be taken over after a crash.
+
+Options on the plugin entry:
+
+| Option                   | Default  | Meaning                                               |
+| ------------------------ | -------- | ----------------------------------------------------- |
+| `daemon`                 | `true`   | Start the scheduler.                                  |
+| `daemonIntervalMs`       | `15000`  | Milliseconds between ticks.                           |
+| `daemonLockStaleMs`      | `300000` | Heartbeat age before another instance may take over.  |
+| `daemonMaxSpawnsPerTick` | `1`      | Upper bound on new worker sessions per tick.          |
+| `daemonModel`            | unset    | `provider/model` or `{ providerID, id }` for workers. |
+
+If no model can be resolved, the daemon opens a decision instead of launching a
+worker. Without `daemonModel`, it uses the latest session model in the
+workspace. Set `daemon: false` or `CLARA_DAEMON=0` to turn it off.
 
 ## `tick`
 
 `clara_tick` defaults to `dry_run: true` and reports what it _would_ do.
-Pass `false` to apply. Checks, per active feature:
+Pass `false` to apply. The daemon calls the live form on every tick before it
+launches a stage. Checks, per active feature:
 
 1. over hard budget → kill (`budget`)
 2. more than 3 failed attempts → kill (`attempts`)
@@ -226,15 +280,15 @@ It creates a temp DB and workspace, registers the plugin through a mock
 editor to confirm all 11 tools wire up, then walks a feature from `submit`
 through approval, freeze, build, review, close, plus the failure paths
 (no unbacked criteria, illegal transitions, implementer closing, dry-run vs
-live tick). It also checks that every tool is registered as `clara_*` and that
-every explicit `clara_*` permission in `agents.json` names a real tool. Expect
-`64/64 checks passed`.
+live tick). It also drives a feature through the daemon with a mock session
+API, checks the lock and retry path, and verifies that every tool is registered
+as `clara_*` and that every explicit `clara_*` permission in `agents.json`
+names a real tool. Expect `94/94 checks passed`.
 
 ## Not built yet
 
-- The daemon/scheduler that spawns work. `tick` is the deterministic half
-  and is callable today; nothing calls it on a timer.
-- A HUB guard and lock. A global plugin loads once per location, so when the
-  scheduler lands only one process may tick.
-- `ctx.session` spawning of the worker agents.
-- Wiring `judge.md` as the `ai_0` judgment subagent.
+- Worktree and branch creation. Workers run in the workspace directory; the
+  daemon does not create a separate checkout.
+- Cost rollups for accepted features.
+- Scrap-reason classification for `spec`, `context`, `model`, and `taste`.
+- A web or panel view of the ledger.
