@@ -15,7 +15,6 @@
  * Criteria 4–8 in the record are human gates; they have no automated test.
  */
 import { describe, expect, it } from 'vitest'
-import type { ToggleState } from '../components/primitives.tsx'
 import { toggleTrackClasses } from './toggle-accent.ts'
 
 const GREEN = /bg-emerald-\d{3}/
