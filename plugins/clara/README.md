@@ -288,7 +288,7 @@ through approval, freeze, build, review, close, plus the failure paths
 live tick). It also drives a feature through the daemon with a mock session
 API, checks the lock and retry path, and verifies that every tool is registered
 as `clara_*` and that every explicit `clara_*` permission in `agents.json`
-names a real tool. Expect `119/119 checks passed`.
+names a real tool. Expect `120/120 checks passed`.
 
 ## Not built yet
 

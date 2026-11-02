@@ -314,6 +314,13 @@ check(
   'ask works without a question when scoped to a feature',
   q.ask(db, { feature: feature.id }).includes('state:     building')
 )
+const askTool = await registered
+  .get('clara_ask')!
+  .execute({ feature: feature.id }, { agent: 'clara' })
+check(
+  'ask tool accepts a feature without a question',
+  String(askTool.content).includes('state:     building')
+)
 
 const missing = q.ask(db, {
   question: 'what did we decide about billing?',
