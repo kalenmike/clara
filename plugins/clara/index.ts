@@ -20,8 +20,16 @@
 // `clara_inbox`, and so on. The `editor.namespace()` call only describes the
 // group.
 
+import {
+  ATTENTION_STATES,
+  attentionAnswer,
+  attentionFields,
+  attentionFormApi,
+  waitForAttentionForm,
+  type AttentionFormApi,
+} from './attention.ts'
 import { createDaemon } from './daemon.ts'
-import { DEFAULT_DB_PATH, getDb, managementEnabled, type Db } from './db.ts'
+import { DEFAULT_DB_PATH, getDb, managementEnabled, type Db, type Row } from './db.ts'
 import * as q from './queries.ts'
 
 export const NAMESPACE = 'clara'
@@ -74,7 +82,11 @@ function requireRole(name: string, context: any, allowed: string[]): string {
  * `guard` is only passed by the plugin entry. It makes every tool inert when
  * Clara management is off, while leaving the CLI available for recovery.
  */
-export function createTools(db: Db, guard?: () => Promise<boolean>): ClaraTool[] {
+export function createTools(
+  db: Db,
+  guard?: () => Promise<boolean>,
+  forms?: AttentionFormApi
+): ClaraTool[] {
   const tools: ClaraTool[] = [
     // -- human facing ------------------------------------------------------
 
@@ -135,6 +147,122 @@ export function createTools(db: Db, guard?: () => Promise<boolean>): ClaraTool[]
         additionalProperties: false,
       },
       execute: async (input: any) => ({ content: q.inbox(db, input ?? {}) }),
+    },
+
+    {
+      name: 'attention',
+      description:
+        'Present a ledger exception to the human in this session. Use info when nothing is needed, feedback for a free-text answer, form for structured answers, and confirm for a go/no-go. The form doubles as the stale check: an already resolved alert is refused.',
+      input: {
+        type: 'object',
+        properties: {
+          alert: {
+            type: 'string',
+            description: 'Alert key from the ledger, e.g. decision:7 or approval:12',
+          },
+          state: {
+            type: 'string',
+            enum: [...ATTENTION_STATES],
+            description:
+              'info = no answer; feedback = free text; form = structured fields; confirm = go/no-go',
+          },
+          title: { type: 'string', description: 'Form title. Defaults to the alert title.' },
+          prompt: {
+            type: 'string',
+            description: 'The question or confirmation label shown with the form.',
+          },
+          confirm_label: { type: 'string', description: 'Label for the confirm checkbox.' },
+          fields: {
+            type: 'array',
+            description: 'Structured fields for state=form.',
+            items: {
+              type: 'object',
+              properties: {
+                key: { type: 'string' },
+                title: { type: 'string' },
+                description: { type: 'string' },
+                type: {
+                  type: 'string',
+                  enum: ['string', 'number', 'integer', 'boolean', 'multiselect'],
+                },
+                required: { type: 'boolean' },
+                placeholder: { type: 'string' },
+                max_length: { type: 'number' },
+                options: {
+                  type: 'array',
+                  items: {
+                    type: 'object',
+                    properties: {
+                      value: { type: 'string' },
+                      label: { type: 'string' },
+                      description: { type: 'string' },
+                    },
+                    required: ['value', 'label'],
+                  },
+                },
+              },
+              required: ['key', 'type'],
+            },
+          },
+        },
+        required: ['alert', 'state'],
+        additionalProperties: false,
+      },
+      execute: async (input: any, context: any) => {
+        requireRole('attention', context, ['human'])
+        const alert = db
+          .prepare('SELECT * FROM alerts WHERE key = ?')
+          .get(String(input.alert)) as Row | undefined
+        if (!alert) return { content: `Clara: no alert "${input.alert}".` }
+
+        const state = String(input.state)
+        if (!ATTENTION_STATES.includes(state as (typeof ATTENTION_STATES)[number])) {
+          throw new Error(`Clara: attention state must be one of ${ATTENTION_STATES.join(', ')}`)
+        }
+
+        const oneTime = String(alert.key).startsWith('kill:')
+        if (state !== 'info' && alert.resolved_at && !oneTime) {
+          return { content: `Clara: "${alert.key}" is already resolved. Nothing to ask.` }
+        }
+
+        if (state === 'info') {
+          recordAttention(db, alert, 'info', { state })
+          return {
+            content:
+              'Attention item recorded. Tell the human what happened and stop; do not ask for an answer.',
+          }
+        }
+
+        if (!forms || typeof context?.sessionID !== 'string') {
+          recordAttention(db, alert, 'text', { state })
+          return {
+            content:
+              'No form API is available. Ask the human in prose, then wait for their reply. Do not act until they answer.',
+          }
+        }
+
+        const created = await forms.create({
+          sessionID: context.sessionID,
+          title: String(input.title ?? alert.title),
+          metadata: { clara: { attention: state, alert: String(alert.key) } },
+          fields: attentionFields({ ...input, state }),
+        })
+        recordAttention(db, alert, 'opened', { state, form: created.id })
+
+        const result = await waitForAttentionForm(forms, {
+          sessionID: context.sessionID,
+          formID: created.id,
+          signal: context?.signal,
+        })
+        recordAttention(db, alert, result.status === 'answered' ? 'answered' : 'cancelled', {
+          state,
+          form: created.id,
+          ...(result.status === 'answered'
+            ? { answer: result.answer }
+            : { reason: result.message ?? null }),
+        })
+        return { content: attentionAnswer(result) }
+      },
     },
 
     {
@@ -400,6 +528,35 @@ export function createTools(db: Db, guard?: () => Promise<boolean>): ClaraTool[]
   }))
 }
 
+/**
+ * Record what Clara showed and what the human answered. The alert keeps the
+ * last state for history; the feature event makes the exchange visible from
+ * `clara_ask` without reconstructing a session.
+ */
+function recordAttention(
+  db: Db,
+  alert: Row,
+  type: 'info' | 'text' | 'opened' | 'answered' | 'cancelled',
+  payload: Record<string, unknown>
+): void {
+  db.prepare('UPDATE alerts SET attention_state = ? WHERE key = ?').run(
+    String(payload.state ?? type),
+    alert.key
+  )
+  if (!alert.feature_id) return
+
+  try {
+    q.appendEvent(db, {
+      feature: Number(alert.feature_id),
+      type: `attention.${type}`,
+      actor: 'human',
+      payload: { alert: alert.key, ...payload },
+    })
+  } catch {
+    // A feature can close while the form is open. The alert row is enough then.
+  }
+}
+
 export default {
   id: 'clara',
 
@@ -423,7 +580,7 @@ export default {
         description: 'Clara ledger: submit specs, read state, record events and decisions.',
       })
 
-      for (const tool of createTools(db, managementEnabled)) {
+      for (const tool of createTools(db, managementEnabled, attentionFormApi(ctx))) {
         editor.add({ ...tool, options: { namespace: NAMESPACE } })
       }
     })

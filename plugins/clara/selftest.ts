@@ -115,6 +115,7 @@ await plugin.setup({
 
 const expected = [
   'clara_submit',
+  'clara_attention',
   'clara_inbox',
   'clara_ask',
   'clara_approve',
@@ -129,7 +130,7 @@ const expected = [
 ]
 check('plugin id is clara', plugin.id === 'clara')
 check('namespace is clara', namespaceName === 'clara')
-check('registers 12 tools', registered.size === 12, `got ${[...registered.keys()].join(', ')}`)
+check('registers 13 tools', registered.size === 13, `got ${[...registered.keys()].join(', ')}`)
 for (const name of expected) check(`tool ${name}`, registered.has(name))
 check(
   'every tool carries the clara namespace',
@@ -859,6 +860,119 @@ const openDecision = db
   .prepare("SELECT * FROM alerts WHERE key LIKE 'decision:%' AND resolved_at IS NULL")
   .get()
 check('an open decision creates an alert', Boolean(openDecision), decisionAlert)
+
+console.log('\n15. attention tool')
+const attentionWorkspace = join(dir, 'attention-workspace')
+mkdirSync(attentionWorkspace, { recursive: true })
+const attentionDb = await getDb(join(dir, 'attention-ledger.db'))
+q.submit(attentionDb, {
+  workspace: 'attention',
+  path: attentionWorkspace,
+  title: 'A ledger exception can be presented',
+  intent: 'Clara asks the human in the session that already has the context.',
+  session_id: 'ses_attention',
+})
+const attentionFeature = attentionDb
+  .prepare('SELECT * FROM features ORDER BY id DESC LIMIT 1')
+  .get()!
+attentionDb
+  .prepare(
+    `INSERT INTO alerts
+      (key, feature_id, slug, workspace, kind, title, body, created_at)
+     VALUES (?, ?, ?, ?, 'approval', ?, ?, ?)`
+  )
+  .run(
+    `approval:${attentionFeature.id}`,
+    attentionFeature.id,
+    attentionFeature.slug,
+    'attention',
+    `${String(attentionFeature.id).padStart(3, '0')} ${attentionFeature.slug} · criteria awaiting approval`,
+    '2 criteria proposed; 2 still need clara_approve.',
+    new Date().toISOString()
+  )
+const attentionAlertKey = `approval:${attentionFeature.id}`
+const attentionFeatureId = Number(attentionFeature.id)
+const attentionTools = index.createTools(attentionDb)
+const attentionTool = attentionTools.find((tool) => tool.name === 'attention')!
+
+const infoResult = await attentionTool.execute(
+  { alert: attentionAlertKey, state: 'info', title: 'Informational' },
+  { agent: 'clara', sessionID: 'ses_attention' }
+)
+check('info records an attention item', String(infoResult.content).includes('recorded'))
+check(
+  'info marks the alert attention state',
+  attentionDb.prepare('SELECT attention_state FROM alerts WHERE key = ?').get(attentionAlertKey)!
+    .attention_state === 'info'
+)
+check(
+  'info writes a feature event',
+  attentionDb
+    .prepare("SELECT COUNT(*) c FROM events WHERE feature_id = ? AND type = 'attention.info'")
+    .get(attentionFeatureId)!.c === 1
+)
+
+const prose = await attentionTool.execute(
+  { alert: attentionAlertKey, state: 'feedback', prompt: 'Ship it?' },
+  { agent: 'clara', sessionID: 'ses_attention' }
+)
+check('attention falls back to prose without a form API', String(prose.content).includes('in prose'))
+
+const created: any[] = []
+const fakeForms = {
+  async create(input: any) {
+    created.push(input)
+    return { id: 'form_attention' }
+  },
+  async get() {
+    return { id: 'form_attention', state: { status: 'answered' as const, answer: { response: 'ship it' } } }
+  },
+  async cancel() {},
+}
+const formTool = index
+  .createTools(attentionDb, undefined, fakeForms)
+  .find((tool) => tool.name === 'attention')!
+const answered = await formTool.execute(
+  { alert: attentionAlertKey, state: 'feedback', prompt: 'Ship it?' },
+  { agent: 'clara', sessionID: 'ses_attention' }
+)
+check('feedback posts a standard form', created[0]?.fields?.[0]?.key === 'response')
+check('feedback uses the current session', created[0]?.sessionID === 'ses_attention')
+check('feedback returns the answer to Clara', String(answered.content).includes('ship it'))
+check(
+  'feedback records the answer',
+  attentionDb
+    .prepare("SELECT COUNT(*) c FROM events WHERE feature_id = ? AND type = 'attention.answered'")
+    .get(attentionFeatureId)!.c === 1
+)
+
+const confirmForms = {
+  async create() {
+    return { id: 'form_confirm' }
+  },
+  async get() {
+    return { id: 'form_confirm', state: { status: 'answered' as const, answer: { confirm: false } } }
+  },
+  async cancel() {},
+}
+const confirmTool = index
+  .createTools(attentionDb, undefined, confirmForms)
+  .find((tool) => tool.name === 'attention')!
+const refused = await confirmTool.execute(
+  { alert: attentionAlertKey, state: 'confirm', confirm_label: 'Start' },
+  { agent: 'clara', sessionID: 'ses_attention' }
+)
+check('confirm tells Clara not to start on false', String(refused.content).includes('did not confirm'))
+
+attentionDb
+  .prepare('UPDATE alerts SET resolved_at = ? WHERE key = ?')
+  .run(new Date().toISOString(), attentionAlertKey)
+const stale = await attentionTool.execute(
+  { alert: attentionAlertKey, state: 'feedback' },
+  { agent: 'clara', sessionID: 'ses_attention' }
+)
+check('a resolved alert is refused', String(stale.content).includes('already resolved'))
+attentionDb.close()
 
 rmSync(dir, { recursive: true, force: true })
 
