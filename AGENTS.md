@@ -10,6 +10,7 @@ WebSocket. This file is the contract for every AI agent working in this repo.
 apps/web              React/Vite SPA (Cloudflare Pages)
 apps/panel            Read-only loopback agent dashboard
 apps/server           Node home agent, local WS + outbound Cloudflare relay
+plugins/clara         OpenCode ledger plugin and agent definitions
 packages/shared-types Wire frames, actions, states, pairing payloads
 packages/crypto       PSK derivation, AES-GCM envelopes, replay guard
 workers/relay         Cloudflare Worker + RelayRoom Durable Object
@@ -34,6 +35,7 @@ pnpm dev:server     # Home agent only
 pnpm dev:relay      # Local wrangler dev for the Worker/DO
 pnpm build          # Build every workspace package
 pnpm clara:control  # Serve the built panel and open it in a browser
+pnpm clara:plugin:install # Link the ledger plugin and render its agents
 pnpm typecheck      # tsc -b
 pnpm lint           # ESLint
 pnpm format         # Prettier write
@@ -164,6 +166,7 @@ docs(sessions): document archived session filters
 | Relay Worker, DO, remote access    | [docs/architecture/relay.md](docs/architecture/relay.md)         |
 | E2EE, PSK, envelopes, rotation     | [docs/architecture/e2ee.md](docs/architecture/e2ee.md)           |
 | What ships and what does not       | [docs/features/capabilities.md](docs/features/capabilities.md)   |
+| Ledger plugin, agents, install     | [docs/features/ledger.md](docs/features/ledger.md)               |
 | Pairing, QR codes, device storage  | [docs/features/pairing.md](docs/features/pairing.md)             |
 | Install, updates, offline caching  | [docs/features/install.md](docs/features/install.md)             |
 | Connection and credentials         | [docs/features/connection.md](docs/features/connection.md)       |

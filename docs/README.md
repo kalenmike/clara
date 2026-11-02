@@ -54,4 +54,5 @@ here, it is not part of the canonical set.
 | [theme.md](features/theme.md)                   | You are working on appearance, color themes, or light/dark mode          |
 | [settings.md](features/settings.md)             | You are working on the Settings page, tabs, or simplified view           |
 | [git.md](features/git.md)                       | You are working on the branch and change summary in the right panel      |
+| [ledger.md](features/ledger.md)                 | You are working on the Clara ledger plugin or its agents                 |
 | [shortcuts.md](features/shortcuts.md)           | You are working on keyboard behavior                                     |

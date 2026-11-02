@@ -19,6 +19,7 @@ Cloudflare relay, or connect directly on a trusted network.
 apps/web              React/Vite SPA, deployed to Cloudflare Pages
 apps/panel            Loopback dashboard and admin controls served by the home agent
 apps/server           Node home agent, local WS + outbound relay
+plugins/clara         OpenCode ledger plugin and Clara agent definitions
 packages/shared-types Wire frames, actions, states, pairing payloads
 packages/crypto       PSK derivation, AES-GCM envelopes, replay guard
 workers/relay         Cloudflare Worker + RelayRoom Durable Object
