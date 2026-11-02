@@ -77,6 +77,7 @@ function createRuntime(
     probeCalls?: { value: number }
     relay?: RelaySnapshot
     traffic?: TrafficMeter
+    ledgerPath?: () => string | undefined
   } = {}
 ): PanelRuntime {
   const runtimeOptions: PanelRuntimeOptions = {
@@ -132,6 +133,7 @@ function createRuntime(
     ),
     localConnections: () => 1,
     ...(options.traffic ? { traffic: options.traffic } : {}),
+    ...(options.ledgerPath ? { ledgerPath: options.ledgerPath } : {}),
     push: pushService(),
     pushError: 'push disabled for sentinel-password',
     fingerprint: 'fingerprint-123',
@@ -175,6 +177,22 @@ describe('PanelRuntime', () => {
     expect(snapshot.clients.map((client) => client.transport)).toEqual(['local', 'relay'])
     expect(snapshot.storage.map((entry) => entry.key)).toEqual(['config', 'subscriptions', 'vapid'])
     expect(snapshot.storage[0]?.status).toBe('ok')
+  })
+
+  it('hides ledger storage while Clara management is off', async () => {
+    const dir = tempDir()
+    const runtime = createRuntime(dir, { ledgerPath: () => undefined })
+    const snapshot = await runtime.snapshot()
+    expect(snapshot.storage.some((entry) => entry.key === 'ledger')).toBe(false)
+  })
+
+  it('shows ledger storage while Clara management is on', async () => {
+    const dir = tempDir()
+    const ledgerPath = join(dir, 'ledger.db')
+    writeFileSync(ledgerPath, 'ledger', { mode: 0o600 })
+    const runtime = createRuntime(dir, { ledgerPath: () => ledgerPath })
+    const snapshot = await runtime.snapshot()
+    expect(snapshot.storage.some((entry) => entry.key === 'ledger')).toBe(true)
   })
 
   it('redacts secrets from relay errors', async () => {

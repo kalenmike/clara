@@ -61,6 +61,23 @@ const db = await getDb(dbPath)
 
 console.log('\n0. management setting')
 check('management defaults off', (await managementEnabled()) === false)
+
+const offIndex = await import('./index.ts')
+const offTools: any[] = []
+const offDispose = await offIndex.default.setup({
+  options: { db: join(dir, 'off-ledger.db') },
+  tool: {
+    transform: async (fn: any) =>
+      fn({
+        namespace: () => undefined,
+        add: (tool: any) => offTools.push(tool),
+      }),
+  },
+})
+check('disabled setup registers no tools', offTools.length === 0)
+check('disabled setup creates no ledger', !existsSync(join(dir, 'off-ledger.db')))
+check('disabled setup starts no daemon', offDispose === undefined)
+
 serverDb
   .prepare('UPDATE settings SET value = ? WHERE key = ?')
   .run(JSON.stringify(true), 'management.enabled')

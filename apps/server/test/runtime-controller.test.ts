@@ -67,7 +67,7 @@ async function createController(
   const settings = new SettingsStore(db)
   const controllerInfo: AgentInfo = { ...info }
   const openCode = new OpenCodeClient(options.openCodeUrl ?? 'http://127.0.0.1:4096')
-  let controller: RuntimeController | undefined
+  const controllerRef: { current?: RuntimeController } = {}
   const clara = options.syncClaraAgents
     ? new ClaraManagement({
         config: {
@@ -80,12 +80,12 @@ async function createController(
         canPush: () => false,
         isDeskActive: () => false,
         hasClients: () => false,
-        canProxy: () => controller?.canProxy() ?? false,
+        canProxy: () => controllerRef.current?.canProxy() ?? false,
         syncAgents: options.syncClaraAgents,
         log: () => undefined,
       })
     : undefined
-  controller = new RuntimeController({
+  const controller = new RuntimeController({
     config: serverConfig,
     openCode,
     info: controllerInfo,
@@ -93,13 +93,14 @@ async function createController(
     clara,
     log: () => undefined,
   })
+  controllerRef.current = controller
   controllers.push(controller)
   return {
     controller,
     settings,
     info: controllerInfo,
     close: async () => {
-      await controller?.close()
+      await controller.close()
       closeDatabase(db)
     },
   }
