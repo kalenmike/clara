@@ -247,6 +247,9 @@ export class RuntimeController {
 
   async start(): Promise<void> {
     const settings = this.options.settings.get()
+    // Reconcile agents saved before this process started, so an existing
+    // management choice is reflected even when nobody touches the panel.
+    await this.applyAgentVisibility(settings.management)
     if (settings.stopped) {
       this.options.log('agent stopped by an admin setting; only the panel and database are running')
       return
@@ -304,30 +307,7 @@ export class RuntimeController {
     const previous = this.options.settings.getManagement()
     this.options.settings.setManagement(enabled)
     this.options.info.management = enabled
-
-    const sync = this.options.syncClaraAgents ?? syncClaraAgentVisibility
-    let synced: ClaraAgentSyncResult | undefined
-    try {
-      synced = sync(enabled)
-    } catch (cause) {
-      this.options.log('could not sync the Clara agent files', cause)
-    }
-    if (synced?.skipped.length) {
-      this.options.log(
-        'left edited Clara agent files untouched',
-        synced.skipped.map((id) => `${id}.md`).join(', ')
-      )
-    }
-
-    // Agent files are config inputs, not transport state. Reload OpenCode only
-    // when something changed, and never let a reload failure block the switch.
-    if (synced?.updated.length && this.canProxy()) {
-      try {
-        await this.options.openCode.reload()
-      } catch (cause) {
-        this.options.log('could not reload OpenCode after changing Clara management', cause)
-      }
-    }
+    await this.applyAgentVisibility(enabled)
 
     this.localAgent.broadcastAgentInfo()
     this.relayAgent?.broadcastAgentInfo()
@@ -456,6 +436,35 @@ export class RuntimeController {
   private stopPushMonitor(): void {
     this.pushMonitor?.close()
     this.pushMonitorRunning = false
+  }
+
+  /**
+   * Agent files are config inputs, not transport state. Keep them aligned with
+   * the management switch and reload OpenCode only when a file changed. A
+   * reload failure must never block the saved switch or the daemon.
+   */
+  private async applyAgentVisibility(enabled: boolean): Promise<void> {
+    const sync = this.options.syncClaraAgents ?? syncClaraAgentVisibility
+    let synced: ClaraAgentSyncResult | undefined
+    try {
+      synced = sync(enabled)
+    } catch (cause) {
+      this.options.log('could not sync the Clara agent files', cause)
+      return
+    }
+    if (synced.skipped.length) {
+      this.options.log(
+        'left edited Clara agent files untouched',
+        synced.skipped.map((id) => `${id}.md`).join(', ')
+      )
+    }
+    if (!synced.updated.length || !this.canProxy()) return
+
+    try {
+      await this.options.openCode.reload()
+    } catch (cause) {
+      this.options.log('could not reload OpenCode after changing Clara management', cause)
+    }
   }
 
   private startLedgerMonitor(options: { prime?: boolean } = {}): void {

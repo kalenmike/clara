@@ -39,10 +39,11 @@ The installer:
 3. renders `agents.json` into `~/.config/opencode/agents/*.md`.
 
 The installer reads `management.enabled` from the home agent database and uses
-it for the first render. After installation the home agent panel keeps the
-agents in sync: changing the switch rewrites `disabled: true` in the generated
-files and reloads OpenCode, so no reinstall is needed. Files edited after
-installation are left untouched; re-run with `--force` to replace them.
+it for the first render. After installation the home agent keeps the agents in
+sync: at startup and whenever the switch changes it rewrites `disabled: true`
+in the generated files and reloads OpenCode, so no reinstall is needed. Files
+edited after installation are left untouched; re-run with `--force` to replace
+them.
 
 OpenCode discovers global plugins in `~/.config/opencode/plugins/`. A local
 plugin directory needs a `package.json` with a `name` and `exports`; this one

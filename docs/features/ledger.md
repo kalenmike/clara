@@ -82,9 +82,10 @@ build, docs, and judge agents in child sessions.
 - The host has no session API, or `daemon: false` / `CLARA_DAEMON=0` is set;
   the ledger still records state, but nothing is launched.
 - Clara management is disabled; every `clara_*` tool refuses, the daemon stays
-  loaded but idle, and the panel marks the generated agent files disabled and
-  reloads OpenCode so the agents leave the catalog. Agent files edited after
-  installation are reported and left untouched.
+  loaded but idle, and the home agent marks the generated agent files disabled
+  at startup and on every switch change, then reloads OpenCode so the agents
+  leave the catalog. Agent files edited after installation are reported and
+  left untouched.
 - The home agent database is missing; management defaults to off.
 - A ledger alert is delivered once even across an agent restart; the delivery
   cursor and keys live in the home agent database, not the ledger.

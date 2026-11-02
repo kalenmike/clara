@@ -70,7 +70,8 @@ async function createController(
     openCode: new OpenCodeClient(options.openCodeUrl ?? 'http://127.0.0.1:4096'),
     info: controllerInfo,
     settings,
-    syncClaraAgents: options.syncClaraAgents,
+    syncClaraAgents:
+      options.syncClaraAgents ?? (() => ({ updated: [], skipped: [], missingManifest: true })),
     log: () => undefined,
   })
   controllers.push(controller)
@@ -250,7 +251,7 @@ describe('RuntimeController', () => {
     }
   })
 
-  it('syncs Clara agent files and reloads OpenCode when management changes', async () => {
+  it('reconciles Clara agents on startup and when management changes', async () => {
     const requests: string[] = []
     const openCode = createServer((request, response) => {
       requests.push(`${request.method} ${request.url}`)
@@ -272,13 +273,16 @@ describe('RuntimeController', () => {
     })
     await controller.start()
     try {
-      const controls = await controller.setManagement(false)
-
       expect(synced).toEqual([false])
-      expect(settings.getManagement()).toBe(false)
-      expect(info.management).toBe(false)
-      expect(controls.management).toEqual({ enabled: false })
       expect(requests).toEqual(['POST /api/location/reload'])
+
+      const controls = await controller.setManagement(true)
+
+      expect(synced).toEqual([false, true])
+      expect(settings.getManagement()).toBe(true)
+      expect(info.management).toBe(true)
+      expect(controls.management).toEqual({ enabled: true })
+      expect(requests).toEqual(['POST /api/location/reload', 'POST /api/location/reload'])
     } finally {
       await close()
     }
@@ -296,7 +300,7 @@ describe('RuntimeController', () => {
     try {
       const controls = await controller.setManagement(true)
 
-      expect(synced).toEqual([true])
+      expect(synced).toEqual([false, true])
       expect(settings.getManagement()).toBe(true)
       expect(info.management).toBe(true)
       expect(controls.management).toEqual({ enabled: true })

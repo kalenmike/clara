@@ -154,8 +154,9 @@ monitoring on or off, and gate or pace client settings sync.
 - **The policy is off** — Clara's Git tab shows that commit history is disabled
   and does not retry.
 - **Clara management changes** — the panel rewrites `disabled` in the generated
-  Clara agent files and reloads OpenCode before it broadcasts the new flag.
-  Files edited after installation are left alone and reported in the agent log.
+  Clara agent files and reloads OpenCode before it broadcasts the new flag. The
+  home agent reconciles the files at startup too. Files edited after
+  installation are left alone and reported in the agent log.
 - **A feature fails to start** — the saved choice remains, the card shows the
   error, and the rest of the agent keeps running.
 - **No clients** — the client table shows an empty state.
