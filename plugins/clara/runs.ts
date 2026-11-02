@@ -43,9 +43,7 @@ export interface NextStage {
 // ---------------------------------------------------------------------------
 
 export function hasCriteria(db: Db, featureID: number): boolean {
-  const row = db
-    .prepare('SELECT COUNT(*) AS c FROM criteria WHERE feature_id = ?')
-    .get(featureID)
+  const row = db.prepare('SELECT COUNT(*) AS c FROM criteria WHERE feature_id = ?').get(featureID)
   return Number(row?.c ?? 0) > 0
 }
 
@@ -98,8 +96,7 @@ export function nextStage(db: Db, feature: Row): NextStage | undefined {
       const impact = String(feature.docs_impact ?? '')
         .trim()
         .toLowerCase()
-      const needsDocs =
-        impact !== '' && impact !== 'none' && impact !== 'n/a' && impact !== 'no'
+      const needsDocs = impact !== '' && impact !== 'none' && impact !== 'n/a' && impact !== 'no'
       if (needsDocs && latestRun(db, Number(feature.id), 'docs')?.status !== 'done') {
         return { stage: 'docs', agent: '004', reason: 'docs impact' }
       }
@@ -115,11 +112,7 @@ export function nextStage(db: Db, feature: Row): NextStage | undefined {
 // runs
 // ---------------------------------------------------------------------------
 
-export function latestRun(
-  db: Db,
-  featureID: number,
-  stage: Stage
-): RunRow | undefined {
+export function latestRun(db: Db, featureID: number, stage: Stage): RunRow | undefined {
   return db
     .prepare('SELECT * FROM runs WHERE feature_id = ? AND stage = ? ORDER BY id DESC LIMIT 1')
     .get(featureID, stage) as RunRow | undefined
@@ -135,12 +128,7 @@ export function startRun(db: Db, featureID: number, stage: Stage, agent: string)
   return Number(result.lastInsertRowid)
 }
 
-export function markRunning(
-  db: Db,
-  runID: number,
-  sessionID: string,
-  note?: string
-): void {
+export function markRunning(db: Db, runID: number, sessionID: string, note?: string): void {
   db.prepare(
     `UPDATE runs
         SET status = 'running', session_id = ?, started_at = ?, note = ?
@@ -183,21 +171,18 @@ export function waitingRuns(db: Db): RunWithFeature[] {
  * holds it. A heartbeat older than `staleMs` can be taken over, so a crashed
  * server does not block the daemon forever.
  */
-export function acquireDaemonLock(
-  db: Db,
-  owner: string,
-  pid: number,
-  staleMs: number
-): boolean {
+export function acquireDaemonLock(db: Db, owner: string, pid: number, staleMs: number): boolean {
   db.exec('BEGIN IMMEDIATE')
   try {
     const row = db.prepare('SELECT * FROM daemon_lock WHERE id = 1').get()
     const at = now()
 
     if (!row) {
-      db.prepare(
-        'INSERT INTO daemon_lock (id, owner, pid, heartbeat_at) VALUES (1, ?, ?, ?)'
-      ).run(owner, pid, at)
+      db.prepare('INSERT INTO daemon_lock (id, owner, pid, heartbeat_at) VALUES (1, ?, ?, ?)').run(
+        owner,
+        pid,
+        at
+      )
       db.exec('COMMIT')
       return true
     }

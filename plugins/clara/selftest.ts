@@ -4,11 +4,13 @@
 //
 // This is not a unit test suite. It is the "does the whole shape hold" check.
 
-import { mkdtempSync, readFileSync, rmSync, existsSync } from 'node:fs'
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, existsSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
+import * as daemon from './daemon.ts'
 import { getDb } from './db.ts'
 import * as q from './queries.ts'
+import * as runs from './runs.ts'
 
 let failures = 0
 let checks = 0
@@ -46,7 +48,8 @@ const workspace = join(dir, 'workspace')
 const db = await getDb(dbPath)
 
 console.log('\n0. plugin registration')
-const plugin = (await import('./index.ts')).default
+const index = await import('./index.ts')
+const plugin = index.default
 const registered = new Map<string, any>()
 let namespaceName = ''
 
@@ -59,7 +62,7 @@ const idOf = (tool: any) =>
     : `${tool.options.namespace.replaceAll('.', '_')}_${safeName(tool.name)}`
 
 await plugin.setup({
-  options: { db: dbPath },
+  options: { db: dbPath, daemon: false },
   tool: {
     transform: async (fn: any) =>
       fn({
@@ -122,6 +125,32 @@ check(
   [...registered.keys()].every((id) => allowed.has(id)),
   [...registered.keys()].filter((id) => !allowed.has(id)).join(', ')
 )
+
+const buildPermissions = ((agents.agents as any)['003'].permissions ?? []) as any[]
+check(
+  'build agent can run pnpm',
+  buildPermissions.some(
+    (p) => p.action === 'shell' && p.resource === 'pnpm *' && p.effect === 'allow'
+  )
+)
+check(
+  'build agent can edit app sources',
+  buildPermissions.some(
+    (p) => p.action === 'edit' && p.resource === 'apps/**/src/**' && p.effect === 'allow'
+  )
+)
+check(
+  'build agent cannot edit tests',
+  buildPermissions.some(
+    (p) => p.action === 'edit' && p.resource === '**/*.test.*' && p.effect === 'deny'
+  )
+)
+const docsPermissions = ((agents.agents as any)['004'].permissions ?? []) as any[]
+check(
+  'docs agent can open a decision',
+  docsPermissions.some((p) => p.action === 'clara_decide' && p.effect === 'allow')
+)
+check('docs agent maps to ai_4', index.AGENT_ACTORS['004'] === 'ai_4')
 
 check(
   'every tool has a description',
@@ -372,6 +401,183 @@ check('record has front matter', record.startsWith('---'))
 check('record has non-goals', record.includes('password login'))
 check('record has criteria table', record.includes('| # | Criterion | Test | Human gate |'))
 check('record has checkpoints', record.includes('**#2**'))
+
+console.log('\n11. daemon')
+type MockSession = {
+  id: string
+  agent: string
+  title: string
+  prompt: string
+  model?: string
+  outcome?: 'succeeded' | 'failed' | 'interrupted'
+}
+
+const daemonDir = join(dir, 'daemon')
+const daemonWorkspace = join(daemonDir, 'workspace')
+const daemonDbPath = join(daemonDir, 'ledger.db')
+mkdirSync(daemonWorkspace, { recursive: true })
+const ddb = await getDb(daemonDbPath)
+const sessions: MockSession[] = []
+
+const sessionApi = {
+  async create(input: {
+    title?: string
+    model?: { providerID: string; id: string; variant?: string }
+  }) {
+    const session: MockSession = {
+      id: `ses_daemon_${sessions.length + 1}`,
+      agent: '',
+      title: input.title ?? '',
+      prompt: '',
+      model: input.model ? `${input.model.providerID}/${input.model.id}` : undefined,
+    }
+    sessions.push(session)
+    return { id: session.id }
+  },
+  async switchAgent(input: { sessionID: string; agent: string }) {
+    const session = sessions.find((item) => item.id === input.sessionID)
+    if (!session) throw new Error(`no session ${input.sessionID}`)
+    session.agent = input.agent
+  },
+  async prompt(input: { sessionID: string; text: string }) {
+    const session = sessions.find((item) => item.id === input.sessionID)
+    if (!session) throw new Error(`no session ${input.sessionID}`)
+    session.prompt = input.text
+  },
+  async get(input: { sessionID: string }) {
+    const session = sessions.find((item) => item.id === input.sessionID)
+    if (!session) throw new Error(`no session ${input.sessionID}`)
+    return { id: session.id, outcome: session.outcome }
+  },
+  async interrupt(input: { sessionID: string }) {
+    const session = sessions.find((item) => item.id === input.sessionID)
+    if (session) session.outcome = 'interrupted'
+  },
+}
+
+const silent = { info: () => {}, error: () => {} }
+const supervisor = daemon.createDaemon({
+  db: ddb,
+  ctx: { session: sessionApi, options: { daemonModel: 'test/model' } },
+  intervalMs: 60_000,
+  lockStaleMs: 60_000,
+  logger: silent,
+})
+
+const daemonSubmit = q.submit(ddb, {
+  workspace: 'daemon',
+  path: daemonWorkspace,
+  title: 'The daemon drives a feature',
+  intent: 'A feature reaches done without a human launching each stage.',
+})
+const daemonId = Number(daemonSubmit.match(/registered (\d+)/)![1])
+
+await supervisor.runOnce()
+check(
+  'daemon starts the spec stage',
+  sessions.length === 1 && sessions[0].agent === '001',
+  JSON.stringify(sessions.map((s) => s.agent))
+)
+check(
+  'daemon records a running spec run',
+  runs.latestRun(ddb, daemonId, 'spec')?.status === 'running'
+)
+check('daemon passes a model to the worker', sessions[0].model === 'test/model')
+check('handoff prompt names the stage', sessions[0].prompt.includes('acceptance criteria'))
+
+q.setCriteria(ddb, {
+  feature: daemonId,
+  criteria: [{ text: 'the daemon drives the feature', test_path: 'tests/daemon.test.ts' }],
+})
+sessions[0].outcome = 'succeeded'
+await supervisor.runOnce()
+check('spec run is done', runs.latestRun(ddb, daemonId, 'spec')?.status === 'done')
+check('daemon waits for approval', sessions.length === 1)
+
+q.approve(ddb, { feature: daemonId })
+await supervisor.runOnce()
+check(
+  'daemon starts the test stage after approval',
+  sessions.length === 2 && sessions[1].agent === '002'
+)
+
+q.freeze(ddb, { feature: daemonId, tests_hash: 'daemon-hash', tests_total: 1 })
+sessions[1].outcome = 'succeeded'
+await supervisor.runOnce()
+check('test run is done', runs.latestRun(ddb, daemonId, 'test')?.status === 'done')
+check('daemon starts the build stage', sessions.length === 3 && sessions[2].agent === '003')
+check('daemon moved the feature to building', q.featureByRef(ddb, daemonId)!.state === 'building')
+
+q.checkpoint(ddb, {
+  feature: daemonId,
+  tests_passed: 1,
+  tests_total: 1,
+  files_changed: 2,
+})
+q.appendEvent(ddb, {
+  feature: daemonId,
+  type: 'build.review',
+  actor: 'ai_3',
+  state: 'review',
+})
+sessions[2].outcome = 'succeeded'
+await supervisor.runOnce()
+check('build run is done', runs.latestRun(ddb, daemonId, 'build')?.status === 'done')
+check('daemon starts the judge stage', sessions.length === 4 && sessions[3].agent === 'judge')
+
+q.appendEvent(ddb, {
+  feature: daemonId,
+  type: 'feature.done',
+  actor: 'ai_0',
+  state: 'done',
+})
+sessions[3].outcome = 'succeeded'
+await supervisor.runOnce()
+check('judge run is done', runs.latestRun(ddb, daemonId, 'judge')?.status === 'done')
+check('daemon does not spawn after done', sessions.length === 4)
+check('feature is done', q.featureByRef(ddb, daemonId)!.state === 'done')
+
+const failedSubmit = q.submit(ddb, {
+  workspace: 'daemon',
+  path: daemonWorkspace,
+  title: 'The daemon handles a failed stage',
+  intent: 'A failed stage asks the human instead of retrying blindly.',
+})
+const failedId = Number(failedSubmit.match(/registered (\d+)/)![1])
+await supervisor.runOnce()
+const failedSession = sessions[sessions.length - 1]
+check(
+  'failed feature starts a spec session',
+  failedSession.agent === '001',
+  JSON.stringify(sessions.map((s) => `${s.id}:${s.agent}`))
+)
+failedSession.outcome = 'failed'
+await supervisor.runOnce()
+check('failed run is recorded', runs.latestRun(ddb, failedId, 'spec')?.status === 'failed')
+const open = ddb
+  .prepare('SELECT * FROM decisions WHERE feature_id = ? AND resolved_at IS NULL')
+  .get(failedId)
+check('failed run opens a decision', Boolean(open))
+check('failed run does not spawn again', sessions.length === 5)
+
+q.resolveDecision(ddb, { id: Number(open!.id), resolution: 'retry' })
+await supervisor.runOnce()
+check('resolved decision retries the stage', sessions.length === 6 && sessions[5].agent === '001')
+
+supervisor.stop()
+check('daemon releases its lock', !ddb.prepare('SELECT 1 FROM daemon_lock WHERE id = 1').get())
+
+check('daemon lock is exclusive', runs.acquireDaemonLock(ddb, 'selftest-a', 1, 60_000))
+check(
+  'a second owner is refused while the lock is fresh',
+  !runs.acquireDaemonLock(ddb, 'selftest-b', 2, 60_000)
+)
+ddb
+  .prepare('UPDATE daemon_lock SET heartbeat_at = ? WHERE id = 1')
+  .run(new Date(Date.now() - 120_000).toISOString())
+check('a stale lock can be taken over', runs.acquireDaemonLock(ddb, 'selftest-b', 2, 60_000))
+runs.releaseDaemonLock(ddb, 'selftest-b')
+check('lock row is gone', !ddb.prepare('SELECT 1 FROM daemon_lock WHERE id = 1').get())
 
 rmSync(dir, { recursive: true, force: true })
 

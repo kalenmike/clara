@@ -20,6 +20,7 @@
 // `clara_inbox`, and so on. The `editor.namespace()` call only describes the
 // group.
 
+import { createDaemon } from './daemon.ts'
 import { DEFAULT_DB_PATH, getDb, type Db } from './db.ts'
 import * as q from './queries.ts'
 
@@ -48,6 +49,7 @@ export const AGENT_ACTORS: Record<string, string> = {
   '001': 'ai_1',
   '002': 'ai_2',
   '003': 'ai_3',
+  '004': 'ai_4',
   judge: 'ai_0',
   clara: 'human',
 }
@@ -296,7 +298,7 @@ export function createTools(db: Db): ClaraTool[] {
         additionalProperties: false,
       },
       execute: async (input: any, context: any) => {
-        requireRole('decide', context, ['ai_0', 'human'])
+        requireRole('decide', context, ['ai_0', 'ai_4', 'human'])
         return { content: q.decide(db, input) }
       },
     },
@@ -358,5 +360,35 @@ export default {
         editor.add({ ...tool, options: { namespace: NAMESPACE } })
       }
     })
+
+    if (daemonDisabled(ctx.options)) {
+      console.log('[clara] daemon disabled')
+      return
+    }
+    if (!ctx.session?.create) {
+      console.log('[clara] daemon not started: session API unavailable')
+      return
+    }
+
+    const daemon = createDaemon({
+      db,
+      ctx,
+      intervalMs: numberOption(ctx.options?.daemonIntervalMs, 15_000),
+      lockStaleMs: numberOption(ctx.options?.daemonLockStaleMs, 300_000),
+      maxSpawnsPerTick: numberOption(ctx.options?.daemonMaxSpawnsPerTick, 1),
+    })
+    daemon.start()
+    return () => daemon.stop()
   },
+}
+
+function daemonDisabled(options: Record<string, unknown> | undefined): boolean {
+  if (options?.daemon === false) return true
+  const flag = String(process.env.CLARA_DAEMON ?? '').toLowerCase()
+  return flag === '0' || flag === 'false' || flag === 'off'
+}
+
+function numberOption(value: unknown, fallback: number): number {
+  const number = typeof value === 'number' ? value : Number(value)
+  return Number.isFinite(number) && number > 0 ? number : fallback
 }
