@@ -63,24 +63,13 @@ const MESSAGE_EVENTS = new Set([
 ])
 
 export function EventProvider({ children }: { children: ReactNode }) {
-  const { client, generation, relayStatus } = useConnection()
+  const { client, generation } = useConnection()
   const queryClient = useQueryClient()
   const [live, setLive] = useState(false)
   const [state, setState] = useState<StreamState>('offline')
   const [lastEventAt, setLastEventAt] = useState(0)
   const [lastError, setLastError] = useState<string | null>(null)
   const listeners = useRef(new Set<EventListener>())
-  const management = relayStatus?.agent?.management
-  const previousManagement = useRef(management)
-
-  // The home agent rewrites the agent files and reloads OpenCode before it
-  // broadcasts the new flag. Fetch the catalog again so Clara disappears from
-  // the agent picker without a page reload.
-  useEffect(() => {
-    if (previousManagement.current === management) return
-    previousManagement.current = management
-    void queryClient.invalidateQueries({ queryKey: queryKeys.agents })
-  }, [management, queryClient])
 
   const subscribe = useCallback((listener: EventListener) => {
     listeners.current.add(listener)

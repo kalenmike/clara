@@ -1,9 +1,7 @@
 import { useEffect, type ReactNode } from 'react'
 import { useNavigate } from 'react-router'
 import { useQueryClient } from '@tanstack/react-query'
-import { toast } from 'sonner'
 import type { SessionInfo } from '@opencode/client'
-import { isClaraWorkerTitle, type LedgerAlert } from '@clara/shared-types'
 import { isArchivedSession } from '@/features/sessions/session-archive'
 import { getSessionInfo } from '@/features/sessions/session-cache'
 import { isSnoozedSession } from '@/features/sessions/session-snooze'
@@ -14,6 +12,7 @@ import {
   showDesktopNotification,
 } from '@/features/notifications/notifier'
 import { loadSessionAttention, resolveProjectID } from '@/features/notifications/session-attention'
+import { useSessionPolicy } from '@/features/notifications/session-policy'
 import { isPushActive } from '@/features/notifications/push'
 import { readNotificationSettings } from '@/features/notifications/settings'
 import { ensureSoundUnlock, playAttentionSound } from '@/features/notifications/sounds'
@@ -27,7 +26,8 @@ const ALERT_COOLDOWN_MS = 5_000
 const BODY_DETAIL_MAX = 180
 
 export function NotificationProvider({ children }: { children: ReactNode }) {
-  const { client, control, relayStatus } = useConnection()
+  const { client } = useConnection()
+  const { suppressSession } = useSessionPolicy()
   const { subscribe } = useEventStream()
   const queryClient = useQueryClient()
   const navigate = useNavigate()
@@ -36,8 +36,6 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
     if (!client) return
     ensureSoundUnlock()
 
-    const management = relayStatus?.agent?.management === true
-    const lastLedger = new Set<string>()
     const lastAlert = new Map<string, { kind: AttentionKind; at: number }>()
     const timers = new Map<string, number>()
     const interrupted = new Set<string>()
@@ -92,7 +90,7 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
           }
         }
         if (disposed || isArchivedSession(session) || isSnoozedSession(session)) return
-        if (management && isClaraWorkerTitle(session.title)) return
+        if (suppressSession?.(session)) return
 
         const projectID = await resolveProjectID(client, queryClient, session).catch(() => null)
         if (disposed) return
@@ -109,37 +107,6 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
         })
       } catch {
         // Alerts are best effort; the sidebar remains the source of truth.
-      }
-    }
-
-    const notifyLedger = async (alert: LedgerAlert) => {
-      if (disposed || !management || lastLedger.has(alert.key)) return
-      lastLedger.add(alert.key)
-      if (lastLedger.size > 500) lastLedger.clear()
-
-      if (document.visibilityState !== 'visible') return
-      if (window.location.pathname.startsWith('/clara') && document.hasFocus()) return
-
-      const kind: AttentionKind = alert.kind === 'kill' ? 'error' : 'question'
-      const settings = readNotificationSettings()
-      if (settings.sounds && settings.soundKinds[kind]) {
-        playAttentionSound(kind, settings.volume)
-      }
-
-      const open = () => navigate('/clara')
-      toast[kind === 'error' ? 'error' : 'info']('Clara needs you', {
-        description: alert.title,
-        action: { label: 'Open', onClick: open },
-      })
-
-      if (settings.desktop && readNotificationPermission() === 'granted') {
-        await showDesktopNotification({
-          kind,
-          sessionID: `clara:${alert.key}`,
-          body: `${alert.title}: ${alert.body}`,
-          url: '/clara',
-          onOpen: open,
-        })
       }
     }
 
@@ -203,17 +170,12 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
       }
     })
 
-    const unsubscribeLedger = control?.subscribeLedgerAlert((alert) => {
-      void notifyLedger(alert)
-    })
-
     return () => {
       disposed = true
       unsubscribe()
-      unsubscribeLedger?.()
       for (const timer of timers.values()) window.clearTimeout(timer)
     }
-  }, [client, control, relayStatus?.agent?.management, subscribe, queryClient, navigate])
+  }, [client, suppressSession, subscribe, queryClient, navigate])
 
   return <>{children}</>
 }
