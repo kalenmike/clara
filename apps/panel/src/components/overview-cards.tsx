@@ -176,6 +176,7 @@ export function OpenCodeCard({
           label={`OpenCode connection: ${feature.desired ? 'on' : 'off'}`}
           state={control.pending ? 'pending' : feature.desired ? 'on' : 'off'}
           disabled={control.disabled}
+          stopped={controls.stopped}
           title={control.title}
         />
       }
@@ -239,6 +240,7 @@ export function LocalCard({
           label={`Local transport: ${feature.desired ? 'on' : 'off'}`}
           state={control.pending ? 'pending' : feature.desired ? 'on' : 'off'}
           disabled={control.disabled}
+          stopped={controls.stopped}
           title={control.title}
         />
       }
@@ -318,6 +320,7 @@ export function RelayCard({
           label={`Relay: ${feature.desired ? 'on' : 'off'}`}
           state={control.pending ? 'pending' : feature.desired ? 'on' : 'off'}
           disabled={control.disabled}
+          stopped={controls.stopped}
           title={control.title}
         />
       }
@@ -401,6 +404,7 @@ export function PushCard({
           label={`Push notifications: ${feature.desired ? 'on' : 'off'}`}
           state={control.pending ? 'pending' : feature.desired ? 'on' : 'off'}
           disabled={control.disabled}
+          stopped={controls.stopped}
           title={control.title}
         />
       }

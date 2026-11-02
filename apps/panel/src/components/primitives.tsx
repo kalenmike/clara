@@ -1,5 +1,6 @@
 import { useEffect, useId, useState, type ReactNode } from 'react'
 import { Check, ChevronDown, CircleAlert, Copy } from 'lucide-react'
+import { toggleTrackClasses } from '../lib/toggle-accent.ts'
 
 export type Tone = 'neutral' | 'success' | 'warning' | 'danger' | 'info'
 
@@ -100,18 +101,13 @@ export function CardBody({ children }: { children: ReactNode }) {
 
 export type ToggleState = 'off' | 'pending' | 'on'
 
-const TOGGLE_TRACKS: Record<ToggleState, string> = {
-  off: 'border-neutral-300 bg-neutral-200 dark:border-neutral-700 dark:bg-neutral-800',
-  pending: 'border-amber-500 bg-amber-500',
-  on: 'border-emerald-600 bg-emerald-600',
-}
-
 export function Toggle({
   checked,
   onChange,
   label,
   state = checked ? 'on' : 'off',
   disabled = false,
+  stopped = false,
   title,
 }: {
   checked: boolean
@@ -119,6 +115,8 @@ export function Toggle({
   label: string
   state?: ToggleState
   disabled?: boolean
+  /** Redden an enabled switch while the agent is stopped. */
+  stopped?: boolean
   title?: string
 }) {
   return (
@@ -130,7 +128,7 @@ export function Toggle({
       title={title}
       onClick={onChange}
       disabled={disabled}
-      className={`relative inline-flex h-6 w-11 shrink-0 items-center rounded-full border transition disabled:cursor-not-allowed disabled:opacity-50 ${TOGGLE_TRACKS[state]}`}
+      className={`relative inline-flex h-6 w-11 shrink-0 items-center rounded-full border transition disabled:cursor-not-allowed disabled:opacity-50 ${toggleTrackClasses(state, stopped)}`}
     >
       <span
         className={`inline-block size-4 rounded-full bg-white shadow transition ${
