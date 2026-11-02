@@ -17,6 +17,7 @@ import {
   type ClaraAction,
   type ClaraState,
   type DeviceClass,
+  type LedgerInbox,
   type PanelTransport,
   type PushSubscribeAction,
   type PushTestAction,
@@ -98,6 +99,10 @@ export type AgentOptions = {
   send: (frame: WireFrame) => void
   push?: PushService
   sync?: ClientStorageStore
+  ledger?: {
+    enabled: () => boolean
+    inbox: () => LedgerInbox
+  }
   policy?: AgentPolicy
   /** Shared traffic counters for the panel; absent in tests. */
   traffic?: TrafficMeter
@@ -361,6 +366,9 @@ export class Agent {
       case 'push.test':
         void this.handlePushTest(session, payload)
         return
+      case 'ledger.inbox':
+        this.handleLedgerInbox(session, payload)
+        return
       case 'sync.check':
         void this.handleSyncCheck(session, payload)
         return
@@ -532,6 +540,34 @@ export class Agent {
     }
   }
 
+  private handleLedgerInbox(
+    session: Session,
+    action: Extract<ClaraAction, { type: 'ledger.inbox' }>
+  ): void {
+    const id = typeof action.id === 'string' ? action.id.slice(0, 128) : ''
+    const ledger = this.options.ledger
+    if (!ledger || !ledger.enabled()) {
+      this.enqueue(session, {
+        type: 'ledger.error',
+        id,
+        code: 'disabled',
+        message: 'Clara management is disabled. Enable it in the Clara agent panel.',
+      })
+      return
+    }
+
+    try {
+      this.enqueue(session, { type: 'ledger.inbox', id, inbox: ledger.inbox() })
+    } catch (cause) {
+      this.enqueue(session, {
+        type: 'ledger.error',
+        id,
+        code: 'unavailable',
+        message: errorMessage(cause),
+      })
+    }
+  }
+
   private handleSyncCheck(session: Session, action: SyncCheckAction): void {
     const sync = this.options.sync
     const id = typeof action.id === 'string' ? action.id : ''
@@ -662,6 +698,12 @@ export class Agent {
   broadcastAgentInfo(): void {
     if (this.sessions.size === 0) return
     const payload = { type: 'agent.status' as const, online: true, agent: this.options.info }
+    for (const session of this.sessions.values()) this.enqueue(session, payload)
+  }
+
+  /** Send one state to every connected client on this transport. */
+  broadcastState(payload: ClaraState): void {
+    if (this.sessions.size === 0) return
     for (const session of this.sessions.values()) this.enqueue(session, payload)
   }
 

@@ -104,6 +104,26 @@ describe('relay fetch transport', () => {
       syncIntervalMs: 15_000,
     })
   })
+
+  it('requests the ledger inbox and receives ledger alerts', async () => {
+    const alerts: Array<{ key: string }> = []
+    const unsubscribe = transport.subscribeLedgerAlert((alert) => alerts.push(alert))
+    try {
+      const result = await transport.requestLedgerInbox('ledger-1')
+      expect(result).toMatchObject({
+        type: 'inbox',
+        inbox: { items: [{ key: 'decision:1', kind: 'decision' }] },
+      })
+
+      await transport.fetch('http://clara.relay/api/ledger-alert', {
+        signal: AbortSignal.timeout(3_000),
+      })
+      await waitFor(() => alerts.length === 1)
+      expect(alerts[0]?.key).toBe('decision:1')
+    } finally {
+      unsubscribe()
+    }
+  })
 })
 
 async function waitFor(check: () => boolean, timeoutMs = 2_000): Promise<void> {
@@ -218,7 +238,54 @@ function attachFakeAgent(socket: WebSocket, psk: string): void {
       return
     }
 
+    if (payload.type === 'ledger.inbox') {
+      send({
+        type: 'ledger.inbox',
+        id: payload.id,
+        inbox: {
+          items: [
+            {
+              key: 'decision:1',
+              kind: 'decision',
+              featureId: 1,
+              slug: 'demo',
+              workspace: 'clara',
+              title: '001 demo · decision',
+              body: 'Retry or scrap?',
+              createdAt: new Date(0).toISOString(),
+            },
+          ],
+          generatedAt: new Date(0).toISOString(),
+        },
+      })
+      return
+    }
+
     if (payload.type !== 'http.request') return
+
+    if (payload.path === '/api/ledger-alert') {
+      send({
+        type: 'ledger.alert',
+        alert: {
+          key: 'decision:1',
+          kind: 'decision',
+          featureId: 1,
+          slug: 'demo',
+          workspace: 'clara',
+          title: '001 demo · decision',
+          body: 'Retry or scrap?',
+          createdAt: new Date(0).toISOString(),
+        },
+      })
+      send({
+        type: 'http.response',
+        id: payload.id,
+        status: 204,
+        statusText: 'No Content',
+        headers: {},
+      })
+      return
+    }
 
     if (payload.path === '/api/event') {
       send({

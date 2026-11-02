@@ -46,6 +46,7 @@ export type PanelRuntimeOptions = {
   traffic?: TrafficMeter
   push?: PushService
   pushError?: string
+  ledgerPath?: string
   fingerprint?: string
   startedAt: number
   controls?: () => PanelControls
@@ -290,6 +291,7 @@ export class PanelRuntime implements PanelDataSource {
       shell: { ...DEFAULT_SHELL_POLICY, blocked: 0 },
       monitoring: { enabled: this.options.traffic?.enabled ?? false },
       sync: { enabled: true, intervalMs: DEFAULT_SYNC_INTERVAL_MS },
+      management: { enabled: false },
     }
   }
 
@@ -320,6 +322,9 @@ export class PanelRuntime implements PanelDataSource {
         }
       }
       entries.push(entry)
+    }
+    if (this.options.ledgerPath) {
+      entries.push(describeStorage('ledger', 'Clara ledger', this.options.ledgerPath, false))
     }
     return entries
   }

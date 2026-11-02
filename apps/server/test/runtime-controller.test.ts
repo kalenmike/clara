@@ -30,6 +30,7 @@ function config(port: number): ServerConfig {
     configDir: dir,
     configPath: join(dir, 'server.json'),
     dbPath: join(dir, 'clara.db'),
+    ledgerDbPath: join(dir, 'ledger.db'),
     sources: {
       opencodeUrl: 'default',
       opencodePassword: 'none',

@@ -40,6 +40,7 @@ function baseConfig(overrides: Partial<ServerConfig> = {}): ServerConfig {
     configDir: '/tmp/clara-pairing',
     configPath: '/tmp/clara-pairing/server.json',
     dbPath: '/tmp/clara-pairing/clara.db',
+    ledgerDbPath: '/tmp/clara-pairing/ledger.db',
     sources: {
       opencodeUrl: 'default',
       opencodePassword: 'none',

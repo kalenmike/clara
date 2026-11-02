@@ -19,6 +19,8 @@ import {
   type AgentInfo,
   type ClaraAction,
   type ClaraState,
+  type LedgerAlert,
+  type LedgerInbox,
   type SyncCheckAction,
   type SyncErrorCode,
   type SyncPullAction,
@@ -34,6 +36,7 @@ const HEARTBEAT_MS = 15_000
 const STALL_MS = 45_000
 const MAX_RECONNECT_MS = 15_000
 const SYNC_TIMEOUT_MS = 30_000
+const LEDGER_TIMEOUT_MS = 15_000
 
 export type RelayTransportConfig = {
   wsUrl: string
@@ -64,12 +67,18 @@ export type SyncResponse =
       snapshot?: SyncSnapshot
     }
 
+export type LedgerInboxResult =
+  | { type: 'inbox'; inbox: LedgerInbox }
+  | { type: 'error'; code: 'disabled' | 'unavailable'; message: string }
+
 export type RelayTransport = {
   fetch: typeof globalThis.fetch
   close: () => void
   subscribe: (listener: (status: RelayTransportStatus) => void) => () => void
   subscribePush: (listener: (state: PushStatusState) => void) => () => void
+  subscribeLedgerAlert: (listener: (alert: LedgerAlert) => void) => () => void
   requestSync: (action: SyncRequestAction) => Promise<SyncResponse>
+  requestLedgerInbox: (id: string) => Promise<LedgerInboxResult>
   sendAction: (action: ClaraAction) => Promise<void>
   status: () => RelayTransportStatus
 }
@@ -90,6 +99,12 @@ type PendingSync = {
   timer: number
 }
 
+type PendingLedger = {
+  resolve: (response: LedgerInboxResult) => void
+  reject: (cause: unknown) => void
+  timer: number
+}
+
 export function createRelayTransport(config: RelayTransportConfig): RelayTransport {
   return new RelayFetchTransport(config)
 }
@@ -100,8 +115,10 @@ class RelayFetchTransport implements RelayTransport {
   private readonly config: RelayTransportConfig
   private readonly pending = new Map<string, PendingResponse>()
   private readonly syncPending = new Map<string, PendingSync>()
+  private readonly ledgerPending = new Map<string, PendingLedger>()
   private readonly listeners = new Set<(status: RelayTransportStatus) => void>()
   private readonly pushListeners = new Set<(state: PushStatusState) => void>()
+  private readonly ledgerListeners = new Set<(alert: LedgerAlert) => void>()
   private socket: WebSocket | null = null
   private keys: SessionKeys | null = null
   private sid: string | null = null
@@ -134,6 +151,7 @@ class RelayFetchTransport implements RelayTransport {
     this.rejectHandshake(new Error('Relay transport closed'))
     this.failAll(new Error('Relay transport closed'))
     this.failAllSync(new Error('Relay transport closed'))
+    this.failAllLedger(new Error('Relay transport closed'))
     this.socket?.close(1000, 'client closed')
     this.socket = null
     this.setState('closed', null)
@@ -151,6 +169,13 @@ class RelayFetchTransport implements RelayTransport {
     this.pushListeners.add(listener)
     return () => {
       this.pushListeners.delete(listener)
+    }
+  }
+
+  subscribeLedgerAlert(listener: (alert: LedgerAlert) => void): () => void {
+    this.ledgerListeners.add(listener)
+    return () => {
+      this.ledgerListeners.delete(listener)
     }
   }
 
@@ -177,6 +202,27 @@ class RelayFetchTransport implements RelayTransport {
 
   sendAction(action: ClaraAction): Promise<void> {
     return this.send(action)
+  }
+
+  async requestLedgerInbox(id: string): Promise<LedgerInboxResult> {
+    await this.ensureReady()
+    if (this.closed) throw new Error('Relay transport closed')
+
+    const response = new Promise<LedgerInboxResult>((resolve, reject) => {
+      const timer = window.setTimeout(() => {
+        this.ledgerPending.delete(id)
+        reject(new Error('Timed out waiting for the home server to read the Clara inbox'))
+      }, LEDGER_TIMEOUT_MS)
+      this.ledgerPending.set(id, { resolve, reject, timer })
+    })
+
+    try {
+      await this.send({ type: 'ledger.inbox', id })
+    } catch (cause) {
+      this.failLedgerPending(id, cause)
+    }
+
+    return response
   }
 
   status(): RelayTransportStatus {
@@ -437,10 +483,16 @@ class RelayFetchTransport implements RelayTransport {
       return
     }
 
+    if (payload.type === 'ledger.alert') {
+      for (const listener of this.ledgerListeners) listener(payload.alert)
+      return
+    }
+
     if (isState(payload)) this.handleState(payload)
   }
 
   private handleState(state: Exclude<ClaraState, { type: 'push.status' }>): void {
+    if (state.type === 'ledger.alert') return
     if (state.type === 'agent.status') {
       if (state.agent) {
         this.statusValue = { ...this.statusValue, agent: state.agent }
@@ -455,6 +507,11 @@ class RelayFetchTransport implements RelayTransport {
       state.type === 'sync.error'
     ) {
       this.handleSyncState(state)
+      return
+    }
+
+    if (state.type === 'ledger.inbox' || state.type === 'ledger.error') {
+      this.handleLedgerState(state)
       return
     }
 
@@ -562,6 +619,20 @@ class RelayFetchTransport implements RelayTransport {
     })
   }
 
+  private handleLedgerState(
+    state: Extract<ClaraState, { type: 'ledger.inbox' | 'ledger.error' }>
+  ): void {
+    const pending = this.ledgerPending.get(state.id)
+    if (!pending) return
+    this.ledgerPending.delete(state.id)
+    window.clearTimeout(pending.timer)
+    if (state.type === 'ledger.inbox') {
+      pending.resolve({ type: 'inbox', inbox: state.inbox })
+      return
+    }
+    pending.resolve({ type: 'error', code: state.code, message: state.message })
+  }
+
   private finishPending(id: string): void {
     const pending = this.pending.get(id)
     if (!pending) return
@@ -605,6 +676,18 @@ class RelayFetchTransport implements RelayTransport {
 
   private failAllSync(cause: unknown): void {
     for (const id of [...this.syncPending.keys()]) this.failSyncPending(id, cause)
+  }
+
+  private failLedgerPending(id: string, cause: unknown): void {
+    const pending = this.ledgerPending.get(id)
+    if (!pending) return
+    window.clearTimeout(pending.timer)
+    this.ledgerPending.delete(id)
+    pending.reject(cause)
+  }
+
+  private failAllLedger(cause: unknown): void {
+    for (const id of [...this.ledgerPending.keys()]) this.failLedgerPending(id, cause)
   }
 
   private send(payload: ClaraAction | ClaraState): Promise<void> {
@@ -781,6 +864,8 @@ function isState(
     payload.type === 'agent.status' ||
     payload.type === 'sync.revision' ||
     payload.type === 'sync.snapshot' ||
-    payload.type === 'sync.error'
+    payload.type === 'sync.error' ||
+    payload.type === 'ledger.inbox' ||
+    payload.type === 'ledger.error'
   )
 }

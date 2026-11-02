@@ -8,6 +8,9 @@ import type {
 import type { WebSocket } from 'ws'
 import { Agent } from '../agent.ts'
 import type { ServerConfig } from '../config.ts'
+import { LedgerAlertMonitor } from '../ledger/monitor.ts'
+import type { LedgerReader } from '../ledger/reader.ts'
+import type { LedgerAlertStore } from '../ledger/store.ts'
 import { broadcast, LocalTransport } from '../local-server.ts'
 import type { OpenCodeClient } from '../opencode.ts'
 import { PushMonitor } from '../push/monitor.ts'
@@ -25,6 +28,8 @@ export type ControllerOptions = {
   sync?: ClientStorageStore
   push?: PushService
   pushError?: string
+  ledger?: LedgerReader
+  ledgerStore?: LedgerAlertStore
   fingerprint?: string
   log: (message: string, detail?: unknown) => void
 }
@@ -45,6 +50,7 @@ export class RuntimeController {
   private readonly localTransport: LocalTransport
   private readonly pushMonitor?: PushMonitor
   private pushMonitorRunning = false
+  private readonly ledgerMonitor?: LedgerAlertMonitor
   private readonly errors = new Map<FeatureName, string>()
   private readonly trafficMeter: TrafficMeter
   /** Command requests refused since this process started. */
@@ -57,6 +63,13 @@ export class RuntimeController {
     const sync = options.settings.getSync()
     options.info.syncEnabled = sync.enabled
     options.info.syncIntervalMs = sync.intervalMs
+    options.info.management = options.settings.getManagement()
+    const ledger = options.ledger
+      ? {
+          enabled: () => options.settings.getManagement(),
+          inbox: () => options.ledger!.inbox(),
+        }
+      : undefined
 
     this.localAgent = new Agent({
       openCode: options.openCode,
@@ -65,6 +78,7 @@ export class RuntimeController {
       send: (frame) => broadcast(this.localSockets, frame),
       push: options.push,
       sync: options.sync,
+      ledger,
       traffic: this.trafficMeter,
       transport: 'local',
       policy: {
@@ -87,6 +101,7 @@ export class RuntimeController {
         send: (frame) => this.relayClient?.send(frame),
         push: options.push,
         sync: options.sync,
+        ledger,
         traffic: this.trafficMeter,
         transport: 'relay',
         policy: {
@@ -124,6 +139,26 @@ export class RuntimeController {
         push: options.push,
         isDeskActive: () =>
           this.localAgent.deskHoldActive() || (this.relayAgent?.deskHoldActive() ?? false),
+        isManagementEnabled: () => options.settings.getManagement(),
+        log: options.log,
+      })
+    }
+
+    if (options.ledger && options.ledgerStore) {
+      this.ledgerMonitor = new LedgerAlertMonitor({
+        reader: options.ledger,
+        store: options.ledgerStore,
+        push: options.push,
+        enabled: () => options.settings.getManagement() && !options.settings.getStopped(),
+        canPush: () => this.canPush(),
+        isDeskActive: () =>
+          this.localAgent.deskHoldActive() || (this.relayAgent?.deskHoldActive() ?? false),
+        hasClients: () => this.connectedClients() > 0,
+        broadcast: (alert) => {
+          const state = { type: 'ledger.alert' as const, alert }
+          this.localAgent.broadcastState(state)
+          this.relayAgent?.broadcastState(state)
+        },
         log: options.log,
       })
     }
@@ -155,6 +190,11 @@ export class RuntimeController {
 
   get traffic(): TrafficMeter {
     return this.trafficMeter
+  }
+
+  private connectedClients(): number {
+    const now = Date.now()
+    return this.localAgent.getSnapshot(now).length + (this.relayAgent?.getSnapshot(now).length ?? 0)
   }
 
   canProxy(): boolean {
@@ -198,6 +238,7 @@ export class RuntimeController {
       shell: { ...settings.shell, blocked: this.shellDenied },
       monitoring: { enabled: settings.monitoring },
       sync: { ...settings.sync },
+      management: { enabled: settings.management },
     }
   }
 
@@ -208,6 +249,7 @@ export class RuntimeController {
       return
     }
     await this.applyDesired()
+    this.startLedgerMonitor()
   }
 
   async setFeature(feature: FeatureName, enabled: boolean): Promise<PanelControls> {
@@ -251,6 +293,24 @@ export class RuntimeController {
     return this.controls()
   }
 
+  /**
+   * Clara management is the master switch for the ledger daemon, ledger
+   * alerts, and the Clara inbox. It is independent of the transport stop flag.
+   */
+  async setManagement(enabled: boolean): Promise<PanelControls> {
+    const previous = this.options.settings.getManagement()
+    this.options.settings.setManagement(enabled)
+    this.options.info.management = enabled
+    this.localAgent.broadcastAgentInfo()
+    this.relayAgent?.broadcastAgentInfo()
+    if (previous !== enabled) {
+      this.options.log(enabled ? 'Clara management enabled' : 'Clara management disabled')
+    }
+    if (enabled) this.startLedgerMonitor({ prime: true })
+    else this.stopLedgerMonitor()
+    return this.controls()
+  }
+
   /** Update the global sync gate and cadence, then tell connected clients. */
   async setSync(update: PanelSyncUpdate): Promise<PanelControls> {
     const previous = this.options.settings.getSync()
@@ -281,6 +341,7 @@ export class RuntimeController {
       await this.stopLocal()
       this.relayClient?.close()
       this.stopPushMonitor()
+      this.stopLedgerMonitor()
       this.localAgent.reset()
       this.relayAgent?.reset()
       return this.controls()
@@ -288,6 +349,7 @@ export class RuntimeController {
 
     this.options.log('agent started by an admin setting')
     await this.applyDesired()
+    this.startLedgerMonitor()
     return this.controls()
   }
 
@@ -295,6 +357,7 @@ export class RuntimeController {
     await this.stopLocal('agent shutting down')
     this.relayClient?.close()
     this.stopPushMonitor()
+    this.stopLedgerMonitor()
     this.localAgent.close()
     this.relayAgent?.close()
   }
@@ -365,6 +428,15 @@ export class RuntimeController {
   private stopPushMonitor(): void {
     this.pushMonitor?.close()
     this.pushMonitorRunning = false
+  }
+
+  private startLedgerMonitor(options: { prime?: boolean } = {}): void {
+    if (!this.options.settings.getManagement() || this.options.settings.getStopped()) return
+    this.ledgerMonitor?.start(options)
+  }
+
+  private stopLedgerMonitor(): void {
+    this.ledgerMonitor?.stop()
   }
 
   private async stopLocal(reason = 'local transport disabled'): Promise<void> {

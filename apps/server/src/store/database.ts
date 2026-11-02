@@ -5,7 +5,7 @@ import Database from 'better-sqlite3'
 
 export type ClaraDatabase = Database.Database
 
-export const SCHEMA_VERSION = 4
+export const SCHEMA_VERSION = 6
 
 const BUSY_TIMEOUT_MS = 5_000
 const DATABASE_MODE = 0o600
@@ -85,6 +85,33 @@ const MIGRATIONS: Migration[] = [
     insert.run('sync.enabled', JSON.stringify(true), now)
     insert.run('sync.intervalMs', JSON.stringify(DEFAULT_SYNC_INTERVAL_MS), now)
   },
+  /**
+   * Clara management arrived as an opt-in master switch. Existing agents keep
+   * the old alert behavior until the panel turns it on.
+   */
+  (db) => {
+    const insert = db.prepare(
+      'INSERT INTO settings (key, value, updated_at) VALUES (?, ?, ?) ON CONFLICT (key) DO NOTHING'
+    )
+    insert.run('management.enabled', JSON.stringify(false), Date.now())
+  },
+  /**
+   * Ledger alerts are delivered by the home agent. Its cursor and dedupe keys
+   * live beside the agent settings, never in the plugin's ledger.
+   */
+  (db) => {
+    db.exec(`
+      CREATE TABLE ledger_alert_state (
+        id     INTEGER PRIMARY KEY CHECK (id = 1),
+        cursor INTEGER NOT NULL
+      );
+
+      CREATE TABLE ledger_alert_delivery (
+        key          TEXT PRIMARY KEY,
+        delivered_at INTEGER NOT NULL
+      );
+    `)
+  },
 ]
 
 /** The settings seeded into every new database. */
@@ -99,6 +126,7 @@ export const DEFAULT_SETTINGS = {
   'monitoring.enabled': true,
   'sync.enabled': true,
   'sync.intervalMs': DEFAULT_SYNC_INTERVAL_MS,
+  'management.enabled': false,
 } as const
 
 export function openDatabase(path: string): ClaraDatabase {

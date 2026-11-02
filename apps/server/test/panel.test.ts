@@ -99,6 +99,7 @@ function snapshot(): PanelSnapshot {
       shell: { mode: 'off', commands: [], blocked: 0 },
       monitoring: { enabled: true },
       sync: { enabled: true, intervalMs: 30_000 },
+      management: { enabled: false },
     },
     storage: [],
     events: [],
@@ -154,6 +155,7 @@ type FakeControls = PanelControlService & {
   shells: ShellPolicy[]
   monitorings: boolean[]
   syncs: Array<{ enabled: boolean; intervalMs: number }>
+  management: boolean[]
 }
 
 function fakeControls(initial: Partial<PanelControls> = {}): FakeControls {
@@ -168,6 +170,7 @@ function fakeControls(initial: Partial<PanelControls> = {}): FakeControls {
     shell: { mode: 'off', commands: [], blocked: 0 },
     monitoring: { enabled: true },
     sync: { enabled: true, intervalMs: 30_000 },
+    management: { enabled: false },
     ...initial,
   }
   const features: Array<{ feature: string; enabled: boolean }> = []
@@ -175,6 +178,7 @@ function fakeControls(initial: Partial<PanelControls> = {}): FakeControls {
   const shells: ShellPolicy[] = []
   const monitorings: boolean[] = []
   const syncs: Array<{ enabled: boolean; intervalMs: number }> = []
+  const management: boolean[] = []
   return {
     state,
     features,
@@ -182,6 +186,7 @@ function fakeControls(initial: Partial<PanelControls> = {}): FakeControls {
     shells,
     monitorings,
     syncs,
+    management,
     controls: () => state,
     setFeature: async (feature, enabled) => {
       if (state.stopped) {
@@ -214,6 +219,11 @@ function fakeControls(initial: Partial<PanelControls> = {}): FakeControls {
     setSync: async (update) => {
       syncs.push(update)
       state.sync = { ...update }
+      return state
+    },
+    setManagement: async (enabled) => {
+      management.push(enabled)
+      state.management = { enabled }
       return state
     },
   }
@@ -518,6 +528,22 @@ describe('panel server', () => {
     const wrongType = await post(server, 'monitoring', { enabled: 'yes' })
     expect(wrongType.status).toBe(400)
     expect(controls.monitorings).toEqual([])
+  })
+
+  it('toggles Clara management and rejects malformed requests', async () => {
+    const controls = fakeControls()
+    const server = await start(undefined, controls)
+
+    const response = await post(server, 'management', { enabled: true })
+    expect(response.status).toBe(200)
+    expect(((await response.json()) as PanelMutationResponse).controls.management).toEqual({
+      enabled: true,
+    })
+    expect(controls.management).toEqual([true])
+
+    expect((await post(server, 'management', { enabled: 'yes' })).status).toBe(400)
+    expect((await post(server, 'management', { enabled: true, extra: true })).status).toBe(400)
+    expect(controls.management).toEqual([true])
   })
 })
 

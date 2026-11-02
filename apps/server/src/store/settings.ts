@@ -21,6 +21,7 @@ export const SHELL_COMMANDS_SETTING = 'shell.commands'
 export const MONITORING_SETTING = 'monitoring.enabled'
 export const SYNC_ENABLED_SETTING = 'sync.enabled'
 export const SYNC_INTERVAL_SETTING = 'sync.intervalMs'
+export const MANAGEMENT_SETTING = 'management.enabled'
 
 export type FeatureName = keyof typeof FEATURE_SETTINGS
 
@@ -32,6 +33,7 @@ export type SettingKey =
   | typeof MONITORING_SETTING
   | typeof SYNC_ENABLED_SETTING
   | typeof SYNC_INTERVAL_SETTING
+  | typeof MANAGEMENT_SETTING
 
 export type FeatureSettings = Record<FeatureName, boolean>
 
@@ -47,6 +49,8 @@ export type AgentSettings = {
   /** The panel traffic meter records nothing while this is false. */
   monitoring: boolean
   sync: SyncSettings
+  /** Runs the Clara ledger daemon, ledger alerts, and the Clara inbox. */
+  management: boolean
 }
 
 export const FEATURE_NAMES = Object.keys(FEATURE_SETTINGS) as FeatureName[]
@@ -59,6 +63,7 @@ const SETTING_KEYS = new Set<string>([
   MONITORING_SETTING,
   SYNC_ENABLED_SETTING,
   SYNC_INTERVAL_SETTING,
+  MANAGEMENT_SETTING,
 ])
 
 /**
@@ -92,6 +97,7 @@ export class SettingsStore {
       shell: this.getShellPolicy(),
       monitoring: this.readBoolean(MONITORING_SETTING),
       sync: this.getSync(),
+      management: this.readBoolean(MANAGEMENT_SETTING),
     }
   }
 
@@ -112,6 +118,10 @@ export class SettingsStore {
 
   getMonitoring(): boolean {
     return this.readBoolean(MONITORING_SETTING)
+  }
+
+  getManagement(): boolean {
+    return this.readBoolean(MANAGEMENT_SETTING)
   }
 
   getSync(): SyncSettings {
@@ -151,6 +161,12 @@ export class SettingsStore {
   setMonitoring(enabled: boolean): AgentSettings {
     assertBoolean(enabled, MONITORING_SETTING)
     this.writeValue(MONITORING_SETTING, enabled)
+    return this.get()
+  }
+
+  setManagement(enabled: boolean): AgentSettings {
+    assertBoolean(enabled, MANAGEMENT_SETTING)
+    this.writeValue(MANAGEMENT_SETTING, enabled)
     return this.get()
   }
 

@@ -1,7 +1,8 @@
 import { OpenCode } from '@opencode/client'
-import type { ClaraAction } from '@clara/shared-types'
+import type { ClaraAction, LedgerAlert } from '@clara/shared-types'
 import {
   createRelayTransport,
+  type LedgerInboxResult,
   type PushStatusState,
   type RelayTransportStatus,
   type SyncRequestAction,
@@ -37,7 +38,9 @@ export type ConnectionConfig = DirectConnectionConfig | RelayConnectionConfig
 export type ClientControl = {
   send: (action: ClaraAction) => Promise<void>
   subscribePush: (listener: (state: PushStatusState) => void) => () => void
+  subscribeLedgerAlert: (listener: (alert: LedgerAlert) => void) => () => void
   requestSync: (action: SyncRequestAction) => Promise<SyncResponse>
+  requestLedgerInbox: (id: string) => Promise<LedgerInboxResult>
 }
 
 export type ClientHandle = {
@@ -117,7 +120,9 @@ export function createClient(config: ConnectionConfig): ClientHandle {
       control: {
         send: (action) => transport.sendAction(action),
         subscribePush: (listener) => transport.subscribePush(listener),
+        subscribeLedgerAlert: (listener) => transport.subscribeLedgerAlert(listener),
         requestSync: (action) => transport.requestSync(action),
+        requestLedgerInbox: (id) => transport.requestLedgerInbox(id),
       },
       subscribeStatus: (listener) => transport.subscribe(listener),
       status: () => transport.status(),

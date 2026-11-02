@@ -37,6 +37,7 @@ describe('SQLite settings store', () => {
         shell: { mode: 'off', commands: [] },
         monitoring: true,
         sync: { enabled: true, intervalMs: 30_000 },
+        management: false,
       })
       const rows = db.prepare('SELECT key FROM settings ORDER BY key').all() as Array<{
         key: string
@@ -72,6 +73,7 @@ describe('SQLite settings store', () => {
         shell: { mode: 'allowlist', commands: ['git log'] },
         monitoring: false,
         sync: { enabled: true, intervalMs: 30_000 },
+        management: false,
       })
     } finally {
       closeDatabase(second)
@@ -103,6 +105,7 @@ describe('SQLite settings store', () => {
         shell: { mode: 'off', commands: [] },
         monitoring: true,
         sync: { enabled: true, intervalMs: 30_000 },
+        management: false,
       })
     } finally {
       closeDatabase(db)

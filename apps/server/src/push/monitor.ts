@@ -1,5 +1,5 @@
 import type { Project, SessionInfo, V2Event } from '@opencode/client'
-import type { AttentionKind } from '@clara/shared-types'
+import { isClaraWorkerTitle, type AttentionKind } from '@clara/shared-types'
 import type { OpenCodeClient } from '../opencode.ts'
 import { isArchivedSession, isSnoozedSession, loadSessionAttention } from './attention.ts'
 import { getSession, listProjects, openEventStream } from './opencode.ts'
@@ -19,6 +19,8 @@ export type PushMonitorOptions = {
   push: PushService
   /** True while a desktop client is visible and recently used. */
   isDeskActive?: () => boolean
+  /** True when Clara management owns ledger exceptions and worker noise. */
+  isManagementEnabled?: () => boolean
   log?: (message: string, detail?: unknown) => void
 }
 
@@ -31,6 +33,7 @@ export class PushMonitor {
   private readonly openCode: OpenCodeClient
   private readonly push: PushService
   private readonly isDeskActive?: () => boolean
+  private readonly isManagementEnabled?: () => boolean
   private readonly log?: (message: string, detail?: unknown) => void
   private readonly timers = new Map<string, NodeJS.Timeout>()
   private readonly interrupted = new Set<string>()
@@ -43,6 +46,7 @@ export class PushMonitor {
     this.openCode = options.openCode
     this.push = options.push
     this.isDeskActive = options.isDeskActive
+    this.isManagementEnabled = options.isManagementEnabled
     this.log = options.log
   }
 
@@ -167,6 +171,7 @@ export class PushMonitor {
     try {
       const session = knownSession ?? (await getSession(this.openCode, sessionID))
       if (!session || isArchivedSession(session) || isSnoozedSession(session)) return
+      if (this.isManagementEnabled?.() && isClaraWorkerTitle(session.title)) return
 
       const url = await this.resolveSessionUrl(session)
       await this.push.notify(

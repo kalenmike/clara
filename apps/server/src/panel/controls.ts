@@ -17,6 +17,7 @@ export type PanelControlService = {
   setShellPolicy: (policy: ShellPolicy) => Promise<PanelControls>
   setMonitoring: (enabled: boolean) => Promise<PanelControls>
   setSync: (update: PanelSyncUpdate) => Promise<PanelControls>
+  setManagement: (enabled: boolean) => Promise<PanelControls>
 }
 
 export type PanelControlFailure = {

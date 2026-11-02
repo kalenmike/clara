@@ -5,6 +5,7 @@ import { useAgentSnapshot } from './lib/use-agent-snapshot.ts'
 import { ClientSyncCard } from './components/client-sync-card.tsx'
 import { ClientsTable } from './components/clients-table.tsx'
 import { EventsCard } from './components/events-list.tsx'
+import { ManagementCard } from './components/management-card.tsx'
 import {
   AgentCard,
   ConfigCard,
@@ -141,6 +142,8 @@ export function App() {
               <PushCard push={data.push} controls={data.controls} onChanged={refresh} />
               <ClientSyncCard sync={data.controls.sync} onChanged={refresh} />
             </div>
+
+            <ManagementCard management={data.controls.management} onChanged={refresh} />
 
             <StorageCard storage={data.storage} now={clock} />
           </div>

@@ -42,6 +42,7 @@ function config(dir: string): ServerConfig {
     configDir: dir,
     configPath: join(dir, 'server.json'),
     dbPath: join(dir, 'clara.db'),
+    ledgerDbPath: join(dir, 'ledger.db'),
     sources: {
       opencodeUrl: 'env',
       opencodePassword: 'env',
