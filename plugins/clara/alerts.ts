@@ -144,6 +144,10 @@ export function pendingHumanWork(db: Db): AlertItem[] {
          JOIN workspaces w ON w.id = f.workspace_id
         WHERE f.state = 'draft'
           AND EXISTS (SELECT 1 FROM criteria c WHERE c.request_id = f.id)
+          AND NOT EXISTS (
+            SELECT 1 FROM runs r
+             WHERE r.request_id = f.id AND r.status IN ('starting', 'running')
+          )
         ORDER BY f.id`
     )
     .all()
