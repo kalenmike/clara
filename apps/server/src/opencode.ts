@@ -124,6 +124,18 @@ export class OpenCodeClient {
     const result = await this.probe(3_000)
     return result.ok ? result.version : undefined
   }
+
+  /**
+   * Rebuild every loaded location so agent files written by the home agent are
+   * picked up immediately. Running sessions continue at the next step.
+   */
+  async reload(timeoutMs = 5_000): Promise<void> {
+    const response = await this.request(
+      { type: 'http.request', id: 'location-reload', method: 'POST', path: '/api/location/reload' },
+      AbortSignal.timeout(timeoutMs)
+    )
+    if (!response.ok) throw new Error(`OpenCode reload failed (${response.status})`)
+  }
 }
 
 function isTimeout(cause: unknown): boolean {

@@ -6,7 +6,11 @@ import { afterEach, describe, expect, it } from 'vitest'
 import type { AgentInfo } from '@clara/shared-types'
 import type { ServerConfig } from '../src/config.ts'
 import { OpenCodeClient } from '../src/opencode.ts'
-import { AgentStoppedError, RuntimeController } from '../src/runtime/controller.ts'
+import {
+  AgentStoppedError,
+  RuntimeController,
+  type ControllerOptions,
+} from '../src/runtime/controller.ts'
 import { closeDatabase, openDatabase } from '../src/store/database.ts'
 import { SettingsStore } from '../src/store/settings.ts'
 
@@ -48,7 +52,10 @@ function config(port: number): ServerConfig {
 
 const info: AgentInfo = { version: 'test', protocol: 1 }
 
-async function createController(port = 0): Promise<{
+async function createController(
+  port = 0,
+  options: Pick<ControllerOptions, 'syncClaraAgents'> & { openCodeUrl?: string } = {}
+): Promise<{
   controller: RuntimeController
   settings: SettingsStore
   info: AgentInfo
@@ -60,9 +67,10 @@ async function createController(port = 0): Promise<{
   const controllerInfo: AgentInfo = { ...info }
   const controller = new RuntimeController({
     config: serverConfig,
-    openCode: new OpenCodeClient('http://127.0.0.1:4096'),
+    openCode: new OpenCodeClient(options.openCodeUrl ?? 'http://127.0.0.1:4096'),
     info: controllerInfo,
     settings,
+    syncClaraAgents: options.syncClaraAgents,
     log: () => undefined,
   })
   controllers.push(controller)
@@ -237,6 +245,61 @@ describe('RuntimeController', () => {
       expect(local).toMatchObject({ desired: true, effective: false })
       expect(local?.error).toMatch(/in use|EADDRINUSE/i)
       expect(settings.getFeature('local')).toBe(true)
+    } finally {
+      await close()
+    }
+  })
+
+  it('syncs Clara agent files and reloads OpenCode when management changes', async () => {
+    const requests: string[] = []
+    const openCode = createServer((request, response) => {
+      requests.push(`${request.method} ${request.url}`)
+      response.statusCode = 204
+      response.end()
+    })
+    servers.push(openCode)
+    await new Promise<void>((resolve) => openCode.listen(0, '127.0.0.1', resolve))
+    const address = openCode.address()
+    if (!address || typeof address === 'string') throw new Error('No fake OpenCode address')
+
+    const synced: boolean[] = []
+    const { controller, settings, info, close } = await createController(0, {
+      openCodeUrl: `http://127.0.0.1:${address.port}`,
+      syncClaraAgents: (enabled) => {
+        synced.push(enabled)
+        return { updated: ['clara'], skipped: [], missingManifest: false }
+      },
+    })
+    await controller.start()
+    try {
+      const controls = await controller.setManagement(false)
+
+      expect(synced).toEqual([false])
+      expect(settings.getManagement()).toBe(false)
+      expect(info.management).toBe(false)
+      expect(controls.management).toEqual({ enabled: false })
+      expect(requests).toEqual(['POST /api/location/reload'])
+    } finally {
+      await close()
+    }
+  })
+
+  it('keeps the management switch when the agent files cannot be written', async () => {
+    const synced: boolean[] = []
+    const { controller, settings, info, close } = await createController(0, {
+      syncClaraAgents: (enabled) => {
+        synced.push(enabled)
+        throw new Error('disk is read-only')
+      },
+    })
+    await controller.start()
+    try {
+      const controls = await controller.setManagement(true)
+
+      expect(synced).toEqual([true])
+      expect(settings.getManagement()).toBe(true)
+      expect(info.management).toBe(true)
+      expect(controls.management).toEqual({ enabled: true })
     } finally {
       await close()
     }

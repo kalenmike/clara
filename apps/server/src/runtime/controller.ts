@@ -7,6 +7,7 @@ import type {
 } from '@clara/shared-types'
 import type { WebSocket } from 'ws'
 import { Agent } from '../agent.ts'
+import { syncClaraAgentVisibility, type ClaraAgentSyncResult } from '../clara/agents.ts'
 import type { ServerConfig } from '../config.ts'
 import { LedgerAlertMonitor } from '../ledger/monitor.ts'
 import type { LedgerReader } from '../ledger/reader.ts'
@@ -31,6 +32,8 @@ export type ControllerOptions = {
   ledger?: LedgerReader
   ledgerStore?: LedgerAlertStore
   fingerprint?: string
+  /** Test seam; the panel uses the real installer manifest by default. */
+  syncClaraAgents?: (enabled: boolean) => ClaraAgentSyncResult
   log: (message: string, detail?: unknown) => void
 }
 
@@ -301,6 +304,31 @@ export class RuntimeController {
     const previous = this.options.settings.getManagement()
     this.options.settings.setManagement(enabled)
     this.options.info.management = enabled
+
+    const sync = this.options.syncClaraAgents ?? syncClaraAgentVisibility
+    let synced: ClaraAgentSyncResult | undefined
+    try {
+      synced = sync(enabled)
+    } catch (cause) {
+      this.options.log('could not sync the Clara agent files', cause)
+    }
+    if (synced?.skipped.length) {
+      this.options.log(
+        'left edited Clara agent files untouched',
+        synced.skipped.map((id) => `${id}.md`).join(', ')
+      )
+    }
+
+    // Agent files are config inputs, not transport state. Reload OpenCode only
+    // when something changed, and never let a reload failure block the switch.
+    if (synced?.updated.length && this.canProxy()) {
+      try {
+        await this.options.openCode.reload()
+      } catch (cause) {
+        this.options.log('could not reload OpenCode after changing Clara management', cause)
+      }
+    }
+
     this.localAgent.broadcastAgentInfo()
     this.relayAgent?.broadcastAgentInfo()
     if (previous !== enabled) {

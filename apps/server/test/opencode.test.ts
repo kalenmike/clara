@@ -58,3 +58,31 @@ describe('OpenCodeClient.probe', () => {
     expect(unreachable.code).toBe('unreachable')
   })
 })
+
+describe('OpenCodeClient.reload', () => {
+  it('posts to the location reload endpoint', async () => {
+    const requests: string[] = []
+    const server = createServer((request, response) => {
+      requests.push(`${request.method} ${request.url}`)
+      response.statusCode = 204
+      response.end()
+    })
+    const port = await listen(server)
+
+    await new OpenCodeClient(`http://127.0.0.1:${port}`).reload()
+
+    expect(requests).toEqual(['POST /api/location/reload'])
+  })
+
+  it('reports a failed reload', async () => {
+    const server = createServer((_request, response) => {
+      response.statusCode = 503
+      response.end()
+    })
+    const port = await listen(server)
+
+    await expect(new OpenCodeClient(`http://127.0.0.1:${port}`).reload()).rejects.toThrow(
+      'OpenCode reload failed (503)'
+    )
+  })
+})
