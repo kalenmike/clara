@@ -12,9 +12,9 @@ import {
 } from '../../components/primitives.tsx'
 
 /**
- * Clara management is the master switch for the ledger daemon, ledger alerts,
- * and the Clara inbox. Turning it off leaves ordinary OpenCode session alerts
- * untouched.
+ * Clara management is the master switch for the ledger daemon, the generated
+ * Clara agents, and their exception sessions. Turning it off leaves ordinary
+ * OpenCode session alerts untouched.
  */
 export function ManagementCard({
   management,
@@ -44,7 +44,7 @@ export function ManagementCard({
   return (
     <CollapsibleCard
       title="Clara management"
-      description="Ledger daemon, Clara agents, exception alerts, and the inbox"
+      description="Ledger daemon, Clara agents, and exception sessions"
       icon={<Workflow className="size-4" aria-hidden="true" />}
       action={
         <Badge tone={management.enabled ? 'success' : 'neutral'}>
@@ -71,9 +71,9 @@ export function ManagementCard({
       <CardBody>
         <p className="text-xs text-neutral-500 dark:text-neutral-400">
           When on, the OpenCode plugin may run the Clara ledger daemon, the Clara agents are
-          available, and the home agent delivers ledger exceptions as Clara alerts. Turning it off
-          disables the Clara tools, daemon, and agents immediately and leaves ordinary session
-          alerts unchanged.
+          available, and exceptions are delivered into the Clara session that owns each feature.
+          Turning it off disables the Clara tools, daemon, and agents immediately and leaves
+          ordinary session alerts unchanged.
         </p>
 
         <p className="pt-2 text-[11px] text-neutral-500 dark:text-neutral-400">

@@ -49,7 +49,7 @@ export type AgentSettings = {
   /** The panel traffic meter records nothing while this is false. */
   monitoring: boolean
   sync: SyncSettings
-  /** Runs the Clara ledger daemon, ledger alerts, and the Clara inbox. */
+  /** Runs the Clara ledger daemon, exception sessions, and Clara agents. */
   management: boolean
 }
 

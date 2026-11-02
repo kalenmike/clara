@@ -29,8 +29,6 @@ import { ScrollArea } from '@/components/ui/scroll-area'
 import { Skeleton } from '@/components/ui/skeleton'
 import { ProjectAvatar } from '@/components/projects/project-avatar'
 import { SidebarSessionRow } from '@/components/layout/sidebar-session-row'
-import { CLARA_FEATURE_INCLUDED } from '@/features/clara/flag'
-import { ClaraInboxButton } from '@/features/clara/inbox-button'
 import { usePendingPermissions } from '@/features/chat/use-permissions'
 import { resolveAttentionKind } from '@/features/notifications/attention'
 import {
@@ -320,7 +318,6 @@ export function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
             )}
           </div>
         </div>
-        {CLARA_FEATURE_INCLUDED ? <ClaraInboxButton onNavigate={onNavigate} /> : null}
         <Button asChild variant="ghost" size="icon" className="size-11 md:size-8">
           <Link
             to={onSettings ? '/' : '/settings'}

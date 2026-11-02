@@ -1,7 +1,5 @@
 import { OpenCode } from '@opencode/client'
 import type { ClaraAction } from '@clara/shared-types'
-import { createClaraControl, type ClaraControl } from '@/features/clara/ledger-channel'
-import { CLARA_FEATURE_INCLUDED } from '@/features/clara/flag'
 import {
   createRelayTransport,
   type PushStatusState,
@@ -40,7 +38,6 @@ export type ClientControl = {
   send: (action: ClaraAction) => Promise<void>
   subscribePush: (listener: (state: PushStatusState) => void) => () => void
   requestSync: (action: SyncRequestAction) => Promise<SyncResponse>
-  clara?: ClaraControl
 }
 
 export type ClientHandle = {
@@ -121,7 +118,6 @@ export function createClient(config: ConnectionConfig): ClientHandle {
         send: (action) => transport.sendAction(action),
         subscribePush: (listener) => transport.subscribePush(listener),
         requestSync: (action) => transport.requestSync(action),
-        clara: CLARA_FEATURE_INCLUDED ? createClaraControl(transport) : undefined,
       },
       subscribeStatus: (listener) => transport.subscribe(listener),
       status: () => transport.status(),

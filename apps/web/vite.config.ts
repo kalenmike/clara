@@ -158,10 +158,7 @@ const claraExcluded = ['0', 'false', 'off'].includes(
 const claraStub = fileURLToPath(new URL('./src/features/clara/stub', import.meta.url))
 const claraStubs: Record<string, string> = {
   flag: 'flag.ts',
-  routes: 'routes.ts',
-  'inbox-button': 'inbox-button.tsx',
   provider: 'provider.tsx',
-  'ledger-channel': 'ledger-channel.ts',
 }
 
 /** Resolve the feature imports to inert modules when the build excludes it. */

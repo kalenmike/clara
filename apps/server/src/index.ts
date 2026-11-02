@@ -95,17 +95,6 @@ async function main(): Promise<void> {
             config,
             settings,
             openCode,
-            push,
-            broadcast: (alert) => {
-              const state = { type: 'ledger.alert' as const, alert }
-              controllerRef.current?.agent.broadcastState(state)
-              controllerRef.current?.relay?.broadcastState(state)
-            },
-            canPush: () => controllerRef.current?.canPush() ?? false,
-            isDeskActive: () =>
-              (controllerRef.current?.agent.deskHoldActive() ?? false) ||
-              (controllerRef.current?.relay?.deskHoldActive() ?? false),
-            hasClients: () => (controllerRef.current?.connectedClients() ?? 0) > 0,
             canProxy: () => controllerRef.current?.canProxy() ?? false,
             log,
           })

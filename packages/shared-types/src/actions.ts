@@ -50,12 +50,6 @@ export type PushTestAction = {
   endpoint?: string
 }
 
-/** Ask the home agent for the open Clara ledger inbox. */
-export type LedgerInboxAction = {
-  type: 'ledger.inbox'
-  id: string
-}
-
 /** Pull the non-secret client preferences stored for one namespace. */
 export type SyncPullAction = {
   type: 'sync.pull'
@@ -99,7 +93,6 @@ export type ClaraAction =
   | PushSubscribeAction
   | PushUnsubscribeAction
   | PushTestAction
-  | LedgerInboxAction
   | SyncCheckAction
   | SyncPullAction
   | SyncPushAction

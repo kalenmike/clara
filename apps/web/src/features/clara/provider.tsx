@@ -5,7 +5,6 @@ import { SessionPolicyProvider } from '@/features/notifications/session-policy'
 import { isAutomationSession } from '@/features/sessions/session-automation'
 import { useConnection } from '@/providers/connection-provider'
 import { useClaraAgentRefresh } from './agent-refresh'
-import { ClaraNotificationBridge } from './notifications'
 
 /**
  * Mounts every web-side Clara behaviour inside one boundary. When the build
@@ -26,7 +25,6 @@ export function ClaraFeatureProvider({ children }: { children: ReactNode }) {
 
   return (
     <SessionPolicyProvider suppressSession={suppressSession} isAutomation={isAutomation}>
-      <ClaraNotificationBridge />
       {children}
     </SessionPolicyProvider>
   )

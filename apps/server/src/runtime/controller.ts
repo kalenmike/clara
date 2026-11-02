@@ -60,7 +60,6 @@ export class RuntimeController {
     options.info.syncEnabled = sync.enabled
     options.info.syncIntervalMs = sync.intervalMs
     options.info.management = Boolean(options.clara) && options.settings.getManagement()
-    const ledger = options.clara?.ledgerCapability()
 
     this.localAgent = new Agent({
       openCode: options.openCode,
@@ -69,7 +68,6 @@ export class RuntimeController {
       send: (frame) => broadcast(this.localSockets, frame),
       push: options.push,
       sync: options.sync,
-      ledger,
       traffic: this.trafficMeter,
       transport: 'local',
       policy: {
@@ -92,7 +90,6 @@ export class RuntimeController {
         send: (frame) => this.relayClient?.send(frame),
         push: options.push,
         sync: options.sync,
-        ledger,
         traffic: this.trafficMeter,
         transport: 'relay',
         policy: {
@@ -228,7 +225,6 @@ export class RuntimeController {
       return
     }
     await this.applyDesired()
-    this.options.clara?.startMonitor()
   }
 
   async setFeature(feature: FeatureName, enabled: boolean): Promise<PanelControls> {
@@ -273,8 +269,9 @@ export class RuntimeController {
   }
 
   /**
-   * Clara management is the master switch for the ledger daemon, ledger
-   * alerts, and the Clara inbox. It is independent of the transport stop flag.
+   * Clara management is the master switch for the ledger daemon, the generated
+   * Clara agents, and their exception sessions. It is independent of the
+   * transport stop flag.
    */
   async setManagement(enabled: boolean): Promise<PanelControls> {
     const previous = this.options.settings.getManagement()
@@ -288,8 +285,6 @@ export class RuntimeController {
     if (previous !== next) {
       this.options.log(next ? 'Clara management enabled' : 'Clara management disabled')
     }
-    if (next) this.options.clara?.startMonitor({ prime: true })
-    else this.options.clara?.stopMonitor()
     return this.controls()
   }
 
@@ -323,7 +318,6 @@ export class RuntimeController {
       await this.stopLocal()
       this.relayClient?.close()
       this.stopPushMonitor()
-      this.options.clara?.stopMonitor()
       this.localAgent.reset()
       this.relayAgent?.reset()
       return this.controls()
@@ -331,7 +325,6 @@ export class RuntimeController {
 
     this.options.log('agent started by an admin setting')
     await this.applyDesired()
-    this.options.clara?.startMonitor()
     return this.controls()
   }
 
@@ -339,7 +332,6 @@ export class RuntimeController {
     await this.stopLocal('agent shutting down')
     this.relayClient?.close()
     this.stopPushMonitor()
-    this.options.clara?.close()
     this.localAgent.close()
     this.relayAgent?.close()
   }

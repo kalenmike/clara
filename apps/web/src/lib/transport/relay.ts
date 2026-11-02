@@ -466,7 +466,6 @@ class RelayFetchTransport implements RelayTransport {
   }
 
   private handleState(state: Exclude<ClaraState, { type: 'push.status' }>): void {
-    if (state.type === 'ledger.alert') return
     if (state.type === 'agent.status') {
       if (state.agent) {
         this.statusValue = { ...this.statusValue, agent: state.agent }

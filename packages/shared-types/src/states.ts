@@ -1,6 +1,5 @@
 import type { ClaraAction } from './actions.ts'
 import type { AgentInfo } from './protocol.ts'
-import type { LedgerAlert, LedgerInbox } from './clara/ledger.ts'
 
 export type SyncEntry = {
   key: string
@@ -62,21 +61,6 @@ export type ClaraState =
       message: string
       revision?: number
       entries?: SyncEntry[]
-    }
-  | {
-      type: 'ledger.alert'
-      alert: LedgerAlert
-    }
-  | {
-      type: 'ledger.inbox'
-      id: string
-      inbox: LedgerInbox
-    }
-  | {
-      type: 'ledger.error'
-      id: string
-      code: 'disabled' | 'unavailable'
-      message: string
     }
 
 export type ClaraStateType = ClaraState['type']

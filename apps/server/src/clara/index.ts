@@ -1,22 +1,12 @@
-import { isClaraWorkerTitle, type LedgerAlert, type LedgerInbox } from '@clara/shared-types'
-import { join } from 'node:path'
+import { isClaraWorkerTitle } from '@clara/shared-types'
 import type { OpenCodeClient } from '../opencode.ts'
-import type { PushService } from '../push/service.ts'
 import type { SettingsStore } from '../store/settings.ts'
 import { syncClaraAgentVisibility, type ClaraAgentSyncResult } from './agents.ts'
-import { LedgerDeliveryStore } from './ledger/delivery.ts'
-import { LedgerAlertMonitor } from './ledger/monitor.ts'
-import { LedgerReader } from './ledger/reader.ts'
 
 export type ClaraManagementOptions = {
-  config: { configDir: string; ledgerDbPath: string }
+  config: { ledgerDbPath: string }
   settings: SettingsStore
   openCode: OpenCodeClient
-  push?: PushService
-  broadcast: (alert: LedgerAlert) => void
-  canPush: () => boolean
-  isDeskActive: () => boolean
-  hasClients: () => boolean
   canProxy: () => boolean
   /** Test seam; the panel uses the real installer manifest by default. */
   syncAgents?: (enabled: boolean) => ClaraAgentSyncResult
@@ -24,15 +14,12 @@ export type ClaraManagementOptions = {
 }
 
 /**
- * The single entry point for Clara management in the home agent. Everything
- * ledger-specific lives behind this facade: core code only decides when to
- * start, stop, and ask for the inbox.
+ * The single entry point for Clara management in the home agent. Alerts are
+ * delivered by the ledger daemon as Clara sessions, so this facade only owns
+ * the generated agent catalog and the worker-session notification filter.
  */
 export class ClaraManagement {
   private readonly options: ClaraManagementOptions
-  private ledgerReader?: LedgerReader
-  private deliveryStore?: LedgerDeliveryStore
-  private alertMonitor?: LedgerAlertMonitor
 
   constructor(options: ClaraManagementOptions) {
     this.options = options
@@ -40,17 +27,6 @@ export class ClaraManagement {
 
   get ledgerPath(): string {
     return this.options.config.ledgerDbPath
-  }
-
-  /** Capability injected into the transport agents. */
-  ledgerCapability(): {
-    enabled: () => boolean
-    inbox: () => LedgerInbox
-  } {
-    return {
-      enabled: () => this.options.settings.getManagement(),
-      inbox: () => this.reader().inbox(),
-    }
   }
 
   /** Generic session suppression supplied to the push monitor. */
@@ -88,47 +64,5 @@ export class ClaraManagement {
     } catch (cause) {
       this.options.log('could not reload OpenCode after changing Clara management', cause)
     }
-  }
-
-  startMonitor(options: { prime?: boolean } = {}): void {
-    if (!this.options.settings.getManagement() || this.options.settings.getStopped()) return
-    this.monitor().start(options)
-  }
-
-  stopMonitor(): void {
-    this.alertMonitor?.stop()
-  }
-
-  close(): void {
-    this.stopMonitor()
-    this.deliveryStore?.close()
-    this.deliveryStore = undefined
-  }
-
-  private reader(): LedgerReader {
-    this.ledgerReader ??= new LedgerReader(this.options.config.ledgerDbPath, this.options.log)
-    return this.ledgerReader
-  }
-
-  private store(): LedgerDeliveryStore {
-    this.deliveryStore ??= new LedgerDeliveryStore(
-      join(this.options.config.configDir, 'ledger-alerts.db')
-    )
-    return this.deliveryStore
-  }
-
-  private monitor(): LedgerAlertMonitor {
-    this.alertMonitor ??= new LedgerAlertMonitor({
-      reader: this.reader(),
-      store: this.store(),
-      push: this.options.push,
-      enabled: () => this.options.settings.getManagement() && !this.options.settings.getStopped(),
-      canPush: this.options.canPush,
-      isDeskActive: this.options.isDeskActive,
-      hasClients: this.options.hasClients,
-      broadcast: this.options.broadcast,
-      log: this.options.log,
-    })
-    return this.alertMonitor
   }
 }
