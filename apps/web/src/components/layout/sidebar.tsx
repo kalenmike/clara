@@ -41,8 +41,8 @@ import {
 import { useProjectSessionPresence } from '@/features/projects/use-project-presence'
 import { useShowEmptyProjects } from '@/features/projects/use-show-empty-projects'
 import { canonicalProject, canonicalProjects, useProjects } from '@/features/projects/use-projects'
+import { useSessionPolicy } from '@/features/notifications/session-policy'
 import { isArchivedSession } from '@/features/sessions/session-archive'
-import { isAutomationSession } from '@/features/sessions/session-automation'
 import { groupSessionsByMailbox } from '@/features/sessions/session-sections'
 import { isSnoozedSession } from '@/features/sessions/session-snooze'
 import { useSessionMailboxSignals } from '@/features/sessions/use-session-mailbox'
@@ -115,8 +115,9 @@ export function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
   const location = useLocation()
   const params = useParams<{ projectId: string; sessionId?: string }>()
   const { lowerSingular, lowerPlural } = useSessionWording()
-  const { info, reconnect, reconnecting, relayStatus } = useConnection()
-  const claraEnabled = CLARA_FEATURE_INCLUDED && relayStatus?.agent?.management === true
+  const { info, reconnect, reconnecting } = useConnection()
+  const { isAutomation } = useSessionPolicy()
+  const claraEnabled = Boolean(isAutomation)
   const { state } = useEventStream()
   const projectsQuery = useProjects()
   const projects = useMemo(() => projectsQuery.data ?? [], [projectsQuery.data])
@@ -177,11 +178,9 @@ export function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
     () =>
       allSessions.filter(
         (session) =>
-          !isArchivedSession(session) &&
-          !isSnoozedSession(session) &&
-          !(claraEnabled && isAutomationSession(session))
+          !isArchivedSession(session) && !isSnoozedSession(session) && !isAutomation?.(session)
       ),
-    [allSessions, claraEnabled]
+    [allSessions, isAutomation]
   )
   const { signals: mailboxSignals, pending: mailboxesPending } =
     useSessionMailboxSignals(mailboxSessions)
@@ -199,9 +198,9 @@ export function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
         mailboxSignals,
         activeQuery.data,
         awaitingInput,
-        claraEnabled ? isAutomationSession : undefined
+        isAutomation
       ),
-    [allSessions, mailboxSignals, activeQuery.data, awaitingInput, claraEnabled]
+    [allSessions, mailboxSignals, activeQuery.data, awaitingInput, isAutomation]
   )
 
   const sections = useMemo<SidebarSectionView[]>(
@@ -223,7 +222,7 @@ export function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
     [claraEnabled, sections, workerSection]
   )
 
-  const latest = sessions.find((session) => !(claraEnabled && isAutomationSession(session)))
+  const latest = sessions.find((session) => !isAutomation?.(session))
   const { startSession: newSession, pending: createPending } = useStartSession({
     projectID: selectedProject?.id,
     directory: selectedProject?.canonical,

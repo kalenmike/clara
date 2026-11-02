@@ -1,18 +1,15 @@
 import { useMemo } from 'react'
-import { CLARA_FEATURE_INCLUDED } from '@/features/clara/flag'
 import { usePendingPermissions } from '@/features/chat/use-permissions'
+import { useSessionPolicy } from '@/features/notifications/session-policy'
 import { isArchivedSession } from '@/features/sessions/session-archive'
-import { isAutomationSession } from '@/features/sessions/session-automation'
 import { groupSessionsByMailbox } from '@/features/sessions/session-sections'
 import { isSnoozedSession } from '@/features/sessions/session-snooze'
 import { useSessionMailboxSignals } from '@/features/sessions/use-session-mailbox'
 import { useActiveSessions, useSessions } from '@/features/sessions/use-sessions'
-import { useConnection } from '@/providers/connection-provider'
 
 /** Inbox sessions for a project, newest first, with the data needed to jump to them. */
 export function useInboxSessions(projectID: string | null, directory: string | null) {
-  const { relayStatus } = useConnection()
-  const claraEnabled = CLARA_FEATURE_INCLUDED && relayStatus?.agent?.management === true
+  const { isAutomation } = useSessionPolicy()
   const sessionsQuery = useSessions(projectID, '', Boolean(projectID))
   const activeQuery = useActiveSessions()
   const permissionsQuery = usePendingPermissions(directory ?? undefined)
@@ -22,11 +19,9 @@ export function useInboxSessions(projectID: string | null, directory: string | n
     () =>
       sessions.filter(
         (session) =>
-          !isArchivedSession(session) &&
-          !isSnoozedSession(session) &&
-          !(claraEnabled && isAutomationSession(session))
+          !isArchivedSession(session) && !isSnoozedSession(session) && !isAutomation?.(session)
       ),
-    [sessions, claraEnabled]
+    [sessions, isAutomation]
   )
   const { signals, pending: mailboxesPending } = useSessionMailboxSignals(mailboxSessions)
   const awaitingInput = useMemo(

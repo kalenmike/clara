@@ -1,4 +1,4 @@
-import { useCallback, type ReactNode } from 'react'
+import { useCallback, useMemo, type ReactNode } from 'react'
 import type { SessionInfo } from '@opencode/client'
 import { isClaraWorkerTitle } from '@clara/shared-types'
 import { SessionPolicyProvider } from '@/features/notifications/session-policy'
@@ -22,9 +22,10 @@ export function ClaraFeatureProvider({ children }: { children: ReactNode }) {
       management && (isAutomationSession(session) || isClaraWorkerTitle(session.title)),
     [management]
   )
+  const isAutomation = useMemo(() => (management ? isAutomationSession : undefined), [management])
 
   return (
-    <SessionPolicyProvider suppressSession={suppressSession}>
+    <SessionPolicyProvider suppressSession={suppressSession} isAutomation={isAutomation}>
       <ClaraNotificationBridge />
       {children}
     </SessionPolicyProvider>

@@ -18,7 +18,6 @@ import { ReplyDock } from '@/components/chat/reply-dock'
 import { SidePanel } from '@/components/layout/side-panel'
 import { useDefaultAgent } from '@/features/agents/use-default-agent'
 import { useAgents, useModels } from '@/features/catalog/use-catalog'
-import { CLARA_FEATURE_INCLUDED } from '@/features/clara/flag'
 import { composerMenuMode } from '@/features/chat/composer-menu'
 import { getVisibleMessages } from '@/features/chat/message-visibility'
 import { findPlanReadyReply } from '@/features/chat/plan-ready'
@@ -32,11 +31,11 @@ import {
   useSwitchAgent,
   useSwitchModel,
 } from '@/features/chat/use-chat'
+import { useSessionPolicy } from '@/features/notifications/session-policy'
 import { useInboxMonitor } from '@/features/sessions/inbox-monitor'
 import { canonicalProject, useProjects } from '@/features/projects/use-projects'
 import { planMessageFork } from '@/features/sessions/fork'
 import { isArchivedSession } from '@/features/sessions/session-archive'
-import { isAutomationSession } from '@/features/sessions/session-automation'
 import { isSnoozedSession } from '@/features/sessions/session-snooze'
 import { useForkSession } from '@/features/sessions/use-fork-session'
 import { useForwardMessage } from '@/features/sessions/use-forward-message'
@@ -60,8 +59,8 @@ export function ChatPage() {
   const { projectId, sessionId } = useParams<{ projectId: string; sessionId: string }>()
   const navigate = useNavigate()
   const location = useLocation()
-  const { status, relayStatus } = useConnection()
-  const claraEnabled = CLARA_FEATURE_INCLUDED && relayStatus?.agent?.management === true
+  const { status } = useConnection()
+  const { isAutomation } = useSessionPolicy()
   const { singular, lowerSingular, lowerPlural } = useSessionWording()
   const inboxMonitor = useInboxMonitor()
   const { setTheme, resolvedTheme } = useTheme()
@@ -71,7 +70,7 @@ export function ChatPage() {
   const owningProject = canonicalProject(projectsQuery.data ?? [], projectId)
   const sessionQuery = useSession(sessionId ?? null)
   const session = sessionQuery.data
-  const worker = claraEnabled && session != null && isAutomationSession(session)
+  const worker = session != null && isAutomation?.(session) === true
   const snapshot = useChatSnapshot(sessionId ?? '')
   const messagesQuery = useSessionMessages(sessionId ?? '')
   const inboxQuery = useSessionInbox(sessionId ?? '')
