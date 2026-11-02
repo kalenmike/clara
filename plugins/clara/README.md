@@ -99,6 +99,7 @@ the `clara_*` permissions in `agents.json` will not match it.
 | `clara_inbox`   | Everything that needs a human: open decisions, stalled features, features over soft budget. Empty output when nothing needs you. |
 | `clara_ask`     | Read state for one feature, one workspace, or all. Facts only. If the ledger can't answer, it records a schema gap.              |
 | `clara_approve` | Record human approval of the proposed criteria. `spec → planned`.                                                                |
+| `clara_gate`    | Record the human's verification of the human-gate criteria in `review`. The judge closes only when every gate is recorded.       |
 | `clara_resolve` | Close an open decision by id.                                                                                                    |
 
 ### Spec agent (`ai_1`)
@@ -184,7 +185,7 @@ Actor rules:
   arguments. An implementer cannot pass `actor: "ai_0"`.
 - Only `ai_0` may move a feature to `done` or `scrapped`. An implementer can
   request `review`, never close its own work.
-- `clara_approve` and `clara_resolve` are human-only.
+- `clara_approve`, `clara_gate`, and `clara_resolve` are human-only.
 - `clara_criteria` is `ai_1`/human; `clara_freeze` is `ai_2`/human;
   `clara_checkpoint` is `ai_3`/human; `clara_decide` is `ai_0`/`ai_4`/human;
   `clara_tick` is `ai_0`/human.
@@ -198,6 +199,9 @@ Actor rules:
   `approve` is the only path to `planned`.
 - **Tests are frozen.** `freeze` records a hash; the close gate requires it.
   The daemon does not re-hash the files yet.
+- **Human gates are recorded.** `clara_gate` records the human's verification
+  of each `human_gate: true` criterion. The judge cannot verify them and closes
+  only when every gate is recorded.
 - **Silence is not approval.** Every decision carries
   `default_if_silent`, defaulting to `block`.
 - **No model in the loop for state.** `tick` is pure SQL and comparisons.
@@ -216,15 +220,15 @@ the `clara` agent only submits, asks, approves, and resolves. It ticks every
 2. run `clara_tick` with `dry_run: false`;
 3. launch at most one missing stage.
 
-| Ledger state               | Stage                          | Agent   |
-| -------------------------- | ------------------------------ | ------- |
-| `spec`, no criteria        | propose criteria               | `001`   |
-| `spec`, criteria proposed  | wait for `clara_approve`       | —       |
-| `planned`, no `tests_hash` | write and freeze tests         | `002`   |
-| `planned`, tests frozen    | move to `building`             | `003`   |
-| `building`                 | implement and request `review` | `003`   |
-| `review`, docs impact      | apply docs                     | `004`   |
-| `review`                   | close or escalate              | `judge` |
+| Ledger state               | Stage                           | Agent   |
+| -------------------------- | ------------------------------- | ------- |
+| `spec`, no criteria        | propose criteria                | `001`   |
+| `spec`, criteria proposed  | wait for `clara_approve`        | —       |
+| `planned`, no `tests_hash` | write and freeze tests          | `002`   |
+| `planned`, tests frozen    | move to `building`              | `003`   |
+| `building`                 | implement and request `review`  | `003`   |
+| `review`, docs impact      | apply docs                      | `004`   |
+| `review`                   | close, or ask for missing gates | `judge` |
 
 Each stage runs in a child session in the feature's workspace. Its id and
 status live in `runs`. A stage with a live run is never launched twice. If a
@@ -278,13 +282,13 @@ pnpm --filter @clara/opencode-plugin test
 ```
 
 It creates a temp DB and workspace, registers the plugin through a mock
-editor to confirm all 11 tools wire up, then walks a feature from `submit`
+editor to confirm all 12 tools wire up, then walks a feature from `submit`
 through approval, freeze, build, review, close, plus the failure paths
 (no unbacked criteria, illegal transitions, implementer closing, dry-run vs
 live tick). It also drives a feature through the daemon with a mock session
 API, checks the lock and retry path, and verifies that every tool is registered
 as `clara_*` and that every explicit `clara_*` permission in `agents.json`
-names a real tool. Expect `98/98 checks passed`.
+names a real tool. Expect `119/119 checks passed`.
 
 ## Not built yet
 

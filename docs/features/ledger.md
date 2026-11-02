@@ -18,9 +18,11 @@ build, docs, and judge agents in child sessions.
    that.
 6. The daemon launches the spec agent to propose criteria; after approval it
    launches the test, build, docs, and judge agents as each stage completes.
-7. When the build requests review, the daemon launches the docs agent if there
-   is a docs impact, then the judge to close. Only `ai_0` can mark it done.
-8. Resolve any open decision with `clara_resolve`.
+7. At `review`, the person verifies the human-gate criteria with `clara_gate`;
+   the daemon launches the docs agent when there is a docs impact, then the
+   judge. The judge closes only when every gate is recorded.
+8. Resolve any open decision with `clara_resolve`. Only `ai_0` can mark a
+   feature done.
 
 ## Core business rules
 
@@ -32,9 +34,12 @@ build, docs, and judge agents in child sessions.
    only `ai_0` can move a feature to `done` or `scrapped`.
 4. **Tests are frozen.** The test agent records a hash and the build agent
    cannot edit test paths. The close gate requires the hash to be present.
-5. **The ledger is deterministic.** `clara_tick` is pure SQL and comparisons;
+5. **Human gates are recorded, not inferred.** `clara_gate` is the only way to
+   record a human-gate check. The judge cannot verify one and opens a decision
+   when it is missing.
+6. **The ledger is deterministic.** `clara_tick` is pure SQL and comparisons;
    it makes no model calls.
-6. **The daemon spawns, the ledger decides.** The `clara` agent never launches
+7. **The daemon spawns, the ledger decides.** The `clara` agent never launches
    a worker. A single-owner lock and the `runs` table keep one daemon and one
    live session per stage.
 
@@ -54,6 +59,8 @@ build, docs, and judge agents in child sessions.
   launching a duplicate.
 - A worker session ends without advancing the ledger; the daemon opens a
   decision and retries only after the human resolves it.
+- A reviewed feature has unrecorded human gates; the judge opens one decision
+  instead of closing.
 - A feature is killed while a worker is running; the daemon interrupts that
   session on its next tick.
 - The workspace path is missing when a stage is due; the daemon opens a
@@ -104,7 +111,10 @@ build, docs, and judge agents in child sessions.
 - Plugin link: `~/.config/opencode/plugins/clara`
 - Tools: `clara_submit`, `clara_inbox`, `clara_ask`, `clara_approve`,
   `clara_criteria`, `clara_freeze`, `clara_checkpoint`, `clara_event`,
-  `clara_decide`, `clara_resolve`, `clara_tick`
+  `clara_decide`, `clara_gate`, `clara_resolve`, `clara_tick`
+- `clara_ask` reports the frozen hash, the docs stage, the latest runs, the
+  human-gate status, and an event summary, so the judge never needs the
+  filesystem or a shell.
 - CLI: `pnpm clara:ledger list` and
   `pnpm clara:ledger run <tool> [json] [--agent <id>] [--db <path>]`. It calls
   the same tool definitions against the same ledger and still derives the actor
