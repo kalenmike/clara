@@ -69,8 +69,9 @@ The home agent's settings database is a different file:
 ```
 
 Do not point `CLARA_DB` or `CLARA_DB_PATH` at the ledger. Those belong to the
-server. The ledger opens with `journal_mode=WAL` and `foreign_keys=ON`, then
-applies any migration not yet recorded in `schema_migrations`.
+server. The ledger opens with `journal_mode=WAL`, `foreign_keys=ON`, and
+`busy_timeout=5000`, then applies any migration not yet recorded in
+`schema_migrations`.
 
 On load the plugin prints:
 
