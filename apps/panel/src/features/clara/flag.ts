@@ -4,7 +4,5 @@
  * `VITE_CLARA_MANAGEMENT=0` (or `false`/`off`) excludes the management card
  * from the panel bundle.
  */
-export const CLARA_FEATURE_INCLUDED = (() => {
-  const flag = import.meta.env.VITE_CLARA_MANAGEMENT?.trim().toLowerCase()
-  return flag !== '0' && flag !== 'false' && flag !== 'off'
-})()
+const flag = import.meta.env.VITE_CLARA_MANAGEMENT
+export const CLARA_FEATURE_INCLUDED = flag !== '0' && flag !== 'false' && flag !== 'off'

@@ -2,7 +2,6 @@ import { join, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { fingerprintPsk } from '@clara/crypto'
 import { PROTOCOL_VERSION } from '@clara/shared-types'
-import { ClaraManagement } from './clara/index.ts'
 import { claraFeatureIncluded } from './clara/flag.ts'
 import { loadConfig } from './config.ts'
 import { OpenCodeClient } from './opencode.ts'
@@ -90,24 +89,27 @@ async function main(): Promise<void> {
 
   let controller: RuntimeController | undefined
   const clara = claraFeatureIncluded()
-    ? new ClaraManagement({
-        config,
-        settings,
-        openCode,
-        push,
-        broadcast: (alert) => {
-          const state = { type: 'ledger.alert' as const, alert }
-          controller?.agent.broadcastState(state)
-          controller?.relay?.broadcastState(state)
-        },
-        canPush: () => controller?.canPush() ?? false,
-        isDeskActive: () =>
-          (controller?.agent.deskHoldActive() ?? false) ||
-          (controller?.relay?.deskHoldActive() ?? false),
-        hasClients: () => (controller?.connectedClients() ?? 0) > 0,
-        canProxy: () => controller?.canProxy() ?? false,
-        log,
-      })
+    ? await import('./clara/index.ts').then(
+        ({ ClaraManagement }) =>
+          new ClaraManagement({
+            config,
+            settings,
+            openCode,
+            push,
+            broadcast: (alert) => {
+              const state = { type: 'ledger.alert' as const, alert }
+              controller?.agent.broadcastState(state)
+              controller?.relay?.broadcastState(state)
+            },
+            canPush: () => controller?.canPush() ?? false,
+            isDeskActive: () =>
+              (controller?.agent.deskHoldActive() ?? false) ||
+              (controller?.relay?.deskHoldActive() ?? false),
+            hasClients: () => (controller?.connectedClients() ?? 0) > 0,
+            canProxy: () => controller?.canProxy() ?? false,
+            log,
+          })
+      )
     : undefined
 
   controller = new RuntimeController({

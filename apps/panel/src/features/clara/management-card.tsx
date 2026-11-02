@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { Workflow } from 'lucide-react'
 import type { PanelManagementControl } from '@clara/shared-types'
-import { postPanel } from '../lib/panel-api.ts'
+import { postPanel } from '../../lib/panel-api.ts'
 import {
   Badge,
   CardBody,
@@ -9,7 +9,7 @@ import {
   Notice,
   Toggle,
   type ToggleState,
-} from './primitives.tsx'
+} from '../../components/primitives.tsx'
 
 /**
  * Clara management is the master switch for the ledger daemon, ledger alerts,

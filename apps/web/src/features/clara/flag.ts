@@ -5,7 +5,5 @@
  * bundle. The runtime `management.enabled` switch still controls whether an
  * included feature does anything.
  */
-export const CLARA_FEATURE_INCLUDED = (() => {
-  const flag = import.meta.env.VITE_CLARA_MANAGEMENT?.trim().toLowerCase()
-  return flag !== '0' && flag !== 'false' && flag !== 'off'
-})()
+const flag = import.meta.env.VITE_CLARA_MANAGEMENT
+export const CLARA_FEATURE_INCLUDED = flag !== '0' && flag !== 'false' && flag !== 'off'
