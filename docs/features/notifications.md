@@ -178,13 +178,13 @@ start an agent run and move on, so they do not have to watch the sidebar.
   reconciled the next time Clara opens.
 - **Home agent stopped or asleep** — events during the gap are not replayed, so
   a run that finishes while the agent is down does not push later.
-- **Clara management off** — no ledger alerts, no Clara inbox, and Clara worker
-  sessions keep their ordinary session alerts. The ledger tools are inert.
+- **Clara management off** — no ledger alerts, no Clara inbox, no registered
+  Clara tools, and Clara worker sessions keep their ordinary session alerts.
 - **No Clara client connected** — the home agent raises a local OS notification
   for a ledger alert instead of relying on the browser.
-- **A ledger alert arrives twice** — the delivery key and cursor suppress the
-  duplicate across reconnects and restarts; one-time kills never enter the open
-  inbox.
+- **A ledger alert arrives twice** — the delivery cursor and dedupe keys in the
+  Clara-owned sidecar suppress the duplicate across reconnects and restarts;
+  one-time kills never enter the open inbox.
 - **Clara worker completes** — with management on, its session alert is
   suppressed and the ledger exception is the only actionable alert.
 - **External OpenCode notifier** — the TUI notifier is a separate plugin and

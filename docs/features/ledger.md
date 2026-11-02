@@ -151,10 +151,16 @@ Clara management tables.
 - Management switch: `management.enabled` in the home agent database, owned by
   the panel and read by the plugin. Changing it also toggles `disabled` in the
   generated agent files and reloads OpenCode. Default off.
+- Build inclusion: `CLARA_MANAGEMENT` (server) and `VITE_CLARA_MANAGEMENT` (web
+  and panel) exclude the feature when set to `0`, `false`, or `off`. An
+  excluded build does not load the server facade or register the web route.
+- Uninstall: `pnpm clara:plugin:uninstall` removes the plugin link and generated
+  agents; `--purge` also removes the ledger, sidecar, management setting, and
+  legacy delivery tables.
 - Daemon: `plugins/clara/daemon.ts` ticks every 15s, reconciles `runs`, and
   launches one missing stage per tick through the OpenCode session API.
 - Alert outbox: `alerts` in `ledger.db`, written by `collectAlerts` and read
-  read-only by `apps/server/src/ledger`.
+  read-only by `apps/server/src/clara/ledger`.
 - Delivery state: `~/.config/clara/ledger-alerts.db`, a Clara-owned sidecar
   with a cursor and dedupe keys. It is separate from both the ledger and the
   home agent database, and `--purge` removes it.

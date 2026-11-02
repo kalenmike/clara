@@ -177,23 +177,25 @@ or the relay.
 
 ## Scripts
 
-| Command              | Purpose                                             |
-| -------------------- | --------------------------------------------------- |
-| `pnpm dev`           | Web dev server and home agent                       |
-| `pnpm dev:web`       | Web only                                            |
-| `pnpm dev:panel`     | Agent panel dev server                              |
-| `pnpm dev:server`    | Home agent only                                     |
-| `pnpm dev:relay`     | Local `wrangler dev` for the Worker/DO              |
-| `pnpm build`         | Build every workspace package                       |
-| `pnpm clara:control` | Serve the built panel and open it in a browser      |
-| `pnpm clara:ledger`  | List or invoke the Clara ledger tools directly      |
-| `pnpm test`          | Run crypto, protocol, server, web, and Worker tests |
-| `pnpm check`         | Typecheck + lint + format + Knip + tests            |
-| `pnpm commitlint`    | Lint the last commit message                        |
-| `pnpm deploy:web`    | Build and deploy the Pages project                  |
-| `pnpm deploy:relay`  | Deploy the Worker and DO migration                  |
-| `pnpm format`        | Prettier write                                      |
-| `pnpm format:check`  | Prettier check                                      |
+| Command                       | Purpose                                             |
+| ----------------------------- | --------------------------------------------------- |
+| `pnpm dev`                    | Web dev server and home agent                       |
+| `pnpm dev:web`                | Web only                                            |
+| `pnpm dev:panel`              | Agent panel dev server                              |
+| `pnpm dev:server`             | Home agent only                                     |
+| `pnpm dev:relay`              | Local `wrangler dev` for the Worker/DO              |
+| `pnpm build`                  | Build every workspace package                       |
+| `pnpm clara:control`          | Serve the built panel and open it in a browser      |
+| `pnpm clara:plugin:install`   | Link the Clara plugin and render its agents         |
+| `pnpm clara:plugin:uninstall` | Remove the plugin and agents (`--purge` for data)   |
+| `pnpm clara:ledger`           | List or invoke the Clara ledger tools directly      |
+| `pnpm test`                   | Run crypto, protocol, server, web, and Worker tests |
+| `pnpm check`                  | Typecheck + lint + format + Knip + tests            |
+| `pnpm commitlint`             | Lint the last commit message                        |
+| `pnpm deploy:web`             | Build and deploy the Pages project                  |
+| `pnpm deploy:relay`           | Deploy the Worker and DO migration                  |
+| `pnpm format`                 | Prettier write                                      |
+| `pnpm format:check`           | Prettier check                                      |
 
 ## Security
 
