@@ -25,6 +25,7 @@
     "clara:serve": "pnpm --filter @clara/server exec node dist/index.js",
     "clara:control": "node scripts/control.mjs",
     "clara:plugin:install": "node scripts/install-clara-plugin.mjs",
+    "clara:plugin:uninstall": "node scripts/uninstall-clara-plugin.mjs",
     "clara:ledger": "pnpm --filter @clara/opencode-plugin cli",
     "clara:pair": "pnpm --filter @clara/server exec node dist/index.js pair",
     "clara:pair:local": "pnpm --filter @clara/server exec node dist/index.js pair --local",

@@ -89,10 +89,14 @@ On load the plugin prints:
 ```
 
 The plugin reads `management.enabled` from the home agent database
-(`~/.config/clara/clara.db`) without writing it. When the flag is off, every
-`clara_*` tool refuses, the daemon stays loaded but idle, and the panel keeps
-the generated agents marked `disabled`. The CLI bypasses this guard for manual
-recovery.
+(`~/.config/clara/clara.db`) without writing it. When the flag is off, the
+plugin does not open the ledger, registers no `clara_*` tools, and starts no
+daemon. The panel keeps the generated agents marked `disabled`. The CLI
+bypasses this guard for manual recovery.
+
+Remove the plugin with `pnpm clara:plugin:uninstall`. Add `--purge` to remove
+the ledger database, the alert delivery sidecar, the management setting, and
+the legacy delivery tables from the agent database.
 
 The daemon does not start when the host has no session API, or when it is
 disabled with `daemon: false` or `CLARA_DAEMON=0`.
