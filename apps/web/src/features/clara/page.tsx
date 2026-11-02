@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import { Bell, Loader2, RefreshCw } from 'lucide-react'
+import { Navigate } from 'react-router'
 import type { LedgerAlert, LedgerAlertKind } from '@clara/shared-types'
 import { PageShell } from '@/components/layout/page-shell'
 import { Badge } from '@/components/ui/badge'
@@ -62,21 +63,7 @@ export function ClaraPage() {
   }, [control, load])
 
   if (!management) {
-    return (
-      <PageShell
-        title="Clara inbox"
-        description="Exceptions that need a person from the Clara ledger."
-      >
-        <div className="rounded-xl border border-dashed p-8 text-center">
-          <Bell className="mx-auto size-8 text-muted-foreground" />
-          <p className="mt-3 text-sm font-medium">Clara management is off</p>
-          <p className="mt-1 text-xs text-muted-foreground">
-            Enable Clara management in the agent panel to receive ledger exceptions and open the
-            Clara inbox.
-          </p>
-        </div>
-      </PageShell>
-    )
+    return <Navigate to="/" replace />
   }
 
   return (
