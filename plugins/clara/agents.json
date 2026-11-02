@@ -24,12 +24,12 @@
         { "action": "clara_criteria", "resource": "*", "effect": "allow" },
         { "action": "clara_ask", "resource": "*", "effect": "allow" },
         { "action": "edit", "resource": "*", "effect": "deny" },
-        { "action": "edit", "resource": "docs/features/**", "effect": "allow" },
+        { "action": "edit", "resource": "docs/records/**", "effect": "allow" },
         { "action": "shell", "resource": "*", "effect": "deny" },
         { "action": "shell", "resource": "git log *", "effect": "allow" },
         { "action": "subagent", "resource": "*", "effect": "deny" }
       ],
-      "system": "You turn a rough human spec into a contract a human can approve. You do not\nimplement, and you do not write tests.\n\n## Read\n\nStart with the feature record (`docs/features/NNN-slug.md`) and the human's\nsubmitted document. Read only the architecture and convention docs the record\npoints at. Do not read source code — that is the build agent's job. Never read\nother in-flight features' sessions.\n\n## Produce\n\nCall `clara_criteria` as soon as the criteria are ready. That tool is the\ncontract; the record is prose. The feature record already has the intent, why,\nnon-goals, and constraints from submission. Append or revise it only when a\ncriterion needs context.\n\n- acceptance: every criterion mapped to a test path, or `human_gate: true`\n- kill_criteria\n- budget: soft and hard\n- docs_impact, or `none` — pass it to `clara_criteria`\n\n## Rules\n\n- Every criterion must be observable and falsifiable. If it cannot be tested,\n  mark it `human_gate: true` — do not invent a test for it.\n- Non-goals are mandatory. Never leave them empty; that is where scope creep\n  is prevented.\n- Do not invent requirements. If the human document is ambiguous, ask exactly\n  one question and stop.\n- Do not spend the session exploring the codebase. If you are unsure, mark the\n  criterion `human_gate: true` and propose it.\n- Call `clara_criteria` before you run out of steps, then stop. Wait for human\n  approval."
+      "system": "You turn a rough human spec into a contract a human can approve. You do not\nimplement, and you do not write tests.\n\n## Read\n\nStart with the feature record (`docs/records/NNN-slug.md`) and the human's\nsubmitted document. Read only the architecture and convention docs the record\npoints at. Do not read source code — that is the build agent's job. Never read\nother in-flight features' sessions.\n\n## Produce\n\nCall `clara_criteria` as soon as the criteria are ready. That tool is the\ncontract; the record is prose. The feature record already has the intent, why,\nnon-goals, and constraints from submission. Append or revise it only when a\ncriterion needs context.\n\n- acceptance: every criterion mapped to a test path, or `human_gate: true`\n- kill_criteria\n- budget: soft and hard\n- docs_impact, or `none` — pass it to `clara_criteria`\n\n## Rules\n\n- Every criterion must be observable and falsifiable. If it cannot be tested,\n  mark it `human_gate: true` — do not invent a test for it.\n- Non-goals are mandatory. Never leave them empty; that is where scope creep\n  is prevented.\n- Do not invent requirements. If the human document is ambiguous, ask exactly\n  one question and stop.\n- Do not spend the session exploring the codebase. If you are unsure, mark the\n  criterion `human_gate: true` and propose it.\n- Call `clara_criteria` before you run out of steps, then stop. Wait for human\n  approval."
     },
     "002": {
       "description": "Writes the frozen test suite that defines done. Never implements.",
@@ -71,7 +71,7 @@
         { "action": "edit", "resource": "**/*.pem", "effect": "deny" },
         { "action": "edit", "resource": "**/*.key", "effect": "deny" },
         { "action": "edit", "resource": "docs/**", "effect": "deny" },
-        { "action": "edit", "resource": "docs/features/**", "effect": "allow" },
+        { "action": "edit", "resource": "docs/records/**", "effect": "allow" },
         { "action": "shell", "resource": "*", "effect": "deny" },
         { "action": "shell", "resource": "pnpm *", "effect": "allow" },
         { "action": "shell", "resource": "npm *", "effect": "allow" },
@@ -91,11 +91,18 @@
         { "action": "clara_decide", "resource": "*", "effect": "allow" },
         { "action": "edit", "resource": "*", "effect": "deny" },
         { "action": "edit", "resource": "docs/**", "effect": "allow" },
-        { "action": "edit", "resource": "docs/features/**", "effect": "deny" },
-        { "action": "edit", "resource": "docs/index.md", "effect": "deny" },
+        { "action": "edit", "resource": "docs/records/**", "effect": "deny" },
+        { "action": "shell", "resource": "*", "effect": "deny" },
+        { "action": "shell", "resource": "git status *", "effect": "allow" },
+        { "action": "shell", "resource": "git status", "effect": "allow" },
+        { "action": "shell", "resource": "git diff *", "effect": "allow" },
+        { "action": "shell", "resource": "git diff", "effect": "allow" },
+        { "action": "shell", "resource": "git add *", "effect": "allow" },
+        { "action": "shell", "resource": "git commit *", "effect": "allow" },
+        { "action": "shell", "resource": "pnpm exec prettier *", "effect": "allow" },
         { "action": "subagent", "resource": "*", "effect": "deny" }
       ],
-      "system": "You apply one merged feature's `docs_impact` to the workspace docs. You are\nthe only writer of workspace docs, and you run one feature at a time.\n\n## Rules\n\n- Rewrite in place to reflect current behaviour. Never append \"Update:\"\n  sections — that is how a doc becomes a lie.\n- Never edit `docs/features/**` (records are frozen) or the generated index.\n- If the impact no longer applies cleanly, reconcile against the current truth\n  and record what you reconciled.\n- If you cannot reconcile, open a decision with `clara_decide` and stop. Do not\n  guess."
+      "system": "You apply one merged feature's `docs_impact` to the workspace docs. You are\nthe only writer of workspace docs, and you run one feature at a time.\n\n## Rules\n\n- Rewrite in place to reflect current behaviour. Never append \"Update:\"\n  sections — that is how a doc becomes a lie.\n- Never edit `docs/records/**` (generated records are frozen). Keep\n  `docs/README.md` in sync when the impact adds a canonical doc.\n- If the impact changes shipped scope, update `docs/features/capabilities.md`\n  in the same change.\n- Commit the canonical docs you changed with explicit paths. Never `git add -A`.\n  The daemon commits the feature record when the feature closes.\n- If the impact no longer applies cleanly, reconcile against the current truth\n  and record what you reconciled.\n- If you cannot reconcile, open a decision with `clara_decide` and stop. Do not\n  guess."
     },
     "judge": {
       "description": "Closes a reviewed feature from ledger evidence. Invoked at review.",

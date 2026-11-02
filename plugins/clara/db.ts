@@ -43,6 +43,43 @@ export function configDir(): string {
 /** The live ledger. Distinct from the home agent's clara.db settings database. */
 export const DEFAULT_DB_PATH = join(configDir(), 'ledger.db')
 
+/** The home agent's settings database, shared read-only as a control channel. */
+export function serverDbPath(): string {
+  return process.env.CLARA_DB_PATH?.trim() || join(configDir(), 'clara.db')
+}
+
+/**
+ * Read one setting from the home agent database without writing it. The
+ * plugin uses this for the Clara management master switch, which the panel
+ * owns. A missing database or settings table means management is off.
+ */
+export async function readServerSetting(key: string): Promise<unknown> {
+  const path = serverDbPath()
+  if (!existsSync(path)) return undefined
+
+  const db = await open(path)
+  try {
+    const row = db.prepare('SELECT value FROM settings WHERE key = ?').get(key) as
+      { value?: unknown } | undefined
+    if (!row || typeof row.value !== 'string') return undefined
+    try {
+      return JSON.parse(row.value)
+    } catch {
+      return undefined
+    }
+  } catch {
+    // A server database from an older schema has no settings table yet.
+    return undefined
+  } finally {
+    db.close()
+  }
+}
+
+/** The panel-owned master switch. Defaults to off when the home agent is absent. */
+export async function managementEnabled(): Promise<boolean> {
+  return (await readServerSetting('management.enabled')) === true
+}
+
 let cached: { path: string; db: Db } | undefined
 
 async function open(path: string): Promise<Db> {

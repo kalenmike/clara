@@ -8,7 +8,8 @@ import { mkdirSync, mkdtempSync, readFileSync, rmSync, existsSync } from 'node:f
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import * as daemon from './daemon.ts'
-import { getDb } from './db.ts'
+import { collectAlerts } from './alerts.ts'
+import { getDb, managementEnabled } from './db.ts'
 import * as q from './queries.ts'
 import * as runs from './runs.ts'
 
@@ -42,10 +43,29 @@ function expectThrow(label: string, fn: () => unknown, needle: string): void {
 }
 
 const dir = mkdtempSync(join(tmpdir(), 'clara-selftest-'))
+process.env.CLARA_CONFIG_DIR = dir
 const dbPath = join(dir, 'ledger.db')
 const workspace = join(dir, 'workspace')
 
+// The panel owns the master switch. Give this isolated process a minimal
+// home-agent database so the plugin reads a real setting.
+const serverDbPath = join(dir, 'clara.db')
+const { DatabaseSync } = await import('node:sqlite')
+const serverDb = new DatabaseSync(serverDbPath)
+serverDb.exec('CREATE TABLE settings (key TEXT PRIMARY KEY, value TEXT NOT NULL)')
+serverDb
+  .prepare('INSERT INTO settings (key, value) VALUES (?, ?)')
+  .run('management.enabled', JSON.stringify(false))
+
 const db = await getDb(dbPath)
+
+console.log('\n0. management setting')
+check('management defaults off', (await managementEnabled()) === false)
+serverDb
+  .prepare('UPDATE settings SET value = ? WHERE key = ?')
+  .run(JSON.stringify(true), 'management.enabled')
+check('management reads the panel setting', (await managementEnabled()) === true)
+serverDb.close()
 
 console.log('\n0. plugin registration')
 const index = await import('./index.ts')
@@ -146,10 +166,39 @@ check(
     (p) => p.action === 'edit' && p.resource === '**/*.test.*' && p.effect === 'deny'
   )
 )
+check(
+  'build agent can append its record',
+  buildPermissions.some(
+    (p) => p.action === 'edit' && p.resource === 'docs/records/**' && p.effect === 'allow'
+  )
+)
 const docsPermissions = ((agents.agents as any)['004'].permissions ?? []) as any[]
 check(
   'docs agent can open a decision',
   docsPermissions.some((p) => p.action === 'clara_decide' && p.effect === 'allow')
+)
+check(
+  'docs agent can edit canonical docs',
+  docsPermissions.some(
+    (p) => p.action === 'edit' && p.resource === 'docs/**' && p.effect === 'allow'
+  )
+)
+check(
+  'docs agent cannot edit generated records',
+  docsPermissions.some(
+    (p) => p.action === 'edit' && p.resource === 'docs/records/**' && p.effect === 'deny'
+  )
+)
+check(
+  'docs agent cannot bypass edits with shell',
+  docsPermissions.some((p) => p.action === 'shell' && p.resource === '*' && p.effect === 'deny')
+)
+const specPermissions = ((agents.agents as any)['001'].permissions ?? []) as any[]
+check(
+  'spec agent can append its record',
+  specPermissions.some(
+    (p) => p.action === 'edit' && p.resource === 'docs/records/**' && p.effect === 'allow'
+  )
 )
 check('docs agent maps to ai_4', index.AGENT_ACTORS['004'] === 'ai_4')
 
@@ -165,6 +214,23 @@ check(
   'every tool has execute',
   [...registered.values()].every((t) => typeof t.execute === 'function')
 )
+
+const controlDb = new DatabaseSync(serverDbPath)
+controlDb
+  .prepare('UPDATE settings SET value = ? WHERE key = ?')
+  .run(JSON.stringify(false), 'management.enabled')
+let guarded = false
+try {
+  await registered.get('clara_inbox')!.execute({})
+} catch (error) {
+  guarded = (error as Error).message.includes('Clara management is disabled')
+}
+check('tools refuse while management is off', guarded)
+controlDb
+  .prepare('UPDATE settings SET value = ? WHERE key = ?')
+  .run(JSON.stringify(true), 'management.enabled')
+controlDb.close()
+
 const wired = await registered.get('clara_inbox')!.execute({})
 check('tool execute reaches the ledger', String(wired.content).startsWith('inbox: empty'))
 
@@ -186,6 +252,11 @@ const feature = db.prepare('SELECT * FROM features ORDER BY id DESC LIMIT 1').ge
 check('feature exists', !!feature)
 check('state is spec', feature.state === 'spec')
 check('record written', existsSync(String(feature.spec_path)))
+check(
+  'record lives under docs/records',
+  String(feature.spec_path).includes('/docs/records/'),
+  String(feature.spec_path)
+)
 check(
   'event recorded',
   db.prepare('SELECT COUNT(*) c FROM events WHERE feature_id = ?').get(feature.id)!.c === 1
@@ -668,6 +739,57 @@ ddb
 check('a stale lock can be taken over', runs.acquireDaemonLock(ddb, 'selftest-b', 2, 60_000))
 runs.releaseDaemonLock(ddb, 'selftest-b')
 check('lock row is gone', !ddb.prepare('SELECT 1 FROM daemon_lock WHERE id = 1').get())
+
+console.log('\n14. alert outbox')
+const waitSubmit = q.submit(db, {
+  workspace: 'clara',
+  path: workspace,
+  title: 'Wait states produce alerts',
+  intent: 'The outbox names approval and gate waits as well as decisions.',
+})
+const waitId = Number(waitSubmit.match(/registered (\d+)/)![1])
+q.setCriteria(db, {
+  feature: waitId,
+  criteria: [{ text: 'a human verifies the wait state', human_gate: true }],
+  docs_impact: 'none',
+})
+collectAlerts(db)
+const approvalAlert = db
+  .prepare('SELECT * FROM alerts WHERE key = ? AND resolved_at IS NULL')
+  .get(`approval:${waitId}`)
+check('criteria approval creates an alert', Boolean(approvalAlert))
+
+q.approve(db, { feature: waitId })
+collectAlerts(db)
+const approvalClosed = db
+  .prepare('SELECT resolved_at FROM alerts WHERE key = ?')
+  .get(`approval:${waitId}`)
+check('approval resolves the alert', Boolean(approvalClosed?.resolved_at))
+
+q.freeze(db, { feature: waitId, tests_hash: 'sha256:wait', tests_total: 1 })
+q.appendEvent(db, { feature: waitId, type: 'build.started', actor: 'ai_0', state: 'building' })
+q.appendEvent(db, { feature: waitId, type: 'build.review', actor: 'ai_0', state: 'review' })
+collectAlerts(db)
+const gateAlert = db
+  .prepare('SELECT * FROM alerts WHERE key = ? AND resolved_at IS NULL')
+  .get(`gates:${waitId}`)
+check('review gates create an alert', Boolean(gateAlert))
+
+q.gate(db, { feature: waitId, criteria: [1] })
+collectAlerts(db)
+const gateClosed = db.prepare('SELECT resolved_at FROM alerts WHERE key = ?').get(`gates:${waitId}`)
+check('gate verification resolves the alert', Boolean(gateClosed?.resolved_at))
+
+const decisionAlert = q.decide(db, {
+  feature: waitId,
+  kind: 'decision',
+  question: 'Should this wait state be tested?',
+})
+collectAlerts(db)
+const openDecision = db
+  .prepare("SELECT * FROM alerts WHERE key LIKE 'decision:%' AND resolved_at IS NULL")
+  .get()
+check('an open decision creates an alert', Boolean(openDecision), decisionAlert)
 
 rmSync(dir, { recursive: true, force: true })
 

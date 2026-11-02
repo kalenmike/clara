@@ -34,6 +34,7 @@ const claraDir = process.env.CLARA_CONFIG_DIR?.trim() || join(configHome, 'clara
 
 const pluginLink = join(pluginsDir, 'clara')
 const agentManifest = join(agentsDir, '.clara-agents.json')
+const management = await readManagement()
 
 if (!existsSync(join(pluginDir, 'index.ts'))) {
   fail(`Plugin entry not found at ${join(pluginDir, 'index.ts')}`)
@@ -52,6 +53,11 @@ installAgents()
 const ledger = join(claraDir, 'ledger.db')
 console.log(`\nLedger: ${ledger}`)
 console.log(`Settings DB left untouched: ${join(claraDir, 'clara.db')}`)
+console.log(
+  management
+    ? 'Clara management: on'
+    : 'Clara management: off (agents are rendered disabled; enable it in the panel)'
+)
 console.log('Reload OpenCode with `opencode reload`, or restart the service.')
 
 function linkPlugin() {
@@ -93,7 +99,7 @@ function installAgents() {
       fail(`Agent "${id}" must be an object`)
     }
 
-    const content = renderAgent(definition)
+    const content = renderAgent(definition, management)
     const path = join(agentsDir, `${id}.md`)
     const existing = existsSync(path) ? readFileSync(path, 'utf8') : undefined
     const previousHash = manifest.agents[id]
@@ -136,14 +142,34 @@ function readManifest() {
   }
 }
 
-function renderAgent(agent) {
+function renderAgent(agent, enabled) {
   const { system, ...frontmatter } = agent
   if (typeof frontmatter.description !== 'string') {
     fail('Every agent needs a description')
   }
-  const yaml = renderYaml(frontmatter, 0)
+  const yaml = renderYaml(enabled ? frontmatter : { ...frontmatter, disabled: true }, 0)
   const body = typeof system === 'string' ? system.trim() : ''
   return `---\n${yaml}\n---\n\n${body}\n`
+}
+
+/** The panel owns the master switch; the installer only reads it. */
+async function readManagement() {
+  const path = join(claraDir, 'clara.db')
+  if (!existsSync(path)) return false
+
+  try {
+    const { DatabaseSync } = await import('node:sqlite')
+    const db = new DatabaseSync(path)
+    try {
+      const row = db.prepare('SELECT value FROM settings WHERE key = ?').get('management.enabled')
+      if (!row || typeof row.value !== 'string') return false
+      return JSON.parse(row.value) === true
+    } finally {
+      db.close()
+    }
+  } catch {
+    return false
+  }
 }
 
 // Small YAML emitter for the config shapes used by agents.json. Strings are

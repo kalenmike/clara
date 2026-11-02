@@ -10,7 +10,9 @@
 
 import { randomUUID } from 'node:crypto'
 import { existsSync } from 'node:fs'
+import { execFileSync } from 'node:child_process'
 import type { Db, Row } from './db.ts'
+import { collectAlerts } from './alerts.ts'
 import { appendEvent, decide, tick as ledgerTick, workspaceOf } from './queries.ts'
 import {
   acquireDaemonLock,
@@ -78,6 +80,8 @@ export interface DaemonOptions {
   maxSpawnsPerTick?: number
   owner?: string
   pid?: number
+  /** When this returns false the loop stays loaded but does no work. */
+  management?: () => Promise<boolean>
   logger?: DaemonLogger
 }
 
@@ -100,6 +104,7 @@ const defaultLogger: DaemonLogger = {
 }
 
 const pad = (n: number): string => String(n).padStart(3, '0')
+const recordCommitFailures = new Set<number>()
 
 function positive(value: number | undefined, fallback: number): number {
   return typeof value === 'number' && Number.isFinite(value) && value > 0 ? value : fallback
@@ -226,9 +231,21 @@ export function createDaemon(options: DaemonOptions): Daemon {
   let kick: ReturnType<typeof setTimeout> | undefined
   let running = false
   let stopped = false
+  let idleForManagement = false
 
   const runOnce = async (): Promise<string[]> => {
     if (running || stopped) return []
+    if (options.management && !(await options.management())) {
+      if (!idleForManagement) {
+        idleForManagement = true
+        logger.info('daemon idle: Clara management is disabled')
+      }
+      return []
+    }
+    if (idleForManagement) {
+      idleForManagement = false
+      logger.info('daemon resumed: Clara management is enabled')
+    }
     if (!sessionApi(ctx)) {
       logger.error('daemon: session API unavailable; not ticking')
       return []
@@ -287,6 +304,11 @@ export async function advance(options: TickOptions): Promise<string[]> {
 
   await reconcileRuns(options)
   ledgerTick(options.db, { dry_run: false })
+  const alerts = collectAlerts(options.db)
+  if (alerts.length) {
+    for (const alert of alerts) options.logger.info(`alert: ${alert.title}`)
+  }
+  commitClosedRecords(options)
 
   const actions: string[] = []
   let spawned = 0
@@ -635,6 +657,67 @@ function writeRunEvent(
     })
   } catch (error) {
     logger.error(`daemon: could not write ${type} for run ${run.id}`, error)
+  }
+}
+
+// ---------------------------------------------------------------------------
+// feature records
+// ---------------------------------------------------------------------------
+
+/**
+ * Commit the generated record once the judge closes a feature. The docs agent
+ * owns canonical docs; this step owns the per-feature audit record, so a close
+ * does not leave an untracked file behind.
+ */
+function commitClosedRecords(options: TickOptions): void {
+  const rows = options.db
+    .prepare(
+      `SELECT f.*, w.path AS workspace_path
+         FROM features f
+         JOIN workspaces w ON w.id = f.workspace_id
+        WHERE f.state IN ('done', 'scrapped')
+          AND f.closed_at IS NOT NULL
+          AND f.spec_path IS NOT NULL
+          AND f.record_committed_at IS NULL
+        ORDER BY f.id`
+    )
+    .all()
+
+  for (const feature of rows) {
+    const path = String(feature.spec_path)
+    const directory = String(feature.workspace_path)
+    if (!existsSync(path)) continue
+
+    try {
+      execFileSync('git', ['add', '--', path], { cwd: directory, stdio: 'ignore' })
+      const staged = execFileSync('git', ['diff', '--cached', '--name-only', '--', path], {
+        cwd: directory,
+        encoding: 'utf8',
+      })
+      if (staged.trim()) {
+        const subject = `docs(record): close ${pad(Number(feature.id))} ${feature.slug}`
+        const body =
+          `Record the final state and checkpoint history for feature ${feature.id}.\n\n` +
+          'Co-authored-by: OpenCode <noreply@opencode.ai>'
+        execFileSync('git', ['commit', '-m', subject, '-m', body, '--', path], {
+          cwd: directory,
+          stdio: 'ignore',
+        })
+        options.logger.info(`record committed: ${subject}`)
+      }
+      options.db
+        .prepare('UPDATE features SET record_committed_at = ? WHERE id = ?')
+        .run(new Date().toISOString(), feature.id)
+      recordCommitFailures.delete(Number(feature.id))
+    } catch (error) {
+      if (!recordCommitFailures.has(Number(feature.id))) {
+        recordCommitFailures.add(Number(feature.id))
+        options.logger.error(
+          `could not commit the feature record for ${pad(Number(feature.id))} ${feature.slug}`,
+          error
+        )
+      }
+    }
   }
 }
 

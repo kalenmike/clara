@@ -21,7 +21,7 @@
 // group.
 
 import { createDaemon } from './daemon.ts'
-import { DEFAULT_DB_PATH, getDb, type Db } from './db.ts'
+import { DEFAULT_DB_PATH, getDb, managementEnabled, type Db } from './db.ts'
 import * as q from './queries.ts'
 
 export const NAMESPACE = 'clara'
@@ -70,9 +70,12 @@ function requireRole(name: string, context: any, allowed: string[]): string {
 /**
  * Build the ledger tools. `setup` registers them with OpenCode; `cli.ts` runs
  * the same definitions directly so a human can test a tool without an agent.
+ *
+ * `guard` is only passed by the plugin entry. It makes every tool inert when
+ * Clara management is off, while leaving the CLI available for recovery.
  */
-export function createTools(db: Db): ClaraTool[] {
-  return [
+export function createTools(db: Db, guard?: () => Promise<boolean>): ClaraTool[] {
+  const tools: ClaraTool[] = [
     // -- human facing ------------------------------------------------------
 
     {
@@ -377,6 +380,19 @@ export function createTools(db: Db): ClaraTool[] {
       },
     },
   ]
+
+  if (!guard) return tools
+  return tools.map((tool) => ({
+    ...tool,
+    execute: async (input: any, context: any) => {
+      if (!(await guard())) {
+        throw new Error(
+          'Clara management is disabled. Enable it in the Clara agent panel to use the ledger.'
+        )
+      }
+      return tool.execute(input, context)
+    },
+  }))
 }
 
 export default {
@@ -393,10 +409,17 @@ export default {
         description: 'Clara ledger: submit specs, read state, record events and decisions.',
       })
 
-      for (const tool of createTools(db)) {
+      for (const tool of createTools(db, managementEnabled)) {
         editor.add({ ...tool, options: { namespace: NAMESPACE } })
       }
     })
+
+    const enabled = await managementEnabled()
+    console.log(
+      enabled
+        ? '[clara] management enabled'
+        : '[clara] management disabled; enable it in the Clara panel'
+    )
 
     if (daemonDisabled(ctx.options)) {
       console.log('[clara] daemon disabled')
@@ -410,6 +433,7 @@ export default {
     const daemon = createDaemon({
       db,
       ctx,
+      management: managementEnabled,
       intervalMs: numberOption(ctx.options?.daemonIntervalMs, 15_000),
       lockStaleMs: numberOption(ctx.options?.daemonLockStaleMs, 300_000),
       maxSpawnsPerTick: numberOption(ctx.options?.daemonMaxSpawnsPerTick, 1),

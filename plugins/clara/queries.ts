@@ -6,6 +6,7 @@
 
 import { appendFileSync, existsSync, mkdirSync, writeFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
+import { pendingHumanWork } from './alerts.ts'
 import { ago, now, slugify, type Db, type Row } from './db.ts'
 
 export const STALL_MINUTES = 10
@@ -121,10 +122,6 @@ ${meta.not_worth_it || '_not stated_'}
 
 soft: ${feature.soft_budget ?? '_unset_'} · hard: ${feature.hard_budget ?? '_unset_'}
 
-## Docs impact
-
-none
-
 ## Checkpoints
 
 _None yet._
@@ -201,7 +198,7 @@ export function submit(db: Db, input: SubmitInput): string {
     )
 
   const id = Number(result.lastInsertRowid)
-  const specPath = join(ws.path, 'docs', 'features', `${pad(id)}-${slug}.md`)
+  const specPath = join(ws.path, 'docs', 'records', `${pad(id)}-${slug}.md`)
   db.prepare('UPDATE features SET spec_path = ? WHERE id = ?').run(specPath, id)
 
   const feature = requireFeature(db, id)
@@ -305,6 +302,11 @@ export function setCriteria(
 
   appendRecord(feature, table)
 
+  appendRecord(
+    feature,
+    `\n## Docs impact\n\n${String(input.docs_impact ?? 'none').trim() || 'none'}\n`
+  )
+
   if (input.kill_criteria?.length) {
     appendRecord(
       feature,
@@ -390,6 +392,7 @@ export function appendEvent(
 ): string {
   const feature = requireFeature(db, input.feature)
   const at = now()
+  const previousState = String(feature.state)
 
   if (input.state) {
     const allowed = TRANSITIONS[feature.state] ?? []
@@ -442,6 +445,14 @@ export function appendEvent(
   }
 
   const updated = requireFeature(db, feature.id)
+  if (input.state) {
+    appendRecord(
+      feature,
+      `\n- **${at}** state ${previousState} → ${input.state} (${input.actor})` +
+        (updated.scrap_reason ? ` · ${updated.scrap_reason}` : '') +
+        `\n`
+    )
+  }
   return `${pad(updated.id)} ${updated.slug}: ${input.type} by ${input.actor}${input.state ? ` → state=${updated.state}` : ''}`
 }
 
@@ -732,7 +743,13 @@ export function inbox(db: Db, input: { workspace?: string } = {}): string {
     )
     .all(...(ws ? [ws.id] : []))
 
-  if (!decisions.length && !stalled.length && !over.length) {
+  const waits = pendingHumanWork(db).filter(
+    (item) =>
+      (item.kind === 'approval' || item.kind === 'gates') &&
+      (!input.workspace || item.workspace === input.workspace)
+  )
+
+  if (!decisions.length && !stalled.length && !over.length && !waits.length) {
     return 'inbox: empty. Nothing needs you.'
   }
 
@@ -760,6 +777,12 @@ export function inbox(db: Db, input: { workspace?: string } = {}): string {
   for (const f of over) {
     lines.push(`${pad(Number(f.id))} ${f.slug} [${f.workspace}] · over soft budget`)
     lines.push(`   ${f.tokens} tokens vs soft ${f.soft_budget} · state=${f.state}`)
+    lines.push('')
+  }
+
+  for (const item of waits) {
+    lines.push(item.title)
+    for (const line of item.body.split('\n')) lines.push(`   ${line}`)
     lines.push('')
   }
 
@@ -1121,6 +1144,7 @@ export function tick(db: Db, input: { workspace?: string; dry_run?: boolean } = 
     db.prepare(
       'INSERT INTO events (feature_id, at, type, actor, payload) VALUES (?, ?, ?, ?, ?)'
     ).run(f.id, at, 'feature.killed', 'ai_0', json({ reason }))
+    appendRecord(f, `\n- **${at}** state ${f.state} → scrapped (ai_0) · ${reason}\n`)
     actions.push(`${pad(f.id)} ${f.slug}: killed (${reason})`)
   }
 
