@@ -4,9 +4,9 @@ import { join } from 'node:path'
 import Database from 'better-sqlite3'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { LedgerAlert } from '@clara/shared-types'
+import { LedgerDeliveryStore } from '../src/clara/ledger/delivery.ts'
 import { LedgerAlertMonitor } from '../src/clara/ledger/monitor.ts'
 import { LedgerReader } from '../src/clara/ledger/reader.ts'
-import { LedgerAlertStore } from '../src/clara/ledger/store.ts'
 import { closeDatabase, openDatabase } from '../src/store/database.ts'
 
 const dirs: string[] = []
@@ -49,11 +49,18 @@ function setup() {
   ledger.close()
 
   const database = openDatabase(join(dir, 'clara.db'))
+  const deliveryPath = join(dir, 'ledger-alerts.db')
+  const store = new LedgerDeliveryStore(deliveryPath)
   return {
     ledgerPath,
+    deliveryPath,
     reader: new LedgerReader(ledgerPath),
-    store: new LedgerAlertStore(database),
-    close: () => closeDatabase(database),
+    store,
+    database,
+    close: () => {
+      store.close()
+      closeDatabase(database)
+    },
   }
 }
 
@@ -85,6 +92,41 @@ describe('LedgerReader', () => {
     const reader = new LedgerReader('/tmp/clara-ledger-does-not-exist.db')
     expect(reader.inbox().items).toEqual([])
     expect(reader.latestId()).toBe(0)
+  })
+})
+
+describe('LedgerDeliveryStore', () => {
+  it('persists the cursor and dedupe keys across reopen', () => {
+    const { deliveryPath, store, close } = setup()
+    try {
+      store.setCursor(7)
+      store.markDelivered('decision:1')
+      store.close()
+
+      const reopened = new LedgerDeliveryStore(deliveryPath)
+      try {
+        expect(reopened.cursor()).toBe(7)
+        expect(reopened.delivered('decision:1')).toBe(true)
+      } finally {
+        reopened.close()
+      }
+    } finally {
+      close()
+    }
+  })
+
+  it('does not create delivery tables in the agent database', () => {
+    const { database, close } = setup()
+    try {
+      const names = database
+        .prepare(
+          "SELECT name FROM sqlite_master WHERE type = 'table' AND name LIKE 'ledger_alert%'"
+        )
+        .all()
+      expect(names).toEqual([])
+    } finally {
+      close()
+    }
   })
 })
 

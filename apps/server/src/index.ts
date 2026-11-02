@@ -91,8 +91,7 @@ async function main(): Promise<void> {
   let controller: RuntimeController | undefined
   const clara = claraFeatureIncluded()
     ? new ClaraManagement({
-        config: { ledgerDbPath: config.ledgerDbPath },
-        database,
+        config,
         settings,
         openCode,
         push,

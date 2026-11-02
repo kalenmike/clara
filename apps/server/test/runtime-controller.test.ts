@@ -70,8 +70,10 @@ async function createController(
   let controller: RuntimeController | undefined
   const clara = options.syncClaraAgents
     ? new ClaraManagement({
-        config: { ledgerDbPath: serverConfig.ledgerDbPath },
-        database: db,
+        config: {
+          configDir: serverConfig.configDir,
+          ledgerDbPath: serverConfig.ledgerDbPath,
+        },
         settings,
         openCode,
         broadcast: () => undefined,

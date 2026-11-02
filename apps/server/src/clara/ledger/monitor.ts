@@ -2,12 +2,12 @@ import type { AttentionKind, LedgerAlert } from '@clara/shared-types'
 import type { PushNotificationPayload } from '../../push/payload.ts'
 import type { PushService } from '../../push/service.ts'
 import { sendDesktopAlert } from './desktop.ts'
+import type { LedgerDeliveryStore } from './delivery.ts'
 import type { LedgerReader } from './reader.ts'
-import type { LedgerAlertStore } from './store.ts'
 
 export type LedgerAlertMonitorOptions = {
   reader: LedgerReader
-  store: LedgerAlertStore
+  store: LedgerDeliveryStore
   push?: PushService
   enabled: () => boolean
   canPush?: () => boolean

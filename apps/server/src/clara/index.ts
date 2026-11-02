@@ -1,16 +1,15 @@
 import type { LedgerAlert, LedgerInbox } from '@clara/shared-types'
+import { join } from 'node:path'
 import type { OpenCodeClient } from '../opencode.ts'
 import type { PushService } from '../push/service.ts'
-import type { ClaraDatabase } from '../store/database.ts'
 import type { SettingsStore } from '../store/settings.ts'
 import { syncClaraAgentVisibility, type ClaraAgentSyncResult } from './agents.ts'
+import { LedgerDeliveryStore } from './ledger/delivery.ts'
 import { LedgerAlertMonitor } from './ledger/monitor.ts'
 import { LedgerReader } from './ledger/reader.ts'
-import { LedgerAlertStore } from './ledger/store.ts'
 
 export type ClaraManagementOptions = {
-  config: { ledgerDbPath: string }
-  database: ClaraDatabase
+  config: { configDir: string; ledgerDbPath: string }
   settings: SettingsStore
   openCode: OpenCodeClient
   push?: PushService
@@ -32,7 +31,7 @@ export type ClaraManagementOptions = {
 export class ClaraManagement {
   private readonly options: ClaraManagementOptions
   private ledgerReader?: LedgerReader
-  private deliveryStore?: LedgerAlertStore
+  private deliveryStore?: LedgerDeliveryStore
   private alertMonitor?: LedgerAlertMonitor
 
   constructor(options: ClaraManagementOptions) {
@@ -98,6 +97,8 @@ export class ClaraManagement {
 
   close(): void {
     this.stopMonitor()
+    this.deliveryStore?.close()
+    this.deliveryStore = undefined
   }
 
   private reader(): LedgerReader {
@@ -105,8 +106,10 @@ export class ClaraManagement {
     return this.ledgerReader
   }
 
-  private store(): LedgerAlertStore {
-    this.deliveryStore ??= new LedgerAlertStore(this.options.database)
+  private store(): LedgerDeliveryStore {
+    this.deliveryStore ??= new LedgerDeliveryStore(
+      join(this.options.config.configDir, 'ledger-alerts.db')
+    )
     return this.deliveryStore
   }
 

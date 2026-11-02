@@ -5,7 +5,7 @@ import Database from 'better-sqlite3'
 
 export type ClaraDatabase = Database.Database
 
-export const SCHEMA_VERSION = 6
+export const SCHEMA_VERSION = 7
 
 const BUSY_TIMEOUT_MS = 5_000
 const DATABASE_MODE = 0o600
@@ -110,6 +110,17 @@ const MIGRATIONS: Migration[] = [
         key          TEXT PRIMARY KEY,
         delivered_at INTEGER NOT NULL
       );
+    `)
+  },
+  /**
+   * Ledger alert delivery moved to a Clara-owned sidecar. Migrations are
+   * append-only, so this removes the legacy tables from existing agent
+   * databases (and from fresh ones created by the previous step).
+   */
+  (db) => {
+    db.exec(`
+      DROP TABLE IF EXISTS ledger_alert_state;
+      DROP TABLE IF EXISTS ledger_alert_delivery;
     `)
   },
 ]
