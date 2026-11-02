@@ -2,8 +2,8 @@ import { join, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { fingerprintPsk } from '@clara/crypto'
 import { PROTOCOL_VERSION } from '@clara/shared-types'
-import { LedgerReader } from './ledger/reader.ts'
-import { LedgerAlertStore } from './ledger/store.ts'
+import { ClaraManagement } from './clara/index.ts'
+import { claraFeatureIncluded } from './clara/flag.ts'
 import { loadConfig } from './config.ts'
 import { OpenCodeClient } from './opencode.ts'
 import { printPairing } from './pairing.ts'
@@ -53,8 +53,6 @@ async function main(): Promise<void> {
   const database = openDatabase(config.dbPath)
   const settings = new SettingsStore(database)
   const clientStorage = new ClientStorageStore(database)
-  const ledger = new LedgerReader(config.ledgerDbPath, log)
-  const ledgerStore = new LedgerAlertStore(database)
   const initial = settings.get()
 
   const openCode = new OpenCodeClient(config.opencode.url, config.opencode.password)
@@ -87,10 +85,33 @@ async function main(): Promise<void> {
     opencodeVersion,
     room: config.relay?.room,
     pushPublicKey: push?.publicKey,
-    management: initial.management,
+    management: false,
   }
 
-  const controller = new RuntimeController({
+  let controller: RuntimeController | undefined
+  const clara = claraFeatureIncluded()
+    ? new ClaraManagement({
+        config: { ledgerDbPath: config.ledgerDbPath },
+        database,
+        settings,
+        openCode,
+        push,
+        broadcast: (alert) => {
+          const state = { type: 'ledger.alert' as const, alert }
+          controller?.agent.broadcastState(state)
+          controller?.relay?.broadcastState(state)
+        },
+        canPush: () => controller?.canPush() ?? false,
+        isDeskActive: () =>
+          (controller?.agent.deskHoldActive() ?? false) ||
+          (controller?.relay?.deskHoldActive() ?? false),
+        hasClients: () => (controller?.connectedClients() ?? 0) > 0,
+        canProxy: () => controller?.canProxy() ?? false,
+        log,
+      })
+    : undefined
+
+  controller = new RuntimeController({
     config,
     openCode,
     info,
@@ -98,8 +119,7 @@ async function main(): Promise<void> {
     sync: clientStorage,
     push,
     pushError,
-    ledger,
-    ledgerStore,
+    clara,
     log,
   })
 
@@ -123,7 +143,8 @@ async function main(): Promise<void> {
       traffic: controller.traffic,
       push,
       pushError,
-      ledgerPath: config.ledgerDbPath,
+      ledgerPath: () =>
+        controller?.clara && settings.getManagement() ? controller.clara.ledgerPath : undefined,
       fingerprint,
       startedAt,
       controls: () => controller.controls(),

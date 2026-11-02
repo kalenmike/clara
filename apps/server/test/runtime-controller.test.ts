@@ -4,13 +4,11 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
 import type { AgentInfo } from '@clara/shared-types'
+import { ClaraManagement } from '../src/clara/index.ts'
+import type { ClaraAgentSyncResult } from '../src/clara/agents.ts'
 import type { ServerConfig } from '../src/config.ts'
 import { OpenCodeClient } from '../src/opencode.ts'
-import {
-  AgentStoppedError,
-  RuntimeController,
-  type ControllerOptions,
-} from '../src/runtime/controller.ts'
+import { AgentStoppedError, RuntimeController } from '../src/runtime/controller.ts'
 import { closeDatabase, openDatabase } from '../src/store/database.ts'
 import { SettingsStore } from '../src/store/settings.ts'
 
@@ -54,7 +52,10 @@ const info: AgentInfo = { version: 'test', protocol: 1 }
 
 async function createController(
   port = 0,
-  options: Pick<ControllerOptions, 'syncClaraAgents'> & { openCodeUrl?: string } = {}
+  options: {
+    syncClaraAgents?: (enabled: boolean) => ClaraAgentSyncResult
+    openCodeUrl?: string
+  } = {}
 ): Promise<{
   controller: RuntimeController
   settings: SettingsStore
@@ -65,13 +66,29 @@ async function createController(
   const db = openDatabase(serverConfig.dbPath)
   const settings = new SettingsStore(db)
   const controllerInfo: AgentInfo = { ...info }
-  const controller = new RuntimeController({
+  const openCode = new OpenCodeClient(options.openCodeUrl ?? 'http://127.0.0.1:4096')
+  let controller: RuntimeController | undefined
+  const clara = options.syncClaraAgents
+    ? new ClaraManagement({
+        config: { ledgerDbPath: serverConfig.ledgerDbPath },
+        database: db,
+        settings,
+        openCode,
+        broadcast: () => undefined,
+        canPush: () => false,
+        isDeskActive: () => false,
+        hasClients: () => false,
+        canProxy: () => controller?.canProxy() ?? false,
+        syncAgents: options.syncClaraAgents,
+        log: () => undefined,
+      })
+    : undefined
+  controller = new RuntimeController({
     config: serverConfig,
-    openCode: new OpenCodeClient(options.openCodeUrl ?? 'http://127.0.0.1:4096'),
+    openCode,
     info: controllerInfo,
     settings,
-    syncClaraAgents:
-      options.syncClaraAgents ?? (() => ({ updated: [], skipped: [], missingManifest: true })),
+    clara,
     log: () => undefined,
   })
   controllers.push(controller)
@@ -80,7 +97,7 @@ async function createController(
     settings,
     info: controllerInfo,
     close: async () => {
-      await controller.close()
+      await controller?.close()
       closeDatabase(db)
     },
   }

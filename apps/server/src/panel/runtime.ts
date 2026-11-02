@@ -46,7 +46,7 @@ export type PanelRuntimeOptions = {
   traffic?: TrafficMeter
   push?: PushService
   pushError?: string
-  ledgerPath?: string
+  ledgerPath?: () => string | undefined
   fingerprint?: string
   startedAt: number
   controls?: () => PanelControls
@@ -323,8 +323,9 @@ export class PanelRuntime implements PanelDataSource {
       }
       entries.push(entry)
     }
-    if (this.options.ledgerPath) {
-      entries.push(describeStorage('ledger', 'Clara ledger', this.options.ledgerPath, false))
+    const ledgerPath = this.options.ledgerPath?.()
+    if (ledgerPath) {
+      entries.push(describeStorage('ledger', 'Clara ledger', ledgerPath, false))
     }
     return entries
   }

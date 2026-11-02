@@ -4,9 +4,9 @@ import { join } from 'node:path'
 import Database from 'better-sqlite3'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { LedgerAlert } from '@clara/shared-types'
-import { LedgerAlertMonitor } from '../src/ledger/monitor.ts'
-import { LedgerReader } from '../src/ledger/reader.ts'
-import { LedgerAlertStore } from '../src/ledger/store.ts'
+import { LedgerAlertMonitor } from '../src/clara/ledger/monitor.ts'
+import { LedgerReader } from '../src/clara/ledger/reader.ts'
+import { LedgerAlertStore } from '../src/clara/ledger/store.ts'
 import { closeDatabase, openDatabase } from '../src/store/database.ts'
 
 const dirs: string[] = []

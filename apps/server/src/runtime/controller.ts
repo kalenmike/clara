@@ -7,11 +7,8 @@ import type {
 } from '@clara/shared-types'
 import type { WebSocket } from 'ws'
 import { Agent } from '../agent.ts'
-import { syncClaraAgentVisibility, type ClaraAgentSyncResult } from '../clara/agents.ts'
+import type { ClaraManagement } from '../clara/index.ts'
 import type { ServerConfig } from '../config.ts'
-import { LedgerAlertMonitor } from '../ledger/monitor.ts'
-import type { LedgerReader } from '../ledger/reader.ts'
-import type { LedgerAlertStore } from '../ledger/store.ts'
 import { broadcast, LocalTransport } from '../local-server.ts'
 import type { OpenCodeClient } from '../opencode.ts'
 import { PushMonitor } from '../push/monitor.ts'
@@ -29,11 +26,8 @@ export type ControllerOptions = {
   sync?: ClientStorageStore
   push?: PushService
   pushError?: string
-  ledger?: LedgerReader
-  ledgerStore?: LedgerAlertStore
+  clara?: ClaraManagement
   fingerprint?: string
-  /** Test seam; the panel uses the real installer manifest by default. */
-  syncClaraAgents?: (enabled: boolean) => ClaraAgentSyncResult
   log: (message: string, detail?: unknown) => void
 }
 
@@ -53,7 +47,6 @@ export class RuntimeController {
   private readonly localTransport: LocalTransport
   private readonly pushMonitor?: PushMonitor
   private pushMonitorRunning = false
-  private readonly ledgerMonitor?: LedgerAlertMonitor
   private readonly errors = new Map<FeatureName, string>()
   private readonly trafficMeter: TrafficMeter
   /** Command requests refused since this process started. */
@@ -66,13 +59,8 @@ export class RuntimeController {
     const sync = options.settings.getSync()
     options.info.syncEnabled = sync.enabled
     options.info.syncIntervalMs = sync.intervalMs
-    options.info.management = options.settings.getManagement()
-    const ledger = options.ledger
-      ? {
-          enabled: () => options.settings.getManagement(),
-          inbox: () => options.ledger!.inbox(),
-        }
-      : undefined
+    options.info.management = Boolean(options.clara) && options.settings.getManagement()
+    const ledger = options.clara?.ledgerCapability()
 
     this.localAgent = new Agent({
       openCode: options.openCode,
@@ -142,26 +130,7 @@ export class RuntimeController {
         push: options.push,
         isDeskActive: () =>
           this.localAgent.deskHoldActive() || (this.relayAgent?.deskHoldActive() ?? false),
-        isManagementEnabled: () => options.settings.getManagement(),
-        log: options.log,
-      })
-    }
-
-    if (options.ledger && options.ledgerStore) {
-      this.ledgerMonitor = new LedgerAlertMonitor({
-        reader: options.ledger,
-        store: options.ledgerStore,
-        push: options.push,
-        enabled: () => options.settings.getManagement() && !options.settings.getStopped(),
-        canPush: () => this.canPush(),
-        isDeskActive: () =>
-          this.localAgent.deskHoldActive() || (this.relayAgent?.deskHoldActive() ?? false),
-        hasClients: () => this.connectedClients() > 0,
-        broadcast: (alert) => {
-          const state = { type: 'ledger.alert' as const, alert }
-          this.localAgent.broadcastState(state)
-          this.relayAgent?.broadcastState(state)
-        },
+        isManagementEnabled: () => Boolean(options.clara) && options.settings.getManagement(),
         log: options.log,
       })
     }
@@ -177,6 +146,10 @@ export class RuntimeController {
 
   get relayTransport(): RelayClient | undefined {
     return this.relayClient
+  }
+
+  get clara(): ClaraManagement | undefined {
+    return this.options.clara
   }
 
   get push(): PushService | undefined {
@@ -195,7 +168,7 @@ export class RuntimeController {
     return this.trafficMeter
   }
 
-  private connectedClients(): number {
+  connectedClients(): number {
     const now = Date.now()
     return this.localAgent.getSnapshot(now).length + (this.relayAgent?.getSnapshot(now).length ?? 0)
   }
@@ -241,7 +214,7 @@ export class RuntimeController {
       shell: { ...settings.shell, blocked: this.shellDenied },
       monitoring: { enabled: settings.monitoring },
       sync: { ...settings.sync },
-      management: { enabled: settings.management },
+      management: { enabled: Boolean(this.options.clara) && settings.management },
     }
   }
 
@@ -249,13 +222,13 @@ export class RuntimeController {
     const settings = this.options.settings.get()
     // Reconcile agents saved before this process started, so an existing
     // management choice is reflected even when nobody touches the panel.
-    await this.applyAgentVisibility(settings.management)
+    await this.options.clara?.applyAgentVisibility(settings.management)
     if (settings.stopped) {
       this.options.log('agent stopped by an admin setting; only the panel and database are running')
       return
     }
     await this.applyDesired()
-    this.startLedgerMonitor()
+    this.options.clara?.startMonitor()
   }
 
   async setFeature(feature: FeatureName, enabled: boolean): Promise<PanelControls> {
@@ -305,17 +278,18 @@ export class RuntimeController {
    */
   async setManagement(enabled: boolean): Promise<PanelControls> {
     const previous = this.options.settings.getManagement()
-    this.options.settings.setManagement(enabled)
-    this.options.info.management = enabled
-    await this.applyAgentVisibility(enabled, { forceReload: previous !== enabled })
+    const next = Boolean(this.options.clara) && enabled
+    this.options.settings.setManagement(next)
+    this.options.info.management = next
+    await this.options.clara?.applyAgentVisibility(next, { forceReload: previous !== next })
 
     this.localAgent.broadcastAgentInfo()
     this.relayAgent?.broadcastAgentInfo()
-    if (previous !== enabled) {
-      this.options.log(enabled ? 'Clara management enabled' : 'Clara management disabled')
+    if (previous !== next) {
+      this.options.log(next ? 'Clara management enabled' : 'Clara management disabled')
     }
-    if (enabled) this.startLedgerMonitor({ prime: true })
-    else this.stopLedgerMonitor()
+    if (next) this.options.clara?.startMonitor({ prime: true })
+    else this.options.clara?.stopMonitor()
     return this.controls()
   }
 
@@ -349,7 +323,7 @@ export class RuntimeController {
       await this.stopLocal()
       this.relayClient?.close()
       this.stopPushMonitor()
-      this.stopLedgerMonitor()
+      this.options.clara?.stopMonitor()
       this.localAgent.reset()
       this.relayAgent?.reset()
       return this.controls()
@@ -357,7 +331,7 @@ export class RuntimeController {
 
     this.options.log('agent started by an admin setting')
     await this.applyDesired()
-    this.startLedgerMonitor()
+    this.options.clara?.startMonitor()
     return this.controls()
   }
 
@@ -365,7 +339,7 @@ export class RuntimeController {
     await this.stopLocal('agent shutting down')
     this.relayClient?.close()
     this.stopPushMonitor()
-    this.stopLedgerMonitor()
+    this.options.clara?.close()
     this.localAgent.close()
     this.relayAgent?.close()
   }
@@ -436,50 +410,6 @@ export class RuntimeController {
   private stopPushMonitor(): void {
     this.pushMonitor?.close()
     this.pushMonitorRunning = false
-  }
-
-  /**
-   * Agent files are config inputs, not transport state. Keep them aligned with
-   * the management switch and reload OpenCode only when a file changed. A
-   * reload failure must never block the saved switch or the daemon.
-   */
-  private async applyAgentVisibility(
-    enabled: boolean,
-    options: { forceReload?: boolean } = {}
-  ): Promise<void> {
-    const sync = this.options.syncClaraAgents ?? syncClaraAgentVisibility
-    let synced: ClaraAgentSyncResult | undefined
-    try {
-      synced = sync(enabled)
-    } catch (cause) {
-      this.options.log('could not sync the Clara agent files', cause)
-      if (!options.forceReload) return
-    }
-    if (synced?.skipped.length) {
-      this.options.log(
-        'left edited Clara agent files untouched',
-        synced.skipped.map((id) => `${id}.md`).join(', ')
-      )
-    }
-    if (!this.canProxy()) return
-    // A switch change must reload even when the generated files did not move:
-    // the plugin decides at setup whether to register its tools and daemon.
-    if (!synced?.updated.length && !options.forceReload) return
-
-    try {
-      await this.options.openCode.reload()
-    } catch (cause) {
-      this.options.log('could not reload OpenCode after changing Clara management', cause)
-    }
-  }
-
-  private startLedgerMonitor(options: { prime?: boolean } = {}): void {
-    if (!this.options.settings.getManagement() || this.options.settings.getStopped()) return
-    this.ledgerMonitor?.start(options)
-  }
-
-  private stopLedgerMonitor(): void {
-    this.ledgerMonitor?.stop()
   }
 
   private async stopLocal(reason = 'local transport disabled'): Promise<void> {

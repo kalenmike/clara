@@ -1,4 +1,4 @@
-import type { ClaraDatabase } from '../store/database.ts'
+import type { ClaraDatabase } from '../../store/database.ts'
 
 /** Delivery state for ledger alerts. Kept in clara.db, never in the ledger. */
 export class LedgerAlertStore {
