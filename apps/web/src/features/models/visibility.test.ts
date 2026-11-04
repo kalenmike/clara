@@ -106,10 +106,7 @@ describe('hidden model rules', () => {
   it('treats server-disabled models as not visible', () => {
     const visibility = { providers: [], models: [] }
     expect(
-      isModelVisible(
-        { providerID: 'opencode', modelID: 'free', enabled: false },
-        visibility
-      )
+      isModelVisible({ providerID: 'opencode', modelID: 'free', enabled: false }, visibility)
     ).toBe(false)
   })
 
@@ -128,9 +125,9 @@ describe('hidden model rules', () => {
 describe('model pricing', () => {
   it('treats missing and all-zero costs as free', () => {
     expect(isFreeModel({ cost: [] })).toBe(true)
-    expect(
-      isFreeModel({ cost: [{ input: 0, output: 0, cache: { read: 0, write: 0 } }] })
-    ).toBe(true)
+    expect(isFreeModel({ cost: [{ input: 0, output: 0, cache: { read: 0, write: 0 } }] })).toBe(
+      true
+    )
   })
 
   it('treats any positive tier as paid', () => {
@@ -142,9 +139,9 @@ describe('model pricing', () => {
         ],
       })
     ).toBe(false)
-    expect(
-      isFreeModel({ cost: [{ input: 0, output: 0, cache: { read: 0.1, write: 0 } }] })
-    ).toBe(false)
+    expect(isFreeModel({ cost: [{ input: 0, output: 0, cache: { read: 0.1, write: 0 } }] })).toBe(
+      false
+    )
   })
 
   it('filters models by price', () => {

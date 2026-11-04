@@ -1,9 +1,5 @@
 import { beforeAll, describe, expect, it } from 'vitest'
-import {
-  HIDDEN_MODELS_KEY,
-  readHiddenModels,
-  saveHiddenModels,
-} from '@/features/models/visibility'
+import { HIDDEN_MODELS_KEY, readHiddenModels, saveHiddenModels } from '@/features/models/visibility'
 import {
   DEFAULT_NOTIFICATION_SETTINGS,
   readNotificationSettings,

@@ -28,13 +28,7 @@ import { useSettingsSync } from '@/providers/settings-sync-provider'
 import { useIsTouchDevice } from '@/hooks/use-is-touch-device'
 
 type SettingsTab =
-  | 'appearance'
-  | 'preferences'
-  | 'models'
-  | 'notifications'
-  | 'sync'
-  | 'shortcuts'
-  | 'advanced'
+  'appearance' | 'preferences' | 'models' | 'notifications' | 'sync' | 'shortcuts' | 'advanced'
 
 const SETTINGS_TABS: Array<{ value: SettingsTab; label: string }> = [
   { value: 'appearance', label: 'Appearance' },

@@ -11,22 +11,15 @@ import {
 } from '@/features/models/visibility'
 
 export function useModelVisibility() {
-  const visibility = useSyncExternalStore(
-    subscribeHiddenModels,
-    readHiddenModels,
-    readHiddenModels
-  )
+  const visibility = useSyncExternalStore(subscribeHiddenModels, readHiddenModels, readHiddenModels)
 
   const setProviderHidden = useCallback((providerID: string, hidden: boolean) => {
     saveHiddenModels(withProviderHidden(readHiddenModels(), providerID, hidden))
   }, [])
 
-  const setModelHidden = useCallback(
-    (providerID: string, modelID: string, hidden: boolean) => {
-      saveHiddenModels(withModelHidden(readHiddenModels(), providerID, modelID, hidden))
-    },
-    []
-  )
+  const setModelHidden = useCallback((providerID: string, modelID: string, hidden: boolean) => {
+    saveHiddenModels(withModelHidden(readHiddenModels(), providerID, modelID, hidden))
+  }, [])
 
   const unhideAll = useCallback(() => {
     saveHiddenModels(unhideAllModels())

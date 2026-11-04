@@ -31,11 +31,7 @@ export function ModelDetails({ model }: { model: ModelInfo }) {
         {capabilities.temperature && <Badge variant="outline">temperature</Badge>}
         {input.length > 0 && <Badge variant="secondary">in: {input.join(', ')}</Badge>}
         {output.length > 0 && <Badge variant="secondary">out: {output.join(', ')}</Badge>}
-        {free ? (
-          <Badge variant="secondary">free</Badge>
-        ) : (
-          <Badge variant="secondary">paid</Badge>
-        )}
+        {free ? <Badge variant="secondary">free</Badge> : <Badge variant="secondary">paid</Badge>}
         {model.status !== 'active' && <Badge variant="destructive">{model.status}</Badge>}
       </div>
 

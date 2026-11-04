@@ -22,14 +22,8 @@ const FILTERS: Array<{ value: PriceFilter; label: string }> = [
 export function ModelsCard() {
   const modelsQuery = useModels()
   const providersQuery = useProviders()
-  const {
-    visibility,
-    hiddenCount,
-    isModelHidden,
-    setModelHidden,
-    setProviderHidden,
-    unhideAll,
-  } = useModelVisibility()
+  const { visibility, hiddenCount, isModelHidden, setModelHidden, setProviderHidden, unhideAll } =
+    useModelVisibility()
   const [filter, setFilter] = useState<PriceFilter>('all')
 
   const enabledModels = useMemo(
@@ -79,13 +73,17 @@ export function ModelsCard() {
           <Cpu className="size-4" /> Models
         </CardTitle>
         <CardDescription>
-          Choose which providers and models appear in the composer. Choices apply to this device
-          and sync with the Preferences category.
+          Choose which providers and models appear in the composer. Choices apply to this device and
+          sync with the Preferences category.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
         <div className="flex flex-wrap items-center gap-2">
-          <div className="flex rounded-lg border p-1" role="group" aria-label="Filter models by price">
+          <div
+            className="flex rounded-lg border p-1"
+            role="group"
+            aria-label="Filter models by price"
+          >
             {FILTERS.map((option) => (
               <Button
                 key={option.value}
@@ -146,9 +144,7 @@ export function ModelsCard() {
 
         {modelsQuery.isSuccess && groups.length === 0 && (
           <p className="rounded-lg border border-dashed px-3 py-6 text-center text-xs text-muted-foreground">
-            {filter === 'all'
-              ? 'No models are available.'
-              : `No ${filter} models are available.`}
+            {filter === 'all' ? 'No models are available.' : `No ${filter} models are available.`}
           </p>
         )}
 
