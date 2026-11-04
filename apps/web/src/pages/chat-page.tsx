@@ -226,6 +226,7 @@ function ChatPageContent() {
   }, [location.pathname, navigate])
   const handledCompose = useRef<string | null>(null)
   const autoOpenedSession = useRef<string | null>(null)
+  const autoOpenVisit = useRef<string | null>(null)
 
   useEffect(() => {
     if (!composeState?.compose || !sessionId) return
@@ -240,8 +241,13 @@ function ChatPageContent() {
   }, [clearComposeState, composeState, location.key, openComposer, projectId, sessionId])
 
   useEffect(() => {
+    if (!sessionId) return
+    if (autoOpenVisit.current !== sessionId) {
+      autoOpenVisit.current = sessionId
+      autoOpenedSession.current = null
+    }
     if (composeState?.compose) return
-    if (!sessionId || !isDraftSession || !storedHasLocalDraft) return
+    if (!isDraftSession || !storedHasLocalDraft) return
     if (autoOpenedSession.current === sessionId) return
     autoOpenedSession.current = sessionId
     if (composerMode !== 'closed') return
