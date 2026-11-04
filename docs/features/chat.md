@@ -19,7 +19,8 @@ Clara triggers on the person's behalf — requesting a plan,
 refreshing it, and starting work — and the person's answers to an agent
 question appear as compact system rows in the thread rather than as if the
 person had typed them. OpenCode's mode reminders appear as collapsed
-**System Reminder** rows whose detail is the reminder text without its tags.
+**System Reminder** rows, shown only when internal output is on, whose detail is
+the reminder text without its tags.
 When a
 Plan run finishes, a plan-ready card appears above the thread so the person can
 adjust the plan or start work. A session with no messages shows a
@@ -124,10 +125,12 @@ message has fork and forward actions; see [fork.md](fork.md).
    next visible reply absorbs the hidden steps before it and shows one combined
    footer: input and output tokens, cost, reasoning characters, tool calls, and
    turns. A turn that ends on hidden work with no reply keeps a compact
-   **Thinking** row carrying the same totals. System events render as compact
-   divider rows with an icon, a label, a timestamp, and optional expandable
-   detail; they never look like a prompt the person typed. System reminders use
-   the same row, collapsed by default and labeled **System Reminder**.
+   **Thinking** footer carrying the same totals, with its reasoning character
+   count beside the label and three animated dots above it while the run is
+   live. System events render as compact divider rows with an icon, a label, a
+   timestamp, and optional expandable detail; they never look like a prompt the
+   person typed. System reminders use the same row, collapsed by default,
+   labeled **System Reminder**, and hidden unless internal output is on.
 7. The newest prompt or reply starts expanded and every earlier reply starts
    collapsed. An assistant step does not count as a reply until it has text (or
    fails), so the prompt that started a run stays expanded while the agent is
@@ -140,18 +143,18 @@ message has fork and forward actions; see [fork.md](fork.md).
 9. Collapse state lives in memory for the open session; switching sessions or
    reloading returns to the newest-expanded default.
 10. Internal output is hidden by default. The header toggle controls reasoning,
-    tool calls, shell commands, and untagged synthetic, skill, and compaction
-    notices. Clara's own system events and question-answer summaries stay visible
-    at every detail level. The preference is stored in `localStorage` and shared
-    across sessions. A failed turn is never treated as internal output: its error
-    stays visible at every detail level.
+    tool calls, shell commands, system reminders, and untagged synthetic, skill,
+    and compaction notices. Clara's own system events and question-answer
+    summaries stay visible at every detail level. The preference is stored in
+    `localStorage` and shared across sessions. A failed turn is never treated as
+    internal output: its error stays visible at every detail level.
 11. Agent-switched and system messages are never rendered; the agent is shown on
     the assistant header instead. A synthetic message containing
-    `<system-reminder>` blocks becomes a collapsed **System Reminder** row at
-    every detail level, with the tags removed from its expandable detail. Other
-    untagged synthetic messages stay behind the internal-output toggle. Clara's
-    one-click actions write synthetic input with a human-facing description, so
-    they appear as system events instead of fake user prompts.
+    `<system-reminder>` blocks becomes a collapsed **System Reminder** row when
+    internal output is on, with the tags removed from its expandable detail.
+    Other untagged synthetic messages stay behind the internal-output toggle.
+    Clara's one-click actions write synthetic input with a human-facing
+    description, so they appear as system events instead of fake user prompts.
 12. Done is available only while the composer is closed, the agent is idle, and
     the session has a message. It archives the session on the server without
     changing its title and returns to the start view. An empty, non-archived
@@ -237,11 +240,12 @@ message has fork and forward actions; see [fork.md](fork.md).
   contains reasoning or tool calls is hidden. Its usage rolls into the next
   visible reply, which shows the combined tokens, cost, reasoning characters,
   tools, and turns in its footer. If the turn ends with hidden work and no reply,
-  a compact **Thinking** row keeps the total instead. The prompt that started the
+  a compact **Thinking** footer keeps the total instead. The prompt that started the
   run stays expanded until the agent produces text.
 - **Hidden-only turn** — a run that produces no visible reply leaves one
-  **Thinking** row at the end of the turn. It pulses while the run is live and
-  stays static once the session is idle, before the next prompt.
+  **Thinking** footer at the end of the turn. Three dots flash above it while the
+  run is live, and it stays static once the session is idle, before the next
+  prompt.
 - **Prompt sent to a running agent** — the new prompt takes over as the expanded
   message; the previous reply collapses unless it was opened by hand.
 - **Plan reply without `stop`** — a Plan run that ends on a tool call, an error,
