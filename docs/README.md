@@ -53,6 +53,7 @@ here, it is not part of the canonical set.
 | [fork.md](features/fork.md)                     | You are working on forking a session or forwarding a message             |
 | [pair-terminal.md](features/pair-terminal.md)   | You are working on the read-only terminal that follows a running session |
 | [composer.md](features/composer.md)             | You are working on the reply window, commands, mentions, or attachments  |
+| [models.md](features/models.md)                 | You are working on model visibility, the Models tab, or model details    |
 | [session-info.md](features/session-info.md)     | You are working on cost, tokens, context, or message counts              |
 | [notifications.md](features/notifications.md)   | You are working on Inbox alerts, desktop notifications, or alert sounds  |
 | [theme.md](features/theme.md)                   | You are working on appearance, color themes, or light/dark mode          |

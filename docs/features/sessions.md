@@ -88,11 +88,12 @@ by default, and the noun is configurable in Settings.
 2. The active list shows the newest 50 non-archived sessions for the directory;
    the archived list shows the newest 50 archived sessions.
 3. A new session inherits the model of the most recent active session in the
-   project, so the first prompt uses a model that already works. Its agent
-   follows the **Default agent** setting: the last agent selected anywhere in
-   Clara, or a specific agent. A specific agent also replaces the agent of an
-   empty draft the first time that draft is opened. Sessions that already have
-   messages are never changed.
+   project, so the first prompt uses a model that already works. A model hidden
+   in **Settings → Models** is not inherited; the new session starts on the
+   server default instead. Its agent follows the **Default agent** setting: the
+   last agent selected anywhere in Clara, or a specific agent. A specific agent
+   also replaces the agent of an empty draft the first time that draft is
+   opened. Sessions that already have messages are never changed.
 4. Running sessions are marked with a live dot driven by the active-session map
    and status events, and that same map keeps them in Outbox. Inbox rows show
    what they need: a red pulsing dot while a run is blocked on an approval or

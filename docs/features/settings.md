@@ -2,10 +2,10 @@
 
 ## Summary
 
-Settings groups every Clara preference into six tabs: Appearance, Preferences,
-Notifications, Sync, Shortcuts, and Advanced. A device-local simplify switch
-keeps the common controls in view and hides the detail rows that most people
-leave alone.
+Settings groups every Clara preference into seven tabs: Appearance,
+Preferences, Models, Notifications, Sync, Shortcuts, and Advanced. A
+device-local simplify switch keeps the common controls in view and hides the
+detail rows that most people leave alone.
 
 ## User flow
 
@@ -13,10 +13,10 @@ leave alone.
 2. The page opens on **Appearance**, where the light/dark/system mode and color
    theme live.
 3. Use the tabs to reach **Preferences** for session wording and the default
-   agent, **Notifications** for alerts and sounds, **Sync** for per-category
-   settings sync, **Shortcuts** for the keyboard reference, and **Advanced** for
-   the server connection and app build. On narrow screens the tab strip becomes
-   a section menu.
+   agent, **Models** for provider and model visibility, **Notifications** for
+   alerts and sounds, **Sync** for per-category settings sync, **Shortcuts** for
+   the keyboard reference, and **Advanced** for the server connection and app
+   build. On narrow screens the tab strip becomes a section menu.
 4. Press the filter icon in the header to open **Filter settings**.
 5. **Simplify settings** is on by default. Turn it off to see the full page.
 6. With it on, the Notifications card shows one Inbox sounds switch instead of
@@ -48,7 +48,10 @@ leave alone.
 5. The Sync tab contains category switches only. Each device stores its own
    choices; enabling a category can pull or push values, but the tab itself is
    never synchronized. See [sync](sync.md).
-6. Every remaining control behaves the same as before. Simplification is a view
+6. The Models tab hides providers and models from the composer. The whole
+   visibility group is stored locally and syncs with the Preferences category;
+   see [models](models.md).
+7. Every remaining control behaves the same as before. Simplification is a view
    filter, not a second settings model.
 
 ## Edge cases
@@ -93,12 +96,15 @@ leave alone.
   `src/features/settings/use-simplify-settings.ts`
 - Filter control: `src/components/settings/settings-filter.tsx`
 - Page and tabs: `src/pages/settings-page.tsx`
+- Models card: `src/components/settings/models-card.tsx`
+- Model visibility: `src/features/models/visibility.ts`
 - Sync card: `src/components/settings/sync-card.tsx`
 - Sync categories and per-client preferences: `src/features/sync/`
 - Simplified sound patch: `simplifiedInboxSoundPatch` and
   `DEFAULT_SOUND_VOLUME` in `src/features/notifications/settings.ts`
-- Related: [theme](theme.md), [notifications](notifications.md), [sync](sync.md),
-  [shortcuts](shortcuts.md), [connection](connection.md), [install](install.md),
+- Related: [theme](theme.md), [models](models.md),
+  [notifications](notifications.md), [sync](sync.md), [shortcuts](shortcuts.md),
+  [connection](connection.md), [install](install.md),
   [capabilities](capabilities.md)
 
 </details>

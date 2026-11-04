@@ -34,7 +34,8 @@ selection, and agent selection.
 7. Attach files with the paperclip, paste an image, or paste files from the
    clipboard; attachments appear as removable chips.
 8. Set the model and variant in the **To** row, and switch the active agent from
-   the footer next to Send.
+   the footer next to Send. Models hidden in **Settings → Models** are absent
+   from the picker.
 9. Minimize, maximize, or close the window at any time. Switching between the
    expanded panel and the smaller dock is remembered in local storage. The draft
    stays in place until it is sent.
@@ -49,7 +50,8 @@ selection, and agent selection.
    settles. **Save as draft** never executes a command: it stores the text
    literally in the draft.
 3. The To row owns model and variant; the footer owns the agent. Both reflect the
-   session and change it immediately.
+   session and change it immediately. A hidden or server-disabled model is not
+   offered, and its variant menu is hidden.
 4. A new message draft picks its agent from the **Default agent** setting: the
    last agent selected anywhere in Clara, or a specific agent. A specific agent
    also replaces the agent of an empty draft the first time that draft is
@@ -119,6 +121,9 @@ selection, and agent selection.
   is kept until the draft is closed and reopened.
 - **Existing conversation** — sessions with any user or assistant message never
   have their agent replaced by the default setting.
+- **Hidden current model** — a session stored on a hidden model opens with **No
+  model** in the To row. Send, Save as draft, and Send as queued stay disabled
+  until a visible model is picked. The session keeps its stored model until then.
 - **Draft title failure** — the draft is still saved and a warning reports that
   the title could not be updated.
 - **Draft with an existing title** — the title is left unchanged.
@@ -177,6 +182,7 @@ selection, and agent selection.
 - Components: `src/components/chat/reply-dock.tsx`,
   `src/components/chat/composer.tsx`
 - Picker components: `model-picker.tsx`, `agent-picker.tsx`
+- Model visibility: `src/features/models/visibility.ts`
 - Loaded from: `/p/:projectId/s/:sessionId`
 - Send: `client.session.prompt({ sessionID, text, files, delivery })` with
   `delivery: 'steer'`
