@@ -325,6 +325,30 @@ body {
   color: var(--muted-foreground);
 }
 
+@keyframes clara-typing-dot {
+  0%,
+  60%,
+  100% {
+    opacity: 0.3;
+    transform: translateY(0);
+  }
+  30% {
+    opacity: 1;
+    transform: translateY(-2px);
+  }
+}
+
+.clara-typing-dot {
+  animation: clara-typing-dot 1.2s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .clara-typing-dot {
+    animation: none;
+    opacity: 0.6;
+  }
+}
+
 @keyframes clara-done-ring {
   0% {
     opacity: 0.85;

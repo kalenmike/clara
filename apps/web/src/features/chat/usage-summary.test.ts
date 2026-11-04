@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { SessionMessageAssistant, SessionMessageAssistantTool } from '@opencode/client'
-import { formatUsageSummary, hasUsage, summarizeSteps } from './usage-summary'
+import { formatUsageDetail, formatUsageSummary, hasUsage, summarizeSteps } from './usage-summary'
 
 function step(
   content: SessionMessageAssistant['content'],
@@ -109,5 +109,26 @@ describe('formatUsageSummary', () => {
     })
 
     expect(text).toBe('1 tool · 1 turn')
+  })
+})
+
+describe('formatUsageDetail', () => {
+  it('leaves the thinking character count out of the footer detail', () => {
+    const text = formatUsageDetail({
+      chars: 812,
+      input: 1_800,
+      output: 720,
+      cost: 0.007,
+      tools: 3,
+      turns: 3,
+      hasTokens: true,
+    })
+
+    expect(text).toContain('1.8K in')
+    expect(text).toContain('720 out')
+    expect(text).toContain('$0.007')
+    expect(text).toContain('3 tools')
+    expect(text).toContain('3 turns')
+    expect(text).not.toContain('chars')
   })
 })

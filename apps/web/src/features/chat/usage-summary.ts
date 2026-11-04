@@ -60,3 +60,18 @@ export function formatUsageSummary(summary: UsageSummary): string {
   parts.push(`${formatCount(summary.turns)} ${summary.turns === 1 ? 'turn' : 'turns'}`)
   return parts.join(' · ')
 }
+
+/**
+ * Usage without the reasoning character count, which the thinking row shows
+ * beside its label instead of in the footer.
+ */
+export function formatUsageDetail(summary: UsageSummary): string {
+  const parts: string[] = []
+  if (summary.hasTokens || summary.input > 0 || summary.output > 0) {
+    parts.push(`${formatTokens(summary.input)} in · ${formatTokens(summary.output)} out`)
+  }
+  if (summary.cost > 0) parts.push(formatCost(summary.cost))
+  parts.push(`${formatCount(summary.tools)} ${summary.tools === 1 ? 'tool' : 'tools'}`)
+  parts.push(`${formatCount(summary.turns)} ${summary.turns === 1 ? 'turn' : 'turns'}`)
+  return parts.join(' · ')
+}
