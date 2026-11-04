@@ -10,7 +10,6 @@ export type HiddenModels = {
 
 export type PriceFilter = 'all' | 'free' | 'paid'
 
-const EMPTY_HIDDEN_MODELS: HiddenModels = { providers: [], models: [] }
 const MAX_ENTRIES = 5_000
 
 let cached: HiddenModels | null = null
@@ -100,7 +99,7 @@ export function subscribeHiddenModels(listener: () => void): () => void {
   }
 }
 
-export function modelKey(providerID: string, modelID: string): string {
+function modelKey(providerID: string, modelID: string): string {
   return `${providerID}/${modelID}`
 }
 
@@ -187,9 +186,4 @@ export function formatPricePerMillion(value: number | undefined): string {
   if (value < 0.01) return `$${value.toFixed(4).replace(/0+$/, '')}`
   if (value < 1) return `$${value.toFixed(3).replace(/0+$/, '')}`
   return `$${value.toFixed(2).replace(/\.?0+$/, '')}`
-}
-
-/** Exposed for tests that need a clean default without touching storage. */
-export function emptyHiddenModels(): HiddenModels {
-  return { ...EMPTY_HIDDEN_MODELS }
 }
