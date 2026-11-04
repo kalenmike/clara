@@ -3,6 +3,7 @@ import type { SessionInfo, SessionMessageInfo } from '@opencode/client'
 import { PairTerminal } from '@/components/chat/pair-terminal'
 import { GitPanel } from '@/components/layout/git-panel'
 import { SessionInfoPanel } from '@/components/layout/session-info-panel'
+import { SessionPlanDock } from '@/components/layout/session-plan-dock'
 import { Button } from '@/components/ui/button'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import type { ChatSnapshot } from '@/features/chat/chat-store'
@@ -107,12 +108,7 @@ export function SidePanel({
           )}
         </div>
         <TabsContent value="info" className="min-h-0 flex-1 overflow-y-auto p-3">
-          <SessionInfoPanel
-            session={session}
-            snapshot={snapshot}
-            messages={messages}
-            draft={draft}
-          />
+          <SessionInfoPanel session={session} snapshot={snapshot} />
         </TabsContent>
         <TabsContent value="git" className="min-h-0 flex-1 overflow-y-auto p-3">
           <GitPanel directory={directory} projectID={projectID} canonical={canonical} />
@@ -127,6 +123,12 @@ export function SidePanel({
           />
         </TabsContent>
       </Tabs>
+      <SessionPlanDock
+        session={session}
+        messages={messages}
+        draft={draft}
+        busy={snapshot.status.type !== 'idle'}
+      />
     </aside>
   )
 }
