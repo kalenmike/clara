@@ -4,20 +4,24 @@
 
 The session info tab answers "how big is this conversation and what has it
 cost?" It shows context usage against the model limit, token breakdowns, message
-counts, timing, and the active model's limits. Its Plan section also renders the
-agent's todo checklist when the session has one. It shares the right panel with
-the [Git](git.md) tab and the [pair terminal](pair-terminal.md).
+counts, timing, and the active model's limits. A Plan dock below the tabs renders
+the agent's todo checklist on every tab, so the plan stays visible while the
+person watches Git or the pair terminal. It shares the right panel with the
+[Git](git.md) tab and the [pair terminal](pair-terminal.md).
 
 ## User flow
 
 1. Open a session and press the panel button in the header, or `ctrl+x` then `s`.
    The panel opens on the Info tab; use the Git or Terminal tab beside it for
-   branch and change information or a live command log.
+   branch and change information or a live command log. The Plan dock below the
+   tabs stays in place on every tab.
 2. On wide screens the panel opens on the right; drag its left edge to resize it
    between 240 and 640px (capped so the chat keeps usable width), or double-click
    the handle to reset. On narrow screens it opens as a sheet.
-3. Read the Plan section below the session name. It shows the agent's todo
-   checklist and progress, or a **Request Plan** button when no list exists.
+3. Read the Plan dock at the bottom of the panel. It shows the agent's todo
+   checklist and progress, or a **Request Plan** button when no list exists. Its
+   height is capped at just under half the panel so the active tab keeps usable
+   space, and a long checklist scrolls inside the dock.
 4. Press **Request Plan** to steer the agent toward writing a todo list. With a
    list present, press **Request Update** to ask for the current plan and
    progress. Both send a short synthetic input, so the request appears in the
@@ -25,7 +29,7 @@ the [Git](git.md) tab and the [pair terminal](pair-terminal.md).
    stays available while the agent is working: steering is delivered at the next
    safe boundary and the input tells the agent to update the checklist and carry
    on. An empty draft shows "Send your brief to view the plan" instead. A worker
-   session keeps the Plan section and both request actions even though its
+   session keeps the Plan dock and both request actions even though its
    composer is hidden.
 5. Read context usage as a percentage and bar, then cost and the input, output,
    reasoning, cache-read, and cache-write totals.
@@ -46,7 +50,9 @@ the [Git](git.md) tab and the [pair terminal](pair-terminal.md).
 4. The panel is available on every session, including empty ones.
 5. The panel is read-only except for the Plan requests. The selected tab and the
    panel width are remembered across reloads, and only the visible tab loads its
-   data. The width is shared by the Info, Git, and Terminal tabs.
+   own data. The Plan dock sits outside the tab contents, loads session context
+   whenever the panel is open, and stays mounted while the tabs switch. The width
+   is shared by the Info, Git, and Terminal tabs.
 6. Plan reads the newest completed `todowrite` tool call from the loaded
    transcript, falling back to the full session context for an older list. An
    empty list counts as a cleared plan. A forked session ignores plans written
@@ -72,15 +78,18 @@ the [Git](git.md) tab and the [pair terminal](pair-terminal.md).
   width shrinks so the chat keeps at least 360px beside the sidebar.
 - **Switching sessions with the panel open** — it re-reads the new session and
   never keeps the previous session's numbers.
+- **Switching tabs** — the Plan dock stays mounted below the Info, Git, and
+  Terminal views, keeps its scroll position, and keeps the request button
+  available.
 - **No todo tool** — the server has not enabled `experimental.todo`, so the list
   stays empty and Request Plan cannot create one.
 - **Cleared or running plan** — an empty `todowrite` clears the section, malformed
   items are skipped, and the previous completed plan stays visible while a new
   call is running.
 - **Forked session** — the copied parent checklist is hidden because it was
-  written before the branch existed. The Plan section starts empty and shows the
+  written before the branch existed. The Plan dock starts empty and shows the
   branch's own `todowrite` once the agent writes one.
-- **Draft session** — the Plan section asks the person to send their brief and
+- **Draft session** — the Plan dock asks the person to send their brief and
   shows no request button.
 
 ## Out of scope
@@ -98,8 +107,9 @@ the [Git](git.md) tab and the [pair terminal](pair-terminal.md).
 - Context usage is an estimate: it sums input and cache tokens from the last
   assistant message rather than the server's internal context accounting.
 - The panel does not show a breakdown of context by file or tool output.
-- Context entries are fetched whenever the panel mounts, even for very large
-  sessions.
+- Context entries are fetched whenever the panel opens, even for very large
+  sessions, because the Plan dock falls back to the full session context when
+  the loaded transcript has no plan.
 - The v2 API has no todo endpoint or todo event, so Plan depends on the
   `todowrite` tool call being present in the transcript.
 
@@ -109,6 +119,7 @@ the [Git](git.md) tab and the [pair terminal](pair-terminal.md).
 <summary>Routes, data, and references</summary>
 
 - Component: `src/components/layout/session-info-panel.tsx`
+- Plan dock: `src/components/layout/session-plan-dock.tsx`
 - Plan section: `src/components/layout/session-plan.tsx`
 - Plan parsing: `src/features/chat/session-plan.ts` reads the newest completed
   `todowrite` tool part and its `state.input.todos` array; an empty array means
