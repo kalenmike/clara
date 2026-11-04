@@ -58,10 +58,20 @@ so the agent logs remain visible. It is loopback-only and never routed through
 the relay. From it you can disable the
 OpenCode connection, local transport, relay, or push, and stop every external
 connection while the process, panel, and database stay alive. Settings are
-stored at `CLARA_DB_PATH` or `~/.config/clara/clara.db` (mode `0600`). The panel
+stored at `CLARA_DB_PATH` or `~/.local/share/clara/clara.db` (mode `0600`). The panel
 shows no PSK, OpenCode password, relay tokens, push endpoints, sync values, or
 file contents. See [docs/features/panel.md](docs/features/panel.md) and
 [docs/features/agent-controls.md](docs/features/agent-controls.md).
+
+Existing installs that keep their databases under `~/.config/clara` should stop
+the agent and OpenCode, then move them once:
+
+```bash
+mkdir -p ~/.local/share/clara
+mv ~/.config/clara/clara.db* ~/.local/share/clara/
+mv ~/.config/clara/ledger.db* ~/.local/share/clara/
+mv ~/.config/clara/ledger-alerts.db* ~/.local/share/clara/
+```
 
 ### Local WebSocket mode
 
@@ -206,7 +216,7 @@ or the relay.
 - Web Push subscriptions live at `~/.config/clara/subscriptions.json`; VAPID
   keys live at `~/.config/clara/vapid.json`. Both use mode `0600`.
 - Agent settings and non-secret client sync data live in
-  `~/.config/clara/clara.db` (mode `0600`). Credentials, push endpoints, and
+  `~/.local/share/clara/clara.db` (mode `0600`). Credentials, push endpoints, and
   sync secrets are never written there.
 - The agent panel listens only on `127.0.0.1:8790`, guards reads with
   Host/Origin/fetch-metadata checks, and accepts only two JSON control routes

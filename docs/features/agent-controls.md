@@ -108,7 +108,7 @@ settings sync.
 <details>
 <summary>Routes, data, and references</summary>
 
-- Settings file: `CLARA_DB_PATH` or `<CLARA_CONFIG_DIR>/clara.db` (mode `0600`)
+- Settings file: `CLARA_DB_PATH` or `<CLARA_DATA_DIR>/clara.db` (mode `0600`)
 - Settings keys: `features.opencode`, `features.local`, `features.relay`,
   `features.push`, `agent.stopped`, `shell.mode` and `shell.commands` for the
   separate shell policy, `monitoring.enabled`, and `sync.enabled` plus

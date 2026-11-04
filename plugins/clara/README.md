@@ -40,7 +40,7 @@ opencode reload
 
 The installer:
 
-1. creates `~/.config/clara` and `~/.config/opencode/plugins`,
+1. creates `~/.local/share/clara` and `~/.config/opencode/plugins`,
 2. symlinks `~/.config/opencode/plugins/clara` to this directory,
 3. renders `agents.json` into `~/.config/opencode/agents/*.md`.
 
@@ -62,7 +62,7 @@ exports `index.ts`.
 ## Storage
 
 ```text
-~/.config/clara/ledger.db
+~/.local/share/clara/ledger.db
 ~/.config/clara/pipelines/*.json
 ```
 
@@ -70,12 +70,12 @@ Resolution order for the ledger:
 
 1. plugin option `db`
 2. `CLARA_LEDGER_DB_PATH`
-3. `${CLARA_CONFIG_DIR:-${XDG_CONFIG_HOME:-~/.config}/clara}/ledger.db`
+3. `${CLARA_DATA_DIR:-${XDG_DATA_HOME:-~/.local/share}/clara}/ledger.db`
 
 The home agent's settings database is a different file:
 
 ```text
-~/.config/clara/clara.db
+~/.local/share/clara/clara.db
 ```
 
 Do not point `CLARA_DB` or `CLARA_DB_PATH` at the ledger. Those belong to the
@@ -86,13 +86,13 @@ server. The ledger opens with `journal_mode=WAL`, `foreign_keys=ON`, and
 On load the plugin prints:
 
 ```text
-[clara] ledger ready at /home/you/.config/clara/ledger.db
+[clara] ledger ready at /home/you/.local/share/clara/ledger.db
 [clara] management enabled
 [clara] daemon started (every 15s)
 ```
 
 The plugin reads `management.enabled` from the home agent database
-(`~/.config/clara/clara.db`) without writing it. When the flag is off, the
+(`~/.local/share/clara/clara.db`) without writing it. When the flag is off, the
 plugin does not open the ledger, registers no `clara_*` tools, and starts no
 daemon. The panel keeps the generated agents marked `disabled`. The CLI
 bypasses this guard for manual recovery.
@@ -228,11 +228,11 @@ pnpm clara:ledger run clara_tick '{"dry_run":true}' --agent judge
 `run` takes a tool id (with or without the `clara_` prefix), an optional JSON
 argument, and these options:
 
-| Option         | Meaning                                                                         |
-| -------------- | ------------------------------------------------------------------------------- |
-| `--agent <id>` | `clara` (human), `001`–`004` (worker), `judge` (closer), or another agent id.   |
-| `--db <path>`  | Ledger path. Defaults to `CLARA_LEDGER_DB_PATH` or `~/.config/clara/ledger.db`. |
-| `--json`       | Print the whole `{ content }` result instead of only `content`.                 |
+| Option         | Meaning                                                                              |
+| -------------- | ------------------------------------------------------------------------------------ |
+| `--agent <id>` | `clara` (human), `001`–`004` (worker), `judge` (closer), or another agent id.        |
+| `--db <path>`  | Ledger path. Defaults to `CLARA_LEDGER_DB_PATH` or `~/.local/share/clara/ledger.db`. |
+| `--json`       | Print the whole `{ content }` result instead of only `content`.                      |
 
 The JSON argument can be inline, `-` for stdin, or `@path` to read a file. The
 actor and ledger path are printed to stderr; only the tool's content goes to

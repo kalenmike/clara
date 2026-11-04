@@ -233,7 +233,7 @@ monitoring on or off, and gate or pace client settings sync.
   - `CLARA_PANEL_PORT` changes the port (default `8790`)
   - `CLARA_PANEL_DISABLED=1` disables the panel
   - `CLARA_PANEL_DIR` overrides the built asset directory
-  - `CLARA_DB_PATH` moves the database (default `<config dir>/clara.db`)
+  - `CLARA_DB_PATH` moves the database (default `<data dir>/clara.db`)
 - CLI: `clara-server serve --no-panel`
 - Built assets: `apps/server/dist/panel`, copied from `apps/panel/dist`
 - Open the built panel: `pnpm clara:control` starts the agent when the panel is

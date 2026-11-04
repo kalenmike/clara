@@ -161,9 +161,9 @@ delivery record.
 <summary>Paths, tools, and install mechanics</summary>
 
 - Plugin: `plugins/clara`
-- Ledger: `${CLARA_CONFIG_DIR:-${XDG_CONFIG_HOME:-~/.config}/clara}/ledger.db`
+- Ledger: `${CLARA_DATA_DIR:-${XDG_DATA_HOME:-~/.local/share}/clara}/ledger.db`
 - Override: `CLARA_LEDGER_DB_PATH` or the plugin `db` option
-- Home agent settings database: `~/.config/clara/clara.db` (separate)
+- Home agent settings database: `${CLARA_DATA_DIR:-${XDG_DATA_HOME:-~/.local/share}/clara}/clara.db` (separate)
 - Pipeline files: `${CLARA_CONFIG_DIR:-~/.config/clara}/pipelines/*.json`
 - Management switch: `management.enabled` in the home agent database, owned by
   the panel and read by the plugin. Changing it also toggles `disabled` in the

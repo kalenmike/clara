@@ -141,7 +141,7 @@ ConnectionProvider
   [agent-controls.md](../features/agent-controls.md).
 - Feature choices, the stopped flag, shell policy, monitoring, and the
   client-sync gate and interval live in a `better-sqlite3` database at
-  `CLARA_DB_PATH` or `<config dir>/clara.db`. Desired state is persisted first;
+  `CLARA_DB_PATH` or `<data dir>/clara.db`. Desired state is persisted first;
   effective state also requires the transport to start. The same database holds
   the non-secret client sync namespace, described in
   [sync.md](../features/sync.md).
@@ -237,8 +237,9 @@ re-subscribes through the transport.
   OpenCode APIs, and direct mode has no Clara-enforced policy at all.
 - Never commit `service.json`, passwords, pairing codes, PSKs, or relay tokens.
 - The home agent's config is `~/.config/clara/server.json` (mode `0600`).
-  Settings and non-secret client sync data live in `clara.db` (mode `0600`).
-  `vapid.json` and `subscriptions.json` use the same directory and mode.
+  Settings and non-secret client sync data live in
+  `~/.local/share/clara/clara.db` (mode `0600`). `vapid.json` and
+  `subscriptions.json` remain in `~/.config/clara` with the same mode.
 - The relay sees metadata only; all payloads are E2EE. Web Push payloads use
   Web Push encryption to the browser subscription, not Clara's PSK envelope.
 - The web stores the PSK in `localStorage`; `_headers` ships a CSP but XSS on the
