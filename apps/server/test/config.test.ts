@@ -8,6 +8,7 @@ import { loadConfig } from '../src/config.ts'
 const tempDirs: string[] = []
 const ENV_KEYS = [
   'CLARA_CONFIG_DIR',
+  'CLARA_DATA_DIR',
   'CLARA_DB_PATH',
   'CLARA_OPENCODE_URL',
   'CLARA_OPENCODE_PASSWORD',
@@ -19,6 +20,8 @@ const ENV_KEYS = [
   'CLARA_CLIENT_TOKEN',
   'CLARA_PSK',
   'CLARA_PAIRING_BASE_URL',
+  'XDG_CONFIG_HOME',
+  'XDG_DATA_HOME',
   'XDG_STATE_HOME',
 ] as const
 
@@ -52,7 +55,9 @@ afterEach(() => {
 describe('loadConfig sources', () => {
   it('reports defaults when neither the environment nor the file set a value', () => {
     const dir = tempDir()
+    const dataHome = tempDir()
     process.env.CLARA_CONFIG_DIR = dir
+    process.env.XDG_DATA_HOME = dataHome
     process.env.XDG_STATE_HOME = tempDir()
 
     const config = loadConfig()
@@ -67,12 +72,43 @@ describe('loadConfig sources', () => {
     expect(config.sources.relayUrl).toBe('none')
     expect(config.sources.pairingBaseUrl).toBe('default')
     expect(config.sources.psk).toBe('generated')
-    expect(config.dbPath).toBe(join(dir, 'clara.db'))
+    expect(config.dataDir).toBe(join(dataHome, 'clara'))
+    expect(config.dbPath).toBe(join(dataHome, 'clara', 'clara.db'))
+    expect(config.ledgerDbPath).toBe(join(dataHome, 'clara', 'ledger.db'))
+  })
+
+  it('honours XDG_CONFIG_HOME and XDG_DATA_HOME', () => {
+    const configHome = tempDir()
+    const dataHome = tempDir()
+    process.env.XDG_CONFIG_HOME = configHome
+    process.env.XDG_DATA_HOME = dataHome
+    process.env.XDG_STATE_HOME = tempDir()
+
+    const config = loadConfig()
+
+    expect(config.configDir).toBe(join(configHome, 'clara'))
+    expect(config.configPath).toBe(join(configHome, 'clara', 'server.json'))
+    expect(config.dataDir).toBe(join(dataHome, 'clara'))
+  })
+
+  it('allows CLARA_DATA_DIR to move database defaults', () => {
+    const dir = tempDir()
+    const dataDir = join(dir, 'data')
+    process.env.CLARA_CONFIG_DIR = dir
+    process.env.CLARA_DATA_DIR = dataDir
+    process.env.XDG_STATE_HOME = tempDir()
+
+    const config = loadConfig()
+
+    expect(config.dataDir).toBe(dataDir)
+    expect(config.dbPath).toBe(join(dataDir, 'clara.db'))
+    expect(config.ledgerDbPath).toBe(join(dataDir, 'ledger.db'))
   })
 
   it('allows CLARA_DB_PATH to move the database', () => {
     const dir = tempDir()
     process.env.CLARA_CONFIG_DIR = dir
+    process.env.CLARA_DATA_DIR = dir
     process.env.CLARA_DB_PATH = join(dir, 'custom', 'agent.sqlite')
     process.env.XDG_STATE_HOME = tempDir()
 
@@ -96,6 +132,7 @@ describe('loadConfig sources', () => {
     )
 
     process.env.CLARA_CONFIG_DIR = dir
+    process.env.CLARA_DATA_DIR = dir
     process.env.XDG_STATE_HOME = tempDir()
     process.env.CLARA_OPENCODE_URL = 'http://from-env:4096'
     process.env.CLARA_RELAY_ROOM = 'env-room'
@@ -131,6 +168,7 @@ describe('loadConfig sources', () => {
       { mode: 0o600 }
     )
     process.env.CLARA_CONFIG_DIR = dir
+    process.env.CLARA_DATA_DIR = dir
     process.env.XDG_STATE_HOME = tempDir()
     process.env.CLARA_AGENT_TOKEN = 'agent-token'
     process.env.CLARA_CLIENT_TOKEN = 'client-token'
@@ -145,6 +183,7 @@ describe('loadConfig sources', () => {
   it('marks a rotated pairing key as generated', () => {
     const dir = tempDir()
     process.env.CLARA_CONFIG_DIR = dir
+    process.env.CLARA_DATA_DIR = dir
     process.env.XDG_STATE_HOME = tempDir()
 
     const config = loadConfig({ rotate: true })

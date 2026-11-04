@@ -41,6 +41,7 @@ function config(dir: string): ServerConfig {
     pairingBaseUrl: 'https://clara.example',
     configDir: dir,
     configPath: join(dir, 'server.json'),
+    dataDir: dir,
     dbPath: join(dir, 'clara.db'),
     ledgerDbPath: join(dir, 'ledger.db'),
     sources: {

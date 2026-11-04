@@ -39,6 +39,7 @@ export type ServerConfig = {
   pairingBaseUrl: string
   configDir: string
   configPath: string
+  dataDir: string
   dbPath: string
   ledgerDbPath: string
   sources: ServerConfigSources
@@ -69,7 +70,8 @@ const DEFAULT_LOCAL_PORT = 8788
 const DEFAULT_PAIRING_BASE_URL = 'https://clara.kalenmichael.com'
 
 export function loadConfig(options: { rotate?: boolean; local?: boolean } = {}): ServerConfig {
-  const configDir = process.env.CLARA_CONFIG_DIR ?? join(homedir(), '.config', 'clara')
+  const configDir = resolveConfigDir()
+  const dataDir = resolveDataDir()
   const configPath = join(configDir, 'server.json')
   const file = readConfig(configPath)
   const service = readOpenCodeService()
@@ -202,8 +204,9 @@ export function loadConfig(options: { rotate?: boolean; local?: boolean } = {}):
     pairingBaseUrl,
     configDir,
     configPath,
-    dbPath: resolveDatabasePath(configDir),
-    ledgerDbPath: resolveLedgerPath(configDir),
+    dataDir,
+    dbPath: resolveDatabasePath(dataDir),
+    ledgerDbPath: resolveLedgerPath(dataDir),
     sources: {
       opencodeUrl: opencodeUrlSource,
       opencodePassword: opencodePasswordSource,
@@ -283,12 +286,26 @@ function persistConfig(
   writeFileSync(path, `${JSON.stringify(next, null, 2)}\n`, { mode: 0o600 })
 }
 
-function resolveDatabasePath(configDir: string): string {
-  return process.env.CLARA_DB_PATH?.trim() || join(configDir, 'clara.db')
+function resolveConfigDir(): string {
+  const configured = process.env.CLARA_CONFIG_DIR?.trim()
+  if (configured) return configured
+  const configHome = process.env.XDG_CONFIG_HOME?.trim() || join(homedir(), '.config')
+  return join(configHome, 'clara')
 }
 
-function resolveLedgerPath(configDir: string): string {
-  return process.env.CLARA_LEDGER_DB_PATH?.trim() || join(configDir, 'ledger.db')
+function resolveDataDir(): string {
+  const configured = process.env.CLARA_DATA_DIR?.trim()
+  if (configured) return configured
+  const dataHome = process.env.XDG_DATA_HOME?.trim() || join(homedir(), '.local', 'share')
+  return join(dataHome, 'clara')
+}
+
+function resolveDatabasePath(dataDir: string): string {
+  return process.env.CLARA_DB_PATH?.trim() || join(dataDir, 'clara.db')
+}
+
+function resolveLedgerPath(dataDir: string): string {
+  return process.env.CLARA_LEDGER_DB_PATH?.trim() || join(dataDir, 'ledger.db')
 }
 
 function normalizeRelayUrl(value: string): string {

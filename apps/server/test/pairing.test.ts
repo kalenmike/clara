@@ -39,6 +39,7 @@ function baseConfig(overrides: Partial<ServerConfig> = {}): ServerConfig {
     pairingBaseUrl: 'https://clara.example',
     configDir: '/tmp/clara-pairing',
     configPath: '/tmp/clara-pairing/server.json',
+    dataDir: '/tmp/clara-pairing',
     dbPath: '/tmp/clara-pairing/clara.db',
     ledgerDbPath: '/tmp/clara-pairing/ledger.db',
     sources: {
