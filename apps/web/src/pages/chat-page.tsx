@@ -434,13 +434,13 @@ function ChatPageContent() {
             />
 
             {draftCount > 0 && !busy && !worker && !isArchivedSession(session) && (
-              <DraftStartPanel sessionID={sessionId} count={draftCount} />
+              <DraftStartPanel key={sessionId} sessionID={sessionId} count={draftCount} />
             )}
             <FormPanel sessionID={sessionId} />
             <PermissionPanel sessionID={sessionId} directory={directory} messages={allMessages} />
             {planReady && !composerOpenForCurrent && (
               <PlanReadyPanel
-                key={planReady.id}
+                key={`${sessionId}:${planReady.id}`}
                 sessionID={sessionId}
                 onAdjustPlan={adjustFromPlan}
                 onStartWork={advanceInbox}
