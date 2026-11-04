@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { Brain, ChevronRight, ShieldAlert, ShieldCheck, ShieldX } from 'lucide-react'
 import type { PermissionRequest, SessionMessageInfo } from '@opencode/client'
+import { RequestCard } from '@/components/chat/request-card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
@@ -29,70 +30,60 @@ export function PermissionPanel({
   return (
     <div className="shrink-0 space-y-2 border-b bg-amber-500/5 p-2 md:p-3">
       {requests.map((request) => (
-        <div
-          key={request.id}
-          className="mx-auto max-w-3xl rounded-xl border border-amber-500/30 bg-card p-3"
+        <RequestCard
+          key={`${sessionID}:${request.id}`}
+          title="Permission required"
+          icon={ShieldAlert}
+          tone="amber"
+          badge={
+            <Badge variant="outline" className="text-[10px]">
+              {request.action}
+            </Badge>
+          }
         >
-          <div className="flex items-start gap-2">
-            <ShieldAlert className="mt-0.5 size-4 text-amber-500" />
-            <div className="min-w-0 flex-1">
-              <div className="flex flex-wrap items-center gap-2">
-                <span className="text-xs font-medium">Permission required</span>
-                <Badge variant="outline" className="text-[10px]">
-                  {request.action}
-                </Badge>
-              </div>
-              {request.message && (
-                <p className="mt-1 text-[11px] text-muted-foreground">{request.message}</p>
-              )}
-              <div className="mt-2 space-y-1">
-                {request.resources.map((resource) => (
-                  <code
-                    key={resource}
-                    className="block max-h-20 overflow-auto rounded-md bg-muted/60 px-2 py-1 font-mono text-[10px]"
-                  >
-                    {resource}
-                  </code>
-                ))}
-              </div>
-              <PermissionThinking request={request} messages={messages} />
-              <div className="mt-3 flex flex-wrap gap-2">
-                <Button
-                  size="sm"
-                  className="h-7 text-xs max-md:h-11 max-md:px-3 max-md:text-sm"
-                  onClick={() =>
-                    reply.mutate({ sessionID, requestID: request.id, decision: 'once' })
-                  }
-                  disabled={reply.isPending}
-                >
-                  <ShieldCheck className="size-3.5 max-md:size-5" /> Allow once
-                </Button>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  className="h-7 text-xs max-md:h-11 max-md:px-3 max-md:text-sm"
-                  onClick={() =>
-                    reply.mutate({ sessionID, requestID: request.id, decision: 'always' })
-                  }
-                  disabled={reply.isPending}
-                >
-                  Always allow
-                </Button>
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  className="h-7 text-xs text-destructive max-md:h-11 max-md:px-3 max-md:text-sm"
-                  onClick={() =>
-                    reply.mutate({ sessionID, requestID: request.id, decision: 'reject' })
-                  }
-                  disabled={reply.isPending}
-                >
-                  <ShieldX className="size-3.5 max-md:size-5" /> Reject
-                </Button>
-              </div>
-            </div>
+          {request.message && (
+            <p className="text-[11px] text-muted-foreground">{request.message}</p>
+          )}
+          <div className="mt-2 space-y-1">
+            {request.resources.map((resource) => (
+              <code
+                key={resource}
+                className="block max-h-20 overflow-auto rounded-md bg-muted/60 px-2 py-1 font-mono text-[10px]"
+              >
+                {resource}
+              </code>
+            ))}
           </div>
-        </div>
+          <PermissionThinking request={request} messages={messages} />
+          <div className="mt-3 flex flex-wrap gap-2">
+            <Button
+              size="sm"
+              className="h-7 text-xs max-md:h-11 max-md:px-3 max-md:text-sm"
+              onClick={() => reply.mutate({ sessionID, requestID: request.id, decision: 'once' })}
+              disabled={reply.isPending}
+            >
+              <ShieldCheck className="size-3.5 max-md:size-5" /> Allow once
+            </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              className="h-7 text-xs max-md:h-11 max-md:px-3 max-md:text-sm"
+              onClick={() => reply.mutate({ sessionID, requestID: request.id, decision: 'always' })}
+              disabled={reply.isPending}
+            >
+              Always allow
+            </Button>
+            <Button
+              size="sm"
+              variant="ghost"
+              className="h-7 text-xs text-destructive max-md:h-11 max-md:px-3 max-md:text-sm"
+              onClick={() => reply.mutate({ sessionID, requestID: request.id, decision: 'reject' })}
+              disabled={reply.isPending}
+            >
+              <ShieldX className="size-3.5 max-md:size-5" /> Reject
+            </Button>
+          </div>
+        </RequestCard>
       ))}
     </div>
   )

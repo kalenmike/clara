@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react'
 import { CircleHelp } from 'lucide-react'
 import type { FormField, FormInfo } from '@opencode/client'
+import { RequestCard } from '@/components/chat/request-card'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Input } from '@/components/ui/input'
@@ -33,7 +34,7 @@ export function FormPanel({ sessionID }: { sessionID: string }) {
   return (
     <div className="shrink-0 space-y-2 border-b bg-sky-500/5 p-2 md:p-3">
       {forms.map((form) => (
-        <FormCard key={form.id} sessionID={sessionID} form={form} />
+        <FormCard key={`${sessionID}:${form.id}`} sessionID={sessionID} form={form} />
       ))}
     </div>
   )
@@ -56,43 +57,37 @@ function FormCard({ sessionID, form }: { sessionID: string; form: FormInfo }) {
   }
 
   return (
-    <div className="mx-auto max-w-3xl rounded-xl border border-sky-500/30 bg-card p-3">
-      <div className="flex items-start gap-2">
-        <CircleHelp className="mt-0.5 size-4 text-sky-500" />
-        <div className="min-w-0 flex-1">
-          <div className="text-xs font-medium">{form.title}</div>
-          <div className="mt-3 space-y-3">
-            {fields.map((field) => (
-              <Field
-                key={field.key}
-                field={field}
-                value={answers[field.key]}
-                onChange={(value) => setAnswers((current) => ({ ...current, [field.key]: value }))}
-              />
-            ))}
-          </div>
-          <div className="mt-3 flex gap-2">
-            <Button
-              size="sm"
-              className="h-7 text-xs max-md:h-11 max-md:px-3 max-md:text-sm"
-              onClick={submit}
-              disabled={reply.isPending}
-            >
-              Submit
-            </Button>
-            <Button
-              size="sm"
-              variant="ghost"
-              className="h-7 text-xs max-md:h-11 max-md:px-3 max-md:text-sm"
-              onClick={() => reject.mutate({ formID: form.id })}
-              disabled={reject.isPending}
-            >
-              Skip
-            </Button>
-          </div>
-        </div>
+    <RequestCard title={form.title} icon={CircleHelp} tone="sky">
+      <div className="space-y-3">
+        {fields.map((field) => (
+          <Field
+            key={field.key}
+            field={field}
+            value={answers[field.key]}
+            onChange={(value) => setAnswers((current) => ({ ...current, [field.key]: value }))}
+          />
+        ))}
       </div>
-    </div>
+      <div className="mt-3 flex gap-2">
+        <Button
+          size="sm"
+          className="h-7 text-xs max-md:h-11 max-md:px-3 max-md:text-sm"
+          onClick={submit}
+          disabled={reply.isPending}
+        >
+          Submit
+        </Button>
+        <Button
+          size="sm"
+          variant="ghost"
+          className="h-7 text-xs max-md:h-11 max-md:px-3 max-md:text-sm"
+          onClick={() => reject.mutate({ formID: form.id })}
+          disabled={reject.isPending}
+        >
+          Skip
+        </Button>
+      </div>
+    </RequestCard>
   )
 }
 
