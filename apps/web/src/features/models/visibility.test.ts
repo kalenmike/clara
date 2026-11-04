@@ -9,6 +9,7 @@ import {
   isProviderHidden,
   normalizeHiddenModels,
   parseHiddenModels,
+  providerDisplayName,
   readHiddenModels,
   resolveInheritedModel,
   saveHiddenModels,
@@ -78,6 +79,17 @@ describe('hidden model storage', () => {
 
     saveHiddenModels({ providers: [], models: [] })
     expect(storage.has(HIDDEN_MODELS_KEY)).toBe(false)
+  })
+})
+
+describe('provider labels', () => {
+  it('shows the OpenCode product name instead of the host-prefixed server name', () => {
+    expect(providerDisplayName('opencode', 'Goose / OpenCode')).toBe('OpenCode')
+    expect(providerDisplayName('opencode-go', 'OpenCode Go')).toBe('OpenCode Go')
+  })
+
+  it('falls back to the provider ID when no name is available', () => {
+    expect(providerDisplayName('custom', '  ')).toBe('custom')
   })
 })
 

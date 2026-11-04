@@ -103,6 +103,13 @@ function modelKey(providerID: string, modelID: string): string {
   return `${providerID}/${modelID}`
 }
 
+/** OpenCode's provider name can inherit the host name; show the product name. */
+export function providerDisplayName(providerID: string, name?: string): string {
+  if (providerID === 'opencode') return 'OpenCode'
+  const trimmed = name?.trim()
+  return trimmed || providerID
+}
+
 export function isProviderHidden(visibility: HiddenModels, providerID: string): boolean {
   return visibility.providers.includes(providerID)
 }

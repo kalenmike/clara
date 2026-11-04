@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import { CircleAlert, Cpu, RotateCcw } from 'lucide-react'
+import { CircleAlert, Cpu, Eye, EyeOff } from 'lucide-react'
 import type { ModelInfo } from '@opencode/client'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -9,9 +9,9 @@ import { useModelVisibility } from '@/features/models/use-model-visibility'
 import {
   filterModelsByPrice,
   isModelHidden as modelIsHidden,
+  providerDisplayName,
   type PriceFilter,
 } from '@/features/models/visibility'
-import { cn } from '@/lib/utils'
 
 const FILTERS: Array<{ value: PriceFilter; label: string }> = [
   { value: 'all', label: 'All' },
@@ -22,8 +22,15 @@ const FILTERS: Array<{ value: PriceFilter; label: string }> = [
 export function ModelsCard() {
   const modelsQuery = useModels()
   const providersQuery = useProviders()
-  const { visibility, hiddenCount, isModelHidden, setModelHidden, setProviderHidden, unhideAll } =
-    useModelVisibility()
+  const {
+    visibility,
+    hiddenCount,
+    isModelHidden,
+    setModelHidden,
+    setProviderHidden,
+    enableAll,
+    disableAll,
+  } = useModelVisibility()
   const [filter, setFilter] = useState<PriceFilter>('all')
 
   const enabledModels = useMemo(
@@ -45,7 +52,10 @@ export function ModelsCard() {
 
   const groups = useMemo(() => {
     const providerNames = new Map(
-      (providersQuery.data ?? []).map((provider) => [provider.id, provider.name])
+      (providersQuery.data ?? []).map((provider) => [
+        provider.id,
+        providerDisplayName(provider.id, provider.name),
+      ])
     )
     const grouped = new Map<string, ModelInfo[]>()
     for (const model of filteredModels) {
@@ -65,6 +75,11 @@ export function ModelsCard() {
   const visibleCount = enabledModels.filter(
     (model) => !modelIsHidden(visibility, model.providerID, model.modelID)
   ).length
+  const providerIDs = useMemo(
+    () => [...new Set(enabledModels.map((model) => model.providerID))],
+    [enabledModels]
+  )
+  const allVisible = hiddenCount === 0
 
   return (
     <Card>
@@ -74,7 +89,7 @@ export function ModelsCard() {
         </CardTitle>
         <CardDescription>
           Choose which providers and models appear in the composer. Choices apply to this device and
-          sync with the Preferences category.
+          sync with the Models category.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
@@ -101,14 +116,14 @@ export function ModelsCard() {
           </div>
           <Button
             type="button"
-            variant="ghost"
+            variant="outline"
             size="sm"
-            onClick={unhideAll}
-            disabled={hiddenCount === 0}
+            onClick={() => (allVisible ? disableAll(providerIDs) : enableAll())}
+            disabled={allVisible && providerIDs.length === 0}
             className="ml-auto"
           >
-            <RotateCcw className="size-3.5" />
-            Unhide all
+            {allVisible ? <EyeOff className="size-3.5" /> : <Eye className="size-3.5" />}
+            {allVisible ? 'Disable all' : 'Enable all'}
           </Button>
         </div>
 
@@ -149,7 +164,7 @@ export function ModelsCard() {
         )}
 
         {groups.length > 0 && (
-          <div className={cn('divide-y rounded-lg border')}>
+          <div className="divide-y rounded-lg border">
             {groups.map((group) => (
               <ModelProviderRow
                 key={group.id}

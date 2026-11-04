@@ -21,8 +21,16 @@ export function useModelVisibility() {
     saveHiddenModels(withModelHidden(readHiddenModels(), providerID, modelID, hidden))
   }, [])
 
-  const unhideAll = useCallback(() => {
+  const enableAll = useCallback(() => {
     saveHiddenModels(unhideAllModels())
+  }, [])
+
+  const disableAll = useCallback((providerIDs: string[]) => {
+    const current = readHiddenModels()
+    saveHiddenModels({
+      providers: [...new Set([...current.providers, ...providerIDs])],
+      models: current.models,
+    })
   }, [])
 
   const providerHidden = useCallback(
@@ -42,6 +50,7 @@ export function useModelVisibility() {
     isModelHidden: modelHidden,
     setProviderHidden,
     setModelHidden,
-    unhideAll,
+    enableAll,
+    disableAll,
   }
 }
