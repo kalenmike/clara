@@ -14,6 +14,7 @@ export const DEFAULT_SYNC_PREFERENCES: SyncPreferences = {
   categories: {
     theme: false,
     preferences: false,
+    models: false,
     notifications: false,
     project: false,
     inbox: false,

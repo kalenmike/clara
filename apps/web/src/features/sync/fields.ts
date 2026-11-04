@@ -298,7 +298,8 @@ function inboxMonitorField(overrides: SyncFieldOverrides): SyncField {
 export function buildSyncFields(overrides: SyncFieldOverrides = {}): SyncFieldGroups {
   return {
     theme: [themeModeField(overrides), colorThemeField()],
-    preferences: [defaultAgentField(), lastAgentField(), wordingField(), hiddenModelsField()],
+    preferences: [defaultAgentField(), lastAgentField(), wordingField()],
+    models: [hiddenModelsField()],
     notifications: [notificationsField()],
     project: [lastProjectField(), showEmptyProjectsField()],
     inbox: [inboxMonitorField(overrides)],

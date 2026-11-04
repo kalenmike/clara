@@ -27,6 +27,7 @@ function createHarness(initial?: Partial<SyncPreferences>, options?: { disabled?
   const fields: SyncFieldGroups = {
     theme: [testField('clara.colorTheme', null)],
     preferences: [testField('clara.lastAgent', null)],
+    models: [testField('clara.hiddenModels', null)],
     notifications: [testField('clara.notifications', null)],
     project: [testField('clara.lastProject', null)],
     inbox: [testField('clara.monitorInbox', null)],
@@ -36,6 +37,7 @@ function createHarness(initial?: Partial<SyncPreferences>, options?: { disabled?
     categories: {
       theme: false,
       preferences: false,
+      models: false,
       notifications: false,
       project: false,
       inbox: false,
@@ -167,6 +169,7 @@ describe('SettingsSyncEngine', () => {
       categories: {
         theme: true,
         preferences: false,
+        models: false,
         notifications: false,
         project: false,
         inbox: false,
@@ -186,6 +189,7 @@ describe('SettingsSyncEngine', () => {
       categories: {
         theme: true,
         preferences: false,
+        models: false,
         notifications: false,
         project: false,
         inbox: false,
@@ -208,6 +212,7 @@ describe('SettingsSyncEngine', () => {
       categories: {
         theme: true,
         preferences: false,
+        models: false,
         notifications: false,
         project: false,
         inbox: false,
@@ -232,6 +237,7 @@ describe('SettingsSyncEngine', () => {
       categories: {
         theme: true,
         preferences: false,
+        models: false,
         notifications: false,
         project: false,
         inbox: false,
@@ -255,6 +261,7 @@ describe('SettingsSyncEngine', () => {
       categories: {
         theme: true,
         preferences: false,
+        models: false,
         notifications: false,
         project: false,
         inbox: false,
@@ -277,6 +284,7 @@ describe('SettingsSyncEngine', () => {
       categories: {
         theme: true,
         preferences: false,
+        models: false,
         notifications: false,
         project: false,
         inbox: false,
@@ -297,6 +305,7 @@ describe('SettingsSyncEngine', () => {
         categories: {
           theme: true,
           preferences: false,
+          models: false,
           notifications: false,
           project: false,
           inbox: false,

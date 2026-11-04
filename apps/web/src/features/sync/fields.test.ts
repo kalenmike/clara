@@ -35,7 +35,7 @@ describe('hidden models sync field', () => {
     storage.clear()
     saveHiddenModels({ providers: ['opencode'], models: ['openai/gpt-5'] })
 
-    const field = buildSyncFields().preferences.find((item) => item.key === HIDDEN_MODELS_KEY)
+    const field = buildSyncFields().models.find((item) => item.key === HIDDEN_MODELS_KEY)
     expect(field).toBeDefined()
     expect(JSON.parse(field!.read() as string)).toEqual({
       providers: ['opencode'],
@@ -48,7 +48,7 @@ describe('hidden models sync field', () => {
 
   it('rejects snapshots that are not a hidden model group', () => {
     storage.clear()
-    const field = buildSyncFields().preferences.find((item) => item.key === HIDDEN_MODELS_KEY)
+    const field = buildSyncFields().models.find((item) => item.key === HIDDEN_MODELS_KEY)
 
     expect(field!.apply('{}')).toBe(false)
     expect(field!.apply('[]')).toBe(false)

@@ -1,6 +1,7 @@
 export const SYNC_CATEGORIES = [
   'theme',
   'preferences',
+  'models',
   'notifications',
   'project',
   'inbox',
@@ -23,8 +24,12 @@ export const SYNC_CATEGORY_INFO: SyncCategoryInfo[] = [
   {
     id: 'preferences',
     label: 'Preferences',
-    description:
-      'Default agent, last used agent, session wording, and hidden model providers or models.',
+    description: 'Default agent, last used agent, and session wording.',
+  },
+  {
+    id: 'models',
+    label: 'Models',
+    description: 'Which providers and models appear in the composer.',
   },
   {
     id: 'notifications',
