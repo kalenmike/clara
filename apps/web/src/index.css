@@ -151,14 +151,11 @@ body,
  * The shell is one screen tall, but which unit means "one screen" depends on
  * how the app was opened. iOS 26 hands a Home Screen app a viewport that is
  * short by the status-bar height, while `lvh`/`100vh` still report the whole
- * display (WebKit bug 313800). Sizing the shell to `lvh` therefore paints past
- * the viewport: the bottom-anchored dock buttons, the `h-full` scrollers, and
- * the `fixed` sheets all disagree about where the screen ends, and the extra
- * height is clipped. The shortfall is the native window frame, not the page,
- * so the shell stays viewport-sized and the manifest `background_color` is
- * matched to the palette instead. A browser tab keeps `dvh`, because `lvh`
- * there is the URL-bar-collapsed height and would put the composer behind
- * Safari's toolbars.
+ * display (WebKit bug 313800). A fixed, inset-zero root therefore ends above
+ * the real bottom edge and the body background shows as a bar under the app.
+ * An installed app has no browser chrome to retract, which makes `lvh` the
+ * true height. A browser tab keeps `dvh`, because `lvh` there is the
+ * URL-bar-collapsed height and would put the composer behind Safari's toolbars.
  */
 @media (display-mode: browser) {
   #root {
@@ -166,10 +163,12 @@ body,
   }
 }
 
-@media (display-mode: standalone) {
+@media (display-mode: standalone), (display-mode: fullscreen), (display-mode: minimal-ui) {
   #root {
     position: fixed;
     inset: 0;
+    height: 100vh;
+    height: 100lvh;
   }
 }
 
