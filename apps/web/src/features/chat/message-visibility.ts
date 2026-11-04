@@ -1,7 +1,7 @@
 import { assistantHasFailed } from '@clara/shared-types'
 import type { SessionMessageAssistant, SessionMessageInfo } from '@opencode/client'
 import { isQuestionTool } from '@/features/chat/questions'
-import { isClaraSynthetic, isSystemReminder } from '@/features/chat/system-events'
+import { isClaraSynthetic } from '@/features/chat/system-events'
 
 export { assistantHasFailed }
 
@@ -24,7 +24,7 @@ export function getVisibleMessages(
       case 'location-switched':
         return true
       case 'synthetic':
-        return isClaraSynthetic(message) || isSystemReminder(message) || showInternal
+        return isClaraSynthetic(message) || showInternal
       case 'skill':
       case 'compaction':
       case 'shell':

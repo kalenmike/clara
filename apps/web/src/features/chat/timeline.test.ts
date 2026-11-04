@@ -117,7 +117,7 @@ describe('buildTimeline', () => {
     })
   })
 
-  it('renders a system reminder as a system event at every detail level', () => {
+  it('keeps a system reminder behind the internal toggle', () => {
     const message = synthetic(
       undefined,
       undefined,
@@ -138,7 +138,7 @@ describe('buildTimeline', () => {
       },
     ]
 
-    expect(timeline([message])).toEqual(expected)
+    expect(timeline([message])).toEqual([])
     expect(timeline([message], true)).toEqual(expected)
   })
 
