@@ -10,6 +10,7 @@ import {
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
+import { isLocationRecoveryError } from '@/features/chat/location-recovery'
 import type { PlanTodo, PlanTodoStatus } from '@/features/chat/session-plan'
 import { claraEventMetadata } from '@/features/chat/system-events'
 import { useSendSynthetic } from '@/features/chat/use-chat'
@@ -64,7 +65,8 @@ export function SessionPlan({
         delivery: 'steer',
         resume: true,
       })
-    } catch {
+    } catch (cause) {
+      if (isLocationRecoveryError(cause)) return
       toast.error(
         kind === 'update'
           ? 'Could not request an update. Try again.'

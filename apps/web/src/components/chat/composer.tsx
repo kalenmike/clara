@@ -29,6 +29,7 @@ import { AgentPicker } from '@/components/chat/agent-picker'
 import { ModelPicker, VariantPicker } from '@/components/chat/model-picker'
 import { useAgents, useCommands, useReferences, useSkills } from '@/features/catalog/use-catalog'
 import type { ComposerMenuMode } from '@/features/chat/composer-menu'
+import { isLocationRecoveryError } from '@/features/chat/location-recovery'
 import { useModelVisibility } from '@/features/models/use-model-visibility'
 import {
   useRunCommand,
@@ -280,10 +281,12 @@ export function Composer({
           { name: command.name, text: rest.join(' '), files, delivery },
           {
             onSuccess: clear,
-            onError: (cause) =>
+            onError: (cause) => {
+              if (isLocationRecoveryError(cause)) return
               toast.error('Could not run the command', {
                 description: describeConnectionError(cause),
-              }),
+              })
+            },
           }
         )
         return
@@ -294,11 +297,13 @@ export function Composer({
       { text: value, files, delivery },
       {
         onSuccess: clear,
-        onError: (cause) =>
+        onError: (cause) => {
+          if (isLocationRecoveryError(cause)) return
           toast.error(
             delivery === 'queue' ? 'Could not queue the message' : 'Could not send the message',
             { description: describeConnectionError(cause) }
-          ),
+          )
+        },
       }
     )
   }
@@ -323,10 +328,12 @@ export function Composer({
           }
           clear()
         },
-        onError: (cause) =>
+        onError: (cause) => {
+          if (isLocationRecoveryError(cause)) return
           toast.error('Could not save the draft', {
             description: describeConnectionError(cause),
-          }),
+          })
+        },
       }
     )
   }

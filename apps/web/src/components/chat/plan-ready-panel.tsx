@@ -3,6 +3,7 @@ import { Loader2, Play, Sparkles, SquarePen } from 'lucide-react'
 import { toast } from 'sonner'
 import { RequestCard } from '@/components/chat/request-card'
 import { Button } from '@/components/ui/button'
+import { isLocationRecoveryError } from '@/features/chat/location-recovery'
 import { claraEventMetadata } from '@/features/chat/system-events'
 import { useSendSynthetic, useSwitchAgent } from '@/features/chat/use-chat'
 import { useNotificationSettings } from '@/features/notifications/use-notification-settings'
@@ -40,7 +41,8 @@ export function PlanReadyPanel({
         resume: true,
       })
       sent = true
-    } catch {
+    } catch (cause) {
+      if (isLocationRecoveryError(cause)) return
       toast.error(
         switched
           ? 'Switched agents, but could not start work. Send a message from the reply box.'

@@ -9,6 +9,7 @@ export type PromptFile = {
 }
 import { saveLastAgent } from '@/features/agents/default-agent'
 import { chatStore, type ChatSnapshot } from '@/features/chat/chat-store'
+import { withLocationRecovery } from '@/features/chat/location-recovery'
 import { unsnoozeSessionOnEngage } from '@/features/sessions/unsnooze'
 import { queryKeys } from '@/lib/query-keys'
 import { useConnection } from '@/providers/connection-provider'
@@ -112,12 +113,14 @@ export function useSendPrompt(sessionID: string) {
       delivery?: 'steer' | 'queue'
     }) => {
       await unsnoozeSessionOnEngage(client!, queryClient, sessionID)
-      return client!.session.prompt({
-        sessionID,
-        text: input.text,
-        files: input.files,
-        delivery: input.delivery,
-      })
+      return withLocationRecovery({ client: client!, queryClient, sessionID }, () =>
+        client!.session.prompt({
+          sessionID,
+          text: input.text,
+          files: input.files,
+          delivery: input.delivery,
+        })
+      )
     },
     onSuccess: () => {
       window.setTimeout(() => {
@@ -148,14 +151,16 @@ export function useSendSynthetic(sessionID: string) {
       resume?: boolean
     }) => {
       await unsnoozeSessionOnEngage(client!, queryClient, sessionID)
-      return client!.session.synthetic({
-        sessionID,
-        text: input.text,
-        description: input.description,
-        metadata: input.metadata,
-        delivery: input.delivery,
-        resume: input.resume,
-      })
+      return withLocationRecovery({ client: client!, queryClient, sessionID }, () =>
+        client!.session.synthetic({
+          sessionID,
+          text: input.text,
+          description: input.description,
+          metadata: input.metadata,
+          delivery: input.delivery,
+          resume: input.resume,
+        })
+      )
     },
     onSuccess: () => {
       window.setTimeout(() => {
@@ -175,12 +180,14 @@ export function useSaveDraft(sessionID: string) {
   return useMutation({
     mutationFn: async (input: { text: string; files?: PromptFile[]; title?: string }) => {
       await unsnoozeSessionOnEngage(client!, queryClient, sessionID)
-      await client!.session.prompt({
-        sessionID,
-        text: input.text,
-        files: input.files,
-        resume: false,
-      })
+      await withLocationRecovery({ client: client!, queryClient, sessionID }, () =>
+        client!.session.prompt({
+          sessionID,
+          text: input.text,
+          files: input.files,
+          resume: false,
+        })
+      )
 
       let titleUpdated = true
       if (input.title) {
@@ -215,13 +222,15 @@ export function useRunCommand(sessionID: string) {
       delivery?: 'steer' | 'queue'
     }) => {
       await unsnoozeSessionOnEngage(client!, queryClient, sessionID)
-      return client!.session.command({
-        sessionID,
-        name: input.name,
-        text: input.text,
-        files: input.files,
-        delivery: input.delivery,
-      })
+      return withLocationRecovery({ client: client!, queryClient, sessionID }, () =>
+        client!.session.command({
+          sessionID,
+          name: input.name,
+          text: input.text,
+          files: input.files,
+          delivery: input.delivery,
+        })
+      )
     },
     onSuccess: () => {
       window.setTimeout(() => {
@@ -242,7 +251,10 @@ export function useSwitchAgent(sessionID: string) {
   const { client } = useConnection()
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: (agent: string) => client!.session.switchAgent({ sessionID, agent }),
+    mutationFn: (agent: string) =>
+      withLocationRecovery({ client: client!, queryClient, sessionID }, () =>
+        client!.session.switchAgent({ sessionID, agent })
+      ),
     onSuccess: (_data, agent) => {
       saveLastAgent(agent)
       void queryClient.invalidateQueries({ queryKey: queryKeys.session(sessionID) })

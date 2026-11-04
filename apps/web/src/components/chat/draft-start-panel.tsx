@@ -3,6 +3,7 @@ import { Loader2, Play } from 'lucide-react'
 import { toast } from 'sonner'
 import { RequestCard } from '@/components/chat/request-card'
 import { Button } from '@/components/ui/button'
+import { isLocationRecoveryError } from '@/features/chat/location-recovery'
 import { useSendPrompt } from '@/features/chat/use-chat'
 
 export function DraftStartPanel({ sessionID, count }: { sessionID: string; count: number }) {
@@ -15,8 +16,9 @@ export function DraftStartPanel({ sessionID, count }: { sessionID: string; count
     setStarting(true)
     try {
       await sendPrompt.mutateAsync({ text: 'Start', delivery: 'steer' })
-    } catch {
+    } catch (cause) {
       setStarting(false)
+      if (isLocationRecoveryError(cause)) return
       toast.error('Could not start the draft. Try again.')
     }
   }
