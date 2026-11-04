@@ -149,13 +149,14 @@ body,
 
 /*
  * The shell is one screen tall, but which unit means "one screen" depends on
- * how the app was opened. iOS 26 hands a Home Screen app a viewport that is
- * short by the status-bar height, while `lvh`/`100vh` still report the whole
- * display (WebKit bug 313800). A fixed, inset-zero root therefore ends above
- * the real bottom edge and the body background shows as a bar under the app.
- * An installed app has no browser chrome to retract, which makes `lvh` the
- * true height. A browser tab keeps `dvh`, because `lvh` there is the
- * URL-bar-collapsed height and would put the composer behind Safari's toolbars.
+ * how the app was opened. An installed iOS PWA draws under the status bar
+ * (`black-translucent` + `viewport-fit=cover`), and `height: 100%` on the root
+ * elements resolves against a layout viewport that is short by the status-bar
+ * height (WebKit bug 313800). That leaves the body background visible as a
+ * bar under the composer. `100vh` is the full screen in an installed app, so
+ * the root elements use it there. A browser tab keeps `dvh`, because `100vh`
+ * there is the URL-bar-collapsed height and would put the composer behind
+ * Safari's toolbars.
  */
 @media (display-mode: browser) {
   #root {
@@ -164,11 +165,13 @@ body,
 }
 
 @media (display-mode: standalone), (display-mode: fullscreen), (display-mode: minimal-ui) {
-  #root {
-    position: fixed;
-    inset: 0;
+  html,
+  body {
     height: 100vh;
-    height: 100lvh;
+  }
+
+  #root {
+    height: 100%;
   }
 }
 
