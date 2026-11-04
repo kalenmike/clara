@@ -49,7 +49,7 @@ describe('uninstall-clara-plugin', () => {
 
     execFileSync(process.execPath, ['scripts/uninstall-clara-plugin.mjs', '--purge', '--yes'], {
       cwd: repoRoot,
-      env: { ...process.env, XDG_CONFIG_HOME: dir },
+      env: { ...process.env, XDG_CONFIG_HOME: dir, XDG_DATA_HOME: dir },
       stdio: 'pipe',
     })
 
@@ -95,7 +95,7 @@ describe('uninstall-clara-plugin', () => {
 
     const result = spawnSync(process.execPath, ['scripts/uninstall-clara-plugin.mjs', '--yes'], {
       cwd: repoRoot,
-      env: { ...process.env, XDG_CONFIG_HOME: dir },
+      env: { ...process.env, XDG_CONFIG_HOME: dir, XDG_DATA_HOME: dir },
       stdio: 'pipe',
       encoding: 'utf8',
     })

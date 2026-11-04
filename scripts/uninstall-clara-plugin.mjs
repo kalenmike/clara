@@ -23,10 +23,12 @@ const dryRun = args.has('--dry-run')
 const yes = args.has('--yes')
 
 const configHome = process.env.XDG_CONFIG_HOME?.trim() || join(homedir(), '.config')
+const dataHome = process.env.XDG_DATA_HOME?.trim() || join(homedir(), '.local', 'share')
 const opencodeDir = join(configHome, 'opencode')
 const pluginsDir = join(opencodeDir, 'plugins')
 const agentsDir = join(opencodeDir, 'agents')
 const claraDir = process.env.CLARA_CONFIG_DIR?.trim() || join(configHome, 'clara')
+const dataDir = process.env.CLARA_DATA_DIR?.trim() || join(dataHome, 'clara')
 
 const pluginLink = join(pluginsDir, 'clara')
 const agentManifest = join(agentsDir, '.clara-agents.json')
@@ -44,21 +46,19 @@ if (isLinkedPlugin()) {
 removeAgentFiles()
 
 if (purge) {
-  for (const path of [
-    join(claraDir, 'ledger.db'),
-    join(claraDir, 'ledger.db-wal'),
-    join(claraDir, 'ledger.db-shm'),
-    join(claraDir, 'ledger-alerts.db'),
-    join(claraDir, 'ledger-alerts.db-wal'),
-    join(claraDir, 'ledger-alerts.db-shm'),
-  ]) {
-    if (existsSync(path)) {
-      actions.push({ description: `remove ${path}`, run: () => rmSync(path, { force: true }) })
+  for (const dir of new Set([dataDir, claraDir])) {
+    for (const name of ['ledger.db', 'ledger-alerts.db']) {
+      for (const suffix of ['', '-wal', '-shm']) {
+        const path = join(dir, `${name}${suffix}`)
+        if (existsSync(path)) {
+          actions.push({ description: `remove ${path}`, run: () => rmSync(path, { force: true }) })
+        }
+      }
     }
   }
 
-  const serverDb = join(claraDir, 'clara.db')
-  if (existsSync(serverDb)) {
+  for (const serverDb of new Set([join(dataDir, 'clara.db'), join(claraDir, 'clara.db')])) {
+    if (!existsSync(serverDb)) continue
     actions.push({
       description: `remove Clara management settings and legacy tables from ${serverDb}`,
       run: () => purgeServerDatabase(serverDb),

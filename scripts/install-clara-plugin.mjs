@@ -27,10 +27,11 @@ const agentsFile = join(pluginDir, 'agents.json')
 const force = process.argv.includes('--force')
 
 const configHome = process.env.XDG_CONFIG_HOME?.trim() || join(homedir(), '.config')
+const dataHome = process.env.XDG_DATA_HOME?.trim() || join(homedir(), '.local', 'share')
 const opencodeDir = join(configHome, 'opencode')
 const pluginsDir = join(opencodeDir, 'plugins')
 const agentsDir = join(opencodeDir, 'agents')
-const claraDir = process.env.CLARA_CONFIG_DIR?.trim() || join(configHome, 'clara')
+const dataDir = process.env.CLARA_DATA_DIR?.trim() || join(dataHome, 'clara')
 
 const pluginLink = join(pluginsDir, 'clara')
 const agentManifest = join(agentsDir, '.clara-agents.json')
@@ -45,14 +46,14 @@ if (!existsSync(agentsFile)) {
 
 mkdirSync(pluginsDir, { recursive: true, mode: 0o700 })
 mkdirSync(agentsDir, { recursive: true, mode: 0o700 })
-mkdirSync(claraDir, { recursive: true, mode: 0o700 })
+mkdirSync(dataDir, { recursive: true, mode: 0o700 })
 
 linkPlugin()
 installAgents()
 
-const ledger = join(claraDir, 'ledger.db')
+const ledger = join(dataDir, 'ledger.db')
 console.log(`\nLedger: ${ledger}`)
-console.log(`Settings DB left untouched: ${join(claraDir, 'clara.db')}`)
+console.log(`Settings DB left untouched: ${join(dataDir, 'clara.db')}`)
 console.log(
   management
     ? 'Clara management: on'
@@ -154,7 +155,7 @@ function renderAgent(agent, enabled) {
 
 /** The panel owns the master switch; the installer only reads it. */
 async function readManagement() {
-  const path = join(claraDir, 'clara.db')
+  const path = join(dataDir, 'clara.db')
   if (!existsSync(path)) return false
 
   try {

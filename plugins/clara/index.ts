@@ -9,7 +9,7 @@
 //
 //   ~/.config/opencode/plugins/clara -> <repo>/plugins/clara
 //
-// The ledger lives at ${CLARA_CONFIG_DIR:-~/.config/clara}/ledger.db.
+// The ledger lives at ${CLARA_DATA_DIR:-${XDG_DATA_HOME:-~/.local/share}/clara}/ledger.db.
 // Override it with CLARA_LEDGER_DB_PATH or the plugin `db` option:
 //
 //   { "plugins": [{ "package": "@clara/opencode-plugin", "options": { "db": "/path/ledger.db" } }] }

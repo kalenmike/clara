@@ -56,6 +56,7 @@ function expectThrow(label: string, fn: () => unknown, needle: string): void {
 
 const dir = mkdtempSync(join(tmpdir(), 'clara-selftest-'))
 process.env.CLARA_CONFIG_DIR = dir
+process.env.CLARA_DATA_DIR = dir
 const dbPath = join(dir, 'ledger.db')
 const workspace = join(dir, 'workspace')
 

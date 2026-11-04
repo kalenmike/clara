@@ -30,8 +30,8 @@ export const HERE = dirname(fileURLToPath(import.meta.url))
 export const MIGRATIONS_DIR = resolve(HERE, 'migrations')
 
 /**
- * Clara's config directory. The home agent keeps its settings database here;
- * the ledger gets its own file beside it.
+ * Clara's config directory. Pipeline definitions live here. The ledger and the
+ * home agent's settings database live in `dataDir()`.
  */
 export function configDir(): string {
   const configured = process.env.CLARA_CONFIG_DIR?.trim()
@@ -40,12 +40,20 @@ export function configDir(): string {
   return join(xdg, 'clara')
 }
 
+/** Clara's data directory: the ledger and the home agent settings database. */
+export function dataDir(): string {
+  const configured = process.env.CLARA_DATA_DIR?.trim()
+  if (configured) return configured
+  const xdg = process.env.XDG_DATA_HOME?.trim() || join(homedir(), '.local', 'share')
+  return join(xdg, 'clara')
+}
+
 /** The live ledger. Distinct from the home agent's clara.db settings database. */
-export const DEFAULT_DB_PATH = join(configDir(), 'ledger.db')
+export const DEFAULT_DB_PATH = join(dataDir(), 'ledger.db')
 
 /** The home agent's settings database, shared read-only as a control channel. */
 export function serverDbPath(): string {
-  return process.env.CLARA_DB_PATH?.trim() || join(configDir(), 'clara.db')
+  return process.env.CLARA_DB_PATH?.trim() || join(dataDir(), 'clara.db')
 }
 
 /**
