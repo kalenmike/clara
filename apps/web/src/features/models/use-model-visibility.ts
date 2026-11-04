@@ -1,11 +1,11 @@
 import { useCallback, useSyncExternalStore } from 'react'
 import {
+  enableAllModels,
   isModelHidden,
   isProviderHidden,
   readHiddenModels,
   saveHiddenModels,
   subscribeHiddenModels,
-  unhideAllModels,
   withModelHidden,
   withProviderHidden,
 } from '@/features/models/visibility'
@@ -22,7 +22,7 @@ export function useModelVisibility() {
   }, [])
 
   const enableAll = useCallback(() => {
-    saveHiddenModels(unhideAllModels())
+    saveHiddenModels(enableAllModels())
   }, [])
 
   const disableAll = useCallback((providerIDs: string[]) => {

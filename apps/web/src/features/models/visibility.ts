@@ -154,7 +154,7 @@ export function withModelHidden(
   return { providers: [...visibility.providers], models: [...models] }
 }
 
-export function unhideAllModels(): HiddenModels {
+export function enableAllModels(): HiddenModels {
   return { providers: [], models: [] }
 }
 
