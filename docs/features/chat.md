@@ -37,15 +37,18 @@ message has fork and forward actions; see [fork.md](fork.md).
 1. Open a session from the sidebar or project page. A session with no messages
    and no saved draft shows a dedicated New message view instead of the message
    list. Creating a new session opens the composer automatically in the
-   last-used size (expanded by default). Opening an empty draft with locally
-   saved text opens the composer too; otherwise press **New** to reopen it.
+   last-used size (expanded by default) and binds it to the new session. Opening
+   an empty draft with locally saved text opens the composer too; otherwise
+   press **New** to reopen it bound to that session.
 2. Clara loads the newest messages and opens the thread with the top of the
    newest message at the top of the view, directly below the header and any
    request panel above the thread, so a long reply is readable from its first
    line. A session that is still running keeps following the newest output
    instead. The down-arrow control jumps to the newest output.
 3. Click **Reply**, type in the reply window, and press Enter; the prompt appears
-   immediately and the header switches to "running".
+   immediately and the header switches to "running". If the composer was already
+   open or minimized on another session, it stays connected there instead; close
+   it to reply to the session on screen, or use its return button to go back.
 4. Assistant text streams in. Turn on internal output in the header to see
    reasoning, tool calls, shell commands, and untagged system notices. Open the
    **Terminal** tab in the right panel, or press `ctrl+x` then `` ` ``, to watch
@@ -69,9 +72,10 @@ message has fork and forward actions; see [fork.md](fork.md).
    send it as queued for the next turn.
 10. When the run finishes the header returns to "idle" and usage settles.
 11. When a Plan run ends with a final reply, a plan-ready card appears above the
-    thread. **Adjust Plan** opens the reply window for changes; **Start Work**
-    switches to the working agent and sends a short synthetic handoff, which
-    appears as a **User confirmed. Starting work.** system row.
+    thread. **Adjust Plan** opens the reply window for changes, re-targeting it
+    to this session if it was open on another; **Start Work** switches to the
+    working agent and sends a short synthetic handoff, which appears as a
+    **User confirmed. Starting work.** system row.
 12. Open a session with a saved draft. The queued user message appears in the
     thread and a Start card appears above it. Click **Start** to send `Start`,
     deliver the draft, and begin the run.
@@ -161,11 +165,11 @@ message has fork and forward actions; see [fork.md](fork.md).
     draft shows a simple **Delete** action instead: it removes the session
     immediately without the celebration, chime, or redirect delay. Empty drafts
     show **New** in place of Reply; New opens the composer in the last-used
-    size, and opening an empty draft with locally saved composer text opens it
-    automatically. The New message view itself has no action button. The Done
-    button plays the UI completion chime when **UI sounds** is on; its animation
-    and success toast do not depend on sound settings. The start view returns
-    after a short celebration delay.
+    size, binding it to the current session, and opening an empty draft with
+    locally saved composer text opens it automatically. The New message view
+    itself has no action button. The Done button plays the UI completion chime
+    when **UI sounds** is on; its animation and success toast do not depend on
+    sound settings. The start view returns after a short celebration delay.
 13. Archived or snoozed sessions show Reopen instead of Done next to Reply.
     Reopen clears the server's archived flag and any snooze metadata without
     renaming the session, so the session returns to its mailbox section with its
@@ -175,8 +179,9 @@ message has fork and forward actions; see [fork.md](fork.md).
     snooze marker first, so the session leaves Snoozed without a manual Reopen.
 14. The plan-ready card appears only while the session is idle, the session agent
     is Plan, and the newest user or assistant message is a Plan reply that
-    finished with `stop` and no error. It is hidden while the reply window is
-    open and on archived sessions. Build switches the agent before sending
+    finished with `stop` and no error. It is hidden while the composer is open on
+    that session and on archived sessions; a composer connected to a different
+    session does not hide it. Build switches the agent before sending
     `Confirmed`, and both requests disable the buttons while they are in flight.
     Once `Confirmed` is sent, Build advances the Monitor Inbox like Send does.
 15. The Start card appears only while the session is idle, not archived, and the
@@ -209,6 +214,13 @@ message has fork and forward actions; see [fork.md](fork.md).
   automatically when locally saved text exists.
 - **Draft restored** — reopening an empty draft with locally saved text opens
   the composer with that text; after closing, the New button shows a draft dot.
+- **Composer open on another session** — the thread stays on the current session
+  while the composer title and connection line name the connected session. All
+  sends target that session, the return control jumps back, and closing the
+  composer resets it to the current session.
+- **Explicit compose actions while open elsewhere** — a new session, Forward, and
+  Adjust Plan re-target the composer to their session instead of leaving it on
+  the previous one.
 - **Saved draft** — the draft is a pending inbox item, not a projected message.
   It is rendered in the thread and the Start card appears; Done archives rather
   than deletes because the draft counts as a message.
@@ -343,7 +355,7 @@ message has fork and forward actions; see [fork.md](fork.md).
   and question answer clears the snooze marker first through
   `unsnoozeSessionOnEngage` in `src/features/sessions/unsnooze.ts`
 - Delete empty draft: `client.session.remove({ sessionID })`; the button is
-  rendered by `src/components/chat/reply-dock.tsx`
+  rendered by `src/components/chat/reply-actions.tsx`
 - Interrupt: `client.session.interrupt({ sessionID })`
 - Approvals: `client.permission.request.list`, `client.permission.reply`;
   request thinking comes from `src/features/chat/permission-thinking.ts`
@@ -360,7 +372,12 @@ delivery: 'steer' })`
   `src/features/chat/questions.ts` derives Q&A events from the completed
   `question` tool, and `src/features/chat/timeline.ts` assembles rows
 - System event UI: `src/components/chat/system-event-row.tsx`
-- Reply event: `clara:open-reply` opens the reply window in normal mode
+- Reply event: `clara:open-reply` opens the reply window when it is closed,
+  restores a minimized window, and focuses an open one
+- Composer connection: `src/features/chat/composer-provider.tsx`,
+  `src/features/chat/composer-session.ts`, and
+  `src/features/chat/use-composer-target.ts` keep the open or minimized window
+  connected to its session across route changes
 - Pair terminal: `src/features/chat/terminal-log.ts`,
   `src/components/chat/pair-terminal.tsx`, and the `session.tool.progress`
   event. See [pair terminal](pair-terminal.md).

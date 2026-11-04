@@ -5,19 +5,23 @@
 The reply composer is a Gmail-style window docked to the bottom-right of a chat.
 It opens from the **Reply** or **New** button, automatically when a new session
 is created or an empty draft with locally saved text is opened, and from Adjust
-Plan on the plan-ready card. It sends prompts that steer the run by default, can
-save the first message as a draft without starting a run, can queue a follow-up
-behind an active run, and carries commands, mentions, attachments, model
-selection, and agent selection.
+Plan on the plan-ready card. While it is open or minimized it keeps the session
+it was opened for as the person navigates to other sessions; closing it resets
+the connection to the current session. It sends prompts that steer the run by
+default, can save the first message as a draft without starting a run, can queue
+a follow-up behind an active run, and carries commands, mentions, attachments,
+model selection, and agent selection.
 
 ## User flow
 
 1. Click **Reply** in the bottom-right corner of the chat, or **New** on an empty
    draft. The window opens in the last-used size: expanded (maximized) by
    default, or the smaller docked window if that is how it was last restored.
-   Creating a new session opens the window automatically at that size, and so
-   does opening an empty draft that has locally saved text. The plan-ready
-   card's **Adjust Plan** action also opens the window.
+   While the window is closed, Reply and New always bind it to the session
+   currently on screen. Creating a new session opens the window automatically at
+   that size and binds it to the new session, and so does opening an empty draft
+   that has locally saved text. The plan-ready card's **Adjust Plan** action also
+   opens the window and binds it to that plan's session.
 2. Type in the large editor. The docked window stays non-modal, so the thread
    remains readable and scrollable behind it.
 3. Press Enter to send with steering, or Shift+Enter to add a line.
@@ -38,7 +42,13 @@ selection, and agent selection.
    from the picker.
 9. Minimize, maximize, or close the window at any time. Switching between the
    expanded panel and the smaller dock is remembered in local storage. The draft
-   stays in place until it is sent.
+   stays in place until it is sent. While the window is open or minimized,
+   opening another session leaves it connected to the original session; the
+   title bar shows that session's title and a connection line such as **Draft for
+   another brief**. The small return button in the title bar jumps back to the
+   connected session without closing the window. Closing the window while
+   viewing another session resets it to that session, so the next open shows the
+   current session's draft.
 
 ## Core business rules
 
@@ -60,7 +70,8 @@ selection, and agent selection.
 5. Unsent composer text is stored per session in local storage. Attachments stay
    with the open window but are not persisted across a reload.
 6. A successful send clears the editor, closes the window, and returns focus to
-   Reply when it is visible. A failed send keeps the text and attachments.
+   Reply when it is visible. Closing resets the connection to the session on
+   screen. A failed send keeps the text and attachments on the connected session.
 7. The window remembers its size across sessions and reloads. Expanded
    (maximized) is the default; restoring to the smaller dock makes the next
    open — from Reply, New, a new session, a restored local draft, or Steer — use
@@ -79,6 +90,15 @@ selection, and agent selection.
     `delivery: 'queue'`. OpenCode keeps the input pending and promotes it as the
     next turn when the session would otherwise become idle, so the active run is
     not redirected. The queued message renders in the thread while it waits.
+11. The window is connected to one session at a time. While open or minimized it
+    ignores route changes, so prompts, commands, saved drafts, model switches,
+    and agent switches all target the connected session. When the window is
+    closed, Reply, New, an auto-opened draft, and the model or agent shortcuts
+    bind it to the current session. Creating a new session, forwarding a message
+    into a new draft, and Adjust Plan explicitly re-target even an open window.
+    A send from a session other than the one on screen leaves the view and
+    Monitor Inbox position alone; the window still closes and resets to the
+    current session.
 
 ## Edge cases
 
@@ -137,15 +157,36 @@ selection, and agent selection.
   opens automatically when locally saved text exists; otherwise New opens it in
   the last-used size (expanded by default).
 - **New session** — the window opens in the last-used size and focused, with the
-  rest of the start view still visible behind it.
+  rest of the start view still visible behind it. If it was already open on
+  another session, it re-targets to the new session.
 - **Size memory** — the expanded/docked choice survives closing, switching
   sessions, and reloads. An unreadable or missing stored value falls back to
   expanded.
 - **Close with a draft** — the Reply or New button shows a draft dot and
-  reopening restores the text.
-- **Switch sessions** — the reply window resets to the new session's draft.
+  reopening restores the current session's text.
+- **Switch sessions with the window open or minimized** — the title bar keeps the
+  connected session's title, the connection line says **Draft for another brief**
+  (using the configured session noun), and all composer actions keep targeting
+  that session.
+- **Return control** — the title-bar return button navigates to the connected
+  session without closing or resizing the window. It is absent when the connected
+  session is already on screen.
+- **Close on another session** — the window resets to the session on screen, even
+  if the connected session was different. Reopening then shows the current
+  session's draft.
+- **Send from another session** — the prompt, command, queue, or saved draft goes
+  to the connected session. The chat on screen does not scroll or advance Monitor
+  Inbox; the window closes and resets to the current session.
+- **Create, Forward, or Adjust Plan while detached** — the explicit compose
+  action re-targets the window and moves the previous session's text to its local
+  draft.
+- **Leave the chat view** — home, projects, and settings unmount the chat-scoped
+  composer; returning to a session starts with it closed.
 - **Minimized window** — a model or agent shortcut restores the window to its
-  saved size before opening its picker.
+  saved size before opening its picker, without changing the connected session.
+- **Composer title** — the session title is the heading, falling back to **Untitled
+  brief** (using the configured noun). The connection line below it always says
+  **Draft for this brief** or **Draft for another brief**.
 - **File search failure** — the file section is empty; agents, skills, and
   references still appear.
 - **Paste with files** — files are attached and the text paste is suppressed.
@@ -165,9 +206,9 @@ selection, and agent selection.
 
 ## Known gaps
 
-- Local composer attachments survive close and minimize but not a page reload;
-  only text local drafts are persisted. Saved drafts keep their attachments in
-  the session inbox.
+- Local composer attachments survive close and minimize on the same session but
+  not a rebind to another session or a page reload; only text local drafts are
+  persisted. Saved drafts keep their attachments in the session inbox.
 - Saved drafts cannot be edited or cancelled from Clara yet; start the draft or
   delete the session.
 - Command previews show only the server-provided name and description.
@@ -179,11 +220,19 @@ selection, and agent selection.
 <details>
 <summary>Routes, data, and references</summary>
 
-- Components: `src/components/chat/reply-dock.tsx`,
-  `src/components/chat/composer.tsx`
+- Components: `src/components/chat/reply-actions.tsx`,
+  `src/components/chat/reply-dock.tsx`, `src/components/chat/composer.tsx`
+- Connection state: `src/features/chat/composer-provider.tsx` owns the window
+  mode, connected target, handoff text/files, focus requests, draft reports, and
+  sent signal for the chat route. `src/features/chat/composer-session.ts` holds
+  the open, close, detachment, and return-path rules.
+- Target data: `src/features/chat/use-composer-target.ts` reads the connected
+  session's info, live snapshot, history, and pending inbox drafts independently
+  of the route.
 - Picker components: `model-picker.tsx`, `agent-picker.tsx`
 - Model visibility: `src/features/models/visibility.ts`
 - Loaded from: `/p/:projectId/s/:sessionId`
+- Return path: `/p/<connectedProjectID>/s/<connectedSessionID>`
 - Send: `client.session.prompt({ sessionID, text, files, delivery })` with
   `delivery: 'steer'`
 - Queue: the same call with `delivery: 'queue'`; commands use

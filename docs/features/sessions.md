@@ -42,8 +42,9 @@ by default, and the noun is configurable in Settings.
    it is disabled while a search is active.
 8. **New session** creates a session in the selected project and opens the reply
    composer in the last-used size (expanded by default), ready for the first
-   prompt; the empty session appears in Drafts. Opening an empty draft with
-   locally saved text opens the composer too.
+   prompt; the empty session appears in Drafts. Creating the session re-targets
+   the composer even when it is already open or minimized on another session.
+   Opening an empty draft with locally saved text opens the composer too.
 9. The All projects page shows one card per canonical, non-empty project with
    its directory, last activity, and active/archived session counts. A filter
    icon at the far right of the header opens a **Show empty projects** switch,
@@ -316,7 +317,8 @@ by default, and the noun is configurable in Settings.
 - **Delete on an empty draft** — the session is removed immediately rather than
   archived, and the start view returns.
 - **New session** — creates the session and opens the reply composer in the
-  last-used size so the first prompt can be typed immediately.
+  last-used size so the first prompt can be typed immediately. An already-open
+  composer follows the new session; plain session navigation does not move it.
 - **Messages fail to load** — the chat reports the failure and hides Done so a
   real session is not mistaken for an empty one.
 
