@@ -211,6 +211,12 @@ message has fork and forward actions; see [fork.md](fork.md).
     Request Plan and Request Update actions. When management is off or the
     feature is excluded from the build, the same session uses the normal chat
     controls.
+17. If a message-sending request fails with OpenCode's `LocationNotFoundError`,
+    Clara shows a toast that the workspace folder is missing, moves the session
+    to the project's canonical directory with `session.move`, and retries the
+    same request once. This covers prompts, queued messages, commands, saved
+    drafts, Start, Plan requests, and the Start Work handoff including its agent
+    switch. The retry keeps the original text, attachments, and delivery.
 
 ## Edge cases
 
@@ -218,6 +224,11 @@ message has fork and forward actions; see [fork.md](fork.md).
   limit) shows its structured error, HTTP status, and a plain-language next step
   instead of a blank reply, even when internal output is off. A toast names the
   failure, and the error stays attached to the assistant message after a reload.
+- **Session folder deleted** — the next message send, command, saved draft, or
+  synthetic request shows a toast, moves the session back to the project's
+  canonical workspace, and retries once. If the canonical directory is also
+  missing or the retry fails, an error toast replaces the reset toast and the
+  draft stays intact.
 - **Stream disconnect** — the sidebar badge turns into a **Retry** control, the
   provider reconnects with backoff, and a successful reconnect refetches the
   queries that missed events would have invalidated.
@@ -356,6 +367,11 @@ message has fork and forward actions; see [fork.md](fork.md).
   into `chatStore`
 - Stream: `client.event.subscribe()` through `EventProvider`
 - Send: `client.session.prompt({ sessionID, text, files, delivery })`
+- Missing folder recovery: `src/features/chat/location-recovery.ts` wraps
+  `session.prompt`, `session.command`, `session.synthetic`, and
+  `session.switchAgent`; `isMissingDirectoryError` recognizes
+  `LocationNotFoundError`, and the base directory comes from the canonical
+  project record for the session's `projectID`
 - Synthetic attribution: `src/features/chat/message-attribution.ts` reads
   `message.metadata.synthetic === true`; the base build always renders the Zap
   avatar and Automation sender through `src/components/chat/message-item.tsx`

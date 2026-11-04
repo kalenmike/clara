@@ -99,6 +99,11 @@ model selection, and agent selection.
     A send from a session other than the one on screen leaves the view and
     Monitor Inbox position alone; the window still closes and resets to the
     current session.
+12. If a send fails because the session's directory was deleted, the window
+    reports that the workspace folder is missing and retries automatically after
+    moving the session to the project's canonical directory. The retry preserves
+    the text, attachments, and delivery; Send, Save as draft, Send as queued, and
+    commands all use the same recovery.
 
 ## Edge cases
 
@@ -151,6 +156,9 @@ model selection, and agent selection.
   it as a user message instead of executing it as a command.
 - **Start failure** — the draft stays queued and Start can be retried.
 - **Send failure** — the window stays open with the draft and attachments intact.
+- **Session directory deleted** — the send reports the missing workspace folder,
+  moves the session to the project's canonical directory, and retries the same
+  send once. A failed retry leaves the draft and attachments intact.
 - **Snoozed session** — sending, queuing, starting the draft, or saving as a draft
   clears the server's snooze marker first, so the session leaves Snoozed.
 - **Empty draft** — New replaces Reply and Delete replaces Done. The composer
