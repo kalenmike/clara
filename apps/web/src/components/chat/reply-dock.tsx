@@ -1,422 +1,234 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
-import {
-  ArchiveRestore,
-  Loader2,
-  Maximize2,
-  Minus,
-  Minimize2,
-  SquarePen,
-  Trash2,
-  X,
-} from 'lucide-react'
-import { toast } from 'sonner'
-import type { SessionInfo } from '@opencode/client'
+import { useCallback, useEffect, useMemo } from 'react'
+import { useNavigate } from 'react-router'
+import { CornerUpLeft, Maximize2, Minus, Minimize2, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { Composer } from '@/components/chat/composer'
-import type { ComposerMenuMode } from '@/features/chat/composer-menu'
-import type { PromptFile } from '@/features/chat/use-chat'
-import { DoneButton } from '@/components/chat/done-button'
-import { isArchivedSession } from '@/features/sessions/session-archive'
-import { isSnoozedSession } from '@/features/sessions/session-snooze'
-import { useDoneSession } from '@/features/sessions/use-session-archive'
-import { useReopenSession } from '@/features/sessions/use-sessions'
+import { useComposer } from '@/features/chat/composer-provider'
+import {
+  composerConnectionLabel,
+  composerSessionTitle,
+  type ComposerTarget,
+} from '@/features/chat/composer-session'
+import { useComposerTarget } from '@/features/chat/use-composer-target'
+import { useAgents } from '@/features/catalog/use-catalog'
+import { useSwitchAgent } from '@/features/chat/use-chat'
+import { useSessionPolicy } from '@/features/notifications/session-policy'
 import { useSessionWording } from '@/features/sessions/use-wording'
-import { readComposerSize, saveComposerSize, saveDraft } from '@/lib/storage'
 import { cn } from '@/lib/utils'
 
-type WindowMode = 'closed' | 'normal' | 'minimized' | 'maximized'
+export function ReplyDock() {
+  const { target } = useComposer()
+  if (!target) return null
+  return <ConnectedComposer target={target} />
+}
 
-/** Keep the Done celebration on screen for a beat before returning home. */
-const DONE_REDIRECT_DELAY_MS = 600
-
-export function ReplyDock({
-  session,
-  sessionID,
-  directory,
-  busy,
-  disabled,
-  empty,
-  ready,
-  menuMode,
-  hasDraft,
-  autoOpen,
-  startExpanded,
-  startText,
-  startFiles,
-  onStartExpandedConsumed,
-  onDraftChange,
-  onOpenChange,
-  onDone,
-  onSent,
-  onCycleAgent,
-  worker,
-}: {
-  session: SessionInfo | undefined
-  sessionID: string
-  directory: string | undefined
-  busy: boolean
-  disabled?: boolean
-  empty: boolean
-  ready: boolean
-  menuMode: ComposerMenuMode
-  hasDraft: boolean
-  autoOpen?: boolean
-  startExpanded?: boolean
-  startText?: string
-  startFiles?: PromptFile[]
-  onStartExpandedConsumed?: () => void
-  onDraftChange: (hasDraft: boolean) => void
-  onOpenChange?: (open: boolean) => void
-  onDone: () => void
-  onSent?: () => void
-  onCycleAgent: (direction: 1 | -1) => void
-  worker?: boolean
-}) {
-  const [mode, setMode] = useState<WindowMode>(() =>
-    startExpanded ? readComposerSize() : 'closed'
+function ConnectedComposer({ target }: { target: ComposerTarget }) {
+  const navigate = useNavigate()
+  const {
+    mode,
+    handoff,
+    detached,
+    returnPath,
+    focusSignal,
+    modelRequest,
+    agentRequest,
+    minimize,
+    restore,
+    toggleMaximize,
+    close,
+    open,
+    openModels,
+    openAgents,
+    focus,
+    consumeHandoff,
+    reportDraft,
+    notifySent,
+  } = useComposer()
+  const { lowerSingular } = useSessionWording()
+  const { isAutomation } = useSessionPolicy()
+  const { session, directory, busy, empty, menuMode, disabled } = useComposerTarget(
+    target.sessionID
   )
-  const [focusSignal, setFocusSignal] = useState(startExpanded ? 1 : 0)
-  const [modelRequest, setModelRequest] = useState(0)
-  const [agentRequest, setAgentRequest] = useState(0)
-  const [leaving, setLeaving] = useState(false)
-  const triggerRef = useRef<HTMLButtonElement>(null)
-  const redirectTimer = useRef<number | undefined>(undefined)
-  const autoOpened = useRef(Boolean(startExpanded))
-  const done = useDoneSession()
-  const reopenSession = useReopenSession()
-  const { singular, lowerSingular } = useSessionWording()
-  const archived = session != null && isArchivedSession(session)
-  const snoozed = session != null && isSnoozedSession(session)
-  const canFinish = session != null && ready && !busy && !archived && !snoozed && !worker
-  const canArchive = canFinish && !empty
-  const canDeleteEmpty = canFinish && empty
-  const canNew = canFinish && empty
-  const canReopen = session != null && ready && !busy && (archived || snoozed)
-  const panelLabel = empty ? 'New message' : 'Reply'
-
-  const handleSent = useCallback(() => {
-    setMode('closed')
-    window.setTimeout(() => triggerRef.current?.focus(), 0)
-    onSent?.()
-  }, [onSent])
+  const agentsQuery = useAgents()
+  const switchAgent = useSwitchAgent(target.sessionID)
+  const agents = useMemo(
+    () => (agentsQuery.data ?? []).filter((agent) => !agent.hidden && agent.mode !== 'subagent'),
+    [agentsQuery.data]
+  )
+  const worker = session != null && isAutomation?.(session) === true
+  const title = composerSessionTitle(session?.title, lowerSingular)
+  const connectionLabel = composerConnectionLabel(detached, lowerSingular)
 
   useEffect(() => {
-    if (startExpanded) onStartExpandedConsumed?.()
-  }, [startExpanded, onStartExpandedConsumed])
-
-  useEffect(() => {
-    if (!autoOpen || autoOpened.current) return
-    autoOpened.current = true
-    setMode((current) =>
-      current === 'closed' || current === 'minimized' ? readComposerSize() : current
-    )
-    setFocusSignal((value) => value + 1)
-  }, [autoOpen])
-
-  useEffect(() => {
-    onOpenChange?.(mode !== 'closed')
-  }, [mode, onOpenChange])
-
-  useEffect(() => {
-    const openModels = () => {
-      setMode((current) =>
-        current === 'closed' || current === 'minimized' ? readComposerSize() : current
-      )
-      setModelRequest((value) => value + 1)
-      setFocusSignal((value) => value + 1)
-    }
-    const openAgents = () => {
-      setMode((current) =>
-        current === 'closed' || current === 'minimized' ? readComposerSize() : current
-      )
-      setAgentRequest((value) => value + 1)
-      setFocusSignal((value) => value + 1)
-    }
-    window.addEventListener('clara:open-models', openModels)
-    window.addEventListener('clara:open-agents', openAgents)
-    return () => {
-      window.removeEventListener('clara:open-models', openModels)
-      window.removeEventListener('clara:open-agents', openAgents)
-    }
-  }, [])
+    if (handoff) consumeHandoff()
+  }, [consumeHandoff, handoff])
 
   useEffect(() => {
     const openReply = () => {
-      setMode((current) =>
-        current === 'closed' || current === 'minimized' ? readComposerSize() : current
-      )
-      setFocusSignal((value) => value + 1)
+      if (mode === 'closed') open()
+      else if (mode === 'minimized') restore()
+      else focus()
     }
+    const openModelPicker = () => openModels()
+    const openAgentPicker = () => openAgents()
+
     window.addEventListener('clara:open-reply', openReply)
+    window.addEventListener('clara:open-models', openModelPicker)
+    window.addEventListener('clara:open-agents', openAgentPicker)
     return () => {
       window.removeEventListener('clara:open-reply', openReply)
+      window.removeEventListener('clara:open-models', openModelPicker)
+      window.removeEventListener('clara:open-agents', openAgentPicker)
     }
-  }, [])
+  }, [focus, mode, open, openAgents, openModels, restore])
 
-  const openPanel = () => {
-    if (mode === 'closed' || mode === 'minimized') setMode(readComposerSize())
-    setFocusSignal((value) => value + 1)
-  }
+  const handleDraftChange = useCallback(
+    (hasDraft: boolean) => {
+      reportDraft(target.sessionID, hasDraft)
+    },
+    [reportDraft, target.sessionID]
+  )
 
-  const toggleMinimize = () => {
-    if (mode === 'minimized') {
-      setMode(readComposerSize())
-      setFocusSignal((value) => value + 1)
-      return
-    }
-    setMode('minimized')
-  }
+  const handleSent = useCallback(() => {
+    notifySent(target.sessionID)
+    close()
+  }, [close, notifySent, target.sessionID])
 
-  const toggleMaximize = () => {
-    const next = mode === 'maximized' ? 'normal' : 'maximized'
-    saveComposerSize(next)
-    setMode(next)
-    setFocusSignal((value) => value + 1)
-  }
+  const cycleAgent = useCallback(
+    (direction: 1 | -1) => {
+      if (agents.length === 0) return
+      const index = agents.findIndex((agent) => agent.id === session?.agent)
+      const next = agents[(index + direction + agents.length) % agents.length]
+      if (next) switchAgent.mutate(next.id)
+    },
+    [agents, session?.agent, switchAgent]
+  )
 
-  const closePanel = () => {
-    setMode('closed')
-    window.setTimeout(() => triggerRef.current?.focus(), 0)
-  }
-
-  const archiveSession = () => {
-    if (!session) return
-    const pathAtClick = window.location.pathname
-    setLeaving(true)
-    done.mutate(
-      { session, empty: false },
-      {
-        onSuccess: () => {
-          toast.success(`${singular} complete`, { description: 'Nice work. On to the next one.' })
-          if (redirectTimer.current) window.clearTimeout(redirectTimer.current)
-          redirectTimer.current = window.setTimeout(() => {
-            if (window.location.pathname === pathAtClick) onDone()
-          }, DONE_REDIRECT_DELAY_MS)
-        },
-        onError: () => {
-          setLeaving(false)
-          toast.error(`Could not mark the ${lowerSingular} done`)
-        },
-      }
-    )
-  }
-
-  const deleteEmpty = () => {
-    if (!session || done.isPending) return
-    done.mutate(
-      { session, empty: true },
-      {
-        onSuccess: () => {
-          saveDraft(sessionID, '')
-          toast.success('Empty draft deleted')
-          onDone()
-        },
-        onError: () => toast.error('Could not delete the empty draft'),
-      }
-    )
-  }
-
-  const reopen = () => {
-    if (!session) return
-    reopenSession.mutate(
-      { session },
-      {
-        onSuccess: () => toast.success(`${singular} reopened`),
-        onError: () => toast.error(`Could not reopen the ${lowerSingular}`),
-      }
-    )
-  }
+  if (worker) return null
 
   return (
-    <>
-      {mode === 'closed' && (canReopen || (!worker && (canFinish || !empty || leaving))) && (
-        <div className="absolute right-4 bottom-4 z-30 flex items-center gap-2 max-md:right-5 max-md:bottom-6">
-          {(canArchive || leaving) && (
-            <DoneButton pending={done.isPending || leaving} onConfirm={archiveSession} />
-          )}
-
-          {canReopen && !leaving && (
-            <Button
-              type="button"
-              size="lg"
-              variant="outline"
-              onClick={reopen}
-              disabled={reopenSession.isPending}
-              title={`Reopen ${lowerSingular}`}
-              className="gap-2 rounded-full bg-background shadow-lg max-md:h-11"
-            >
-              {reopenSession.isPending ? (
-                <Loader2 className="size-4 animate-spin" />
-              ) : (
-                <ArchiveRestore className="size-4" />
-              )}
-              Reopen
-            </Button>
-          )}
-
-          {canDeleteEmpty && !leaving && (
-            <Button
-              type="button"
-              size="lg"
-              variant="outline"
-              onClick={deleteEmpty}
-              disabled={done.isPending}
-              title="Delete empty draft"
-              className="gap-2 rounded-full bg-background text-destructive shadow-lg hover:text-destructive max-md:h-11"
-            >
-              {done.isPending ? (
-                <Loader2 className="size-4 animate-spin" />
-              ) : (
-                <Trash2 className="size-4" />
-              )}
-              Delete
-            </Button>
-          )}
-
-          {!empty && !worker && (
-            <Button
-              ref={triggerRef}
-              type="button"
-              size="lg"
-              onClick={openPanel}
-              aria-haspopup="dialog"
-              aria-expanded={false}
-              title={hasDraft ? 'Reply (draft saved)' : 'Reply'}
-              className="relative gap-2 rounded-full px-4 shadow-lg max-md:h-11"
-            >
-              <SquarePen className="size-4" />
-              Reply
-              {hasDraft && (
-                <span className="absolute top-1 right-1 size-2 rounded-full bg-emerald-500 ring-2 ring-primary" />
-              )}
-            </Button>
-          )}
-
-          {canNew && (
-            <Button
-              ref={triggerRef}
-              type="button"
-              size="lg"
-              onClick={openPanel}
-              aria-haspopup="dialog"
-              aria-expanded={false}
-              title={hasDraft ? 'New message (draft saved)' : 'New message'}
-              className="relative gap-2 rounded-full px-4 shadow-lg max-md:h-11"
-            >
-              <SquarePen className="size-4" />
-              New
-              {hasDraft && (
-                <span className="absolute top-1 right-1 size-2 rounded-full bg-emerald-500 ring-2 ring-primary" />
-              )}
-            </Button>
-          )}
+    <section
+      role="dialog"
+      aria-label={`Composer for ${title}`}
+      aria-modal={false}
+      aria-hidden={mode === 'closed'}
+      className={cn(
+        'flex flex-col overflow-hidden border bg-popover text-popover-foreground shadow-2xl',
+        mode === 'maximized'
+          ? 'fixed inset-2 z-50 rounded-xl max-md:inset-x-2 max-md:top-[max(0.5rem,env(safe-area-inset-top))] max-md:bottom-[max(1.25rem,env(safe-area-inset-bottom))] sm:inset-3'
+          : mode === 'minimized'
+            ? 'absolute right-3 bottom-3 z-40 h-auto w-[min(32rem,calc(100vw-1.5rem))] rounded-xl max-md:inset-x-0 max-md:bottom-0 max-md:w-full max-md:rounded-b-none'
+            : 'absolute right-3 bottom-3 z-40 h-[min(34rem,calc(100dvh-5rem))] w-[min(32rem,calc(100vw-1.5rem))] rounded-xl max-md:inset-x-0 max-md:bottom-0 max-md:h-[85%] max-md:w-full max-md:rounded-b-none',
+        mode === 'closed' && 'hidden'
+      )}
+    >
+      <div className="flex shrink-0 items-center gap-1 border-b px-3 py-2">
+        <div className="min-w-0 flex-1">
+          <div className="truncate text-sm font-medium">{title}</div>
+          <div
+            className={cn(
+              'truncate text-[10px]',
+              detached ? 'text-amber-600 dark:text-amber-500' : 'text-muted-foreground'
+            )}
+          >
+            {connectionLabel}
+          </div>
         </div>
-      )}
 
-      {!worker && (
-        <section
-          role="dialog"
-          aria-label={panelLabel}
-          aria-modal={false}
-          aria-hidden={mode === 'closed'}
-          className={cn(
-            'flex flex-col overflow-hidden border bg-popover text-popover-foreground shadow-2xl',
-            mode === 'maximized'
-              ? 'fixed inset-2 z-50 rounded-xl max-md:inset-x-2 max-md:top-[max(0.5rem,env(safe-area-inset-top))] max-md:bottom-[max(1.25rem,env(safe-area-inset-bottom))] sm:inset-3'
-              : mode === 'minimized'
-                ? 'absolute right-3 bottom-3 z-40 h-auto w-[min(32rem,calc(100vw-1.5rem))] rounded-xl max-md:inset-x-0 max-md:bottom-0 max-md:w-full max-md:rounded-b-none'
-                : 'absolute right-3 bottom-3 z-40 h-[min(34rem,calc(100dvh-5rem))] w-[min(32rem,calc(100vw-1.5rem))] rounded-xl max-md:inset-x-0 max-md:bottom-0 max-md:h-[85%] max-md:w-full max-md:rounded-b-none',
-            mode === 'closed' && 'hidden'
-          )}
-        >
-          <div className="flex shrink-0 items-center gap-1 border-b px-3 py-2">
-            <div className="min-w-0 flex-1">
-              <div className="text-sm font-medium">{panelLabel}</div>
-              {session?.title && (
-                <div className="truncate text-[10px] text-muted-foreground">{session.title}</div>
+        {detached && returnPath && (
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon-sm"
+                className="max-md:size-11"
+                onClick={() => navigate(returnPath)}
+                aria-label={`Return to ${title}`}
+                title={`Return to ${title}`}
+              >
+                <CornerUpLeft className="size-3.5 max-md:size-5" />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>Return to {title}</TooltipContent>
+          </Tooltip>
+        )}
+
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon-sm"
+              className="max-md:size-11"
+              onClick={mode === 'minimized' ? restore : minimize}
+              aria-label={mode === 'minimized' ? 'Restore composer' : 'Minimize composer'}
+            >
+              <Minus className="size-3.5 max-md:size-5" />
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent>{mode === 'minimized' ? 'Restore' : 'Minimize'}</TooltipContent>
+        </Tooltip>
+
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon-sm"
+              className="max-md:size-11"
+              onClick={toggleMaximize}
+              aria-label={mode === 'maximized' ? 'Restore composer' : 'Maximize composer'}
+            >
+              {mode === 'maximized' ? (
+                <Minimize2 className="size-3.5 max-md:size-5" />
+              ) : (
+                <Maximize2 className="size-3.5 max-md:size-5" />
               )}
-            </div>
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent>{mode === 'maximized' ? 'Restore' : 'Maximize'}</TooltipContent>
+        </Tooltip>
 
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon-sm"
-                  className="max-md:size-11"
-                  onClick={toggleMinimize}
-                  aria-label={
-                    mode === 'minimized' ? 'Restore reply window' : 'Minimize reply window'
-                  }
-                >
-                  <Minus className="size-3.5 max-md:size-5" />
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent>{mode === 'minimized' ? 'Restore' : 'Minimize'}</TooltipContent>
-            </Tooltip>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon-sm"
+              className="max-md:size-11"
+              onClick={close}
+              aria-label="Close composer"
+            >
+              <X className="size-3.5 max-md:size-5" />
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent>Close</TooltipContent>
+        </Tooltip>
+      </div>
 
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon-sm"
-                  className="max-md:size-11"
-                  onClick={toggleMaximize}
-                  aria-label={
-                    mode === 'maximized' ? 'Restore reply window' : 'Maximize reply window'
-                  }
-                >
-                  {mode === 'maximized' ? (
-                    <Minimize2 className="size-3.5 max-md:size-5" />
-                  ) : (
-                    <Maximize2 className="size-3.5 max-md:size-5" />
-                  )}
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent>{mode === 'maximized' ? 'Restore' : 'Maximize'}</TooltipContent>
-            </Tooltip>
-
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon-sm"
-                  className="max-md:size-11"
-                  onClick={closePanel}
-                  aria-label="Close reply window"
-                >
-                  <X className="size-3.5 max-md:size-5" />
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent>Close</TooltipContent>
-            </Tooltip>
-          </div>
-
-          <div className={cn('flex min-h-0 flex-1 flex-col', mode === 'minimized' && 'hidden')}>
-            <Composer
-              session={session}
-              sessionID={sessionID}
-              directory={directory}
-              busy={busy}
-              disabled={disabled}
-              active={mode !== 'closed'}
-              focusSignal={focusSignal}
-              modelRequest={modelRequest}
-              agentRequest={agentRequest}
-              menuMode={menuMode}
-              draft={empty}
-              startText={startText}
-              startFiles={startFiles}
-              onDraftChange={onDraftChange}
-              onSent={handleSent}
-              onCycleAgent={onCycleAgent}
-            />
-          </div>
-        </section>
-      )}
-    </>
+      <div className={cn('flex min-h-0 flex-1 flex-col', mode === 'minimized' && 'hidden')}>
+        <Composer
+          key={target.sessionID}
+          session={session}
+          sessionID={target.sessionID}
+          directory={directory}
+          busy={busy}
+          disabled={disabled}
+          active={mode !== 'closed'}
+          focusSignal={focusSignal}
+          modelRequest={modelRequest}
+          agentRequest={agentRequest}
+          menuMode={menuMode}
+          draft={empty}
+          startText={handoff?.text}
+          startFiles={handoff?.files}
+          onDraftChange={handleDraftChange}
+          onSent={handleSent}
+          onCycleAgent={cycleAgent}
+        />
+      </div>
+    </section>
   )
 }

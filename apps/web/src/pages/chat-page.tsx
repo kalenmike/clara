@@ -3,7 +3,7 @@ import { Link, Navigate, useLocation, useNavigate, useParams } from 'react-route
 import { useTheme } from 'next-themes'
 import { toast } from 'sonner'
 import { ArrowLeft, Loader2 } from 'lucide-react'
-import type { SessionInboxUser, SessionMessageInfo, SessionMessageUser } from '@opencode/client'
+import type { SessionInboxUser, SessionMessageInfo } from '@opencode/client'
 import { Button } from '@/components/ui/button'
 import { Sheet, SheetContent, SheetDescription, SheetTitle } from '@/components/ui/sheet'
 import { ChatHeader } from '@/components/chat/chat-header'
@@ -14,12 +14,14 @@ import { FormPanel } from '@/components/chat/form-panel'
 import { MessageList } from '@/components/chat/message-list'
 import { PermissionPanel } from '@/components/chat/permission-panel'
 import { PlanReadyPanel } from '@/components/chat/plan-ready-panel'
+import { ReplyActions } from '@/components/chat/reply-actions'
 import { ReplyDock } from '@/components/chat/reply-dock'
 import { SidePanel } from '@/components/layout/side-panel'
 import { useDefaultAgent } from '@/features/agents/use-default-agent'
 import { useAgents, useModels } from '@/features/catalog/use-catalog'
-import { composerMenuMode } from '@/features/chat/composer-menu'
+import { ComposerProvider, useComposer } from '@/features/chat/composer-provider'
 import { findPlanReadyReply } from '@/features/chat/plan-ready'
+import { mergeSessionMessages } from '@/features/chat/session-messages'
 import { buildTimeline } from '@/features/chat/timeline'
 import {
   useChatSnapshot,
@@ -57,6 +59,14 @@ import {
 import { useConnection } from '@/providers/connection-provider'
 
 export function ChatPage() {
+  return (
+    <ComposerProvider>
+      <ChatPageContent />
+    </ComposerProvider>
+  )
+}
+
+function ChatPageContent() {
   const { projectId, sessionId } = useParams<{ projectId: string; sessionId: string }>()
   const navigate = useNavigate()
   const location = useLocation()
@@ -77,35 +87,30 @@ export function ChatPage() {
   const inboxQuery = useSessionInbox(sessionId ?? '')
   const busy = snapshot.status.type !== 'idle'
   const [showInternal, setShowInternal] = useState(readShowInternal)
-  const [replyOpen, setReplyOpen] = useState(false)
   const [scrollToEndRequest, setScrollToEndRequest] = useState(0)
-  const [draftState, setDraftState] = useState<{
-    sessionID: string
-    hasDraft: boolean
-  } | null>(null)
+  const {
+    mode: composerMode,
+    target: composerTarget,
+    open: openComposer,
+    draftState,
+    lastSent,
+  } = useComposer()
   const storedHasLocalDraft = useMemo(
     () => (sessionId ? readDraft(sessionId).trim().length > 0 : false),
     [sessionId]
   )
-  const hasLocalDraft =
-    draftState != null && draftState.sessionID === sessionId
-      ? draftState.hasDraft
-      : storedHasLocalDraft
+  const hasLocalDraft = sessionId
+    ? (draftState(sessionId) ?? storedHasLocalDraft)
+    : storedHasLocalDraft
   const pendingDrafts = useMemo(
     () => (inboxQuery.data ?? []).filter((item): item is SessionInboxUser => item.type === 'user'),
     [inboxQuery.data]
   )
-  const allMessages = useMemo<SessionMessageInfo[]>(() => {
-    const base =
-      snapshot.messages.length > 0 ? snapshot.messages : (messagesQuery.data?.messages ?? [])
-    if (pendingDrafts.length === 0) return base
-
-    const byID = new Map(base.map((message) => [message.id, message]))
-    for (const draft of pendingDrafts) {
-      if (!byID.has(draft.id)) byID.set(draft.id, inboxDraftToMessage(draft))
-    }
-    return [...byID.values()].sort((a, b) => a.time.created - b.time.created)
-  }, [messagesQuery.data, pendingDrafts, snapshot.messages])
+  const allMessages = useMemo<SessionMessageInfo[]>(
+    () =>
+      mergeSessionMessages(snapshot.messages, messagesQuery.data?.messages ?? [], pendingDrafts),
+    [messagesQuery.data?.messages, pendingDrafts, snapshot.messages]
+  )
   const timeline = useMemo(
     () => buildTimeline(allMessages, { showInternal, streaming: busy }),
     [allMessages, showInternal, busy]
@@ -117,11 +122,6 @@ export function ChatPage() {
   const messagesPending =
     (messagesQuery.isPending || inboxQuery.isPending) && allMessages.length === 0
   const messagesReady = snapshot.messages.length > 0 || messagesQuery.isSuccess
-  const hasAssistant = useMemo(
-    () => allMessages.some((message) => message.type === 'assistant'),
-    [allMessages]
-  )
-  const composerMenu = composerMenuMode({ ready: messagesReady, busy, hasAssistant })
   const draftCount = pendingDrafts.length
   const emptySession = useMemo(
     () => !allMessages.some((message) => message.type === 'user' || message.type === 'assistant'),
@@ -142,6 +142,8 @@ export function ChatPage() {
         : undefined,
     [allMessages, busy, session, worker]
   )
+  const composerOpenForCurrent =
+    composerMode !== 'closed' && composerTarget?.sessionID === sessionId
   const { collapsedIDs, allCollapsed, canToggleAll, toggleMessage, toggleAll } =
     useCollapsedMessages(sessionId ?? '', timelineMessages)
   const [infoOpen, setInfoOpen] = useState(
@@ -219,30 +221,58 @@ export function ChatPage() {
     model: session?.model,
   })
   const composeState = location.state as ChatComposeState | null
-  const startExpanded = Boolean(composeState?.compose)
-  const startText = composeState?.draftText
-  const startFiles = composeState?.draftFiles
   const clearComposeState = useCallback(() => {
     navigate(location.pathname, { replace: true })
   }, [location.pathname, navigate])
-  const handleReplyOpenChange = useCallback((open: boolean) => setReplyOpen(open), [])
-  const handleDraftChange = useCallback(
-    (hasDraft: boolean) => {
-      if (sessionId) setDraftState({ sessionID: sessionId, hasDraft })
-    },
-    [sessionId]
-  )
+  const handledCompose = useRef<string | null>(null)
+  const autoOpenedSession = useRef<string | null>(null)
+
+  useEffect(() => {
+    if (!composeState?.compose || !sessionId) return
+    if (handledCompose.current === location.key) return
+    handledCompose.current = location.key
+    openComposer({
+      target: { sessionID: sessionId, projectID: projectId },
+      text: composeState.draftText,
+      files: composeState.draftFiles,
+    })
+    clearComposeState()
+  }, [clearComposeState, composeState, location.key, openComposer, projectId, sessionId])
+
+  useEffect(() => {
+    if (composeState?.compose) return
+    if (!sessionId || !isDraftSession || !storedHasLocalDraft) return
+    if (autoOpenedSession.current === sessionId) return
+    autoOpenedSession.current = sessionId
+    if (composerMode !== 'closed') return
+    openComposer({ target: { sessionID: sessionId, projectID: projectId } })
+  }, [
+    composeState?.compose,
+    composerMode,
+    isDraftSession,
+    openComposer,
+    projectId,
+    sessionId,
+    storedHasLocalDraft,
+  ])
+
   const adjustFromPlan = useCallback(() => {
-    setReplyOpen(true)
-    window.dispatchEvent(new Event('clara:open-reply'))
-  }, [])
+    if (!sessionId) return
+    openComposer({ target: { sessionID: sessionId, projectID: projectId } })
+  }, [openComposer, projectId, sessionId])
   const advanceInbox = useCallback(() => {
     if (inboxMonitor.active) inboxMonitor.advance(sessionId)
   }, [inboxMonitor, sessionId])
-  const handleSent = useCallback(() => {
+  const handledSent = useRef(0)
+
+  useEffect(() => {
+    if (!lastSent || lastSent.sessionID !== sessionId || lastSent.nonce === handledSent.current) {
+      return
+    }
+    handledSent.current = lastSent.nonce
     advanceInbox()
     setScrollToEndRequest((value) => value + 1)
-  }, [advanceInbox])
+  }, [advanceInbox, lastSent, sessionId])
 
   useEffect(() => {
     saveShowInternal(showInternal)
@@ -360,140 +390,126 @@ export function ChatPage() {
     return <Navigate to={projectId ? `/p/${projectId}` : '/'} replace />
   }
 
-  if (sessionQuery.isLoading) {
-    return (
-      <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
-        <Loader2 className="mr-2 size-4 animate-spin" /> Loading {lowerSingular}…
-      </div>
-    )
-  }
-
-  if (sessionQuery.isError || !session) {
-    return (
-      <div className="flex h-full flex-col items-center justify-center gap-3 text-center">
-        <p className="text-sm font-medium">{singular} not found</p>
-        <p className="max-w-sm text-xs text-muted-foreground">
-          It may have been deleted or the server is unreachable.
-        </p>
-        <Button asChild variant="outline" size="sm">
-          <Link to={projectId ? `/p/${projectId}` : '/'}>
-            <ArrowLeft className="size-4" /> Back to {lowerPlural}
-          </Link>
-        </Button>
-      </div>
-    )
-  }
-
   return (
     <div className="flex h-full min-h-0">
       <div className="relative flex min-w-0 flex-1 flex-col">
-        <ChatHeader
-          session={session}
-          snapshot={snapshot}
-          infoOpen={infoOpen}
-          onToggleInfo={togglePanel}
-          onFork={handleForkSession}
-          forkPending={forkPending}
-          onDeleted={() => navigate(`/p/${projectId ?? session.projectID}`)}
-          allCollapsed={allCollapsed}
-          canToggleAll={canToggleAll}
-          onToggleAll={toggleAll}
-          showInternal={showInternal}
-          onToggleInternal={toggleInternal}
-          worker={worker}
-        />
-
-        {draftCount > 0 && !busy && !worker && !isArchivedSession(session) && (
-          <DraftStartPanel sessionID={sessionId} count={draftCount} />
-        )}
-        <FormPanel sessionID={sessionId} />
-        <PermissionPanel sessionID={sessionId} directory={directory} messages={allMessages} />
-        {planReady && !replyOpen && (
-          <PlanReadyPanel
-            key={planReady.id}
-            sessionID={sessionId}
-            onAdjustPlan={adjustFromPlan}
-            onStartWork={advanceInbox}
-          />
-        )}
-
-        {messagesPending ? (
+        {sessionQuery.isLoading ? (
           <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
-            <Loader2 className="mr-2 size-4 animate-spin" /> Loading conversation…
+            <Loader2 className="mr-2 size-4 animate-spin" /> Loading {lowerSingular}…
           </div>
-        ) : messagesQuery.isError && allMessages.length === 0 ? (
+        ) : sessionQuery.isError || !session ? (
           <div className="flex h-full flex-col items-center justify-center gap-3 text-center">
-            <p className="text-sm font-medium">Could not load the conversation</p>
+            <p className="text-sm font-medium">{singular} not found</p>
             <p className="max-w-sm text-xs text-muted-foreground">
-              The server did not return this {lowerSingular}&apos;s messages.
+              It may have been deleted or the server is unreachable.
             </p>
-            <Button variant="outline" size="sm" onClick={() => void messagesQuery.refetch()}>
-              Retry
+            <Button asChild variant="outline" size="sm">
+              <Link to={projectId ? `/p/${projectId}` : '/'}>
+                <ArrowLeft className="size-4" /> Back to {lowerPlural}
+              </Link>
             </Button>
           </div>
-        ) : timeline.length === 0 ? (
-          isDraftSession ? (
-            <DraftSessionView hasDraft={hasLocalDraft} />
-          ) : (
-            <EmptySessionView
-              title="No messages"
-              description={`This ${lowerSingular} has no messages yet.`}
-            />
-          )
         ) : (
-          <MessageList
-            sessionID={sessionId}
-            items={timeline}
-            scrollToEndRequest={scrollToEndRequest}
-            streaming={busy}
-            showInternal={showInternal}
-            revision={snapshot.revision}
-            historyRevision={snapshot.historyRevision}
-            collapsedIDs={collapsedIDs}
-            hasOlder={snapshot.hasOlder}
-            loadingOlder={messagesQuery.loadingOlder}
-            onLoadOlder={() => void messagesQuery.loadOlder()}
-            onToggleMessage={toggleMessage}
-            onForkMessage={handleForkMessage}
-            onForwardMessage={handleForwardMessage}
-            canActOnMessage={canActOnMessage}
-            canFork={!worker}
-            actionsDisabled={forkPending || forwardPending}
-          />
+          <>
+            <ChatHeader
+              session={session}
+              snapshot={snapshot}
+              infoOpen={infoOpen}
+              onToggleInfo={togglePanel}
+              onFork={handleForkSession}
+              forkPending={forkPending}
+              onDeleted={() => navigate(`/p/${projectId ?? session.projectID}`)}
+              allCollapsed={allCollapsed}
+              canToggleAll={canToggleAll}
+              onToggleAll={toggleAll}
+              showInternal={showInternal}
+              onToggleInternal={toggleInternal}
+              worker={worker}
+            />
+
+            {draftCount > 0 && !busy && !worker && !isArchivedSession(session) && (
+              <DraftStartPanel sessionID={sessionId} count={draftCount} />
+            )}
+            <FormPanel sessionID={sessionId} />
+            <PermissionPanel sessionID={sessionId} directory={directory} messages={allMessages} />
+            {planReady && !composerOpenForCurrent && (
+              <PlanReadyPanel
+                key={planReady.id}
+                sessionID={sessionId}
+                onAdjustPlan={adjustFromPlan}
+                onStartWork={advanceInbox}
+              />
+            )}
+
+            {messagesPending ? (
+              <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
+                <Loader2 className="mr-2 size-4 animate-spin" /> Loading conversation…
+              </div>
+            ) : messagesQuery.isError && allMessages.length === 0 ? (
+              <div className="flex h-full flex-col items-center justify-center gap-3 text-center">
+                <p className="text-sm font-medium">Could not load the conversation</p>
+                <p className="max-w-sm text-xs text-muted-foreground">
+                  The server did not return this {lowerSingular}&apos;s messages.
+                </p>
+                <Button variant="outline" size="sm" onClick={() => void messagesQuery.refetch()}>
+                  Retry
+                </Button>
+              </div>
+            ) : timeline.length === 0 ? (
+              isDraftSession ? (
+                <DraftSessionView hasDraft={hasLocalDraft} />
+              ) : (
+                <EmptySessionView
+                  title="No messages"
+                  description={`This ${lowerSingular} has no messages yet.`}
+                />
+              )
+            ) : (
+              <MessageList
+                sessionID={sessionId}
+                items={timeline}
+                scrollToEndRequest={scrollToEndRequest}
+                streaming={busy}
+                showInternal={showInternal}
+                revision={snapshot.revision}
+                historyRevision={snapshot.historyRevision}
+                collapsedIDs={collapsedIDs}
+                hasOlder={snapshot.hasOlder}
+                loadingOlder={messagesQuery.loadingOlder}
+                onLoadOlder={() => void messagesQuery.loadOlder()}
+                onToggleMessage={toggleMessage}
+                onForkMessage={handleForkMessage}
+                onForwardMessage={handleForwardMessage}
+                canActOnMessage={canActOnMessage}
+                canFork={!worker}
+                actionsDisabled={forkPending || forwardPending}
+              />
+            )}
+
+            <ReplyActions
+              session={session}
+              sessionID={sessionId}
+              projectID={projectId}
+              busy={busy}
+              ready={messagesReady}
+              empty={emptySession}
+              hasDraft={hasLocalDraft}
+              worker={worker}
+              onDone={() => {
+                if (inboxMonitor.active) {
+                  inboxMonitor.advance(sessionId)
+                  return
+                }
+                navigate('/')
+              }}
+            />
+          </>
         )}
 
-        <ReplyDock
-          key={sessionId}
-          session={session}
-          sessionID={sessionId}
-          directory={directory}
-          busy={busy}
-          disabled={sessionQuery.isError}
-          empty={emptySession}
-          ready={messagesReady}
-          menuMode={composerMenu}
-          hasDraft={hasLocalDraft}
-          autoOpen={isDraftSession && storedHasLocalDraft}
-          startExpanded={startExpanded}
-          startText={startText}
-          startFiles={startFiles}
-          onStartExpandedConsumed={clearComposeState}
-          onDraftChange={handleDraftChange}
-          onOpenChange={handleReplyOpenChange}
-          onDone={() => {
-            if (inboxMonitor.active) {
-              inboxMonitor.advance(sessionId)
-              return
-            }
-            navigate('/')
-          }}
-          onSent={handleSent}
-          onCycleAgent={cycleAgent}
-          worker={worker}
-        />
+        <ReplyDock />
       </div>
 
-      {infoOpen && isDesktop && (
+      {session && infoOpen && isDesktop && (
         <SidePanel
           session={session}
           snapshot={snapshot}
@@ -507,7 +523,7 @@ export function ChatPage() {
         />
       )}
 
-      {!isDesktop && (
+      {session && !isDesktop && (
         <Sheet open={infoOpen} onOpenChange={setInfoOpen}>
           <SheetContent
             side="right"
@@ -537,17 +553,4 @@ export function ChatPage() {
       )}
     </div>
   )
-}
-
-function inboxDraftToMessage(item: SessionInboxUser): SessionMessageUser {
-  return {
-    id: item.id,
-    metadata: item.payload.metadata,
-    time: item.time,
-    text: item.payload.text,
-    files: item.payload.files,
-    agents: item.payload.agents,
-    skills: item.payload.skills,
-    type: 'user',
-  }
 }

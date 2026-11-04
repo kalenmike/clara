@@ -95,6 +95,7 @@ export function Composer({
   const [agentOpen, setAgentOpen] = useState(false)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const textRef = useRef(text)
 
   const commandsQuery = useCommands()
   const agentsQuery = useAgents()
@@ -210,9 +211,17 @@ export function Composer({
   }, [token?.query, token?.kind])
 
   useEffect(() => {
+    textRef.current = text
     const timer = window.setTimeout(() => saveDraft(sessionID, text), 300)
     return () => window.clearTimeout(timer)
   }, [sessionID, text])
+
+  useEffect(
+    () => () => {
+      saveDraft(sessionID, textRef.current)
+    },
+    [sessionID]
+  )
 
   useEffect(() => {
     onDraftChange(text.trim().length > 0 || files.length > 0)
@@ -248,6 +257,7 @@ export function Composer({
 
   const clear = () => {
     setText('')
+    textRef.current = ''
     setFiles([])
     saveDraft(sessionID, '')
     onDraftChange(false)
