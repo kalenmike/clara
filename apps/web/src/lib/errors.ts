@@ -6,3 +6,12 @@ export function errorMessage(cause: unknown): string {
   }
   return 'Unknown error'
 }
+
+/** The stack trace when one exists; shown only in development. */
+export function errorStack(cause: unknown): string | undefined {
+  if (cause instanceof Error) return cause.stack
+  if (typeof cause === 'object' && cause && 'stack' in cause) {
+    return typeof cause.stack === 'string' ? cause.stack : undefined
+  }
+  return undefined
+}

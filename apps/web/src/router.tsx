@@ -1,4 +1,5 @@
 import { createBrowserRouter, Navigate } from 'react-router'
+import { RouteError } from '@/components/errors/route-error'
 import { AppShell } from '@/components/layout/app-shell'
 import { ChatPage } from '@/pages/chat-page'
 import { ConnectPage } from '@/pages/connect-page'
@@ -8,9 +9,10 @@ import { SessionsPage } from '@/pages/sessions-page'
 import { SettingsPage } from '@/pages/settings-page'
 
 export const router = createBrowserRouter([
-  { path: '/connect', element: <ConnectPage /> },
+  { path: '/connect', element: <ConnectPage />, errorElement: <RouteError /> },
   {
     element: <AppShell />,
+    errorElement: <RouteError />,
     children: [
       { index: true, element: <HomePage /> },
       { path: 'p/:projectId', element: <SessionsPage /> },
