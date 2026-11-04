@@ -3,6 +3,7 @@ import { useVirtualizer } from '@tanstack/react-virtual'
 import { ArrowDown } from 'lucide-react'
 import type { SessionMessageInfo } from '@opencode/client'
 import { Button } from '@/components/ui/button'
+import { HiddenActivityRow } from '@/components/chat/hidden-activity-row'
 import { MessageItem } from '@/components/chat/message-item'
 import { SystemEventRow } from '@/components/chat/system-event-row'
 import { canForwardMessage } from '@/features/sessions/forward'
@@ -287,6 +288,7 @@ export function MessageList({
                     message={entry.message}
                     streaming={streaming && item.index === lastMessageIndex}
                     showInternal={showInternal}
+                    usageSummary={entry.usageSummary}
                     collapsed={collapsedIDs.has(entry.message.id)}
                     actions={
                       canActOnMessage(entry.message)
@@ -302,6 +304,8 @@ export function MessageList({
                     }
                     onToggle={() => onToggleMessage(entry.message.id)}
                   />
+                ) : entry.type === 'hidden-activity' ? (
+                  <HiddenActivityRow summary={entry.summary} streaming={entry.streaming} />
                 ) : (
                   <SystemEventRow event={entry.event} />
                 )}

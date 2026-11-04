@@ -11,10 +11,9 @@ export { assistantHasFailed }
  */
 export function getVisibleMessages(
   messages: SessionMessageInfo[],
-  showInternal: boolean,
-  streaming: boolean
+  showInternal: boolean
 ): SessionMessageInfo[] {
-  return messages.filter((message, index) => {
+  return messages.filter((message) => {
     switch (message.type) {
       case 'system':
       case 'agent-switched':
@@ -35,8 +34,7 @@ export function getVisibleMessages(
         return (
           assistantHasContent(message, false) ||
           assistantHasFailed(message) ||
-          message.content.some(isQuestionTool) ||
-          (streaming && index === messages.length - 1)
+          message.content.some(isQuestionTool)
         )
       default:
         return false

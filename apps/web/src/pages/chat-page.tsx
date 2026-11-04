@@ -19,7 +19,6 @@ import { SidePanel } from '@/components/layout/side-panel'
 import { useDefaultAgent } from '@/features/agents/use-default-agent'
 import { useAgents, useModels } from '@/features/catalog/use-catalog'
 import { composerMenuMode } from '@/features/chat/composer-menu'
-import { getVisibleMessages } from '@/features/chat/message-visibility'
 import { findPlanReadyReply } from '@/features/chat/plan-ready'
 import { buildTimeline } from '@/features/chat/timeline'
 import {
@@ -105,13 +104,9 @@ export function ChatPage() {
     }
     return [...byID.values()].sort((a, b) => a.time.created - b.time.created)
   }, [messagesQuery.data, pendingDrafts, snapshot.messages])
-  const visibleMessages = useMemo(
-    () => getVisibleMessages(allMessages, showInternal, busy),
-    [allMessages, showInternal, busy]
-  )
   const timeline = useMemo(
-    () => buildTimeline(visibleMessages, { showInternal, streaming: busy }),
-    [visibleMessages, showInternal, busy]
+    () => buildTimeline(allMessages, { showInternal, streaming: busy }),
+    [allMessages, showInternal, busy]
   )
   const timelineMessages = useMemo(
     () => timeline.flatMap((item) => (item.type === 'message' ? [item.message] : [])),

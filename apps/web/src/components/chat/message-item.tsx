@@ -24,6 +24,7 @@ import { MessageActions } from '@/components/chat/message-actions'
 import { ToolCard } from '@/components/chat/tool-card'
 import { isSyntheticMessage } from '@/features/chat/message-attribution'
 import { assistantHasContent, assistantHasFailed } from '@/features/chat/message-visibility'
+import { formatUsageSummary, type UsageSummary } from '@/features/chat/usage-summary'
 import { formatCost, formatDateTime, formatRelativeTime, formatTokens } from '@/lib/format'
 import { cn } from '@/lib/utils'
 
@@ -39,6 +40,7 @@ export function MessageItem({
   message,
   streaming,
   showInternal,
+  usageSummary,
   collapsed = false,
   actions,
   onToggle,
@@ -46,6 +48,7 @@ export function MessageItem({
   message: SessionMessageInfo
   streaming: boolean
   showInternal: boolean
+  usageSummary?: UsageSummary
   collapsed?: boolean
   actions?: MessageItemActions
   onToggle?: () => void
@@ -66,6 +69,7 @@ export function MessageItem({
           message={message}
           streaming={streaming}
           showInternal={showInternal}
+          usageSummary={usageSummary}
           collapsed={collapsed}
           actions={actions}
           onToggle={onToggle}
@@ -250,6 +254,7 @@ function AssistantMessage({
   message,
   streaming,
   showInternal,
+  usageSummary,
   collapsed,
   actions,
   onToggle,
@@ -257,6 +262,7 @@ function AssistantMessage({
   message: SessionMessageAssistant
   streaming: boolean
   showInternal: boolean
+  usageSummary?: UsageSummary
   collapsed: boolean
   actions?: MessageItemActions
   onToggle?: () => void
@@ -264,7 +270,7 @@ function AssistantMessage({
   const hasContent = assistantHasContent(message, showInternal)
   const thinking = !hasContent && streaming
 
-  const usage = [
+  const ownUsage = [
     message.tokens
       ? `${formatTokens(message.tokens.input)} in · ${formatTokens(message.tokens.output)} out`
       : null,
@@ -272,11 +278,12 @@ function AssistantMessage({
   ]
     .filter(Boolean)
     .join(' · ')
+  const usage = usageSummary ? formatUsageSummary(usageSummary) : ownUsage
 
-  // With internal output hidden a thinking assistant has nothing else to show.
-  // Keep usage inline so streaming token counts do not add and remove a footer
-  // row, which would jolt the scroll position.
-  const inlineUsage = thinking && !showInternal ? usage : ''
+  // A visible question-only step can still be waiting for text. Keep usage
+  // inline so streaming token counts do not add and remove a footer row, which
+  // would jolt the scroll position.
+  const inlineUsage = thinking && !showInternal && !usageSummary ? usage : ''
 
   return (
     <MessageRow
