@@ -4,6 +4,8 @@ import { resolveDefaultAgent } from '@/features/agents/default-agent'
 import { useDefaultAgent } from '@/features/agents/use-default-agent'
 import { useAgents } from '@/features/catalog/use-catalog'
 import type { PromptFile } from '@/features/chat/use-chat'
+import { useModelVisibility } from '@/features/models/use-model-visibility'
+import { resolveInheritedModel } from '@/features/models/visibility'
 import { useCreateSession, type CreateSessionInput } from '@/features/sessions/use-sessions'
 
 export type ChatComposeState = {
@@ -28,6 +30,7 @@ export function useStartSession({
   const createSession = useCreateSession(directory ?? '')
   const { settings, lastAgent } = useDefaultAgent()
   const agentsQuery = useAgents()
+  const { visibility } = useModelVisibility()
 
   const resolvedAgent = resolveDefaultAgent({
     settings,
@@ -35,11 +38,12 @@ export function useStartSession({
     fallbackAgent: agent,
     agents: agentsQuery.data,
   })
+  const resolvedModel = resolveInheritedModel(model, visibility)
 
   const startSession = useCallback(() => {
     if (!projectID || !directory) return
     createSession.mutate(
-      { agent: resolvedAgent, model },
+      { agent: resolvedAgent, model: resolvedModel },
       {
         onSuccess: (session) => {
           const state: ChatComposeState = { compose: true }
@@ -47,7 +51,7 @@ export function useStartSession({
         },
       }
     )
-  }, [createSession, directory, model, navigate, projectID, resolvedAgent])
+  }, [createSession, directory, navigate, projectID, resolvedAgent, resolvedModel])
 
   return { startSession, pending: createSession.isPending }
 }

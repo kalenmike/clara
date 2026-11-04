@@ -29,6 +29,7 @@ import { AgentPicker } from '@/components/chat/agent-picker'
 import { ModelPicker, VariantPicker } from '@/components/chat/model-picker'
 import { useAgents, useCommands, useReferences, useSkills } from '@/features/catalog/use-catalog'
 import type { ComposerMenuMode } from '@/features/chat/composer-menu'
+import { useModelVisibility } from '@/features/models/use-model-visibility'
 import {
   useRunCommand,
   useSaveDraft,
@@ -99,6 +100,7 @@ export function Composer({
   const agentsQuery = useAgents()
   const skillsQuery = useSkills(directory)
   const referencesQuery = useReferences(directory)
+  const { isModelHidden } = useModelVisibility()
   const sendPrompt = useSendPrompt(sessionID)
   const runCommand = useRunCommand(sessionID)
   const saveAsDraft = useSaveDraft(sessionID)
@@ -252,9 +254,13 @@ export function Composer({
     onSent()
   }
 
+  const storedModelHidden = Boolean(
+    session?.model && isModelHidden(session.model.providerID, session.model.id)
+  )
+
   const send = (delivery: 'steer' | 'queue') => {
     const value = text.trim()
-    if (!value || disabled) return
+    if (!value || disabled || storedModelHidden) return
 
     if (value.startsWith('/')) {
       const [name, ...rest] = value.slice(1).split(/\s+/)
@@ -368,7 +374,7 @@ export function Composer({
   }
 
   const pending = sendPrompt.isPending || runCommand.isPending || saveAsDraft.isPending
-  const canSend = text.trim().length > 0 && !pending && !disabled
+  const canSend = text.trim().length > 0 && !pending && !disabled && !storedModelHidden
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
@@ -376,6 +382,11 @@ export function Composer({
         <span className="text-xs text-muted-foreground">To</span>
         <ModelPicker session={session} open={modelOpen} onOpenChange={setModelOpen} />
         <VariantPicker session={session} />
+        {storedModelHidden && (
+          <span className="min-w-0 truncate text-[10px] text-amber-600 dark:text-amber-500">
+            Pick a visible model
+          </span>
+        )}
       </div>
 
       <div className="relative flex min-h-0 flex-1 flex-col">

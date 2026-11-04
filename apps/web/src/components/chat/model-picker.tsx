@@ -1,5 +1,6 @@
+import { useMemo } from 'react'
 import { Check, Cpu, SlidersHorizontal } from 'lucide-react'
-import type { SessionInfo } from '@opencode/client'
+import type { ModelInfo, SessionInfo } from '@opencode/client'
 import { Button } from '@/components/ui/button'
 import {
   Command,
@@ -26,6 +27,8 @@ import {
 } from '@/components/ui/dropdown-menu'
 import { useModels } from '@/features/catalog/use-catalog'
 import { useSwitchModel } from '@/features/chat/use-chat'
+import { useModelVisibility } from '@/features/models/use-model-visibility'
+import { isModelVisible } from '@/features/models/visibility'
 
 export function ModelPicker({
   session,
@@ -38,9 +41,17 @@ export function ModelPicker({
 }) {
   const modelsQuery = useModels()
   const switchModel = useSwitchModel(session?.id ?? '')
-  const currentModel = modelsQuery.data?.find(
+  const { visibility, isModelHidden } = useModelVisibility()
+  const models = useMemo(
+    () => (modelsQuery.data ?? []).filter((model) => isModelVisible(model, visibility)),
+    [modelsQuery.data, visibility]
+  )
+  const currentModel = models.find(
     (model) =>
       model.modelID === session?.model?.id && model.providerID === session?.model?.providerID
+  )
+  const storedModelHidden = Boolean(
+    session?.model && isModelHidden(session.model.providerID, session.model.id)
   )
 
   return (
@@ -55,7 +66,7 @@ export function ModelPicker({
       >
         <Cpu className="size-3.5 text-muted-foreground max-md:size-5" />
         <span className="truncate text-xs">
-          {currentModel?.name ?? session?.model?.id ?? 'default'}
+          {storedModelHidden ? 'No model' : (currentModel?.name ?? session?.model?.id ?? 'default')}
         </span>
       </Button>
       <Dialog open={open} onOpenChange={onOpenChange}>
@@ -63,14 +74,20 @@ export function ModelPicker({
           <DialogHeader className="px-4 pt-4">
             <DialogTitle>Switch model</DialogTitle>
             <DialogDescription>
-              {modelsQuery.data?.filter((model) => model.enabled).length ?? 0} enabled models
+              {storedModelHidden
+                ? 'The current model is hidden. Pick a visible model to continue.'
+                : `${models.length} visible ${models.length === 1 ? 'model' : 'models'}`}
             </DialogDescription>
           </DialogHeader>
           <Command className="max-h-[60vh]">
             <CommandInput placeholder="Search models…" />
             <CommandList>
-              <CommandEmpty>No models found.</CommandEmpty>
-              {groupModels(modelsQuery.data ?? []).map((group) => (
+              <CommandEmpty>
+                {models.length === 0
+                  ? 'No visible models. Enable one in Settings → Models.'
+                  : 'No models found.'}
+              </CommandEmpty>
+              {groupModels(models).map((group) => (
                 <CommandGroup key={group.provider} heading={group.provider}>
                   {group.models.map((model) => (
                     <CommandItem
@@ -110,11 +127,14 @@ export function ModelPicker({
 
 export function VariantPicker({ session }: { session: SessionInfo | undefined }) {
   const modelsQuery = useModels()
+  const { visibility } = useModelVisibility()
   const switchModel = useSwitchModel(session?.id ?? '')
-  const currentModel = modelsQuery.data?.find(
-    (model) =>
-      model.modelID === session?.model?.id && model.providerID === session?.model?.providerID
-  )
+  const currentModel = (modelsQuery.data ?? [])
+    .filter((model) => isModelVisible(model, visibility))
+    .find(
+      (model) =>
+        model.modelID === session?.model?.id && model.providerID === session?.model?.providerID
+    )
 
   if (!currentModel || currentModel.variants.length === 0) return null
 
@@ -156,12 +176,9 @@ export function VariantPicker({ session }: { session: SessionInfo | undefined })
   )
 }
 
-function groupModels(
-  models: Array<{ providerID: string; modelID: string; name: string; enabled: boolean }>
-) {
-  const enabled = models.filter((model) => model.enabled)
-  const groups = new Map<string, typeof enabled>()
-  for (const model of enabled) {
+function groupModels(models: ModelInfo[]) {
+  const groups = new Map<string, ModelInfo[]>()
+  for (const model of models) {
     const list = groups.get(model.providerID) ?? []
     list.push(model)
     groups.set(model.providerID, list)

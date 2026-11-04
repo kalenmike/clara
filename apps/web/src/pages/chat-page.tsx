@@ -30,6 +30,8 @@ import {
   useSwitchAgent,
   useSwitchModel,
 } from '@/features/chat/use-chat'
+import { useModelVisibility } from '@/features/models/use-model-visibility'
+import { isModelVisible } from '@/features/models/visibility'
 import { useSessionPolicy } from '@/features/notifications/session-policy'
 import { useInboxMonitor } from '@/features/sessions/inbox-monitor'
 import { canonicalProject, useProjects } from '@/features/projects/use-projects'
@@ -164,6 +166,7 @@ export function ChatPage() {
       : null
   const draftAgentReset = useRef<string | null>(null)
   const modelsQuery = useModels()
+  const { visibility } = useModelVisibility()
   const compact = useCompactSession(sessionId ?? '')
   const interrupt = useInterruptSession(sessionId ?? '')
   const { mutate: forkSession, isPending: forkPending } = useForkSession({
@@ -276,10 +279,12 @@ export function ChatPage() {
     setInfoOpen(true)
   }, [infoOpen, panelTab])
 
-  const currentModel = modelsQuery.data?.find(
-    (model) =>
-      model.modelID === session?.model?.id && model.providerID === session?.model?.providerID
-  )
+  const currentModel = (modelsQuery.data ?? [])
+    .filter((model) => isModelVisible(model, visibility))
+    .find(
+      (model) =>
+        model.modelID === session?.model?.id && model.providerID === session?.model?.providerID
+    )
 
   useEffect(() => {
     const cycle = () => {

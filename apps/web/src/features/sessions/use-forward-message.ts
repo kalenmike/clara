@@ -2,6 +2,8 @@ import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from 'react-router'
 import type { SessionInfo, SessionMessageInfo } from '@opencode/client'
 import { toast } from 'sonner'
+import { useModelVisibility } from '@/features/models/use-model-visibility'
+import { resolveInheritedModel } from '@/features/models/visibility'
 import { forwardFiles, forwardText, forwardTitle } from '@/features/sessions/forward'
 import type { ChatComposeState } from '@/features/sessions/use-start-session'
 import { useSessionWording } from '@/features/sessions/use-wording'
@@ -23,6 +25,7 @@ export function useForwardMessage({ session, projectID }: SessionTarget) {
   const queryClient = useQueryClient()
   const navigate = useNavigate()
   const { lowerSingular } = useSessionWording()
+  const { visibility } = useModelVisibility()
 
   return useMutation({
     mutationFn: async (message: SessionMessageInfo) => {
@@ -37,7 +40,7 @@ export function useForwardMessage({ session, projectID }: SessionTarget) {
       const created = await client.session.create({
         title: forwardTitle(message),
         agent: session.agent,
-        model: session.model,
+        model: resolveInheritedModel(session.model, visibility),
         location: { directory: session.location.directory },
       })
       saveDraft(created.id, text)
