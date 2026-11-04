@@ -4,7 +4,11 @@ import type { JsonValue, SessionMessageSynthetic } from '@opencode/client'
 export type ClaraEventKind = 'plan-request' | 'plan-update' | 'build-start'
 
 /** Every system event Clara can render in the transcript. */
-export type SystemEventKind = ClaraEventKind | 'question-answer' | 'question-dismissed'
+export type SystemEventKind =
+  ClaraEventKind | 'question-answer' | 'question-dismissed' | 'system-reminder'
+
+const SYSTEM_REMINDER_TAG = /<system-reminder>([\s\S]*?)<\/system-reminder>/gi
+const SYSTEM_REMINDER_LABEL = 'System Reminder'
 
 export type SystemEvent = {
   id: string
@@ -46,6 +50,36 @@ export function readClaraEvent(message: SessionMessageSynthetic): SystemEvent | 
     detail,
     time: message.time.created,
   }
+}
+
+/**
+ * OpenCode injects model-facing mode reminders as untagged synthetic messages.
+ * They are not part of the conversation, but the reader can still inspect them
+ * through a collapsed system row instead of the raw tagged text.
+ */
+export function readSystemReminder(message: SessionMessageSynthetic): SystemEvent | null {
+  const detail = systemReminderDetail(message.text)
+  if (!detail) return null
+
+  return {
+    id: message.id,
+    kind: 'system-reminder',
+    label: SYSTEM_REMINDER_LABEL,
+    detail,
+    time: message.time.created,
+  }
+}
+
+export function isSystemReminder(message: SessionMessageSynthetic): boolean {
+  return systemReminderDetail(message.text) !== null
+}
+
+function systemReminderDetail(text: string): string | null {
+  const parts = [...text.matchAll(SYSTEM_REMINDER_TAG)]
+    .map((match) => match[1]?.trim() ?? '')
+    .filter((part) => part.length > 0)
+
+  return parts.length > 0 ? parts.join('\n\n') : null
 }
 
 function isClaraKind(kind: JsonValue | undefined): kind is ClaraEventKind {

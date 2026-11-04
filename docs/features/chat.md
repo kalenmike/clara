@@ -18,7 +18,9 @@ rolls into the next visible reply so token and cost totals are not lost. Actions
 Clara triggers on the person's behalf — requesting a plan,
 refreshing it, and starting work — and the person's answers to an agent
 question appear as compact system rows in the thread rather than as if the
-person had typed them. When a
+person had typed them. OpenCode's mode reminders appear as collapsed
+**System Reminder** rows whose detail is the reminder text without its tags.
+When a
 Plan run finishes, a plan-ready card appears above the thread so the person can
 adjust the plan or start work. A session with no messages shows a
 dedicated New message view, and a session saved as a draft shows its queued user
@@ -124,7 +126,8 @@ message has fork and forward actions; see [fork.md](fork.md).
    turns. A turn that ends on hidden work with no reply keeps a compact
    **Thinking** row carrying the same totals. System events render as compact
    divider rows with an icon, a label, a timestamp, and optional expandable
-   detail; they never look like a prompt the person typed.
+   detail; they never look like a prompt the person typed. System reminders use
+   the same row, collapsed by default and labeled **System Reminder**.
 7. The newest prompt or reply starts expanded and every earlier reply starts
    collapsed. An assistant step does not count as a reply until it has text (or
    fails), so the prompt that started a run stays expanded while the agent is
@@ -142,10 +145,13 @@ message has fork and forward actions; see [fork.md](fork.md).
     at every detail level. The preference is stored in `localStorage` and shared
     across sessions. A failed turn is never treated as internal output: its error
     stays visible at every detail level.
-11. Agent-switched and system-reminder messages are never rendered; the agent is
-    shown on the assistant header instead. Clara's one-click actions write
-    synthetic input with a human-facing description, so they appear as system
-    events instead of fake user prompts.
+11. Agent-switched and system messages are never rendered; the agent is shown on
+    the assistant header instead. A synthetic message containing
+    `<system-reminder>` blocks becomes a collapsed **System Reminder** row at
+    every detail level, with the tags removed from its expandable detail. Other
+    untagged synthetic messages stay behind the internal-output toggle. Clara's
+    one-click actions write synthetic input with a human-facing description, so
+    they appear as system events instead of fake user prompts.
 12. Done is available only while the composer is closed, the agent is idle, and
     the session has a message. It archives the session on the server without
     changing its title and returns to the start view. An empty, non-archived

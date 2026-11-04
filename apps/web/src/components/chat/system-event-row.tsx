@@ -85,6 +85,8 @@ function iconFor(kind: SystemEventKind) {
       return CircleHelp
     case 'question-dismissed':
       return CircleSlash
+    case 'system-reminder':
+      return Info
     default:
       return Info
   }
@@ -100,6 +102,8 @@ function colorFor(kind: SystemEventKind): string {
       return 'text-sky-500'
     case 'question-dismissed':
       return 'text-muted-foreground/60'
+    case 'system-reminder':
+      return 'text-muted-foreground'
     default:
       return 'text-muted-foreground'
   }

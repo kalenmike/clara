@@ -6,7 +6,7 @@ import {
   getVisibleMessages,
 } from '@/features/chat/message-visibility'
 import type { SystemEvent } from '@/features/chat/system-events'
-import { readClaraEvent } from '@/features/chat/system-events'
+import { readClaraEvent, readSystemReminder } from '@/features/chat/system-events'
 import { hasUsage, summarizeSteps, type UsageSummary } from '@/features/chat/usage-summary'
 
 export type TimelineItem =
@@ -74,7 +74,7 @@ export function buildTimeline(
     if (message.type !== 'assistant') {
       flushHidden()
       if (message.type === 'synthetic') {
-        const event = readClaraEvent(message)
+        const event = readClaraEvent(message) ?? readSystemReminder(message)
         if (event) {
           items.push({ type: 'event', key: `event:${event.id}`, event })
           return

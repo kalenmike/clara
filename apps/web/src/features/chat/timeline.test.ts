@@ -15,13 +15,14 @@ function user(text: string, created = 1): SessionMessageUser {
 function synthetic(
   description: string | undefined,
   metadata: SessionMessageSynthetic['metadata'],
-  created = 2
+  created = 2,
+  text = 'model text'
 ): SessionMessageSynthetic {
   return {
     id: `synthetic-${created}`,
     type: 'synthetic',
     time: { created },
-    text: 'model text',
+    text,
     description,
     metadata,
   }
@@ -114,6 +115,31 @@ describe('buildTimeline', () => {
       type: 'event',
       event: { kind: 'plan-request', label: 'Requested a plan', time: 2 },
     })
+  })
+
+  it('renders a system reminder as a system event at every detail level', () => {
+    const message = synthetic(
+      undefined,
+      undefined,
+      2,
+      '<system-reminder>\nYou are in Plan mode.\n</system-reminder>'
+    )
+    const expected = [
+      {
+        type: 'event',
+        key: 'event:synthetic-2',
+        event: {
+          id: 'synthetic-2',
+          kind: 'system-reminder',
+          label: 'System Reminder',
+          detail: 'You are in Plan mode.',
+          time: 2,
+        },
+      },
+    ]
+
+    expect(timeline([message])).toEqual(expected)
+    expect(timeline([message], true)).toEqual(expected)
   })
 
   it('keeps untagged synthetic messages behind the internal toggle', () => {
