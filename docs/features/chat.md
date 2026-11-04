@@ -23,7 +23,10 @@ person had typed them. OpenCode's mode reminders appear as collapsed
 the reminder text without its tags.
 When a
 Plan run finishes, a plan-ready card appears above the thread so the person can
-adjust the plan or start work. A session with no messages shows a
+adjust the plan or start work. Every request card above the thread — plan-ready,
+saved draft, agent question, or permission — starts expanded and folds
+independently to a single header when the person wants it out of the way. A
+session with no messages shows a
 dedicated New message view, and a session saved as a draft shows its queued user
 message in the thread and a Start card above it. A daemon worker session shown
 while Clara management is on stays readable and stoppable but hides Reply,
@@ -65,8 +68,9 @@ message has fork and forward actions; see [fork.md](fork.md).
 7. Tool calls appear as cards that expand to show input, output, duration, and
    status when internal output is on.
 8. If a tool needs approval, a permission panel appears above the message list
-   with allow once, always allow, and reject. A collapsed **Agent's thinking**
-   option expands to the reasoning that led to the request.
+   with allow once, always allow, and reject. Click the card header to fold it
+   while the request stays pending. A collapsed **Agent's thinking** option
+   expands to the reasoning that led to the request.
 9. Use **Stop** or Escape to interrupt a run; sending another message while the
    agent is working steers the active run, or use the composer's chevron menu to
    send it as queued for the next turn.
@@ -75,14 +79,16 @@ message has fork and forward actions; see [fork.md](fork.md).
     thread. **Adjust Plan** opens the reply window for changes, re-targeting it
     to this session if it was open on another; **Start Work** switches to the
     working agent and sends a short synthetic handoff, which appears as a
-    **User confirmed. Starting work.** system row.
+    **User confirmed. Starting work.** system row. Click the card header to fold
+    it to its title until you are ready to act.
 12. Open a session with a saved draft. The queued user message appears in the
     thread and a Start card appears above it. Click **Start** to send `Start`,
-    deliver the draft, and begin the run.
+    deliver the draft, and begin the run, or fold the card to its title first.
 13. Answer an agent question. The form disappears when submitted, and the
     question-and-answer summary is appended to the thread as a **Answered N
     questions** system row. The event is derived from the completed `question`
-    tool, so it survives reloads without another request.
+    tool, so it survives reloads without another request. A question card can be
+    folded to its title while it waits.
 14. Click a message header to fold it; a folded message shows its header and the
     first line only. The button in the top-right folds or opens every message.
 15. Click the eye button next to it to show or hide internal output. The choice
@@ -106,18 +112,22 @@ message has fork and forward actions; see [fork.md](fork.md).
 2. Streaming text and reasoning are appended to ordered content parts, and tool
    cards are keyed by tool call ID.
 3. Permissions block tool execution until the person chooses once, always, or
-   reject. Each prompt offers a collapsed **Agent's thinking** disclosure. It
-   uses the request's tool source to show the reasoning that came before that
-   tool call in the same assistant step, falls back to the newest assistant step
-   when the source is unavailable, and stays hidden when no reasoning was
-   recorded. It is available whether or not internal output is on.
+   reject. Each prompt starts expanded and can be folded to its header while it
+   stays pending. Each prompt also offers a collapsed **Agent's thinking**
+   disclosure. It uses the request's tool source to show the reasoning that came
+   before that tool call in the same assistant step, falls back to the newest
+   assistant step when the source is unavailable, and stays hidden when no
+   reasoning was recorded. It is available whether or not internal output is on.
 4. History loads the newest 100 messages first. Opening a thread positions the
    top of the newest message at the top of the view unless the session is
    running, in which case the view follows new output; scrolling near the top
    fetches older pages with the server's cursor and keeps the view anchored to
    the first visible message. A request panel above the thread (permission,
    question form, plan-ready, or draft start) is in normal document flow, so the
-   newest message starts just below it without any extra offset.
+   newest message starts just below it without any extra offset. Each request
+   card starts expanded and folds independently to its title; folded content is
+   clipped and not focusable. Folding is held in memory for the mounted card and
+   resets when the person leaves the session.
 5. Unknown event types are ignored so a newer server does not break the view.
 6. Each message renders as a full-width row with a `U`/`A` avatar, sender name,
    timestamp, and a divider. A user message with `metadata.synthetic === true`
@@ -184,12 +194,15 @@ message has fork and forward actions; see [fork.md](fork.md).
     session does not hide it. Build switches the agent before sending
     `Confirmed`, and both requests disable the buttons while they are in flight.
     Once `Confirmed` is sent, Build advances the Monitor Inbox like Send does.
+    The card starts expanded and can be folded to its title; folding does not
+    cancel a start-work request already in flight.
 15. The Start card appears only while the session is idle, not archived, and the
     server reports pending user items in the session inbox. Pending inbox user
     messages are merged into the thread by message ID, so a draft is visible
     before it is delivered and disappears cleanly once it becomes a real
     message. Start sends `Start` with steering and disables while the request is
-    in flight.
+    in flight. The card starts expanded and can be folded to its title without
+    cancelling the start request.
 16. A session is a worker when Clara management is on and its metadata says
     `automation === true`. Worker mode suppresses the composer, Done, Reply,
     New, message and session fork, compact, snooze, the plan-ready card, and
@@ -238,6 +251,16 @@ message has fork and forward actions; see [fork.md](fork.md).
 - **Long tool output** — input and output clamp to a scrollable height.
 - **Permission rejected** — the request disappears and the agent continues or
   fails according to its own behavior.
+- **Collapsed request card** — folding a plan, draft, question, or permission
+  card leaves only its icon, title, and badge. Hidden fields and actions are
+  clipped and not focusable; expanding restores them in place.
+- **Folding while an action is pending** — Start Work, Start, Submit, Skip, or a
+  permission decision continues in the background. Re-expanding shows the
+  current pending state if the card is still present.
+- **Request resolves while folded** — the card disappears when the request is
+  completed or withdrawn; the next request mounts expanded.
+- **Session switch with folded requests** — every request card returns to
+  expanded. The fold state is never stored across sessions or reloads.
 - **Rapid session switching** — each session keeps its own store snapshot; the
   visible view only reads the active session.
 - **Very long conversation** — older pages load as the list approaches the top;
@@ -360,6 +383,9 @@ message has fork and forward actions; see [fork.md](fork.md).
 - Approvals: `client.permission.request.list`, `client.permission.reply`;
   request thinking comes from `src/features/chat/permission-thinking.ts`
 - Forms: `client.session.form.list`, `client.session.form.reply`
+- Request cards: `src/components/chat/request-card.tsx` renders the header
+  toggle, per-card expanded state, and top-anchored reveal shared by the
+  plan-ready, draft-start, question, and permission cards
 - Plan handoff: `src/features/chat/plan-ready.ts`,
   `src/components/chat/plan-ready-panel.tsx`; the Start Work button plays
   `playStartWorkSound` from `src/features/notifications/sounds.ts` when UI
