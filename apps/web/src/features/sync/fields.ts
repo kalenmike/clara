@@ -13,6 +13,12 @@ import {
   type NotificationSettings,
 } from '@/features/notifications/settings'
 import {
+  HIDDEN_MODELS_KEY,
+  normalizeHiddenModels,
+  readHiddenModels,
+  saveHiddenModels,
+} from '@/features/models/visibility'
+import {
   SHOW_EMPTY_PROJECTS_KEY,
   saveShowEmptyProjects,
 } from '@/features/projects/show-empty-projects'
@@ -153,6 +159,25 @@ function wordingField(): SyncField {
   }
 }
 
+function hiddenModelsField(): SyncField {
+  return {
+    key: HIDDEN_MODELS_KEY,
+    read: () => JSON.stringify(readHiddenModels()),
+    apply: (value) => {
+      let parsed: unknown
+      try {
+        parsed = JSON.parse(value)
+      } catch {
+        return false
+      }
+      if (!isRecord(parsed)) return false
+      if (!Array.isArray(parsed.providers) || !Array.isArray(parsed.models)) return false
+      saveHiddenModels(normalizeHiddenModels(parsed))
+      return true
+    },
+  }
+}
+
 function notificationsField(): SyncField {
   return {
     key: NOTIFICATION_SETTINGS_KEY,
@@ -273,7 +298,7 @@ function inboxMonitorField(overrides: SyncFieldOverrides): SyncField {
 export function buildSyncFields(overrides: SyncFieldOverrides = {}): SyncFieldGroups {
   return {
     theme: [themeModeField(overrides), colorThemeField()],
-    preferences: [defaultAgentField(), lastAgentField(), wordingField()],
+    preferences: [defaultAgentField(), lastAgentField(), wordingField(), hiddenModelsField()],
     notifications: [notificationsField()],
     project: [lastProjectField(), showEmptyProjectsField()],
     inbox: [inboxMonitorField(overrides)],

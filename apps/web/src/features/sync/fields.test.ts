@@ -1,5 +1,10 @@
 import { beforeAll, describe, expect, it } from 'vitest'
 import {
+  HIDDEN_MODELS_KEY,
+  readHiddenModels,
+  saveHiddenModels,
+} from '@/features/models/visibility'
+import {
   DEFAULT_NOTIFICATION_SETTINGS,
   readNotificationSettings,
   saveNotificationSettings,
@@ -26,6 +31,32 @@ beforeAll(() => {
   Object.defineProperty(globalThis, 'window', {
     configurable: true,
     value: { localStorage },
+  })
+})
+
+describe('hidden models sync field', () => {
+  it('shares the whole group as one value', () => {
+    storage.clear()
+    saveHiddenModels({ providers: ['opencode'], models: ['openai/gpt-5'] })
+
+    const field = buildSyncFields().preferences.find((item) => item.key === HIDDEN_MODELS_KEY)
+    expect(field).toBeDefined()
+    expect(JSON.parse(field!.read() as string)).toEqual({
+      providers: ['opencode'],
+      models: ['openai/gpt-5'],
+    })
+
+    expect(field!.apply(JSON.stringify({ providers: ['anthropic'], models: [] }))).toBe(true)
+    expect(readHiddenModels()).toEqual({ providers: ['anthropic'], models: [] })
+  })
+
+  it('rejects snapshots that are not a hidden model group', () => {
+    storage.clear()
+    const field = buildSyncFields().preferences.find((item) => item.key === HIDDEN_MODELS_KEY)
+
+    expect(field!.apply('{}')).toBe(false)
+    expect(field!.apply('[]')).toBe(false)
+    expect(field!.apply('{')).toBe(false)
   })
 })
 
