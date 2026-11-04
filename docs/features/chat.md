@@ -13,7 +13,9 @@ and the agent that produced the reply. A user message whose metadata says
 `synthetic: true` is attributed to **Automation** with a Zap avatar instead of
 the person, even when Clara management is off or excluded from the build. A
 header toggle reveals internal output such as thinking, tool calls, and
-commands; internal output is hidden by default. Actions Clara triggers on the person's behalf — requesting a plan,
+commands; internal output is hidden by default, and the usage from hidden steps
+rolls into the next visible reply so token and cost totals are not lost. Actions
+Clara triggers on the person's behalf — requesting a plan,
 refreshing it, and starting work — and the person's answers to an agent
 question appear as compact system rows in the thread rather than as if the
 person had typed them. When a
@@ -114,10 +116,13 @@ message has fork and forward actions; see [fork.md](fork.md).
    timestamp, and a divider. A user message with `metadata.synthetic === true`
    uses a Zap avatar and the sender name **Automation** instead of `U` and
    **User**; this attribution is not gated by Clara management. Assistant
-   headers show the model name and an agent chip with the bot icon. Token and cost details appear in a muted footer under
-   the content; while a thinking assistant has internal output hidden, its
-   usage sits inline with the “Thinking…” indicator instead, so streaming
-   counts do not add or remove a footer row. System events render as compact
+   headers show the model name and an agent chip with the bot icon. Token and
+   cost details appear in a muted footer under the content. With internal output
+   on, every assistant step shows its own footer. With internal output off, the
+   next visible reply absorbs the hidden steps before it and shows one combined
+   footer: input and output tokens, cost, reasoning characters, tool calls, and
+   turns. A turn that ends on hidden work with no reply keeps a compact
+   **Thinking** row carrying the same totals. System events render as compact
    divider rows with an icon, a label, a timestamp, and optional expandable
    detail; they never look like a prompt the person typed.
 7. The newest prompt or reply starts expanded and every earlier reply starts
@@ -223,10 +228,14 @@ message has fork and forward actions; see [fork.md](fork.md).
 - **Streaming while collapsed** — a message folded by hand stays folded as text
   streams in; the header button opens it again.
 - **Tool-only reply** — with internal output off, an assistant message that only
-  contains reasoning or tool calls is hidden. While it is still streaming, the
-  newest message keeps a “Thinking…” indicator and the prompt that started the
-  run stays expanded until the agent produces text. Any token and cost summary
-  for that step sits inline with the indicator instead of in the footer.
+  contains reasoning or tool calls is hidden. Its usage rolls into the next
+  visible reply, which shows the combined tokens, cost, reasoning characters,
+  tools, and turns in its footer. If the turn ends with hidden work and no reply,
+  a compact **Thinking** row keeps the total instead. The prompt that started the
+  run stays expanded until the agent produces text.
+- **Hidden-only turn** — a run that produces no visible reply leaves one
+  **Thinking** row at the end of the turn. It pulses while the run is live and
+  stays static once the session is idle, before the next prompt.
 - **Prompt sent to a running agent** — the new prompt takes over as the expanded
   message; the previous reply collapses unless it was opened by hand.
 - **Plan reply without `stop`** — a Plan run that ends on a tool call, an error,
@@ -348,6 +357,11 @@ delivery: 'steer' })`
 - Store: `src/features/chat/chat-store.ts`
 - Collapse state: `src/hooks/use-collapsed-messages.ts`
 - Internal-output visibility: `src/features/chat/message-visibility.ts`
+- Hidden-step usage: `src/features/chat/usage-summary.ts` sums reasoning
+  characters, tokens, cost, tools, and turns; `src/features/chat/timeline.ts`
+  rolls those totals into the next visible reply and emits a
+  `hidden-activity` row when none follows. The row lives in
+  `src/components/chat/hidden-activity-row.tsx`.
 - Internal-output preference: `clara.internalMessages` in `localStorage`
 - Local composer draft: `clara.draft.<sessionID>` in `localStorage`
 - Related: [capabilities](capabilities.md), [composer](composer.md)
