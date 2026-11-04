@@ -49,8 +49,8 @@ detail rows that most people leave alone.
    choices; enabling a category can pull or push values, but the tab itself is
    never synchronized. See [sync](sync.md).
 6. The Models tab hides providers and models from the composer. The whole
-   visibility group is stored locally and syncs with the Preferences category;
-   see [models](models.md).
+   visibility group is stored locally and syncs with the Models category; see
+   [models](models.md).
 7. Every remaining control behaves the same as before. Simplification is a view
    filter, not a second settings model.
 

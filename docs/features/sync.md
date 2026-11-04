@@ -13,9 +13,8 @@ at all and how often clients check for changes.
 1. Pair Clara with a home agent over the relay or its local WebSocket. Direct
    HTTP mode has no sync because there is no Clara agent to store the values.
 2. Open **Settings** and choose the **Sync** tab.
-3. Turn on the categories this device should share: **Theme**, **Preferences**
-   (including hidden model visibility), **Notifications**, **Project**, or
-   **Inbox monitor**.
+3. Turn on the categories this device should share: **Theme**, **Preferences**,
+   **Models**, **Notifications**, **Project**, or **Inbox monitor**.
 4. The first time a category is turned on, Clara pulls the agent's copy. A value
    the agent already has wins; a key it lacks is filled from this device.
 5. Change a synced setting normally. Clara updates local storage immediately and
@@ -59,10 +58,10 @@ at all and how often clients check for changes.
 8. **Last project is saved state, not navigation.** A remote last project updates
    the remembered value; it never moves the current screen. The device's next
    project selection can overwrite it normally.
-9. **Model visibility moves as one group.** `clara.hiddenModels` contains the
-   complete provider and model lists. A local toggle rewrites that one value,
-   and a pull replaces the whole group. There are no per-provider or per-model
-   sync entries.
+9. **Models sync as one group.** The separate **Models** category carries
+   `clara.hiddenModels`, which contains the complete provider and model lists. A
+   local toggle rewrites that one value, and a pull replaces the whole group.
+   There are no per-provider or per-model sync entries.
 
 ## Edge cases
 
@@ -114,7 +113,8 @@ at all and how often clients check for changes.
 - Categories and keys:
   - Theme: `clara.theme`, `clara.colorTheme`
   - Preferences: `clara.defaultAgent`, `clara.lastAgent`,
-    `clara.sessionWording`, `clara.hiddenModels`
+    `clara.sessionWording`
+  - Models: `clara.hiddenModels`
   - Notifications: `clara.notifications` (sounds, UI sounds, volume,
     `soundKinds`, `deskIdleMs` only)
   - Project: `clara.lastProject`, `clara.showEmptyProjects`
