@@ -13,6 +13,7 @@ export const queryKeys = {
   sessionMailbox: (sessionID: string) => ['session-mailbox', sessionID] as const,
   agents: ['agents'] as const,
   models: ['models'] as const,
+  providers: ['providers'] as const,
   commands: ['commands'] as const,
   references: (directory: string | undefined) => ['references', directory ?? 'global'] as const,
   vcsInfo: (directory: string | undefined) => ['vcs', 'info', directory ?? 'global'] as const,

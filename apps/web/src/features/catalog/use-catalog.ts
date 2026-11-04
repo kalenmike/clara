@@ -23,6 +23,17 @@ export function useModels() {
   })
 }
 
+export function useProviders() {
+  const { client } = useConnection()
+  return useQuery({
+    queryKey: queryKeys.providers,
+    queryFn: () => client!.provider.list(),
+    enabled: Boolean(client),
+    select: (result) => result.data,
+    staleTime: 60_000,
+  })
+}
+
 export function useCommands() {
   const { client } = useConnection()
   return useQuery({

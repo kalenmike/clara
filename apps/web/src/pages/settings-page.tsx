@@ -14,6 +14,7 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { AgentCard } from '@/components/settings/agent-card'
 import { AppCard } from '@/components/settings/app-card'
+import { ModelsCard } from '@/components/settings/models-card'
 import { NotificationsCard } from '@/components/settings/notifications-card'
 import { ServerCard } from '@/components/settings/server-card'
 import { SettingsFilter } from '@/components/settings/settings-filter'
@@ -27,11 +28,18 @@ import { useSettingsSync } from '@/providers/settings-sync-provider'
 import { useIsTouchDevice } from '@/hooks/use-is-touch-device'
 
 type SettingsTab =
-  'appearance' | 'preferences' | 'notifications' | 'sync' | 'shortcuts' | 'advanced'
+  | 'appearance'
+  | 'preferences'
+  | 'models'
+  | 'notifications'
+  | 'sync'
+  | 'shortcuts'
+  | 'advanced'
 
 const SETTINGS_TABS: Array<{ value: SettingsTab; label: string }> = [
   { value: 'appearance', label: 'Appearance' },
   { value: 'preferences', label: 'Preferences' },
+  { value: 'models', label: 'Models' },
   { value: 'notifications', label: 'Notifications' },
   { value: 'sync', label: 'Sync' },
   { value: 'shortcuts', label: 'Shortcuts' },
@@ -81,7 +89,7 @@ export function SettingsPage() {
   return (
     <PageShell
       title="Settings"
-      description={`Appearance, preferences, notifications,${showSync ? ' sync,' : ''}${isTouchDevice ? '' : ' shortcuts,'} and advanced options.`}
+      description={`Appearance, preferences, models, notifications,${showSync ? ' sync,' : ''}${isTouchDevice ? '' : ' shortcuts,'} and advanced options.`}
       actions={<SettingsFilter />}
     >
       <DropdownMenu>
@@ -135,6 +143,10 @@ export function SettingsPage() {
         <TabsContent value="preferences" className="space-y-4">
           <AgentCard />
           <WordingCard />
+        </TabsContent>
+
+        <TabsContent value="models" className="space-y-4">
+          <ModelsCard />
         </TabsContent>
 
         <TabsContent value="notifications" className="space-y-4">
