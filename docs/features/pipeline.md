@@ -6,25 +6,28 @@ A pipeline is the configurable part of a Clara request: the ordered stages, the
 agent that runs each one, the handoff instructions, and the evidence a stage
 must record before the daemon advances. The Clara lifecycle stays fixed, so the
 same ledger can run software work, content work, research, or any other linear
-process.
+process. Settings also shows the built-in and custom pipelines that are
+available on the home agent.
 
 ## User flow
 
-1. Start from the built-in `software` or `content` preset, or create a pipeline
+1. Open Settings → Pipelines to see the built-in presets and every custom file
+   the home agent loaded. Each pipeline expands into its ordered stages.
+2. Start from the built-in `software` or `content` preset, or create a pipeline
    JSON file under `${CLARA_CONFIG_DIR:-~/.config/clara}/pipelines/`.
-2. Validate it with `pnpm clara:ledger pipeline validate <id-or-file>`.
-3. Select it for a workspace with
+3. Validate it with `pnpm clara:ledger pipeline validate <id-or-file>`.
+4. Select it for a workspace with
    `pnpm clara:ledger pipeline select <workspace> <id>`, or pass `pipeline` on
    `clara_submit`.
-4. Submit a request. The request stores the pipeline id, version, hash, and a
+5. Submit a request. The request stores the pipeline id, version, hash, and a
    full snapshot.
-5. The daemon runs the contract stage. The agent proposes criteria and calls
+6. The daemon runs the contract stage. The agent proposes criteria and calls
    `clara_stage_done`.
-6. A human approves the criteria with `clara_approve`. Work stages run in order.
-7. If a stage declares a human gate, a human records it with
+7. A human approves the criteria with `clara_approve`. Work stages run in order.
+8. If a stage declares a human gate, a human records it with
    `clara_stage_gate`.
-8. Review stages run, then the close stage records `result` and `artifacts`.
-9. The request completes. `clara_ask` shows the result and the evidence.
+9. Review stages run, then the close stage records `result` and `artifacts`.
+10. The request completes. `clara_ask` shows the result and the evidence.
 
 ## Core business rules
 
@@ -49,11 +52,23 @@ process.
 8. **Only the closer closes.** The close stage must use `role: "closer"`. The
    human approval and review gates remain the only way to bypass a stage
    failure.
+9. **The Settings catalog is read-only.** It shows the shipped presets and the
+   custom files the home agent loaded, grouped by source. A custom file with the
+   same id as a preset is shown beside the preset it replaces; requests already
+   in flight keep their pinned version.
 
 ## Edge cases
 
 - The pipeline file is invalid: `validate`, `submit`, and `select` fail with the
-  field path. In-flight requests are unaffected because they use snapshots.
+  field path. In-flight requests are unaffected because they use snapshots. The
+  Settings catalog lists the file and its validation errors instead of a
+  runnable pipeline.
+- A custom file overrides a preset: Settings shows both the shipped preset and
+  the custom replacement, with an override note.
+- Clara management is off: Settings still shows the catalog for reference, with
+  a notice that new requests will not run the pipelines.
+- The browser is connected directly to OpenCode rather than through the Clara
+  home agent: the Pipelines tab is hidden because there is no catalog to read.
 - The workspace has no selected pipeline: `software` is used. `content` is
   available as a second built-in preset; select it per workspace or per submit.
 - The selected pipeline file is deleted: new requests fail; in-flight requests
@@ -75,7 +90,9 @@ process.
 
 ## Out of scope
 
-- A pipeline editor in the panel or web app.
+- Editing, creating, deleting, reordering, or selecting pipelines from Settings
+  (the current catalog is view-only).
+- A pipeline editor in the panel.
 - Clara generating or overwriting agent definitions.
 - Parallel stages, branching, loops, or a general expression language.
 - Auto-loading a pipeline file committed inside a workspace.
@@ -113,6 +130,9 @@ process.
   - `pnpm clara:ledger pipeline validate <id-or-file>`
   - `pnpm clara:ledger pipeline select <workspace> <id> [--path <workspace>]`
   - `pnpm clara:ledger pipeline show <request|workspace|id>`
+- Settings reads the catalog over the encrypted home-agent control channel with
+  a read-only `pipeline.list` action. The response separates shipped presets,
+  custom files, and load errors; the Worker/DO never see the decrypted catalog.
 - Stage fields: `id`, `title`, `phase`, `agent`, `role`, `instructions`,
   `evidence`, `when`, `gate`.
 - Phases: `contract`, `work`, `review`, `close`.

@@ -42,7 +42,8 @@ apps/
   panel/               Loopback dashboard and admin controls served by the home agent
   server/              Node home agent, outbound relay client, local WS listener
 packages/
-  shared-types/        Wire frames, actions, states, pairing payloads
+  shared-types/        Wire frames, actions, states, pairing payloads, pipeline types
+  pipelines/           Pipeline validation, built-in definitions, and catalog loading
   crypto/              PSK derivation, AES-GCM envelopes, replay guard
 workers/
   relay/               Worker + RelayRoom Durable Object
