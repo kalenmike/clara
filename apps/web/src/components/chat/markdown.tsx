@@ -1,9 +1,27 @@
-import { useState } from 'react'
+import { isValidElement, useState, type ReactNode } from 'react'
 import { Check, Copy } from 'lucide-react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
+
+type CodeElementProps = { className?: string; children?: ReactNode }
+
+/**
+ * `pre` receives the rendered `<code>` element. Read the language class and raw
+ * text from it so every fenced or indented block can render through CodeBlock,
+ * tagged or not.
+ */
+function readCodeElement(children: ReactNode): { code: string; language?: string } {
+  const child = Array.isArray(children) ? children[0] : children
+  if (!isValidElement<CodeElementProps>(child)) return { code: '' }
+
+  const language = /language-([^\s]+)/.exec(child.props.className ?? '')?.[1]
+  return {
+    code: String(child.props.children ?? '').replace(/\n$/, ''),
+    language,
+  }
+}
 
 function CodeBlock({ code, language }: { code: string; language?: string }) {
   const [copied, setCopied] = useState(false)
@@ -35,7 +53,7 @@ function CodeBlock({ code, language }: { code: string; language?: string }) {
           <span className="sr-only">Copy code</span>
         </Button>
       </div>
-      <pre className="max-h-96 overflow-auto p-3 text-xs leading-relaxed">
+      <pre className="max-h-96 overflow-auto whitespace-pre p-3 text-xs leading-relaxed">
         <code>{code}</code>
       </pre>
     </div>
@@ -48,13 +66,20 @@ export function Markdown({ children, className }: { children: string; className?
       <ReactMarkdown
         remarkPlugins={[remarkGfm]}
         components={{
-          pre: ({ children }) => <>{children}</>,
+          pre: ({ children }) => {
+            const { code, language } = readCodeElement(children)
+            return <CodeBlock code={code} language={language} />
+          },
           code: ({ className: codeClassName, children: codeChildren }) => {
-            const match = /language-(\w+)/.exec(codeClassName ?? '')
-            const text = String(codeChildren).replace(/\n$/, '')
-            if (match) return <CodeBlock code={text} language={match[1]} />
+            // Block code: keep the parsed language class so `pre` can read it.
+            // The element itself is replaced by CodeBlock.
+            if (codeClassName?.startsWith('language-')) {
+              return <code className={codeClassName}>{codeChildren}</code>
+            }
             return (
-              <code className="rounded bg-muted px-1 py-0.5 font-mono text-[0.85em]">{text}</code>
+              <code className="rounded bg-muted px-1 py-0.5 font-mono text-[0.85em]">
+                {codeChildren}
+              </code>
             )
           },
           a: ({ href, children }) => (
