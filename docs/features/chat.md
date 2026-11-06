@@ -86,11 +86,16 @@ message has fork and forward actions; see [fork.md](fork.md).
     synthetic approval, deliver the draft, and begin the run; the handoff
     appears as a **User confirmed. Starting saved draft.** system row. Fold the
     card to its title first if you are not ready to act.
-13. Answer an agent question. The form disappears when submitted, and the
-    question-and-answer summary is appended to the thread as a **Answered N
-    questions** system row. The event is derived from the completed `question`
-    tool, so it survives reloads without another request. A question card can be
-    folded to its title while it waits.
+13. Answer an agent question. **Submit** sends only the form. Use the chevron
+    beside Submit and choose **Add a message** to stage the current answers in
+    the composer as a form-response attachment; the form card stays hidden while
+    the composer holds it. Send answers every staged form and then sends the
+    custom message, sending the answers to the model once through the form
+    reply. Closing the composer first restores the form unanswered. The form
+    disappears when submitted, and the question-and-answer summary is appended
+    to the thread as a **Answered N questions** system row. The event is derived
+    from the completed `question` tool, so it survives reloads without another
+    request. A question card can be folded to its title while it waits.
 14. Click a message header to fold it; a folded message shows its header and the
     first line only. The button in the top-right folds or opens every message.
 15. Click the eye button next to it to show or hide internal output. The choice
@@ -221,6 +226,15 @@ message has fork and forward actions; see [fork.md](fork.md).
     same request once. This covers prompts, queued messages, commands, saved
     drafts, Start, Plan requests, and the Start Work handoff including its agent
     switch. The retry keeps the original text, attachments, and delivery.
+18. A question form offers **Submit**, which answers only the form, and a chevron
+    menu with **Add a message**. The second action stages a copy of the current
+    answers in the composer and hides that form card while the composer is open
+    or minimized on the same session. The staged answers are display-only; Send
+    answers each staged form through `session.form.reply` first, then sends the
+    custom prompt or command. Staged answers are never attached as prompt files,
+    so the model receives them once. Removing the attachment or closing the
+    composer restores the unanswered form. A failed form reply keeps the
+    composer text, files, and staged attachments in place for a retry.
 
 ## Edge cases
 
@@ -272,6 +286,16 @@ message has fork and forward actions; see [fork.md](fork.md).
 - **Folding while an action is pending** — Start Work, Start, Submit, Skip, or a
   permission decision continues in the background. Re-expanding shows the
   current pending state if the card is still present.
+- **Staged form response** — **Add a message** opens the composer with the
+  current answers as a removable form-response chip and hides the form card.
+  Send answers the form first and then sends the custom message. Closing the
+  composer, removing the chip, or moving the composer to another session puts
+  the unanswered form back in the panel.
+- **Staged form reply fails** — the composer stays open with its text, files,
+  and form chips intact so the same send can be retried.
+- **Prompt fails after a form is answered** — the form remains answered, its
+  staged chip is removed, and the composer keeps the text and files for retry.
+  Retrying does not answer the form again.
 - **Request resolves while folded** — the card disappears when the request is
   completed or withdrawn; the next request mounts expanded.
 - **Session switch with folded requests** — every request card returns to
@@ -403,7 +427,9 @@ metadata, delivery: 'steer' })`
 - Interrupt: `client.session.interrupt({ sessionID })`
 - Approvals: `client.permission.request.list`, `client.permission.reply`;
   request thinking comes from `src/features/chat/permission-thinking.ts`
-- Forms: `client.session.form.list`, `client.session.form.reply`
+- Forms: `client.session.form.list`, `client.session.form.reply`; staged form
+  responses live in `src/features/chat/composer-provider.tsx` and are displayed
+  through `src/components/chat/form-response-attachment.tsx`
 - Request cards: `src/components/chat/request-card.tsx` renders the header
   toggle, per-card expanded state, and top-anchored reveal shared by the
   plan-ready, draft-start, question, and permission cards

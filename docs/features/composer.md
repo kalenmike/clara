@@ -10,7 +10,8 @@ it was opened for as the person navigates to other sessions; closing it resets
 the connection to the current session. It sends prompts that steer the run by
 default, can save the first message as a draft without starting a run, can queue
 a follow-up behind an active run, and carries commands, mentions, attachments,
-model selection, and agent selection.
+model selection, and agent selection. It can also stage an agent-question form
+response and send that response together with the custom message.
 
 ## User flow
 
@@ -40,15 +41,20 @@ model selection, and agent selection.
 8. Set the model and variant in the **To** row, and switch the active agent from
    the footer next to Send. Models hidden in **Settings → Models** are absent
    from the picker.
-9. Minimize, maximize, or close the window at any time. Switching between the
-   expanded panel and the smaller dock is remembered in local storage. The draft
-   stays in place until it is sent. While the window is open or minimized,
-   opening another session leaves it connected to the original session; the
-   title bar shows that session's title and a connection line such as **Draft for
-   another brief**. The small return button in the title bar jumps back to the
-   connected session without closing the window. Closing the window while
-   viewing another session resets it to that session, so the next open shows the
-   current session's draft.
+9. When a question form is waiting, use its chevron menu and choose **Add a
+   message**. The current answers appear as a removable form-response chip and
+   the composer opens for that session. Send answers the form first, then sends
+   the custom message. The chip is display-only, so the answers reach the model
+   once through the form reply.
+10. Minimize, maximize, or close the window at any time. Switching between the
+    expanded panel and the smaller dock is remembered in local storage. The draft
+    stays in place until it is sent. While the window is open or minimized,
+    opening another session leaves it connected to the original session; the
+    title bar shows that session's title and a connection line such as **Draft for
+    another brief**. The small return button in the title bar jumps back to the
+    connected session without closing the window. Closing the window while
+    viewing another session resets it to that session, so the next open shows the
+    current session's draft.
 
 ## Core business rules
 
@@ -105,6 +111,13 @@ model selection, and agent selection.
     moving the session to the project's canonical directory. The retry preserves
     the text, attachments, and delivery; Send, Save as draft, Send as queued, and
     commands all use the same recovery.
+13. A staged question-form response is a display-only attachment. Send and Send
+    as queued answer every staged form through `session.form.reply` before they
+    send the prompt or command, and the answers are not added to the prompt as
+    files. A failed form answer keeps the text, files, and staged chips in place;
+    a failed prompt after a successful answer removes the staged chip but keeps
+    the text and files. Closing the window or removing a chip restores the
+    unanswered form in the panel.
 
 ## Edge cases
 
@@ -135,6 +148,16 @@ model selection, and agent selection.
   agent is running and is hidden once the session is idle.
 - **Send as queued failure** — the window stays open with the draft and
   attachments intact.
+- **Staged form response** — the form chip is removed by its own control, and
+  the unanswered form returns to the panel. Closing the window or letting it
+  reconnect to another session also discards staged responses. The answers are
+  not prompt attachments and are sent only through the form reply.
+- **Staged form with no message** — Send stays disabled until the person types
+  the custom message; the form's own Submit button remains the form-only path.
+- **Staged form answer fails** — the window keeps the text, files, and chips so
+  the same send can be retried.
+- **Send fails after the form is answered** — the form stays answered and its
+  chip is removed; the text and files stay for retry without answering again.
 - **Command with Send as queued** — a recognised command is queued and runs as
   the next turn instead of executing immediately.
 - **Save as draft failure** — the window stays open with the draft and
@@ -250,6 +273,11 @@ model selection, and agent selection.
   `clara.lastAgent` in `localStorage`; resolved in
   `src/features/agents/default-agent.ts`
 - Save as draft: `client.session.prompt({ sessionID, text, files, resume: false })`
+- Staged form responses: `src/features/chat/form-response.ts` formats the answers;
+  `ComposerProvider` holds them until Send; `Composer` calls
+  `client.session.form.reply({ sessionID, formID, answer })` before the prompt or
+  command and never adds them to `files`. The chip is
+  `src/components/chat/form-response-attachment.tsx`.
 - Draft title: `draftTitleFromText` in `src/features/sessions/draft-title.ts`
   (50 characters plus `…`)
 - Pending drafts: `client.session.inbox.list({ sessionID })`
