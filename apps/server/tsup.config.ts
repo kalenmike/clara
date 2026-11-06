@@ -8,5 +8,5 @@ export default defineConfig({
   outDir: 'dist',
   clean: true,
   sourcemap: true,
-  noExternal: ['@clara/crypto', '@clara/shared-types'],
+  noExternal: ['@clara/crypto', '@clara/pipelines', '@clara/shared-types'],
 })

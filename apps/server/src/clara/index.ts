@@ -1,3 +1,9 @@
+import {
+  builtinCatalog,
+  catalogPipelines,
+  pipelineDir,
+  type PipelineCatalog,
+} from '@clara/pipelines'
 import type { OpenCodeClient } from '../opencode.ts'
 import type { SettingsStore } from '../store/settings.ts'
 import { syncClaraAgentVisibility, type ClaraAgentSyncResult } from './agents.ts'
@@ -26,6 +32,26 @@ export class ClaraManagement {
 
   get ledgerPath(): string {
     return this.options.config.ledgerDbPath
+  }
+
+  /**
+   * Read-only view of the effective pipeline catalog. The settings screen
+   * keeps built-ins and custom files separate so an override is visible rather
+   * than silently replacing the shipped preset.
+   */
+  pipelineCatalog(): PipelineCatalog {
+    const builtins = builtinCatalog()
+    const catalog = catalogPipelines()
+    return {
+      directory: pipelineDir(),
+      builtins: builtins.pipelines.map((entry) => entry.pipeline),
+      custom: catalog.pipelines.flatMap((entry) =>
+        entry.source === 'file' && entry.path
+          ? [{ pipeline: entry.pipeline, path: entry.path }]
+          : []
+      ),
+      errors: catalog.errors,
+    }
   }
 
   /** Generic session suppression supplied to the push monitor. */

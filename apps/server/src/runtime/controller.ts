@@ -68,6 +68,7 @@ export class RuntimeController {
       send: (frame) => broadcast(this.localSockets, frame),
       push: options.push,
       sync: options.sync,
+      pipelineCatalog: () => options.clara?.pipelineCatalog(),
       traffic: this.trafficMeter,
       transport: 'local',
       policy: {
@@ -90,6 +91,7 @@ export class RuntimeController {
         send: (frame) => this.relayClient?.send(frame),
         push: options.push,
         sync: options.sync,
+        pipelineCatalog: () => options.clara?.pipelineCatalog(),
         traffic: this.trafficMeter,
         transport: 'relay',
         policy: {

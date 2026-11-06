@@ -18,6 +18,7 @@
   },
   "dependencies": {
     "@clara/crypto": "workspace:*",
+    "@clara/pipelines": "workspace:*",
     "@clara/shared-types": "workspace:*",
     "@opencode/client": "2.1.1",
     "better-sqlite3": "^13.0.3",
