@@ -27,7 +27,14 @@ export function SessionPlanDock({
   return (
     <div className="flex max-h-[45%] shrink-0 flex-col border-t">
       <div className="min-h-0 flex-1 overflow-y-auto p-3 [scrollbar-gutter:stable]">
-        <SessionPlan sessionID={sessionID} todos={todos} draft={draft} busy={busy} />
+        <SessionPlan
+          key={sessionID}
+          sessionID={sessionID}
+          todos={todos}
+          messages={messages}
+          draft={draft}
+          busy={busy}
+        />
       </div>
     </div>
   )

@@ -1,4 +1,5 @@
-import { useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import type { SessionMessageInfo } from '@opencode/client'
 import {
   Circle,
   CircleCheck,
@@ -11,6 +12,11 @@ import {
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { isLocationRecoveryError } from '@/features/chat/location-recovery'
+import {
+  findLatestPlanRequest,
+  planRequestProgress,
+  type PlanRequest,
+} from '@/features/chat/plan-request'
 import type { PlanTodo, PlanTodoStatus } from '@/features/chat/session-plan'
 import { claraEventMetadata } from '@/features/chat/system-events'
 import { useSendSynthetic } from '@/features/chat/use-chat'
@@ -30,28 +36,46 @@ const UPDATE_REQUEST_BUSY =
 export function SessionPlan({
   sessionID,
   todos,
+  messages,
   draft,
   busy,
 }: {
   sessionID: string
   todos: PlanTodo[] | undefined
+  messages: SessionMessageInfo[]
   draft: boolean
   busy: boolean
 }) {
-  const [requesting, setRequesting] = useState<'plan' | 'update' | null>(null)
+  const [submitting, setSubmitting] = useState<'plan' | 'update' | null>(null)
+  const [requested, setRequested] = useState<PlanRequest | null>(null)
+  const [sawBusy, setSawBusy] = useState(false)
+  const inFlight = useRef(false)
   const sendSynthetic = useSendSynthetic(sessionID)
   const { lowerSingular } = useSessionWording()
   const list = todos ?? []
   const hasPlan = list.length > 0
   const done = list.filter((todo) => todo.status === 'completed').length
-  const pending = sendSynthetic.isPending || requesting !== null
+
+  const latest = useMemo(() => findLatestPlanRequest(messages), [messages])
+  const activeRequest = latest && (!requested || latest.time >= requested.time) ? latest : requested
+  const progress = activeRequest ? planRequestProgress(messages, activeRequest) : 'responded'
+  const inTranscript = Boolean(activeRequest && latest?.id === activeRequest.id)
+  const stopped = !busy && (inTranscript || sawBusy)
+  const awaiting = progress === 'waiting' && !stopped
+  const pending = sendSynthetic.isPending || submitting !== null || awaiting
+
+  useEffect(() => {
+    if (busy) setSawBusy(true)
+  }, [busy])
 
   const request = async () => {
-    if (!sessionID || pending) return
+    if (!sessionID || pending || inFlight.current) return
+    inFlight.current = true
     const kind = hasPlan ? 'update' : 'plan'
-    setRequesting(kind)
+    setSubmitting(kind)
+    setSawBusy(busy)
     try {
-      await sendSynthetic.mutateAsync({
+      const result = await sendSynthetic.mutateAsync({
         text:
           kind === 'update'
             ? busy
@@ -65,6 +89,7 @@ export function SessionPlan({
         delivery: 'steer',
         resume: true,
       })
+      setRequested({ id: result.id, time: result.time.created })
     } catch (cause) {
       if (isLocationRecoveryError(cause)) return
       toast.error(
@@ -73,7 +98,8 @@ export function SessionPlan({
           : 'Could not request a plan. Try again.'
       )
     } finally {
-      setRequesting(null)
+      inFlight.current = false
+      setSubmitting(null)
     }
   }
 
@@ -114,14 +140,14 @@ export function SessionPlan({
             onClick={() => void request()}
             disabled={pending || !sessionID}
           >
-            {requesting ? (
+            {pending ? (
               <Loader2 className="size-3.5 animate-spin" />
             ) : hasPlan ? (
               <RefreshCw className="size-3.5" />
             ) : (
               <ListTodo className="size-3.5" />
             )}
-            {requesting ? 'Requesting…' : hasPlan ? 'Request Update' : 'Request Plan'}
+            {pending ? 'Requesting…' : hasPlan ? 'Request Update' : 'Request Plan'}
           </Button>
         </>
       )}
