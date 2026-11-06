@@ -141,6 +141,18 @@ export function Markdown({
       className={cn('markdown text-sm', selection?.active && 'markdown-selecting', className)}
       onPointerMove={selection?.active ? (event) => selection.move(partIndex, event) : undefined}
       onPointerLeave={selection?.active ? () => selection.leave(partIndex) : undefined}
+      onClickCapture={
+        selection?.active
+          ? (event) => {
+              const target = event.target
+              if (!(target instanceof Element)) return
+              if (!target.closest('a, button')) return
+              event.preventDefault()
+              event.stopPropagation()
+              selection.select(partIndex, event)
+            }
+          : undefined
+      }
       onClick={selection?.active ? (event) => selection.select(partIndex, event) : undefined}
       onKeyDown={selection?.active ? (event) => selection.key(partIndex, event) : undefined}
     >

@@ -13,7 +13,7 @@ import {
   type ReactNode,
 } from 'react'
 import { createPortal } from 'react-dom'
-import { ChevronUp, Forward, X } from 'lucide-react'
+import { ChevronUp, Forward, TextSelect, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import {
   buildOutline,
@@ -331,6 +331,20 @@ export function MarkdownSelectionProvider({
                 style={{ top: hover.top, left: hover.left }}
               >
                 {hover.label}
+              </div>
+            ) : null}
+
+            {active && !selection ? (
+              <div className="pointer-events-none fixed inset-x-0 bottom-20 z-40 flex justify-center px-3 md:bottom-6">
+                <div className="pointer-events-auto flex items-center gap-2 rounded-full border bg-popover/95 py-1 pr-1 pl-3 text-xs shadow-md backdrop-blur">
+                  <TextSelect className="size-3.5 text-muted-foreground" />
+                  <span>Click a block or section to select</span>
+                  <span className="text-muted-foreground">· Esc to cancel</span>
+                  <Button type="button" variant="ghost" size="sm" onClick={exit}>
+                    <X className="size-3.5" />
+                    Cancel
+                  </Button>
+                </div>
               </div>
             ) : null}
 

@@ -279,6 +279,11 @@ body {
     box-shadow 120ms ease;
 }
 
+.markdown-selecting a,
+.markdown-selecting button {
+  pointer-events: none;
+}
+
 .markdown-selecting [data-md-selectable='true']:focus-visible {
   outline: 2px solid var(--ring);
   outline-offset: 2px;
