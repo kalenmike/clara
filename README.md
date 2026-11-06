@@ -25,6 +25,22 @@ packages/crypto       PSK derivation, AES-GCM envelopes, replay guard
 workers/relay         Cloudflare Worker + RelayRoom Durable Object
 ```
 
+## Development workflow
+
+All new work happens in a task worktree under `../clara-worktrees`:
+
+```bash
+pnpm task session start my-change
+# move the session to ../clara-worktrees/my-change, or cd there
+pnpm check && pnpm build
+pnpm task session close my-change
+```
+
+Run `start` and `close` from the primary checkout. `start` creates branch
+`task/my-change` and installs dependencies; `close` refuses uncommitted work,
+runs the checks and build, merges into the primary `HEAD`, then removes the
+worktree and branch. See [docs/development.md](docs/development.md).
+
 ## Quick start
 
 ```bash
@@ -51,8 +67,8 @@ pnpm dev:panel   # http://localhost:5174
 ```
 
 In a production build, the panel ships inside the agent and is available at
-<http://127.0.0.1:8790> after `pnpm build` and `pnpm clara:serve`. Run
-`pnpm clara:control` to open it: the command starts the built agent when it is
+<http://127.0.0.1:8790> after `pnpm build` and `pnpm clara serve`. Run
+`pnpm clara control` to open it: the command starts the built agent when it is
 not already serving the panel, opens the URL in a browser, and stays attached
 so the agent logs remain visible. It is loopback-only and never routed through
 the relay. From it you can disable the
@@ -78,14 +94,14 @@ mv ~/.config/clara/ledger-alerts.db* ~/.local/share/clara/
 Pair with the local agent directly:
 
 ```bash
-pnpm --filter @clara/server pair
+pnpm clara pair
 ```
 
 The pairing payload carries the agent's own `ws://127.0.0.1:8788/ws` URL, so no
 build-time endpoint is needed. Scan the QR or paste the code on the connect
 screen. Local mode still uses E2EE; it does not fall back to plaintext.
 
-Add `--local` (`pnpm --filter @clara/server pair:local`) to force a local-only
+Add `--local` (`pnpm clara pair --local`) to force a local-only
 code even when the agent has a relay configured. The local listener runs
 alongside the relay client, so this exercises the WebSocket transport — including
 the shell policy — without sending traffic through Cloudflare. For the dev app,
@@ -128,7 +144,7 @@ cannot open a `ws://` socket. For phones, configure the relay instead.
    ```
 
 5. Restart the agent and check `relay connecting` / `relay online` in its log.
-   `clara-server pair` must then print a random `Room:` and a `/room/<id>` link;
+   `pnpm clara pair` must then print a random `Room:` and a `/room/<id>` link;
    a `Room: local` code is local-only and cannot work through the relay.
 
    The relay URL and room are persisted in `~/.config/clara/server.json`, but the
@@ -153,7 +169,7 @@ subscriptions at `~/.config/clara/subscriptions.json`.
   `brave://settings/privacy`; Brave has no push service of its own, so
   subscribing fails until that setting is on and the browser is relaunched.
 - The agent must be able to reach the browser vendor's push service over HTTPS.
-- `node apps/server/dist/index.js pair --rotate` clears all stored push
+- `pnpm clara pair --rotate` clears all stored push
   subscriptions as well as rotating the pairing key; restart the running home
   agent afterward.
 - `CLARA_VAPID_SUBJECT` overrides the VAPID contact subject; the default is the
@@ -189,16 +205,22 @@ or the relay.
 
 | Command                       | Purpose                                             |
 | ----------------------------- | --------------------------------------------------- |
+| `pnpm task session start`     | Create a task worktree under `../clara-worktrees`   |
+| `pnpm task session list`      | List task worktrees                                 |
+| `pnpm task session close`     | Check, merge, and remove a task worktree            |
 | `pnpm dev`                    | Web dev server and home agent                       |
 | `pnpm dev:web`                | Web only                                            |
 | `pnpm dev:panel`              | Agent panel dev server                              |
 | `pnpm dev:server`             | Home agent only                                     |
 | `pnpm dev:relay`              | Local `wrangler dev` for the Worker/DO              |
 | `pnpm build`                  | Build every workspace package                       |
-| `pnpm clara:control`          | Serve the built panel and open it in a browser      |
-| `pnpm clara:plugin:install`   | Link the Clara plugin and render its agents         |
-| `pnpm clara:plugin:uninstall` | Remove the plugin and agents (`--purge` for data)   |
-| `pnpm clara:ledger`           | List or invoke the Clara ledger tools directly      |
+| `pnpm clara pair`             | Print a pairing code                                |
+| `pnpm clara control`          | Serve the built panel and open it in a browser      |
+| `pnpm clara serve`            | Run the built home agent                            |
+| `pnpm clara pass`             | Print the local OpenCode server password            |
+| `pnpm clara plugin install`   | Link the Clara plugin and render its agents         |
+| `pnpm clara plugin uninstall` | Remove the plugin and agents (`--purge` for data)   |
+| `pnpm clara ledger`           | List or invoke the Clara ledger tools directly      |
 | `pnpm test`                   | Run crypto, protocol, server, web, and Worker tests |
 | `pnpm check`                  | Typecheck + lint + format + Knip + tests            |
 | `pnpm commitlint`             | Lint the last commit message                        |
@@ -225,7 +247,7 @@ or the relay.
   contents. It is not exposed through the relay or Pages.
 - Never commit `.env`, `.dev.vars`, `service.json`, push subscriptions, VAPID
   keys, pairing codes, tokens, or the PSK.
-- Rotate with `node apps/server/dist/index.js pair --rotate`; this also clears
+- Rotate with `pnpm clara pair --rotate`; this also clears
   every stored push subscription.
 
 See [docs/architecture/e2ee.md](docs/architecture/e2ee.md).

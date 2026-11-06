@@ -119,6 +119,6 @@ function sleep(ms) {
 }
 
 function fail(message) {
-  console.error(`clara:control: ${message}`)
+  console.error(`clara control: ${message}`)
   process.exit(1)
 }

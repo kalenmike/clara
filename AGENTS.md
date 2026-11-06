@@ -28,14 +28,22 @@ workers/relay         Cloudflare Worker + RelayRoom Durable Object
 ## Commands
 
 ```bash
+pnpm task session start <name> # Create a worktree under ../clara-worktrees
+pnpm task session list         # List task worktrees
+pnpm task session close <name> # Check, merge, and remove a task worktree
 pnpm dev            # Web on :5173 and the home agent on :8788
 pnpm dev:web        # Web only
 pnpm dev:panel      # Agent panel only
 pnpm dev:server     # Home agent only
 pnpm dev:relay      # Local wrangler dev for the Worker/DO
 pnpm build          # Build every workspace package
-pnpm clara:control  # Serve the built panel and open it in a browser
-pnpm clara:plugin:install # Link the ledger plugin and render its agents
+pnpm clara pair     # Print a pairing code
+pnpm clara control  # Serve the built panel and open it in a browser
+pnpm clara serve    # Run the built home agent
+pnpm clara pass     # Print the local OpenCode password
+pnpm clara plugin install # Link the ledger plugin and render its agents
+pnpm clara plugin uninstall # Remove the plugin and generated agents
+pnpm clara ledger   # List or invoke the Clara ledger tools directly
 pnpm typecheck      # tsc -b
 pnpm lint           # ESLint
 pnpm format         # Prettier write
@@ -47,6 +55,25 @@ pnpm commitlint     # Lint the last commit message (also enforced on commit)
 pnpm deploy:web     # Pages deploy
 pnpm deploy:relay   # Worker deploy
 ```
+
+## Worktrees
+
+Every new unit of work starts in a task worktree. Do not edit the primary
+checkout or commit on `main`.
+
+1. From the primary checkout, run `pnpm task session start <name>`. This creates
+   `../clara-worktrees/<name>` on branch `task/<name>` and installs
+   dependencies. A name is optional, but name parallel work explicitly.
+2. Move the OpenCode session into the printed directory (or `cd` there) and do
+   all edits, tests, and commits there.
+3. Run `pnpm check` and `pnpm build` before finishing.
+4. From the primary checkout, run `pnpm task session close <name>`. It refuses
+   dirty trees, re-runs both gates, merges into the primary `HEAD`, removes the
+   worktree, and deletes the branch.
+
+Never merge by hand, never reuse a task worktree for unrelated work, and never
+create a task worktree outside `../clara-worktrees` (override with
+`CLARA_WORKTREES_DIR`). See [docs/development.md](docs/development.md).
 
 ## OpenCode server contract
 
@@ -94,7 +121,8 @@ transport, Worker, Durable Object, or crypto.
   keep the plan in the conversation.
 - Once the user confirms the plan, record it in the session todo list and keep
   that list current: mark the active task `in_progress` when work starts and
-  `completed` as soon as it is finished.
+  `completed` as soon as it is finished. Create the task worktree before making
+  changes (see [Worktrees](#worktrees)).
 - Update the todo list after every commit so it always shows what is done and
   what is next. Add follow-ups the user accepts and drop work they cut.
 - Keep the list to deliverables from the confirmed plan, not a scratch pad for
@@ -162,6 +190,7 @@ docs(sessions): document archived session filters
 | Before you touch…                  | Read                                                             |
 | ---------------------------------- | ---------------------------------------------------------------- |
 | Writing or updating a feature spec | [docs/features/GUIDE.md](docs/features/GUIDE.md)                 |
+| Developer commands and worktrees   | [docs/development.md](docs/development.md)                       |
 | Workspace, modes, auth, streaming  | [docs/architecture/overview.md](docs/architecture/overview.md)   |
 | Relay Worker, DO, remote access    | [docs/architecture/relay.md](docs/architecture/relay.md)         |
 | E2EE, PSK, envelopes, rotation     | [docs/architecture/e2ee.md](docs/architecture/e2ee.md)           |
@@ -193,3 +222,5 @@ docs(sessions): document archived session filters
 6. Work is committed as coherent Conventional Commits, each carrying the
    OpenCode and model co-author trailers; `git status` shows only intentionally
    uncommitted follow-up work.
+7. The work was done in a task worktree and landed with
+   `pnpm task session close`; no task worktree or `task/*` branch remains.

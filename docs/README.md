@@ -33,9 +33,10 @@ here, it is not part of the canonical set.
 
 ### Standards
 
-| Document                               | Read when…                                 |
-| -------------------------------------- | ------------------------------------------ |
-| [features/GUIDE.md](features/GUIDE.md) | You are writing or updating a feature spec |
+| Document                               | Read when…                                        |
+| -------------------------------------- | ------------------------------------------------- |
+| [development.md](development.md)       | You are developing Clara or running its dev tools |
+| [features/GUIDE.md](features/GUIDE.md) | You are writing or updating a feature spec        |
 
 ### Features
 

@@ -5,9 +5,9 @@
 // testing and for answering "what would the agent have gotten back?" — the
 // same tool definitions, the same role checks, the same ledger.
 //
-//   pnpm clara:ledger list
-//   pnpm clara:ledger run clara_inbox
-//   pnpm clara:ledger run clara_ask '{"question":"what is in flight?"}'
+//   pnpm clara ledger list
+//   pnpm clara ledger run clara_inbox
+//   pnpm clara ledger run clara_ask '{"question":"what is in flight?"}'
 //
 // The role is derived from --agent exactly as it is inside OpenCode:
 // clara -> human, 001-004 -> worker, judge -> closer.
@@ -132,10 +132,10 @@ is acting (clara -> human, 001-004 -> worker, judge -> closer, unknown -> no
 write privileges).
 
 Usage:
-  pnpm clara:ledger list
-  pnpm clara:ledger run <tool> [json] [--agent <id>] [--db <path>] [--json]
-  pnpm clara:ledger pipeline list|validate|select|show ...
-  pnpm clara:ledger help
+  pnpm clara ledger list
+  pnpm clara ledger run <tool> [json] [--agent <id>] [--db <path>] [--json]
+  pnpm clara ledger pipeline list|validate|select|show ...
+  pnpm clara ledger help
 
 Input:
   json      inline JSON object
@@ -144,19 +144,19 @@ Input:
   omitted   defaults to {}
 
 Examples:
-  pnpm clara:ledger list
-  pnpm clara:ledger run clara_inbox
-  pnpm clara:ledger run clara_ask '{"question":"what is in flight?"}'
-  pnpm clara:ledger run clara_tick '{"dry_run":true}' --agent judge
-  echo '{"question":"what is in flight?"}' | pnpm clara:ledger run clara_ask -
+  pnpm clara ledger list
+  pnpm clara ledger run clara_inbox
+  pnpm clara ledger run clara_ask '{"question":"what is in flight?"}'
+  pnpm clara ledger run clara_tick '{"dry_run":true}' --agent judge
+  echo '{"question":"what is in flight?"}' | pnpm clara ledger run clara_ask -
 
 Pipeline commands:
-  pnpm clara:ledger pipeline list
-  pnpm clara:ledger pipeline validate software
-  pnpm clara:ledger pipeline validate ./my-pipeline.json
-  pnpm clara:ledger pipeline select clara content
-  pnpm clara:ledger pipeline show clara
-  pnpm clara:ledger pipeline show 42
+  pnpm clara ledger pipeline list
+  pnpm clara ledger pipeline validate software
+  pnpm clara ledger pipeline validate ./my-pipeline.json
+  pnpm clara ledger pipeline select clara content
+  pnpm clara ledger pipeline show clara
+  pnpm clara ledger pipeline show 42
 
 The actor is printed to stderr. Only the tool's content goes to stdout, so
 redirecting the output captures the result without the header.`)
@@ -274,7 +274,7 @@ async function runPipeline(options: Options): Promise<void> {
     return
   }
 
-  fail(`unknown pipeline command "${subcommand}". Try \`pnpm clara:ledger pipeline list\`.`)
+  fail(`unknown pipeline command "${subcommand}". Try \`pnpm clara ledger pipeline list\`.`)
 }
 
 async function main(): Promise<void> {
@@ -291,7 +291,7 @@ async function main(): Promise<void> {
   }
 
   if (options.command !== 'list' && options.command !== 'run') {
-    fail(`unknown command "${options.command}". Try \`pnpm clara:ledger help\`.`)
+    fail(`unknown command "${options.command}". Try \`pnpm clara ledger help\`.`)
   }
 
   const dbPath = options.db ?? process.env.CLARA_LEDGER_DB_PATH ?? DEFAULT_DB_PATH

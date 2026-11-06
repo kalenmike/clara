@@ -15,9 +15,9 @@ available on the home agent.
    the home agent loaded. Each pipeline expands into its ordered stages.
 2. Start from the built-in `software` or `content` preset, or create a pipeline
    JSON file under `${CLARA_CONFIG_DIR:-~/.config/clara}/pipelines/`.
-3. Validate it with `pnpm clara:ledger pipeline validate <id-or-file>`.
+3. Validate it with `pnpm clara ledger pipeline validate <id-or-file>`.
 4. Select it for a workspace with
-   `pnpm clara:ledger pipeline select <workspace> <id>`, or pass `pipeline` on
+   `pnpm clara ledger pipeline select <workspace> <id>`, or pass `pipeline` on
    `clara_submit`.
 5. Submit a request. The request stores the pipeline id, version, hash, and a
    full snapshot.
@@ -122,14 +122,14 @@ available on the home agent.
   `plugins/clara/pipelines/`.
 - Example agents: `software` uses `001`–`004` and `judge`; `content` uses
   `clara-brief`, `clara-writer`, `clara-editor`, and the same `judge` closer.
-  All of them are installed by `pnpm clara:plugin:install`. The content agents
+  All of them are installed by `pnpm clara plugin install`. The content agents
   keep their copy in stage evidence and have no shell; add an `edit` scope to a
   copied pipeline if your stages must write files.
 - Commands:
-  - `pnpm clara:ledger pipeline list`
-  - `pnpm clara:ledger pipeline validate <id-or-file>`
-  - `pnpm clara:ledger pipeline select <workspace> <id> [--path <workspace>]`
-  - `pnpm clara:ledger pipeline show <request|workspace|id>`
+  - `pnpm clara ledger pipeline list`
+  - `pnpm clara ledger pipeline validate <id-or-file>`
+  - `pnpm clara ledger pipeline select <workspace> <id> [--path <workspace>]`
+  - `pnpm clara ledger pipeline show <request|workspace|id>`
 - Settings reads the catalog over the encrypted home-agent control channel with
   a read-only `pipeline.list` action. The response separates shipped presets,
   custom files, and load errors; the Worker/DO never see the decrypted catalog.

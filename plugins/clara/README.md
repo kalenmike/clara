@@ -34,7 +34,7 @@ that turn a request into a result.
 From the Clara repository:
 
 ```sh
-pnpm clara:plugin:install
+pnpm clara plugin install
 opencode reload
 ```
 
@@ -52,7 +52,7 @@ edited after installation are left untouched; re-run with `--force` to replace
 them.
 
 The home agent only toggles files already in the manifest. Adding an agent to
-`agents.json` therefore needs `pnpm clara:plugin:install` again; the sync alone
+`agents.json` therefore needs `pnpm clara plugin install` again; the sync alone
 will not create it.
 
 OpenCode discovers global plugins in `~/.config/opencode/plugins/`. A local
@@ -97,7 +97,7 @@ plugin does not open the ledger, registers no `clara_*` tools, and starts no
 daemon. The panel keeps the generated agents marked `disabled`. The CLI
 bypasses this guard for manual recovery.
 
-Remove the plugin with `pnpm clara:plugin:uninstall`. Add `--purge` to remove
+Remove the plugin with `pnpm clara plugin uninstall`. Add `--purge` to remove
 the ledger database, the legacy delivery sidecar, the management setting, and
 the legacy delivery tables from the agent database.
 
@@ -219,10 +219,10 @@ starting OpenCode. Role checks still apply: `--agent` decides who is acting,
 and the role is derived exactly as it is inside a session.
 
 ```sh
-pnpm clara:ledger list
-pnpm clara:ledger run clara_inbox
-pnpm clara:ledger run clara_ask '{"question":"what is in flight?"}'
-pnpm clara:ledger run clara_tick '{"dry_run":true}' --agent judge
+pnpm clara ledger list
+pnpm clara ledger run clara_inbox
+pnpm clara ledger run clara_ask '{"question":"what is in flight?"}'
+pnpm clara ledger run clara_tick '{"dry_run":true}' --agent judge
 ```
 
 `run` takes a tool id (with or without the `clara_` prefix), an optional JSON
@@ -244,12 +244,12 @@ The shipped workers are `001`–`004`, `clara-brief`, `clara-writer`, and
 Pipeline commands:
 
 ```sh
-pnpm clara:ledger pipeline list
-pnpm clara:ledger pipeline validate software
-pnpm clara:ledger pipeline validate ./my-pipeline.json
-pnpm clara:ledger pipeline select clara content --path /path/to/repo
-pnpm clara:ledger pipeline show clara
-pnpm clara:ledger pipeline show 42
+pnpm clara ledger pipeline list
+pnpm clara ledger pipeline validate software
+pnpm clara ledger pipeline validate ./my-pipeline.json
+pnpm clara ledger pipeline select clara content --path /path/to/repo
+pnpm clara ledger pipeline show clara
+pnpm clara ledger pipeline show 42
 ```
 
 ## State machine

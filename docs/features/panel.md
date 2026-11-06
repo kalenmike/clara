@@ -13,7 +13,7 @@ turn traffic monitoring on or off, and gate or pace client settings sync.
 
 ## User flow
 
-1. Run `pnpm clara:control` after `pnpm build`. If the agent is not already
+1. Run `pnpm clara control` after `pnpm build`. If the agent is not already
    serving the panel, the command starts it and waits for the listener. The log
    prints `panel at http://127.0.0.1:8790/`.
 2. The command opens that URL in a browser on the same machine. The panel
@@ -256,7 +256,7 @@ turn traffic monitoring on or off, and gate or pace client settings sync.
   - `CLARA_DB_PATH` moves the database (default `<data dir>/clara.db`)
 - CLI: `clara-server serve --no-panel`
 - Built assets: `apps/server/dist/panel`, copied from `apps/panel/dist`
-- Open the built panel: `pnpm clara:control` starts the agent when the panel is
+- Open the built panel: `pnpm clara control` starts the agent when the panel is
   not already answering, opens `http://127.0.0.1:${CLARA_PANEL_PORT:-8790}/`,
   and stays attached to the agent it started
 - Dev UI: `pnpm dev:panel` (Vite on `5174`, proxying `/panel/api` to `8790`; the
