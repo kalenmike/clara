@@ -6,11 +6,13 @@ import { ConnectionSplash } from '@/components/connect/connection-splash'
 import { DirectForm } from '@/components/connect/direct-form'
 import { ModeSwitch, type ConnectMode } from '@/components/connect/mode-switch'
 import { PairForm } from '@/components/connect/pair-form'
+import { QrScanDialog } from '@/components/connect/qr-scan-dialog'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
 import { Tabs, TabsContent } from '@/components/ui/tabs'
 import { useSessionWording } from '@/features/sessions/use-wording'
 import { isRelayConfig, resolveRelayWsUrl } from '@/lib/client'
+import { isCameraScanningAvailable } from '@/lib/qr-scan'
 import { useConnection } from '@/providers/connection-provider'
 
 export function ConnectPage() {
@@ -35,10 +37,13 @@ export function ConnectPage() {
   const [pairError, setPairError] = useState<string | null>(null)
   const [pairing, setPairing] = useState<PairingPayload | null>(null)
   const [pickedMode, setPickedMode] = useState<ConnectMode | null>(null)
+  const [scanOpen, setScanOpen] = useState(false)
+  const [scanError, setScanError] = useState<string | null>(null)
 
   const target = (location.state as { from?: string } | null)?.from ?? '/'
   const mode = pickedMode ?? (attemptDirect ? 'direct' : 'pair')
   const connecting = status === 'connecting'
+  const canScan = isCameraScanningAvailable()
 
   const submitDirect = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
@@ -51,13 +56,7 @@ export function ConnectPage() {
     })
   }
 
-  const submitPair = async (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault()
-    const payload = parsePairingInput(pairCode)
-    if (!payload) {
-      setPairError('That does not look like a Clara pairing code or link.')
-      return
-    }
+  const startPairing = async (payload: PairingPayload) => {
     setPairError(null)
     setPairing(payload)
     await connect({
@@ -67,6 +66,35 @@ export function ConnectPage() {
       remember: true,
       label: 'Clara server',
     })
+  }
+
+  const submitPair = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault()
+    const payload = parsePairingInput(pairCode)
+    if (!payload) {
+      setPairError('That does not look like a Clara pairing code or link.')
+      return
+    }
+    await startPairing(payload)
+  }
+
+  const scanPairing = (value: string): boolean => {
+    const payload = parsePairingInput(value)
+    if (!payload) {
+      setScanError(
+        'That QR code is not a Clara pairing code. Point the camera at the code printed by clara-server pair.'
+      )
+      return false
+    }
+    setScanError(null)
+    setScanOpen(false)
+    void startPairing(payload)
+    return true
+  }
+
+  const openScanner = () => {
+    setScanError(null)
+    setScanOpen(true)
   }
 
   const useLocal = async () => {
@@ -121,6 +149,8 @@ export function ConnectPage() {
               pairing={pairing}
               relayStatus={relayStatus}
               connecting={connecting}
+              canScan={canScan}
+              onScan={openScanner}
               onSubmit={submitPair}
             />
           </TabsContent>
@@ -138,6 +168,14 @@ export function ConnectPage() {
             />
           </TabsContent>
         </Tabs>
+
+        <QrScanDialog
+          open={scanOpen}
+          onOpenChange={setScanOpen}
+          onDetected={scanPairing}
+          scanError={scanError}
+          onScanRetry={() => setScanError(null)}
+        />
 
         {localInfo && (
           <div className="rounded-xl border bg-card p-4">

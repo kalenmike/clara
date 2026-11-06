@@ -1,5 +1,5 @@
 import type { FormEvent } from 'react'
-import { Link2, Loader2 } from 'lucide-react'
+import { Link2, Loader2, QrCode } from 'lucide-react'
 import type { PairingPayload } from '@clara/shared-types'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
@@ -13,6 +13,8 @@ export function PairForm({
   pairing,
   relayStatus,
   connecting,
+  canScan,
+  onScan,
   onSubmit,
 }: {
   value: string
@@ -21,10 +23,35 @@ export function PairForm({
   pairing: PairingPayload | null
   relayStatus: RelayTransportStatus | null
   connecting: boolean
+  canScan: boolean
+  onScan: () => void
   onSubmit: (event: FormEvent<HTMLFormElement>) => void
 }) {
   return (
     <form onSubmit={onSubmit} className="space-y-4 rounded-xl border bg-card p-5">
+      {canScan && (
+        <>
+          <Button
+            type="button"
+            variant="outline"
+            className="w-full max-md:h-11"
+            onClick={onScan}
+            disabled={connecting}
+          >
+            <QrCode className="size-4" />
+            Scan QR code
+          </Button>
+
+          <div className="flex items-center gap-3">
+            <span className="h-px flex-1 bg-border" />
+            <span className="text-[11px] tracking-wide text-muted-foreground uppercase">
+              or paste a code
+            </span>
+            <span className="h-px flex-1 bg-border" />
+          </div>
+        </>
+      )}
+
       <div className="space-y-2">
         <label htmlFor="pairCode" className="text-xs font-medium">
           Pairing code or link
