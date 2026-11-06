@@ -13,4 +13,4 @@ systemctl --user enable --now clara.service
 systemctl --user restart clara.service
 
 echo "Clara home agent installed."
-echo "Pair a device with: node apps/server/dist/index.js pair"
+echo "Pair a device with: pnpm clara pair"

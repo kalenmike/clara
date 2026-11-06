@@ -15,12 +15,12 @@ request into a result.
 
 ## User flow
 
-1. Run `pnpm clara:plugin:install` from the Clara repository.
+1. Run `pnpm clara plugin install` from the Clara repository.
 2. Enable **Clara management** in the agent panel. Turning it on is the master
    switch for the ledger daemon, exception sessions, and the Clara agents in
    OpenCode.
 3. Select a pipeline for the workspace with
-   `pnpm clara:ledger pipeline select <workspace> <id>`, or rely on the built-in
+   `pnpm clara ledger pipeline select <workspace> <id>`, or rely on the built-in
    `software` pipeline.
 4. Select the `clara` agent and submit a request with `clara_submit`.
 5. Ask for status at any time with `clara_ask` or `clara_inbox`.
@@ -50,7 +50,7 @@ management in three layers:
 2. **Runtime switch.** `management.enabled` is the master switch. It defaults
    off. When off, the plugin does not open the ledger or register tools, the
    daemon is not constructed, and no exception sessions are opened.
-3. **Uninstall.** `pnpm clara:plugin:uninstall` removes the plugin link and the
+3. **Uninstall.** `pnpm clara plugin uninstall` removes the plugin link and the
    generated agent files. Add `--purge` to remove the ledger database, the
    legacy delivery sidecar, the management setting, and the legacy delivery
    tables from the agent database.
@@ -168,7 +168,7 @@ delivery record.
 - Management switch: `management.enabled` in the home agent database, owned by
   the panel and read by the plugin. Changing it also toggles `disabled` in the
   generated agent files and reloads OpenCode. Default off.
-- Uninstall: `pnpm clara:plugin:uninstall`; `--purge` also removes the ledger,
+- Uninstall: `pnpm clara plugin uninstall`; `--purge` also removes the ledger,
   the legacy delivery sidecar, the management setting, and legacy delivery
   tables.
 - Daemon: `plugins/clara/daemon.ts` ticks every 15s, reconciles `runs`, and
@@ -203,7 +203,7 @@ delivery record.
 - Feature records: `docs/records/NNN-slug.md`, append-only and intentionally
   outside the canonical docs index. The daemon commits one when a request
   closes.
-- CLI: `pnpm clara:ledger list`, `run <tool> [json]`, and
+- CLI: `pnpm clara ledger list`, `run <tool> [json]`, and
   `pipeline list|validate|select|show`. The CLI calls the same tool definitions
   against the same ledger and derives the role from `--agent`.
 - OpenCode discovers agents only from markdown or an `agents` config map, not

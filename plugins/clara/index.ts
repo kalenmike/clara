@@ -5,7 +5,7 @@
 // thing that crosses an agent boundary.
 //
 // OpenCode discovers this plugin from the global plugin directory after
-// `pnpm clara:plugin:install`:
+// `pnpm clara plugin install`:
 //
 //   ~/.config/opencode/plugins/clara -> <repo>/plugins/clara
 //

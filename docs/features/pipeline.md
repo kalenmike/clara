@@ -12,9 +12,9 @@ process.
 
 1. Start from the built-in `software` or `content` preset, or create a pipeline
    JSON file under `${CLARA_CONFIG_DIR:-~/.config/clara}/pipelines/`.
-2. Validate it with `pnpm clara:ledger pipeline validate <id-or-file>`.
+2. Validate it with `pnpm clara ledger pipeline validate <id-or-file>`.
 3. Select it for a workspace with
-   `pnpm clara:ledger pipeline select <workspace> <id>`, or pass `pipeline` on
+   `pnpm clara ledger pipeline select <workspace> <id>`, or pass `pipeline` on
    `clara_submit`.
 4. Submit a request. The request stores the pipeline id, version, hash, and a
    full snapshot.
@@ -105,14 +105,14 @@ process.
   `plugins/clara/pipelines/`.
 - Example agents: `software` uses `001`–`004` and `judge`; `content` uses
   `clara-brief`, `clara-writer`, `clara-editor`, and the same `judge` closer.
-  All of them are installed by `pnpm clara:plugin:install`. The content agents
+  All of them are installed by `pnpm clara plugin install`. The content agents
   keep their copy in stage evidence and have no shell; add an `edit` scope to a
   copied pipeline if your stages must write files.
 - Commands:
-  - `pnpm clara:ledger pipeline list`
-  - `pnpm clara:ledger pipeline validate <id-or-file>`
-  - `pnpm clara:ledger pipeline select <workspace> <id> [--path <workspace>]`
-  - `pnpm clara:ledger pipeline show <request|workspace|id>`
+  - `pnpm clara ledger pipeline list`
+  - `pnpm clara ledger pipeline validate <id-or-file>`
+  - `pnpm clara ledger pipeline select <workspace> <id> [--path <workspace>]`
+  - `pnpm clara ledger pipeline show <request|workspace|id>`
 - Stage fields: `id`, `title`, `phase`, `agent`, `role`, `instructions`,
   `evidence`, `when`, `gate`.
 - Phases: `contract`, `work`, `review`, `close`.
