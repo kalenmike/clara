@@ -33,7 +33,9 @@ while Clara management is on stays readable and stoppable but hides Reply,
 Done, the composer, fork actions, and the plan-ready card; Forward, Reopen,
 Archive, Delete, Stop, and the right-panel Plan request stay available. On
 normal sessions the header can fork the whole brief, and each user or assistant
-message has fork and forward actions; see [fork.md](fork.md).
+message has fork and forward actions; an assistant reply can also enter a
+structure-aware selection mode and forward just one paragraph, list, or section.
+See [fork.md](fork.md).
 
 ## User flow
 
@@ -100,12 +102,18 @@ message has fork and forward actions; see [fork.md](fork.md).
     first line only. The button in the top-right folds or opens every message.
 15. Click the eye button next to it to show or hide internal output. The choice
     is remembered across sessions and reloads.
-16. The header's more menu can **Snooze session** or **Remove from Snoozed**.
+16. To forward one part of a long reply, choose **Select part** on an expanded
+    assistant message. Hover a block to preview it, click to select a paragraph,
+    list, code fence, table, quote, or heading section, or Shift-click to extend
+    the range. The floating bar shows the section path and length; **Expand**
+    moves one level out, **Forward selection** opens the new draft with that
+    markdown, and Escape cancels.
+17. The header's more menu can **Snooze session** or **Remove from Snoozed**.
     Snoozing moves the session to the sidebar's Snoozed bucket and replaces Done
     with Reopen. Replying, starting work, saving a draft, or answering the agent
     on a snoozed session clears the snooze first and returns it to its mailbox
     section.
-17. Open a daemon worker from the Workers section. While Clara management is on,
+18. Open a daemon worker from the Workers section. While Clara management is on,
     the thread streams normally and Stop remains available, but there is no
     composer, Done, Reply, session fork, message fork, compact, snooze, or
     plan-ready card. Messages can still be forwarded, the header can archive or
@@ -235,6 +243,14 @@ message has fork and forward actions; see [fork.md](fork.md).
     so the model receives them once. Removing the attachment or closing the
     composer restores the unanswered form. A failed form reply keeps the
     composer text, files, and staged attachments in place for a retry.
+19. An expanded, idle assistant reply with text offers **Select part**. The
+    inspector groups only the top-level markdown blocks: headings own their
+    section, while paragraphs, lists, code fences, tables, quotes, and dividers
+    are single blocks. A selected range is sliced from the original markdown
+    source rather than the DOM, so formatting is preserved. Forwarding a
+    selection creates an empty draft exactly like forwarding a message, but
+    carries only the slice and no attachments. Escape cancels selection instead
+    of interrupting a run.
 
 ## Edge cases
 
@@ -362,6 +378,15 @@ message has fork and forward actions; see [fork.md](fork.md).
   app bar above it instead of sharing the title row. Every icon control in the
   mobile chrome uses a 44px touch target and a 20px glyph, while the desktop
   header keeps its compact 32px controls.
+- **Part selection while streaming** — **Select part** stays hidden until the
+  reply settles; a run that starts while selecting ends selection.
+- **Part selection across tool calls** — the selection stays inside the text
+  part where it started. Forwarding the whole message still carries every text
+  part.
+- **Escape while selecting** — Escape cancels the selection and does not
+  interrupt the run.
+- **Folding during selection** — folding the message or switching sessions ends
+  selection and leaves the reply untouched.
 
 ## Out of scope
 
@@ -454,6 +479,10 @@ delivery: 'steer' })`
 - Pair terminal: `src/features/chat/terminal-log.ts`,
   `src/components/chat/pair-terminal.tsx`, and the `session.tool.progress`
   event. See [pair terminal](pair-terminal.md).
+- Part selection: `src/features/chat/markdown-blocks.ts` builds sections and
+  slices the source; `src/components/chat/markdown-selection.tsx` owns the
+  inspector and floating bar; `src/components/chat/markdown.tsx` writes the
+  block offsets from react-markdown's `node.position`
 - Store: `src/features/chat/chat-store.ts`
 - Collapse state: `src/hooks/use-collapsed-messages.ts`
 - Internal-output visibility: `src/features/chat/message-visibility.ts`
