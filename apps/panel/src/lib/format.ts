@@ -17,7 +17,7 @@ export function formatDuration(ms: number | undefined): string {
 
 export function formatBytes(bytes: number | undefined): string {
   if (bytes === undefined || !Number.isFinite(bytes) || bytes < 0) return '—'
-  if (bytes < 1_024) return `${bytes} B`
+  if (bytes < 1_024) return `${Math.floor(bytes)} B`
   const units = ['KB', 'MB', 'GB']
   let value = bytes / 1_024
   let unit = units[0]
