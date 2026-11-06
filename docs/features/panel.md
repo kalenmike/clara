@@ -5,10 +5,11 @@
 A loopback-only control panel served by the Clara home agent. It shows the
 agent's live state, transports, connected clients, OpenCode probe, push health,
 configuration sources, database health, storage files, and a live traffic meter
-without exposing secrets. It also lets the person at the machine switch external
-connections on and off, stop the agent without stopping the process, decide
-which shell commands a Clara client may relay to OpenCode, turn traffic
-monitoring on or off, and gate or pace client settings sync.
+without exposing secrets. Sensitive values start masked behind a header peek
+control so the panel can be screenshared safely. It also lets the person at the
+machine switch external connections on and off, stop the agent without stopping
+the process, decide which shell commands a Clara client may relay to OpenCode,
+turn traffic monitoring on or off, and gate or pace client settings sync.
 
 ## User flow
 
@@ -23,7 +24,12 @@ monitoring on or off, and gate or pace client settings sync.
    Review the headers for the agent process, OpenCode, local transport, relay,
    push, client sync, effective configuration, clients, activity, shell policy,
    and storage. Status chips sit beside each card title, including a storage
-   health summary that turns amber for warnings and red for errors.
+   health summary that turns amber for warnings and red for errors. Sensitive
+   values start masked: the pairing key, config and storage paths, local
+   WebSocket endpoint, relay URL and room, client session ids, and WebSocket
+   URLs in activity or errors. Choose the eye button beside **Refresh** to
+   reveal them for this tab; the choice survives a reload and a new tab starts
+   masked again.
 4. Click a card header to expand or collapse its contents. Cards with a feature
    switch can only be expanded while that feature is enabled; open the header
    again to collapse it.
@@ -87,7 +93,8 @@ monitoring on or off, and gate or pace client settings sync.
 3. **Secrets stay out.** The snapshot is built from an explicit allowlist. The
    PSK, pairing code, OpenCode password, relay tokens, push endpoints, sync
    values, and file contents are never returned. The PSK fingerprint, token
-   presence, room id, and effective config values are shown.
+   presence, room id, and effective config values are included in the snapshot
+   and start masked in the panel.
 4. **Mutations are browser-hard to forge.** Besides the loopback, `Host`,
    `Origin`, and `Sec-Fetch-Site` checks, writes require
    `content-type: application/json` and `x-clara-panel: 1`, reject unknown
@@ -116,6 +123,13 @@ monitoring on or off, and gate or pace client settings sync.
    one-minute buckets and reset on restart or when monitoring is switched off.
    Nothing is throttled, blocked, or persisted, and the per-client counters are
    hidden while monitoring is off.
+9. **Peek is presentation-only.** The eye button masks the pairing fingerprint,
+   config and storage paths, local WebSocket endpoint, relay URL and room, client
+   session ids, and WebSocket URLs in activity messages and error notices. It
+   does not redact the JSON snapshot, change any control, or reach the server:
+   the agent's allowlist remains the security boundary. The choice lives in
+   `sessionStorage` for the tab, so a reload keeps it and a new tab starts
+   masked.
 
 ## Edge cases
 
@@ -163,6 +177,10 @@ monitoring on or off, and gate or pace client settings sync.
 - **A feature fails to start** — the saved choice remains, the card shows the
   error, and the rest of the agent keeps running.
 - **No clients** — the client table shows an empty state.
+- **The panel is screenshared** — sensitive values load masked and the eye
+  button reveals them for the tab. Masked values lose their full-value tooltips
+  and copy buttons, and the same scrubber covers activity messages and error
+  notices.
 - **Monitoring is off** — the Traffic card collapses to its header and switch,
   the client table drops its traffic columns, and no counter moves. Turning it
   on starts a new window.
@@ -210,6 +228,8 @@ monitoring on or off, and gate or pace client settings sync.
   monitoring was on.
 - The OpenCode probe is cached for five seconds, so the card can briefly lag a
   restart.
+- The peek control hides values in the rendered panel only. The JSON snapshot
+  still contains them, so browser devtools and the network panel can show them.
 
 ## Technical appendix
 
@@ -256,6 +276,10 @@ monitoring on or off, and gate or pace client settings sync.
   `AgentCard`, the monitoring switch in `TrafficCard`, the gate and interval in
   `apps/panel/src/components/client-sync-card.tsx`, and `useFeatureControl` in
   `apps/panel/src/lib/feature-control.ts`
+- Peek control: `apps/panel/src/lib/peek.ts` (mask and free-text scrubber),
+  `apps/panel/src/lib/peek-context.tsx` (tab state), and the header button in
+  `apps/panel/src/App.tsx`; the choice is stored under `clara.panel.peek` in
+  `sessionStorage`
 - Policy storage: `shell.mode` and `shell.commands` in the settings table,
   added by database migration `2`; `monitoring.enabled`, added by migration `3`;
   `sync.enabled` and `sync.intervalMs`, added by migration `4`
