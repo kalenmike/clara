@@ -29,17 +29,6 @@ export interface Db {
 export const HERE = dirname(fileURLToPath(import.meta.url))
 export const MIGRATIONS_DIR = resolve(HERE, 'migrations')
 
-/**
- * Clara's config directory. Pipeline definitions live here. The ledger and the
- * home agent's settings database live in `dataDir()`.
- */
-export function configDir(): string {
-  const configured = process.env.CLARA_CONFIG_DIR?.trim()
-  if (configured) return configured
-  const xdg = process.env.XDG_CONFIG_HOME?.trim() || join(homedir(), '.config')
-  return join(xdg, 'clara')
-}
-
 /** Clara's data directory: the ledger and the home agent settings database. */
 export function dataDir(): string {
   const configured = process.env.CLARA_DATA_DIR?.trim()
