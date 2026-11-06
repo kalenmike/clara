@@ -1,9 +1,16 @@
 import { useMemo, useState } from 'react'
-import { CircleHelp } from 'lucide-react'
+import { useParams } from 'react-router'
+import { ChevronDown, CircleHelp, MessageSquarePlus } from 'lucide-react'
 import type { FormField, FormInfo } from '@opencode/client'
 import { RequestCard } from '@/components/chat/request-card'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
 import { Input } from '@/components/ui/input'
 import {
   Select,
@@ -12,12 +19,16 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
+import { useComposer } from '@/features/chat/composer-provider'
+import { buildFormResponse } from '@/features/chat/form-response'
 import {
   useRejectForm,
   useReplyForm,
   useSessionForms,
   type FormAnswerValue,
 } from '@/features/chat/use-forms'
+import { cn } from '@/lib/utils'
 
 const CLEAR_SELECTION = '__clear__'
 const OPTION_PREFIX = 'option:'
@@ -28,14 +39,40 @@ function optionID(value: string) {
 
 export function FormPanel({ sessionID }: { sessionID: string }) {
   const formsQuery = useSessionForms(sessionID)
+  const { mode, target, pendingForms } = useComposer()
+  const stagedFormIDs = useMemo(() => {
+    if (mode === 'closed' || target?.sessionID !== sessionID) return new Set<string>()
+    return new Set(
+      pendingForms
+        .filter((response) => response.sessionID === sessionID)
+        .map((response) => response.formID)
+    )
+  }, [mode, pendingForms, sessionID, target?.sessionID])
+
   const forms = formsQuery.data ?? []
   if (forms.length === 0) return null
 
+  const hasVisibleForm = forms.some((form) => !stagedFormIDs.has(form.id))
+
   return (
-    <div className="shrink-0 space-y-2 border-b bg-sky-500/5 p-2 md:p-3">
-      {forms.map((form) => (
-        <FormCard key={`${sessionID}:${form.id}`} sessionID={sessionID} form={form} />
-      ))}
+    <div
+      className={cn(
+        'shrink-0 space-y-2 border-b bg-sky-500/5 p-2 md:p-3',
+        !hasVisibleForm && 'hidden'
+      )}
+    >
+      {forms.map((form) => {
+        const staged = stagedFormIDs.has(form.id)
+        return (
+          <div
+            key={`${sessionID}:${form.id}`}
+            className={staged ? 'hidden' : undefined}
+            aria-hidden={staged || undefined}
+          >
+            <FormCard sessionID={sessionID} form={form} />
+          </div>
+        )
+      })}
     </div>
   )
 }
@@ -43,6 +80,8 @@ export function FormPanel({ sessionID }: { sessionID: string }) {
 function FormCard({ sessionID, form }: { sessionID: string; form: FormInfo }) {
   const reply = useReplyForm(sessionID)
   const reject = useRejectForm(sessionID)
+  const { open } = useComposer()
+  const { projectId } = useParams<{ projectId?: string }>()
   const [answers, setAnswers] = useState<Record<string, FormAnswerValue>>(() =>
     initialAnswers(form.fields)
   )
@@ -54,6 +93,13 @@ function FormCard({ sessionID, form }: { sessionID: string; form: FormInfo }) {
 
   const submit = () => {
     reply.mutate({ formID: form.id, answer: answers })
+  }
+
+  const addMessage = () => {
+    open({
+      target: { sessionID, projectID: projectId },
+      form: buildFormResponse(sessionID, form, answers),
+    })
   }
 
   return (
@@ -69,14 +115,39 @@ function FormCard({ sessionID, form }: { sessionID: string; form: FormInfo }) {
         ))}
       </div>
       <div className="mt-3 flex gap-2">
-        <Button
-          size="sm"
-          className="h-7 text-xs max-md:h-11 max-md:px-3 max-md:text-sm"
-          onClick={submit}
-          disabled={reply.isPending}
-        >
-          Submit
-        </Button>
+        <div className="flex items-center">
+          <Button
+            size="sm"
+            className="h-7 rounded-r-none text-xs max-md:h-11 max-md:px-3 max-md:text-sm"
+            onClick={submit}
+            disabled={reply.isPending}
+          >
+            Submit
+          </Button>
+          <DropdownMenu>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <DropdownMenuTrigger asChild>
+                  <Button
+                    size="icon-sm"
+                    className="h-7 rounded-l-none border-l border-primary-foreground/25 max-md:size-11"
+                    disabled={reply.isPending}
+                  >
+                    <ChevronDown className="size-3.5 max-md:size-5" />
+                    <span className="sr-only">Submit options</span>
+                  </Button>
+                </DropdownMenuTrigger>
+              </TooltipTrigger>
+              <TooltipContent>Submit with a custom message</TooltipContent>
+            </Tooltip>
+            <DropdownMenuContent side="top" align="start" className="w-56">
+              <DropdownMenuItem onSelect={addMessage}>
+                <MessageSquarePlus className="size-3.5" />
+                <span className="flex-1">Add a message</span>
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
         <Button
           size="sm"
           variant="ghost"

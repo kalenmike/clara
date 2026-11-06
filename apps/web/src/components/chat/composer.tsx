@@ -26,9 +26,11 @@ import {
 } from '@/components/ui/dropdown-menu'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { AgentPicker } from '@/components/chat/agent-picker'
+import { FormResponseAttachment } from '@/components/chat/form-response-attachment'
 import { ModelPicker, VariantPicker } from '@/components/chat/model-picker'
 import { useAgents, useCommands, useReferences, useSkills } from '@/features/catalog/use-catalog'
 import type { ComposerMenuMode } from '@/features/chat/composer-menu'
+import { useComposer } from '@/features/chat/composer-provider'
 import { isLocationRecoveryError } from '@/features/chat/location-recovery'
 import { useModelVisibility } from '@/features/models/use-model-visibility'
 import {
@@ -37,6 +39,7 @@ import {
   useSendPrompt,
   type PromptFile,
 } from '@/features/chat/use-chat'
+import { useReplyForm } from '@/features/chat/use-forms'
 import { draftTitleFromText } from '@/features/sessions/draft-title'
 import { describeConnectionError } from '@/lib/client'
 import { readDraft, saveDraft } from '@/lib/storage'
@@ -88,8 +91,10 @@ export function Composer({
   onCycleAgent: (direction: 1 | -1) => void
 }) {
   const { client } = useConnection()
+  const { pendingForms, removePendingForms } = useComposer()
   const [text, setText] = useState(() => startText ?? readDraft(sessionID))
   const [files, setFiles] = useState<PromptFile[]>(() => startFiles ?? [])
+  const [submittingForms, setSubmittingForms] = useState(false)
   const [activeIndex, setActiveIndex] = useState(0)
   const [dismissed, setDismissed] = useState(false)
   const [modelOpen, setModelOpen] = useState(false)
@@ -97,6 +102,7 @@ export function Composer({
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const textRef = useRef(text)
+  const sendRef = useRef(false)
 
   const commandsQuery = useCommands()
   const agentsQuery = useAgents()
@@ -106,6 +112,7 @@ export function Composer({
   const sendPrompt = useSendPrompt(sessionID)
   const runCommand = useRunCommand(sessionID)
   const saveAsDraft = useSaveDraft(sessionID)
+  const replyForm = useReplyForm(sessionID)
 
   const commands = useMemo(() => commandsQuery.data ?? [], [commandsQuery.data])
   const agents = useMemo(
@@ -114,6 +121,10 @@ export function Composer({
   )
   const skills = useMemo(() => skillsQuery.data ?? [], [skillsQuery.data])
   const references = useMemo(() => referencesQuery.data ?? [], [referencesQuery.data])
+  const stagedForms = useMemo(
+    () => pendingForms.filter((response) => response.sessionID === sessionID),
+    [pendingForms, sessionID]
+  )
 
   const token = useMemo(() => {
     const match = /(^|\s)([/@])([^\s/@]*)$/.exec(text)
@@ -269,9 +280,33 @@ export function Composer({
     session?.model && isModelHidden(session.model.providerID, session.model.id)
   )
 
-  const send = (delivery: 'steer' | 'queue') => {
+  const releaseSend = () => {
+    sendRef.current = false
+    setSubmittingForms(false)
+  }
+
+  const send = async (delivery: 'steer' | 'queue') => {
     const value = text.trim()
-    if (!value || disabled || storedModelHidden) return
+    if (!value || disabled || storedModelHidden || sendRef.current) return
+
+    sendRef.current = true
+    setSubmittingForms(true)
+
+    const submitted: string[] = []
+    try {
+      for (const form of stagedForms) {
+        await replyForm.mutateAsync({ formID: form.formID, answer: form.answers })
+        submitted.push(form.formID)
+      }
+    } catch (cause) {
+      removePendingForms(submitted)
+      releaseSend()
+      if (isLocationRecoveryError(cause)) return
+      toast.error('Could not submit the form response', {
+        description: describeConnectionError(cause),
+      })
+      return
+    }
 
     if (value.startsWith('/')) {
       const [name, ...rest] = value.slice(1).split(/\s+/)
@@ -280,8 +315,13 @@ export function Composer({
         runCommand.mutate(
           { name: command.name, text: rest.join(' '), files, delivery },
           {
-            onSuccess: clear,
+            onSuccess: () => {
+              releaseSend()
+              clear()
+            },
             onError: (cause) => {
+              removePendingForms(submitted)
+              releaseSend()
               if (isLocationRecoveryError(cause)) return
               toast.error('Could not run the command', {
                 description: describeConnectionError(cause),
@@ -296,8 +336,13 @@ export function Composer({
     sendPrompt.mutate(
       { text: value, files, delivery },
       {
-        onSuccess: clear,
+        onSuccess: () => {
+          releaseSend()
+          clear()
+        },
         onError: (cause) => {
+          removePendingForms(submitted)
+          releaseSend()
           if (isLocationRecoveryError(cause)) return
           toast.error(
             delivery === 'queue' ? 'Could not queue the message' : 'Could not send the message',
@@ -308,8 +353,12 @@ export function Composer({
     )
   }
 
-  const submit = () => send('steer')
-  const queueMessage = () => send('queue')
+  const submit = () => {
+    void send('steer')
+  }
+  const queueMessage = () => {
+    void send('queue')
+  }
 
   const saveDraftMessage = () => {
     const value = text.trim()
@@ -390,7 +439,12 @@ export function Composer({
     setFiles((current) => [...current, ...next])
   }
 
-  const pending = sendPrompt.isPending || runCommand.isPending || saveAsDraft.isPending
+  const pending =
+    sendPrompt.isPending ||
+    runCommand.isPending ||
+    saveAsDraft.isPending ||
+    replyForm.isPending ||
+    submittingForms
   const canSend = text.trim().length > 0 && !pending && !disabled && !storedModelHidden
 
   return (
@@ -442,8 +496,18 @@ export function Composer({
           </div>
         )}
 
-        {files.length > 0 && (
+        {(files.length > 0 || stagedForms.length > 0) && (
           <div className="flex shrink-0 flex-wrap gap-1.5 border-b px-3 py-2 max-md:gap-2">
+            {stagedForms.map((response) => (
+              <FormResponseAttachment
+                key={response.formID}
+                response={response}
+                disabled={pending}
+                onRemove={() => {
+                  if (!pending) removePendingForms([response.formID])
+                }}
+              />
+            ))}
             {files.map((file, index) => (
               <Badge
                 key={`${file.name}-${index}`}

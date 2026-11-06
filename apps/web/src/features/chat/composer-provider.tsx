@@ -18,6 +18,7 @@ import {
   type ComposerMode,
   type ComposerTarget,
 } from '@/features/chat/composer-session'
+import type { PendingFormResponse } from '@/features/chat/form-response'
 import type { PromptFile } from '@/features/chat/use-chat'
 import { readComposerSize, saveComposerSize } from '@/lib/storage'
 
@@ -31,6 +32,7 @@ type OpenComposerOptions = {
   target?: ComposerTarget
   text?: string
   files?: PromptFile[]
+  form?: PendingFormResponse
   model?: boolean
   agent?: boolean
 }
@@ -44,6 +46,7 @@ type ComposerContextValue = {
   mode: ComposerMode
   target: ComposerTarget | null
   handoff: ComposerHandoff | null
+  pendingForms: PendingFormResponse[]
   detached: boolean
   returnPath: string | null
   focusSignal: number
@@ -52,6 +55,7 @@ type ComposerContextValue = {
   lastSent: SentSignal | null
   open: (options?: OpenComposerOptions) => void
   close: () => void
+  removePendingForms: (formIDs: string[]) => void
   minimize: () => void
   restore: () => void
   toggleMaximize: () => void
@@ -85,6 +89,7 @@ export function ComposerProvider({ children }: { children: ReactNode }) {
   const [mode, setMode] = useState<ComposerMode>('closed')
   const [target, setTarget] = useState<ComposerTarget | null>(route)
   const [handoff, setHandoff] = useState<ComposerHandoff | null>(null)
+  const [pendingForms, setPendingForms] = useState<PendingFormResponse[]>([])
   const [focusSignal, setFocusSignal] = useState(0)
   const [modelRequest, setModelRequest] = useState(0)
   const [agentRequest, setAgentRequest] = useState(0)
@@ -102,6 +107,7 @@ export function ComposerProvider({ children }: { children: ReactNode }) {
       if (mode !== 'closed') setMode('closed')
       if (target != null) setTarget(null)
       if (handoff != null) setHandoff(null)
+      setPendingForms([])
       return
     }
     if (mode !== 'closed') return
@@ -120,6 +126,15 @@ export function ComposerProvider({ children }: { children: ReactNode }) {
       if (!next) return
 
       setTarget(next)
+      if (options.form) {
+        const form = options.form
+        setPendingForms((current) => {
+          const base = next.sessionID === target?.sessionID ? current : []
+          return [...base.filter((item) => item.formID !== form.formID), form]
+        })
+      } else if (next.sessionID !== target?.sessionID) {
+        setPendingForms([])
+      }
       if (options.text !== undefined || options.files !== undefined) {
         handoffSeq.current += 1
         setHandoff({
@@ -141,8 +156,15 @@ export function ComposerProvider({ children }: { children: ReactNode }) {
   const close = useCallback(() => {
     setMode('closed')
     setHandoff(null)
+    setPendingForms([])
     setTarget(route)
   }, [route])
+
+  const removePendingForms = useCallback((formIDs: string[]) => {
+    if (formIDs.length === 0) return
+    const removed = new Set(formIDs)
+    setPendingForms((current) => current.filter((form) => !removed.has(form.formID)))
+  }, [])
 
   const minimize = useCallback(() => {
     setMode('minimized')
@@ -216,6 +238,7 @@ export function ComposerProvider({ children }: { children: ReactNode }) {
       mode,
       target,
       handoff,
+      pendingForms,
       detached,
       returnPath,
       focusSignal,
@@ -224,6 +247,7 @@ export function ComposerProvider({ children }: { children: ReactNode }) {
       lastSent,
       open,
       close,
+      removePendingForms,
       minimize,
       restore,
       toggleMaximize,
@@ -251,12 +275,14 @@ export function ComposerProvider({ children }: { children: ReactNode }) {
       open,
       openAgents,
       openModels,
+      pendingForms,
       focus,
       reportDraft,
       restore,
       returnPath,
       target,
       toggleMaximize,
+      removePendingForms,
     ]
   )
 
