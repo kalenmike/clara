@@ -111,6 +111,7 @@ export function useSendPrompt(sessionID: string) {
       text: string
       files?: PromptFile[]
       delivery?: 'steer' | 'queue'
+      resume?: boolean
     }) => {
       await unsnoozeSessionOnEngage(client!, queryClient, sessionID)
       return withLocationRecovery({ client: client!, queryClient, sessionID }, () =>
@@ -119,6 +120,7 @@ export function useSendPrompt(sessionID: string) {
           text: input.text,
           files: input.files,
           delivery: input.delivery,
+          resume: input.resume,
         })
       )
     },
@@ -129,6 +131,19 @@ export function useSendPrompt(sessionID: string) {
         void queryClient.invalidateQueries({ queryKey: queryKeys.sessionMailbox(sessionID) })
         void queryClient.invalidateQueries({ queryKey: ['sessions'] })
       }, 200)
+    },
+  })
+}
+
+export function useCancelInbox(sessionID: string) {
+  const { client } = useConnection()
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: (inboxID: string) => client!.session.inbox.cancel({ sessionID, inboxID }),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: queryKeys.sessionInbox(sessionID) })
+      void queryClient.invalidateQueries({ queryKey: queryKeys.sessionMailbox(sessionID) })
     },
   })
 }

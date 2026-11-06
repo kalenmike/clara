@@ -14,7 +14,7 @@ import {
   Sparkles,
   X,
 } from 'lucide-react'
-import type { SessionInfo } from '@opencode/client'
+import type { SessionInboxUser, SessionInfo } from '@opencode/client'
 import { toast } from 'sonner'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -34,6 +34,7 @@ import { useComposer } from '@/features/chat/composer-provider'
 import { isLocationRecoveryError } from '@/features/chat/location-recovery'
 import { useModelVisibility } from '@/features/models/use-model-visibility'
 import {
+  useCancelInbox,
   useRunCommand,
   useSaveDraft,
   useSendPrompt,
@@ -113,6 +114,7 @@ export function Composer({
   const runCommand = useRunCommand(sessionID)
   const saveAsDraft = useSaveDraft(sessionID)
   const replyForm = useReplyForm(sessionID)
+  const cancelInbox = useCancelInbox(sessionID)
 
   const commands = useMemo(() => commandsQuery.data ?? [], [commandsQuery.data])
   const agents = useMemo(
@@ -292,6 +294,82 @@ export function Composer({
     sendRef.current = true
     setSubmittingForms(true)
 
+    const command = value.startsWith('/')
+      ? commands.find((item) => item.name === value.slice(1).split(/\s+/)[0])
+      : undefined
+
+    if (command) {
+      const submitted: string[] = []
+      try {
+        for (const form of stagedForms) {
+          await replyForm.mutateAsync({ formID: form.formID, answer: form.answers })
+          submitted.push(form.formID)
+        }
+      } catch (cause) {
+        removePendingForms(submitted)
+        releaseSend()
+        if (isLocationRecoveryError(cause)) return
+        toast.error('Could not submit the form response', {
+          description: describeConnectionError(cause),
+        })
+        return
+      }
+
+      const [, ...rest] = value.slice(1).split(/\s+/)
+      runCommand.mutate(
+        { name: command.name, text: rest.join(' '), files, delivery },
+        {
+          onSuccess: () => {
+            releaseSend()
+            clear()
+          },
+          onError: (cause) => {
+            removePendingForms(submitted)
+            releaseSend()
+            if (isLocationRecoveryError(cause)) return
+            toast.error('Could not run the command', {
+              description: describeConnectionError(cause),
+            })
+          },
+        }
+      )
+      return
+    }
+
+    if (stagedForms.length === 0) {
+      sendPrompt.mutate(
+        { text: value, files, delivery },
+        {
+          onSuccess: () => {
+            releaseSend()
+            clear()
+          },
+          onError: (cause) => {
+            releaseSend()
+            if (isLocationRecoveryError(cause)) return
+            toast.error(
+              delivery === 'queue' ? 'Could not queue the message' : 'Could not send the message',
+              { description: describeConnectionError(cause) }
+            )
+          },
+        }
+      )
+      return
+    }
+
+    let sent: SessionInboxUser
+    try {
+      sent = await sendPrompt.mutateAsync({ text: value, files, delivery, resume: false })
+    } catch (cause) {
+      releaseSend()
+      if (isLocationRecoveryError(cause)) return
+      toast.error(
+        delivery === 'queue' ? 'Could not queue the message' : 'Could not send the message',
+        { description: describeConnectionError(cause) }
+      )
+      return
+    }
+
     const submitted: string[] = []
     try {
       for (const form of stagedForms) {
@@ -300,57 +378,24 @@ export function Composer({
       }
     } catch (cause) {
       removePendingForms(submitted)
+      let cancelled = true
+      try {
+        await cancelInbox.mutateAsync(sent.id)
+      } catch {
+        cancelled = false
+      }
       releaseSend()
       if (isLocationRecoveryError(cause)) return
       toast.error('Could not submit the form response', {
-        description: describeConnectionError(cause),
+        description: cancelled
+          ? describeConnectionError(cause)
+          : 'The message may already be queued. Check the session before sending it again.',
       })
       return
     }
 
-    if (value.startsWith('/')) {
-      const [name, ...rest] = value.slice(1).split(/\s+/)
-      const command = commands.find((item) => item.name === name)
-      if (command) {
-        runCommand.mutate(
-          { name: command.name, text: rest.join(' '), files, delivery },
-          {
-            onSuccess: () => {
-              releaseSend()
-              clear()
-            },
-            onError: (cause) => {
-              removePendingForms(submitted)
-              releaseSend()
-              if (isLocationRecoveryError(cause)) return
-              toast.error('Could not run the command', {
-                description: describeConnectionError(cause),
-              })
-            },
-          }
-        )
-        return
-      }
-    }
-
-    sendPrompt.mutate(
-      { text: value, files, delivery },
-      {
-        onSuccess: () => {
-          releaseSend()
-          clear()
-        },
-        onError: (cause) => {
-          removePendingForms(submitted)
-          releaseSend()
-          if (isLocationRecoveryError(cause)) return
-          toast.error(
-            delivery === 'queue' ? 'Could not queue the message' : 'Could not send the message',
-            { description: describeConnectionError(cause) }
-          )
-        },
-      }
-    )
+    releaseSend()
+    clear()
   }
 
   const submit = () => {
