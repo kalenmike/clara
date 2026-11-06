@@ -287,6 +287,13 @@ function handleInvalidation(
       }
       return
 
+    case 'session.viewed':
+      void queryClient.invalidateQueries({ queryKey: ['sessions'] })
+      if (sessionID) {
+        void queryClient.invalidateQueries({ queryKey: queryKeys.session(sessionID) })
+      }
+      return
+
     case 'session.idle':
     case 'session.execution.succeeded':
     case 'session.execution.failed':

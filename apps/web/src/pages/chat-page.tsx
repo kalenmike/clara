@@ -42,6 +42,7 @@ import { isArchivedSession } from '@/features/sessions/session-archive'
 import { isSnoozedSession } from '@/features/sessions/session-snooze'
 import { useForkSession } from '@/features/sessions/use-fork-session'
 import { useForwardMessage } from '@/features/sessions/use-forward-message'
+import { useMarkSessionViewed } from '@/features/sessions/use-mark-session-viewed'
 import { useSession } from '@/features/sessions/use-sessions'
 import { useStartSession, type ChatComposeState } from '@/features/sessions/use-start-session'
 import { useSessionWording } from '@/features/sessions/use-wording'
@@ -81,6 +82,7 @@ function ChatPageContent() {
   const owningProject = canonicalProject(projectsQuery.data ?? [], projectId)
   const sessionQuery = useSession(sessionId ?? null)
   const session = sessionQuery.data
+  useMarkSessionViewed(session)
   const worker = session != null && isAutomation?.(session) === true
   const snapshot = useChatSnapshot(sessionId ?? '')
   const messagesQuery = useSessionMessages(sessionId ?? '')
