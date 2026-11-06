@@ -1,5 +1,9 @@
 {
   "workspaces": {
+    ".": {
+      "entry": ["scripts/*.mjs", "scripts/test/*.test.mjs"],
+      "project": ["scripts/**/*.mjs"]
+    },
     "apps/web": {
       "entry": ["index.html"],
       "project": ["src/**/*.{ts,tsx}"]
@@ -30,7 +34,6 @@
     "apps/panel/src/features/clara/stub/**"
   ],
   "ignoreDependencies": ["cloudflare"],
-  "ignoreBinaries": ["jq"],
   "rules": {
     "exports": "off",
     "types": "off"

@@ -23,16 +23,8 @@
     "prepare": "husky",
     "deploy:web": "pnpm --filter @clara/web run deploy",
     "deploy:relay": "pnpm --filter @clara/relay run deploy",
-    "clara:serve": "export CLARA_MANAGEMENT=${CLARA_MANAGEMENT:-1}; pnpm --filter @clara/server exec node dist/index.js",
     "clara": "node scripts/clara.mjs",
-    "task": "node scripts/task.mjs",
-    "clara:control": "export CLARA_MANAGEMENT=${CLARA_MANAGEMENT:-1}; node scripts/control.mjs",
-    "clara:plugin:install": "node scripts/install-clara-plugin.mjs",
-    "clara:plugin:uninstall": "node scripts/uninstall-clara-plugin.mjs",
-    "clara:ledger": "pnpm --filter @clara/opencode-plugin cli",
-    "clara:pair": "pnpm --filter @clara/server exec node dist/index.js pair",
-    "clara:pair:local": "pnpm --filter @clara/server exec node dist/index.js pair --local",
-    "clara:pass": "jq -r '.password' $HOME/.local/state/opencode/service.json"
+    "task": "node scripts/task.mjs"
   },
   "devDependencies": {
     "@commitlint/cli": "^21.2.4",
