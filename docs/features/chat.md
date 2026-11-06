@@ -82,8 +82,10 @@ message has fork and forward actions; see [fork.md](fork.md).
     **User confirmed. Starting work.** system row. Click the card header to fold
     it to its title until you are ready to act.
 12. Open a session with a saved draft. The queued user message appears in the
-    thread and a Start card appears above it. Click **Start** to send `Start`,
-    deliver the draft, and begin the run, or fold the card to its title first.
+    thread and a Start card appears above it. Click **Start** to send a short
+    synthetic approval, deliver the draft, and begin the run; the handoff
+    appears as a **User confirmed. Starting saved draft.** system row. Fold the
+    card to its title first if you are not ready to act.
 13. Answer an agent question. The form disappears when submitted, and the
     question-and-answer summary is appended to the thread as a **Answered N
     questions** system row. The event is derived from the completed `question`
@@ -200,9 +202,11 @@ message has fork and forward actions; see [fork.md](fork.md).
     server reports pending user items in the session inbox. Pending inbox user
     messages are merged into the thread by message ID, so a draft is visible
     before it is delivered and disappears cleanly once it becomes a real
-    message. Start sends `Start` with steering and disables while the request is
-    in flight. The card starts expanded and can be folded to its title without
-    cancelling the start request.
+    message. Start sends a short synthetic approval with steering, which gives
+    the agent context without repeating the draft or adding a fake user prompt;
+    the handoff renders as a system row. The button disables while the request
+    is in flight. The card starts expanded and can be folded to its title
+    without cancelling the start request.
 16. A session is a worker when Clara management is on and its metadata says
     `automation === true`. Worker mode suppresses the composer, Done, Reply,
     New, message and session fork, compact, snooze, the plan-ready card, and
@@ -381,7 +385,8 @@ message has fork and forward actions; see [fork.md](fork.md).
   `message-list.tsx`, and `message-actions.tsx`
 - Pending drafts: `client.session.inbox.list({ sessionID })`, merged into the
   thread by message ID
-- Start draft: `client.session.prompt({ sessionID, text: 'Start', delivery: 'steer' })`
+- Start draft: `client.session.synthetic({ sessionID, text, description,
+metadata, delivery: 'steer' })`
 - Start card: `src/components/chat/draft-start-panel.tsx`
 - New message view: `src/components/chat/draft-session-view.tsx`
 - Done: `client.session.update({ sessionID, title, archived: true })`; the

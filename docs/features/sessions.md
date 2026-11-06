@@ -391,7 +391,8 @@ by default, and the noun is configurable in Settings.
   included in search and the open/close-all toggle.
 - Pending drafts: `client.session.inbox.list({ sessionID })`
 - Save draft: `client.session.prompt({ sessionID, text, files, resume: false })`
-- Start draft: `client.session.prompt({ sessionID, text: 'Start', delivery: 'steer' })`
+- Start draft: `client.session.synthetic({ sessionID, text, description,
+metadata, delivery: 'steer' })`
 - Running state: `client.session.active()`, refreshed on `session.execution.*`,
   `session.status`, and `session.idle` events
 - Awaiting input: `client.permission.request.list({ location: { directory } })`

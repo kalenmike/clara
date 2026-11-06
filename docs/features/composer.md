@@ -84,8 +84,9 @@ model selection, and agent selection.
    The session stays in Drafts because OpenCode has no projected messages yet.
 9. Pending inbox messages are rendered in the thread as draft user messages. A
    **Start** panel above the thread appears when an idle session still has a
-   pending user item; it sends the prompt `Start` with steering, which delivers
-   the queued draft and starts the run.
+   pending user item; it sends a short synthetic approval with steering, which
+   delivers the queued draft and starts the run. The handoff renders as a
+   system event instead of a user prompt.
 10. **Send as queued** calls `session.prompt` or `session.command` with
     `delivery: 'queue'`. OpenCode keeps the input pending and promotes it as the
     next turn when the session would otherwise become idle, so the active run is
@@ -252,7 +253,8 @@ model selection, and agent selection.
 - Draft title: `draftTitleFromText` in `src/features/sessions/draft-title.ts`
   (50 characters plus `…`)
 - Pending drafts: `client.session.inbox.list({ sessionID })`
-- Start: `client.session.prompt({ sessionID, text: 'Start', delivery: 'steer' })`
+- Start: `client.session.synthetic({ sessionID, text, description, metadata,
+delivery: 'steer' })`
 - Start panel: `src/components/chat/draft-start-panel.tsx`
 - New message view: `src/components/chat/draft-session-view.tsx`
 - Commands: `client.command.list()`, `client.session.command({ name, text })`
