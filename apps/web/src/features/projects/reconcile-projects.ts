@@ -25,7 +25,10 @@ function isArchivedProject(project: Project): boolean {
 export async function reconcileArchivedProjects(
   client: OpenCodeClient
 ): Promise<ProjectReconciliation> {
-  const projects = await client.project.list({ archived: true })
+  const projects = await client.project.list(
+    { archived: true },
+    { signal: AbortSignal.timeout(PROJECT_RECONCILIATION_TIMEOUT_MS) }
+  )
   const archived = projects.filter(isArchivedProject)
   if (archived.length === 0) return { archived: 0, restored: [] }
 
