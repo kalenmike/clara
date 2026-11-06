@@ -4,7 +4,8 @@
 
 Connects Clara to one OpenCode server, either through the Clara home agent over
 an end-to-end encrypted WebSocket or directly over HTTP. The connect screen also
-pairs new devices from a QR code and proves the connection before showing data.
+pairs new devices by scanning a QR code with the camera or pasting its code, and
+proves the connection before showing data.
 
 ## User flow
 
@@ -14,10 +15,12 @@ pairs new devices from a QR code and proves the connection before showing data.
 2. If no connection is confirmed, the connect screen offers two controls:
    **Pair this device** and **Connect directly**. Choosing one swaps the form;
    only the active form is shown.
-3. A pairing link starts on the splash with a connecting message. Scan the QR
-   printed by `clara-server pair`, or paste its `clara1_…` code into the pair
-   form. Clara stores the relay/local endpoint, room, client token, PSK, and
-   fingerprint.
+3. **Pair this device** offers **Scan QR code** and a paste field. Scanning
+   opens the rear camera and connects as soon as the QR printed by
+   `clara-server pair` is recognized; a `clara1_…` code or `#pair=` link can
+   still be pasted. A pairing link opened directly starts on the splash with a
+   connecting message. Clara stores the relay/local endpoint, room, client
+   token, PSK, and fingerprint.
 4. Clara opens the WebSocket, completes the E2EE handshake, verifies the
    fingerprint, and calls the OpenCode info endpoint through the tunnel.
 5. On success Clara stores the pairing and opens the last project, or the first
@@ -81,6 +84,11 @@ pairs new devices from a QR code and proves the connection before showing data.
   previous target prefilled; it does not silently try another server.
 - **Pairing link fails** — the connecting splash gives way to the pair form,
   which shows the connection failure reason.
+- **Camera denied, missing, or busy** — the scanner names the reason and keeps
+  paste available. A plain `http://` page hides the scan action because browsers
+  require HTTPS or localhost for the camera.
+- **Non-Clara QR** — the scanner reports it and keeps looking instead of
+  starting a connection.
 - **Wedged boot probe** — the splash yields to the connect options after 12
   seconds so the screen cannot hang forever.
 - **Local detection timeout** — the probe gives up after 2.5 seconds.
@@ -123,6 +131,8 @@ pairs new devices from a QR code and proves the connection before showing data.
 - Boot gate: `ConnectionProvider` exposes `booting` and `bootSource`; the page
   renders a splash until boot settles, with a 12s watchdog
 - Client factory: `createClient` in `apps/web/src/lib/client.ts`
+- Pairing scanner: `apps/web/src/features/connect/use-qr-scanner.ts`; decoding
+  and camera error copy in `apps/web/src/lib/qr-scan.ts`
 - Relay transport: `apps/web/src/lib/transport/relay.ts`
 - Home agent: `apps/server/src/` (`config`, `agent`, `local-server`,
   `relay-client`, `pairing`)
