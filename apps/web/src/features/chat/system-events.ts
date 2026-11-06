@@ -1,7 +1,7 @@
 import type { JsonValue, SessionMessageSynthetic } from '@opencode/client'
 
 /** Synthetic inputs Clara writes for one-click actions. */
-export type ClaraEventKind = 'plan-request' | 'plan-update' | 'build-start'
+export type ClaraEventKind = 'plan-request' | 'plan-update' | 'build-start' | 'draft-start'
 
 /** Every system event Clara can render in the transcript. */
 export type SystemEventKind =
@@ -22,6 +22,7 @@ const CLARA_LABELS: Record<ClaraEventKind, string> = {
   'plan-request': 'Requested a plan',
   'plan-update': 'Requested a plan update',
   'build-start': 'Started work',
+  'draft-start': 'Started saved draft',
 }
 
 /**
@@ -83,7 +84,12 @@ function systemReminderDetail(text: string): string | null {
 }
 
 function isClaraKind(kind: JsonValue | undefined): kind is ClaraEventKind {
-  return kind === 'plan-request' || kind === 'plan-update' || kind === 'build-start'
+  return (
+    kind === 'plan-request' ||
+    kind === 'plan-update' ||
+    kind === 'build-start' ||
+    kind === 'draft-start'
+  )
 }
 
 export function readRecord(value: JsonValue | undefined): Record<string, JsonValue> | undefined {

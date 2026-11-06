@@ -117,6 +117,22 @@ describe('buildTimeline', () => {
     })
   })
 
+  it('renders a saved-draft start as a system event', () => {
+    const items = timeline([
+      synthetic('User confirmed. Starting saved draft.', { clara: { kind: 'draft-start' } }),
+    ])
+
+    expect(items).toHaveLength(1)
+    expect(items[0]).toMatchObject({
+      type: 'event',
+      event: {
+        kind: 'draft-start',
+        label: 'User confirmed. Starting saved draft.',
+        time: 2,
+      },
+    })
+  })
+
   it('keeps a system reminder behind the internal toggle', () => {
     const message = synthetic(
       undefined,

@@ -4,18 +4,31 @@ import { toast } from 'sonner'
 import { RequestCard } from '@/components/chat/request-card'
 import { Button } from '@/components/ui/button'
 import { isLocationRecoveryError } from '@/features/chat/location-recovery'
-import { useSendPrompt } from '@/features/chat/use-chat'
+import { claraEventMetadata } from '@/features/chat/system-events'
+import { useSendSynthetic } from '@/features/chat/use-chat'
 
 export function DraftStartPanel({ sessionID, count }: { sessionID: string; count: number }) {
-  const sendPrompt = useSendPrompt(sessionID)
+  const sendSynthetic = useSendSynthetic(sessionID)
   const [starting, setStarting] = useState(false)
-  const pending = starting || sendPrompt.isPending
+  const pending = starting || sendSynthetic.isPending
 
   const start = async () => {
     if (pending) return
     setStarting(true)
     try {
-      await sendPrompt.mutateAsync({ text: 'Start', delivery: 'steer' })
+      await sendSynthetic.mutateAsync({
+        text:
+          count === 1
+            ? 'The user approved the saved draft. Start working on it.'
+            : 'The user approved the saved drafts. Start working on them.',
+        description:
+          count === 1
+            ? 'User confirmed. Starting saved draft.'
+            : `User confirmed. Starting ${count} saved drafts.`,
+        metadata: claraEventMetadata('draft-start'),
+        delivery: 'steer',
+        resume: true,
+      })
     } catch (cause) {
       setStarting(false)
       if (isLocationRecoveryError(cause)) return

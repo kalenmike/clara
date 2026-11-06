@@ -6,6 +6,7 @@ import {
   Hammer,
   Info,
   ListTodo,
+  Play,
   RefreshCw,
 } from 'lucide-react'
 import type { SystemEvent, SystemEventKind } from '@/features/chat/system-events'
@@ -81,6 +82,8 @@ function iconFor(kind: SystemEventKind) {
       return RefreshCw
     case 'build-start':
       return Hammer
+    case 'draft-start':
+      return Play
     case 'question-answer':
       return CircleHelp
     case 'question-dismissed':
@@ -95,6 +98,7 @@ function iconFor(kind: SystemEventKind) {
 function colorFor(kind: SystemEventKind): string {
   switch (kind) {
     case 'build-start':
+    case 'draft-start':
       return 'text-emerald-500'
     case 'plan-request':
     case 'plan-update':

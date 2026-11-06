@@ -1,15 +1,42 @@
 import { describe, expect, it } from 'vitest'
 import type { SessionMessageSynthetic } from '@opencode/client'
-import { isSystemReminder, readSystemReminder } from './system-events'
+import { isSystemReminder, readClaraEvent, readSystemReminder } from './system-events'
 
-function synthetic(text: string, created = 1): SessionMessageSynthetic {
+function synthetic(
+  text: string,
+  created = 1,
+  description?: string,
+  metadata?: SessionMessageSynthetic['metadata']
+): SessionMessageSynthetic {
   return {
     id: `synthetic-${created}`,
     type: 'synthetic',
     time: { created },
     text,
+    description,
+    metadata,
   }
 }
+
+describe('readClaraEvent', () => {
+  it('falls back to the kind label without a description', () => {
+    const event = readClaraEvent(
+      synthetic('Start the draft', 1, undefined, { clara: { kind: 'draft-start' } })
+    )
+
+    expect(event).toMatchObject({ kind: 'draft-start', label: 'Started saved draft' })
+  })
+
+  it('uses the description as the visible label', () => {
+    const event = readClaraEvent(
+      synthetic('Start the draft', 1, 'User confirmed. Starting saved draft.', {
+        clara: { kind: 'draft-start' },
+      })
+    )
+
+    expect(event?.label).toBe('User confirmed. Starting saved draft.')
+  })
+})
 
 describe('readSystemReminder', () => {
   it('strips the tags from a system reminder', () => {
