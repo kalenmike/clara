@@ -1,11 +1,45 @@
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Check, Copy } from 'lucide-react'
-import ReactMarkdown from 'react-markdown'
+import ReactMarkdown, { type Components } from 'react-markdown'
 import remarkGfm from 'remark-gfm'
+import { useMarkdownSelection } from '@/components/chat/markdown-selection'
 import { Button } from '@/components/ui/button'
+import { headingLevel } from '@/features/chat/markdown-blocks'
 import { cn } from '@/lib/utils'
 
-function CodeBlock({ code, language }: { code: string; language?: string }) {
+type HastNode = {
+  tagName?: string
+  position?: {
+    start?: { offset?: number | null; line?: number }
+    end?: { offset?: number | null; line?: number }
+  }
+}
+
+/** Source offsets travel with the rendered block so selection never touches text. */
+function blockData(node: HastNode | undefined): Record<string, string | number> {
+  const start = node?.position?.start?.offset
+  const end = node?.position?.end?.offset
+  if (typeof start !== 'number' || typeof end !== 'number') return {}
+
+  const tag = node?.tagName ?? ''
+  const level = headingLevel(tag)
+  return {
+    'data-md-start': start,
+    'data-md-end': end,
+    'data-md-tag': tag,
+    ...(level ? { 'data-md-level': level } : {}),
+  }
+}
+
+function CodeBlock({
+  code,
+  language,
+  data,
+}: {
+  code: string
+  language?: string
+  data?: Record<string, string | number>
+}) {
   const [copied, setCopied] = useState(false)
 
   const copy = async () => {
@@ -15,7 +49,7 @@ function CodeBlock({ code, language }: { code: string; language?: string }) {
   }
 
   return (
-    <div className="group relative my-3 overflow-hidden rounded-lg border bg-muted/40">
+    <div {...data} className="group relative my-3 overflow-hidden rounded-lg border bg-muted/40">
       <div className="flex items-center justify-between border-b bg-muted/60 px-3 py-1.5 max-md:py-0">
         <span className="font-mono text-[10px] uppercase tracking-wider text-muted-foreground">
           {language || 'text'}
@@ -42,33 +76,75 @@ function CodeBlock({ code, language }: { code: string; language?: string }) {
   )
 }
 
-export function Markdown({ children, className }: { children: string; className?: string }) {
+const components: Components = {
+  p: ({ node, ...props }) => <p {...props} {...blockData(node)} />,
+  h1: ({ node, ...props }) => <h1 {...props} {...blockData(node)} />,
+  h2: ({ node, ...props }) => <h2 {...props} {...blockData(node)} />,
+  h3: ({ node, ...props }) => <h3 {...props} {...blockData(node)} />,
+  h4: ({ node, ...props }) => <h4 {...props} {...blockData(node)} />,
+  h5: ({ node, ...props }) => <h5 {...props} {...blockData(node)} />,
+  h6: ({ node, ...props }) => <h6 {...props} {...blockData(node)} />,
+  ul: ({ node, ...props }) => <ul {...props} {...blockData(node)} />,
+  ol: ({ node, ...props }) => <ol {...props} {...blockData(node)} />,
+  blockquote: ({ node, ...props }) => <blockquote {...props} {...blockData(node)} />,
+  table: ({ node, ...props }) => <table {...props} {...blockData(node)} />,
+  hr: ({ node, ...props }) => <hr {...props} {...blockData(node)} />,
+  pre: ({ children }) => <>{children}</>,
+  code: ({ className: codeClassName, children, node }) => {
+    const match = /language-(\w+)/.exec(codeClassName ?? '')
+    const text = String(children).replace(/\n$/, '')
+    const data = blockData(node)
+    const block = Boolean(match) || node?.position?.start?.line !== node?.position?.end?.line
+
+    if (block) {
+      return <CodeBlock code={text} language={match?.[1]} data={data} />
+    }
+    return (
+      <code {...data} className="rounded bg-muted px-1 py-0.5 font-mono text-[0.85em]">
+        {text}
+      </code>
+    )
+  },
+  a: ({ href, children }) => (
+    <a
+      href={href}
+      target="_blank"
+      rel="noreferrer"
+      className="underline underline-offset-2 hover:text-foreground"
+    >
+      {children}
+    </a>
+  ),
+}
+
+export function Markdown({
+  children,
+  className,
+  partIndex = 0,
+}: {
+  children: string
+  className?: string
+  /** Index of this text part in the assistant message, used by the inspector. */
+  partIndex?: number
+}) {
+  const selection = useMarkdownSelection()
+  const rootRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    if (!selection?.active) return
+    return selection.register(partIndex, children, rootRef.current)
+  }, [children, partIndex, selection])
+
   return (
-    <div className={cn('markdown text-sm', className)}>
-      <ReactMarkdown
-        remarkPlugins={[remarkGfm]}
-        components={{
-          pre: ({ children }) => <>{children}</>,
-          code: ({ className: codeClassName, children: codeChildren }) => {
-            const match = /language-(\w+)/.exec(codeClassName ?? '')
-            const text = String(codeChildren).replace(/\n$/, '')
-            if (match) return <CodeBlock code={text} language={match[1]} />
-            return (
-              <code className="rounded bg-muted px-1 py-0.5 font-mono text-[0.85em]">{text}</code>
-            )
-          },
-          a: ({ href, children }) => (
-            <a
-              href={href}
-              target="_blank"
-              rel="noreferrer"
-              className="underline underline-offset-2 hover:text-foreground"
-            >
-              {children}
-            </a>
-          ),
-        }}
-      >
+    <div
+      ref={rootRef}
+      className={cn('markdown text-sm', selection?.active && 'markdown-selecting', className)}
+      onPointerMove={selection?.active ? (event) => selection.move(partIndex, event) : undefined}
+      onPointerLeave={selection?.active ? () => selection.leave(partIndex) : undefined}
+      onClick={selection?.active ? (event) => selection.select(partIndex, event) : undefined}
+      onKeyDown={selection?.active ? (event) => selection.key(partIndex, event) : undefined}
+    >
+      <ReactMarkdown remarkPlugins={[remarkGfm]} components={components}>
         {children}
       </ReactMarkdown>
     </div>
