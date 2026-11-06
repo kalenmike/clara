@@ -19,6 +19,7 @@ import {
   type AgentInfo,
   type ClaraAction,
   type ClaraState,
+  type PipelineCatalog,
   type SyncCheckAction,
   type SyncErrorCode,
   type SyncPullAction,
@@ -34,6 +35,7 @@ const HEARTBEAT_MS = 15_000
 const STALL_MS = 45_000
 const MAX_RECONNECT_MS = 15_000
 const SYNC_TIMEOUT_MS = 30_000
+const PIPELINE_TIMEOUT_MS = 30_000
 
 export type RelayTransportConfig = {
   wsUrl: string
@@ -71,6 +73,7 @@ export type RelayTransport = {
   subscribePush: (listener: (state: PushStatusState) => void) => () => void
   addChannel: (channel: RelayChannel) => () => void
   requestSync: (action: SyncRequestAction) => Promise<SyncResponse>
+  requestPipelines: () => Promise<PipelineCatalog>
   sendAction: (action: ClaraAction) => Promise<void>
   status: () => RelayTransportStatus
 }
@@ -97,6 +100,12 @@ type PendingSync = {
   timer: number
 }
 
+type PendingPipelines = {
+  resolve: (catalog: PipelineCatalog) => void
+  reject: (cause: unknown) => void
+  timer: number
+}
+
 export function createRelayTransport(config: RelayTransportConfig): RelayTransport {
   return new RelayFetchTransport(config)
 }
@@ -107,6 +116,7 @@ class RelayFetchTransport implements RelayTransport {
   private readonly config: RelayTransportConfig
   private readonly pending = new Map<string, PendingResponse>()
   private readonly syncPending = new Map<string, PendingSync>()
+  private readonly pipelinePending = new Map<string, PendingPipelines>()
   private readonly listeners = new Set<(status: RelayTransportStatus) => void>()
   private readonly pushListeners = new Set<(state: PushStatusState) => void>()
   private readonly channels = new Set<RelayChannel>()
@@ -142,6 +152,7 @@ class RelayFetchTransport implements RelayTransport {
     this.rejectHandshake(new Error('Relay transport closed'))
     this.failAll(new Error('Relay transport closed'))
     this.failAllSync(new Error('Relay transport closed'))
+    this.failAllPipelines(new Error('Relay transport closed'))
     for (const channel of this.channels) channel.close?.(new Error('Relay transport closed'))
     this.channels.clear()
     this.socket?.close(1000, 'client closed')
@@ -191,6 +202,28 @@ class RelayFetchTransport implements RelayTransport {
       await this.send(action)
     } catch (cause) {
       this.failSyncPending(action.id, cause)
+    }
+
+    return response
+  }
+
+  async requestPipelines(): Promise<PipelineCatalog> {
+    await this.ensureReady()
+    if (this.closed) throw new Error('Relay transport closed')
+
+    const id = randomId()
+    const response = new Promise<PipelineCatalog>((resolve, reject) => {
+      const timer = window.setTimeout(() => {
+        this.pipelinePending.delete(id)
+        reject(new Error('Timed out waiting for the home server to load pipelines'))
+      }, PIPELINE_TIMEOUT_MS)
+      this.pipelinePending.set(id, { resolve, reject, timer })
+    })
+
+    try {
+      await this.send({ type: 'pipeline.list', id })
+    } catch (cause) {
+      this.failPipelinePending(id, cause)
     }
 
     return response
@@ -360,6 +393,7 @@ class RelayFetchTransport implements RelayTransport {
       this.rejectHandshake(new Error(reason))
       this.failAll(new Error(reason))
       this.failAllSync(new Error(reason))
+      this.failAllPipelines(new Error(reason))
       if (this.closed) return
       this.setState('reconnecting', reason)
       this.scheduleReconnect()
@@ -483,6 +517,11 @@ class RelayFetchTransport implements RelayTransport {
       return
     }
 
+    if (state.type === 'pipeline.catalog' || state.type === 'pipeline.error') {
+      this.handlePipelineState(state)
+      return
+    }
+
     const pending = this.pending.get(state.id)
     if (!pending) return
 
@@ -587,6 +626,21 @@ class RelayFetchTransport implements RelayTransport {
     })
   }
 
+  private handlePipelineState(
+    state: Extract<ClaraState, { type: 'pipeline.catalog' | 'pipeline.error' }>
+  ): void {
+    const pending = this.pipelinePending.get(state.id)
+    if (!pending) return
+    this.pipelinePending.delete(state.id)
+    window.clearTimeout(pending.timer)
+
+    if (state.type === 'pipeline.catalog') {
+      pending.resolve(state.catalog)
+      return
+    }
+    pending.reject(new Error(state.message))
+  }
+
   private finishPending(id: string): void {
     const pending = this.pending.get(id)
     if (!pending) return
@@ -630,6 +684,18 @@ class RelayFetchTransport implements RelayTransport {
 
   private failAllSync(cause: unknown): void {
     for (const id of [...this.syncPending.keys()]) this.failSyncPending(id, cause)
+  }
+
+  private failPipelinePending(id: string, cause: unknown): void {
+    const pending = this.pipelinePending.get(id)
+    if (!pending) return
+    window.clearTimeout(pending.timer)
+    this.pipelinePending.delete(id)
+    pending.reject(cause)
+  }
+
+  private failAllPipelines(cause: unknown): void {
+    for (const id of [...this.pipelinePending.keys()]) this.failPipelinePending(id, cause)
   }
 
   private send(payload: ClaraAction | ClaraState): Promise<void> {
@@ -806,6 +872,8 @@ function isState(
     payload.type === 'agent.status' ||
     payload.type === 'sync.revision' ||
     payload.type === 'sync.snapshot' ||
-    payload.type === 'sync.error'
+    payload.type === 'sync.error' ||
+    payload.type === 'pipeline.catalog' ||
+    payload.type === 'pipeline.error'
   )
 }

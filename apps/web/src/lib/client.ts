@@ -1,5 +1,5 @@
 import { OpenCode } from '@opencode/client'
-import type { ClaraAction } from '@clara/shared-types'
+import type { ClaraAction, PipelineCatalog } from '@clara/shared-types'
 import {
   createRelayTransport,
   type PushStatusState,
@@ -34,10 +34,17 @@ export type RelayConnectionConfig = {
 
 export type ConnectionConfig = DirectConnectionConfig | RelayConnectionConfig
 
+/**
+ * Re-exported here because the Settings composition point may read the
+ * build-time inclusion switch without importing Clara feature modules.
+ */
+export { CLARA_FEATURE_INCLUDED } from '@/features/clara/flag'
+
 export type ClientControl = {
   send: (action: ClaraAction) => Promise<void>
   subscribePush: (listener: (state: PushStatusState) => void) => () => void
   requestSync: (action: SyncRequestAction) => Promise<SyncResponse>
+  listPipelines: () => Promise<PipelineCatalog>
 }
 
 export type ClientHandle = {
@@ -118,6 +125,7 @@ export function createClient(config: ConnectionConfig): ClientHandle {
         send: (action) => transport.sendAction(action),
         subscribePush: (listener) => transport.subscribePush(listener),
         requestSync: (action) => transport.requestSync(action),
+        listPipelines: () => transport.requestPipelines(),
       },
       subscribeStatus: (listener) => transport.subscribe(listener),
       status: () => transport.status(),

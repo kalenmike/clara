@@ -16,6 +16,7 @@ import { AgentCard } from '@/components/settings/agent-card'
 import { AppCard } from '@/components/settings/app-card'
 import { ModelsCard } from '@/components/settings/models-card'
 import { NotificationsCard } from '@/components/settings/notifications-card'
+import { PipelinesCard } from '@/components/settings/pipelines-card'
 import { ServerCard } from '@/components/settings/server-card'
 import { SettingsFilter } from '@/components/settings/settings-filter'
 import { SyncCard } from '@/components/settings/sync-card'
@@ -24,15 +25,25 @@ import { WordingCard } from '@/components/settings/wording-card'
 import { useSimplifySettings } from '@/features/settings/use-simplify-settings'
 import { useSessionWording } from '@/features/sessions/use-wording'
 import type { SessionWording } from '@/features/sessions/wording'
+import { CLARA_FEATURE_INCLUDED } from '@/lib/client'
+import { useConnection } from '@/providers/connection-provider'
 import { useSettingsSync } from '@/providers/settings-sync-provider'
 import { useIsTouchDevice } from '@/hooks/use-is-touch-device'
 
 type SettingsTab =
-  'appearance' | 'preferences' | 'models' | 'notifications' | 'sync' | 'shortcuts' | 'advanced'
+  | 'appearance'
+  | 'preferences'
+  | 'pipelines'
+  | 'models'
+  | 'notifications'
+  | 'sync'
+  | 'shortcuts'
+  | 'advanced'
 
 const SETTINGS_TABS: Array<{ value: SettingsTab; label: string }> = [
   { value: 'appearance', label: 'Appearance' },
   { value: 'preferences', label: 'Preferences' },
+  { value: 'pipelines', label: 'Pipelines' },
   { value: 'models', label: 'Models' },
   { value: 'notifications', label: 'Notifications' },
   { value: 'sync', label: 'Sync' },
@@ -65,32 +76,38 @@ export function SettingsPage() {
   const isTouchDevice = useIsTouchDevice()
   const { simplified } = useSimplifySettings()
   const { serverEnabled } = useSettingsSync()
+  const { control } = useConnection()
   const wording = useSessionWording()
   const [tab, setTab] = useState<SettingsTab>('appearance')
   const shortcuts = isTouchDevice ? [] : shortcutList(wording)
   const showSync = serverEnabled
+  // Pipelines live on the home agent. A direct OpenCode connection has no
+  // catalog to read, so the tab stays hidden there.
+  const showPipelines = CLARA_FEATURE_INCLUDED && control !== null
   const tabs = SETTINGS_TABS.filter((item) => {
     if (item.value === 'shortcuts') return !isTouchDevice
     if (item.value === 'sync') return showSync
+    if (item.value === 'pipelines') return showPipelines
     return true
   })
   const activeTab = tabs.find((item) => item.value === tab) ?? tabs[0] ?? SETTINGS_TABS[0]
 
   useEffect(() => {
     if (tab === 'sync' && !showSync) setTab('appearance')
-  }, [showSync, tab])
+    if (tab === 'pipelines' && !showPipelines) setTab('appearance')
+  }, [showPipelines, showSync, tab])
 
   return (
     <PageShell
       title="Settings"
-      description={`Appearance, preferences, models, notifications,${showSync ? ' sync,' : ''}${isTouchDevice ? '' : ' shortcuts,'} and advanced options.`}
+      description={`Appearance, preferences,${showPipelines ? ' pipelines,' : ''} models, notifications,${showSync ? ' sync,' : ''}${isTouchDevice ? '' : ' shortcuts,'} and advanced options.`}
       actions={<SettingsFilter />}
     >
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
           <Button
             variant="outline"
-            className="w-full justify-between md:hidden"
+            className="w-full justify-between lg:hidden"
             aria-label={`Settings section: ${activeTab.label}`}
           >
             {activeTab.label}
@@ -122,7 +139,7 @@ export function SettingsPage() {
         onValueChange={(value) => setTab(value as SettingsTab)}
         className="gap-4"
       >
-        <TabsList className="hidden md:inline-flex">
+        <TabsList className="hidden lg:inline-flex">
           {tabs.map((item) => (
             <TabsTrigger key={item.value} value={item.value}>
               {item.label}
@@ -138,6 +155,12 @@ export function SettingsPage() {
           <AgentCard />
           <WordingCard />
         </TabsContent>
+
+        {showPipelines && (
+          <TabsContent value="pipelines" className="space-y-4">
+            <PipelinesCard />
+          </TabsContent>
+        )}
 
         <TabsContent value="models" className="space-y-4">
           <ModelsCard />
