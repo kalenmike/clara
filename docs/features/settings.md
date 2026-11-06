@@ -27,14 +27,10 @@ detail rows that most people leave alone.
    the four-state breakdown and volume slider, the Server card shows only
    Reconnect and Disconnect, and the App card shows only the version, update
    state, and cache reset.
-8. Reload Clara or open it later; the same simplify choice is restored on this
-   device.
-9. The Sync tab is hidden when the home agent admin disables settings sync. In
-   direct HTTP mode it stays visible with an explanation that the feature needs
-   the Clara home agent.
-10. The **Pipelines** tab is hidden in direct HTTP mode and when the build
-    excludes Clara management. The Shortcuts tab is hidden on touch-first
-    devices, where the reference does not apply.
+8. Reload Clara or open it later; the same simplify choice is restored. The Sync
+   tab is hidden when the home agent admin disables settings sync, the Pipelines
+   tab is hidden in direct HTTP mode or when the build excludes Clara management,
+   and the Shortcuts tab is hidden on touch-first devices.
 
 ## Core business rules
 
