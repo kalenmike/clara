@@ -25,12 +25,15 @@ person watches Git or the pair terminal. It shares the right panel with the
 4. Press **Request Plan** to steer the agent toward writing a todo list. With a
    list present, press **Request Update** to ask for the current plan and
    progress. Both send a short synthetic input, so the request appears in the
-   thread as a system event rather than a prompt the person typed. The button
-   stays available while the agent is working: steering is delivered at the next
-   safe boundary and the input tells the agent to update the checklist and carry
-   on. An empty draft shows "Send your brief to view the plan" instead. A worker
-   session keeps the Plan dock and both request actions even though its
-   composer is hidden.
+   thread as a system event rather than a prompt the person typed. Steering is
+   delivered at the next safe boundary and the input tells the agent to update
+   the checklist and carry on. After either request the button stays pending
+   (disabled with a spinner) so it cannot be pressed twice. It returns when the
+   agent writes a new todo list, after five assistant messages and tool calls
+   combined arrive without one, or as soon as the run stops. The pending state survives a
+   reload because it is read from the session transcript. An empty draft shows
+   "Send your brief to view the plan" instead. A worker session keeps the Plan
+   dock and both request actions even though its composer is hidden.
 5. Read context usage as a percentage and bar, then cost and the input, output,
    reasoning, cache-read, and cache-write totals.
 6. Read message counts: prompts from you, prompts from automation when present,
@@ -61,7 +64,12 @@ person watches Git or the pair terminal. It shares the right panel with the
 7. Request Plan and Request Update send short steering synthetic inputs. They do
    not switch the agent or start work. A busy request is delivered at the next
    safe step boundary, does not interrupt the current tool call, and asks the
-   agent to continue after refreshing the list.
+   agent to continue after refreshing the list. While the newest plan request is
+   unanswered the request button is disabled. It unlocks when a `todowrite` call
+   appears after the request, when five assistant messages and tool calls
+   combined have arrived without one, or when the session stops being busy. A request is
+   answered by the todo call itself, so the button can unlock before the run
+   finishes.
 
 ## Edge cases
 
@@ -83,6 +91,12 @@ person watches Git or the pair terminal. It shares the right panel with the
   available.
 - **No todo tool** — the server has not enabled `experimental.todo`, so the list
   stays empty and Request Plan cannot create one.
+- **Agent never answers** — with no `todowrite` and fewer than five assistant
+  messages and tool calls combined, the request button stays pending until the run stops.
+  Stopping the session or an interrupted run releases it immediately.
+- **Pending request after reload** — the newest plan request is read from the
+  transcript. An unanswered request keeps the button disabled when the panel or
+  page is reopened, and an idle session releases it because the run has stopped.
 - **Cleared or running plan** — an empty `todowrite` clears the section, malformed
   items are skipped, and the previous completed plan stays visible while a new
   call is running.
@@ -125,7 +139,10 @@ person watches Git or the pair terminal. It shares the right panel with the
   `todowrite` tool part and its `state.input.todos` array; an empty array means
   the agent cleared the list. Forked sessions pass the session creation time so
   copies of the parent's `todowrite` calls are ignored.
-- Plan requests: `client.session.prompt({ delivery: "steer" })`
+- Plan request pending state: `src/features/chat/plan-request.ts` reads the newest
+  Clara plan request synthetic, counts later assistant messages and tool calls,
+  and treats a later `todowrite` call as the response
+- Plan requests: `client.session.synthetic({ delivery: "steer" })`
 - Tab shell: `src/components/layout/side-panel.tsx`
 - Resize: `src/hooks/use-side-panel-width.ts` over the shared
   `src/hooks/use-panel-width.ts`; width stored in `clara.sidePanelWidth`
