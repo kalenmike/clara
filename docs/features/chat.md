@@ -89,13 +89,14 @@ message has fork and forward actions; see [fork.md](fork.md).
 13. Answer an agent question. **Submit** sends only the form. Use the chevron
     beside Submit and choose **Add a message** to stage the current answers in
     the composer as a form-response attachment; the form card stays hidden while
-    the composer holds it. Send answers every staged form and then sends the
-    custom message, sending the answers to the model once through the form
-    reply. Closing the composer first restores the form unanswered. The form
-    disappears when submitted, and the question-and-answer summary is appended
-    to the thread as a **Answered N questions** system row. The event is derived
-    from the completed `question` tool, so it survives reloads without another
-    request. A question card can be folded to its title while it waits.
+    the composer holds it. Send admits the custom message first, then answers
+    every staged form; the form reply resumes the run with the message already
+    waiting, so both land in the same step. Closing the composer first restores
+    the form unanswered. The form disappears when submitted, and the
+    question-and-answer summary is appended to the thread as a **Answered N
+    questions** system row. The event is derived from the completed `question`
+    tool, so it survives reloads without another request. A question card can be
+    folded to its title while it waits.
 14. Click a message header to fold it; a folded message shows its header and the
     first line only. The button in the top-right folds or opens every message.
 15. Click the eye button next to it to show or hide internal output. The choice
@@ -230,11 +231,16 @@ message has fork and forward actions; see [fork.md](fork.md).
     menu with **Add a message**. The second action stages a copy of the current
     answers in the composer and hides that form card while the composer is open
     or minimized on the same session. The staged answers are display-only; Send
-    answers each staged form through `session.form.reply` first, then sends the
-    custom prompt or command. Staged answers are never attached as prompt files,
-    so the model receives them once. Removing the attachment or closing the
-    composer restores the unanswered form. A failed form reply keeps the
-    composer text, files, and staged attachments in place for a retry.
+    admits the custom message to the session inbox first with resume disabled,
+    then answers each staged form through `session.form.reply`. The form reply
+    resumes the blocked run, and the waiting message is promoted at the next
+    step boundary, so the message and answer share a turn instead of racing.
+    Staged answers are never attached as prompt files, so the model receives
+    them once. Slash commands keep the form-first order because command
+    execution cannot be cancelled through the inbox. Removing the attachment or
+    closing the composer restores the unanswered form. A failed form reply
+    cancels the admitted message so a retry does not duplicate it; if that
+    cancellation fails, Clara warns that the message may already be queued.
 
 ## Edge cases
 
@@ -288,14 +294,19 @@ message has fork and forward actions; see [fork.md](fork.md).
   current pending state if the card is still present.
 - **Staged form response** — **Add a message** opens the composer with the
   current answers as a removable form-response chip and hides the form card.
-  Send answers the form first and then sends the custom message. Closing the
-  composer, removing the chip, or moving the composer to another session puts
-  the unanswered form back in the panel.
-- **Staged form reply fails** — the composer stays open with its text, files,
-  and form chips intact so the same send can be retried.
-- **Prompt fails after a form is answered** — the form remains answered, its
-  staged chip is removed, and the composer keeps the text and files for retry.
-  Retrying does not answer the form again.
+  Send admits the custom message first and then answers the form, so the form
+  reply resumes the run with the message already waiting. Closing the composer,
+  removing the chip, or moving the composer to another session puts the
+  unanswered form back in the panel.
+- **Prompt admission fails with a staged form** — no form is answered and the
+  composer keeps its text, files, and form chips for retry.
+- **Staged form reply fails** — Clara cancels the message it just admitted and
+  removes any forms that were answered before the failure. The composer keeps
+  its text, files, and remaining form chips so the send can be retried without
+  duplicating the message.
+- **Cancelling the admitted message fails** — the form reply still failed and
+  Clara warns that the message may already be queued, leaving the composer text
+  and chips in place.
 - **Request resolves while folded** — the card disappears when the request is
   completed or withdrawn; the next request mounts expanded.
 - **Session switch with folded requests** — every request card returns to
@@ -429,7 +440,10 @@ metadata, delivery: 'steer' })`
   request thinking comes from `src/features/chat/permission-thinking.ts`
 - Forms: `client.session.form.list`, `client.session.form.reply`; staged form
   responses live in `src/features/chat/composer-provider.tsx` and are displayed
-  through `src/components/chat/form-response-attachment.tsx`
+  through `src/components/chat/form-response-attachment.tsx`. The composer
+  admits the message with `session.prompt({ resume: false })` first, replies to
+  the forms, and cancels the inbox item through `session.inbox.cancel` if a
+  reply fails.
 - Request cards: `src/components/chat/request-card.tsx` renders the header
   toggle, per-card expanded state, and top-anchored reveal shared by the
   plan-ready, draft-start, question, and permission cards

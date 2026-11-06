@@ -43,9 +43,10 @@ response and send that response together with the custom message.
    from the picker.
 9. When a question form is waiting, use its chevron menu and choose **Add a
    message**. The current answers appear as a removable form-response chip and
-   the composer opens for that session. Send answers the form first, then sends
-   the custom message. The chip is display-only, so the answers reach the model
-   once through the form reply.
+   the composer opens for that session. Send admits the custom message first,
+   then answers the form; the form reply resumes the run with the message
+   waiting, so both land in the same step. The chip is display-only, so the
+   answers reach the model once through the form reply.
 10. Minimize, maximize, or close the window at any time. Switching between the
     expanded panel and the smaller dock is remembered in local storage. The draft
     stays in place until it is sent. While the window is open or minimized,
@@ -111,13 +112,16 @@ response and send that response together with the custom message.
     moving the session to the project's canonical directory. The retry preserves
     the text, attachments, and delivery; Send, Save as draft, Send as queued, and
     commands all use the same recovery.
-13. A staged question-form response is a display-only attachment. Send and Send
-    as queued answer every staged form through `session.form.reply` before they
-    send the prompt or command, and the answers are not added to the prompt as
-    files. A failed form answer keeps the text, files, and staged chips in place;
-    a failed prompt after a successful answer removes the staged chip but keeps
-    the text and files. Closing the window or removing a chip restores the
-    unanswered form in the panel.
+13. A staged question-form response is a display-only attachment. For a normal
+    message, Send and Send as queued admit the prompt first with resume disabled,
+    then answer every staged form through `session.form.reply`. The form reply
+    resumes the blocked run, and the waiting message is promoted at the next step
+    boundary, so the message and answer share a turn. Commands keep the
+    form-first order because command execution cannot be cancelled through the
+    inbox. The answers are not added to the prompt as files. A failed form answer
+    cancels the admitted message so a retry does not duplicate it; a failed
+    prompt prevents any form from being answered. Closing the window or removing
+    a chip restores the unanswered form in the panel.
 
 ## Edge cases
 
@@ -150,14 +154,19 @@ response and send that response together with the custom message.
   attachments intact.
 - **Staged form response** — the form chip is removed by its own control, and
   the unanswered form returns to the panel. Closing the window or letting it
-  reconnect to another session also discards staged responses. The answers are
-  not prompt attachments and are sent only through the form reply.
+  reconnect to another session also discards staged responses. Send admits the
+  custom message first and then answers the form, so the form reply resumes the
+  run with the message waiting. The answers are not prompt attachments and are
+  sent only through the form reply.
 - **Staged form with no message** — Send stays disabled until the person types
   the custom message; the form's own Submit button remains the form-only path.
-- **Staged form answer fails** — the window keeps the text, files, and chips so
-  the same send can be retried.
-- **Send fails after the form is answered** — the form stays answered and its
-  chip is removed; the text and files stay for retry without answering again.
+- **Staged form answer fails** — Clara cancels the message it just admitted,
+  removes any forms answered before the failure, and keeps the composer text,
+  files, and remaining chips so the send can be retried without duplication.
+- **Staged form, message admission fails** — no form is answered; the text,
+  files, and chips stay in the window.
+- **Cancelling the admitted message fails** — Clara warns that the message may
+  already be queued and leaves the text and chips in place.
 - **Command with Send as queued** — a recognised command is queued and runs as
   the next turn instead of executing immediately.
 - **Save as draft failure** — the window stays open with the draft and
@@ -274,10 +283,11 @@ response and send that response together with the custom message.
   `src/features/agents/default-agent.ts`
 - Save as draft: `client.session.prompt({ sessionID, text, files, resume: false })`
 - Staged form responses: `src/features/chat/form-response.ts` formats the answers;
-  `ComposerProvider` holds them until Send; `Composer` calls
-  `client.session.form.reply({ sessionID, formID, answer })` before the prompt or
-  command and never adds them to `files`. The chip is
-  `src/components/chat/form-response-attachment.tsx`.
+  `ComposerProvider` holds them until Send; `Composer` admits the prompt with
+  `resume: false` first, then calls
+  `client.session.form.reply({ sessionID, formID, answer })` and cancels the
+  admitted inbox item if a reply fails. It never adds the answers to `files`. The
+  chip is `src/components/chat/form-response-attachment.tsx`.
 - Draft title: `draftTitleFromText` in `src/features/sessions/draft-title.ts`
   (50 characters plus `…`)
 - Pending drafts: `client.session.inbox.list({ sessionID })`
