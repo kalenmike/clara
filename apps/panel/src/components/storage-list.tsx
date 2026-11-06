@@ -1,10 +1,13 @@
 import { HardDrive } from 'lucide-react'
 import type { PanelStorageEntry } from '@clara/shared-types'
 import { formatBytes, formatRelative, formatTimestamp, healthLabel } from '../lib/format.ts'
+import { PEEK_MASK } from '../lib/peek.ts'
+import { usePeek } from '../lib/peek-context.tsx'
 import { Badge, CardBody, CollapsibleCard, type Tone } from './primitives.tsx'
 
 export function StorageCard({ storage, now }: { storage: PanelStorageEntry[]; now: number }) {
   const summary = summarizeStorage(storage)
+  const { masked, redact } = usePeek()
   return (
     <CollapsibleCard
       title="Storage"
@@ -32,10 +35,12 @@ export function StorageCard({ storage, now }: { storage: PanelStorageEntry[]; no
                     </span>
                   </div>
                   <p className="mt-1 break-all font-mono text-[11px] text-neutral-500 dark:text-neutral-400">
-                    {entry.path}
+                    {masked ? PEEK_MASK : entry.path}
                   </p>
                   {entry.detail ? (
-                    <p className={`mt-1 text-xs ${detailClass(entry.status)}`}>{entry.detail}</p>
+                    <p className={`mt-1 text-xs ${detailClass(entry.status)}`}>
+                      {redact(entry.detail)}
+                    </p>
                   ) : null}
                   {entry.sync ? (
                     <p className="mt-1 text-[11px] text-neutral-500 dark:text-neutral-400">

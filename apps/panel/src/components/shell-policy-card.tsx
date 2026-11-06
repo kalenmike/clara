@@ -2,6 +2,7 @@ import { useEffect, useId, useState } from 'react'
 import { ShieldOff, TerminalSquare } from 'lucide-react'
 import type { PanelShellControl } from '@clara/shared-types'
 import { postPanel } from '../lib/panel-api.ts'
+import { usePeek } from '../lib/peek-context.tsx'
 import {
   Badge,
   CardBody,
@@ -37,6 +38,7 @@ export function ShellPolicyCard({
   const [editing, setEditing] = useState(false)
   const [pending, setPending] = useState<'apply' | 'off'>()
   const [error, setError] = useState<string>()
+  const { redact } = usePeek()
 
   useEffect(() => {
     if (editing) return
@@ -236,7 +238,7 @@ export function ShellPolicyCard({
           </span>
         </p>
 
-        {error ? <Notice tone="danger">{error}</Notice> : null}
+        {error ? <Notice tone="danger">{redact(error)}</Notice> : null}
 
         <div className="flex items-center justify-end gap-2 pt-1">
           {dirty ? (

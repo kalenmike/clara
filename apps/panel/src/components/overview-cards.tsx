@@ -18,6 +18,8 @@ import {
   sourceLabel,
 } from '../lib/format.ts'
 import { postPanel } from '../lib/panel-api.ts'
+import { PEEK_MASK } from '../lib/peek.ts'
+import { usePeek } from '../lib/peek-context.tsx'
 import {
   Badge,
   CardBody,
@@ -46,6 +48,7 @@ export function AgentCard({
   const [pending, setPending] = useState(false)
   const [error, setError] = useState<string>()
   const stopped = controls.stopped
+  const { masked, redact } = usePeek()
 
   const setStopped = async () => {
     const next = !stopped
@@ -96,7 +99,7 @@ export function AgentCard({
       notice={
         error ? (
           <div className="px-4 pt-3">
-            <Notice tone="danger">{error}</Notice>
+            <Notice tone="danger">{redact(error)}</Notice>
           </div>
         ) : null
       }
@@ -119,11 +122,11 @@ export function AgentCard({
           {agent.platform}/{agent.arch}
         </KeyValue>
         <KeyValue label="Memory">{formatBytes(agent.memoryRssBytes)} RSS</KeyValue>
-        <KeyValue label="Config" mono title={agent.configPath}>
-          {agent.configPath}
+        <KeyValue label="Config" mono title={masked ? undefined : agent.configPath}>
+          {masked ? PEEK_MASK : agent.configPath}
         </KeyValue>
-        <KeyValue label="Pairing key" mono title={agent.fingerprint}>
-          {agent.fingerprint ?? 'fingerprint unavailable'}
+        <KeyValue label="Pairing key" mono title={masked ? undefined : agent.fingerprint}>
+          {agent.fingerprint ? (masked ? PEEK_MASK : agent.fingerprint) : 'fingerprint unavailable'}
         </KeyValue>
         <KeyValue label="PSK">{agent.pskConfigured ? 'Configured' : 'Not configured'}</KeyValue>
       </CardBody>
@@ -144,6 +147,7 @@ export function OpenCodeCard({
 }) {
   const feature = findFeature(controls, 'opencode')
   const control = useFeatureControl(feature, controls.stopped, onChanged)
+  const { redact } = usePeek()
   const disabled = opencode.code === 'disabled'
   const tone: Tone = disabled
     ? 'neutral'
@@ -183,7 +187,7 @@ export function OpenCodeCard({
       notice={
         control.error ? (
           <div className="px-4 pt-3">
-            <Notice tone="danger">{control.error}</Notice>
+            <Notice tone="danger">{redact(control.error)}</Notice>
           </div>
         ) : null
       }
@@ -205,7 +209,9 @@ export function OpenCodeCard({
         <KeyValue label="Checked" title={formatTimestamp(opencode.checkedAt)}>
           {formatRelative(opencode.checkedAt, now)}
         </KeyValue>
-        {opencode.error && !disabled ? <Notice tone="danger">{opencode.error}</Notice> : null}
+        {opencode.error && !disabled ? (
+          <Notice tone="danger">{redact(opencode.error)}</Notice>
+        ) : null}
       </CardBody>
     </CollapsibleCard>
   )
@@ -224,6 +230,7 @@ export function LocalCard({
 }) {
   const feature = findFeature(controls, 'local')
   const control = useFeatureControl(feature, controls.stopped, onChanged)
+  const { masked, redact } = usePeek()
   const tone: Tone = local.active ? 'success' : local.desired ? 'warning' : 'neutral'
   const status = local.active ? 'Listening' : local.desired ? 'Unavailable' : 'Off'
   return (
@@ -247,7 +254,7 @@ export function LocalCard({
       notice={
         control.error ? (
           <div className="px-4 pt-3">
-            <Notice tone="danger">{control.error}</Notice>
+            <Notice tone="danger">{redact(control.error)}</Notice>
           </div>
         ) : null
       }
@@ -255,18 +262,18 @@ export function LocalCard({
       <CardBody>
         <KeyValue label="WebSocket">
           <span className="inline-flex flex-wrap items-center justify-end gap-2">
-            <span className="font-mono text-xs">{local.url}</span>
-            <CopyButton value={local.url} label="Copy URL" />
+            <span className="font-mono text-xs">{masked ? PEEK_MASK : local.url}</span>
+            {masked ? null : <CopyButton value={local.url} label="Copy URL" />}
           </span>
         </KeyValue>
         <KeyValue label="Host" mono>
-          {local.host}:{local.port}
+          {masked ? PEEK_MASK : `${local.host}:${local.port}`}
         </KeyValue>
         <KeyValue label="Desired">{local.desired ? 'On' : 'Off'}</KeyValue>
         <KeyValue label="Effective">{local.effective ? 'On' : 'Off'}</KeyValue>
         <KeyValue label="Socket connections">{local.connections}</KeyValue>
         <KeyValue label="E2EE sessions">{sessions}</KeyValue>
-        {local.error ? <Notice>{local.error}</Notice> : null}
+        {local.error ? <Notice>{redact(local.error)}</Notice> : null}
         <p className="pt-2 text-xs text-neutral-500 dark:text-neutral-400">
           Sessions are authenticated with the pairing key. The panel never sees or displays that
           key.
@@ -289,6 +296,7 @@ export function RelayCard({
 }) {
   const feature = findFeature(controls, 'relay')
   const control = useFeatureControl(feature, controls.stopped, onChanged)
+  const { masked, redact } = usePeek()
   const tone: Tone =
     relay.status === 'online'
       ? 'success'
@@ -327,7 +335,7 @@ export function RelayCard({
       notice={
         control.error ? (
           <div className="px-4 pt-3">
-            <Notice tone="danger">{control.error}</Notice>
+            <Notice tone="danger">{redact(control.error)}</Notice>
           </div>
         ) : null
       }
@@ -336,12 +344,12 @@ export function RelayCard({
         {relay.configured ? (
           <>
             <KeyValue label="Relay URL" mono>
-              {relay.url}
+              {masked ? PEEK_MASK : relay.url}
             </KeyValue>
             <KeyValue label="Room">
               <span className="inline-flex flex-wrap items-center justify-end gap-2">
-                <span className="font-mono text-xs">{relay.room}</span>
-                {relay.room ? <CopyButton value={relay.room} label="Copy room" /> : null}
+                <span className="font-mono text-xs">{masked ? PEEK_MASK : relay.room}</span>
+                {relay.room && !masked ? <CopyButton value={relay.room} label="Copy room" /> : null}
               </span>
             </KeyValue>
             <KeyValue label="Desired">{relay.desired ? 'On' : 'Off'}</KeyValue>
@@ -358,8 +366,8 @@ export function RelayCard({
                 ? 'Agent and client configured'
                 : 'Missing a token'}
             </KeyValue>
-            {relay.error ? <Notice>{relay.error}</Notice> : null}
-            {relay.lastError ? <Notice>{relay.lastError}</Notice> : null}
+            {relay.error ? <Notice>{redact(relay.error)}</Notice> : null}
+            {relay.lastError ? <Notice>{redact(relay.lastError)}</Notice> : null}
           </>
         ) : (
           <>
@@ -388,6 +396,7 @@ export function PushCard({
 }) {
   const feature = findFeature(controls, 'push')
   const control = useFeatureControl(feature, controls.stopped, onChanged)
+  const { redact } = usePeek()
   const tone: Tone = push.effective ? (push.failing > 0 ? 'warning' : 'success') : 'neutral'
   const status = push.effective ? 'Enabled' : push.desired ? 'Not active' : 'Off'
   return (
@@ -411,7 +420,7 @@ export function PushCard({
       notice={
         control.error ? (
           <div className="px-4 pt-3">
-            <Notice tone="danger">{control.error}</Notice>
+            <Notice tone="danger">{redact(control.error)}</Notice>
           </div>
         ) : null
       }
@@ -424,7 +433,7 @@ export function PushCard({
         <KeyValue label="VAPID key">
           {push.publicKeyConfigured ? 'Configured' : 'Not configured'}
         </KeyValue>
-        {push.error ? <Notice>{push.error}</Notice> : null}
+        {push.error ? <Notice>{redact(push.error)}</Notice> : null}
         <p className="pt-2 text-xs text-neutral-500 dark:text-neutral-400">
           Push endpoints are never exposed by the panel.
         </p>
@@ -457,24 +466,28 @@ export function ConfigCard({ config }: { config: PanelConfigInfo }) {
           value={config.localHost.value}
           source={config.localHost.source}
           mono
+          sensitive
         />
         <ConfigRow
           label="Local port"
           value={String(config.localPort.value)}
           source={config.localPort.source}
           mono
+          sensitive
         />
         <ConfigRow
           label="Relay URL"
           value={config.relayUrl.value ?? 'Not configured'}
           source={config.relayUrl.source}
           mono={Boolean(config.relayUrl.value)}
+          sensitive
         />
         <ConfigRow
           label="Relay room"
           value={config.relayRoom.value ?? 'Not configured'}
           source={config.relayRoom.source}
           mono={Boolean(config.relayRoom.value)}
+          sensitive
         />
         <ConfigRow
           label="Pairing base URL"
@@ -491,12 +504,17 @@ function ConfigRow({
   value,
   source,
   mono = false,
+  sensitive = false,
 }: {
   label: string
   value: string
   source: PanelConfigInfo['opencodeUrl']['source']
   mono?: boolean
+  sensitive?: boolean
 }) {
+  const { masked } = usePeek()
+  const display = sensitive && masked && value !== 'Not configured' ? PEEK_MASK : value
+
   return (
     <div className="flex items-start justify-between gap-4 border-b border-neutral-100 py-1.5 text-sm last:border-0 dark:border-neutral-800/60">
       <span className="shrink-0 text-neutral-500 dark:text-neutral-400">{label}</span>
@@ -504,7 +522,7 @@ function ConfigRow({
         <span
           className={`break-all text-right text-neutral-900 dark:text-neutral-100 ${mono ? 'font-mono text-xs' : ''}`}
         >
-          {value}
+          {display}
         </span>
         <SourceTag source={sourceLabel(source)} />
       </span>

@@ -7,10 +7,13 @@ import {
   formatTimestamp,
   shortId,
 } from '../lib/format.ts'
+import { PEEK_MASK } from '../lib/peek.ts'
+import { usePeek } from '../lib/peek-context.tsx'
 import { Badge, CardBody, CollapsibleCard, EmptyState } from './primitives.tsx'
 
 export function ClientsTable({ clients, now }: { clients: PanelClientInfo[]; now: number }) {
   const withTraffic = clients.some((client) => client.bytesIn !== undefined)
+  const { masked } = usePeek()
 
   return (
     <CollapsibleCard
@@ -78,8 +81,8 @@ export function ClientsTable({ clients, now }: { clients: PanelClientInfo[]; now
                         {client.transport}
                       </Badge>
                     </td>
-                    <td className="px-1 py-2 font-mono" title={client.sid}>
-                      {shortId(client.sid)}
+                    <td className="px-1 py-2 font-mono" title={masked ? undefined : client.sid}>
+                      {masked ? PEEK_MASK : shortId(client.sid)}
                     </td>
                     <td className="px-1 py-2 capitalize">{client.deviceClass ?? 'Unknown'}</td>
                     <td

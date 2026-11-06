@@ -1,10 +1,12 @@
 import { ScrollText } from 'lucide-react'
 import type { PanelEvent } from '@clara/shared-types'
 import { formatRelative, formatTimestamp } from '../lib/format.ts'
+import { usePeek } from '../lib/peek-context.tsx'
 import { Badge, CardBody, CollapsibleCard, EmptyState, type Tone } from './primitives.tsx'
 
 export function EventsCard({ events, now }: { events: PanelEvent[]; now: number }) {
   const newestFirst = [...events].reverse()
+  const { redact } = usePeek()
   return (
     <CollapsibleCard
       title="Recent activity"
@@ -24,7 +26,7 @@ export function EventsCard({ events, now }: { events: PanelEvent[]; now: number 
                 className="flex items-start gap-2 rounded-md border border-neutral-100 px-2.5 py-2 text-xs dark:border-neutral-800"
               >
                 <Badge tone={toneFor(event.level)}>{event.level}</Badge>
-                <span className="min-w-0 flex-1 break-words">{event.message}</span>
+                <span className="min-w-0 flex-1 break-words">{redact(event.message)}</span>
                 <time
                   className="shrink-0 text-[10px] text-neutral-500 dark:text-neutral-400"
                   dateTime={event.at}

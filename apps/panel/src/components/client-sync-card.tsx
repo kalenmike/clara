@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react'
 import { RefreshCw } from 'lucide-react'
 import { SYNC_INTERVAL_PRESETS_MS, type PanelSyncControl } from '@clara/shared-types'
 import { postPanel } from '../lib/panel-api.ts'
+import { usePeek } from '../lib/peek-context.tsx'
 import {
   Badge,
   CardBody,
@@ -25,6 +26,7 @@ export function ClientSyncCard({
 }) {
   const [pending, setPending] = useState<'toggle' | 'interval'>()
   const [error, setError] = useState<string>()
+  const { redact } = usePeek()
   const intervals = useMemo(() => {
     const values = [...SYNC_INTERVAL_PRESETS_MS]
     if (!values.includes(sync.intervalMs)) values.push(sync.intervalMs)
@@ -66,7 +68,7 @@ export function ClientSyncCard({
       notice={
         error ? (
           <div className="px-4 pt-3">
-            <Notice tone="danger">{error}</Notice>
+            <Notice tone="danger">{redact(error)}</Notice>
           </div>
         ) : null
       }

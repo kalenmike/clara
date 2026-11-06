@@ -1,7 +1,9 @@
-import { lazy, Suspense } from 'react'
-import { CircleAlert, LoaderCircle, RefreshCw, ShieldCheck } from 'lucide-react'
+import { lazy, Suspense, useMemo } from 'react'
+import { CircleAlert, Eye, EyeOff, LoaderCircle, RefreshCw, ShieldCheck } from 'lucide-react'
 import { PANEL_API_VERSION } from '@clara/shared-types'
 import { formatTimestamp } from './lib/format.ts'
+import { collectSecrets } from './lib/peek.ts'
+import { PeekProvider, usePeek } from './lib/peek-context.tsx'
 import { useAgentSnapshot } from './lib/use-agent-snapshot.ts'
 import { ClientSyncCard } from './components/client-sync-card.tsx'
 import { ClientsTable } from './components/clients-table.tsx'
@@ -28,8 +30,22 @@ const ManagementCard = CLARA_FEATURE_INCLUDED
     )
   : null
 
+type SnapshotState = ReturnType<typeof useAgentSnapshot>
+
 export function App() {
-  const { data, error, loading, refreshing, updatedAt, now, refresh } = useAgentSnapshot()
+  const state = useAgentSnapshot()
+  const secrets = useMemo(() => collectSecrets(state.data), [state.data])
+
+  return (
+    <PeekProvider secrets={secrets}>
+      <Panel state={state} />
+    </PeekProvider>
+  )
+}
+
+function Panel({ state }: { state: SnapshotState }) {
+  const { data, error, loading, refreshing, updatedAt, now, refresh } = state
+  const { redact } = usePeek()
   const clock = now ?? updatedAt ?? 0
 
   return (
@@ -66,6 +82,7 @@ export function App() {
                 Updated {formatTimestamp(new Date(updatedAt).toISOString())}
               </span>
             ) : null}
+            <PeekButton />
             <button
               type="button"
               onClick={refresh}
@@ -84,7 +101,7 @@ export function App() {
         {error && data ? (
           <div className="mb-4 flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800 dark:border-amber-900 dark:bg-amber-950/60 dark:text-amber-300">
             <CircleAlert className="mt-0.5 size-3.5 shrink-0" aria-hidden="true" />
-            <span>Showing the last snapshot. {error}</span>
+            <span>Showing the last snapshot. {redact(error)}</span>
           </div>
         ) : null}
 
@@ -161,7 +178,7 @@ export function App() {
             <StorageCard storage={data.storage} now={clock} />
           </div>
         ) : (
-          <ErrorState error={error} onRetry={refresh} />
+          <ErrorState error={error ? redact(error) : undefined} onRetry={refresh} />
         )}
 
         <footer className="mt-6 flex flex-wrap items-center justify-between gap-2 border-t border-neutral-200 pt-3 text-[11px] text-neutral-500 dark:border-neutral-800 dark:text-neutral-400">
@@ -176,6 +193,34 @@ export function App() {
         </footer>
       </main>
     </div>
+  )
+}
+
+/**
+ * Hides the values most likely to identify the machine or its remote access
+ * while the screen is shared. The state lasts for the tab, so a refresh keeps
+ * the current choice and a new tab starts masked again.
+ */
+function PeekButton() {
+  const { masked, toggle } = usePeek()
+  const label = masked ? 'Reveal sensitive data' : 'Hide sensitive data'
+
+  return (
+    <button
+      type="button"
+      role="switch"
+      aria-checked={masked}
+      aria-label="Hide sensitive data"
+      title={label}
+      onClick={toggle}
+      className="inline-flex items-center justify-center rounded-lg border border-neutral-200 bg-white p-2 text-neutral-700 shadow-sm transition hover:bg-neutral-100 dark:border-neutral-800 dark:bg-neutral-900 dark:text-neutral-200 dark:hover:bg-neutral-800"
+    >
+      {masked ? (
+        <Eye className="size-3.5" aria-hidden="true" />
+      ) : (
+        <EyeOff className="size-3.5" aria-hidden="true" />
+      )}
+    </button>
   )
 }
 

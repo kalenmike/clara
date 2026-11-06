@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { Workflow } from 'lucide-react'
 import type { PanelManagementControl } from '@clara/shared-types'
 import { postPanel } from '../../lib/panel-api.ts'
+import { usePeek } from '../../lib/peek-context.tsx'
 import {
   Badge,
   CardBody,
@@ -25,6 +26,7 @@ export function ManagementCard({
 }) {
   const [pending, setPending] = useState(false)
   const [error, setError] = useState<string>()
+  const { redact } = usePeek()
 
   const update = async () => {
     setPending(true)
@@ -63,7 +65,7 @@ export function ManagementCard({
       notice={
         error ? (
           <div className="px-4 pt-3">
-            <Notice tone="danger">{error}</Notice>
+            <Notice tone="danger">{redact(error)}</Notice>
           </div>
         ) : null
       }
