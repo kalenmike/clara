@@ -194,11 +194,21 @@ by default, and the noun is configurable in Settings.
 20. OpenCode runs `commands.start` after it creates a new worktree. Clara does
     not create worktrees, so New brief does not run the startup script; the
     setting is for OpenCode Desktop, the CLI, and future workspace support.
+21. OpenCode hides a project from `project.list()` after its directory has been
+    missing for an hour, and restores it when a directory-scoped request
+    resolves the directory again. On connect and from **Refresh projects**,
+    Clara lists archived projects and probes each canonical directory with
+    `location.get`. Projects whose directory is back return to the active list;
+    directories that are still missing stay archived and hidden.
 
 ## Edge cases
 
 - **No projects** — an empty state explains that a directory must be opened with
   OpenCode first.
+- **Project directory returns** — Clara restores the project on connect or when
+  **Refresh projects** runs in the switcher, without another server restart.
+- **Project directory is still missing** — the project stays archived and hidden;
+  a failed directory probe is treated as unavailable, not as an error.
 - **Selected project outside the recent seven** — the switcher keeps it visible
   by replacing the seventh recent entry.
 - **Project rename fails** — the dialog reports the error and the old name stays
@@ -352,6 +362,12 @@ by default, and the noun is configurable in Settings.
 - Projects: `client.project.list()` sorted by `time.active`; the switcher takes
   seven and pins the current project when needed; duplicate canonical records
   resolve to the VCS-backed one
+- Project reconciliation: `client.project.list({ archived: true })` then
+  `client.location.get({ location: { directory } })` for each archived project,
+  three at a time with a 5s timeout; resolving a directory clears
+  `time.archived`, while a missing directory returns 404 and stays archived
+- Refresh projects: the project switcher item reruns reconciliation and
+  invalidates the project list when at least one project comes back
 - Project update: `client.project.update({ projectID, name?, icon?, commands? })`;
   the `project.updated` event invalidates the cached project list
 - Project icon: `icon.override` holds a custom image as a 128×128 PNG data URL;
