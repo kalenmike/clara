@@ -9,6 +9,7 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
 import { projectLabel } from '@/features/projects/project-list'
+import { useProjectReconciliation } from '@/features/projects/use-project-reconciliation'
 import { canonicalProject, useProjects } from '@/features/projects/use-projects'
 import { useActiveSessions, useSessions } from '@/features/sessions/use-sessions'
 import { useStartSession } from '@/features/sessions/use-start-session'
@@ -19,6 +20,7 @@ import { cn } from '@/lib/utils'
 export function SessionsPage() {
   const { projectId } = useParams<{ projectId: string }>()
   const projectsQuery = useProjects()
+  const { pending: reconciling } = useProjectReconciliation()
   const projects = useMemo(() => projectsQuery.data ?? [], [projectsQuery.data])
   const project = useMemo(() => canonicalProject(projects, projectId), [projectId, projects])
   const sessionsQuery = useSessions(project?.id ?? null, '')
@@ -34,7 +36,7 @@ export function SessionsPage() {
     model: latest?.model,
   })
 
-  if (projectsQuery.isLoading) {
+  if (projectsQuery.isLoading || (!project && reconciling)) {
     return (
       <Centered>
         <Loader2 className="size-4 animate-spin" /> Loading project…

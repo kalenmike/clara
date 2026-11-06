@@ -1,10 +1,10 @@
 import { describe, expect, it } from 'vitest'
 import type { SessionInfo } from '@opencode/client'
 import type { OpenCodeClient } from '@/lib/client'
+import { runWithConcurrency } from '@/lib/concurrency'
 import {
   PROJECT_ACTION_CONCURRENCY,
   listAllProjectSessions,
-  runWithConcurrency,
   sessionsToArchive,
 } from './use-project-actions'
 

@@ -9,6 +9,7 @@ import {
   LayoutGrid,
   Loader2,
   Plus,
+  RotateCw,
   Search,
   Settings,
   X,
@@ -36,6 +37,7 @@ import {
   projectLabel,
   recentProjects,
 } from '@/features/projects/project-list'
+import { useProjectReconciliation } from '@/features/projects/use-project-reconciliation'
 import { useProjectSessionPresence } from '@/features/projects/use-project-presence'
 import { useShowEmptyProjects } from '@/features/projects/use-show-empty-projects'
 import { canonicalProject, canonicalProjects, useProjects } from '@/features/projects/use-projects'
@@ -119,6 +121,7 @@ export function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
   const { state } = useEventStream()
   const projectsQuery = useProjects()
   const projects = useMemo(() => projectsQuery.data ?? [], [projectsQuery.data])
+  const { reconcile, pending: reconciling } = useProjectReconciliation()
   const { showEmpty } = useShowEmptyProjects()
   const [search, setSearch] = useState('')
   const [openSections, setOpenSections] = useState(readSidebarSections)
@@ -151,7 +154,10 @@ export function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
     return recentProjects(options, selectedProject?.id)
   }, [selectedProject, showEmpty, visibleProjectOptions])
 
-  const projectsPending = projectsQuery.isLoading || (!showEmpty && presencePending)
+  const projectsPending =
+    projectsQuery.isLoading ||
+    (projects.length === 0 && reconciling) ||
+    (!showEmpty && presencePending)
 
   const sessionsQuery = useSessions(selectedProject?.id ?? null, search)
   const archivedQuery = useArchivedSessions(selectedProject?.id ?? null, search)
@@ -395,6 +401,17 @@ export function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
               </div>
             )}
             <DropdownMenuSeparator />
+            <DropdownMenuItem
+              onSelect={() => void reconcile()}
+              disabled={reconciling}
+              title="Restore projects whose directories are available again"
+              className="gap-2"
+            >
+              <RotateCw
+                className={cn('size-3.5 text-muted-foreground', reconciling && 'animate-spin')}
+              />
+              <span className="min-w-0 flex-1 truncate text-xs">Refresh projects</span>
+            </DropdownMenuItem>
             <DropdownMenuItem asChild>
               <Link to="/projects" onClick={onNavigate} className="gap-2">
                 <LayoutGrid className="size-3.5 text-muted-foreground" />

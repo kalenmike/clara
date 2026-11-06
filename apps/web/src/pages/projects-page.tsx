@@ -6,6 +6,7 @@ import { ProjectCard } from '@/components/projects/project-card'
 import { ProjectFilter } from '@/components/projects/project-filter'
 import { Button } from '@/components/ui/button'
 import { filterVisibleProjects, sortProjectsByRecency } from '@/features/projects/project-list'
+import { useProjectReconciliation } from '@/features/projects/use-project-reconciliation'
 import { useProjectSessionPresence } from '@/features/projects/use-project-presence'
 import { useShowEmptyProjects } from '@/features/projects/use-show-empty-projects'
 import { canonicalProjects, useProjects } from '@/features/projects/use-projects'
@@ -13,6 +14,7 @@ import { formatCount } from '@/lib/format'
 
 export function ProjectsPage() {
   const projectsQuery = useProjects()
+  const { pending: reconciling } = useProjectReconciliation()
   const { showEmpty, setShowEmpty } = useShowEmptyProjects()
   const projects = useMemo(
     () => sortProjectsByRecency(canonicalProjects(projectsQuery.data ?? [])),
@@ -28,7 +30,11 @@ export function ProjectsPage() {
     [hasSessions, projects, showEmpty]
   )
 
-  if (projectsQuery.isLoading || (!showEmpty && presencePending)) {
+  if (
+    projectsQuery.isLoading ||
+    (projects.length === 0 && reconciling) ||
+    (!showEmpty && presencePending)
+  ) {
     return (
       <Centered>
         <Loader2 className="size-4 animate-spin" /> Loading projects…

@@ -8,6 +8,7 @@ import { MobileActionsProvider, MobileActionsSlot } from '@/components/layout/mo
 import { Sidebar, SidebarContent } from '@/components/layout/sidebar'
 import { CLARA_FEATURE_INCLUDED } from '@/features/clara/flag'
 import { ClaraFeatureProvider } from '@/features/clara/provider'
+import { ProjectReconciliation } from '@/features/projects/project-reconciliation'
 import { InboxMonitorProvider } from '@/features/sessions/inbox-monitor'
 import { useSessionWording } from '@/features/sessions/use-wording'
 import { UpdateBanner } from '@/components/pwa/update-banner'
@@ -36,6 +37,7 @@ export function AppShell() {
 
   return (
     <ClaraBoundary>
+      <ProjectReconciliation />
       <InboxMonitorProvider>
         <SettingsSyncProvider>
           <MobileActionsProvider>

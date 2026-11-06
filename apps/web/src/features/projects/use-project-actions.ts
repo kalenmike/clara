@@ -2,6 +2,7 @@ import { useMutation, useQueryClient } from '@tanstack/react-query'
 import type { SessionInfo } from '@opencode/client'
 import type { OpenCodeClient } from '@/lib/client'
 import { isArchivedSession } from '@/features/sessions/session-archive'
+import { runWithConcurrency } from '@/lib/concurrency'
 import { queryKeys } from '@/lib/query-keys'
 import { useConnection } from '@/providers/connection-provider'
 
@@ -43,24 +44,6 @@ export async function listAllProjectSessions(
   }
 
   return sessions
-}
-
-/** Run async work with a fixed number of workers. */
-export async function runWithConcurrency<T>(
-  items: readonly T[],
-  concurrency: number,
-  task: (item: T) => Promise<void>
-): Promise<void> {
-  if (items.length === 0) return
-  let index = 0
-  const workers = Array.from({ length: Math.min(concurrency, items.length) }, async () => {
-    while (index < items.length) {
-      const item = items[index]
-      index += 1
-      if (item !== undefined) await task(item)
-    }
-  })
-  await Promise.all(workers)
 }
 
 /** Sessions that still need an archive write. */

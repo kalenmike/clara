@@ -2,6 +2,7 @@ import { useEffect, useMemo } from 'react'
 import { Loader2, Plus } from 'lucide-react'
 import { EmptySessionView } from '@/components/chat/empty-session-view'
 import { InboxMonitorToggle } from '@/components/chat/inbox-monitor-toggle'
+import { useProjectReconciliation } from '@/features/projects/use-project-reconciliation'
 import { canonicalProject, canonicalProjects, useProjects } from '@/features/projects/use-projects'
 import { useSessions } from '@/features/sessions/use-sessions'
 import { useStartSession } from '@/features/sessions/use-start-session'
@@ -13,6 +14,7 @@ export function HomePage() {
   const { status } = useConnection()
   const { lowerSingular } = useSessionWording()
   const projectsQuery = useProjects()
+  const { pending: reconciling } = useProjectReconciliation()
   const projects = useMemo(() => projectsQuery.data ?? [], [projectsQuery.data])
   const last = readLastProject()
   const project = useMemo(
@@ -32,7 +34,7 @@ export function HomePage() {
     if (project) saveLastProject(project.id)
   }, [project])
 
-  if (status !== 'connected' || projectsQuery.isLoading) {
+  if (status !== 'connected' || projectsQuery.isLoading || (!project && reconciling)) {
     return (
       <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
         <Loader2 className="mr-2 size-4 animate-spin" />
