@@ -1,5 +1,6 @@
 import type { SessionMessageAssistant, SessionMessageInfo } from '@opencode/client'
 import type { PromptFile } from '@/features/chat/use-chat'
+import { selectionTitle } from '@/features/chat/markdown-blocks'
 import { isForkableMessage } from '@/features/sessions/fork'
 import { draftTitleFromText } from '@/features/sessions/draft-title'
 
@@ -28,6 +29,11 @@ export function canForwardMessage(message: SessionMessageInfo): boolean {
 export function forwardTitle(message: SessionMessageInfo): string {
   const text = forwardText(message)
   return draftTitleFromText(text) || forwardFiles(message)[0]?.name || 'Forwarded message'
+}
+
+/** A short draft title for a selected slice of a reply. */
+export function forwardTitleFromText(text: string): string {
+  return draftTitleFromText(selectionTitle(text)) || 'Forwarded selection'
 }
 
 export function assistantText(message: SessionMessageAssistant): string {

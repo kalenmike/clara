@@ -196,7 +196,7 @@ function ChatPageContent() {
     [forkSession, snapshot.messages]
   )
   const handleForwardMessage = useCallback(
-    (message: SessionMessageInfo) => forwardMessage(message),
+    (message: SessionMessageInfo, text?: string) => forwardMessage({ message, text }),
     [forwardMessage]
   )
 

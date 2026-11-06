@@ -4,8 +4,11 @@
 
 Forking branches a session without disturbing the original. Clara supports
 forking the whole conversation, forking from a specific message, and forwarding
-one message into a new draft with the reply window prefilled. The source session
-keeps running in its current direction in every case.
+one message into a new draft with the reply window prefilled. A long reply can
+also be forwarded one section at a time: **Select part** turns the rendered
+markdown into pickable blocks, and **Forward selection** sends only that slice
+into a new draft. The source session keeps running in its current direction in
+every case.
 
 ## User flow
 
@@ -19,11 +22,21 @@ keeps running in its current direction in every case.
    brief**. Clara creates an empty draft in the same project, switches to it,
    and opens the reply window with the message text and attachments already
    filled in.
-5. Edit the forwarded text or attachments, then send it like any other prompt.
+5. To carry only part of a long reply, choose **Select part** on that message.
+   Hovering a block outlines the paragraph, list, code fence, table, quote, or
+   heading section that a click would select. Click a heading to take its whole
+   section, click a block to take just that block, or Shift-click another block
+   to extend the range. The bar shows the heading path and a clickable chip for
+   each enclosing section; **Expand** walks up from a block to its subsection,
+   then its section, then the whole part of the reply.
+6. Choose **Forward selection**. Clara creates the new draft from the selected
+   markdown source, using the same empty-draft and navigation flow as forwarding
+   a whole message. **Cancel** or Escape leaves the reply unchanged.
+7. Edit the forwarded text or attachments, then send it like any other prompt.
    The source session is unchanged throughout.
-6. Click the fork's title to rename it. The server titles forks `Parent title
+8. Click the fork's title to rename it. The server titles forks `Parent title
 (fork #1)`, `(fork #2)`, and so on.
-7. Return to the source from the sidebar; it keeps its stream, status, and
+9. Return to the source from the sidebar; it keeps its stream, status, and
    unread state while the fork is open.
 
 ## Core business rules
@@ -51,6 +64,20 @@ keeps running in its current direction in every case.
 7. Forward creates a standalone session, not a child. It inherits the source
    agent and model, and its draft title comes from the forwarded text or the
    first attachment name.
+8. Selecting part never edits the reply or asks the server for anything. Clara
+   annotates each rendered block with its character range in the original
+   markdown, groups headings into sections, and forwards the exact source slice,
+   so lists, fences, tables, and inline formatting survive.
+9. Section selection is structure-aware. A heading owns everything until the
+   next heading of the same or a higher level, so clicking `# Release` takes its
+   `##` subsections too. A block click takes only that paragraph, list, code
+   fence, table, quote, or divider. Shift-click unions the current range with
+   another block. **Expand** moves to the smallest enclosing node, then outward
+   to the whole part.
+10. Selection is available only on an expanded assistant text part that is not
+    streaming. Escape, **Cancel**, **Forward selection**, folding the message, a
+    new run, or a session change ends it. A selection forwards text only; user
+    attachments, reasoning, and tool calls never travel with it.
 
 ## Edge cases
 
@@ -69,6 +96,25 @@ keeps running in its current direction in every case.
   checklist.
 - **Forwarded assistant reply** — only text parts are carried over; reasoning and
   tool calls are skipped. The text becomes an editable user prompt.
+- **Selected heading with no body** — the forwarded draft is just the heading
+  line.
+- **Selected heading section** — the slice stops at the next heading with the
+  same or a higher level, so a parent section includes its subsections.
+- **Skipped heading levels** — a `###` after a `#` is still a subsection of that
+  `#`, and a later `##` closes it even though no `##` opened it.
+- **Selection inside a fence** — the selected block is the whole fenced code
+  block, so the fence, language, and content stay valid.
+- **Reply split by tool calls** — a selection stays in the text part where it
+  started; Shift-clicking another part does not merge across the gap. Forwarding
+  the whole message still carries every text part.
+- **Link or copy button under the pointer** — in selection mode a click selects
+  the block instead of opening the link or copying the code.
+- **Streaming reply** — **Select part** is disabled until the run settles.
+- **Collapsed reply** — **Select part** is hidden until the reply is expanded.
+- **Forward selection fails** — a toast explains the failure and the source
+  reply stays open and untouched.
+- **Selection while folding** — folding the message or switching sessions ends
+  selection without changing the reply.
 - **Assistant reply with no text** — Forward is disabled; Fork still works.
 - **User message with only attachments** — attachments are prefilled and the
   title falls back to the first attachment name.
@@ -107,6 +153,16 @@ keeps running in its current direction in every case.
 - Forward: `client.session.create({ title, agent, model, location })`, then
   `saveDraft(newSessionID, text)` and navigation with
   `{ compose: true, draftText, draftFiles }`
+- Selection outline: `src/features/chat/markdown-blocks.ts` builds heading
+  sections and slices the original markdown source; `src/components/chat/markdown.tsx`
+  annotates rendered blocks with the `position` ranges react-markdown already
+  provides, so no second parse is needed
+- Selection UI: `src/components/chat/markdown-selection.tsx` owns hover,
+  click/Shift-click, Expand, Escape, the floating bar, and the forwarded slice;
+  `src/features/sessions/use-forward-message.ts` accepts the slice as
+  `{ message, text }`
+- Selection title: `forwardTitleFromText` in `src/features/sessions/forward.ts`
+  uses `selectionTitle` to strip heading markers before shortening
 - Fork titles come from the server: `Parent title (fork #n)`
 - Fork events: `session.forked` invalidates sessions and the child transcript
 - Plan filtering: `src/features/chat/session-plan.ts` hides `todowrite` calls

@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import {
   Bot,
   Brain,
@@ -20,6 +20,7 @@ import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { Badge } from '@/components/ui/badge'
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
 import { Markdown } from '@/components/chat/markdown'
+import { MarkdownSelectionProvider } from '@/components/chat/markdown-selection'
 import { MessageActions } from '@/components/chat/message-actions'
 import { ToolCard } from '@/components/chat/tool-card'
 import { isSyntheticMessage } from '@/features/chat/message-attribution'
@@ -31,8 +32,12 @@ import { cn } from '@/lib/utils'
 export type MessageItemActions = {
   onFork: () => void
   onForward: () => void
+  onSelect?: () => void
+  onForwardSelection?: (text: string) => void
   canFork: boolean
   canForward: boolean
+  canSelect?: boolean
+  selecting?: boolean
   disabled?: boolean
 }
 
@@ -269,6 +274,14 @@ function AssistantMessage({
 }) {
   const hasContent = assistantHasContent(message, showInternal)
   const thinking = !hasContent && streaming
+  const selecting = Boolean(actions?.selecting)
+  const exitSelection = actions?.onSelect
+
+  // Selection needs the rendered blocks, so it ends when the message folds or
+  // stops being actionable (a new run started, worker mode, session change).
+  useEffect(() => {
+    if (selecting && (collapsed || actions?.disabled)) exitSelection?.()
+  }, [actions?.disabled, collapsed, exitSelection, selecting])
 
   const ownUsage = [
     message.tokens
@@ -332,23 +345,33 @@ function AssistantMessage({
         </div>
       )}
 
-      <div className={cn('space-y-2', streaming && 'min-h-4')}>
-        {message.content.map((part, index) => {
-          if (part.type === 'text') {
-            if (!part.text.trim()) return null
-            return <Markdown key={`text-${index}`}>{part.text}</Markdown>
-          }
-          if (part.type === 'reasoning') {
-            if (!showInternal || !part.text.trim()) return null
-            return <ReasoningPart key={`reasoning-${index}`} text={part.text} />
-          }
-          if (part.type === 'tool') {
-            if (!showInternal) return null
-            return <ToolCard key={`tool-${part.id}-${index}`} tool={part} />
-          }
-          return null
-        })}
-      </div>
+      <MarkdownSelectionProvider
+        active={Boolean(selecting) && !actions?.disabled}
+        onExit={() => actions?.onSelect?.()}
+        onForward={(text) => actions?.onForwardSelection?.(text)}
+      >
+        <div className={cn('space-y-2', streaming && 'min-h-4')}>
+          {message.content.map((part, index) => {
+            if (part.type === 'text') {
+              if (!part.text.trim()) return null
+              return (
+                <Markdown key={`text-${index}`} partIndex={textPartIndex(message, index)}>
+                  {part.text}
+                </Markdown>
+              )
+            }
+            if (part.type === 'reasoning') {
+              if (!showInternal || !part.text.trim()) return null
+              return <ReasoningPart key={`reasoning-${index}`} text={part.text} />
+            }
+            if (part.type === 'tool') {
+              if (!showInternal) return null
+              return <ToolCard key={`tool-${part.id}-${index}`} tool={part} />
+            }
+            return null
+          })}
+        </div>
+      </MarkdownSelectionProvider>
     </MessageRow>
   )
 }
@@ -405,6 +428,15 @@ function assistantPreview(message: SessionMessageAssistant, showInternal: boolea
 function firstLine(text: string): string {
   const line = text.split('\n').find((value) => value.trim().length > 0)
   return line?.trim() ?? ''
+}
+
+/** The part index used by the inspector: text parts only, in render order. */
+function textPartIndex(message: SessionMessageAssistant, index: number): number {
+  let count = 0
+  for (let position = 0; position < index; position += 1) {
+    if (message.content[position]?.type === 'text') count += 1
+  }
+  return count
 }
 
 /** Plain-language next step for the provider failures OpenCode reports most often. */

@@ -34,8 +34,9 @@ actions; direct keys handle interruption and switching.
 3. Tab cycles agents while the message box has focus and keeps focus there
    instead of indenting. Tab elsewhere is normal focus traversal, and `ctrl+.`
    cycles agents from anywhere on the chat page.
-4. Escape is always offered to the active menu first; the global handler only
-   interrupts when no menu consumes it.
+4. Escape is always offered to the active menu first; when a reply is in part
+   selection mode it cancels that instead, and the global handler only
+   interrupts when neither consumes it.
 5. Shortcuts act on the selected session and project; they do nothing when the
    action has no target.
 
@@ -55,6 +56,8 @@ actions; direct keys handle interruption and switching.
   `ctrl+t` before Clara sees them, depending on platform and focus. Clara leaves
   `ctrl+x` to the browser while a text field has focus.
 - **Dialog open** — Escape closes the dialog instead of interrupting the run.
+- **Part selection active** — Escape cancels the selection and leaves the run
+  alone, even while the agent is working.
 
 ## Out of scope
 
@@ -98,7 +101,7 @@ actions; direct keys handle interruption and switching.
 | `tab` / `shift+tab`       | Cycle agent in the message box |
 | `ctrl+.` / `ctrl+shift+.` | Cycle agent from anywhere      |
 | `ctrl+t`                  | Cycle model variant            |
-| `escape`                  | Interrupt or close             |
+| `escape`                  | Interrupt, close, or cancel    |
 | `shift+enter`             | Newline                        |
 
 `ctrl+x` only starts the leader when focus is outside a text field; inside one
