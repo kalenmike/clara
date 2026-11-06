@@ -15,6 +15,7 @@ import {
   X,
 } from 'lucide-react'
 import type { SessionInfo } from '@opencode/client'
+import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
 import {
@@ -244,6 +245,20 @@ export function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
     onNavigate?.()
   }
 
+  const refreshProjects = async () => {
+    const result = await reconcile()
+    if (result.isError) {
+      toast.error('Could not refresh projects')
+      return
+    }
+    const restored = result.data?.restored.length ?? 0
+    if (restored === 0) {
+      toast.message('No archived projects to restore')
+      return
+    }
+    toast.success(`Restored ${restored} ${restored === 1 ? 'project' : 'projects'}`)
+  }
+
   const setSectionOpen = (section: SidebarSection, open: boolean) => {
     setOpenSections((current) => {
       const next = { ...current, [section]: open }
@@ -402,7 +417,7 @@ export function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
             )}
             <DropdownMenuSeparator />
             <DropdownMenuItem
-              onSelect={() => void reconcile()}
+              onSelect={() => void refreshProjects()}
               disabled={reconciling}
               title="Restore projects whose directories are available again"
               className="gap-2"
