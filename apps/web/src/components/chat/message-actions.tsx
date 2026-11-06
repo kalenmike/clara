@@ -1,4 +1,4 @@
-import { Forward, GitFork, MoreHorizontal } from 'lucide-react'
+import { Forward, GitFork, MoreHorizontal, TextSelect } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import {
   DropdownMenu,
@@ -12,14 +12,20 @@ export function MessageActions({
   disabled,
   canFork,
   canForward,
+  canSelect,
+  selecting,
   onFork,
   onForward,
+  onSelect,
 }: {
   disabled?: boolean
   canFork: boolean
   canForward: boolean
+  canSelect?: boolean
+  selecting?: boolean
   onFork: () => void
   onForward: () => void
+  onSelect?: () => void
 }) {
   const { lowerSingular } = useSessionWording()
   const forwardDisabled = disabled || !canForward
@@ -27,6 +33,23 @@ export function MessageActions({
   return (
     <>
       <div className="hidden shrink-0 items-center gap-0.5 opacity-0 transition-opacity group-hover/row:opacity-100 focus-within:opacity-100 md:flex">
+        {canSelect ? (
+          <Button
+            type="button"
+            variant={selecting ? 'secondary' : 'ghost'}
+            size="icon"
+            onClick={onSelect}
+            disabled={disabled}
+            title={selecting ? 'Stop selecting parts' : 'Select part of this reply'}
+            aria-pressed={selecting}
+            className="size-8"
+          >
+            <TextSelect className="size-3.5" />
+            <span className="sr-only">
+              {selecting ? 'Stop selecting parts' : 'Select part of this reply'}
+            </span>
+          </Button>
+        ) : null}
         {canFork && (
           <Button
             type="button"
@@ -69,6 +92,12 @@ export function MessageActions({
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end">
+            {canSelect ? (
+              <DropdownMenuItem onSelect={onSelect} disabled={disabled}>
+                <TextSelect className="size-3.5" />
+                {selecting ? 'Stop selecting' : 'Select part'}
+              </DropdownMenuItem>
+            ) : null}
             {canFork && (
               <DropdownMenuItem onSelect={onFork} disabled={disabled}>
                 <GitFork className="size-3.5" /> Fork from here

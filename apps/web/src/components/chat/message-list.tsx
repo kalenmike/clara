@@ -42,7 +42,7 @@ export function MessageList({
   onLoadOlder: () => void
   onToggleMessage: (id: string) => void
   onForkMessage: (message: SessionMessageInfo) => void
-  onForwardMessage: (message: SessionMessageInfo) => void
+  onForwardMessage: (message: SessionMessageInfo, text?: string) => void
   canActOnMessage: (message: SessionMessageInfo) => boolean
   canFork: boolean
   actionsDisabled: boolean
@@ -51,6 +51,7 @@ export function MessageList({
   const [atBottom, setAtBottom] = useState(true)
   const [showJump, setShowJump] = useState(false)
   const [opened, setOpened] = useState(false)
+  const [selectingID, setSelectingID] = useState<string | null>(null)
   const userScrolled = useRef(false)
   const anchorKey = useRef<string | null>(null)
   const anchorOffset = useRef(0)
@@ -66,6 +67,11 @@ export function MessageList({
     }
     return -1
   }, [items])
+
+  // Selection belongs to one reply at a time and never survives a session change.
+  useEffect(() => {
+    setSelectingID(null)
+  }, [sessionID])
 
   const virtualizer = useVirtualizer({
     count: items.length,
@@ -295,8 +301,18 @@ export function MessageList({
                         ? {
                             onFork: () => onForkMessage(entry.message),
                             onForward: () => onForwardMessage(entry.message),
+                            onForwardSelection: (text) => onForwardMessage(entry.message, text),
+                            onSelect: () =>
+                              setSelectingID((current) =>
+                                current === entry.message.id ? null : entry.message.id
+                              ),
                             canFork,
                             canForward: canForwardMessage(entry.message),
+                            canSelect:
+                              entry.message.type === 'assistant' &&
+                              !collapsedIDs.has(entry.message.id) &&
+                              canForwardMessage(entry.message),
+                            selecting: selectingID === entry.message.id,
                             disabled:
                               actionsDisabled || (streaming && item.index === lastMessageIndex),
                           }

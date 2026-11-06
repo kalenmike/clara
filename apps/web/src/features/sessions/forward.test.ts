@@ -1,6 +1,12 @@
 import { describe, expect, it } from 'vitest'
 import type { SessionMessageAssistant, SessionMessageUser } from '@opencode/client'
-import { canForwardMessage, forwardFiles, forwardText, forwardTitle } from './forward'
+import {
+  canForwardMessage,
+  forwardFiles,
+  forwardText,
+  forwardTitle,
+  forwardTitleFromText,
+} from './forward'
 
 function user(
   id: string,
@@ -118,5 +124,24 @@ describe('forwardTitle', () => {
         ])
       )
     ).toBe('notes.txt')
+  })
+})
+
+describe('forwardTitleFromText', () => {
+  it('strips heading markers from a selected section', () => {
+    expect(forwardTitleFromText('## Install the plugin\n\nRun it.')).toBe('Install the plugin')
+  })
+
+  it('strips list and quote markers from the first line', () => {
+    expect(forwardTitleFromText('- first item\n- second')).toBe('first item')
+    expect(forwardTitleFromText('> quoted')).toBe('quoted')
+  })
+
+  it('falls back when the selection has no readable line', () => {
+    expect(forwardTitleFromText('   \n\n')).toBe('Forwarded selection')
+  })
+
+  it('shortens long selections like a draft title', () => {
+    expect(forwardTitleFromText('## ' + 'a'.repeat(80))).toBe(`${'a'.repeat(50)}…`)
   })
 })

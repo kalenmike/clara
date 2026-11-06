@@ -4,7 +4,12 @@ import type { SessionInfo, SessionMessageInfo } from '@opencode/client'
 import { toast } from 'sonner'
 import { useModelVisibility } from '@/features/models/use-model-visibility'
 import { resolveInheritedModel } from '@/features/models/visibility'
-import { forwardFiles, forwardText, forwardTitle } from '@/features/sessions/forward'
+import {
+  forwardFiles,
+  forwardText,
+  forwardTitle,
+  forwardTitleFromText,
+} from '@/features/sessions/forward'
 import type { ChatComposeState } from '@/features/sessions/use-start-session'
 import { useSessionWording } from '@/features/sessions/use-wording'
 import { queryKeys } from '@/lib/query-keys'
@@ -14,6 +19,12 @@ import { useConnection } from '@/providers/connection-provider'
 type SessionTarget = {
   session: SessionInfo | undefined
   projectID: string | undefined
+}
+
+type ForwardInput = {
+  message: SessionMessageInfo
+  /** A selected slice of the reply. When present it replaces the whole message. */
+  text?: string
 }
 
 /**
@@ -28,17 +39,18 @@ export function useForwardMessage({ session, projectID }: SessionTarget) {
   const { visibility } = useModelVisibility()
 
   return useMutation({
-    mutationFn: async (message: SessionMessageInfo) => {
+    mutationFn: async ({ message, text: selected }: ForwardInput) => {
       if (!session || !client) throw new Error('No session to forward from')
 
-      const text = forwardText(message)
-      const files = forwardFiles(message)
+      const selection = selected?.trim() ?? ''
+      const text = selection || forwardText(message)
+      const files = selection ? [] : forwardFiles(message)
       if (text.trim().length === 0 && files.length === 0) {
         throw new Error('This message has nothing to forward')
       }
 
       const created = await client.session.create({
-        title: forwardTitle(message),
+        title: selection ? forwardTitleFromText(selection) : forwardTitle(message),
         agent: session.agent,
         model: resolveInheritedModel(session.model, visibility),
         location: { directory: session.location.directory },
