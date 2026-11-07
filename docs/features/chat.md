@@ -80,11 +80,11 @@ See [fork.md](fork.md).
    send it as queued for the next turn.
 10. When the run finishes the header returns to "idle" and usage settles.
 11. When a Plan run ends with a final reply, Reply and New carry a request
-    badge. Open the composer to see the plan-ready card above the editor.
-    **Adjust Plan** deselects it and focuses the editor for changes; **Start
-    Work** switches to the working agent and sends a short synthetic handoff,
-    which appears as a **User confirmed. Starting work.** system row. Typing a
-    message and pressing Send starts the run with that message instead. Click
+    badge. Open the composer to see the plan-ready card above the editor. With
+    an empty editor, the secondary **Start** button switches to the working
+    agent and sends a short synthetic handoff, which appears as a **User
+    confirmed. Starting work.** system row. Typing a message disables Start;
+    Send sends that message to the Plan agent as an adjustment instead. Click
     the card header to fold it to its title until you are ready to act.
 12. Open a session with a saved draft. The queued user message appears in the
     thread and a Start card appears above it. Click **Start** to send a short
@@ -92,10 +92,13 @@ See [fork.md](fork.md).
     appears as a **User confirmed. Starting saved draft.** system row. Fold the
     card to its title first if you are not ready to act.
 13. Answer an agent question in the composer. Select its card above the editor
-    and fill the fields. **Submit** answers only the form; **Skip** cancels it.
-    Type a message and press Send to admit the message first and then answer the
+    and fill the fields. Send is enabled once the form has an answer or the
+    editor has a message. With answers and no message, Send answers the form
+    alone. With a message and no answers, Send skips the form and then sends the
+    message. With both, Send admits the message first and then answers the
     selected form, so the form reply resumes the run with the message already
-    waiting. Other pending forms stay in the card stack. The form disappears
+    waiting. The secondary **Skip** button cancels the selected form without
+    sending. Other pending forms stay in the card stack. The form disappears
     when submitted, and the question-and-answer summary is appended to the
     thread as a **Answered N questions** system row. The event is derived from
     the completed `question`
@@ -206,18 +209,20 @@ See [fork.md](fork.md).
     Reopen clears the server's archived flag and any snooze metadata without
     renaming the session, so the session returns to its mailbox section with its
     title intact. Archived wins when both flags are present. Any reply that
-    engages the agent — a prompt, Start, Start Work or a plan request, a command,
+    engages the agent — a prompt, Start, a plan start or a plan request, a command,
     a saved draft, a permission decision, or a question answer — clears the
     snooze marker first, so the session leaves Snoozed without a manual Reopen.
 14. The plan-ready handoff is part of the composer. It appears only while the
     session is idle, the session agent is Plan, and the newest user or assistant
     message is a Plan reply that finished with `stop` and no error. It is absent
-    on archived sessions and in worker mode. **Build** switches the agent before
-    sending `Confirmed`; **Start Work** sends the synthetic handoff, while Send
-    with a typed message sends that message and its attachments instead. Both
-    requests disable while they are in flight. Once started, Build advances the
-    Monitor Inbox like Send does. The card is selected from the composer stack;
-    folding it does not cancel a start-work request already in flight.
+    on archived sessions and in worker mode. The secondary **Start** button
+    switches the agent to Build before sending the synthetic handoff; it is
+    disabled once the editor has a message. Send with a typed message leaves the
+    agent alone and sends the message to the Plan agent as an ordinary
+    adjustment. Both requests disable while they are in flight. Once started,
+    Build advances the Monitor Inbox like Send does. The card is selected from
+    the composer stack; folding it does not cancel a start request already in
+    flight.
 15. The Start card appears only while the session is idle, not archived, and the
     server reports pending user items in the session inbox. Pending inbox user
     messages are merged into the thread by message ID, so a draft is visible
@@ -240,21 +245,23 @@ See [fork.md](fork.md).
     Clara shows a toast that the workspace folder is missing, moves the session
     to the project's canonical directory with `session.move`, and retries the
     same request once. This covers prompts, queued messages, commands, saved
-    drafts, Start, Plan requests, and the Start Work handoff including its agent
+    drafts, Start, Plan requests, and the plan start handoff including its agent
     switch. The retry keeps the original text, attachments, and delivery.
-18. A question form is a selectable card in the composer. **Submit** answers only
-    the form and **Skip** cancels it. Send with a message admits the custom
-    message to the session inbox first with resume disabled, then answers the
-    selected form through `session.form.reply`. The form reply resumes the
-    blocked run, and the waiting message is promoted at the next step boundary,
-    so the message and answer share a turn instead of racing. Only the selected
-    form is answered with a message; other pending forms stay in the stack.
-    Answers are never attached as prompt files, so the model receives them once.
-    Slash commands keep the form-first order because command execution cannot be
-    cancelled through the inbox. Closing the composer leaves the unanswered form
-    pending. A failed form reply cancels the admitted message so a retry does not
-    duplicate it; if that cancellation fails, Clara warns that the message may
-    already be queued.
+18. A question form is a selectable card in the composer. Send answers the
+    selected form when it has been touched, alone if there is no message, or
+    after admitting the custom message with resume disabled when there is one.
+    An untouched form with a message is cancelled first through
+    `session.form.cancel` and the message is then sent. The form reply resumes
+    the blocked run, and the waiting message is promoted at the next step
+    boundary, so the message and answer share a turn instead of racing. Only the
+    selected form is answered with a message; other pending forms stay in the
+    stack. The secondary **Skip** button cancels the selected form without
+    sending. Answers are never attached as prompt files, so the model receives
+    them once. Slash commands keep the form-first order because command
+    execution cannot be cancelled through the inbox. Closing the composer leaves
+    the unanswered form pending. A failed form reply cancels the admitted
+    message so a retry does not duplicate it; if that cancellation fails, Clara
+    warns that the message may already be queued.
 19. An expanded, idle assistant reply with text offers **Select part**. The
     inspector groups only the top-level markdown blocks: headings own their
     section, while paragraphs, lists, code fences, tables, quotes, and dividers
@@ -288,9 +295,9 @@ See [fork.md](fork.md).
   while the composer title and connection line name the connected session. All
   sends target that session, the return control jumps back, and closing the
   composer resets it to the current session.
-- **Explicit compose actions while open elsewhere** — a new session, Forward, and
-  Adjust Plan re-target the composer to their session instead of leaving it on
-  the previous one.
+- **Explicit compose actions while open elsewhere** — a new session or Forward
+  re-targets the composer to its session instead of leaving it on the previous
+  one.
 - **Saved draft** — the draft is a pending inbox item, not a projected message.
   It is rendered in the thread and the Start card appears; Done archives rather
   than deletes because the draft counts as a message.
@@ -312,9 +319,13 @@ See [fork.md](fork.md).
   its icon, title, and badge. Hidden fields and actions are clipped and not
   focusable; expanding restores them in place. In the composer, the selected
   request card is expanded while the others fold to their header.
-- **Folding while an action is pending** — Start Work, Start, Submit, Skip, or a
-  permission decision continues in the background. Re-expanding shows the
-  current pending state if the card is still present.
+- **Folding while an action is pending** — Start, Skip, or a permission decision
+  continues in the background. Re-expanding shows the current pending state if
+  the card is still present.
+- **Form with no message** — an untouched form leaves Send disabled and Skip
+  available. Once a field is touched, Send answers the form alone.
+- **Form with an untouched field set and a message** — Send cancels the selected
+  form first, then sends the message.
 - **Form sent with a message** — the selected composer form admits the custom
   message first and then answers the form, so the form reply resumes the run
   with the message already waiting. Closing the composer leaves the form pending
@@ -327,10 +338,12 @@ See [fork.md](fork.md).
 - **Cancelling the admitted message fails** — the form reply still failed and
   Clara warns that the message may already be queued, leaving the composer text
   and answers in place.
-- **Plan start with a message** — the working agent receives the typed prompt and
-  attachments as a normal user message instead of the synthetic handoff.
-- **Multiple forms waiting** — only the selected form is answered with a Send.
-  The others stay pending until submitted, skipped, or cancelled by the server.
+- **Plan start with a message** — Send leaves the agent on Plan and sends the
+  typed message as an ordinary adjustment; Start is disabled while a message is
+  present.
+- **Multiple forms waiting** — only the selected form is answered with a Send or
+  cancelled by Skip. The others stay pending until selected in turn or cancelled
+  by the server.
 - **Request resolves while folded** — the card disappears when the request is
   completed or withdrawn; the next request mounts expanded.
 - **Session switch with folded requests** — every request card returns to
@@ -362,7 +375,7 @@ See [fork.md](fork.md).
 - **Stale plan handoff** — the composer card requires the session agent and the
   newest reply to be Plan; switching agents or opening an archived session hides
   it.
-- **Start Work request fails** — a failed switch leaves the card in place; if
+- **Plan Start request fails** — a failed switch leaves the card in place; if
   the switch succeeds but the handoff cannot be sent, a toast asks the person to
   send a message from the reply box, and Monitor Inbox does not advance.
 - **Snooze clear fails** — the reply, draft, or answer still goes through, a
@@ -473,26 +486,27 @@ metadata, delivery: 'steer' })`
 - Interrupt: `client.session.interrupt({ sessionID })`
 - Approvals: `client.permission.request.list`, `client.permission.reply`;
   request thinking comes from `src/features/chat/permission-thinking.ts`
-- Forms: `client.session.form.list`, `client.session.form.reply`; pending forms
-  live in the composer through
-  `src/components/chat/composer-request-list.tsx`. The composer admits the
-  message with `session.prompt({ resume: false })` first, replies to the selected
-  form, and cancels the inbox item through `session.inbox.cancel` if a reply
-  fails. `src/features/chat/form-response.ts` formats the collapsed-card answer
-  summary.
+- Forms: `client.session.form.list`, `client.session.form.reply`,
+  `client.session.form.cancel`; pending forms live in the composer through
+  `src/components/chat/composer-request-list.tsx`. A touched form with a message
+  admits the message with `session.prompt({ resume: false })` first, replies to
+  the selected form, and cancels the inbox item through `session.inbox.cancel`
+  if a reply fails. An untouched form with a message is cancelled first through
+  `session.form.cancel`, then the message is sent. A touched form with no
+  message replies without a prompt.
 - Request cards: `src/components/chat/request-card.tsx` renders the header
   toggle, per-card expanded state, and top-anchored reveal shared by the
   draft-start, question, and permission cards. The composer's plan-ready and
   question cards use `src/components/chat/composer-request-list.tsx`.
 - Plan handoff: `src/features/chat/plan-ready.ts` detects the handoff;
-  `src/features/chat/use-start-work.ts` switches the agent and sends either the
-  synthetic approval or a typed prompt. Start Work plays `playStartWorkSound`
+  `src/features/chat/use-start-work.ts` switches the agent and sends the
+  synthetic approval. Start plays `playStartWorkSound`
   from `src/features/notifications/sounds.ts` when UI sounds are on.
 - Plan handoff APIs: `client.session.switchAgent({ sessionID, agent: 'build' })`,
-  then `client.session.prompt({ sessionID, text, files, delivery: 'steer' })`
-  for a typed start or
-  `client.session.synthetic({ sessionID, text, description, metadata,
-delivery: 'steer' })` for Start Work
+  then `client.session.synthetic({ sessionID, text, description, metadata,
+delivery: 'steer' })` for Start. Send with a typed message calls
+  `client.session.prompt({ sessionID, text, files, delivery: 'steer' })` on the
+  current Plan agent instead.
 - System events: `client.session.synthetic` for one-click actions;
   `src/features/chat/system-events.ts` parses Clara metadata,
   `src/features/chat/questions.ts` derives Q&A events from the completed

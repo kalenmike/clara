@@ -1,7 +1,9 @@
 import { describe, expect, it } from 'vitest'
 import type { FormField, FormInfo } from '@opencode/client'
 import {
+  composerCanSend,
   composerRequestCount,
+  composerSecondaryAction,
   defaultComposerSelection,
   initialFormAnswers,
   resolveComposerSelection,
@@ -23,6 +25,26 @@ describe('composerRequestCount', () => {
     expect(composerRequestCount([form('a'), form('b')], false)).toBe(2)
     expect(composerRequestCount([], true)).toBe(1)
     expect(composerRequestCount([form('a')], true)).toBe(2)
+  })
+})
+
+describe('composerCanSend', () => {
+  const base = { text: '', formTouched: false, hasActiveForm: false }
+
+  it('allows Send with a message or a touched form', () => {
+    expect(composerCanSend(base)).toBe(false)
+    expect(composerCanSend({ ...base, text: 'Hello' })).toBe(true)
+    expect(composerCanSend({ ...base, hasActiveForm: true })).toBe(false)
+    expect(composerCanSend({ ...base, hasActiveForm: true, formTouched: true })).toBe(true)
+    expect(composerCanSend({ ...base, hasActiveForm: true, text: 'Hello' })).toBe(true)
+  })
+})
+
+describe('composerSecondaryAction', () => {
+  it('offers Skip for questions and Start for a ready plan', () => {
+    expect(composerSecondaryAction({ hasActiveForm: true, planSelected: false })).toBe('skip')
+    expect(composerSecondaryAction({ hasActiveForm: false, planSelected: true })).toBe('start')
+    expect(composerSecondaryAction({ hasActiveForm: false, planSelected: false })).toBeNull()
   })
 })
 
