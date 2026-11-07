@@ -43,9 +43,9 @@ describe('runtime', () => {
       started.work[0].work_token,
       { summary: 'spec ready' }
     )
-    expect(completed.ready.map((step) => step.name)).toContain('write_tests')
+    expect(completed.ready.map((step) => step.name)).toContain('plan_implementation')
     const next = runtime.next(started.run.id)
-    expect(next[0].name).toBe('write_tests')
+    expect(next[0].name).toBe('plan_implementation')
   })
 
   it('routes from a package entry router and records the decision', () => {

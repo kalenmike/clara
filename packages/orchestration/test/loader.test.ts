@@ -28,8 +28,10 @@ describe('package loader', () => {
     expect(feature.root.kind).toBe('pipeline')
     expect(feature.root.children?.map((step) => step.name)).toEqual([
       'create_spec',
+      'plan_implementation',
       'write_tests',
       'build_feature',
+      'verify_implementation',
       'code_review',
       'update_docs',
     ])
