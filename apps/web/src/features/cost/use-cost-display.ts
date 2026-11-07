@@ -7,11 +7,7 @@ import {
 } from '@/features/cost/cost-display'
 
 export function useCostDisplay() {
-  const source = useSyncExternalStore(
-    subscribeCostDisplay,
-    readCostDisplay,
-    readCostDisplay
-  )
+  const source = useSyncExternalStore(subscribeCostDisplay, readCostDisplay, readCostDisplay)
 
   const setSource = useCallback((next: CostDisplaySource) => {
     saveCostDisplay(next)
