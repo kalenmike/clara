@@ -64,10 +64,32 @@ function ledger(args) {
   })
 }
 
+function orchestration(args) {
+  const built = join(root, 'apps/orchestrator/dist/index.js')
+  const source = join(root, 'apps/orchestrator/src/index.ts')
+  const entry = existsSync(built) ? built : source
+  return runNode(entry, args, {
+    nodeArgs: existsSync(built) ? [] : ['--experimental-strip-types', '--no-warnings'],
+  })
+}
+
+function mcp(args) {
+  return runNode(join(root, 'scripts/install-clara-mcp.mjs'), args)
+}
+
+function adapter(args) {
+  return runNode(join(root, 'scripts/install-clara-adapter.mjs'), args)
+}
+
 const clara = {
   name: 'clara',
   summary: 'Clara developer tools',
-  examples: ['pnpm clara pair --local', 'pnpm clara control', 'pnpm clara plugin install'],
+  examples: [
+    'pnpm clara pair --local',
+    'pnpm clara control',
+    'pnpm clara orchestration start',
+    'pnpm clara mcp install',
+  ],
   commands: [
     {
       name: 'pair',
@@ -140,6 +162,34 @@ const clara = {
         'pnpm clara ledger help',
       ],
       run: ledger,
+    },
+    {
+      name: 'orchestration',
+      summary: 'Run the local orchestration service',
+      usage: '<serve|start|stop|status|token>',
+      passthroughHelp: true,
+      examples: [
+        'pnpm clara orchestration start',
+        'pnpm clara orchestration status',
+        'pnpm clara orchestration serve',
+      ],
+      run: orchestration,
+    },
+    {
+      name: 'mcp',
+      summary: 'Install or inspect the Clara MCP bridge',
+      usage: '<install|uninstall|config|status>',
+      passthroughHelp: true,
+      examples: ['pnpm clara mcp install', 'pnpm clara mcp config', 'pnpm clara mcp status'],
+      run: mcp,
+    },
+    {
+      name: 'adapter',
+      summary: 'Install the OpenCode strict enforcement adapter',
+      usage: '<install|uninstall|status> [opencode]',
+      passthroughHelp: true,
+      examples: ['pnpm clara adapter install opencode', 'pnpm clara adapter status'],
+      run: adapter,
     },
   ],
 }

@@ -1,0 +1,24 @@
+{
+  "name": "@clara/orchestration",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc -p tsconfig.json",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@clara/policy": "workspace:*",
+    "better-sqlite3": "^13.0.3",
+    "yaml": "^2.8.1"
+  },
+  "devDependencies": {
+    "@types/better-sqlite3": "^9.6.0",
+    "@types/node": "^24.19.2",
+    "typescript": "~6.0.3",
+    "vitest": "^5.0.5"
+  }
+}

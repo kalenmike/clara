@@ -1,0 +1,12 @@
+id: content
+name: Content
+version: 1
+description: Brief, draft, edit, deliver.
+
+entry:
+  pipeline: content
+
+defaults:
+  model: 'deepseek-v4.1-flash'
+  task_dir: ./tasks
+  enforcement: observed

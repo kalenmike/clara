@@ -26,6 +26,24 @@
     },
     "workers/relay": {
       "project": ["src/**/*.ts", "test/**/*.ts"]
+    },
+    "packages/policy": {
+      "project": ["src/**/*.ts", "test/**/*.ts"]
+    },
+    "packages/orchestration": {
+      "project": ["src/**/*.ts", "test/**/*.ts"]
+    },
+    "packages/mcp-server": {
+      "project": ["src/**/*.ts"]
+    },
+    "apps/orchestrator": {
+      "project": ["src/**/*.ts", "test/**/*.ts"]
+    },
+    "apps/mcp": {
+      "project": ["src/**/*.ts"]
+    },
+    "plugins/clara-policy": {
+      "project": ["*.ts"]
     }
   },
   "ignore": [
@@ -33,7 +51,7 @@
     "apps/web/src/features/clara/stub/**",
     "apps/panel/src/features/clara/stub/**"
   ],
-  "ignoreDependencies": ["cloudflare"],
+  "ignoreDependencies": ["yaml", "cloudflare", "better-sqlite3"],
   "rules": {
     "exports": "off",
     "types": "off"

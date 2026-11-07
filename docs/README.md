@@ -61,5 +61,6 @@ here, it is not part of the canonical set.
 | [settings.md](features/settings.md)             | You are working on the Settings page, tabs, or simplified view           |
 | [git.md](features/git.md)                       | You are working on the branch and change summary in the right panel      |
 | [ledger.md](features/ledger.md)                 | You are working on the Clara ledger plugin or its agents                 |
+| [orchestration.md](features/orchestration.md)   | You are working on the orchestration service, packages, or MCP adapter   |
 | [pipeline.md](features/pipeline.md)             | You are defining or changing a request pipeline                          |
 | [shortcuts.md](features/shortcuts.md)           | You are working on keyboard behavior                                     |

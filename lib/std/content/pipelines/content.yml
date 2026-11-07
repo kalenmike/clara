@@ -1,0 +1,13 @@
+id: content
+name: Content request
+description: Brief, draft, edit, deliver.
+steps:
+  - name: brief
+    type: task
+  - name: draft
+    type: task
+    background: true
+  - name: edit
+    type: task
+  - name: deliver
+    type: task

@@ -1,0 +1,67 @@
+import { randomBytes } from 'node:crypto'
+import { chmodSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
+import { homedir } from 'node:os'
+import { join } from 'node:path'
+
+export function dataDir(): string {
+  const configured = process.env.CLARA_DATA_DIR?.trim()
+  if (configured) return configured
+  const xdg = process.env.XDG_DATA_HOME?.trim() || join(homedir(), '.local', 'share')
+  return join(xdg, 'clara')
+}
+
+export function tokenPath(): string {
+  return process.env.CLARA_ORCHESTRATION_TOKEN_FILE?.trim() || join(dataDir(), 'orchestrator.token')
+}
+
+export function dbPath(): string {
+  return process.env.CLARA_ORCHESTRATION_DB_PATH?.trim() || join(dataDir(), 'orchestration.db')
+}
+
+export function pidPath(): string {
+  return join(dataDir(), 'orchestrator.pid')
+}
+
+export function logPath(): string {
+  return join(dataDir(), 'orchestrator.log')
+}
+
+export function ensureToken(): string {
+  const configured = process.env.CLARA_ORCHESTRATION_TOKEN?.trim()
+  if (configured) return configured
+  const path = tokenPath()
+  if (existsSync(path)) {
+    const token = readFileSync(path, 'utf8').trim()
+    if (token) return token
+  }
+  mkdirSync(dataDir(), { recursive: true, mode: 0o700 })
+  const token = randomBytes(32).toString('hex')
+  writeFileSync(path, `${token}\n`, { mode: 0o600 })
+  try {
+    chmodSync(path, 0o600)
+  } catch {
+    // Best effort on platforms without POSIX modes.
+  }
+  return token
+}
+
+export function port(): number {
+  const configured = Number(process.env.CLARA_ORCHESTRATION_PORT ?? 8789)
+  return Number.isInteger(configured) && configured > 0 ? configured : 8789
+}
+
+export function host(): string {
+  return process.env.CLARA_ORCHESTRATION_HOST?.trim() || '127.0.0.1'
+}
+
+export function baseURL(): string {
+  return `http://${host()}:${port()}`
+}
+
+export function configPath(): string | undefined {
+  return process.env.CLARA_ORCHESTRATION_CONFIG?.trim() || undefined
+}
+
+export function stdDir(): string | undefined {
+  return process.env.CLARA_STD_DIR?.trim() || undefined
+}

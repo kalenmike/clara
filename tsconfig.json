@@ -24,6 +24,24 @@
     },
     {
       "path": "./workers/relay"
+    },
+    {
+      "path": "./packages/policy"
+    },
+    {
+      "path": "./packages/orchestration"
+    },
+    {
+      "path": "./packages/mcp-server"
+    },
+    {
+      "path": "./apps/orchestrator"
+    },
+    {
+      "path": "./apps/mcp"
+    },
+    {
+      "path": "./plugins/clara-policy"
     }
   ]
 }

@@ -10,10 +10,18 @@ WebSocket. This file is the contract for every AI agent working in this repo.
 apps/web              React/Vite SPA (Cloudflare Pages)
 apps/panel            Read-only loopback agent dashboard
 apps/server           Node home agent, local WS + outbound Cloudflare relay
-plugins/clara         OpenCode ledger plugin and agent definitions
+apps/orchestrator     Loopback orchestration service, REST/SSE/MCP
+apps/mcp              stdio MCP bridge to the orchestration service
+plugins/clara         Legacy OpenCode ledger plugin and agent definitions
+plugins/clara-policy  OpenCode strict enforcement adapter
 packages/shared-types Wire frames, actions, states, pairing payloads
+packages/pipelines    Legacy JSON pipeline validation and catalog
+packages/policy       Step policy, budgets, and violation rules
+packages/orchestration Package loader, runtime, leases, and watchdog
+packages/mcp-server   Shared MCP tools and resources
 packages/crypto       PSK derivation, AES-GCM envelopes, replay guard
 workers/relay         Cloudflare Worker + RelayRoom Durable Object
+lib/std               Standard orchestration packages (software, content)
 ```
 
 ## Tech stack
@@ -44,6 +52,9 @@ pnpm clara pass     # Print the local OpenCode password
 pnpm clara plugin install # Link the ledger plugin and render its agents
 pnpm clara plugin uninstall # Remove the plugin and generated agents
 pnpm clara ledger   # List or invoke the Clara ledger tools directly
+pnpm clara orchestration start|stop|status|serve # Run the orchestration service
+pnpm clara mcp install|config|status # Install or inspect the MCP bridge
+pnpm clara adapter install opencode # Install the OpenCode strict adapter
 pnpm typecheck      # tsc -b
 pnpm lint           # ESLint
 pnpm format         # Prettier write
