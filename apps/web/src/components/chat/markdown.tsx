@@ -1,6 +1,7 @@
 import { isValidElement, useEffect, useRef, useState, type ReactNode } from 'react'
 import { Check, Copy } from 'lucide-react'
 import ReactMarkdown, { type Components } from 'react-markdown'
+import remarkBreaks from 'remark-breaks'
 import remarkGfm from 'remark-gfm'
 import { useMarkdownSelection } from '@/components/chat/markdown-selection'
 import { Button } from '@/components/ui/button'
@@ -137,11 +138,14 @@ export function Markdown({
   children,
   className,
   partIndex = 0,
+  breaks = false,
 }: {
   children: string
   className?: string
   /** Index of this text part in the assistant message, used by the inspector. */
   partIndex?: number
+  /** Treat single newlines as hard breaks, matching typed user prompts. */
+  breaks?: boolean
 }) {
   const selection = useMarkdownSelection()
   const rootRef = useRef<HTMLDivElement>(null)
@@ -172,7 +176,10 @@ export function Markdown({
       onClick={selection?.active ? (event) => selection.select(partIndex, event) : undefined}
       onKeyDown={selection?.active ? (event) => selection.key(partIndex, event) : undefined}
     >
-      <ReactMarkdown remarkPlugins={[remarkGfm]} components={components}>
+      <ReactMarkdown
+        remarkPlugins={breaks ? [remarkGfm, remarkBreaks] : [remarkGfm]}
+        components={components}
+      >
         {children}
       </ReactMarkdown>
     </div>

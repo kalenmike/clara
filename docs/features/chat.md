@@ -4,7 +4,9 @@
 
 The chat view is where people read and steer an OpenCode session. It shows the
 conversation history, streams new output as it arrives, exposes tool activity,
-and pauses for approval when the agent needs permission. Messages are laid out
+and pauses for approval when the agent needs permission. Prompt and reply text
+renders as GitHub-flavored Markdown, with single line breaks preserved in
+prompts; the composer stays plain text. Messages are laid out
 like an email thread: each one is full width and left aligned, with a small
 avatar, the sender name, and a timestamp above the content, separated by a
 divider. Older messages start collapsed so the newest reply stays in view, and
@@ -156,11 +158,13 @@ See [fork.md](fork.md).
    timestamp, and a divider. A user message with `metadata.synthetic === true`
    uses a Zap avatar and the sender name **Automation** instead of `U` and
    **User**; this attribution is not gated by Clara management. Assistant
-   headers show the model name and an agent chip with the bot icon. Token and
-   cost details appear in a muted footer under the content. Cost follows the
-   **Cost display** setting, so a footer can show the reported amount or an
-   estimate marked with `~`. With internal output
-   on, every assistant step shows its own footer. With internal output off, the
+   headers show the model name and an agent chip with the bot icon. Prompt and
+   reply text render as GitHub-flavored Markdown; prompts preserve single line
+   breaks, replies keep standard Markdown soft breaks, and the composer stays
+   plain text. Token and cost details appear in a muted footer under the
+   content. Cost follows the **Cost display** setting, so a footer can show the
+   reported amount or an estimate marked with `~`. With internal output on,
+   every assistant step shows its own footer. With internal output off, the
    next visible reply absorbs the hidden steps before it and shows one combined
    footer: input and output tokens, cost, reasoning characters, tool calls, and
    turns. A turn that ends on hidden work with no reply keeps a compact
