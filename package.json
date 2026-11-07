@@ -25,6 +25,8 @@
     "deploy:relay": "pnpm --filter @clara/relay run deploy",
     "clara": "node scripts/clara.mjs",
     "task": "node scripts/task.mjs",
+    "docker:orchestrator": "docker compose -f docker/compose.yml up -d --build orchestrator",
+    "docker:orchestrator:down": "docker compose -f docker/compose.yml down",
     "docs": "vitepress dev docs"
   },
   "devDependencies": {
