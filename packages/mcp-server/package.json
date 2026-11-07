@@ -8,10 +8,9 @@
   },
   "scripts": {
     "typecheck": "tsc -p tsconfig.json",
-    "test": "vitest run"
+    "test": "vitest run --passWithNoTests"
   },
   "dependencies": {
-    "@clara/orchestration": "workspace:*",
     "@modelcontextprotocol/sdk": "^1.24.3",
     "zod": "^4.1.13"
   },

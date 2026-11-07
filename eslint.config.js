@@ -86,11 +86,18 @@ export default defineConfig([
     },
   },
   {
-    files: ['plugins/clara/**/*.ts'],
+    files: ['plugins/clara/**/*.ts', 'plugins/clara-policy/**/*.ts'],
     rules: {
       // The ledger's row type is intentionally dynamic: SQLite returns
-      // null-prototype records whose shape depends on the query.
+      // null-prototype records whose shape depends on the query. The OpenCode
+      // plugin context is host-provided and intentionally untyped here.
       '@typescript-eslint/no-explicit-any': 'off',
+      'no-console': 'off',
+    },
+  },
+  {
+    files: ['apps/orchestrator/**/*.ts'],
+    rules: {
       'no-console': 'off',
     },
   },

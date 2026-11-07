@@ -181,7 +181,7 @@ export function createOrchestratorServer(options: OrchestratorServerOptions): Or
         return
       }
       const stepMatch = url.pathname.match(
-        /^\/v1\/runs\/(\d+)\/steps\/(.+)\/(complete|fail|route|check|usage|heartbeat|spawn)$/
+        /^\/v1\/runs\/(\d+)\/steps\/(.+)\/(complete|fail|route|check|usage|heartbeat|spawn|violation)$/
       )
       if (stepMatch && req.method === 'POST') {
         const rid = Number(stepMatch[1])
@@ -195,6 +195,8 @@ export function createOrchestratorServer(options: OrchestratorServerOptions): Or
         else if (action === 'check') json(res, 200, await backend.check(value as never))
         else if (action === 'usage') json(res, 200, await backend.usage(value as never))
         else if (action === 'heartbeat') json(res, 200, await backend.heartbeat(rid, path))
+        else if (action === 'violation')
+          json(res, 200, runtime.violation(rid, path, String(input.reason ?? 'policy violation')))
         else json(res, 200, await backend.spawn(value as never))
         return
       }
@@ -233,8 +235,9 @@ export function createOrchestratorServer(options: OrchestratorServerOptions): Or
       },
     })
     const mcp = createClaraServer(backend)
+    const notificationState = { last: 0 }
     const timer = setInterval(() => {
-      void notifyAlerts(mcp, runtime)
+      void notifyAlerts(mcp, runtime, notificationState)
     }, 2_000)
     timer.unref?.()
     transport.onclose = () => {
@@ -266,14 +269,14 @@ export function createOrchestratorServer(options: OrchestratorServerOptions): Or
   }
 }
 
-let lastNotifiedAlert = 0
 async function notifyAlerts(
   mcp: ReturnType<typeof createClaraServer>,
-  runtime: Runtime
+  runtime: Runtime,
+  state: { last: number }
 ): Promise<void> {
-  const alerts = runtime.inbox().filter((alert) => Number(alert.id) > lastNotifiedAlert)
+  const alerts = runtime.inbox().filter((alert) => Number(alert.id) > state.last)
   if (!alerts.length) return
-  lastNotifiedAlert = Math.max(...alerts.map((alert) => Number(alert.id)))
+  state.last = Math.max(...alerts.map((alert) => Number(alert.id)))
   await mcp.server.sendResourceUpdated({ uri: 'clara://inbox' }).catch(() => {})
   for (const alert of alerts) {
     await mcp.server

@@ -740,6 +740,36 @@ export class Runtime {
     return decision
   }
 
+  violation(runID: number, path: string, reason: string): StepRow {
+    const row = this.store.step(runID, path)
+    if (!row) throw new OrchestrationErrorWithCode('step_missing', `step ${path} does not exist`)
+    const violations = Number(row.violations) + 1
+    this.store.updateStep(Number(row.id), { violations })
+    this.store.event(runID, 'policy.denied', { step: path, reason })
+    const limits = parseJson<Limits | undefined>(row.limits, undefined)
+    const budget = computeBudget(limits, Number(row.attempt) || 1)
+    if (violations >= budget.maxViolations) {
+      this.store.updateStep(Number(row.id), {
+        status: 'failed',
+        error: `violation limit reached: ${reason}`,
+        finished_at: now(),
+        lease_id: null,
+        lease_owner: null,
+        lease_expires_at: null,
+      })
+      const alert = this.store.alert({
+        run_id: runID,
+        step_path: path,
+        kind: 'failure',
+        title: `Policy violations exhausted in ${row.name}`,
+        body: reason,
+      })
+      this.store.event(runID, 'alert.created', { alert: alert.id, kind: 'failure' })
+      this.advance(runID)
+    }
+    return this.store.step(runID, path) as StepRow
+  }
+
   usage(runID: number, path: string, usage: Partial<Usage>): StepRow {
     const row = this.store.step(runID, path)
     if (!row) throw new OrchestrationErrorWithCode('step_missing', `step ${path} does not exist`)
