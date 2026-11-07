@@ -1,0 +1,12 @@
+id: research
+name: Research
+version: 1
+description: External, source-verified research with a linked executive brief.
+
+entry:
+  pipeline: research
+
+defaults:
+  model: 'deepseek-v4.1-flash'
+  task_dir: ./tasks
+  enforcement: observed

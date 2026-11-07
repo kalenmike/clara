@@ -5,6 +5,7 @@ imports:
   std:
     - path: software
     - path: content
+    - path: research
 
 watchdog:
   enabled: true
@@ -24,6 +25,9 @@ router:
     - when: quick-patch
       criteria: a small, local lifecycle patch with no full spec cycle.
       run: quick_patch
+    - when: research
+      criteria: a request for external research, industry or market analysis, source gathering, or a cited research brief.
+      run: std:research
 
 pipelines:
   quick_patch:

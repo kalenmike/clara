@@ -216,4 +216,34 @@ describe('package loader', () => {
       'deliver',
     ])
   })
+
+  it('loads the research package', () => {
+    const catalog = loadCatalog(config)
+    const research = compileRun(catalog, 'std:research')
+    expect(research.root.kind).toBe('pipeline')
+    expect(research.root.children?.map((step) => step.name)).toEqual([
+      'scope_research',
+      'gather_sources',
+      'verify_sources',
+      'draft_report',
+      'review_report',
+      'deliver_report',
+    ])
+
+    const gather = research.root.children?.find((step) => step.name === 'gather_sources')
+    expect(gather?.prompt).toContain('live external web search')
+    const verify = research.root.children?.find((step) => step.name === 'verify_sources')
+    expect(verify?.prompt).toContain('at least three independent sources')
+    const report = research.root.children?.find((step) => step.name === 'draft_report')
+    expect(report?.prompt).toContain('## Executive summary')
+    expect(report?.prompt).toContain('Pull, do not push')
+  })
+
+  it('routes research requests from the primary classifier', () => {
+    const catalog = loadCatalog(config)
+    const primary = compileRun(catalog)
+    const route = primary.root.routes?.find((candidate) => candidate.when === 'research')
+    expect(route?.run).toBe('std:research')
+    expect(route?.criteria).toContain('external research')
+  })
 })

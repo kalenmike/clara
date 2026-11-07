@@ -1,0 +1,18 @@
+id: research
+name: Research brief
+description: Scope, search externally, verify against independent sources, and deliver a concise linked report.
+default_model: 'deepseek-v4.1-flash'
+enforcement: observed
+steps:
+  - name: scope_research
+    type: task
+  - name: gather_sources
+    type: task
+  - name: verify_sources
+    type: task
+  - name: draft_report
+    type: task
+  - name: review_report
+    type: task
+  - name: deliver_report
+    type: task
