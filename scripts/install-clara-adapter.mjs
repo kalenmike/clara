@@ -17,6 +17,7 @@ import {
 import { homedir } from 'node:os'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { installCommand, removeCommand } from './lib/clara-command.mjs'
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 const pluginDir = join(root, 'plugins', 'clara-policy')
@@ -54,6 +55,8 @@ function install(target) {
   }
   symlinkSync(pluginDir, link, 'dir')
   console.log(`link adapter ${link} -> ${pluginDir}`)
+  const command = installCommand({ force })
+  console.log(`${command.written ? 'write' : 'keep'} /pipeline command: ${command.path}`)
   console.log('Reload OpenCode with `opencode reload`, or restart the service.')
 }
 
@@ -66,12 +69,31 @@ function uninstall() {
   if (existing.isSymbolicLink()) unlinkSync(link)
   else rmSync(link, { recursive: true, force: true })
   console.log(`removed ${link}`)
+  const mcpConfigured = mcpEntryConfigured()
+  if (!mcpConfigured) {
+    const removed = removeCommand()
+    if (removed.removed) console.log(`removed /pipeline command: ${removed.path}`)
+  }
 }
 
 function status() {
   console.log(`adapter: ${existsSync(link) ? 'installed' : 'missing'}`)
   console.log(`path: ${link}`)
   console.log(`plugin: ${pluginDir}`)
+  console.log(
+    `/pipeline command: ${existsSync(join(configHome, 'opencode', 'commands', 'pipeline.md')) ? 'installed' : 'missing'}`
+  )
+}
+
+function mcpEntryConfigured() {
+  const configPath = join(configHome, 'opencode', 'opencode.json')
+  if (!existsSync(configPath)) return false
+  try {
+    const config = JSON.parse(readFileSync(configPath, 'utf8'))
+    return Boolean(config && config.mcp && config.mcp.clara)
+  } catch {
+    return false
+  }
 }
 
 function lstatSafe(path) {

@@ -14,8 +14,9 @@ work orders and enforces strict policy.
    bridge start it on first use.
 2. Install the generic MCP entry with `pnpm clara mcp install`, or install the
    OpenCode strict adapter with `pnpm clara adapter install opencode`.
-3. Submit a request from the session that should own the run. Any agent with the
-   Clara tools can call `clara_start` with the prompt and workspace. The
+3. In OpenCode, run `/pipeline <request>`. The installed command tells the
+   agent to call `clara_start` with the full request and the current workspace.
+   Any agent with the Clara tools can also call `clara_start` directly. The
    OpenCode adapter records its session as the run origin automatically; a
    generic MCP caller can pass `origin.session_id` explicitly.
 4. The service compiles and snapshots the pipeline, creates a run, and returns
@@ -115,6 +116,8 @@ work orders and enforces strict policy.
 - Commands: `pnpm clara orchestration start|stop|status|serve|token`,
   `pnpm clara mcp install|uninstall|config|status`,
   `pnpm clara adapter install opencode|uninstall|status`.
+- OpenCode entry point: `/pipeline <request>` (installed by the MCP and adapter
+  installers at `~/.config/opencode/commands/pipeline.md`).
 - MCP tools: `clara_start`, `clara_next`, `clara_complete`, `clara_fail`,
   `clara_route`, `clara_spawn`, `clara_status`, `clara_inbox`, `clara_cancel`,
   `clara_tick`, `clara_check`, `clara_usage`, `clara_heartbeat`,
