@@ -14,17 +14,19 @@ work orders and enforces strict policy.
    bridge start it on first use.
 2. Install the generic MCP entry with `pnpm clara mcp install`, or install the
    OpenCode strict adapter with `pnpm clara adapter install opencode`.
-3. Submit a request from the primary session. The agent calls `clara_start`
-   with the prompt and workspace.
+3. Submit a request from the session that should own the run. Any agent with the
+   Clara tools can call `clara_start` with the prompt and workspace. The
+   OpenCode adapter records its session as the run origin automatically; a
+   generic MCP caller can pass `origin.session_id` explicitly.
 4. The service compiles and snapshots the pipeline, creates a run, and returns
    work orders. In conductor mode the adapter dispatches managed workers.
 5. Workers report results with `clara_complete`, failures with `clara_fail`,
    router choices with `clara_route`, and dynamic fan-out with `clara_spawn`.
 6. The service advances immediately on completion. It opens alerts for
    failures, budget exhaustion, stalls, and needs-input events.
-7. The primary session receives the final result, failure, or question in the
-   same conversation. If the origin session is gone, the result stays in the
-   inbox and the adapter opens a new user-facing session.
+7. The service records the root origin and exposes the run, alerts, and SSE
+   events. Automatic delivery of the final result into the origin session is a
+   known gap; use `clara_status` or `clara_inbox` until it lands.
 
 ## Core business rules
 
@@ -40,12 +42,16 @@ work orders and enforces strict policy.
 4. **Leases own work.** Every work order carries a token. Completion, failure,
    routing, and spawn require the matching lease. A second worker cannot close
    the same step.
-5. **The user gets one conversation.** The primary session is the conductor.
-   Worker sessions are hidden automation; their questions and results bubble to
-   the root run's origin.
+5. **One logical conversation.** The root run records its origin session and
+   worker sessions stay hidden automation. Results and alerts are available
+   through status, the inbox, and SSE; adapters may deliver them into the origin.
 6. **Package references are stable.** `std:software` is the package entry;
    `std:software/feature` is a named pipeline. In-flight runs pin the resolved
    snapshot and hash.
+7. **Orchestration is independent of Clara management.** The old
+   `management.enabled` switch gates only the legacy ledger plugin. The
+   orchestration service runs whenever it is installed, the config is active,
+   and the service is running.
 
 ## Edge cases
 
@@ -83,6 +89,10 @@ work orders and enforces strict policy.
   generic MCP surface in observed mode or implement the adapter protocol.
 - Token limits depend on harness-reported usage; turn, tool-call, wall-clock, and
   attempt limits are exact.
+- The OpenCode adapter records the origin session but does not yet push final
+  results or alerts into it automatically; use `clara_status` or `clara_inbox`.
+- The generic MCP bridge cannot see the harness session ID. Pass
+  `origin.session_id` or use an adapter to bind the root session.
 - The web Settings catalog still reads the legacy JSON pipelines; the package
   catalog is available through `pnpm clara orchestration` and MCP
   `clara_catalog`.
