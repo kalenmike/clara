@@ -1,78 +1,27 @@
 import { useMemo, useState } from 'react'
-import { useParams } from 'react-router'
-import { ChevronDown, CircleHelp, MessageSquarePlus } from 'lucide-react'
-import type { FormField, FormInfo } from '@opencode/client'
+import { CircleHelp } from 'lucide-react'
+import type { FormInfo } from '@opencode/client'
+import { FormFields } from '@/components/chat/form-fields'
 import { RequestCard } from '@/components/chat/request-card'
 import { Button } from '@/components/ui/button'
-import { Checkbox } from '@/components/ui/checkbox'
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu'
-import { Input } from '@/components/ui/input'
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select'
-import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
-import { useComposer } from '@/features/chat/composer-provider'
-import { buildFormResponse } from '@/features/chat/form-response'
-import {
-  useRejectForm,
-  useReplyForm,
-  useSessionForms,
-  type FormAnswerValue,
-} from '@/features/chat/use-forms'
-import { cn } from '@/lib/utils'
+import { initialFormAnswers } from '@/features/chat/composer-requests'
+import { useRejectForm, useReplyForm, useSessionForms } from '@/features/chat/use-forms'
 
-const CLEAR_SELECTION = '__clear__'
-const OPTION_PREFIX = 'option:'
-
-function optionID(value: string) {
-  return `${OPTION_PREFIX}${value}`
-}
-
+/**
+ * Top-of-thread fallback for sessions without a composer. Worker sessions keep
+ * their question forms here; normal sessions carry them inside the composer.
+ */
 export function FormPanel({ sessionID }: { sessionID: string }) {
   const formsQuery = useSessionForms(sessionID)
-  const { mode, target, pendingForms } = useComposer()
-  const stagedFormIDs = useMemo(() => {
-    if (mode === 'closed' || target?.sessionID !== sessionID) return new Set<string>()
-    return new Set(
-      pendingForms
-        .filter((response) => response.sessionID === sessionID)
-        .map((response) => response.formID)
-    )
-  }, [mode, pendingForms, sessionID, target?.sessionID])
-
   const forms = formsQuery.data ?? []
+
   if (forms.length === 0) return null
 
-  const hasVisibleForm = forms.some((form) => !stagedFormIDs.has(form.id))
-
   return (
-    <div
-      className={cn(
-        'shrink-0 space-y-2 border-b bg-sky-500/5 p-2 md:p-3',
-        !hasVisibleForm && 'hidden'
-      )}
-    >
-      {forms.map((form) => {
-        const staged = stagedFormIDs.has(form.id)
-        return (
-          <div
-            key={`${sessionID}:${form.id}`}
-            className={staged ? 'hidden' : undefined}
-            aria-hidden={staged || undefined}
-          >
-            <FormCard sessionID={sessionID} form={form} />
-          </div>
-        )
-      })}
+    <div className="shrink-0 space-y-2 border-b bg-sky-500/5 p-2 md:p-3">
+      {forms.map((form) => (
+        <FormCard key={`${sessionID}:${form.id}`} sessionID={sessionID} form={form} />
+      ))}
     </div>
   )
 }
@@ -80,234 +29,42 @@ export function FormPanel({ sessionID }: { sessionID: string }) {
 function FormCard({ sessionID, form }: { sessionID: string; form: FormInfo }) {
   const reply = useReplyForm(sessionID)
   const reject = useRejectForm(sessionID)
-  const { open } = useComposer()
-  const { projectId } = useParams<{ projectId?: string }>()
-  const [answers, setAnswers] = useState<Record<string, FormAnswerValue>>(() =>
-    initialAnswers(form.fields)
-  )
+  const [answers, setAnswers] = useState(() => initialFormAnswers(form.fields))
 
   const fields = useMemo(
     () => form.fields.filter((field) => !('hidden' in field && field.hidden)),
     [form.fields]
   )
 
-  const submit = () => {
-    reply.mutate({ formID: form.id, answer: answers })
-  }
-
-  const addMessage = () => {
-    open({
-      target: { sessionID, projectID: projectId },
-      form: buildFormResponse(sessionID, form, answers),
-    })
-  }
+  const pending = reply.isPending || reject.isPending
 
   return (
     <RequestCard title={form.title} icon={CircleHelp} tone="sky">
-      <div className="space-y-3">
-        {fields.map((field) => (
-          <Field
-            key={field.key}
-            field={field}
-            value={answers[field.key]}
-            onChange={(value) => setAnswers((current) => ({ ...current, [field.key]: value }))}
-          />
-        ))}
-      </div>
+      <FormFields
+        fields={fields}
+        answers={answers}
+        disabled={pending}
+        onChange={(key, value) => setAnswers((current) => ({ ...current, [key]: value }))}
+      />
       <div className="mt-3 flex gap-2">
-        <div className="flex items-center">
-          <Button
-            size="sm"
-            className="h-7 rounded-r-none text-xs max-md:h-11 max-md:px-3 max-md:text-sm"
-            onClick={submit}
-            disabled={reply.isPending}
-          >
-            Submit
-          </Button>
-          <DropdownMenu>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <DropdownMenuTrigger asChild>
-                  <Button
-                    size="icon-sm"
-                    className="h-7 rounded-l-none border-l border-primary-foreground/25 max-md:size-11"
-                    disabled={reply.isPending}
-                  >
-                    <ChevronDown className="size-3.5 max-md:size-5" />
-                    <span className="sr-only">Submit options</span>
-                  </Button>
-                </DropdownMenuTrigger>
-              </TooltipTrigger>
-              <TooltipContent>Submit with a custom message</TooltipContent>
-            </Tooltip>
-            <DropdownMenuContent side="top" align="start" className="w-56">
-              <DropdownMenuItem onSelect={addMessage}>
-                <MessageSquarePlus className="size-3.5" />
-                <span className="flex-1">Add a message</span>
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-        </div>
+        <Button
+          size="sm"
+          className="h-7 text-xs max-md:h-11 max-md:px-3 max-md:text-sm"
+          onClick={() => reply.mutate({ formID: form.id, answer: answers })}
+          disabled={pending}
+        >
+          Submit
+        </Button>
         <Button
           size="sm"
           variant="ghost"
           className="h-7 text-xs max-md:h-11 max-md:px-3 max-md:text-sm"
           onClick={() => reject.mutate({ formID: form.id })}
-          disabled={reject.isPending}
+          disabled={pending}
         >
           Skip
         </Button>
       </div>
     </RequestCard>
   )
-}
-
-function Field({
-  field,
-  value,
-  onChange,
-}: {
-  field: FormField
-  value: FormAnswerValue | undefined
-  onChange: (value: FormAnswerValue) => void
-}) {
-  if (field.type === 'external') {
-    return (
-      <div className="text-xs">
-        <a href={field.url} target="_blank" rel="noreferrer" className="underline">
-          {field.title ?? field.url}
-        </a>
-        {field.description && (
-          <p className="mt-1 text-[11px] text-muted-foreground">{field.description}</p>
-        )}
-      </div>
-    )
-  }
-
-  if (field.type === 'boolean') {
-    return (
-      <label className="flex items-center gap-2 text-xs">
-        <Checkbox
-          checked={Boolean(value)}
-          onCheckedChange={(checked) => onChange(checked === true)}
-        />
-        {field.title ?? field.key}
-      </label>
-    )
-  }
-
-  if (field.type === 'multiselect') {
-    const selected = Array.isArray(value) ? value : []
-    return (
-      <div className="space-y-1">
-        <div className="text-xs font-medium">{field.title ?? field.key}</div>
-        <div className="flex flex-wrap gap-2">
-          {field.options.map((option) => (
-            <label key={option.value} className="flex items-center gap-1.5 text-[11px]">
-              <Checkbox
-                checked={selected.includes(option.value)}
-                onCheckedChange={(checked) => {
-                  onChange(
-                    checked === true
-                      ? [...selected, option.value]
-                      : selected.filter((item) => item !== option.value)
-                  )
-                }}
-              />
-              {option.label}
-            </label>
-          ))}
-        </div>
-      </div>
-    )
-  }
-
-  if (field.type === 'string' && field.options) {
-    const current = typeof value === 'string' && value !== '' ? optionID(value) : CLEAR_SELECTION
-    // Passing the label here stops Radix from mirroring the whole option
-    // (label + description) into the closed trigger.
-    const selectedLabel =
-      typeof value === 'string'
-        ? field.options.find((option) => option.value === value)?.label
-        : undefined
-    return (
-      <div className="space-y-1">
-        <span className="text-xs font-medium">{field.title ?? field.key}</span>
-        {field.description && (
-          <span className="block text-[11px] text-muted-foreground">{field.description}</span>
-        )}
-        <Select
-          value={current}
-          onValueChange={(next) =>
-            onChange(next === CLEAR_SELECTION ? '' : next.slice(OPTION_PREFIX.length))
-          }
-        >
-          <SelectTrigger className="h-8 w-full text-xs" aria-label={field.title ?? field.key}>
-            <SelectValue placeholder="Select…">{selectedLabel}</SelectValue>
-          </SelectTrigger>
-          <SelectContent position="popper">
-            <SelectItem value={CLEAR_SELECTION}>Select…</SelectItem>
-            {field.options.map((option) => (
-              <SelectItem key={option.value} value={optionID(option.value)}>
-                {option.description ? (
-                  <span className="flex flex-col">
-                    <span>{option.label}</span>
-                    <span className="text-[11px] text-muted-foreground">{option.description}</span>
-                  </span>
-                ) : (
-                  option.label
-                )}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </div>
-    )
-  }
-
-  if (field.type === 'number' || field.type === 'integer') {
-    return (
-      <label className="block space-y-1">
-        <span className="text-xs font-medium">{field.title ?? field.key}</span>
-        <Input
-          type="number"
-          value={typeof value === 'number' ? value : ''}
-          onChange={(event) => onChange(Number(event.target.value))}
-          className="h-8 text-base md:text-xs"
-        />
-      </label>
-    )
-  }
-
-  return (
-    <label className="block space-y-1">
-      <span className="text-xs font-medium">{field.title ?? field.key}</span>
-      {field.description && (
-        <span className="block text-[11px] text-muted-foreground">{field.description}</span>
-      )}
-      <Input
-        value={typeof value === 'string' ? value : ''}
-        onChange={(event) => onChange(event.target.value)}
-        placeholder={field.type === 'string' ? field.placeholder : undefined}
-        className="h-8 text-base md:text-xs"
-      />
-    </label>
-  )
-}
-
-function initialAnswers(fields: FormField[]): Record<string, FormAnswerValue> {
-  const answers: Record<string, FormAnswerValue> = {}
-  for (const field of fields) {
-    if ('hidden' in field && field.hidden) continue
-    if (field.type === 'string' && field.default !== undefined) answers[field.key] = field.default
-    if (
-      (field.type === 'number' || field.type === 'integer') &&
-      typeof field.default === 'number'
-    ) {
-      answers[field.key] = field.default
-    }
-    if (field.type === 'boolean') answers[field.key] = field.default ?? false
-    if (field.type === 'multiselect' && field.default) answers[field.key] = field.default
-  }
-  return answers
 }

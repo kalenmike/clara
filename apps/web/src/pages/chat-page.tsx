@@ -17,7 +17,6 @@ import { EmptySessionView } from '@/components/chat/empty-session-view'
 import { FormPanel } from '@/components/chat/form-panel'
 import { MessageList } from '@/components/chat/message-list'
 import { PermissionPanel } from '@/components/chat/permission-panel'
-import { PlanReadyPanel } from '@/components/chat/plan-ready-panel'
 import { ReplyActions } from '@/components/chat/reply-actions'
 import { ReplyDock } from '@/components/chat/reply-dock'
 import { SidePanel } from '@/components/layout/side-panel'
@@ -38,6 +37,7 @@ import {
   useSwitchAgent,
   useSwitchModel,
 } from '@/features/chat/use-chat'
+import { useSessionForms } from '@/features/chat/use-forms'
 import { useModelVisibility } from '@/features/models/use-model-visibility'
 import { isModelVisible } from '@/features/models/visibility'
 import { useSessionPolicy } from '@/features/notifications/session-policy'
@@ -93,16 +93,11 @@ function ChatPageContent() {
   const snapshot = useChatSnapshot(sessionId ?? '')
   const messagesQuery = useSessionMessages(sessionId ?? '')
   const inboxQuery = useSessionInbox(sessionId ?? '')
+  const formsQuery = useSessionForms(sessionId ?? '')
   const busy = snapshot.status.type !== 'idle'
   const [showInternal, setShowInternal] = useState(readShowInternal)
   const [scrollToEndRequest, setScrollToEndRequest] = useState(0)
-  const {
-    mode: composerMode,
-    target: composerTarget,
-    open: openComposer,
-    draftState,
-    lastSent,
-  } = useComposer()
+  const { mode: composerMode, open: openComposer, draftState, lastSent } = useComposer()
   const storedHasLocalDraft = useMemo(
     () => (sessionId ? readDraft(sessionId).trim().length > 0 : false),
     [sessionId]
@@ -161,8 +156,7 @@ function ChatPageContent() {
         : undefined,
     [allMessages, busy, session, worker]
   )
-  const composerOpenForCurrent =
-    composerMode !== 'closed' && composerTarget?.sessionID === sessionId
+  const pendingRequestCount = (formsQuery.data?.length ?? 0) + (planReady !== undefined ? 1 : 0)
   const { collapsedIDs, allCollapsed, canToggleAll, toggleMessage, toggleAll } =
     useCollapsedMessages(sessionId ?? '', timelineMessages)
   const [infoOpen, setInfoOpen] = useState(
@@ -280,10 +274,6 @@ function ChatPageContent() {
     storedHasLocalDraft,
   ])
 
-  const adjustFromPlan = useCallback(() => {
-    if (!sessionId) return
-    openComposer({ target: { sessionID: sessionId, projectID: projectId } })
-  }, [openComposer, projectId, sessionId])
   const advanceInbox = useCallback(() => {
     if (inboxMonitor.active) inboxMonitor.advance(sessionId)
   }, [inboxMonitor, sessionId])
@@ -454,16 +444,8 @@ function ChatPageContent() {
             {draftCount > 0 && !busy && !worker && !isArchivedSession(session) && (
               <DraftStartPanel key={sessionId} sessionID={sessionId} count={draftCount} />
             )}
-            <FormPanel sessionID={sessionId} />
+            {worker && <FormPanel sessionID={sessionId} />}
             <PermissionPanel sessionID={sessionId} directory={directory} messages={allMessages} />
-            {planReady && !composerOpenForCurrent && (
-              <PlanReadyPanel
-                key={`${sessionId}:${planReady.id}`}
-                sessionID={sessionId}
-                onAdjustPlan={adjustFromPlan}
-                onStartWork={advanceInbox}
-              />
-            )}
 
             {messagesPending ? (
               <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
@@ -518,6 +500,7 @@ function ChatPageContent() {
               ready={messagesReady}
               empty={emptySession}
               hasDraft={hasLocalDraft}
+              requests={pendingRequestCount}
               worker={worker}
               onDone={() => {
                 if (inboxMonitor.active) {

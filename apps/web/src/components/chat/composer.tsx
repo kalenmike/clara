@@ -26,11 +26,17 @@ import {
 } from '@/components/ui/dropdown-menu'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { AgentPicker } from '@/components/chat/agent-picker'
-import { FormResponseAttachment } from '@/components/chat/form-response-attachment'
+import { ComposerRequestList } from '@/components/chat/composer-request-list'
 import { ModelPicker, VariantPicker } from '@/components/chat/model-picker'
 import { useAgents, useCommands, useReferences, useSkills } from '@/features/catalog/use-catalog'
 import type { ComposerMenuMode } from '@/features/chat/composer-menu'
-import { useComposer } from '@/features/chat/composer-provider'
+import {
+  initialFormAnswers,
+  resolveComposerSelection,
+  type ComposerRequestAnswers,
+  type ComposerRequestSelection,
+} from '@/features/chat/composer-requests'
+import { buildFormResponse } from '@/features/chat/form-response'
 import { isLocationRecoveryError } from '@/features/chat/location-recovery'
 import { useModelVisibility } from '@/features/models/use-model-visibility'
 import {
@@ -40,7 +46,13 @@ import {
   useSendPrompt,
   type PromptFile,
 } from '@/features/chat/use-chat'
-import { useReplyForm } from '@/features/chat/use-forms'
+import {
+  useRejectForm,
+  useReplyForm,
+  useSessionForms,
+  type FormAnswerValue,
+} from '@/features/chat/use-forms'
+import { useStartWork } from '@/features/chat/use-start-work'
 import { draftTitleFromText } from '@/features/sessions/draft-title'
 import { describeConnectionError } from '@/lib/client'
 import { readDraft, saveDraft } from '@/lib/storage'
@@ -66,6 +78,7 @@ export function Composer({
   agentRequest,
   menuMode,
   draft = false,
+  planReady,
   startText,
   startFiles,
   onDraftChange,
@@ -83,6 +96,7 @@ export function Composer({
   agentRequest: number
   menuMode: ComposerMenuMode
   draft?: boolean
+  planReady: boolean
   /** Text handed over by a forward action; local storage is the fallback. */
   startText?: string
   /** Attachments handed over by a forward action. */
@@ -92,10 +106,11 @@ export function Composer({
   onCycleAgent: (direction: 1 | -1) => void
 }) {
   const { client } = useConnection()
-  const { pendingForms, removePendingForms } = useComposer()
   const [text, setText] = useState(() => startText ?? readDraft(sessionID))
   const [files, setFiles] = useState<PromptFile[]>(() => startFiles ?? [])
   const [submittingForms, setSubmittingForms] = useState(false)
+  const [selection, setSelection] = useState<ComposerRequestSelection>(null)
+  const [formAnswers, setFormAnswers] = useState<ComposerRequestAnswers>({})
   const [activeIndex, setActiveIndex] = useState(0)
   const [dismissed, setDismissed] = useState(false)
   const [modelOpen, setModelOpen] = useState(false)
@@ -114,7 +129,10 @@ export function Composer({
   const runCommand = useRunCommand(sessionID)
   const saveAsDraft = useSaveDraft(sessionID)
   const replyForm = useReplyForm(sessionID)
+  const rejectForm = useRejectForm(sessionID)
   const cancelInbox = useCancelInbox(sessionID)
+  const formsQuery = useSessionForms(sessionID)
+  const startWork = useStartWork(sessionID)
 
   const commands = useMemo(() => commandsQuery.data ?? [], [commandsQuery.data])
   const agents = useMemo(
@@ -123,10 +141,35 @@ export function Composer({
   )
   const skills = useMemo(() => skillsQuery.data ?? [], [skillsQuery.data])
   const references = useMemo(() => referencesQuery.data ?? [], [referencesQuery.data])
-  const stagedForms = useMemo(
-    () => pendingForms.filter((response) => response.sessionID === sessionID),
-    [pendingForms, sessionID]
+  const forms = useMemo(() => formsQuery.data ?? [], [formsQuery.data])
+  const activeSelection = resolveComposerSelection(forms, planReady, selection)
+  const activeForm =
+    activeSelection !== null && activeSelection !== 'none' && activeSelection.kind === 'form'
+      ? forms.find((form) => form.id === activeSelection.formID)
+      : undefined
+  const activeFormResponse = useMemo(
+    () =>
+      activeForm
+        ? buildFormResponse(sessionID, activeForm, formAnswers[activeForm.id] ?? {})
+        : undefined,
+    [activeForm, formAnswers, sessionID]
   )
+
+  useEffect(() => {
+    setFormAnswers((current) => {
+      const next: ComposerRequestAnswers = {}
+      let changed = false
+      for (const form of forms) {
+        const existing = current[form.id]
+        next[form.id] = existing ?? initialFormAnswers(form.fields)
+        if (!existing) changed = true
+      }
+      for (const id of Object.keys(current)) {
+        if (!next[id]) changed = true
+      }
+      return changed ? next : current
+    })
+  }, [forms])
 
   const token = useMemo(() => {
     const match = /(^|\s)([/@])([^\s/@]*)$/.exec(text)
@@ -287,6 +330,24 @@ export function Composer({
     setSubmittingForms(false)
   }
 
+  const submitActiveForm = async (): Promise<boolean> => {
+    if (!activeFormResponse) return true
+    try {
+      await replyForm.mutateAsync({
+        formID: activeFormResponse.formID,
+        answer: activeFormResponse.answers,
+      })
+      return true
+    } catch (cause) {
+      releaseSend()
+      if (isLocationRecoveryError(cause)) return false
+      toast.error('Could not submit the form response', {
+        description: describeConnectionError(cause),
+      })
+      return false
+    }
+  }
+
   const send = async (delivery: 'steer' | 'queue') => {
     const value = text.trim()
     if (!value || disabled || storedModelHidden || sendRef.current) return
@@ -299,21 +360,7 @@ export function Composer({
       : undefined
 
     if (command) {
-      const submitted: string[] = []
-      try {
-        for (const form of stagedForms) {
-          await replyForm.mutateAsync({ formID: form.formID, answer: form.answers })
-          submitted.push(form.formID)
-        }
-      } catch (cause) {
-        removePendingForms(submitted)
-        releaseSend()
-        if (isLocationRecoveryError(cause)) return
-        toast.error('Could not submit the form response', {
-          description: describeConnectionError(cause),
-        })
-        return
-      }
+      if (!(await submitActiveForm())) return
 
       const [, ...rest] = value.slice(1).split(/\s+/)
       runCommand.mutate(
@@ -324,7 +371,6 @@ export function Composer({
             clear()
           },
           onError: (cause) => {
-            removePendingForms(submitted)
             releaseSend()
             if (isLocationRecoveryError(cause)) return
             toast.error('Could not run the command', {
@@ -336,7 +382,14 @@ export function Composer({
       return
     }
 
-    if (stagedForms.length === 0) {
+    if (activeSelection !== null && activeSelection !== 'none' && activeSelection.kind === 'plan') {
+      const started = await startWork.start({ text: value, files })
+      releaseSend()
+      if (started) clear()
+      return
+    }
+
+    if (!activeFormResponse) {
       sendPrompt.mutate(
         { text: value, files, delivery },
         {
@@ -370,14 +423,12 @@ export function Composer({
       return
     }
 
-    const submitted: string[] = []
     try {
-      for (const form of stagedForms) {
-        await replyForm.mutateAsync({ formID: form.formID, answer: form.answers })
-        submitted.push(form.formID)
-      }
+      await replyForm.mutateAsync({
+        formID: activeFormResponse.formID,
+        answer: activeFormResponse.answers,
+      })
     } catch (cause) {
-      removePendingForms(submitted)
       let cancelled = true
       try {
         await cancelInbox.mutateAsync(sent.id)
@@ -430,6 +481,53 @@ export function Composer({
         },
       }
     )
+  }
+
+  const submitForm = (formID: string) => {
+    if (disabled || replyForm.isPending || rejectForm.isPending) return
+    replyForm.mutate(
+      { formID, answer: formAnswers[formID] ?? {} },
+      {
+        onError: (cause) => {
+          if (isLocationRecoveryError(cause)) return
+          toast.error('Could not submit the form response', {
+            description: describeConnectionError(cause),
+          })
+        },
+      }
+    )
+  }
+
+  const skipForm = (formID: string) => {
+    if (disabled || replyForm.isPending || rejectForm.isPending) return
+    rejectForm.mutate(
+      { formID },
+      {
+        onError: (cause) => {
+          if (isLocationRecoveryError(cause)) return
+          toast.error('Could not skip the form', {
+            description: describeConnectionError(cause),
+          })
+        },
+      }
+    )
+  }
+
+  const startPlan = async () => {
+    if (disabled || sendRef.current) return
+    sendRef.current = true
+    const started = await startWork.start()
+    releaseSend()
+    if (started) clear()
+  }
+
+  const adjustPlan = () => {
+    setSelection('none')
+    requestAnimationFrame(() => textareaRef.current?.focus())
+  }
+
+  const updateFormAnswers = (formID: string, answers: Record<string, FormAnswerValue>) => {
+    setFormAnswers((current) => ({ ...current, [formID]: answers }))
   }
 
   const onKeyDown = (event: React.KeyboardEvent<HTMLTextAreaElement>) => {
@@ -489,8 +587,18 @@ export function Composer({
     runCommand.isPending ||
     saveAsDraft.isPending ||
     replyForm.isPending ||
+    rejectForm.isPending ||
+    startWork.pending ||
     submittingForms
   const canSend = text.trim().length > 0 && !pending && !disabled && !storedModelHidden
+  const sendHint =
+    activeForm != null
+      ? 'Send and answer the form'
+      : activeSelection !== null && activeSelection !== 'none' && activeSelection.kind === 'plan'
+        ? 'Send and start work'
+        : busy
+          ? 'Send and steer the active run'
+          : 'Send and start a run'
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
@@ -541,18 +649,23 @@ export function Composer({
           </div>
         )}
 
-        {(files.length > 0 || stagedForms.length > 0) && (
+        <ComposerRequestList
+          sessionID={sessionID}
+          forms={forms}
+          planReady={planReady}
+          selection={activeSelection}
+          answers={formAnswers}
+          pending={Boolean(disabled) || pending}
+          onSelectionChange={setSelection}
+          onAnswersChange={updateFormAnswers}
+          onSubmitForm={submitForm}
+          onSkipForm={skipForm}
+          onStartWork={() => void startPlan()}
+          onAdjustPlan={adjustPlan}
+        />
+
+        {files.length > 0 && (
           <div className="flex shrink-0 flex-wrap gap-1.5 border-b px-3 py-2 max-md:gap-2">
-            {stagedForms.map((response) => (
-              <FormResponseAttachment
-                key={response.formID}
-                response={response}
-                disabled={pending}
-                onRemove={() => {
-                  if (!pending) removePendingForms([response.formID])
-                }}
-              />
-            ))}
             {files.map((file, index) => (
               <Badge
                 key={`${file.name}-${index}`}
@@ -669,9 +782,7 @@ export function Composer({
                   Send
                 </Button>
               </TooltipTrigger>
-              <TooltipContent>
-                {busy ? 'Send and steer the active run' : 'Send and start a run'}
-              </TooltipContent>
+              <TooltipContent>{sendHint}</TooltipContent>
             </Tooltip>
 
             {menuMode && (

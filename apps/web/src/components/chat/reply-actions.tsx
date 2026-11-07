@@ -23,6 +23,7 @@ export function ReplyActions({
   ready,
   empty,
   hasDraft,
+  requests = 0,
   onDone,
   worker,
 }: {
@@ -33,6 +34,7 @@ export function ReplyActions({
   ready: boolean
   empty: boolean
   hasDraft: boolean
+  requests?: number
   onDone: () => void
   worker?: boolean
 }) {
@@ -51,6 +53,8 @@ export function ReplyActions({
   const canDeleteEmpty = canFinish && empty
   const canNew = canFinish && empty
   const canReopen = ready && !busy && (archived || snoozed)
+  const requestLabel =
+    requests > 0 ? `${requests} ${requests === 1 ? 'request' : 'requests'} waiting` : null
 
   useEffect(() => {
     const wasOpen = previousMode.current !== 'closed'
@@ -171,13 +175,24 @@ export function ReplyActions({
           onClick={openPanel}
           aria-haspopup="dialog"
           aria-expanded={false}
-          title={hasDraft ? 'Reply (draft saved)' : 'Reply'}
+          title={
+            requestLabel
+              ? `${requestLabel}${hasDraft ? ' · draft saved' : ''}`
+              : hasDraft
+                ? 'Reply (draft saved)'
+                : 'Reply'
+          }
           className="relative gap-2 rounded-full px-4 shadow-lg max-md:h-11"
         >
           <SquarePen className="size-4" />
           Reply
           {hasDraft && (
             <span className="absolute top-1 right-1 size-2 rounded-full bg-emerald-500 ring-2 ring-primary" />
+          )}
+          {requests > 0 && (
+            <span className="absolute -top-1.5 -right-1.5 flex h-5 min-w-5 items-center justify-center rounded-full bg-sky-500 px-1 text-[10px] font-semibold text-white ring-2 ring-background">
+              {requests > 9 ? '9+' : requests}
+            </span>
           )}
         </Button>
       )}
@@ -190,13 +205,24 @@ export function ReplyActions({
           onClick={openPanel}
           aria-haspopup="dialog"
           aria-expanded={false}
-          title={hasDraft ? 'New message (draft saved)' : 'New message'}
+          title={
+            requestLabel
+              ? `${requestLabel}${hasDraft ? ' · draft saved' : ''}`
+              : hasDraft
+                ? 'New message (draft saved)'
+                : 'New message'
+          }
           className="relative gap-2 rounded-full px-4 shadow-lg max-md:h-11"
         >
           <SquarePen className="size-4" />
           New
           {hasDraft && (
             <span className="absolute top-1 right-1 size-2 rounded-full bg-emerald-500 ring-2 ring-primary" />
+          )}
+          {requests > 0 && (
+            <span className="absolute -top-1.5 -right-1.5 flex h-5 min-w-5 items-center justify-center rounded-full bg-sky-500 px-1 text-[10px] font-semibold text-white ring-2 ring-background">
+              {requests > 9 ? '9+' : requests}
+            </span>
           )}
         </Button>
       )}
