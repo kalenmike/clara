@@ -32,9 +32,11 @@ request into a result.
    `clara_stage_gate`.
 9. The close stage records `result` and `artifacts`. Only the closer role can
    complete the request.
-10. Resolve any open decision with `clara_resolve`. When a decision, approval,
-    gate, stall, or budget needs a person, the daemon returns to the Clara
-    session that owns the request.
+10. Resolve any open decision with `clara_resolve`. If the human wants to stop a
+    request, Clara calls `clara_cancel`; that is terminal, clears the open
+    decisions and alerts, and the daemon launches no further stage. When a
+    decision, approval, gate, stall, or budget needs a person, the daemon returns
+    to the Clara session that owns the request.
 
 ## Feature boundary
 
@@ -76,8 +78,12 @@ delivery record.
    test-suite hash, cannot be replaced by a later stage.
 6. **Silence is never approval.** A decision defaults to `block` when nobody
    answers.
-7. **Only the closer closes work.** The close stage uses `role: "closer"`. A
-   worker can record progress and request review, never complete the request.
+7. **Only the closer closes accepted work.** The close stage uses
+   `role: "closer"`. A worker can record progress and request review, never
+   complete the request. The human may cancel any non-terminal request through
+   `clara_cancel`; cancellation belongs to Clara alone. When pipelines become
+   recursive, only the highest-level (human-facing) agent may cancel; worker and
+   sub-pipeline agents never receive that tool.
 8. **Human gates are recorded, not inferred.** `clara_gate` records a
    human-verification criterion; `clara_stage_gate` records a pipeline stage
    gate. The closer cannot verify either on the human's behalf.
@@ -112,6 +118,11 @@ delivery record.
   instead of closing.
 - A request is cancelled while a worker is running; the daemon interrupts that
   session on its next tick.
+- A human cancels a request with an open decision; the decision and its alert
+  are resolved instead of being delivered again.
+- A stage is recorded done but the ledger still asks for it; after the human
+  resolves the decision once, the daemon marks the request stalled instead of
+  reopening the same decision every tick.
 - The workspace path is missing when a stage is due; the daemon opens a decision
   instead of creating a session.
 - The host has no session API, or `daemon: false` / `CLARA_DAEMON=0` is set; the
@@ -196,7 +207,7 @@ delivery record.
 - Tools: `clara_submit`, `clara_attention`, `clara_inbox`, `clara_ask`,
   `clara_approve`, `clara_gate`, `clara_criteria`, `clara_stage_done`,
   `clara_stage_gate`, `clara_progress`, `clara_event`, `clara_decide`,
-  `clara_resolve`, `clara_tick`.
+  `clara_resolve`, `clara_cancel`, `clara_tick`.
 - `clara_ask` reports the pipeline/stage, criteria, evidence, progress, runs,
   human-gate status, and an event summary, so the closer never needs the
   filesystem or a shell.

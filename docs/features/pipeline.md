@@ -49,9 +49,12 @@ available on the home agent.
    agent. Clara validates the definition shape; a missing agent opens a decision
    when the stage is due. The pipelines Clara ships only name agents defined in
    `agents.json`, and the self-test checks that.
-8. **Only the closer closes.** The close stage must use `role: "closer"`. The
-   human approval and review gates remain the only way to bypass a stage
-   failure.
+8. **Only the closer closes accepted work.** The close stage must use
+   `role: "closer"`. The human approval and review gates remain the only way to
+   bypass a stage failure. Cancellation is a human override outside the
+   pipeline: only Clara may call `clara_cancel`, never a stage agent. When
+   pipelines become recursive, keep that privilege with the highest-level
+   (human-facing) agent.
 9. **The Settings catalog is read-only.** It shows the shipped presets and the
    custom files the home agent loaded, grouped by source. A custom file with the
    same id as a preset is shown beside the preset it replaces; requests already
