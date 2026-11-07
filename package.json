@@ -24,7 +24,9 @@
     "deploy:web": "pnpm --filter @clara/web run deploy",
     "deploy:relay": "pnpm --filter @clara/relay run deploy",
     "clara": "node scripts/clara.mjs",
-    "task": "node scripts/task.mjs"
+    "task": "node scripts/task.mjs",
+    "docker:orchestrator": "docker compose -f docker/compose.yml up -d --build orchestrator",
+    "docker:orchestrator:down": "docker compose -f docker/compose.yml down"
   },
   "devDependencies": {
     "@commitlint/cli": "^21.2.4",
