@@ -78,6 +78,7 @@ pnpm clara pass
 pnpm clara plugin install [--force]
 pnpm clara plugin uninstall [--purge]
 pnpm clara ledger <args...>
+pnpm clara lab [serve|check]
 ```
 
 Run `pnpm clara --help` for the command list and `pnpm clara <command> --help`
@@ -90,3 +91,20 @@ for one command. Run `pnpm clara ledger help` for the ledger CLI.
 
 Use these commands instead of calling the workspace scripts directly so that
 agents and developers share one command surface.
+
+## Pipeline development
+
+Pipeline authors work on the package files directly, then use Clara Lab to see
+what the compiler resolves:
+
+```bash
+pnpm clara lab                         # preview + probe in a browser
+pnpm dev:lab                           # Vite on :5175, lab server on :8791
+pnpm clara lab check --target std:software/feature
+pnpm clara lab check --json            # CI-friendly diagnostics
+```
+
+`check` exits non-zero on compile errors. It ignores warnings, so it can run in
+a pre-commit hook or CI without blocking on author feedback. The lab compiles
+the files on the host; keep the workspace mount identical when the orchestrator
+runs in a container. See [features/lab.md](features/lab.md).

@@ -9,6 +9,7 @@ WebSocket. This file is the contract for every AI agent working in this repo.
 ```text
 apps/web              React/Vite SPA (Cloudflare Pages)
 apps/panel            Read-only loopback agent dashboard
+apps/lab              Loopback pipeline preview and agent probe
 apps/server           Node home agent, local WS + outbound Cloudflare relay
 apps/orchestrator     Loopback orchestration service, REST/SSE/MCP
 apps/mcp              stdio MCP bridge to the orchestration service
@@ -18,6 +19,7 @@ packages/shared-types Wire frames, actions, states, pairing payloads
 packages/pipelines    Legacy JSON pipeline validation and catalog
 packages/policy       Step policy, budgets, and violation rules
 packages/orchestration Package loader, runtime, leases, and watchdog
+packages/devtools     Pipeline preview, diagnostics, and snapshot diff SDK
 packages/mcp-server   Shared MCP tools and resources
 packages/crypto       PSK derivation, AES-GCM envelopes, replay guard
 workers/relay         Cloudflare Worker + RelayRoom Durable Object
@@ -42,6 +44,7 @@ pnpm task session close <name> # Check, merge, and remove a task worktree
 pnpm dev            # Web on :5173 and the home agent on :8788
 pnpm dev:web        # Web only
 pnpm dev:panel      # Agent panel only
+pnpm dev:lab        # Clara Lab (Vite :5175, lab server :8791)
 pnpm dev:server     # Home agent only
 pnpm dev:relay      # Local wrangler dev for the Worker/DO
 pnpm build          # Build every workspace package
@@ -53,6 +56,8 @@ pnpm clara plugin install # Link the ledger plugin and render its agents
 pnpm clara plugin uninstall # Remove the plugin and generated agents
 pnpm clara ledger   # List or invoke the Clara ledger tools directly
 pnpm clara orchestration start|stop|status|serve # Run the orchestration service
+pnpm clara lab      # Open Clara Lab to preview pipelines and probe the agent
+pnpm clara lab check # Validate a package target for CI
 pnpm clara mcp install|config|status # Install or inspect the MCP bridge
 pnpm clara adapter install opencode # Install the OpenCode strict adapter
 pnpm typecheck      # tsc -b
@@ -209,6 +214,7 @@ docs(sessions): document archived session filters
 | E2EE, PSK, envelopes, rotation     | [docs/architecture/e2ee.md](docs/architecture/e2ee.md)           |
 | What ships and what does not       | [docs/features/capabilities.md](docs/features/capabilities.md)   |
 | Ledger plugin, agents, install     | [docs/features/ledger.md](docs/features/ledger.md)               |
+| Pipeline preview and agent probe   | [docs/features/lab.md](docs/features/lab.md)                     |
 | Pairing, QR codes, device storage  | [docs/features/pairing.md](docs/features/pairing.md)             |
 | Install, updates, offline caching  | [docs/features/install.md](docs/features/install.md)             |
 | Connection and credentials         | [docs/features/connection.md](docs/features/connection.md)       |

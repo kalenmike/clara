@@ -14,18 +14,22 @@ work orders and enforces strict policy.
    bridge start it on first use.
 2. Install the generic MCP entry with `pnpm clara mcp install`, or install the
    OpenCode strict adapter with `pnpm clara adapter install opencode`.
-3. In OpenCode, run `/pipeline <request>`. The installed command tells the
+3. Before handing a package to an agent, run `pnpm clara lab` to preview the
+   compiled target, inspect each rendered prompt and policy, and compare it with
+   a pinned run. The same console can then act as the agent and drive the run by
+   hand. See [lab.md](lab.md).
+4. In OpenCode, run `/pipeline <request>`. The installed command tells the
    agent to call `clara_start` with the full request and the current workspace.
    Any agent with the Clara tools can also call `clara_start` directly. The
    OpenCode adapter records its session as the run origin automatically; a
    generic MCP caller can pass `origin.session_id` explicitly.
-4. The service compiles and snapshots the pipeline, creates a run, and returns
+5. The service compiles and snapshots the pipeline, creates a run, and returns
    work orders. In conductor mode the adapter dispatches managed workers.
-5. Workers report results with `clara_complete`, failures with `clara_fail`,
+6. Workers report results with `clara_complete`, failures with `clara_fail`,
    router choices with `clara_route`, and dynamic fan-out with `clara_spawn`.
-6. The service advances immediately on completion. It opens alerts for
+7. The service advances immediately on completion. It opens alerts for
    failures, budget exhaustion, stalls, and needs-input events.
-7. The service records the root origin and exposes the run, alerts, and SSE
+8. The service records the root origin and exposes the run, alerts, and SSE
    events. Automatic delivery of the final result into the origin session is a
    known gap; use `clara_status` or `clara_inbox` until it lands.
 
@@ -181,6 +185,8 @@ docs:    assess_docs → update_docs → verify_docs → docs_review
   `clara_catalog`.
 - The OpenCode adapter dispatches managed workers through the current agent;
   a dedicated worker agent is a follow-up.
+- Clara Lab compiles the files on the host. A containerized service with a
+  different workspace mount can produce a different preview than the run.
 
 ## Technical appendix
 
@@ -190,7 +196,8 @@ docs:    assess_docs → update_docs → verify_docs → docs_review
 - Service: `apps/orchestrator`, loopback REST, SSE, and `/mcp`.
 - MCP bridge: `apps/mcp`, stdio, talks to the service over loopback HTTP.
 - Engine: `packages/orchestration`; policy: `packages/policy`; shared MCP tools:
-  `packages/mcp-server`; OpenCode adapter: `plugins/clara-policy`.
+  `packages/mcp-server`; OpenCode adapter: `plugins/clara-policy`; developer
+  preview and probe: `packages/devtools` and `apps/lab`.
 - Standard packages: `lib/std/software`, `lib/std/content`, and
   `lib/std/research`. The research pipeline scopes the question, gathers
   external sources, verifies every material claim against independent dated
@@ -201,7 +208,8 @@ docs:    assess_docs → update_docs → verify_docs → docs_review
 - Container: `docker compose -f docker/compose.yml up -d --build orchestrator`.
 - Commands: `pnpm clara orchestration start|stop|status|serve|token`,
   `pnpm clara mcp install|uninstall|config|status`,
-  `pnpm clara adapter install opencode|uninstall|status`.
+  `pnpm clara adapter install opencode|uninstall|status`,
+  `pnpm clara lab [serve|check]`.
 - OpenCode entry point: `/pipeline <request>` (installed by the MCP and adapter
   installers at `~/.config/opencode/commands/pipeline.md`).
 - MCP tools: `clara_start`, `clara_next`, `clara_complete`, `clara_fail`,
