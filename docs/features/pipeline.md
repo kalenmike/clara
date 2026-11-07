@@ -1,3 +1,6 @@
+> **Legacy.** This document describes the original OpenCode ledger plugin.
+> See [orchestration.md](orchestration.md) for the package-based service and MCP path.
+
 # Pipeline
 
 ## Summary
