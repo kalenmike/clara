@@ -32,6 +32,18 @@
     },
     "packages/orchestration": {
       "project": ["src/**/*.ts", "test/**/*.ts"]
+    },
+    "packages/mcp-server": {
+      "entry": ["src/index.ts"],
+      "project": ["src/**/*.ts"]
+    },
+    "apps/orchestrator": {
+      "entry": ["src/index.ts"],
+      "project": ["src/**/*.ts", "test/**/*.ts"]
+    },
+    "apps/mcp": {
+      "entry": ["src/index.ts"],
+      "project": ["src/**/*.ts", "test/**/*.ts"]
     }
   },
   "ignore": [

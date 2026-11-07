@@ -30,6 +30,15 @@
     },
     {
       "path": "./packages/orchestration"
+    },
+    {
+      "path": "./packages/mcp-server"
+    },
+    {
+      "path": "./apps/orchestrator"
+    },
+    {
+      "path": "./apps/mcp"
     }
   ]
 }
