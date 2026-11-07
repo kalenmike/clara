@@ -88,13 +88,17 @@ function tool(
   name: string,
   description: string,
   input: Record<string, unknown>,
-  execute: (input: Any, context: Any) => Promise<{ content: unknown }>
+  execute: (input: Any, context: Any) => Promise<{ content: string }>
 ) {
   return { name, description, input, execute, options: { namespace: NAMESPACE } }
 }
 
 function sessionID(context: Any): string | undefined {
   return typeof context?.sessionID === 'string' ? context.sessionID : undefined
+}
+
+function content(value: unknown): { content: string } {
+  return { content: typeof value === 'string' ? value : JSON.stringify(value, null, 2) }
 }
 
 function workspace(context: Any): string {
@@ -415,13 +419,11 @@ export default {
             })
             activeRuns.add(Number(started.run.id))
             const dispatched = await dispatchWork(started.work ?? [], context)
-            return {
-              content: {
-                run: started.run,
-                dispatched,
-                note: 'The pipeline is dispatched. Use clara_status to follow it; managed workers will report results.',
-              },
-            }
+            return content({
+              run: started.run,
+              dispatched,
+              note: 'The pipeline is dispatched. Use clara_status to follow it; managed workers will report results.',
+            })
           }
         )
       )
@@ -443,7 +445,7 @@ export default {
             const work = await call<Any[]>(config, 'POST', `/v1/runs/${input.run_id}/next`, {
               limit: input.limit ?? 1,
             })
-            return { content: await dispatchWork(work, context) }
+            return content(await dispatchWork(work, context))
           }
         )
       )
@@ -482,7 +484,7 @@ export default {
                 : {}),
             })
             if (id) active.delete(id)
-            return { content: response }
+            return content(response)
           }
         )
       )
@@ -521,7 +523,7 @@ export default {
                 : {}),
             })
             if (id) active.delete(id)
-            return { content: response }
+            return content(response)
           }
         )
       )
@@ -546,7 +548,7 @@ export default {
             const path = `/v1/runs/${input.run_id}/steps/${encodeURIComponent(input.step_path)}/route`
             const response = await call<Any>(config, 'POST', path, input)
             if (id) active.delete(id)
-            return { content: response }
+            return content(response)
           }
         )
       )
@@ -571,7 +573,7 @@ export default {
             const path = `/v1/runs/${input.run_id}/steps/${encodeURIComponent(input.step_path)}/spawn`
             const response = await call<Any>(config, 'POST', path, input)
             for (const child of response.children ?? []) activeRuns.add(Number(child.id))
-            return { content: response }
+            return content(response)
           }
         )
       )
@@ -586,7 +588,7 @@ export default {
             required: ['run_id'],
             additionalProperties: false,
           },
-          async (input: Any) => ({ content: await call(config, 'GET', `/v1/runs/${input.run_id}`) })
+          async (input: Any) => content(await call(config, 'GET', `/v1/runs/${input.run_id}`))
         )
       )
 
@@ -599,7 +601,7 @@ export default {
             properties: {},
             additionalProperties: false,
           },
-          async () => ({ content: await call(config, 'GET', '/v1/runs') })
+          async () => content(await call(config, 'GET', '/v1/runs'))
         )
       )
 
@@ -612,7 +614,7 @@ export default {
             properties: {},
             additionalProperties: false,
           },
-          async () => ({ content: await call(config, 'GET', '/v1/inbox') })
+          async () => content(await call(config, 'GET', '/v1/inbox'))
         )
       )
 
@@ -626,9 +628,8 @@ export default {
             required: ['alert_id'],
             additionalProperties: false,
           },
-          async (input: Any) => ({
-            content: await call(config, 'POST', `/v1/alerts/${input.alert_id}/ack`),
-          })
+          async (input: Any) =>
+            content(await call(config, 'POST', `/v1/alerts/${input.alert_id}/ack`))
         )
       )
 
@@ -642,11 +643,12 @@ export default {
             required: ['run_id'],
             additionalProperties: false,
           },
-          async (input: Any) => ({
-            content: await call(config, 'POST', `/v1/runs/${input.run_id}/cancel`, {
-              reason: input.reason ?? 'human',
-            }),
-          })
+          async (input: Any) =>
+            content(
+              await call(config, 'POST', `/v1/runs/${input.run_id}/cancel`, {
+                reason: input.reason ?? 'human',
+              })
+            )
         )
       )
 
@@ -659,7 +661,7 @@ export default {
             properties: {},
             additionalProperties: false,
           },
-          async () => ({ content: await call(config, 'POST', '/v1/tick') })
+          async () => content(await call(config, 'POST', '/v1/tick'))
         )
       )
 
@@ -681,14 +683,15 @@ export default {
             required: ['run_id', 'step_path', 'action'],
             additionalProperties: false,
           },
-          async (input: Any) => ({
-            content: await call(
-              config,
-              'POST',
-              `/v1/runs/${input.run_id}/steps/${encodeURIComponent(input.step_path)}/check`,
-              input
-            ),
-          })
+          async (input: Any) =>
+            content(
+              await call(
+                config,
+                'POST',
+                `/v1/runs/${input.run_id}/steps/${encodeURIComponent(input.step_path)}/check`,
+                input
+              )
+            )
         )
       )
 
@@ -701,13 +704,14 @@ export default {
             properties: { workspace: { type: 'string' } },
             additionalProperties: false,
           },
-          async (input: Any, context: Any) => ({
-            content: await call(
-              config,
-              'GET',
-              `/v1/catalog?workspace=${encodeURIComponent(input.workspace ?? workspace(context))}`
-            ),
-          })
+          async (input: Any, context: Any) =>
+            content(
+              await call(
+                config,
+                'GET',
+                `/v1/catalog?workspace=${encodeURIComponent(input.workspace ?? workspace(context))}`
+              )
+            )
         )
       )
     })
