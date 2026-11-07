@@ -73,6 +73,26 @@ describe('runtime', () => {
     expect(advanced.ready[0].name).toBe('create_spec')
   })
 
+  it('runs the bug lifecycle through a regression test before the fix', () => {
+    adapter()
+    const started = runtime.start({
+      workspace,
+      prompt: 'fix the bug',
+      target: 'std:software/bug',
+    })
+    expect(started.work[0].name).toBe('identify_bug')
+
+    const completed = runtime.complete(
+      started.run.id,
+      started.work[0].step_path,
+      started.work[0].work_token,
+      { root_cause: 'missing guard' }
+    )
+    expect(completed.ready.map((step) => step.name)).toContain('write_regression_test')
+    const next = runtime.next(started.run.id)
+    expect(next[0].name).toBe('write_regression_test')
+  })
+
   it('fails a step and retries it until the attempt limit', () => {
     const started = runtime.start({ workspace, prompt: 'patch', target: 'quick_patch' })
     const work = started.work[0]

@@ -39,6 +39,20 @@ describe('package loader', () => {
     expect(feature.hash).toMatch(/^sha256:[a-f0-9]{64}$/)
   })
 
+  it('compiles the bug lifecycle from reproduction to verification', () => {
+    const catalog = loadCatalog(config)
+    const bug = compileRun(catalog, 'std:software/bug')
+    expect(bug.root.kind).toBe('pipeline')
+    expect(bug.root.children?.map((step) => step.name)).toEqual([
+      'identify_bug',
+      'write_regression_test',
+      'fix_bug',
+      'verify_bug_fix',
+      'code_review',
+      'update_docs',
+    ])
+  })
+
   it('injects route criteria into router prompts', () => {
     const catalog = loadCatalog(config)
     const primary = compileRun(catalog)
