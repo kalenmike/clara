@@ -58,7 +58,9 @@ by default, and the noun is configurable in Settings.
     confirmation; the project record itself stays on the server. Below the card,
     a project settings card edits the icon, avatar color, and workspace startup
     script on the server. Below that, a sessions heading introduces the session
-    cards with agent, model, token totals, cost, and update time.
+    cards with agent, model, token totals, cost, and update time. Cost follows
+    the **Cost display** setting, so a card can show the reported amount or an
+    estimate marked with `~`.
 11. Opening a session shows it in the sidebar and loads the chat view, or a
     dedicated New message view when it has no messages and no pending draft.
 12. A **Monitor Inbox** switch on the start view, below **New Session**, jumps

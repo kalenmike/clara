@@ -150,7 +150,9 @@ See [fork.md](fork.md).
    uses a Zap avatar and the sender name **Automation** instead of `U` and
    **User**; this attribution is not gated by Clara management. Assistant
    headers show the model name and an agent chip with the bot icon. Token and
-   cost details appear in a muted footer under the content. With internal output
+   cost details appear in a muted footer under the content. Cost follows the
+   **Cost display** setting, so a footer can show the reported amount or an
+   estimate marked with `~`. With internal output
    on, every assistant step shows its own footer. With internal output off, the
    next visible reply absorbs the hidden steps before it and shows one combined
    footer: input and output tokens, cost, reasoning characters, tool calls, and

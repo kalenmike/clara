@@ -4,9 +4,10 @@
 
 The session info tab answers "how big is this conversation and what has it
 cost?" It shows context usage against the model limit, token breakdowns, message
-counts, timing, and the active model's limits. A Plan dock below the tabs renders
-the agent's todo checklist on every tab, so the plan stays visible while the
-person watches Git or the pair terminal. It shares the right panel with the
+counts, timing, and the active model's limits. Cost can be the amount OpenCode
+reports or an estimate calculated from model prices. A Plan dock below the tabs
+renders the agent's todo checklist on every tab, so the plan stays visible while
+the person watches Git or the pair terminal. It shares the right panel with the
 [Git](git.md) tab and the [pair terminal](pair-terminal.md).
 
 ## User flow
@@ -35,7 +36,9 @@ person watches Git or the pair terminal. It shares the right panel with the
    "Send your brief to view the plan" instead. A worker session keeps the Plan
    dock and both request actions even though its composer is hidden.
 5. Read context usage as a percentage and bar, then cost and the input, output,
-   reasoning, cache-read, and cache-write totals.
+   reasoning, cache-read, and cache-write totals. The cost follows the **Cost
+   display** setting in **Settings → Preferences**; estimated values are marked
+   with `~`.
 6. Read message counts: prompts from you, prompts from automation when present,
    replies from the agent, tool calls, and total context entries.
 7. Read session timing and the model's context and output limits.
@@ -46,7 +49,9 @@ person watches Git or the pair terminal. It shares the right panel with the
 1. Context usage uses the latest assistant message's tokens plus cache reads and
    writes, measured against the model's context limit.
 2. Cost and token totals prefer live usage events, then fall back to the session
-   record.
+   record. The **Cost display** setting chooses the reported cost or an estimate
+   from model prices. Estimated values are marked `~` and fall back to the
+   reported cost when the model has no price.
 3. Message counts come from the full session context, not the pages loaded in
    the chat. A user message with `metadata.synthetic === true` counts under
    **from automation**, never **from you**.
@@ -70,6 +75,11 @@ person watches Git or the pair terminal. It shares the right panel with the
    combined have arrived without one, or when the session stops being busy. A request is
    answered by the todo call itself, so the button can unlock before the run
    finishes.
+8. Estimated cost multiplies input, output, reasoning (at the output rate),
+   cache-read, and cache-write tokens by the model's price tier. The tier comes
+   from the latest request's context size, so tiered pricing does not treat the
+   whole session as one huge request. Per-message footers use each step's own
+   tier.
 
 ## Edge cases
 
@@ -78,6 +88,12 @@ person watches Git or the pair terminal. It shares the right panel with the
 - **Unknown model** — the limit row shows a dash and the bar stays at its minimum
   width.
 - **Context request fails** — counts show zero while cost and timing still render.
+- **Unknown model or missing price** — estimated mode falls back to the reported
+  cost, so the panel still shows a number.
+- **Free model** — estimated cost stays `$0.00`.
+- **Tiered or model-switched session** — the session total uses the latest
+  request's tier and the current model, so it is approximate; per-message
+  footers remain exact for their own step.
 - **Cache-heavy or huge session** — the percentage caps at 100 and counts are
   compacted (for example 1.2M).
 - **Session without an agent or model** — badges fall back to `build` and
@@ -109,6 +125,7 @@ person watches Git or the pair terminal. It shares the right panel with the
 ## Out of scope
 
 - Billing history, invoices, or provider dashboards
+- OpenCode Go allowance, remaining usage, or provider quota
 - Per-message or per-tool cost attribution
 - Exporting usage data
 - Comparing sessions side by side
@@ -120,6 +137,9 @@ person watches Git or the pair terminal. It shares the right panel with the
 
 - Context usage is an estimate: it sums input and cache tokens from the last
   assistant message rather than the server's internal context accounting.
+- Estimated cost is an estimate too: session totals use aggregate tokens and the
+  latest request's tier, and a session that switched models uses its current
+  model.
 - The panel does not show a breakdown of context by file or tool output.
 - Context entries are fetched whenever the panel opens, even for very large
   sessions, because the Plan dock falls back to the full session context when
@@ -151,6 +171,16 @@ person watches Git or the pair terminal. It shares the right panel with the
 - Context entries: `client.session.context({ sessionID })`
 - Models and limits: `client.model.list()`
 - Live usage: `session.usage.updated`, `session.step.ended`
+- Cost display: `src/features/cost/cost-display.ts` and
+  `src/features/cost/use-cost-display.ts`; stored in `clara.costDisplay`
+  (`actual` or `estimated`, default `actual`) and synced with the Preferences
+  category
+- Estimation: `src/features/cost/estimate.ts` and
+  `src/features/cost/use-session-cost.ts`
+- Estimate formula: input + output + reasoning at the output rate + cache read +
+  cache write, divided by 1,000,000; context tiers use input + cache read + write
+- Per-message cost: `src/features/chat/usage-summary.ts` and
+  `src/features/chat/timeline.ts`
 - Server prerequisite: OpenCode must enable `experimental.todo` before it
   registers the `todowrite` tool
 - Context percentages are clamped to 100 and never show a negative width.
