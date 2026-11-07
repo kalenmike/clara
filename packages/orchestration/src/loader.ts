@@ -585,10 +585,12 @@ function policyFromStep(
   return Object.keys(merged).length ? merged : undefined
 }
 
+type PromptSource = NonNullable<CompiledNode['promptSource']>
+
 function taskPrompt(
   pkg: LoadedPackage,
   step: StepDefinition
-): { task?: TaskDefinition; prompt: string } {
+): { task?: TaskDefinition; prompt: string; source: PromptSource } {
   const requested = step.task ?? step.name
   const task =
     pkg.tasks.get(requested) ??
@@ -600,7 +602,49 @@ function taskPrompt(
     task?.prompt ??
     step.description ??
     `Execute the pipeline step "${step.name}". Use the context provided by the orchestrator and return a concise result.`
-  return { ...(task ? { task } : {}), prompt }
+  const source: PromptSource = step.prompt
+    ? 'step'
+    : task?.prompt
+      ? 'task'
+      : step.description
+        ? 'description'
+        : 'fallback'
+  return { ...(task ? { task } : {}), prompt, source }
+}
+
+const STEP_FIELDS = [
+  'model',
+  'policy',
+  'limits',
+  'enforcement',
+  'background',
+  'retries',
+  'permissions',
+  'requires',
+  'strategy',
+  'routes',
+  'path',
+  'task',
+  'ref',
+] as const
+
+const PIPELINE_FIELDS = [
+  'default_model',
+  'policy',
+  'limits',
+  'enforcement',
+  'requires',
+  'notification',
+] as const
+
+const ROUTER_FIELDS = ['strategy', 'policy', 'limits', 'enforcement', 'requires'] as const
+
+function declaredFields(raw: Record<string, unknown>, keys: readonly string[]): string[] {
+  return keys.filter((key) => raw[key] !== undefined)
+}
+
+function mergeDeclared(...groups: Array<string[] | undefined>): string[] {
+  return [...new Set(groups.flatMap((group) => group ?? []))]
 }
 
 function routerForStep(pkg: LoadedPackage, step: StepDefinition, path: string): RouterDefinition {
@@ -643,16 +687,20 @@ function compileStep(
   stack: Set<string>,
   inheritedModel?: string,
   inheritedPolicy?: StepPolicy,
-  inheritedLimits?: Limits
+  inheritedLimits?: Limits,
+  inheritedSource?: string
 ): CompiledNode {
   const model = step.model ?? inheritedModel ?? pkg.manifest.defaults?.model
   const policy = policyFromStep(step, undefined, inheritedPolicy)
   const limits = step.limits ?? inheritedLimits
   const enforcement = step.enforcement ?? pkg.manifest.defaults?.enforcement
+  const source = step.source ?? inheritedSource
   const base = {
     path,
     name: step.name,
     title: step.title ?? step.name,
+    packageId: pkg.manifest.id,
+    declared: declaredFields(step as unknown as Record<string, unknown>, STEP_FIELDS),
     ...(step.description ? { description: step.description } : {}),
     ...(model ? { model } : {}),
     ...(policy ? { policy } : {}),
@@ -661,7 +709,7 @@ function compileStep(
     ...(step.requires ? { requires: step.requires } : {}),
     ...(step.background !== undefined ? { background: step.background } : {}),
     ...(step.retries ? { retries: step.retries } : {}),
-    ...(step.source ? { source: step.source } : {}),
+    ...(source ? { source } : {}),
   }
 
   if (step.type === 'task') {
@@ -670,6 +718,9 @@ function compileStep(
       ...base,
       kind: 'task',
       prompt: resolved.prompt,
+      promptSource: resolved.source,
+      ...(resolved.task ? { task: resolved.task.name } : {}),
+      ...(resolved.task?.source ? { source: resolved.task.source } : {}),
       ...(resolved.task?.model && !model ? { model: resolved.task.model } : {}),
       ...(policyFromStep(step, resolved.task, inheritedPolicy)
         ? { policy: policyFromStep(step, resolved.task, inheritedPolicy) }
@@ -689,6 +740,10 @@ function compileStep(
       return {
         ...target,
         path,
+        declared: mergeDeclared(
+          target.declared,
+          declaredFields(step as unknown as Record<string, unknown>, STEP_FIELDS)
+        ),
         ...(step.background !== undefined ? { background: step.background } : {}),
         ...(step.model ? { model: step.model } : {}),
         ...(step.policy ? { policy: policyFromStep(step, undefined, target.policy) } : {}),
@@ -702,7 +757,16 @@ function compileStep(
       ...base,
       kind: 'group',
       children: step.steps.map((child, index) =>
-        compileStep(pkg, child, `${path}/${index + 1}-${child.name}`, stack, model, policy, limits)
+        compileStep(
+          pkg,
+          child,
+          `${path}/${index + 1}-${child.name}`,
+          stack,
+          model,
+          policy,
+          limits,
+          base.source
+        )
       ),
     }
   }
@@ -713,7 +777,16 @@ function compileStep(
       ...base,
       kind: 'group',
       children: step.steps.map((child, index) =>
-        compileStep(pkg, child, `${path}/${index + 1}-${child.name}`, stack, model, policy, limits)
+        compileStep(
+          pkg,
+          child,
+          `${path}/${index + 1}-${child.name}`,
+          stack,
+          model,
+          policy,
+          limits,
+          base.source
+        )
       ),
     }
   }
@@ -731,6 +804,8 @@ function compileStep(
     ...base,
     kind: 'router',
     prompt: renderRouterPrompt(router.instructions, router.routes),
+    promptSource: 'router',
+    ...(router.source ? { source: router.source } : {}),
     routes,
     ...(router.strategy ? { strategy: router.strategy } : {}),
     ...(router.policy ? { policy: policyFromStep(step, undefined, router.policy) } : {}),
@@ -756,6 +831,8 @@ function compilePipeline(
     kind: 'pipeline',
     name: pipeline.id,
     title: pipeline.name,
+    packageId: pkg.manifest.id,
+    declared: declaredFields(pipeline as unknown as Record<string, unknown>, PIPELINE_FIELDS),
     ...(pipeline.description ? { description: pipeline.description } : {}),
     ...((pipeline.default_model ?? pkg.manifest.defaults?.model)
       ? { model: pipeline.default_model ?? pkg.manifest.defaults?.model }
@@ -774,7 +851,8 @@ function compilePipeline(
         stack,
         pipeline.default_model ?? pkg.manifest.defaults?.model,
         pipeline.policy,
-        pipeline.limits
+        pipeline.limits,
+        pipeline.source
       )
     ),
     ...(pipeline.source ? { source: pipeline.source } : {}),
@@ -801,7 +879,10 @@ function compileEntry(pkg: LoadedPackage, path: string, stack: Set<string>): Com
       kind: 'router',
       name: router.id,
       title: router.id,
+      packageId: pkg.manifest.id,
+      declared: declaredFields(router as unknown as Record<string, unknown>, ROUTER_FIELDS),
       prompt: renderRouterPrompt(router.instructions, router.routes),
+      promptSource: 'router',
       routes,
       ...(router.description ? { description: router.description } : {}),
       ...(router.strategy ? { strategy: router.strategy } : {}),

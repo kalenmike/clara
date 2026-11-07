@@ -41,6 +41,13 @@ describe('package loader', () => {
     ])
     expect(feature.root.children?.[0].policy?.rules?.[0].effect).toBe('deny')
     expect(feature.hash).toMatch(/^sha256:[a-f0-9]{64}$/)
+    expect(feature.root.packageId).toBe('software')
+    expect(feature.root.declared).toEqual(expect.arrayContaining(['default_model', 'enforcement']))
+    const first = feature.root.children?.[0]
+    expect(first?.packageId).toBe('software')
+    expect(first?.task).toBe('create_spec')
+    expect(first?.promptSource).toBe('task')
+    expect(first?.source).toContain('/tasks/create_spec.md')
   })
 
   it('compiles the bug lifecycle from reproduction to verification', () => {

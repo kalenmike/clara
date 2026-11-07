@@ -162,6 +162,10 @@ export interface CompiledNode {
   title: string
   description?: string
   prompt?: string
+  /** Where a task prompt came from, so previews can flag generated fallbacks. */
+  promptSource?: 'step' | 'task' | 'description' | 'fallback' | 'router'
+  /** Matched task file, when the step resolved through a task document. */
+  task?: string
   model?: string
   policy?: StepPolicy
   limits?: Limits
@@ -173,6 +177,10 @@ export interface CompiledNode {
   children?: CompiledNode[]
   routes?: CompiledRoute[]
   source?: string
+  /** Package that owns this node's definition. */
+  packageId?: string
+  /** Fields declared directly on this node, as opposed to inherited defaults. */
+  declared?: string[]
 }
 
 export interface CompiledRun {
