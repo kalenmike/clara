@@ -162,12 +162,7 @@ describe('runtime', () => {
       const background = tempRuntime.next(started.run.id)[0]
       expect(background.name).toBe('background_task')
       expect(background.background).toBe(true)
-      tempRuntime.complete(
-        started.run.id,
-        background.step_path,
-        background.work_token,
-        'risks'
-      )
+      tempRuntime.complete(started.run.id, background.step_path, background.work_token, 'risks')
       const inline = tempRuntime.next(started.run.id)[0]
       expect(inline.name).toBe('inline_task')
     } finally {
