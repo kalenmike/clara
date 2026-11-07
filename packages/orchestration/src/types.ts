@@ -6,6 +6,7 @@ export type RouterStrategy = 'llm_classify' | 'fixed'
 export interface RouteDefinition {
   when: string
   run: string
+  criteria?: string
   description?: string
 }
 
@@ -149,6 +150,7 @@ export interface LoadedCatalog {
 export interface CompiledRoute {
   when: string
   run: string
+  criteria?: string
   description?: string
   target?: CompiledNode
 }

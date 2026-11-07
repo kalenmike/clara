@@ -18,11 +18,17 @@ limits:
     absolute_max: 10000
 routes:
   - when: feature
+    criteria: new work.
     run: feature
   - when: bug
+    criteria: a regression.
     run: bug
 ---
 
 # Example router
 
-Choose `feature` for new work or `bug` for a regression. Return only the route key.
+Choose exactly one route from the work order.
+
+[ROUTES]
+
+Return only the route key.

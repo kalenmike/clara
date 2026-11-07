@@ -22,8 +22,6 @@ limits:
 
 Choose exactly one route from the work order.
 
-- `feature` — new capability or a substantial change.
-- `bug` — a regression or hotfix.
-- `example` — a small demonstration pipeline with a nested task group.
+[ROUTES]
 
 Return only the route key and a one-sentence reason. Do not edit files or run commands.

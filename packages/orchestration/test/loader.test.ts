@@ -1,3 +1,6 @@
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { describe, expect, it } from 'vitest'
 import { catalogSummary, compileRun, loadCatalog } from '../src/index.ts'
@@ -34,6 +37,57 @@ describe('package loader', () => {
     expect(feature.hash).toMatch(/^sha256:[a-f0-9]{64}$/)
   })
 
+  it('injects route criteria into router prompts', () => {
+    const catalog = loadCatalog(config)
+    const primary = compileRun(catalog)
+    expect(primary.root.prompt).toContain(
+      '- `software-development` — a normal software feature, bug, or example request.'
+    )
+    expect(primary.root.prompt).not.toContain('[ROUTES]')
+
+    const software = compileRun(catalog, 'std:software')
+    const feature = software.root.routes?.find((route) => route.when === 'feature')
+    expect(feature?.criteria).toBe('new capability or a substantial change.')
+    expect(software.root.prompt).toContain('- `feature` — new capability or a substantial change.')
+    expect(software.root.prompt).not.toContain('[ROUTES]')
+  })
+
+  it('appends routes when the router prompt has no placeholder', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'clara-router-'))
+    try {
+      mkdirSync(join(dir, 'routers'))
+      writeFileSync(
+        join(dir, 'index.yml'),
+        [
+          'id: temp',
+          'name: Temp',
+          'version: 1',
+          'entry:',
+          '  router: classifier',
+          'router:',
+          '  id: classifier',
+          '  path: ./routers/classifier.md',
+          '  routes:',
+          '    - when: one',
+          '      criteria: first option.',
+          '      run: one',
+          'pipelines:',
+          '  one:',
+          '    steps:',
+          '      - name: do_it',
+          '        type: task',
+        ].join('\n')
+      )
+      writeFileSync(join(dir, 'routers', 'classifier.md'), '# Temp router\n\nPick one.')
+      const run = compileRun(loadCatalog(dir))
+      expect(run.root.kind).toBe('router')
+      expect(run.root.prompt).toContain('## Routes')
+      expect(run.root.prompt).toContain('- `one` — first option.')
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
+
   it('compiles a local pipeline and fails closed on a missing import', () => {
     const catalog = loadCatalog(config)
     expect(compileRun(catalog, 'quick_patch').root.kind).toBe('pipeline')
@@ -49,6 +103,8 @@ describe('package loader', () => {
     const router = example.root.children?.find((step) => step.name === 'task_router')
     expect(router?.kind).toBe('router')
     expect(router?.routes?.every((route) => route.target)).toBe(true)
+    expect(router?.prompt).toContain('- `feature` — new work.')
+    expect(router?.prompt).not.toContain('[ROUTES]')
     expect(example.snapshot).toContain('background_task')
   })
 

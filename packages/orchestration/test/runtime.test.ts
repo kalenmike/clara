@@ -57,6 +57,13 @@ describe('runtime', () => {
       'bug',
       'example',
     ])
+    expect(started.work[0].prompt).toContain(
+      '- `feature` — new capability or a substantial change.'
+    )
+    expect(started.work[0].prompt).not.toContain('[ROUTES]')
+    expect(started.work[0].routes?.find((route) => route.when === 'feature')?.criteria).toBe(
+      'new capability or a substantial change.'
+    )
     const advanced = runtime.route(
       started.run.id,
       started.work[0].step_path,

@@ -16,8 +16,11 @@ router:
   path: ./routers/classifier.md
   routes:
     - when: feature
+      criteria: new capability or a substantial change.
       run: feature
     - when: bug
+      criteria: a regression or hotfix.
       run: bug
     - when: example
+      criteria: a small demonstration pipeline with a nested task group.
       run: example
