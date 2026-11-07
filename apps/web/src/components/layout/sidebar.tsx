@@ -46,6 +46,7 @@ import { useSessionPolicy } from '@/features/notifications/session-policy'
 import { isArchivedSession } from '@/features/sessions/session-archive'
 import { groupSessionsByMailbox } from '@/features/sessions/session-sections'
 import { isSnoozedSession } from '@/features/sessions/session-snooze'
+import { isSessionUnread } from '@/features/sessions/session-unread'
 import { useSessionMailboxSignals } from '@/features/sessions/use-session-mailbox'
 import {
   useActiveSessions,
@@ -302,6 +303,7 @@ export function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
           blocked={attention === 'question'}
           error={section.id === 'inbox' && attention === 'error'}
           planReady={section.id === 'inbox' && attention === 'plan'}
+          unread={section.id === 'inbox' && isSessionUnread(session)}
           onNavigate={onNavigate}
         />
       )

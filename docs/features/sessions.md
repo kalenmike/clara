@@ -26,7 +26,8 @@ by default, and the noun is configurable in Settings.
 4. Inbox holds sessions that need the person: a pending approval or question,
    or an idle session whose latest conversational message is from the agent.
    Outbox holds sessions where the agent still owes a reply, including every
-   running session.
+   running session. Unread Inbox sessions use a heavier title weight until the
+   person opens them.
 5. Drafts holds empty sessions and sessions with a saved no-reply draft that
    has not produced a projected message yet. Snoozed holds sessions postponed
    with the server's `snoozed` metadata. Archived holds sessions archived on the
@@ -102,7 +103,8 @@ by default, and the noun is configurable in Settings.
    when a finished Plan reply is waiting for Steer or Build, and a grey dot for
    an idle session to review and close. The error dot is reserved for failed
    last messages; it does not apply to older errors already followed by a reply.
-   These states also drive Inbox alerts; see
+   Unread Inbox sessions use a heavier title weight; opening the chat marks the
+   newest completed turn viewed. These states also drive Inbox alerts; see
    [notifications](notifications.md).
 5. Inbox, Outbox, and Drafts combine the latest `user` or `assistant` message
    with live run state. A pending permission or form request puts the session in
@@ -436,6 +438,11 @@ metadata, delivery: 'steer' })`
 - Session wording: `clara.sessionWording` in `localStorage` (default `Brief`;
   custom singular word, plural derived automatically)
 - Inbox alerts: see [notifications](notifications.md)
+- Unread Inbox sessions: `isSessionUnread` in
+  `src/features/sessions/session-unread.ts` (`time.idle` newer than
+  `time.viewed`); `useMarkSessionViewed` calls
+  `client.session.view({ sessionID, idle })` while the chat is visible and
+  focused, and `session.viewed` invalidates the session queries
 - Section state: `clara.sidebarSections` in `localStorage`
 - Sidebar width: `clara.sidebarWidth` in `localStorage` (clamped to 208–480px,
   default 288px)

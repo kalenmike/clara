@@ -14,6 +14,7 @@ export function SidebarSessionRow({
   blocked,
   error,
   planReady,
+  unread,
   onNavigate,
 }: {
   session: SessionInfo
@@ -24,6 +25,7 @@ export function SidebarSessionRow({
   blocked: boolean
   error: boolean
   planReady: boolean
+  unread: boolean
   onNavigate?: () => void
 }) {
   const { lowerSingular } = useSessionWording()
@@ -53,7 +55,12 @@ export function SidebarSessionRow({
         )}
       </span>
       <span className="min-w-0 flex-1">
-        <span className="block truncate text-sm font-medium md:text-xs">
+        <span
+          className={cn(
+            'block truncate text-sm md:text-xs',
+            unread ? 'font-semibold' : 'font-medium'
+          )}
+        >
           {session.title || `Untitled ${lowerSingular}`}
         </span>
         <span className="mt-0.5 flex items-center gap-1.5 text-xs text-muted-foreground md:text-[10px]">
