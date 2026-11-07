@@ -14,6 +14,7 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { AgentCard } from '@/components/settings/agent-card'
 import { AppCard } from '@/components/settings/app-card'
+import { CostCard } from '@/components/settings/cost-card'
 import { ModelsCard } from '@/components/settings/models-card'
 import { NotificationsCard } from '@/components/settings/notifications-card'
 import { PipelinesCard } from '@/components/settings/pipelines-card'
@@ -154,6 +155,7 @@ export function SettingsPage() {
         <TabsContent value="preferences" className="space-y-4">
           <AgentCard />
           <WordingCard />
+          <CostCard />
         </TabsContent>
 
         {showPipelines && (

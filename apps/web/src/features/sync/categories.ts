@@ -24,7 +24,7 @@ export const SYNC_CATEGORY_INFO: SyncCategoryInfo[] = [
   {
     id: 'preferences',
     label: 'Preferences',
-    description: 'Default agent, last used agent, and session wording.',
+    description: 'Default agent, last used agent, session wording, and cost display.',
   },
   {
     id: 'models',
