@@ -8,6 +8,9 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
+import { useModels } from '@/features/catalog/use-catalog'
+import { estimateSessionCost, resolveDisplayCost } from '@/features/cost/estimate'
+import { useCostDisplay } from '@/features/cost/use-cost-display'
 import { projectLabel } from '@/features/projects/project-list'
 import { useProjectReconciliation } from '@/features/projects/use-project-reconciliation'
 import { canonicalProject, useProjects } from '@/features/projects/use-projects'
@@ -25,6 +28,8 @@ export function SessionsPage() {
   const project = useMemo(() => canonicalProject(projects, projectId), [projectId, projects])
   const sessionsQuery = useSessions(project?.id ?? null, '')
   const activeQuery = useActiveSessions()
+  const modelsQuery = useModels()
+  const { source: costSource } = useCostDisplay()
   const { plural, lowerSingular, lowerPlural } = useSessionWording()
 
   const sessions = sessionsQuery.data?.data ?? []
@@ -109,6 +114,15 @@ export function SessionsPage() {
         <div className="grid gap-3 sm:grid-cols-2">
           {sessions.map((session) => {
             const active = Boolean(activeQuery.data?.[session.id])
+            const displayCost = resolveDisplayCost(
+              session.cost,
+              costSource === 'estimated'
+                ? estimateSessionCost(session.tokens, session.model, modelsQuery.data, {
+                    tierContextTokens: 0,
+                  })
+                : undefined,
+              costSource
+            )
             return (
               <Link key={session.id} to={`/p/${project.id}/s/${session.id}`} className="group">
                 <Card className="h-full gap-3 py-4 transition-colors group-hover:border-foreground/25">
@@ -140,7 +154,11 @@ export function SessionsPage() {
                         {formatTokens(session.tokens.input)} in ·{' '}
                         {formatTokens(session.tokens.output)} out
                       </span>
-                      <span>{formatCost(session.cost)}</span>
+                      <span
+                        title={displayCost.estimated ? 'Estimated from model prices' : undefined}
+                      >
+                        {formatCost(displayCost.value, { estimated: displayCost.estimated })}
+                      </span>
                       <span>{formatRelativeTime(session.time.updated)}</span>
                     </div>
                   </CardContent>

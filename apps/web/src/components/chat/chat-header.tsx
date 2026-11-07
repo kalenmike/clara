@@ -39,6 +39,7 @@ import {
 } from '@/components/ui/dropdown-menu'
 import { Input } from '@/components/ui/input'
 import { useCompactSession, useInterruptSession } from '@/features/chat/use-chat'
+import { useSessionCost } from '@/features/cost/use-session-cost'
 import { isArchivedSession } from '@/features/sessions/session-archive'
 import { isSnoozedSession } from '@/features/sessions/session-snooze'
 import {
@@ -97,6 +98,7 @@ export function ChatHeader({
   const busy = snapshot.status.type !== 'idle'
   const archived = session != null && isArchivedSession(session)
   const snoozed = session != null && isSnoozedSession(session)
+  const cost = useSessionCost(session, snapshot)
 
   const toggleSnooze = () => {
     if (!session) return
@@ -241,7 +243,9 @@ export function ChatHeader({
         </button>
         <div className="flex items-center gap-2 text-[10px] text-muted-foreground">
           <span className={cn(busy && 'text-emerald-500')}>{statusLabel(snapshot)}</span>
-          <span>· {formatCost(snapshot.cost || session?.cost)}</span>
+          <span title={cost.estimated ? 'Estimated from model prices' : undefined}>
+            · {formatCost(cost.value, { estimated: cost.estimated })}
+          </span>
           <span className="hidden sm:inline">
             · {formatTokens((snapshot.tokens ?? session?.tokens)?.input)} in /{' '}
             {formatTokens((snapshot.tokens ?? session?.tokens)?.output)} out

@@ -39,7 +39,8 @@ prices, and variants so people can decide what to keep.
    switch is on.
 5. A model is **Free** when every cost tier has zero input, output, cache read,
    and cache write prices. An empty cost list is also free. Any positive price
-   makes the model **Paid**.
+   makes the model **Paid**. The **Cost display** setting uses these same price
+   entries, including context tiers, when it estimates usage.
 6. Hidden models disappear from the composer picker and variant menu. New or
    forwarded sessions do not inherit a hidden model.
 7. A session already stored on a hidden model opens with **No model** attached.

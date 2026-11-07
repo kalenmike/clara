@@ -12,12 +12,12 @@ detail rows that most people leave alone.
 1. Open **Settings** from the sidebar or the home screen.
 2. The page opens on **Appearance**, where the light/dark/system mode and color
    theme live.
-3. Use the tabs to reach **Preferences** for session wording and the default
-   agent, **Pipelines** for the built-in and custom request workflows,
-   **Models** for provider and model visibility, **Notifications** for alerts and
-   sounds, **Sync** for per-category settings sync, **Shortcuts** for the
-   keyboard reference, and **Advanced** for the server connection and app build.
-   On narrow screens the tab strip becomes a section menu.
+3. Use the tabs to reach **Preferences** for session wording, the default
+   agent, and cost display, **Pipelines** for the built-in and custom request
+   workflows, **Models** for provider and model visibility, **Notifications** for
+   alerts and sounds, **Sync** for per-category settings sync, **Shortcuts** for
+   the keyboard reference, and **Advanced** for the server connection and app
+   build. On narrow screens the tab strip becomes a section menu.
 4. In **Pipelines**, expand a pipeline to see its ordered stages. Open a stage to
    read its instructions, evidence, gate, and condition. The catalog is
    read-only.
@@ -58,6 +58,10 @@ detail rows that most people leave alone.
    pipelines from Settings is not available yet.
 8. Every remaining control behaves the same as before. Simplification is a view
    filter, not a second settings model.
+9. The **Cost display** choice is stored locally under `clara.costDisplay`,
+   defaults to **Actual**, and is part of the Preferences sync category. It
+   controls whether every cost surface shows the reported amount or an estimate
+   from model prices.
 
 ## Edge cases
 
@@ -87,6 +91,8 @@ detail rows that most people leave alone.
   validation errors instead of an expandable stage list.
 - **Older stored values** — a missing or unknown simplify value counts as on;
   no migration is needed.
+- **Cost display value unknown** — an absent or invalid `clara.costDisplay`
+  value counts as **Actual**; a synced value applies like any other preference.
 
 ## Out of scope
 
@@ -107,6 +113,10 @@ detail rows that most people leave alone.
 - Simplify storage: `clara.simplifySettings` (`on` or `off`; missing means on)
 - Simplify module: `src/features/settings/simplify-settings.ts` and
   `src/features/settings/use-simplify-settings.ts`
+- Cost display card: `src/components/settings/cost-card.tsx`
+- Cost display storage: `clara.costDisplay` (`actual` or `estimated`; missing
+  means `actual`), module in `src/features/cost/cost-display.ts`
+- Cost estimation: `src/features/cost/estimate.ts`
 - Filter control: `src/components/settings/settings-filter.tsx`
 - Page and tabs: `src/pages/settings-page.tsx`
 - Pipelines card: `src/components/settings/pipelines-card.tsx`

@@ -113,7 +113,7 @@ at all and how often clients check for changes.
 - Categories and keys:
   - Theme: `clara.theme`, `clara.colorTheme`
   - Preferences: `clara.defaultAgent`, `clara.lastAgent`,
-    `clara.sessionWording`
+    `clara.sessionWording`, `clara.costDisplay`
   - Models: `clara.hiddenModels`
   - Notifications: `clara.notifications` (sounds, UI sounds, volume,
     `soundKinds`, `deskIdleMs` only)

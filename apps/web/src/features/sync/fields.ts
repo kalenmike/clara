@@ -13,6 +13,11 @@ import {
   type NotificationSettings,
 } from '@/features/notifications/settings'
 import {
+  COST_DISPLAY_KEY,
+  isCostDisplaySource,
+  saveCostDisplay,
+} from '@/features/cost/cost-display'
+import {
   HIDDEN_MODELS_KEY,
   normalizeHiddenModels,
   readHiddenModels,
@@ -159,6 +164,21 @@ function wordingField(): SyncField {
   }
 }
 
+function costDisplayField(): SyncField {
+  return {
+    key: COST_DISPLAY_KEY,
+    read: () => {
+      const value = readRaw(COST_DISPLAY_KEY)
+      return isCostDisplaySource(value) ? value : null
+    },
+    apply: (value) => {
+      if (!isCostDisplaySource(value)) return false
+      saveCostDisplay(value)
+      return true
+    },
+  }
+}
+
 function hiddenModelsField(): SyncField {
   return {
     key: HIDDEN_MODELS_KEY,
@@ -298,7 +318,7 @@ function inboxMonitorField(overrides: SyncFieldOverrides): SyncField {
 export function buildSyncFields(overrides: SyncFieldOverrides = {}): SyncFieldGroups {
   return {
     theme: [themeModeField(overrides), colorThemeField()],
-    preferences: [defaultAgentField(), lastAgentField(), wordingField()],
+    preferences: [defaultAgentField(), lastAgentField(), wordingField(), costDisplayField()],
     models: [hiddenModelsField()],
     notifications: [notificationsField()],
     project: [lastProjectField(), showEmptyProjectsField()],

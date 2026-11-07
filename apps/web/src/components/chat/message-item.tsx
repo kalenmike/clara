@@ -26,6 +26,7 @@ import { ToolCard } from '@/components/chat/tool-card'
 import { isSyntheticMessage } from '@/features/chat/message-attribution'
 import { assistantHasContent, assistantHasFailed } from '@/features/chat/message-visibility'
 import { formatUsageSummary, type UsageSummary } from '@/features/chat/usage-summary'
+import type { DisplayCost } from '@/features/cost/estimate'
 import { formatCost, formatDateTime, formatRelativeTime, formatTokens } from '@/lib/format'
 import { cn } from '@/lib/utils'
 
@@ -46,6 +47,7 @@ export function MessageItem({
   streaming,
   showInternal,
   usageSummary,
+  displayCost,
   collapsed = false,
   actions,
   onToggle,
@@ -54,6 +56,7 @@ export function MessageItem({
   streaming: boolean
   showInternal: boolean
   usageSummary?: UsageSummary
+  displayCost?: DisplayCost
   collapsed?: boolean
   actions?: MessageItemActions
   onToggle?: () => void
@@ -75,6 +78,7 @@ export function MessageItem({
           streaming={streaming}
           showInternal={showInternal}
           usageSummary={usageSummary}
+          displayCost={displayCost}
           collapsed={collapsed}
           actions={actions}
           onToggle={onToggle}
@@ -260,6 +264,7 @@ function AssistantMessage({
   streaming,
   showInternal,
   usageSummary,
+  displayCost,
   collapsed,
   actions,
   onToggle,
@@ -268,6 +273,7 @@ function AssistantMessage({
   streaming: boolean
   showInternal: boolean
   usageSummary?: UsageSummary
+  displayCost?: DisplayCost
   collapsed: boolean
   actions?: MessageItemActions
   onToggle?: () => void
@@ -283,11 +289,13 @@ function AssistantMessage({
     if (selecting && (collapsed || actions?.disabled)) exitSelection?.()
   }, [actions?.disabled, collapsed, exitSelection, selecting])
 
+  const costValue = displayCost ? displayCost.value : message.cost
+  const costEstimated = displayCost?.estimated ?? false
   const ownUsage = [
     message.tokens
       ? `${formatTokens(message.tokens.input)} in · ${formatTokens(message.tokens.output)} out`
       : null,
-    message.cost ? formatCost(message.cost) : null,
+    costValue ? formatCost(costValue, { estimated: costEstimated }) : null,
   ]
     .filter(Boolean)
     .join(' · ')
