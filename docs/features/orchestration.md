@@ -29,6 +29,39 @@ work orders and enforces strict policy.
    events. Automatic delivery of the final result into the origin session is a
    known gap; use `clara_status` or `clara_inbox` until it lands.
 
+## Container deployment
+
+The orchestrator can run as a container on the same Docker network as OpenCode.
+That is the preferred setup when the agent itself is containerized.
+
+1. Copy `docker/.env.example` and set:
+   - `CLARA_ORCHESTRATION_TOKEN` to a long random token,
+   - `CLARA_WORKSPACE` to the absolute path of the repository or workspace.
+2. Start the service:
+
+   ```sh
+   docker compose -f docker/compose.yml up -d --build orchestrator
+   ```
+
+3. Join the OpenCode container to the `clara` network and set:
+
+   ```sh
+   CLARA_ORCHESTRATION_URL=http://orchestrator:8789
+   CLARA_ORCHESTRATION_TOKEN=<same token>
+   CLARA_ORCHESTRATION_WORKSPACE=/workspace/clara
+   ```
+
+4. Mount the workspace at the same absolute path in both containers:
+
+   ```text
+   -v /absolute/path/to/clara:/workspace/clara
+   ```
+
+The orchestrator image bakes `lib/std` at `/opt/clara/lib/std`. A workspace that
+vendors its own standard library can set `CLARA_STD_DIR` to its `lib/std`.
+The orchestrator does not publish a host port; only the private Docker network
+can reach it. The database lives in the `orchestrator-data` volume.
+
 ## Core business rules
 
 1. **Packages are data.** The engine has no built-in software pipeline. A
@@ -113,6 +146,7 @@ work orders and enforces strict policy.
 - Primary config: `orchestration/index.yml`.
 - Data: `${CLARA_DATA_DIR:-~/.local/share/clara}/orchestration.db` and
   `orchestrator.token`.
+- Container: `docker compose -f docker/compose.yml up -d --build orchestrator`.
 - Commands: `pnpm clara orchestration start|stop|status|serve|token`,
   `pnpm clara mcp install|uninstall|config|status`,
   `pnpm clara adapter install opencode|uninstall|status`.
