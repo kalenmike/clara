@@ -163,7 +163,7 @@ delivery record.
   OpenCode co-author trailer, not a model trailer.
 - `clara_attention` uses the session form API when the plugin exposes it. If the
   host does not, Clara falls back to a prose question and the standard composer.
-- A confirmation is a boolean field plus the form's Submit control, not a
+- A confirmation is a boolean field answered from the composer, not a
   single-click action.
 
 ## Technical appendix

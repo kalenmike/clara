@@ -44,14 +44,15 @@ can answer a form or start work with an optional custom message.
 8. Set the model and variant in the **To** row, and switch the active agent from
    the footer next to Send. Models hidden in **Settings → Models** are absent
    from the picker.
-9. When a question form is waiting, select its card above the editor, fill the
-   fields, and choose **Submit** to answer only the form or **Skip** to cancel
-   it. To send an answer with a message, type in the editor and press Send: the
-   message is admitted first, then the selected form is answered. A plan-ready
-   card works the same way: select it and **Start Work** hands off immediately,
-   or type a message and Send starts the run with that message instead of the
-   synthetic approval. **Adjust Plan** deselects the plan card and focuses the
-   editor so Send goes to the Plan agent as an ordinary message.
+9. When a question form is waiting, select its card above the editor and fill the
+   fields. A secondary **Skip** button sits left of Send; use it to discard the
+   question without sending. Send is enabled once the form has an answer or the
+   editor has a message. With answers and no message, Send answers the form
+   alone. With a message and no answers, Send skips the form first and then sends
+   the message. With both, Send admits the message and then answers the form. A
+   plan-ready card offers a secondary **Start** button: with the editor empty it
+   hands off to Build; typing a message disables Start and Send sends the
+   message to the Plan agent as an adjustment.
 10. Minimize, maximize, or close the window at any time. Switching between the
     expanded panel and the smaller dock is remembered in local storage. The draft
     stays in place until it is sent. While the window is open or minimized,
@@ -121,23 +122,25 @@ can answer a form or start work with an optional custom message.
     plan-ready handoff render as stacked cards above the editor. The first form
     is selected by default, otherwise the plan-ready card. Selecting a card
     expands it; selecting the selected header again returns to message-only
-    mode. Only one request is active at a time, so Send pairs a typed message
-    with that form's answers or starts work with that message. Other forms stay
-    pending.
-14. A form sent with a message admits the prompt first with resume disabled,
-    then answers the selected form through `session.form.reply`. The form reply
+    mode. The primary Send button keeps its normal label. A secondary button to
+    its left is **Skip** for a question and **Start** for a ready plan.
+14. A form with a message admits the prompt first with resume disabled, then
+    answers the selected form through `session.form.reply`. The form reply
     resumes the blocked run, and the waiting message is promoted at the next step
-    boundary, so the message and answer share a turn. Commands keep the
-    form-first order because command execution cannot be cancelled through the
-    inbox. The answers are not added to the prompt as files. A failed form answer
-    cancels the admitted message so a retry does not duplicate it; a failed
-    prompt prevents the form from being answered. **Submit** answers the form
-    alone, **Skip** cancels it, and closing the window leaves the form pending.
-15. The plan-ready card switches to the working agent. **Start Work** sends the
-    synthetic approval; Send with a typed message sends that message instead and
-    starts the run with it. **Adjust Plan** deselects the card and focuses the
-    editor, so Send goes to the Plan agent as an ordinary message. A failed agent
-    switch or start leaves the plan pending.
+    boundary, so the message and answer share a turn. An untouched form with a
+    message is skipped through `session.form.cancel` first, then the message is
+    sent. A touched form with no message answers the form alone. Commands keep
+    the form-first order because command execution cannot be cancelled through
+    the inbox. The answers are not added to the prompt as files. A failed form
+    answer cancels the admitted message so a retry does not duplicate it; a
+    failed prompt prevents the form from being answered. **Skip** cancels the
+    form without sending, and closing the window leaves the form pending.
+15. The plan-ready card switches to the working agent when **Start** is pressed.
+    Start sends the synthetic approval and is disabled once the editor has a
+    message. Send with a typed message does not switch agents; it sends the
+    message to the Plan agent as an ordinary adjustment, and the plan can hand
+    off again after the next Plan reply. A failed agent switch or start leaves
+    the plan pending.
 
 ## Edge cases
 
@@ -175,9 +178,12 @@ can answer a form or start work with an optional custom message.
   the plan-ready card. Selecting another form expands it and folds the previous
   one. Selecting the active header returns to message-only mode.
 - **Multiple forms** — only the selected form is answered with a message. Other
-  forms stay pending and keep their own Submit and Skip controls.
-- **Form with no message** — Send stays disabled until the person types a
-  message; **Submit** remains the form-only path.
+  forms stay pending and are selected in turn; the secondary Skip button affects
+  only the selected form.
+- **Form with no message** — an unanswered form leaves Send disabled and Skip
+  available. Once a field is touched, Send answers the form alone.
+- **Form with an untouched field set and a message** — Send skips the selected
+  form first (`session.form.cancel`) and then sends the message.
 - **Form sent with a message** — Send admits the message first and then answers
   the selected form, so the form reply resumes the run with the message waiting.
   The answers are not prompt attachments and are sent only through the form
@@ -189,17 +195,16 @@ can answer a form or start work with an optional custom message.
   stay in the window.
 - **Cancelling the admitted message fails** — Clara warns that the message may
   already be queued and leaves the text and answers in place.
-- **Plan with no message** — **Start Work** sends the synthetic approval, and the
-  handoff renders as a system row.
-- **Plan with a message** — Send switches to the working agent and sends the
-  typed message with its attachments instead of the synthetic approval; the
-  message appears as a normal user prompt.
-- **Adjust Plan** — deselects the plan card and focuses the editor, so the next
-  Send reaches the Plan agent as an ordinary message.
+- **Skip** — the secondary Skip button cancels the selected question without
+  sending the editor's message or closing the window.
+- **Plan with no message** — the secondary Start button sends the synthetic
+  approval, and the handoff renders as a system row.
+- **Plan with a message** — Send sends the typed message to the Plan agent as an
+  ordinary adjustment; Start is disabled while a message is present.
 - **Request while the composer is closed** — the badge counts it, but the
   composer is not forced open.
 - **Worker session** — worker sessions have no composer, so their question forms
-  stay in the above-thread panel with the same Submit and Skip controls.
+  stay in the above-thread panel with Submit and Skip controls.
 - **Command with Send as queued** — a recognised command is queued and runs as
   the next turn instead of executing immediately.
 - **Save as draft failure** — the window stays open with the draft and
@@ -319,14 +324,17 @@ can answer a form or start work with an optional custom message.
   `src/features/agents/default-agent.ts`
 - Save as draft: `client.session.prompt({ sessionID, text, files, resume: false })`
 - Form requests: `client.session.form.list({ sessionID })` feeds
-  `src/components/chat/composer-request-list.tsx`. Send admits the prompt with
-  `resume: false` first, then calls
+  `src/components/chat/composer-request-list.tsx`. A touched form with a message
+  admits the prompt with `resume: false` first, then calls
   `client.session.form.reply({ sessionID, formID, answer })` and cancels the
-  admitted inbox item if a reply fails. It never adds the answers to `files`.
-  `src/features/chat/form-response.ts` only formats the displayed answer summary.
+  admitted inbox item if a reply fails. An untouched form with a message calls
+  `client.session.form.cancel({ sessionID, formID })` first, then sends the
+  prompt. A touched form with no message replies without a prompt. Answers are
+  never added to `files`.
 - Plan handoff: `src/features/chat/use-start-work.ts` switches the agent to
-  `build`; **Start Work** sends `client.session.synthetic(...)`, while Send with
-  text sends `client.session.prompt(...)` with that text and files.
+  `build`; the secondary Start button sends `client.session.synthetic(...)`.
+  Send with text leaves the agent alone and sends
+  `client.session.prompt(...)` to the Plan agent.
 - Draft title: `draftTitleFromText` in `src/features/sessions/draft-title.ts`
   (50 characters plus `…`)
 - Pending drafts: `client.session.inbox.list({ sessionID })`
