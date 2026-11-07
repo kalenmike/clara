@@ -8,7 +8,7 @@ import {
 import { EventRelay } from './orchestrator-events.ts'
 import { McpClient, type ToolResult } from './mcp.ts'
 import { LabState, workKey } from './state.ts'
-import type { AdapterRow, StepRow, WorkOrder } from './types.ts'
+import type { AdapterRow, PreflightResult, StepRow, WorkOrder } from './types.ts'
 
 function message(error: unknown): string {
   return error instanceof Error ? error.message : String(error)
@@ -139,6 +139,96 @@ export class LabRuntime {
       await this.refreshAdapters(input.workspace ?? this.state.workspace).catch(() => {})
     }
     return previewPipeline({ ...input, adapters: this.adapterInfo() })
+  }
+
+  async preflight(input: {
+    hostWorkspace: string
+    runtimeWorkspace: string
+    target?: string
+  }): Promise<PreflightResult> {
+    const hostWorkspace = input.hostWorkspace.trim() || this.state.workspace
+    const runtimeWorkspace = input.runtimeWorkspace.trim() || hostWorkspace
+    const target = input.target?.trim() || undefined
+    const result: PreflightResult = {
+      host: { ok: false },
+      runtime: { ok: false },
+      adapter: { required: false, ok: true },
+    }
+
+    try {
+      const preview = await this.preview({
+        workspace: hostWorkspace,
+        ...(target ? { target } : {}),
+      })
+      const errors = preview.diagnostics.filter((entry) => entry.severity === 'error')
+      const warnings = preview.diagnostics.filter((entry) => entry.severity === 'warning')
+      const strict = preview.compiled?.root.enforcement === 'strict'
+      result.host = {
+        ok: Boolean(preview.compiled) && errors.length === 0,
+        packages: preview.catalog?.packages.length ?? 0,
+        errors: errors.length,
+        warnings: warnings.length,
+        strict,
+        ...(preview.workspace
+          ? {
+              workspace: preview.workspace.workspace,
+              configPath: preview.workspace.configPath,
+            }
+          : {}),
+        ...(target ? { target } : {}),
+        ...(preview.selected ? { targetLabel: preview.selected.label } : {}),
+        ...(!preview.compiled && errors[0] ? { error: errors[0].message } : {}),
+      }
+      if (strict && preview.compiled) {
+        const required = preview.compiled.root.requires?.capabilities ?? [
+          'tool_policy',
+          'turn_limit',
+          'token_limit',
+        ]
+        const harness = preview.compiled.root.requires?.adapter
+        const match = this.adapterInfo().find(
+          (adapter) =>
+            (!harness || adapter.harness === harness) &&
+            required.every((capability) => adapter.capabilities.includes(capability))
+        )
+        result.adapter = {
+          required: true,
+          ok: Boolean(match),
+          ...(match ? { id: match.id } : {}),
+          capabilities: required,
+        }
+      }
+    } catch (error) {
+      result.host = { ok: false, error: message(error) }
+    }
+
+    if (!this.mcp.connected) {
+      result.runtime = { ok: false, error: 'The orchestrator is not connected.' }
+      return result
+    }
+
+    try {
+      const catalog = await this.callTool(
+        'clara_catalog',
+        { workspace: runtimeWorkspace },
+        'system'
+      )
+      if (catalog.isError) {
+        result.runtime = {
+          ok: false,
+          error: typeof catalog.value === 'string' ? catalog.value : JSON.stringify(catalog.value),
+        }
+      } else {
+        result.runtime = {
+          ok: true,
+          packages: Array.isArray(catalog.value) ? catalog.value.length : 0,
+        }
+      }
+    } catch (error) {
+      result.runtime = { ok: false, error: message(error) }
+    }
+
+    return result
   }
 
   adapterInfo(): AdapterInfo[] {

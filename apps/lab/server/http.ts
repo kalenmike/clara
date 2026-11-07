@@ -276,6 +276,19 @@ export async function startLabServer(options: LabServerOptions): Promise<LabServ
       return
     }
 
+    if (url.pathname === '/api/preflight') {
+      const hostWorkspace = stringField(body.hostWorkspace) ?? context.runtime.state.workspace
+      const runtimeWorkspace = stringField(body.runtimeWorkspace) || hostWorkspace
+      const target = stringField(body.target)
+      const result = await context.runtime.preflight({
+        hostWorkspace,
+        runtimeWorkspace,
+        ...(target ? { target } : {}),
+      })
+      json(response, 200, result)
+      return
+    }
+
     if (url.pathname === '/api/diff') {
       const runID = Number(body.run_id)
       if (!Number.isInteger(runID)) {

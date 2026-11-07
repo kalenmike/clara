@@ -165,3 +165,35 @@ export interface LabSnapshot {
   tools: ToolInfo[]
   lastError?: string
 }
+
+export interface PreflightHostCheck {
+  ok: boolean
+  workspace?: string
+  configPath?: string
+  packages?: number
+  target?: string
+  targetLabel?: string
+  strict?: boolean
+  errors?: number
+  warnings?: number
+  error?: string
+}
+
+export interface PreflightRuntimeCheck {
+  ok: boolean
+  packages?: number
+  error?: string
+}
+
+export interface PreflightAdapterCheck {
+  required: boolean
+  ok: boolean
+  id?: string
+  capabilities?: string[]
+}
+
+export interface PreflightResult {
+  host: PreflightHostCheck
+  runtime: PreflightRuntimeCheck
+  adapter: PreflightAdapterCheck
+}
