@@ -60,6 +60,13 @@ into a failure. To use a different binary, set `MINIFLARE_WORKERD_PATH`; a
 failure there is always fatal. On Alpine, run `pnpm --filter @clara/relay test`
 inside a Debian/Ubuntu container for full Worker coverage.
 
+## Native modules
+
+`better-sqlite3` selects its prebuild from the libc Node reports. Alpine images
+that install `gcompat` report a glibc version even though Node runs on musl, so
+`patches/better-sqlite3@13.0.3.patch` inspects the loaded interpreter instead.
+Keep that patch until the dependency detects gcompat correctly.
+
 ## Developer commands
 
 ```bash
