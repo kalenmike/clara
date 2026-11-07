@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { callTool, violation } from '../api'
 import type { WorkRecord } from '../types'
+import { friendlyError } from '../lib/errors'
 import { parseMaybeJson, short } from '../lib/format'
 import { Badge } from './Badge'
 import { JsonView } from './Json'
@@ -14,13 +15,18 @@ function numeric(value: string): number | undefined {
 export function WorkOrderCard({
   record,
   autoRun,
+  primary,
   onChanged,
+  onNotice,
 }: {
   record: WorkRecord
   autoRun: boolean
+  primary: boolean
   onChanged: (runID: number) => void
+  onNotice: (message: string) => void
 }) {
   const order = record.order
+  const isRouter = order.kind === 'router' && Boolean(order.routes?.length)
   const [result, setResult] = useState('')
   const [error, setError] = useState('')
   const [turns, setTurns] = useState('')
@@ -39,6 +45,7 @@ export function WorkOrderCard({
   const [violationReason, setViolationReason] = useState('manual lab violation')
   const [busy, setBusy] = useState(false)
   const [message, setMessage] = useState<string | null>(null)
+  const [showUsage, setShowUsage] = useState(false)
 
   const usage = (): Record<string, number> | undefined => {
     const value: Record<string, number> = {}
@@ -53,22 +60,24 @@ export function WorkOrderCard({
     return Object.keys(value).length ? value : undefined
   }
 
-  const pullNext = async (): Promise<void> => {
-    await callTool('clara_next', { run_id: order.run_id, limit: 8 })
-    onChanged(order.run_id)
-  }
-
-  const send = async (tool: string, args: Record<string, unknown>): Promise<boolean> => {
+  const runAction = async (
+    tool: string,
+    args: Record<string, unknown>,
+    success: string
+  ): Promise<boolean> => {
     setBusy(true)
     setMessage(null)
     try {
       const response = await callTool(tool, args)
       if (response.isError) {
-        setMessage(`Tool error: ${short(response.value)}`)
+        setMessage(`The orchestrator rejected the action: ${short(response.value)}`)
         return false
       }
+      if (autoRun) {
+        await callTool('clara_next', { run_id: order.run_id, limit: 8 }).catch(() => {})
+      }
       onChanged(order.run_id)
-      if (autoRun) await pullNext()
+      onNotice(success)
       return true
     } catch (cause) {
       setMessage(cause instanceof Error ? cause.message : String(cause))
@@ -79,38 +88,45 @@ export function WorkOrderCard({
   }
 
   const complete = async (): Promise<void> => {
-    const sent = await send('clara_complete', {
-      run_id: order.run_id,
-      step_path: order.step_path,
-      work_token: order.work_token,
-      result: parseMaybeJson(result) ?? '',
-      ...(usage() ? { usage: usage() } : {}),
-    })
-    if (sent) {
-      setResult('')
-      setMessage('Completed.')
-    }
-  }
-
-  const fail = async (): Promise<void> => {
-    const sent = await send('clara_fail', {
-      run_id: order.run_id,
-      step_path: order.step_path,
-      work_token: order.work_token,
-      error: error.trim() || 'lab failure',
-      ...(usage() ? { usage: usage() } : {}),
-    })
-    if (sent) setMessage('Failure recorded.')
+    const sent = await runAction(
+      'clara_complete',
+      {
+        run_id: order.run_id,
+        step_path: order.step_path,
+        work_token: order.work_token,
+        result: parseMaybeJson(result) ?? '',
+        ...(usage() ? { usage: usage() } : {}),
+      },
+      autoRun ? 'Step complete. Continuing to the next step.' : 'Step complete.'
+    )
+    if (sent) setResult('')
   }
 
   const chooseRoute = async (): Promise<void> => {
-    const sent = await send('clara_route', {
-      run_id: order.run_id,
-      step_path: order.step_path,
-      work_token: order.work_token,
-      route,
-    })
-    if (sent) setMessage(`Routed to ${route}.`)
+    await runAction(
+      'clara_route',
+      {
+        run_id: order.run_id,
+        step_path: order.step_path,
+        work_token: order.work_token,
+        route,
+      },
+      autoRun ? `Routed to ${route}. Continuing.` : `Routed to ${route}.`
+    )
+  }
+
+  const fail = async (): Promise<void> => {
+    await runAction(
+      'clara_fail',
+      {
+        run_id: order.run_id,
+        step_path: order.step_path,
+        work_token: order.work_token,
+        error: error.trim() || 'lab failure',
+        ...(usage() ? { usage: usage() } : {}),
+      },
+      'Failure recorded.'
+    )
   }
 
   const spawn = async (): Promise<void> => {
@@ -119,14 +135,17 @@ export function WorkOrderCard({
       setMessage('Spawn count must be a whole number of at least 1.')
       return
     }
-    const sent = await send('clara_spawn', {
-      run_id: order.run_id,
-      step_path: order.step_path,
-      work_token: order.work_token,
-      count,
-      prompt: spawnPrompt.trim() || order.prompt,
-    })
-    if (sent) setMessage(`Spawned ${count} worker(s).`)
+    await runAction(
+      'clara_spawn',
+      {
+        run_id: order.run_id,
+        step_path: order.step_path,
+        work_token: order.work_token,
+        count,
+        prompt: spawnPrompt.trim() || order.prompt,
+      },
+      `Spawned ${count} worker(s).`
+    )
   }
 
   const check = async (): Promise<void> => {
@@ -162,7 +181,7 @@ export function WorkOrderCard({
     try {
       await violation(order.run_id, order.step_path, violationReason)
       onChanged(order.run_id)
-      setMessage('Violation recorded.')
+      onNotice('Violation recorded.')
     } catch (cause) {
       setMessage(cause instanceof Error ? cause.message : String(cause))
     } finally {
@@ -171,24 +190,43 @@ export function WorkOrderCard({
   }
 
   const exceedBudget = async (): Promise<void> => {
-    const sent = await send('clara_complete', {
-      run_id: order.run_id,
-      step_path: order.step_path,
-      work_token: order.work_token,
-      result: parseMaybeJson(result) ?? 'budget test',
-      usage: { turns: 999_999, tokens: 999_999_999, toolCalls: 999_999, violations: 999 },
-    })
-    if (sent) setMessage('Completed with a deliberately exceeded budget.')
+    await runAction(
+      'clara_complete',
+      {
+        run_id: order.run_id,
+        step_path: order.step_path,
+        work_token: order.work_token,
+        result: parseMaybeJson(result) ?? 'budget test',
+        usage: { turns: 999_999, tokens: 999_999_999, toolCalls: 999_999, violations: 999 },
+      },
+      'Completed with a deliberately exceeded budget.'
+    )
   }
 
+  const heartbeat = async (): Promise<void> => {
+    try {
+      await callTool('clara_heartbeat', {
+        run_id: order.run_id,
+        step_path: order.step_path,
+      })
+      onChanged(order.run_id)
+      onNotice('Lease renewed.')
+    } catch (cause) {
+      setMessage(cause instanceof Error ? cause.message : String(cause))
+    }
+  }
+
+  const friendly = message ? friendlyError(message, 'start') : null
+
   return (
-    <article className="work-card">
+    <article className={`work-card ${primary ? 'work-card-primary' : ''}`}>
       <header className="work-head">
         <div>
           <div className="work-title">
             <Badge tone="live">{order.kind}</Badge>
             <strong>{order.name}</strong>
             <span className="muted">run #{order.run_id}</span>
+            {primary ? <Badge tone="ok">current</Badge> : null}
           </div>
           <div className="muted">
             {order.step_path} · attempt {order.attempt}/{order.max_attempts} · {order.enforcement}
@@ -207,7 +245,7 @@ export function WorkOrderCard({
       <div className="work-grid">
         <div>
           <div className="row-between">
-            <h4>Prompt</h4>
+            <h4>{isRouter ? 'Choose a route' : 'Task'}</h4>
             <span className="muted">
               budget {String(order.budget.turns ?? '?')} turns ·{' '}
               {String(order.budget.tokens ?? '?')} tokens
@@ -226,97 +264,112 @@ export function WorkOrderCard({
               <JsonView value={{ policy: order.policy, limits: order.limits }} />
             </details>
           ) : null}
+          <div className="muted work-hint">
+            The lab holds this step for you. Keep auto-heartbeat on while you type; the lease is
+            renewed every ten seconds.
+          </div>
         </div>
 
         <div>
-          <h4>Response</h4>
-          <textarea
-            className="result-input"
-            value={result}
-            onChange={(event) => setResult(event.target.value)}
-            placeholder="Type the result as text, or paste JSON."
-            rows={5}
-          />
-          <div className="usage-row">
-            <label>
-              turns
-              <input
-                value={turns}
-                onChange={(event) => setTurns(event.target.value)}
-                inputMode="numeric"
-              />
-            </label>
-            <label>
-              tokens
-              <input
-                value={tokens}
-                onChange={(event) => setTokens(event.target.value)}
-                inputMode="numeric"
-              />
-            </label>
-            <label>
-              tools
-              <input
-                value={toolCalls}
-                onChange={(event) => setToolCalls(event.target.value)}
-                inputMode="numeric"
-              />
-            </label>
-            <label>
-              violations
-              <input
-                value={violations}
-                onChange={(event) => setViolations(event.target.value)}
-                inputMode="numeric"
-              />
-            </label>
-          </div>
-          <div className="actions">
-            <button
-              type="button"
-              className="button primary"
-              onClick={() => void complete()}
-              disabled={busy}
-            >
-              Complete
-            </button>
-            <button
-              type="button"
-              className="button"
-              onClick={() =>
-                void send('clara_heartbeat', { run_id: order.run_id, step_path: order.step_path })
-              }
-              disabled={busy}
-            >
-              Heartbeat
-            </button>
-          </div>
-
-          {order.kind === 'router' && order.routes?.length ? (
-            <div className="route-picker">
-              <label>
-                Route
-                <select value={route} onChange={(event) => setRoute(event.target.value)}>
-                  {order.routes.map((item) => (
-                    <option key={item.when} value={item.when}>
-                      {item.when} — {item.criteria ?? item.run}
-                    </option>
-                  ))}
-                </select>
-              </label>
+          {isRouter ? (
+            <>
+              <h4>Route</h4>
+              <div className="route-picker">
+                <label>
+                  Choose the route the classifier would pick
+                  <select value={route} onChange={(event) => setRoute(event.target.value)}>
+                    {order.routes?.map((item) => (
+                      <option key={item.when} value={item.when}>
+                        {item.when} — {item.criteria ?? item.run}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              </div>
               <button
                 type="button"
-                className="button"
+                className="button primary"
                 onClick={() => void chooseRoute()}
                 disabled={busy}
               >
-                Route
+                {autoRun ? 'Choose route and continue' : 'Choose route'}
               </button>
+            </>
+          ) : (
+            <>
+              <h4>Your result</h4>
+              <textarea
+                className="result-input"
+                value={result}
+                onChange={(event) => setResult(event.target.value)}
+                placeholder="Type the result the AI would return. Plain text or JSON."
+                rows={6}
+              />
+              <button
+                type="button"
+                className="button primary"
+                onClick={() => void complete()}
+                disabled={busy}
+              >
+                {autoRun ? 'Complete and continue' : 'Complete step'}
+              </button>
+              <div className="muted work-hint">
+                The result is stored as the step output and shown in the Steps tree.
+              </div>
+            </>
+          )}
+
+          {friendly ? (
+            <div className="banner bad">
+              <strong>{friendly.title}.</strong> {friendly.detail}
+              {friendly.hint ? <div className="muted">{friendly.hint}</div> : null}
             </div>
           ) : null}
 
           <details className="advanced">
-            <summary>Failure and fault injection</summary>
+            <summary>Usage and advanced actions</summary>
+
+            <button type="button" className="link" onClick={() => setShowUsage((value) => !value)}>
+              {showUsage ? 'Hide usage fields' : 'Report usage (optional)'}
+            </button>
+            {showUsage ? (
+              <div className="usage-row">
+                <label>
+                  turns
+                  <input
+                    value={turns}
+                    onChange={(event) => setTurns(event.target.value)}
+                    inputMode="numeric"
+                  />
+                </label>
+                <label>
+                  tokens
+                  <input
+                    value={tokens}
+                    onChange={(event) => setTokens(event.target.value)}
+                    inputMode="numeric"
+                  />
+                </label>
+                <label>
+                  tools
+                  <input
+                    value={toolCalls}
+                    onChange={(event) => setToolCalls(event.target.value)}
+                    inputMode="numeric"
+                  />
+                </label>
+                <label>
+                  violations
+                  <input
+                    value={violations}
+                    onChange={(event) => setViolations(event.target.value)}
+                    inputMode="numeric"
+                  />
+                </label>
+              </div>
+            ) : null}
+
+            <h4>Failure</h4>
             <label className="full">
               Failure error
               <input
@@ -340,52 +393,11 @@ export function WorkOrderCard({
                 onClick={() => void exceedBudget()}
                 disabled={busy}
               >
-                Exceed budget &amp; complete
+                Exceed budget and complete
               </button>
             </div>
-            <label className="full">
-              Violation reason
-              <input
-                value={violationReason}
-                onChange={(event) => setViolationReason(event.target.value)}
-              />
-            </label>
-            <button
-              type="button"
-              className="button"
-              onClick={() => void raiseViolation()}
-              disabled={busy}
-            >
-              Record violation
-            </button>
-          </details>
 
-          <details className="advanced">
-            <summary>Spawn workers</summary>
-            <div className="row">
-              <label>
-                Count
-                <input
-                  value={spawnCount}
-                  onChange={(event) => setSpawnCount(event.target.value)}
-                  inputMode="numeric"
-                />
-              </label>
-              <label className="grow">
-                Prompt
-                <input
-                  value={spawnPrompt}
-                  onChange={(event) => setSpawnPrompt(event.target.value)}
-                />
-              </label>
-              <button type="button" className="button" onClick={() => void spawn()} disabled={busy}>
-                Spawn
-              </button>
-            </div>
-          </details>
-
-          <details className="advanced">
-            <summary>Policy check</summary>
+            <h4>Policy</h4>
             <div className="grid two">
               <label>
                 action
@@ -420,13 +432,55 @@ export function WorkOrderCard({
                 />
               </label>
             </div>
-            <button type="button" className="button" onClick={() => void check()} disabled={busy}>
-              Check policy
-            </button>
+            <div className="actions">
+              <button type="button" className="button" onClick={() => void check()} disabled={busy}>
+                Check policy
+              </button>
+              <button type="button" className="button" onClick={() => void heartbeat()}>
+                Renew lease
+              </button>
+            </div>
             {decision ? <JsonView value={decision} /> : null}
-          </details>
 
-          {message ? <div className="message">{message}</div> : null}
+            <h4>Violation</h4>
+            <label className="full">
+              Violation reason
+              <input
+                value={violationReason}
+                onChange={(event) => setViolationReason(event.target.value)}
+              />
+            </label>
+            <button
+              type="button"
+              className="button"
+              onClick={() => void raiseViolation()}
+              disabled={busy}
+            >
+              Record violation
+            </button>
+
+            <h4>Spawn workers</h4>
+            <div className="row">
+              <label>
+                Count
+                <input
+                  value={spawnCount}
+                  onChange={(event) => setSpawnCount(event.target.value)}
+                  inputMode="numeric"
+                />
+              </label>
+              <label className="grow">
+                Prompt
+                <input
+                  value={spawnPrompt}
+                  onChange={(event) => setSpawnPrompt(event.target.value)}
+                />
+              </label>
+              <button type="button" className="button" onClick={() => void spawn()} disabled={busy}>
+                Spawn
+              </button>
+            </div>
+          </details>
         </div>
       </div>
     </article>

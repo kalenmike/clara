@@ -1,18 +1,11 @@
 import { useCallback, useEffect, useState } from 'react'
-import {
-  callTool,
-  getRun,
-  getRuns,
-  reconnect,
-  registerAdapter,
-  removeAdapter,
-  setHeartbeat,
-} from '../api'
+import { callTool, getRun, getRuns, registerAdapter, setHeartbeat } from '../api'
 import type { LabStream } from '../useLab'
-import type { RunRow, StatusResult, StepRow } from '../types'
+import type { PreflightResult, RunRow, StatusResult, StepRow } from '../types'
 import { dateTime, short, statusTone } from '../lib/format'
+import { friendlyError } from '../lib/errors'
 import { Badge, Field } from './Badge'
-import { RunStepDetail, RunEvents } from './RunDetail'
+import { RunEvents, RunStepDetail } from './RunDetail'
 import { RunTree } from './StepTree'
 import { WorkOrderCard } from './WorkOrderCard'
 
@@ -20,25 +13,73 @@ function message(cause: unknown): string {
   return cause instanceof Error ? cause.message : String(cause)
 }
 
+function valueText(value: unknown): string {
+  return typeof value === 'string' ? value : JSON.stringify(value)
+}
+
+function needsAdapter(value: unknown): boolean {
+  const text = valueText(value).toLowerCase()
+  return text.includes('enforcement_unavailable') || text.includes('strict enforcement')
+}
+
+interface CompiledLike {
+  kind?: string
+  children?: CompiledLike[]
+  routes?: Array<{ target?: CompiledLike }>
+}
+
+function pipelineTaskCount(snapshot: string): number | undefined {
+  try {
+    const root = JSON.parse(snapshot) as CompiledLike
+    if (root.kind !== 'pipeline') return undefined
+    let count = 0
+    const walk = (node: CompiledLike): void => {
+      if (node.kind === 'task' || node.kind === 'router') count++
+      for (const child of node.children ?? []) walk(child)
+      for (const route of node.routes ?? []) {
+        if (route.target) walk(route.target)
+      }
+    }
+    walk(root)
+    return count
+  } catch {
+    return undefined
+  }
+}
+
 export function Runs({
   stream,
-  initialTarget,
-  onInitialTargetConsumed,
+  hostWorkspace,
+  runtimeWorkspace,
+  target,
+  pauseAfterStep,
+  onPauseAfterStepChange,
+  active,
+  preflight,
+  onPreflight,
+  onGoToPipeline,
+  onGoToSetup,
+  onNotice,
 }: {
   stream: LabStream
-  initialTarget?: string
-  onInitialTargetConsumed: () => void
+  hostWorkspace: string
+  runtimeWorkspace: string
+  target: string
+  pauseAfterStep: boolean
+  onPauseAfterStepChange: (value: boolean) => void
+  active: boolean
+  preflight: PreflightResult | null
+  onPreflight: () => void
+  onGoToPipeline: () => void
+  onGoToSetup: () => void
+  onNotice: (message: string) => void
 }) {
   const [runs, setRuns] = useState<RunRow[]>([])
   const [selectedID, setSelectedID] = useState<number | undefined>()
   const [status, setStatus] = useState<StatusResult | null>(null)
   const [selectedStep, setSelectedStep] = useState<string | undefined>()
   const [prompt, setPrompt] = useState('')
-  const [workspace, setWorkspace] = useState(stream.snapshot?.workspace ?? '')
-  const [target, setTarget] = useState('')
-  const [autoRun, setAutoRun] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [notice, setNotice] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
 
   const refreshRuns = useCallback(async () => {
@@ -63,8 +104,12 @@ export function Runs({
       setSelectedStep((current) =>
         current && value.steps.some((step) => step.path === current)
           ? current
-          : (value.steps.find((step) => step.status === 'running')?.path ??
+          : (value.steps.find(
+              (step) =>
+                step.status === 'running' && (step.type === 'task' || step.type === 'router')
+            )?.path ??
             value.steps.find((step) => step.type === 'task' || step.type === 'router')?.path ??
+            value.steps.find((step) => step.status === 'running')?.path ??
             value.steps[0]?.path)
       )
     } catch (cause) {
@@ -73,62 +118,59 @@ export function Runs({
   }, [])
 
   useEffect(() => {
-    if (workspace || !stream.snapshot?.workspace) return
-    setWorkspace(stream.snapshot.workspace)
-  }, [stream.snapshot?.workspace, workspace])
-
-  useEffect(() => {
-    if (initialTarget === undefined) return
-    setTarget(initialTarget)
-    onInitialTargetConsumed()
-  }, [initialTarget, onInitialTargetConsumed])
-
-  useEffect(() => {
+    if (!active) return
     void refreshRuns()
-  }, [refreshRuns])
+  }, [active, refreshRuns])
 
   useEffect(() => {
-    if (!selectedID) return
+    if (!active) return
+    if (!selectedID) {
+      setStatus(null)
+      return
+    }
     void refreshStatus(selectedID)
-  }, [selectedID, refreshStatus])
+  }, [active, selectedID, refreshStatus])
 
   useEffect(() => {
-    if (!notice) return
-    const timer = window.setTimeout(() => setNotice(null), 4000)
-    return () => window.clearTimeout(timer)
-  }, [notice])
-
-  useEffect(() => {
+    if (!active) return
     const timer = window.setTimeout(() => {
       void refreshRuns()
       if (selectedID) void refreshStatus(selectedID)
     }, 400)
     return () => window.clearTimeout(timer)
-  }, [stream.eventRevision, selectedID, refreshRuns, refreshStatus])
+  }, [active, stream.eventRevision, selectedID, refreshRuns, refreshStatus])
 
   const start = async (): Promise<void> => {
     if (!prompt.trim()) {
       setError('Enter a prompt before starting a run.')
       return
     }
+    if (!runtimeWorkspace.trim()) {
+      setError('Choose the workspace the orchestrator sees in Setup first.')
+      return
+    }
     setBusy(true)
     setError(null)
-    setNotice(null)
+    const args = {
+      prompt,
+      workspace: runtimeWorkspace,
+      ...(target ? { target } : {}),
+      origin: { harness: 'clara-lab', agent: 'lab', kind: 'agent' },
+    }
     try {
-      const response = await callTool<{ run?: RunRow }>('clara_start', {
-        prompt,
-        workspace: workspace || stream.snapshot?.workspace || '',
-        ...(target.trim() ? { target: target.trim() } : {}),
-        origin: { harness: 'clara-lab', agent: 'lab', kind: 'agent' },
-      })
-      if (response.isError) {
-        throw new Error(typeof response.value === 'string' ? response.value : short(response.value))
+      let response = await callTool<{ run?: RunRow }>('clara_start', args)
+      if (response.isError && needsAdapter(response.value)) {
+        await registerAdapter(runtimeWorkspace)
+        onNotice('Registered the clara-lab adapter automatically.')
+        onPreflight()
+        response = await callTool<{ run?: RunRow }>('clara_start', args)
       }
+      if (response.isError) throw new Error(valueText(response.value))
       const run = response.value?.run
       if (run) {
         setSelectedID(run.id)
-        setNotice(`Started run #${run.id}`)
         await refreshStatus(run.id)
+        onNotice(`Started run #${run.id}.`)
       }
       setPrompt('')
       await refreshRuns()
@@ -166,7 +208,7 @@ export function Runs({
       await callTool('clara_tick', {})
       if (selectedID) await refreshStatus(selectedID)
       await refreshRuns()
-      setNotice('Watchdog tick complete.')
+      onNotice('Watchdog tick complete.')
     } catch (cause) {
       setError(message(cause))
     } finally {
@@ -180,10 +222,13 @@ export function Runs({
     setBusy(true)
     setError(null)
     try {
-      await callTool('clara_cancel', { run_id: selectedID, reason: 'cancelled from Clara Lab' })
+      await callTool('clara_cancel', {
+        run_id: selectedID,
+        reason: 'cancelled from Clara Lab',
+      })
       await refreshStatus(selectedID)
       await refreshRuns()
-      setNotice(`Run #${selectedID} cancelled.`)
+      onNotice(`Run #${selectedID} cancelled.`)
     } catch (cause) {
       setError(message(cause))
     } finally {
@@ -212,31 +257,9 @@ export function Runs({
     setBusy(true)
     setError(null)
     try {
-      const value = workspace || stream.snapshot?.workspace || ''
-      await registerAdapter(value)
-      setNotice('Registered the clara-lab adapter.')
-    } catch (cause) {
-      setError(message(cause))
-    } finally {
-      setBusy(false)
-    }
-  }
-
-  const unregister = async (id: string): Promise<void> => {
-    try {
-      await removeAdapter(id)
-      setNotice('Removed the adapter.')
-    } catch (cause) {
-      setError(message(cause))
-    }
-  }
-
-  const reconnectNow = async (): Promise<void> => {
-    setBusy(true)
-    setError(null)
-    try {
-      await reconnect()
-      setNotice('Reconnected to the orchestrator.')
+      await registerAdapter(runtimeWorkspace)
+      onPreflight()
+      onNotice('Registered the clara-lab adapter.')
     } catch (cause) {
       setError(message(cause))
     } finally {
@@ -247,59 +270,54 @@ export function Runs({
   const work = (stream.snapshot?.work ?? []).filter(
     (record) => !selectedID || record.order.run_id === selectedID
   )
+  const current = work[0]
   const events = selectedID
     ? stream.events.filter((event) => event.run_id === selectedID)
     : stream.events
   const step = status?.steps.find((entry) => entry.path === selectedStep)
   const heartbeat = stream.snapshot?.heartbeat ?? true
   const adapters = stream.snapshot?.adapters ?? []
+  const taskSteps =
+    status?.steps.filter((entry) => entry.type === 'task' || entry.type === 'router') ?? []
+  const doneSteps = taskSteps.filter(
+    (entry) => entry.status === 'done' || entry.status === 'skipped'
+  ).length
+  const totalSteps = status ? pipelineTaskCount(status.run.snapshot) : undefined
+  const friendly = error ? friendlyError(error, 'start') : null
+  const isActiveRun =
+    status?.run.state === 'running' ||
+    status?.run.state === 'waiting' ||
+    status?.run.state === 'queued'
 
   return (
     <div className="runs">
       <div className="toolbar">
         <label className="check">
-          <input type="checkbox" checked={heartbeat} onChange={() => void toggleHeartbeat()} />
-          Auto-heartbeat
-        </label>
-        <label className="check">
           <input
             type="checkbox"
-            checked={autoRun}
-            onChange={(event) => setAutoRun(event.target.checked)}
+            checked={pauseAfterStep}
+            onChange={(event) => onPauseAfterStepChange(event.target.checked)}
           />
-          Auto-pull next
+          Pause after each step
         </label>
-        <button type="button" className="button" onClick={() => void tick()} disabled={busy}>
-          Watchdog tick
-        </button>
         <button type="button" className="button" onClick={() => void refreshRuns()} disabled={busy}>
           Refresh
         </button>
-        <button
-          type="button"
-          className="button"
-          onClick={() => void reconnectNow()}
-          disabled={busy}
-        >
-          Reconnect
+        <button type="button" className="button ghost" onClick={onGoToPipeline}>
+          Change pipeline
         </button>
-        {selectedID ? (
-          <button
-            type="button"
-            className="button danger"
-            onClick={() => void cancel()}
-            disabled={busy}
-          >
-            Cancel run
-          </button>
-        ) : null}
-        {heartbeat ? null : (
-          <Badge tone="warn">heartbeats paused — the watchdog will retry this work</Badge>
-        )}
+        <button type="button" className="button ghost" onClick={onGoToSetup}>
+          Setup
+        </button>
+        {heartbeat ? null : <Badge tone="warn">heartbeats paused</Badge>}
       </div>
 
-      {error ? <div className="banner bad">{error}</div> : null}
-      {notice ? <div className="banner ok">{notice}</div> : null}
+      {friendly ? (
+        <div className="banner bad">
+          <strong>{friendly.title}.</strong> {friendly.detail}
+          {friendly.hint ? <div className="muted">{friendly.hint}</div> : null}
+        </div>
+      ) : null}
 
       <div className="runs-grid">
         <aside className="panel run-list">
@@ -328,38 +346,24 @@ export function Runs({
           </div>
 
           <div className="panel-head">
-            <h3>Lab adapters</h3>
-            <button
-              type="button"
-              className="button ghost small"
-              onClick={() => void register()}
-              disabled={busy}
-            >
-              Register
-            </button>
+            <h3>Adapter</h3>
           </div>
-          <div className="adapter-list">
-            {adapters.map((adapter) => (
-              <div key={adapter.id} className="adapter">
-                <div className="row-between">
-                  <strong>{adapter.harness}</strong>
-                  <button
-                    type="button"
-                    className="link"
-                    onClick={() => void unregister(adapter.id)}
-                  >
-                    remove
-                  </button>
-                </div>
-                <div className="muted">{adapter.id.slice(0, 12)}…</div>
-                <div className="muted">{adapter.capabilities}</div>
-              </div>
-            ))}
-            {!adapters.length ? (
-              <div className="empty">
-                No live adapter. Strict targets fail closed until you register one.
-              </div>
-            ) : null}
+          <div className="adapter">
+            <div className="row-between">
+              <span>{adapters.length ? `live (${adapters.length})` : 'not registered'}</span>
+              <button
+                type="button"
+                className="link"
+                onClick={() => void register()}
+                disabled={busy}
+              >
+                register
+              </button>
+            </div>
+            <div className="muted">
+              Strict pipelines need the clara-lab adapter. It is for orchestration testing, not real
+              enforcement.
+            </div>
           </div>
 
           {status?.alerts.length ? (
@@ -394,7 +398,7 @@ export function Runs({
           <details className="start-panel" open={!runs.length}>
             <summary>
               <strong>Start a run</strong>
-              <span className="muted"> act as the agent at the MCP boundary</span>
+              <span className="muted"> you are the AI: read the task, send the result</span>
             </summary>
             <div className="start-form">
               <label className="full">
@@ -406,31 +410,37 @@ export function Runs({
                   placeholder="What should the pipeline work on?"
                 />
               </label>
+              <div className="start-context">
+                <span>
+                  Pipeline <strong>{target || 'Entry router'}</strong>{' '}
+                  <button type="button" className="link" onClick={onGoToPipeline}>
+                    change
+                  </button>
+                </span>
+                <span>
+                  Orchestrator sees <code>{runtimeWorkspace || 'not set'}</code>{' '}
+                  <button type="button" className="link" onClick={onGoToSetup}>
+                    change
+                  </button>
+                </span>
+              </div>
+              {preflight?.host.strict && !preflight.adapter.ok ? (
+                <div className="banner warn">
+                  This pipeline is strict. Clara Lab will register its own adapter when you start.
+                </div>
+              ) : null}
               <div className="row">
-                <label className="grow">
-                  Workspace
-                  <input value={workspace} onChange={(event) => setWorkspace(event.target.value)} />
-                </label>
-                <label className="grow">
-                  Target (blank = entry)
-                  <input
-                    value={target}
-                    onChange={(event) => setTarget(event.target.value)}
-                    placeholder="std:software/feature"
-                  />
-                </label>
                 <button
                   type="button"
                   className="button primary"
                   onClick={() => void start()}
-                  disabled={busy}
+                  disabled={busy || !prompt.trim()}
                 >
-                  Start
+                  Start run
                 </button>
-              </div>
-              <div className="muted">
-                Origin is recorded as <code>harness: clara-lab</code>, <code>agent: lab</code>,{' '}
-                <code>kind: agent</code>.
+                <span className="muted">
+                  Origin is recorded as <code>clara-lab / lab / agent</code>.
+                </span>
               </div>
             </div>
           </details>
@@ -447,13 +457,20 @@ export function Runs({
                   <div className="muted">{short(status.run.prompt, 180)}</div>
                 </div>
                 <div className="chips">
+                  <span className="chip">
+                    {totalSteps ? `${doneSteps}/${totalSteps} steps` : `${doneSteps} steps done`}
+                  </span>
+                  {current ? <span className="chip">now: {current.order.name}</span> : null}
                   <span className="chip">{status.run.pipeline_ref}</span>
-                  <span className="chip">{status.run.enforcement}</span>
-                  <span className="chip">{status.run.hash.slice(0, 18)}…</span>
+                  {status.run.enforcement === 'strict' ? (
+                    <span className="chip chip-warn">strict</span>
+                  ) : null}
                 </div>
               </div>
 
               <div className="grid three">
+                <Field label="Host files" value={hostWorkspace || '—'} />
+                <Field label="Orchestrator workspace" value={status.run.workspace} />
                 <Field
                   label="Origin"
                   value={`${status.run.origin_harness ?? '—'} / ${status.run.origin_agent ?? '—'} / ${status.run.origin_kind}`}
@@ -463,35 +480,52 @@ export function Runs({
                   label="Finished"
                   value={status.run.finished_at ? dateTime(status.run.finished_at) : '—'}
                 />
+                <Field label="Hash" value={status.run.hash.slice(0, 20)} />
               </div>
               {status.run.error ? <div className="banner bad">{status.run.error}</div> : null}
 
               <div className="panel-head">
-                <h3>Work queue</h3>
+                <h3>
+                  {current
+                    ? 'Current step'
+                    : status.run.state === 'completed'
+                      ? 'Run complete'
+                      : 'Next step'}
+                </h3>
                 <div className="row">
-                  <span className="muted">{work.length} claimed</span>
-                  <button
-                    type="button"
-                    className="button ghost small"
-                    onClick={() => void pullNext(status.run.id)}
-                    disabled={busy}
-                  >
-                    Pull next
-                  </button>
+                  <span className="muted">
+                    {work.length ? `${work.length} claimed` : 'nothing claimed'}
+                  </span>
+                  {isActiveRun ? (
+                    <button
+                      type="button"
+                      className="button ghost small"
+                      onClick={() => void pullNext(status.run.id)}
+                      disabled={busy}
+                    >
+                      Pull next
+                    </button>
+                  ) : null}
                 </div>
               </div>
               {work.length ? (
-                work.map((record) => (
+                work.map((record, index) => (
                   <WorkOrderCard
                     key={record.key}
                     record={record}
-                    autoRun={autoRun}
+                    autoRun={!pauseAfterStep}
+                    primary={index === 0}
                     onChanged={changed}
+                    onNotice={onNotice}
                   />
                 ))
               ) : (
                 <div className="empty">
-                  No claimed work order. Use <strong>Pull next</strong> to claim ready work.
+                  {isActiveRun
+                    ? 'No step is claimed. Use Pull next to claim ready work.'
+                    : status.run.state === 'completed'
+                      ? 'Run complete. Choose a pipeline or change the prompt to start another.'
+                      : `Run ${status.run.state}.`}
                 </div>
               )}
 
@@ -526,15 +560,53 @@ export function Runs({
                 </>
               ) : null}
 
-              <div className="panel-head">
-                <h3>Events</h3>
-                <span className="muted">{events.length}</span>
-              </div>
-              <RunEvents events={events} />
+              <details className="panel events-panel">
+                <summary>
+                  Events <span className="muted">({events.length})</span>
+                </summary>
+                <RunEvents events={events} />
+              </details>
+
+              <details className="panel advanced-panel">
+                <summary>Run controls</summary>
+                <div className="actions">
+                  <button
+                    type="button"
+                    className="button"
+                    onClick={() => void tick()}
+                    disabled={busy}
+                  >
+                    Watchdog tick
+                  </button>
+                  <button type="button" className="button" onClick={() => void toggleHeartbeat()}>
+                    {heartbeat ? 'Pause heartbeats' : 'Resume heartbeats'}
+                  </button>
+                  <button
+                    type="button"
+                    className="button"
+                    onClick={() => void register()}
+                    disabled={busy}
+                  >
+                    Re-register adapter
+                  </button>
+                  <button
+                    type="button"
+                    className="button danger"
+                    onClick={() => void cancel()}
+                    disabled={busy}
+                  >
+                    Cancel run
+                  </button>
+                </div>
+                <div className="muted">
+                  Heartbeat holds the lease while you type. Pausing it lets the watchdog retry the
+                  step after the stall threshold.
+                </div>
+              </details>
             </>
-          ) : (
-            <div className="empty">Start a run or select one from the list.</div>
-          )}
+          ) : runs.length ? (
+            <div className="empty">Select a run from the list.</div>
+          ) : null}
         </section>
       </div>
     </div>
