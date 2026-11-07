@@ -5,24 +5,27 @@
 The reply composer is a Gmail-style window docked to the bottom-right of a chat.
 It opens from the **Reply** or **New** button, automatically when a new session
 is created or an empty draft with locally saved text is opened, and from Adjust
-Plan on the plan-ready card. While it is open or minimized it keeps the session
-it was opened for as the person navigates to other sessions; closing it resets
-the connection to the current session. It sends prompts that steer the run by
-default, can save the first message as a draft without starting a run, can queue
-a follow-up behind an active run, and carries commands, mentions, attachments,
-model selection, and agent selection. It can also stage an agent-question form
-response and send that response together with the custom message.
+Plan on the composer's plan-ready card. While it is open or minimized it keeps
+the session it was opened for as the person navigates to other sessions; closing
+it resets the connection to the current session. It sends prompts that steer the
+run by default, can save the first message as a draft without starting a run, can
+queue a follow-up behind an active run, and carries commands, mentions,
+attachments, model selection, and agent selection. Pending agent questions and a
+ready plan travel with it: **Reply** and **New** show a badge for waiting
+requests, and the composer stacks those requests above its editor so the person
+can answer a form or start work with an optional custom message.
 
 ## User flow
 
 1. Click **Reply** in the bottom-right corner of the chat, or **New** on an empty
-   draft. The window opens in the last-used size: expanded (maximized) by
-   default, or the smaller docked window if that is how it was last restored.
-   While the window is closed, Reply and New always bind it to the session
-   currently on screen. Creating a new session opens the window automatically at
-   that size and binds it to the new session, and so does opening an empty draft
-   that has locally saved text. The plan-ready card's **Adjust Plan** action also
-   opens the window and binds it to that plan's session.
+   draft. The button carries a sky badge with the number of waiting question
+   forms and plan-ready handoffs; opening the window shows them as stacked cards
+   above the editor. The window opens in the last-used size: expanded
+   (maximized) by default, or the smaller docked window if that is how it was
+   last restored. While the window is closed, Reply and New always bind it to the
+   session currently on screen. Creating a new session opens the window
+   automatically at that size and binds it to the new session, and so does
+   opening an empty draft that has locally saved text.
 2. Type in the large editor. The docked window stays non-modal, so the thread
    remains readable and scrollable behind it.
 3. Press Enter to send with steering, or Shift+Enter to add a line.
@@ -41,12 +44,14 @@ response and send that response together with the custom message.
 8. Set the model and variant in the **To** row, and switch the active agent from
    the footer next to Send. Models hidden in **Settings → Models** are absent
    from the picker.
-9. When a question form is waiting, use its chevron menu and choose **Add a
-   message**. The current answers appear as a removable form-response chip and
-   the composer opens for that session. Send admits the custom message first,
-   then answers the form; the form reply resumes the run with the message
-   waiting, so both land in the same step. The chip is display-only, so the
-   answers reach the model once through the form reply.
+9. When a question form is waiting, select its card above the editor, fill the
+   fields, and choose **Submit** to answer only the form or **Skip** to cancel
+   it. To send an answer with a message, type in the editor and press Send: the
+   message is admitted first, then the selected form is answered. A plan-ready
+   card works the same way: select it and **Start Work** hands off immediately,
+   or type a message and Send starts the run with that message instead of the
+   synthetic approval. **Adjust Plan** deselects the plan card and focuses the
+   editor so Send goes to the Plan agent as an ordinary message.
 10. Minimize, maximize, or close the window at any time. Switching between the
     expanded panel and the smaller dock is remembered in local storage. The draft
     stays in place until it is sent. While the window is open or minimized,
@@ -102,26 +107,37 @@ response and send that response together with the custom message.
     ignores route changes, so prompts, commands, saved drafts, model switches,
     and agent switches all target the connected session. When the window is
     closed, Reply, New, an auto-opened draft, and the model or agent shortcuts
-    bind it to the current session. Creating a new session, forwarding a message
-    into a new draft, and Adjust Plan explicitly re-target even an open window.
-    A send from a session other than the one on screen leaves the view and
-    Monitor Inbox position alone; the window still closes and resets to the
-    current session.
+    bind it to the current session. Creating a new session and forwarding a
+    message into a new draft explicitly re-target even an open window. A send
+    from a session other than the one on screen leaves the view and Monitor
+    Inbox position alone; the window still closes and resets to the current
+    session.
 12. If a send fails because the session's directory was deleted, the window
     reports that the workspace folder is missing and retries automatically after
     moving the session to the project's canonical directory. The retry preserves
     the text, attachments, and delivery; Send, Save as draft, Send as queued, and
     commands all use the same recovery.
-13. A staged question-form response is a display-only attachment. For a normal
-    message, Send and Send as queued admit the prompt first with resume disabled,
-    then answer every staged form through `session.form.reply`. The form reply
+13. Waiting requests are part of the composer. Pending question forms and the
+    plan-ready handoff render as stacked cards above the editor. The first form
+    is selected by default, otherwise the plan-ready card. Selecting a card
+    expands it; selecting the selected header again returns to message-only
+    mode. Only one request is active at a time, so Send pairs a typed message
+    with that form's answers or starts work with that message. Other forms stay
+    pending.
+14. A form sent with a message admits the prompt first with resume disabled,
+    then answers the selected form through `session.form.reply`. The form reply
     resumes the blocked run, and the waiting message is promoted at the next step
     boundary, so the message and answer share a turn. Commands keep the
     form-first order because command execution cannot be cancelled through the
     inbox. The answers are not added to the prompt as files. A failed form answer
     cancels the admitted message so a retry does not duplicate it; a failed
-    prompt prevents any form from being answered. Closing the window or removing
-    a chip restores the unanswered form in the panel.
+    prompt prevents the form from being answered. **Submit** answers the form
+    alone, **Skip** cancels it, and closing the window leaves the form pending.
+15. The plan-ready card switches to the working agent. **Start Work** sends the
+    synthetic approval; Send with a typed message sends that message instead and
+    starts the run with it. **Adjust Plan** deselects the card and focuses the
+    editor, so Send goes to the Plan agent as an ordinary message. A failed agent
+    switch or start leaves the plan pending.
 
 ## Edge cases
 
@@ -152,21 +168,38 @@ response and send that response together with the custom message.
   agent is running and is hidden once the session is idle.
 - **Send as queued failure** — the window stays open with the draft and
   attachments intact.
-- **Staged form response** — the form chip is removed by its own control, and
-  the unanswered form returns to the panel. Closing the window or letting it
-  reconnect to another session also discards staged responses. Send admits the
-  custom message first and then answers the form, so the form reply resumes the
-  run with the message waiting. The answers are not prompt attachments and are
-  sent only through the form reply.
-- **Staged form with no message** — Send stays disabled until the person types
-  the custom message; the form's own Submit button remains the form-only path.
-- **Staged form answer fails** — Clara cancels the message it just admitted,
-  removes any forms answered before the failure, and keeps the composer text,
-  files, and remaining chips so the send can be retried without duplication.
-- **Staged form, message admission fails** — no form is answered; the text,
-  files, and chips stay in the window.
+- **Waiting requests** — **Reply** and **New** carry a sky badge with the number
+  of pending question forms plus a plan-ready handoff. The cards live above the
+  composer editor; nothing opens automatically while the window is closed.
+- **Selected request** — the first pending form is selected by default, otherwise
+  the plan-ready card. Selecting another form expands it and folds the previous
+  one. Selecting the active header returns to message-only mode.
+- **Multiple forms** — only the selected form is answered with a message. Other
+  forms stay pending and keep their own Submit and Skip controls.
+- **Form with no message** — Send stays disabled until the person types a
+  message; **Submit** remains the form-only path.
+- **Form sent with a message** — Send admits the message first and then answers
+  the selected form, so the form reply resumes the run with the message waiting.
+  The answers are not prompt attachments and are sent only through the form
+  reply.
+- **Form reply fails** — Clara cancels the message it just admitted, keeps the
+  composer text, files, and answers so the send can be retried without
+  duplication.
+- **Form admission fails** — no form is answered; the text, files, and answers
+  stay in the window.
 - **Cancelling the admitted message fails** — Clara warns that the message may
-  already be queued and leaves the text and chips in place.
+  already be queued and leaves the text and answers in place.
+- **Plan with no message** — **Start Work** sends the synthetic approval, and the
+  handoff renders as a system row.
+- **Plan with a message** — Send switches to the working agent and sends the
+  typed message with its attachments instead of the synthetic approval; the
+  message appears as a normal user prompt.
+- **Adjust Plan** — deselects the plan card and focuses the editor, so the next
+  Send reaches the Plan agent as an ordinary message.
+- **Request while the composer is closed** — the badge counts it, but the
+  composer is not forced open.
+- **Worker session** — worker sessions have no composer, so their question forms
+  stay in the above-thread panel with the same Submit and Skip controls.
 - **Command with Send as queued** — a recognised command is queued and runs as
   the next turn instead of executing immediately.
 - **Save as draft failure** — the window stays open with the draft and
@@ -218,9 +251,8 @@ response and send that response together with the custom message.
 - **Send from another session** — the prompt, command, queue, or saved draft goes
   to the connected session. The chat on screen does not scroll or advance Monitor
   Inbox; the window closes and resets to the current session.
-- **Create, Forward, or Adjust Plan while detached** — the explicit compose
-  action re-targets the window and moves the previous session's text to its local
-  draft.
+- **Create or Forward while detached** — the explicit compose action re-targets
+  the window and moves the previous session's text to its local draft.
 - **Leave the chat view** — home, projects, and settings unmount the chat-scoped
   composer; returning to a session starts with it closed.
 - **Minimized window** — a model or agent shortcut restores the window to its
@@ -262,14 +294,18 @@ response and send that response together with the custom message.
 <summary>Routes, data, and references</summary>
 
 - Components: `src/components/chat/reply-actions.tsx`,
-  `src/components/chat/reply-dock.tsx`, `src/components/chat/composer.tsx`
+  `src/components/chat/reply-dock.tsx`, `src/components/chat/composer.tsx`,
+  `src/components/chat/composer-request-list.tsx`,
+  `src/components/chat/form-fields.tsx`
 - Connection state: `src/features/chat/composer-provider.tsx` owns the window
   mode, connected target, handoff text/files, focus requests, draft reports, and
   sent signal for the chat route. `src/features/chat/composer-session.ts` holds
   the open, close, detachment, and return-path rules.
 - Target data: `src/features/chat/use-composer-target.ts` reads the connected
-  session's info, live snapshot, history, and pending inbox drafts independently
-  of the route.
+  session's info, live snapshot, history, pending inbox drafts, and plan-ready
+  state independently of the route.
+- Request selection: `src/features/chat/composer-requests.ts` chooses the active
+  form or plan card, seeds form answers, and counts requests for the badge.
 - Picker components: `model-picker.tsx`, `agent-picker.tsx`
 - Model visibility: `src/features/models/visibility.ts`
 - Loaded from: `/p/:projectId/s/:sessionId`
@@ -282,12 +318,15 @@ response and send that response together with the custom message.
   `clara.lastAgent` in `localStorage`; resolved in
   `src/features/agents/default-agent.ts`
 - Save as draft: `client.session.prompt({ sessionID, text, files, resume: false })`
-- Staged form responses: `src/features/chat/form-response.ts` formats the answers;
-  `ComposerProvider` holds them until Send; `Composer` admits the prompt with
+- Form requests: `client.session.form.list({ sessionID })` feeds
+  `src/components/chat/composer-request-list.tsx`. Send admits the prompt with
   `resume: false` first, then calls
   `client.session.form.reply({ sessionID, formID, answer })` and cancels the
-  admitted inbox item if a reply fails. It never adds the answers to `files`. The
-  chip is `src/components/chat/form-response-attachment.tsx`.
+  admitted inbox item if a reply fails. It never adds the answers to `files`.
+  `src/features/chat/form-response.ts` only formats the displayed answer summary.
+- Plan handoff: `src/features/chat/use-start-work.ts` switches the agent to
+  `build`; **Start Work** sends `client.session.synthetic(...)`, while Send with
+  text sends `client.session.prompt(...)` with that text and files.
 - Draft title: `draftTitleFromText` in `src/features/sessions/draft-title.ts`
   (50 characters plus `…`)
 - Pending drafts: `client.session.inbox.list({ sessionID })`

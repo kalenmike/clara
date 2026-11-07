@@ -1,8 +1,10 @@
 import { useMemo } from 'react'
 import type { SessionInboxUser } from '@opencode/client'
 import { composerMenuMode, type ComposerMenuMode } from '@/features/chat/composer-menu'
+import { findPlanReadyReply } from '@/features/chat/plan-ready'
 import { mergeSessionMessages } from '@/features/chat/session-messages'
 import { useChatSnapshot, useSessionInbox, useSessionMessages } from '@/features/chat/use-chat'
+import { isArchivedSession } from '@/features/sessions/session-archive'
 import { useSession } from '@/features/sessions/use-sessions'
 
 /**
@@ -38,6 +40,13 @@ export function useComposerTarget(sessionID: string) {
     [messages]
   )
   const menuMode: ComposerMenuMode = composerMenuMode({ ready, busy, hasAssistant })
+  const planReady = useMemo(
+    () =>
+      session && !isArchivedSession(session)
+        ? findPlanReadyReply(messages, session.agent, busy) !== undefined
+        : false,
+    [busy, messages, session]
+  )
 
   return {
     session,
@@ -48,6 +57,7 @@ export function useComposerTarget(sessionID: string) {
     ready,
     empty,
     menuMode,
+    planReady,
     disabled: sessionQuery.isError,
   }
 }

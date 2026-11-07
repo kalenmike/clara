@@ -5,12 +5,14 @@ import { Button } from '@/components/ui/button'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { Composer } from '@/components/chat/composer'
 import { useComposer } from '@/features/chat/composer-provider'
+import { composerRequestCount } from '@/features/chat/composer-requests'
 import {
   composerConnectionLabel,
   composerSessionTitle,
   type ComposerTarget,
 } from '@/features/chat/composer-session'
 import { useComposerTarget } from '@/features/chat/use-composer-target'
+import { useSessionForms } from '@/features/chat/use-forms'
 import { useAgents } from '@/features/catalog/use-catalog'
 import { useSwitchAgent } from '@/features/chat/use-chat'
 import { useSessionPolicy } from '@/features/notifications/session-policy'
@@ -47,9 +49,11 @@ function ConnectedComposer({ target }: { target: ComposerTarget }) {
   } = useComposer()
   const { lowerSingular } = useSessionWording()
   const { isAutomation } = useSessionPolicy()
-  const { session, directory, busy, empty, menuMode, disabled } = useComposerTarget(
+  const { session, directory, busy, empty, menuMode, planReady, disabled } = useComposerTarget(
     target.sessionID
   )
+  const formsQuery = useSessionForms(target.sessionID)
+  const requestCount = composerRequestCount(formsQuery.data ?? [], planReady)
   const agentsQuery = useAgents()
   const switchAgent = useSwitchAgent(target.sessionID)
   const agents = useMemo(
@@ -125,7 +129,19 @@ function ConnectedComposer({ target }: { target: ComposerTarget }) {
     >
       <div className="flex shrink-0 items-center gap-1 border-b px-3 py-2">
         <div className="min-w-0 flex-1">
-          <div className="truncate text-sm font-medium">{title}</div>
+          <div className="flex items-center gap-1.5">
+            <div className="truncate text-sm font-medium">{title}</div>
+            {requestCount > 0 && (
+              <span
+                className="flex h-4 min-w-4 shrink-0 items-center justify-center rounded-full bg-sky-500 px-1 text-[10px] font-semibold text-white"
+                title={
+                  requestCount === 1 ? '1 request waiting' : `${requestCount} requests waiting`
+                }
+              >
+                {requestCount > 9 ? '9+' : requestCount}
+              </span>
+            )}
+          </div>
           <div
             className={cn(
               'truncate text-[10px]',
@@ -222,6 +238,7 @@ function ConnectedComposer({ target }: { target: ComposerTarget }) {
           agentRequest={agentRequest}
           menuMode={menuMode}
           draft={empty}
+          planReady={planReady}
           startText={handoff?.text}
           startFiles={handoff?.files}
           onDraftChange={handleDraftChange}
