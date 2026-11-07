@@ -22,16 +22,18 @@ person had typed them. OpenCode's mode reminders appear as collapsed
 **System Reminder** rows, shown only when internal output is on, whose detail is
 the reminder text without its tags.
 When a
-Plan run finishes, a plan-ready card appears above the thread so the person can
-adjust the plan or start work. Every request card above the thread — plan-ready,
-saved draft, agent question, or permission — starts expanded and folds
-independently to a single header when the person wants it out of the way. A
-session with no messages shows a
+Plan run finishes, the reply composer carries the plan-ready handoff so the
+person can adjust the plan or start work with an optional message. Agent
+questions live there too. Above the thread, only the saved-draft Start card and
+permission approvals remain: each starts expanded and folds independently to a
+single header when the person wants it out of the way. A session with no
+messages shows a
 dedicated New message view, and a session saved as a draft shows its queued user
 message in the thread and a Start card above it. A daemon worker session shown
 while Clara management is on stays readable and stoppable but hides Reply,
-Done, the composer, fork actions, and the plan-ready card; Forward, Reopen,
-Archive, Delete, Stop, and the right-panel Plan request stay available. On
+Done, the composer, fork actions, and the plan-ready handoff; Forward, Reopen,
+Archive, Delete, Stop, and the right-panel Plan request stay available. Worker
+question forms stay above the thread because there is no composer. On
 normal sessions the header can fork the whole brief, and each user or assistant
 message has fork and forward actions; an assistant reply can also enter a
 structure-aware selection mode and forward just one paragraph, list, or section.
@@ -47,9 +49,9 @@ See [fork.md](fork.md).
    press **New** to reopen it bound to that session.
 2. Clara loads the newest messages and opens the thread with the top of the
    newest message at the top of the view, directly below the header and any
-   request panel above the thread, so a long reply is readable from its first
-   line. A session that is still running keeps following the newest output
-   instead. The down-arrow control jumps to the newest output.
+   permission or saved-draft panel above the thread, so a long reply is readable
+   from its first line. A session that is still running keeps following the
+   newest output instead. The down-arrow control jumps to the newest output.
 3. Click **Reply**, type in the reply window, and press Enter; the prompt appears
    immediately and the header switches to "running". If the composer was already
    open or minimized on another session, it stays connected there instead; close
@@ -77,26 +79,26 @@ See [fork.md](fork.md).
    agent is working steers the active run, or use the composer's chevron menu to
    send it as queued for the next turn.
 10. When the run finishes the header returns to "idle" and usage settles.
-11. When a Plan run ends with a final reply, a plan-ready card appears above the
-    thread. **Adjust Plan** opens the reply window for changes, re-targeting it
-    to this session if it was open on another; **Start Work** switches to the
-    working agent and sends a short synthetic handoff, which appears as a
-    **User confirmed. Starting work.** system row. Click the card header to fold
-    it to its title until you are ready to act.
+11. When a Plan run ends with a final reply, Reply and New carry a request
+    badge. Open the composer to see the plan-ready card above the editor.
+    **Adjust Plan** deselects it and focuses the editor for changes; **Start
+    Work** switches to the working agent and sends a short synthetic handoff,
+    which appears as a **User confirmed. Starting work.** system row. Typing a
+    message and pressing Send starts the run with that message instead. Click
+    the card header to fold it to its title until you are ready to act.
 12. Open a session with a saved draft. The queued user message appears in the
     thread and a Start card appears above it. Click **Start** to send a short
     synthetic approval, deliver the draft, and begin the run; the handoff
     appears as a **User confirmed. Starting saved draft.** system row. Fold the
     card to its title first if you are not ready to act.
-13. Answer an agent question. **Submit** sends only the form. Use the chevron
-    beside Submit and choose **Add a message** to stage the current answers in
-    the composer as a form-response attachment; the form card stays hidden while
-    the composer holds it. Send admits the custom message first, then answers
-    every staged form; the form reply resumes the run with the message already
-    waiting, so both land in the same step. Closing the composer first restores
-    the form unanswered. The form disappears when submitted, and the
-    question-and-answer summary is appended to the thread as a **Answered N
-    questions** system row. The event is derived from the completed `question`
+13. Answer an agent question in the composer. Select its card above the editor
+    and fill the fields. **Submit** answers only the form; **Skip** cancels it.
+    Type a message and press Send to admit the message first and then answer the
+    selected form, so the form reply resumes the run with the message already
+    waiting. Other pending forms stay in the card stack. The form disappears
+    when submitted, and the question-and-answer summary is appended to the
+    thread as a **Answered N questions** system row. The event is derived from
+    the completed `question`
     tool, so it survives reloads without another request. A question card can be
     folded to its title while it waits.
 14. Click a message header to fold it; a folded message shows its header and the
@@ -117,7 +119,8 @@ See [fork.md](fork.md).
 18. Open a daemon worker from the Workers section. While Clara management is on,
     the thread streams normally and Stop remains available, but there is no
     composer, Done, Reply, session fork, message fork, compact, snooze, or
-    plan-ready card. Messages can still be forwarded, the header can archive or
+    plan-ready handoff. Question forms stay above the thread because there is no
+    composer. Messages can still be forwarded, the header can archive or
     delete the worker, an archived worker shows Reopen, and the right-panel Plan
     section can request or refresh its checklist.
 
@@ -138,12 +141,13 @@ See [fork.md](fork.md).
    top of the newest message at the top of the view unless the session is
    running, in which case the view follows new output; scrolling near the top
    fetches older pages with the server's cursor and keeps the view anchored to
-   the first visible message. A request panel above the thread (permission,
-   question form, plan-ready, or draft start) is in normal document flow, so the
-   newest message starts just below it without any extra offset. Each request
-   card starts expanded and folds independently to its title; folded content is
-   clipped and not focusable. Folding is held in memory for the mounted card and
-   resets when the person leaves the session.
+   the first visible message. A request panel above the thread (permission or
+   saved-draft start) is in normal document flow, so the newest message starts
+   just below it without any extra offset. Each request card starts expanded and
+   folds independently to its title; folded content is clipped and not
+   focusable. Folding is held in memory for the mounted card and resets when the
+   person leaves the session. Question forms and the plan-ready handoff live in
+   the composer instead, so they do not push the thread down.
 5. Unknown event types are ignored so a newer server does not break the view.
 6. Each message renders as a full-width row with a `U`/`A` avatar, sender name,
    timestamp, and a divider. A user message with `metadata.synthetic === true`
@@ -205,15 +209,15 @@ See [fork.md](fork.md).
     engages the agent — a prompt, Start, Start Work or a plan request, a command,
     a saved draft, a permission decision, or a question answer — clears the
     snooze marker first, so the session leaves Snoozed without a manual Reopen.
-14. The plan-ready card appears only while the session is idle, the session agent
-    is Plan, and the newest user or assistant message is a Plan reply that
-    finished with `stop` and no error. It is hidden while the composer is open on
-    that session and on archived sessions; a composer connected to a different
-    session does not hide it. Build switches the agent before sending
-    `Confirmed`, and both requests disable the buttons while they are in flight.
-    Once `Confirmed` is sent, Build advances the Monitor Inbox like Send does.
-    The card starts expanded and can be folded to its title; folding does not
-    cancel a start-work request already in flight.
+14. The plan-ready handoff is part of the composer. It appears only while the
+    session is idle, the session agent is Plan, and the newest user or assistant
+    message is a Plan reply that finished with `stop` and no error. It is absent
+    on archived sessions and in worker mode. **Build** switches the agent before
+    sending `Confirmed`; **Start Work** sends the synthetic handoff, while Send
+    with a typed message sends that message and its attachments instead. Both
+    requests disable while they are in flight. Once started, Build advances the
+    Monitor Inbox like Send does. The card is selected from the composer stack;
+    folding it does not cancel a start-work request already in flight.
 15. The Start card appears only while the session is idle, not archived, and the
     server reports pending user items in the session inbox. Pending inbox user
     messages are merged into the thread by message ID, so a draft is visible
@@ -225,10 +229,11 @@ See [fork.md](fork.md).
     without cancelling the start request.
 16. A session is a worker when Clara management is on and its metadata says
     `automation === true`. Worker mode suppresses the composer, Done, Reply,
-    New, message and session fork, compact, snooze, the plan-ready card, and
+    New, message and session fork, compact, snooze, the plan-ready handoff, and
     draft views. It keeps Stop, Forward, Reopen for archived workers, Archive,
     Delete, permission and question panels, and the Plan section with its
-    Request Plan and Request Update actions. When management is off or the
+    Request Plan and Request Update actions. Worker question forms stay above
+    the thread because there is no composer. When management is off or the
     feature is excluded from the build, the same session uses the normal chat
     controls.
 17. If a message-sending request fails with OpenCode's `LocationNotFoundError`,
@@ -237,20 +242,19 @@ See [fork.md](fork.md).
     same request once. This covers prompts, queued messages, commands, saved
     drafts, Start, Plan requests, and the Start Work handoff including its agent
     switch. The retry keeps the original text, attachments, and delivery.
-18. A question form offers **Submit**, which answers only the form, and a chevron
-    menu with **Add a message**. The second action stages a copy of the current
-    answers in the composer and hides that form card while the composer is open
-    or minimized on the same session. The staged answers are display-only; Send
-    admits the custom message to the session inbox first with resume disabled,
-    then answers each staged form through `session.form.reply`. The form reply
-    resumes the blocked run, and the waiting message is promoted at the next
-    step boundary, so the message and answer share a turn instead of racing.
-    Staged answers are never attached as prompt files, so the model receives
-    them once. Slash commands keep the form-first order because command
-    execution cannot be cancelled through the inbox. Removing the attachment or
-    closing the composer restores the unanswered form. A failed form reply
-    cancels the admitted message so a retry does not duplicate it; if that
-    cancellation fails, Clara warns that the message may already be queued.
+18. A question form is a selectable card in the composer. **Submit** answers only
+    the form and **Skip** cancels it. Send with a message admits the custom
+    message to the session inbox first with resume disabled, then answers the
+    selected form through `session.form.reply`. The form reply resumes the
+    blocked run, and the waiting message is promoted at the next step boundary,
+    so the message and answer share a turn instead of racing. Only the selected
+    form is answered with a message; other pending forms stay in the stack.
+    Answers are never attached as prompt files, so the model receives them once.
+    Slash commands keep the form-first order because command execution cannot be
+    cancelled through the inbox. Closing the composer leaves the unanswered form
+    pending. A failed form reply cancels the admitted message so a retry does not
+    duplicate it; if that cancellation fails, Clara warns that the message may
+    already be queued.
 19. An expanded, idle assistant reply with text offers **Select part**. The
     inspector groups only the top-level markdown blocks: headings own their
     section, while paragraphs, lists, code fences, tables, quotes, and dividers
@@ -304,27 +308,29 @@ See [fork.md](fork.md).
 - **Long tool output** — input and output clamp to a scrollable height.
 - **Permission rejected** — the request disappears and the agent continues or
   fails according to its own behavior.
-- **Collapsed request card** — folding a plan, draft, question, or permission
-  card leaves only its icon, title, and badge. Hidden fields and actions are
-  clipped and not focusable; expanding restores them in place.
+- **Folded request card** — folding a draft-start or permission card leaves only
+  its icon, title, and badge. Hidden fields and actions are clipped and not
+  focusable; expanding restores them in place. In the composer, the selected
+  request card is expanded while the others fold to their header.
 - **Folding while an action is pending** — Start Work, Start, Submit, Skip, or a
   permission decision continues in the background. Re-expanding shows the
   current pending state if the card is still present.
-- **Staged form response** — **Add a message** opens the composer with the
-  current answers as a removable form-response chip and hides the form card.
-  Send admits the custom message first and then answers the form, so the form
-  reply resumes the run with the message already waiting. Closing the composer,
-  removing the chip, or moving the composer to another session puts the
-  unanswered form back in the panel.
-- **Prompt admission fails with a staged form** — no form is answered and the
-  composer keeps its text, files, and form chips for retry.
-- **Staged form reply fails** — Clara cancels the message it just admitted and
-  removes any forms that were answered before the failure. The composer keeps
-  its text, files, and remaining form chips so the send can be retried without
-  duplicating the message.
+- **Form sent with a message** — the selected composer form admits the custom
+  message first and then answers the form, so the form reply resumes the run
+  with the message already waiting. Closing the composer leaves the form pending
+  in the stack for the next open.
+- **Prompt admission fails with a selected form** — no form is answered and the
+  composer keeps its text, files, and answers for retry.
+- **Form reply fails after admission** — Clara cancels the message it just
+  admitted. The composer keeps its text, files, and answers so the send can be
+  retried without duplicating the message.
 - **Cancelling the admitted message fails** — the form reply still failed and
   Clara warns that the message may already be queued, leaving the composer text
-  and chips in place.
+  and answers in place.
+- **Plan start with a message** — the working agent receives the typed prompt and
+  attachments as a normal user message instead of the synthetic handoff.
+- **Multiple forms waiting** — only the selected form is answered with a Send.
+  The others stay pending until submitted, skipped, or cancelled by the server.
 - **Request resolves while folded** — the card disappears when the request is
   completed or withdrawn; the next request mounts expanded.
 - **Session switch with folded requests** — every request card returns to
@@ -352,9 +358,10 @@ See [fork.md](fork.md).
 - **Prompt sent to a running agent** — the new prompt takes over as the expanded
   message; the previous reply collapses unless it was opened by hand.
 - **Plan reply without `stop`** — a Plan run that ends on a tool call, an error,
-  or a non-stop finish does not show the plan-ready card.
-- **Stale plan handoff** — the card requires the session agent and the newest
-  reply to be Plan; switching agents or opening an archived session hides it.
+  or a non-stop finish does not show the plan-ready handoff.
+- **Stale plan handoff** — the composer card requires the session agent and the
+  newest reply to be Plan; switching agents or opening an archived session hides
+  it.
 - **Start Work request fails** — a failed switch leaves the card in place; if
   the switch succeeds but the handoff cannot be sent, a toast asks the person to
   send a message from the reply box, and Monitor Inbox does not advance.
@@ -373,8 +380,9 @@ See [fork.md](fork.md).
 - **Done on an archived or snoozed session** — the button is hidden and Reopen
   is shown instead; the chat remains readable.
 - **Worker session** — the composer, Done, Reply, New, fork, compact, snooze,
-  plan-ready card, and draft views are hidden while Clara management is on.
-  Stop, Forward, Archive, Delete, Reopen, and the Plan request remain.
+  plan-ready handoff, and draft views are hidden while Clara management is on.
+  Stop, Forward, Archive, Delete, Reopen, the Plan request, and question forms
+  above the thread remain.
 - **Worker session with management off** — the automation-session treatment is
   removed, so the session uses the normal composer and actions; synthetic
   messages still show the Automation sender.
@@ -465,22 +473,26 @@ metadata, delivery: 'steer' })`
 - Interrupt: `client.session.interrupt({ sessionID })`
 - Approvals: `client.permission.request.list`, `client.permission.reply`;
   request thinking comes from `src/features/chat/permission-thinking.ts`
-- Forms: `client.session.form.list`, `client.session.form.reply`; staged form
-  responses live in `src/features/chat/composer-provider.tsx` and are displayed
-  through `src/components/chat/form-response-attachment.tsx`. The composer
-  admits the message with `session.prompt({ resume: false })` first, replies to
-  the forms, and cancels the inbox item through `session.inbox.cancel` if a
-  reply fails.
+- Forms: `client.session.form.list`, `client.session.form.reply`; pending forms
+  live in the composer through
+  `src/components/chat/composer-request-list.tsx`. The composer admits the
+  message with `session.prompt({ resume: false })` first, replies to the selected
+  form, and cancels the inbox item through `session.inbox.cancel` if a reply
+  fails. `src/features/chat/form-response.ts` formats the collapsed-card answer
+  summary.
 - Request cards: `src/components/chat/request-card.tsx` renders the header
   toggle, per-card expanded state, and top-anchored reveal shared by the
-  plan-ready, draft-start, question, and permission cards
-- Plan handoff: `src/features/chat/plan-ready.ts`,
-  `src/components/chat/plan-ready-panel.tsx`; the Start Work button plays
-  `playStartWorkSound` from `src/features/notifications/sounds.ts` when UI
-  sounds are on
+  draft-start, question, and permission cards. The composer's plan-ready and
+  question cards use `src/components/chat/composer-request-list.tsx`.
+- Plan handoff: `src/features/chat/plan-ready.ts` detects the handoff;
+  `src/features/chat/use-start-work.ts` switches the agent and sends either the
+  synthetic approval or a typed prompt. Start Work plays `playStartWorkSound`
+  from `src/features/notifications/sounds.ts` when UI sounds are on.
 - Plan handoff APIs: `client.session.switchAgent({ sessionID, agent: 'build' })`,
-  then `client.session.synthetic({ sessionID, text, description, metadata,
-delivery: 'steer' })`
+  then `client.session.prompt({ sessionID, text, files, delivery: 'steer' })`
+  for a typed start or
+  `client.session.synthetic({ sessionID, text, description, metadata,
+delivery: 'steer' })` for Start Work
 - System events: `client.session.synthetic` for one-click actions;
   `src/features/chat/system-events.ts` parses Clara metadata,
   `src/features/chat/questions.ts` derives Q&A events from the completed
