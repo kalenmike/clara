@@ -14,7 +14,7 @@ describe('package loader', () => {
     const summary = catalogSummary(catalog)
     expect(summary.map((pkg) => pkg.id)).toContain('orchestration')
     const software = summary.find((pkg) => pkg.id === 'software')
-    expect(software?.pipelines).toEqual(['bug', 'example', 'feature'])
+    expect(software?.pipelines).toEqual(['bug', 'docs', 'feature'])
     expect(software?.routers).toContain('classifier')
   })
 
@@ -22,7 +22,11 @@ describe('package loader', () => {
     const catalog = loadCatalog(config)
     const entry = compileRun(catalog, 'std:software')
     expect(entry.root.kind).toBe('router')
-    expect(entry.root.routes?.map((route) => route.when)).toEqual(['feature', 'bug', 'example'])
+    expect(entry.root.routes?.map((route) => route.when)).toEqual([
+      'feature',
+      'bug',
+      'documentation',
+    ])
 
     const feature = compileRun(catalog, 'std:software/feature')
     expect(feature.root.kind).toBe('pipeline')
@@ -53,11 +57,41 @@ describe('package loader', () => {
     ])
   })
 
+  it('compiles the documentation lifecycle', () => {
+    const catalog = loadCatalog(config)
+    const docs = compileRun(catalog, 'std:software/docs')
+    expect(docs.root.kind).toBe('pipeline')
+    expect(docs.root.enforcement).toBe('strict')
+    expect(docs.root.children?.map((step) => step.name)).toEqual([
+      'assess_docs',
+      'update_docs',
+      'verify_docs',
+      'docs_review',
+    ])
+  })
+
+  it('resolves a task for every task step in the software package', () => {
+    const catalog = loadCatalog(config)
+    const software = catalog.packages.find((pkg) => pkg.manifest.id === 'software')
+    expect(software).toBeDefined()
+    for (const pipeline of software!.pipelines.values()) {
+      for (const step of pipeline.steps) {
+        if (step.type !== 'task') continue
+        const task = software!.tasks.get(step.task ?? step.name)
+        expect(task, `${pipeline.id}/${step.name} has no task`).toBeDefined()
+        expect(
+          task?.prompt.trim().length,
+          `${pipeline.id}/${step.name} has an empty prompt`
+        ).toBeGreaterThan(0)
+      }
+    }
+  })
+
   it('injects route criteria into router prompts', () => {
     const catalog = loadCatalog(config)
     const primary = compileRun(catalog)
     expect(primary.root.prompt).toContain(
-      '- `software-development` — a normal software feature, bug, or example request.'
+      '- `software-development` — a normal software feature, bug, or documentation request.'
     )
     expect(primary.root.prompt).not.toContain('[ROUTES]')
 
@@ -111,17 +145,64 @@ describe('package loader', () => {
   })
 
   it('keeps nested groups and router targets in the snapshot', () => {
-    const catalog = loadCatalog(config)
-    const example = compileRun(catalog, 'std:software/example')
-    const group = example.root.children?.find((step) => step.name === 'task_group')
-    expect(group?.kind).toBe('group')
-    expect(group?.children?.length).toBe(2)
-    const router = example.root.children?.find((step) => step.name === 'task_router')
-    expect(router?.kind).toBe('router')
-    expect(router?.routes?.every((route) => route.target)).toBe(true)
-    expect(router?.prompt).toContain('- `feature` — new work.')
-    expect(router?.prompt).not.toContain('[ROUTES]')
-    expect(example.snapshot).toContain('background_task')
+    const dir = mkdtempSync(join(tmpdir(), 'clara-nested-'))
+    try {
+      mkdirSync(join(dir, 'routers'))
+      writeFileSync(
+        join(dir, 'index.yml'),
+        [
+          'id: temp',
+          'name: Temp',
+          'version: 1',
+          'entry: example',
+          'pipelines:',
+          '  example:',
+          '    steps:',
+          '      - name: task_1',
+          '        type: task',
+          '      - name: task_group',
+          '        type: group',
+          '        steps:',
+          '          - name: background_task',
+          '            type: task',
+          '            background: true',
+          '          - name: inline_task',
+          '            type: task',
+          '      - name: task_router',
+          '        type: router',
+          '        path: ./routers/example.md',
+          '  feature:',
+          '    steps:',
+          '      - name: do_feature',
+          '        type: task',
+        ].join('\n')
+      )
+      writeFileSync(
+        join(dir, 'routers', 'example.md'),
+        [
+          '---',
+          'routes:',
+          '  - when: feature',
+          '    criteria: new work.',
+          '    run: feature',
+          '---',
+          '# Example router',
+          '[ROUTES]',
+        ].join('\n')
+      )
+      const example = compileRun(loadCatalog(dir))
+      const group = example.root.children?.find((step) => step.name === 'task_group')
+      expect(group?.kind).toBe('group')
+      expect(group?.children?.length).toBe(2)
+      const router = example.root.children?.find((step) => step.name === 'task_router')
+      expect(router?.kind).toBe('router')
+      expect(router?.routes?.every((route) => route.target)).toBe(true)
+      expect(router?.prompt).toContain('- `feature` — new work.')
+      expect(router?.prompt).not.toContain('[ROUTES]')
+      expect(example.snapshot).toContain('background_task')
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
   })
 
   it('loads the content package', () => {

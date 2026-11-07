@@ -1,3 +1,6 @@
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { beforeEach, describe, expect, it } from 'vitest'
 import { Runtime, Store } from '../src/index.ts'
@@ -55,7 +58,7 @@ describe('runtime', () => {
     expect(started.work[0].routes?.map((route) => route.when)).toEqual([
       'feature',
       'bug',
-      'example',
+      'documentation',
     ])
     expect(started.work[0].prompt).toContain(
       '- `feature` — new capability or a substantial change.'
@@ -93,6 +96,26 @@ describe('runtime', () => {
     expect(next[0].name).toBe('write_regression_test')
   })
 
+  it('runs the documentation lifecycle in order', () => {
+    adapter()
+    const started = runtime.start({
+      workspace,
+      prompt: 'update the docs',
+      target: 'std:software/docs',
+    })
+    expect(started.work[0].name).toBe('assess_docs')
+
+    const completed = runtime.complete(
+      started.run.id,
+      started.work[0].step_path,
+      started.work[0].work_token,
+      { plan: 'rewrite orchestration.md' }
+    )
+    expect(completed.ready.map((step) => step.name)).toContain('update_docs')
+    const next = runtime.next(started.run.id)
+    expect(next[0].name).toBe('update_docs')
+  })
+
   it('fails a step and retries it until the attempt limit', () => {
     const started = runtime.start({ workspace, prompt: 'patch', target: 'quick_patch' })
     const work = started.work[0]
@@ -103,16 +126,53 @@ describe('runtime', () => {
   })
 
   it('runs background steps before the remaining foreground steps', () => {
-    const started = runtime.start({ workspace, prompt: 'example', target: 'std:software/example' })
-    const first = started.work[0]
-    expect(first.name).toBe('task_1')
-    runtime.complete(started.run.id, first.step_path, first.work_token, 'ready')
-    const background = runtime.next(started.run.id)[0]
-    expect(background.name).toBe('background_task')
-    expect(background.background).toBe(true)
-    runtime.complete(started.run.id, background.step_path, background.work_token, 'risks')
-    const inline = runtime.next(started.run.id)[0]
-    expect(inline.name).toBe('inline_task')
+    const dir = mkdtempSync(join(tmpdir(), 'clara-runtime-'))
+    try {
+      mkdirSync(join(dir, 'orchestration'))
+      writeFileSync(
+        join(dir, 'orchestration', 'index.yml'),
+        [
+          'id: temp',
+          'name: Temp',
+          'version: 1',
+          'entry: example',
+          'pipelines:',
+          '  example:',
+          '    steps:',
+          '      - name: task_1',
+          '        type: task',
+          '      - name: task_group',
+          '        type: group',
+          '        steps:',
+          '          - name: background_task',
+          '            type: task',
+          '            background: true',
+          '          - name: inline_task',
+          '            type: task',
+        ].join('\n')
+      )
+      const tempRuntime = new Runtime({
+        store: new Store(':memory:'),
+        configPath: join(dir, 'orchestration', 'index.yml'),
+      })
+      const started = tempRuntime.start({ workspace: dir, prompt: 'example', target: 'example' })
+      const first = started.work[0]
+      expect(first.name).toBe('task_1')
+      tempRuntime.complete(started.run.id, first.step_path, first.work_token, 'ready')
+      const background = tempRuntime.next(started.run.id)[0]
+      expect(background.name).toBe('background_task')
+      expect(background.background).toBe(true)
+      tempRuntime.complete(
+        started.run.id,
+        background.step_path,
+        background.work_token,
+        'risks'
+      )
+      const inline = tempRuntime.next(started.run.id)[0]
+      expect(inline.name).toBe('inline_task')
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
   })
 
   it('creates spawned child runs and resumes the parent when they finish', () => {

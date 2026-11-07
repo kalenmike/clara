@@ -1,0 +1,14 @@
+id: docs
+name: Documentation lifecycle
+description: Assess, update, verify, and review documentation
+default_model: 'deepseek-v4.1-flash'
+enforcement: strict
+steps:
+  - name: assess_docs
+    type: task
+  - name: update_docs
+    type: task
+  - name: verify_docs
+    type: task
+  - name: docs_review
+    type: task
