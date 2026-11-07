@@ -119,6 +119,59 @@ describe('runtime', () => {
     expect(store.step(started.run.id, work.step_path)?.status).toBe('ready')
   })
 
+  it('requires all strict adapter capabilities', () => {
+    runtime.registerAdapter({
+      harness: 'opencode',
+      workspace,
+      capabilities: ['turn_limit'],
+    })
+    expect(() =>
+      runtime.start({ workspace, prompt: 'build it', target: 'std:software/feature' })
+    ).toThrow(/tool_policy/)
+  })
+
+  it('does not advance healthy running work on a watchdog tick', () => {
+    const started = runtime.start({ workspace, prompt: 'patch', target: 'quick_patch' })
+    const work = started.work[0]
+    const ticked = runtime.tick()
+    expect(ticked.alerts).toHaveLength(0)
+    expect(store.step(started.run.id, work.step_path)?.status).toBe('running')
+  })
+
+  it('fails a spawned group fast and cancels its siblings', () => {
+    const started = runtime.start({ workspace, prompt: 'patch', target: 'quick_patch' })
+    const parent = started.work[0]
+    const spawned = runtime.spawn(started.run.id, parent.step_path, parent.work_token, {
+      count: 2,
+      prompt: 'check one file',
+    })
+    const second = runtime.next(spawned.children[1].id)[0]
+    for (let attempt = 0; attempt < 3; attempt++) {
+      const work = runtime.next(spawned.children[0].id)[0]
+      runtime.fail(spawned.children[0].id, work.step_path, work.work_token, 'boom')
+    }
+    runtime.advance(started.run.id)
+    expect(store.run(spawned.children[0].id)?.state).toBe('failed')
+    expect(store.run(spawned.children[1].id)?.state).toBe('cancelled')
+    expect(store.step(started.run.id, parent.step_path)?.status).toBe('failed')
+    expect(second.step_path).toBeTruthy()
+  })
+
+  it('retries a completion that exceeded the reported budget', () => {
+    const started = runtime.start({ workspace, prompt: 'patch', target: 'quick_patch' })
+    let work = started.work[0]
+    for (let attempt = 0; attempt < 3; attempt++) {
+      runtime.complete(started.run.id, work.step_path, work.work_token, 'too much', {
+        turns: 99,
+        tokens: 999_999,
+      })
+      const next = runtime.next(started.run.id)[0]
+      if (next) work = next
+    }
+    expect(store.step(started.run.id, started.work[0].step_path)?.status).toBe('failed')
+    expect(runtime.inbox().some((alert) => alert.kind === 'budget')).toBe(true)
+  })
+
   it('evaluates policy and records violations', () => {
     const started = runtime.start({ workspace, prompt: 'patch', target: 'quick_patch' })
     const work = started.work[0]

@@ -541,29 +541,30 @@ export class Runtime {
       elapsedSeconds: row.started_at ? ageMs(row.started_at) / 1000 : 0,
       violations,
     })
+    const retry = Boolean(exceeded && Number(row.attempt) < Number(row.max_attempts))
     this.store.updateStep(Number(row.id), {
-      status: exceeded ? 'failed' : 'done',
+      status: retry ? 'ready' : exceeded ? 'failed' : 'done',
       result: JSON.stringify(result),
       turns,
       tokens,
       tool_calls: toolCalls,
       violations,
-      finished_at: now(),
+      finished_at: retry ? null : now(),
       error: exceeded ?? null,
       lease_id: null,
       lease_owner: null,
       lease_expires_at: null,
     })
-    this.store.event(runID, exceeded ? 'step.failed' : 'step.completed', {
+    this.store.event(runID, retry ? 'step.retry' : exceeded ? 'step.failed' : 'step.completed', {
       step: path,
       ...(exceeded ? { reason: exceeded } : {}),
     })
-    if (exceeded) {
+    if (exceeded && !retry) {
       const alert = this.store.alert({
         run_id: runID,
         step_path: path,
         kind: 'budget',
-        title: `Budget exceeded in ${path}`,
+        title: `Budget exhausted in ${path}`,
         body: exceeded,
       })
       this.store.event(runID, 'alert.created', { alert: alert.id, kind: 'budget' })
@@ -844,6 +845,7 @@ export class Runtime {
       this.advance(Number(run.id))
       for (const step of this.store.steps(Number(run.id))) {
         if (step.status !== 'running') continue
+        if (step.type !== 'task' && step.type !== 'router') continue
         const stalled = ageMs(step.heartbeat_at) > this.stalledMs
         const expired = step.lease_expires_at ? ageMs(step.lease_expires_at) >= 0 : false
         if (!stalled && !expired) continue
