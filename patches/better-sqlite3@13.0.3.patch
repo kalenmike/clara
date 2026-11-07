@@ -1,0 +1,21 @@
+diff --git a/lib/binding.js b/lib/binding.js
+index db68b61f8bd27de2cd90c820cd6dc813ea23cfb7..f834c9077ddbc2cb7f3b97c15cb12a6f19f249ff 100644
+--- a/lib/binding.js
++++ b/lib/binding.js
+@@ -50,7 +50,15 @@ function getPrebuildPath() {
+ }
+ 
+ function isLinuxMusl() {
+-	return process.platform === 'linux' && !process.report.getReport().header.glibcVersionRuntime;
++	if (process.platform !== 'linux') return false;
++	if (!process.report.getReport().header.glibcVersionRuntime) return true;
++	// gcompat advertises a glibc version on musl hosts. Inspect the loaded
++	// interpreter so the musl prebuild is still selected there.
++	try {
++		return fs.readFileSync('/proc/self/maps', 'utf8').includes('ld-musl-');
++	} catch {
++		return false;
++	}
+ }
+ 
+ exports.getBinding = getBinding;

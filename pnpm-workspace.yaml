@@ -8,3 +8,6 @@ allowBuilds:
   better-sqlite3: true
   esbuild: true
   workerd: true
+
+patchedDependencies:
+  better-sqlite3@13.0.3: patches/better-sqlite3@13.0.3.patch
