@@ -27,7 +27,11 @@ const force = process.argv.includes('--force')
 const command = process.argv[2] ?? 'install'
 const target = process.argv[3]
 
-if (command === 'install') install(target)
+if (command === 'help' || command === '--help' || command === '-h') {
+  console.log(
+    'Clara OpenCode adapter\n\nUsage: pnpm clara adapter <install|uninstall|status> [opencode]'
+  )
+} else if (command === 'install') install(target)
 else if (command === 'uninstall') uninstall()
 else if (command === 'status') status()
 else fail(`unknown command: ${command}`)

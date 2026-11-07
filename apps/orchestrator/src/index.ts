@@ -131,6 +131,12 @@ async function status(): Promise<void> {
 
 async function main(): Promise<void> {
   const command = process.argv[2] ?? 'serve'
+  if (command === 'help' || command === '--help' || command === '-h') {
+    console.log(
+      'Clara orchestration service\n\nUsage: clara-orchestrator <serve|start|stop|status|token>'
+    )
+    return
+  }
   if (command === 'serve') return serve()
   if (command === 'start') return start()
   if (command === 'stop') return stop()

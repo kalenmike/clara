@@ -29,7 +29,11 @@ const args = process.argv.slice(2)
 const command = args[0] ?? 'install'
 const noStart = args.includes('--no-start')
 
-if (command === 'install') install()
+if (command === 'help' || command === '--help' || command === '-h') {
+  console.log(
+    'Clara MCP bridge\n\nUsage: pnpm clara mcp <install|uninstall|config|status> [--no-start]'
+  )
+} else if (command === 'install') install()
 else if (command === 'uninstall') uninstall()
 else if (command === 'config') printConfig()
 else if (command === 'status') status()
