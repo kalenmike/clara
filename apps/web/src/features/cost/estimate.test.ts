@@ -5,6 +5,7 @@ import {
   estimateStepCost,
   estimateUsageCost,
   findModel,
+  latestAssistantModel,
   latestContextTokens,
   resolveDisplayCost,
   selectCostTier,
@@ -19,8 +20,18 @@ const BASE: ModelCost = {
 
 const TIERED: ModelCost[] = [
   { input: 1, output: 2, cache: { read: 0.1, write: 0.2 } },
-  { input: 2, output: 4, cache: { read: 0.2, write: 0.4 }, tier: { type: 'context', size: 200_000 } },
-  { input: 3, output: 6, cache: { read: 0.3, write: 0.6 }, tier: { type: 'context', size: 400_000 } },
+  {
+    input: 2,
+    output: 4,
+    cache: { read: 0.2, write: 0.4 },
+    tier: { type: 'context', size: 200_000 },
+  },
+  {
+    input: 3,
+    output: 6,
+    cache: { read: 0.3, write: 0.6 },
+    tier: { type: 'context', size: 400_000 },
+  },
 ]
 
 function model(cost: ModelCost[], overrides: Partial<ModelInfo> = {}): ModelInfo {
@@ -50,10 +61,7 @@ function tokens(overrides: Partial<TokenUsageInfo> = {}): TokenUsageInfo {
   }
 }
 
-function assistant(
-  id: string,
-  usage: TokenUsageInfo | undefined
-): SessionMessageInfo {
+function assistant(id: string, usage: TokenUsageInfo | undefined): SessionMessageInfo {
   return {
     id,
     type: 'assistant',
@@ -67,9 +75,7 @@ function assistant(
 
 describe('tokensContextTokens', () => {
   it('sums uncached input and both cache buckets', () => {
-    expect(
-      tokensContextTokens(tokens({ input: 100, cache: { read: 20, write: 30 } }))
-    ).toBe(150)
+    expect(tokensContextTokens(tokens({ input: 100, cache: { read: 20, write: 30 } }))).toBe(150)
   })
 })
 
@@ -171,6 +177,25 @@ describe('latestContextTokens', () => {
   it('returns undefined when no assistant usage exists', () => {
     expect(latestContextTokens([])).toBeUndefined()
     expect(latestContextTokens(undefined)).toBeUndefined()
+  })
+})
+
+describe('latestAssistantModel', () => {
+  it('returns the model on the newest assistant step', () => {
+    const messages = [
+      assistant('one', tokens({ input: 10 })),
+      {
+        ...assistant('two', tokens({ input: 20 })),
+        model: { id: 'newer', providerID: 'provider' },
+      },
+    ]
+
+    expect(latestAssistantModel(messages)).toEqual({ id: 'newer', providerID: 'provider' })
+  })
+
+  it('returns undefined when no assistant model exists', () => {
+    expect(latestAssistantModel([])).toBeUndefined()
+    expect(latestAssistantModel(undefined)).toBeUndefined()
   })
 })
 

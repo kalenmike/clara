@@ -7,6 +7,7 @@ import { useModels } from '@/features/catalog/use-catalog'
 import type { ChatSnapshot } from '@/features/chat/chat-store'
 import { isSyntheticMessage } from '@/features/chat/message-attribution'
 import { useSessionContext } from '@/features/chat/use-session-context'
+import { useSessionCost } from '@/features/cost/use-session-cost'
 import { useSessionWording } from '@/features/sessions/use-wording'
 import {
   contextPercent,
@@ -60,7 +61,7 @@ export function SessionInfoPanel({
   }, [contextQuery.data])
 
   const tokens = snapshot.tokens ?? session?.tokens
-  const cost = snapshot.cost || session?.cost || 0
+  const displayCost = useSessionCost(session, snapshot)
   const contextTokens = latest
     ? latest.tokens!.input + latest.tokens!.cache.read + latest.tokens!.cache.write
     : tokens?.input
@@ -108,8 +109,16 @@ export function SessionInfoPanel({
         <div className="flex items-center justify-between">
           <span className="flex items-center gap-1.5 text-muted-foreground">
             <Coins className="size-3.5" /> Cost
+            {displayCost.estimated && (
+              <span className="rounded bg-muted px-1 text-[9px] uppercase">est.</span>
+            )}
           </span>
-          <span className="font-mono">{formatCost(cost)}</span>
+          <span
+            className="font-mono"
+            title={displayCost.estimated ? 'Estimated from model prices' : undefined}
+          >
+            {formatCost(displayCost.value, { estimated: displayCost.estimated })}
+          </span>
         </div>
         <div className="grid grid-cols-2 gap-1 text-[10px] text-muted-foreground">
           <span>input</span>

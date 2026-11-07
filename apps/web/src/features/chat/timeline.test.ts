@@ -260,6 +260,7 @@ describe('buildTimeline', () => {
       input: 150,
       output: 15,
       cost: 0.03,
+      costEstimated: false,
       tools: 1,
       turns: 2,
       hasTokens: true,
@@ -295,7 +296,15 @@ describe('buildTimeline', () => {
     expect(items[1]).toMatchObject({
       type: 'hidden-activity',
       streaming: false,
-      summary: { chars: 7, tools: 1, turns: 1, input: 100, output: 10, cost: 0.01 },
+      summary: {
+        chars: 7,
+        tools: 1,
+        turns: 1,
+        input: 100,
+        output: 10,
+        cost: 0.01,
+        costEstimated: false,
+      },
     })
   })
 
@@ -329,7 +338,45 @@ describe('buildTimeline', () => {
 
     expect(items[1]).toMatchObject({
       type: 'message',
-      usageSummary: { chars: 8, tools: 1, turns: 1, input: 50, output: 5, cost: 0.02 },
+      usageSummary: {
+        chars: 8,
+        tools: 1,
+        turns: 1,
+        input: 50,
+        output: 5,
+        cost: 0.02,
+        costEstimated: false,
+      },
+    })
+  })
+
+  it('uses an estimator for a visible message cost', () => {
+    const reply = priced(assistant([{ type: 'text', text: 'Done' }], 9), 100, 10, 0.01)
+
+    const items = buildTimeline([user('Go'), reply], {
+      showInternal: false,
+      streaming: false,
+      estimateCost: () => 0.02,
+    })
+
+    expect(items[1]).toMatchObject({
+      type: 'message',
+      displayCost: { value: 0.02, estimated: true },
+    })
+  })
+
+  it('falls back to the reported message cost when the estimator has no price', () => {
+    const reply = priced(assistant([{ type: 'text', text: 'Done' }], 9), 100, 10, 0.01)
+
+    const items = buildTimeline([user('Go'), reply], {
+      showInternal: false,
+      streaming: false,
+      estimateCost: () => undefined,
+    })
+
+    expect(items[1]).toMatchObject({
+      type: 'message',
+      displayCost: { value: 0.01, estimated: false },
     })
   })
 

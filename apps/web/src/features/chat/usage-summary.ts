@@ -11,12 +11,22 @@ export type UsageSummary = {
   input: number
   output: number
   cost: number
+  /** Whether the cost came from model prices rather than the server. */
+  costEstimated: boolean
   tools: number
   turns: number
   hasTokens: boolean
 }
 
-export function summarizeSteps(steps: SessionMessageAssistant[]): UsageSummary {
+export type SummarizeOptions = {
+  /** Resolve a step's cost from model prices. Omit to use the reported cost. */
+  estimateCost?: (step: SessionMessageAssistant) => number | undefined
+}
+
+export function summarizeSteps(
+  steps: SessionMessageAssistant[],
+  options: SummarizeOptions = {}
+): UsageSummary {
   let chars = 0
   let input = 0
   let output = 0
@@ -34,10 +44,20 @@ export function summarizeSteps(steps: SessionMessageAssistant[]): UsageSummary {
       input += step.tokens.input
       output += step.tokens.output
     }
-    if (step.cost) cost += step.cost
+    const stepCost = options.estimateCost ? (options.estimateCost(step) ?? step.cost) : step.cost
+    if (stepCost) cost += stepCost
   }
 
-  return { chars, input, output, cost, tools, turns: steps.length, hasTokens }
+  return {
+    chars,
+    input,
+    output,
+    cost,
+    costEstimated: Boolean(options.estimateCost),
+    tools,
+    turns: steps.length,
+    hasTokens,
+  }
 }
 
 /** Whether a summary has anything beyond an empty placeholder. */
@@ -54,7 +74,9 @@ export function formatUsageSummary(summary: UsageSummary): string {
   if (summary.hasTokens || summary.input > 0 || summary.output > 0) {
     parts.push(`${formatTokens(summary.input)} in · ${formatTokens(summary.output)} out`)
   }
-  if (summary.cost > 0) parts.push(formatCost(summary.cost))
+  if (summary.cost > 0) {
+    parts.push(formatCost(summary.cost, { estimated: summary.costEstimated }))
+  }
   if (summary.chars > 0) parts.push(`${formatCount(summary.chars)} chars`)
   parts.push(`${formatCount(summary.tools)} ${summary.tools === 1 ? 'tool' : 'tools'}`)
   parts.push(`${formatCount(summary.turns)} ${summary.turns === 1 ? 'turn' : 'turns'}`)
@@ -70,7 +92,9 @@ export function formatUsageDetail(summary: UsageSummary): string {
   if (summary.hasTokens || summary.input > 0 || summary.output > 0) {
     parts.push(`${formatTokens(summary.input)} in · ${formatTokens(summary.output)} out`)
   }
-  if (summary.cost > 0) parts.push(formatCost(summary.cost))
+  if (summary.cost > 0) {
+    parts.push(formatCost(summary.cost, { estimated: summary.costEstimated }))
+  }
   parts.push(`${formatCount(summary.tools)} ${summary.tools === 1 ? 'tool' : 'tools'}`)
   parts.push(`${formatCount(summary.turns)} ${summary.turns === 1 ? 'turn' : 'turns'}`)
   return parts.join(' · ')

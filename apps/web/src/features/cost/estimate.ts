@@ -111,6 +111,18 @@ export function latestContextTokens(
   return undefined
 }
 
+/** The model on the newest assistant step, used when the session has no model. */
+export function latestAssistantModel(
+  messages: readonly SessionMessageInfo[] | undefined
+): ModelRefLike | undefined {
+  if (!messages) return undefined
+  for (let index = messages.length - 1; index >= 0; index -= 1) {
+    const message = messages[index]
+    if (message.type === 'assistant' && message.model?.id) return message.model
+  }
+  return undefined
+}
+
 /**
  * Choose the value to display. Estimated mode falls back to the reported cost
  * when the catalog has no price for the model, so a number is never hidden.

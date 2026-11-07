@@ -3,7 +3,11 @@ import { Link, Navigate, useLocation, useNavigate, useParams } from 'react-route
 import { useTheme } from 'next-themes'
 import { toast } from 'sonner'
 import { ArrowLeft, Loader2 } from 'lucide-react'
-import type { SessionInboxUser, SessionMessageInfo } from '@opencode/client'
+import type {
+  SessionInboxUser,
+  SessionMessageAssistant,
+  SessionMessageInfo,
+} from '@opencode/client'
 import { Button } from '@/components/ui/button'
 import { Sheet, SheetContent, SheetDescription, SheetTitle } from '@/components/ui/sheet'
 import { ChatHeader } from '@/components/chat/chat-header'
@@ -23,6 +27,8 @@ import { ComposerProvider, useComposer } from '@/features/chat/composer-provider
 import { findPlanReadyReply } from '@/features/chat/plan-ready'
 import { mergeSessionMessages } from '@/features/chat/session-messages'
 import { buildTimeline } from '@/features/chat/timeline'
+import { estimateStepCost } from '@/features/cost/estimate'
+import { useCostDisplay } from '@/features/cost/use-cost-display'
 import {
   useChatSnapshot,
   useCompactSession,
@@ -113,9 +119,20 @@ function ChatPageContent() {
       mergeSessionMessages(snapshot.messages, messagesQuery.data?.messages ?? [], pendingDrafts),
     [messagesQuery.data?.messages, pendingDrafts, snapshot.messages]
   )
+  const modelsQuery = useModels()
+  const { source: costSource } = useCostDisplay()
+  const estimateMessageCost = useCallback(
+    (step: SessionMessageAssistant) => estimateStepCost(step, modelsQuery.data),
+    [modelsQuery.data]
+  )
   const timeline = useMemo(
-    () => buildTimeline(allMessages, { showInternal, streaming: busy }),
-    [allMessages, showInternal, busy]
+    () =>
+      buildTimeline(allMessages, {
+        showInternal,
+        streaming: busy,
+        estimateCost: costSource === 'estimated' ? estimateMessageCost : undefined,
+      }),
+    [allMessages, busy, costSource, estimateMessageCost, showInternal]
   )
   const timelineMessages = useMemo(
     () => timeline.flatMap((item) => (item.type === 'message' ? [item.message] : [])),
@@ -169,7 +186,6 @@ function ChatPageContent() {
       ? defaultAgentSettings.agent
       : null
   const draftAgentReset = useRef<string | null>(null)
-  const modelsQuery = useModels()
   const { visibility } = useModelVisibility()
   const compact = useCompactSession(sessionId ?? '')
   const interrupt = useInterruptSession(sessionId ?? '')

@@ -295,6 +295,7 @@ export function MessageList({
                     streaming={streaming && item.index === lastMessageIndex}
                     showInternal={showInternal}
                     usageSummary={entry.usageSummary}
+                    displayCost={entry.displayCost}
                     collapsed={collapsedIDs.has(entry.message.id)}
                     actions={
                       canActOnMessage(entry.message)

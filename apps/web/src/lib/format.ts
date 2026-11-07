@@ -1,11 +1,18 @@
 const compact = new Intl.NumberFormat('en', { notation: 'compact', maximumFractionDigits: 1 })
 const relative = new Intl.RelativeTimeFormat('en', { numeric: 'auto' })
 
-export function formatCost(value: number | undefined): string {
-  if (!value) return '$0.00'
-  if (value < 0.01) return `$${value.toFixed(4)}`
-  if (value < 1) return `$${value.toFixed(3)}`
-  return `$${value.toFixed(2)}`
+export function formatCost(
+  value: number | undefined,
+  options: { estimated?: boolean } = {}
+): string {
+  const text = !value
+    ? '$0.00'
+    : value < 0.01
+      ? `$${value.toFixed(4)}`
+      : value < 1
+        ? `$${value.toFixed(3)}`
+        : `$${value.toFixed(2)}`
+  return options.estimated ? `~${text}` : text
 }
 
 export function formatTokens(value: number | undefined): string {

@@ -55,10 +55,45 @@ describe('summarizeSteps', () => {
       input: 150,
       output: 15,
       cost: 0.01,
+      costEstimated: false,
       tools: 1,
       turns: 2,
       hasTokens: true,
     })
+  })
+
+  it('uses an estimator and marks the cost as estimated', () => {
+    const summary = summarizeSteps(
+      [
+        step([{ type: 'text', text: 'Done' }], {
+          input: 100,
+          output: 10,
+          reasoning: 0,
+          cache: { read: 0, write: 0 },
+        }),
+      ],
+      { estimateCost: () => 0.02 }
+    )
+
+    expect(summary.cost).toBe(0.02)
+    expect(summary.costEstimated).toBe(true)
+    expect(formatUsageSummary(summary)).toContain('~$0.020')
+  })
+
+  it('falls back to the reported step cost when the estimator has no price', () => {
+    const summary = summarizeSteps(
+      [
+        step(
+          [{ type: 'text', text: 'Done' }],
+          { input: 100, output: 10, reasoning: 0, cache: { read: 0, write: 0 } },
+          0.01
+        ),
+      ],
+      { estimateCost: () => undefined }
+    )
+
+    expect(summary.cost).toBe(0.01)
+    expect(summary.costEstimated).toBe(true)
   })
 
   it('handles a step with no tokens or usage yet', () => {
@@ -69,6 +104,7 @@ describe('summarizeSteps', () => {
       input: 0,
       output: 0,
       cost: 0,
+      costEstimated: false,
       tools: 0,
       turns: 1,
       hasTokens: false,
@@ -84,6 +120,7 @@ describe('formatUsageSummary', () => {
       input: 1_800,
       output: 720,
       cost: 0.007,
+      costEstimated: false,
       tools: 3,
       turns: 3,
       hasTokens: true,
@@ -103,6 +140,7 @@ describe('formatUsageSummary', () => {
       input: 0,
       output: 0,
       cost: 0,
+      costEstimated: false,
       tools: 1,
       turns: 1,
       hasTokens: false,
@@ -119,6 +157,7 @@ describe('formatUsageDetail', () => {
       input: 1_800,
       output: 720,
       cost: 0.007,
+      costEstimated: false,
       tools: 3,
       turns: 3,
       hasTokens: true,

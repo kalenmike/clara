@@ -1,4 +1,5 @@
 import type { SessionMessageAssistant, SessionMessageInfo } from '@opencode/client'
+import { resolveDisplayCost, type DisplayCost } from '@/features/cost/estimate'
 import { isQuestionTool, questionEvent } from '@/features/chat/questions'
 import {
   assistantHasContent,
@@ -10,9 +11,22 @@ import { readClaraEvent, readSystemReminder } from '@/features/chat/system-event
 import { hasUsage, summarizeSteps, type UsageSummary } from '@/features/chat/usage-summary'
 
 export type TimelineItem =
-  | { type: 'message'; key: string; message: SessionMessageInfo; usageSummary?: UsageSummary }
+  | {
+      type: 'message'
+      key: string
+      message: SessionMessageInfo
+      usageSummary?: UsageSummary
+      displayCost?: DisplayCost
+    }
   | { type: 'event'; key: string; event: SystemEvent }
   | { type: 'hidden-activity'; key: string; summary: UsageSummary; streaming: boolean }
+
+export type TimelineOptions = {
+  showInternal: boolean
+  streaming: boolean
+  /** Resolve estimated cost from model prices. Omit to use reported cost. */
+  estimateCost?: (step: SessionMessageAssistant) => number | undefined
+}
 
 /**
  * Turn visible session messages into transcript rows. Clara's synthetic inputs
@@ -25,7 +39,7 @@ export type TimelineItem =
  */
 export function buildTimeline(
   messages: SessionMessageInfo[],
-  options: { showInternal: boolean; streaming: boolean }
+  options: TimelineOptions
 ): TimelineItem[] {
   const visible = getVisibleMessages(messages, options.showInternal)
   const visibleIDs = new Set(visible.map((message) => message.id))
@@ -41,6 +55,11 @@ export function buildTimeline(
     return steps
   }
 
+  const displayCostFor = (message: SessionMessageAssistant): DisplayCost | undefined => {
+    if (!options.estimateCost) return undefined
+    return resolveDisplayCost(message.cost, options.estimateCost(message), 'estimated')
+  }
+
   const pushSummary = (summary: UsageSummary | undefined, key: string, streaming: boolean) => {
     if (!summary || options.showInternal) return
     if (!hasUsage(summary) && !streaming) return
@@ -50,7 +69,11 @@ export function buildTimeline(
   const flushHidden = (streaming = false) => {
     const steps = takeHidden()
     if (steps.length === 0) return
-    pushSummary(summarizeSteps(steps), steps[0]!.id, streaming)
+    pushSummary(
+      summarizeSteps(steps, { estimateCost: options.estimateCost }),
+      steps[0]!.id,
+      streaming
+    )
   }
 
   const summaryFor = (message: SessionMessageAssistant): UsageSummary | undefined => {
@@ -60,7 +83,7 @@ export function buildTimeline(
     )
     const steps = takeHidden()
     if (steps.length === 0 && !hasInternals) return undefined
-    return summarizeSteps([...steps, message])
+    return summarizeSteps([...steps, message], { estimateCost: options.estimateCost })
   }
 
   messages.forEach((message) => {
@@ -91,7 +114,13 @@ export function buildTimeline(
     const questionTools = message.content.filter(isQuestionTool)
     if (questionTools.length === 0) {
       const usageSummary = summaryFor(message)
-      items.push({ type: 'message', key: `message:${message.id}`, message, usageSummary })
+      items.push({
+        type: 'message',
+        key: `message:${message.id}`,
+        message,
+        usageSummary,
+        displayCost: displayCostFor(message),
+      })
       return
     }
 
@@ -111,6 +140,7 @@ export function buildTimeline(
         key: `message:${message.id}`,
         message: withoutQuestions,
         usageSummary,
+        displayCost: displayCostFor(message),
       })
     } else if (usageSummary) {
       pushSummary(usageSummary, message.id, false)
