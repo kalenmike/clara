@@ -31,7 +31,10 @@ const TRANSITIONS: Record<string, string[]> = {
   cancelled: [],
 }
 
-/** Only the supervisor may close a request. An implementer cannot mark its own work done. */
+/**
+ * Only the closer may mark a request terminal through the generic event path.
+ * Humans stop work through `cancelRequest`, which owns the extra cleanup.
+ */
 const TERMINAL = new Set(['completed', 'cancelled'])
 
 const pad = (n: number): string => String(n).padStart(3, '0')
@@ -525,6 +528,134 @@ export function appendEvent(
   return `${pad(updated.id)} ${updated.slug}: ${input.type} by ${input.actor}${input.state ? ` → state=${updated.state}` : ''}`
 }
 
+export interface CancelInput {
+  request: string | number
+  /** A short code such as `human`, or a sentence explaining why. */
+  reason?: string
+  actor: string
+}
+
+/**
+ * Clear the human work attached to a request that just became terminal:
+ * resolve every open decision, record why, and close its alert rows. Also used
+ * when a cancel is repeated so stale rows cannot revive the inbox.
+ */
+function settleOpenWork(
+  db: Db,
+  requestID: number,
+  at: string,
+  actor: string,
+  reason: string
+): number {
+  let resolved = 0
+  const open = db
+    .prepare('SELECT * FROM decisions WHERE request_id = ? AND resolved_at IS NULL')
+    .all(requestID) as Row[]
+  for (const decision of open) {
+    db.prepare('UPDATE decisions SET resolved_at = ?, resolution = ? WHERE id = ?').run(
+      at,
+      `request cancelled (by ${actor}): ${reason}`,
+      decision.id
+    )
+    db.prepare(
+      'INSERT INTO events (request_id, at, type, actor, payload) VALUES (?, ?, ?, ?, ?)'
+    ).run(
+      requestID,
+      at,
+      'decision.resolved',
+      actor,
+      json({ decision: decision.id, resolution: 'request cancelled' })
+    )
+    resolved++
+  }
+
+  // A cancelled request must disappear from the alert outbox immediately;
+  // otherwise the daemon keeps prompting Clara about a closed item.
+  db.prepare('UPDATE alerts SET resolved_at = ? WHERE request_id = ? AND resolved_at IS NULL').run(
+    at,
+    requestID
+  )
+  return resolved
+}
+
+/**
+ * Close a request as cancelled. This is the only terminal transition the human
+ * may make directly: the daemon stops advancing the request, open decisions and
+ * their alerts are cleared, and the record notes who stopped it and why.
+ *
+ * Cancellation is reserved for the human-facing Clara agent. When pipelines
+ * become recursive, only the highest-level (human-facing) agent may cancel;
+ * worker and sub-pipeline agents must never cancel their own or another
+ * request.
+ */
+export function cancelRequest(db: Db, input: CancelInput): string {
+  const request = requireRequest(db, input.request)
+  const previousState = String(request.state)
+  const reason = String(input.reason ?? 'human').trim() || 'human'
+  const at = now()
+
+  if (request.state === 'cancelled') {
+    db.exec('BEGIN')
+    try {
+      settleOpenWork(db, Number(request.id), at, input.actor, reason)
+      db.exec('COMMIT')
+    } catch (error) {
+      db.exec('ROLLBACK')
+      throw error
+    }
+    return `${pad(request.id)} ${request.slug}: already cancelled (${request.cancel_reason ?? 'no reason'})`
+  }
+  if (request.state === 'completed') {
+    throw new Error(
+      `Clara: request ${pad(request.id)} is already completed and cannot be cancelled`
+    )
+  }
+  if (input.actor !== 'ai_0' && input.actor !== 'human') {
+    throw new Error('Clara: only the closer or the human may cancel a request')
+  }
+  const allowed = TRANSITIONS[request.state] ?? []
+  if (!allowed.includes('cancelled')) {
+    throw new Error(`Clara: cannot cancel request ${pad(request.id)} from state ${request.state}`)
+  }
+
+  let resolved: number
+  db.exec('BEGIN')
+  try {
+    db.prepare(
+      `UPDATE requests
+          SET state = 'cancelled',
+              cancel_reason = ?,
+              closed_at = ?,
+              last_event_at = ?,
+              stalled_at = NULL,
+              blocked_on = NULL,
+              current_stage_id = NULL
+        WHERE id = ?`
+    ).run(reason, at, at, request.id)
+
+    db.prepare(
+      'INSERT INTO events (request_id, at, type, actor, payload) VALUES (?, ?, ?, ?, ?)'
+    ).run(request.id, at, 'request.cancelled', input.actor, json({ reason }))
+
+    resolved = settleOpenWork(db, Number(request.id), at, input.actor, reason)
+
+    db.exec('COMMIT')
+  } catch (error) {
+    db.exec('ROLLBACK')
+    throw error
+  }
+
+  appendRecord(
+    request,
+    `\n- **${at}** state ${previousState} → cancelled (${input.actor}) · ${reason}\n`
+  )
+
+  return (
+    `${pad(request.id)} ${request.slug}: cancelled (${reason}) by ${input.actor}` +
+    (resolved ? ` · resolved ${resolved} open decision(s)` : '')
+  )
+}
+
 // ---------------------------------------------------------------------------
 // stage evidence, gates, and progress
 // ---------------------------------------------------------------------------
@@ -940,10 +1071,28 @@ export function decide(
 
 export function resolveDecision(
   db: Db,
-  input: { id: number; resolution: string; resolved_by?: string }
+  input: {
+    id: number
+    resolution: string
+    resolved_by?: string
+    /** `cancel` makes the daemon's retry-or-cancel question a real close. */
+    action?: 'retry' | 'cancel'
+  }
 ): string {
-  const row = db.prepare('SELECT * FROM decisions WHERE id = ?').get(input.id)
+  const row = db.prepare('SELECT * FROM decisions WHERE id = ?').get(input.id) as Row | undefined
   if (!row) throw new Error(`Clara: no decision #${input.id}`)
+
+  if (input.action === 'cancel') {
+    if (!row.request_id) {
+      throw new Error(`Clara: decision #${input.id} is not attached to a request`)
+    }
+    return cancelRequest(db, {
+      request: Number(row.request_id),
+      reason: input.resolution,
+      actor: input.resolved_by ?? 'human',
+    })
+  }
+
   if (row.resolved_at) return `decision #${input.id} already resolved at ${row.resolved_at}`
 
   const at = now()
@@ -966,8 +1115,8 @@ export function resolveDecision(
       row.request_id,
       at,
       'decision.resolved',
-      'human',
-      json({ decision: input.id, resolution: input.resolution })
+      input.resolved_by ?? 'human',
+      json({ decision: input.id, resolution: input.resolution, action: 'retry' })
     )
   }
 
@@ -1470,14 +1619,7 @@ export function tick(db: Db, input: { workspace?: string; dry_run?: boolean } = 
       actions.push(`${pad(f.id)} ${f.slug}: WOULD cancel (${reason})`)
       return
     }
-    db.prepare(
-      "UPDATE requests SET state = 'cancelled', cancel_reason = ?, closed_at = ?, last_event_at = ? WHERE id = ?"
-    ).run(reason, at, at, f.id)
-    db.prepare(
-      'INSERT INTO events (request_id, at, type, actor, payload) VALUES (?, ?, ?, ?, ?)'
-    ).run(f.id, at, 'request.cancelled', 'ai_0', json({ reason }))
-    appendRecord(f, `\n- **${at}** state ${f.state} → cancelled (ai_0) · ${reason}\n`)
-    actions.push(`${pad(f.id)} ${f.slug}: cancelled (${reason})`)
+    actions.push(cancelRequest(db, { request: f.id, reason, actor: 'ai_0' }))
   }
 
   for (const f of active) {

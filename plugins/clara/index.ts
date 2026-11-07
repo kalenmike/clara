@@ -528,7 +528,7 @@ export function createTools(
     {
       name: 'event',
       description:
-        'Append an event and optionally transition state. Legal transitions only. Only the closer role may complete or cancel a request.',
+        'Append an event and optionally transition state. Legal transitions only. Only the closer may complete or cancel a request; a human cancel uses clara_cancel.',
       input: {
         type: 'object',
         properties: {
@@ -546,6 +546,32 @@ export function createTools(
       execute: async (input: any, context: any) => {
         const call = requireRole('event', callContext(db, context), ['worker', 'closer', 'human'])
         return { content: q.appendEvent(db, { ...input, actor: call.actor }) }
+      },
+    },
+
+    {
+      name: 'cancel',
+      description:
+        "Cancel a request at the human's explicit instruction. Moves any non-terminal request to cancelled, records the reason, resolves its open decisions and alerts, and makes the daemon stop launching stages. Only Clara may use this tool; workers and the closer never can. Never call it on your own initiative.",
+      input: {
+        type: 'object',
+        properties: {
+          request: requestRef,
+          reason: {
+            type: 'string',
+            description: 'Short reason code or note. Defaults to "human".',
+          },
+        },
+        required: ['request'],
+        additionalProperties: false,
+      },
+      execute: async (input: any, context: any) => {
+        // Cancellation belongs to the human-facing Clara agent. The `human`
+        // role is only mapped to Clara today. A future recursive pipeline must
+        // keep this privilege at the highest level: a worker or sub-pipeline
+        // agent may never cancel its own or another request.
+        const call = requireRole('cancel', callContext(db, context), ['human'])
+        return { content: q.cancelRequest(db, { ...input, actor: call.actor }) }
       },
     },
 
@@ -576,20 +602,26 @@ export function createTools(
 
     {
       name: 'resolve',
-      description: 'Resolve an open decision by id.',
+      description:
+        'Resolve an open decision by id. Pass action "cancel" to close the request instead of retrying it.',
       input: {
         type: 'object',
         properties: {
           id: { type: 'number' },
           resolution: { type: 'string' },
-          resolved_by: { type: 'string' },
+          action: {
+            type: 'string',
+            enum: ['retry', 'cancel'],
+            description:
+              'cancel closes the request; retry (the default) only resolves the decision so the daemon may try again.',
+          },
         },
         required: ['id', 'resolution'],
         additionalProperties: false,
       },
       execute: async (input: any, context: any) => {
-        requireRole('resolve', callContext(db, context), ['human'])
-        return { content: q.resolveDecision(db, input) }
+        const call = requireRole('resolve', callContext(db, context), ['human'])
+        return { content: q.resolveDecision(db, { ...input, resolved_by: call.actor }) }
       },
     },
 
