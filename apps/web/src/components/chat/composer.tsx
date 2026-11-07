@@ -8,8 +8,10 @@ import {
   FileText,
   ListEnd,
   Paperclip,
+  Play,
   Save,
   Send,
+  SkipForward,
   Slash,
   Sparkles,
   X,
@@ -31,12 +33,13 @@ import { ModelPicker, VariantPicker } from '@/components/chat/model-picker'
 import { useAgents, useCommands, useReferences, useSkills } from '@/features/catalog/use-catalog'
 import type { ComposerMenuMode } from '@/features/chat/composer-menu'
 import {
+  composerCanSend,
+  composerSecondaryAction,
   initialFormAnswers,
   resolveComposerSelection,
   type ComposerRequestAnswers,
   type ComposerRequestSelection,
 } from '@/features/chat/composer-requests'
-import { buildFormResponse } from '@/features/chat/form-response'
 import { isLocationRecoveryError } from '@/features/chat/location-recovery'
 import { useModelVisibility } from '@/features/models/use-model-visibility'
 import {
@@ -111,6 +114,7 @@ export function Composer({
   const [submittingForms, setSubmittingForms] = useState(false)
   const [selection, setSelection] = useState<ComposerRequestSelection>(null)
   const [formAnswers, setFormAnswers] = useState<ComposerRequestAnswers>({})
+  const [touchedForms, setTouchedForms] = useState<Record<string, boolean>>({})
   const [activeIndex, setActiveIndex] = useState(0)
   const [dismissed, setDismissed] = useState(false)
   const [modelOpen, setModelOpen] = useState(false)
@@ -147,13 +151,14 @@ export function Composer({
     activeSelection !== null && activeSelection !== 'none' && activeSelection.kind === 'form'
       ? forms.find((form) => form.id === activeSelection.formID)
       : undefined
-  const activeFormResponse = useMemo(
-    () =>
-      activeForm
-        ? buildFormResponse(sessionID, activeForm, formAnswers[activeForm.id] ?? {})
-        : undefined,
-    [activeForm, formAnswers, sessionID]
-  )
+  const planSelected =
+    activeSelection !== null && activeSelection !== 'none' && activeSelection.kind === 'plan'
+  const activeFormTouched = activeForm ? Boolean(touchedForms[activeForm.id]) : false
+  const secondaryAction = composerSecondaryAction({
+    hasActiveForm: activeForm != null,
+    planSelected,
+  })
+  const hasText = text.trim().length > 0
 
   useEffect(() => {
     setFormAnswers((current) => {
@@ -167,6 +172,18 @@ export function Composer({
       for (const id of Object.keys(current)) {
         if (!next[id]) changed = true
       }
+      return changed ? next : current
+    })
+  }, [forms])
+
+  useEffect(() => {
+    setTouchedForms((current) => {
+      const next: Record<string, boolean> = {}
+      let changed = false
+      for (const form of forms) {
+        if (current[form.id]) next[form.id] = true
+      }
+      if (Object.keys(next).length !== Object.keys(current).length) changed = true
       return changed ? next : current
     })
   }, [forms])
@@ -331,11 +348,11 @@ export function Composer({
   }
 
   const submitActiveForm = async (): Promise<boolean> => {
-    if (!activeFormResponse) return true
+    if (!activeForm) return true
     try {
       await replyForm.mutateAsync({
-        formID: activeFormResponse.formID,
-        answer: activeFormResponse.answers,
+        formID: activeForm.id,
+        answer: formAnswers[activeForm.id] ?? {},
       })
       return true
     } catch (cause) {
@@ -348,9 +365,68 @@ export function Composer({
     }
   }
 
+  const skipActiveForm = async (): Promise<boolean> => {
+    if (!activeForm) return true
+    try {
+      await rejectForm.mutateAsync({ formID: activeForm.id })
+      return true
+    } catch (cause) {
+      releaseSend()
+      if (isLocationRecoveryError(cause)) return false
+      toast.error('Could not skip the form', {
+        description: describeConnectionError(cause),
+      })
+      return false
+    }
+  }
+
+  /** The secondary Skip button discards the question without sending a message. */
+  const skipQuestion = () => {
+    if (
+      disabled ||
+      sendRef.current ||
+      !activeForm ||
+      rejectForm.isPending ||
+      replyForm.isPending ||
+      startWork.pending
+    ) {
+      return
+    }
+    rejectForm.mutate(
+      { formID: activeForm.id },
+      {
+        onError: (cause) => {
+          if (isLocationRecoveryError(cause)) return
+          toast.error('Could not skip the form', {
+            description: describeConnectionError(cause),
+          })
+        },
+      }
+    )
+  }
+
+  /** The secondary Start button hands off without a message. */
+  const startPlan = async () => {
+    if (disabled || sendRef.current || hasText || !planSelected) return
+    sendRef.current = true
+    const started = await startWork.start()
+    releaseSend()
+    if (started) clear()
+  }
+
   const send = async (delivery: 'steer' | 'queue') => {
     const value = text.trim()
-    if (!value || disabled || storedModelHidden || sendRef.current) return
+    if (disabled || sendRef.current) return
+    if (
+      !composerCanSend({
+        text,
+        formTouched: activeFormTouched,
+        hasActiveForm: activeForm != null,
+      }) ||
+      (value && storedModelHidden)
+    ) {
+      return
+    }
 
     sendRef.current = true
     setSubmittingForms(true)
@@ -360,7 +436,13 @@ export function Composer({
       : undefined
 
     if (command) {
-      if (!(await submitActiveForm())) return
+      if (activeForm) {
+        if (activeFormTouched) {
+          if (!(await submitActiveForm())) return
+        } else if (!(await skipActiveForm())) {
+          return
+        }
+      }
 
       const [, ...rest] = value.slice(1).split(/\s+/)
       runCommand.mutate(
@@ -382,14 +464,7 @@ export function Composer({
       return
     }
 
-    if (activeSelection !== null && activeSelection !== 'none' && activeSelection.kind === 'plan') {
-      const started = await startWork.start({ text: value, files })
-      releaseSend()
-      if (started) clear()
-      return
-    }
-
-    if (!activeFormResponse) {
+    if (!activeForm) {
       sendPrompt.mutate(
         { text: value, files, delivery },
         {
@@ -410,6 +485,35 @@ export function Composer({
       return
     }
 
+    if (!activeFormTouched) {
+      if (!(await skipActiveForm())) return
+      sendPrompt.mutate(
+        { text: value, files, delivery },
+        {
+          onSuccess: () => {
+            releaseSend()
+            clear()
+          },
+          onError: (cause) => {
+            releaseSend()
+            if (isLocationRecoveryError(cause)) return
+            toast.error(
+              delivery === 'queue' ? 'Could not queue the message' : 'Could not send the message',
+              { description: describeConnectionError(cause) }
+            )
+          },
+        }
+      )
+      return
+    }
+
+    if (!value) {
+      if (!(await submitActiveForm())) return
+      releaseSend()
+      clear()
+      return
+    }
+
     let sent: SessionInboxUser
     try {
       sent = await sendPrompt.mutateAsync({ text: value, files, delivery, resume: false })
@@ -425,8 +529,8 @@ export function Composer({
 
     try {
       await replyForm.mutateAsync({
-        formID: activeFormResponse.formID,
-        answer: activeFormResponse.answers,
+        formID: activeForm.id,
+        answer: formAnswers[activeForm.id] ?? {},
       })
     } catch (cause) {
       let cancelled = true
@@ -483,51 +587,9 @@ export function Composer({
     )
   }
 
-  const submitForm = (formID: string) => {
-    if (disabled || replyForm.isPending || rejectForm.isPending) return
-    replyForm.mutate(
-      { formID, answer: formAnswers[formID] ?? {} },
-      {
-        onError: (cause) => {
-          if (isLocationRecoveryError(cause)) return
-          toast.error('Could not submit the form response', {
-            description: describeConnectionError(cause),
-          })
-        },
-      }
-    )
-  }
-
-  const skipForm = (formID: string) => {
-    if (disabled || replyForm.isPending || rejectForm.isPending) return
-    rejectForm.mutate(
-      { formID },
-      {
-        onError: (cause) => {
-          if (isLocationRecoveryError(cause)) return
-          toast.error('Could not skip the form', {
-            description: describeConnectionError(cause),
-          })
-        },
-      }
-    )
-  }
-
-  const startPlan = async () => {
-    if (disabled || sendRef.current) return
-    sendRef.current = true
-    const started = await startWork.start()
-    releaseSend()
-    if (started) clear()
-  }
-
-  const adjustPlan = () => {
-    setSelection('none')
-    requestAnimationFrame(() => textareaRef.current?.focus())
-  }
-
   const updateFormAnswers = (formID: string, answers: Record<string, FormAnswerValue>) => {
     setFormAnswers((current) => ({ ...current, [formID]: answers }))
+    setTouchedForms((current) => (current[formID] ? current : { ...current, [formID]: true }))
   }
 
   const onKeyDown = (event: React.KeyboardEvent<HTMLTextAreaElement>) => {
@@ -569,7 +631,7 @@ export function Composer({
 
     if (event.key === 'Enter' && !event.shiftKey) {
       event.preventDefault()
-      submit()
+      if (text.trim().length > 0) submit()
     }
   }
 
@@ -590,15 +652,46 @@ export function Composer({
     rejectForm.isPending ||
     startWork.pending ||
     submittingForms
-  const canSend = text.trim().length > 0 && !pending && !disabled && !storedModelHidden
-  const sendHint =
-    activeForm != null
-      ? 'Send and answer the form'
-      : activeSelection !== null && activeSelection !== 'none' && activeSelection.kind === 'plan'
-        ? 'Send and start work'
-        : busy
-          ? 'Send and steer the active run'
-          : 'Send and start a run'
+  const sendPending =
+    sendPrompt.isPending ||
+    runCommand.isPending ||
+    saveAsDraft.isPending ||
+    replyForm.isPending ||
+    submittingForms
+  const canSend =
+    composerCanSend({
+      text,
+      formTouched: activeFormTouched,
+      hasActiveForm: activeForm != null,
+    }) &&
+    !pending &&
+    !disabled &&
+    (!hasText || !storedModelHidden)
+  const sendHint = activeForm
+    ? hasText
+      ? 'Send the message and form answers'
+      : activeFormTouched
+        ? 'Send the form answers'
+        : 'Answer the form or add a message'
+    : planSelected
+      ? hasText
+        ? 'Send an adjustment to the plan'
+        : 'Type a message to adjust the plan'
+      : busy
+        ? 'Send and steer the active run'
+        : 'Send and start a run'
+  const secondaryLabel = secondaryAction === 'skip' ? 'Skip' : 'Start'
+  const secondaryHint =
+    secondaryAction === 'skip'
+      ? 'Skip this question'
+      : secondaryAction === 'start'
+        ? hasText
+          ? 'Clear the message to start now'
+          : 'Start work with the plan'
+        : ''
+  const secondaryPending = secondaryAction === 'skip' ? rejectForm.isPending : startWork.pending
+  const secondaryDisabled =
+    secondaryAction === null || pending || (secondaryAction === 'start' && hasText)
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
@@ -650,18 +743,14 @@ export function Composer({
         )}
 
         <ComposerRequestList
-          sessionID={sessionID}
           forms={forms}
           planReady={planReady}
           selection={activeSelection}
           answers={formAnswers}
+          touchedForms={touchedForms}
           pending={Boolean(disabled) || pending}
           onSelectionChange={setSelection}
           onAnswersChange={updateFormAnswers}
-          onSubmitForm={submitForm}
-          onSkipForm={skipForm}
-          onStartWork={() => void startPlan()}
-          onAdjustPlan={adjustPlan}
         />
 
         {files.length > 0 && (
@@ -764,17 +853,42 @@ export function Composer({
         <div className="ml-auto flex items-center gap-1 max-md:gap-0.5">
           <AgentPicker session={session} open={agentOpen} onOpenChange={setAgentOpen} />
 
+          {secondaryAction && (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="h-8 gap-1 max-md:h-11"
+                  onClick={secondaryAction === 'skip' ? skipQuestion : () => void startPlan()}
+                  disabled={secondaryDisabled}
+                >
+                  {secondaryPending ? (
+                    <span className="size-3.5 animate-spin rounded-full border-2 border-current border-t-transparent max-md:size-5" />
+                  ) : secondaryAction === 'skip' ? (
+                    <SkipForward className="size-3.5 max-md:size-4" />
+                  ) : (
+                    <Play className="size-3.5 max-md:size-4" />
+                  )}
+                  {secondaryLabel}
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>{secondaryHint}</TooltipContent>
+            </Tooltip>
+          )}
+
           <div className="flex items-center">
             <Tooltip>
               <TooltipTrigger asChild>
                 <Button
                   type="button"
                   size="sm"
-                  className={cn('h-8 gap-1 max-md:h-11', menuMode && 'rounded-r-none')}
+                  className={cn('h-8 gap-1 max-md:h-11', menuMode && hasText && 'rounded-r-none')}
                   onClick={submit}
                   disabled={!canSend}
                 >
-                  {pending ? (
+                  {sendPending ? (
                     <span className="size-3.5 animate-spin rounded-full border-2 border-current border-t-transparent max-md:size-5" />
                   ) : (
                     <Send className="size-3.5 max-md:size-4" />
@@ -785,7 +899,7 @@ export function Composer({
               <TooltipContent>{sendHint}</TooltipContent>
             </Tooltip>
 
-            {menuMode && (
+            {menuMode && hasText && (
               <DropdownMenu>
                 <Tooltip>
                   <TooltipTrigger asChild>

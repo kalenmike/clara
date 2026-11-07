@@ -11,6 +11,30 @@ export type ComposerRequestSelection =
 
 export type ComposerRequestAnswers = Record<string, Record<string, FormAnswerValue>>
 
+/**
+ * The secondary action beside Send. Questions offer Skip; a ready plan offers
+ * Start. Both leave the primary Send button free to keep its normal meaning.
+ */
+export type ComposerSecondaryAction = 'skip' | 'start'
+
+/** Send is useful with a message or a touched question form. */
+export function composerCanSend(input: {
+  text: string
+  formTouched: boolean
+  hasActiveForm: boolean
+}): boolean {
+  return input.text.trim().length > 0 || (input.hasActiveForm && input.formTouched)
+}
+
+export function composerSecondaryAction(input: {
+  hasActiveForm: boolean
+  planSelected: boolean
+}): ComposerSecondaryAction | null {
+  if (input.hasActiveForm) return 'skip'
+  if (input.planSelected) return 'start'
+  return null
+}
+
 /** A pending question form and the plan-ready handoff both wait on the person. */
 export function composerRequestCount(forms: readonly FormInfo[], planReady: boolean): number {
   return forms.length + (planReady ? 1 : 0)
