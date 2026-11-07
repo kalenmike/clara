@@ -296,8 +296,8 @@ export default {
 
     // Fall back to message events when the session context hook is unavailable.
     if (!turnsFromContext && typeof ctx.event?.subscribe === 'function') {
-      await ctx.event
-        .subscribe((event: Any) => {
+      try {
+        const subscription = ctx.event.subscribe((event: Any) => {
           const type = String(event?.type ?? '')
           if (type !== 'message.updated' && type !== 'message.part.updated') return
           const info = event?.properties?.info ?? event?.properties?.part
@@ -311,7 +311,12 @@ export default {
           work.turns += 1
           void persist(work)
         })
-        .catch(() => {})
+        if (subscription && typeof subscription.catch === 'function') {
+          await subscription.catch(() => {})
+        }
+      } catch (error) {
+        console.error(`[clara-policy] event subscription unavailable: ${(error as Error).message}`)
+      }
     }
 
     if (typeof ctx.tool?.hook === 'function') {
