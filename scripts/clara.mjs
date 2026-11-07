@@ -73,6 +73,15 @@ function orchestration(args) {
   })
 }
 
+function lab(args) {
+  const built = join(root, 'apps/lab/dist/server/index.js')
+  const source = join(root, 'apps/lab/server/index.ts')
+  const entry = existsSync(built) ? built : source
+  return runNode(entry, args, {
+    nodeArgs: existsSync(built) ? [] : ['--experimental-strip-types', '--no-warnings'],
+  })
+}
+
 function mcp(args) {
   return runNode(join(root, 'scripts/install-clara-mcp.mjs'), args)
 }
@@ -88,6 +97,7 @@ const clara = {
     'pnpm clara pair --local',
     'pnpm clara control',
     'pnpm clara orchestration start',
+    'pnpm clara lab',
     'pnpm clara mcp install',
   ],
   commands: [
@@ -174,6 +184,18 @@ const clara = {
         'pnpm clara orchestration serve',
       ],
       run: orchestration,
+    },
+    {
+      name: 'lab',
+      summary: 'Open Clara Lab to preview pipelines and probe the agent',
+      usage: '[serve|check] [--workspace <path>] [--target <ref>] [--json]',
+      passthroughHelp: true,
+      examples: [
+        'pnpm clara lab',
+        'pnpm clara lab check --workspace . --target std:software/feature',
+        'pnpm clara lab check --json',
+      ],
+      run: lab,
     },
     {
       name: 'mcp',

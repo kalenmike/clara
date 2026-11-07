@@ -296,6 +296,30 @@ async function notifyAlerts(
   }
 }
 
+function eventData(event: {
+  id: number | bigint
+  payload: string
+  run_id: number | bigint | string
+  created_at: string
+}): string {
+  try {
+    const payload = JSON.parse(event.payload) as Record<string, unknown>
+    return JSON.stringify({
+      ...payload,
+      run_id: Number(event.run_id),
+      event_id: Number(event.id),
+      created_at: event.created_at,
+    })
+  } catch {
+    return JSON.stringify({
+      run_id: Number(event.run_id),
+      event_id: Number(event.id),
+      created_at: event.created_at,
+      payload: event.payload,
+    })
+  }
+}
+
 function streamEvents(
   req: IncomingMessage,
   res: ServerResponse,
@@ -314,7 +338,7 @@ function streamEvents(
     const events = runtime.store.allEvents(cursor, 200)
     for (const event of events) {
       cursor = Number(event.id)
-      res.write(`id: ${event.id}\nevent: ${event.type}\ndata: ${event.payload}\n\n`)
+      res.write(`id: ${event.id}\nevent: ${event.type}\ndata: ${eventData(event)}\n\n`)
     }
     if (Date.now() - lastComment > 15_000) {
       res.write(': heartbeat\n\n')

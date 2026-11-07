@@ -1,0 +1,135 @@
+import { spawn } from 'node:child_process'
+import { existsSync, readFileSync } from 'node:fs'
+import { homedir } from 'node:os'
+import { dirname, join, resolve } from 'node:path'
+import { fileURLToPath } from 'node:url'
+
+export function dataDir(): string {
+  const configured = process.env.CLARA_DATA_DIR?.trim()
+  if (configured) return configured
+  const xdg = process.env.XDG_DATA_HOME?.trim() || join(homedir(), '.local', 'share')
+  return join(xdg, 'clara')
+}
+
+export function tokenPath(): string {
+  return process.env.CLARA_ORCHESTRATION_TOKEN_FILE?.trim() || join(dataDir(), 'orchestrator.token')
+}
+
+export function readToken(): string {
+  const configured = process.env.CLARA_ORCHESTRATION_TOKEN?.trim()
+  if (configured) return configured
+  const path = tokenPath()
+  if (existsSync(path)) return readFileSync(path, 'utf8').trim()
+  return ''
+}
+
+export function orchestratorURL(): string {
+  return (process.env.CLARA_ORCHESTRATION_URL?.trim() || 'http://127.0.0.1:8789').replace(/\/$/, '')
+}
+
+export function workspace(): string {
+  return resolve(process.env.CLARA_ORCHESTRATION_WORKSPACE?.trim() || process.cwd())
+}
+
+export function labPort(): number {
+  const parsed = Number(process.env.CLARA_LAB_PORT ?? 8791)
+  if (!Number.isInteger(parsed) || parsed < 1 || parsed > 65535) return 8791
+  return parsed
+}
+
+export function labURL(port = labPort()): string {
+  return `http://127.0.0.1:${port}/`
+}
+
+export function autostart(): boolean {
+  const value = String(process.env.CLARA_ORCHESTRATION_AUTOSTART ?? '1').toLowerCase()
+  return value !== '0' && value !== 'false' && value !== 'off'
+}
+
+export function openBrowser(url: string): void {
+  if (process.env.CLARA_LAB_OPEN === '0') return
+  const [command, args] =
+    process.platform === 'darwin'
+      ? ['open', [url]]
+      : process.platform === 'win32'
+        ? ['cmd', ['/c', 'start', '', url]]
+        : ['xdg-open', [url]]
+
+  try {
+    const opener = spawn(command, args, { stdio: 'ignore', detached: true })
+    opener.on('error', () => console.warn(`Could not open a browser. Visit ${url}`))
+    opener.unref()
+  } catch {
+    console.warn(`Could not open a browser. Visit ${url}`)
+  }
+}
+
+export async function healthy(url = orchestratorURL()): Promise<boolean> {
+  return fetch(`${url}/health`, { signal: AbortSignal.timeout(1500) })
+    .then((response) => response.ok)
+    .catch(() => false)
+}
+
+function findRepoRoot(start: string): string | undefined {
+  let current = resolve(start)
+  for (;;) {
+    if (
+      existsSync(join(current, 'pnpm-workspace.yaml')) &&
+      existsSync(join(current, 'apps', 'orchestrator'))
+    ) {
+      return current
+    }
+    const parent = dirname(current)
+    if (parent === current) return undefined
+    current = parent
+  }
+}
+
+export function repoRoot(): string {
+  const configured = process.env.CLARA_ROOT?.trim()
+  if (configured) return resolve(configured)
+  return (
+    findRepoRoot(process.cwd()) ??
+    findRepoRoot(dirname(fileURLToPath(import.meta.url))) ??
+    process.cwd()
+  )
+}
+
+function orchestratorCommand(): { command: string; args: string[] } | undefined {
+  const configured = process.env.CLARA_ORCHESTRATOR_BIN?.trim()
+  if (configured) return { command: process.execPath, args: [configured, 'start'] }
+  const root = repoRoot()
+  const dist = join(root, 'apps', 'orchestrator', 'dist', 'index.js')
+  if (existsSync(dist)) return { command: process.execPath, args: [dist, 'start'] }
+  const source = join(root, 'apps', 'orchestrator', 'src', 'index.ts')
+  if (existsSync(source)) {
+    return {
+      command: process.execPath,
+      args: ['--experimental-strip-types', '--no-warnings', source, 'start'],
+    }
+  }
+  return undefined
+}
+
+export async function ensureOrchestrator(url = orchestratorURL()): Promise<void> {
+  if (await healthy(url)) return
+  if (!autostart()) {
+    throw new Error(`Clara orchestrator is not running at ${url}`)
+  }
+  const command = orchestratorCommand()
+  if (!command) {
+    throw new Error('Clara orchestrator is not running and no executable was found')
+  }
+  console.error(`[clara-lab] starting orchestrator at ${url}`)
+  const child = spawn(command.command, command.args, {
+    detached: true,
+    stdio: 'ignore',
+    env: { ...process.env },
+  })
+  child.unref()
+  for (let attempt = 0; attempt < 100; attempt++) {
+    await new Promise((resolvePromise) => setTimeout(resolvePromise, 100))
+    if (await healthy(url)) return
+  }
+  throw new Error(`Clara orchestrator did not become healthy at ${url}`)
+}
