@@ -24,6 +24,12 @@
     },
     {
       "path": "./workers/relay"
+    },
+    {
+      "path": "./packages/policy"
+    },
+    {
+      "path": "./packages/orchestration"
     }
   ]
 }

@@ -26,6 +26,12 @@
     },
     "workers/relay": {
       "project": ["src/**/*.ts", "test/**/*.ts"]
+    },
+    "packages/policy": {
+      "project": ["src/**/*.ts", "test/**/*.ts"]
+    },
+    "packages/orchestration": {
+      "project": ["src/**/*.ts", "test/**/*.ts"]
     }
   },
   "ignore": [

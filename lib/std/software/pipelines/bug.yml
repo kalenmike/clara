@@ -1,0 +1,11 @@
+id: bug
+name: Bug lifecycle
+description: Hotfix and regression lifecycle
+default_model: 'deepseek-v4.1-flash'
+enforcement: strict
+steps:
+  - name: identify_bug
+    type: task
+  - name: fix_bug
+    type: pipeline
+    ref: feature

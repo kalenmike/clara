@@ -1,0 +1,16 @@
+id: feature
+name: Feature development
+description: Standard feature development lifecycle
+default_model: 'deepseek-v4.1-flash'
+enforcement: strict
+steps:
+  - name: create_spec
+    type: task
+  - name: write_tests
+    type: task
+  - name: build_feature
+    type: task
+  - name: code_review
+    type: task
+  - name: update_docs
+    type: task

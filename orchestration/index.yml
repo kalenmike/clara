@@ -1,0 +1,34 @@
+is_active: true
+default_model: 'deepseek-v4.1-flash'
+
+imports:
+  std:
+    - path: software
+    - path: content
+
+watchdog:
+  enabled: true
+  check_interval_seconds: 10
+  stalled_threshold_seconds: 30
+  max_reconciliation_attempts: 3
+  on_exhausted: escalate
+  escalation_pipeline: std:software/bug
+
+router:
+  id: classifier
+  path: ./routers/classifier.md
+  routes:
+    - when: software-development
+      run: std:software
+    - when: quick-patch
+      run: quick_patch
+
+pipelines:
+  quick_patch:
+    name: Quick patch
+    description: 'A fast local lifecycle patch'
+    steps:
+      - name: patch_code
+        type: task
+      - name: quick_verify
+        type: task

@@ -1,0 +1,23 @@
+id: software
+name: Software development
+version: 1
+description: Standard software lifecycle with spec, tests, build, review, and docs.
+
+entry:
+  router: classifier
+
+defaults:
+  model: 'deepseek-v4.1-flash'
+  task_dir: ./tasks
+  enforcement: strict
+
+router:
+  id: classifier
+  path: ./routers/classifier.md
+  routes:
+    - when: feature
+      run: feature
+    - when: bug
+      run: bug
+    - when: example
+      run: example
