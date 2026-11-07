@@ -140,11 +140,12 @@ const expected = [
   'clara_event',
   'clara_decide',
   'clara_resolve',
+  'clara_cancel',
   'clara_tick',
 ]
 check('plugin id is clara', plugin.id === 'clara')
 check('namespace is clara', namespaceName === 'clara')
-check('registers 14 tools', tools.size === 14, `got ${[...tools.keys()].join(', ')}`)
+check('registers 15 tools', tools.size === 15, `got ${[...tools.keys()].join(', ')}`)
 for (const name of expected) check(`tool ${name}`, tools.has(name))
 check(
   'every tool carries the clara namespace',
@@ -781,6 +782,105 @@ check(
 )
 check('inbox empty again', q.inbox(db, { workspace: 'clara' }).startsWith('inbox: empty'))
 
+console.log('\n8b. human cancellation')
+const cancelSubmit = q.submit(db, {
+  workspace: 'clara',
+  title: 'A request the human stops',
+  intent: 'Clara can stop work the human no longer wants.',
+})
+const cancelId = Number(cancelSubmit.match(/submitted (\d+)/)![1])
+q.decide(db, {
+  request: cancelId,
+  kind: 'decision',
+  question: 'Retry, or should this be cancelled?',
+  evidence: 'stage=spec agent=001 state=draft',
+})
+collectAlerts(db)
+
+let workerCancel = ''
+try {
+  await tools.get('clara_cancel')!.execute({ request: cancelId }, { agent: '003' })
+} catch (error) {
+  workerCancel = (error as Error).message
+}
+check('workers cannot cancel a request', workerCancel.includes('not available'), workerCancel)
+
+const cancelledResult = await tools
+  .get('clara_cancel')!
+  .execute({ request: cancelId, reason: 'human' }, { agent: 'clara' })
+check(
+  'Clara cancels for the human',
+  String(cancelledResult.content).includes('cancelled (human)'),
+  String(cancelledResult.content)
+)
+const cancelled = q.requestByRef(db, cancelId)!
+check('cancelled state', cancelled.state === 'cancelled')
+check('cancelled reason', cancelled.cancel_reason === 'human')
+check('cancelled closed_at', !!cancelled.closed_at)
+check(
+  'cancel resolves open decisions',
+  !db.prepare('SELECT 1 FROM decisions WHERE request_id = ? AND resolved_at IS NULL').get(cancelId)
+)
+check(
+  'cancel resolves open alerts',
+  !db.prepare('SELECT 1 FROM alerts WHERE request_id = ? AND resolved_at IS NULL').get(cancelId)
+)
+check(
+  'cancel appends to the record',
+  readFileSync(String(cancelled.record_path), 'utf8').includes('→ cancelled (human)')
+)
+const repeatedCancel = await tools
+  .get('clara_cancel')!
+  .execute({ request: cancelId }, { agent: 'clara' })
+check('cancel is idempotent', String(repeatedCancel.content).includes('already cancelled'))
+
+const resolvedByCancel = q.submit(db, {
+  workspace: 'clara',
+  title: 'A decision answered as cancel',
+  intent: 'Answering cancel on a decision closes the request.',
+})
+const resolvedCancelId = Number(resolvedByCancel.match(/submitted (\d+)/)![1])
+q.decide(db, { request: resolvedCancelId, kind: 'decision', question: 'Retry or cancel?' })
+const cancelDecisionId = Number(
+  (
+    db
+      .prepare('SELECT id FROM decisions WHERE request_id = ? ORDER BY id DESC LIMIT 1')
+      .get(resolvedCancelId) as { id: number }
+  ).id
+)
+await tools
+  .get('clara_resolve')!
+  .execute(
+    { id: cancelDecisionId, resolution: 'human chose cancel', action: 'cancel' },
+    { agent: 'clara' }
+  )
+check(
+  'resolve action cancel closes the request',
+  q.requestByRef(db, resolvedCancelId)!.state === 'cancelled'
+)
+check(
+  'resolve action cancel resolves the decision',
+  Boolean(
+    (
+      db.prepare('SELECT resolved_at FROM decisions WHERE id = ?').get(cancelDecisionId) as {
+        resolved_at: string | null
+      }
+    ).resolved_at
+  )
+)
+
+let completedCancel = ''
+try {
+  await tools.get('clara_cancel')!.execute({ request: request.id }, { agent: 'clara' })
+} catch (error) {
+  completedCancel = (error as Error).message
+}
+check(
+  'completed requests cannot be cancelled',
+  completedCancel.includes('already completed'),
+  completedCancel
+)
+
 console.log('\n9. tick')
 const stalled = q.submit(db, {
   workspace: 'clara',
@@ -1196,6 +1296,120 @@ ddb
 check('a stale lock can be taken over', runs.acquireDaemonLock(ddb, 'selftest-b', 2, 60_000))
 runs.releaseDaemonLock(ddb, 'selftest-b')
 check('lock row is gone', !ddb.prepare('SELECT 1 FROM daemon_lock WHERE id = 1').get())
+
+console.log('\n13b. cancellation stops the daemon')
+const cancelDaemon = daemon.createDaemon({
+  db: ddb,
+  ctx: { session: sessionApi, options: { daemonModel: 'test/model' } },
+  intervalMs: 60_000,
+  lockStaleMs: 60_000,
+  attention: false,
+  logger: silent,
+})
+const cancelTool = daemonTools.find((tool) => tool.name === 'cancel')!
+const resolveTool = daemonTools.find((tool) => tool.name === 'resolve')!
+
+const failedCancelSubmit = q.submit(ddb, {
+  workspace: 'daemon',
+  title: 'Stop a failed stage',
+  intent: 'The human can stop a request before the daemon retries it.',
+})
+const failedCancelId = Number(failedCancelSubmit.match(/submitted (\d+)/)![1])
+await cancelDaemon.runOnce()
+sessions[sessions.length - 1].outcome = 'failed'
+await cancelDaemon.runOnce()
+const failedDecision = ddb
+  .prepare('SELECT * FROM decisions WHERE request_id = ? AND resolved_at IS NULL')
+  .get(failedCancelId) as { id: number } | undefined
+check('failed stage opens a decision before cancel', Boolean(failedDecision))
+
+const sessionsBeforeCancel = sessions.length
+await cancelTool.execute({ request: failedCancelId, reason: 'human' }, { agent: 'clara' })
+check('the daemon request is cancelled', q.requestByRef(ddb, failedCancelId)!.state === 'cancelled')
+check(
+  'cancel closes the daemon decision',
+  !ddb
+    .prepare('SELECT 1 FROM decisions WHERE request_id = ? AND resolved_at IS NULL')
+    .get(failedCancelId)
+)
+await cancelDaemon.runOnce()
+await cancelDaemon.runOnce()
+check('a cancelled request spawns no further stage', sessions.length === sessionsBeforeCancel)
+collectAlerts(ddb)
+check(
+  'a cancelled request leaves no open alert',
+  !ddb
+    .prepare('SELECT 1 FROM alerts WHERE request_id = ? AND resolved_at IS NULL')
+    .get(failedCancelId)
+)
+
+const liveCancelSubmit = q.submit(ddb, {
+  workspace: 'daemon',
+  title: 'Stop a live worker',
+  intent: 'Cancelling a live request interrupts the worker instead of waiting.',
+})
+const liveCancelId = Number(liveCancelSubmit.match(/submitted (\d+)/)![1])
+await cancelDaemon.runOnce()
+const liveSession = sessions[sessions.length - 1]
+check('a live worker starts before cancel', liveSession.outcome === undefined)
+await cancelTool.execute({ request: liveCancelId, reason: 'human' }, { agent: 'clara' })
+await cancelDaemon.runOnce()
+check('cancel interrupts the live worker', liveSession.outcome === 'interrupted')
+check(
+  'the interrupted run is recorded',
+  runs.latestRun(ddb, liveCancelId, 'spec')?.status === 'interrupted'
+)
+const sessionsAfterLiveCancel = sessions.length
+await cancelDaemon.runOnce()
+check('no stage spawns after a live cancel', sessions.length === sessionsAfterLiveCancel)
+
+const loopSubmit = q.submit(ddb, {
+  workspace: 'daemon',
+  title: 'A done stage still pending',
+  intent: 'A stale done run is surfaced once instead of reopening its decision.',
+})
+const loopId = Number(loopSubmit.match(/submitted (\d+)/)![1])
+await cancelDaemon.runOnce()
+const loopRun = runs.latestRun(ddb, loopId, 'spec')!
+runs.finishRun(ddb, loopRun.id, 'done', 'selftest')
+sessions[sessions.length - 1].outcome = 'succeeded'
+await cancelDaemon.runOnce()
+const loopDecision = ddb
+  .prepare('SELECT * FROM decisions WHERE request_id = ? AND resolved_at IS NULL')
+  .get(loopId) as { id: number } | undefined
+check('a done-but-pending stage opens one decision', Boolean(loopDecision))
+const decisionsBeforeRetry = Number(
+  (
+    ddb.prepare('SELECT COUNT(*) AS c FROM decisions WHERE request_id = ?').get(loopId) as {
+      c: number
+    }
+  ).c
+)
+const sessionsBeforeRetry = sessions.length
+await resolveTool.execute(
+  { id: Number(loopDecision!.id), resolution: 'retry', action: 'retry' },
+  { agent: 'clara' }
+)
+await cancelDaemon.runOnce()
+const decisionsAfterRetry = Number(
+  (
+    ddb.prepare('SELECT COUNT(*) AS c FROM decisions WHERE request_id = ?').get(loopId) as {
+      c: number
+    }
+  ).c
+)
+check(
+  'a resolved done-stage decision is not reopened',
+  decisionsAfterRetry === decisionsBeforeRetry
+)
+check(
+  'the done-stage inconsistency is marked stalled',
+  Boolean(q.requestByRef(ddb, loopId)!.stalled_at)
+)
+check('the done-stage case spawns no session', sessions.length === sessionsBeforeRetry)
+await cancelTool.execute({ request: loopId, reason: 'human' }, { agent: 'clara' })
+check('a stalled loop can be cancelled', q.requestByRef(ddb, loopId)!.state === 'cancelled')
+cancelDaemon.stop()
 
 console.log('\n14. alert outbox')
 const waitSubmit = q.submit(db, {

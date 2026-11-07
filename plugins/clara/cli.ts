@@ -147,6 +147,7 @@ Examples:
   pnpm clara ledger list
   pnpm clara ledger run clara_inbox
   pnpm clara ledger run clara_ask '{"question":"what is in flight?"}'
+  pnpm clara ledger run clara_cancel '{"request":42,"reason":"human"}'
   pnpm clara ledger run clara_tick '{"dry_run":true}' --agent judge
   echo '{"question":"what is in flight?"}' | pnpm clara ledger run clara_ask -
 

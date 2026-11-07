@@ -194,7 +194,8 @@ selecting a pipeline in a new workspace.
 | `clara_approve`    | Record human approval of the contract. `draft → approved`.                                                                |
 | `clara_gate`       | Record the human verification of human-verification criteria in `review`.                                                 |
 | `clara_stage_gate` | Record a human gate before or after a configured pipeline stage.                                                          |
-| `clara_resolve`    | Close an open decision by id.                                                                                             |
+| `clara_resolve`    | Close an open decision by id. Use `action: "cancel"` to close the request instead of retrying.                            |
+| `clara_cancel`     | Cancel any non-terminal request at the human's instruction. Resolves its decisions and alerts. Clara only.                |
 
 ### Stage agents
 
@@ -222,6 +223,7 @@ and the role is derived exactly as it is inside a session.
 pnpm clara ledger list
 pnpm clara ledger run clara_inbox
 pnpm clara ledger run clara_ask '{"question":"what is in flight?"}'
+pnpm clara ledger run clara_cancel '{"request":42,"reason":"human"}'
 pnpm clara ledger run clara_tick '{"dry_run":true}' --agent judge
 ```
 
@@ -276,9 +278,12 @@ Role rules:
 - The role comes from the live run behind the session, not from tool arguments.
   A custom pipeline agent gets the role its stage declares.
 - An unknown agent with no live run has no write privileges.
-- Only the closer role may complete or cancel a request.
-- `clara_approve`, `clara_gate`, `clara_stage_gate`, and `clara_resolve` are
-  human-only.
+- Only the closer role may complete a request. Only Clara, acting for the
+  human, may cancel one; worker and closer agents never receive `clara_cancel`.
+  When pipelines become recursive, keep cancellation with the highest-level
+  (human-facing) agent.
+- `clara_approve`, `clara_gate`, `clara_stage_gate`, `clara_resolve`, and
+  `clara_cancel` are human-only.
 - `clara_criteria` is worker/human; `clara_stage_done` and `clara_progress` are
   worker/closer and must match the session's current stage.
 - `clara_tick` is closer/human.
@@ -299,11 +304,28 @@ Role rules:
 - **No duplicate stage.** A live session in `runs` blocks a second launch of the
   same stage.
 
+## Cancellation
+
+`clara_cancel` is the human override. It sets the terminal `cancelled` state,
+records a reason, resolves every open decision for the request, closes its alert
+rows, and makes the daemon stop launching stages. A live worker is interrupted
+on the daemon's next tick. Cancelling an already-cancelled request is
+idempotent; a completed request cannot be cancelled.
+
+Resolving a decision is not cancelling. Use `clara_resolve` with
+`action: "cancel"` when answering the daemon's retry-or-cancel question, or
+`clara_cancel` when the human asks for a request with no decision open.
+
+Only Clara may call `clara_cancel`. Worker and closer agents never receive the
+permission. When pipelines become recursive, only the highest-level
+(human-facing) agent may cancel; sub-pipeline and worker agents must never
+cancel their own or another request.
+
 ## Daemon
 
 The plugin starts a daemon when OpenCode loads it. The daemon owns the loop; the
-`clara` agent only submits, asks, approves, resolves, and gates. It ticks every
-15 seconds by default:
+`clara` agent only submits, asks, approves, resolves, gates, and cancels. It
+ticks every 15 seconds by default:
 
 1. reconcile the sessions recorded in `runs`;
 2. run `clara_tick` with `dry_run: false`;
@@ -317,6 +339,7 @@ The plugin starts a daemon when OpenCode loads it. The daemon owns the loop; the
 | `running`       | run remaining work stages, then move to `review`      |
 | `review`        | run review stages, then the close stage               |
 | `completed`     | commit the request record                             |
+| `cancelled`     | commit the request record; launch nothing             |
 
 Each stage runs in a child session in the request's workspace. Its id, agent,
 role, and status live in `runs`. A stage with a live run is never launched
@@ -387,10 +410,11 @@ pnpm --filter @clara/opencode-plugin test
 ```
 
 It creates a temp DB and workspace, registers the plugin through a mock editor
-to confirm all 14 tools wire up, then walks the software pipeline from `submit`
+to confirm all 15 tools wire up, then walks the software pipeline from `submit`
 through approval, evidence, progress, review, close, plus the failure paths
 (no unbacked criteria, illegal transitions, implementer closing, dry-run vs
-live tick). It also drives a request through the daemon with a mock session API,
+live tick, human cancellation, and the daemon's done-stage loop). It also drives
+a request through the daemon with a mock session API,
 checks the lock and retry path, and verifies that every tool is registered as
 `clara_*`, that every explicit `clara_*` permission in `agents.json` names a
 real tool, and that every shipped pipeline names an agent defined there. It also

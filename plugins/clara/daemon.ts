@@ -11,7 +11,7 @@
 import { randomUUID } from 'node:crypto'
 import { existsSync } from 'node:fs'
 import { execFileSync } from 'node:child_process'
-import type { Db, Row } from './db.ts'
+import { now, type Db, type Row } from './db.ts'
 import { collectAlerts } from './alerts.ts'
 import { deliverAttention } from './attention.ts'
 import { pipelineForRequest, renderInstructions } from './pipeline.ts'
@@ -390,6 +390,15 @@ export async function advance(options: TickOptions): Promise<string[]> {
   for (const request of activeRequests(options.db)) {
     if (spawned >= options.maxSpawns) break
     if (request.stalled_at) continue
+
+    // A human cancel in another process can land after activeRequests was
+    // read. Re-check the terminal state before doing any work.
+    const state = (
+      options.db.prepare('SELECT state FROM requests WHERE id = ?').get(request.id) as
+        Row | undefined
+    )?.state
+    if (state === 'completed' || state === 'cancelled' || !state) continue
+
     if (hasOpenDecision(options.db, Number(request.id))) continue
 
     const next = nextStage(options.db, request)
@@ -405,6 +414,21 @@ export async function advance(options: TickOptions): Promise<string[]> {
     if (latest && (latest.status === 'starting' || latest.status === 'running')) continue
 
     if (latest && latest.status === 'done') {
+      const since = latest.finished_at ?? latest.created_at
+      if (decisionResolvedSince(options.db, Number(request.id), since, stage.id)) {
+        // Reopening the same decision every tick is the loop that trapped
+        // Clara. Record the inconsistency once as a stall instead; the human
+        // can fix the ledger condition or cancel the request.
+        markStalled(
+          options.db,
+          request,
+          `${stage.id} is recorded done but the ledger still asks for it`
+        )
+        actions.push(
+          `${pad(Number(request.id))} ${request.slug}: stalled — ${stage.id} is done but still pending`
+        )
+        continue
+      }
       ensureDecision(
         options,
         request,
@@ -671,17 +695,47 @@ function failureReason(db: Db, request: Row, stage: string, outcome: string): st
   return lead
 }
 
-function retryAllowed(db: Db, run: RunRow): boolean {
-  const at = run.finished_at ?? run.created_at
+/**
+ * True when a decision for this stage was resolved after `since`. Scoping by
+ * stage keeps an unrelated budget or gate decision from re-arming a failed
+ * stage. The daemon writes `stage=<id>` into every decision it opens.
+ */
+function decisionResolvedSince(
+  db: Db,
+  requestID: number,
+  since: string | null,
+  stage: string
+): boolean {
+  if (!since) return false
   return Boolean(
     db
       .prepare(
         `SELECT 1 FROM decisions
-          WHERE request_id = ? AND resolved_at IS NOT NULL AND resolved_at > ?
+          WHERE request_id = ?
+            AND resolved_at IS NOT NULL
+            AND resolved_at > ?
+            AND evidence LIKE ?
           LIMIT 1`
       )
-      .get(run.request_id, at)
+      .get(requestID, since, `%stage=${stage}%`)
   )
+}
+
+function retryAllowed(db: Db, run: RunRow): boolean {
+  return decisionResolvedSince(db, run.request_id, run.finished_at ?? run.created_at, run.stage)
+}
+
+/** Surface a ledger inconsistency once without reopening a decision each tick. */
+function markStalled(db: Db, request: Row, reason: string): void {
+  const at = now()
+  db.prepare('UPDATE requests SET stalled_at = ?, last_event_at = ? WHERE id = ?').run(
+    at,
+    at,
+    request.id
+  )
+  db.prepare(
+    'INSERT INTO events (request_id, at, type, actor, payload) VALUES (?, ?, ?, ?, ?)'
+  ).run(request.id, at, 'request.stalled', 'ai_0', JSON.stringify({ reason }))
 }
 
 // ---------------------------------------------------------------------------
