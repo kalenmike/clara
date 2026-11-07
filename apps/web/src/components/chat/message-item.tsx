@@ -239,7 +239,7 @@ function UserMessage({
       actions={actions}
       onToggle={onToggle}
     >
-      <div className="whitespace-pre-wrap break-words">{message.text}</div>
+      <Markdown breaks>{message.text}</Markdown>
       {(message.files?.length ?? 0) > 0 && (
         <div className="mt-2 flex flex-wrap gap-1">
           {message.files?.map((file, index) => (
