@@ -62,10 +62,11 @@ inside a Debian/Ubuntu container for full Worker coverage.
 
 ## Native modules
 
-`better-sqlite3` selects its prebuild from the libc Node reports. Alpine images
-that install `gcompat` report a glibc version even though Node runs on musl, so
-`patches/better-sqlite3@13.0.3.patch` inspects the loaded interpreter instead.
-Keep that patch until the dependency detects gcompat correctly.
+`better-sqlite3` and Rollup select their prebuilt binaries from the libc Node
+reports. Alpine images that install `gcompat` report a glibc version even though
+Node runs on musl, so the patches under `patches/` inspect the loaded
+interpreter instead. Keep those patches until the dependencies detect gcompat
+correctly.
 
 ## Developer commands
 
