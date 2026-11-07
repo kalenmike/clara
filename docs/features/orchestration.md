@@ -191,7 +191,10 @@ docs:    assess_docs → update_docs → verify_docs → docs_review
 - MCP bridge: `apps/mcp`, stdio, talks to the service over loopback HTTP.
 - Engine: `packages/orchestration`; policy: `packages/policy`; shared MCP tools:
   `packages/mcp-server`; OpenCode adapter: `plugins/clara-policy`.
-- Standard packages: `lib/std/software` and `lib/std/content`.
+- Standard packages: `lib/std/software`, `lib/std/content`, and
+  `lib/std/research`. The research pipeline scopes the question, gathers
+  external sources, verifies every material claim against independent dated
+  sources, and returns a concise linked Markdown report.
 - Primary config: `orchestration/index.yml`.
 - Data: `${CLARA_DATA_DIR:-~/.local/share/clara}/orchestration.db` and
   `orchestrator.token`.
@@ -209,8 +212,8 @@ docs:    assess_docs → update_docs → verify_docs → docs_review
   declares the entry, imports, defaults, and can override discovered assets.
   Router routes accept `when`, `run`, and optional `criteria`.
 - References: `std:software` (package entry), `std:software/feature`,
-  `std:software/bug`, and `std:software/docs` (named pipelines), bare names
-  (same package).
+  `std:software/bug`, and `std:software/docs` (named pipelines), `std:research`
+  (research brief), bare names (same package).
 - SSE: `GET /v1/events?since=<event-id>` publishes run, step, policy, and alert
   events for bridge notifications and direct harness subscriptions.
 - See [capabilities.md](capabilities.md) for shipped scope.

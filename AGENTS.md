@@ -21,7 +21,7 @@ packages/orchestration Package loader, runtime, leases, and watchdog
 packages/mcp-server   Shared MCP tools and resources
 packages/crypto       PSK derivation, AES-GCM envelopes, replay guard
 workers/relay         Cloudflare Worker + RelayRoom Durable Object
-lib/std               Standard orchestration packages (software, content)
+lib/std               Standard orchestration packages (software, content, research)
 ```
 
 ## Tech stack
