@@ -22,11 +22,14 @@ const originSchema = z
 
 const text = (value: unknown) => {
   const body = typeof value === 'string' ? value : JSON.stringify(value, null, 2)
+  const structuredContent = Array.isArray(value)
+    ? { items: value }
+    : value && typeof value === 'object'
+      ? (value as Record<string, unknown>)
+      : undefined
   return {
     content: [{ type: 'text' as const, text: body }],
-    ...(value && typeof value === 'object'
-      ? { structuredContent: value as Record<string, unknown> }
-      : {}),
+    ...(structuredContent ? { structuredContent } : {}),
   }
 }
 
@@ -350,31 +353,6 @@ export function createClaraServer(backend: ClaraBackend, version = '0.1.0'): Mcp
         ],
       }
     }
-  )
-
-  server.registerPrompt(
-    'run_pipeline',
-    {
-      description: 'Start a Clara pipeline for a request',
-      argsSchema: {
-        prompt: z.string().min(1),
-        workspace: z.string().min(1),
-        target: z.string().optional(),
-      },
-    },
-    async (args) => ({
-      messages: [
-        {
-          role: 'user',
-          content: {
-            type: 'text',
-            text: `Start a Clara pipeline with clara_start.\nprompt: ${args.prompt}\nworkspace: ${args.workspace}${
-              args.target ? `\ntarget: ${args.target}` : ''
-            }\nThen read the returned work order and complete it.`,
-          },
-        },
-      ],
-    })
   )
 
   return server
