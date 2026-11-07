@@ -159,10 +159,31 @@ function normalizeRoutes(value: unknown): RouteDefinition[] {
       {
         when,
         run,
+        ...(str(item.criteria) ? { criteria: String(item.criteria) } : {}),
         ...(str(item.description) ? { description: String(item.description) } : {}),
       },
     ]
   })
+}
+
+function renderRouteList(routes: RouteDefinition[]): string {
+  return routes
+    .map((route) => {
+      const criteria = (route.criteria ?? route.description)?.replace(/\s+/g, ' ').trim()
+      return criteria ? `- \`${route.when}\` — ${criteria}` : `- \`${route.when}\``
+    })
+    .join('\n')
+}
+
+function renderRouterPrompt(instructions: string, routes: RouteDefinition[]): string {
+  const list = renderRouteList(routes)
+  if (!list) return instructions
+  if (instructions.includes('[ROUTES]')) {
+    return instructions.split('[ROUTES]').join(list)
+  }
+  return instructions.trim()
+    ? `${instructions.trimEnd()}\n\n## Routes\n\n${list}`
+    : `## Routes\n\n${list}`
 }
 
 function normalizeStep(raw: unknown, source: string, index: number): StepDefinition {
@@ -709,7 +730,7 @@ function compileStep(
   return {
     ...base,
     kind: 'router',
-    prompt: router.instructions,
+    prompt: renderRouterPrompt(router.instructions, router.routes),
     routes,
     ...(router.strategy ? { strategy: router.strategy } : {}),
     ...(router.policy ? { policy: policyFromStep(step, undefined, router.policy) } : {}),
@@ -780,7 +801,7 @@ function compileEntry(pkg: LoadedPackage, path: string, stack: Set<string>): Com
       kind: 'router',
       name: router.id,
       title: router.id,
-      prompt: router.instructions,
+      prompt: renderRouterPrompt(router.instructions, router.routes),
       routes,
       ...(router.description ? { description: router.description } : {}),
       ...(router.strategy ? { strategy: router.strategy } : {}),

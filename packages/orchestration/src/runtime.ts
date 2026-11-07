@@ -53,7 +53,7 @@ export interface WorkOrder {
   budget: EffectiveBudget
   enforcement: string
   background: boolean
-  routes?: Array<{ when: string; run: string; description?: string }>
+  routes?: Array<{ when: string; run: string; criteria?: string; description?: string }>
   context: {
     prompt: string
     steps: Array<{ path: string; name: string; result: unknown }>
@@ -487,6 +487,7 @@ export class Runtime {
             routes: node.routes.map((route) => ({
               when: route.when,
               run: route.run,
+              ...(route.criteria ? { criteria: route.criteria } : {}),
               ...(route.description ? { description: route.description } : {}),
             })),
           }
