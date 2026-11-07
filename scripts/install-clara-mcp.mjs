@@ -12,6 +12,7 @@ import { homedir } from 'node:os'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { spawnSync } from 'node:child_process'
+import { installCommand, removeCommand } from './lib/clara-command.mjs'
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 const mcpEntry = join(root, 'apps', 'mcp', 'dist', 'index.js')
@@ -57,6 +58,8 @@ function install() {
   config.mcp = mcp
   writeConfig(config)
   console.log(`ok   OpenCode MCP entry: ${opencodeConfig}`)
+  const command = installCommand({ force: args.includes('--force') })
+  console.log(`${command.written ? 'write' : 'keep'} /pipeline command: ${command.path}`)
   if (!noStart) startService()
   console.log('')
   console.log('Stdio config for other clients:')
@@ -77,12 +80,16 @@ function uninstall() {
     delete config.mcp.clara
     writeConfig(config)
     console.log(`removed mcp.clara from ${opencodeConfig}`)
+    removeCommandIfUnused(config)
   } else {
     console.log('mcp.clara was not configured')
   }
 }
 
 function printConfig() {
+  console.log('OpenCode command:')
+  console.log('  /pipeline <request>')
+  console.log('')
   const token = readToken()
   console.log('Stdio bridge:')
   console.log(JSON.stringify({ mcpServers: { clara: stdioEntry() } }, null, 2))
@@ -111,6 +118,9 @@ async function status() {
   console.log(`orchestrator: ${ok ? 'running' : 'stopped'} (${baseURL})`)
   console.log(`OpenCode MCP config: ${existsSync(opencodeConfig) ? opencodeConfig : 'missing'}`)
   console.log(`MCP bridge: ${existsSync(mcpEntry) ? mcpEntry : 'not built'}`)
+  console.log(
+    `/pipeline command: ${existsSync(join(configHome, 'opencode', 'commands', 'pipeline.md')) ? 'installed' : 'missing'}`
+  )
   if (!ok) process.exitCode = 1
 }
 
@@ -121,6 +131,15 @@ function stdioEntry() {
 function readToken() {
   if (!existsSync(tokenFile)) return ''
   return readFileSync(tokenFile, 'utf8').trim()
+}
+
+function removeCommandIfUnused(config) {
+  const adapterInstalled = existsSync(join(configHome, 'opencode', 'plugins', 'clara-policy'))
+  const mcpStillConfigured = isRecord(config.mcp) && 'clara' in config.mcp
+  if (!adapterInstalled && !mcpStillConfigured) {
+    const removed = removeCommand()
+    if (removed.removed) console.log(`removed /pipeline command: ${removed.path}`)
+  }
 }
 
 function startService() {
