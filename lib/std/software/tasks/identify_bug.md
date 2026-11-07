@@ -16,17 +16,21 @@ permissions:
     effect: allow
 limits:
   turns:
-    initial: 6
-    absolute_max: 10
+    initial: 8
+    absolute_max: 14
   tokens:
-    initial: 50000
-    absolute_max: 120000
+    initial: 60000
+    absolute_max: 140000
 ---
 
 # Task: Identify the bug
 
-Reproduce the problem and identify the smallest correct fix.
+Reproduce the problem before proposing a fix.
 
-- Capture the failing command and output.
+- Capture the exact failing command, input, and output.
 - Identify the root cause, not just the symptom.
-- Return the reproduction steps and the proposed fix scope.
+- Name the smallest scope that can correct it and the regression test that will prove it.
+- Note related behavior that must not change.
+- Do not edit files.
+
+Return reproduction steps, failing output, root cause, proposed fix scope, and the regression test to add.

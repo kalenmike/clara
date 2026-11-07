@@ -6,9 +6,13 @@ enforcement: strict
 steps:
   - name: create_spec
     type: task
+  - name: plan_implementation
+    type: task
   - name: write_tests
     type: task
   - name: build_feature
+    type: task
+  - name: verify_implementation
     type: task
   - name: code_review
     type: task

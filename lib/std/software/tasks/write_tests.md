@@ -9,6 +9,18 @@ permissions:
     resource: 'tests/**'
     effect: allow
   - action: edit
+    resource: 'apps/**/test/**'
+    effect: allow
+  - action: edit
+    resource: 'packages/**/test/**'
+    effect: allow
+  - action: edit
+    resource: 'workers/**/test/**'
+    effect: allow
+  - action: edit
+    resource: 'plugins/**/test/**'
+    effect: allow
+  - action: edit
     resource: '**/*.test.*'
     effect: allow
   - action: edit

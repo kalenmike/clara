@@ -117,6 +117,25 @@ Routers without the placeholder get the list appended under a `## Routes`
 heading. `criteria` falls back to the legacy `description` field. The rendered
 prompt is part of the pinned run snapshot and the work order.
 
+## Standard software pipelines
+
+The `std:software` package routes feature, bug, and documentation requests to
+three strict lifecycles. Feature work runs spec, plan, tests, build, an
+independent verification gate, review, and docs. Bug work runs reproduction, a
+failing regression test, the smallest fix, verification, review, and docs.
+Documentation-only work runs assessment, in-place updates, link and index
+verification, and review. Every task step resolves to a Markdown task under
+`lib/std/software/tasks`; the loader test fails when a pipeline names a missing
+task.
+
+```text
+feature: create_spec → plan_implementation → write_tests → build_feature →
+         verify_implementation → code_review → update_docs
+bug:     identify_bug → write_regression_test → fix_bug → verify_bug_fix →
+         code_review → update_docs
+docs:    assess_docs → update_docs → verify_docs → docs_review
+```
+
 ## Edge cases
 
 - A strict run starts with no adapter: it is refused with
@@ -189,8 +208,9 @@ prompt is part of the pinned run snapshot and the work order.
 - Package assets: `pipelines/*.yml`, `routers/*.md`, `tasks/*.md`; `index.yml`
   declares the entry, imports, defaults, and can override discovered assets.
   Router routes accept `when`, `run`, and optional `criteria`.
-- References: `std:software` (package entry), `std:software/feature` (named
-  pipeline), bare names (same package).
+- References: `std:software` (package entry), `std:software/feature`,
+  `std:software/bug`, and `std:software/docs` (named pipelines), bare names
+  (same package).
 - SSE: `GET /v1/events?since=<event-id>` publishes run, step, policy, and alert
   events for bridge notifications and direct harness subscriptions.
 - See [capabilities.md](capabilities.md) for shipped scope.

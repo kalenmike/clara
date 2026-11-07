@@ -1,7 +1,7 @@
 id: software
 name: Software development
 version: 1
-description: Standard software lifecycle with spec, tests, build, review, and docs.
+description: Standard software lifecycles for features, bugs, and documentation.
 
 entry:
   router: classifier
@@ -21,6 +21,6 @@ router:
     - when: bug
       criteria: a regression or hotfix.
       run: bug
-    - when: example
-      criteria: a small demonstration pipeline with a nested task group.
-      run: example
+    - when: documentation
+      criteria: updates to the documentation.
+      run: docs

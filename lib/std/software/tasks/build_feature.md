@@ -15,10 +15,37 @@ permissions:
     resource: 'packages/**/src/**'
     effect: allow
   - action: edit
+    resource: 'workers/**/src/**'
+    effect: allow
+  - action: edit
+    resource: 'plugins/**'
+    effect: allow
+  - action: edit
+    resource: 'scripts/**'
+    effect: allow
+  - action: edit
     resource: 'tests/**'
     effect: deny
   - action: edit
     resource: '**/*.test.*'
+    effect: deny
+  - action: edit
+    resource: '**/*.spec.*'
+    effect: deny
+  - action: edit
+    resource: 'plugins/**/migrations/**'
+    effect: deny
+  - action: edit
+    resource: '**/.env*'
+    effect: deny
+  - action: edit
+    resource: '**/*.pem'
+    effect: deny
+  - action: edit
+    resource: '**/*.key'
+    effect: deny
+  - action: edit
+    resource: 'docs/**'
     effect: deny
   - action: shell
     resource: '*'
