@@ -87,6 +87,36 @@ can reach it. The database lives in the `orchestrator-data` volume.
    orchestration service runs whenever it is installed, the config is active,
    and the service is running.
 
+## Router criteria
+
+Route entries carry the natural-language rule that tells the classifier when to
+pick them:
+
+```yaml
+router:
+  id: classifier
+  path: ./routers/classifier.md
+  routes:
+    - when: software-development
+      criteria: a normal software feature, bug, or example request.
+      run: std:software
+    - when: quick-patch
+      criteria: a small, local lifecycle patch with no full spec cycle.
+      run: quick_patch
+```
+
+The engine renders those entries as a bullet list and substitutes it for
+`[ROUTES]` in the router Markdown:
+
+```text
+- `software-development` — a normal software feature, bug, or example request.
+- `quick-patch` — a small, local lifecycle patch with no full spec cycle.
+```
+
+Routers without the placeholder get the list appended under a `## Routes`
+heading. `criteria` falls back to the legacy `description` field. The rendered
+prompt is part of the pinned run snapshot and the work order.
+
 ## Edge cases
 
 - A strict run starts with no adapter: it is refused with
@@ -158,6 +188,7 @@ can reach it. The database lives in the `orchestrator-data` volume.
   `clara_catalog`, and the adapter administration tools.
 - Package assets: `pipelines/*.yml`, `routers/*.md`, `tasks/*.md`; `index.yml`
   declares the entry, imports, defaults, and can override discovered assets.
+  Router routes accept `when`, `run`, and optional `criteria`.
 - References: `std:software` (package entry), `std:software/feature` (named
   pipeline), bare names (same package).
 - SSE: `GET /v1/events?since=<event-id>` publishes run, step, policy, and alert
