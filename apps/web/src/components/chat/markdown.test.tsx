@@ -32,3 +32,16 @@ describe('Markdown code blocks', () => {
     expect(html).toContain('pnpm test')
   })
 })
+
+describe('Markdown line breaks', () => {
+  it('keeps single newlines soft by default', () => {
+    const html = render('first line\nsecond line')
+    expect(html).toContain('first line\nsecond line')
+    expect(html).not.toContain('<br')
+  })
+
+  it('turns single newlines into breaks when breaks is enabled', () => {
+    const html = renderToStaticMarkup(<Markdown breaks>{'first line\nsecond line'}</Markdown>)
+    expect(html).toMatch(/first line<br\s*\/?>\s*second line/)
+  })
+})
