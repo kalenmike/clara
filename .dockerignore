@@ -14,5 +14,3 @@ apps/mcp
 plugins
 workers
 docs
-patches
-.architect

@@ -22,7 +22,6 @@ limits:
 
 Select exactly one route key from the list in the work order.
 
-- `software-development` — a normal software feature, bug, or example request.
-- `quick-patch` — a small, local lifecycle patch with no full spec cycle.
+[ROUTES]
 
 Return only the route key and a one-sentence reason. Do not edit files or run commands.

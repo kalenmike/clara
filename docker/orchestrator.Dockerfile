@@ -10,6 +10,13 @@
 # workspace path.
 
 FROM node:22-bookworm-slim AS build
+
+# 1. Install build tools required for native packages like better-sqlite3
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    build-essential \
+    python3 \
+    && rm -rf /var/lib/apt/lists/*
+
 ENV PNPM_HOME=/pnpm
 ENV PATH=$PNPM_HOME:$PATH
 RUN corepack enable

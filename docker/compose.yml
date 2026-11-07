@@ -23,7 +23,7 @@ services:
       CLARA_STD_DIR: /opt/clara/lib/std
       CLARA_ORCHESTRATION_TOKEN: ${CLARA_ORCHESTRATION_TOKEN:?set CLARA_ORCHESTRATION_TOKEN}
     volumes:
-      - orchestrator-data:/data
+      - ${CLARA_DATA_DIR:?set CLARA_DATA_DIR}:/data
       - ${CLARA_WORKSPACE:?set CLARA_WORKSPACE}:/workspace/clara:ro
     networks:
       - clara
@@ -64,4 +64,5 @@ volumes:
 
 networks:
   clara:
+    name: clara
     driver: bridge

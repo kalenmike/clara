@@ -19,8 +19,10 @@ router:
   path: ./routers/classifier.md
   routes:
     - when: software-development
+      criteria: a normal software feature, bug, or example request.
       run: std:software
     - when: quick-patch
+      criteria: a small, local lifecycle patch with no full spec cycle.
       run: quick_patch
 
 pipelines:
