@@ -58,6 +58,18 @@ export function friendlyError(message: string, context: ErrorContext = 'general'
   }
 
   if (
+    lower.includes('directory picker') ||
+    lower.includes('cannot open display') ||
+    lower.includes('picker is not available')
+  ) {
+    return {
+      title: 'Could not open the file picker',
+      detail: text,
+      hint: 'Install zenity or kdialog on Linux, or type the path into the field instead.',
+    }
+  }
+
+  if (
     lower.includes('fetch failed') ||
     lower.includes('econnrefused') ||
     lower.includes('connect_failed') ||

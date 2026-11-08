@@ -7,6 +7,8 @@ export function Setup({
   snapshot,
   hostWorkspace,
   onHostWorkspace,
+  browsing,
+  onBrowse,
   preflight,
   loading,
   error,
@@ -19,6 +21,8 @@ export function Setup({
   snapshot: LabSnapshot
   hostWorkspace: string
   onHostWorkspace: (value: string) => void
+  browsing: boolean
+  onBrowse: () => void
   preflight: PreflightResult | null
   loading: boolean
   error: string | null
@@ -72,11 +76,21 @@ export function Setup({
           <div className="setup-grid">
             <label>
               Files on this machine
-              <input
-                value={hostWorkspace}
-                onChange={(event) => onHostWorkspace(event.target.value)}
-                placeholder="/home/jet/Projects/clara"
-              />
+              <div className="path-row">
+                <input
+                  value={hostWorkspace}
+                  onChange={(event) => onHostWorkspace(event.target.value)}
+                  placeholder="/home/jet/Projects/clara"
+                />
+                <button
+                  type="button"
+                  className="button ghost small"
+                  onClick={onBrowse}
+                  disabled={browsing}
+                >
+                  {browsing ? 'Browsing…' : 'Browse…'}
+                </button>
+              </div>
               <span className="muted">
                 The lab compiles this path. It is also where file watching and source view read.
               </span>

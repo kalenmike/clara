@@ -3,6 +3,7 @@ import { createServer, type IncomingMessage, type Server, type ServerResponse } 
 import { join } from 'node:path'
 import type { AddressInfo } from 'node:net'
 import { diffCompiled, inspectSnapshot, type PreviewInput } from '@clara/devtools'
+import { PickerUnavailable, pickDirectory } from './picker.ts'
 import type { LabRuntime } from './runtime.ts'
 import { checkLabRequest, LAB_HEADER } from './security.ts'
 import { loadStaticFiles, SECURITY_HEADERS, serveStatic } from './static.ts'
@@ -274,6 +275,20 @@ export async function startLabServer(options: LabServerOptions): Promise<LabServ
     if (url.pathname === '/api/reconnect') {
       await context.runtime.reconnect()
       json(response, 200, { ok: true })
+      return
+    }
+
+    if (url.pathname === '/api/pick-directory') {
+      const initial = stringField(body.initial)
+      try {
+        const path = await pickDirectory(initial)
+        json(response, 200, { path: path ?? null })
+      } catch (error) {
+        if (error instanceof PickerUnavailable) {
+          throw new HttpError(501, 'picker_unavailable', error.message)
+        }
+        throw error
+      }
       return
     }
 

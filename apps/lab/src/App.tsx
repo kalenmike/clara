@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { preflight, registerAdapter, reconnect } from './api'
+import { pickDirectory, preflight, registerAdapter, reconnect } from './api'
 import { Badge } from './components/Badge'
 import { Preview } from './components/Preview'
 import { Runs } from './components/Runs'
@@ -16,6 +16,7 @@ export function App() {
   const [preflightResult, setPreflightResult] = useState<PreflightResult | null>(null)
   const [preflightLoading, setPreflightLoading] = useState(false)
   const [preflightError, setPreflightError] = useState<string | null>(null)
+  const [browsing, setBrowsing] = useState(false)
   const [notice, setNotice] = useState<string | null>(null)
   const [setupOpen, setSetupOpen] = useState(true)
   const setupRef = useRef<HTMLDivElement>(null)
@@ -85,6 +86,19 @@ export function App() {
     const timer = window.setTimeout(() => void runPreflight(), 800)
     return () => window.clearTimeout(timer)
   }, [stream.snapshot?.connected, hostWorkspace, runtimeWorkspace, settings.target, runPreflight])
+
+  const browseHostWorkspace = async (): Promise<void> => {
+    setBrowsing(true)
+    setPreflightError(null)
+    try {
+      const result = await pickDirectory(hostWorkspace || undefined)
+      if (result.path) update({ hostWorkspace: result.path })
+    } catch (cause) {
+      setPreflightError(cause instanceof Error ? cause.message : String(cause))
+    } finally {
+      setBrowsing(false)
+    }
+  }
 
   const setTab = (tab: LabTab): void => {
     update({ tab })
@@ -161,6 +175,8 @@ export function App() {
           snapshot={snapshot}
           hostWorkspace={settings.hostWorkspace}
           onHostWorkspace={(value) => update({ hostWorkspace: value })}
+          browsing={browsing}
+          onBrowse={() => void browseHostWorkspace()}
           preflight={preflightResult}
           loading={preflightLoading}
           error={preflightError}

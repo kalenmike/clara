@@ -83,6 +83,10 @@ export function preflight(input: PreflightRequest): Promise<PreflightResult> {
   return request<PreflightResult>('/api/preflight', mutation(input))
 }
 
+export function pickDirectory(initial?: string): Promise<{ path: string | null }> {
+  return request<{ path: string | null }>('/api/pick-directory', mutation({ initial }))
+}
+
 export function callTool<T = unknown>(
   name: string,
   args: Record<string, unknown> = {}
