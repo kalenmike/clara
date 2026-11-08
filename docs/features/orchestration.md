@@ -29,8 +29,9 @@ human-facing Clara agent.
    - a greeting, thanks, or general question is answered without a run;
    - an ambiguous request gets one clarifying question.
 
-   The adapter resolves the workspace and entry target from the session, so the
-   agent does not pass either.
+   The orchestrator owns the workspace and its configured entry point.
+   `clara_start` takes only the request; the model never passes a workspace or
+   a target.
 
    The agent has no read, edit, shell, network, or subagent tools, so it cannot
    do pipeline work itself.
@@ -147,14 +148,15 @@ first.
    worker sessions stay hidden automation. The OpenCode adapter delivers new
    alerts and finished root runs into the origin session; the inbox and SSE
    remain the read-only fallback.
-6. **Package references are stable.** `std:software` is the package entry;
-   `std:software/feature` is a named pipeline; a bare package id such as
-   `orchestration` also selects its package entry. The OpenCode adapter resolves
-   its workspace from the session root, while an explicit
-   `CLARA_ORCHESTRATION_WORKSPACE` still wins for container mounts. In-flight
-   runs pin the resolved snapshot and hash. Run lists, run status, and every MCP
-   run payload omit the pinned tree; the full step prompt, policy, limits,
-   result, and lease are read only from the Lab's dedicated endpoints.
+6. **The orchestrator owns the workspace and entry.** `CLARA_ORCHESTRATION_WORKSPACE`
+   configures the workspace, defaulting to the service working directory. Every
+   run starts at the `entry` declared by that workspace's
+   `orchestration/index.yml`. Model-facing `clara_start` takes only the request;
+   explicit package references such as `std:software/feature` are reserved for
+   the Lab, operator REST calls, and tests. In-flight runs pin the resolved
+   snapshot and hash. Run lists, run status, and every MCP run payload omit the
+   pinned tree; the full step prompt, policy, limits, result, and lease are read
+   only from the Lab's dedicated endpoints.
 7. **The panel controls the local service.** The **Orchestration** switch keeps
    `orchestration.enabled` in the home agent database and starts or stops a
    local instance. A service started from the CLI, MCP bridge, or Docker is
@@ -364,7 +366,8 @@ failures, audits the package and watchdog setup, ranks issues, proposes fixes,
 and returns the reviewed Markdown report. It uses `observed` enforcement so a
 missing or stale adapter does not block the diagnosis, and its tasks never edit
 files or mutate the database. Run it from Clara with a request such as "audit
-the orchestrator setup" or directly with `target: std:diagnostics`. See
+the orchestrator setup"; the configured router selects it. In the Lab, an
+operator can start it directly with `target: std:diagnostics`. See
 [diagnostics.md](diagnostics.md).
 
 ## Edge cases
@@ -500,7 +503,8 @@ path] [--url url]` and `GET /v1/diagnostics?days=30`. The analyzer is
 - References: `std:software` (package entry), `std:software/feature`,
   `std:software/bug`, and `std:software/docs` (named pipelines), `std:research`
   (research brief), `std:diagnostics` (self-diagnosis), bare names (same
-  package).
+  package). These are for the Lab and operator tooling; model-facing
+  `clara_start` always uses the configured entry.
 - Run responses: `GET /v1/runs`, `GET /v1/runs/:id`, and all MCP run payloads
   return summaries without `snapshot`, and status steps omit prompts, policy,
   limits, and lease tokens while keeping results. `GET /v1/runs/:id/snapshot` returns

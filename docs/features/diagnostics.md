@@ -14,9 +14,10 @@ whether the watchdog and budgets are configured correctly.
 1. Ask Clara to diagnose the orchestrator, for example "why are my pipelines
    failing?" or "audit the orchestrator setup". The primary classifier routes
    the request to `std:diagnostics`.
-2. A caller can also start the package directly with
+2. A caller can also start the package directly from the Lab with
    `target: std:diagnostics`, or run the analyzer without a pipeline with
-   `pnpm clara orchestration analyze`.
+   `pnpm clara orchestration analyze`. The Clara agent always starts at the
+   configured entry, whose router selects diagnostics.
 3. `collect_evidence` runs
    `pnpm clara orchestration analyze --json --days 30`. The analyzer prefers a
    reachable orchestrator service and otherwise opens the local database
