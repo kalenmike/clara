@@ -26,6 +26,19 @@ export function debugRuns(runs: RunRow[]): RunRow[] {
 }
 
 /**
+ * Newest debug run that is still in flight, or undefined when every run is
+ * terminal. Compare IDs so the result does not depend on list order.
+ */
+export function latestActiveRun(runs: RunRow[]): RunRow | undefined {
+  let latest: RunRow | undefined
+  for (const run of runs) {
+    if (!isActiveRun(run)) continue
+    if (!latest || run.id > latest.id) latest = run
+  }
+  return latest
+}
+
+/**
  * Active runs first, preserving the service order inside each group.
  */
 export function sortRuns(runs: RunRow[]): RunRow[] {

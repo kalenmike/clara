@@ -4,7 +4,13 @@ import type { LabStream } from '../useLab'
 import type { PreflightResult, RunRow, StatusResult } from '../types'
 import { friendlyError } from '../lib/errors'
 import { dateTime, short, statusTone } from '../lib/format'
-import { debugRuns as onlyDebugRuns, isActiveRun, isDebugRun, sortRuns } from '../lib/runs'
+import {
+  debugRuns as onlyDebugRuns,
+  isActiveRun,
+  isDebugRun,
+  latestActiveRun,
+  sortRuns,
+} from '../lib/runs'
 import { Badge } from './Badge'
 import { Icon } from './Icon'
 import { WorkOrderCard } from './WorkOrderCard'
@@ -59,7 +65,7 @@ export function DebugDock({
   const [prompt, setPrompt] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
-  const [open, setOpen] = useState(true)
+  const [open, setOpen] = useState(false)
 
   const promptRef = useRef<HTMLTextAreaElement>(null)
   const seenExpand = useRef(0)
@@ -70,9 +76,9 @@ export function DebugDock({
       const list = Array.isArray(result.value) ? (result.value as RunRow[]) : []
       setRuns(list)
       setSelectedID((current) => {
-        const debug = sortRuns(onlyDebugRuns(list))
+        const debug = onlyDebugRuns(list)
         if (current && debug.some((run) => run.id === current)) return current
-        return (debug.find(isActiveRun)?.id ?? debug[0]?.id) as number | undefined
+        return latestActiveRun(debug)?.id
       })
     } catch (cause) {
       setError(message(cause))
@@ -455,8 +461,8 @@ export function DebugDock({
               <Icon name="runs" size={22} />
               <span>
                 {debug.length
-                  ? 'Select a debug run to step through it.'
-                  : 'Start the pipeline above to claim the first work order.'}
+                  ? 'Start a debug run above, or pick an earlier run from the dropdown.'
+                  : 'Start a debug run above to claim the first work order.'}
               </span>
             </div>
           )}
