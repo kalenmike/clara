@@ -70,8 +70,34 @@ afterAll(async () => {
 })
 
 describe('OpenCode observer', () => {
+  it('re-reads its config when reconnecting', async () => {
+    let config = {
+      url: 'http://127.0.0.1:1',
+      source: 'env' as const,
+      serviceFile: '/tmp/opencode-service.json',
+    }
+    const observer = new OpenCodeObserver(
+      () => config,
+      () => {}
+    )
+    observer.start()
+    try {
+      expect(observer.summary().url).toBe('http://127.0.0.1:1')
+      config = { ...config, url: base }
+      await observer.reconnect()
+      expect(observer.summary().url).toBe(base)
+      await observer.sessions()
+      expect(observer.summary().reachable).toBe(true)
+    } finally {
+      await observer.stop()
+    }
+  })
+
   it('merges live events with session metadata', async () => {
-    const observer = new OpenCodeObserver({ url: base }, () => {})
+    const observer = new OpenCodeObserver(
+      () => ({ url: base, source: 'env', serviceFile: '/tmp/opencode-service.json' }),
+      () => {}
+    )
     observer.start()
     try {
       let result = await observer.sessions()

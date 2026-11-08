@@ -7,6 +7,7 @@ import {
   resolveOpenCodeConfig,
   type ModelCatalog,
   type ModelCatalogSource,
+  type OpenCodeConfig,
 } from './models.ts'
 import { OpenCodeObserver } from './opencode.ts'
 import { LabState, workKey } from './state.ts'
@@ -105,13 +106,15 @@ export class LabRuntime {
     token: string
     workspace: string
     models?: ModelCatalogSource
-    opencode?: { url: string; password?: string }
+    opencode?: OpenCodeConfig
   }) {
     this.url = options.url
     this.token = options.token
     this.modelCatalog = options.models ?? createModelCatalogLoader()
-    this.opencode = new OpenCodeObserver(options.opencode ?? resolveOpenCodeConfig(), (summary) =>
-      this.state.setOpenCode(summary)
+    const opencode = options.opencode
+    this.opencode = new OpenCodeObserver(
+      opencode ? () => opencode : resolveOpenCodeConfig,
+      (summary) => this.state.setOpenCode(summary)
     )
     this.mcp = new McpClient(options.url, options.token)
     this.state.orchestrator = options.url
@@ -377,6 +380,10 @@ export class LabRuntime {
 
   opencodeSessions(): Promise<OpenCodeSessionsResult> {
     return this.opencode.sessions()
+  }
+
+  reconnectOpenCode(): Promise<void> {
+    return this.opencode.reconnect()
   }
 
   async cancelAll(): Promise<CancelAllResult> {

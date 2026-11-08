@@ -39,6 +39,11 @@ export class LabState {
     url: '',
     sessionCount: 0,
     activeCount: 0,
+    auth: {
+      present: false,
+      source: 'default',
+      serviceFile: '',
+    },
     updatedAt: new Date().toISOString(),
   }
   lastError: string | undefined

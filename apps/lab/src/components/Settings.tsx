@@ -17,6 +17,7 @@ export function SettingsView({
   onReconnect,
   onEnableAdapter,
   onRemoveAdapter,
+  onReconnectOpenCode,
   onOpenSessions,
 }: {
   snapshot: LabSnapshot
@@ -31,6 +32,7 @@ export function SettingsView({
   onReconnect: () => void
   onEnableAdapter: () => void
   onRemoveAdapter: (id: string) => void
+  onReconnectOpenCode: () => void
   onOpenSessions: () => void
 }) {
   const runtime = snapshot.orchestratorWorkspace
@@ -49,6 +51,7 @@ export function SettingsView({
       ].filter((value) => !value).length
     : 0
   const opencode = snapshot.opencode
+  const auth = opencode.auth
 
   return (
     <div className="view settings-view">
@@ -216,8 +219,24 @@ export function SettingsView({
               <h2>OpenCode</h2>
               <p className="muted">Model validation and live session visibility.</p>
             </div>
-            <Badge tone={opencode.connected ? 'ok' : opencode.reachable ? 'warn' : 'bad'}>
-              {opencode.connected ? 'streaming' : opencode.reachable ? 'reachable' : 'offline'}
+            <Badge
+              tone={
+                opencode.errorKind === 'auth'
+                  ? 'bad'
+                  : opencode.connected
+                    ? 'ok'
+                    : opencode.reachable
+                      ? 'warn'
+                      : 'bad'
+              }
+            >
+              {opencode.errorKind === 'auth'
+                ? 'auth required'
+                : opencode.connected
+                  ? 'streaming'
+                  : opencode.reachable
+                    ? 'reachable'
+                    : 'offline'}
             </Badge>
           </div>
           <dl className="detail-list">
@@ -225,6 +244,20 @@ export function SettingsView({
               <dt>URL</dt>
               <dd>
                 <code>{opencode.url || 'not resolved'}</code>
+              </dd>
+            </div>
+            <div>
+              <dt>Authentication</dt>
+              <dd className={auth.present ? undefined : 'tone-warn'}>
+                {auth.present
+                  ? `password found (${authSourceLabel(auth.source)})`
+                  : 'no password found'}
+              </dd>
+            </div>
+            <div>
+              <dt>Service file</dt>
+              <dd>
+                <code>{auth.serviceFile || 'not resolved'}</code>
               </dd>
             </div>
             <div>
@@ -239,18 +272,37 @@ export function SettingsView({
                 {opencode.sessionCount} known · {opencode.activeCount} running
               </dd>
             </div>
-            {opencode.error ? (
-              <div>
-                <dt>Last error</dt>
-                <dd className="tone-bad">{opencode.error}</dd>
-              </div>
-            ) : null}
           </dl>
+          {opencode.hint ? (
+            <div
+              className={`opencode-help ${opencode.errorKind === 'auth' ? 'opencode-help-auth' : ''}`}
+            >
+              <div className="opencode-help-head">
+                <Badge tone={opencode.errorKind === 'auth' ? 'bad' : 'warn'}>
+                  {opencode.errorKind === 'auth' ? 'authentication required' : 'connection problem'}
+                </Badge>
+                {opencode.error ? <code>{opencode.error}</code> : null}
+              </div>
+              <p className="opencode-hint">{opencode.hint}</p>
+              <div className="inline-actions">
+                <button type="button" className="button primary" onClick={onReconnectOpenCode}>
+                  <Icon name="refresh" size={14} />
+                  Reconnect OpenCode
+                </button>
+              </div>
+            </div>
+          ) : null}
           <div className="inline-actions">
             <button type="button" className="button" onClick={onOpenSessions}>
               <Icon name="sessions" size={14} />
               View OpenCode sessions
             </button>
+            {!opencode.hint ? (
+              <button type="button" className="button" onClick={onReconnectOpenCode}>
+                <Icon name="refresh" size={14} />
+                Reconnect OpenCode
+              </button>
+            ) : null}
           </div>
         </section>
 
@@ -339,6 +391,12 @@ export function SettingsView({
       </div>
     </div>
   )
+}
+
+function authSourceLabel(source: 'env' | 'service' | 'default'): string {
+  if (source === 'env') return 'environment'
+  if (source === 'service') return 'service file'
+  return 'default URL'
 }
 
 function PreflightRow({

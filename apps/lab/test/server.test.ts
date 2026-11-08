@@ -140,6 +140,12 @@ describe('lab server', () => {
     }
   })
 
+  it('reconnects the OpenCode observer', async () => {
+    const result = await post('/api/opencode/reconnect', {})
+    expect(result.response.status).toBe(200)
+    expect(result.value).toEqual({ ok: true })
+  })
+
   it('requires the lab header for mutations', async () => {
     const response = await fetch(`${base}/api/heartbeat`, {
       method: 'POST',

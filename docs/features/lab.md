@@ -109,6 +109,14 @@ writing custom pipelines, not for end users.
 - OpenCode is offline: preview still compiles and checks provider/model pairing;
   the models row says model existence is unchecked, and Sessions explains how to
   reconnect.
+- OpenCode requires authentication: Settings shows whether a password was
+  found, where the lab looked, and the exact recovery steps. Run
+  `pnpm clara pass`, set `CLARA_OPENCODE_PASSWORD`, or add `url` and `password`
+  to the service file, then press **Reconnect OpenCode**. The password stays in
+  the lab server.
+- The OpenCode config changes while the lab is running: **Reconnect OpenCode**
+  re-reads the environment and service file, restarts the event stream, and
+  refreshes the session list without restarting the lab.
 - OpenCode's event stream drops: Sessions keeps the last known rows and retries;
   the status bar shows `reconnecting`.
 - A session is idle and emits no events after the lab starts: it still appears
@@ -191,8 +199,8 @@ writing custom pipelines, not for end users.
   `POST /api/preview`, `POST /api/preflight`, `POST /api/pick-directory`,
   `POST /api/diff`, `POST /api/tools/:name`, `GET /api/runs`,
   `GET /api/runs/:id`, `POST /api/runs/cancel-all`, `GET /api/inbox`,
-  `GET /api/opencode/sessions`, `GET /api/source`,
-  `POST /api/heartbeat`, `POST /api/reconnect`,
+  `GET /api/opencode/sessions`, `POST /api/opencode/reconnect`,
+  `GET /api/source`, `POST /api/heartbeat`, `POST /api/reconnect`,
   `POST /api/adapter/register`, `POST /api/adapter/remove`,
   `POST /api/violation`.
 - `/api/preflight` returns `{ host, runtime, adapter, models }`: host compile
@@ -204,6 +212,17 @@ writing custom pipelines, not for end users.
   `lastSeenAt`, `lastSeenSource`, `eventCount`, and `lastEventType`.
 - `/api/runs/cancel-all` cancels every non-terminal root run and returns
   `{ cancelled, failed }`.
+- OpenCode auth resolves `CLARA_OPENCODE_URL` first, then the service file URL,
+  then `http://127.0.0.1:4096`. The password resolves from
+  `CLARA_OPENCODE_PASSWORD` first, then the service file. Setting only the
+  password is supported. The service file is
+  `${XDG_STATE_HOME:-~/.local/state}/opencode/service.json` and should contain
+  `{ "url": "...", "password": "..." }`.
+- `/api/opencode/sessions` also reports whether an OpenCode password was found,
+  its source, and the service-file path. Secrets are never returned.
+- `/api/opencode/reconnect` re-reads the OpenCode config, clears stale session
+  observations when the endpoint changes, restarts the event stream, and
+  refreshes metadata.
 - The OpenCode observer keeps the password server-side. It subscribes to
   `/api/event`, seeds idle sessions from the session list, and uses
   `session.active()` for the running marker.
