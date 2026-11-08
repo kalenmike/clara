@@ -4,6 +4,7 @@ export interface LabSettings {
   hostWorkspace: string
   target: string
   pauseAfterStep: boolean
+  showDebugRuns: boolean
   tab: LabTab
 }
 
@@ -11,6 +12,7 @@ export const DEFAULT_SETTINGS: LabSettings = {
   hostWorkspace: '',
   target: '',
   pauseAfterStep: false,
+  showDebugRuns: false,
   tab: 'pipeline',
 }
 
@@ -35,6 +37,7 @@ export function loadSettings(): LabSettings {
       hostWorkspace: string(parsed.hostWorkspace),
       target: string(parsed.target),
       pauseAfterStep: parsed.pauseAfterStep === true,
+      showDebugRuns: parsed.showDebugRuns === true,
       tab: tab(parsed.tab),
     }
   } catch {

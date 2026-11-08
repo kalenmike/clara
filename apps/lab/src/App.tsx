@@ -29,6 +29,8 @@ export function App() {
   const [preflightError, setPreflightError] = useState<string | null>(null)
   const [browsing, setBrowsing] = useState(false)
   const [notice, setNotice] = useState<string | null>(null)
+  const [runsFocus, setRunsFocus] = useState<number | undefined>()
+  const [reviewFocus, setReviewFocus] = useState<number | undefined>()
 
   const update = useCallback((patch: Partial<LabSettings>) => {
     setSettings((current) => {
@@ -95,6 +97,25 @@ export function App() {
   const setTab = (tab: LabTab): void => {
     update({ tab })
   }
+
+  const openRun = useCallback(
+    (runID: number): void => {
+      setRunsFocus(runID)
+      update({ tab: 'runs' })
+    },
+    [update]
+  )
+
+  const openReview = useCallback(
+    (runID: number): void => {
+      setReviewFocus(runID)
+      update({ tab: 'pipeline' })
+    },
+    [update]
+  )
+
+  const clearRunsFocus = useCallback((): void => setRunsFocus(undefined), [])
+  const clearReviewFocus = useCallback((): void => setReviewFocus(undefined), [])
 
   const enableAdapter = async (): Promise<void> => {
     if (!runtimeWorkspace) {
@@ -197,26 +218,31 @@ export function App() {
           <Preview
             stream={stream}
             hostWorkspace={hostWorkspace}
+            runtimeWorkspace={runtimeWorkspace}
             target={settings.target}
             onTargetChange={(target) => update({ target })}
+            pauseAfterStep={settings.pauseAfterStep}
+            onPauseAfterStepChange={(value) => update({ pauseAfterStep: value })}
             active={settings.tab === 'pipeline'}
-            onRun={() => setTab('runs')}
+            preflight={preflightResult}
+            onPreflight={() => void runPreflight()}
             onOpenSettings={() => setTab('settings')}
+            onNotice={setNotice}
+            onOpenRun={openRun}
+            focusRunID={reviewFocus}
+            onFocusHandled={clearReviewFocus}
           />
         </div>
         <div className="view-slot" hidden={settings.tab !== 'runs'}>
           <Runs
             stream={stream}
             hostWorkspace={hostWorkspace}
-            runtimeWorkspace={runtimeWorkspace}
-            target={settings.target}
-            pauseAfterStep={settings.pauseAfterStep}
-            onPauseAfterStepChange={(value) => update({ pauseAfterStep: value })}
             active={settings.tab === 'runs'}
-            preflight={preflightResult}
-            onPreflight={() => void runPreflight()}
-            onGoToPipeline={() => setTab('pipeline')}
-            onOpenSettings={() => setTab('settings')}
+            showDebugRuns={settings.showDebugRuns}
+            onShowDebugRunsChange={(value) => update({ showDebugRuns: value })}
+            focusRunID={runsFocus}
+            onFocusHandled={clearRunsFocus}
+            onOpenReview={openReview}
             onNotice={setNotice}
           />
         </div>
