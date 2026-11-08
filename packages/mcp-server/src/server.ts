@@ -75,7 +75,9 @@ export function createClaraServer(backend: ClaraBackend, version = '0.1.0'): Mcp
         target: z
           .string()
           .optional()
-          .describe('Package entry or pipeline, e.g. std:software or std:software/feature'),
+          .describe(
+            'Package entry or pipeline, e.g. std:software or std:software/feature. A bare package id selects its entry. Omit to use the workspace entry.'
+          ),
         origin: originSchema.describe('Who submitted the request'),
       },
     },

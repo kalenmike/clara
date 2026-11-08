@@ -28,6 +28,9 @@ human-facing Clara agent.
    - a greeting, thanks, or general question is answered without a run;
    - an ambiguous request gets one clarifying question.
 
+   The adapter resolves the workspace and entry target from the session, so the
+   agent does not pass either.
+
    The agent has no read, edit, shell, network, or subagent tools, so it cannot
    do pipeline work itself.
 
@@ -137,10 +140,13 @@ first.
    alerts and finished root runs into the origin session; the inbox and SSE
    remain the read-only fallback.
 6. **Package references are stable.** `std:software` is the package entry;
-   `std:software/feature` is a named pipeline. In-flight runs pin the resolved
-   snapshot and hash. Run lists, run status, and every MCP run payload omit the
-   pinned tree; the full step prompt, policy, limits, result, and lease are read
-   only from the Lab's dedicated endpoints.
+   `std:software/feature` is a named pipeline; a bare package id such as
+   `orchestration` also selects its package entry. The OpenCode adapter resolves
+   its workspace from the session root, while an explicit
+   `CLARA_ORCHESTRATION_WORKSPACE` still wins for container mounts. In-flight
+   runs pin the resolved snapshot and hash. Run lists, run status, and every MCP
+   run payload omit the pinned tree; the full step prompt, policy, limits,
+   result, and lease are read only from the Lab's dedicated endpoints.
 7. **Orchestration is independent of Clara management.** The old
    `management.enabled` switch gates only the legacy ledger plugin. The
    orchestration service runs whenever it is installed, the config is active,
