@@ -19,8 +19,8 @@ writing custom pipelines, not for end users.
    whether the orchestrator can read its path, and whether a strict pipeline has
    a live adapter.
 4. On **Pipeline**, choose a pipeline. The compiled tree shows every step,
-   route, model, policy, budget, and source file. Read the diagnostics, then
-   inspect the rendered prompt in the side panel.
+   route, `provider/model`, policy, budget, and source file. Read the
+   diagnostics, then inspect the rendered prompt in the side panel.
 5. Press **Run this pipeline**. The Run tab carries the pipeline and both paths.
 6. Start a run with a prompt. The lab claims the first work order and shows one
    clear current-step card: the exact task, a result box, and a single primary
@@ -32,6 +32,8 @@ writing custom pipelines, not for end users.
    Use **Compare with a pinned run** on the Pipeline tab to see what changed
    between the current files and a run's snapshot.
 9. Run `pnpm clara lab check` in CI to compile a target and fail on errors.
+   When OpenCode is reachable it also checks that the configured models exist;
+   offline it falls back to static provider/model validation.
 
 ## Core business rules
 
@@ -60,6 +62,11 @@ writing custom pipelines, not for end users.
 9. **Files are edited outside the browser.** The lab is a viewer and a probe; it
    never writes YAML, Markdown, or task prompts. The preview watches the source
    files and reloads.
+10. **Models are validated against OpenCode.** The lab reads the running
+    OpenCode model catalog and reports `model_provider_missing`,
+    `model_missing`, `model_unset`, `model_unknown`, and `model_disabled`.
+    When OpenCode is offline the preview still compiles; model existence is
+    shown as unchecked instead of failing the setup.
 
 ## Edge cases
 
@@ -67,6 +74,12 @@ writing custom pipelines, not for end users.
   “Orchestrator workspace: Needs attention”; change it to the container mount.
 - The orchestrator is offline: preview still works; the setup and run actions
   show an offline hint and retry once the service returns.
+- OpenCode is offline: preview still compiles and checks provider/model pairing;
+  the models row says model existence is unchecked.
+- A model exists under a different provider: the diagnostic names the providers
+  that do have it.
+- A worker step has no model: `model_unset` warns that the harness default will
+  be used instead of the pipeline model.
 - No token is present: the header and Setup show a token warning; start the
   service or set `CLARA_ORCHESTRATION_TOKEN`.
 - The orchestrator rejects the token: Setup shows the token hint; restart the
@@ -121,16 +134,22 @@ writing custom pipelines, not for end users.
   `CLARA_ORCHESTRATION_URL`, `CLARA_ORCHESTRATION_TOKEN`,
   `CLARA_ORCHESTRATION_TOKEN_FILE`, `CLARA_ORCHESTRATION_WORKSPACE`,
   `CLARA_ORCHESTRATION_CONFIG`, `CLARA_STD_DIR`,
-  `CLARA_ORCHESTRATION_AUTOSTART`.
+  `CLARA_ORCHESTRATION_AUTOSTART`, `CLARA_OPENCODE_URL`,
+  `CLARA_OPENCODE_PASSWORD`. The lab also reads
+  `${XDG_STATE_HOME:-~/.local/state}/opencode/service.json` when the OpenCode
+  variables are unset.
 - Lab routes: `GET /api/health`, `GET /api/state`, `GET /api/stream`,
   `POST /api/preview`, `POST /api/preflight`, `POST /api/diff`,
   `POST /api/tools/:name`, `GET /api/runs`, `GET /api/runs/:id`,
   `GET /api/inbox`, `GET /api/source`, `POST /api/heartbeat`,
   `POST /api/reconnect`, `POST /api/adapter/register`,
   `POST /api/adapter/remove`, `POST /api/violation`.
-- `/api/preflight` returns `{ host, runtime, adapter }`: host compile status and
-  package count, orchestrator catalog visibility, and whether the target is
-  strict and has a live adapter.
+- `/api/preflight` returns `{ host, runtime, adapter, models }`: host compile
+  status and package count, orchestrator catalog visibility, whether the target
+  is strict and has a live adapter, and the OpenCode model catalog status.
+- Model diagnostics: `model_provider_missing` (error), `model_missing`
+  (warning), `model_unset` (warning), `model_unknown` (error), and
+  `model_disabled` (warning).
 - The lab multiplexes MCP traffic and orchestrator events on `/api/stream`;
   the server resumes `/v1/events` with its last event id.
 - SSE event data carries `run_id`, `event_id`, and `created_at` alongside the
