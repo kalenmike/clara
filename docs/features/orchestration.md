@@ -176,6 +176,24 @@ A managed worker that loses its lease is stopped immediately. A fallback binding
 of the parent session only detaches, so a retry never interrupts the human's
 conversation.
 
+## Attempt history
+
+`steps` is the live projection: one row per step per run. Every claim also
+appends an immutable row to `step_attempts` with the attempt number, outcome,
+usage, timings, model, result, and error. A retry therefore never overwrites the
+previous attempt's data, and the step's counters describe one attempt instead of
+mixing the final attempt with the lifetime of the step. Attempt status is one of
+`running`, `waiting_children`, `retry`, `done`, `failed`, or `cancelled`.
+
+Events record the same transitions and carry `attempt_id`, so a `step.started`,
+`step.retry`, `step.failed`, `step.completed`, or `step.routed` event joins to
+the attempt row that produced it. Events stay a stream: results, usage, and
+durations live only in `step_attempts`, so the event log can be truncated
+without losing run history. Attempt rows are retained with their run.
+
+Read history with `GET /v1/runs/:id/attempts` or
+`GET /v1/runs/:id/steps/:path/attempts`, or the `clara_attempts` MCP tool.
+
 ## Router criteria
 
 Route entries carry the natural-language rule that tells the classifier when to
@@ -413,8 +431,8 @@ docs:    assess_docs → update_docs → verify_docs → docs_review
   `policy-delivery.json`; a missing file is treated as a fresh install, so
   historical terminal runs are not replayed.
 - MCP tools: `clara_start`, `clara_next`, `clara_complete`, `clara_fail`,
-  `clara_route`, `clara_spawn`, `clara_status`, `clara_inbox`, `clara_cancel`,
-  `clara_tick`, `clara_check`, `clara_usage`, `clara_heartbeat`,
+  `clara_route`, `clara_spawn`, `clara_status`, `clara_attempts`, `clara_inbox`,
+  `clara_cancel`, `clara_tick`, `clara_check`, `clara_usage`, `clara_heartbeat`,
   `clara_catalog`, and the adapter administration tools.
 - Package assets: `pipelines/*.yml`, `routers/*.md`, `tasks/*.md`; `index.yml`
   declares the entry, imports, defaults, and can override discovered assets.
@@ -429,10 +447,13 @@ docs:    assess_docs → update_docs → verify_docs → docs_review
   return summaries without `snapshot`, and status steps omit prompts, policy,
   limits, and lease tokens while keeping results. `GET /v1/runs/:id/snapshot` returns
   `{ run_id, hash, snapshot }`; `GET /v1/runs/:id/steps/:path` returns the full
-  step row. Both endpoints are bearer-protected, are not MCP tools, and exist
-  for the Lab.
+  step row. `GET /v1/runs/:id/attempts` and
+  `GET /v1/runs/:id/steps/:path/attempts` return attempts, and `clara_attempts`
+  exposes the same history over MCP. These endpoints are bearer-protected and
+  exist for the Lab and analysis.
 - SSE: `GET /v1/events?since=<event-id>` publishes run, step, policy, and alert
-  events for bridge notifications and direct harness subscriptions.
+  events for bridge notifications and direct harness subscriptions. Step events
+  carry `attempt_id` so subscribers can join them to `step_attempts`.
 - See [capabilities.md](capabilities.md) for shipped scope.
 
 </details>
