@@ -546,9 +546,7 @@ export default {
       if (!ctx.session?.create || !ctx.session?.prompt) return false
       const parentSession = sessionID(context)
       const directory =
-        typeof work?.workspace === 'string' && work.workspace
-          ? work.workspace
-          : currentWorkspace()
+        typeof work?.workspace === 'string' && work.workspace ? work.workspace : currentWorkspace()
       const agent = await resolveWorkerAgent()
       const model = modelRef(work)
       if (
