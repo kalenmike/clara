@@ -217,6 +217,17 @@ async function call<T = unknown>(
 
 export const CONTROL_TOOL_OPTIONS = { namespace: NAMESPACE, codemode: false }
 
+// The interface agent submits work; it never chooses the workspace or a
+// pipeline. The orchestrator starts its configured entry point.
+export const START_TOOL_INPUT = {
+  type: 'object',
+  properties: {
+    prompt: { type: 'string' },
+  },
+  required: ['prompt'],
+  additionalProperties: false,
+}
+
 function tool(
   name: string,
   description: string,
@@ -262,6 +273,8 @@ export default {
     const hadDeliveryState = existsSync(deliveryFile())
     const delivery = readDeliveryState()
     let adapterID: string | undefined
+    let configuredWorkspace: string | undefined
+    const currentWorkspace = (): string => configuredWorkspace ?? resolveWorkspace(ctx)
     const lastTurn = new Map<string, number>()
 
     const terminal = (state: string): boolean =>
@@ -417,13 +430,20 @@ export default {
 
     const register = async (): Promise<void> => {
       try {
+        const settings = await call<{ workspace?: string | null }>(
+          config,
+          'GET',
+          '/v1/config'
+        ).catch(() => undefined)
+        const workspace = settings?.workspace?.trim() || resolveWorkspace(ctx)
+        configuredWorkspace = workspace
         const registered = await call<{ id: string }>(config, 'POST', '/v1/adapters/register', {
           harness: 'opencode',
-          workspace: resolveWorkspace(ctx),
+          workspace,
           capabilities: CAPABILITIES,
         })
         adapterID = registered.id
-        console.log(`[clara-policy] adapter ${adapterID} registered for ${resolveWorkspace(ctx)}`)
+        console.log(`[clara-policy] adapter ${adapterID} registered for ${workspace}`)
       } catch (error) {
         console.error(`[clara-policy] adapter registration failed: ${(error as Error).message}`)
       }
@@ -452,7 +472,7 @@ export default {
         work_token: String(work.work_token),
         name: String(work.name),
         session,
-        workspace: String(work.workspace ?? resolveWorkspace(ctx)),
+        workspace: String(work.workspace ?? currentWorkspace()),
         enforcement: String(work.enforcement ?? 'observed'),
         kind: String(work.kind ?? 'task'),
         routes: Array.isArray(work.routes)
@@ -528,7 +548,7 @@ export default {
       const directory =
         typeof work?.workspace === 'string' && work.workspace
           ? work.workspace
-          : resolveWorkspace(context)
+          : currentWorkspace()
       const agent = await resolveWorkerAgent()
       const model = modelRef(work)
       if (
@@ -618,7 +638,7 @@ export default {
     const adoptRuns = async (): Promise<void> => {
       try {
         const runs = await call<DeliveryRun[]>(config, 'GET', '/v1/runs?summary=1')
-        const current = resolve(resolveWorkspace(ctx))
+        const current = resolve(currentWorkspace())
         let adopted = 0
         for (const run of runs) {
           if (!run || run.origin_harness !== 'opencode') continue
@@ -661,7 +681,7 @@ export default {
     const deliverRuns = async (): Promise<void> => {
       if (!ctx.session?.prompt) return
       try {
-        const current = resolve(resolveWorkspace(ctx))
+        const current = resolve(currentWorkspace())
         const [runs, alerts] = await Promise.all([
           call<DeliveryRun[]>(config, 'GET', '/v1/runs?summary=1'),
           call<DeliveryAlert[]>(config, 'GET', '/v1/inbox'),
@@ -929,17 +949,8 @@ export default {
       editor.add(
         tool(
           'start',
-          'Start a new Clara run for a concrete work request. Do not call for status, questions, or an existing run.',
-          {
-            type: 'object',
-            properties: {
-              prompt: { type: 'string' },
-              workspace: { type: 'string' },
-              target: { type: 'string' },
-            },
-            required: ['prompt'],
-            additionalProperties: false,
-          },
+          'Start the configured Clara entry for a concrete work request. The orchestrator owns the workspace and entry point; pass only the request. Do not call for status, questions, or an existing run.',
+          START_TOOL_INPUT,
           async (input: Any, context: Any) => {
             const agent = typeof context?.agent === 'string' ? context.agent : ''
             if (INTERFACE_AGENT && agent && agent !== INTERFACE_AGENT) {
@@ -947,8 +958,6 @@ export default {
             }
             const started = await call<Any>(config, 'POST', '/v1/runs', {
               prompt: input.prompt,
-              workspace: input.workspace ?? resolveWorkspace(context),
-              ...(input.target ? { target: input.target } : {}),
               origin: {
                 session_id: sessionID(context) ?? null,
                 harness: 'opencode',
@@ -1259,20 +1268,13 @@ export default {
       editor.add(
         tool(
           'catalog',
-          'Read the resolved package catalog. Use to answer what Clara can run.',
+          'Read the resolved package catalog for the configured workspace. Use to answer what Clara can run.',
           {
             type: 'object',
-            properties: { workspace: { type: 'string' } },
+            properties: {},
             additionalProperties: false,
           },
-          async (input: Any, context: Any) =>
-            content(
-              await call(
-                config,
-                'GET',
-                `/v1/catalog?workspace=${encodeURIComponent(input.workspace ?? resolveWorkspace(context))}`
-              )
-            )
+          async () => content(await call(config, 'GET', '/v1/catalog'))
         )
       )
     })

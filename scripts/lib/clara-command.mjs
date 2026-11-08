@@ -36,8 +36,9 @@ $ARGUMENTS
 
 Call \`clara_start\` with:
 - \`prompt\`: the complete request above.
-- \`workspace\`: the absolute project root. Run \`pwd\` if needed.
-- no \`target\` unless I explicitly name a package or pipeline.
+
+The orchestrator owns the workspace and its configured entry point. Do not pass
+a workspace or a target; the entry point routes the request.
 
 The result contains a work order. Read it and do the work with your own tools.
 Close the step with \`clara_complete\`, \`clara_route\`, or \`clara_fail\` using the
