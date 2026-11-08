@@ -131,7 +131,20 @@ export function createOrchestratorServer(options: OrchestratorServerOptions): Or
         return
       }
       if (url.pathname === '/v1/runs' && req.method === 'GET') {
-        json(res, 200, await backend.list())
+        const runs = await backend.list()
+        if (url.searchParams.get('summary') === '1') {
+          json(
+            res,
+            200,
+            runs.map((run) => {
+              const summary: Record<string, unknown> = { ...run }
+              delete summary.snapshot
+              return summary
+            })
+          )
+          return
+        }
+        json(res, 200, runs)
         return
       }
       if (url.pathname === '/v1/runs' && req.method === 'POST') {

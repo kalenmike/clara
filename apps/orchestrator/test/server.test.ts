@@ -71,6 +71,14 @@ describe('orchestrator HTTP service', () => {
     expect(advanced.ready[0].name).toBe('quick_verify')
   })
 
+  it('lists run summaries without pinned snapshots', async () => {
+    const response = await fetch(`${base}/v1/runs?summary=1`, { headers: auth() })
+    expect(response.status).toBe(200)
+    const runs = (await response.json()) as Array<Record<string, unknown>>
+    expect(runs.length).toBeGreaterThan(0)
+    expect(runs.every((run) => 'id' in run && !('snapshot' in run))).toBe(true)
+  })
+
   it('fails closed for strict runs until an adapter is registered', async () => {
     const denied = await fetch(`${base}/v1/runs`, {
       method: 'POST',
