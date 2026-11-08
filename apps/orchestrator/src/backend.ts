@@ -120,6 +120,10 @@ export class RuntimeBackend implements ClaraBackend {
     return this.runtime.stepDetail(runID, path)
   }
 
+  async attempts(runID: number, path?: string) {
+    return this.runtime.attempts(runID, path)
+  }
+
   async inbox() {
     return this.runtime.inbox()
   }

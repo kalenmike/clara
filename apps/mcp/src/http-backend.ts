@@ -110,6 +110,15 @@ export class HttpBackend implements ClaraBackend {
     return this.request('GET', `/v1/runs/${runID}`)
   }
 
+  async attempts(runID: number, path?: string) {
+    return this.request(
+      'GET',
+      path === undefined
+        ? `/v1/runs/${runID}/attempts`
+        : `/v1/runs/${runID}/steps/${encodeURIComponent(path)}/attempts`
+    )
+  }
+
   async list() {
     return this.request('GET', '/v1/runs')
   }

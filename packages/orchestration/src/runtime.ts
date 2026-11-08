@@ -17,7 +17,14 @@ import {
 import { analyzeDatabase, type DiagnosticsOptions, type DiagnosticsReport } from './diagnostics.ts'
 import { compileRun, loadCatalog } from './loader.ts'
 import type { CompiledNode, LoadedCatalog } from './types.ts'
-import { now, type AlertRow, type RunRow, type StepRow, Store } from './store.ts'
+import {
+  now,
+  type AlertRow,
+  type RunRow,
+  type StepAttemptRow,
+  type StepRow,
+  Store,
+} from './store.ts'
 
 export interface Origin {
   session_id?: string | null
@@ -254,12 +261,17 @@ export class Runtime {
     const readyStep = (row: StepRow, node: CompiledNode): NodeSync => {
       if (row.status === 'pending') {
         const updated = mark(row, { status: 'ready' })
-        this.store.event(runID, 'step.ready', {
-          step: node.path,
-          name: node.name,
-          kind: node.kind,
-          background: Boolean(node.background),
-        })
+        this.store.event(
+          runID,
+          'step.ready',
+          {
+            step: node.path,
+            name: node.name,
+            kind: node.kind,
+            background: Boolean(node.background),
+          },
+          row.current_attempt_id
+        )
         ready.push(updated)
         return { status: 'ready' }
       }
@@ -296,18 +308,32 @@ export class Runtime {
                 this.cancel(Number(child.id), 'fail_fast')
               }
             }
-            mark(row, {
-              status: 'failed',
-              error: `child run ${failed.id} failed`,
-              finished_at: now(),
-              lease_id: null,
-              lease_owner: null,
-              lease_expires_at: null,
-            })
-            this.store.event(runID, 'step.failed', {
-              step: node.path,
-              run: failed.id,
-              reason: 'fail_fast',
+            this.store.transaction(() => {
+              if (row.current_attempt_id !== null) {
+                this.store.updateStepAttempt(Number(row.current_attempt_id), {
+                  status: 'failed',
+                  error: `child run ${failed.id} failed`,
+                  finished_at: now(),
+                })
+              }
+              mark(row, {
+                status: 'failed',
+                error: `child run ${failed.id} failed`,
+                finished_at: now(),
+                lease_id: null,
+                lease_owner: null,
+                lease_expires_at: null,
+              })
+              this.store.event(
+                runID,
+                'step.failed',
+                {
+                  step: node.path,
+                  run: failed.id,
+                  reason: 'fail_fast',
+                },
+                row.current_attempt_id
+              )
             })
             return { status: 'failed' }
           }
@@ -316,14 +342,28 @@ export class Runtime {
               run_id: child.id,
               result: parseJson<unknown>(this.latestResult(Number(child.id)), null),
             }))
-            mark(row, {
-              status: 'done',
-              result: JSON.stringify({ spawned: results }),
-              finished_at: now(),
-            })
-            this.store.event(runID, 'step.completed', {
-              step: node.path,
-              spawned: children.map((c) => c.id),
+            this.store.transaction(() => {
+              if (row.current_attempt_id !== null) {
+                this.store.updateStepAttempt(Number(row.current_attempt_id), {
+                  status: 'done',
+                  result: JSON.stringify({ spawned: results }),
+                  finished_at: now(),
+                })
+              }
+              mark(row, {
+                status: 'done',
+                result: JSON.stringify({ spawned: results }),
+                finished_at: now(),
+              })
+              this.store.event(
+                runID,
+                'step.completed',
+                {
+                  step: node.path,
+                  spawned: children.map((c) => c.id),
+                },
+                row.current_attempt_id
+              )
             })
             return { status: 'done' }
           }
@@ -407,7 +447,7 @@ export class Runtime {
         finished_at: now(),
         error: latest.error ?? 'pipeline failed',
       })
-      this.store.event(runID, 'run.failed', {})
+      this.store.event(runID, 'run.failed', { reason: latest.error ?? 'pipeline failed' })
     } else if (result.status === 'done' && latest.state !== 'completed') {
       this.store.updateRun(runID, { state: 'completed', finished_at: now() })
       this.store.event(runID, 'run.completed', {})
@@ -440,22 +480,37 @@ export class Runtime {
       const token = randomUUID()
       const expires = new Date(Date.now() + this.leaseMs).toISOString()
       const attempt = Number(row.attempt) + 1
-      this.store.updateStep(Number(row.id), {
-        status: 'running',
-        attempt,
-        // A new attempt gets a fresh budget. Carrying usage over would make a
-        // retry start already exhausted.
-        turns: 0,
-        tokens: 0,
-        tool_calls: 0,
-        violations: 0,
-        lease_id: token,
-        lease_owner: owner,
-        lease_expires_at: expires,
-        heartbeat_at: now(),
-        started_at: row.started_at ?? now(),
+      const startedAt = now()
+      let attemptID = 0
+      this.store.transaction(() => {
+        const attemptRow = this.store.insertStepAttempt({
+          run_id: runID,
+          step_path: row.path,
+          attempt,
+          status: 'running',
+          model: row.model,
+          provider: row.provider,
+          started_at: startedAt,
+        })
+        attemptID = Number(attemptRow.id)
+        this.store.updateStep(Number(row.id), {
+          status: 'running',
+          attempt,
+          current_attempt_id: attemptID,
+          // A new attempt gets a fresh budget. Carrying usage over would make a
+          // retry start already exhausted.
+          turns: 0,
+          tokens: 0,
+          tool_calls: 0,
+          violations: 0,
+          lease_id: token,
+          lease_owner: owner,
+          lease_expires_at: expires,
+          heartbeat_at: startedAt,
+          started_at: row.started_at ?? startedAt,
+        })
+        this.store.event(runID, 'step.started', { step: row.path, attempt, owner }, attemptID)
       })
-      this.store.event(runID, 'step.started', { step: row.path, attempt, owner })
       const updated = this.store.step(runID, row.path) as StepRow
       orders.push(this.workOrder(run, updated, node, token))
     }
@@ -556,33 +611,56 @@ export class Runtime {
       violations,
     })
     const retry = Boolean(exceeded && Number(row.attempt) < Number(row.max_attempts))
-    this.store.updateStep(Number(row.id), {
-      status: retry ? 'ready' : exceeded ? 'failed' : 'done',
-      result: JSON.stringify(result),
-      turns,
-      tokens,
-      tool_calls: toolCalls,
-      violations,
-      finished_at: retry ? null : now(),
-      error: exceeded ?? null,
-      lease_id: null,
-      lease_owner: null,
-      lease_expires_at: null,
-    })
-    this.store.event(runID, retry ? 'step.retry' : exceeded ? 'step.failed' : 'step.completed', {
-      step: path,
-      ...(exceeded ? { reason: exceeded } : {}),
-    })
-    if (exceeded && !retry) {
-      const alert = this.store.alert({
-        run_id: runID,
-        step_path: path,
-        kind: 'budget',
-        title: `Budget exhausted in ${path}`,
-        body: exceeded,
+    const attemptID = row.current_attempt_id
+    const attemptStatus = retry ? 'retry' : exceeded ? 'failed' : 'done'
+    const eventType = retry ? 'step.retry' : exceeded ? 'step.failed' : 'step.completed'
+    const serialized = JSON.stringify(result)
+    this.store.transaction(() => {
+      if (attemptID !== null) {
+        this.store.updateStepAttempt(Number(attemptID), {
+          status: attemptStatus,
+          result: serialized,
+          turns,
+          tokens,
+          tool_calls: toolCalls,
+          violations,
+          error: exceeded ?? null,
+          finished_at: now(),
+        })
+      }
+      this.store.updateStep(Number(row.id), {
+        status: retry ? 'ready' : exceeded ? 'failed' : 'done',
+        result: serialized,
+        turns,
+        tokens,
+        tool_calls: toolCalls,
+        violations,
+        finished_at: retry ? null : now(),
+        error: exceeded ?? null,
+        lease_id: null,
+        lease_owner: null,
+        lease_expires_at: null,
       })
-      this.store.event(runID, 'alert.created', { alert: alert.id, kind: 'budget' })
-    }
+      this.store.event(
+        runID,
+        eventType,
+        {
+          step: path,
+          ...(exceeded ? { reason: exceeded } : {}),
+        },
+        attemptID
+      )
+      if (exceeded && !retry) {
+        const alert = this.store.alert({
+          run_id: runID,
+          step_path: path,
+          kind: 'budget',
+          title: `Budget exhausted in ${path}`,
+          body: exceeded,
+        })
+        this.store.event(runID, 'alert.created', { alert: alert.id, kind: 'budget' }, attemptID)
+      }
+    })
     return this.advance(runID)
   }
 
@@ -596,6 +674,7 @@ export class Runtime {
     const { row } = this.requireRunningStep(runID, path, token)
     const attempt = Number(row.attempt)
     const maxAttempts = Number(row.max_attempts)
+    const attemptID = row.current_attempt_id
     const fields = {
       turns: usage?.turns ?? Number(row.turns),
       tokens: usage?.tokens ?? Number(row.tokens),
@@ -603,37 +682,57 @@ export class Runtime {
       violations: usage?.violations ?? Number(row.violations),
     }
     if (attempt < maxAttempts) {
-      this.store.updateStep(Number(row.id), {
-        ...fields,
-        status: 'ready',
-        error,
-        lease_id: null,
-        lease_owner: null,
-        lease_expires_at: null,
-        finished_at: null,
+      this.store.transaction(() => {
+        if (attemptID !== null) {
+          this.store.updateStepAttempt(Number(attemptID), {
+            ...fields,
+            status: 'retry',
+            error,
+            finished_at: now(),
+          })
+        }
+        this.store.updateStep(Number(row.id), {
+          ...fields,
+          status: 'ready',
+          error,
+          lease_id: null,
+          lease_owner: null,
+          lease_expires_at: null,
+          finished_at: null,
+        })
+        this.store.event(runID, 'step.retry', { step: path, attempt, error }, attemptID)
       })
-      this.store.event(runID, 'step.retry', { step: path, attempt, error })
       const advanced = this.advance(runID)
       return { run: advanced.run, retry: true, ready: advanced.ready }
     }
-    this.store.updateStep(Number(row.id), {
-      ...fields,
-      status: 'failed',
-      error,
-      finished_at: now(),
-      lease_id: null,
-      lease_owner: null,
-      lease_expires_at: null,
+    this.store.transaction(() => {
+      if (attemptID !== null) {
+        this.store.updateStepAttempt(Number(attemptID), {
+          ...fields,
+          status: 'failed',
+          error,
+          finished_at: now(),
+        })
+      }
+      this.store.updateStep(Number(row.id), {
+        ...fields,
+        status: 'failed',
+        error,
+        finished_at: now(),
+        lease_id: null,
+        lease_owner: null,
+        lease_expires_at: null,
+      })
+      this.store.event(runID, 'step.failed', { step: path, attempt, error }, attemptID)
+      const alert = this.store.alert({
+        run_id: runID,
+        step_path: path,
+        kind: 'failure',
+        title: `Step failed: ${row.name}`,
+        body: error,
+      })
+      this.store.event(runID, 'alert.created', { alert: alert.id, kind: 'failure' }, attemptID)
     })
-    this.store.event(runID, 'step.failed', { step: path, attempt, error })
-    const alert = this.store.alert({
-      run_id: runID,
-      step_path: path,
-      kind: 'failure',
-      title: `Step failed: ${row.name}`,
-      body: error,
-    })
-    this.store.event(runID, 'alert.created', { alert: alert.id, kind: 'failure' })
     const advanced = this.advance(runID)
     return { run: advanced.run, retry: false, ready: advanced.ready }
   }
@@ -652,15 +751,26 @@ export class Runtime {
         `route ${route} is not available; expected ${node.routes?.map((item) => item.when).join(', ')}`
       )
     }
-    this.store.updateStep(Number(row.id), {
-      status: 'done',
-      result: JSON.stringify({ route }),
-      finished_at: now(),
-      lease_id: null,
-      lease_owner: null,
-      lease_expires_at: null,
+    const attemptID = row.current_attempt_id
+    const serialized = JSON.stringify({ route })
+    this.store.transaction(() => {
+      if (attemptID !== null) {
+        this.store.updateStepAttempt(Number(attemptID), {
+          status: 'done',
+          result: serialized,
+          finished_at: now(),
+        })
+      }
+      this.store.updateStep(Number(row.id), {
+        status: 'done',
+        result: serialized,
+        finished_at: now(),
+        lease_id: null,
+        lease_owner: null,
+        lease_expires_at: null,
+      })
+      this.store.event(runID, 'step.routed', { step: path, route }, attemptID)
     })
-    this.store.event(runID, 'step.routed', { step: path, route })
     return this.advance(runID)
   }
 
@@ -722,17 +832,32 @@ export class Runtime {
       this.advance(Number(child.id))
       children.push(this.store.run(Number(child.id)) as RunRow)
     }
-    this.store.updateStep(Number(row.id), {
-      status: 'waiting_children',
-      result: JSON.stringify({ spawned: children.map((child) => child.id) }),
-      lease_id: null,
-      lease_owner: null,
-      lease_expires_at: null,
-      finished_at: null,
-    })
-    this.store.event(runID, 'step.spawned', {
-      step: path,
-      children: children.map((child) => child.id),
+    const attemptID = row.current_attempt_id
+    const serialized = JSON.stringify({ spawned: children.map((child) => child.id) })
+    this.store.transaction(() => {
+      if (attemptID !== null) {
+        this.store.updateStepAttempt(Number(attemptID), {
+          status: 'waiting_children',
+          result: serialized,
+        })
+      }
+      this.store.updateStep(Number(row.id), {
+        status: 'waiting_children',
+        result: serialized,
+        lease_id: null,
+        lease_owner: null,
+        lease_expires_at: null,
+        finished_at: null,
+      })
+      this.store.event(
+        runID,
+        'step.spawned',
+        {
+          step: path,
+          children: children.map((child) => child.id),
+        },
+        attemptID
+      )
     })
     return { run: this.store.run(runID) as RunRow, children }
   }
@@ -777,12 +902,17 @@ export class Runtime {
     const decision = evaluatePolicy(policy, budget, current, check)
     if (decision.effect !== 'deny') return decision
     if (run.enforcement === 'observed') {
-      this.store.event(runID, 'policy.observed', {
-        step: path,
-        action: check.action,
-        tool: check.tool,
-        reason: decision.reason,
-      })
+      this.store.event(
+        runID,
+        'policy.observed',
+        {
+          step: path,
+          action: check.action,
+          tool: check.tool,
+          reason: decision.reason,
+        },
+        row.current_attempt_id
+      )
       return { ...decision, effect: 'allow', reason: `observed: ${decision.reason}` }
     }
     const updated = this.recordViolation(run, row, decision.reason ?? 'policy denied')
@@ -795,41 +925,70 @@ export class Runtime {
 
   private recordViolation(run: RunRow, row: StepRow, reason: string): StepRow {
     const runID = Number(run.id)
+    const attemptID = row.current_attempt_id
     const violations = Number(row.violations) + 1
-    this.store.updateStep(Number(row.id), { violations })
-    this.store.event(runID, 'policy.denied', { step: row.path, reason })
+    this.store.transaction(() => {
+      this.store.updateStep(Number(row.id), { violations })
+      if (attemptID !== null) {
+        this.store.updateStepAttempt(Number(attemptID), { violations })
+      }
+      this.store.event(runID, 'policy.denied', { step: row.path, reason }, attemptID)
+    })
     const limits = parseJson<Limits | undefined>(row.limits, undefined)
     const budget = computeBudget(limits, Number(row.attempt) || 1)
     if (violations >= budget.maxViolations) {
       const attempt = Number(row.attempt)
       const maxAttempts = Number(row.max_attempts)
       if (attempt < maxAttempts) {
-        this.store.updateStep(Number(row.id), {
-          status: 'ready',
-          error: reason,
-          lease_id: null,
-          lease_owner: null,
-          lease_expires_at: null,
-          finished_at: null,
+        this.store.transaction(() => {
+          if (attemptID !== null) {
+            this.store.updateStepAttempt(Number(attemptID), {
+              status: 'retry',
+              error: reason,
+              finished_at: now(),
+            })
+          }
+          this.store.updateStep(Number(row.id), {
+            status: 'ready',
+            error: reason,
+            lease_id: null,
+            lease_owner: null,
+            lease_expires_at: null,
+            finished_at: null,
+          })
+          this.store.event(
+            runID,
+            'step.retry',
+            { step: row.path, attempt, error: reason },
+            attemptID
+          )
         })
-        this.store.event(runID, 'step.retry', { step: row.path, attempt, error: reason })
       } else {
-        this.store.updateStep(Number(row.id), {
-          status: 'failed',
-          error: `violation limit reached: ${reason}`,
-          finished_at: now(),
-          lease_id: null,
-          lease_owner: null,
-          lease_expires_at: null,
+        this.store.transaction(() => {
+          if (attemptID !== null) {
+            this.store.updateStepAttempt(Number(attemptID), {
+              status: 'failed',
+              error: `violation limit reached: ${reason}`,
+              finished_at: now(),
+            })
+          }
+          this.store.updateStep(Number(row.id), {
+            status: 'failed',
+            error: `violation limit reached: ${reason}`,
+            finished_at: now(),
+            lease_id: null,
+            lease_owner: null,
+            lease_expires_at: null,
+          })
+          const alert = this.store.alert({
+            run_id: runID,
+            step_path: row.path,
+            kind: 'failure',
+            title: `Policy violations exhausted in ${row.name}`,
+            body: reason,
+          })
+          this.store.event(runID, 'alert.created', { alert: alert.id, kind: 'failure' }, attemptID)
         })
-        const alert = this.store.alert({
-          run_id: runID,
-          step_path: row.path,
-          kind: 'failure',
-          title: `Policy violations exhausted in ${row.name}`,
-          body: reason,
-        })
-        this.store.event(runID, 'alert.created', { alert: alert.id, kind: 'failure' })
       }
       this.advance(runID)
     }
@@ -843,7 +1002,7 @@ export class Runtime {
     if (!row) throw new OrchestrationErrorWithCode('step_missing', `step ${path} does not exist`)
     if (row.status !== 'running') return row
     if (run.enforcement === 'observed') {
-      this.store.event(runID, 'policy.observed', { step: path, reason })
+      this.store.event(runID, 'policy.observed', { step: path, reason }, row.current_attempt_id)
       return row
     }
     return this.recordViolation(run, row, reason)
@@ -851,13 +1010,22 @@ export class Runtime {
 
   usage(runID: number, path: string, token: string, usage: Partial<Usage>): StepRow {
     const { row } = this.requireRunningStep(runID, path, token)
-    this.store.updateStep(Number(row.id), {
+    const attemptID = row.current_attempt_id
+    const fields = {
       ...(usage.turns !== undefined ? { turns: usage.turns } : {}),
       ...(usage.tokens !== undefined ? { tokens: usage.tokens } : {}),
       ...(usage.toolCalls !== undefined ? { tool_calls: usage.toolCalls } : {}),
       ...(usage.violations !== undefined ? { violations: usage.violations } : {}),
-      heartbeat_at: now(),
-      lease_expires_at: new Date(Date.now() + this.leaseMs).toISOString(),
+    }
+    this.store.transaction(() => {
+      this.store.updateStep(Number(row.id), {
+        ...fields,
+        heartbeat_at: now(),
+        lease_expires_at: new Date(Date.now() + this.leaseMs).toISOString(),
+      })
+      if (attemptID !== null) {
+        this.store.updateStepAttempt(Number(attemptID), fields)
+      }
     })
     return this.store.step(runID, path) as StepRow
   }
@@ -892,26 +1060,38 @@ export class Runtime {
       throw new OrchestrationErrorWithCode('run_completed', 'a completed run cannot be cancelled')
     }
     if (run.state !== 'cancelled') {
-      this.store.updateRun(runID, { state: 'cancelled', finished_at: now(), error: reason })
-      for (const step of this.store.steps(runID)) {
-        if (step.status === 'running' || step.status === 'ready') {
-          this.store.updateStep(Number(step.id), {
-            status: 'cancelled',
-            finished_at: now(),
-            lease_id: null,
-            lease_owner: null,
-            lease_expires_at: null,
-          })
+      this.store.transaction(() => {
+        this.store.updateRun(runID, { state: 'cancelled', finished_at: now(), error: reason })
+        for (const step of this.store.steps(runID)) {
+          if (
+            step.status === 'running' ||
+            step.status === 'ready' ||
+            step.status === 'waiting_children'
+          ) {
+            if (step.current_attempt_id !== null) {
+              this.store.updateStepAttempt(Number(step.current_attempt_id), {
+                status: 'cancelled',
+                finished_at: now(),
+              })
+            }
+            this.store.updateStep(Number(step.id), {
+              status: 'cancelled',
+              finished_at: now(),
+              lease_id: null,
+              lease_owner: null,
+              lease_expires_at: null,
+            })
+          }
         }
-      }
-      this.store.event(runID, 'run.cancelled', { reason })
-      for (const child of this.store.db
-        .prepare('SELECT * FROM runs WHERE parent_run_id = ?')
-        .all(runID) as RunRow[]) {
-        if (child.state !== 'completed' && child.state !== 'cancelled') {
-          this.cancel(Number(child.id), 'parent_cancelled')
+        this.store.event(runID, 'run.cancelled', { reason })
+        for (const child of this.store.db
+          .prepare('SELECT * FROM runs WHERE parent_run_id = ?')
+          .all(runID) as RunRow[]) {
+          if (child.state !== 'completed' && child.state !== 'cancelled') {
+            this.cancel(Number(child.id), 'parent_cancelled')
+          }
         }
-      }
+      })
     }
     return this.store.run(runID) as RunRow
   }
@@ -926,50 +1106,80 @@ export class Runtime {
         const stalled = ageMs(step.heartbeat_at) > this.stalledMs
         const expired = step.lease_expires_at ? ageMs(step.lease_expires_at) >= 0 : false
         if (!stalled && !expired) continue
+        const reason = expired ? 'lease expired' : 'heartbeat stalled'
+        const attemptID = step.current_attempt_id
         if (Number(step.attempt) < Number(step.max_attempts)) {
-          this.store.updateStep(Number(step.id), {
-            status: 'ready',
-            error: expired ? 'lease expired' : 'heartbeat stalled',
-            lease_id: null,
-            lease_owner: null,
-            lease_expires_at: null,
+          this.store.transaction(() => {
+            if (attemptID !== null) {
+              this.store.updateStepAttempt(Number(attemptID), {
+                status: 'retry',
+                error: reason,
+                finished_at: now(),
+              })
+            }
+            this.store.updateStep(Number(step.id), {
+              status: 'ready',
+              error: reason,
+              lease_id: null,
+              lease_owner: null,
+              lease_expires_at: null,
+            })
+            const alert = this.store.alert({
+              run_id: Number(run.id),
+              step_path: step.path,
+              kind: 'stalled',
+              title: `Stalled step: ${step.name}`,
+              body: expired
+                ? 'The worker lease expired.'
+                : 'The worker stopped reporting heartbeats.',
+            })
+            this.store.event(
+              Number(run.id),
+              'watchdog.retry',
+              { step: step.path, alert: alert.id, reason },
+              attemptID
+            )
+            alerts.push(alert)
           })
-          const alert = this.store.alert({
-            run_id: Number(run.id),
-            step_path: step.path,
-            kind: 'stalled',
-            title: `Stalled step: ${step.name}`,
-            body: expired
-              ? 'The worker lease expired.'
-              : 'The worker stopped reporting heartbeats.',
-          })
-          this.store.event(Number(run.id), 'watchdog.retry', { step: step.path, alert: alert.id })
-          alerts.push(alert)
         } else {
-          this.store.updateStep(Number(step.id), {
-            status: 'failed',
-            error: expired ? 'lease expired' : 'heartbeat stalled',
-            finished_at: now(),
-            lease_id: null,
-            lease_owner: null,
-            lease_expires_at: null,
+          this.store.transaction(() => {
+            if (attemptID !== null) {
+              this.store.updateStepAttempt(Number(attemptID), {
+                status: 'failed',
+                error: reason,
+                finished_at: now(),
+              })
+            }
+            this.store.updateStep(Number(step.id), {
+              status: 'failed',
+              error: reason,
+              finished_at: now(),
+              lease_id: null,
+              lease_owner: null,
+              lease_expires_at: null,
+            })
+            const alert = this.store.alert({
+              run_id: Number(run.id),
+              step_path: step.path,
+              kind: 'stalled',
+              title: `Step exhausted retries: ${step.name}`,
+              body: expired
+                ? 'The worker lease expired.'
+                : 'The worker stopped reporting heartbeats.',
+            })
+            this.store.updateRun(Number(run.id), {
+              state: 'failed',
+              finished_at: now(),
+              error: alert.body,
+            })
+            this.store.event(
+              Number(run.id),
+              'run.failed',
+              { step: step.path, alert: alert.id },
+              attemptID
+            )
+            alerts.push(alert)
           })
-          const alert = this.store.alert({
-            run_id: Number(run.id),
-            step_path: step.path,
-            kind: 'stalled',
-            title: `Step exhausted retries: ${step.name}`,
-            body: expired
-              ? 'The worker lease expired.'
-              : 'The worker stopped reporting heartbeats.',
-          })
-          this.store.updateRun(Number(run.id), {
-            state: 'failed',
-            finished_at: now(),
-            error: alert.body,
-          })
-          this.store.event(Number(run.id), 'run.failed', { step: step.path, alert: alert.id })
-          alerts.push(alert)
         }
       }
     }
@@ -1007,6 +1217,16 @@ export class Runtime {
     const step = this.store.step(runID, path)
     if (!step) throw new OrchestrationErrorWithCode('step_missing', `step ${path} does not exist`)
     return step
+  }
+
+  /** Attempt history for a run, optionally narrowed to one step. */
+  attempts(runID: number, path?: string): StepAttemptRow[] {
+    const run = this.store.run(runID)
+    if (!run) throw new OrchestrationErrorWithCode('run_missing', `run ${runID} does not exist`)
+    if (path !== undefined && !this.store.step(runID, path)) {
+      throw new OrchestrationErrorWithCode('step_missing', `step ${path} does not exist`)
+    }
+    return this.store.stepAttempts(runID, path)
   }
 
   registerAdapter(input: {
