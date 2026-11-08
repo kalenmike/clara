@@ -152,33 +152,8 @@ function localServiceProxyPlugin(): Plugin {
   }
 }
 
-const claraExcluded = ['0', 'false', 'off'].includes(
-  (process.env.VITE_CLARA_MANAGEMENT ?? '').toLowerCase()
-)
-const claraStub = fileURLToPath(new URL('./src/features/clara/stub', import.meta.url))
-const claraStubs: Record<string, string> = {
-  flag: 'flag.ts',
-  provider: 'provider.tsx',
-}
-
-/** Resolve the feature imports to inert modules when the build excludes it. */
-function claraStubPlugin(): Plugin {
-  return {
-    name: 'clara-management-stub',
-    enforce: 'pre',
-    resolveId(source) {
-      const name = (source.split('/').pop() ?? '').replace(/\.(ts|tsx)$/, '')
-      if (source.includes('features/clara/') && claraStubs[name]) {
-        return join(claraStub, claraStubs[name])
-      }
-      return undefined
-    },
-  }
-}
-
 export default defineConfig(({ command }) => ({
   plugins: [
-    ...(claraExcluded ? [claraStubPlugin()] : []),
     react(),
     tailwindcss(),
     localServiceProxyPlugin(),

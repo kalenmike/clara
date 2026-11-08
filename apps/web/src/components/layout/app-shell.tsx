@@ -1,4 +1,4 @@
-import { useEffect, useState, type ReactNode } from 'react'
+import { useEffect, useState } from 'react'
 import { Navigate, Outlet, useLocation } from 'react-router'
 import { Menu } from 'lucide-react'
 import { ConnectionSplash } from '@/components/connect/connection-splash'
@@ -6,8 +6,7 @@ import { Button } from '@/components/ui/button'
 import { Sheet, SheetContent, SheetDescription, SheetTitle } from '@/components/ui/sheet'
 import { MobileActionsProvider, MobileActionsSlot } from '@/components/layout/mobile-actions'
 import { Sidebar, SidebarContent } from '@/components/layout/sidebar'
-import { CLARA_FEATURE_INCLUDED } from '@/features/clara/flag'
-import { ClaraFeatureProvider } from '@/features/clara/provider'
+import { OrchestrationProvider } from '@/features/orchestration/provider'
 import { ProjectReconciliation } from '@/features/projects/project-reconciliation'
 import { InboxMonitorProvider } from '@/features/sessions/inbox-monitor'
 import { useSessionWording } from '@/features/sessions/use-wording'
@@ -36,7 +35,7 @@ export function AppShell() {
   }
 
   return (
-    <ClaraBoundary>
+    <OrchestrationProvider>
       <ProjectReconciliation />
       <InboxMonitorProvider>
         <SettingsSyncProvider>
@@ -92,11 +91,6 @@ export function AppShell() {
           </MobileActionsProvider>
         </SettingsSyncProvider>
       </InboxMonitorProvider>
-    </ClaraBoundary>
+    </OrchestrationProvider>
   )
-}
-
-function ClaraBoundary({ children }: { children: ReactNode }) {
-  if (!CLARA_FEATURE_INCLUDED) return <>{children}</>
-  return <ClaraFeatureProvider>{children}</ClaraFeatureProvider>
 }

@@ -6,7 +6,7 @@
  * agent on a loopback listener; it never travels through the relay.
  */
 
-export const PANEL_API_VERSION = 6
+export const PANEL_API_VERSION = 7
 
 export type PanelValueSource = 'env' | 'file' | 'service' | 'default' | 'generated' | 'none'
 
@@ -120,7 +120,7 @@ export type PanelPushInfo = {
   error?: string
 }
 
-export type PanelStorageKey = 'config' | 'subscriptions' | 'vapid' | 'database' | 'ledger'
+export type PanelStorageKey = 'config' | 'subscriptions' | 'vapid' | 'database'
 
 export type PanelSyncStats = {
   namespaces: number
@@ -186,7 +186,7 @@ export type PanelControls = {
   shell: PanelShellControl
   monitoring: PanelMonitoringControl
   sync: PanelSyncControl
-  management: PanelManagementControl
+  orchestration: PanelOrchestrationControl
 }
 
 export type PanelMonitoringControl = {
@@ -199,8 +199,18 @@ export type PanelSyncControl = {
   intervalMs: number
 }
 
-export type PanelManagementControl = {
-  enabled: boolean
+export type PanelOrchestrationState =
+  'local' | 'container' | 'external' | 'stopped' | 'unresponsive' | 'foreign'
+
+export type PanelOrchestrationControl = {
+  /** Whether this home agent should keep a local service running. */
+  desired: boolean
+  /** True while the orchestrator health endpoint answers. */
+  effective: boolean
+  state: PanelOrchestrationState
+  url: string
+  pid?: number
+  error?: string
 }
 
 export type PanelFeatureUpdate = {
@@ -223,7 +233,7 @@ export type PanelSyncUpdate = {
   intervalMs: number
 }
 
-export type PanelManagementUpdate = {
+export type PanelOrchestrationUpdate = {
   enabled: boolean
 }
 

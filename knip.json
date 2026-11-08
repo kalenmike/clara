@@ -25,9 +25,6 @@
     "packages/crypto": {
       "project": ["src/**/*.ts", "test/**/*.ts"]
     },
-    "plugins/clara": {
-      "project": ["*.ts"]
-    },
     "workers/relay": {
       "project": ["src/**/*.ts", "test/**/*.ts"]
     },
@@ -56,11 +53,7 @@
       "project": ["*.ts"]
     }
   },
-  "ignore": [
-    "apps/web/src/components/ui/**",
-    "apps/web/src/features/clara/stub/**",
-    "apps/panel/src/features/clara/stub/**"
-  ],
+  "ignore": ["apps/web/src/components/ui/**"],
   "ignoreDependencies": ["yaml", "cloudflare", "better-sqlite3"],
   "rules": {
     "exports": "off",

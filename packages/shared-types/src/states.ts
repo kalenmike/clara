@@ -1,5 +1,4 @@
 import type { ClaraAction } from './actions.ts'
-import type { PipelineCatalog } from './pipeline.ts'
 import type { AgentInfo } from './protocol.ts'
 
 export type SyncEntry = {
@@ -63,8 +62,6 @@ export type ClaraState =
       revision?: number
       entries?: SyncEntry[]
     }
-  | { type: 'pipeline.catalog'; id: string; catalog: PipelineCatalog }
-  | { type: 'pipeline.error'; id: string; message: string }
 
 export type ClaraStateType = ClaraState['type']
 

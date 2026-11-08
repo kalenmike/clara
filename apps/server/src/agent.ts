@@ -18,8 +18,6 @@ import {
   type ClaraState,
   type DeviceClass,
   type PanelTransport,
-  type PipelineCatalog,
-  type PipelineListAction,
   type PushSubscribeAction,
   type PushTestAction,
   type PushUnsubscribeAction,
@@ -100,8 +98,6 @@ export type AgentOptions = {
   send: (frame: WireFrame) => void
   push?: PushService
   sync?: ClientStorageStore
-  /** Read-only pipeline catalog. Absent when Clara management is excluded. */
-  pipelineCatalog?: () => PipelineCatalog | undefined
   policy?: AgentPolicy
   /** Shared traffic counters for the panel; absent in tests. */
   traffic?: TrafficMeter
@@ -373,9 +369,6 @@ export class Agent {
         return
       case 'sync.push':
         void this.handleSyncPush(session, payload)
-        return
-      case 'pipeline.list':
-        this.handlePipelineList(session, payload)
         return
       default:
         return
@@ -655,29 +648,6 @@ export class Agent {
         ? { revision: result.snapshot.revision, entries: result.snapshot.entries }
         : {}),
     })
-  }
-
-  private handlePipelineList(session: Session, action: PipelineListAction): void {
-    const id = typeof action.id === 'string' ? action.id : ''
-    try {
-      const catalog = this.options.pipelineCatalog?.()
-      if (!catalog) {
-        this.enqueue(session, {
-          type: 'pipeline.error',
-          id,
-          message: 'Pipelines are not available on this home agent',
-        })
-        return
-      }
-      this.enqueue(session, { type: 'pipeline.catalog', id, catalog })
-    } catch (cause) {
-      this.options.log?.('could not read the pipeline catalog', cause)
-      this.enqueue(session, {
-        type: 'pipeline.error',
-        id,
-        message: errorMessage(cause),
-      })
-    }
   }
 
   private canPush(): boolean {

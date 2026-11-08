@@ -99,7 +99,12 @@ function snapshot(): PanelSnapshot {
       shell: { mode: 'off', commands: [], blocked: 0 },
       monitoring: { enabled: true },
       sync: { enabled: true, intervalMs: 30_000 },
-      management: { enabled: false },
+      orchestration: {
+        desired: false,
+        effective: false,
+        state: 'stopped',
+        url: 'http://127.0.0.1:8789',
+      },
     },
     storage: [],
     events: [],
@@ -155,7 +160,7 @@ type FakeControls = PanelControlService & {
   shells: ShellPolicy[]
   monitorings: boolean[]
   syncs: Array<{ enabled: boolean; intervalMs: number }>
-  management: boolean[]
+  orchestration: boolean[]
 }
 
 function fakeControls(initial: Partial<PanelControls> = {}): FakeControls {
@@ -170,7 +175,12 @@ function fakeControls(initial: Partial<PanelControls> = {}): FakeControls {
     shell: { mode: 'off', commands: [], blocked: 0 },
     monitoring: { enabled: true },
     sync: { enabled: true, intervalMs: 30_000 },
-    management: { enabled: false },
+    orchestration: {
+      desired: false,
+      effective: false,
+      state: 'stopped',
+      url: 'http://127.0.0.1:8789',
+    },
     ...initial,
   }
   const features: Array<{ feature: string; enabled: boolean }> = []
@@ -178,7 +188,7 @@ function fakeControls(initial: Partial<PanelControls> = {}): FakeControls {
   const shells: ShellPolicy[] = []
   const monitorings: boolean[] = []
   const syncs: Array<{ enabled: boolean; intervalMs: number }> = []
-  const management: boolean[] = []
+  const orchestration: boolean[] = []
   return {
     state,
     features,
@@ -186,7 +196,7 @@ function fakeControls(initial: Partial<PanelControls> = {}): FakeControls {
     shells,
     monitorings,
     syncs,
-    management,
+    orchestration,
     controls: () => state,
     setFeature: async (feature, enabled) => {
       if (state.stopped) {
@@ -221,9 +231,9 @@ function fakeControls(initial: Partial<PanelControls> = {}): FakeControls {
       state.sync = { ...update }
       return state
     },
-    setManagement: async (enabled) => {
-      management.push(enabled)
-      state.management = { enabled }
+    setOrchestration: async (enabled) => {
+      orchestration.push(enabled)
+      state.orchestration = { ...state.orchestration, desired: enabled, effective: enabled }
       return state
     },
   }
@@ -530,20 +540,20 @@ describe('panel server', () => {
     expect(controls.monitorings).toEqual([])
   })
 
-  it('toggles Clara management and rejects malformed requests', async () => {
+  it('toggles orchestration and rejects malformed requests', async () => {
     const controls = fakeControls()
     const server = await start(undefined, controls)
 
-    const response = await post(server, 'management', { enabled: true })
+    const response = await post(server, 'orchestration', { enabled: true })
     expect(response.status).toBe(200)
-    expect(((await response.json()) as PanelMutationResponse).controls.management).toEqual({
-      enabled: true,
-    })
-    expect(controls.management).toEqual([true])
+    expect(((await response.json()) as PanelMutationResponse).controls.orchestration).toMatchObject(
+      { desired: true, effective: true }
+    )
+    expect(controls.orchestration).toEqual([true])
 
-    expect((await post(server, 'management', { enabled: 'yes' })).status).toBe(400)
-    expect((await post(server, 'management', { enabled: true, extra: true })).status).toBe(400)
-    expect(controls.management).toEqual([true])
+    expect((await post(server, 'orchestration', { enabled: 'yes' })).status).toBe(400)
+    expect((await post(server, 'orchestration', { enabled: true, extra: true })).status).toBe(400)
+    expect(controls.orchestration).toEqual([true])
   })
 })
 

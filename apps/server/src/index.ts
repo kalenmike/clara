@@ -2,7 +2,6 @@ import { join, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { fingerprintPsk } from '@clara/crypto'
 import { PROTOCOL_VERSION } from '@clara/shared-types'
-import { claraFeatureIncluded } from './clara/flag.ts'
 import { loadConfig } from './config.ts'
 import { OpenCodeClient } from './opencode.ts'
 import { printPairing } from './pairing.ts'
@@ -84,22 +83,8 @@ async function main(): Promise<void> {
     opencodeVersion,
     room: config.relay?.room,
     pushPublicKey: push?.publicKey,
-    management: false,
+    orchestration: false,
   }
-
-  const controllerRef: { current?: RuntimeController } = {}
-  const clara = claraFeatureIncluded()
-    ? await import('./clara/index.ts').then(
-        ({ ClaraManagement }) =>
-          new ClaraManagement({
-            config,
-            settings,
-            openCode,
-            canProxy: () => controllerRef.current?.canProxy() ?? false,
-            log,
-          })
-      )
-    : undefined
 
   const controller = new RuntimeController({
     config,
@@ -109,10 +94,8 @@ async function main(): Promise<void> {
     sync: clientStorage,
     push,
     pushError,
-    clara,
     log,
   })
-  controllerRef.current = controller
 
   await controller.start()
 
@@ -134,8 +117,6 @@ async function main(): Promise<void> {
       traffic: controller.traffic,
       push,
       pushError,
-      ledgerPath: () =>
-        controller?.clara && settings.getManagement() ? controller.clara.ledgerPath : undefined,
       fingerprint,
       startedAt,
       controls: () => controller.controls(),

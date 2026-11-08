@@ -2,15 +2,36 @@ import { createServer, type Server } from 'node:http'
 import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { afterEach, describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { AgentInfo } from '@clara/shared-types'
-import { ClaraManagement } from '../src/clara/index.ts'
-import type { ClaraAgentSyncResult } from '../src/clara/agents.ts'
 import type { ServerConfig } from '../src/config.ts'
 import { OpenCodeClient } from '../src/opencode.ts'
 import { AgentStoppedError, RuntimeController } from '../src/runtime/controller.ts'
 import { closeDatabase, openDatabase } from '../src/store/database.ts'
 import { SettingsStore } from '../src/store/settings.ts'
+import type { PanelOrchestrationControl } from '@clara/shared-types'
+
+const orchestration = vi.hoisted(() => ({
+  read: vi.fn(),
+  start: vi.fn(),
+  stop: vi.fn(),
+}))
+
+vi.mock('../src/orchestration/service.ts', () => ({
+  readOrchestrationControl: orchestration.read,
+  startOrchestration: orchestration.start,
+  stopOrchestration: orchestration.stop,
+}))
+
+function stoppedControl(desired = false, error?: string): PanelOrchestrationControl {
+  return {
+    desired,
+    effective: false,
+    state: 'stopped',
+    url: 'http://127.0.0.1:8789',
+    ...(error ? { error } : {}),
+  }
+}
 
 const tempDirs: string[] = []
 const controllers: RuntimeController[] = []
@@ -33,7 +54,6 @@ function config(port: number): ServerConfig {
     configPath: join(dir, 'server.json'),
     dataDir: dir,
     dbPath: join(dir, 'clara.db'),
-    ledgerDbPath: join(dir, 'ledger.db'),
     sources: {
       opencodeUrl: 'default',
       opencodePassword: 'none',
@@ -53,10 +73,7 @@ const info: AgentInfo = { version: 'test', protocol: 1 }
 
 async function createController(
   port = 0,
-  options: {
-    syncClaraAgents?: (enabled: boolean) => ClaraAgentSyncResult
-    openCodeUrl?: string
-  } = {}
+  options: { openCodeUrl?: string } = {}
 ): Promise<{
   controller: RuntimeController
   settings: SettingsStore
@@ -68,26 +85,13 @@ async function createController(
   const settings = new SettingsStore(db)
   const controllerInfo: AgentInfo = { ...info }
   const openCode = new OpenCodeClient(options.openCodeUrl ?? 'http://127.0.0.1:4096')
-  const controllerRef: { current?: RuntimeController } = {}
-  const clara = options.syncClaraAgents
-    ? new ClaraManagement({
-        config: { ledgerDbPath: serverConfig.ledgerDbPath },
-        settings,
-        openCode,
-        canProxy: () => controllerRef.current?.canProxy() ?? false,
-        syncAgents: options.syncClaraAgents,
-        log: () => undefined,
-      })
-    : undefined
   const controller = new RuntimeController({
     config: serverConfig,
     openCode,
     info: controllerInfo,
     settings,
-    clara,
     log: () => undefined,
   })
-  controllerRef.current = controller
   controllers.push(controller)
   return {
     controller,
@@ -99,6 +103,14 @@ async function createController(
     },
   }
 }
+
+beforeEach(() => {
+  orchestration.read.mockImplementation(async (desired: boolean, error?: string) =>
+    stoppedControl(desired, error)
+  )
+  orchestration.start.mockResolvedValue(undefined)
+  orchestration.stop.mockResolvedValue(undefined)
+})
 
 afterEach(async () => {
   for (const controller of controllers.splice(0)) await controller.close()
@@ -265,85 +277,53 @@ describe('RuntimeController', () => {
     }
   })
 
-  it('reconciles Clara agents on startup and when management changes', async () => {
-    const requests: string[] = []
-    const openCode = createServer((request, response) => {
-      requests.push(`${request.method} ${request.url}`)
-      response.statusCode = 204
-      response.end()
-    })
-    servers.push(openCode)
-    await new Promise<void>((resolve) => openCode.listen(0, '127.0.0.1', resolve))
-    const address = openCode.address()
-    if (!address || typeof address === 'string') throw new Error('No fake OpenCode address')
-
-    const synced: boolean[] = []
-    const { controller, settings, info, close } = await createController(0, {
-      openCodeUrl: `http://127.0.0.1:${address.port}`,
-      syncClaraAgents: (enabled) => {
-        synced.push(enabled)
-        return { updated: ['clara'], skipped: [], missingManifest: false }
-      },
-    })
+  it('starts and stops orchestration and broadcasts the effective flag', async () => {
+    orchestration.read.mockImplementation(async (desired: boolean) => ({
+      desired,
+      effective: desired,
+      state: desired ? 'local' : 'stopped',
+      url: 'http://127.0.0.1:8789',
+    }))
+    const { controller, settings, info, close } = await createController()
     await controller.start()
     try {
-      expect(synced).toEqual([false])
-      expect(requests).toEqual(['POST /api/location/reload'])
+      const controls = await controller.setOrchestration(true)
+      expect(orchestration.start).toHaveBeenCalledOnce()
+      expect(settings.getOrchestration()).toBe(true)
+      expect(info.orchestration).toBe(true)
+      expect(controls.orchestration).toMatchObject({ desired: true, effective: true })
 
-      const controls = await controller.setManagement(true)
-
-      expect(synced).toEqual([false, true])
-      expect(settings.getManagement()).toBe(true)
-      expect(info.management).toBe(true)
-      expect(controls.management).toEqual({ enabled: true })
-      expect(requests).toEqual(['POST /api/location/reload', 'POST /api/location/reload'])
+      const stopped = await controller.setOrchestration(false)
+      expect(orchestration.stop).toHaveBeenCalledOnce()
+      expect(settings.getOrchestration()).toBe(false)
+      expect(info.orchestration).toBe(false)
+      expect(stopped.orchestration).toMatchObject({ desired: false, effective: false })
     } finally {
       await close()
     }
   })
 
-  it('reloads OpenCode on a management change even when no agent file changes', async () => {
-    const requests: string[] = []
-    const openCode = createServer((request, response) => {
-      requests.push(`${request.method} ${request.url}`)
-      response.statusCode = 204
-      response.end()
-    })
-    servers.push(openCode)
-    await new Promise<void>((resolve) => openCode.listen(0, '127.0.0.1', resolve))
-    const address = openCode.address()
-    if (!address || typeof address === 'string') throw new Error('No fake OpenCode address')
-
-    const { controller, close } = await createController(0, {
-      openCodeUrl: `http://127.0.0.1:${address.port}`,
-      syncClaraAgents: () => ({ updated: [], skipped: [], missingManifest: true }),
-    })
+  it('keeps orchestration enabled when an external instance cannot be stopped', async () => {
+    orchestration.read.mockImplementation(async (desired: boolean) => ({
+      desired,
+      effective: true,
+      state: 'external',
+      url: 'http://127.0.0.1:8789',
+    }))
+    orchestration.stop.mockRejectedValue(
+      Object.assign(new Error('started outside this data directory'), {
+        status: 409,
+        code: 'orchestrator_external',
+      })
+    )
+    const { controller, settings, close } = await createController()
+    settings.setOrchestration(true)
     await controller.start()
     try {
-      expect(requests).toEqual([])
-      await controller.setManagement(true)
-      expect(requests).toEqual(['POST /api/location/reload'])
-    } finally {
-      await close()
-    }
-  })
-
-  it('keeps the management switch when the agent files cannot be written', async () => {
-    const synced: boolean[] = []
-    const { controller, settings, info, close } = await createController(0, {
-      syncClaraAgents: (enabled) => {
-        synced.push(enabled)
-        throw new Error('disk is read-only')
-      },
-    })
-    await controller.start()
-    try {
-      const controls = await controller.setManagement(true)
-
-      expect(synced).toEqual([false, true])
-      expect(settings.getManagement()).toBe(true)
-      expect(info.management).toBe(true)
-      expect(controls.management).toEqual({ enabled: true })
+      await expect(controller.setOrchestration(false)).rejects.toThrow(
+        'started outside this data directory'
+      )
+      expect(settings.getOrchestration()).toBe(true)
     } finally {
       await close()
     }

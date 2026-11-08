@@ -71,12 +71,6 @@ export type SyncPushAction = {
   entries: Array<{ key: string; value: string | null }>
 }
 
-/** Read the effective pipeline catalog from the home agent. */
-export type PipelineListAction = {
-  type: 'pipeline.list'
-  id: string
-}
-
 /**
  * Actions travel from a browser client to the home agent. `body` is base64url
  * encoded so the payload stays JSON-safe on every runtime.
@@ -102,6 +96,5 @@ export type ClaraAction =
   | SyncCheckAction
   | SyncPullAction
   | SyncPushAction
-  | PipelineListAction
 
 export type ClaraActionType = ClaraAction['type']

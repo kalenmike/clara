@@ -18,7 +18,7 @@ const AGENT_PATH = '/panel/api/v1/agent'
 const SHELL_PATH = '/panel/api/v1/shell'
 const MONITORING_PATH = '/panel/api/v1/monitoring'
 const SYNC_PATH = '/panel/api/v1/sync'
-const MANAGEMENT_PATH = '/panel/api/v1/management'
+const ORCHESTRATION_PATH = '/panel/api/v1/orchestration'
 const ASSETS_PREFIX = '/assets/'
 const PANEL_HEADER = 'x-clara-panel'
 const MAX_BODY_BYTES = 8 * 1024
@@ -251,8 +251,8 @@ async function handleMutation(
             ? 'monitoring'
             : pathname === SYNC_PATH
               ? 'sync'
-              : pathname === MANAGEMENT_PATH
-                ? 'management'
+              : pathname === ORCHESTRATION_PATH
+                ? 'orchestration'
                 : undefined
   if (!kind) {
     sendJson(response, method, 404, {
@@ -338,13 +338,13 @@ async function handleMutation(
         return invalidField(response, method, 'enabled')
       }
       updated = await controls.setMonitoring(body.value.enabled)
-    } else if (kind === 'management') {
+    } else if (kind === 'orchestration') {
       const unknown = unknownFields(body.value, ['enabled'])
       if (unknown) return invalidField(response, method, unknown)
       if (typeof body.value.enabled !== 'boolean') {
         return invalidField(response, method, 'enabled')
       }
-      updated = await controls.setManagement(body.value.enabled)
+      updated = await controls.setOrchestration(body.value.enabled)
     } else {
       const unknown = unknownFields(body.value, ['enabled', 'intervalMs'])
       if (unknown) return invalidField(response, method, unknown)

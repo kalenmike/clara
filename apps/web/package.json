@@ -4,8 +4,8 @@
   "version": "0.1.0",
   "type": "module",
   "scripts": {
-    "dev": "export VITE_CLARA_MANAGEMENT=${VITE_CLARA_MANAGEMENT:-1}; vite",
-    "build": "export VITE_CLARA_MANAGEMENT=${VITE_CLARA_MANAGEMENT:-1}; tsc -b && vite build",
+    "dev": "vite",
+    "build": "tsc -b && vite build",
     "preview": "vite preview",
     "test": "vitest run",
     "deploy": "VITE_CLARA_WS_URL=wss://relay.clara.kalenmichael.com pnpm build && wrangler pages deploy dist --project-name clara"

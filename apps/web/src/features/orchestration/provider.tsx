@@ -3,23 +3,23 @@ import type { SessionInfo } from '@opencode/client'
 import { SessionPolicyProvider } from '@/features/notifications/session-policy'
 import { isAutomationSession } from '@/features/sessions/session-automation'
 import { useConnection } from '@/providers/connection-provider'
-import { useClaraAgentRefresh } from './agent-refresh'
 
 /**
- * Mounts every web-side Clara behaviour inside one boundary. When the build
- * excludes the feature this provider is not rendered and none of the bridge
- * hooks run.
+ * Mounts the orchestration session policy. Automation sessions are grouped and
+ * kept quiet only while the orchestrator reports that it is reachable.
  */
-export function ClaraFeatureProvider({ children }: { children: ReactNode }) {
+export function OrchestrationProvider({ children }: { children: ReactNode }) {
   const { relayStatus } = useConnection()
-  const management = relayStatus?.agent?.management === true
-  useClaraAgentRefresh()
+  const orchestration = relayStatus?.agent?.orchestration === true
 
   const suppressSession = useCallback(
-    (session: SessionInfo) => management && isAutomationSession(session),
-    [management]
+    (session: SessionInfo) => orchestration && isAutomationSession(session),
+    [orchestration]
   )
-  const isAutomation = useMemo(() => (management ? isAutomationSession : undefined), [management])
+  const isAutomation = useMemo(
+    () => (orchestration ? isAutomationSession : undefined),
+    [orchestration]
+  )
 
   return (
     <SessionPolicyProvider suppressSession={suppressSession} isAutomation={isAutomation}>

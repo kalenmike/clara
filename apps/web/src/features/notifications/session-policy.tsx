@@ -5,16 +5,16 @@ import type { SessionInfo } from '@opencode/client'
 type SessionPolicy = {
   /** Return true to keep a generic session alert quiet. */
   suppressSession?: (session: SessionInfo) => boolean
-  /** Present only while Clara management is on and included in the build. */
+  /** Present only while orchestration is reachable. */
   isAutomation?: (session: SessionInfo) => boolean
 }
 
 const SessionPolicyContext = createContext<SessionPolicy>({})
 
 /**
- * A feature-neutral hook for optional session policy. Clara management
- * supplies its worker-session predicates from the feature module; core session
- * management never imports Clara code.
+ * A feature-neutral hook for optional session policy. The orchestration
+ * provider supplies worker-session predicates; core session management never
+ * imports orchestration code.
  */
 export function SessionPolicyProvider({
   suppressSession,

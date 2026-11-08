@@ -1,0 +1,152 @@
+import { existsSync } from 'node:fs'
+import { dirname, join } from 'node:path'
+import { fileURLToPath } from 'node:url'
+import type { PanelOrchestrationControl } from '@clara/shared-types'
+import {
+  baseURL,
+  collectStatus,
+  startLocalService,
+  stopService,
+  type StatusReport,
+} from '@clara/orchestration-control'
+import { PanelControlError } from '../panel/controls.ts'
+
+/** Resolve the built orchestrator, or its source in a development checkout. */
+export function orchestrationCommand(): string[] | undefined {
+  const configured = process.env.CLARA_ORCHESTRATOR_ENTRY?.trim()
+  if (configured) return commandFor(configured)
+
+  const root = findRepositoryRoot(dirname(fileURLToPath(import.meta.url)))
+  if (!root) return undefined
+
+  const built = join(root, 'apps/orchestrator/dist/index.js')
+  if (existsSync(built)) return commandFor(built)
+
+  const source = join(root, 'apps/orchestrator/src/index.ts')
+  if (existsSync(source)) return commandFor(source)
+
+  return undefined
+}
+
+function commandFor(entry: string): string[] {
+  if (entry.endsWith('.ts')) {
+    return [process.execPath, '--experimental-strip-types', '--no-warnings', entry]
+  }
+  return [process.execPath, entry]
+}
+
+function findRepositoryRoot(start: string): string | undefined {
+  let directory = start
+  for (;;) {
+    if (existsSync(join(directory, 'apps/orchestrator/package.json'))) return directory
+    const parent = dirname(directory)
+    if (parent === directory) return undefined
+    directory = parent
+  }
+}
+
+function toState(report: StatusReport): PanelOrchestrationControl['state'] {
+  if (report.state === 'stopped') return 'stopped'
+  return report.state
+}
+
+function reportError(report: StatusReport): string | undefined {
+  if (report.state === 'foreign') {
+    return `${report.url} is being used by another service`
+  }
+  if (report.state === 'unresponsive') {
+    return `The orchestrator process at ${report.url} is not responding`
+  }
+  return undefined
+}
+
+/** Read the live service state without changing it. */
+export async function readOrchestrationControl(
+  desired: boolean,
+  previousError?: string
+): Promise<PanelOrchestrationControl> {
+  const report = await collectStatus()
+  const state = toState(report)
+  const effective = state === 'local' || state === 'container' || state === 'external'
+  const error = (effective ? undefined : reportError(report)) ?? previousError
+  return {
+    desired,
+    effective,
+    state,
+    url: report.url,
+    ...(report.pid !== null ? { pid: report.pid } : {}),
+    ...(error ? { error } : {}),
+  }
+}
+
+/** Start a local service when nothing else is answering. */
+export async function startOrchestration(): Promise<void> {
+  const command = orchestrationCommand()
+  if (!command) {
+    throw new PanelControlError(
+      503,
+      'orchestrator_missing',
+      'The orchestrator is not built. Run `pnpm build` and try again.'
+    )
+  }
+
+  const result = await startLocalService({ command })
+  if (result.kind === 'started' || result.kind === 'already-running') return
+  if (result.kind === 'unresponsive') {
+    throw new PanelControlError(
+      409,
+      'orchestrator_unresponsive',
+      `The orchestrator process (pid ${result.pid}) is alive but not answering at ${baseURL()}`
+    )
+  }
+  if (result.kind === 'foreign') {
+    throw new PanelControlError(
+      409,
+      'orchestrator_port_busy',
+      `Another service is already using ${baseURL()}`
+    )
+  }
+  throw new PanelControlError(
+    503,
+    'orchestrator_unhealthy',
+    `The orchestrator did not become healthy at ${baseURL()}. Check \`pnpm clara orchestration status\`.`
+  )
+}
+
+/** Stop only a local instance started from this data directory. */
+export async function stopOrchestration(): Promise<void> {
+  const result = await stopService()
+  if (result.kind === 'stopped' || result.kind === 'already-stopped') return
+  if (result.kind === 'container') {
+    throw new PanelControlError(
+      409,
+      'orchestrator_container',
+      'The orchestrator is running in Docker. Stop it with `pnpm docker:orchestrator:down`.'
+    )
+  }
+  if (result.kind === 'external') {
+    throw new PanelControlError(
+      409,
+      'orchestrator_external',
+      'The orchestrator was started outside this data directory. Stop it where it was started.'
+    )
+  }
+  if (result.kind === 'foreign') {
+    throw new PanelControlError(
+      409,
+      'orchestrator_port_busy',
+      `Another service is already using ${baseURL()}`
+    )
+  }
+  if (result.kind === 'not-exited') {
+    throw new PanelControlError(
+      503,
+      'orchestrator_stopping',
+      `The orchestrator process (pid ${result.pid}) did not exit after SIGTERM`
+    )
+  }
+  if (result.kind === 'error') {
+    throw new PanelControlError(503, 'orchestrator_stop_failed', result.message)
+  }
+  throw new PanelControlError(503, 'orchestrator_stop_failed', 'Could not stop the orchestrator')
+}

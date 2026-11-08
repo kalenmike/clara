@@ -74,7 +74,6 @@ describe('loadConfig sources', () => {
     expect(config.sources.psk).toBe('generated')
     expect(config.dataDir).toBe(join(dataHome, 'clara'))
     expect(config.dbPath).toBe(join(dataHome, 'clara', 'clara.db'))
-    expect(config.ledgerDbPath).toBe(join(dataHome, 'clara', 'ledger.db'))
   })
 
   it('honours XDG_CONFIG_HOME and XDG_DATA_HOME', () => {
@@ -102,7 +101,6 @@ describe('loadConfig sources', () => {
 
     expect(config.dataDir).toBe(dataDir)
     expect(config.dbPath).toBe(join(dataDir, 'clara.db'))
-    expect(config.ledgerDbPath).toBe(join(dataDir, 'ledger.db'))
   })
 
   it('allows CLARA_DB_PATH to move the database', () => {

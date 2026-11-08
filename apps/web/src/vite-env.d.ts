@@ -3,8 +3,6 @@
 interface ImportMetaEnv {
   /** Optional relay or local agent WebSocket base. Empty selects direct HTTP mode. */
   readonly VITE_CLARA_WS_URL?: string
-  /** Set to `0` to exclude the experimental Clara management feature. */
-  readonly VITE_CLARA_MANAGEMENT?: string
   /** Injected from package.json by Vite. */
   readonly CLARA_VERSION: string
   /** Injected by Vite at dev-server start or build time. */
