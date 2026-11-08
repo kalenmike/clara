@@ -102,6 +102,9 @@ router:
   id: classifier
   path: ./routers/classifier.md
   routes:
+    - when: content
+      criteria: a request to write, draft, edit, or deliver an article, post, essay, or other prose content.
+      run: std:content
     - when: software-development
       criteria: a normal software feature, bug, or example request.
       run: std:software
@@ -158,8 +161,13 @@ docs:    assess_docs → update_docs → verify_docs → docs_review
 - The service restarts with ready work: the outbox and step state restore the
   next work order; no watchdog tick is required to advance healthy work.
 - A worker exceeds its turn/tool/token budget: policy checks deny further
-  tools, the step is marked budget-exceeded, and retries may receive a larger
-  budget.
+  tools, but the Clara control tools (`clara_route`, `clara_complete`,
+  `clara_fail`, `clara_spawn`) stay available so the worker can still finish
+  or report the failure. The step is marked budget-exceeded and retries may
+  receive a larger budget.
+- A step is `observed`: policy denials are recorded as `policy.observed`
+  events, but tools are not blocked. `strict` and `sandboxed` steps deny and
+  count violations.
 - A workspace has no `orchestration/index.yml`: start fails with a clear config
   error instead of guessing a pipeline.
 
@@ -175,8 +183,9 @@ docs:    assess_docs → update_docs → verify_docs → docs_review
 
 - The OpenCode adapter is the first strict adapter. Other harnesses can use the
   generic MCP surface in observed mode or implement the adapter protocol.
-- Token limits depend on harness-reported usage; turn, tool-call, wall-clock, and
-  attempt limits are exact.
+- Token limits depend on harness-reported usage. The OpenCode adapter does not
+  report model token usage yet, so token budgets are advisory in that harness;
+  turn, tool-call, wall-clock, and attempt limits are exact.
 - The OpenCode adapter records the origin session but does not yet push final
   results or alerts into it automatically; use `clara_status` or `clara_inbox`.
 - The generic MCP bridge cannot see the harness session ID. Pass
@@ -184,8 +193,9 @@ docs:    assess_docs → update_docs → verify_docs → docs_review
 - The web Settings catalog still reads the legacy JSON pipelines; the package
   catalog is available through `pnpm clara orchestration` and MCP
   `clara_catalog`.
-- The OpenCode adapter dispatches managed workers through the current agent;
-  a dedicated worker agent is a follow-up.
+- The OpenCode adapter dispatches managed workers in the run workspace with a
+  dedicated worker agent (`CLARA_WORKER_AGENT`, default `general`), not the
+  caller's agent.
 - Clara Lab compiles the files on the host. A containerized service with a
   different workspace mount can produce a different preview than the run.
 
