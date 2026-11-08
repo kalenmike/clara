@@ -21,12 +21,14 @@ services:
       CLARA_ORCHESTRATION_PORT: '8789'
       CLARA_DATA_DIR: /data
       CLARA_STD_DIR: /opt/clara/lib/std
-      CLARA_ORCHESTRATION_TOKEN: ${CLARA_ORCHESTRATION_TOKEN:?set CLARA_ORCHESTRATION_TOKEN}
+      CLARA_ORCHESTRATION_TOKEN: ${CLARA_ORCHESTRATION_TOKEN:?"set CLARA_ORCHESTRATION_TOKEN"}
     volumes:
       - ${CLARA_DATA_DIR:?set CLARA_DATA_DIR}:/data
       - ${CLARA_WORKSPACE:?set CLARA_WORKSPACE}:/workspace/clara:ro
     networks:
       - clara
+    ports:
+      - '127.0.0.1:8789:8789'
     # No ports: only other services on the clara network can reach it.
     healthcheck:
       test:
