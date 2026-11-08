@@ -177,6 +177,28 @@ describe('orchestration diagnostics', () => {
     expect(JSON.stringify(anomaly?.evidence)).toContain('"count":20')
   })
 
+  it('flags live steps under a terminal run', () => {
+    const store = new Store(':memory:')
+    const run = seedRun(store)
+    seedStep(store, run, {
+      path: 'orchestration/route-feature',
+      name: 'feature',
+      type: 'pipeline',
+      status: 'running',
+    })
+    seedStep(store, run, {
+      path: 'orchestration/route-feature/1-create_spec',
+      name: 'create_spec',
+      status: 'failed',
+    })
+
+    const report = analyzeDatabase(store.db, { now: NOW })
+    const anomaly = report.anomalies.find((entry) => entry.code === 'terminal_run_live_steps')
+    expect(anomaly?.severity).toBe('high')
+    expect(anomaly?.evidence.total).toBe(1)
+    expect(JSON.stringify(anomaly?.evidence)).toContain('route-feature')
+  })
+
   it('flags an alert backlog, duplicates, and stalled dominance', () => {
     const store = new Store(':memory:')
     const run = seedRun(store)
