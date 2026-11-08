@@ -27,11 +27,7 @@ export function App() {
       saveSettings(next)
       return next
     })
-    if (
-      patch.hostWorkspace !== undefined ||
-      patch.runtimeWorkspace !== undefined ||
-      patch.target !== undefined
-    ) {
+    if (patch.hostWorkspace !== undefined || patch.target !== undefined) {
       setPreflightResult(null)
       setPreflightError(null)
     }
@@ -65,7 +61,7 @@ export function App() {
   }, [preflightError])
 
   const hostWorkspace = settings.hostWorkspace.trim() || stream.snapshot?.workspace || ''
-  const runtimeWorkspace = settings.runtimeWorkspace.trim() || hostWorkspace
+  const runtimeWorkspace = stream.snapshot?.orchestratorWorkspace || ''
 
   const runPreflight = useCallback(async (): Promise<void> => {
     if (!hostWorkspace) return
@@ -74,7 +70,6 @@ export function App() {
     try {
       const result = await preflight({
         hostWorkspace,
-        runtimeWorkspace: runtimeWorkspace || hostWorkspace,
         ...(settings.target ? { target: settings.target } : {}),
       })
       setPreflightResult(result)
@@ -83,7 +78,7 @@ export function App() {
     } finally {
       setPreflightLoading(false)
     }
-  }, [hostWorkspace, runtimeWorkspace, settings.target])
+  }, [hostWorkspace, settings.target])
 
   useEffect(() => {
     if (!stream.snapshot || !hostWorkspace) return
@@ -96,8 +91,12 @@ export function App() {
   }
 
   const enableAdapter = async (): Promise<void> => {
+    if (!runtimeWorkspace) {
+      setPreflightError('The orchestrator has not reported its workspace yet.')
+      return
+    }
     try {
-      await registerAdapter(runtimeWorkspace || hostWorkspace)
+      await registerAdapter(runtimeWorkspace)
       setNotice('Registered the clara-lab adapter for this workspace.')
       await runPreflight()
     } catch (cause) {
@@ -161,9 +160,7 @@ export function App() {
         <Setup
           snapshot={snapshot}
           hostWorkspace={settings.hostWorkspace}
-          runtimeWorkspace={settings.runtimeWorkspace}
           onHostWorkspace={(value) => update({ hostWorkspace: value })}
-          onRuntimeWorkspace={(value) => update({ runtimeWorkspace: value })}
           preflight={preflightResult}
           loading={preflightLoading}
           error={preflightError}

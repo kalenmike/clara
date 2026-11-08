@@ -49,6 +49,7 @@ beforeAll(async () => {
     token,
     port: 0,
     tickMs: 60_000,
+    workspace,
   })
   await new Promise<void>((resolve) => orchestrator.server.listen(0, '127.0.0.1', () => resolve()))
   const address = orchestrator.server.address() as AddressInfo
@@ -73,7 +74,14 @@ describe('lab server', () => {
   it('reports health and previews a target', async () => {
     const health = await get('/api/health')
     expect(health.response.status).toBe(200)
-    expect(health.value).toMatchObject({ service: 'clara-lab', connected: true })
+    expect(health.value).toMatchObject({
+      service: 'clara-lab',
+      connected: true,
+      orchestratorWorkspace: workspace,
+    })
+
+    const state = await get('/api/state')
+    expect(state.value).toMatchObject({ orchestratorWorkspace: workspace })
 
     const preview = await post('/api/preview', { workspace, target: 'quick_patch' })
     expect(preview.response.status).toBe(200)
@@ -163,7 +171,6 @@ describe('lab server', () => {
   it('preflights the host and orchestrator workspaces', async () => {
     const quick = await post('/api/preflight', {
       hostWorkspace: workspace,
-      runtimeWorkspace: workspace,
       target: 'quick_patch',
     })
     expect(quick.response.status).toBe(200)

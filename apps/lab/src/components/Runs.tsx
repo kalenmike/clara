@@ -146,7 +146,7 @@ export function Runs({
       return
     }
     if (!runtimeWorkspace.trim()) {
-      setError('Choose the workspace the orchestrator sees in Setup first.')
+      setError('The orchestrator has not reported its workspace yet. Reconnect in Setup.')
       return
     }
     setBusy(true)
@@ -254,6 +254,10 @@ export function Runs({
   }
 
   const register = async (): Promise<void> => {
+    if (!runtimeWorkspace.trim()) {
+      setError('The orchestrator has not reported its workspace yet. Reconnect in Setup.')
+      return
+    }
     setBusy(true)
     setError(null)
     try {
@@ -418,9 +422,10 @@ export function Runs({
                   </button>
                 </span>
                 <span>
-                  Orchestrator sees <code>{runtimeWorkspace || 'not set'}</code>{' '}
+                  Orchestrator sees{' '}
+                  <code>{runtimeWorkspace || 'waiting for the orchestrator'}</code>{' '}
                   <button type="button" className="link" onClick={onGoToSetup}>
-                    change
+                    setup
                   </button>
                 </span>
               </div>

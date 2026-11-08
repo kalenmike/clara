@@ -75,7 +75,7 @@ export function preview(input: PreviewRequest): Promise<PreviewResult> {
 
 export interface PreflightRequest {
   hostWorkspace: string
-  runtimeWorkspace: string
+  runtimeWorkspace?: string
   target?: string
 }
 

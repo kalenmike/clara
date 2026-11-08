@@ -134,6 +134,7 @@ export async function startLabServer(options: LabServerOptions): Promise<LabServ
           service: 'clara-lab',
           version: options.version ?? '0.1.0',
           workspace: runtime.state.workspace,
+          orchestratorWorkspace: runtime.state.orchestratorWorkspace,
           orchestrator: runtime.state.orchestrator,
           connected: runtime.state.connected,
           tokenPresent: runtime.state.tokenPresent,
@@ -278,11 +279,11 @@ export async function startLabServer(options: LabServerOptions): Promise<LabServ
 
     if (url.pathname === '/api/preflight') {
       const hostWorkspace = stringField(body.hostWorkspace) ?? context.runtime.state.workspace
-      const runtimeWorkspace = stringField(body.runtimeWorkspace) || hostWorkspace
+      const runtimeWorkspace = stringField(body.runtimeWorkspace)
       const target = stringField(body.target)
       const result = await context.runtime.preflight({
         hostWorkspace,
-        runtimeWorkspace,
+        ...(runtimeWorkspace ? { runtimeWorkspace } : {}),
         ...(target ? { target } : {}),
       })
       json(response, 200, result)
@@ -332,7 +333,10 @@ export async function startLabServer(options: LabServerOptions): Promise<LabServ
     }
 
     if (url.pathname === '/api/adapter/register') {
-      const workspace = stringField(body.workspace) ?? context.runtime.state.workspace
+      const workspace =
+        stringField(body.workspace) ||
+        context.runtime.state.orchestratorWorkspace ||
+        context.runtime.state.workspace
       const result = await context.runtime.registerAdapter(workspace)
       json(response, 200, { ok: !result.isError, isError: result.isError, value: result.value })
       return

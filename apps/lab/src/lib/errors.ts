@@ -21,7 +21,7 @@ export function friendlyError(message: string, context: ErrorContext = 'general'
       hint:
         context === 'host'
           ? 'Use the path to the repository on this machine, for example /home/jet/Projects/clara.'
-          : 'Use the path inside the orchestrator, usually the container mount /workspace/clara.',
+          : 'The orchestrator reports its own workspace. Point CLARA_ORCHESTRATION_WORKSPACE at the mounted workspace or fix the volume mount.',
     }
   }
 
@@ -76,7 +76,7 @@ export function friendlyError(message: string, context: ErrorContext = 'general'
     return {
       title: 'The orchestrator cannot read this path',
       detail: text,
-      hint: 'The orchestrator workspace is the path inside its filesystem or container, not the path on this machine.',
+      hint: 'The orchestrator reports the path inside its own filesystem or container. Set CLARA_ORCHESTRATION_WORKSPACE on the service to match its mount.',
     }
   }
 

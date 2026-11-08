@@ -15,7 +15,7 @@ let runtime: Runtime
 beforeAll(async () => {
   const store = new Store(':memory:')
   runtime = new Runtime({ store, configPath: `${workspace}/orchestration/index.yml` })
-  app = createOrchestratorServer({ runtime, token, port: 0, tickMs: 60_000 })
+  app = createOrchestratorServer({ runtime, token, port: 0, tickMs: 60_000, workspace })
   await new Promise<void>((resolve) => app.server.listen(0, '127.0.0.1', () => resolve()))
   const address = app.server.address() as AddressInfo
   base = `http://127.0.0.1:${address.port}`
@@ -35,6 +35,15 @@ describe('orchestrator HTTP service', () => {
     expect(health.status).toBe(200)
     const denied = await fetch(`${base}/v1/runs`)
     expect(denied.status).toBe(401)
+  })
+
+  it('reports its configured workspace to authenticated callers', async () => {
+    const denied = await fetch(`${base}/v1/config`)
+    expect(denied.status).toBe(401)
+
+    const response = await fetch(`${base}/v1/config`, { headers: auth() })
+    expect(response.status).toBe(200)
+    expect(await response.json()).toMatchObject({ workspace })
   })
 
   it('starts and advances a run through the REST API', async () => {

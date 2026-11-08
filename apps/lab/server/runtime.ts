@@ -70,6 +70,7 @@ export class LabRuntime {
       await this.mcp.connect()
       this.state.setConnection(true)
       await this.loadTools()
+      await this.loadConfig()
       this.events.start()
       await this.refreshAdapters(this.state.workspace).catch(() => {})
     } catch (error) {
@@ -88,6 +89,7 @@ export class LabRuntime {
       await this.mcp.connect()
       this.state.setConnection(true)
       await this.loadTools()
+      await this.loadConfig()
       this.events.start()
       if (!this.adaptersLoaded) await this.refreshAdapters(this.state.workspace)
     } catch (error) {
@@ -115,6 +117,7 @@ export class LabRuntime {
       await this.mcp.connect()
       this.state.setConnection(true)
       await this.loadTools()
+      await this.loadConfig()
       this.events.start()
       await this.refreshAdapters(this.state.workspace)
     } catch (error) {
@@ -134,6 +137,22 @@ export class LabRuntime {
     }
   }
 
+  private async loadConfig(): Promise<void> {
+    try {
+      const response = await fetch(`${this.url}/v1/config`, {
+        headers: this.token ? { authorization: `Bearer ${this.token}` } : {},
+        signal: AbortSignal.timeout(3_000),
+      })
+      if (!response.ok) return
+      const value = (await response.json()) as { workspace?: unknown }
+      this.state.setOrchestratorWorkspace(
+        typeof value.workspace === 'string' ? value.workspace.trim() : ''
+      )
+    } catch {
+      // Offline is normal; preflight reports the connection state.
+    }
+  }
+
   async preview(input: PreviewInput): Promise<PreviewResult> {
     if (this.mcp.connected && !this.adaptersLoaded) {
       await this.refreshAdapters(input.workspace ?? this.state.workspace).catch(() => {})
@@ -143,11 +162,15 @@ export class LabRuntime {
 
   async preflight(input: {
     hostWorkspace: string
-    runtimeWorkspace: string
+    runtimeWorkspace?: string
     target?: string
   }): Promise<PreflightResult> {
     const hostWorkspace = input.hostWorkspace.trim() || this.state.workspace
-    const runtimeWorkspace = input.runtimeWorkspace.trim() || hostWorkspace
+    if (!this.state.orchestratorWorkspace && !input.runtimeWorkspace?.trim()) {
+      await this.loadConfig()
+    }
+    const runtimeWorkspace =
+      input.runtimeWorkspace?.trim() || this.state.orchestratorWorkspace || hostWorkspace
     const target = input.target?.trim() || undefined
     const result: PreflightResult = {
       host: { ok: false },
