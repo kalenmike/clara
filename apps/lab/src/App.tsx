@@ -1,5 +1,12 @@
 import { useCallback, useEffect, useState } from 'react'
-import { pickDirectory, preflight, registerAdapter, reconnect, removeAdapter } from './api'
+import {
+  pickDirectory,
+  preflight,
+  reconnect,
+  reconnectOpenCode,
+  registerAdapter,
+  removeAdapter,
+} from './api'
 import { Console } from './components/Console'
 import { Icon } from './components/Icon'
 import { Preview } from './components/Preview'
@@ -123,6 +130,16 @@ export function App() {
     }
   }
 
+  const reconnectOpenCodeNow = async (): Promise<void> => {
+    try {
+      await reconnectOpenCode()
+      setNotice('Reconnected to OpenCode.')
+      await runPreflight()
+    } catch (cause) {
+      setPreflightError(cause instanceof Error ? cause.message : String(cause))
+    }
+  }
+
   if (!stream.snapshot) {
     return (
       <div className="boot">
@@ -230,6 +247,7 @@ export function App() {
             onReconnect={() => void reconnectNow()}
             onEnableAdapter={() => void enableAdapter()}
             onRemoveAdapter={(id) => void removeAdapterNow(id)}
+            onReconnectOpenCode={() => void reconnectOpenCodeNow()}
             onOpenSessions={() => setTab('sessions')}
           />
         </div>

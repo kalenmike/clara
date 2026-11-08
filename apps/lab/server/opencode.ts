@@ -1,5 +1,6 @@
 import { OpenCode } from '@opencode/client'
 import type { OpenCodeEvent, SessionInfo } from '@opencode/client'
+import { basicAuth, type OpenCodeConfig } from './models.ts'
 import type { OpenCodeSessionRow, OpenCodeSessionsResult, OpenCodeSummary } from './types.ts'
 
 const REQUEST_TIMEOUT_MS = 4_000
@@ -11,6 +12,11 @@ interface SessionActivity {
   lastSeenAt?: string
   lastEventType?: string
   eventCount: number
+}
+
+export interface OpenCodeErrorExplanation {
+  kind: 'auth' | 'connection' | 'unknown'
+  hint: string
 }
 
 function message(error: unknown): string {
@@ -53,19 +59,64 @@ function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms))
 }
 
+export function explainOpenCodeError(
+  error: string,
+  config: { url: string; serviceFile: string; password?: string }
+): OpenCodeErrorExplanation {
+  const text = error.toLowerCase()
+  if (
+    text.includes('authentication required') ||
+    text.includes('unauthorized') ||
+    /\b40[13]\b/.test(text)
+  ) {
+    const opening = config.password
+      ? 'OpenCode rejected the password Clara Lab found.'
+      : 'Clara Lab did not find a password for OpenCode.'
+    return {
+      kind: 'auth',
+      hint: [
+        opening,
+        'Run pnpm clara pass to check the local service password, then either:',
+        '- set CLARA_OPENCODE_PASSWORD before starting the lab, or',
+        `- make sure ${config.serviceFile} contains both "url" and "password".`,
+        'After changing either one, press Reconnect OpenCode.',
+      ].join('\n'),
+    }
+  }
+  if (
+    text.includes('econnrefused') ||
+    text.includes('enotfound') ||
+    text.includes('fetch failed') ||
+    text.includes('network') ||
+    text.includes('timed out') ||
+    text.includes('timeout') ||
+    text.includes('aborted')
+  ) {
+    return {
+      kind: 'connection',
+      hint: `Clara Lab could not reach OpenCode at ${config.url}. Start OpenCode, or set CLARA_OPENCODE_URL to the reachable address, then press Reconnect OpenCode.`,
+    }
+  }
+  return {
+    kind: 'unknown',
+    hint: `Clara Lab could not read OpenCode at ${config.url}. Check the OpenCode server output, then press Reconnect OpenCode.`,
+  }
+}
+
 /**
  * Tracks live OpenCode sessions without exposing the OpenCode password to the
  * browser. The event stream gives us last-seen activity; the session list seeds
  * idle sessions and their metadata so rogue sessions still show up.
  */
 export class OpenCodeObserver {
-  private readonly config: { url: string; password?: string }
+  private readonly configSource: () => OpenCodeConfig
   private readonly onChange: (summary: OpenCodeSummary) => void
-  private readonly client: ReturnType<typeof OpenCode.make>
   private readonly activity = new Map<string, SessionActivity>()
   private readonly details = new Map<string, SessionInfo>()
   private readonly running = new Set<string>()
   private readonly enriching = new Set<string>()
+  private config: OpenCodeConfig
+  private client: ReturnType<typeof OpenCode.make>
   private controller: AbortController | undefined
   private loopPromise: Promise<void> | undefined
   private stopped = false
@@ -73,29 +124,21 @@ export class OpenCodeObserver {
   private connected = false
   private reachable = false
   private error: string | undefined
+  private errorKind: OpenCodeSummary['errorKind']
+  private hint: string | undefined
   private updatedAt = new Date().toISOString()
 
-  constructor(
-    config: { url: string; password?: string },
-    onChange: (summary: OpenCodeSummary) => void
-  ) {
-    this.config = config
+  constructor(configSource: () => OpenCodeConfig, onChange: (summary: OpenCodeSummary) => void) {
+    this.configSource = configSource
     this.onChange = onChange
-    this.client = OpenCode.make({
-      baseUrl: config.url,
-      ...(config.password
-        ? {
-            headers: {
-              authorization: `Basic ${Buffer.from(`opencode:${config.password}`).toString('base64')}`,
-            },
-          }
-        : {}),
-    })
+    this.config = configSource()
+    this.client = this.makeClient(this.config)
   }
 
   start(): void {
     if (this.loopPromise) return
     this.stopped = false
+    this.refreshConfig()
     this.loopPromise = this.loop()
     void this.refresh()
   }
@@ -109,6 +152,21 @@ export class OpenCodeObserver {
     this.publish()
   }
 
+  async reconnect(): Promise<void> {
+    this.stopped = true
+    this.controller?.abort()
+    await this.loopPromise?.catch(() => {})
+    this.loopPromise = undefined
+    this.stopped = false
+    this.connected = false
+    this.reachable = false
+    this.clearError()
+    this.refreshConfig()
+    this.publish()
+    this.loopPromise = this.loop()
+    void this.refresh()
+  }
+
   summary(): OpenCodeSummary {
     const ids = new Set([...this.details.keys(), ...this.activity.keys()])
     return {
@@ -117,8 +175,15 @@ export class OpenCodeObserver {
       url: this.config.url,
       sessionCount: ids.size,
       activeCount: this.running.size,
+      auth: {
+        present: Boolean(this.config.password),
+        source: this.config.source,
+        serviceFile: this.config.serviceFile,
+      },
       updatedAt: this.updatedAt,
       ...(this.error ? { error: this.error } : {}),
+      ...(this.errorKind ? { errorKind: this.errorKind } : {}),
+      ...(this.hint ? { hint: this.hint } : {}),
     }
   }
 
@@ -155,8 +220,39 @@ export class OpenCodeObserver {
     return { ...this.summary(), sessions: rows }
   }
 
+  private makeClient(config: OpenCodeConfig): ReturnType<typeof OpenCode.make> {
+    return OpenCode.make({
+      baseUrl: config.url,
+      ...(config.password
+        ? {
+            headers: {
+              authorization: basicAuth(config.password),
+            },
+          }
+        : {}),
+    })
+  }
+
+  private refreshConfig(): boolean {
+    const next = this.configSource()
+    const changed =
+      next.url !== this.config.url ||
+      next.password !== this.config.password ||
+      next.source !== this.config.source ||
+      next.serviceFile !== this.config.serviceFile
+    this.config = next
+    if (!changed) return false
+    this.client = this.makeClient(next)
+    this.activity.clear()
+    this.details.clear()
+    this.running.clear()
+    this.clearError()
+    return true
+  }
+
   private async loop(): Promise<void> {
     while (!this.stopped) {
+      this.refreshConfig()
       const controller = new AbortController()
       this.controller = controller
       try {
@@ -168,7 +264,7 @@ export class OpenCodeObserver {
             opened = true
             this.connected = true
             this.reachable = true
-            this.error = undefined
+            this.clearError()
             this.publish()
             void this.refresh()
           }
@@ -177,14 +273,14 @@ export class OpenCodeObserver {
         if (!this.stopped) {
           this.connected = false
           this.reachable = false
-          this.error = 'The OpenCode event stream closed.'
+          this.setError('The OpenCode event stream closed.')
           this.publish()
         }
       } catch (cause) {
         if (!this.stopped && !controller.signal.aborted) {
           this.connected = false
           this.reachable = false
-          this.error = message(cause)
+          this.setError(message(cause))
           this.publish()
         }
       }
@@ -219,6 +315,8 @@ export class OpenCodeObserver {
   }
 
   private async refreshNow(): Promise<void> {
+    const changed = this.refreshConfig()
+    if (changed && this.connected) this.controller?.abort()
     const signal = AbortSignal.timeout(REQUEST_TIMEOUT_MS)
     let error: string | undefined
 
@@ -248,7 +346,8 @@ export class OpenCodeObserver {
     )
 
     this.reachable = Boolean(listed || active) || this.connected
-    this.error = error
+    if (error) this.setError(error)
+    else if (this.connected || listed || active) this.clearError()
     this.updatedAt = new Date().toISOString()
     this.publish()
   }
@@ -268,6 +367,19 @@ export class OpenCodeObserver {
       this.enriching.delete(sessionID)
       this.publish()
     }
+  }
+
+  private setError(error: string): void {
+    const explanation = explainOpenCodeError(error, this.config)
+    this.error = error
+    this.errorKind = explanation.kind
+    this.hint = explanation.hint
+  }
+
+  private clearError(): void {
+    this.error = undefined
+    this.errorKind = undefined
+    this.hint = undefined
   }
 
   private publish(): void {

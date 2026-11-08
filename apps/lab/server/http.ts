@@ -301,6 +301,12 @@ export async function startLabServer(options: LabServerOptions): Promise<LabServ
       return
     }
 
+    if (url.pathname === '/api/opencode/reconnect') {
+      await context.runtime.reconnectOpenCode()
+      json(response, 200, { ok: true })
+      return
+    }
+
     if (url.pathname === '/api/pick-directory') {
       const initial = stringField(body.initial)
       try {

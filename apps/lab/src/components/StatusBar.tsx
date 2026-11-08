@@ -21,7 +21,14 @@ export function StatusBar({
   const issues = checks.filter((ok) => !ok).length
   const setupTone = preflightError || issues ? 'bad' : preflight ? 'ok' : 'idle'
   const opencode = snapshot.opencode
-  const opencodeTone = opencode.connected ? 'ok' : opencode.reachable ? 'warn' : 'idle'
+  const opencodeTone =
+    opencode.errorKind === 'auth'
+      ? 'bad'
+      : opencode.connected
+        ? 'ok'
+        : opencode.reachable
+          ? 'warn'
+          : 'idle'
 
   return (
     <footer className="statusbar">
@@ -42,11 +49,13 @@ export function StatusBar({
           onClick={() => onTab('sessions')}
         >
           <span className="status-dot" />
-          {opencode.connected
-            ? `OpenCode · ${opencode.sessionCount} session${opencode.sessionCount === 1 ? '' : 's'}`
-            : opencode.reachable
-              ? 'OpenCode · reconnecting'
-              : 'OpenCode offline'}
+          {opencode.errorKind === 'auth'
+            ? 'OpenCode auth required'
+            : opencode.connected
+              ? `OpenCode · ${opencode.sessionCount} session${opencode.sessionCount === 1 ? '' : 's'}`
+              : opencode.reachable
+                ? 'OpenCode · reconnecting'
+                : 'OpenCode offline'}
           {opencode.activeCount ? ` · ${opencode.activeCount} running` : ''}
         </button>
         <button

@@ -2099,6 +2099,45 @@ details > summary {
   flex: 0 0 auto;
 }
 
+.opencode-help {
+  margin-top: 10px;
+  padding: 10px;
+  border: 1px solid color-mix(in srgb, var(--warn) 45%, var(--border));
+  border-radius: 4px;
+  background: color-mix(in srgb, var(--warn) 8%, var(--surface));
+}
+
+.opencode-help-auth {
+  border-color: color-mix(in srgb, var(--bad) 45%, var(--border));
+  background: color-mix(in srgb, var(--bad) 8%, var(--surface));
+}
+
+.opencode-help-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.opencode-help-head code,
+.opencode-raw {
+  color: var(--muted);
+  font-size: 10px;
+  overflow-wrap: anywhere;
+}
+
+.opencode-hint {
+  margin: 7px 0 0;
+  white-space: pre-line;
+  font-size: 11px;
+  line-height: 1.5;
+}
+
+.opencode-raw {
+  display: block;
+  margin-top: 6px;
+}
+
 .adapter-list {
   max-height: 260px;
   overflow: auto;
