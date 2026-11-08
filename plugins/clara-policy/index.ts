@@ -14,6 +14,8 @@ import { join, resolve } from 'node:path'
 import { isTerminalState, planDeliveries } from './delivery.ts'
 import type { DeliveryAlert, DeliveryRun } from './delivery.ts'
 import { NAMESPACE, renderWorkPrompt, scopeWorkerTools } from './prompt.ts'
+import { tokenDelta, tokensFromEvent, tokenTotal } from './usage.ts'
+import type { ModelTokens } from './usage.ts'
 import { catalogPath, needsExplicitWorkspace, resolveWorkspace } from './workspace.ts'
 
 const CAPABILITIES = ['tool_policy', 'path_policy', 'shell_policy', 'turn_limit', 'token_limit']
@@ -43,6 +45,8 @@ interface ActiveWork {
   turns: number
   toolCalls: number
   tokens: number
+  tokenMessages: Map<string, number>
+  lastUsagePersist?: number
   closed: boolean
   watching: boolean
   corrected?: boolean
@@ -324,9 +328,49 @@ export default {
       ).catch(() => {})
     }
 
+    // OpenCode can update one assistant message many times while it streams.
+    // Apply only the new usage, and coalesce intermediate writes so a long turn
+    // does not hammer the loopback service. Completion and failure always send
+    // the full total.
+    const applyTokens = (
+      work: ActiveWork,
+      messageID: string,
+      usage: ModelTokens | undefined,
+      final = false
+    ): boolean => {
+      const delta = tokenDelta(work.tokenMessages, messageID, usage)
+      if (!delta) return false
+      work.tokens += delta
+      const at = Date.now()
+      if (final || at - (work.lastUsagePersist ?? 0) >= 1_000) {
+        work.lastUsagePersist = at
+        void persist(work)
+      }
+      return true
+    }
+
+    // A managed worker session belongs to one step attempt, so its aggregate
+    // session usage is a useful reconciliation when an event was missed or the
+    // final turn had not reported yet. Never apply this to a fallback binding of
+    // the human's session, because it would count unrelated turns.
+    const reconcileTokens = async (work: ActiveWork): Promise<void> => {
+      if (!work.managed || typeof ctx.session?.get !== 'function') return
+      try {
+        const info = await ctx.session.get({ sessionID: work.session })
+        const total = tokenTotal(info?.tokens)
+        if (total > work.tokens) {
+          work.tokens = total
+          work.lastUsagePersist = Date.now()
+        }
+      } catch {
+        // Event usage remains the source of truth when session info is unavailable.
+      }
+    }
+
     const failMissingControl = async (work: ActiveWork): Promise<void> => {
       if (work.closed) return
       work.closed = true
+      await reconcileTokens(work)
       try {
         const response = await call<Any>(
           config,
@@ -362,6 +406,7 @@ export default {
         return
       }
       work.closed = true
+      await reconcileTokens(work)
       try {
         const response = await call<Any>(
           config,
@@ -406,9 +451,11 @@ export default {
           })
           const plan = planMissingControl(work)
           if (plan === 'ignore') {
-            // The step already ended through a control call. The worker's last
-            // turn is idle now, so release the closed binding without an
-            // interrupt and without a corrective prompt.
+            // The step already ended through a control call. Reconcile the
+            // final model turn while the session is idle and the binding still
+            // exists, then release it without an interrupt or corrective prompt.
+            await reconcileTokens(work)
+            await persist(work)
             finish(session, true)
             return
           }
@@ -494,6 +541,7 @@ export default {
         turns: 0,
         toolCalls: 0,
         tokens: 0,
+        tokenMessages: new Map(),
         closed: false,
         watching: false,
         corrected: false,
@@ -808,6 +856,8 @@ export default {
           lastTurn.set(id, at)
           work.turns += 1
           turnsFromContext = true
+          // The previous turn's usage is final when the next context is built.
+          await reconcileTokens(work)
           await persist(work)
         })
         .catch(() => {})
@@ -819,6 +869,15 @@ export default {
       try {
         const subscription = ctx.event.subscribe((event: Any) => {
           const type = String(event?.type ?? '')
+          const tokenEvent = tokensFromEvent(event)
+          if (tokenEvent) {
+            const bound = active.get(tokenEvent.sessionID)
+            if (bound) {
+              applyTokens(bound, tokenEvent.messageID, tokenEvent.usage, tokenEvent.final)
+            }
+          }
+          // A step event carries no other state the adapter needs here.
+          if (type === 'session.step.ended' || type === 'session.step.failed') return
           if (type !== 'message.updated' && type !== 'message.part.updated') return
           const part = event?.properties?.part
           if (
@@ -1023,6 +1082,7 @@ export default {
           async (input: Any, context: Any) => {
             const id = sessionID(context)
             const work = boundWork(active, context)
+            await reconcileTokens(work)
             const path = `/v1/runs/${work.run_id}/steps/${encodeURIComponent(work.step_path)}/complete`
             const response = await call<Any>(config, 'POST', path, {
               work_token: work.work_token,
@@ -1055,6 +1115,7 @@ export default {
           async (input: Any, context: Any) => {
             const id = sessionID(context)
             const work = boundWork(active, context)
+            await reconcileTokens(work)
             const path = `/v1/runs/${work.run_id}/steps/${encodeURIComponent(work.step_path)}/fail`
             const response = await call<Any>(config, 'POST', path, {
               work_token: work.work_token,
@@ -1087,6 +1148,10 @@ export default {
           async (input: Any, context: Any) => {
             const id = sessionID(context)
             const work = boundWork(active, context)
+            // route() does not accept usage, so persist the final router usage
+            // while the step still owns its lease.
+            await reconcileTokens(work)
+            await persist(work)
             const path = `/v1/runs/${work.run_id}/steps/${encodeURIComponent(work.step_path)}/route`
             const response = await call<Any>(config, 'POST', path, {
               work_token: work.work_token,
