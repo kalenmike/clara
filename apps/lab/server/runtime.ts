@@ -10,6 +10,7 @@ import type {
   ModelCatalogSummary,
   PreflightResult,
   StepRow,
+  StepSummary,
   WorkOrder,
 } from './types.ts'
 
@@ -49,6 +50,31 @@ function runIDOf(value: unknown): number | undefined {
   if (isRecord(run) && typeof run.id === 'number') return run.id
   if (typeof value.id === 'number') return value.id
   return undefined
+}
+
+interface CompiledLike {
+  kind?: string
+  children?: CompiledLike[]
+  routes?: Array<{ target?: CompiledLike }>
+}
+
+function pipelineTaskCount(snapshot: string): number | undefined {
+  try {
+    const root = JSON.parse(snapshot) as CompiledLike
+    if (root.kind !== 'pipeline') return undefined
+    let count = 0
+    const walk = (node: CompiledLike): void => {
+      if (node.kind === 'task' || node.kind === 'router') count++
+      for (const child of node.children ?? []) walk(child)
+      for (const route of node.routes ?? []) {
+        if (route.target) walk(route.target)
+      }
+    }
+    walk(root)
+    return count
+  } catch {
+    return undefined
+  }
 }
 
 export class LabRuntime {
@@ -320,6 +346,47 @@ export class LabRuntime {
     }
   }
 
+  async runStatus(runID: number): Promise<ToolResult> {
+    const result = await this.callTool('clara_status', { run_id: runID }, 'ui')
+    if (result.isError || !isRecord(result.value) || !isRecord(result.value.run)) return result
+    const id = Number(result.value.run.id)
+    if (!Number.isInteger(id)) return result
+    const taskCount = await this.pinnedTaskCount(id).catch(() => undefined)
+    return {
+      ...result,
+      value: { ...result.value, ...(taskCount === undefined ? {} : { taskCount }) },
+    }
+  }
+
+  pinnedSnapshot(runID: number): Promise<{ run_id: number; hash: string; snapshot: string }> {
+    return this.getJson(`/v1/runs/${runID}/snapshot`)
+  }
+
+  stepDetail(runID: number, stepPath: string): Promise<StepRow> {
+    return this.getJson(`/v1/runs/${runID}/steps/${encodeURIComponent(stepPath)}`)
+  }
+
+  private async getJson<T>(path: string): Promise<T> {
+    const response = await fetch(`${this.url}${path}`, {
+      headers: { authorization: `Bearer ${this.token}` },
+    })
+    const value = (await response.json()) as unknown
+    if (!response.ok) {
+      const error = isRecord(value) && isRecord(value.error) ? value.error : undefined
+      throw new Error(
+        typeof error?.message === 'string'
+          ? error.message
+          : `orchestrator returned ${response.status}`
+      )
+    }
+    return value as T
+  }
+
+  private async pinnedTaskCount(runID: number): Promise<number | undefined> {
+    const pinned = await this.pinnedSnapshot(runID)
+    return pipelineTaskCount(pinned.snapshot)
+  }
+
   async callTool(
     name: string,
     args: Record<string, unknown>,
@@ -388,7 +455,7 @@ export class LabRuntime {
     }
 
     if (name === 'clara_status' && isRecord(value) && Array.isArray(value.steps)) {
-      this.reconcileStatus(Number(args.run_id), value.steps as StepRow[])
+      this.reconcileStatus(Number(args.run_id), value.steps as StepSummary[])
       return
     }
 
@@ -407,13 +474,13 @@ export class LabRuntime {
     }
   }
 
-  private reconcileStatus(runID: number, steps: StepRow[]): void {
+  private reconcileStatus(runID: number, steps: StepSummary[]): void {
     if (!Number.isInteger(runID)) return
     const byPath = new Map(steps.map((step) => [step.path, step]))
     for (const record of this.state.listWork()) {
       if (record.order.run_id !== runID) continue
       const step = byPath.get(record.order.step_path)
-      if (!step || step.status !== 'running' || step.lease_id !== record.order.work_token) {
+      if (!step || step.status !== 'running' || step.attempt !== record.order.attempt) {
         this.state.removeWork(record.key)
       }
     }
