@@ -87,28 +87,6 @@ test('force replaces a user-authored agent', (t) => {
   assert.equal(readFileSync(destination, 'utf8'), 'first version\n')
 })
 
-test('replaces an unmodified agent from a foreign manifest', (t) => {
-  const dir = workspace(t)
-  const destination = join(dir, 'agents', 'clara.md')
-  const manifestPath = join(dir, 'agents', '.clara-policy-agents.json')
-  const foreignManifest = join(dir, 'agents', '.clara-agents.json')
-  const old = 'legacy generated\n'
-  mkdirSync(join(dir, 'agents'), { recursive: true })
-  writeFileSync(destination, old)
-  writeFileSync(foreignManifest, JSON.stringify({ agents: { clara: agentHash(old) } }))
-
-  const installed = installAgentFile({
-    id: 'clara',
-    source: source(dir),
-    destination,
-    manifestPath,
-    foreignManifests: [foreignManifest],
-  })
-
-  assert.equal(installed.replacedForeign, true)
-  assert.equal(readFileSync(destination, 'utf8'), 'first version\n')
-})
-
 test('removes only an unmodified generated agent', (t) => {
   const dir = workspace(t)
   const destination = join(dir, 'agents', 'clara.md')

@@ -5,7 +5,7 @@ import Database from 'better-sqlite3'
 
 export type ClaraDatabase = Database.Database
 
-export const SCHEMA_VERSION = 8
+export const SCHEMA_VERSION = 5
 
 const BUSY_TIMEOUT_MS = 5_000
 const DATABASE_MODE = 0o600
@@ -86,50 +86,10 @@ const MIGRATIONS: Migration[] = [
     insert.run('sync.intervalMs', JSON.stringify(DEFAULT_SYNC_INTERVAL_MS), now)
   },
   /**
-   * Clara management arrived as an opt-in master switch. Existing agents keep
-   * the old alert behavior until the panel turns it on.
+   * The panel starts the orchestration service on explicit action. Existing
+   * databases start with the switch off.
    */
   (db) => {
-    const insert = db.prepare(
-      'INSERT INTO settings (key, value, updated_at) VALUES (?, ?, ?) ON CONFLICT (key) DO NOTHING'
-    )
-    insert.run('management.enabled', JSON.stringify(false), Date.now())
-  },
-  /**
-   * Ledger alerts are delivered by the home agent. Its cursor and dedupe keys
-   * live beside the agent settings, never in the plugin's ledger.
-   */
-  (db) => {
-    db.exec(`
-      CREATE TABLE ledger_alert_state (
-        id     INTEGER PRIMARY KEY CHECK (id = 1),
-        cursor INTEGER NOT NULL
-      );
-
-      CREATE TABLE ledger_alert_delivery (
-        key          TEXT PRIMARY KEY,
-        delivered_at INTEGER NOT NULL
-      );
-    `)
-  },
-  /**
-   * Ledger alert delivery moved to a Clara-owned sidecar. Migrations are
-   * append-only, so this removes the legacy tables from existing agent
-   * databases (and from fresh ones created by the previous step).
-   */
-  (db) => {
-    db.exec(`
-      DROP TABLE IF EXISTS ledger_alert_state;
-      DROP TABLE IF EXISTS ledger_alert_delivery;
-    `)
-  },
-  /**
-   * Orchestration replaces the legacy ledger management switch. Do not inherit
-   * the old value: enabling orchestration may start a process, and an upgrade
-   * must not do that without an explicit panel action.
-   */
-  (db) => {
-    db.prepare('DELETE FROM settings WHERE key = ?').run('management.enabled')
     db.prepare(
       'INSERT INTO settings (key, value, updated_at) VALUES (?, ?, ?) ON CONFLICT (key) DO NOTHING'
     ).run('orchestration.enabled', JSON.stringify(false), Date.now())
