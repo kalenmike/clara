@@ -21,7 +21,7 @@ packages/devtools     Pipeline preview, diagnostics, and snapshot diff SDK
 packages/mcp-server   Shared MCP tools and resources
 packages/crypto       PSK derivation, AES-GCM envelopes, replay guard
 workers/relay         Cloudflare Worker + RelayRoom Durable Object
-lib/std               Standard orchestration packages (software, content, research)
+lib/std               Standard orchestration packages (software, content, research, diagnostics)
 ```
 
 ## Tech stack
@@ -51,6 +51,7 @@ pnpm clara control  # Serve the built panel and open it in a browser
 pnpm clara serve    # Run the built home agent
 pnpm clara pass     # Print the local OpenCode password
 pnpm clara orchestration start [--docker] [--build]|stop [--docker]|status|serve # Run the orchestration service
+pnpm clara orchestration analyze [--json] [--days n] # Analyze run history for failure patterns
 pnpm clara lab      # Open Clara Lab to preview pipelines and probe the agent
 pnpm clara lab check # Validate a package target for CI
 pnpm clara mcp install|config|status # Install or inspect the MCP bridge
@@ -207,6 +208,7 @@ docs(sessions): document archived session filters
 | E2EE, PSK, envelopes, rotation     | [docs/architecture/e2ee.md](docs/architecture/e2ee.md)           |
 | What ships and what does not       | [docs/features/capabilities.md](docs/features/capabilities.md)   |
 | Orchestration service and control  | [docs/features/orchestration.md](docs/features/orchestration.md) |
+| Orchestrator diagnosis and fixes   | [docs/features/diagnostics.md](docs/features/diagnostics.md)     |
 | Pipeline preview and agent probe   | [docs/features/lab.md](docs/features/lab.md)                     |
 | Pairing, QR codes, device storage  | [docs/features/pairing.md](docs/features/pairing.md)             |
 | Install, updates, offline caching  | [docs/features/install.md](docs/features/install.md)             |
