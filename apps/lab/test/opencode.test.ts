@@ -40,7 +40,9 @@ beforeAll(async () => {
       return
     }
     if (url.pathname === '/api/session/ses_live') {
-      response.end(JSON.stringify({ data: sessionInfo('ses_live', 'Fix the parser', '/workspace/clara') }))
+      response.end(
+        JSON.stringify({ data: sessionInfo('ses_live', 'Fix the parser', '/workspace/clara') })
+      )
       return
     }
     if (url.pathname === '/api/event') {

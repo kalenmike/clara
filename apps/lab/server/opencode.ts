@@ -75,7 +75,10 @@ export class OpenCodeObserver {
   private error: string | undefined
   private updatedAt = new Date().toISOString()
 
-  constructor(config: { url: string; password?: string }, onChange: (summary: OpenCodeSummary) => void) {
+  constructor(
+    config: { url: string; password?: string },
+    onChange: (summary: OpenCodeSummary) => void
+  ) {
     this.config = config
     this.onChange = onChange
     this.client = OpenCode.make({
@@ -231,21 +234,17 @@ export class OpenCodeObserver {
       }
     }
 
-    const active = await this.client.session
-      .active({ signal })
-      .catch((cause: unknown) => {
-        error = message(cause)
-        return undefined
-      })
+    const active = await this.client.session.active({ signal }).catch((cause: unknown) => {
+      error = message(cause)
+      return undefined
+    })
     if (active) {
       this.running.clear()
       for (const id of Object.keys(active)) this.running.add(id)
     }
 
     await Promise.all(
-      [...this.activity.keys()]
-        .filter((id) => !this.details.has(id))
-        .map((id) => this.enrich(id))
+      [...this.activity.keys()].filter((id) => !this.details.has(id)).map((id) => this.enrich(id))
     )
 
     this.reachable = Boolean(listed || active) || this.connected

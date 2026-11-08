@@ -110,9 +110,8 @@ export class LabRuntime {
     this.url = options.url
     this.token = options.token
     this.modelCatalog = options.models ?? createModelCatalogLoader()
-    this.opencode = new OpenCodeObserver(
-      options.opencode ?? resolveOpenCodeConfig(),
-      (summary) => this.state.setOpenCode(summary)
+    this.opencode = new OpenCodeObserver(options.opencode ?? resolveOpenCodeConfig(), (summary) =>
+      this.state.setOpenCode(summary)
     )
     this.mcp = new McpClient(options.url, options.token)
     this.state.orchestrator = options.url
@@ -386,8 +385,7 @@ export class LabRuntime {
     const terminal = new Set(['completed', 'failed', 'cancelled'])
     const targets = rows.filter(
       (row) =>
-        !terminal.has(row.state) &&
-        (row.root_run_id === undefined || row.root_run_id === row.id)
+        !terminal.has(row.state) && (row.root_run_id === undefined || row.root_run_id === row.id)
     )
     const failed: CancelAllResult['failed'] = []
     let cancelled = 0
