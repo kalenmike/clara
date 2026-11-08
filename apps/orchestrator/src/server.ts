@@ -3,8 +3,8 @@ import { createServer, type IncomingMessage, type Server, type ServerResponse } 
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js'
 import { createClaraServer } from '@clara/mcp-server'
 import type { Runtime } from '@clara/orchestration'
+import { instanceMode } from '@clara/orchestration-control'
 import { RuntimeBackend } from './backend.ts'
-import { instanceMode } from './config.ts'
 
 export interface OrchestratorServerOptions {
   runtime: Runtime

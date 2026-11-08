@@ -37,6 +37,9 @@
     "packages/orchestration": {
       "project": ["src/**/*.ts", "test/**/*.ts"]
     },
+    "packages/orchestration-control": {
+      "project": ["src/**/*.ts", "test/**/*.ts"]
+    },
     "packages/devtools": {
       "project": ["src/**/*.ts", "test/**/*.ts"]
     },

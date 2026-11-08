@@ -32,6 +32,9 @@
       "path": "./packages/orchestration"
     },
     {
+      "path": "./packages/orchestration-control"
+    },
+    {
       "path": "./packages/mcp-server"
     },
     {
