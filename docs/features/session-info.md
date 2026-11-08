@@ -8,7 +8,9 @@ counts, timing, and the active model's limits. Cost can be the amount OpenCode
 reports or an estimate calculated from model prices. A Plan dock below the tabs
 renders the agent's todo checklist on every tab, so the plan stays visible while
 the person watches Git or the pair terminal. It shares the right panel with the
-[Git](git.md) tab and the [pair terminal](pair-terminal.md).
+[Git](git.md) tab and the [pair terminal](pair-terminal.md). A compact version
+of the session's token and cost totals also sits in the chat's bottom usage bar
+(see [chat](chat.md)).
 
 ## User flow
 
