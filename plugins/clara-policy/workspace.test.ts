@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { resolveWorkspace } from './workspace.ts'
+import { catalogPath, needsExplicitWorkspace, resolveWorkspace } from './workspace.ts'
 
 test('prefers the container workspace override', () => {
   assert.equal(
@@ -32,4 +32,18 @@ test('falls back to the legacy workspace fields', () => {
 test('falls back to the current directory and ignores blanks', () => {
   assert.equal(resolveWorkspace(undefined, {}, '/cwd'), '/cwd')
   assert.equal(resolveWorkspace({ worktree: '  ' }, {}, '/cwd'), '/cwd')
+})
+
+test('detects an orchestrator that needs an explicit workspace', () => {
+  const legacy = Object.assign(new Error('workspace query is required'), {
+    code: 'workspace_required',
+  })
+  assert.equal(needsExplicitWorkspace(legacy), true)
+  assert.equal(needsExplicitWorkspace(new Error('other')), false)
+  assert.equal(needsExplicitWorkspace('workspace_required'), false)
+})
+
+test('addresses the configured catalog only for a legacy orchestrator', () => {
+  assert.equal(catalogPath(), '/v1/catalog')
+  assert.equal(catalogPath('/workspace/clara'), '/v1/catalog?workspace=%2Fworkspace%2Fclara')
 })
