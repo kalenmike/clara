@@ -14,6 +14,7 @@ import { join, resolve } from 'node:path'
 import { isTerminalState, planDeliveries } from './delivery.ts'
 import type { DeliveryAlert, DeliveryRun } from './delivery.ts'
 import { NAMESPACE, renderWorkPrompt, scopeWorkerTools } from './prompt.ts'
+import { resolveWorkspace } from './workspace.ts'
 
 const CAPABILITIES = ['tool_policy', 'path_policy', 'shell_policy', 'turn_limit', 'token_limit']
 const INTERFACE_AGENT = process.env.CLARA_INTERFACE_AGENT?.trim() || 'clara'
@@ -150,15 +151,6 @@ function content(value: unknown): { content: string } {
   return { content: typeof value === 'string' ? value : JSON.stringify(value, null, 2) }
 }
 
-function workspace(context: Any): string {
-  return (
-    process.env.CLARA_ORCHESTRATION_WORKSPACE?.trim() ||
-    (typeof context?.workspace === 'string' ? context.workspace : '') ||
-    (typeof context?.location?.directory === 'string' ? context.location.directory : '') ||
-    process.cwd()
-  )
-}
-
 function modelRef(work: Any): { providerID: string; id: string } | undefined {
   const provider = typeof work?.provider === 'string' ? work.provider.trim() : ''
   const model = typeof work?.model === 'string' ? work.model.trim() : ''
@@ -238,11 +230,11 @@ export default {
       try {
         const registered = await call<{ id: string }>(config, 'POST', '/v1/adapters/register', {
           harness: 'opencode',
-          workspace: workspace(ctx),
+          workspace: resolveWorkspace(ctx),
           capabilities: CAPABILITIES,
         })
         adapterID = registered.id
-        console.log(`[clara-policy] adapter ${adapterID} registered for ${workspace(ctx)}`)
+        console.log(`[clara-policy] adapter ${adapterID} registered for ${resolveWorkspace(ctx)}`)
       } catch (error) {
         console.error(`[clara-policy] adapter registration failed: ${(error as Error).message}`)
       }
@@ -268,7 +260,7 @@ export default {
         work_token: String(work.work_token),
         name: String(work.name),
         session,
-        workspace: String(work.workspace ?? workspace(ctx)),
+        workspace: String(work.workspace ?? resolveWorkspace(ctx)),
         enforcement: String(work.enforcement ?? 'observed'),
         kind: String(work.kind ?? 'task'),
         routes: Array.isArray(work.routes)
@@ -291,7 +283,9 @@ export default {
       if (!ctx.session?.create || !ctx.session?.prompt || !ctx.session?.switchAgent) return false
       const parentSession = sessionID(context)
       const directory =
-        typeof work?.workspace === 'string' && work.workspace ? work.workspace : workspace(context)
+        typeof work?.workspace === 'string' && work.workspace
+          ? work.workspace
+          : resolveWorkspace(context)
       const agent = process.env.CLARA_WORKER_AGENT?.trim() || 'general'
       const model = modelRef(work)
       if (
@@ -354,7 +348,7 @@ export default {
     const adoptRuns = async (): Promise<void> => {
       try {
         const runs = await call<DeliveryRun[]>(config, 'GET', '/v1/runs?summary=1')
-        const current = resolve(workspace(ctx))
+        const current = resolve(resolveWorkspace(ctx))
         let adopted = 0
         for (const run of runs) {
           if (!run || run.origin_harness !== 'opencode') continue
@@ -397,7 +391,7 @@ export default {
     const deliverRuns = async (): Promise<void> => {
       if (!ctx.session?.prompt) return
       try {
-        const current = resolve(workspace(ctx))
+        const current = resolve(resolveWorkspace(ctx))
         const [runs, alerts] = await Promise.all([
           call<DeliveryRun[]>(config, 'GET', '/v1/runs?summary=1'),
           call<DeliveryAlert[]>(config, 'GET', '/v1/inbox'),
@@ -664,7 +658,7 @@ export default {
             }
             const started = await call<Any>(config, 'POST', '/v1/runs', {
               prompt: input.prompt,
-              workspace: input.workspace ?? workspace(context),
+              workspace: input.workspace ?? resolveWorkspace(context),
               ...(input.target ? { target: input.target } : {}),
               origin: {
                 session_id: sessionID(context) ?? null,
@@ -987,7 +981,7 @@ export default {
               await call(
                 config,
                 'GET',
-                `/v1/catalog?workspace=${encodeURIComponent(input.workspace ?? workspace(context))}`
+                `/v1/catalog?workspace=${encodeURIComponent(input.workspace ?? resolveWorkspace(context))}`
               )
             )
         )

@@ -62,6 +62,24 @@ describe('orchestrator HTTP service', () => {
     expect(await response.json()).toMatchObject({ workspace })
   })
 
+  it('returns the resolved package catalog', async () => {
+    const response = await fetch(`${base}/v1/catalog?workspace=${encodeURIComponent(workspace)}`, {
+      headers: auth(),
+    })
+    expect(response.status).toBe(200)
+    const packages = (await response.json()) as Array<{
+      id: string
+      entry: Record<string, unknown>
+    }>
+    expect(Array.isArray(packages)).toBe(true)
+    expect(packages.map((pkg) => pkg.id)).toEqual(
+      expect.arrayContaining(['orchestration', 'software'])
+    )
+    expect(packages.find((pkg) => pkg.id === 'software')?.entry).toEqual({
+      router: 'classifier',
+    })
+  })
+
   it('starts and advances a run through the REST API', async () => {
     const started = await fetch(`${base}/v1/runs`, {
       method: 'POST',
