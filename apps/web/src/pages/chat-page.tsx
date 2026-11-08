@@ -19,6 +19,7 @@ import { MessageList } from '@/components/chat/message-list'
 import { PermissionPanel } from '@/components/chat/permission-panel'
 import { ReplyActions } from '@/components/chat/reply-actions'
 import { ReplyDock } from '@/components/chat/reply-dock'
+import { SessionStatsBar } from '@/components/chat/session-stats-bar'
 import { SidePanel } from '@/components/layout/side-panel'
 import { useDefaultAgent } from '@/features/agents/use-default-agent'
 import { useAgents, useModels } from '@/features/catalog/use-catalog'
@@ -407,113 +408,117 @@ function ChatPageContent() {
   return (
     <div className="flex h-full min-h-0">
       <div className="relative flex min-w-0 flex-1 flex-col">
-        {sessionQuery.isLoading ? (
-          <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
-            <Loader2 className="mr-2 size-4 animate-spin" /> Loading {lowerSingular}…
-          </div>
-        ) : sessionQuery.isError || !session ? (
-          <div className="flex h-full flex-col items-center justify-center gap-3 text-center">
-            <p className="text-sm font-medium">{singular} not found</p>
-            <p className="max-w-sm text-xs text-muted-foreground">
-              It may have been deleted or the server is unreachable.
-            </p>
-            <Button asChild variant="outline" size="sm">
-              <Link to={projectId ? `/p/${projectId}` : '/'}>
-                <ArrowLeft className="size-4" /> Back to {lowerPlural}
-              </Link>
-            </Button>
-          </div>
-        ) : (
-          <>
-            <ChatHeader
-              session={session}
-              snapshot={snapshot}
-              infoOpen={infoOpen}
-              onToggleInfo={togglePanel}
-              onFork={handleForkSession}
-              forkPending={forkPending}
-              onDeleted={() => navigate(`/p/${projectId ?? session.projectID}`)}
-              allCollapsed={allCollapsed}
-              canToggleAll={canToggleAll}
-              onToggleAll={toggleAll}
-              showInternal={showInternal}
-              onToggleInternal={toggleInternal}
-              worker={worker}
-            />
-
-            {draftCount > 0 && !busy && !worker && !isArchivedSession(session) && (
-              <DraftStartPanel key={sessionId} sessionID={sessionId} count={draftCount} />
-            )}
-            {worker && <FormPanel sessionID={sessionId} />}
-            <PermissionPanel sessionID={sessionId} directory={directory} messages={allMessages} />
-
-            {messagesPending ? (
-              <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
-                <Loader2 className="mr-2 size-4 animate-spin" /> Loading conversation…
-              </div>
-            ) : messagesQuery.isError && allMessages.length === 0 ? (
-              <div className="flex h-full flex-col items-center justify-center gap-3 text-center">
-                <p className="text-sm font-medium">Could not load the conversation</p>
-                <p className="max-w-sm text-xs text-muted-foreground">
-                  The server did not return this {lowerSingular}&apos;s messages.
-                </p>
-                <Button variant="outline" size="sm" onClick={() => void messagesQuery.refetch()}>
-                  Retry
-                </Button>
-              </div>
-            ) : timeline.length === 0 ? (
-              isDraftSession ? (
-                <DraftSessionView hasDraft={hasLocalDraft} />
-              ) : (
-                <EmptySessionView
-                  title="No messages"
-                  description={`This ${lowerSingular} has no messages yet.`}
-                />
-              )
-            ) : (
-              <MessageList
-                sessionID={sessionId}
-                items={timeline}
-                scrollToEndRequest={scrollToEndRequest}
-                streaming={busy}
+        <div className="relative flex min-h-0 flex-1 flex-col">
+          {sessionQuery.isLoading ? (
+            <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
+              <Loader2 className="mr-2 size-4 animate-spin" /> Loading {lowerSingular}…
+            </div>
+          ) : sessionQuery.isError || !session ? (
+            <div className="flex h-full flex-col items-center justify-center gap-3 text-center">
+              <p className="text-sm font-medium">{singular} not found</p>
+              <p className="max-w-sm text-xs text-muted-foreground">
+                It may have been deleted or the server is unreachable.
+              </p>
+              <Button asChild variant="outline" size="sm">
+                <Link to={projectId ? `/p/${projectId}` : '/'}>
+                  <ArrowLeft className="size-4" /> Back to {lowerPlural}
+                </Link>
+              </Button>
+            </div>
+          ) : (
+            <>
+              <ChatHeader
+                session={session}
+                snapshot={snapshot}
+                infoOpen={infoOpen}
+                onToggleInfo={togglePanel}
+                onFork={handleForkSession}
+                forkPending={forkPending}
+                onDeleted={() => navigate(`/p/${projectId ?? session.projectID}`)}
+                allCollapsed={allCollapsed}
+                canToggleAll={canToggleAll}
+                onToggleAll={toggleAll}
                 showInternal={showInternal}
-                revision={snapshot.revision}
-                historyRevision={snapshot.historyRevision}
-                collapsedIDs={collapsedIDs}
-                hasOlder={snapshot.hasOlder}
-                loadingOlder={messagesQuery.loadingOlder}
-                onLoadOlder={() => void messagesQuery.loadOlder()}
-                onToggleMessage={toggleMessage}
-                onForkMessage={handleForkMessage}
-                onForwardMessage={handleForwardMessage}
-                canActOnMessage={canActOnMessage}
-                canFork={!worker}
-                actionsDisabled={forkPending || forwardPending}
+                onToggleInternal={toggleInternal}
+                worker={worker}
               />
-            )}
 
-            <ReplyActions
-              session={session}
-              sessionID={sessionId}
-              projectID={projectId}
-              busy={busy}
-              ready={messagesReady}
-              empty={emptySession}
-              hasDraft={hasLocalDraft}
-              requests={pendingRequestCount}
-              worker={worker}
-              onDone={() => {
-                if (inboxMonitor.active) {
-                  inboxMonitor.advance(sessionId)
-                  return
-                }
-                navigate('/')
-              }}
-            />
-          </>
-        )}
+              {draftCount > 0 && !busy && !worker && !isArchivedSession(session) && (
+                <DraftStartPanel key={sessionId} sessionID={sessionId} count={draftCount} />
+              )}
+              {worker && <FormPanel sessionID={sessionId} />}
+              <PermissionPanel sessionID={sessionId} directory={directory} messages={allMessages} />
 
-        <ReplyDock />
+              {messagesPending ? (
+                <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
+                  <Loader2 className="mr-2 size-4 animate-spin" /> Loading conversation…
+                </div>
+              ) : messagesQuery.isError && allMessages.length === 0 ? (
+                <div className="flex h-full flex-col items-center justify-center gap-3 text-center">
+                  <p className="text-sm font-medium">Could not load the conversation</p>
+                  <p className="max-w-sm text-xs text-muted-foreground">
+                    The server did not return this {lowerSingular}&apos;s messages.
+                  </p>
+                  <Button variant="outline" size="sm" onClick={() => void messagesQuery.refetch()}>
+                    Retry
+                  </Button>
+                </div>
+              ) : timeline.length === 0 ? (
+                isDraftSession ? (
+                  <DraftSessionView hasDraft={hasLocalDraft} />
+                ) : (
+                  <EmptySessionView
+                    title="No messages"
+                    description={`This ${lowerSingular} has no messages yet.`}
+                  />
+                )
+              ) : (
+                <MessageList
+                  sessionID={sessionId}
+                  items={timeline}
+                  scrollToEndRequest={scrollToEndRequest}
+                  streaming={busy}
+                  showInternal={showInternal}
+                  revision={snapshot.revision}
+                  historyRevision={snapshot.historyRevision}
+                  collapsedIDs={collapsedIDs}
+                  hasOlder={snapshot.hasOlder}
+                  loadingOlder={messagesQuery.loadingOlder}
+                  onLoadOlder={() => void messagesQuery.loadOlder()}
+                  onToggleMessage={toggleMessage}
+                  onForkMessage={handleForkMessage}
+                  onForwardMessage={handleForwardMessage}
+                  canActOnMessage={canActOnMessage}
+                  canFork={!worker}
+                  actionsDisabled={forkPending || forwardPending}
+                />
+              )}
+
+              <ReplyActions
+                session={session}
+                sessionID={sessionId}
+                projectID={projectId}
+                busy={busy}
+                ready={messagesReady}
+                empty={emptySession}
+                hasDraft={hasLocalDraft}
+                requests={pendingRequestCount}
+                worker={worker}
+                onDone={() => {
+                  if (inboxMonitor.active) {
+                    inboxMonitor.advance(sessionId)
+                    return
+                  }
+                  navigate('/')
+                }}
+              />
+            </>
+          )}
+
+          <ReplyDock />
+        </div>
+
+        {session && <SessionStatsBar session={session} snapshot={snapshot} />}
       </div>
 
       {session && infoOpen && isDesktop && (
