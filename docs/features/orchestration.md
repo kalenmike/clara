@@ -187,7 +187,9 @@ conversation.
 appends an immutable row to `step_attempts` with the attempt number, outcome,
 usage, timings, model, result, and error. A retry therefore never overwrites the
 previous attempt's data, and the step's counters describe one attempt instead of
-mixing the final attempt with the lifetime of the step. Attempt status is one of
+mixing the final attempt with the lifetime of the step. The live row resets its
+result, error, timings, and usage when a new attempt starts, so it never
+presents a previous attempt as the current one. Attempt status is one of
 `running`, `waiting_children`, `retry`, `done`, `failed`, or `cancelled`.
 
 Events record the same transitions and carry `attempt_id`, so a `step.started`,
@@ -367,14 +369,18 @@ the orchestrator setup" or directly with `target: std:diagnostics`. See
   next work order; no watchdog tick is required to advance healthy work.
 - The adapter restarts with active runs: it adopts non-terminal runs for its
   workspace, so dispatch and delivery resume without a new user request.
-- A worker exceeds its turn/tool/token budget: policy checks deny further
-  tools, but the Clara control tools (`clara_route`, `clara_complete`,
-  `clara_fail`, `clara_spawn`) stay available so the worker can still finish
-  or report the failure. The step is marked budget-exceeded and retries may
-  receive a larger budget.
-- A step is `observed`: policy denials are recorded as `policy.observed`
+- A worker exceeds its turn/tool/token budget: budgets are hard caps in every
+  enforcement mode, including `observed`. Policy checks deny further work tools
+  and record one `budget.exhausted` event per attempt, but the Clara control
+  tools (`clara_route`, `clara_complete`, `clara_fail`, `clara_spawn`) stay
+  available so the worker can still finish or report the failure. A completion
+  that arrives over budget is kept and marked `over_budget` on its
+  `step.completed` event instead of being retried; the result is never
+  discarded. Token budgets stay advisory until the adapter reports model token
+  usage.
+- A step is `observed`: permission denials are recorded as `policy.observed`
   events, but tools are not blocked. `strict` and `sandboxed` steps deny and
-  count violations.
+  count violations. Enforcement mode does not relax the resource budgets above.
 - A workspace has no `orchestration/index.yml`: start fails with a clear config
   error instead of guessing a pipeline.
 - A step declares a model without a provider: the lab reports
