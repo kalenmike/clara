@@ -66,6 +66,10 @@ whether the watchdog and budgets are configured correctly.
   returns "not enough history" rather than inventing findings.
 - **Duplicate terminal events:** a run that emits `run.failed` hundreds of times
   is reported as `terminal_event_storm`, not counted as hundreds of failures.
+- **Live steps under a terminal run:** a completed, failed, or cancelled run
+  that still has a `pending`, `ready`, `running`, or `waiting_children` step is
+  reported as `terminal_run_live_steps`. The analyzer reports the rows; it does
+  not rewrite them.
 - **Stale adapters:** many historical adapter rows can remain registered. The
   report lists the ones with a heartbeat older than two minutes and treats a
   missing adapter for strict runs as a setup issue.
@@ -121,10 +125,10 @@ propose_fixes → review_report`.
   report as the CLI.
 - Report fields: `window`, `runs`, `steps`, `pipelines`, `step_health`,
   `errors`, `alerts`, `anomalies`, and `recent_failures`.
-- Anomaly codes: `terminal_event_storm`, `retry_exhaustion`,
-  `stalled_dominance`, `open_alert_backlog`, `duplicate_alerts`,
-  `no_completions`, `missing_model_provider`, `stale_adapter`,
-  `adapter_missing`, `watchdog_churn`, `stale_active_runs`, and
+- Anomaly codes: `terminal_event_storm`, `terminal_run_live_steps`,
+  `retry_exhaustion`, `stalled_dominance`, `open_alert_backlog`,
+  `duplicate_alerts`, `no_completions`, `missing_model_provider`,
+  `stale_adapter`, `adapter_missing`, `watchdog_churn`, `stale_active_runs`, and
   `runs_without_steps`.
 - Data: `${CLARA_DATA_DIR:-~/.local/share/clara}/orchestration.db`.
 - Tests: `packages/orchestration/test/diagnostics.test.ts` and

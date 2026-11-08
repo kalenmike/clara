@@ -411,6 +411,7 @@ export function analyzeDatabase(
     if (list) list.push(step)
     else stepsByRun.set(step.run_id, [step])
   }
+  const stateByRun = new Map(runRows.map((run) => [run.id, run.state]))
 
   const routes = new Map<number, { route: string; depth: number }>()
   for (const step of stepRows) {
@@ -923,6 +924,26 @@ export function analyzeDatabase(
       'Runs have no step rows',
       `${zeroStepRuns.length} run(s) have no recorded steps.`,
       { runs: zeroStepRuns.slice(0, 5).map((run) => run.id) }
+    )
+  }
+
+  const liveStepStatuses = new Set(['pending', 'ready', 'running', 'waiting_children'])
+  const liveUnderTerminal = stepRows.filter(
+    (step) =>
+      TERMINAL_STATES.has(stateByRun.get(step.run_id) ?? '') && liveStepStatuses.has(step.status)
+  )
+  if (liveUnderTerminal.length) {
+    addAnomaly(
+      'terminal_run_live_steps',
+      'high',
+      'Terminal runs contain live steps',
+      `${liveUnderTerminal.length} step(s) are pending or running under a completed, failed, or cancelled run.`,
+      {
+        steps: liveUnderTerminal
+          .slice(0, 8)
+          .map((step) => ({ run_id: step.run_id, path: step.path, status: step.status })),
+        total: liveUnderTerminal.length,
+      }
     )
   }
 
