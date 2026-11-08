@@ -76,7 +76,8 @@ That is the preferred setup when the agent itself is containerized.
 
 1. Copy `docker/.env.example` and set:
    - `CLARA_ORCHESTRATION_TOKEN` to a long random token,
-   - `CLARA_WORKSPACE` to the absolute path of the repository or workspace.
+   - `CLARA_WORKSPACE` to the absolute path of the repository or workspace,
+   - `CLARA_DATA_DIR` to the host directory that stores the database and token.
 2. Start the service:
 
    ```sh
@@ -101,9 +102,15 @@ The compose service sets `CLARA_ORCHESTRATION_WORKSPACE=/workspace/clara`, which
 is the path the service reports to Clara Lab. Change it only if you move the
 workspace mount. The orchestrator image bakes `lib/std` at
 `/opt/clara/lib/std`. A workspace that vendors its own standard library can set
-`CLARA_STD_DIR` to its `lib/std`. The orchestrator does not publish a host port;
-only the private Docker network can reach it. The database lives in the
-`orchestrator-data` volume.
+`CLARA_STD_DIR` to its `lib/std`. Compose publishes the port on host loopback
+only (`127.0.0.1:8789:8789`) so host tools such as
+`pnpm clara orchestration status` and Clara Lab can reach the container. The
+database and token live under the host `CLARA_DATA_DIR` mount.
+
+The container writes no host PID file. `pnpm clara orchestration status` reports
+`running (docker container)`, and `pnpm clara orchestration stop` does not
+signal anything; stop the container with `pnpm docker:orchestrator:down` or
+`pnpm clara orchestration stop --docker`.
 
 ## Core business rules
 
@@ -306,7 +313,7 @@ docs:    assess_docs → update_docs → verify_docs → docs_review
   `CLARA_ORCHESTRATION_WORKSPACE` (default: the service's working directory),
   plus `CLARA_STD_DIR` and `CLARA_ORCHESTRATION_CONFIG` when set.
 - Container: `docker compose -f docker/compose.yml up -d --build orchestrator`.
-- Commands: `pnpm clara orchestration start|stop|status|serve|token`,
+- Commands: `pnpm clara orchestration start|stop [--docker]|status|serve|token`,
   `pnpm clara mcp install|uninstall|config|status`,
   `pnpm clara adapter install opencode|uninstall|status`,
   `pnpm clara lab [serve|check]`.
