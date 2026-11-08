@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { getOpenCodeSessions } from '../api'
+import { getOpenCodeSessions, reconnectOpenCode } from '../api'
 import type { OpenCodeSessionRow, OpenCodeSessionsResult } from '../types'
 import type { LabStream } from '../useLab'
 import { ago, dateTime } from '../lib/format'
@@ -41,6 +41,16 @@ export function Sessions({
     return () => window.clearInterval(timer)
   }, [active, refresh])
 
+  const reconnect = async (): Promise<void> => {
+    setError(null)
+    try {
+      await reconnectOpenCode()
+      await refresh()
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : String(cause))
+    }
+  }
+
   const sessions = useMemo(() => {
     const rows = result?.sessions ?? []
     const text = filter.trim().toLowerCase()
@@ -57,6 +67,9 @@ export function Sessions({
   const running = sessions.filter((session) => session.running).length
   const connected = result?.connected ?? summary?.connected ?? false
   const reachable = result?.reachable ?? summary?.reachable ?? false
+  const hint = result?.hint ?? summary?.hint
+  const errorKind = result?.errorKind ?? summary?.errorKind
+  const rawError = result?.error ?? summary?.error
 
   return (
     <div className="view sessions-view">
@@ -69,8 +82,16 @@ export function Sessions({
           </p>
         </div>
         <div className="view-head-actions">
-          <Badge tone={connected ? 'ok' : reachable ? 'warn' : 'bad'}>
-            {connected ? 'streaming' : reachable ? 'reachable' : 'offline'}
+          <Badge
+            tone={errorKind === 'auth' ? 'bad' : connected ? 'ok' : reachable ? 'warn' : 'bad'}
+          >
+            {errorKind === 'auth'
+              ? 'auth required'
+              : connected
+                ? 'streaming'
+                : reachable
+                  ? 'reachable'
+                  : 'offline'}
           </Badge>
           <button
             type="button"
@@ -87,12 +108,25 @@ export function Sessions({
       {error ? <div className="banner bad">{error}</div> : null}
 
       {!connected ? (
-        <div className="banner warn">
-          <strong>OpenCode is not streaming.</strong>{' '}
-          {result?.error ?? summary?.error ?? 'Start OpenCode or check the URL in Settings.'}{' '}
-          <button type="button" className="link" onClick={onOpenSettings}>
-            Open Settings
-          </button>
+        <div className={`banner ${errorKind === 'auth' ? 'bad' : 'warn'}`}>
+          <strong>
+            {errorKind === 'auth'
+              ? 'OpenCode authentication required.'
+              : 'OpenCode is not streaming.'}
+          </strong>
+          <p className="opencode-hint">
+            {hint ?? rawError ?? 'Start OpenCode or check the URL in Settings.'}
+          </p>
+          {hint && rawError ? <code className="opencode-raw">{rawError}</code> : null}
+          <div className="inline-actions">
+            <button type="button" className="button primary" onClick={() => void reconnect()}>
+              <Icon name="refresh" size={14} />
+              Reconnect OpenCode
+            </button>
+            <button type="button" className="button" onClick={onOpenSettings}>
+              Open Settings
+            </button>
+          </div>
         </div>
       ) : null}
 
@@ -129,9 +163,11 @@ export function Sessions({
         ))}
         {!sessions.length ? (
           <div className="empty">
-            {result
+            {result?.sessionCount
               ? 'No OpenCode sessions match this filter.'
-              : 'Waiting for the lab server to report sessions.'}
+              : result
+                ? 'No OpenCode sessions observed yet.'
+                : 'Waiting for the lab server to report sessions.'}
           </div>
         ) : null}
       </div>

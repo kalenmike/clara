@@ -173,14 +173,23 @@ export interface ToolInfo {
   inputSchema?: unknown
 }
 
+export interface OpenCodeAuthInfo {
+  present: boolean
+  source: 'env' | 'service' | 'default'
+  serviceFile: string
+}
+
 export interface OpenCodeSummary {
   connected: boolean
   reachable: boolean
   url: string
   sessionCount: number
   activeCount: number
+  auth: OpenCodeAuthInfo
   updatedAt: string
   error?: string
+  errorKind?: 'auth' | 'connection' | 'unknown'
+  hint?: string
 }
 
 export interface OpenCodeSessionRow {

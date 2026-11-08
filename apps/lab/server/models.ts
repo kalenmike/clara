@@ -11,6 +11,7 @@ export interface OpenCodeConfig {
   url: string
   password?: string
   source: 'env' | 'service' | 'default'
+  serviceFile: string
 }
 
 export interface ModelCatalog {
@@ -24,9 +25,13 @@ export interface ModelCatalog {
 
 export type ModelCatalogSource = () => Promise<ModelCatalog>
 
-function serviceConfig(): { url: string; password?: string } | undefined {
+export function openCodeServiceFile(): string {
   const stateHome = process.env.XDG_STATE_HOME ?? join(homedir(), '.local', 'state')
-  const path = join(stateHome, 'opencode', 'service.json')
+  return join(stateHome, 'opencode', 'service.json')
+}
+
+function serviceConfig(): { url: string; password?: string } | undefined {
+  const path = openCodeServiceFile()
   try {
     if (!existsSync(path)) return undefined
     const parsed = JSON.parse(readFileSync(path, 'utf8')) as {
@@ -49,22 +54,18 @@ export function resolveOpenCodeConfig(): OpenCodeConfig {
   const envUrl = process.env.CLARA_OPENCODE_URL?.trim()
   const envPassword = process.env.CLARA_OPENCODE_PASSWORD?.trim()
   const service = serviceConfig()
-  if (envUrl) {
-    const password = envPassword || service?.password
-    return {
-      url: envUrl.replace(/\/+$/, ''),
-      ...(password ? { password } : {}),
-      source: 'env',
-    }
+  const url = envUrl
+    ? envUrl.replace(/\/+$/, '')
+    : (service?.url.replace(/\/+$/, '') ?? DEFAULT_OPENCODE_URL)
+  const password = envPassword || service?.password
+  const source: OpenCodeConfig['source'] =
+    envUrl || envPassword ? 'env' : service ? 'service' : 'default'
+  return {
+    url,
+    ...(password ? { password } : {}),
+    source,
+    serviceFile: openCodeServiceFile(),
   }
-  if (service) {
-    return {
-      url: service.url.replace(/\/+$/, ''),
-      ...(service.password ? { password: service.password } : {}),
-      source: 'service',
-    }
-  }
-  return { url: DEFAULT_OPENCODE_URL, source: 'default' }
 }
 
 export function basicAuth(password: string): string {

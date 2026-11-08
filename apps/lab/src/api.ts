@@ -117,6 +117,10 @@ export function getOpenCodeSessions(): Promise<OpenCodeSessionsResult> {
   return request<OpenCodeSessionsResult>('/api/opencode/sessions')
 }
 
+export function reconnectOpenCode(): Promise<{ ok: boolean }> {
+  return request<{ ok: boolean }>('/api/opencode/reconnect', mutation({}))
+}
+
 export function cancelAllRuns(): Promise<CancelAllResult> {
   return request<CancelAllResult>('/api/runs/cancel-all', mutation({}))
 }
