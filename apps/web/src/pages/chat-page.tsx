@@ -39,6 +39,7 @@ import {
   useSwitchModel,
 } from '@/features/chat/use-chat'
 import { useSessionForms } from '@/features/chat/use-forms'
+import { useActiveSessionStatus } from '@/features/chat/use-session-status'
 import { useModelVisibility } from '@/features/models/use-model-visibility'
 import { isModelVisible } from '@/features/models/visibility'
 import { useSessionPolicy } from '@/features/notifications/session-policy'
@@ -92,6 +93,7 @@ function ChatPageContent() {
   useMarkSessionViewed(session)
   const worker = session != null && isAutomation?.(session) === true
   const snapshot = useChatSnapshot(sessionId ?? '')
+  useActiveSessionStatus(sessionId ?? '')
   const messagesQuery = useSessionMessages(sessionId ?? '')
   const inboxQuery = useSessionInbox(sessionId ?? '')
   const formsQuery = useSessionForms(sessionId ?? '')

@@ -92,6 +92,8 @@ class ChatStore {
   private histories = new Map<string, HistoryState>()
   private listeners = new Map<string, Set<() => void>>()
   private pending = new Set<string>()
+  /** Sessions whose status came from a live event or an active-session seed. */
+  private statusSynced = new Set<string>()
 
   getSnapshot = (sessionID: string): ChatSnapshot => this.snapshots.get(sessionID) ?? EMPTY
 
@@ -196,6 +198,7 @@ class ChatStore {
   forget(sessionID: string) {
     const hadSnapshot = this.snapshots.delete(sessionID)
     this.histories.delete(sessionID)
+    this.statusSynced.delete(sessionID)
     if (hadSnapshot) this.scheduleNotify(sessionID)
   }
 
@@ -205,11 +208,29 @@ class ChatStore {
     this.snapshots.clear()
     this.histories.clear()
     this.pending.clear()
+    this.statusSynced.clear()
     for (const sessionID of sessions) this.scheduleNotify(sessionID)
   }
 
   setUsage(sessionID: string, cost: number, tokens?: TokenUsageInfo) {
     this.update(sessionID, (snapshot) => ({ ...snapshot, cost, tokens }))
+  }
+
+  /**
+   * Seed the run state from the server's active-session map when a thread
+   * opens. The event stream is live-only, so an already-running session has no
+   * status event to replay and would otherwise sit at the store's idle default.
+   * A live event always wins over a seed.
+   */
+  seedStatus(sessionID: string, status: SessionStatus) {
+    if (this.statusSynced.has(sessionID)) return
+    this.statusSynced.add(sessionID)
+    this.update(sessionID, (snapshot) => ({ ...snapshot, status }))
+  }
+
+  /** Let the next active-session fetch reseed status after a reconnect. */
+  resetStatuses() {
+    this.statusSynced.clear()
   }
 
   dispatch(event: V2Event) {
@@ -219,6 +240,7 @@ class ChatStore {
 
     switch (event.type) {
       case 'session.step.started':
+        this.statusSynced.add(sessionID)
         this.update(sessionID, (snapshot) => {
           const messages = [...snapshot.messages]
           const index = messages.findIndex(
@@ -234,7 +256,7 @@ class ChatStore {
               content: [],
             })
           }
-          return { ...snapshot, messages }
+          return { ...snapshot, messages, status: { type: 'busy' } }
         })
         return
 
@@ -381,14 +403,17 @@ class ChatStore {
         return
 
       case 'session.status':
+        this.statusSynced.add(sessionID)
         this.update(sessionID, (snapshot) => ({ ...snapshot, status: event.data.status }))
         return
 
       case 'session.execution.started':
+        this.statusSynced.add(sessionID)
         this.update(sessionID, (snapshot) => ({ ...snapshot, status: { type: 'busy' } }))
         return
 
       case 'session.execution.failed':
+        this.statusSynced.add(sessionID)
         this.update(sessionID, (snapshot) => {
           const messages = [...snapshot.messages]
           for (let index = messages.length - 1; index >= 0; index -= 1) {
@@ -411,6 +436,7 @@ class ChatStore {
       case 'session.execution.succeeded':
       case 'session.execution.interrupted':
       case 'session.idle':
+        this.statusSynced.add(sessionID)
         this.update(sessionID, (snapshot) => ({ ...snapshot, status: { type: 'idle' } }))
         return
 

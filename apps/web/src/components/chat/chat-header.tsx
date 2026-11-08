@@ -39,7 +39,6 @@ import {
 } from '@/components/ui/dropdown-menu'
 import { Input } from '@/components/ui/input'
 import { useCompactSession, useInterruptSession } from '@/features/chat/use-chat'
-import { useSessionCost } from '@/features/cost/use-session-cost'
 import { isArchivedSession } from '@/features/sessions/session-archive'
 import { isSnoozedSession } from '@/features/sessions/session-snooze'
 import {
@@ -51,7 +50,6 @@ import {
 import { useSessionWording } from '@/features/sessions/use-wording'
 import { useMediaQuery } from '@/hooks/use-media-query'
 import type { ChatSnapshot } from '@/features/chat/chat-store'
-import { formatCost, formatTokens } from '@/lib/format'
 import { cn } from '@/lib/utils'
 
 export function ChatHeader({
@@ -98,7 +96,6 @@ export function ChatHeader({
   const busy = snapshot.status.type !== 'idle'
   const archived = session != null && isArchivedSession(session)
   const snoozed = session != null && isSnoozedSession(session)
-  const cost = useSessionCost(session, snapshot)
 
   const toggleSnooze = () => {
     if (!session) return
@@ -241,15 +238,9 @@ export function ChatHeader({
           </span>
           <Pencil className="size-3 shrink-0 text-muted-foreground opacity-0 transition-opacity hover:opacity-100 md:opacity-0" />
         </button>
-        <div className="flex items-center gap-2 text-[10px] text-muted-foreground">
+        <div className="flex min-w-0 items-center gap-2 text-[10px] text-muted-foreground">
           <span className={cn(busy && 'text-emerald-500')}>{statusLabel(snapshot)}</span>
-          <span title={cost.estimated ? 'Estimated from model prices' : undefined}>
-            · {formatCost(cost.value, { estimated: cost.estimated })}
-          </span>
-          <span className="hidden sm:inline">
-            · {formatTokens((snapshot.tokens ?? session?.tokens)?.input)} in /{' '}
-            {formatTokens((snapshot.tokens ?? session?.tokens)?.output)} out
-          </span>
+          <span className="truncate">· {session?.agent ?? 'build'}</span>
         </div>
       </div>
 
@@ -301,7 +292,7 @@ export function ChatHeader({
 }
 
 function statusLabel(snapshot: ChatSnapshot): string {
-  if (snapshot.status.type === 'busy') return 'running'
+  if (snapshot.status.type === 'busy') return 'busy'
   if (snapshot.status.type === 'retry') return `retry ${snapshot.status.attempt}`
   return 'idle'
 }
