@@ -6,7 +6,6 @@ steps:
     type: task
   - name: draft
     type: task
-    background: true
   - name: edit
     type: task
   - name: deliver

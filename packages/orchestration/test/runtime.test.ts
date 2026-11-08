@@ -1,6 +1,6 @@
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
-import { join } from 'node:path'
+import { join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { beforeEach, describe, expect, it } from 'vitest'
 import { Runtime, Store } from '../src/index.ts'
@@ -255,19 +255,239 @@ describe('runtime', () => {
   })
 
   it('evaluates policy and records violations', () => {
-    const started = runtime.start({ workspace, prompt: 'patch', target: 'quick_patch' })
+    adapter()
+    const started = runtime.start({
+      workspace,
+      prompt: 'build a feature',
+      target: 'std:software/feature',
+    })
     const work = started.work[0]
     const denied = runtime.check(started.run.id, work.step_path, {
       action: 'edit',
       tool: 'edit',
-      resources: ['README.md'],
+      resources: ['.env'],
     })
     expect(denied.effect).toBe('deny')
     const allowed = runtime.check(started.run.id, work.step_path, {
       action: 'edit',
       tool: 'edit',
-      resources: ['src/app.ts'],
+      resources: ['spec.md'],
     })
     expect(allowed.effect).toBe('allow')
+  })
+
+  it('routes prose requests to the content pipeline and exposes the run workspace', () => {
+    const started = runtime.start({
+      workspace,
+      prompt: 'write a short article',
+    })
+    const router = started.work[0]
+    expect(router.kind).toBe('router')
+    expect(router.workspace).toBe(resolve(workspace))
+    expect(router.routes?.map((route) => route.when)).toEqual([
+      'content',
+      'software-development',
+      'quick-patch',
+      'research',
+    ])
+
+    const advanced = runtime.route(started.run.id, router.step_path, router.work_token, 'content')
+    expect(advanced.ready[0].path).toContain('route-content')
+    expect(advanced.ready[0].name).toBe('brief')
+  })
+
+  it('records observed denials without blocking tools or counting violations', () => {
+    const started = runtime.start({
+      workspace,
+      prompt: 'write a short article',
+    })
+    const work = started.work[0]
+    const decision = runtime.check(
+      started.run.id,
+      work.step_path,
+      { action: 'shell', tool: 'shell', command: 'rm -rf /' },
+      { turns: 99 }
+    )
+    expect(decision.effect).toBe('allow')
+    expect(decision.reason).toContain('observed')
+    expect(store.step(started.run.id, work.step_path)?.violations).toBe(0)
+    expect(store.events(started.run.id).some((event) => event.type === 'policy.observed')).toBe(
+      true
+    )
+  })
+
+  it('retries a strict step after the violation limit and resets usage for the next attempt', () => {
+    adapter()
+    const started = runtime.start({
+      workspace,
+      prompt: 'build a feature',
+      target: 'std:software/feature',
+    })
+    const work = started.work[0]
+    for (let index = 0; index < 3; index++) {
+      const decision = runtime.check(
+        started.run.id,
+        work.step_path,
+        { action: 'shell', tool: 'shell', command: 'rm -rf /' },
+        { turns: 0 }
+      )
+      expect(decision.effect).toBe('deny')
+    }
+
+    const after = store.step(started.run.id, work.step_path)
+    expect(after?.status).toBe('ready')
+    expect(after?.violations).toBe(3)
+    expect(
+      store.events(started.run.id).filter((event) => event.type === 'policy.denied')
+    ).toHaveLength(3)
+    expect(store.events(started.run.id).some((event) => event.type === 'step.retry')).toBe(true)
+
+    const retry = runtime.next(started.run.id)[0]
+    expect(retry.attempt).toBe(2)
+    const reset = store.step(started.run.id, work.step_path)
+    expect(reset?.violations).toBe(0)
+    expect(reset?.turns).toBe(0)
+  })
+
+  it('fails a strict step after all violation retries and opens one alert', () => {
+    adapter()
+    const started = runtime.start({
+      workspace,
+      prompt: 'build a feature',
+      target: 'std:software/feature',
+    })
+    const path = started.work[0].step_path
+    for (let attempt = 0; attempt < 3; attempt++) {
+      for (let index = 0; index < 3; index++) {
+        runtime.check(
+          started.run.id,
+          path,
+          { action: 'shell', tool: 'shell', command: 'rm -rf /' },
+          { turns: 0 }
+        )
+      }
+      if (attempt < 2) {
+        expect(runtime.next(started.run.id)[0].attempt).toBe(attempt + 2)
+      }
+    }
+    const row = store.step(started.run.id, path)
+    expect(row?.status).toBe('failed')
+    expect(row?.error).toContain('violation limit reached')
+    expect(runtime.inbox().filter((alert) => alert.kind === 'failure')).toHaveLength(1)
+  })
+
+  it('lets a strict one-turn router use its turn and keeps clara_route after the budget', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'clara-turn-'))
+    try {
+      mkdirSync(join(dir, 'orchestration', 'routers'), { recursive: true })
+      writeFileSync(
+        join(dir, 'orchestration', 'index.yml'),
+        [
+          'id: temp',
+          'name: Temp',
+          'version: 1',
+          'entry:',
+          '  router: classifier',
+          'router:',
+          '  id: classifier',
+          '  path: ./routers/classifier.md',
+          '  routes:',
+          '    - when: work',
+          '      criteria: any work',
+          '      run: work',
+          'pipelines:',
+          '  work:',
+          '    enforcement: strict',
+          '    steps:',
+          '      - name: do_work',
+          '        type: task',
+        ].join('\n')
+      )
+      writeFileSync(
+        join(dir, 'orchestration', 'routers', 'classifier.md'),
+        [
+          '---',
+          'strategy: llm_classify',
+          'enforcement: strict',
+          'limits:',
+          '  turns:',
+          '    initial: 1',
+          '    absolute_max: 2',
+          '---',
+          '',
+          '# Router',
+          '',
+          '[ROUTES]',
+          '',
+          'Call `clara_route`.',
+        ].join('\n')
+      )
+
+      const temp = new Runtime({
+        store: new Store(':memory:'),
+        configPath: join(dir, 'orchestration', 'index.yml'),
+      })
+      temp.registerAdapter({
+        harness: 'opencode',
+        workspace: dir,
+        capabilities: ['tool_policy', 'turn_limit', 'token_limit'],
+      })
+      const started = temp.start({ workspace: dir, prompt: 'do work' })
+      const work = started.work[0]
+      expect(work.kind).toBe('router')
+      expect(work.enforcement).toBe('strict')
+      expect(work.budget.turns).toBe(1)
+      // The first turn is usable even when the budget is one.
+      expect(
+        temp.check(started.run.id, work.step_path, { action: 'read', tool: 'read' }, { turns: 1 })
+          .effect
+      ).toBe('allow')
+      // The next turn is over budget, but the route control tool still works.
+      expect(
+        temp.check(started.run.id, work.step_path, { action: 'read', tool: 'read' }, { turns: 2 })
+          .effect
+      ).toBe('deny')
+      expect(
+        temp.check(
+          started.run.id,
+          work.step_path,
+          { action: 'clara_route', tool: 'clara_route' },
+          { turns: 2 }
+        ).effect
+      ).toBe('allow')
+
+      const advanced = temp.route(started.run.id, work.step_path, work.work_token, 'work')
+      expect(advanced.ready[0].name).toBe('do_work')
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('does not re-emit run.failed or rewrite finished_at for a terminal run', () => {
+    const started = runtime.start({ workspace, prompt: 'patch', target: 'quick_patch' })
+    let work = started.work[0]
+    for (let attempt = 0; attempt < 3; attempt++) {
+      runtime.fail(started.run.id, work.step_path, work.work_token, 'boom')
+      const next = runtime.next(started.run.id)[0]
+      if (next) work = next
+    }
+
+    const failed = store.run(started.run.id)
+    expect(failed?.state).toBe('failed')
+    const events = store.events(started.run.id)
+    const before = events.length
+    const failures = events.filter((event) => event.type === 'run.failed').length
+    expect(failures).toBe(1)
+
+    runtime.status(started.run.id)
+    runtime.status(started.run.id)
+    runtime.next(started.run.id)
+    runtime.tick()
+
+    expect(store.events(started.run.id)).toHaveLength(before)
+    expect(
+      store.events(started.run.id).filter((event) => event.type === 'run.failed')
+    ).toHaveLength(failures)
+    expect(store.run(started.run.id)?.finished_at).toBe(failed?.finished_at)
   })
 })

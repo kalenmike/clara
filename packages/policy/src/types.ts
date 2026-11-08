@@ -77,4 +77,8 @@ export interface PolicyDecision {
     toolCalls: number
     seconds: number
   }
+  /** Total violations recorded for the step after this decision. */
+  violations?: number
+  /** The step is no longer running (it was retried or failed). */
+  closed?: boolean
 }

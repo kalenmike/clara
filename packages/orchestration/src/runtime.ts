@@ -6,6 +6,7 @@ import {
   computeBudget,
   emptyUsage,
   evaluatePolicy,
+  remainingBudget,
   type EffectiveBudget,
   type Limits,
   type PolicyCheck,
@@ -44,6 +45,7 @@ export interface WorkOrder {
   name: string
   kind: string
   prompt: string
+  workspace: string
   work_token: string
   attempt: number
   max_attempts: number
@@ -215,7 +217,7 @@ export class Runtime {
   advance(runID: number): AdvanceResult {
     const run = this.store.run(runID)
     if (!run) throw new OrchestrationErrorWithCode('run_missing', `run ${runID} does not exist`)
-    if (run.state === 'completed' || run.state === 'cancelled') {
+    if (run.state === 'completed' || run.state === 'cancelled' || run.state === 'failed') {
       return { run, ready: [] }
     }
     const root = JSON.parse(run.snapshot) as CompiledNode
@@ -438,6 +440,12 @@ export class Runtime {
       this.store.updateStep(Number(row.id), {
         status: 'running',
         attempt,
+        // A new attempt gets a fresh budget. Carrying usage over would make a
+        // retry start already exhausted.
+        turns: 0,
+        tokens: 0,
+        tool_calls: 0,
+        violations: 0,
         lease_id: token,
         lease_owner: owner,
         lease_expires_at: expires,
@@ -473,6 +481,7 @@ export class Runtime {
       name: node.name,
       kind: node.kind,
       prompt: node.prompt ?? node.description ?? `Execute ${node.name}`,
+      workspace: run.workspace,
       work_token: token,
       attempt: Number(row.attempt),
       max_attempts: Number(row.max_attempts),
@@ -729,47 +738,87 @@ export class Runtime {
       elapsedSeconds: row.started_at ? ageMs(row.started_at) / 1000 : 0,
       violations: usage?.violations ?? Number(row.violations),
     }
+    if (row.status !== 'running') {
+      return {
+        effect: 'deny',
+        reason: `step is ${row.status}`,
+        remaining: remainingBudget(budget, current),
+        closed: true,
+      }
+    }
     const decision = evaluatePolicy(policy, budget, current, check)
-    if (decision.effect === 'deny') {
-      this.store.updateStep(Number(row.id), { violations: current.violations + 1 })
-      this.store.event(runID, 'policy.denied', {
+    if (decision.effect !== 'deny') return decision
+    if (run.enforcement === 'observed') {
+      this.store.event(runID, 'policy.observed', {
         step: path,
         action: check.action,
         tool: check.tool,
         reason: decision.reason,
       })
+      return { ...decision, effect: 'allow', reason: `observed: ${decision.reason}` }
     }
-    return decision
+    const updated = this.recordViolation(run, row, decision.reason ?? 'policy denied')
+    return {
+      ...decision,
+      violations: Number(updated.violations),
+      closed: updated.status !== 'running',
+    }
   }
 
-  violation(runID: number, path: string, reason: string): StepRow {
-    const row = this.store.step(runID, path)
-    if (!row) throw new OrchestrationErrorWithCode('step_missing', `step ${path} does not exist`)
+  private recordViolation(run: RunRow, row: StepRow, reason: string): StepRow {
+    const runID = Number(run.id)
     const violations = Number(row.violations) + 1
     this.store.updateStep(Number(row.id), { violations })
-    this.store.event(runID, 'policy.denied', { step: path, reason })
+    this.store.event(runID, 'policy.denied', { step: row.path, reason })
     const limits = parseJson<Limits | undefined>(row.limits, undefined)
     const budget = computeBudget(limits, Number(row.attempt) || 1)
     if (violations >= budget.maxViolations) {
-      this.store.updateStep(Number(row.id), {
-        status: 'failed',
-        error: `violation limit reached: ${reason}`,
-        finished_at: now(),
-        lease_id: null,
-        lease_owner: null,
-        lease_expires_at: null,
-      })
-      const alert = this.store.alert({
-        run_id: runID,
-        step_path: path,
-        kind: 'failure',
-        title: `Policy violations exhausted in ${row.name}`,
-        body: reason,
-      })
-      this.store.event(runID, 'alert.created', { alert: alert.id, kind: 'failure' })
+      const attempt = Number(row.attempt)
+      const maxAttempts = Number(row.max_attempts)
+      if (attempt < maxAttempts) {
+        this.store.updateStep(Number(row.id), {
+          status: 'ready',
+          error: reason,
+          lease_id: null,
+          lease_owner: null,
+          lease_expires_at: null,
+          finished_at: null,
+        })
+        this.store.event(runID, 'step.retry', { step: row.path, attempt, error: reason })
+      } else {
+        this.store.updateStep(Number(row.id), {
+          status: 'failed',
+          error: `violation limit reached: ${reason}`,
+          finished_at: now(),
+          lease_id: null,
+          lease_owner: null,
+          lease_expires_at: null,
+        })
+        const alert = this.store.alert({
+          run_id: runID,
+          step_path: row.path,
+          kind: 'failure',
+          title: `Policy violations exhausted in ${row.name}`,
+          body: reason,
+        })
+        this.store.event(runID, 'alert.created', { alert: alert.id, kind: 'failure' })
+      }
       this.advance(runID)
     }
-    return this.store.step(runID, path) as StepRow
+    return this.store.step(runID, row.path) as StepRow
+  }
+
+  violation(runID: number, path: string, reason: string): StepRow {
+    const run = this.store.run(runID)
+    if (!run) throw new OrchestrationErrorWithCode('run_missing', `run ${runID} does not exist`)
+    const row = this.store.step(runID, path)
+    if (!row) throw new OrchestrationErrorWithCode('step_missing', `step ${path} does not exist`)
+    if (row.status !== 'running') return row
+    if (run.enforcement === 'observed') {
+      this.store.event(runID, 'policy.observed', { step: path, reason })
+      return row
+    }
+    return this.recordViolation(run, row, reason)
   }
 
   usage(runID: number, path: string, usage: Partial<Usage>): StepRow {

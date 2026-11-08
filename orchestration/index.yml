@@ -19,6 +19,9 @@ router:
   id: classifier
   path: ./routers/classifier.md
   routes:
+    - when: content
+      criteria: a request to write, draft, edit, or deliver an article, post, essay, or other prose content.
+      run: std:content
     - when: software-development
       criteria: a normal software feature, bug, or documentation request.
       run: std:software

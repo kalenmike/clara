@@ -26,13 +26,16 @@ Start a Clara orchestration pipeline for the following request.
 Request:
 $ARGUMENTS
 
-Call the \`clara_start\` tool with:
+Call the Clara start tool (for example \`clara_start\` through MCP, or
+\`tools.clara.start\` in Code Mode) with:
 - \`prompt\`: the complete request above.
 - \`workspace\`: the absolute path of the current project. Run \`pwd\` if you do not already know it.
 - no \`target\` unless I explicitly name a package or pipeline.
 
-Then read the returned work order and follow it. Do not just describe the pipeline.
-If \`clara_start\` is unavailable, say that the Clara adapter or MCP entry is not installed.
+Follow the returned instructions. In conductor mode the adapter dispatches a
+managed worker and returns a dispatch receipt; in work-order mode it returns a
+work order you must execute. Do not just describe the pipeline.
+If the Clara start tool is unavailable, say that the Clara adapter or MCP entry is not installed.
 `
 }
 

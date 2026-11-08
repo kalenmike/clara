@@ -2,6 +2,28 @@ import { budgetExceeded, remainingBudget } from './budget.ts'
 import { matches, matchesAny } from './match.ts'
 import type { EffectiveBudget, PolicyCheck, PolicyDecision, StepPolicy, Usage } from './types.ts'
 
+// The Clara control tools are how a worker reports a result, routes a step, or
+// asks to fail. They must stay usable after a budget is exhausted; otherwise a
+// blocked worker cannot finish or fail cleanly and the step deadlocks.
+const CONTROL_TOOLS = new Set([
+  'clara_complete',
+  'clara_fail',
+  'clara_route',
+  'clara_spawn',
+  'clara.complete',
+  'clara.fail',
+  'clara.route',
+  'clara.spawn',
+  'complete',
+  'fail',
+  'route',
+  'spawn',
+])
+
+export function isControlTool(tool: string | undefined): boolean {
+  return Boolean(tool && CONTROL_TOOLS.has(tool))
+}
+
 function ruleDecision(
   policy: StepPolicy,
   check: PolicyCheck
@@ -32,7 +54,7 @@ export function evaluatePolicy(
 ): PolicyDecision {
   const remaining = remainingBudget(budget, usage)
   const exceeded = budgetExceeded(budget, usage)
-  if (exceeded) {
+  if (exceeded && !isControlTool(check.tool)) {
     return { effect: 'deny', reason: exceeded, remaining }
   }
 

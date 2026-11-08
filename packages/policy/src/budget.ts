@@ -46,7 +46,10 @@ export function remainingBudget(budget: EffectiveBudget, usage: Usage) {
 }
 
 export function budgetExceeded(budget: EffectiveBudget, usage: Usage): string | undefined {
-  if (usage.turns >= budget.turns) return 'turn limit reached'
+  // `usage.turns` counts turns that have started, so the current turn is
+  // still usable. A step with a one-turn budget must be able to make its
+  // first tool call; it is blocked when the next turn starts.
+  if (usage.turns > budget.turns) return 'turn limit reached'
   if (usage.tokens >= budget.tokens) return 'token limit reached'
   if (usage.toolCalls >= budget.maxToolCalls) return 'tool-call limit reached'
   if (usage.elapsedSeconds >= budget.wallClockSeconds) return 'wall-clock limit reached'
