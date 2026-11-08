@@ -226,6 +226,54 @@ describe('runtime', () => {
     expect(store.step(started.run.id, work.step_path)?.status).toBe('running')
   })
 
+  it('requires the work token to renew a lease', () => {
+    const started = runtime.start({ workspace, prompt: 'patch', target: 'quick_patch' })
+    const work = started.work[0]
+    expect(() => runtime.heartbeat(started.run.id, work.step_path, 'stale-token')).toThrow(
+      /work token/
+    )
+    expect(() =>
+      runtime.usage(started.run.id, work.step_path, 'stale-token', { turns: 1 })
+    ).toThrow(/work token/)
+    const beaten = runtime.heartbeat(started.run.id, work.step_path, work.work_token)
+    expect(beaten.status).toBe('running')
+    const reported = runtime.usage(started.run.id, work.step_path, work.work_token, {
+      turns: 2,
+    })
+    expect(reported.turns).toBe(2)
+  })
+
+  it('rejects renewals from an abandoned attempt after a retry', () => {
+    const started = runtime.start({ workspace, prompt: 'patch', target: 'quick_patch' })
+    const first = started.work[0]
+    const row = store.step(started.run.id, first.step_path)
+    store.updateStep(Number(row?.id), {
+      status: 'ready',
+      lease_id: null,
+      lease_owner: null,
+      lease_expires_at: null,
+    })
+    const second = runtime.next(started.run.id)[0]
+    expect(second.work_token).not.toBe(first.work_token)
+    expect(() => runtime.heartbeat(started.run.id, first.step_path, first.work_token)).toThrow(
+      /work token/
+    )
+    expect(() =>
+      runtime.usage(started.run.id, first.step_path, first.work_token, { turns: 1 })
+    ).toThrow(/work token/)
+    expect(runtime.heartbeat(started.run.id, second.step_path, second.work_token).status).toBe(
+      'running'
+    )
+    const denied = runtime.check(
+      started.run.id,
+      first.step_path,
+      { action: 'edit', tool: 'edit' },
+      undefined,
+      first.work_token
+    )
+    expect(denied.closed).toBe(true)
+  })
+
   it('fails a spawned group fast and cancels its siblings', () => {
     const started = runtime.start({ workspace, prompt: 'patch', target: 'quick_patch' })
     const parent = started.work[0]

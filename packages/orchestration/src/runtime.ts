@@ -736,7 +736,13 @@ export class Runtime {
     return { run: this.store.run(runID) as RunRow, children }
   }
 
-  check(runID: number, path: string, check: PolicyCheck, usage?: Partial<Usage>): PolicyDecision {
+  check(
+    runID: number,
+    path: string,
+    check: PolicyCheck,
+    usage?: Partial<Usage>,
+    token?: string
+  ): PolicyDecision {
     const run = this.store.run(runID)
     if (!run) throw new OrchestrationErrorWithCode('run_missing', `run ${runID} does not exist`)
     const row = this.store.step(runID, path)
@@ -750,6 +756,14 @@ export class Runtime {
       toolCalls: usage?.toolCalls ?? Number(row.tool_calls),
       elapsedSeconds: row.started_at ? ageMs(row.started_at) / 1000 : 0,
       violations: usage?.violations ?? Number(row.violations),
+    }
+    if (token && row.status === 'running' && row.lease_id !== token) {
+      return {
+        effect: 'deny',
+        reason: `work token does not own ${path}`,
+        remaining: remainingBudget(budget, current),
+        closed: true,
+      }
     }
     if (row.status !== 'running') {
       return {
@@ -834,9 +848,8 @@ export class Runtime {
     return this.recordViolation(run, row, reason)
   }
 
-  usage(runID: number, path: string, usage: Partial<Usage>): StepRow {
-    const row = this.store.step(runID, path)
-    if (!row) throw new OrchestrationErrorWithCode('step_missing', `step ${path} does not exist`)
+  usage(runID: number, path: string, token: string, usage: Partial<Usage>): StepRow {
+    const { row } = this.requireRunningStep(runID, path, token)
     this.store.updateStep(Number(row.id), {
       ...(usage.turns !== undefined ? { turns: usage.turns } : {}),
       ...(usage.tokens !== undefined ? { tokens: usage.tokens } : {}),
@@ -848,13 +861,13 @@ export class Runtime {
     return this.store.step(runID, path) as StepRow
   }
 
-  heartbeat(runID: number, path: string): void {
-    const row = this.store.step(runID, path)
-    if (!row) return
+  heartbeat(runID: number, path: string, token: string): StepRow {
+    const { row } = this.requireRunningStep(runID, path, token)
     this.store.updateStep(Number(row.id), {
       heartbeat_at: now(),
       lease_expires_at: new Date(Date.now() + this.leaseMs).toISOString(),
     })
+    return this.store.step(runID, path) as StepRow
   }
 
   status(runID: number): StatusResult {

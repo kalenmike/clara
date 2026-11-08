@@ -146,6 +146,7 @@ export class RuntimeBackend implements ClaraBackend {
     command?: string
     network?: string
     usage?: UsageInput
+    work_token?: string
   }) {
     return this.runtime.check(
       input.run_id,
@@ -157,17 +158,17 @@ export class RuntimeBackend implements ClaraBackend {
         ...(input.command ? { command: input.command } : {}),
         ...(input.network ? { network: input.network } : {}),
       },
-      input.usage
+      input.usage,
+      input.work_token
     )
   }
 
-  async usage(input: { run_id: number; step_path: string; usage: UsageInput }) {
-    return this.runtime.usage(input.run_id, input.step_path, input.usage)
+  async usage(input: { run_id: number; step_path: string; work_token: string; usage: UsageInput }) {
+    return this.runtime.usage(input.run_id, input.step_path, input.work_token, input.usage)
   }
 
-  async heartbeat(runID: number, stepPath: string) {
-    this.runtime.heartbeat(runID, stepPath)
-    return { ok: true }
+  async heartbeat(runID: number, stepPath: string, workToken: string) {
+    return this.runtime.heartbeat(runID, stepPath, workToken)
   }
 
   async catalog(workspace: string) {

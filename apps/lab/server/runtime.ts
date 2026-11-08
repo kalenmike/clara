@@ -600,7 +600,11 @@ export class LabRuntime {
         try {
           await this.callTool(
             'clara_heartbeat',
-            { run_id: record.order.run_id, step_path: record.order.step_path },
+            {
+              run_id: record.order.run_id,
+              step_path: record.order.step_path,
+              work_token: record.order.work_token,
+            },
             'heartbeat'
           )
           this.state.markHeartbeat(record.key)

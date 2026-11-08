@@ -208,6 +208,7 @@ export function WorkOrderCard({
       await callTool('clara_heartbeat', {
         run_id: order.run_id,
         step_path: order.step_path,
+        work_token: order.work_token,
       })
       onChanged(order.run_id)
       onNotice('Lease renewed.')

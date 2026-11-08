@@ -236,6 +236,7 @@ export function createClaraServer(backend: ClaraBackend, version = '0.1.0'): Mcp
         command: z.string().optional(),
         network: z.string().optional(),
         usage: usageSchema,
+        work_token: z.string().min(1).optional(),
       },
     },
     async (args) => text(await backend.check(args))
@@ -249,6 +250,7 @@ export function createClaraServer(backend: ClaraBackend, version = '0.1.0'): Mcp
       inputSchema: {
         run_id: z.number().int().positive(),
         step_path: z.string().min(1),
+        work_token: z.string().min(1),
         usage: usageSchema.unwrap(),
       },
     },
@@ -262,9 +264,10 @@ export function createClaraServer(backend: ClaraBackend, version = '0.1.0'): Mcp
       inputSchema: {
         run_id: z.number().int().positive(),
         step_path: z.string().min(1),
+        work_token: z.string().min(1),
       },
     },
-    async (args) => text(await backend.heartbeat(args.run_id, args.step_path))
+    async (args) => text(await backend.heartbeat(args.run_id, args.step_path, args.work_token))
   )
 
   server.registerTool(

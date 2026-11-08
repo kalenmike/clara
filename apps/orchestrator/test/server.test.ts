@@ -105,6 +105,36 @@ describe('orchestrator HTTP service', () => {
     expect(advanced.ready[0].name).toBe('quick_verify')
   })
 
+  it('requires the work token to renew a step lease', async () => {
+    const started = await fetch(`${base}/v1/runs`, {
+      method: 'POST',
+      headers: auth({ 'content-type': 'application/json' }),
+      body: JSON.stringify({ workspace, prompt: 'patch it', target: 'quick_patch' }),
+    })
+    const body = (await started.json()) as {
+      run: { id: number }
+      work: Array<{ step_path: string; work_token: string }>
+    }
+    const path = encodeURIComponent(body.work[0].step_path)
+    const url = `${base}/v1/runs/${body.run.id}/steps/${path}/heartbeat`
+
+    const denied = await fetch(url, {
+      method: 'POST',
+      headers: auth({ 'content-type': 'application/json' }),
+      body: JSON.stringify({}),
+    })
+    expect(denied.status).toBe(422)
+    expect(((await denied.json()) as { error: { code: string } }).error.code).toBe('lease_invalid')
+
+    const renewed = await fetch(url, {
+      method: 'POST',
+      headers: auth({ 'content-type': 'application/json' }),
+      body: JSON.stringify({ work_token: body.work[0].work_token }),
+    })
+    expect(renewed.status).toBe(200)
+    expect(((await renewed.json()) as { status: string }).status).toBe('running')
+  })
+
   it('lists run summaries without pinned snapshots', async () => {
     for (const path of ['/v1/runs', '/v1/runs?summary=1']) {
       const response = await fetch(`${base}${path}`, { headers: auth() })

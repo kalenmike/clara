@@ -66,9 +66,15 @@ export interface ClaraBackend {
     command?: string
     network?: string
     usage?: UsageInput
+    work_token?: string
   }): Promise<unknown>
-  usage(input: { run_id: number; step_path: string; usage: UsageInput }): Promise<unknown>
-  heartbeat(runID: number, stepPath: string): Promise<unknown>
+  usage(input: {
+    run_id: number
+    step_path: string
+    work_token: string
+    usage: UsageInput
+  }): Promise<unknown>
+  heartbeat(runID: number, stepPath: string, workToken: string): Promise<unknown>
   catalog(workspace: string): Promise<unknown>
   registerAdapter(input: {
     harness: string
