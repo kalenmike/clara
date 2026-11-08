@@ -58,11 +58,48 @@ export function planMissingControl(input: {
   kind: string
   corrected?: boolean
   lastText?: string
-}): 'correct' | 'complete' | 'fail' {
+  closed?: boolean
+}): 'ignore' | 'correct' | 'complete' | 'fail' {
+  // A control call settles the binding before the model finishes its turn. The
+  // idle watcher must never treat that turn as a missing control call.
+  if (input.closed) return 'ignore'
   if (input.kind === 'router') return 'fail'
   if (!input.corrected) return 'correct'
   if (input.lastText?.trim()) return 'complete'
   return 'fail'
+}
+
+export interface SettleBinding {
+  session: string
+  managed: boolean
+  closed: boolean
+  beatTimer?: NodeJS.Timeout
+}
+
+// A control call ends the step before the model finishes its turn. Mark the
+// binding closed so the idle watcher cannot mistake the finished step for a
+// missing control call. A managed worker keeps its closed binding until the
+// session idles, so the rest of the turn stays under policy; a fallback binding
+// of the human's session detaches at once and is never interrupted.
+export function settleBinding<T extends SettleBinding>(
+  active: Map<string, T>,
+  lastTurn: Map<string, number>,
+  session: string | undefined,
+  detach = false
+): T | undefined {
+  if (!session) return undefined
+  const work = active.get(session)
+  if (!work) return undefined
+  work.closed = true
+  if (work.beatTimer) {
+    clearInterval(work.beatTimer)
+    work.beatTimer = undefined
+  }
+  if (detach || !work.managed) {
+    active.delete(session)
+    lastTurn.delete(session)
+  }
+  return work
 }
 
 // The step lease is a harness signal, not a model one. A slow turn or a long
@@ -249,14 +286,12 @@ export default {
       }
     }
 
-    const finish = (session: string | undefined): void => {
-      if (!session) return
-      const work = active.get(session)
-      if (work?.beatTimer) clearInterval(work.beatTimer)
-      active.delete(session)
-      lastTurn.delete(session)
-      const timer = setTimeout(() => void stop(session), 1_000)
-      timer.unref?.()
+    const finish = (session: string | undefined, detach = false): void => {
+      // Without an idle watcher there is no way to release a closed binding
+      // later, so detach it now. A managed worker otherwise keeps the closed
+      // binding until watchControl sees the session go idle.
+      const canWatch = typeof (ctx.session as Any)?.wait === 'function'
+      settleBinding(active, lastTurn, session, detach || !canWatch)
     }
 
     const persist = async (work: ActiveWork): Promise<void> => {
@@ -299,7 +334,7 @@ export default {
           `[clara-policy] failed to report a missing control call: ${(error as Error).message}`
         )
       }
-      finish(work.session)
+      finish(work.session, true)
     }
 
     // A text-only answer is not a completed work order. Give the worker one
@@ -335,7 +370,7 @@ export default {
           `[clara-policy] failed to complete ${work.step_path}: ${(error as Error).message}`
         )
       }
-      finish(work.session)
+      finish(work.session, true)
     }
 
     const watchControl = (session: string, work: ActiveWork): void => {
@@ -343,10 +378,11 @@ export default {
       const sessions = ctx.session as Any
       if (typeof sessions?.wait !== 'function') return
       void (async () => {
-        while (!work.closed) {
+        while (true) {
           try {
             await sessions.wait({ sessionID: session })
           } catch {
+            finish(session, true)
             return
           }
           // Let a control tool that raced the idle event land first.
@@ -354,8 +390,14 @@ export default {
             const timer = setTimeout(resolve, 500)
             timer.unref?.()
           })
-          if (work.closed) return
           const plan = planMissingControl(work)
+          if (plan === 'ignore') {
+            // The step already ended through a control call. The worker's last
+            // turn is idle now, so release the closed binding without an
+            // interrupt and without a corrective prompt.
+            finish(session, true)
+            return
+          }
           if (plan === 'complete') return completeInferred(work)
           if (plan === 'fail') return failMissingControl(work)
           work.corrected = true
