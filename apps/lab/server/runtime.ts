@@ -2,13 +2,22 @@ import { SERVER_INSTRUCTIONS } from '@clara/mcp-server'
 import { previewPipeline, type AdapterInfo, type PreviewInput } from '@clara/devtools'
 import { EventRelay } from './orchestrator-events.ts'
 import { McpClient, type ToolResult } from './mcp.ts'
-import { createModelCatalogLoader, type ModelCatalog, type ModelCatalogSource } from './models.ts'
+import {
+  createModelCatalogLoader,
+  resolveOpenCodeConfig,
+  type ModelCatalog,
+  type ModelCatalogSource,
+} from './models.ts'
+import { OpenCodeObserver } from './opencode.ts'
 import { LabState, workKey } from './state.ts'
 import type {
   AdapterRow,
+  CancelAllResult,
   LabPreviewResult,
   ModelCatalogSummary,
+  OpenCodeSessionsResult,
   PreflightResult,
+  RunRow,
   StepRow,
   StepSummary,
   WorkOrder,
@@ -84,6 +93,7 @@ export class LabRuntime {
   private readonly token: string
   private readonly modelCatalog: ModelCatalogSource
   private readonly events: EventRelay
+  private readonly opencode: OpenCodeObserver
   private heartbeatTimer: NodeJS.Timeout | undefined
   private retryTimer: NodeJS.Timeout | undefined
   private beating = false
@@ -95,10 +105,15 @@ export class LabRuntime {
     token: string
     workspace: string
     models?: ModelCatalogSource
+    opencode?: { url: string; password?: string }
   }) {
     this.url = options.url
     this.token = options.token
     this.modelCatalog = options.models ?? createModelCatalogLoader()
+    this.opencode = new OpenCodeObserver(
+      options.opencode ?? resolveOpenCodeConfig(),
+      (summary) => this.state.setOpenCode(summary)
+    )
     this.mcp = new McpClient(options.url, options.token)
     this.state.orchestrator = options.url
     this.state.workspace = options.workspace
@@ -123,6 +138,7 @@ export class LabRuntime {
     } catch (error) {
       this.state.setConnection(false, message(error))
     }
+    this.opencode.start()
     this.heartbeatTimer = setInterval(() => void this.beat(), 10_000)
     this.heartbeatTimer.unref?.()
     this.retryTimer = setInterval(() => void this.ensureConnected(), 5_000)
@@ -151,6 +167,7 @@ export class LabRuntime {
     this.heartbeatTimer = undefined
     if (this.retryTimer) clearInterval(this.retryTimer)
     this.retryTimer = undefined
+    await this.opencode.stop()
     await this.events.stop()
     await this.mcp.disconnect()
   }
@@ -166,6 +183,7 @@ export class LabRuntime {
       await this.loadTools()
       await this.loadConfig()
       this.events.start()
+      this.opencode.start()
       await this.refreshAdapters(this.orchestratorWorkspace())
     } catch (error) {
       this.state.setConnection(false, message(error))
@@ -356,6 +374,43 @@ export class LabRuntime {
       ...result,
       value: { ...result.value, ...(taskCount === undefined ? {} : { taskCount }) },
     }
+  }
+
+  opencodeSessions(): Promise<OpenCodeSessionsResult> {
+    return this.opencode.sessions()
+  }
+
+  async cancelAll(): Promise<CancelAllResult> {
+    const listed = await this.callTool('clara_list', {}, 'ui')
+    const rows = Array.isArray(listed.value) ? (listed.value as RunRow[]) : []
+    const terminal = new Set(['completed', 'failed', 'cancelled'])
+    const targets = rows.filter(
+      (row) =>
+        !terminal.has(row.state) &&
+        (row.root_run_id === undefined || row.root_run_id === row.id)
+    )
+    const failed: CancelAllResult['failed'] = []
+    let cancelled = 0
+    for (const row of targets) {
+      try {
+        const result = await this.callTool(
+          'clara_cancel',
+          { run_id: row.id, reason: 'cancelled all from Clara Lab' },
+          'ui'
+        )
+        if (result.isError) {
+          failed.push({
+            id: row.id,
+            error: typeof result.value === 'string' ? result.value : JSON.stringify(result.value),
+          })
+        } else {
+          cancelled++
+        }
+      } catch (error) {
+        failed.push({ id: row.id, error: message(error) })
+      }
+    }
+    return { cancelled, failed }
   }
 
   pinnedSnapshot(runID: number): Promise<{ run_id: number; hash: string; snapshot: string }> {

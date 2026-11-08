@@ -173,6 +173,39 @@ export interface ToolInfo {
   inputSchema?: unknown
 }
 
+export interface OpenCodeSummary {
+  connected: boolean
+  reachable: boolean
+  url: string
+  sessionCount: number
+  activeCount: number
+  updatedAt: string
+  error?: string
+}
+
+export interface OpenCodeSessionRow {
+  id: string
+  title?: string
+  agent?: string
+  directory?: string
+  parentID?: string
+  model?: string
+  running: boolean
+  lastSeenAt: string
+  lastSeenSource: 'event' | 'session'
+  eventCount: number
+  lastEventType?: string
+}
+
+export interface OpenCodeSessionsResult extends OpenCodeSummary {
+  sessions: OpenCodeSessionRow[]
+}
+
+export interface CancelAllResult {
+  cancelled: number
+  failed: Array<{ id: number; error: string }>
+}
+
 export interface LabSnapshot {
   workspace: string
   orchestratorWorkspace: string
@@ -186,6 +219,7 @@ export interface LabSnapshot {
   adapters: AdapterRow[]
   instructions: string
   tools: ToolInfo[]
+  opencode: OpenCodeSummary
   lastError?: string
 }
 

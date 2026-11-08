@@ -207,6 +207,11 @@ export async function startLabServer(options: LabServerOptions): Promise<LabServ
         return
       }
 
+      if (method === 'GET' && url.pathname === '/api/opencode/sessions') {
+        json(response, 200, await runtime.opencodeSessions())
+        return
+      }
+
       if (method === 'GET' && url.pathname === '/api/inbox') {
         const result = await runtime.callTool('clara_inbox', {}, 'ui')
         json(response, 200, { ok: !result.isError, isError: result.isError, value: result.value })
@@ -285,6 +290,11 @@ export async function startLabServer(options: LabServerOptions): Promise<LabServ
     if (url.pathname === '/api/reconnect') {
       await context.runtime.reconnect()
       json(response, 200, { ok: true })
+      return
+    }
+
+    if (url.pathname === '/api/runs/cancel-all') {
+      json(response, 200, await context.runtime.cancelAll())
       return
     }
 

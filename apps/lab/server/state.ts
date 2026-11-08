@@ -2,6 +2,7 @@ import type {
   AdapterRow,
   CallRecord,
   LabSnapshot,
+  OpenCodeSummary,
   OrcEvent,
   StreamItem,
   ToolInfo,
@@ -32,6 +33,14 @@ export class LabState {
   instructions = ''
   tools: ToolInfo[] = []
   adapters: AdapterRow[] = []
+  opencode: OpenCodeSummary = {
+    connected: false,
+    reachable: false,
+    url: '',
+    sessionCount: 0,
+    activeCount: 0,
+    updatedAt: new Date().toISOString(),
+  }
   lastError: string | undefined
 
   setConnection(connected: boolean, error?: string): void {
@@ -64,6 +73,11 @@ export class LabState {
   setAdapters(adapters: AdapterRow[]): void {
     this.adapters = adapters
     this.emit('state', { adapters })
+  }
+
+  setOpenCode(opencode: OpenCodeSummary): void {
+    this.opencode = opencode
+    this.emit('state', { opencode })
   }
 
   addWork(order: WorkOrder, source: WorkRecord['source']): WorkRecord {
@@ -181,6 +195,7 @@ export class LabState {
       adapters: this.adapters,
       instructions: this.instructions,
       tools: this.tools,
+      opencode: this.opencode,
       ...(this.lastError ? { lastError: this.lastError } : {}),
     }
   }
