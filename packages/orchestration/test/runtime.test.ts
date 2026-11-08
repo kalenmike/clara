@@ -456,21 +456,52 @@ describe('runtime', () => {
     expect(second.step_path).toBeTruthy()
   })
 
-  it('retries a completion that exceeded the reported budget', () => {
+  it('accepts a completion that exceeded the reported budget without retrying', () => {
     const started = runtime.start({ workspace, prompt: 'patch', target: 'quick_patch' })
-    let work = started.work[0]
-    for (let attempt = 0; attempt < 3; attempt++) {
-      runtime.complete(started.run.id, work.step_path, work.work_token, 'too much', {
-        turns: 99,
-        tokens: 999_999,
-      })
-      const next = runtime.next(started.run.id)[0]
-      if (next) work = next
-    }
-    expect(store.step(started.run.id, started.work[0].step_path)?.status).toBe('failed')
-    expect(runtime.inbox().some((alert) => alert.kind === 'budget')).toBe(true)
-    const attempts = store.stepAttempts(started.run.id, started.work[0].step_path)
-    expect(attempts.map((attempt) => attempt.status)).toEqual(['retry', 'retry', 'failed'])
+    const work = started.work[0]
+    const advanced = runtime.complete(started.run.id, work.step_path, work.work_token, 'too much', {
+      turns: 99,
+      tokens: 999_999,
+    })
+    expect(advanced.ready.map((step) => step.name)).toEqual(['quick_verify'])
+    const row = store.step(started.run.id, work.step_path)
+    expect(row?.status).toBe('done')
+    expect(row?.error).toBeNull()
+    expect(JSON.parse(row?.result ?? 'null')).toBe('too much')
+    expect(runtime.inbox().some((alert) => alert.kind === 'budget')).toBe(false)
+    const attempts = store.stepAttempts(started.run.id, work.step_path)
+    expect(attempts.map((attempt) => attempt.status)).toEqual(['done'])
+    const completed = store
+      .events(started.run.id)
+      .find(
+        (event) =>
+          event.type === 'step.completed' && JSON.parse(event.payload).step === work.step_path
+      )
+    expect(JSON.parse(completed?.payload ?? '{}').over_budget).toBe('turn limit reached')
+    expect(runtime.next(started.run.id)[0].name).toBe('quick_verify')
+  })
+
+  it('resets the live projection and attempt clock when a new attempt starts', () => {
+    const started = runtime.start({ workspace, prompt: 'patch', target: 'quick_patch' })
+    const work = started.work[0]
+    const row = store.step(started.run.id, work.step_path)
+    store.updateStep(Number(row?.id), {
+      status: 'ready',
+      result: '"stale"',
+      error: 'stale error',
+      finished_at: new Date().toISOString(),
+      started_at: '2000-01-01T00:00:00.000Z',
+      lease_id: null,
+      lease_owner: null,
+      lease_expires_at: null,
+    })
+    const retry = runtime.next(started.run.id)[0]
+    expect(retry.attempt).toBe(2)
+    const reset = store.step(started.run.id, work.step_path)
+    expect(reset?.result).toBeNull()
+    expect(reset?.error).toBeNull()
+    expect(reset?.finished_at).toBeNull()
+    expect(reset?.started_at).not.toBe('2000-01-01T00:00:00.000Z')
   })
 
   it('evaluates policy and records violations', () => {
@@ -519,14 +550,15 @@ describe('runtime', () => {
   it('records observed denials without blocking tools or counting violations', () => {
     const started = runtime.start({
       workspace,
-      prompt: 'write a short article',
+      prompt: 'audit the orchestrator setup',
+      target: 'std:diagnostics',
     })
     const work = started.work[0]
     const decision = runtime.check(
       started.run.id,
       work.step_path,
       { action: 'shell', tool: 'shell', command: 'rm -rf /' },
-      { turns: 99 }
+      { turns: 0 }
     )
     expect(decision.effect).toBe('allow')
     expect(decision.reason).toContain('observed')
@@ -534,6 +566,39 @@ describe('runtime', () => {
     expect(store.events(started.run.id).some((event) => event.type === 'policy.observed')).toBe(
       true
     )
+  })
+
+  it('denies an over-budget tool in observed mode but keeps control tools available', () => {
+    const started = runtime.start({
+      workspace,
+      prompt: 'write a short article',
+    })
+    const work = started.work[0]
+    const denied = runtime.check(
+      started.run.id,
+      work.step_path,
+      { action: 'read', tool: 'read' },
+      { turns: 99 }
+    )
+    expect(denied.effect).toBe('deny')
+    expect(denied.reason).toContain('budget exhausted')
+    expect(denied.closed).toBe(false)
+    expect(store.step(started.run.id, work.step_path)?.violations).toBe(0)
+
+    // The budget is a resource cap, so it applies even when the step is
+    // observed. A second denial does not duplicate the event.
+    runtime.check(started.run.id, work.step_path, { action: 'read', tool: 'read' }, { turns: 99 })
+    expect(
+      store.events(started.run.id).filter((event) => event.type === 'budget.exhausted')
+    ).toHaveLength(1)
+
+    const routed = runtime.check(
+      started.run.id,
+      work.step_path,
+      { action: 'clara_route', tool: 'clara_route' },
+      { turns: 99 }
+    )
+    expect(routed.effect).toBe('allow')
   })
 
   it('retries a strict step after the violation limit and resets usage for the next attempt', () => {

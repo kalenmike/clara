@@ -6,6 +6,7 @@ import {
   computeBudget,
   emptyUsage,
   evaluatePolicy,
+  isControlTool,
   remainingBudget,
   type EffectiveBudget,
   type Limits,
@@ -131,6 +132,8 @@ export class Runtime {
   private readonly stalledMs: number
   private readonly adapterStaleMs: number
   private catalogCache = new Map<string, { at: number; catalog: LoadedCatalog }>()
+  /** Attempt ids that already emitted a budget event, so a denied tool storm logs once. */
+  private budgetNotified = new Set<number>()
 
   constructor(options: RuntimeOptions) {
     this.store = options.store
@@ -536,8 +539,12 @@ export class Runtime {
           status: 'running',
           attempt,
           current_attempt_id: attemptID,
-          // A new attempt gets a fresh budget. Carrying usage over would make a
-          // retry start already exhausted.
+          // A new attempt gets a fresh budget and a clean live projection.
+          // Carrying usage, results, errors, or the previous start time over
+          // would make a retry start already exhausted or look finished.
+          result: null,
+          error: null,
+          finished_at: null,
           turns: 0,
           tokens: 0,
           tool_calls: 0,
@@ -546,7 +553,7 @@ export class Runtime {
           lease_owner: owner,
           lease_expires_at: expires,
           heartbeat_at: startedAt,
-          started_at: row.started_at ?? startedAt,
+          started_at: startedAt,
         })
         this.store.event(runID, 'step.started', { step: row.path, attempt, owner }, attemptID)
       })
@@ -652,56 +659,47 @@ export class Runtime {
       elapsedSeconds: row.started_at ? ageMs(row.started_at) / 1000 : 0,
       violations,
     })
-    const retry = Boolean(exceeded && Number(row.attempt) < Number(row.max_attempts))
+    // A valid completion is final. A worker that reports a result has produced
+    // work worth keeping, even when it had to exceed its budget to get there;
+    // retrying would discard the result and run the step again. The overrun is
+    // recorded on the completion event instead.
     const attemptID = row.current_attempt_id
-    const attemptStatus = retry ? 'retry' : exceeded ? 'failed' : 'done'
-    const eventType = retry ? 'step.retry' : exceeded ? 'step.failed' : 'step.completed'
-    const serialized = JSON.stringify(result)
+    const serialized = JSON.stringify(result ?? null)
     this.store.transaction(() => {
       if (attemptID !== null) {
         this.store.updateStepAttempt(Number(attemptID), {
-          status: attemptStatus,
+          status: 'done',
           result: serialized,
           turns,
           tokens,
           tool_calls: toolCalls,
           violations,
-          error: exceeded ?? null,
+          error: null,
           finished_at: now(),
         })
       }
       this.store.updateStep(Number(row.id), {
-        status: retry ? 'ready' : exceeded ? 'failed' : 'done',
+        status: 'done',
         result: serialized,
         turns,
         tokens,
         tool_calls: toolCalls,
         violations,
-        finished_at: retry ? null : now(),
-        error: exceeded ?? null,
+        finished_at: now(),
+        error: null,
         lease_id: null,
         lease_owner: null,
         lease_expires_at: null,
       })
       this.store.event(
         runID,
-        eventType,
+        'step.completed',
         {
           step: path,
-          ...(exceeded ? { reason: exceeded } : {}),
+          ...(exceeded ? { over_budget: exceeded } : {}),
         },
         attemptID
       )
-      if (exceeded && !retry) {
-        const alert = this.store.alert({
-          run_id: runID,
-          step_path: path,
-          kind: 'budget',
-          title: `Budget exhausted in ${path}`,
-          body: exceeded,
-        })
-        this.store.event(runID, 'alert.created', { alert: alert.id, kind: 'budget' }, attemptID)
-      }
     })
     return this.advance(runID)
   }
@@ -951,6 +949,33 @@ export class Runtime {
     }
     const decision = evaluatePolicy(policy, budget, current, check)
     if (decision.effect !== 'deny') return decision
+    const exceeded = budgetExceeded(budget, current)
+    if (exceeded && !isControlTool(check.tool)) {
+      // Budgets are resource caps, not permission rules. Enforce them in every
+      // enforcement mode so an observed step cannot run unbounded, but keep the
+      // session alive so the worker can still report a result or failure.
+      const attemptID = row.current_attempt_id
+      if (attemptID !== null && !this.budgetNotified.has(attemptID)) {
+        this.budgetNotified.add(attemptID)
+        this.store.event(
+          runID,
+          'budget.exhausted',
+          {
+            step: path,
+            action: check.action,
+            tool: check.tool,
+            reason: exceeded,
+          },
+          attemptID
+        )
+      }
+      return {
+        ...decision,
+        effect: 'deny',
+        reason: `budget exhausted: ${decision.reason ?? exceeded}; call clara_complete with your result now`,
+        closed: false,
+      }
+    }
     if (run.enforcement === 'observed') {
       this.store.event(
         runID,

@@ -2,9 +2,9 @@
 description: Audit pipeline configuration, limits, routing, and adapter setup against the evidence
 limits:
   turns:
-    initial: 12
-    growth_rate: 2
-    absolute_max: 20
+    initial: 36
+    growth_rate: 4
+    absolute_max: 48
   tokens:
     initial: 80000
     growth_rate: 1.5
