@@ -20,6 +20,7 @@ import {
   formatStatus,
   probeHealth,
   readPidState,
+  startDockerService,
   statusExitCode,
   stopService,
 } from './lifecycle.ts'
@@ -87,7 +88,55 @@ async function serve(): Promise<void> {
   process.once('SIGTERM', () => void shutdown())
 }
 
-async function start(): Promise<void> {
+async function startDocker(build: boolean): Promise<void> {
+  const result = await startDockerService({ build })
+  if (result.kind === 'container-started') {
+    console.log(`started docker container at ${baseURL()}`)
+    return
+  }
+  if (result.kind === 'container-running') {
+    console.log(`already running in a container at ${baseURL()}`)
+    return
+  }
+  if (result.kind === 'local-running') {
+    const pid = result.pid === null ? '' : ` (pid ${result.pid})`
+    console.log(`a local orchestrator is running at ${baseURL()}${pid}`)
+    console.log('stop it with `pnpm clara orchestration stop` before starting the container')
+    process.exitCode = 1
+    return
+  }
+  if (result.kind === 'external') {
+    console.log(`an orchestrator is already running at ${baseURL()} from another data directory`)
+    console.log('stop it before starting the container')
+    process.exitCode = 1
+    return
+  }
+  if (result.kind === 'foreign') {
+    console.log(`another service is using ${baseURL()}; not starting the container`)
+    process.exitCode = 1
+    return
+  }
+  if (result.kind === 'compose-failed') {
+    if (result.result.error) console.error(`could not run docker: ${result.result.error}`)
+    else console.error(`docker compose up failed (exit ${result.result.code ?? 'unknown'})`)
+    process.exitCode = 1
+    return
+  }
+  console.error(`the docker container did not become healthy at ${baseURL()}`)
+  console.error('check `docker compose -f docker/compose.yml logs orchestrator`')
+  process.exitCode = 1
+}
+
+async function start(args: string[]): Promise<void> {
+  const docker = args.includes('--docker')
+  const build = args.includes('--build')
+  if (build && !docker) {
+    console.error('--build requires --docker')
+    process.exitCode = 1
+    return
+  }
+  if (docker) return startDocker(build)
+
   const probe = await probeHealth()
   const pid = readPidState()
   if (probe.status === 'current') {
@@ -112,8 +161,8 @@ async function start(): Promise<void> {
   }
 
   const out = openSync(logPath(), 'a', 0o600)
-  const [command, ...args] = selfCommand()
-  const child = spawn(command, [...args, 'serve', '--detached'], {
+  const [executable, ...execArgs] = selfCommand()
+  const child = spawn(executable, [...execArgs, 'serve', '--detached'], {
     detached: true,
     stdio: ['ignore', out, out],
     env: { ...process.env },
@@ -198,12 +247,12 @@ async function main(): Promise<void> {
   const args = process.argv.slice(3)
   if (command === 'help' || command === '--help' || command === '-h') {
     console.log(
-      'Clara orchestration service\n\nUsage: clara-orchestrator <serve|start|stop [--docker]|status|token>'
+      'Clara orchestration service\n\nUsage: clara-orchestrator <serve|start [--docker] [--build]|stop [--docker]|status|token>'
     )
     return
   }
   if (command === 'serve') return serve()
-  if (command === 'start') return start()
+  if (command === 'start') return start(args)
   if (command === 'stop') return stop(args)
   if (command === 'status') return status()
   if (command === 'token') {
@@ -211,7 +260,9 @@ async function main(): Promise<void> {
     return
   }
   console.error(`unknown command: ${command}`)
-  console.error('usage: clara-orchestrator <serve|start|stop [--docker]|status|token>')
+  console.error(
+    'usage: clara-orchestrator <serve|start [--docker] [--build]|stop [--docker]|status|token>'
+  )
   process.exit(1)
 }
 

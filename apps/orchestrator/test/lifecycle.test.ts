@@ -8,10 +8,13 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { pidPath } from '../src/config.ts'
 import {
   collectStatus,
+  composeArgs,
   formatStatus,
   readPidState,
+  startDockerService,
   statusExitCode,
   stopService,
+  type HealthProbe,
 } from '../src/lifecycle.ts'
 
 interface FakeService {
@@ -277,5 +280,112 @@ describe('orchestrator lifecycle', () => {
     } finally {
       await service.close()
     }
+  })
+})
+
+describe('docker start', () => {
+  it('builds the compose command with and without a rebuild', () => {
+    expect(composeArgs('down')).toEqual(['compose', '-f', 'docker/compose.yml', 'down'])
+    expect(composeArgs('up')).toEqual([
+      'compose',
+      '-f',
+      'docker/compose.yml',
+      'up',
+      '-d',
+      'orchestrator',
+    ])
+    expect(composeArgs('up', true)).toEqual([
+      'compose',
+      '-f',
+      'docker/compose.yml',
+      'up',
+      '-d',
+      '--build',
+      'orchestrator',
+    ])
+  })
+
+  it('starts compose when nothing is running and waits for the container', async () => {
+    const builds: boolean[] = []
+    let probes = 0
+    const probe = async (): Promise<HealthProbe> => {
+      probes += 1
+      return probes === 1
+        ? { status: 'unreachable' }
+        : { status: 'current', mode: 'container', pid: 1 }
+    }
+
+    const result = await startDockerService({
+      build: true,
+      pollMs: 0,
+      probe,
+      composeUp: async (build) => {
+        builds.push(build)
+        return { ok: true, code: 0 }
+      },
+    })
+    expect(result).toEqual({ kind: 'container-started' })
+    expect(builds).toEqual([true])
+  })
+
+  it('does not run compose when a container is already running', async () => {
+    let invocations = 0
+    const result = await startDockerService({
+      probe: async () => ({ status: 'current', mode: 'container', pid: 1 }),
+      composeUp: async () => {
+        invocations += 1
+        return { ok: true, code: 0 }
+      },
+    })
+    expect(result).toEqual({ kind: 'container-running' })
+    expect(invocations).toBe(0)
+  })
+
+  it('refuses when a local instance is running', async () => {
+    writePid(process.pid)
+    const result = await startDockerService({
+      probe: async () => ({ status: 'current', mode: 'local', pid: process.pid }),
+      composeUp: async () => {
+        throw new Error('compose must not run')
+      },
+    })
+    expect(result).toEqual({ kind: 'local-running', pid: process.pid })
+  })
+
+  it('reports a compose failure without polling', async () => {
+    let probes = 0
+    const result = await startDockerService({
+      probe: async () => {
+        probes += 1
+        return { status: 'unreachable' }
+      },
+      composeUp: async () => ({ ok: false, code: 3 }),
+    })
+    expect(result).toEqual({ kind: 'compose-failed', result: { ok: false, code: 3 } })
+    expect(probes).toBe(1)
+  })
+
+  it('reports unhealthy when no container appears', async () => {
+    const result = await startDockerService({
+      timeoutMs: 0,
+      probe: async () => ({ status: 'unreachable' }),
+      composeUp: async () => ({ ok: true, code: 0 }),
+    })
+    expect(result).toEqual({ kind: 'unhealthy' })
+  })
+
+  it('accepts a legacy container that does not report a mode', async () => {
+    let probes = 0
+    const result = await startDockerService({
+      pollMs: 0,
+      probe: async () => {
+        probes += 1
+        return probes === 1
+          ? { status: 'unreachable' }
+          : { status: 'current', mode: 'unknown', pid: 1 }
+      },
+      composeUp: async () => ({ ok: true, code: 0 }),
+    })
+    expect(result).toEqual({ kind: 'container-started' })
   })
 })

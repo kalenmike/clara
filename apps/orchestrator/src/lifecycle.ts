@@ -36,11 +36,26 @@ export interface StopOptions {
   composeDown?: () => Promise<ComposeResult>
 }
 
+export interface StartDockerOptions {
+  /** Rebuild the image before starting the service. */
+  build?: boolean
+  /** Overrides the compose command. Used by tests. */
+  composeUp?: (build: boolean) => Promise<ComposeResult>
+  /** Overrides health probing. Used by tests. */
+  probe?: () => Promise<HealthProbe>
+  /** Delay between health probes. */
+  pollMs?: number
+  /** Total time to wait for the container to become healthy. */
+  timeoutMs?: number
+}
+
 export interface ComposeResult {
   ok: boolean
   code: number | null
   error?: string
 }
+
+export type ComposeAction = 'up' | 'down'
 
 export type StopResult =
   | { kind: 'stopped'; pid: number }
@@ -51,6 +66,15 @@ export type StopResult =
   | { kind: 'external' }
   | { kind: 'foreign' }
   | { kind: 'error'; message: string }
+
+export type StartDockerResult =
+  | { kind: 'container-started' }
+  | { kind: 'container-running' }
+  | { kind: 'local-running'; pid: number | null }
+  | { kind: 'external' }
+  | { kind: 'foreign' }
+  | { kind: 'compose-failed'; result: ComposeResult }
+  | { kind: 'unhealthy' }
 
 function isAlive(pid: number): boolean {
   try {
@@ -210,9 +234,17 @@ function repoRoot(): string {
   return fileURLToPath(new URL('../../..', import.meta.url))
 }
 
-export function composeDown(): Promise<ComposeResult> {
+export function composeArgs(action: ComposeAction, build = false): string[] {
+  if (action === 'down') return ['compose', '-f', 'docker/compose.yml', 'down']
+  const args = ['compose', '-f', 'docker/compose.yml', 'up', '-d']
+  if (build) args.push('--build')
+  args.push('orchestrator')
+  return args
+}
+
+export function runCompose(action: ComposeAction, build = false): Promise<ComposeResult> {
   return new Promise((resolve) => {
-    const child = spawn('docker', ['compose', '-f', 'docker/compose.yml', 'down'], {
+    const child = spawn('docker', composeArgs(action, build), {
       cwd: repoRoot(),
       stdio: 'inherit',
       env: process.env,
@@ -222,6 +254,42 @@ export function composeDown(): Promise<ComposeResult> {
   })
 }
 
+export async function startDockerService(
+  options: StartDockerOptions = {}
+): Promise<StartDockerResult> {
+  const probe = options.probe ?? (() => probeHealth())
+  const initial = await probe()
+  if (initial.status === 'current') {
+    if (initial.mode === 'container') return { kind: 'container-running' }
+    if (initial.mode === 'local') {
+      const pid = readPidState()
+      if (pid.alive && matchesLocalPid(initial, pid.pid)) {
+        return { kind: 'local-running', pid: pid.pid }
+      }
+    }
+    return { kind: 'external' }
+  }
+  if (initial.status === 'foreign') return { kind: 'foreign' }
+
+  const up = options.composeUp ?? ((build: boolean) => runCompose('up', build))
+  const result = await up(options.build ?? false)
+  if (!result.ok) return { kind: 'compose-failed', result }
+
+  const timeoutMs = options.timeoutMs ?? 30_000
+  const pollMs = options.pollMs ?? 250
+  const deadline = Date.now() + timeoutMs
+  while (Date.now() < deadline) {
+    const next = await probe()
+    if (next.status === 'current') {
+      if (next.mode === 'container' || next.mode === 'unknown') return { kind: 'container-started' }
+      return { kind: 'foreign' }
+    }
+    if (next.status === 'foreign') return { kind: 'foreign' }
+    if (pollMs > 0) await delay(pollMs)
+  }
+  return { kind: 'unhealthy' }
+}
+
 export async function stopService(options: StopOptions = {}): Promise<StopResult> {
   const probe = await probeHealth()
   const pid = readPidState()
@@ -229,7 +297,10 @@ export async function stopService(options: StopOptions = {}): Promise<StopResult
 
   if (probe.status === 'current' && probe.mode === 'container') {
     if (!options.docker) return { kind: 'container' }
-    return { kind: 'container-down', result: await (options.composeDown ?? composeDown)() }
+    return {
+      kind: 'container-down',
+      result: await (options.composeDown ?? (() => runCompose('down')))(),
+    }
   }
 
   if (probe.status === 'foreign') return { kind: 'foreign' }
