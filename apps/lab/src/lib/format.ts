@@ -1,3 +1,10 @@
+const compact = new Intl.NumberFormat('en', { notation: 'compact', maximumFractionDigits: 1 })
+
+export function formatTokens(value: number | undefined): string {
+  if (!value) return '0'
+  return compact.format(value)
+}
+
 export function clock(value?: string | null): string {
   if (!value) return '—'
   const date = new Date(value)

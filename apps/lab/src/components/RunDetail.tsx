@@ -1,5 +1,5 @@
 import type { OrcEvent, StepRow } from '../types'
-import { clock, json, modelLabel, short, statusTone } from '../lib/format'
+import { clock, formatTokens, json, modelLabel, short, statusTone } from '../lib/format'
 import { Badge, Field } from './Badge'
 import { JsonView } from './Json'
 
@@ -31,7 +31,7 @@ export function RunStepDetail({ step }: { step?: StepRow }) {
         />
         <Field
           label="Usage"
-          value={`${step.turns} turns · ${step.tokens} tokens · ${step.tool_calls} tools · ${step.violations} violations`}
+          value={`${step.turns} turns · ${formatTokens(step.tokens)} tokens · ${step.tool_calls} tools · ${step.violations} violations`}
         />
       </div>
 
