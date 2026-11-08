@@ -112,7 +112,7 @@ database and token live under the host `CLARA_DATA_DIR` mount.
 
 The container writes no host PID file. `pnpm clara orchestration status` reports
 `running (docker container)`, and `pnpm clara orchestration stop` does not
-signal anything; stop the container with `pnpm docker:orchestrator:down` or
+signal anything; stop the container with
 `pnpm clara orchestration stop --docker`.
 
 Start it from the host with `pnpm clara orchestration start --docker`. That runs

@@ -70,8 +70,6 @@ pnpm check          # typecheck + lint + format:check + knip + test
 pnpm commitlint     # Lint the last commit message (also enforced on commit)
 pnpm deploy:web     # Pages deploy
 pnpm deploy:relay   # Worker deploy
-pnpm docker:orchestrator # Build and start the orchestrator container
-pnpm docker:orchestrator:down # Stop the orchestrator container
 ```
 
 ## Worktrees

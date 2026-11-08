@@ -116,7 +116,7 @@ describe('orchestrator lifecycle', () => {
       const lines = formatStatus(report)
       expect(lines).toContain('service: running (docker container)')
       expect(lines).toContain('pid: none (managed by the container)')
-      expect(lines).toContain('stop: pnpm docker:orchestrator:down')
+      expect(lines).toContain('stop: pnpm clara orchestration stop --docker')
     } finally {
       await service.close()
     }
