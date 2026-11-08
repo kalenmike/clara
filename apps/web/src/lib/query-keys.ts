@@ -30,5 +30,4 @@ export const queryKeys = {
     ['git', 'worktrees', projectID ?? 'global', directory ?? 'global'] as const,
   permissions: ['permissions'] as const,
   forms: (sessionID: string) => ['forms', sessionID] as const,
-  pipelines: ['pipelines'] as const,
 }

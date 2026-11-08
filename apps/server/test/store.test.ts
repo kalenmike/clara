@@ -37,7 +37,7 @@ describe('SQLite settings store', () => {
         shell: { mode: 'off', commands: [] },
         monitoring: true,
         sync: { enabled: true, intervalMs: 30_000 },
-        management: false,
+        orchestration: false,
       })
       const rows = db.prepare('SELECT key FROM settings ORDER BY key').all() as Array<{
         key: string
@@ -73,7 +73,7 @@ describe('SQLite settings store', () => {
         shell: { mode: 'allowlist', commands: ['git log'] },
         monitoring: false,
         sync: { enabled: true, intervalMs: 30_000 },
-        management: false,
+        orchestration: false,
       })
     } finally {
       closeDatabase(second)
@@ -105,7 +105,7 @@ describe('SQLite settings store', () => {
         shell: { mode: 'off', commands: [] },
         monitoring: true,
         sync: { enabled: true, intervalMs: 30_000 },
-        management: false,
+        orchestration: false,
       })
     } finally {
       closeDatabase(db)
@@ -184,6 +184,34 @@ describe('SQLite settings store', () => {
       expect(() => settings.setFeature('unknown' as never, true)).toThrow(/Unknown Clara feature/)
       expect(() => settings.setStopped('yes' as never)).toThrow(/must be a boolean/)
       expect(FEATURE_NAMES).toEqual(['opencode', 'local', 'relay', 'push'])
+    } finally {
+      closeDatabase(db)
+    }
+  })
+
+  it('replaces the legacy management switch with orchestration off', () => {
+    const path = join(tempDir(), 'clara.db')
+    const legacy = new Database(path)
+    legacy.exec(
+      'CREATE TABLE settings (key TEXT PRIMARY KEY, value TEXT NOT NULL, updated_at INTEGER NOT NULL)'
+    )
+    const insert = legacy.prepare('INSERT INTO settings (key, value, updated_at) VALUES (?, ?, ?)')
+    const now = Date.now()
+    for (const [key, value] of Object.entries(DEFAULT_SETTINGS)) {
+      if (key === 'orchestration.enabled') continue
+      insert.run(key, JSON.stringify(value), now)
+    }
+    insert.run('management.enabled', JSON.stringify(true), now)
+    legacy.pragma('user_version = 7')
+    legacy.close()
+
+    const db = openDatabase(path)
+    try {
+      expect(new SettingsStore(db).getOrchestration()).toBe(false)
+      const legacyRow = db
+        .prepare('SELECT value FROM settings WHERE key = ?')
+        .get('management.enabled')
+      expect(legacyRow).toBeUndefined()
     } finally {
       closeDatabase(db)
     }

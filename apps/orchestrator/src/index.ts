@@ -1,29 +1,26 @@
 #!/usr/bin/env node
-import { spawn } from 'node:child_process'
-import { closeSync, openSync, unlinkSync, writeFileSync } from 'node:fs'
+import { unlinkSync, writeFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { Runtime, Store } from '@clara/orchestration'
 import {
   baseURL,
+  collectStatus,
   configPath,
   dbPath,
   ensureToken,
+  formatStatus,
   host,
   logPath,
   pidPath,
   port,
-  stdDir,
-  workspace,
-} from './config.ts'
-import {
-  collectStatus,
-  formatStatus,
-  probeHealth,
   readPidState,
   startDockerService,
+  startLocalService,
   statusExitCode,
+  stdDir,
   stopService,
-} from './lifecycle.ts'
+  workspace,
+} from '@clara/orchestration-control'
 import { createOrchestratorServer } from './server.ts'
 
 function selfCommand(): string[] {
@@ -137,45 +134,32 @@ async function start(args: string[]): Promise<void> {
   }
   if (docker) return startDocker(build)
 
-  const probe = await probeHealth()
-  const pid = readPidState()
-  if (probe.status === 'current') {
-    if (probe.mode === 'container') {
+  const result = await startLocalService({ command: selfCommand() })
+  if (result.kind === 'started') {
+    console.log(`started at ${baseURL()}`)
+    return
+  }
+  if (result.kind === 'already-running') {
+    if (result.mode === 'container') {
       console.log(`already running in a container at ${baseURL()}`)
       console.log('stop it with `pnpm clara orchestration stop --docker`')
       return
     }
-    if (
-      pid.alive &&
-      pid.pid !== null &&
-      (probe.mode === 'unknown' || probe.pid === null || probe.pid === pid.pid)
-    ) {
+    const pid = readPidState()
+    if (pid.alive && pid.pid !== null) {
       console.log(`already running at ${baseURL()} (pid ${pid.pid})`)
       return
     }
     console.log(`already running at ${baseURL()}; not starting another instance`)
     return
   }
-  if (probe.status === 'foreign') {
-    throw new Error(`another service is already using ${baseURL()}`)
+  if (result.kind === 'unresponsive') {
+    throw new Error(
+      `the process at ${baseURL()} (pid ${result.pid}) is not answering; see ${logPath()}`
+    )
   }
-
-  const out = openSync(logPath(), 'a', 0o600)
-  const [executable, ...execArgs] = selfCommand()
-  const child = spawn(executable, [...execArgs, 'serve', '--detached'], {
-    detached: true,
-    stdio: ['ignore', out, out],
-    env: { ...process.env },
-  })
-  closeSync(out)
-  child.unref()
-  for (let attempt = 0; attempt < 50; attempt++) {
-    await new Promise((resolve) => setTimeout(resolve, 100))
-    const next = await probeHealth()
-    if (next.status === 'current') {
-      console.log(`started at ${baseURL()}`)
-      return
-    }
+  if (result.kind === 'foreign') {
+    throw new Error(`another service is already using ${baseURL()}`)
   }
   throw new Error(`service did not become healthy; see ${logPath()}`)
 }

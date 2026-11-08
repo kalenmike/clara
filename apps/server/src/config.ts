@@ -41,7 +41,6 @@ export type ServerConfig = {
   configPath: string
   dataDir: string
   dbPath: string
-  ledgerDbPath: string
   sources: ServerConfigSources
 }
 
@@ -206,7 +205,6 @@ export function loadConfig(options: { rotate?: boolean; local?: boolean } = {}):
     configPath,
     dataDir,
     dbPath: resolveDatabasePath(dataDir),
-    ledgerDbPath: resolveLedgerPath(dataDir),
     sources: {
       opencodeUrl: opencodeUrlSource,
       opencodePassword: opencodePasswordSource,
@@ -302,10 +300,6 @@ function resolveDataDir(): string {
 
 function resolveDatabasePath(dataDir: string): string {
   return process.env.CLARA_DB_PATH?.trim() || join(dataDir, 'clara.db')
-}
-
-function resolveLedgerPath(dataDir: string): string {
-  return process.env.CLARA_LEDGER_DB_PATH?.trim() || join(dataDir, 'ledger.db')
 }
 
 function normalizeRelayUrl(value: string): string {

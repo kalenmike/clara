@@ -1,5 +1,5 @@
 import { spawn } from 'node:child_process'
-import { existsSync, readFileSync, unlinkSync } from 'node:fs'
+import { closeSync, existsSync, openSync, readFileSync, unlinkSync } from 'node:fs'
 import { setTimeout as delay } from 'node:timers/promises'
 import { fileURLToPath } from 'node:url'
 import { baseURL, dbPath, logPath, pidPath, type InstanceMode } from './config.ts'
@@ -74,6 +74,26 @@ export type StartDockerResult =
   | { kind: 'external' }
   | { kind: 'foreign' }
   | { kind: 'compose-failed'; result: ComposeResult }
+  | { kind: 'unhealthy' }
+
+export interface StartLocalOptions {
+  /** Executable and arguments for the orchestrator CLI, without the subcommand. */
+  command: string[]
+  /** Overrides health probing. Used by tests. */
+  probe?: () => Promise<HealthProbe>
+  /** Delay between health probes. */
+  pollMs?: number
+  /** Total time to wait for the local process to become healthy. */
+  timeoutMs?: number
+  /** Environment for the detached process. Defaults to this process's environment. */
+  env?: NodeJS.ProcessEnv
+}
+
+export type StartLocalResult =
+  | { kind: 'started' }
+  | { kind: 'already-running'; mode: ProbeMode; pid: number | null }
+  | { kind: 'unresponsive'; pid: number }
+  | { kind: 'foreign' }
   | { kind: 'unhealthy' }
 
 function isAlive(pid: number): boolean {
@@ -312,6 +332,45 @@ export async function startDockerService(
     }
     if (next.status === 'foreign') return { kind: 'foreign' }
     if (pollMs > 0) await delay(pollMs)
+  }
+  return { kind: 'unhealthy' }
+}
+
+/** Start a detached local service and wait for its health endpoint. */
+export async function startLocalService(options: StartLocalOptions): Promise<StartLocalResult> {
+  const probe = options.probe ?? (() => probeHealth())
+  const initial = await probe()
+  if (initial.status === 'current') {
+    return { kind: 'already-running', mode: initial.mode, pid: initial.pid }
+  }
+  if (initial.status === 'foreign') return { kind: 'foreign' }
+
+  const pid = readPidState()
+  if (pid.alive && pid.pid !== null) return { kind: 'unresponsive', pid: pid.pid }
+
+  const [executable, ...args] = options.command
+  if (!executable) throw new Error('the orchestrator entry command is empty')
+
+  const out = openSync(logPath(), 'a', 0o600)
+  try {
+    const child = spawn(executable, [...args, 'serve', '--detached'], {
+      detached: true,
+      stdio: ['ignore', out, out],
+      env: options.env ?? process.env,
+    })
+    child.unref()
+  } finally {
+    closeSync(out)
+  }
+
+  const timeoutMs = options.timeoutMs ?? 5_000
+  const pollMs = options.pollMs ?? 100
+  const deadline = Date.now() + timeoutMs
+  while (Date.now() < deadline) {
+    if (pollMs > 0) await delay(pollMs)
+    const next = await probe()
+    if (next.status === 'current') return { kind: 'started' }
+    if (next.status === 'foreign') return { kind: 'foreign' }
   }
   return { kind: 'unhealthy' }
 }

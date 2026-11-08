@@ -1,4 +1,4 @@
-import { lazy, Suspense, useMemo } from 'react'
+import { useMemo } from 'react'
 import { CircleAlert, Eye, EyeOff, LoaderCircle, RefreshCw, ShieldCheck } from 'lucide-react'
 import { PANEL_API_VERSION } from '@clara/shared-types'
 import { formatTimestamp } from './lib/format.ts'
@@ -8,7 +8,7 @@ import { useAgentSnapshot } from './lib/use-agent-snapshot.ts'
 import { ClientSyncCard } from './components/client-sync-card.tsx'
 import { ClientsTable } from './components/clients-table.tsx'
 import { EventsCard } from './components/events-list.tsx'
-import { CLARA_FEATURE_INCLUDED } from './features/clara/flag.ts'
+import { OrchestrationCard } from './components/orchestration-card.tsx'
 import {
   AgentCard,
   ConfigCard,
@@ -21,14 +21,6 @@ import { Badge } from './components/primitives.tsx'
 import { StorageCard } from './components/storage-list.tsx'
 import { ShellPolicyCard } from './components/shell-policy-card.tsx'
 import { TrafficCard } from './components/traffic-card.tsx'
-
-const ManagementCard = CLARA_FEATURE_INCLUDED
-  ? lazy(() =>
-      import('./features/clara/management-card.tsx').then((module) => ({
-        default: module.ManagementCard,
-      }))
-    )
-  : null
 
 type SnapshotState = ReturnType<typeof useAgentSnapshot>
 
@@ -169,11 +161,7 @@ function Panel({ state }: { state: SnapshotState }) {
               <ClientSyncCard sync={data.controls.sync} onChanged={refresh} />
             </div>
 
-            {ManagementCard ? (
-              <Suspense fallback={null}>
-                <ManagementCard management={data.controls.management} onChanged={refresh} />
-              </Suspense>
-            ) : null}
+            <OrchestrationCard orchestration={data.controls.orchestration} onChanged={refresh} />
 
             <StorageCard storage={data.storage} now={clock} />
           </div>

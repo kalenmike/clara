@@ -5,7 +5,7 @@ import Database from 'better-sqlite3'
 
 export type ClaraDatabase = Database.Database
 
-export const SCHEMA_VERSION = 7
+export const SCHEMA_VERSION = 8
 
 const BUSY_TIMEOUT_MS = 5_000
 const DATABASE_MODE = 0o600
@@ -123,6 +123,17 @@ const MIGRATIONS: Migration[] = [
       DROP TABLE IF EXISTS ledger_alert_delivery;
     `)
   },
+  /**
+   * Orchestration replaces the legacy ledger management switch. Do not inherit
+   * the old value: enabling orchestration may start a process, and an upgrade
+   * must not do that without an explicit panel action.
+   */
+  (db) => {
+    db.prepare('DELETE FROM settings WHERE key = ?').run('management.enabled')
+    db.prepare(
+      'INSERT INTO settings (key, value, updated_at) VALUES (?, ?, ?) ON CONFLICT (key) DO NOTHING'
+    ).run('orchestration.enabled', JSON.stringify(false), Date.now())
+  },
 ]
 
 /** The settings seeded into every new database. */
@@ -137,7 +148,7 @@ export const DEFAULT_SETTINGS = {
   'monitoring.enabled': true,
   'sync.enabled': true,
   'sync.intervalMs': DEFAULT_SYNC_INTERVAL_MS,
-  'management.enabled': false,
+  'orchestration.enabled': false,
 } as const
 
 export function openDatabase(path: string): ClaraDatabase {

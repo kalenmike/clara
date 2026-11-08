@@ -5,9 +5,9 @@
 Clara tells the person when a session lands in the Inbox with a system
 notification and a distinct sound for each kind of attention. When the Clara
 home agent is connected, the same alert can arrive as a Web Push notification
-after the last Clara window is closed. Clara management adds a second source:
-ledger exceptions such as an open decision, a stalled request, a missing
-approval, or an unverified human gate. The settings card also controls optional
+after the last Clara window is closed. Orchestration adds a second source:
+run alerts and finished runs that the adapter delivers into the Clara session
+that started them. The settings card also controls optional
 chimes for UI actions such as Done and starting a Build. It is for people who
 start an agent run and move on, so they do not have to watch the sidebar.
 
@@ -33,11 +33,10 @@ start an agent run and move on, so they do not have to watch the sidebar.
    are held so the desk is alerted once; after the idle window, or when the
    desktop window is hidden, the phone starts receiving alerts again. Clicking
    any notification focuses Clara and opens the session.
-8. When Clara management is on and a ledger request needs a person — a
-   decision, stalled work, an approval, a gate, or a budget kill — the daemon
-   prompts the Clara session that owns the request. The standard session alert
-   fires: a form means Needs Input, while an information message means Ready for
-   Review.
+8. When orchestration is reachable and a run needs a person — a failure, stall,
+   budget kill, or finished result — the adapter queues a synthetic prompt into
+   the Clara session that started the run. The session moves to Needs Input for
+   an alert and Ready for Review for a completed result.
 9. When the person marks a session Done or starts work from a ready plan, Clara
    plays the matching UI chime if **UI sounds** is on.
 10. The sidebar still shows the same state with its dot, and the person can
@@ -98,14 +97,12 @@ start an agent run and move on, so they do not have to watch the sidebar.
     Inbox sounds, UI sounds, volume, per-state switches, and the desk idle
     window. Browser notification permission, the desktop switch, and this
     device's push subscription stay local. See [sync](sync.md).
-13. Ledger exceptions use the same four session attention states as every
-    other session. `clara_attention` posts a standard form for feedback,
-    structured answers, or confirmation, so the session becomes **Needs Input**.
-    An information-only exception is a normal assistant message, so it stays
-    **Ready for Review** and reads as the lower-priority state.
-14. While Clara management is on, sessions with `metadata.automation === true`
+13. Orchestration alerts use the same four session attention states as every
+    other session. The adapter delivers new alerts and finished root runs into
+    the origin session as queued synthetic prompts.
+14. While orchestration is reachable, sessions with `metadata.automation === true`
     do not raise their own session alerts. Worker completion is noise; the
-    exception conversation is the actionable alert.
+    origin conversation is the actionable alert.
 
 ## Edge cases
 
@@ -180,21 +177,18 @@ start an agent run and move on, so they do not have to watch the sidebar.
   reconciled the next time Clara opens.
 - **Home agent stopped or asleep** — events during the gap are not replayed, so
   a run that finishes while the agent is down does not push later.
-- **Clara management off** — no exception sessions, no registered Clara tools,
-  and Clara worker sessions keep their ordinary session alerts.
-- **No Clara client connected** — the exception still waits in its session; the
-  standard push path covers a closed client when a subscription exists.
-- **An exception arrives twice** — the alert row keeps `session_id` and
-  `notified_at`, so the daemon prompts once across restarts. A failed prompt is
-  retried on the next tick.
-- **The request session is gone** — the daemon creates a Clara session, links it
-  to the request, and prompts there.
-- **The exception resolves while Clara is composing** — `clara_attention`
-  refuses the form and Clara stops instead of asking a stale question.
-- **Clara worker completes** — with management on, its automation metadata
-  suppresses the session alert.
+- **Orchestration off** — worker sessions lose the automation treatment and
+  keep their ordinary session alerts.
+- **No Clara client connected** — the alert still waits in its origin session;
+  the standard push path covers a closed client when a subscription exists.
+- **An alert is delivered twice** — the adapter keeps a delivery cursor and
+  does not repeat an alert or finished run.
+- **The origin session is gone** — the alert stays in the inbox and the adapter
+  does not prompt a missing session.
+- **A worker completes** — with orchestration reachable, its automation
+  metadata suppresses the session alert.
 - **External OpenCode notifier** — the TUI notifier is a separate plugin and
-  does not read the Clara management switch.
+  does not read the Clara orchestration flag.
 - **Pairing rotated** — `pair --rotate` clears every stored push subscription, so
   a lost device stops receiving notifications.
 - **Push notification tapped while Clara is open** — the existing window is
@@ -290,11 +284,10 @@ start an agent run and move on, so they do not have to watch the sidebar.
   actions; the agent acknowledges with `push.status`
 - Push monitor: `apps/server/src/push/` reads `/api/event`, applies the same
   750 ms evaluation delay and 5 s cooldown, then sends through `web-push`
-- Ledger exceptions: `plugins/clara/alerts.ts` writes the outbox;
-  `plugins/clara/attention.ts` prompts the linked Clara session with a synthetic
-  daemon handoff. `clara_attention` posts the standard form.
-- Exception destination: the Clara session in `requests.session_id`, or a new
-  session linked back to the request when that session is unusable.
+- Orchestration delivery: `plugins/clara-policy/delivery.ts` plans alerts and
+  finished root runs; the adapter queues them into the origin session.
+- Alert destination: the root run's origin session when it still uses the
+  Clara interface agent.
 - Worker filter: `isClaraWorkerTitle` in
   `packages/shared-types/src/session-signals.ts`, shared by the home agent and
   the web notification provider

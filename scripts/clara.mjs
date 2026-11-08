@@ -3,17 +3,11 @@
 //
 //   pnpm clara pair
 //   pnpm clara control
-//   pnpm clara plugin install
-//   pnpm clara ledger list
 
 import { existsSync, readFileSync } from 'node:fs'
 import { homedir } from 'node:os'
 import { join } from 'node:path'
 import { fail, main, root, runNode, runPnpm } from './lib/router.mjs'
-
-const managementEnv = () => ({
-  CLARA_MANAGEMENT: process.env.CLARA_MANAGEMENT ?? '1',
-})
 
 function pair(args) {
   return runPnpm(['--filter', '@clara/server', 'exec', 'tsx', 'src/index.ts', 'pair', ...args])
@@ -22,11 +16,11 @@ function pair(args) {
 function serve(args) {
   const entry = join(root, 'apps/server/dist/index.js')
   if (!existsSync(entry)) fail('The home agent is not built. Run `pnpm build` first.')
-  return runNode(entry, args, { env: managementEnv() })
+  return runNode(entry, args)
 }
 
 function control(args) {
-  return runNode(join(root, 'scripts/control.mjs'), args, { env: managementEnv() })
+  return runNode(join(root, 'scripts/control.mjs'), args)
 }
 
 function pass() {
@@ -48,20 +42,6 @@ function pass() {
     fail(`No password in ${serviceFile}`)
   }
   console.log(password)
-}
-
-function pluginInstall(args) {
-  return runNode(join(root, 'scripts/install-clara-plugin.mjs'), args)
-}
-
-function pluginUninstall(args) {
-  return runNode(join(root, 'scripts/uninstall-clara-plugin.mjs'), args)
-}
-
-function ledger(args) {
-  return runNode(join(root, 'plugins/clara/cli.ts'), args, {
-    nodeArgs: ['--experimental-strip-types', '--no-warnings'],
-  })
 }
 
 // Developer commands prefer their TypeScript source. A stale apps/*/dist build
@@ -148,42 +128,6 @@ const clara = {
       name: 'pass',
       summary: 'Print the local OpenCode server password',
       run: pass,
-    },
-    {
-      name: 'plugin',
-      summary: 'Manage the Clara OpenCode plugin',
-      commands: [
-        {
-          name: 'install',
-          summary: 'Link the plugin and render its agents',
-          usage: '[--force]',
-          options: [
-            { flags: '--force', description: 'Replace an existing plugin link or agent files' },
-          ],
-          run: pluginInstall,
-        },
-        {
-          name: 'uninstall',
-          summary: 'Remove the plugin and generated agents',
-          usage: '[--purge]',
-          options: [
-            { flags: '--purge', description: 'Also remove ledger data and the management setting' },
-          ],
-          run: pluginUninstall,
-        },
-      ],
-    },
-    {
-      name: 'ledger',
-      summary: 'Invoke Clara ledger tools directly',
-      usage: '<args...>',
-      passthroughHelp: true,
-      examples: [
-        'pnpm clara ledger list',
-        'pnpm clara ledger run clara_inbox',
-        'pnpm clara ledger help',
-      ],
-      run: ledger,
     },
     {
       name: 'orchestration',

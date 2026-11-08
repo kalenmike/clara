@@ -13,6 +13,7 @@ import {
   formatStatus,
   readPidState,
   startDockerService,
+  startLocalService,
   statusExitCode,
   stopService,
   type HealthProbe,
@@ -328,6 +329,45 @@ describe('orchestrator lifecycle', () => {
     } finally {
       await service.close()
     }
+  })
+})
+
+describe('local start', () => {
+  it('reports an instance that is already answering', async () => {
+    const service = await fakeService({
+      ok: true,
+      service: 'clara-orchestrator',
+      mode: 'container',
+    })
+    setEnv('CLARA_ORCHESTRATION_PORT', String(service.port))
+    try {
+      expect(await startLocalService({ command: ['unused'] })).toEqual({
+        kind: 'already-running',
+        mode: 'container',
+        pid: null,
+      })
+    } finally {
+      await service.close()
+    }
+  })
+
+  it('refuses to start when another service owns the port', async () => {
+    const service = await fakeService({ ok: true, service: 'not-clara' })
+    setEnv('CLARA_ORCHESTRATION_PORT', String(service.port))
+    try {
+      expect(await startLocalService({ command: ['unused'] })).toEqual({ kind: 'foreign' })
+    } finally {
+      await service.close()
+    }
+  })
+
+  it('does not spawn beside an unresponsive local process', async () => {
+    setEnv('CLARA_ORCHESTRATION_PORT', String(await freePort()))
+    writePid(process.pid)
+    expect(await startLocalService({ command: ['unused'] })).toEqual({
+      kind: 'unresponsive',
+      pid: process.pid,
+    })
   })
 })
 

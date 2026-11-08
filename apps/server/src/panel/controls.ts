@@ -17,13 +17,26 @@ export type PanelControlService = {
   setShellPolicy: (policy: ShellPolicy) => Promise<PanelControls>
   setMonitoring: (enabled: boolean) => Promise<PanelControls>
   setSync: (update: PanelSyncUpdate) => Promise<PanelControls>
-  setManagement: (enabled: boolean) => Promise<PanelControls>
+  setOrchestration: (enabled: boolean) => Promise<PanelControls>
 }
 
 export type PanelControlFailure = {
   status: number
   code: string
   message: string
+}
+
+/** A control error the panel can return without turning it into a 500. */
+export class PanelControlError extends Error implements PanelControlFailure {
+  readonly status: number
+  readonly code: string
+
+  constructor(status: number, code: string, message: string) {
+    super(message)
+    this.name = 'PanelControlError'
+    this.status = status
+    this.code = code
+  }
 }
 
 export function readControlFailure(cause: unknown): PanelControlFailure | undefined {

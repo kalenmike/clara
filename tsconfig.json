@@ -14,13 +14,7 @@
       "path": "./packages/crypto"
     },
     {
-      "path": "./packages/pipelines"
-    },
-    {
       "path": "./packages/shared-types"
-    },
-    {
-      "path": "./plugins/clara"
     },
     {
       "path": "./workers/relay"
@@ -30,6 +24,9 @@
     },
     {
       "path": "./packages/orchestration"
+    },
+    {
+      "path": "./packages/orchestration-control"
     },
     {
       "path": "./packages/mcp-server"

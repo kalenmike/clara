@@ -41,9 +41,12 @@ apps/
   web/                 React SPA, deployed to Cloudflare Pages
   panel/               Loopback dashboard and admin controls served by the home agent
   server/              Node home agent, outbound relay client, local WS listener
+  orchestrator/        Loopback orchestration service and CLI
+  mcp/                 stdio MCP bridge
 packages/
-  shared-types/        Wire frames, actions, states, pairing payloads, pipeline types
-  pipelines/           Pipeline validation, built-in definitions, and catalog loading
+  shared-types/        Wire frames, actions, states, pairing payloads
+  orchestration/       Package loader, runtime, leases, and watchdog
+  orchestration-control/ Shared service paths, health, start, and stop helpers
   crypto/              PSK derivation, AES-GCM envelopes, replay guard
 workers/
   relay/               Worker + RelayRoom Durable Object
@@ -136,12 +139,13 @@ ConnectionProvider
 - The home agent serves `apps/panel` on a second loopback listener (default
   `127.0.0.1:8790`). It reads one allowlisted runtime snapshot, exposes guarded
   controls for the four external features, the master stop, the shell policy,
-  monitoring, and the client-sync gate and cadence, and never exposes the PSK,
-  secrets, sync values, or file contents. See
+  monitoring, the client-sync gate and cadence, and the local orchestration
+  service, and never exposes the PSK, secrets, sync values, or file contents. See
   [panel.md](../features/panel.md) and
   [agent-controls.md](../features/agent-controls.md).
-- Feature choices, the stopped flag, shell policy, monitoring, and the
-  client-sync gate and interval live in a `better-sqlite3` database at
+- Feature choices, the stopped flag, shell policy, monitoring, the
+  orchestration switch, and the client-sync gate and interval live in a
+  `better-sqlite3` database at
   `CLARA_DB_PATH` or `<data dir>/clara.db`. Desired state is persisted first;
   effective state also requires the transport to start. The same database holds
   the non-secret client sync namespace, described in

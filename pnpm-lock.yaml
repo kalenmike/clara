@@ -158,6 +158,9 @@ importers:
       '@clara/orchestration':
         specifier: workspace:*
         version: link:../../packages/orchestration
+      '@clara/orchestration-control':
+        specifier: workspace:*
+        version: link:../../packages/orchestration-control
       '@modelcontextprotocol/sdk':
         specifier: ^1.24.3
         version: 1.32.2(zod@4.6.7)
@@ -235,9 +238,9 @@ importers:
       '@clara/crypto':
         specifier: workspace:*
         version: link:../../packages/crypto
-      '@clara/pipelines':
+      '@clara/orchestration-control':
         specifier: workspace:*
-        version: link:../../packages/pipelines
+        version: link:../../packages/orchestration-control
       '@clara/shared-types':
         specifier: workspace:*
         version: link:../../packages/shared-types
@@ -484,11 +487,7 @@ importers:
         specifier: ^5.0.5
         version: 5.0.5(@types/node@24.19.2)(vite@8.3.5(@types/node@24.19.2)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1))
 
-  packages/pipelines:
-    dependencies:
-      '@clara/shared-types':
-        specifier: workspace:*
-        version: link:../shared-types
+  packages/orchestration-control:
     devDependencies:
       '@types/node':
         specifier: ^24.19.2
@@ -517,12 +516,6 @@ importers:
       vitest:
         specifier: ^5.0.5
         version: 5.0.5(@types/node@24.19.2)(vite@8.3.5(@types/node@24.19.2)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1))
-
-  plugins/clara:
-    dependencies:
-      '@clara/pipelines':
-        specifier: workspace:*
-        version: link:../../packages/pipelines
 
   plugins/clara-policy: {}
 

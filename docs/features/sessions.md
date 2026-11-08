@@ -19,10 +19,10 @@ by default, and the noun is configurable in Settings.
    project when it falls outside that window. Each row shows its name and
    canonical path; **All projects** at the end opens the projects page.
 3. Choosing a project loads its sessions into five collapsible mailbox
-   sections: Inbox, Outbox, Drafts, Snoozed, and Archived. While Clara
-   management is on, daemon-created sessions are removed from those sections
-   and shown in a separately anchored **Workers** section at the bottom of the
-   sidebar.
+   sections: Inbox, Outbox, Drafts, Snoozed, and Archived. While the
+   orchestration service is reachable, worker sessions are removed from those
+   sections and shown in a separately anchored **Workers** section at the bottom
+   of the sidebar.
 4. Inbox holds sessions that need the person: a pending approval or question,
    or an idle session whose latest conversational message is from the agent.
    Outbox holds sessions where the agent still owes a reply, including every
@@ -186,12 +186,12 @@ by default, and the noun is configurable in Settings.
     `icon.override` as a 128×128 PNG data URL, writes one of OpenCode's six
     avatar colors to `icon.color`, and writes the workspace startup command to
     `commands.start`. It never writes the server-discovered `icon.url`.
-19. While Clara management is on, a session whose metadata says
+19. While the orchestration service is reachable, a session whose metadata says
     `automation === true` never enters Inbox, Outbox, Drafts, Snoozed, or
     Archived. It stays in Workers even when archived, and New session does not
-    inherit its agent or model. When the build excludes Clara management or the
-    panel switch is off, the same session is treated as an ordinary session and
-    returns to the normal mailbox groups.
+    inherit its agent or model. When the Orchestration switch is off, the same
+    session is treated as an ordinary session and returns to the normal mailbox
+    groups.
     Removing a custom image reveals the selected color or discovered favicon.
     Every project avatar in the sidebar, All projects cards, and project page
     follows that order.
@@ -316,11 +316,11 @@ by default, and the noun is configurable in Settings.
   the chat header.
 - **Archived sessions** — shown only in the Archived section, even when they
   also carry snooze metadata. An automation worker is the exception: while
-  Clara management is on it stays in Workers.
+  orchestration is reachable it stays in Workers.
 - **Snoozed sessions** — shown only in the Snoozed section until reopened; they
   keep their title, messages, and run state.
-- **Clara management off** — automation sessions lose the Workers treatment
-  and behave like ordinary sessions in every mailbox group.
+- **Orchestration off** — automation sessions lose the Workers treatment and
+  behave like ordinary sessions in every mailbox group.
 - **Snoozed and archived** — Archived wins; reopening the session clears both
   flags and returns it to its mailbox bucket.
 - **Snoozing while running** — the run continues but the session stays out of
@@ -402,9 +402,9 @@ by default, and the noun is configurable in Settings.
 - Mailbox signals: `client.message.list({ sessionID, order: 'desc', limit: 1, type })`
   for `user` and `assistant`, plus `client.session.form.list({ sessionID })`
 - Automation grouping: `session.metadata.automation === true`; applied only
-  when `CLARA_FEATURE_INCLUDED` and the relay status reports
-  `management === true`. The predicate is checked before archived and snoozed,
-  so workers never enter a mailbox group while the feature is on.
+  when agent info reports `orchestration === true`. The predicate is checked
+  before archived and snoozed, so workers never enter a mailbox group while the
+  service is reachable.
 - Workers section: anchored above the sidebar footer, closed by default. Its
   header is first in the drawer, so opening raises the header and lays the rows
   out beneath it; the body caps at `min(16rem, 45dvh)` with its own scroll. It is

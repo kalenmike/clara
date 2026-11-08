@@ -5,8 +5,8 @@
 The home agent can be stopped, and its external connections switched on or
 off, from the loopback panel without editing files or restarting the service.
 The process, panel, and database stay available so the agent can always be
-started again. The panel also owns the global gate and check cadence for client
-settings sync.
+started again. The panel also starts and stops the local orchestration service
+and owns the global gate and check cadence for client settings sync.
 
 ## User flow
 
@@ -31,10 +31,13 @@ settings sync.
    the stopped banner.
 8. While stopped, feature switches are disabled. Choose **Start agent** in the
    same place to restore every saved on/off choice, including features that were
-   off before the stop. The shell policy, monitoring, and client-sync controls
-   stay editable because they do not start a transport.
-9. Restart the process at any time; the saved choices and the stopped state are
-   loaded before any transport starts.
+   off before the stop. The shell policy, monitoring, client-sync, and
+   orchestration controls stay editable because they do not start a Clara
+   transport.
+9. Use **Orchestration** to start or stop the local service. Container and
+   external instances are detected and left alone.
+10. Restart the process at any time; the saved choices and the stopped state are
+    loaded before any transport starts.
 
 ## Core business rules
 
@@ -111,12 +114,13 @@ settings sync.
 - Settings file: `CLARA_DB_PATH` or `<CLARA_DATA_DIR>/clara.db` (mode `0600`)
 - Settings keys: `features.opencode`, `features.local`, `features.relay`,
   `features.push`, `agent.stopped`, `shell.mode` and `shell.commands` for the
-  separate shell policy, `monitoring.enabled`, and `sync.enabled` plus
-  `sync.intervalMs` for client settings sync
+  separate shell policy, `monitoring.enabled`, `sync.enabled` plus
+  `sync.intervalMs` for client settings sync, and `orchestration.enabled` for
+  the local service
 - Read API: `GET /panel/api/v1/status`
 - Mutations: `POST /panel/api/v1/features`, `POST /panel/api/v1/agent`,
-  `POST /panel/api/v1/shell`, `POST /panel/api/v1/monitoring`, and
-  `POST /panel/api/v1/sync`
+  `POST /panel/api/v1/shell`, `POST /panel/api/v1/monitoring`,
+  `POST /panel/api/v1/sync`, and `POST /panel/api/v1/orchestration`
 - Mutation guards: loopback, `Host`, `Origin`, `Sec-Fetch-Site`,
   `content-type: application/json`, `x-clara-panel: 1`, 8 KB body limit,
   no unknown fields, no CORS headers

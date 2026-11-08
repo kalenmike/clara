@@ -1,5 +1,5 @@
 {
-  "name": "@clara/pipelines",
+  "name": "@clara/orchestration-control",
   "private": true,
   "version": "0.1.0",
   "type": "module",
@@ -9,9 +9,6 @@
   "scripts": {
     "typecheck": "tsc -p tsconfig.json",
     "test": "vitest run"
-  },
-  "dependencies": {
-    "@clara/shared-types": "workspace:*"
   },
   "devDependencies": {
     "@types/node": "^24.19.2",

@@ -2,12 +2,13 @@ import type {
   AgentInfo,
   PanelControls,
   PanelFeatureControl,
+  PanelOrchestrationControl,
   PanelSyncUpdate,
   ShellPolicy,
 } from '@clara/shared-types'
+import { baseURL } from '@clara/orchestration-control'
 import type { WebSocket } from 'ws'
 import { Agent } from '../agent.ts'
-import type { ClaraManagement } from '../clara/index.ts'
 import type { ServerConfig } from '../config.ts'
 import { broadcast, LocalTransport } from '../local-server.ts'
 import type { OpenCodeClient } from '../opencode.ts'
@@ -17,6 +18,11 @@ import { RelayClient, type RelayStatus } from '../relay-client.ts'
 import type { ClientStorageStore } from '../store/client-storage.ts'
 import { FEATURE_NAMES, type FeatureName, type SettingsStore } from '../store/settings.ts'
 import { TrafficMeter } from '../traffic.ts'
+import {
+  readOrchestrationControl,
+  startOrchestration,
+  stopOrchestration,
+} from '../orchestration/service.ts'
 
 export type ControllerOptions = {
   config: ServerConfig
@@ -26,7 +32,6 @@ export type ControllerOptions = {
   sync?: ClientStorageStore
   push?: PushService
   pushError?: string
-  clara?: ClaraManagement
   fingerprint?: string
   log: (message: string, detail?: unknown) => void
 }
@@ -51,6 +56,14 @@ export class RuntimeController {
   private readonly trafficMeter: TrafficMeter
   /** Command requests refused since this process started. */
   private shellDenied = 0
+  private orchestration: PanelOrchestrationControl = {
+    desired: false,
+    effective: false,
+    state: 'stopped',
+    url: baseURL(),
+  }
+  private orchestrationError: string | undefined
+  private orchestrationTimer?: NodeJS.Timeout
 
   constructor(options: ControllerOptions) {
     this.options = options
@@ -59,7 +72,7 @@ export class RuntimeController {
     const sync = options.settings.getSync()
     options.info.syncEnabled = sync.enabled
     options.info.syncIntervalMs = sync.intervalMs
-    options.info.management = Boolean(options.clara) && options.settings.getManagement()
+    options.info.orchestration = false
 
     this.localAgent = new Agent({
       openCode: options.openCode,
@@ -68,7 +81,6 @@ export class RuntimeController {
       send: (frame) => broadcast(this.localSockets, frame),
       push: options.push,
       sync: options.sync,
-      pipelineCatalog: () => options.clara?.pipelineCatalog(),
       traffic: this.trafficMeter,
       transport: 'local',
       policy: {
@@ -91,7 +103,6 @@ export class RuntimeController {
         send: (frame) => this.relayClient?.send(frame),
         push: options.push,
         sync: options.sync,
-        pipelineCatalog: () => options.clara?.pipelineCatalog(),
         traffic: this.trafficMeter,
         transport: 'relay',
         policy: {
@@ -129,7 +140,8 @@ export class RuntimeController {
         push: options.push,
         isDeskActive: () =>
           this.localAgent.deskHoldActive() || (this.relayAgent?.deskHoldActive() ?? false),
-        suppressSession: options.clara?.suppressSession,
+        suppressSession: (session) =>
+          this.orchestration.effective && session.metadata?.automation === true,
         log: options.log,
       })
     }
@@ -145,10 +157,6 @@ export class RuntimeController {
 
   get relayTransport(): RelayClient | undefined {
     return this.relayClient
-  }
-
-  get clara(): ClaraManagement | undefined {
-    return this.options.clara
   }
 
   get push(): PushService | undefined {
@@ -213,15 +221,28 @@ export class RuntimeController {
       shell: { ...settings.shell, blocked: this.shellDenied },
       monitoring: { enabled: settings.monitoring },
       sync: { ...settings.sync },
-      management: { enabled: Boolean(this.options.clara) && settings.management },
+      orchestration: this.orchestration,
     }
   }
 
   async start(): Promise<void> {
     const settings = this.options.settings.get()
-    // Reconcile agents saved before this process started, so an existing
-    // management choice is reflected even when nobody touches the panel.
-    await this.options.clara?.applyAgentVisibility(settings.management)
+    if (settings.orchestration) {
+      try {
+        await startOrchestration()
+      } catch (cause) {
+        this.orchestrationError = errorMessage(cause)
+        this.options.log('could not start orchestration', cause)
+      }
+    }
+    await this.refreshOrchestration()
+    this.orchestrationTimer = setInterval(() => {
+      void this.refreshOrchestration().catch((cause) => {
+        this.options.log('could not read the orchestration status', cause)
+      })
+    }, 15_000)
+    this.orchestrationTimer.unref?.()
+
     if (settings.stopped) {
       this.options.log('agent stopped by an admin setting; only the panel and database are running')
       return
@@ -271,21 +292,31 @@ export class RuntimeController {
   }
 
   /**
-   * Clara management is the master switch for the ledger daemon, the generated
-   * Clara agents, and their exception sessions. It is independent of the
-   * transport stop flag.
+   * Orchestration is the master switch for the local service and the
+   * automation-session treatment. It is independent of the transport stop flag.
    */
-  async setManagement(enabled: boolean): Promise<PanelControls> {
-    const previous = this.options.settings.getManagement()
-    const next = Boolean(this.options.clara) && enabled
-    this.options.settings.setManagement(next)
-    this.options.info.management = next
-    await this.options.clara?.applyAgentVisibility(next, { forceReload: previous !== next })
+  async setOrchestration(enabled: boolean): Promise<PanelControls> {
+    const previous = this.options.settings.getOrchestration()
+    this.orchestrationError = undefined
+    try {
+      if (enabled) {
+        this.options.settings.setOrchestration(true)
+        await startOrchestration()
+      } else {
+        await stopOrchestration()
+        this.options.settings.setOrchestration(false)
+      }
+    } catch (cause) {
+      this.orchestrationError = errorMessage(cause)
+      this.options.log(`could not ${enabled ? 'start' : 'stop'} orchestration`, cause)
+      await this.refreshOrchestration()
+      throw cause
+    }
 
-    this.localAgent.broadcastAgentInfo()
-    this.relayAgent?.broadcastAgentInfo()
+    await this.refreshOrchestration()
+    const next = this.options.settings.getOrchestration()
     if (previous !== next) {
-      this.options.log(next ? 'Clara management enabled' : 'Clara management disabled')
+      this.options.log(next ? 'orchestration enabled' : 'orchestration disabled')
     }
     return this.controls()
   }
@@ -331,11 +362,30 @@ export class RuntimeController {
   }
 
   async close(): Promise<void> {
+    if (this.orchestrationTimer) clearInterval(this.orchestrationTimer)
+    this.orchestrationTimer = undefined
     await this.stopLocal('agent shutting down')
     this.relayClient?.close()
     this.stopPushMonitor()
     this.localAgent.close()
     this.relayAgent?.close()
+  }
+
+  private async refreshOrchestration(): Promise<void> {
+    const next = await readOrchestrationControl(
+      this.options.settings.getOrchestration(),
+      this.orchestrationError
+    )
+    if (next.effective) this.orchestrationError = undefined
+    const changed = next.effective !== this.orchestration.effective
+    this.orchestration = next
+    this.options.info.orchestration = next.effective
+    if (!changed) return
+    this.localAgent.broadcastAgentInfo()
+    this.relayAgent?.broadcastAgentInfo()
+    this.options.log(
+      next.effective ? 'orchestration service is reachable' : 'orchestration service is unavailable'
+    )
   }
 
   private async applyDesired(): Promise<void> {

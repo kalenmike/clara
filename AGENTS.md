@@ -13,10 +13,8 @@ apps/lab              Loopback pipeline preview and agent probe
 apps/server           Node home agent, local WS + outbound Cloudflare relay
 apps/orchestrator     Loopback orchestration service, REST/SSE/MCP
 apps/mcp              stdio MCP bridge to the orchestration service
-plugins/clara         Legacy OpenCode ledger plugin and agent definitions
 plugins/clara-policy  OpenCode strict enforcement adapter
 packages/shared-types Wire frames, actions, states, pairing payloads
-packages/pipelines    Legacy JSON pipeline validation and catalog
 packages/policy       Step policy, budgets, and violation rules
 packages/orchestration Package loader, runtime, leases, and watchdog
 packages/devtools     Pipeline preview, diagnostics, and snapshot diff SDK
@@ -52,9 +50,6 @@ pnpm clara pair     # Print a pairing code
 pnpm clara control  # Serve the built panel and open it in a browser
 pnpm clara serve    # Run the built home agent
 pnpm clara pass     # Print the local OpenCode password
-pnpm clara plugin install # Link the ledger plugin and render its agents
-pnpm clara plugin uninstall # Remove the plugin and generated agents
-pnpm clara ledger   # List or invoke the Clara ledger tools directly
 pnpm clara orchestration start [--docker] [--build]|stop [--docker]|status|serve # Run the orchestration service
 pnpm clara lab      # Open Clara Lab to preview pipelines and probe the agent
 pnpm clara lab check # Validate a package target for CI
@@ -211,7 +206,7 @@ docs(sessions): document archived session filters
 | Relay Worker, DO, remote access    | [docs/architecture/relay.md](docs/architecture/relay.md)         |
 | E2EE, PSK, envelopes, rotation     | [docs/architecture/e2ee.md](docs/architecture/e2ee.md)           |
 | What ships and what does not       | [docs/features/capabilities.md](docs/features/capabilities.md)   |
-| Ledger plugin, agents, install     | [docs/features/ledger.md](docs/features/ledger.md)               |
+| Orchestration service and control  | [docs/features/orchestration.md](docs/features/orchestration.md) |
 | Pipeline preview and agent probe   | [docs/features/lab.md](docs/features/lab.md)                     |
 | Pairing, QR codes, device storage  | [docs/features/pairing.md](docs/features/pairing.md)             |
 | Install, updates, offline caching  | [docs/features/install.md](docs/features/install.md)             |

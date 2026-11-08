@@ -17,10 +17,8 @@ import {
   PROTOCOL_VERSION,
   type ClaraAction,
   type ClaraState,
-  type PipelineCatalog,
   type WireFrame,
 } from '@clara/shared-types'
-import { SOFTWARE_PIPELINE } from '@clara/pipelines'
 import { Agent, type AgentPolicy } from '../src/agent.ts'
 import { OpenCodeClient } from '../src/opencode.ts'
 import type { PushService } from '../src/push/service.ts'
@@ -95,8 +93,7 @@ async function connect(
   push?: PushService,
   sync?: ClientStorageStore,
   policy?: AgentPolicy,
-  traffic?: TrafficMeter,
-  pipelineCatalog?: () => PipelineCatalog
+  traffic?: TrafficMeter
 ): Promise<{
   agent: Agent
   client: Client
@@ -115,7 +112,6 @@ async function connect(
     sync,
     ...(policy ? { policy } : {}),
     ...(traffic ? { traffic } : {}),
-    ...(pipelineCatalog ? { pipelineCatalog } : {}),
   })
   agents.push(agent)
 
@@ -219,55 +215,6 @@ describe('agent', () => {
         .map((data) => Buffer.from(data, 'base64url').toString('utf8'))
         .join('')
       expect(JSON.parse(body)).toMatchObject({ version: '9.9.9' })
-    } finally {
-      await fake.close()
-    }
-  })
-
-  it('returns the pipeline catalog to a client', async () => {
-    const fake = await startFakeOpenCode()
-    try {
-      const catalog: PipelineCatalog = {
-        directory: '/tmp/clara/pipelines',
-        builtins: [SOFTWARE_PIPELINE],
-        custom: [],
-        errors: [],
-      }
-      const { agent, client, frames } = await connect(
-        fake,
-        undefined,
-        undefined,
-        undefined,
-        undefined,
-        () => catalog
-      )
-      await waitFor(() => (frames.length >= 2 ? true : undefined))
-      await send(client, agent, { type: 'pipeline.list', id: 'pipelines-1' })
-
-      const state = await waitFor(async () => {
-        const states = await readStates(client, frames)
-        return states.find((entry) => entry.type === 'pipeline.catalog')
-      })
-
-      expect(state).toMatchObject({ type: 'pipeline.catalog', id: 'pipelines-1', catalog })
-    } finally {
-      await fake.close()
-    }
-  })
-
-  it('reports when the home agent has no pipeline catalog', async () => {
-    const fake = await startFakeOpenCode()
-    try {
-      const { agent, client, frames } = await connect(fake)
-      await waitFor(() => (frames.length >= 2 ? true : undefined))
-      await send(client, agent, { type: 'pipeline.list', id: 'pipelines-2' })
-
-      const state = await waitFor(async () => {
-        const states = await readStates(client, frames)
-        return states.find((entry) => entry.type === 'pipeline.error')
-      })
-
-      expect(state).toMatchObject({ type: 'pipeline.error', id: 'pipelines-2' })
     } finally {
       await fake.close()
     }
