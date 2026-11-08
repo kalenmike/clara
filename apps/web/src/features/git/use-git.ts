@@ -1,5 +1,10 @@
 import { useQuery } from '@tanstack/react-query'
-import { ClientError, type VcsFileStatus, type WorktreeDirectory } from '@opencode/client'
+import {
+  ClientError,
+  type SessionMessageInfo,
+  type VcsFileStatus,
+  type WorktreeDirectory,
+} from '@opencode/client'
 import { type OpenCodeClient } from '@/lib/client'
 import { queryKeys } from '@/lib/query-keys'
 import { useConnection } from '@/providers/connection-provider'
@@ -32,16 +37,41 @@ export type GitWorktree = WorktreeDirectory & {
   isCurrent: boolean
 }
 
+/** The time window a session owns, in milliseconds. */
+export type CommitWindow = {
+  /** The session's creation time. */
+  since: number
+  /** The newest activity in the session, omitted while a turn is running. */
+  until?: number
+}
+
 /**
- * The one command Clara runs on the host. The server policy must allow it.
- * `%x1f` separates fields and `%x1e` separates records so multiline bodies
- * survive; neither byte appears in a normal commit message.
+ * The one command shape Clara runs on the host. The session window is added as
+ * two ISO timestamps; the server policy must allow it. `%x1f` separates fields
+ * and `%x1e` separates records so multiline bodies survive; neither byte appears
+ * in a normal commit message.
  */
-export const GIT_LOG_COMMAND = 'git log -n 10 --format=%H%x1f%an%x1f%ae%x1f%aI%x1f%s%x1f%b%x1e'
+const GIT_LOG_FORMAT = '%H%x1f%an%x1f%ae%x1f%aI%x1f%s%x1f%b%x1e'
 const COMMIT_COUNT = 10
 const SHELL_TIMEOUT_MS = 10_000
 const SHELL_POLL_MS = 150
 const SHELL_POLL_LIMIT = Math.ceil(SHELL_TIMEOUT_MS / SHELL_POLL_MS) + 2
+
+/**
+ * Scope the log to the session window. Both bounds are numbers from session
+ * metadata, never user input, and `toISOString` cannot introduce shell syntax.
+ */
+export function gitLogCommand(commitWindow: CommitWindow): string {
+  if (!Number.isFinite(commitWindow.since)) {
+    throw new Error('The session start is not a timestamp')
+  }
+  const since = new Date(commitWindow.since).toISOString()
+  const until =
+    commitWindow.until !== undefined && Number.isFinite(commitWindow.until)
+      ? ` --until=${new Date(commitWindow.until).toISOString()}`
+      : ''
+  return `git log --since=${since}${until} -n ${COMMIT_COUNT} --format=${GIT_LOG_FORMAT}`
+}
 
 export function useGitInfo(directory: string | undefined) {
   const { client } = useConnection()
@@ -98,21 +128,29 @@ export function useGitChanges(
 }
 
 /**
- * Recent commits from the session's own directory. The caller filters them to
- * the session window. The request travels through the home agent, which applies
- * the admin shell policy before forwarding it to OpenCode. Direct connections
- * have no agent, so the panel hides this view.
+ * Commits from the session's own directory inside its window. The window is
+ * enforced by the host command, so no unrelated commits are fetched. The
+ * request travels through the home agent, which applies the admin shell policy
+ * before forwarding it to OpenCode. Direct connections have no agent, so the
+ * panel hides this view.
  */
-export function useGitCommits(directory: string | undefined, enabled: boolean) {
+export function useGitCommits(
+  directory: string | undefined,
+  commitWindow: CommitWindow | undefined,
+  enabled: boolean
+) {
   const { client } = useConnection()
   return useQuery({
-    queryKey: queryKeys.gitCommits(directory),
+    queryKey: queryKeys.gitCommits(directory, commitWindow?.since, commitWindow?.until),
     queryFn: ({ signal }) => {
       if (!client) throw new Error('No OpenCode client')
       if (!directory) throw new Error('No directory')
-      return runGitLog(client, directory, signal)
+      if (!commitWindow) throw new Error('No commit window')
+      return runGitLog(client, directory, commitWindow, signal)
     },
-    enabled: Boolean(client && directory && enabled),
+    enabled: Boolean(
+      client && directory && enabled && commitWindow && Number.isFinite(commitWindow.since)
+    ),
     staleTime: 15_000,
     retry: false,
   })
@@ -156,12 +194,13 @@ export function shellFailure(error: unknown): ShellFailure {
 async function runGitLog(
   client: OpenCodeClient,
   directory: string,
+  commitWindow: CommitWindow,
   signal: AbortSignal
 ): Promise<GitCommit[]> {
   const created = await client.shell.create(
     {
       location: { directory },
-      command: GIT_LOG_COMMAND,
+      command: gitLogCommand(commitWindow),
       cwd: directory,
       timeout: SHELL_TIMEOUT_MS,
     },
@@ -200,16 +239,20 @@ const CONVENTIONAL_HEADER = /^([a-z]+)(?:\(([^()]+)\))?(!)?:\s+(.+)$/i
 const CO_AUTHOR_TRAILER = /^co-authored-by:\s*(.*?)\s*<([^<>]+)>\s*$/i
 
 /**
- * Keep the commits authored after the session started. `startedAt` is the
- * session's creation time in milliseconds; an unknown timestamp keeps the
- * whole log so the view can still render.
+ * The newest activity in the session. Assistant and shell messages carry a
+ * completion time after the commits made during their turn, so it is the upper
+ * bound when present. Every other message only has a creation time.
  */
-export function commitsSince(commits: GitCommit[], startedAt: number | undefined): GitCommit[] {
-  if (startedAt === undefined) return commits
-  return commits.filter((commit) => {
-    const authoredAt = Date.parse(commit.authoredAt)
-    return Number.isFinite(authoredAt) && authoredAt >= startedAt
-  })
+export function lastSessionActivity(messages: SessionMessageInfo[]): number | undefined {
+  let latest: number | undefined
+  for (const message of messages) {
+    const time =
+      message.type === 'assistant' || message.type === 'shell'
+        ? Math.max(message.time.created, message.time.completed ?? 0)
+        : message.time.created
+    if (latest === undefined || time > latest) latest = time
+  }
+  return latest
 }
 
 /** Read one `git log` run in the record format above. */

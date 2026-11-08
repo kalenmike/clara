@@ -224,7 +224,8 @@ export function ShellPolicyCard({
             every command. <code className="font-mono">{PRESET}</code> also allows the formatted
             history command, for example{' '}
             <code className="break-all font-mono">
-              git log -n 10 --format=%H%x1f%an%x1f%ae%x1f%aI%x1f%s%x1f%b%x1e
+              git log --since=2026-01-01T12:00:00Z --until=2026-01-01T12:30:00Z -n 10
+              --format=%H%x1f%an%x1f%ae%x1f%aI%x1f%s%x1f%b%x1e
             </code>
             .
           </p>
