@@ -324,21 +324,12 @@ export class LabRuntime {
     }
 
     try {
-      const catalog = await this.callTool(
-        'clara_catalog',
-        { workspace: runtimeWorkspace },
-        'system'
+      const catalog = await this.getJson<unknown[]>(
+        `/v1/catalog?workspace=${encodeURIComponent(runtimeWorkspace)}`
       )
-      if (catalog.isError) {
-        result.runtime = {
-          ok: false,
-          error: typeof catalog.value === 'string' ? catalog.value : JSON.stringify(catalog.value),
-        }
-      } else {
-        result.runtime = {
-          ok: true,
-          packages: Array.isArray(catalog.value) ? catalog.value.length : 0,
-        }
+      result.runtime = {
+        ok: true,
+        packages: Array.isArray(catalog) ? catalog.length : 0,
       }
     } catch (error) {
       result.runtime = { ok: false, error: message(error) }
@@ -427,8 +418,21 @@ export class LabRuntime {
   }
 
   private async getJson<T>(path: string): Promise<T> {
+    return this.requestJson<T>('GET', path)
+  }
+
+  private async postJson<T>(path: string, body: unknown): Promise<T> {
+    return this.requestJson<T>('POST', path, body)
+  }
+
+  private async requestJson<T>(method: string, path: string, body?: unknown): Promise<T> {
     const response = await fetch(`${this.url}${path}`, {
-      headers: { authorization: `Bearer ${this.token}` },
+      method,
+      headers: {
+        authorization: `Bearer ${this.token}`,
+        ...(body === undefined ? {} : { 'content-type': 'application/json' }),
+      },
+      ...(body === undefined ? {} : { body: JSON.stringify(body) }),
     })
     const value = (await response.json()) as unknown
     if (!response.ok) {
@@ -454,7 +458,13 @@ export class LabRuntime {
   ): Promise<ToolResult> {
     const started = Date.now()
     try {
-      const result = await this.mcp.call(name, args)
+      // Starting a run is an operator action: the Lab is the only caller that
+      // selects a workspace and pipeline target. Model-facing MCP always uses
+      // the configured entry point.
+      const result =
+        name === 'clara_start'
+          ? { value: await this.postJson('/v1/runs', args), isError: false }
+          : await this.mcp.call(name, args)
       this.state.recordCall({
         tool: name,
         source,

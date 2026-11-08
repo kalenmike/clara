@@ -21,6 +21,13 @@ describe('Clara MCP server', () => {
     const client = new Client({ name: 'test', version: '1.0.0' })
     await client.connect(clientTransport)
 
+    const tools = await client.listTools()
+    const start = tools.tools.find((tool) => tool.name === 'clara_start')
+    expect(start?.inputSchema.properties).not.toHaveProperty('workspace')
+    expect(start?.inputSchema.properties).not.toHaveProperty('target')
+    const catalog = tools.tools.find((tool) => tool.name === 'clara_catalog')
+    expect(catalog?.inputSchema.properties ?? {}).toEqual({})
+
     const list = await client.callTool({ name: 'clara_list', arguments: {} })
     expect(list.isError).toBeFalsy()
     expect(list.structuredContent).toEqual({ items: [{ id: 1, state: 'running' }] })

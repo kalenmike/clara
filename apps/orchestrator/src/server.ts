@@ -91,7 +91,7 @@ function decode(value: string): string {
 
 export function createOrchestratorServer(options: OrchestratorServerOptions): OrchestratorServer {
   const { runtime, token } = options
-  const backend = new RuntimeBackend(runtime)
+  const backend = new RuntimeBackend(runtime, options.workspace)
   const mcpSessions = new Map<
     string,
     { transport: StreamableHTTPServerTransport; close: () => void }
@@ -131,10 +131,7 @@ export function createOrchestratorServer(options: OrchestratorServerOptions): Or
         return
       }
       if (req.method === 'GET' && url.pathname === '/v1/catalog') {
-        const workspace = url.searchParams.get('workspace')
-        if (!workspace)
-          throw new HttpError(400, 'workspace_required', 'workspace query is required')
-        json(res, 200, await backend.catalog(workspace))
+        json(res, 200, await backend.catalog(url.searchParams.get('workspace') ?? undefined))
         return
       }
       if (req.method === 'GET' && url.pathname === '/v1/diagnostics') {

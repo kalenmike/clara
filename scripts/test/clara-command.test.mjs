@@ -44,6 +44,8 @@ test('the installed command is the manual MCP work-order path', () => {
   assert.match(body, /manual MCP mode/)
   assert.match(body, /clara_complete/)
   assert.doesNotMatch(body, /In conductor mode/)
+  assert.doesNotMatch(body, /`workspace`/)
+  assert.doesNotMatch(body, /`target`/)
 })
 
 test('installs the manual command and keeps a user-authored command', (t) => {

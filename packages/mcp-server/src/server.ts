@@ -35,11 +35,15 @@ const text = (value: unknown) => {
 
 export const SERVER_INSTRUCTIONS = `You are connected to Clara's orchestration service through MCP.
 
+The orchestrator owns the workspace and its configured entry point. Do not pass
+a workspace or a pipeline target: clara_start always starts the configured
+entry, and that entry routes the request.
+
 MCP is the generic work-order surface. Calling clara_start does not dispatch a
 background worker: it returns a work order that you must execute yourself.
 
 To run a pipeline manually:
-1. Call clara_start with the user's prompt and the workspace path.
+1. Call clara_start with the user's prompt.
 2. Read the returned work order. Its prompt is the step instruction,
    context.prompt is the root request, and context.steps holds prior step
    results. Do the work with your own tools.
@@ -65,19 +69,9 @@ export function createClaraServer(backend: ClaraBackend, version = '0.1.0'): Mcp
     'clara_start',
     {
       description:
-        'Start a Clara pipeline. Returns the first work order, its lease token, prompt, budget, and context.',
+        'Start the configured Clara entry point. Returns the first work order, its lease token, prompt, budget, and context.',
       inputSchema: {
         prompt: z.string().min(1).describe('The initial human or agent request'),
-        workspace: z
-          .string()
-          .min(1)
-          .describe('Absolute workspace path containing orchestration/index.yml'),
-        target: z
-          .string()
-          .optional()
-          .describe(
-            'Package entry or pipeline, e.g. std:software or std:software/feature. A bare package id selects its entry. Omit to use the workspace entry.'
-          ),
         origin: originSchema.describe('Who submitted the request'),
       },
     },
@@ -286,10 +280,11 @@ export function createClaraServer(backend: ClaraBackend, version = '0.1.0'): Mcp
   server.registerTool(
     'clara_catalog',
     {
-      description: 'Read the resolved package, pipeline, router, and task catalog for a workspace.',
-      inputSchema: { workspace: z.string().min(1) },
+      description:
+        'Read the resolved package, pipeline, router, and task catalog for the configured workspace.',
+      inputSchema: {},
     },
-    async (args) => text(await backend.catalog(args.workspace))
+    async () => text(await backend.catalog())
   )
 
   server.registerTool(
@@ -361,7 +356,7 @@ export function createClaraServer(backend: ClaraBackend, version = '0.1.0'): Mcp
         {
           uri: uri.href,
           mimeType: 'application/json',
-          text: JSON.stringify(await backend.catalog(process.cwd()), null, 2),
+          text: JSON.stringify(await backend.catalog(), null, 2),
         },
       ],
     })

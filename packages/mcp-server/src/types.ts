@@ -15,7 +15,7 @@ export interface UsageInput {
 export interface ClaraBackend {
   start(input: {
     prompt: string
-    workspace: string
+    workspace?: string
     target?: string
     origin?: OriginInput
   }): Promise<unknown>
@@ -76,7 +76,7 @@ export interface ClaraBackend {
     usage: UsageInput
   }): Promise<unknown>
   heartbeat(runID: number, stepPath: string, workToken: string): Promise<unknown>
-  catalog(workspace: string): Promise<unknown>
+  catalog(workspace?: string): Promise<unknown>
   registerAdapter(input: {
     harness: string
     workspace: string
