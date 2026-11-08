@@ -189,29 +189,27 @@ describe('SQLite settings store', () => {
     }
   })
 
-  it('replaces the legacy management switch with orchestration off', () => {
+  it('adds orchestration off when upgrading from a version without it', () => {
     const path = join(tempDir(), 'clara.db')
-    const legacy = new Database(path)
-    legacy.exec(
+    const previous = new Database(path)
+    previous.exec(
       'CREATE TABLE settings (key TEXT PRIMARY KEY, value TEXT NOT NULL, updated_at INTEGER NOT NULL)'
     )
-    const insert = legacy.prepare('INSERT INTO settings (key, value, updated_at) VALUES (?, ?, ?)')
+    const insert = previous.prepare(
+      'INSERT INTO settings (key, value, updated_at) VALUES (?, ?, ?)'
+    )
     const now = Date.now()
     for (const [key, value] of Object.entries(DEFAULT_SETTINGS)) {
       if (key === 'orchestration.enabled') continue
       insert.run(key, JSON.stringify(value), now)
     }
-    insert.run('management.enabled', JSON.stringify(true), now)
-    legacy.pragma('user_version = 7')
-    legacy.close()
+    previous.pragma('user_version = 4')
+    previous.close()
 
     const db = openDatabase(path)
     try {
+      expect(schemaVersion(db)).toBe(SCHEMA_VERSION)
       expect(new SettingsStore(db).getOrchestration()).toBe(false)
-      const legacyRow = db
-        .prepare('SELECT value FROM settings WHERE key = ?')
-        .get('management.enabled')
-      expect(legacyRow).toBeUndefined()
     } finally {
       closeDatabase(db)
     }

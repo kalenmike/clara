@@ -283,7 +283,7 @@ or off, and gate or pace client settings sync.
 - Policy storage: `shell.mode` and `shell.commands` in the settings table,
   added by database migration `2`; `monitoring.enabled`, added by migration `3`;
   `sync.enabled` and `sync.intervalMs`, added by migration `4`;
-  `orchestration.enabled`, added by migration `8`
+  `orchestration.enabled`, added by migration `5`
 - Database health: path, existence, mode, bytes, schema version, client-sync
   counts and bytes (never values)
 - Guards: loopback remote address, `Host`, `Origin`, `Sec-Fetch-Site`,
