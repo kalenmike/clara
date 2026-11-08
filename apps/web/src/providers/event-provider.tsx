@@ -136,6 +136,7 @@ export function EventProvider({ children }: { children: ReactNode }) {
       if (hadFailure) {
         // Events that arrived while the stream was down were never replayed.
         chatStore.resetHistories()
+        chatStore.resetStatuses()
         void queryClient.resetQueries({ queryKey: ['messages'] })
         void queryClient.invalidateQueries({
           predicate: (query) => query.queryKey[0] !== 'messages',
