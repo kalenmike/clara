@@ -292,6 +292,12 @@ as an inferred completion (`{ summary, inferred: true }`) instead of discarding
 correct work. Routers never infer a decision: a missing route key fails the
 step.
 
+A control call settles the binding before it returns. The adapter does not
+interrupt a worker that already recorded its step: the closed binding stays for
+the rest of the turn, so later tool calls are still denied, and the idle watcher
+releases it without sending a corrective turn. A fallback binding of the human's
+session detaches at once and is never interrupted.
+
 The adapter also scopes the tool list for each model call. A router sees only
 `clara_route` and `clara_fail`; a task keeps its repository tools and sees only
 `clara_complete`, `clara_fail`, and `clara_spawn` from the Clara namespace. The
