@@ -1,8 +1,10 @@
 import type {
   AlertRow,
+  CancelAllResult,
   CompiledDiff,
   LabPreviewResult,
   LabSnapshot,
+  OpenCodeSessionsResult,
   PreflightResult,
   RunRow,
   StatusResult,
@@ -109,6 +111,14 @@ export function getStep(runID: number, stepPath: string): Promise<StepRow> {
 
 export function getInbox(): Promise<ToolEnvelope<AlertRow[]>> {
   return request<ToolEnvelope<AlertRow[]>>('/api/inbox')
+}
+
+export function getOpenCodeSessions(): Promise<OpenCodeSessionsResult> {
+  return request<OpenCodeSessionsResult>('/api/opencode/sessions')
+}
+
+export function cancelAllRuns(): Promise<CancelAllResult> {
+  return request<CancelAllResult>('/api/runs/cancel-all', mutation({}))
 }
 
 export interface SourceResponse {

@@ -7,7 +7,7 @@ import type { ModelOption } from '@clara/devtools'
 
 const DEFAULT_OPENCODE_URL = 'http://127.0.0.1:4096'
 
-interface OpenCodeConfig {
+export interface OpenCodeConfig {
   url: string
   password?: string
   source: 'env' | 'service' | 'default'
@@ -45,7 +45,7 @@ function serviceConfig(): { url: string; password?: string } | undefined {
   }
 }
 
-function resolveOpenCodeConfig(): OpenCodeConfig {
+export function resolveOpenCodeConfig(): OpenCodeConfig {
   const envUrl = process.env.CLARA_OPENCODE_URL?.trim()
   const envPassword = process.env.CLARA_OPENCODE_PASSWORD?.trim()
   const service = serviceConfig()
@@ -67,7 +67,7 @@ function resolveOpenCodeConfig(): OpenCodeConfig {
   return { url: DEFAULT_OPENCODE_URL, source: 'default' }
 }
 
-function basicAuth(password: string): string {
+export function basicAuth(password: string): string {
   return `Basic ${Buffer.from(`opencode:${password}`).toString('base64')}`
 }
 

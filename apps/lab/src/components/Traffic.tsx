@@ -1,29 +1,26 @@
 import { useMemo, useState } from 'react'
-import { callTool } from '../api'
 import type { CallRecord } from '../types'
 import type { LabStream } from '../useLab'
 import { clock, duration, json, short } from '../lib/format'
 import { Badge } from './Badge'
+import { Icon } from './Icon'
 import { CopyButton, JsonView } from './Json'
 
-type Tab = 'calls' | 'events' | 'tools'
+type Tab = 'calls' | 'events'
 
 export function Traffic({ stream }: { stream: LabStream }) {
   const [tab, setTab] = useState<Tab>('calls')
   const [filter, setFilter] = useState('')
-  const [tool, setTool] = useState('clara_list')
-  const [args, setArgs] = useState('{}')
-  const [result, setResult] = useState<unknown>(null)
-  const [error, setError] = useState<string | null>(null)
-  const [busy, setBusy] = useState(false)
+  const [hideHeartbeats, setHideHeartbeats] = useState(true)
 
   const calls = useMemo(() => {
     const text = filter.toLowerCase()
-    if (!text) return stream.calls
-    return stream.calls.filter(
-      (call) => call.tool.toLowerCase().includes(text) || call.source.toLowerCase().includes(text)
-    )
-  }, [stream.calls, filter])
+    return stream.calls.filter((call) => {
+      if (hideHeartbeats && call.source === 'heartbeat') return false
+      if (!text) return true
+      return call.tool.toLowerCase().includes(text) || call.source.toLowerCase().includes(text)
+    })
+  }, [stream.calls, filter, hideHeartbeats])
 
   const events = useMemo(() => {
     const text = filter.toLowerCase()
@@ -36,25 +33,7 @@ export function Traffic({ stream }: { stream: LabStream }) {
     )
   }, [stream.events, filter])
 
-  const selectedTool = stream.snapshot?.tools.find((entry) => entry.name === tool)
-
-  const send = async (): Promise<void> => {
-    setBusy(true)
-    setError(null)
-    setResult(null)
-    try {
-      const parsed = JSON.parse(args || '{}') as unknown
-      if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
-        throw new Error('Arguments must be a JSON object.')
-      }
-      const response = await callTool(tool, parsed as Record<string, unknown>)
-      setResult(response)
-    } catch (cause) {
-      setError(cause instanceof Error ? cause.message : String(cause))
-    } finally {
-      setBusy(false)
-    }
-  }
+  const errorCount = stream.calls.filter((call) => call.isError || call.error).length
 
   const download = (): void => {
     const rows = [
@@ -73,45 +52,61 @@ export function Traffic({ stream }: { stream: LabStream }) {
   }
 
   return (
-    <div className="traffic">
-      <div className="toolbar">
-        <div className="tabs small-tabs">
-          <button
-            type="button"
-            className={`tab ${tab === 'calls' ? 'active' : ''}`}
-            onClick={() => setTab('calls')}
-          >
-            MCP calls ({stream.calls.length})
-          </button>
-          <button
-            type="button"
-            className={`tab ${tab === 'events' ? 'active' : ''}`}
-            onClick={() => setTab('events')}
-          >
-            Events ({stream.events.length})
-          </button>
-          <button
-            type="button"
-            className={`tab ${tab === 'tools' ? 'active' : ''}`}
-            onClick={() => setTab('tools')}
-          >
-            Raw tool console
+    <div className="view traffic-view">
+      <header className="view-head">
+        <div>
+          <div className="view-kicker">Transport</div>
+          <h1>Traffic</h1>
+          <p className="muted">
+            Every MCP call and orchestrator event the lab has seen this session.
+          </p>
+        </div>
+        <div className="view-head-actions">
+          {errorCount ? <Badge tone="bad">{errorCount} failed</Badge> : null}
+          <button type="button" className="button" onClick={download}>
+            Download JSONL
           </button>
         </div>
-        {tab !== 'tools' ? (
+      </header>
+
+      <div className="traffic-toolbar">
+        <div className="segmented">
+          <button
+            type="button"
+            className={tab === 'calls' ? 'active' : ''}
+            onClick={() => setTab('calls')}
+          >
+            MCP calls <span>{stream.calls.length}</span>
+          </button>
+          <button
+            type="button"
+            className={tab === 'events' ? 'active' : ''}
+            onClick={() => setTab('events')}
+          >
+            Events <span>{stream.events.length}</span>
+          </button>
+        </div>
+        <label className="search-box grow">
+          <Icon name="search" size={14} />
           <input
-            className="grow"
             value={filter}
             onChange={(event) => setFilter(event.target.value)}
             placeholder="Filter by tool, source, event type, run, or payload"
           />
+        </label>
+        {tab === 'calls' ? (
+          <label className="check">
+            <input
+              type="checkbox"
+              checked={hideHeartbeats}
+              onChange={(event) => setHideHeartbeats(event.target.checked)}
+            />
+            Hide heartbeats
+          </label>
         ) : null}
-        <button type="button" className="button" onClick={download}>
-          Download JSONL
-        </button>
       </div>
 
-      <div className="panel">
+      <div className="panel traffic-panel">
         {tab === 'calls' ? (
           <div className="call-list">
             {calls.length ? (
@@ -149,54 +144,6 @@ export function Traffic({ stream }: { stream: LabStream }) {
             ) : (
               <div className="empty">No events yet.</div>
             )}
-          </div>
-        ) : null}
-
-        {tab === 'tools' ? (
-          <div className="tool-console">
-            <div className="row">
-              <label className="grow">
-                Tool
-                <select value={tool} onChange={(event) => setTool(event.target.value)}>
-                  {(stream.snapshot?.tools ?? []).map((entry) => (
-                    <option key={entry.name} value={entry.name}>
-                      {entry.name}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <button
-                type="button"
-                className="button primary"
-                onClick={() => void send()}
-                disabled={busy}
-              >
-                {busy ? 'Calling…' : 'Call tool'}
-              </button>
-            </div>
-            {selectedTool?.description ? (
-              <div className="muted">{selectedTool.description}</div>
-            ) : null}
-            <label className="full">
-              Arguments (JSON object)
-              <textarea rows={8} value={args} onChange={(event) => setArgs(event.target.value)} />
-            </label>
-            {error ? <div className="banner bad">{error}</div> : null}
-            {result ? (
-              <div>
-                <div className="row-between">
-                  <h4>Result</h4>
-                  <CopyButton value={result} />
-                </div>
-                <JsonView value={result} />
-              </div>
-            ) : null}
-            {selectedTool?.inputSchema ? (
-              <details className="context">
-                <summary>Input schema</summary>
-                <JsonView value={selectedTool.inputSchema} />
-              </details>
-            ) : null}
           </div>
         ) : null}
       </div>

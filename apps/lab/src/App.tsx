@@ -1,9 +1,13 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
-import { pickDirectory, preflight, registerAdapter, reconnect } from './api'
-import { Badge } from './components/Badge'
+import { useCallback, useEffect, useState } from 'react'
+import { pickDirectory, preflight, registerAdapter, reconnect, removeAdapter } from './api'
+import { Console } from './components/Console'
+import { Icon } from './components/Icon'
 import { Preview } from './components/Preview'
 import { Runs } from './components/Runs'
-import { Setup } from './components/Setup'
+import { Sessions } from './components/Sessions'
+import { SettingsView } from './components/Settings'
+import { Sidebar } from './components/Sidebar'
+import { StatusBar } from './components/StatusBar'
 import { Traffic } from './components/Traffic'
 import { friendlyError } from './lib/errors'
 import { loadSettings, saveSettings, type LabSettings, type LabTab } from './lib/settings'
@@ -18,9 +22,6 @@ export function App() {
   const [preflightError, setPreflightError] = useState<string | null>(null)
   const [browsing, setBrowsing] = useState(false)
   const [notice, setNotice] = useState<string | null>(null)
-  const [setupOpen, setSetupOpen] = useState(true)
-  const setupRef = useRef<HTMLDivElement>(null)
-  const autoCollapsed = useRef(false)
 
   const update = useCallback((patch: Partial<LabSettings>) => {
     setSettings((current) => {
@@ -44,22 +45,6 @@ export function App() {
     const timer = window.setTimeout(() => setNotice(null), 5000)
     return () => window.clearTimeout(timer)
   }, [notice])
-
-  useEffect(() => {
-    if (!preflightResult || autoCollapsed.current) return
-    const ok =
-      preflightResult.host.ok &&
-      preflightResult.runtime.ok &&
-      (!preflightResult.adapter.required || preflightResult.adapter.ok)
-    if (ok) {
-      autoCollapsed.current = true
-      setSetupOpen(false)
-    }
-  }, [preflightResult])
-
-  useEffect(() => {
-    if (preflightError) setSetupOpen(true)
-  }, [preflightError])
 
   const hostWorkspace = settings.hostWorkspace.trim() || stream.snapshot?.workspace || ''
   const runtimeWorkspace = stream.snapshot?.orchestratorWorkspace || ''
@@ -118,6 +103,16 @@ export function App() {
     }
   }
 
+  const removeAdapterNow = async (id: string): Promise<void> => {
+    try {
+      await removeAdapter(id)
+      setNotice('Removed the lab adapter.')
+      await runPreflight()
+    } catch (cause) {
+      setPreflightError(cause instanceof Error ? cause.message : String(cause))
+    }
+  }
+
   const reconnectNow = async (): Promise<void> => {
     try {
       await reconnect()
@@ -128,119 +123,71 @@ export function App() {
     }
   }
 
-  const goToSetup = (): void => {
-    setSetupOpen(true)
-    setupRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
-  }
-
   if (!stream.snapshot) {
     return (
-      <div className="app">
-        <main className="loading">
-          <h1>Clara Lab</h1>
-          <p>{stream.error ?? 'Connecting to the lab server…'}</p>
-        </main>
+      <div className="boot">
+        <div className="boot-mark">C</div>
+        <h1>Clara Lab</h1>
+        <p className="muted">{stream.error ?? 'Connecting to the lab server…'}</p>
       </div>
     )
   }
 
   const snapshot = stream.snapshot
   const runtimeError = snapshot.lastError ? friendlyError(snapshot.lastError, 'runtime') : null
+  const setupIssues = preflightResult
+    ? [
+        preflightResult.host.ok,
+        preflightResult.runtime.ok,
+        !preflightResult.adapter.required || preflightResult.adapter.ok,
+      ].filter((ok) => !ok).length
+    : 0
 
   return (
-    <div className="app">
-      <header className="app-head">
-        <div className="brand">
-          <span className="brand-mark">C</span>
-          <div>
-            <h1>Clara Lab</h1>
-            <p className="muted">Pick a pipeline, preview it, then act as the AI step by step.</p>
-          </div>
+    <div className="shell">
+      <header className="titlebar">
+        <div className="titlebar-brand">
+          <span className="titlebar-mark">C</span>
+          <strong>Clara Lab</strong>
+          <span className="titlebar-tag">local tooling</span>
         </div>
-        <div className="app-status">
-          <Badge tone={snapshot.connected ? 'ok' : 'bad'}>
-            {snapshot.connected ? 'connected' : 'offline'}
-          </Badge>
-          <Badge tone={snapshot.tokenPresent ? 'ok' : 'warn'}>
-            {snapshot.tokenPresent ? 'token ready' : 'no token'}
-          </Badge>
-          <button type="button" className="button ghost small" onClick={goToSetup}>
-            Setup
-          </button>
+        <div className="titlebar-path" title={hostWorkspace || undefined}>
+          <Icon name="folder" size={13} />
+          <code>{hostWorkspace || 'No workspace selected'}</code>
         </div>
+        <div className="titlebar-meta">{snapshot.orchestrator}</div>
       </header>
 
-      <div ref={setupRef}>
-        <Setup
-          snapshot={snapshot}
-          hostWorkspace={settings.hostWorkspace}
-          onHostWorkspace={(value) => update({ hostWorkspace: value })}
-          browsing={browsing}
-          onBrowse={() => void browseHostWorkspace()}
-          preflight={preflightResult}
-          loading={preflightLoading}
-          error={preflightError}
-          open={setupOpen}
-          onToggle={() => setSetupOpen((value) => !value)}
-          onCheck={() => void runPreflight()}
-          onReconnect={() => void reconnectNow()}
-          onEnableAdapter={() => void enableAdapter()}
-        />
-      </div>
+      <Sidebar
+        tab={settings.tab}
+        onTab={setTab}
+        workCount={snapshot.work.length}
+        callCount={stream.calls.length}
+        sessionCount={snapshot.opencode.sessionCount}
+        setupIssues={setupIssues}
+      />
 
-      {stream.error ? <div className="banner warn">{stream.error}</div> : null}
-      {runtimeError ? (
-        <div className="banner warn">
-          <strong>{runtimeError.title}.</strong> {runtimeError.hint ?? runtimeError.detail}
-        </div>
-      ) : null}
-      {!snapshot.tokenPresent ? (
-        <div className="banner warn">
-          No orchestrator token was found. Start the service or set{' '}
-          <code>CLARA_ORCHESTRATION_TOKEN</code>, then restart the lab.
-        </div>
-      ) : null}
-      {notice ? <div className="banner ok">{notice}</div> : null}
+      <main className="workbench">
+        {stream.error ? <div className="banner warn">{stream.error}</div> : null}
+        {runtimeError ? (
+          <div className="banner warn">
+            <strong>{runtimeError.title}.</strong> {runtimeError.hint ?? runtimeError.detail}
+          </div>
+        ) : null}
+        {notice ? <div className="banner ok">{notice}</div> : null}
 
-      <nav className="tabs">
-        <button
-          type="button"
-          className={`tab ${settings.tab === 'pipeline' ? 'active' : ''}`}
-          onClick={() => setTab('pipeline')}
-        >
-          Pipeline
-        </button>
-        <button
-          type="button"
-          className={`tab ${settings.tab === 'run' ? 'active' : ''}`}
-          onClick={() => setTab('run')}
-        >
-          Run
-          {snapshot.work.length ? <span className="tab-count">{snapshot.work.length}</span> : null}
-        </button>
-        <button
-          type="button"
-          className={`tab ${settings.tab === 'traffic' ? 'active' : ''}`}
-          onClick={() => setTab('traffic')}
-        >
-          Traffic
-          {stream.calls.length ? <span className="tab-count">{stream.calls.length}</span> : null}
-        </button>
-      </nav>
-
-      <main className="app-body">
-        <div hidden={settings.tab !== 'pipeline'}>
+        <div className="view-slot" hidden={settings.tab !== 'pipeline'}>
           <Preview
             stream={stream}
             hostWorkspace={hostWorkspace}
             target={settings.target}
             onTargetChange={(target) => update({ target })}
             active={settings.tab === 'pipeline'}
-            onRun={() => setTab('run')}
-            onEditSetup={goToSetup}
+            onRun={() => setTab('runs')}
+            onOpenSettings={() => setTab('settings')}
           />
         </div>
-        <div hidden={settings.tab !== 'run'}>
+        <div className="view-slot" hidden={settings.tab !== 'runs'}>
           <Runs
             stream={stream}
             hostWorkspace={hostWorkspace}
@@ -248,16 +195,53 @@ export function App() {
             target={settings.target}
             pauseAfterStep={settings.pauseAfterStep}
             onPauseAfterStepChange={(value) => update({ pauseAfterStep: value })}
-            active={settings.tab === 'run'}
+            active={settings.tab === 'runs'}
             preflight={preflightResult}
             onPreflight={() => void runPreflight()}
             onGoToPipeline={() => setTab('pipeline')}
-            onGoToSetup={goToSetup}
+            onOpenSettings={() => setTab('settings')}
             onNotice={setNotice}
           />
         </div>
-        {settings.tab === 'traffic' ? <Traffic stream={stream} /> : null}
+        <div className="view-slot" hidden={settings.tab !== 'traffic'}>
+          <Traffic stream={stream} />
+        </div>
+        <div className="view-slot" hidden={settings.tab !== 'console'}>
+          <Console stream={stream} />
+        </div>
+        <div className="view-slot" hidden={settings.tab !== 'sessions'}>
+          <Sessions
+            stream={stream}
+            active={settings.tab === 'sessions'}
+            onOpenSettings={() => setTab('settings')}
+          />
+        </div>
+        <div className="view-slot" hidden={settings.tab !== 'settings'}>
+          <SettingsView
+            snapshot={snapshot}
+            hostWorkspace={settings.hostWorkspace}
+            onHostWorkspace={(value) => update({ hostWorkspace: value })}
+            browsing={browsing}
+            onBrowse={() => void browseHostWorkspace()}
+            preflight={preflightResult}
+            loading={preflightLoading}
+            error={preflightError}
+            onCheck={() => void runPreflight()}
+            onReconnect={() => void reconnectNow()}
+            onEnableAdapter={() => void enableAdapter()}
+            onRemoveAdapter={(id) => void removeAdapterNow(id)}
+            onOpenSessions={() => setTab('sessions')}
+          />
+        </div>
       </main>
+
+      <StatusBar
+        snapshot={snapshot}
+        workspace={hostWorkspace}
+        preflight={preflightResult}
+        preflightError={preflightError}
+        onTab={setTab}
+      />
     </div>
   )
 }

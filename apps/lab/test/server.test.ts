@@ -276,6 +276,39 @@ describe('lab server', () => {
     expect(missingValue.runtime.error).toBeTruthy()
   })
 
+  it('cancels every non-terminal root run', async () => {
+    const first = await post('/api/tools/clara_start', {
+      prompt: 'cancel all first',
+      workspace,
+      target: 'quick_patch',
+      origin: { harness: 'clara-lab', kind: 'agent' },
+    })
+    const second = await post('/api/tools/clara_start', {
+      prompt: 'cancel all second',
+      workspace,
+      target: 'quick_patch',
+      origin: { harness: 'clara-lab', kind: 'agent' },
+    })
+    expect(first.response.status).toBe(200)
+    expect(second.response.status).toBe(200)
+
+    const cancelled = await post('/api/runs/cancel-all', {})
+    expect(cancelled.response.status).toBe(200)
+    const value = cancelled.value as {
+      cancelled: number
+      failed: Array<{ id: number; error: string }>
+    }
+    expect(value.cancelled).toBeGreaterThanOrEqual(2)
+    expect(value.failed).toHaveLength(0)
+
+    const runs = await get('/api/runs')
+    const list = (runs.value as { value: Array<{ id: number; state: string }> }).value
+    for (const run of [first, second]) {
+      const id = (run.value as { value: { run: { id: number } } }).value.run.id
+      expect(list.find((entry) => entry.id === id)?.state).toBe('cancelled')
+    }
+  })
+
   it('registers an adapter for strict targets', async () => {
     const registered = await post('/api/adapter/register', {})
     expect(registered.response.status).toBe(200)
