@@ -72,7 +72,7 @@ export class LabRuntime {
       await this.loadTools()
       await this.loadConfig()
       this.events.start()
-      await this.refreshAdapters(this.state.workspace).catch(() => {})
+      await this.refreshAdapters(this.orchestratorWorkspace()).catch(() => {})
     } catch (error) {
       this.state.setConnection(false, message(error))
     }
@@ -91,7 +91,7 @@ export class LabRuntime {
       await this.loadTools()
       await this.loadConfig()
       this.events.start()
-      if (!this.adaptersLoaded) await this.refreshAdapters(this.state.workspace)
+      if (!this.adaptersLoaded) await this.refreshAdapters(this.orchestratorWorkspace())
     } catch (error) {
       this.state.setConnection(false, message(error))
     } finally {
@@ -119,7 +119,7 @@ export class LabRuntime {
       await this.loadTools()
       await this.loadConfig()
       this.events.start()
-      await this.refreshAdapters(this.state.workspace)
+      await this.refreshAdapters(this.orchestratorWorkspace())
     } catch (error) {
       this.state.setConnection(false, message(error))
       throw error
@@ -153,9 +153,13 @@ export class LabRuntime {
     }
   }
 
+  private orchestratorWorkspace(): string {
+    return this.state.orchestratorWorkspace || this.state.workspace
+  }
+
   async preview(input: PreviewInput): Promise<PreviewResult> {
     if (this.mcp.connected && !this.adaptersLoaded) {
-      await this.refreshAdapters(input.workspace ?? this.state.workspace).catch(() => {})
+      await this.refreshAdapters(this.orchestratorWorkspace()).catch(() => {})
     }
     return previewPipeline({ ...input, adapters: this.adapterInfo() })
   }
@@ -351,7 +355,7 @@ export class LabRuntime {
     }
 
     if (name === 'clara_adapter_register' || name === 'clara_adapter_remove') {
-      void this.refreshAdapters(this.state.workspace).catch(() => {})
+      void this.refreshAdapters(this.orchestratorWorkspace()).catch(() => {})
     }
 
     if (name === 'clara_start' || name === 'clara_complete') {

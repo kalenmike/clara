@@ -213,7 +213,7 @@ describe('lab server', () => {
   })
 
   it('registers an adapter for strict targets', async () => {
-    const registered = await post('/api/adapter/register', { workspace })
+    const registered = await post('/api/adapter/register', {})
     expect(registered.response.status).toBe(200)
     const preflight = await post('/api/preflight', {
       hostWorkspace: workspace,
