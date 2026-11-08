@@ -14,7 +14,7 @@ import { join, resolve } from 'node:path'
 import { isTerminalState, planDeliveries } from './delivery.ts'
 import type { DeliveryAlert, DeliveryRun } from './delivery.ts'
 import { NAMESPACE, renderWorkPrompt, scopeWorkerTools } from './prompt.ts'
-import { resolveWorkspace } from './workspace.ts'
+import { catalogPath, needsExplicitWorkspace, resolveWorkspace } from './workspace.ts'
 
 const CAPABILITIES = ['tool_policy', 'path_policy', 'shell_policy', 'turn_limit', 'token_limit']
 const INTERFACE_AGENT = process.env.CLARA_INTERFACE_AGENT?.trim() || 'clara'
@@ -274,6 +274,7 @@ export default {
     const delivery = readDeliveryState()
     let adapterID: string | undefined
     let configuredWorkspace: string | undefined
+    let serviceNeedsWorkspace = false
     const currentWorkspace = (): string => configuredWorkspace ?? resolveWorkspace(ctx)
     const lastTurn = new Map<string, number>()
 
@@ -437,6 +438,13 @@ export default {
         ).catch(() => undefined)
         const workspace = settings?.workspace?.trim() || resolveWorkspace(ctx)
         configuredWorkspace = workspace
+        const probe = await call(config, 'GET', '/v1/catalog').catch((error: unknown) => error)
+        serviceNeedsWorkspace = needsExplicitWorkspace(probe)
+        if (serviceNeedsWorkspace) {
+          console.warn(
+            '[clara-policy] orchestrator requires an explicit workspace; restart it with the current service build'
+          )
+        }
         const registered = await call<{ id: string }>(config, 'POST', '/v1/adapters/register', {
           harness: 'opencode',
           workspace,
@@ -956,6 +964,9 @@ export default {
             }
             const started = await call<Any>(config, 'POST', '/v1/runs', {
               prompt: input.prompt,
+              ...(serviceNeedsWorkspace && configuredWorkspace
+                ? { workspace: configuredWorkspace }
+                : {}),
               origin: {
                 session_id: sessionID(context) ?? null,
                 harness: 'opencode',
@@ -1272,7 +1283,14 @@ export default {
             properties: {},
             additionalProperties: false,
           },
-          async () => content(await call(config, 'GET', '/v1/catalog'))
+          async () =>
+            content(
+              await call(
+                config,
+                'GET',
+                catalogPath(serviceNeedsWorkspace ? configuredWorkspace : undefined)
+              )
+            )
         )
       )
     })

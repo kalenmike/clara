@@ -30,3 +30,14 @@ export function resolveWorkspace(
     cwd
   )
 }
+
+// Older orchestrators require an explicit workspace on start and catalog
+// calls. Detect that from the catalog probe instead of letting the model choose
+// a workspace; newer services use their own configured workspace.
+export function needsExplicitWorkspace(error: unknown): boolean {
+  return error instanceof Error && (error as { code?: string }).code === 'workspace_required'
+}
+
+export function catalogPath(workspace?: string): string {
+  return workspace ? `/v1/catalog?workspace=${encodeURIComponent(workspace)}` : '/v1/catalog'
+}
