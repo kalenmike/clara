@@ -97,7 +97,7 @@ function previewInput(body: Record<string, unknown>): PreviewInput {
 
 export async function startLabServer(options: LabServerOptions): Promise<LabServer> {
   const runtime = options.runtime
-  const files = loadStaticFiles()
+  let files = loadStaticFiles()
   const watcher = new SourceWatcher()
   const streams = new Set<ServerResponse>()
   let allowedSources = new Set<string>()
@@ -223,6 +223,7 @@ export async function startLabServer(options: LabServerOptions): Promise<LabServ
         return
       }
 
+      if (!files.index) files = loadStaticFiles()
       if (
         (method === 'GET' || method === 'HEAD') &&
         serveStatic(response, method, url.pathname, files)
@@ -232,7 +233,9 @@ export async function startLabServer(options: LabServerOptions): Promise<LabServ
 
       if (!files.index && (method === 'GET' || method === 'HEAD')) {
         response.writeHead(503, { 'content-type': 'text/plain; charset=utf-8' })
-        response.end('Clara Lab is not built. Run `pnpm build` in the repository.\n')
+        response.end(
+          `Clara Lab web assets were not found in ${files.root}. Run \`pnpm build\` and reload.\n`
+        )
         return
       }
 

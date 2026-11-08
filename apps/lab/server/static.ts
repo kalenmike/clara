@@ -1,5 +1,5 @@
 import { readFileSync } from 'node:fs'
-import { extname, join, resolve, sep } from 'node:path'
+import { dirname, extname, join, resolve, sep } from 'node:path'
 import type { ServerResponse } from 'node:http'
 import { fileURLToPath } from 'node:url'
 
@@ -33,13 +33,29 @@ export interface StaticFiles {
   root: string
 }
 
+/**
+ * The lab server runs from source through `pnpm clara lab` and from the bundle
+ * through `pnpm build`. Vite always emits to `apps/lab/dist/web`, so the source
+ * layout needs one more parent hop than the bundle layout.
+ */
+export function staticRootCandidates(moduleUrl: string | URL = import.meta.url): string[] {
+  const directory = dirname(fileURLToPath(moduleUrl))
+  return [
+    resolve(directory, '..', 'web'), // dist/server/index.js -> dist/web
+    resolve(directory, '..', 'dist', 'web'), // server/static.ts -> dist/web
+  ]
+}
+
 export function loadStaticFiles(): StaticFiles {
-  const root = resolve(fileURLToPath(new URL('../web/', import.meta.url)))
-  try {
-    return { root, index: readFileSync(join(root, 'index.html')) }
-  } catch {
-    return { root, index: undefined }
+  const candidates = staticRootCandidates()
+  for (const root of candidates) {
+    try {
+      return { root, index: readFileSync(join(root, 'index.html')) }
+    } catch {
+      // Try the other layout.
+    }
   }
+  return { root: candidates[0], index: undefined }
 }
 
 function contentType(path: string): string | undefined {
