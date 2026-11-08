@@ -9,6 +9,7 @@ imports:
     - path: software
     - path: content
     - path: research
+    - path: diagnostics
 
 watchdog:
   enabled: true
@@ -34,6 +35,9 @@ router:
     - when: research
       criteria: a request for external research, industry or market analysis, source gathering, or a cited research brief.
       run: std:research
+    - when: diagnostics
+      criteria: a request to audit, diagnose, or self-analyze the orchestrator itself, including its database, run history, failures, alerts, retries, or pipeline setup.
+      run: std:diagnostics
 
 pipelines:
   quick_patch:
