@@ -91,8 +91,9 @@ export class LabRuntime {
       await this.mcp.connect()
       this.state.setConnection(true)
       await this.loadTools()
+      await this.loadConfig()
       this.events.start()
-      await this.refreshAdapters(this.state.workspace).catch(() => {})
+      await this.refreshAdapters(this.orchestratorWorkspace()).catch(() => {})
     } catch (error) {
       this.state.setConnection(false, message(error))
     }
@@ -109,8 +110,9 @@ export class LabRuntime {
       await this.mcp.connect()
       this.state.setConnection(true)
       await this.loadTools()
+      await this.loadConfig()
       this.events.start()
-      if (!this.adaptersLoaded) await this.refreshAdapters(this.state.workspace)
+      if (!this.adaptersLoaded) await this.refreshAdapters(this.orchestratorWorkspace())
     } catch (error) {
       this.state.setConnection(false, message(error))
     } finally {
@@ -136,8 +138,9 @@ export class LabRuntime {
       await this.mcp.connect()
       this.state.setConnection(true)
       await this.loadTools()
+      await this.loadConfig()
       this.events.start()
-      await this.refreshAdapters(this.state.workspace)
+      await this.refreshAdapters(this.orchestratorWorkspace())
     } catch (error) {
       this.state.setConnection(false, message(error))
       throw error
@@ -155,9 +158,29 @@ export class LabRuntime {
     }
   }
 
+  private async loadConfig(): Promise<void> {
+    try {
+      const response = await fetch(`${this.url}/v1/config`, {
+        headers: this.token ? { authorization: `Bearer ${this.token}` } : {},
+        signal: AbortSignal.timeout(3_000),
+      })
+      if (!response.ok) return
+      const value = (await response.json()) as { workspace?: unknown }
+      this.state.setOrchestratorWorkspace(
+        typeof value.workspace === 'string' ? value.workspace.trim() : ''
+      )
+    } catch {
+      // Offline is normal; preflight reports the connection state.
+    }
+  }
+
+  private orchestratorWorkspace(): string {
+    return this.state.orchestratorWorkspace || this.state.workspace
+  }
+
   async preview(input: PreviewInput): Promise<LabPreviewResult> {
     if (this.mcp.connected && !this.adaptersLoaded) {
-      await this.refreshAdapters(input.workspace ?? this.state.workspace).catch(() => {})
+      await this.refreshAdapters(this.orchestratorWorkspace()).catch(() => {})
     }
     const catalog = await this.modelCatalog().catch((error: unknown): ModelCatalog => ({
       ok: false,
@@ -177,11 +200,15 @@ export class LabRuntime {
 
   async preflight(input: {
     hostWorkspace: string
-    runtimeWorkspace: string
+    runtimeWorkspace?: string
     target?: string
   }): Promise<PreflightResult> {
     const hostWorkspace = input.hostWorkspace.trim() || this.state.workspace
-    const runtimeWorkspace = input.runtimeWorkspace.trim() || hostWorkspace
+    if (!this.state.orchestratorWorkspace && !input.runtimeWorkspace?.trim()) {
+      await this.loadConfig()
+    }
+    const runtimeWorkspace =
+      input.runtimeWorkspace?.trim() || this.state.orchestratorWorkspace || hostWorkspace
     const target = input.target?.trim() || undefined
     const catalog = await this.modelCatalog().catch((error: unknown): ModelCatalog => ({
       ok: false,
@@ -371,7 +398,7 @@ export class LabRuntime {
     }
 
     if (name === 'clara_adapter_register' || name === 'clara_adapter_remove') {
-      void this.refreshAdapters(this.state.workspace).catch(() => {})
+      void this.refreshAdapters(this.orchestratorWorkspace()).catch(() => {})
     }
 
     if (name === 'clara_start' || name === 'clara_complete') {

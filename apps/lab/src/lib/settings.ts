@@ -2,7 +2,6 @@ export type LabTab = 'pipeline' | 'run' | 'traffic'
 
 export interface LabSettings {
   hostWorkspace: string
-  runtimeWorkspace: string
   target: string
   pauseAfterStep: boolean
   tab: LabTab
@@ -10,7 +9,6 @@ export interface LabSettings {
 
 export const DEFAULT_SETTINGS: LabSettings = {
   hostWorkspace: '',
-  runtimeWorkspace: '',
   target: '',
   pauseAfterStep: false,
   tab: 'pipeline',
@@ -29,7 +27,6 @@ export function loadSettings(): LabSettings {
     const parsed = JSON.parse(raw) as Partial<LabSettings>
     return {
       hostWorkspace: string(parsed.hostWorkspace),
-      runtimeWorkspace: string(parsed.runtimeWorkspace),
       target: string(parsed.target),
       pauseAfterStep: parsed.pauseAfterStep === true,
       tab:

@@ -14,10 +14,10 @@ work orders and enforces strict policy.
    bridge start it on first use.
 2. Install the generic MCP entry with `pnpm clara mcp install`, or install the
    OpenCode strict adapter with `pnpm clara adapter install opencode`.
-3. Before handing a package to an agent, run `pnpm clara lab` to map the host
-   and orchestrator workspace paths, preview the compiled target, inspect each
-   rendered prompt and policy, and compare it with a pinned run. The same
-   console can then act as the agent and drive the run by hand. See
+3. Before handing a package to an agent, run `pnpm clara lab` to choose the host
+   files, read the workspace the service reports, preview the compiled target,
+   inspect each rendered prompt and policy, and compare it with a pinned run.
+   The same console can then act as the agent and drive the run by hand. See
    [lab.md](lab.md).
 4. In OpenCode, run `/pipeline <request>`. The installed command tells the
    agent to call `clara_start` with the full request and the current workspace.
@@ -62,10 +62,13 @@ That is the preferred setup when the agent itself is containerized.
    -v /absolute/path/to/clara:/workspace/clara
    ```
 
-The orchestrator image bakes `lib/std` at `/opt/clara/lib/std`. A workspace that
-vendors its own standard library can set `CLARA_STD_DIR` to its `lib/std`.
-The orchestrator does not publish a host port; only the private Docker network
-can reach it. The database lives in the `orchestrator-data` volume.
+The compose service sets `CLARA_ORCHESTRATION_WORKSPACE=/workspace/clara`, which
+is the path the service reports to Clara Lab. Change it only if you move the
+workspace mount. The orchestrator image bakes `lib/std` at
+`/opt/clara/lib/std`. A workspace that vendors its own standard library can set
+`CLARA_STD_DIR` to its `lib/std`. The orchestrator does not publish a host port;
+only the private Docker network can reach it. The database lives in the
+`orchestrator-data` volume.
 
 ## Core business rules
 
@@ -257,6 +260,9 @@ docs:    assess_docs → update_docs → verify_docs → docs_review
 - Primary config: `orchestration/index.yml`.
 - Data: `${CLARA_DATA_DIR:-~/.local/share/clara}/orchestration.db` and
   `orchestrator.token`.
+- Workspace: `GET /v1/config` reports the service workspace from
+  `CLARA_ORCHESTRATION_WORKSPACE` (default: the service's working directory),
+  plus `CLARA_STD_DIR` and `CLARA_ORCHESTRATION_CONFIG` when set.
 - Container: `docker compose -f docker/compose.yml up -d --build orchestrator`.
 - Commands: `pnpm clara orchestration start|stop|status|serve|token`,
   `pnpm clara mcp install|uninstall|config|status`,

@@ -3,6 +3,7 @@ import { createServer, type IncomingMessage, type Server, type ServerResponse } 
 import { join } from 'node:path'
 import type { AddressInfo } from 'node:net'
 import { diffCompiled, inspectSnapshot, type PreviewInput } from '@clara/devtools'
+import { PickerUnavailable, pickDirectory } from './picker.ts'
 import type { LabRuntime } from './runtime.ts'
 import { checkLabRequest, LAB_HEADER } from './security.ts'
 import { loadStaticFiles, SECURITY_HEADERS, serveStatic } from './static.ts'
@@ -134,6 +135,7 @@ export async function startLabServer(options: LabServerOptions): Promise<LabServ
           service: 'clara-lab',
           version: options.version ?? '0.1.0',
           workspace: runtime.state.workspace,
+          orchestratorWorkspace: runtime.state.orchestratorWorkspace,
           orchestrator: runtime.state.orchestrator,
           connected: runtime.state.connected,
           tokenPresent: runtime.state.tokenPresent,
@@ -276,13 +278,27 @@ export async function startLabServer(options: LabServerOptions): Promise<LabServ
       return
     }
 
+    if (url.pathname === '/api/pick-directory') {
+      const initial = stringField(body.initial)
+      try {
+        const path = await pickDirectory(initial)
+        json(response, 200, { path: path ?? null })
+      } catch (error) {
+        if (error instanceof PickerUnavailable) {
+          throw new HttpError(501, 'picker_unavailable', error.message)
+        }
+        throw error
+      }
+      return
+    }
+
     if (url.pathname === '/api/preflight') {
       const hostWorkspace = stringField(body.hostWorkspace) ?? context.runtime.state.workspace
-      const runtimeWorkspace = stringField(body.runtimeWorkspace) || hostWorkspace
+      const runtimeWorkspace = stringField(body.runtimeWorkspace)
       const target = stringField(body.target)
       const result = await context.runtime.preflight({
         hostWorkspace,
-        runtimeWorkspace,
+        ...(runtimeWorkspace ? { runtimeWorkspace } : {}),
         ...(target ? { target } : {}),
       })
       json(response, 200, result)
@@ -332,7 +348,10 @@ export async function startLabServer(options: LabServerOptions): Promise<LabServ
     }
 
     if (url.pathname === '/api/adapter/register') {
-      const workspace = stringField(body.workspace) ?? context.runtime.state.workspace
+      const workspace =
+        stringField(body.workspace) ||
+        context.runtime.state.orchestratorWorkspace ||
+        context.runtime.state.workspace
       const result = await context.runtime.registerAdapter(workspace)
       json(response, 200, { ok: !result.isError, isError: result.isError, value: result.value })
       return

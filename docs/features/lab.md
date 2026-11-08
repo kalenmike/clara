@@ -11,17 +11,18 @@ writing custom pipelines, not for end users.
 
 1. Start the lab with `pnpm clara lab`, or run `pnpm dev:lab` while editing it.
    The lab opens on `127.0.0.1:8791`.
-2. In **Setup**, enter two paths:
-   - **Files on this machine** — the repository as the lab sees it.
-   - **Workspace inside the orchestrator** — the same files as the service sees
-     them (for Docker, usually `/workspace/clara`; leave blank when they match).
+2. In **Setup**, choose **Files on this machine** — the repository as the lab
+   sees it. Use **Browse…** to pick the folder or type the path. The
+   orchestrator's own workspace is reported by the service and shown read-only
+   beside it.
 3. Press **Check setup**. The lab reports whether it can compile the host path,
-   whether the orchestrator can read its path, and whether a strict pipeline has
-   a live adapter.
+   whether the orchestrator can read its reported path, and whether a strict
+   pipeline has a live adapter.
 4. On **Pipeline**, choose a pipeline. The compiled tree shows every step,
    route, `provider/model`, policy, budget, and source file. Read the
    diagnostics, then inspect the rendered prompt in the side panel.
-5. Press **Run this pipeline**. The Run tab carries the pipeline and both paths.
+5. Press **Run this pipeline**. The Run tab carries the pipeline and the
+   orchestrator-reported workspace.
 6. Start a run with a prompt. The lab claims the first work order and shows one
    clear current-step card: the exact task, a result box, and a single primary
    action.
@@ -40,9 +41,11 @@ writing custom pipelines, not for end users.
 1. **Preview is local; probe is remote.** Preview uses the same loader and
    compiler as the service against the host files. Probe talks to the running
    orchestrator over MCP and SSE.
-2. **Two paths, one workspace.** Preview needs the host path; the service needs
-   the path inside its filesystem or container. Setup keeps both and the Run tab
-   always uses the service path.
+2. **One host path, one reported workspace.** Preview needs the local host path;
+   the service reports its own path from `CLARA_ORCHESTRATION_WORKSPACE`
+   (default: its working directory) over `GET /v1/config`. Setup keeps the host
+   path editable and shows the service path read-only, and the Run tab always
+   uses the reported path.
 3. **The setup check is a preflight.** A host compile, an orchestrator catalog
    read, and a strict-adapter check happen before the first run. The summary
    stays visible when the body is collapsed.
@@ -70,10 +73,12 @@ writing custom pipelines, not for end users.
 
 ## Edge cases
 
-- The host path compiles but the orchestrator path does not: Setup shows
-  “Orchestrator workspace: Needs attention”; change it to the container mount.
-- The orchestrator is offline: preview still works; the setup and run actions
-  show an offline hint and retry once the service returns.
+- The host path compiles but the orchestrator reports a path it cannot read:
+  Setup shows “Orchestrator workspace: Needs attention”; set
+  `CLARA_ORCHESTRATION_WORKSPACE` on the service to its mounted workspace.
+- The orchestrator is offline or has not reported a workspace yet: preview
+  still works; Setup shows “Waiting for the orchestrator…” and the run actions
+  retry once the service reports its path.
 - OpenCode is offline: preview still compiles and checks provider/model pairing;
   the models row says model existence is unchecked.
 - A model exists under a different provider: the diagnostic names the providers
@@ -112,8 +117,8 @@ writing custom pipelines, not for end users.
 
 ## Known gaps
 
-- The host/runtime path mapping is manual. The lab does not inspect Docker
-  mounts, so the two paths must be entered once in Setup.
+- The lab trusts the workspace reported by the orchestrator. It does not verify
+  that the host path and the service mount point at the same files.
 - Preview compiles the host files. If the orchestrator has a different mount,
   the run can use different content until the two paths are aligned.
 - Only root-package imports are directly selectable as targets. Nested imports
@@ -132,21 +137,27 @@ writing custom pipelines, not for end users.
 - Default ports: lab `8791`, orchestrator `8789`.
 - Environment: `CLARA_LAB_PORT`, `CLARA_LAB_OPEN=0`,
   `CLARA_ORCHESTRATION_URL`, `CLARA_ORCHESTRATION_TOKEN`,
-  `CLARA_ORCHESTRATION_TOKEN_FILE`, `CLARA_ORCHESTRATION_WORKSPACE`,
+  `CLARA_ORCHESTRATION_TOKEN_FILE`, `CLARA_ORCHESTRATION_WORKSPACE`
+  (the service workspace, also the lab host default),
   `CLARA_ORCHESTRATION_CONFIG`, `CLARA_STD_DIR`,
   `CLARA_ORCHESTRATION_AUTOSTART`, `CLARA_OPENCODE_URL`,
   `CLARA_OPENCODE_PASSWORD`. The lab also reads
   `${XDG_STATE_HOME:-~/.local/state}/opencode/service.json` when the OpenCode
   variables are unset.
 - Lab routes: `GET /api/health`, `GET /api/state`, `GET /api/stream`,
-  `POST /api/preview`, `POST /api/preflight`, `POST /api/diff`,
-  `POST /api/tools/:name`, `GET /api/runs`, `GET /api/runs/:id`,
-  `GET /api/inbox`, `GET /api/source`, `POST /api/heartbeat`,
-  `POST /api/reconnect`, `POST /api/adapter/register`,
-  `POST /api/adapter/remove`, `POST /api/violation`.
+  `POST /api/preview`, `POST /api/preflight`, `POST /api/pick-directory`,
+  `POST /api/diff`, `POST /api/tools/:name`, `GET /api/runs`,
+  `GET /api/runs/:id`, `GET /api/inbox`, `GET /api/source`,
+  `POST /api/heartbeat`, `POST /api/reconnect`,
+  `POST /api/adapter/register`, `POST /api/adapter/remove`,
+  `POST /api/violation`.
 - `/api/preflight` returns `{ host, runtime, adapter, models }`: host compile
-  status and package count, orchestrator catalog visibility, whether the target
-  is strict and has a live adapter, and the OpenCode model catalog status.
+  status and package count, orchestrator catalog visibility of its reported
+  workspace, whether the target is strict and has a live adapter, and the
+  OpenCode model catalog status.
+- `/api/pick-directory` opens the lab host's native folder chooser and returns
+  `{ path }` or `{ path: null }` when cancelled. It falls back to manual entry
+  when no desktop dialog is available.
 - Model diagnostics: `model_provider_missing` (error), `model_missing`
   (warning), `model_unset` (warning), `model_unknown` (error), and
   `model_disabled` (warning).

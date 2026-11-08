@@ -28,6 +28,7 @@ export class LabState {
   tokenPresent = false
   orchestrator = ''
   workspace = ''
+  orchestratorWorkspace = ''
   instructions = ''
   tools: ToolInfo[] = []
   adapters: AdapterRow[] = []
@@ -41,6 +42,12 @@ export class LabState {
 
   setTokenPresent(present: boolean): void {
     this.tokenPresent = present
+  }
+
+  setOrchestratorWorkspace(workspace: string): void {
+    if (workspace === this.orchestratorWorkspace) return
+    this.orchestratorWorkspace = workspace
+    this.emit('state', { orchestratorWorkspace: workspace })
   }
 
   setHeartbeat(enabled: boolean): void {
@@ -163,6 +170,7 @@ export class LabState {
   snapshot(): LabSnapshot {
     return {
       workspace: this.workspace,
+      orchestratorWorkspace: this.orchestratorWorkspace,
       orchestrator: this.orchestrator,
       connected: this.connected,
       tokenPresent: this.tokenPresent,

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { preflight, registerAdapter, reconnect } from './api'
+import { pickDirectory, preflight, registerAdapter, reconnect } from './api'
 import { Badge } from './components/Badge'
 import { Preview } from './components/Preview'
 import { Runs } from './components/Runs'
@@ -16,6 +16,7 @@ export function App() {
   const [preflightResult, setPreflightResult] = useState<PreflightResult | null>(null)
   const [preflightLoading, setPreflightLoading] = useState(false)
   const [preflightError, setPreflightError] = useState<string | null>(null)
+  const [browsing, setBrowsing] = useState(false)
   const [notice, setNotice] = useState<string | null>(null)
   const [setupOpen, setSetupOpen] = useState(true)
   const setupRef = useRef<HTMLDivElement>(null)
@@ -27,11 +28,7 @@ export function App() {
       saveSettings(next)
       return next
     })
-    if (
-      patch.hostWorkspace !== undefined ||
-      patch.runtimeWorkspace !== undefined ||
-      patch.target !== undefined
-    ) {
+    if (patch.hostWorkspace !== undefined || patch.target !== undefined) {
       setPreflightResult(null)
       setPreflightError(null)
     }
@@ -65,7 +62,7 @@ export function App() {
   }, [preflightError])
 
   const hostWorkspace = settings.hostWorkspace.trim() || stream.snapshot?.workspace || ''
-  const runtimeWorkspace = settings.runtimeWorkspace.trim() || hostWorkspace
+  const runtimeWorkspace = stream.snapshot?.orchestratorWorkspace || ''
 
   const runPreflight = useCallback(async (): Promise<void> => {
     if (!hostWorkspace) return
@@ -74,7 +71,6 @@ export function App() {
     try {
       const result = await preflight({
         hostWorkspace,
-        runtimeWorkspace: runtimeWorkspace || hostWorkspace,
         ...(settings.target ? { target: settings.target } : {}),
       })
       setPreflightResult(result)
@@ -83,7 +79,7 @@ export function App() {
     } finally {
       setPreflightLoading(false)
     }
-  }, [hostWorkspace, runtimeWorkspace, settings.target])
+  }, [hostWorkspace, settings.target])
 
   useEffect(() => {
     if (!stream.snapshot || !hostWorkspace) return
@@ -91,13 +87,30 @@ export function App() {
     return () => window.clearTimeout(timer)
   }, [stream.snapshot?.connected, hostWorkspace, runtimeWorkspace, settings.target, runPreflight])
 
+  const browseHostWorkspace = async (): Promise<void> => {
+    setBrowsing(true)
+    setPreflightError(null)
+    try {
+      const result = await pickDirectory(hostWorkspace || undefined)
+      if (result.path) update({ hostWorkspace: result.path })
+    } catch (cause) {
+      setPreflightError(cause instanceof Error ? cause.message : String(cause))
+    } finally {
+      setBrowsing(false)
+    }
+  }
+
   const setTab = (tab: LabTab): void => {
     update({ tab })
   }
 
   const enableAdapter = async (): Promise<void> => {
+    if (!runtimeWorkspace) {
+      setPreflightError('The orchestrator has not reported its workspace yet.')
+      return
+    }
     try {
-      await registerAdapter(runtimeWorkspace || hostWorkspace)
+      await registerAdapter(runtimeWorkspace)
       setNotice('Registered the clara-lab adapter for this workspace.')
       await runPreflight()
     } catch (cause) {
@@ -161,9 +174,9 @@ export function App() {
         <Setup
           snapshot={snapshot}
           hostWorkspace={settings.hostWorkspace}
-          runtimeWorkspace={settings.runtimeWorkspace}
           onHostWorkspace={(value) => update({ hostWorkspace: value })}
-          onRuntimeWorkspace={(value) => update({ runtimeWorkspace: value })}
+          browsing={browsing}
+          onBrowse={() => void browseHostWorkspace()}
           preflight={preflightResult}
           loading={preflightLoading}
           error={preflightError}

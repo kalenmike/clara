@@ -75,12 +75,16 @@ export function preview(input: PreviewRequest): Promise<LabPreviewResult> {
 
 export interface PreflightRequest {
   hostWorkspace: string
-  runtimeWorkspace: string
+  runtimeWorkspace?: string
   target?: string
 }
 
 export function preflight(input: PreflightRequest): Promise<PreflightResult> {
   return request<PreflightResult>('/api/preflight', mutation(input))
+}
+
+export function pickDirectory(initial?: string): Promise<{ path: string | null }> {
+  return request<{ path: string | null }>('/api/pick-directory', mutation({ initial }))
 }
 
 export function callTool<T = unknown>(
