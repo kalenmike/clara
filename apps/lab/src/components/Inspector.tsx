@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react'
 import { computeBudget } from '@clara/policy'
 import type { CompiledNode } from '../types'
+import { modelLabel } from '../lib/format'
 import { JsonView, CopyButton } from './Json'
 import { Badge, Field } from './Badge'
 import { SourceView } from './SourceView'
@@ -59,7 +60,8 @@ export function Inspector({ node }: { node?: CompiledNode }) {
         <div className="inspector-body">
           <div className="row-between">
             <span className="muted">
-              prompt source: {node.promptSource ?? 'inherited'} · model: {node.model ?? 'default'}
+              prompt source: {node.promptSource ?? 'inherited'} · model:{' '}
+              {modelLabel(node.model, node.provider)}
             </span>
             <CopyButton value={node.prompt ?? ''} label="Copy prompt" />
           </div>

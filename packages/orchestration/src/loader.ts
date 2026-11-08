@@ -106,6 +106,8 @@ function normalizeManifest(raw: Record<string, unknown>, source: string): Packag
     throw new OrchestrationError(source, 'version must be a positive integer')
   }
   const defaults = isRecord(raw.defaults) ? raw.defaults : {}
+  const defaultModel = str(defaults.model) ?? str(raw.default_model)
+  const defaultProvider = str(defaults.provider) ?? str(raw.default_provider)
   const router = isRecord(raw.router)
     ? {
         ...(str(raw.router.path) ? { path: String(raw.router.path) } : {}),
@@ -126,10 +128,11 @@ function normalizeManifest(raw: Record<string, unknown>, source: string): Packag
     ...(bool(raw.is_active) !== undefined ? { is_active: Boolean(raw.is_active) } : {}),
     ...(raw.entry !== undefined ? { entry: normalizeEntry(raw.entry, source) } : {}),
     imports: normalizeImports(raw.imports, source),
-    ...(Object.keys(defaults).length
+    ...(defaultModel || defaultProvider || Object.keys(defaults).length
       ? {
           defaults: {
-            ...(str(defaults.model) ? { model: String(defaults.model) } : {}),
+            ...(defaultModel ? { model: defaultModel } : {}),
+            ...(defaultProvider ? { provider: defaultProvider } : {}),
             ...(str(defaults.task_dir) ? { task_dir: String(defaults.task_dir) } : {}),
             ...(str(defaults.enforcement)
               ? {
@@ -210,6 +213,7 @@ function normalizeStep(raw: unknown, source: string, index: number): StepDefinit
       : {}),
     ...(bool(raw.background) !== undefined ? { background: Boolean(raw.background) } : {}),
     ...(str(raw.model) ? { model: String(raw.model) } : {}),
+    ...(str(raw.provider) ? { provider: String(raw.provider) } : {}),
     ...(Array.isArray(raw.permissions) ? { permissions: raw.permissions as PermissionRule[] } : {}),
     ...(isRecord(raw.policy) ? { policy: raw.policy as StepPolicy } : {}),
     ...(isRecord(raw.limits) ? { limits: raw.limits as Limits } : {}),
@@ -247,6 +251,7 @@ function normalizePipeline(
     version: num(raw.version) ?? 1,
     ...(str(raw.description) ? { description: String(raw.description) } : {}),
     ...(str(raw.default_model) ? { default_model: String(raw.default_model) } : {}),
+    ...(str(raw.default_provider) ? { default_provider: String(raw.default_provider) } : {}),
     ...(str(raw.enforcement)
       ? { enforcement: String(raw.enforcement) as PipelineDefinition['enforcement'] }
       : {}),
@@ -313,6 +318,7 @@ function loadTaskFile(path: string, taskRoot: string): TaskDefinition {
     ...(str(data.description) ? { description: String(data.description) } : {}),
     prompt: document.body,
     ...(str(data.model) ? { model: String(data.model) } : {}),
+    ...(str(data.provider) ? { provider: String(data.provider) } : {}),
     ...(Array.isArray(data.permissions)
       ? { permissions: data.permissions as PermissionRule[] }
       : {}),
@@ -614,6 +620,7 @@ function taskPrompt(
 
 const STEP_FIELDS = [
   'model',
+  'provider',
   'policy',
   'limits',
   'enforcement',
@@ -630,6 +637,7 @@ const STEP_FIELDS = [
 
 const PIPELINE_FIELDS = [
   'default_model',
+  'default_provider',
   'policy',
   'limits',
   'enforcement',
@@ -686,11 +694,13 @@ function compileStep(
   path: string,
   stack: Set<string>,
   inheritedModel?: string,
+  inheritedProvider?: string,
   inheritedPolicy?: StepPolicy,
   inheritedLimits?: Limits,
   inheritedSource?: string
 ): CompiledNode {
   const model = step.model ?? inheritedModel ?? pkg.manifest.defaults?.model
+  const provider = step.provider ?? inheritedProvider ?? pkg.manifest.defaults?.provider
   const policy = policyFromStep(step, undefined, inheritedPolicy)
   const limits = step.limits ?? inheritedLimits
   const enforcement = step.enforcement ?? pkg.manifest.defaults?.enforcement
@@ -703,6 +713,7 @@ function compileStep(
     declared: declaredFields(step as unknown as Record<string, unknown>, STEP_FIELDS),
     ...(step.description ? { description: step.description } : {}),
     ...(model ? { model } : {}),
+    ...(provider ? { provider } : {}),
     ...(policy ? { policy } : {}),
     ...(limits ? { limits } : {}),
     ...(enforcement ? { enforcement } : {}),
@@ -722,6 +733,7 @@ function compileStep(
       ...(resolved.task ? { task: resolved.task.name } : {}),
       ...(resolved.task?.source ? { source: resolved.task.source } : {}),
       ...(resolved.task?.model && !model ? { model: resolved.task.model } : {}),
+      ...(resolved.task?.provider && !provider ? { provider: resolved.task.provider } : {}),
       ...(policyFromStep(step, resolved.task, inheritedPolicy)
         ? { policy: policyFromStep(step, resolved.task, inheritedPolicy) }
         : {}),
@@ -746,6 +758,7 @@ function compileStep(
         ),
         ...(step.background !== undefined ? { background: step.background } : {}),
         ...(step.model ? { model: step.model } : {}),
+        ...(step.provider ? { provider: step.provider } : {}),
         ...(step.policy ? { policy: policyFromStep(step, undefined, target.policy) } : {}),
         ...(step.limits ? { limits: step.limits } : {}),
         ...(step.enforcement ? { enforcement: step.enforcement } : {}),
@@ -763,6 +776,7 @@ function compileStep(
           `${path}/${index + 1}-${child.name}`,
           stack,
           model,
+          provider,
           policy,
           limits,
           base.source
@@ -783,6 +797,7 @@ function compileStep(
           `${path}/${index + 1}-${child.name}`,
           stack,
           model,
+          provider,
           policy,
           limits,
           base.source
@@ -837,6 +852,9 @@ function compilePipeline(
     ...((pipeline.default_model ?? pkg.manifest.defaults?.model)
       ? { model: pipeline.default_model ?? pkg.manifest.defaults?.model }
       : {}),
+    ...((pipeline.default_provider ?? pkg.manifest.defaults?.provider)
+      ? { provider: pipeline.default_provider ?? pkg.manifest.defaults?.provider }
+      : {}),
     ...(pipeline.policy ? { policy: pipeline.policy } : {}),
     ...(pipeline.limits ? { limits: pipeline.limits } : {}),
     ...((pipeline.enforcement ?? pkg.manifest.defaults?.enforcement)
@@ -850,6 +868,7 @@ function compilePipeline(
         `${path}/${index + 1}-${step.name}`,
         stack,
         pipeline.default_model ?? pkg.manifest.defaults?.model,
+        pipeline.default_provider ?? pkg.manifest.defaults?.provider,
         pipeline.policy,
         pipeline.limits,
         pipeline.source
@@ -884,6 +903,8 @@ function compileEntry(pkg: LoadedPackage, path: string, stack: Set<string>): Com
       prompt: renderRouterPrompt(router.instructions, router.routes),
       promptSource: 'router',
       routes,
+      ...(pkg.manifest.defaults?.model ? { model: pkg.manifest.defaults.model } : {}),
+      ...(pkg.manifest.defaults?.provider ? { provider: pkg.manifest.defaults.provider } : {}),
       ...(router.description ? { description: router.description } : {}),
       ...(router.strategy ? { strategy: router.strategy } : {}),
       ...(router.policy ? { policy: router.policy } : {}),

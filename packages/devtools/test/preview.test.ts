@@ -108,6 +108,78 @@ describe('pipeline preview', () => {
     }
   })
 
+  it('validates model providers and availability', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'clara-models-'))
+    try {
+      writeFileSync(
+        join(dir, 'index.yml'),
+        [
+          'id: temp',
+          'name: Temp',
+          'version: 1',
+          'entry: main',
+          'pipelines:',
+          '  main:',
+          '    steps:',
+          '      - name: missing_provider',
+          '        type: task',
+          '        prompt: do it',
+          '        model: lonely-model',
+          '      - name: provider_only',
+          '        type: task',
+          '        prompt: do it',
+          '        provider: p',
+          '      - name: unset',
+          '        type: task',
+          '        prompt: do it',
+          '      - name: known',
+          '        type: task',
+          '        prompt: do it',
+          '        provider: p',
+          '        model: m',
+          '      - name: disabled',
+          '        type: task',
+          '        prompt: do it',
+          '        provider: p',
+          '        model: off',
+          '      - name: unknown',
+          '        type: task',
+          '        prompt: do it',
+          '        provider: p',
+          '        model: nope',
+          '      - name: wrong_provider',
+          '        type: task',
+          '        prompt: do it',
+          '        provider: q',
+          '        model: m',
+        ].join('\n')
+      )
+      const result = previewPipeline({
+        workspace: dir,
+        models: [
+          { providerID: 'p', id: 'm', enabled: true },
+          { providerID: 'p', id: 'off', enabled: false },
+        ],
+      })
+      const byStep = (name: string) =>
+        result.diagnostics.filter(
+          (entry) => entry.stepPath?.split('/').pop()?.replace(/^\d+-/, '') === name
+        )
+      expect(byStep('missing_provider').map((entry) => entry.code)).toContain(
+        'model_provider_missing'
+      )
+      expect(byStep('provider_only').map((entry) => entry.code)).toContain('model_missing')
+      expect(byStep('unset').map((entry) => entry.code)).toContain('model_unset')
+      expect(byStep('known').map((entry) => entry.code)).not.toContain('model_unknown')
+      expect(byStep('disabled').map((entry) => entry.code)).toContain('model_disabled')
+      expect(byStep('unknown').map((entry) => entry.code)).toContain('model_unknown')
+      const wrong = byStep('wrong_provider').find((entry) => entry.code === 'model_unknown')
+      expect(wrong?.message).toContain('only available under p')
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
+
   it('collects and classifies source files', () => {
     const result = previewPipeline({ workspace: root, target: 'std:software/feature' })
     const sources = collectSources(

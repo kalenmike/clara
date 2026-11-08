@@ -69,6 +69,7 @@ export class RuntimeBackend implements ClaraBackend {
     count: number
     prompt: string
     model?: string
+    provider?: string
     policy?: unknown
     limits?: unknown
   }) {
@@ -76,6 +77,7 @@ export class RuntimeBackend implements ClaraBackend {
       count: input.count,
       prompt: input.prompt,
       ...(input.model ? { model: input.model } : {}),
+      ...(input.provider ? { provider: input.provider } : {}),
       ...(input.policy ? { policy: input.policy as never } : {}),
       ...(input.limits ? { limits: input.limits as never } : {}),
     })

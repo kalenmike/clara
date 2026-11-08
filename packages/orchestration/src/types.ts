@@ -43,6 +43,7 @@ export interface StepDefinition {
   steps?: StepDefinition[]
   background?: boolean
   model?: string
+  provider?: string
   permissions?: PermissionRule[]
   policy?: StepPolicy
   limits?: Limits
@@ -58,6 +59,7 @@ export interface PipelineDefinition {
   version?: number
   description?: string
   default_model?: string
+  default_provider?: string
   enforcement?: EnforcementMode
   policy?: StepPolicy
   limits?: Limits
@@ -86,6 +88,7 @@ export interface TaskDefinition {
   description?: string
   prompt: string
   model?: string
+  provider?: string
   permissions?: PermissionRule[]
   policy?: StepPolicy
   limits?: Limits
@@ -115,6 +118,7 @@ export interface PackageManifest {
   imports?: Record<string, Array<ImportSpec | string>>
   defaults?: {
     model?: string
+    provider?: string
     task_dir?: string
     enforcement?: EnforcementMode
     notification?: NotificationPolicy
@@ -167,6 +171,7 @@ export interface CompiledNode {
   /** Matched task file, when the step resolved through a task document. */
   task?: string
   model?: string
+  provider?: string
   policy?: StepPolicy
   limits?: Limits
   enforcement?: EnforcementMode

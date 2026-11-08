@@ -34,6 +34,8 @@ interface ActiveWork {
   session: string
   workspace: string
   enforcement: string
+  model?: string
+  provider?: string
   turns: number
   toolCalls: number
   tokens: number
@@ -154,10 +156,19 @@ function workspace(context: Any): string {
   )
 }
 
+function modelRef(work: Any): { providerID: string; id: string } | undefined {
+  const provider = typeof work?.provider === 'string' ? work.provider.trim() : ''
+  const model = typeof work?.model === 'string' ? work.model.trim() : ''
+  if (!provider || !model) return undefined
+  return { providerID: provider, id: model }
+}
+
 function promptFor(work: Any): string {
   const identifiers = `run_id: ${work.run_id}
 step_path: ${work.step_path}
 work_token: ${work.work_token}`
+  const model = modelRef(work)
+  const modelLine = model ? `model: ${model.providerID}/${model.id}` : 'model: harness default'
   const routes = Array.isArray(work.routes)
     ? work.routes
         .map((route: Any) => `- \`${route.when}\`${route.criteria ? ` — ${route.criteria}` : ''}`)
@@ -183,6 +194,7 @@ Clara work order
 ${identifiers}
 attempt: ${work.attempt}/${work.max_attempts}
 enforcement: ${work.enforcement}
+${modelLine}
 
 ${instructions}
 ${work.enforcement === 'observed' ? 'This step is observed: policy violations are recorded but do not block tools.' : ''}
@@ -283,6 +295,8 @@ export default {
         session,
         workspace: String(work.workspace ?? workspace(ctx)),
         enforcement: String(work.enforcement ?? 'observed'),
+        ...(typeof work.model === 'string' && work.model ? { model: work.model } : {}),
+        ...(typeof work.provider === 'string' && work.provider ? { provider: work.provider } : {}),
         turns: 0,
         toolCalls: 0,
         tokens: 0,
@@ -297,10 +311,20 @@ export default {
       const directory =
         typeof work?.workspace === 'string' && work.workspace ? work.workspace : workspace(context)
       const agent = process.env.CLARA_WORKER_AGENT?.trim() || 'general'
+      const model = modelRef(work)
+      if (
+        (typeof work?.model === 'string' && work.model && !model) ||
+        (typeof work?.provider === 'string' && work.provider && !model)
+      ) {
+        console.error(
+          `[clara-policy] ${work.step_path} has an incomplete model reference (provider=${work.provider ?? '-'} model=${work.model ?? '-'}); using the harness default`
+        )
+      }
       try {
         const created = await ctx.session.create({
           title: `Clara ${work.name} (run ${work.run_id})`,
           location: { directory },
+          ...(model ? { model } : {}),
           metadata: {
             automation: true,
             clara: {
@@ -311,6 +335,11 @@ export default {
           },
         })
         await ctx.session.switchAgent({ sessionID: created.id, agent })
+        // Switching the agent may select the agent's own model. Pin the work
+        // order model afterwards so every pipeline step uses what it declares.
+        if (model && typeof ctx.session.switchModel === 'function') {
+          await ctx.session.switchModel({ sessionID: created.id, model })
+        }
         bind(created.id, work)
         await ctx.session.prompt({
           sessionID: created.id,
@@ -808,15 +837,23 @@ export default {
               work_token: { type: 'string' },
               count: { type: 'number' },
               prompt: { type: 'string' },
+              model: { type: 'string' },
+              provider: { type: 'string' },
             },
             required: ['run_id', 'step_path', 'work_token', 'count', 'prompt'],
             additionalProperties: false,
           },
           async (input: Any, context: Any) => {
+            const id = sessionID(context)
+            const parent = id ? active.get(id) : undefined
             const path = `/v1/runs/${input.run_id}/steps/${encodeURIComponent(input.step_path)}/spawn`
-            const response = await call<Any>(config, 'POST', path, input)
+            const response = await call<Any>(config, 'POST', path, {
+              ...input,
+              ...(input.model ? {} : parent?.model ? { model: parent.model } : {}),
+              ...(input.provider ? {} : parent?.provider ? { provider: parent.provider } : {}),
+            })
             for (const child of response.children ?? []) activeRuns.add(Number(child.id))
-            finish(sessionID(context))
+            finish(id)
             return content(response)
           }
         )

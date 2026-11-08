@@ -1,5 +1,8 @@
 is_active: true
-default_model: 'deepseek-v4.1-flash'
+
+defaults:
+  model: 'deepseek-v4.1-flash'
+  provider: 'opencode-go'
 
 imports:
   std:

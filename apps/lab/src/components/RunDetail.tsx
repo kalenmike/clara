@@ -1,5 +1,5 @@
 import type { OrcEvent, StepRow } from '../types'
-import { clock, json, short, statusTone } from '../lib/format'
+import { clock, json, modelLabel, short, statusTone } from '../lib/format'
 import { Badge, Field } from './Badge'
 import { JsonView } from './Json'
 
@@ -22,7 +22,7 @@ export function RunStepDetail({ step }: { step?: StepRow }) {
 
       <div className="grid three">
         <Field label="Type" value={step.type} />
-        <Field label="Model" value={step.model ?? 'default'} />
+        <Field label="Model" value={modelLabel(step.model, step.provider)} />
         <Field label="Lease owner" value={step.lease_owner ?? '—'} />
         <Field label="Heartbeat" value={step.heartbeat_at ? clock(step.heartbeat_at) : '—'} />
         <Field

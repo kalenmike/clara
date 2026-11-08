@@ -40,6 +40,7 @@ export interface StepRow extends Row {
   max_attempts: number
   prompt: string | null
   model: string | null
+  provider: string | null
   policy: string | null
   limits: string | null
   background: number
@@ -143,6 +144,7 @@ export class Store {
         max_attempts INTEGER NOT NULL DEFAULT 3,
         prompt TEXT,
         model TEXT,
+        provider TEXT,
         policy TEXT,
         limits TEXT,
         background INTEGER NOT NULL DEFAULT 0,
@@ -199,6 +201,13 @@ export class Store {
       );
       CREATE INDEX IF NOT EXISTS idx_adapters_workspace ON adapters (workspace, heartbeat_at);
     `)
+    this.ensureColumn('steps', 'provider', 'TEXT')
+  }
+
+  private ensureColumn(table: string, column: string, type: string): void {
+    const columns = this.db.prepare(`PRAGMA table_info(${table})`).all() as Array<{ name: string }>
+    if (columns.some((entry) => entry.name === column)) return
+    this.db.exec(`ALTER TABLE ${table} ADD COLUMN ${column} ${type}`)
   }
 
   run(id: number): RunRow | undefined {
@@ -298,6 +307,7 @@ export class Store {
       type: string
       prompt?: string
       model?: string
+      provider?: string
       policy?: unknown
       limits?: unknown
       background?: boolean
@@ -311,8 +321,8 @@ export class Store {
       .prepare(
         `INSERT INTO steps
           (run_id, path, parent_path, name, type, status, attempt, max_attempts, prompt,
-           model, policy, limits, background, created_at, updated_at)
-         VALUES (?, ?, ?, ?, ?, 'pending', 0, ?, ?, ?, ?, ?, ?, ?, ?)`
+           model, provider, policy, limits, background, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, 'pending', 0, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
       )
       .run(
         run.id,
@@ -323,6 +333,7 @@ export class Store {
         node.max_attempts ?? 3,
         node.prompt ?? null,
         node.model ?? null,
+        node.provider ?? null,
         node.policy === undefined ? null : JSON.stringify(node.policy),
         node.limits === undefined ? null : JSON.stringify(node.limits),
         node.background ? 1 : 0,

@@ -47,6 +47,7 @@ export interface ClaraBackend {
     count: number
     prompt: string
     model?: string
+    provider?: string
     policy?: unknown
     limits?: unknown
   }): Promise<unknown>
