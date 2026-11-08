@@ -1,3 +1,4 @@
+export * from './diagnostics.ts'
 export * from './frontmatter.ts'
 export * from './loader.ts'
 export * from './runtime.ts'
