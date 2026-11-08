@@ -207,7 +207,11 @@ async function stop(args: string[]): Promise<void> {
   }
   if (result.kind === 'container-down') {
     if (result.result.ok) {
-      console.log('stopped the docker container')
+      console.log(
+        result.detected
+          ? 'stopped the docker container'
+          : 'docker compose down completed (no running container was detected)'
+      )
       return
     }
     if (result.result.error) console.error(`could not run docker: ${result.result.error}`)

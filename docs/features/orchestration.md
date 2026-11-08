@@ -113,7 +113,11 @@ database and token live under the host `CLARA_DATA_DIR` mount.
 The container writes no host PID file. `pnpm clara orchestration status` reports
 `running (docker container)`, and `pnpm clara orchestration stop` does not
 signal anything; stop the container with
-`pnpm clara orchestration stop --docker`.
+`pnpm clara orchestration stop --docker`. Stopping does not require the
+`CLARA_ORCHESTRATION_TOKEN`, `CLARA_DATA_DIR`, or `CLARA_WORKSPACE` variables:
+compose still parses them for `down`, so the command supplies inert values when
+they are not exported. It also runs `docker compose down` when the container is
+unhealthy or already stopped, so a crashed container can be cleaned up.
 
 Start it from the host with `pnpm clara orchestration start --docker`. That runs
 `docker compose -f docker/compose.yml up -d orchestrator` and waits for
