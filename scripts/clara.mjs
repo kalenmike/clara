@@ -176,10 +176,11 @@ const clara = {
     {
       name: 'orchestration',
       summary: 'Run the local orchestration service',
-      usage: '<serve|start|stop [--docker]|status|token>',
+      usage: '<serve|start [--docker] [--build]|stop [--docker]|status|token>',
       passthroughHelp: true,
       examples: [
         'pnpm clara orchestration start',
+        'pnpm clara orchestration start --docker',
         'pnpm clara orchestration status',
         'pnpm clara orchestration stop --docker',
         'pnpm clara orchestration serve',

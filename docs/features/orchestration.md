@@ -112,6 +112,12 @@ The container writes no host PID file. `pnpm clara orchestration status` reports
 signal anything; stop the container with `pnpm docker:orchestrator:down` or
 `pnpm clara orchestration stop --docker`.
 
+Start it from the host with `pnpm clara orchestration start --docker`. That runs
+`docker compose -f docker/compose.yml up -d orchestrator` and waits for
+`/health` to report a container. Add `--build` to rebuild the image first. If a
+local instance is already running, the command refuses and asks you to stop it
+first.
+
 ## Core business rules
 
 1. **Packages are data.** The engine has no built-in software pipeline. A
@@ -313,7 +319,8 @@ docs:    assess_docs → update_docs → verify_docs → docs_review
   `CLARA_ORCHESTRATION_WORKSPACE` (default: the service's working directory),
   plus `CLARA_STD_DIR` and `CLARA_ORCHESTRATION_CONFIG` when set.
 - Container: `docker compose -f docker/compose.yml up -d --build orchestrator`.
-- Commands: `pnpm clara orchestration start|stop [--docker]|status|serve|token`,
+- Commands:
+  `pnpm clara orchestration start [--docker] [--build]|stop [--docker]|status|serve|token`,
   `pnpm clara mcp install|uninstall|config|status`,
   `pnpm clara adapter install opencode|uninstall|status`,
   `pnpm clara lab [serve|check]`.
