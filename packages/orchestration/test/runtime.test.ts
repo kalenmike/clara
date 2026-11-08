@@ -343,6 +343,7 @@ describe('runtime', () => {
       'software-development',
       'quick-patch',
       'research',
+      'diagnostics',
     ])
 
     const advanced = runtime.route(started.run.id, router.step_path, router.work_token, 'content')
