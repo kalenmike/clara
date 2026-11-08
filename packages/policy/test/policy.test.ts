@@ -1,5 +1,12 @@
 import { describe, expect, it } from 'vitest'
-import { budgetExceeded, computeBudget, emptyUsage, evaluatePolicy, matches } from '../src/index.ts'
+import {
+  budgetExceeded,
+  computeBudget,
+  emptyUsage,
+  evaluatePolicy,
+  isControlTool,
+  matches,
+} from '../src/index.ts'
 
 describe('glob matching', () => {
   it('matches paths and commands', () => {
@@ -53,9 +60,33 @@ describe('evaluatePolicy', () => {
     ).toBe('deny')
   })
 
-  it('blocks when the turn budget is exhausted', () => {
-    const usage = { ...emptyUsage(), turns: 2 }
-    expect(budgetExceeded(budget, usage)).toBe('turn limit reached')
+  it('allows the turn that fills the budget and blocks the next turn', () => {
+    const lastTurn = { ...emptyUsage(), turns: 2 }
+    expect(budgetExceeded(budget, lastTurn)).toBeUndefined()
+    expect(
+      evaluatePolicy(undefined, budget, lastTurn, { action: 'read', tool: 'read' }).effect
+    ).toBe('allow')
+
+    const nextTurn = { ...emptyUsage(), turns: 3 }
+    expect(budgetExceeded(budget, nextTurn)).toBe('turn limit reached')
+    expect(
+      evaluatePolicy(undefined, budget, nextTurn, { action: 'read', tool: 'read' }).effect
+    ).toBe('deny')
+  })
+
+  it('keeps Clara control tools available after the budget is exhausted', () => {
+    const usage = { ...emptyUsage(), turns: 99, tokens: 999_999, toolCalls: 999 }
+    expect(isControlTool('clara_route')).toBe(true)
+    expect(isControlTool('clara.complete')).toBe(true)
+    expect(isControlTool('read')).toBe(false)
+    expect(
+      evaluatePolicy(undefined, budget, usage, { action: 'clara_route', tool: 'clara_route' })
+        .effect
+    ).toBe('allow')
+    expect(
+      evaluatePolicy(undefined, budget, usage, { action: 'clara_complete', tool: 'clara_complete' })
+        .effect
+    ).toBe('allow')
     expect(evaluatePolicy(undefined, budget, usage, { action: 'read', tool: 'read' }).effect).toBe(
       'deny'
     )
