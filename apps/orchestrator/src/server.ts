@@ -4,6 +4,7 @@ import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/
 import { createClaraServer } from '@clara/mcp-server'
 import type { Runtime } from '@clara/orchestration'
 import { RuntimeBackend } from './backend.ts'
+import { instanceMode } from './config.ts'
 
 export interface OrchestratorServerOptions {
   runtime: Runtime
@@ -100,7 +101,13 @@ export function createOrchestratorServer(options: OrchestratorServerOptions): Or
     try {
       const url = new URL(req.url ?? '/', `http://${req.headers.host ?? '127.0.0.1'}`)
       if (req.method === 'GET' && url.pathname === '/health') {
-        json(res, 200, { ok: true, service: 'clara-orchestrator', version: '0.1.0' })
+        json(res, 200, {
+          ok: true,
+          service: 'clara-orchestrator',
+          version: '0.1.0',
+          mode: instanceMode(),
+          pid: process.pid,
+        })
         return
       }
       if (bearer(req) !== token) {

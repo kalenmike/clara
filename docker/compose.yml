@@ -22,6 +22,7 @@ services:
       CLARA_DATA_DIR: /data
       CLARA_ORCHESTRATION_WORKSPACE: /workspace/clara
       CLARA_STD_DIR: /opt/clara/lib/std
+      CLARA_ORCHESTRATION_CONTAINER: '1'
       CLARA_ORCHESTRATION_TOKEN: ${CLARA_ORCHESTRATION_TOKEN:?"set CLARA_ORCHESTRATION_TOKEN"}
     volumes:
       - ${CLARA_DATA_DIR:?set CLARA_DATA_DIR}:/data
