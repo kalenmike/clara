@@ -20,8 +20,6 @@ limits:
 
 # Software router
 
-Choose exactly one route from the work order.
+Choose exactly one route.
 
 [ROUTES]
-
-Return only the route key and a one-sentence reason. Do not edit files or run commands.
