@@ -5,8 +5,9 @@
 The Git tab answers "what branch am I on, what has changed, what did this
 session commit, and where are my worktrees?" without leaving the chat. It has
 three views: **Changes** for the working tree and commit ranges, **Commits** for
-the commits authored since the session started with a conventional-commit
-preview, and **Worktrees** for every worktree the project knows about.
+the commits made between the session start and its latest message with a
+conventional-commit preview, and **Worktrees** for every worktree the project
+knows about.
 
 All three read the repository on the **OpenCode host**, at the selected
 session's own directory. The browser never reads its own filesystem.
@@ -25,11 +26,10 @@ session's own directory. The browser never reads its own filesystem.
      bar, and the per-file rows. Each row shows `A`, `M`, or `D`, the file name,
      its directory, line counts, and a small churn bar.
 5. **Commits**:
-   - Read the commits authored since this session started. Clara reads the
-     directory's last ten commits and keeps those with an author date at or
-     after the session's creation time. Each row shows the short hash and the
-     subject, parsed into a conventional `type(scope): description` when it
-     follows the convention.
+   - Read the commits made between this session's creation and its latest
+     message. Clara passes both bounds to `git log` and asks for at most ten.
+     Each row shows the short hash and the subject, parsed into a conventional
+     `type(scope): description` when it follows the convention.
    - The type is colored by kind, the scope in its own color, and the
      description in the normal text color. Non-conventional subjects render as
      written.
@@ -56,15 +56,18 @@ session's own directory. The browser never reads its own filesystem.
    endpoint. It is the default range because it is the most frequently useful.
 3. **Last 3 commits** compares `HEAD~3..HEAD`. **Base branch** compares the
    branch against its default base. Neither includes uncommitted work.
-4. **Commits** runs exactly one command on the host:
-   `git log -n 10 --format=%H%x1f%an%x1f%ae%x1f%aI%x1f%s%x1f%b%x1e`. The field
-   and record separators keep multiline bodies intact. Clara never accepts a
-   command from the page or the user; the string is fixed in `use-git.ts`. The
-   browser then keeps only commits whose author date is at or after
-   `session.time.created`, so the view reflects this session's work instead of
-   the host's whole HEAD. Conventional headers are split into type, scope, and
-   description for the preview, and `Co-authored-by:` trailers are lifted out of
-   the body.
+4. **Commits** runs exactly one command shape on the host:
+   `git log --since=<session start> --until=<latest activity> -n 10
+--format=%H%x1f%an%x1f%ae%x1f%aI%x1f%s%x1f%b%x1e`. Both bounds are numeric
+   timestamps from session metadata, never page or user input, and are emitted
+   as ISO strings; the `--since`/`--until` filter happens on the host, so the
+   view never fetches the repository's latest ten commits. The upper bound is
+   the newest assistant or shell message completion, or the newest message
+   creation when there is none. It is omitted while a turn is running so the
+   current turn's commits count; the bound closes when the session goes idle.
+   The field and record separators keep multiline bodies intact. Conventional
+   headers are split into type, scope, and description for the preview, and
+   `Co-authored-by:` trailers are lifted out of the body.
 5. **Commits only work through the home agent.** The request travels over the
    encrypted session, the agent applies the admin shell policy, and only then is
    it forwarded to OpenCode's shell API. A direct OpenCode connection has no
@@ -109,9 +112,11 @@ session's own directory. The browser never reads its own filesystem.
   back to the working tree.
 - **Clean tree or empty range** — the file list is replaced by "No changes in
   this range."
-- **Session switched** — queries are keyed by directory and the commit list is
-  filtered by the selected session's creation time, so the previous session's
-  branch, commits, and current worktree never linger.
+- **Session switched** — queries are keyed by directory and the session window,
+  so the previous session's branch, commits, and current worktree never linger.
+- **Session running** — the commit window has no upper bound while the agent is
+  working, so the current turn's commits count. When the session goes idle, the
+  latest message closes the window and the list refetches.
 - **Session in a worktree** — commits and changes come from the worktree.
   `vcs.base` returns `503 Choose a review base` there, so **Base branch** can
   fail even though the branch name is known.
@@ -169,11 +174,11 @@ hostile client or a compromised origin.
   shell API. That is why the feature depends on the home agent and a server
   policy.
 - **Session scope is time-based.** OpenCode records no commit IDs for a session,
-  so Clara keeps commits whose author date is at or after `session.time.created`.
-  A manual commit made in the same directory during the session is included, an
-  amended commit keeps its original author date, and one of the session's own
-  commits can drop out if more than ten newer commits push it out of the log
-  window.
+  so Clara asks git for commits between `session.time.created` and the newest
+  message activity. Git compares commit dates, not author dates: a manual commit
+  made in the same directory inside the window is included, an amended commit
+  shows its original author date, and commits made after the latest message are
+  excluded. A window with more than ten commits shows only the newest ten.
 - **Each history read spawns a process** on the host and writes a small shell job
   file that Clara removes afterwards. On a slow volume or a very large
   repository, expect a short delay; the request is capped at ten seconds.
@@ -204,14 +209,15 @@ hostile client or a compromised origin.
 - Commit row: `src/components/layout/git-commit-row.tsx`
 - Worktree view: `src/components/layout/git-worktree-list.tsx`
 - Shared messages: `src/components/layout/git-panel-parts.tsx`
-- Hooks and parsers: `src/features/git/use-git.ts` (`commitsSince`,
-  `parseGitLog`, `parseConventionalHeader`, `splitCommitBody`)
+- Hooks and parsers: `src/features/git/use-git.ts` (`gitLogCommand`,
+  `lastSessionActivity`, `parseGitLog`, `parseConventionalHeader`,
+  `splitCommitBody`)
 - Branch and provider: `client.vcs.get({ location: { directory } })`
 - Review base: `client.vcs.base({ location: { directory } })`
 - Working tree: `client.vcs.status({ location: { directory } })`
 - Committed and branch ranges: `client.vcs.diff({ mode, base, context: 0 })`
-- History: `client.shell.create({ command: GIT_LOG_COMMAND, cwd })`, polled with
-  `shell.get`, read with `shell.output`, cleaned with `shell.remove`
+- History: `client.shell.create({ command: gitLogCommand(window), cwd })`,
+  polled with `shell.get`, read with `shell.output`, cleaned with `shell.remove`
 - Worktrees: `client.worktree.list({ projectID })` and
   `client.worktree.refresh({ projectID })`
 - Project ID: the canonical project record for the route, passed from the chat
@@ -221,8 +227,9 @@ hostile client or a compromised origin.
 - Live updates: `filesystem.changed` for changes, `vcs.branch.updated` and
   session idle/execution events for history, `worktree.updated` and
   `worktree.resolved` for worktrees
-- Query keys: `['vcs', …]` for changes, `['git', 'commits', directory]` and
-  `['git', 'worktrees', projectID, directory]` for history and worktrees
+- Query keys: `['vcs', …]` for changes, `['git', 'commits', directory, since,
+until]` and `['git', 'worktrees', projectID, directory]` for history and
+  worktrees
 - The selected panel tab is stored as `clara.sidePanelTab`; the compare range and
   the Git view reset when the Git tab remounts.
 - Related: [session-info](session-info.md), [shortcuts](shortcuts.md),
