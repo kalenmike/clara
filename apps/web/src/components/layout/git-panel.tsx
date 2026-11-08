@@ -17,7 +17,13 @@ import {
 import { Separator } from '@/components/ui/separator'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { useGitBase, useGitChanges, useGitInfo, type GitRange } from '@/features/git/use-git'
+import {
+  useGitBase,
+  useGitChanges,
+  useGitInfo,
+  type CommitWindow,
+  type GitRange,
+} from '@/features/git/use-git'
 import { useSessionWording } from '@/features/sessions/use-wording'
 import { isRelayConfig } from '@/lib/client'
 import { errorMessage } from '@/lib/errors'
@@ -43,14 +49,14 @@ export function GitPanel({
   directory,
   projectID,
   canonical,
-  sessionStartedAt,
+  commitWindow,
 }: {
   directory: string | undefined
   projectID: string | undefined
   /** The project's canonical directory, used to mark the default worktree. */
   canonical: string | undefined
-  /** The session's creation time, used to scope commit history. */
-  sessionStartedAt: number | undefined
+  /** The session window, used to scope commit history. */
+  commitWindow: CommitWindow | undefined
 }) {
   const { config } = useConnection()
   const queryClient = useQueryClient()
@@ -319,7 +325,7 @@ export function GitPanel({
 
         <TabsContent value="commits">
           {hostCommands ? (
-            <GitCommitList directory={directory} sessionStartedAt={sessionStartedAt} />
+            <GitCommitList directory={directory} commitWindow={commitWindow} />
           ) : (
             <GitPanelMessage
               title="Commit history needs the home agent"

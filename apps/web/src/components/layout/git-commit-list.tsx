@@ -1,27 +1,35 @@
 import { AlertCircle, GitCommitHorizontal } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
-import { commitsSince, shellFailure, useGitCommits } from '@/features/git/use-git'
+import { shellFailure, useGitCommits, type CommitWindow } from '@/features/git/use-git'
 import { errorMessage } from '@/lib/errors'
 import { GitCommitRow } from './git-commit-row'
 import { GitPanelMessage } from './git-panel-parts'
 
-/** Commits the session has authored since it started, read from its directory. */
+/** Commits made between the session start and its latest message. */
 export function GitCommitList({
   directory,
-  sessionStartedAt,
+  commitWindow,
 }: {
   directory: string
-  /** The session's creation time in milliseconds. */
-  sessionStartedAt: number | undefined
+  /** The session window, used to scope the log on the host. */
+  commitWindow: CommitWindow | undefined
 }) {
-  const query = useGitCommits(directory, true)
-  const commits = commitsSince(query.data ?? [], sessionStartedAt)
+  const query = useGitCommits(directory, commitWindow, Boolean(commitWindow))
+  const commits = query.data ?? []
+  const empty = (
+    <div className="flex flex-col items-center gap-1.5 py-8 text-center text-muted-foreground">
+      <GitCommitHorizontal className="size-5" />
+      <p className="text-[10px]">No commits since this session started.</p>
+    </div>
+  )
 
   return (
     <div className="space-y-2">
       <p className="text-[10px] text-muted-foreground">Commits since session start</p>
-      {query.isPending ? (
+      {commitWindow === undefined ? (
+        empty
+      ) : query.isPending ? (
         <div className="space-y-2">
           <Skeleton className="h-3 w-2/3" />
           <Skeleton className="h-3 w-5/6" />
@@ -30,10 +38,7 @@ export function GitCommitList({
       ) : query.isError ? (
         <CommitError query={query} />
       ) : commits.length === 0 ? (
-        <div className="flex flex-col items-center gap-1.5 py-8 text-center text-muted-foreground">
-          <GitCommitHorizontal className="size-5" />
-          <p className="text-[10px]">No commits since this session started.</p>
-        </div>
+        empty
       ) : (
         <ul className="space-y-1.5">
           {commits.map((commit) => (

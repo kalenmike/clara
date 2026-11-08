@@ -1,3 +1,4 @@
+import { useMemo } from 'react'
 import { BarChart3, GitBranch, SquareTerminal, X } from 'lucide-react'
 import type { SessionInfo, SessionMessageInfo } from '@opencode/client'
 import { PairTerminal } from '@/components/chat/pair-terminal'
@@ -7,6 +8,7 @@ import { SessionPlanDock } from '@/components/layout/session-plan-dock'
 import { Button } from '@/components/ui/button'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import type { ChatSnapshot } from '@/features/chat/chat-store'
+import { lastSessionActivity, type CommitWindow } from '@/features/git/use-git'
 import { useSidePanelWidth } from '@/hooks/use-side-panel-width'
 import { SIDE_PANEL_WIDTH_MAX, SIDE_PANEL_WIDTH_MIN, type SidePanelTab } from '@/lib/storage'
 import { cn } from '@/lib/utils'
@@ -40,6 +42,16 @@ export function SidePanel({
   className?: string
 }) {
   const { width, dragging, handleProps } = useSidePanelWidth()
+  const commitWindow = useMemo<CommitWindow | undefined>(() => {
+    const since = session?.time.created
+    if (since === undefined) return undefined
+    return {
+      since,
+      // While a turn runs, leave the upper bound open so its commits count. The
+      // latest message closes the window when the session goes idle.
+      until: snapshot.status.type === 'idle' ? lastSessionActivity(messages) : undefined,
+    }
+  }, [messages, session?.time.created, snapshot.status.type])
 
   return (
     <aside
@@ -115,7 +127,7 @@ export function SidePanel({
             directory={directory}
             projectID={projectID}
             canonical={canonical}
-            sessionStartedAt={session?.time.created}
+            commitWindow={commitWindow}
           />
         </TabsContent>
         <TabsContent value="terminal" className="min-h-0 flex-1 overflow-hidden p-0">

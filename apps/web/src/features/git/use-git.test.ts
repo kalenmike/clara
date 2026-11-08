@@ -1,11 +1,12 @@
 import { describe, expect, it } from 'vitest'
+import type { SessionMessageInfo } from '@opencode/client'
 import {
-  commitsSince,
+  gitLogCommand,
+  lastSessionActivity,
   parseConventionalHeader,
   parseGitLog,
   resolveWorktrees,
   splitCommitBody,
-  type GitCommit,
 } from './use-git'
 
 const FIELD = '\x1f'
@@ -85,40 +86,57 @@ describe('parseGitLog', () => {
   })
 })
 
-describe('commitsSince', () => {
-  function commit(hash: string, authoredAt: string): GitCommit {
+describe('gitLogCommand', () => {
+  it('scopes the log to the session window and caps it at ten', () => {
+    const command = gitLogCommand({
+      since: Date.parse('2026-11-08T10:00:00Z'),
+      until: Date.parse('2026-11-08T10:30:00Z'),
+    })
+
+    expect(command).toContain('--since=2026-11-08T10:00:00.000Z')
+    expect(command).toContain('--until=2026-11-08T10:30:00.000Z')
+    expect(command).toContain('-n 10')
+    expect(command).toMatch(/--format=%H%x1f%an%x1f%ae%x1f%aI%x1f%s%x1f%b%x1e$/)
+  })
+
+  it('leaves the upper bound open while a turn is running', () => {
+    const command = gitLogCommand({ since: Date.parse('2026-11-08T10:00:00Z') })
+
+    expect(command).toContain('--since=2026-11-08T10:00:00.000Z')
+    expect(command).not.toContain('--until=')
+  })
+
+  it('rejects an invalid session start', () => {
+    expect(() => gitLogCommand({ since: Number.NaN })).toThrow()
+  })
+})
+
+describe('lastSessionActivity', () => {
+  function user(created: number): SessionMessageInfo {
+    return { id: `user-${created}`, time: { created }, type: 'user', text: 'hi' }
+  }
+
+  function assistant(created: number, completed?: number): SessionMessageInfo {
     return {
-      hash,
-      authorName: 'Ada Lovelace',
-      authorEmail: 'ada@example.com',
-      authoredAt,
-      subject: 'feat(web): add commits',
-      body: '',
+      id: `assistant-${created}`,
+      time: { created, ...(completed !== undefined ? { completed } : {}) },
+      type: 'assistant',
+      agent: 'build',
+      model: { id: 'claude', providerID: 'anthropic' },
+      content: [],
     }
   }
 
-  it('keeps commits at or after the session start', () => {
-    const startedAt = Date.parse('2026-11-08T10:00:00Z')
-    const commits = [
-      commit('aaa1111', '2026-11-08T10:05:00Z'),
-      commit('bbb2222', '2026-11-08T11:00:00+01:00'),
-      commit('ccc3333', '2026-11-08T09:59:59Z'),
-    ]
-
-    expect(commitsSince(commits, startedAt).map((item) => item.hash)).toEqual([
-      'aaa1111',
-      'bbb2222',
-    ])
+  it('uses the assistant completion time, not its creation time', () => {
+    expect(lastSessionActivity([user(100), assistant(200, 500)])).toBe(500)
   })
 
-  it('keeps the whole log when the session start is unknown', () => {
-    const commits = [commit('aaa1111', '2026-11-08T10:05:00Z')]
-    expect(commitsSince(commits, undefined)).toBe(commits)
+  it('uses the newest creation when no message has completed', () => {
+    expect(lastSessionActivity([user(100), assistant(200)])).toBe(200)
   })
 
-  it('drops commits with an unreadable author date', () => {
-    const commits = [commit('aaa1111', 'not-a-date')]
-    expect(commitsSince(commits, Date.parse('2026-11-08T10:00:00Z'))).toEqual([])
+  it('returns undefined for an empty session', () => {
+    expect(lastSessionActivity([])).toBeUndefined()
   })
 })
 
