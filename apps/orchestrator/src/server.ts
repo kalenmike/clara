@@ -137,6 +137,10 @@ export function createOrchestratorServer(options: OrchestratorServerOptions): Or
         json(res, 200, await backend.catalog(workspace))
         return
       }
+      if (req.method === 'GET' && url.pathname === '/v1/diagnostics') {
+        json(res, 200, runtime.diagnostics({ days: number(url.searchParams.get('days'), 30) }))
+        return
+      }
       if (url.pathname === '/v1/runs' && req.method === 'GET') {
         json(res, 200, await backend.list())
         return

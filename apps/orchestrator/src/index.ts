@@ -1,7 +1,13 @@
 #!/usr/bin/env node
-import { unlinkSync, writeFileSync } from 'node:fs'
+import { existsSync, readFileSync, unlinkSync, writeFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
-import { Runtime, Store } from '@clara/orchestration'
+import {
+  analyzeDatabaseFile,
+  summarizeDiagnostics,
+  Runtime,
+  Store,
+  type DiagnosticsResult,
+} from '@clara/orchestration'
 import {
   baseURL,
   collectStatus,
@@ -19,6 +25,7 @@ import {
   statusExitCode,
   stdDir,
   stopService,
+  tokenPath,
   workspace,
 } from '@clara/orchestration-control'
 import { createOrchestratorServer } from './server.ts'
@@ -228,6 +235,136 @@ async function status(): Promise<void> {
   process.exitCode = statusExitCode(report)
 }
 
+interface AnalyzeOptions {
+  json: boolean
+  days: number
+  db?: string
+  url?: string
+}
+
+function analyzeOptions(args: string[]): AnalyzeOptions | undefined {
+  const options: AnalyzeOptions = { json: false, days: 30 }
+  for (let index = 0; index < args.length; index++) {
+    const arg = args[index]
+    if (arg === '--json') {
+      options.json = true
+      continue
+    }
+    if (arg === '--days' || arg === '--db' || arg === '--url') {
+      const value = args[++index]
+      if (!value) return undefined
+      if (arg === '--days') {
+        const days = Number(value)
+        if (!Number.isFinite(days) || days < 0) return undefined
+        options.days = days
+      } else if (arg === '--db') {
+        options.db = value
+      } else {
+        options.url = value
+      }
+      continue
+    }
+    return undefined
+  }
+  return options
+}
+
+function serviceToken(): string {
+  const configured = process.env.CLARA_ORCHESTRATION_TOKEN?.trim()
+  if (configured) return configured
+  const path = process.env.CLARA_ORCHESTRATION_TOKEN_FILE?.trim() || tokenPath()
+  if (!existsSync(path)) return ''
+  try {
+    return readFileSync(path, 'utf8').trim()
+  } catch {
+    return ''
+  }
+}
+
+function serviceURL(): string {
+  return (process.env.CLARA_ORCHESTRATION_URL?.trim() || baseURL()).replace(/\/$/, '')
+}
+
+async function serviceHealthy(url: string): Promise<boolean> {
+  try {
+    const response = await fetch(`${url}/health`, { signal: AbortSignal.timeout(1_500) })
+    return response.ok
+  } catch {
+    return false
+  }
+}
+
+async function collectDiagnostics(options: AnalyzeOptions): Promise<DiagnosticsResult> {
+  const url = (options.url ?? serviceURL()).replace(/\/$/, '')
+  const token = serviceToken()
+  if (!options.db && (await serviceHealthy(url))) {
+    try {
+      const params = new URLSearchParams({ days: String(options.days) })
+      const response = await fetch(`${url}/v1/diagnostics?${params}`, {
+        headers: token ? { authorization: `Bearer ${token}` } : {},
+        signal: AbortSignal.timeout(10_000),
+      })
+      if (response.ok) return (await response.json()) as DiagnosticsResult
+    } catch {
+      // The service can stop between the health check and the request.
+    }
+  }
+
+  return analyzeDatabaseFile(options.db ?? dbPath(), { days: options.days })
+}
+
+function printDiagnostics(report: DiagnosticsResult): void {
+  if (!report.available) {
+    console.log(`No orchestrator history available: ${report.reason}`)
+    return
+  }
+  console.log(
+    `Orchestrator diagnostics — ${report.window.days > 0 ? `last ${report.window.days} days` : 'all history'}`
+  )
+  if (report.database?.path) console.log(`database: ${report.database.path}`)
+  for (const line of summarizeDiagnostics(report)) console.log(line)
+  const pipelines = report.pipelines.filter((entry) => entry.failed > 0).slice(0, 5)
+  if (pipelines.length) {
+    console.log('failing pipelines:')
+    for (const entry of pipelines) {
+      console.log(
+        `  ${entry.pipeline}: ${entry.failed} failed / ${entry.runs} runs (${entry.failure_rate}%), ${entry.open_alerts} open alerts`
+      )
+    }
+  }
+  const steps = report.step_health.filter((entry) => entry.failures > 0).slice(0, 5)
+  if (steps.length) {
+    console.log('failing steps:')
+    for (const entry of steps) {
+      console.log(
+        `  ${entry.name} [${entry.pipeline}]: ${entry.failures}/${entry.steps} steps failed, ${entry.exhausted} exhausted retries`
+      )
+    }
+  }
+  const errors = report.errors.slice(0, 5)
+  if (errors.length) {
+    console.log('top errors:')
+    for (const entry of errors) {
+      console.log(`  ${entry.count}x ${entry.category}: ${entry.sample}`)
+    }
+  }
+}
+
+async function analyze(args: string[]): Promise<void> {
+  const options = analyzeOptions(args)
+  if (!options) {
+    renderHelp('analyze')
+    process.exitCode = 2
+    return
+  }
+  const report = await collectDiagnostics(options)
+  if (options.json) {
+    console.log(JSON.stringify(report, null, 2))
+    return
+  }
+  printDiagnostics(report)
+}
+
 interface HelpOption {
   flags: string
   description: string
@@ -273,6 +410,23 @@ const commandHelp: CommandHelp[] = [
     name: 'status',
     summary: 'Show which instance is running',
     usage: 'status',
+  },
+  {
+    name: 'analyze',
+    summary: 'Analyze run history for failure patterns',
+    usage: 'analyze [--json] [--days <n>] [--db <path>] [--url <url>]',
+    options: [
+      { flags: '--json', description: 'Print the full report as JSON' },
+      {
+        flags: '--days <n>',
+        description: 'Analysis window in days, 0 for all history (default 30)',
+      },
+      { flags: '--db <path>', description: 'Read this SQLite database instead of the default' },
+      {
+        flags: '--url <url>',
+        description: 'Read from a running orchestrator instead of the database',
+      },
+    ],
   },
   {
     name: 'token',
@@ -350,6 +504,7 @@ async function main(): Promise<void> {
   if (command === 'start') return start(args)
   if (command === 'stop') return stop(args)
   if (command === 'status') return status()
+  if (command === 'analyze') return analyze(args)
   if (command === 'token') {
     console.log(ensureToken())
     return
