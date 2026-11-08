@@ -218,6 +218,57 @@ describe('orchestrator HTTP service', () => {
     expect(started.status).toBe(201)
   })
 
+  it('returns attempt history per run and per step', async () => {
+    const started = await fetch(`${base}/v1/runs`, {
+      method: 'POST',
+      headers: auth({ 'content-type': 'application/json' }),
+      body: JSON.stringify({ workspace, prompt: 'patch it', target: 'quick_patch' }),
+    })
+    const body = (await started.json()) as {
+      run: { id: number }
+      work: Array<{ step_path: string; work_token: string }>
+    }
+    const path = body.work[0].step_path
+    const failed = await fetch(
+      `${base}/v1/runs/${body.run.id}/steps/${encodeURIComponent(path)}/fail`,
+      {
+        method: 'POST',
+        headers: auth({ 'content-type': 'application/json' }),
+        body: JSON.stringify({ work_token: body.work[0].work_token, error: 'boom' }),
+      }
+    )
+    expect(failed.status).toBe(200)
+
+    const denied = await fetch(`${base}/v1/runs/${body.run.id}/attempts`)
+    expect(denied.status).toBe(401)
+
+    const all = (await (
+      await fetch(`${base}/v1/runs/${body.run.id}/attempts`, { headers: auth() })
+    ).json()) as Array<Record<string, unknown>>
+    expect(all).toHaveLength(1)
+    expect(all[0]).toMatchObject({
+      run_id: body.run.id,
+      step_path: path,
+      attempt: 1,
+      status: 'retry',
+      error: 'boom',
+    })
+
+    const perStep = (await (
+      await fetch(`${base}/v1/runs/${body.run.id}/steps/${encodeURIComponent(path)}/attempts`, {
+        headers: auth(),
+      })
+    ).json()) as Array<Record<string, unknown>>
+    expect(perStep).toHaveLength(1)
+
+    const missing = await fetch(
+      `${base}/v1/runs/${body.run.id}/steps/${encodeURIComponent('missing')}/attempts`,
+      { headers: auth() }
+    )
+    expect(missing.status).toBe(422)
+    expect(((await missing.json()) as { error: { code: string } }).error.code).toBe('step_missing')
+  })
+
   it('serves the MCP tool surface over Streamable HTTP', async () => {
     const transport = new StreamableHTTPClientTransport(new URL(`${base}/mcp`), {
       requestInit: { headers: auth() },
@@ -227,6 +278,7 @@ describe('orchestrator HTTP service', () => {
     const tools = await client.listTools()
     expect(tools.tools.map((tool) => tool.name)).toContain('clara_start')
     expect(tools.tools.map((tool) => tool.name)).toContain('clara_spawn')
+    expect(tools.tools.map((tool) => tool.name)).toContain('clara_attempts')
     const result = await client.callTool({
       name: 'clara_start',
       arguments: { workspace, prompt: 'patch it', target: 'quick_patch' },
@@ -251,6 +303,15 @@ describe('orchestrator HTTP service', () => {
     }
     expect('snapshot' in detail.run).toBe(false)
     expect(detail.steps.every((step) => !('prompt' in step) && !('lease_id' in step))).toBe(true)
+
+    const attempts = await client.callTool({
+      name: 'clara_attempts',
+      arguments: { run_id: started.run.id },
+    })
+    const attemptItems = (attempts.structuredContent as { items: Array<Record<string, unknown>> })
+      .items
+    expect(attemptItems.length).toBeGreaterThan(0)
+    expect(attemptItems[0].step_path).toBeTruthy()
     await client.close()
   })
 })

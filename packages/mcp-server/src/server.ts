@@ -174,6 +174,19 @@ export function createClaraServer(backend: ClaraBackend, version = '0.1.0'): Mcp
   )
 
   server.registerTool(
+    'clara_attempts',
+    {
+      description:
+        'Read the attempt history for a run or one step: outcome, usage, timings, error, and result per claim.',
+      inputSchema: {
+        run_id: z.number().int().positive(),
+        step_path: z.string().min(1).optional(),
+      },
+    },
+    async (args) => text(await backend.attempts(args.run_id, args.step_path))
+  )
+
+  server.registerTool(
     'clara_list',
     {
       description: 'List recent orchestration runs.',

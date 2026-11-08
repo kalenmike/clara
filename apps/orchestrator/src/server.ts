@@ -186,6 +186,20 @@ export function createOrchestratorServer(options: OrchestratorServerOptions): Or
         json(res, 200, await backend.pinned(Number(snapshotMatch[1])))
         return
       }
+      const runAttemptsMatch = url.pathname.match(/^\/v1\/runs\/(\d+)\/attempts$/)
+      if (runAttemptsMatch && req.method === 'GET') {
+        json(res, 200, await backend.attempts(Number(runAttemptsMatch[1])))
+        return
+      }
+      const stepAttemptsMatch = url.pathname.match(/^\/v1\/runs\/(\d+)\/steps\/(.+)\/attempts$/)
+      if (stepAttemptsMatch && req.method === 'GET') {
+        json(
+          res,
+          200,
+          await backend.attempts(Number(stepAttemptsMatch[1]), decode(stepAttemptsMatch[2]))
+        )
+        return
+      }
       const stepDetailMatch = url.pathname.match(/^\/v1\/runs\/(\d+)\/steps\/(.+)$/)
       if (stepDetailMatch && req.method === 'GET') {
         json(res, 200, await backend.step(Number(stepDetailMatch[1]), decode(stepDetailMatch[2])))

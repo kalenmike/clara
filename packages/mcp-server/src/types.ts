@@ -52,6 +52,7 @@ export interface ClaraBackend {
     limits?: unknown
   }): Promise<unknown>
   status(runID: number): Promise<unknown>
+  attempts(runID: number, path?: string): Promise<unknown>
   list(): Promise<unknown>
   inbox(): Promise<unknown>
   ack(alertID: number): Promise<unknown>
