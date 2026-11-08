@@ -77,6 +77,9 @@ writing custom pipelines, not for end users.
     `model_missing`, `model_unset`, `model_unknown`, and `model_disabled`.
     When OpenCode is offline the preview still compiles; model existence is
     shown as unchecked instead of failing the setup.
+12. **The lab shows the raw work order.** The step card shows `order.prompt` and
+    its `context` separately. The OpenCode adapter composes the step prompt, root
+    request, and prior results into the managed worker prompt.
 
 ## Edge cases
 

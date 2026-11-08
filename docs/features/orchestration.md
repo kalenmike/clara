@@ -214,6 +214,32 @@ the model again so an agent-level model cannot override the pipeline. A step
 without a model falls back to the harness default, which the lab flags as a
 warning.
 
+## Worker prompt
+
+The adapter turns a work order into one model prompt:
+
+1. the pinned step prompt from the package; a router prompt already contains the
+   rendered route list, so the adapter never appends it again,
+2. the root request from `context.prompt`,
+3. the results of completed steps from `context.steps`, excluding the current
+   step's own previous attempt,
+4. one finish instruction for the step kind.
+
+The prompt does not repeat the run id, step path, work token, model, enforcement,
+attempt, or budget. Those are orchestrator state. The adapter binds the run id,
+step path, and work token to the managed session and supplies them to the control
+tools, so a worker only sends the route key, the result, or the failure reason.
+
+The adapter also scopes the tool list for each model call. A router sees only
+`clara_route` and `clara_fail`; a task keeps its repository tools and sees only
+`clara_complete`, `clara_fail`, and `clara_spawn` from the Clara namespace. The
+route parameter is an enum of the work order's route keys, so routing is a
+structured choice instead of a free string. The orchestrator still validates the
+key and rejects an unknown route.
+
+Tool scoping applies only to sessions the adapter created. If dispatch falls
+back to the parent session, that session keeps the human-facing agent's tools.
+
 ## Standard software pipelines
 
 The `std:software` package routes feature, bug, and documentation requests to
