@@ -31,7 +31,9 @@ writing custom pipelines, not for end users.
    step** is on.
 8. Follow progress in the step tree, the per-run events, and the traffic log.
    Use **Compare with a pinned run** on the Pipeline tab to see what changed
-   between the current files and a run's snapshot.
+   between the current files and a run's snapshot. The run status stays lean;
+   selecting a step loads its full prompt, policy, limits, result, and lease
+   from the dedicated step-detail endpoint.
 9. Run `pnpm clara lab check` in CI to compile a target and fail on errors.
    When OpenCode is reachable it also checks that the configured models exist;
    offline it falls back to static provider/model validation.
@@ -65,7 +67,12 @@ writing custom pipelines, not for end users.
 9. **Files are edited outside the browser.** The lab is a viewer and a probe; it
    never writes YAML, Markdown, or task prompts. The preview watches the source
    files and reloads.
-10. **Models are validated against OpenCode.** The lab reads the running
+10. **Pinned data is Lab-only.** The orchestrator returns run summaries to MCP
+    and REST callers without the pinned tree or full step rows. The lab reads
+    `GET /v1/runs/:id/snapshot` and `GET /v1/runs/:id/steps/:path` directly with
+    the orchestrator token. The browser sees only the derived task count and the
+    step detail it asks for.
+11. **Models are validated against OpenCode.** The lab reads the running
     OpenCode model catalog and reports `model_provider_missing`,
     `model_missing`, `model_unset`, `model_unknown`, and `model_disabled`.
     When OpenCode is offline the preview still compiles; model existence is
