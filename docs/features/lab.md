@@ -10,33 +10,40 @@ writing custom pipelines, not for end users.
 ## User flow
 
 1. Start the lab with `pnpm clara lab`, or run `pnpm dev:lab` while editing it.
-   The lab opens on `127.0.0.1:8791`.
-2. In **Setup**, choose **Files on this machine** — the repository as the lab
-   sees it. Use **Browse…** to pick the folder or type the path. The
+   The lab opens on `127.0.0.1:8791` in a full-height workbench with one
+   navigation rail: **Review**, **Runs**, **Traffic**, **Console**,
+   **Sessions**, and **Settings**.
+2. Open **Settings**, choose **Files on this machine** — the repository as the
+   lab sees it. Use **Browse…** to pick the folder or type the path. The
    orchestrator's own workspace is reported by the service and shown read-only
-   beside it.
-3. Press **Check setup**. The lab reports whether it can compile the host path,
-   whether the orchestrator can read its reported path, and whether a strict
-   pipeline has a live adapter.
-4. On **Pipeline**, choose a pipeline. The compiled tree shows every step,
-   route, `provider/model`, policy, budget, and source file. Read the
-   diagnostics, then inspect the rendered prompt in the side panel.
-5. Press **Run this pipeline**. The Run tab carries the pipeline and the
+   beside it. This is the only place setup and adapter controls live.
+3. Press **Run setup check**. The lab reports whether it can compile the host
+   path, whether the orchestrator can read its reported path, whether a strict
+   pipeline has a live adapter, and whether OpenCode's model catalog is
+   available. The status bar carries only the resulting problem state.
+4. On **Review**, choose a pipeline. The compiled tree shows every step, route,
+   `provider/model`, policy, budget, and source file. Diagnostics sit above the
+   tree so errors and warnings are the first thing you see. **Compare run** opens
+   the pinned-snapshot diff without hiding it in an accordion.
+5. Press **Run this pipeline**. The Runs view carries the pipeline and the
    orchestrator-reported workspace.
-6. Start a run with a prompt. The lab claims the first work order and shows one
-   clear current-step card: the exact task, a result box, and a single primary
-   action.
+6. Start a run from the always-visible composer at the top of **Runs**. The lab
+   claims the first work order and shows one clear current-step card: the exact
+   task, a result box, and a single primary action.
 7. Type the result and press **Complete and continue** (or **Choose route** for a
    router). The next step is claimed automatically unless **Pause after each
    step** is on.
-8. Follow progress in the step tree, the per-run events, and the traffic log.
-   Use **Compare with a pinned run** on the Pipeline tab to see what changed
-   between the current files and a run's snapshot. The run status stays lean;
-   selecting a step loads its full prompt, policy, limits, result, and lease
-   from the dedicated step-detail endpoint.
-9. Run `pnpm clara lab check` in CI to compile a target and fail on errors.
-   When OpenCode is reachable it also checks that the configured models exist;
-   offline it falls back to static provider/model validation.
+8. Manage runs from the header: **Cancel run** is on the selected run and
+   **Kill all runs** cancels every non-terminal root run after confirmation.
+   Follow progress in the step tree, the per-run events, and the traffic log.
+9. Open **Console** to call the orchestrator MCP surface directly. It is a
+   first-class view, not a hidden tab, and recent calls can be loaded back into
+   the runner.
+10. Open **Sessions** to see the OpenCode sessions the lab has observed: title,
+    agent, directory, running state, last seen, and event count.
+11. Run `pnpm clara lab check` in CI to compile a target and fail on errors.
+    When OpenCode is reachable it also checks that the configured models exist;
+    offline it falls back to static provider/model validation.
 
 ## Core business rules
 
@@ -45,12 +52,13 @@ writing custom pipelines, not for end users.
    orchestrator over MCP and SSE.
 2. **One host path, one reported workspace.** Preview needs the local host path;
    the service reports its own path from `CLARA_ORCHESTRATION_WORKSPACE`
-   (default: its working directory) over `GET /v1/config`. Setup keeps the host
-   path editable and shows the service path read-only, and the Run tab always
-   uses the reported path.
-3. **The setup check is a preflight.** A host compile, an orchestrator catalog
-   read, and a strict-adapter check happen before the first run. The summary
-   stays visible when the body is collapsed.
+   (default: its working directory) over `GET /v1/config`. Settings keeps the
+   host path editable and shows the service path read-only, and the Runs view
+   always uses the reported path.
+3. **Setup has one home.** Workspace selection, reconnect, adapter registration,
+   model status, and preflight results live only in **Settings**. The status bar
+   reports failures and setup issues, but healthy state stays quiet. No view
+   duplicates the setup controls.
 4. **The lab impersonates the harness.** It is an MCP client with a work token.
    It does not call a model, create an agent session, or enforce real policy.
 5. **The orchestrator token never reaches the browser.** The lab server keeps it
@@ -80,30 +88,49 @@ writing custom pipelines, not for end users.
 12. **The lab shows the raw work order.** The step card shows `order.prompt` and
     its `context` separately. The OpenCode adapter composes the step prompt, root
     request, and prior results into the managed worker prompt.
+13. **Runs are recoverable in one action.** **Cancel run** sits on the selected
+    run header; **Kill all runs** cancels every non-terminal root run after a
+    confirmation. Both are front-and-center, not inside advanced controls.
+14. **OpenCode sessions are observed, not driven.** The lab server subscribes to
+    OpenCode `/api/event`, tracks the last event per session, and merges that
+    with session metadata (`title`, `agent`, `location.directory`,
+    `time.updated`) from the session list and lookup endpoints. Phase one is
+    read-only and OpenCode-only.
 
 ## Edge cases
 
 - The host path compiles but the orchestrator reports a path it cannot read:
-  Setup shows “Orchestrator workspace: Needs attention”; set
-  `CLARA_ORCHESTRATION_WORKSPACE` on the service to its mounted workspace.
+  Settings shows “Orchestrator workspace: Needs attention” and the status bar
+  points there; set `CLARA_ORCHESTRATION_WORKSPACE` on the service to its
+  mounted workspace.
 - The orchestrator is offline or has not reported a workspace yet: preview
-  still works; Setup shows “Waiting for the orchestrator…” and the run actions
-  retry once the service reports its path.
+  still works; Settings shows “Waiting for the orchestrator…” and the run
+  actions retry once the service reports its path.
 - OpenCode is offline: preview still compiles and checks provider/model pairing;
-  the models row says model existence is unchecked.
+  the models row says model existence is unchecked, and Sessions explains how to
+  reconnect.
+- OpenCode's event stream drops: Sessions keeps the last known rows and retries;
+  the status bar shows `reconnecting`.
+- A session is idle and emits no events after the lab starts: it still appears
+  from the session list, with the list's `time.updated` as its fallback last-seen
+  time.
 - A model exists under a different provider: the diagnostic names the providers
   that do have it.
 - A worker step has no model: `model_unset` warns that the harness default will
   be used instead of the pipeline model.
-- No token is present: the header and Setup show a token warning; start the
+- No token is present: Settings and the status bar show the problem; start the
   service or set `CLARA_ORCHESTRATION_TOKEN`.
-- The orchestrator rejects the token: Setup shows the token hint; restart the
+- The orchestrator rejects the token: Settings shows the token hint; restart the
   lab with the service's token.
 - The container's standard packages are stale: the host check passes but the run
   fails with a missing `lib/std` package; rebuild the image or fix
   `CLARA_STD_DIR`.
 - A strict target has no adapter: the run registers one automatically; the
-  adapter status changes to live on the next check.
+  adapter status changes to live in Settings on the next check.
+- There are no active runs: **Kill all runs** stays disabled, and no empty
+  confirmation is shown.
+- Traffic is dominated by adapter heartbeats: the call list hides heartbeats by
+  default and can show them again with the toggle.
 - A lab server restarts: in-memory work tokens are lost. The watchdog retries the
   step after the stall threshold.
 - Auto-heartbeat is paused: a slow response can outlive the stall threshold and
@@ -124,6 +151,8 @@ writing custom pipelines, not for end users.
 - Remote access. The lab binds loopback only.
 - A visual pipeline editor or a graph-layout canvas.
 - Rewinding a run to an earlier state.
+- Cancelling, archiving, or moving an OpenCode session from the Sessions view.
+  Phase one is a read-only observation surface.
 
 ## Known gaps
 
@@ -134,8 +163,12 @@ writing custom pipelines, not for end users.
 - Only root-package imports are directly selectable as targets. Nested imports
   are visible in the package list but must be reached through their parent.
 - Source view is capped at 512 KB per file.
+- Sessions are listed from the newest 100 OpenCode records plus any sessions seen
+  on the live event stream; there is no pagination yet.
+- The Sessions view is OpenCode-only. Orchestrator adapters and run ownership
+  are shown in Settings and Runs, not merged into the session table.
 - Scripted or recorded response playback is not implemented; every response is
-  entered by hand or sent through the raw tool console.
+  entered by hand or sent through the tool console.
 
 ## Technical appendix
 
@@ -157,7 +190,8 @@ writing custom pipelines, not for end users.
 - Lab routes: `GET /api/health`, `GET /api/state`, `GET /api/stream`,
   `POST /api/preview`, `POST /api/preflight`, `POST /api/pick-directory`,
   `POST /api/diff`, `POST /api/tools/:name`, `GET /api/runs`,
-  `GET /api/runs/:id`, `GET /api/inbox`, `GET /api/source`,
+  `GET /api/runs/:id`, `POST /api/runs/cancel-all`, `GET /api/inbox`,
+  `GET /api/opencode/sessions`, `GET /api/source`,
   `POST /api/heartbeat`, `POST /api/reconnect`,
   `POST /api/adapter/register`, `POST /api/adapter/remove`,
   `POST /api/violation`.
@@ -165,6 +199,14 @@ writing custom pipelines, not for end users.
   status and package count, orchestrator catalog visibility of its reported
   workspace, whether the target is strict and has a live adapter, and the
   OpenCode model catalog status.
+- `/api/opencode/sessions` returns the observer summary plus rows with
+  `id`, `title`, `agent`, `directory`, `parentID`, `model`, `running`,
+  `lastSeenAt`, `lastSeenSource`, `eventCount`, and `lastEventType`.
+- `/api/runs/cancel-all` cancels every non-terminal root run and returns
+  `{ cancelled, failed }`.
+- The OpenCode observer keeps the password server-side. It subscribes to
+  `/api/event`, seeds idle sessions from the session list, and uses
+  `session.active()` for the running marker.
 - `/api/pick-directory` opens the lab host's native folder chooser and returns
   `{ path }` or `{ path: null }` when cancelled. It falls back to manual entry
   when no desktop dialog is available.
