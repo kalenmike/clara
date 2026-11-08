@@ -55,7 +55,7 @@ pnpm clara pass     # Print the local OpenCode password
 pnpm clara plugin install # Link the ledger plugin and render its agents
 pnpm clara plugin uninstall # Remove the plugin and generated agents
 pnpm clara ledger   # List or invoke the Clara ledger tools directly
-pnpm clara orchestration start|stop|status|serve # Run the orchestration service
+pnpm clara orchestration start [--docker] [--build]|stop [--docker]|status|serve # Run the orchestration service
 pnpm clara lab      # Open Clara Lab to preview pipelines and probe the agent
 pnpm clara lab check # Validate a package target for CI
 pnpm clara mcp install|config|status # Install or inspect the MCP bridge
