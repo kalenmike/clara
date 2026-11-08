@@ -111,7 +111,7 @@ async function windows(initial: string | undefined): Promise<string | undefined>
     '$dialog = New-Object System.Windows.Forms.FolderBrowserDialog; ' +
     "$dialog.Description = 'Choose a Clara workspace'; " +
     seed +
-    "if ($dialog.ShowDialog() -eq [System.Windows.Forms.DialogResult]::OK) { Write-Output $dialog.SelectedPath }"
+    'if ($dialog.ShowDialog() -eq [System.Windows.Forms.DialogResult]::OK) { Write-Output $dialog.SelectedPath }'
   const result = await run('powershell.exe', ['-NoProfile', '-STA', '-Command', script])
   if (result.missing) throw new PickerUnavailable('PowerShell is not available on this machine.')
   if (result.code !== 0) return undefined
