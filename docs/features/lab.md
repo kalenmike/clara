@@ -43,9 +43,10 @@ writing custom pipelines, not for end users.
    debug runs hidden by the toggle.
 9. Follow run progress in the read-only step tree, the per-run events, and the
    traffic log.
-10. Open **Console** to call the orchestrator MCP surface directly. It is a
-    first-class view, not a hidden tab, and recent calls can be loaded back into
-    the runner.
+10. Open **Console** to call the orchestrator MCP surface directly. It renders a
+    form from each tool's input schema with required, range, and enum hints
+    under every field, keeps the raw JSON editor behind a Form/JSON toggle, and
+    loads recent calls back into the form.
 11. Open **Sessions** to see the OpenCode sessions the lab has observed: title,
     agent, directory, running state, last seen, and event count.
 12. Run `pnpm clara lab check` in CI to compile a target and fail on errors.
@@ -119,6 +120,13 @@ writing custom pipelines, not for end users.
     with session metadata (`title`, `agent`, `location.directory`,
     `time.updated`) from the session list and lookup endpoints. Phase one is
     read-only and OpenCode-only.
+18. **Console forms follow the schema.** The console derives one control per
+    top-level argument and recurses into nested objects. Required fields are
+    marked, and range, length, item-count, and enum constraints are shown under
+    each input. Blank optional fields are omitted from the payload. Opaque
+    arguments fall back to a JSON field, and the raw JSON editor stays available
+    from the Form/JSON toggle. Unknown keys typed in JSON are dropped, with a
+    warning, when switching back to the form.
 
 ## Edge cases
 
@@ -219,6 +227,10 @@ writing custom pipelines, not for end users.
   runs in a picker but has no multi-run split view.
 - Scripted or recorded response playback is not implemented; every response is
   entered by hand or sent through the tool console.
+- The Console form handles strings, numbers, booleans, string enums, arrays of
+  strings, and nested objects. Other schema shapes (unions, references, arrays of
+  objects) fall back to a JSON field, and the raw schema stays available under
+  **Input schema**.
 
 ## Technical appendix
 
