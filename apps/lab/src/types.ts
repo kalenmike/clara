@@ -2,6 +2,19 @@ import type { PreviewResult } from '@clara/devtools'
 
 export type { PreviewResult }
 export type { CompiledNode, CompiledRoute } from '@clara/devtools'
+
+export interface ModelCatalogSummary {
+  ok: boolean
+  reachable: boolean
+  url: string
+  count: number
+  error?: string
+  fetchedAt: string
+}
+
+export interface LabPreviewResult extends PreviewResult {
+  modelCatalog?: ModelCatalogSummary
+}
 export type {
   AdapterInfo,
   CompiledDiff,
@@ -24,6 +37,7 @@ export interface WorkOrder {
   attempt: number
   max_attempts: number
   model?: string
+  provider?: string
   policy?: Record<string, unknown>
   limits?: Record<string, unknown>
   budget: Record<string, number>
@@ -133,6 +147,7 @@ export interface StepRow {
   max_attempts: number
   prompt: string | null
   model: string | null
+  provider: string | null
   policy: string | null
   limits: string | null
   background: number
@@ -207,6 +222,7 @@ export interface PreflightResult {
   host: PreflightHostCheck
   runtime: PreflightRuntimeCheck
   adapter: PreflightAdapterCheck
+  models: ModelCatalogSummary
 }
 
 export interface StreamItem<T = unknown> {

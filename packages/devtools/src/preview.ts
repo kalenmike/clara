@@ -11,6 +11,7 @@ import type {
   AdapterInfo,
   CompiledPreview,
   Diagnostic,
+  ModelOption,
   PackageEntryInfo,
   PreviewInput,
   PreviewResult,
@@ -29,6 +30,7 @@ const SOURCE_FIELDS = [
   'promptSource',
   'task',
   'model',
+  'provider',
   'enforcement',
   'background',
   'retries',
@@ -221,11 +223,20 @@ interface WalkContext {
   parentKind?: CompiledNode['kind']
   seen: Set<string>
   adapters?: AdapterInfo[]
+  models?: ModelOption[]
 }
 
-export function diagnoseCompiled(root: CompiledNode, adapters?: AdapterInfo[]): Diagnostic[] {
+export function diagnoseCompiled(
+  root: CompiledNode,
+  adapters?: AdapterInfo[],
+  models?: ModelOption[]
+): Diagnostic[] {
   const diagnostics: Diagnostic[] = []
-  const context: WalkContext = { seen: new Set(), ...(adapters ? { adapters } : {}) }
+  const context: WalkContext = {
+    seen: new Set(),
+    ...(adapters ? { adapters } : {}),
+    ...(models ? { models } : {}),
+  }
 
   const walk = (node: CompiledNode, parentKind?: CompiledNode['kind']): void => {
     if (context.seen.has(node.path)) {
@@ -238,6 +249,61 @@ export function diagnoseCompiled(root: CompiledNode, adapters?: AdapterInfo[]): 
       })
     }
     context.seen.add(node.path)
+
+    const model = node.model?.trim()
+    const provider = node.provider?.trim()
+    const leaf = node.kind === 'task' || node.kind === 'router'
+    if (leaf) {
+      if (model && !provider) {
+        diagnostics.push({
+          severity: 'error',
+          code: 'model_provider_missing',
+          message: `Step "${node.name}" sets model "${model}" but no provider. Add provider or a package default provider.`,
+          stepPath: node.path,
+          ...(node.source ? { path: node.source } : {}),
+        })
+      } else if (!model && provider) {
+        diagnostics.push({
+          severity: 'warning',
+          code: 'model_missing',
+          message: `Step "${node.name}" sets provider "${provider}" but no model; the provider is ignored.`,
+          stepPath: node.path,
+          ...(node.source ? { path: node.source } : {}),
+        })
+      } else if (!model && !provider) {
+        diagnostics.push({
+          severity: 'warning',
+          code: 'model_unset',
+          message: `Step "${node.name}" has no model or provider; the worker will use the harness default instead of the pipeline.`,
+          stepPath: node.path,
+          ...(node.source ? { path: node.source } : {}),
+        })
+      } else if (model && provider && context.models) {
+        const options = context.models
+        const matches = options.filter((option) => option.id === model)
+        const exact = matches.find((option) => option.providerID === provider)
+        if (!exact) {
+          const otherProviders = [...new Set(matches.map((option) => option.providerID))]
+          diagnostics.push({
+            severity: 'error',
+            code: 'model_unknown',
+            message: otherProviders.length
+              ? `Step "${node.name}" uses ${provider}/${model}, but that model is only available under ${otherProviders.join(', ')}.`
+              : `Step "${node.name}" uses ${provider}/${model}, which OpenCode does not report as an available model.`,
+            stepPath: node.path,
+            ...(node.source ? { path: node.source } : {}),
+          })
+        } else if (exact.enabled === false) {
+          diagnostics.push({
+            severity: 'warning',
+            code: 'model_disabled',
+            message: `Step "${node.name}" uses ${provider}/${model}, which is currently disabled in OpenCode.`,
+            stepPath: node.path,
+            ...(node.source ? { path: node.source } : {}),
+          })
+        }
+      }
+    }
 
     if (node.kind === 'task') {
       if (node.promptSource === 'fallback') {
@@ -478,7 +544,7 @@ export function previewPipeline(input: PreviewInput = {}): PreviewResult {
 
   diagnostics.push(...diagnoseCatalog(catalog, requested))
   if (compiled) {
-    diagnostics.push(...diagnoseCompiled(compiled.root, input.adapters))
+    diagnostics.push(...diagnoseCompiled(compiled.root, input.adapters, input.models))
   }
 
   return {

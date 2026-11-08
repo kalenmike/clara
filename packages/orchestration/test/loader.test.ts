@@ -27,6 +27,8 @@ describe('package loader', () => {
       'bug',
       'documentation',
     ])
+    expect(entry.root.provider).toBe('opencode-go')
+    expect(entry.root.model).toBe('deepseek-v4.1-flash')
 
     const feature = compileRun(catalog, 'std:software/feature')
     expect(feature.root.kind).toBe('pipeline')
@@ -42,12 +44,77 @@ describe('package loader', () => {
     expect(feature.root.children?.[0].policy?.rules?.[0].effect).toBe('deny')
     expect(feature.hash).toMatch(/^sha256:[a-f0-9]{64}$/)
     expect(feature.root.packageId).toBe('software')
-    expect(feature.root.declared).toEqual(expect.arrayContaining(['default_model', 'enforcement']))
+    expect(feature.root.provider).toBe('opencode-go')
+    expect(feature.root.model).toBe('deepseek-v4.1-flash')
+    expect(feature.root.declared).toEqual(
+      expect.arrayContaining(['default_model', 'default_provider', 'enforcement'])
+    )
     const first = feature.root.children?.[0]
     expect(first?.packageId).toBe('software')
     expect(first?.task).toBe('create_spec')
     expect(first?.promptSource).toBe('task')
+    expect(first?.provider).toBe('opencode-go')
+    expect(first?.model).toBe('deepseek-v4.1-flash')
     expect(first?.source).toContain('/tasks/create_spec.md')
+  })
+
+  it('resolves provider and model through manifest, pipeline, and step overrides', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'clara-models-'))
+    try {
+      writeFileSync(
+        join(dir, 'index.yml'),
+        [
+          'id: temp',
+          'name: Temp',
+          'version: 1',
+          'entry: main',
+          'defaults:',
+          '  provider: manifest-provider',
+          '  model: manifest-model',
+          'pipelines:',
+          '  main:',
+          '    default_provider: pipeline-provider',
+          '    default_model: pipeline-model',
+          '    steps:',
+          '      - name: inherit',
+          '        type: task',
+          '        prompt: do it',
+          '      - name: override',
+          '        type: task',
+          '        prompt: do it',
+          '        provider: step-provider',
+          '        model: step-model',
+          '      - name: model_only',
+          '        type: task',
+          '        prompt: do it',
+          '        model: step-model-only',
+          '  manifest:',
+          '    steps:',
+          '      - name: inherit',
+          '        type: task',
+          '        prompt: do it',
+        ].join('\n')
+      )
+      const catalog = loadCatalog(dir)
+      const main = compileRun(catalog, 'main')
+      const inherit = main.root.children?.find((step) => step.name === 'inherit')
+      const override = main.root.children?.find((step) => step.name === 'override')
+      const modelOnly = main.root.children?.find((step) => step.name === 'model_only')
+      expect(inherit?.provider).toBe('pipeline-provider')
+      expect(inherit?.model).toBe('pipeline-model')
+      expect(override?.provider).toBe('step-provider')
+      expect(override?.model).toBe('step-model')
+      expect(modelOnly?.provider).toBe('pipeline-provider')
+      expect(modelOnly?.model).toBe('step-model-only')
+
+      const manifest = compileRun(catalog, 'manifest')
+      expect(manifest.root.provider).toBe('manifest-provider')
+      expect(manifest.root.model).toBe('manifest-model')
+      expect(manifest.root.children?.[0].provider).toBe('manifest-provider')
+      expect(manifest.root.children?.[0].model).toBe('manifest-model')
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
   })
 
   it('compiles the bug lifecycle from reproduction to verification', () => {

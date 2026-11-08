@@ -128,6 +128,41 @@ Routers without the placeholder get the list appended under a `## Routes`
 heading. `criteria` falls back to the legacy `description` field. The rendered
 prompt is part of the pinned run snapshot and the work order.
 
+## Models and providers
+
+Every dispatched step carries a model and the provider that owns it. The
+service does not call a model, but it must preserve both so the harness can pin
+the worker session.
+
+```yaml
+defaults:
+  provider: opencode-go
+  model: deepseek-v4.1-flash
+
+pipelines:
+  feature:
+    default_provider: opencode-go
+    default_model: deepseek-v4.1-flash
+    steps:
+      - name: create_spec
+        type: task
+        provider: opencode-go
+        model: deepseek-v4.1-flash
+```
+
+Resolution runs from the package manifest (`defaults.provider` /
+`defaults.model`) through the pipeline (`default_provider` / `default_model`)
+to the step or task (`provider` / `model`). A step may override only one half;
+the other is inherited. Work orders expose both fields, and an entry router
+inherits the package defaults so router classification uses the same model as
+the pipeline it selects.
+
+The OpenCode adapter creates managed worker sessions with
+`{ providerID, id }` from the work order, switches the worker agent, then pins
+the model again so an agent-level model cannot override the pipeline. A step
+without a model falls back to the harness default, which the lab flags as a
+warning.
+
 ## Standard software pipelines
 
 The `std:software` package routes feature, bug, and documentation requests to
@@ -173,6 +208,12 @@ docs:    assess_docs → update_docs → verify_docs → docs_review
   count violations.
 - A workspace has no `orchestration/index.yml`: start fails with a clear config
   error instead of guessing a pipeline.
+- A step declares a model without a provider: the lab reports
+  `model_provider_missing`; the adapter refuses to silently pin a provider and
+  logs an incomplete model reference instead.
+- A model or provider does not exist in the running OpenCode catalog: the lab
+  reports `model_unknown` (and `model_disabled` for disabled models) before the
+  run starts.
 
 ## Out of scope
 
@@ -235,7 +276,10 @@ docs:    assess_docs → update_docs → verify_docs → docs_review
   `clara_catalog`, and the adapter administration tools.
 - Package assets: `pipelines/*.yml`, `routers/*.md`, `tasks/*.md`; `index.yml`
   declares the entry, imports, defaults, and can override discovered assets.
-  Router routes accept `when`, `run`, and optional `criteria`.
+  Defaults accept `provider`, `model`, `task_dir`, and `enforcement`; pipelines
+  accept `default_provider` / `default_model`; steps and tasks accept
+  `provider` / `model`. Router routes accept `when`, `run`, and optional
+  `criteria`.
 - References: `std:software` (package entry), `std:software/feature`,
   `std:software/bug`, and `std:software/docs` (named pipelines), `std:research`
   (research brief), bare names (same package).

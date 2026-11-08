@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { callTool, violation } from '../api'
 import type { WorkRecord } from '../types'
 import { friendlyError } from '../lib/errors'
-import { parseMaybeJson, short } from '../lib/format'
+import { modelLabel, parseMaybeJson, short } from '../lib/format'
 import { Badge } from './Badge'
 import { JsonView } from './Json'
 
@@ -230,7 +230,7 @@ export function WorkOrderCard({
           </div>
           <div className="muted">
             {order.step_path} · attempt {order.attempt}/{order.max_attempts} · {order.enforcement}
-            {order.model ? ` · ${order.model}` : ''}
+            {order.model ? ` · ${modelLabel(order.model, order.provider)}` : ''}
           </div>
         </div>
         <div className="chips">

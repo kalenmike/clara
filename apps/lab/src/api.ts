@@ -1,9 +1,9 @@
 import type {
   AlertRow,
   CompiledDiff,
+  LabPreviewResult,
   LabSnapshot,
   PreflightResult,
-  PreviewResult,
   RunRow,
   StatusResult,
   ToolEnvelope,
@@ -69,8 +69,8 @@ export interface PreviewRequest {
   stdDir?: string
 }
 
-export function preview(input: PreviewRequest): Promise<PreviewResult> {
-  return request<PreviewResult>('/api/preview', mutation(input))
+export function preview(input: PreviewRequest): Promise<LabPreviewResult> {
+  return request<LabPreviewResult>('/api/preview', mutation(input))
 }
 
 export interface PreflightRequest {

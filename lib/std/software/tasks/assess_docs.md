@@ -1,6 +1,7 @@
 ---
 description: Assess the documentation impact before editing
 model: 'deepseek-v4.1-flash'
+provider: 'opencode-go'
 permissions:
   - action: edit
     resource: '*'
