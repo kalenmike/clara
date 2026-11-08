@@ -13,6 +13,7 @@ import {
   pidPath,
   port,
   stdDir,
+  workspace,
 } from './config.ts'
 import { createOrchestratorServer } from './server.ts'
 
@@ -52,7 +53,15 @@ async function serve(): Promise<void> {
     leaseMs: Number(process.env.CLARA_ORCHESTRATION_LEASE_MS ?? 30 * 60_000),
   })
   const token = ensureToken()
-  const app = createOrchestratorServer({ runtime, token, host: host(), port: port() })
+  const app = createOrchestratorServer({
+    runtime,
+    token,
+    host: host(),
+    port: port(),
+    workspace: workspace(),
+    ...(stdDir() ? { stdDir: stdDir() } : {}),
+    ...(configPath() ? { configPath: configPath() } : {}),
+  })
   writePid()
   await new Promise<void>((resolve, reject) => {
     app.server.once('error', reject)
@@ -60,6 +69,7 @@ async function serve(): Promise<void> {
   })
   console.log(`[clara-orchestrator] listening on ${baseURL()}`)
   console.log(`[clara-orchestrator] database ${dbPath()}`)
+  console.log(`[clara-orchestrator] workspace ${workspace()}`)
   console.log(
     `[clara-orchestrator] token file ${process.env.CLARA_ORCHESTRATION_TOKEN_FILE ?? 'default'}`
   )

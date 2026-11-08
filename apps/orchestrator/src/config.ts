@@ -1,7 +1,7 @@
 import { randomBytes } from 'node:crypto'
 import { chmodSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { homedir } from 'node:os'
-import { join } from 'node:path'
+import { join, resolve } from 'node:path'
 
 export function dataDir(): string {
   const configured = process.env.CLARA_DATA_DIR?.trim()
@@ -60,6 +60,11 @@ export function baseURL(): string {
 
 export function configPath(): string | undefined {
   return process.env.CLARA_ORCHESTRATION_CONFIG?.trim() || undefined
+}
+
+export function workspace(): string {
+  const configured = process.env.CLARA_ORCHESTRATION_WORKSPACE?.trim()
+  return resolve(configured || process.cwd())
 }
 
 export function stdDir(): string | undefined {

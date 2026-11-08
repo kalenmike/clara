@@ -6,9 +6,9 @@ import { Badge } from './Badge'
 export function Setup({
   snapshot,
   hostWorkspace,
-  runtimeWorkspace,
   onHostWorkspace,
-  onRuntimeWorkspace,
+  browsing,
+  onBrowse,
   preflight,
   loading,
   error,
@@ -20,9 +20,9 @@ export function Setup({
 }: {
   snapshot: LabSnapshot
   hostWorkspace: string
-  runtimeWorkspace: string
   onHostWorkspace: (value: string) => void
-  onRuntimeWorkspace: (value: string) => void
+  browsing: boolean
+  onBrowse: () => void
   preflight: PreflightResult | null
   loading: boolean
   error: string | null
@@ -32,7 +32,7 @@ export function Setup({
   onReconnect: () => void
   onEnableAdapter: () => void
 }) {
-  const runtime = runtimeWorkspace.trim() || hostWorkspace
+  const runtime = snapshot.orchestratorWorkspace
   const friendly = error ? friendlyError(error, 'runtime') : null
   const ok = Boolean(
     preflight &&
@@ -76,27 +76,33 @@ export function Setup({
           <div className="setup-grid">
             <label>
               Files on this machine
-              <input
-                value={hostWorkspace}
-                onChange={(event) => onHostWorkspace(event.target.value)}
-                placeholder="/home/jet/Projects/clara"
-              />
+              <div className="path-row">
+                <input
+                  value={hostWorkspace}
+                  onChange={(event) => onHostWorkspace(event.target.value)}
+                  placeholder="/home/jet/Projects/clara"
+                />
+                <button
+                  type="button"
+                  className="button ghost small"
+                  onClick={onBrowse}
+                  disabled={browsing}
+                >
+                  {browsing ? 'Browsing…' : 'Browse…'}
+                </button>
+              </div>
               <span className="muted">
                 The lab compiles this path. It is also where file watching and source view read.
               </span>
             </label>
-            <label>
-              Workspace inside the orchestrator
-              <input
-                value={runtimeWorkspace}
-                onChange={(event) => onRuntimeWorkspace(event.target.value)}
-                placeholder={hostWorkspace || 'Same as the host path'}
-              />
+            <div className="setup-readonly">
+              <span>Orchestrator workspace</span>
+              <code>{runtime || 'Waiting for the orchestrator…'}</code>
               <span className="muted">
-                Use the path inside Docker, usually <code>/workspace/clara</code>. Blank means the
-                host path.
+                Reported by the service from <code>CLARA_ORCHESTRATION_WORKSPACE</code>. Runs use
+                this path.
               </span>
-            </label>
+            </div>
           </div>
 
           <div className="row">
@@ -104,7 +110,14 @@ export function Setup({
               {loading ? 'Checking…' : 'Check setup'}
             </button>
             <span className="muted">
-              {snapshot.orchestrator} · runs will use <code>{runtime || '—'}</code>
+              {snapshot.orchestrator} ·{' '}
+              {runtime ? (
+                <>
+                  runs use <code>{runtime}</code>
+                </>
+              ) : (
+                'waiting for the orchestrator workspace'
+              )}
             </span>
           </div>
 

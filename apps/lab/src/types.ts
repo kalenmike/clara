@@ -83,6 +83,7 @@ export interface ToolInfo {
 
 export interface LabSnapshot {
   workspace: string
+  orchestratorWorkspace: string
   orchestrator: string
   connected: boolean
   tokenPresent: boolean
