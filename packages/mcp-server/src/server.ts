@@ -43,6 +43,10 @@ To run a pipeline:
 5. If you are blocked, call clara_fail.
 6. If the step needs dynamic workers, call clara_spawn.
 
+In conductor mode the adapter may dispatch a managed worker and return a
+dispatch receipt instead of a work order; follow the receipt with clara_status
+instead of treating it as a work order.
+
 Never invent the next step; always use the response. The service owns state, leases, retries, budgets, and alerts.`
 
 export function createClaraServer(backend: ClaraBackend, version = '0.1.0'): McpServer {
