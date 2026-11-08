@@ -49,7 +49,7 @@ async function serve(): Promise<void> {
     store,
     ...(configPath() ? { configPath: configPath() } : {}),
     ...(stdDir() ? { stdDir: stdDir() } : {}),
-    stalledMs: Number(process.env.CLARA_ORCHESTRATION_STALLED_MS ?? 30_000),
+    stalledMs: Number(process.env.CLARA_ORCHESTRATION_STALLED_MS ?? 5 * 60_000),
     leaseMs: Number(process.env.CLARA_ORCHESTRATION_LEASE_MS ?? 30 * 60_000),
   })
   const token = ensureToken()

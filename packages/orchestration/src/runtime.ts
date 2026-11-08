@@ -128,7 +128,7 @@ export class Runtime {
     this.configPath = options.configPath
     this.stdDir = options.stdDir
     this.leaseMs = options.leaseMs ?? 30 * 60_000
-    this.stalledMs = options.stalledMs ?? 30_000
+    this.stalledMs = options.stalledMs ?? 5 * 60_000
     this.adapterStaleMs = options.adapterStaleMs ?? 120_000
   }
 
