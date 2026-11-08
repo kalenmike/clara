@@ -11,8 +11,9 @@ human-facing Clara agent.
 
 ## User flow
 
-1. Start the service with `pnpm clara orchestration start`, or let the MCP
-   bridge start it on first use.
+1. Start the service from the agent panel's **Orchestration** switch, with
+   `pnpm clara orchestration start`, or let the MCP bridge start it on first
+   use.
 2. Install the OpenCode strict adapter with
    `pnpm clara adapter install opencode`. The adapter installs the `clara`
    agent and removes the old adapter-generated `/pipeline` command.
@@ -67,7 +68,8 @@ agent treats it as work and asks before starting a run.
 
 The adapter delivers new alerts and finished root runs into the same session as
 queued synthetic prompts. The agent reports the result or decision and waits.
-This is the same pattern as the legacy ledger's attention delivery.
+The origin session stays the one actionable conversation while workers remain
+hidden automation.
 
 ## Container deployment
 
@@ -141,10 +143,11 @@ first.
    snapshot and hash. Run lists, run status, and every MCP run payload omit the
    pinned tree; the full step prompt, policy, limits, result, and lease are read
    only from the Lab's dedicated endpoints.
-7. **Orchestration is independent of Clara management.** The old
-   `management.enabled` switch gates only the legacy ledger plugin. The
-   orchestration service runs whenever it is installed, the config is active,
-   and the service is running.
+7. **The panel controls the local service.** The **Orchestration** switch keeps
+   `orchestration.enabled` in the home agent database and starts or stops a
+   local instance. A service started from the CLI, MCP bridge, or Docker is
+   detected but left under its own management. Clients receive the effective
+   health state as `orchestration` and use it for the Workers grouping.
 
 ## Router criteria
 
@@ -317,9 +320,8 @@ docs:    assess_docs → update_docs → verify_docs → docs_review
   active runs. Run one adapter per workspace.
 - The generic MCP bridge cannot see the harness session ID. Pass
   `origin.session_id` or use an adapter to bind the root session.
-- The web Settings catalog still reads the legacy JSON pipelines; the package
-  catalog is available through `pnpm clara orchestration` and MCP
-  `clara_catalog`.
+- The web Settings page does not show the package catalog yet; it is available
+  through Clara Lab, `pnpm clara lab check`, and MCP `clara_catalog`.
 - The OpenCode adapter dispatches managed workers in the run workspace with a
   dedicated worker agent (`CLARA_WORKER_AGENT`, default `general`), not the
   caller's agent.

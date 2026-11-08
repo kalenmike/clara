@@ -75,14 +75,12 @@ pnpm clara pair [--local] [--rotate] [--no-qr] [--no-panel]
 pnpm clara control
 pnpm clara serve [--rotate] [--no-panel]
 pnpm clara pass
-pnpm clara plugin install [--force]
-pnpm clara plugin uninstall [--purge]
-pnpm clara ledger <args...>
+pnpm clara orchestration <serve|start|stop|status|token>
 pnpm clara lab [serve|check]
 ```
 
 Run `pnpm clara --help` for the command list and `pnpm clara <command> --help`
-for one command. Run `pnpm clara ledger help` for the ledger CLI.
+for one command.
 
 `pnpm clara pair` runs the server source directly and does not need a build.
 `pnpm clara control` and `pnpm clara serve` use the built agent, so run

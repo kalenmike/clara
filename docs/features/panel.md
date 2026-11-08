@@ -7,9 +7,10 @@ agent's live state, transports, connected clients, OpenCode probe, push health,
 configuration sources, database health, storage files, and a live traffic meter
 without exposing secrets. Sensitive values start masked behind a header peek
 control so the panel can be screenshared safely. It also lets the person at the
-machine switch external connections on and off, stop the agent without stopping
-the process, decide which shell commands a Clara client may relay to OpenCode,
-turn traffic monitoring on or off, and gate or pace client settings sync.
+machine switch external connections on and off, start and stop the local
+orchestration service, stop the agent without stopping the process, decide which
+shell commands a Clara client may relay to OpenCode, turn traffic monitoring on
+or off, and gate or pace client settings sync.
 
 ## User flow
 
@@ -72,13 +73,13 @@ turn traffic monitoring on or off, and gate or pace client settings sync.
     each device's category choices remain. The interval defaults to 30 seconds.
 13. Leave the page open. It refreshes every five seconds while visible and
     pauses when the tab is hidden. Use **Refresh** for an immediate check.
-14. Use **Clara management** to turn the ledger daemon, exception sessions, and
-    the Clara agents on or off. Turning it off unregisters the Clara tools,
-    stops the daemon without opening the ledger, and leaves ordinary session
-    alerts unchanged. It also marks the generated agent files
-    disabled and reloads OpenCode, so the agents leave the catalog without a
-    reinstall; turning it back on restores them. The switch is hidden when the
-    build excludes the feature with `VITE_CLARA_MANAGEMENT=0`.
+14. Use **Orchestration** to start or stop the local orchestration service.
+    Turning it on starts a detached local instance when nothing is answering and
+    waits for `/health`; turning it off stops only the local instance started
+    from this data directory. A Docker or external instance is detected and
+    labelled, and the switch is disabled because the panel does not own it. When
+    the service is reachable, Clara groups worker sessions in **Workers** and
+    keeps their session alerts quiet.
 
 ## Core business rules
 
@@ -89,7 +90,7 @@ turn traffic monitoring on or off, and gate or pace client settings sync.
    snapshot and assets. `POST` is accepted only at
    `/panel/api/v1/features`, `/panel/api/v1/agent`, `/panel/api/v1/shell`,
    `/panel/api/v1/monitoring`, `/panel/api/v1/sync`, and
-   `/panel/api/v1/management`; every other mutating method returns `405`.
+   `/panel/api/v1/orchestration`; every other mutating method returns `405`.
 3. **Secrets stay out.** The snapshot is built from an explicit allowlist. The
    PSK, pairing code, OpenCode password, relay tokens, push endpoints, sync
    values, and file contents are never returned. The PSK fingerprint, token
@@ -101,10 +102,10 @@ turn traffic monitoring on or off, and gate or pace client settings sync.
    fields, and cap the body at 8 KB. The custom header forces a CORS preflight
    for cross-origin pages, which the server rejects. No CORS headers are sent.
 5. **Settings are durable.** Feature choices, the stopped flag, the shell
-   policy, the monitoring choice, the Clara management switch, and the
-   client-sync gate and interval live in the agent's SQLite database and are
-   loaded before any transport starts. The panel can fail without stopping the
-   agent; a busy panel port only loses the panel.
+   policy, the monitoring choice, the orchestration switch, and the client-sync
+   gate and interval live in the agent's SQLite database and are loaded before
+   any transport starts. The panel can fail without stopping the agent; a busy
+   panel port only loses the panel.
 6. **The shell policy is read per request.** The agent consults it before
    forwarding a command request, so Apply takes effect on the next command
    without a restart. `off` refuses them all. `allowlist` with an empty filter
@@ -168,12 +169,11 @@ turn traffic monitoring on or off, and gate or pace client settings sync.
   policy unchanged; the textarea keeps the draft so it can be fixed.
 - **The policy is off** — Clara's Git tab shows that commit history is disabled
   and does not retry.
-- **Clara management changes** — the panel rewrites `disabled` in the generated
-  Clara agent files and reloads OpenCode before it broadcasts the new flag. The
-  home agent reconciles the files at startup too. Files edited after
-  installation are left alone and reported in the agent log. A switch change
-  reloads even when no file changed, so the plugin re-evaluates its tool
-  registration.
+- **Orchestration changes** — the home agent probes `/health` before and after
+  the action, then broadcasts the new `orchestration` flag so connected clients
+  add or remove the Workers treatment without a reload. A failed local start
+  keeps the error on the card. A Docker or external instance cannot be stopped
+  from the panel.
 - **A feature fails to start** — the saved choice remains, the card shows the
   error, and the rest of the agent keeps running.
 - **No clients** — the client table shows an empty state.
@@ -238,11 +238,11 @@ turn traffic monitoring on or off, and gate or pace client settings sync.
 
 - Panel listener: `127.0.0.1:8790` by default
 - Page: `GET /`
-- Read API: `GET /panel/api/v1/status` (API version `5`)
+- Read API: `GET /panel/api/v1/status` (API version `7`)
 - Mutations:
   - `POST /panel/api/v1/features` with `{ "feature": "...", "enabled": true }`
   - `POST /panel/api/v1/agent` with `{ "stopped": true }`
-  - `POST /panel/api/v1/management` with `{ "enabled": true }`
+  - `POST /panel/api/v1/orchestration` with `{ "enabled": true }`
   - `POST /panel/api/v1/shell` with `{ "mode": "off" | "allowlist", "commands": ["git log"] }`
   - `POST /panel/api/v1/monitoring` with `{ "enabled": false }`
   - `POST /panel/api/v1/sync` with `{ "enabled": true, "intervalMs": 30000 }`
@@ -262,8 +262,8 @@ turn traffic monitoring on or off, and gate or pace client settings sync.
 - Dev UI: `pnpm dev:panel` (Vite on `5174`, proxying `/panel/api` to `8790`; the
   proxy rewrites `Host` and `Origin` so guarded mutations pass)
 - Snapshot sections: agent, config, OpenCode, local transport, relay, clients,
-  push, controls (feature switches, shell, monitoring, sync), storage, events,
-  traffic
+  push, controls (feature switches, shell, monitoring, sync, orchestration),
+  storage, events, traffic
 - Shell policy: `apps/server/src/shell-policy.ts` (matching, validation, and the
   `403` decision), `apps/server/src/agent.ts` (enforcement), and the
   `ShellPolicyCard` in `apps/panel/src/components/shell-policy-card.tsx`
@@ -282,11 +282,12 @@ turn traffic monitoring on or off, and gate or pace client settings sync.
   `sessionStorage`
 - Policy storage: `shell.mode` and `shell.commands` in the settings table,
   added by database migration `2`; `monitoring.enabled`, added by migration `3`;
-  `sync.enabled` and `sync.intervalMs`, added by migration `4`
+  `sync.enabled` and `sync.intervalMs`, added by migration `4`;
+  `orchestration.enabled`, added by migration `8`
 - Database health: path, existence, mode, bytes, schema version, client-sync
   counts and bytes (never values)
 - Guards: loopback remote address, `Host`, `Origin`, `Sec-Fetch-Site`,
-  `GET`/`HEAD` reads, five guarded `POST` routes, path allowlist, CSP,
+  `GET`/`HEAD` reads, six guarded `POST` routes, path allowlist, CSP,
   `no-store`, no CORS
 - Related: [agent-controls.md](agent-controls.md), [git.md](git.md),
   [sync.md](sync.md), [overview.md](../architecture/overview.md),
