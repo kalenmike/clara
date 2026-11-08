@@ -943,6 +943,20 @@ h4 {
 
 /* Pipeline review */
 
+.preview-view {
+  height: 100%;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.review-scroll {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;
+  padding-right: 2px;
+  padding-bottom: 12px;
+}
+
 .preview-grid {
   display: grid;
   grid-template-columns: 238px minmax(0, 1fr) minmax(320px, 420px);
@@ -1350,6 +1364,141 @@ details > summary {
   overflow-wrap: anywhere;
 }
 
+/* Debug dock */
+
+.debug-dock {
+  flex: 0 0 auto;
+  margin-top: 12px;
+  padding: 0;
+  overflow: hidden;
+  border-color: color-mix(in srgb, var(--accent) 36%, var(--border));
+  background: color-mix(in srgb, var(--accent) 3%, var(--surface));
+}
+
+.debug-dock-head {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--border);
+  background: color-mix(in srgb, var(--accent) 3%, var(--surface));
+}
+
+.debug-dock.collapsed .debug-dock-head {
+  border-bottom-color: transparent;
+}
+
+.debug-dock-title {
+  min-width: 0;
+}
+
+.debug-dock-title-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 7px;
+}
+
+.debug-dock-title h2 {
+  font-size: 14px;
+}
+
+.debug-dock-title p {
+  margin: 2px 0 0;
+  font-size: 11px;
+}
+
+.debug-dock-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin-left: auto;
+}
+
+.debug-dock-body {
+  max-height: min(52vh, 640px);
+  overflow: auto;
+  padding: 10px 12px 12px;
+}
+
+.debug-launch {
+  margin-bottom: 10px;
+}
+
+.debug-launch h3 {
+  color: var(--text);
+  font-size: 13px;
+  font-weight: 600;
+  text-transform: none;
+  letter-spacing: 0;
+}
+
+.debug-run-picker {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 8px 14px;
+  padding: 8px 0;
+  border-top: 1px solid var(--border);
+}
+
+.debug-run-picker label {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  color: var(--muted);
+  font-size: 10px;
+}
+
+.debug-run-picker select {
+  min-width: 260px;
+}
+
+.debug-run-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+  margin: 8px 0 10px;
+  padding-top: 8px;
+  border-top: 1px solid var(--border);
+}
+
+.debug-run-head > div:first-child {
+  flex: 1 1 360px;
+  min-width: 0;
+}
+
+.debug-run-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 6px;
+  margin-left: auto;
+}
+
+.debug-empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 18px;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.debug-advanced {
+  margin-top: 8px;
+}
+
 /* Runs */
 
 .runs-view {
@@ -1447,8 +1596,30 @@ details > summary {
   background: var(--accent-soft);
 }
 
+.run-origin {
+  margin-top: 2px;
+  font-family: var(--mono);
+  font-size: 9px;
+}
+
+.runs-debug-toggle {
+  padding: 0 4px;
+  white-space: nowrap;
+}
+
 .run-main {
   min-height: 420px;
+}
+
+.run-current {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 8px;
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  background: var(--surface-2);
+  font-size: 11px;
 }
 
 .run-head {
@@ -2281,6 +2452,20 @@ details > summary {
 
   .run-start-row {
     grid-template-columns: minmax(0, 1fr);
+  }
+
+  .debug-run-picker label {
+    flex: 1 1 100%;
+  }
+
+  .debug-run-picker select {
+    min-width: 0;
+    width: 100%;
+  }
+
+  .debug-run-actions {
+    justify-content: flex-start;
+    margin-left: 0;
   }
 
   .run-head-actions {

@@ -25,23 +25,30 @@ writing custom pipelines, not for end users.
    `provider/model`, policy, budget, and source file. Diagnostics sit above the
    tree so errors and warnings are the first thing you see. **Compare run** opens
    the pinned-snapshot diff without hiding it in an accordion.
-5. Press **Run this pipeline**. The Runs view carries the pipeline and the
-   orchestrator-reported workspace.
-6. Start a run from the always-visible composer at the top of **Runs**. The lab
-   claims the first work order and shows one clear current-step card: the exact
-   task, a result box, and a single primary action.
-7. Type the result and press **Complete and continue** (or **Choose route** for a
-   router). The next step is claimed automatically unless **Pause after each
-   step** is on.
-8. Manage runs from the header: **Cancel run** is on the selected run and
-   **Kill all runs** cancels every non-terminal root run after confirmation.
-   Follow progress in the step tree, the per-run events, and the traffic log.
-9. Open **Console** to call the orchestrator MCP surface directly. It is a
-   first-class view, not a hidden tab, and recent calls can be loaded back into
-   the runner.
-10. Open **Sessions** to see the OpenCode sessions the lab has observed: title,
+5. Press **Run this pipeline** to open the **Debug** dock at the bottom of
+   Review. The dock carries the pipeline and the orchestrator-reported
+   workspace. Start a run there; the lab selects it and claims the first work
+   order.
+6. Step through the run in the Debug dock. It shows one clear current-step card:
+   the exact task, a result box, and a single primary action. Type the result
+   and press **Complete and continue** (or **Choose route** for a router). The
+   next step is claimed automatically unless **Pause after each step** is on.
+7. Use the dock header to switch between recent debug runs, **Pull next**,
+   **Cancel run**, and open a run in **Runs**. Heartbeat controls stay with the
+   active debug claim.
+8. Open **Runs** for observation. Owned runs are listed by default and debug
+   runs are hidden behind a persisted **Show debug runs** toggle. The page never
+   starts or steps a run. **Cancel run** stops the selected run; **Kill all
+   runs** cancels every non-terminal root run after confirmation, including
+   debug runs hidden by the toggle.
+9. Follow run progress in the read-only step tree, the per-run events, and the
+   traffic log.
+10. Open **Console** to call the orchestrator MCP surface directly. It is a
+    first-class view, not a hidden tab, and recent calls can be loaded back into
+    the runner.
+11. Open **Sessions** to see the OpenCode sessions the lab has observed: title,
     agent, directory, running state, last seen, and event count.
-11. Run `pnpm clara lab check` in CI to compile a target and fail on errors.
+12. Run `pnpm clara lab check` in CI to compile a target and fail on errors.
     When OpenCode is reachable it also checks that the configured models exist;
     offline it falls back to static provider/model validation.
 
@@ -53,8 +60,8 @@ writing custom pipelines, not for end users.
 2. **One host path, one reported workspace.** Preview needs the local host path;
    the service reports its own path from `CLARA_ORCHESTRATION_WORKSPACE`
    (default: its working directory) over `GET /v1/config`. Settings keeps the
-   host path editable and shows the service path read-only, and the Runs view
-   always uses the reported path.
+   host path editable and shows the service path read-only, and the Review debug
+   dock always uses the reported path.
 3. **Setup has one home.** Workspace selection, reconnect, adapter registration,
    model status, and preflight results live only in **Settings**. The status bar
    reports failures and setup issues, but healthy state stays quiet. No view
@@ -88,10 +95,22 @@ writing custom pipelines, not for end users.
 12. **The lab shows the raw work order.** The step card shows `order.prompt` and
     its `context` separately. The OpenCode adapter composes the step prompt, root
     request, and prior results into the managed worker prompt.
-13. **Runs are recoverable in one action.** **Cancel run** sits on the selected
+13. **Review owns the debug loop.** Starting, pausing, pulling, completing,
+    routing, spawning, and heartbeat controls live in the Debug dock on
+    **Review**. **Runs** never starts or steps a run.
+14. **Runs is observation-first.** **Runs** shows owned runs by default and hides
+    debug runs behind a persisted **Show debug runs** toggle. The active count
+    includes hidden debug runs, and the empty state explains how to reveal them.
+    Hidden debug runs carry a **debug** badge when shown.
+15. **Ownership is visible.** Runs started by the lab carry
+    `origin_harness: "clara-lab"`; runs started by OpenCode carry their own
+    origin and session. The Debug dock only steps lab-origin runs. A run with no
+    recorded origin is treated as external, never as a debug run.
+16. **Runs are recoverable in one action.** **Cancel run** sits on the selected
     run header; **Kill all runs** cancels every non-terminal root run after a
-    confirmation. Both are front-and-center, not inside advanced controls.
-14. **OpenCode sessions are observed, not driven.** The lab server subscribes to
+    confirmation, including debug runs hidden by the toggle. Both are
+    front-and-center, not inside advanced controls.
+17. **OpenCode sessions are observed, not driven.** The lab server subscribes to
     OpenCode `/api/event`, tracks the last event per session, and merges that
     with session metadata (`title`, `agent`, `location.directory`,
     `time.updated`) from the session list and lookup endpoints. Phase one is
@@ -137,6 +156,18 @@ writing custom pipelines, not for end users.
   adapter status changes to live in Settings on the next check.
 - There are no active runs: **Kill all runs** stays disabled, and no empty
   confirmation is shown.
+- Runs has no owned runs but hidden debug runs exist: the empty state says so and
+  offers **Show debug runs** instead of looking broken.
+- The debug toggle is turned off while a debug run is selected: the page selects
+  the first visible owned run, or shows the hidden-debug empty state.
+- A debug run is opened in Runs: the page turns the debug toggle on first, then
+  selects it.
+- **Kill all runs** runs while debug runs are hidden: the confirmation names how
+  many hidden debug runs it will also cancel.
+- **Continue on Review** is pressed on a debug run: Review opens the Debug dock,
+  selects that run, and expands the dock.
+- A debug run finishes: the dock keeps the completed run selected so it can be
+  compared or opened in Runs; the next start replaces it.
 - Traffic is dominated by adapter heartbeats: the call list hides heartbeats by
   default and can show them again with the toggle.
 - A lab server restarts: in-memory work tokens are lost. The watchdog retries the
@@ -159,6 +190,8 @@ writing custom pipelines, not for end users.
 - Remote access. The lab binds loopback only.
 - A visual pipeline editor or a graph-layout canvas.
 - Rewinding a run to an earlier state.
+- Starting, pulling, completing, routing, or spawning a run from **Runs**. The
+  page is observation-first; those controls live in the Review Debug dock.
 - Cancelling, archiving, or moving an OpenCode session from the Sessions view.
   Phase one is a read-only observation surface.
 
@@ -175,6 +208,11 @@ writing custom pipelines, not for end users.
   on the live event stream; there is no pagination yet.
 - The Sessions view is OpenCode-only. Orchestrator adapters and run ownership
   are shown in Settings and Runs, not merged into the session table.
+- Runs started through the Console without an explicit origin, and runs created
+  before origin tracking, are treated as external and never appear in the Debug
+  dock.
+- The Debug dock keeps one selected debug run at a time. It lists recent debug
+  runs in a picker but has no multi-run split view.
 - Scripted or recorded response playback is not implemented; every response is
   entered by hand or sent through the tool console.
 
@@ -236,8 +274,12 @@ writing custom pipelines, not for end users.
   the server resumes `/v1/events` with its last event id.
 - SSE event data carries `run_id`, `event_id`, and `created_at` alongside the
   step payload so subscribers can attribute events to a run.
-- Setup and tab choices persist under `clara-lab.settings.v1` in local storage.
-  The orchestrator token is never stored there.
+- Setup, tab, pause-after-step, and **Show debug runs** choices persist under
+  `clara-lab.settings.v1` in local storage. The orchestrator token is never
+  stored there.
+- Debug runs are runs with `origin_harness: "clara-lab"`. The Debug dock starts
+  them with origin `{ harness: "clara-lab", agent: "lab", kind: "agent" }` and
+  selects them by ID; **Runs** filters the same origin client-side.
 - SDK package: `@clara/devtools` exports `resolveWorkspace`, `previewPipeline`,
   `listTargets`, `describePackages`, `collectSources`, `diagnoseCompiled`,
   `diagnoseCatalog`, `diffCompiled`, and `inspectSnapshot`.

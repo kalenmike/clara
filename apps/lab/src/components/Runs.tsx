@@ -1,61 +1,58 @@
 import { useCallback, useEffect, useState } from 'react'
-import {
-  callTool,
-  cancelAllRuns,
-  getRun,
-  getRuns,
-  getStep,
-  registerAdapter,
-  setHeartbeat,
-} from '../api'
+import { callTool, cancelAllRuns, getRun, getRuns, getStep } from '../api'
 import type { LabStream } from '../useLab'
-import type { PreflightResult, RunRow, StatusResult, StepRow, StepSummary } from '../types'
-import { dateTime, short, statusTone } from '../lib/format'
+import type { RunRow, StatusResult, StepRow, StepSummary } from '../types'
+import { dateTime, modelLabel, short, statusTone } from '../lib/format'
 import { friendlyError } from '../lib/errors'
+import {
+  debugRuns as onlyDebugRuns,
+  isActiveRun,
+  isDebugRun,
+  sortRuns,
+  visibleRuns,
+} from '../lib/runs'
 import { Badge, Field } from './Badge'
 import { Icon } from './Icon'
 import { RunEvents, RunStepDetail } from './RunDetail'
 import { RunTree } from './StepTree'
-import { WorkOrderCard } from './WorkOrderCard'
 
 function message(cause: unknown): string {
   return cause instanceof Error ? cause.message : String(cause)
 }
 
-function valueText(value: unknown): string {
-  return typeof value === 'string' ? value : JSON.stringify(value)
+function originText(run: RunRow): string {
+  const harness = run.origin_harness ?? 'no harness'
+  const agent = run.origin_agent ? ` / ${run.origin_agent}` : ''
+  return `${harness}${agent} · ${run.origin_kind}`
 }
 
-function needsAdapter(value: unknown): boolean {
-  const text = valueText(value).toLowerCase()
-  return text.includes('enforcement_unavailable') || text.includes('strict enforcement')
+function currentStep(steps: StepSummary[] | undefined): StepSummary | undefined {
+  return (
+    steps?.find((step) => step.status === 'running') ??
+    steps?.find((step) => step.status === 'waiting') ??
+    steps?.find((step) => step.type === 'task' || step.type === 'router')
+  )
 }
 
 export function Runs({
   stream,
   hostWorkspace,
-  runtimeWorkspace,
-  target,
-  pauseAfterStep,
-  onPauseAfterStepChange,
   active,
-  preflight,
-  onPreflight,
-  onGoToPipeline,
-  onOpenSettings,
+  showDebugRuns,
+  onShowDebugRunsChange,
+  focusRunID,
+  onFocusHandled,
+  onOpenReview,
   onNotice,
 }: {
   stream: LabStream
   hostWorkspace: string
-  runtimeWorkspace: string
-  target: string
-  pauseAfterStep: boolean
-  onPauseAfterStepChange: (value: boolean) => void
   active: boolean
-  preflight: PreflightResult | null
-  onPreflight: () => void
-  onGoToPipeline: () => void
-  onOpenSettings: () => void
+  showDebugRuns: boolean
+  onShowDebugRunsChange: (value: boolean) => void
+  focusRunID?: number
+  onFocusHandled: () => void
+  onOpenReview: (runID: number) => void
   onNotice: (message: string) => void
 }) {
   const [runs, setRuns] = useState<RunRow[]>([])
@@ -63,7 +60,6 @@ export function Runs({
   const [status, setStatus] = useState<StatusResult | null>(null)
   const [selectedStep, setSelectedStep] = useState<string | undefined>()
   const [stepDetail, setStepDetail] = useState<StepRow | null>(null)
-  const [prompt, setPrompt] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
 
@@ -72,9 +68,6 @@ export function Runs({
       const result = await getRuns()
       const list = Array.isArray(result.value) ? (result.value as RunRow[]) : []
       setRuns(list)
-      setSelectedID((current) =>
-        current && list.some((run) => run.id === current) ? current : list[0]?.id
-      )
     } catch (cause) {
       setError(message(cause))
     }
@@ -108,6 +101,17 @@ export function Runs({
   }, [active, refreshRuns])
 
   useEffect(() => {
+    const visible = sortRuns(visibleRuns(runs, showDebugRuns))
+    setSelectedID((current) =>
+      current && visible.some((run) => run.id === current) ? current : visible[0]?.id
+    )
+  }, [runs, showDebugRuns])
+
+  useEffect(() => {
+    setError(null)
+  }, [selectedID])
+
+  useEffect(() => {
     if (!active) return
     if (!selectedID) {
       setStatus(null)
@@ -130,6 +134,14 @@ export function Runs({
       setStepDetail(null)
       return
     }
+    if (
+      !status ||
+      status.run.id !== selectedID ||
+      !status.steps.some((entry) => entry.path === selectedStep)
+    ) {
+      setStepDetail(null)
+      return
+    }
     let cancelled = false
     getStep(selectedID, selectedStep)
       .then((value) => {
@@ -146,66 +158,34 @@ export function Runs({
     }
   }, [active, selectedID, selectedStep, status])
 
-  const start = async (): Promise<void> => {
-    if (!prompt.trim()) {
-      setError('Enter a prompt before starting a run.')
+  useEffect(() => {
+    if (!focusRunID || !runs.length) return
+    const run = runs.find((entry) => entry.id === focusRunID)
+    if (!run) {
+      onFocusHandled()
       return
     }
-    if (!runtimeWorkspace.trim()) {
-      setError('The orchestrator has not reported its workspace yet. Reconnect in Setup.')
+    if (isDebugRun(run) && !showDebugRuns) {
+      onShowDebugRunsChange(true)
       return
     }
-    setBusy(true)
-    setError(null)
-    const args = {
-      prompt,
-      workspace: runtimeWorkspace,
-      ...(target ? { target } : {}),
-      origin: { harness: 'clara-lab', agent: 'lab', kind: 'agent' },
-    }
-    try {
-      let response = await callTool<{ run?: RunRow }>('clara_start', args)
-      if (response.isError && needsAdapter(response.value)) {
-        await registerAdapter(runtimeWorkspace)
-        onNotice('Registered the clara-lab adapter automatically.')
-        onPreflight()
-        response = await callTool<{ run?: RunRow }>('clara_start', args)
-      }
-      if (response.isError) throw new Error(valueText(response.value))
-      const run = response.value?.run
-      if (run) {
-        setSelectedID(run.id)
-        await refreshStatus(run.id)
-        onNotice(`Started run #${run.id}.`)
-      }
-      setPrompt('')
-      await refreshRuns()
-    } catch (cause) {
-      setError(message(cause))
-    } finally {
-      setBusy(false)
-    }
-  }
+    setSelectedID(run.id)
+    onFocusHandled()
+  }, [focusRunID, runs, showDebugRuns, onFocusHandled, onShowDebugRunsChange])
 
-  const pullNext = async (runID: number): Promise<void> => {
-    setBusy(true)
-    setError(null)
-    try {
-      await callTool('clara_next', { run_id: runID, limit: 8 })
-      await refreshStatus(runID)
-      await refreshRuns()
-    } catch (cause) {
-      setError(message(cause))
-    } finally {
-      setBusy(false)
-    }
-  }
-
-  const changed = (runID: number): void => {
-    setSelectedID(runID)
-    void refreshStatus(runID)
-    void refreshRuns()
-  }
+  const debug = onlyDebugRuns(runs)
+  const visible = sortRuns(visibleRuns(runs, showDebugRuns))
+  const allActiveCount = runs.filter(isActiveRun).length
+  const hiddenDebugActive = debug.filter(isActiveRun).length
+  const selectedStatus = status && status.run.id === selectedID ? status : null
+  const selectedRun = selectedStatus?.run ?? visible.find((run) => run.id === selectedID)
+  const currentWork = (stream.snapshot?.work ?? []).find(
+    (record) => record.order.run_id === selectedID
+  )
+  const step =
+    selectedRun && isActiveRun(selectedRun) ? currentStep(selectedStatus?.steps) : undefined
+  const isDebug = selectedRun ? isDebugRun(selectedRun) : false
+  const friendly = error ? friendlyError(error, 'runtime') : null
 
   const tick = async (): Promise<void> => {
     setBusy(true)
@@ -230,7 +210,7 @@ export function Runs({
     try {
       await callTool('clara_cancel', {
         run_id: selectedID,
-        reason: 'cancelled from Clara Lab',
+        reason: 'cancelled from Clara Lab runs',
       })
       await refreshStatus(selectedID)
       await refreshRuns()
@@ -243,7 +223,15 @@ export function Runs({
   }
 
   const killAll = async (): Promise<void> => {
-    if (!window.confirm('Cancel every active run and its children? This cannot be undone.')) return
+    const hidden = showDebugRuns ? 0 : hiddenDebugActive
+    const scope = hidden
+      ? ` This includes ${hidden} hidden debug run${hidden === 1 ? '' : 's'}.`
+      : ''
+    if (
+      !window.confirm(`Cancel every active run and its children?${scope} This cannot be undone.`)
+    ) {
+      return
+    }
     setBusy(true)
     setError(null)
     try {
@@ -270,51 +258,6 @@ export function Runs({
     }
   }
 
-  const ack = async (alertID: number): Promise<void> => {
-    try {
-      await callTool('clara_ack', { alert_id: alertID })
-      if (selectedID) await refreshStatus(selectedID)
-    } catch (cause) {
-      setError(message(cause))
-    }
-  }
-
-  const toggleHeartbeat = async (): Promise<void> => {
-    try {
-      await setHeartbeat(!(stream.snapshot?.heartbeat ?? true))
-    } catch (cause) {
-      setError(message(cause))
-    }
-  }
-
-  const work = (stream.snapshot?.work ?? []).filter(
-    (record) => !selectedID || record.order.run_id === selectedID
-  )
-  const current = work[0]
-  const events = selectedID
-    ? stream.events.filter((event) => event.run_id === selectedID)
-    : stream.events
-  const heartbeat = stream.snapshot?.heartbeat ?? true
-  const taskSteps =
-    status?.steps.filter((entry) => entry.type === 'task' || entry.type === 'router') ?? []
-  const doneSteps = taskSteps.filter(
-    (entry) => entry.status === 'done' || entry.status === 'skipped'
-  ).length
-  const totalSteps = status?.taskCount
-  const friendly = error ? friendlyError(error, 'start') : null
-  const isActiveRun =
-    status?.run.state === 'running' ||
-    status?.run.state === 'waiting' ||
-    status?.run.state === 'queued'
-  const activeRunCount = runs.filter((run) =>
-    ['running', 'waiting', 'queued'].includes(run.state)
-  ).length
-  const orderedRuns = [...runs].sort((left, right) => {
-    const rank = (state: string): number =>
-      ['running', 'waiting', 'queued'].includes(state) ? 0 : 1
-    return rank(left.state) - rank(right.state)
-  })
-
   return (
     <div className="view runs-view">
       <header className="view-head">
@@ -322,12 +265,23 @@ export function Runs({
           <div className="view-kicker">Operations</div>
           <h1>Runs</h1>
           <p className="muted">
-            Start, inspect, and recover orchestration runs. You are the model at every task step.
+            Inspect runs and stop runaway work. Debug runs are hidden by default; start and step
+            them from the Debug dock on Review.
           </p>
         </div>
         <div className="view-head-actions">
-          {activeRunCount ? <Badge tone="live">{activeRunCount} active</Badge> : null}
-          {heartbeat ? null : <Badge tone="warn">heartbeats paused</Badge>}
+          {allActiveCount ? <Badge tone="live">{allActiveCount} active</Badge> : null}
+          {!showDebugRuns && hiddenDebugActive ? (
+            <Badge tone="warn">{hiddenDebugActive} debug hidden</Badge>
+          ) : null}
+          <label className="check runs-debug-toggle">
+            <input
+              type="checkbox"
+              checked={showDebugRuns}
+              onChange={(event) => onShowDebugRunsChange(event.target.checked)}
+            />
+            Show debug runs{debug.length ? ` (${debug.length})` : ''}
+          </label>
           <button
             type="button"
             className="button"
@@ -340,65 +294,12 @@ export function Runs({
             type="button"
             className="button danger"
             onClick={() => void killAll()}
-            disabled={busy || !activeRunCount}
+            disabled={busy || !allActiveCount}
           >
             Kill all runs
           </button>
         </div>
       </header>
-
-      <section className="run-start panel">
-        <div className="run-start-head">
-          <div>
-            <h2>Start a run</h2>
-            <p className="muted">
-              Target <strong>{target || 'Entry router'}</strong> · workspace{' '}
-              <code>{runtimeWorkspace || 'waiting for the orchestrator'}</code>
-            </p>
-          </div>
-          <button type="button" className="link" onClick={onGoToPipeline}>
-            Change pipeline
-          </button>
-        </div>
-        <div className="run-start-row">
-          <textarea
-            rows={2}
-            value={prompt}
-            onChange={(event) => setPrompt(event.target.value)}
-            placeholder="What should the pipeline work on?"
-          />
-          <button
-            type="button"
-            className="button primary run-start-button"
-            onClick={() => void start()}
-            disabled={busy || !prompt.trim()}
-          >
-            <Icon name="play" size={14} />
-            Start run
-          </button>
-        </div>
-        <div className="run-start-meta">
-          <label className="check">
-            <input
-              type="checkbox"
-              checked={pauseAfterStep}
-              onChange={(event) => onPauseAfterStepChange(event.target.checked)}
-            />
-            Pause after each step
-          </label>
-          <span className="muted">
-            Origin is recorded as <code>clara-lab / lab / agent</code>.
-          </span>
-          {preflight?.host.strict && !preflight.adapter.ok ? (
-            <span className="tone-warn">
-              This pipeline is strict. The lab will register its adapter when you start.{' '}
-              <button type="button" className="link" onClick={onOpenSettings}>
-                Settings
-              </button>
-            </span>
-          ) : null}
-        </div>
-      </section>
 
       {friendly ? (
         <div className="banner bad">
@@ -411,10 +312,10 @@ export function Runs({
         <aside className="panel run-list">
           <div className="panel-head">
             <h3>Runs</h3>
-            <span className="muted">{runs.length}</span>
+            <span className="muted">{visible.length}</span>
           </div>
           <div className="run-list-items">
-            {orderedRuns.map((run) => (
+            {visible.map((run) => (
               <button
                 key={run.id}
                 type="button"
@@ -425,21 +326,42 @@ export function Runs({
                   <span>
                     <strong>#{run.id}</strong> {run.target}
                   </span>
-                  <Badge tone={statusTone(run.state)}>{run.state}</Badge>
+                  <span className="row">
+                    {isDebugRun(run) ? <Badge tone="warn">debug</Badge> : null}
+                    <Badge tone={statusTone(run.state)}>{run.state}</Badge>
+                  </span>
                 </div>
                 <div className="muted">{short(run.prompt, 90)}</div>
+                <div className="run-origin muted">{originText(run)}</div>
               </button>
             ))}
-            {!runs.length ? <div className="empty">No runs yet.</div> : null}
+            {!visible.length ? (
+              <div className="empty">
+                {debug.length && !showDebugRuns ? (
+                  <>
+                    No external runs.{' '}
+                    <button
+                      type="button"
+                      className="link"
+                      onClick={() => onShowDebugRunsChange(true)}
+                    >
+                      Show {debug.length} debug run{debug.length === 1 ? '' : 's'}
+                    </button>
+                  </>
+                ) : (
+                  'No runs yet.'
+                )}
+              </div>
+            ) : null}
           </div>
 
-          {status?.alerts.length ? (
+          {selectedStatus?.alerts.length ? (
             <>
               <div className="panel-head">
                 <h3>Alerts</h3>
               </div>
               <div className="alert-list">
-                {status.alerts.map((alert) => (
+                {selectedStatus.alerts.map((alert) => (
                   <div key={alert.id} className="alert">
                     <div className="row-between">
                       <Badge tone="warn">{alert.kind}</Badge>
@@ -447,13 +369,6 @@ export function Runs({
                     </div>
                     <div>{alert.title}</div>
                     <div className="muted">{alert.body}</div>
-                    <button
-                      type="button"
-                      className="button ghost small"
-                      onClick={() => void ack(alert.id)}
-                    >
-                      Acknowledge
-                    </button>
                   </div>
                 ))}
               </div>
@@ -462,33 +377,44 @@ export function Runs({
         </aside>
 
         <section className="panel run-main">
-          {status ? (
+          {selectedStatus && selectedRun ? (
             <>
               <div className="run-head">
                 <div>
                   <div className="work-title">
-                    <Badge tone={statusTone(status.run.state)}>{status.run.state}</Badge>
-                    <h2>Run #{status.run.id}</h2>
-                    <span className="muted">{status.run.target}</span>
+                    <Badge tone={statusTone(selectedRun.state)}>{selectedRun.state}</Badge>
+                    {isDebug ? <Badge tone="warn">debug</Badge> : null}
+                    <h2>Run #{selectedRun.id}</h2>
+                    <span className="muted">{selectedRun.target}</span>
                   </div>
-                  <div className="muted">{short(status.run.prompt, 180)}</div>
+                  <div className="muted">{short(selectedRun.prompt, 180)}</div>
                 </div>
                 <div className="run-head-actions">
                   <div className="chips">
-                    <span className="chip">
-                      {totalSteps ? `${doneSteps}/${totalSteps} steps` : `${doneSteps} steps done`}
-                    </span>
-                    {current ? <span className="chip">now: {current.order.name}</span> : null}
-                    <span className="chip">{status.run.pipeline_ref}</span>
-                    {status.run.enforcement === 'strict' ? (
+                    {selectedStatus.taskCount ? (
+                      <span className="chip">
+                        {doneStepCount(selectedStatus.steps)}/{selectedStatus.taskCount} steps
+                      </span>
+                    ) : null}
+                    <span className="chip">{selectedRun.pipeline_ref}</span>
+                    {selectedRun.enforcement === 'strict' ? (
                       <span className="chip chip-warn">strict</span>
                     ) : null}
                   </div>
+                  {isDebug ? (
+                    <button
+                      type="button"
+                      className="button ghost small"
+                      onClick={() => onOpenReview(selectedRun.id)}
+                    >
+                      Continue on Review
+                    </button>
+                  ) : null}
                   <button
                     type="button"
                     className="button danger"
                     onClick={() => void cancel()}
-                    disabled={busy || !isActiveRun}
+                    disabled={busy || !isActiveRun(selectedRun)}
                   >
                     <Icon name="stop" size={14} />
                     Cancel run
@@ -498,83 +424,71 @@ export function Runs({
 
               <div className="grid three">
                 <Field label="Host files" value={hostWorkspace || '—'} />
-                <Field label="Orchestrator workspace" value={status.run.workspace} />
-                <Field
-                  label="Origin"
-                  value={`${status.run.origin_harness ?? '—'} / ${status.run.origin_agent ?? '—'} / ${status.run.origin_kind}`}
-                />
-                <Field label="Created" value={dateTime(status.run.created_at)} />
+                <Field label="Orchestrator workspace" value={selectedRun.workspace} />
+                <Field label="Origin" value={originText(selectedRun)} />
+                <Field label="Created" value={dateTime(selectedRun.created_at)} />
                 <Field
                   label="Finished"
-                  value={status.run.finished_at ? dateTime(status.run.finished_at) : '—'}
+                  value={selectedRun.finished_at ? dateTime(selectedRun.finished_at) : '—'}
                 />
-                <Field label="Hash" value={status.run.hash.slice(0, 20)} />
+                <Field label="Hash" value={selectedRun.hash.slice(0, 20)} />
               </div>
-              {status.run.error ? <div className="banner bad">{status.run.error}</div> : null}
+              {selectedRun.error ? <div className="banner bad">{selectedRun.error}</div> : null}
 
               <div className="panel-head">
-                <h3>
-                  {current
-                    ? 'Current step'
-                    : status.run.state === 'completed'
-                      ? 'Run complete'
-                      : 'Next step'}
-                </h3>
-                <div className="row">
-                  <span className="muted">
-                    {work.length ? `${work.length} claimed` : 'nothing claimed'}
-                  </span>
-                  {isActiveRun ? (
-                    <button
-                      type="button"
-                      className="button ghost small"
-                      onClick={() => void pullNext(status.run.id)}
-                      disabled={busy}
-                    >
-                      Pull next
-                    </button>
-                  ) : null}
+                <h3>Current step</h3>
+                <span className="muted">read-only</span>
+              </div>
+              <div className="run-current">
+                {step ? (
+                  <>
+                    <div className="work-title">
+                      <Badge tone={statusTone(step.status)}>{step.status}</Badge>
+                      <strong>{step.name}</strong>
+                      <code>{step.path}</code>
+                      <span className="muted">
+                        attempt {step.attempt}/{step.max_attempts} ·{' '}
+                        {modelLabel(step.model, step.provider)}
+                      </span>
+                    </div>
+                    {currentWork ? (
+                      <pre className="prompt small">{currentWork.order.prompt}</pre>
+                    ) : null}
+                  </>
+                ) : (
+                  <div className="empty">
+                    {selectedRun.state === 'completed'
+                      ? 'Run complete.'
+                      : selectedRun.state === 'failed'
+                        ? 'Run failed.'
+                        : 'No current step.'}
+                  </div>
+                )}
+                <div className="muted">
+                  {isDebug
+                    ? 'Step through and complete this run in the Debug dock on Review.'
+                    : `Owned by ${originText(selectedRun)}. This page only observes it.`}
                 </div>
               </div>
-              {work.length ? (
-                work.map((record, index) => (
-                  <WorkOrderCard
-                    key={record.key}
-                    record={record}
-                    autoRun={!pauseAfterStep}
-                    primary={index === 0}
-                    onChanged={changed}
-                    onNotice={onNotice}
-                  />
-                ))
-              ) : (
-                <div className="empty">
-                  {isActiveRun
-                    ? 'No step is claimed. Use Pull next to claim ready work.'
-                    : status.run.state === 'completed'
-                      ? 'Run complete. Choose a pipeline or change the prompt to start another.'
-                      : `Run ${status.run.state}.`}
-                </div>
-              )}
 
               <div className="panel-head">
                 <h3>Steps</h3>
                 <span className="muted">click a step for its result, lease, and usage</span>
               </div>
               <RunTree
-                steps={status.steps}
+                steps={selectedStatus.steps}
                 selected={selectedStep}
                 onSelect={(entry: StepSummary) => setSelectedStep(entry.path)}
               />
               <RunStepDetail step={stepDetail ?? undefined} />
 
-              {status.children.length ? (
+              {selectedStatus.children.length ? (
                 <>
                   <div className="panel-head">
                     <h3>Child runs</h3>
                   </div>
                   <div className="children">
-                    {status.children.map((child) => (
+                    {selectedStatus.children.map((child) => (
                       <button
                         key={child.id}
                         type="button"
@@ -590,13 +504,16 @@ export function Runs({
 
               <details className="panel events-panel">
                 <summary>
-                  Events <span className="muted">({events.length})</span>
+                  Events{' '}
+                  <span className="muted">
+                    ({stream.events.filter((event) => event.run_id === selectedID).length})
+                  </span>
                 </summary>
-                <RunEvents events={events} />
+                <RunEvents events={stream.events.filter((event) => event.run_id === selectedID)} />
               </details>
 
               <details className="panel advanced-panel">
-                <summary>Run controls</summary>
+                <summary>Recovery controls</summary>
                 <div className="actions">
                   <button
                     type="button"
@@ -606,29 +523,51 @@ export function Runs({
                   >
                     Watchdog tick
                   </button>
-                  <button type="button" className="button" onClick={() => void toggleHeartbeat()}>
-                    {heartbeat ? 'Pause heartbeats' : 'Resume heartbeats'}
-                  </button>
                 </div>
                 <div className="muted">
-                  Heartbeat holds the lease while you type. Pausing it lets the watchdog retry the
-                  step after the stall threshold.
+                  Repairs stalled steps and expired leases. Heartbeat and lease controls live in the
+                  Debug dock on Review.
                 </div>
               </details>
             </>
           ) : (
             <div className="run-empty">
               <Icon name="runs" size={28} />
-              <h2>{runs.length ? 'Select a run' : 'No runs yet'}</h2>
+              <h2>
+                {visible.length
+                  ? 'Select a run'
+                  : debug.length && !showDebugRuns
+                    ? 'Debug runs are hidden'
+                    : 'No runs yet'}
+              </h2>
               <p className="muted">
-                {runs.length
+                {visible.length
                   ? 'Choose a run from the list to inspect its steps, work orders, and events.'
-                  : 'Start the pipeline above to claim the first work order. The lab will hold it while you type the result.'}
+                  : debug.length && !showDebugRuns
+                    ? 'This page shows owned runs by default. Show debug runs to inspect lab tests.'
+                    : 'Start a debug run from the Debug dock on Review.'}
               </p>
+              {debug.length && !showDebugRuns ? (
+                <button
+                  type="button"
+                  className="button"
+                  onClick={() => onShowDebugRunsChange(true)}
+                >
+                  Show debug runs ({debug.length})
+                </button>
+              ) : null}
             </div>
           )}
         </section>
       </div>
     </div>
   )
+}
+
+function doneStepCount(steps: StepSummary[]): number {
+  return steps.filter(
+    (step) =>
+      (step.type === 'task' || step.type === 'router') &&
+      (step.status === 'done' || step.status === 'skipped')
+  ).length
 }
