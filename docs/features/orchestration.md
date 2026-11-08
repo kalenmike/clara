@@ -323,7 +323,8 @@ docs:    assess_docs → update_docs → verify_docs → docs_review
   `pnpm clara orchestration start [--docker] [--build]|stop [--docker]|status|serve|token`,
   `pnpm clara mcp install|uninstall|config|status`,
   `pnpm clara adapter install opencode|uninstall|status`,
-  `pnpm clara lab [serve|check]`.
+  `pnpm clara lab [serve|check]`. Running `pnpm clara orchestration` without a
+  subcommand prints help instead of starting the service.
 - OpenCode entry point: the `clara` agent at
   `~/.config/opencode/agents/clara.md`, installed by the adapter. The MCP-only
   path keeps a manual `/pipeline` command at

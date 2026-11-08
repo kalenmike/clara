@@ -243,7 +243,7 @@ async function status(): Promise<void> {
 }
 
 async function main(): Promise<void> {
-  const command = process.argv[2] ?? 'serve'
+  const command = process.argv[2] ?? 'help'
   const args = process.argv.slice(3)
   if (command === 'help' || command === '--help' || command === '-h') {
     console.log(
