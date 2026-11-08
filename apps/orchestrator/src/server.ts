@@ -134,7 +134,7 @@ export function createOrchestratorServer(options: OrchestratorServerOptions): Or
         const workspace = url.searchParams.get('workspace')
         if (!workspace)
           throw new HttpError(400, 'workspace_required', 'workspace query is required')
-        json(res, 200, backend.catalog(workspace))
+        json(res, 200, await backend.catalog(workspace))
         return
       }
       if (url.pathname === '/v1/runs' && req.method === 'GET') {

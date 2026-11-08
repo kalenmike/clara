@@ -62,7 +62,7 @@ export type StopResult =
   | { kind: 'already-stopped'; stalePid: number | null }
   | { kind: 'not-exited'; pid: number }
   | { kind: 'container' }
-  | { kind: 'container-down'; result: ComposeResult }
+  | { kind: 'container-down'; result: ComposeResult; detected: boolean }
   | { kind: 'external' }
   | { kind: 'foreign' }
   | { kind: 'error'; message: string }
@@ -213,7 +213,7 @@ export function formatStatus(report: StatusReport): string[] {
 
   if (report.state === 'container') {
     lines.push('database: managed by the container (host mount from CLARA_DATA_DIR)')
-    lines.push('stop: pnpm docker:orchestrator:down')
+    lines.push('stop: pnpm clara orchestration stop --docker')
   } else if (report.state === 'external') {
     lines.push('database: unknown (not this data directory)')
   } else if (report.state !== 'foreign') {
@@ -222,7 +222,9 @@ export function formatStatus(report: StatusReport): string[] {
 
   if (report.state === 'external') {
     lines.push('warning: no local pid file; this instance was not started from this data directory')
-    lines.push('stop: stop it where it was started, or use `pnpm docker:orchestrator:down`')
+    lines.push(
+      'stop: stop it where it was started, or use `pnpm clara orchestration stop --docker`'
+    )
   }
   if (report.state === 'unresponsive') {
     lines.push(`warning: the process is alive but ${report.url}/health did not respond`)
@@ -262,12 +264,36 @@ export function composeArgs(action: ComposeAction, build = false): string[] {
   return args
 }
 
+/**
+ * Compose interpolates the whole file, including `${VAR:?}` guards, even for
+ * `down`. Down never reads the token, data directory, or workspace, so fill the
+ * required values with inert placeholders when they are not exported. `up`
+ * keeps the real environment so a missing token still fails fast.
+ */
+const DOWN_ENV_FALLBACKS = {
+  CLARA_ORCHESTRATION_TOKEN: 'unused-by-compose-down',
+  CLARA_DATA_DIR: 'unused-by-compose-down',
+  CLARA_WORKSPACE: 'unused-by-compose-down',
+} as const
+
+export function composeEnv(
+  action: ComposeAction,
+  env: NodeJS.ProcessEnv = process.env
+): NodeJS.ProcessEnv {
+  if (action !== 'down') return env
+  const result = { ...env }
+  for (const [key, value] of Object.entries(DOWN_ENV_FALLBACKS)) {
+    if (!result[key]) result[key] = value
+  }
+  return result
+}
+
 export function runCompose(action: ComposeAction, build = false): Promise<ComposeResult> {
   return new Promise((resolve) => {
     const child = spawn('docker', composeArgs(action, build), {
       cwd: repoRoot(),
       stdio: 'inherit',
-      env: process.env,
+      env: composeEnv(action),
     })
     child.once('error', (error) => resolve({ ok: false, code: null, error: error.message }))
     child.once('exit', (code) => resolve({ ok: code === 0, code }))
@@ -353,13 +379,11 @@ export async function stopService(options: StopOptions = {}): Promise<StopResult
   const probe = await probeHealth()
   const pid = readPidState()
   const stalePid = pid.present && !pid.alive ? pid.pid : null
+  const composeDown = options.composeDown ?? (() => runCompose('down'))
 
   if (probe.status === 'current' && probe.mode === 'container') {
     if (!options.docker) return { kind: 'container' }
-    return {
-      kind: 'container-down',
-      result: await (options.composeDown ?? (() => runCompose('down')))(),
-    }
+    return { kind: 'container-down', detected: true, result: await composeDown() }
   }
 
   if (probe.status === 'foreign') return { kind: 'foreign' }
@@ -384,6 +408,13 @@ export async function stopService(options: StopOptions = {}): Promise<StopResult
   }
 
   if (probe.status === 'current') return { kind: 'external' }
+
+  // An explicit docker stop also cleans up a container that is stopped or
+  // unhealthy and therefore not answering /health.
+  if (options.docker) {
+    if (pid.present) removePid()
+    return { kind: 'container-down', detected: false, result: await composeDown() }
+  }
 
   if (pid.present) removePid()
   return { kind: 'already-stopped', stalePid }

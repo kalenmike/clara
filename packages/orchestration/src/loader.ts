@@ -939,6 +939,11 @@ export function compileRef(
     // A slash without a namespace is a local path-like reference.
     return compilePipeline(pkg, parsed.alias, path, stack)
   }
+  // A bare package id selects that package's entry. Keep a real pipeline with
+  // the same id working by only using the entry when no pipeline matches.
+  if (parsed.alias === pkg.manifest.id && !pkg.pipelines.has(parsed.alias)) {
+    return compileEntry(pkg, path, stack)
+  }
   return compilePipeline(pkg, parsed.alias, path, stack)
 }
 

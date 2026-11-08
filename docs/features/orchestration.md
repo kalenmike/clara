@@ -29,6 +29,9 @@ human-facing Clara agent.
    - a greeting, thanks, or general question is answered without a run;
    - an ambiguous request gets one clarifying question.
 
+   The adapter resolves the workspace and entry target from the session, so the
+   agent does not pass either.
+
    The agent has no read, edit, shell, network, or subagent tools, so it cannot
    do pipeline work itself.
 
@@ -111,8 +114,12 @@ database and token live under the host `CLARA_DATA_DIR` mount.
 
 The container writes no host PID file. `pnpm clara orchestration status` reports
 `running (docker container)`, and `pnpm clara orchestration stop` does not
-signal anything; stop the container with `pnpm docker:orchestrator:down` or
-`pnpm clara orchestration stop --docker`.
+signal anything; stop the container with
+`pnpm clara orchestration stop --docker`. Stopping does not require the
+`CLARA_ORCHESTRATION_TOKEN`, `CLARA_DATA_DIR`, or `CLARA_WORKSPACE` variables:
+compose still parses them for `down`, so the command supplies inert values when
+they are not exported. It also runs `docker compose down` when the container is
+unhealthy or already stopped, so a crashed container can be cleaned up.
 
 Start it from the host with `pnpm clara orchestration start --docker`. That runs
 `docker compose -f docker/compose.yml up -d orchestrator` and waits for
@@ -139,10 +146,13 @@ first.
    alerts and finished root runs into the origin session; the inbox and SSE
    remain the read-only fallback.
 6. **Package references are stable.** `std:software` is the package entry;
-   `std:software/feature` is a named pipeline. In-flight runs pin the resolved
-   snapshot and hash. Run lists, run status, and every MCP run payload omit the
-   pinned tree; the full step prompt, policy, limits, result, and lease are read
-   only from the Lab's dedicated endpoints.
+   `std:software/feature` is a named pipeline; a bare package id such as
+   `orchestration` also selects its package entry. The OpenCode adapter resolves
+   its workspace from the session root, while an explicit
+   `CLARA_ORCHESTRATION_WORKSPACE` still wins for container mounts. In-flight
+   runs pin the resolved snapshot and hash. Run lists, run status, and every MCP
+   run payload omit the pinned tree; the full step prompt, policy, limits,
+   result, and lease are read only from the Lab's dedicated endpoints.
 7. **The panel controls the local service.** The **Orchestration** switch keeps
    `orchestration.enabled` in the home agent database and starts or stops a
    local instance. A service started from the CLI, MCP bridge, or Docker is

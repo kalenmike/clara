@@ -142,7 +142,7 @@ async function start(args: string[]): Promise<void> {
   if (result.kind === 'already-running') {
     if (result.mode === 'container') {
       console.log(`already running in a container at ${baseURL()}`)
-      console.log('stop it with `pnpm docker:orchestrator:down`')
+      console.log('stop it with `pnpm clara orchestration stop --docker`')
       return
     }
     const pid = readPidState()
@@ -185,15 +185,17 @@ async function stop(args: string[]): Promise<void> {
   }
   if (result.kind === 'container') {
     console.log(`the orchestrator is running in a Docker container at ${baseURL()}`)
-    console.log(
-      'stop it with `pnpm docker:orchestrator:down`, or run `pnpm clara orchestration stop --docker`'
-    )
+    console.log('stop it with `pnpm clara orchestration stop --docker`')
     process.exitCode = 1
     return
   }
   if (result.kind === 'container-down') {
     if (result.result.ok) {
-      console.log('stopped the docker container')
+      console.log(
+        result.detected
+          ? 'stopped the docker container'
+          : 'docker compose down completed (no running container was detected)'
+      )
       return
     }
     if (result.result.error) console.error(`could not run docker: ${result.result.error}`)
@@ -206,7 +208,7 @@ async function stop(args: string[]): Promise<void> {
       `the orchestrator is running at ${baseURL()} but was not started from this data directory`
     )
     console.log(
-      'stop it where it was started, or use `pnpm docker:orchestrator:down` for the compose service'
+      'stop it where it was started, or use `pnpm clara orchestration stop --docker` for the compose service'
     )
     process.exitCode = 1
     return

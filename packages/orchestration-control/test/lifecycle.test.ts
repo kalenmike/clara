@@ -9,6 +9,7 @@ import { pidPath } from '../src/config.ts'
 import {
   collectStatus,
   composeArgs,
+  composeEnv,
   formatStatus,
   readPidState,
   startDockerService,
@@ -117,7 +118,7 @@ describe('orchestrator lifecycle', () => {
       const lines = formatStatus(report)
       expect(lines).toContain('service: running (docker container)')
       expect(lines).toContain('pid: none (managed by the container)')
-      expect(lines).toContain('stop: pnpm docker:orchestrator:down')
+      expect(lines).toContain('stop: pnpm clara orchestration stop --docker')
     } finally {
       await service.close()
     }
@@ -237,9 +238,56 @@ describe('orchestrator lifecycle', () => {
         },
       })
       expect(invocations).toBe(1)
-      expect(result).toEqual({ kind: 'container-down', result: { ok: true, code: 0 } })
+      expect(result).toEqual({
+        kind: 'container-down',
+        detected: true,
+        result: { ok: true, code: 0 },
+      })
     } finally {
       await service.close()
+    }
+  })
+
+  it('runs compose down for an unreachable container when asked', async () => {
+    setEnv('CLARA_ORCHESTRATION_PORT', String(await freePort()))
+    let invocations = 0
+    const result = await stopService({
+      docker: true,
+      composeDown: async () => {
+        invocations += 1
+        return { ok: true, code: 0 }
+      },
+    })
+    expect(invocations).toBe(1)
+    expect(result).toEqual({
+      kind: 'container-down',
+      detected: false,
+      result: { ok: true, code: 0 },
+    })
+  })
+
+  it('prefers a live local process over compose down', async () => {
+    setEnv('CLARA_ORCHESTRATION_PORT', String(await freePort()))
+    const child: ChildProcess = spawn(process.execPath, ['-e', 'setInterval(() => {}, 1000)'], {
+      stdio: 'ignore',
+    })
+    if (child.pid === undefined) throw new Error('child did not start')
+    const exited = new Promise<void>((resolve) => child.once('exit', () => resolve()))
+    let invocations = 0
+    try {
+      writePid(child.pid)
+      const result = await stopService({
+        docker: true,
+        composeDown: async () => {
+          invocations += 1
+          return { ok: true, code: 0 }
+        },
+      })
+      expect(result).toEqual({ kind: 'stopped', pid: child.pid })
+      expect(invocations).toBe(0)
+      await exited
+    } finally {
+      child.kill('SIGKILL')
     }
   })
 
@@ -343,6 +391,31 @@ describe('docker start', () => {
       '--build',
       'orchestrator',
     ])
+  })
+
+  it('fills required compose variables for down only', () => {
+    const down = composeEnv('down', { PATH: '/bin' })
+    expect(down.PATH).toBe('/bin')
+    expect(down.CLARA_ORCHESTRATION_TOKEN).toBeTruthy()
+    expect(down.CLARA_DATA_DIR).toBeTruthy()
+    expect(down.CLARA_WORKSPACE).toBeTruthy()
+    expect(composeEnv('down', { CLARA_DATA_DIR: '' }).CLARA_DATA_DIR).toBeTruthy()
+
+    expect(composeEnv('up', { PATH: '/bin' })).toEqual({ PATH: '/bin' })
+  })
+
+  it('keeps exported compose variables for down', () => {
+    expect(
+      composeEnv('down', {
+        CLARA_ORCHESTRATION_TOKEN: 'token',
+        CLARA_DATA_DIR: '/data',
+        CLARA_WORKSPACE: '/workspace',
+      })
+    ).toEqual({
+      CLARA_ORCHESTRATION_TOKEN: 'token',
+      CLARA_DATA_DIR: '/data',
+      CLARA_WORKSPACE: '/workspace',
+    })
   })
 
   it('starts compose when nothing is running and waits for the container', async () => {
