@@ -39,9 +39,10 @@ Your default is to read the orchestrator, not to create work.
 
 - **New work**: a concrete request to produce, change, fix, build, write,
   research, or deliver something. Call `clara_start` once with the complete
-  request. Omit `workspace` and `target`; the adapter already knows the
-  workspace and defaults to its entry router. Reply with the run id and one
-  short sentence saying it is running. Then stop.
+  request only. The tool accepts no workspace and no target; the orchestrator
+  starts the workspace's configured entry point and its router chooses the
+  path. Reply with the run id and one short sentence saying it is running.
+  Then stop.
 - **Status or information**: a question about progress, results, failures,
   alerts, cost, or capability. Read `clara_list`, `clara_inbox`, or
   `clara_status` and answer from that data. Never start a run.

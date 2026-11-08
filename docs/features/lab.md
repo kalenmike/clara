@@ -62,13 +62,17 @@ writing custom pipelines, not for end users.
    the service reports its own path from `CLARA_ORCHESTRATION_WORKSPACE`
    (default: its working directory) over `GET /v1/config`. Settings keeps the
    host path editable and shows the service path read-only, and the Review debug
-   dock always uses the reported path.
+   dock always uses the reported path. The Lab is also the supported place to
+   choose a pipeline target; model-facing `clara_start` always uses the
+   workspace's configured entry.
 3. **Setup has one home.** Workspace selection, reconnect, adapter registration,
    model status, and preflight results live only in **Settings**. The status bar
    reports failures and setup issues, but healthy state stays quiet. No view
    duplicates the setup controls.
-4. **The lab impersonates the harness.** It is an MCP client with a work token.
-   It does not call a model, create an agent session, or enforce real policy.
+4. **The lab impersonates the harness.** It uses the MCP work-order surface with
+   a work token, and the operator REST endpoints for target selection and
+   preflight. It does not call a model, create an agent session, or enforce real
+   policy.
 5. **The orchestrator token never reaches the browser.** The lab server keeps it
    and every browser request stays on the same loopback origin.
 6. **Auto-pull is the default.** After a response the next ready step is claimed

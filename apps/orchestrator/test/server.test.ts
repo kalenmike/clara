@@ -1,5 +1,6 @@
 import { fileURLToPath } from 'node:url'
 import type { AddressInfo } from 'node:net'
+import { resolve } from 'node:path'
 import { Client } from '@modelcontextprotocol/sdk/client/index.js'
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
@@ -80,6 +81,15 @@ describe('orchestrator HTTP service', () => {
     })
   })
 
+  it('returns the configured catalog when no workspace is given', async () => {
+    const response = await fetch(`${base}/v1/catalog`, { headers: auth() })
+    expect(response.status).toBe(200)
+    const packages = (await response.json()) as Array<{ id: string }>
+    expect(packages.map((pkg) => pkg.id)).toEqual(
+      expect.arrayContaining(['orchestration', 'software'])
+    )
+  })
+
   it('starts and advances a run through the REST API', async () => {
     const started = await fetch(`${base}/v1/runs`, {
       method: 'POST',
@@ -103,6 +113,21 @@ describe('orchestrator HTTP service', () => {
     expect(completed.status).toBe(200)
     const advanced = (await completed.json()) as { ready: Array<{ name: string }> }
     expect(advanced.ready[0].name).toBe('quick_verify')
+  })
+
+  it('starts a run in the configured workspace when none is sent', async () => {
+    const started = await fetch(`${base}/v1/runs`, {
+      method: 'POST',
+      headers: auth({ 'content-type': 'application/json' }),
+      body: JSON.stringify({ prompt: 'patch it', target: 'quick_patch' }),
+    })
+    expect(started.status).toBe(201)
+    const body = (await started.json()) as {
+      run: { workspace: string }
+      work: Array<{ name: string }>
+    }
+    expect(body.run.workspace).toBe(resolve(workspace))
+    expect(body.work[0].name).toBe('patch_code')
   })
 
   it('requires the work token to renew a step lease', async () => {
@@ -279,14 +304,20 @@ describe('orchestrator HTTP service', () => {
     expect(tools.tools.map((tool) => tool.name)).toContain('clara_start')
     expect(tools.tools.map((tool) => tool.name)).toContain('clara_spawn')
     expect(tools.tools.map((tool) => tool.name)).toContain('clara_attempts')
+    const startTool = tools.tools.find((tool) => tool.name === 'clara_start')
+    expect(startTool?.inputSchema.properties).not.toHaveProperty('workspace')
+    expect(startTool?.inputSchema.properties).not.toHaveProperty('target')
+    const catalogTool = tools.tools.find((tool) => tool.name === 'clara_catalog')
+    expect(catalogTool?.inputSchema.properties ?? {}).toEqual({})
     const result = await client.callTool({
       name: 'clara_start',
-      arguments: { workspace, prompt: 'patch it', target: 'quick_patch' },
+      arguments: { prompt: 'patch it' },
     })
     expect(result.isError).toBeFalsy()
     const started = result.structuredContent as {
-      run: { id: number } & Record<string, unknown>
+      run: { id: number; workspace: string } & Record<string, unknown>
     }
+    expect(started.run.workspace).toBe(resolve(workspace))
     expect('snapshot' in started.run).toBe(false)
 
     const listed = await client.callTool({ name: 'clara_list', arguments: {} })

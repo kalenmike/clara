@@ -1,6 +1,7 @@
 import type { ClaraBackend, UsageInput } from '@clara/mcp-server'
 import {
   catalogSummary,
+  OrchestrationErrorWithCode,
   runSummary,
   Runtime,
   stepSummary,
@@ -9,14 +10,27 @@ import {
 
 export class RuntimeBackend implements ClaraBackend {
   readonly runtime: Runtime
+  readonly defaultWorkspace?: string
 
-  constructor(runtime: Runtime) {
+  constructor(runtime: Runtime, defaultWorkspace?: string) {
     this.runtime = runtime
+    this.defaultWorkspace = defaultWorkspace
+  }
+
+  private workspace(value?: string): string {
+    const workspace = value ?? this.defaultWorkspace
+    if (!workspace) {
+      throw new OrchestrationErrorWithCode(
+        'workspace_required',
+        'The orchestrator has no configured workspace.'
+      )
+    }
+    return workspace
   }
 
   async start(input: {
     prompt: string
-    workspace: string
+    workspace?: string
     target?: string
     origin?: {
       session_id?: string | null
@@ -25,7 +39,7 @@ export class RuntimeBackend implements ClaraBackend {
       kind?: 'human' | 'agent' | 'api' | 'worker'
     }
   }) {
-    const result = this.runtime.start(input)
+    const result = this.runtime.start({ ...input, workspace: this.workspace(input.workspace) })
     return { ...result, run: runSummary(result.run) }
   }
 
@@ -175,8 +189,8 @@ export class RuntimeBackend implements ClaraBackend {
     return this.runtime.heartbeat(runID, stepPath, workToken)
   }
 
-  async catalog(workspace: string) {
-    return catalogSummary(this.runtime.catalogFor(workspace))
+  async catalog(workspace?: string) {
+    return catalogSummary(this.runtime.catalogFor(this.workspace(workspace)))
   }
 
   async registerAdapter(input: {

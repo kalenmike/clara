@@ -36,7 +36,7 @@ export class HttpBackend implements ClaraBackend {
 
   async start(input: {
     prompt: string
-    workspace: string
+    workspace?: string
     target?: string
     origin?: {
       session_id?: string | null
@@ -173,8 +173,9 @@ export class HttpBackend implements ClaraBackend {
     )
   }
 
-  async catalog(workspace: string) {
-    return this.request('GET', `/v1/catalog?workspace=${encodeURIComponent(workspace)}`)
+  async catalog(workspace?: string) {
+    const query = workspace ? `?workspace=${encodeURIComponent(workspace)}` : ''
+    return this.request('GET', `/v1/catalog${query}`)
   }
 
   async registerAdapter(input: {
