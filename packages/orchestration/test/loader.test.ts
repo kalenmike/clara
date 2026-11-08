@@ -58,6 +58,14 @@ describe('package loader', () => {
     expect(first?.source).toContain('/tasks/create_spec.md')
   })
 
+  it('treats the root package id as its entry', () => {
+    const catalog = loadCatalog(config)
+    const entry = compileRun(catalog)
+    const named = compileRun(catalog, 'orchestration')
+    expect(named.root).toEqual(entry.root)
+    expect(named.hash).toBe(entry.hash)
+  })
+
   it('resolves provider and model through manifest, pipeline, and step overrides', () => {
     const dir = mkdtempSync(join(tmpdir(), 'clara-models-'))
     try {
