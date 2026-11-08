@@ -144,6 +144,7 @@ export function createClaraServer(backend: ClaraBackend, version = '0.1.0'): Mcp
         count: z.number().int().min(1).max(32),
         prompt: z.string().min(1),
         model: z.string().optional(),
+        provider: z.string().optional(),
         policy: z.unknown().optional(),
         limits: z.unknown().optional(),
       },

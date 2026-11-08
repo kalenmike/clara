@@ -50,6 +50,7 @@ export interface WorkOrder {
   attempt: number
   max_attempts: number
   model?: string
+  provider?: string
   policy?: StepPolicy
   limits?: Limits
   budget: EffectiveBudget
@@ -232,6 +233,7 @@ export class Runtime {
         type: node.kind,
         ...(node.prompt ? { prompt: node.prompt } : {}),
         ...(node.model ? { model: node.model } : {}),
+        ...(node.provider ? { provider: node.provider } : {}),
         ...(node.policy ? { policy: node.policy } : {}),
         ...(node.limits ? { limits: node.limits } : {}),
         ...(node.background ? { background: true } : {}),
@@ -486,6 +488,7 @@ export class Runtime {
       attempt: Number(row.attempt),
       max_attempts: Number(row.max_attempts),
       ...(node.model ? { model: node.model } : {}),
+      ...(node.provider ? { provider: node.provider } : {}),
       ...(policy ? { policy } : {}),
       ...(limits ? { limits } : {}),
       budget,
@@ -664,7 +667,14 @@ export class Runtime {
     runID: number,
     path: string,
     token: string,
-    input: { count: number; prompt: string; model?: string; policy?: StepPolicy; limits?: Limits }
+    input: {
+      count: number
+      prompt: string
+      model?: string
+      provider?: string
+      policy?: StepPolicy
+      limits?: Limits
+    }
   ): { run: RunRow; children: RunRow[] } {
     const { run, row } = this.requireRunningStep(runID, path, token)
     if (input.count < 1 || input.count > 32) {
@@ -681,7 +691,10 @@ export class Runtime {
         title: `${parentNode?.name ?? 'worker'} worker ${index + 1}`,
         prompt: input.prompt,
         enforcement: run.enforcement as CompiledNode['enforcement'],
-        ...(input.model ? { model: input.model } : {}),
+        ...((input.model ?? parentNode?.model) ? { model: input.model ?? parentNode?.model } : {}),
+        ...((input.provider ?? parentNode?.provider)
+          ? { provider: input.provider ?? parentNode?.provider }
+          : {}),
         ...(input.policy ? { policy: input.policy } : {}),
         ...(input.limits ? { limits: input.limits } : {}),
       }

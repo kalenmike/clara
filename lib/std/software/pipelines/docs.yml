@@ -2,6 +2,7 @@ id: docs
 name: Documentation lifecycle
 description: Assess, update, verify, and review documentation
 default_model: 'deepseek-v4.1-flash'
+default_provider: 'opencode-go'
 enforcement: strict
 steps:
   - name: assess_docs
