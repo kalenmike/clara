@@ -13,8 +13,8 @@ import { homedir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { isTerminalState, planDeliveries } from './delivery.ts'
 import type { DeliveryAlert, DeliveryRun } from './delivery.ts'
+import { NAMESPACE, renderWorkPrompt, scopeWorkerTools } from './prompt.ts'
 
-const NAMESPACE = 'clara'
 const CAPABILITIES = ['tool_policy', 'path_policy', 'shell_policy', 'turn_limit', 'token_limit']
 const INTERFACE_AGENT = process.env.CLARA_INTERFACE_AGENT?.trim() || 'clara'
 const DELIVERY_LIMIT = 500
@@ -34,6 +34,9 @@ interface ActiveWork {
   session: string
   workspace: string
   enforcement: string
+  kind: string
+  routes: Array<{ when: string }>
+  managed: boolean
   model?: string
   provider?: string
   turns: number
@@ -163,42 +166,14 @@ function modelRef(work: Any): { providerID: string; id: string } | undefined {
   return { providerID: provider, id: model }
 }
 
-function promptFor(work: Any): string {
-  const identifiers = `run_id: ${work.run_id}
-step_path: ${work.step_path}
-work_token: ${work.work_token}`
-  const model = modelRef(work)
-  const modelLine = model ? `model: ${model.providerID}/${model.id}` : 'model: harness default'
-  const routes = Array.isArray(work.routes)
-    ? work.routes
-        .map((route: Any) => `- \`${route.when}\`${route.criteria ? ` — ${route.criteria}` : ''}`)
-        .join('\n')
-    : ''
-  const instructions = routes
-    ? `This is a router step. Call clara_route exactly once with:
-${identifiers}
-route: one of the keys below
-
-${routes}
-
-Do not call clara_complete, do not search for the tool, and do not edit files or run commands. If the route tool is unavailable, call clara_fail with the same identifiers and a short reason.`
-    : `When you finish, call clara_complete with:
-${identifiers}
-and a concise result.
-
-If you are blocked, call clara_fail with the same identifiers and a short reason. Do not call clara_complete unless the work is actually done.`
-  return `${work.prompt}
-
----
-Clara work order
-${identifiers}
-attempt: ${work.attempt}/${work.max_attempts}
-enforcement: ${work.enforcement}
-${modelLine}
-
-${instructions}
-${work.enforcement === 'observed' ? 'This step is observed: policy violations are recorded but do not block tools.' : ''}
-`
+// Control tools belong to the managed session, so the adapter supplies the
+// lease identifiers instead of asking the model for them.
+function boundWork(active: Map<string, ActiveWork>, context: Any): ActiveWork {
+  const id = sessionID(context)
+  const work = id ? active.get(id) : undefined
+  if (!work) throw new Error('Clara: this tool needs an active managed work order')
+  if (work.closed) throw new Error('Clara policy: the step is no longer running')
+  return work
 }
 
 export default {
@@ -273,7 +248,7 @@ export default {
       }
     }
 
-    const bind = (session: string | undefined, work: Any): void => {
+    const bind = (session: string | undefined, work: Any, managed: boolean): void => {
       if (!session) return
       const runID = Number(work.run_id)
       const stepPath = String(work.step_path)
@@ -295,6 +270,13 @@ export default {
         session,
         workspace: String(work.workspace ?? workspace(ctx)),
         enforcement: String(work.enforcement ?? 'observed'),
+        kind: String(work.kind ?? 'task'),
+        routes: Array.isArray(work.routes)
+          ? work.routes.flatMap((route: Any) =>
+              typeof route?.when === 'string' && route.when ? [{ when: route.when }] : []
+            )
+          : [],
+        managed,
         ...(typeof work.model === 'string' && work.model ? { model: work.model } : {}),
         ...(typeof work.provider === 'string' && work.provider ? { provider: work.provider } : {}),
         turns: 0,
@@ -340,17 +322,17 @@ export default {
         if (model && typeof ctx.session.switchModel === 'function') {
           await ctx.session.switchModel({ sessionID: created.id, model })
         }
-        bind(created.id, work)
+        bind(created.id, work, true)
         await ctx.session.prompt({
           sessionID: created.id,
-          text: promptFor(work),
+          text: renderWorkPrompt(work),
           metadata: { source: 'clara', synthetic: true, clara: { run_id: work.run_id } },
           delivery: 'queue',
         })
         return true
       } catch (error) {
         console.error(`[clara-policy] dispatch failed: ${(error as Error).message}`)
-        if (parentSession) bind(parentSession, work)
+        if (parentSession) bind(parentSession, work, false)
         return false
       }
     }
@@ -521,10 +503,14 @@ export default {
         .hook('context', async (event: Any) => {
           const id = typeof event?.sessionID === 'string' ? event.sessionID : undefined
           if (!id || !active.has(id)) return
+          const work = active.get(id) as ActiveWork
+          // Hide tools the step does not own before the model sees the request.
+          // Only adapter-created sessions are scoped; a fallback binding of the
+          // parent session must keep the human-facing agent's tool set.
+          scopeWorkerTools(event?.tools, work)
           const at = Date.now()
           if (at - (lastTurn.get(id) ?? 0) < 250) return
           lastTurn.set(id, at)
-          const work = active.get(id) as ActiveWork
           work.turns += 1
           turnsFromContext = true
           await persist(work)
@@ -728,30 +714,23 @@ export default {
           {
             type: 'object',
             properties: {
-              run_id: { type: 'number' },
-              step_path: { type: 'string' },
-              work_token: { type: 'string' },
               result: {},
             },
-            required: ['run_id', 'step_path', 'work_token', 'result'],
+            required: ['result'],
             additionalProperties: false,
           },
           async (input: Any, context: Any) => {
             const id = sessionID(context)
-            const work = id ? active.get(id) : undefined
-            const path = `/v1/runs/${input.run_id}/steps/${encodeURIComponent(input.step_path)}/complete`
+            const work = boundWork(active, context)
+            const path = `/v1/runs/${work.run_id}/steps/${encodeURIComponent(work.step_path)}/complete`
             const response = await call<Any>(config, 'POST', path, {
-              work_token: input.work_token,
+              work_token: work.work_token,
               result: input.result,
-              ...(work
-                ? {
-                    usage: {
-                      turns: work.turns,
-                      toolCalls: work.toolCalls,
-                      tokens: work.tokens,
-                    },
-                  }
-                : {}),
+              usage: {
+                turns: work.turns,
+                toolCalls: work.toolCalls,
+                tokens: work.tokens,
+              },
             })
             pruneRun(response.run)
             finish(id)
@@ -767,30 +746,23 @@ export default {
           {
             type: 'object',
             properties: {
-              run_id: { type: 'number' },
-              step_path: { type: 'string' },
-              work_token: { type: 'string' },
               error: { type: 'string' },
             },
-            required: ['run_id', 'step_path', 'work_token', 'error'],
+            required: ['error'],
             additionalProperties: false,
           },
           async (input: Any, context: Any) => {
             const id = sessionID(context)
-            const work = id ? active.get(id) : undefined
-            const path = `/v1/runs/${input.run_id}/steps/${encodeURIComponent(input.step_path)}/fail`
+            const work = boundWork(active, context)
+            const path = `/v1/runs/${work.run_id}/steps/${encodeURIComponent(work.step_path)}/fail`
             const response = await call<Any>(config, 'POST', path, {
-              work_token: input.work_token,
+              work_token: work.work_token,
               error: input.error,
-              ...(work
-                ? {
-                    usage: {
-                      turns: work.turns,
-                      toolCalls: work.toolCalls,
-                      tokens: work.tokens,
-                    },
-                  }
-                : {}),
+              usage: {
+                turns: work.turns,
+                toolCalls: work.toolCalls,
+                tokens: work.tokens,
+              },
             })
             pruneRun(response.run)
             finish(id)
@@ -802,22 +774,23 @@ export default {
       editor.add(
         tool(
           'route',
-          'Choose a route for a router work order.',
+          'Choose one route for a router step. Pass only the route key.',
           {
             type: 'object',
             properties: {
-              run_id: { type: 'number' },
-              step_path: { type: 'string' },
-              work_token: { type: 'string' },
               route: { type: 'string' },
             },
-            required: ['run_id', 'step_path', 'work_token', 'route'],
+            required: ['route'],
             additionalProperties: false,
           },
           async (input: Any, context: Any) => {
             const id = sessionID(context)
-            const path = `/v1/runs/${input.run_id}/steps/${encodeURIComponent(input.step_path)}/route`
-            const response = await call<Any>(config, 'POST', path, input)
+            const work = boundWork(active, context)
+            const path = `/v1/runs/${work.run_id}/steps/${encodeURIComponent(work.step_path)}/route`
+            const response = await call<Any>(config, 'POST', path, {
+              work_token: work.work_token,
+              route: input.route,
+            })
             pruneRun(response.run)
             finish(id)
             return content(response)
@@ -832,25 +805,30 @@ export default {
           {
             type: 'object',
             properties: {
-              run_id: { type: 'number' },
-              step_path: { type: 'string' },
-              work_token: { type: 'string' },
               count: { type: 'number' },
               prompt: { type: 'string' },
               model: { type: 'string' },
               provider: { type: 'string' },
             },
-            required: ['run_id', 'step_path', 'work_token', 'count', 'prompt'],
+            required: ['count', 'prompt'],
             additionalProperties: false,
           },
           async (input: Any, context: Any) => {
             const id = sessionID(context)
-            const parent = id ? active.get(id) : undefined
-            const path = `/v1/runs/${input.run_id}/steps/${encodeURIComponent(input.step_path)}/spawn`
+            const work = boundWork(active, context)
+            const path = `/v1/runs/${work.run_id}/steps/${encodeURIComponent(work.step_path)}/spawn`
             const response = await call<Any>(config, 'POST', path, {
-              ...input,
-              ...(input.model ? {} : parent?.model ? { model: parent.model } : {}),
-              ...(input.provider ? {} : parent?.provider ? { provider: parent.provider } : {}),
+              run_id: work.run_id,
+              step_path: work.step_path,
+              work_token: work.work_token,
+              count: input.count,
+              prompt: input.prompt,
+              ...(input.model ? { model: input.model } : work.model ? { model: work.model } : {}),
+              ...(input.provider
+                ? { provider: input.provider }
+                : work.provider
+                  ? { provider: work.provider }
+                  : {}),
             })
             for (const child of response.children ?? []) activeRuns.add(Number(child.id))
             finish(id)
