@@ -45,10 +45,25 @@ interface ActiveWork {
   tokens: number
   closed: boolean
   watching: boolean
+  corrected?: boolean
+  lastText?: string
   beatTimer?: NodeJS.Timeout
 }
 
 const STEP_HEARTBEAT_MS = 10_000
+const MISSING_CONTROL_PROMPT =
+  'Your answer was not recorded. Call `clara_complete` with the result now, or `clara_fail` with the reason you could not finish. Do not reply with prose only.'
+
+export function planMissingControl(input: {
+  kind: string
+  corrected?: boolean
+  lastText?: string
+}): 'correct' | 'complete' | 'fail' {
+  if (input.kind === 'router') return 'fail'
+  if (!input.corrected) return 'correct'
+  if (input.lastText?.trim()) return 'complete'
+  return 'fail'
+}
 
 // The step lease is a harness signal, not a model one. A slow turn or a long
 // tool call produces no adapter events, so renew on a timer instead of waiting
@@ -287,22 +302,74 @@ export default {
       finish(work.session)
     }
 
-    // A text-only answer is not a completed work order. Wait for the managed
-    // session's agent loop to go idle, then fail the step if no Clara control
-    // tool closed the binding.
+    // A text-only answer is not a completed work order. Give the worker one
+    // corrective turn, then record the final answer so correct work is not
+    // thrown away. Routers still fail: a missing route key cannot be inferred.
+    const completeInferred = async (work: ActiveWork): Promise<void> => {
+      if (work.closed) return
+      const text = work.lastText?.trim()
+      if (!text) {
+        await failMissingControl(work)
+        return
+      }
+      work.closed = true
+      try {
+        const response = await call<Any>(
+          config,
+          'POST',
+          `/v1/runs/${work.run_id}/steps/${encodeURIComponent(work.step_path)}/complete`,
+          {
+            work_token: work.work_token,
+            result: { summary: text, inferred: true },
+            usage: {
+              turns: work.turns,
+              toolCalls: work.toolCalls,
+              tokens: work.tokens,
+            },
+          }
+        )
+        pruneRun(response.run)
+        console.warn(`[clara-policy] completed ${work.step_path} from the final answer`)
+      } catch (error) {
+        console.error(
+          `[clara-policy] failed to complete ${work.step_path}: ${(error as Error).message}`
+        )
+      }
+      finish(work.session)
+    }
+
     const watchControl = (session: string, work: ActiveWork): void => {
       if (!work.managed) return
       const sessions = ctx.session as Any
       if (typeof sessions?.wait !== 'function') return
       void (async () => {
-        try {
-          await sessions.wait({ sessionID: session })
-        } catch {
-          return
+        while (!work.closed) {
+          try {
+            await sessions.wait({ sessionID: session })
+          } catch {
+            return
+          }
+          // Let a control tool that raced the idle event land first.
+          await new Promise<void>((resolve) => {
+            const timer = setTimeout(resolve, 500)
+            timer.unref?.()
+          })
+          if (work.closed) return
+          const plan = planMissingControl(work)
+          if (plan === 'complete') return completeInferred(work)
+          if (plan === 'fail') return failMissingControl(work)
+          work.corrected = true
+          try {
+            await ctx.session.prompt({
+              sessionID: session,
+              text: MISSING_CONTROL_PROMPT,
+              metadata: { source: 'clara', synthetic: true, clara: { run_id: work.run_id } },
+              delivery: 'queue',
+            })
+          } catch {
+            return failMissingControl(work)
+          }
         }
-        if (work.closed) return
-        const timer = setTimeout(() => void failMissingControl(work), 500)
-        timer.unref?.()
       })().catch(() => {})
     }
 
@@ -359,6 +426,7 @@ export default {
         tokens: 0,
         closed: false,
         watching: false,
+        corrected: false,
       }
       active.set(session, entry)
       entry.beatTimer = startStepHeartbeat(
@@ -677,13 +745,26 @@ export default {
         .catch(() => {})
     }
 
-    // Fall back to message events when the session context hook is unavailable.
-    if (!turnsFromContext && typeof ctx.event?.subscribe === 'function') {
+    // Track the latest assistant text for the completion fallback, and count
+    // turns from message events when the context hook is unavailable.
+    if (typeof ctx.event?.subscribe === 'function') {
       try {
         const subscription = ctx.event.subscribe((event: Any) => {
           const type = String(event?.type ?? '')
           if (type !== 'message.updated' && type !== 'message.part.updated') return
-          const info = event?.properties?.info ?? event?.properties?.part
+          const part = event?.properties?.part
+          if (
+            type === 'message.part.updated' &&
+            part?.type === 'text' &&
+            typeof part.text === 'string' &&
+            part.text.trim()
+          ) {
+            const id = String(event?.properties?.sessionID ?? part.sessionID ?? '')
+            const bound = id ? active.get(id) : undefined
+            if (bound) bound.lastText = part.text
+          }
+          if (turnsFromContext) return
+          const info = event?.properties?.info ?? part
           if (!info || info.role !== 'assistant') return
           const messageID = String(info.id ?? '')
           if (messageID && seenMessages.has(messageID)) return
