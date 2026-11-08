@@ -36,6 +36,28 @@ export function formatRelativeTime(timestamp: number | undefined): string {
   return new Date(timestamp).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
 }
 
+/**
+ * How long ago a session started, rounded down to whole units so a session
+ * opened moments ago does not read as a whole minute old.
+ */
+export function formatSessionAge(created: number, now = Date.now()): string {
+  const elapsed = Math.max(0, now - created)
+  if (elapsed < 60_000) return 'started just now'
+  const minutes = Math.floor(elapsed / 60_000)
+  if (minutes < 60) return `started ${countUnit(minutes, 'minute')} ago`
+  const hours = Math.floor(minutes / 60)
+  if (hours < 24) return `started ${countUnit(hours, 'hour')} ago`
+  const days = Math.floor(hours / 24)
+  if (days < 30) return `started ${countUnit(days, 'day')} ago`
+  const months = Math.floor(days / 30)
+  if (months < 12) return `started ${countUnit(months, 'month')} ago`
+  return `started ${countUnit(Math.max(1, Math.floor(days / 365)), 'year')} ago`
+}
+
+function countUnit(value: number, unit: string): string {
+  return `${value} ${unit}${value === 1 ? '' : 's'}`
+}
+
 export function formatDateTime(timestamp: number | undefined): string {
   if (!timestamp) return 'unknown'
   return new Date(timestamp).toLocaleString(undefined, {

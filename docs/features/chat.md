@@ -16,7 +16,11 @@ and the agent that produced the reply. A user message whose metadata says
 the person, even when orchestration is off. A
 header toggle reveals internal output such as thinking, tool calls, and
 commands; internal output is hidden by default, and the usage from hidden steps
-rolls into the next visible reply so token and cost totals are not lost. Actions
+rolls into the next visible reply so token and cost totals are not lost. A thin
+usage bar along the bottom of the pane carries the whole session's input,
+output, reasoning, and cache tokens, its cost, and how long ago the session
+started; it reads server session totals, so lazy history pages cannot leave it
+short. Actions
 Clara triggers on the person's behalf — requesting a plan,
 refreshing it, and starting work — and the person's answers to an agent
 question appear as compact system rows in the thread rather than as if the
@@ -81,19 +85,23 @@ See [fork.md](fork.md).
    agent is working steers the active run, or use the composer's chevron menu to
    send it as queued for the next turn.
 10. When the run finishes the header returns to "idle" and usage settles.
-11. When a Plan run ends with a final reply, Reply and New carry a request
+11. Read the usage bar along the bottom of the pane at any time: whole-session
+    input, output, reasoning, and cache tokens, the cost in the selected display
+    mode, and how long ago the session started. It sits below the thread, while
+    the floating Done and Reply actions and the reply window stay above it.
+12. When a Plan run ends with a final reply, Reply and New carry a request
     badge. Open the composer to see the plan-ready card above the editor. With
     an empty editor, the secondary **Start** button switches to the working
     agent and sends a short synthetic handoff, which appears as a **User
     confirmed. Starting work.** system row. Typing a message disables Start;
     Send sends that message to the Plan agent as an adjustment instead. Click
     the card header to fold it to its title until you are ready to act.
-12. Open a session with a saved draft. The queued user message appears in the
+13. Open a session with a saved draft. The queued user message appears in the
     thread and a Start card appears above it. Click **Start** to send a short
     synthetic approval, deliver the draft, and begin the run; the handoff
     appears as a **User confirmed. Starting saved draft.** system row. Fold the
     card to its title first if you are not ready to act.
-13. Answer an agent question in the composer. Select its card above the editor
+14. Answer an agent question in the composer. Select its card above the editor
     and fill the fields. Send is enabled once the form has an answer or the
     editor has a message. With answers and no message, Send answers the form
     alone. With a message and no answers, Send skips the form and then sends the
@@ -106,22 +114,22 @@ See [fork.md](fork.md).
     the completed `question`
     tool, so it survives reloads without another request. A question card can be
     folded to its title while it waits.
-14. Click a message header to fold it; a folded message shows its header and the
+15. Click a message header to fold it; a folded message shows its header and the
     first line only. The button in the top-right folds or opens every message.
-15. Click the eye button next to it to show or hide internal output. The choice
+16. Click the eye button next to it to show or hide internal output. The choice
     is remembered across sessions and reloads.
-16. To forward one part of a long reply, choose **Select part** on an expanded
+17. To forward one part of a long reply, choose **Select part** on an expanded
     assistant message. Hover a block to preview it, click to select a paragraph,
     list, code fence, table, quote, or heading section, or Shift-click to extend
     the range. The floating bar shows the section path and length; **Expand**
     moves one level out, **Forward selection** opens the new draft with that
     markdown, and Escape cancels.
-17. The header's more menu can **Snooze session** or **Remove from Snoozed**.
+18. The header's more menu can **Snooze session** or **Remove from Snoozed**.
     Snoozing moves the session to the sidebar's Snoozed bucket and replaces Done
     with Reopen. Replying, starting work, saving a draft, or answering the agent
     on a snoozed session clears the snooze first and returns it to its mailbox
     section.
-18. Open a worker from the Workers section. While orchestration is reachable,
+19. Open a worker from the Workers section. While orchestration is reachable,
     the thread streams normally and Stop remains available, but there is no
     composer, Done, Reply, session fork, message fork, compact, snooze, or
     plan-ready handoff. Question forms stay above the thread because there is no
@@ -273,6 +281,13 @@ See [fork.md](fork.md).
     selection creates an empty draft exactly like forwarding a message, but
     carries only the slice and no attachments. Escape cancels selection instead
     of interrupting a run.
+20. A thin usage bar at the bottom of the pane shows the whole session's input,
+    output, reasoning, and cache-read plus cache-write tokens, the cost in the
+    selected display mode, and how long ago the session started. It reads the
+    server's session totals rather than the loaded pages, so long conversations
+    stay complete. The floating Done, Reply, jump, and reply-window controls
+    sit above it, and it scrolls horizontally on narrow screens instead of
+    wrapping.
 
 ## Edge cases
 
@@ -294,6 +309,14 @@ See [fork.md](fork.md).
   automatically when locally saved text exists.
 - **Draft restored** — reopening an empty draft with locally saved text opens
   the composer with that text; after closing, the New button shows a draft dot.
+- **Empty session usage bar** — a session with no messages shows zero tokens,
+  `$0.00`, and "started just now".
+- **Estimated cost in the usage bar** — the bar marks an estimate with `~`,
+  matching the message footers and the session info panel.
+- **Narrow usage bar** — the line scrolls sideways instead of wrapping and owns
+  the bottom safe-area inset while it is the lowest element.
+- **Long-open session** — the "started ... ago" wording refreshes about once a
+  minute while the bar stays open.
 - **Composer open on another session** — the thread stays on the current session
   while the composer title and connection line name the connected session. All
   sends target that session, the return control jumps back, and closing the
@@ -536,6 +559,12 @@ delivery: 'steer' })` for Start. Send with a typed message calls
   rolls those totals into the next visible reply and emits a
   `hidden-activity` row when none follows. The row lives in
   `src/components/chat/hidden-activity-row.tsx`.
+- Session usage bar: `src/components/chat/session-stats-bar.tsx` renders the
+  whole-session line, `src/features/chat/session-usage.ts` formats the token and
+  cost segments, and `formatSessionAge` in `src/lib/format.ts` owns the
+  "started ... ago" wording. Token and cost totals come from
+  `snapshot.tokens ?? session.tokens` and `useSessionCost`, not the loaded
+  pages.
 - Internal-output preference: `clara.internalMessages` in `localStorage`
 - Local composer draft: `clara.draft.<sessionID>` in `localStorage`
 - Related: [capabilities](capabilities.md), [composer](composer.md)
