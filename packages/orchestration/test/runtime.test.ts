@@ -129,6 +129,76 @@ describe('runtime', () => {
     expect(retry.attempt).toBe(2)
   })
 
+  it('keeps one attempt row per claim while steps stays a single projection row', () => {
+    const started = runtime.start({ workspace, prompt: 'patch', target: 'quick_patch' })
+    const work = started.work[0]
+    runtime.fail(started.run.id, work.step_path, work.work_token, 'boom', {
+      turns: 4,
+      tokens: 10,
+    })
+    const first = store.stepAttempts(started.run.id, work.step_path)
+    expect(first).toHaveLength(1)
+    expect(first[0]).toMatchObject({
+      attempt: 1,
+      status: 'retry',
+      error: 'boom',
+      turns: 4,
+      tokens: 10,
+    })
+    expect(first[0].finished_at).toBeTruthy()
+
+    const retry = runtime.next(started.run.id)[0]
+    expect(retry.attempt).toBe(2)
+    const attempts = store.stepAttempts(started.run.id, work.step_path)
+    expect(attempts).toHaveLength(2)
+    expect(attempts[1]).toMatchObject({ attempt: 2, status: 'running', turns: 0, tokens: 0 })
+
+    runtime.complete(
+      started.run.id,
+      retry.step_path,
+      retry.work_token,
+      { ok: true },
+      {
+        turns: 2,
+        tokens: 50,
+      }
+    )
+    const final = store.stepAttempts(started.run.id, work.step_path)
+    expect(final[1]).toMatchObject({ attempt: 2, status: 'done', turns: 2, tokens: 50 })
+    expect(JSON.parse(final[1].result ?? 'null')).toEqual({ ok: true })
+
+    const projection = store.steps(started.run.id).filter((step) => step.path === work.step_path)
+    expect(projection).toHaveLength(1)
+    expect(projection[0].attempt).toBe(2)
+    expect(projection[0].current_attempt_id).toBe(final[1].id)
+  })
+
+  it('links step events to the attempt that produced them', () => {
+    const started = runtime.start({ workspace, prompt: 'patch', target: 'quick_patch' })
+    const work = started.work[0]
+    runtime.fail(started.run.id, work.step_path, work.work_token, 'boom')
+    const retry = runtime.next(started.run.id)[0]
+    runtime.complete(started.run.id, retry.step_path, retry.work_token, 'ok')
+
+    const attempts = store.stepAttempts(started.run.id, work.step_path)
+    const events = store.events(started.run.id)
+    expect(attempts).toHaveLength(2)
+    expect(
+      events.filter((event) => event.type === 'step.started').map((event) => event.attempt_id)
+    ).toEqual(attempts.map((attempt) => attempt.id))
+    expect(events.find((event) => event.type === 'step.retry')?.attempt_id).toBe(attempts[0].id)
+    expect(events.find((event) => event.type === 'step.completed')?.attempt_id).toBe(attempts[1].id)
+  })
+
+  it('exposes attempt history for a run and rejects unknown steps', () => {
+    const started = runtime.start({ workspace, prompt: 'patch', target: 'quick_patch' })
+    const work = started.work[0]
+    expect(runtime.attempts(started.run.id)).toHaveLength(1)
+    expect(runtime.attempts(started.run.id, work.step_path)).toHaveLength(1)
+    expect(store.stepAttempt(started.run.id, work.step_path, 1)?.status).toBe('running')
+    expect(() => runtime.attempts(started.run.id, 'missing')).toThrow(/does not exist/)
+  })
+
   it('runs background steps before the remaining foreground steps', () => {
     const dir = mkdtempSync(join(tmpdir(), 'clara-runtime-'))
     try {
@@ -192,6 +262,20 @@ describe('runtime', () => {
     expect(resumed.run.state).not.toBe('failed')
     const next = runtime.next(started.run.id)[0]
     expect(next.name).toBe('quick_verify')
+  })
+
+  it('closes the parent attempt when a spawned run is cancelled', () => {
+    const started = runtime.start({ workspace, prompt: 'patch', target: 'quick_patch' })
+    const parent = started.work[0]
+    runtime.spawn(started.run.id, parent.step_path, parent.work_token, {
+      count: 1,
+      prompt: 'check one file',
+    })
+    expect(store.stepAttempts(started.run.id, parent.step_path)[0].status).toBe('waiting_children')
+
+    runtime.cancel(started.run.id, 'human')
+    expect(store.step(started.run.id, parent.step_path)?.status).toBe('cancelled')
+    expect(store.stepAttempts(started.run.id, parent.step_path)[0].status).toBe('cancelled')
   })
 
   it('requeues a stalled step on tick and opens an alert', () => {
@@ -306,6 +390,8 @@ describe('runtime', () => {
     }
     expect(store.step(started.run.id, started.work[0].step_path)?.status).toBe('failed')
     expect(runtime.inbox().some((alert) => alert.kind === 'budget')).toBe(true)
+    const attempts = store.stepAttempts(started.run.id, started.work[0].step_path)
+    expect(attempts.map((attempt) => attempt.status)).toEqual(['retry', 'retry', 'failed'])
   })
 
   it('evaluates policy and records violations', () => {

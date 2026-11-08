@@ -52,10 +52,36 @@ export interface StepRow extends Row {
   heartbeat_at: string | null
   started_at: string | null
   finished_at: string | null
+  current_attempt_id: number | null
   turns: number
   tokens: number
   tool_calls: number
   violations: number
+  created_at: string
+  updated_at: string
+}
+
+/**
+ * One row per claim. `steps` keeps the live projection; this table is the
+ * append-only history so retries can be inspected without losing usage,
+ * timings, errors, or results.
+ */
+export interface StepAttemptRow extends Row {
+  id: number
+  run_id: number
+  step_path: string
+  attempt: number
+  status: string
+  turns: number
+  tokens: number
+  tool_calls: number
+  violations: number
+  error: string | null
+  result: string | null
+  model: string | null
+  provider: string | null
+  started_at: string | null
+  finished_at: string | null
   created_at: string
   updated_at: string
 }
@@ -106,6 +132,7 @@ export interface AlertRow extends Row {
 export interface EventRow extends Row {
   id: number
   run_id: number
+  attempt_id: number | null
   type: string
   payload: string
   created_at: string
@@ -163,6 +190,28 @@ export class Store {
       CREATE INDEX IF NOT EXISTS idx_runs_state ON runs (state, id);
       CREATE INDEX IF NOT EXISTS idx_runs_parent ON runs (parent_run_id, id);
 
+      CREATE TABLE IF NOT EXISTS step_attempts (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        run_id INTEGER NOT NULL REFERENCES runs(id) ON DELETE CASCADE,
+        step_path TEXT NOT NULL,
+        attempt INTEGER NOT NULL,
+        status TEXT NOT NULL,
+        turns INTEGER NOT NULL DEFAULT 0,
+        tokens INTEGER NOT NULL DEFAULT 0,
+        tool_calls INTEGER NOT NULL DEFAULT 0,
+        violations INTEGER NOT NULL DEFAULT 0,
+        error TEXT,
+        result TEXT,
+        model TEXT,
+        provider TEXT,
+        started_at TEXT,
+        finished_at TEXT,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL,
+        UNIQUE (run_id, step_path, attempt)
+      );
+      CREATE INDEX IF NOT EXISTS idx_attempts_run ON step_attempts (run_id, id);
+
       CREATE TABLE IF NOT EXISTS steps (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         run_id INTEGER NOT NULL REFERENCES runs(id) ON DELETE CASCADE,
@@ -187,6 +236,7 @@ export class Store {
         heartbeat_at TEXT,
         started_at TEXT,
         finished_at TEXT,
+        current_attempt_id INTEGER REFERENCES step_attempts(id) ON DELETE SET NULL,
         turns INTEGER NOT NULL DEFAULT 0,
         tokens INTEGER NOT NULL DEFAULT 0,
         tool_calls INTEGER NOT NULL DEFAULT 0,
@@ -201,6 +251,7 @@ export class Store {
       CREATE TABLE IF NOT EXISTS events (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         run_id INTEGER NOT NULL REFERENCES runs(id) ON DELETE CASCADE,
+        attempt_id INTEGER REFERENCES step_attempts(id) ON DELETE SET NULL,
         type TEXT NOT NULL,
         payload TEXT NOT NULL,
         created_at TEXT NOT NULL
@@ -233,6 +284,13 @@ export class Store {
       CREATE INDEX IF NOT EXISTS idx_adapters_workspace ON adapters (workspace, heartbeat_at);
     `)
     this.ensureColumn('steps', 'provider', 'TEXT')
+    this.ensureColumn('steps', 'current_attempt_id', 'INTEGER')
+    this.ensureColumn('events', 'attempt_id', 'INTEGER')
+  }
+
+  /** Run a callback in one SQLite transaction (savepoints when nested). */
+  transaction<T>(fn: () => T): T {
+    return this.db.transaction(fn)()
   }
 
   private ensureColumn(table: string, column: string, type: string): void {
@@ -264,6 +322,64 @@ export class Store {
   step(runID: number, path: string): StepRow | undefined {
     return this.db.prepare('SELECT * FROM steps WHERE run_id = ? AND path = ?').get(runID, path) as
       StepRow | undefined
+  }
+
+  stepAttempts(runID: number, path?: string): StepAttemptRow[] {
+    if (path === undefined) {
+      return this.db
+        .prepare('SELECT * FROM step_attempts WHERE run_id = ? ORDER BY id')
+        .all(runID) as StepAttemptRow[]
+    }
+    return this.db
+      .prepare('SELECT * FROM step_attempts WHERE run_id = ? AND step_path = ? ORDER BY attempt')
+      .all(runID, path) as StepAttemptRow[]
+  }
+
+  stepAttempt(runID: number, path: string, attempt: number): StepAttemptRow | undefined {
+    return this.db
+      .prepare('SELECT * FROM step_attempts WHERE run_id = ? AND step_path = ? AND attempt = ?')
+      .get(runID, path, attempt) as StepAttemptRow | undefined
+  }
+
+  insertStepAttempt(input: {
+    run_id: number
+    step_path: string
+    attempt: number
+    status: string
+    model?: string | null
+    provider?: string | null
+    started_at?: string | null
+  }): StepAttemptRow {
+    const at = now()
+    const info = this.db
+      .prepare(
+        `INSERT INTO step_attempts
+          (run_id, step_path, attempt, status, model, provider, started_at, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
+      )
+      .run(
+        input.run_id,
+        input.step_path,
+        input.attempt,
+        input.status,
+        input.model ?? null,
+        input.provider ?? null,
+        input.started_at ?? at,
+        at,
+        at
+      )
+    return this.db
+      .prepare('SELECT * FROM step_attempts WHERE id = ?')
+      .get(info.lastInsertRowid) as StepAttemptRow
+  }
+
+  updateStepAttempt(id: number, fields: Partial<Record<string, unknown>>): void {
+    const entries = Object.entries(fields)
+    if (!entries.length) return
+    const set = entries.map(([key]) => `${key} = ?`).join(', ')
+    this.db
+      .prepare(`UPDATE step_attempts SET ${set}, updated_at = ? WHERE id = ?`)
+      .run(...entries.map(([, value]) => value), now(), id)
   }
 
   childRuns(runID: number, stepPath: string): RunRow[] {
@@ -383,11 +499,18 @@ export class Store {
       .run(...entries.map(([, value]) => value), now(), id)
   }
 
-  event(runID: number, type: string, payload: Record<string, unknown>): EventRow {
+  event(
+    runID: number,
+    type: string,
+    payload: Record<string, unknown>,
+    attemptID?: number | null
+  ): EventRow {
     const at = now()
     const info = this.db
-      .prepare('INSERT INTO events (run_id, type, payload, created_at) VALUES (?, ?, ?, ?)')
-      .run(runID, type, JSON.stringify(payload), at)
+      .prepare(
+        'INSERT INTO events (run_id, attempt_id, type, payload, created_at) VALUES (?, ?, ?, ?, ?)'
+      )
+      .run(runID, attemptID ?? null, type, JSON.stringify(payload), at)
     return this.db
       .prepare('SELECT * FROM events WHERE id = ?')
       .get(info.lastInsertRowid) as EventRow
