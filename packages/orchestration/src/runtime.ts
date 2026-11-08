@@ -98,6 +98,7 @@ interface NodeSync {
 }
 
 const DONE = new Set(['done', 'skipped'])
+const LIVE = new Set(['pending', 'ready', 'running', 'waiting_children'])
 
 function parseJson<T>(value: string | null | undefined, fallback: T): T {
   if (!value) return fallback
@@ -226,12 +227,10 @@ export class Runtime {
     }
   }
 
-  advance(runID: number): AdvanceResult {
+  advance(runID: number, limit = 1): AdvanceResult {
     const run = this.store.run(runID)
     if (!run) throw new OrchestrationErrorWithCode('run_missing', `run ${runID} does not exist`)
-    if (run.state === 'completed' || run.state === 'cancelled' || run.state === 'failed') {
-      return { run, ready: [] }
-    }
+    if (isTerminal(run)) return { run, ready: [] }
     const root = JSON.parse(run.snapshot) as CompiledNode
     const steps = new Map(this.store.steps(runID).map((step) => [step.path, step]))
     const ready: StepRow[] = []
@@ -261,8 +260,11 @@ export class Runtime {
       return updated
     }
 
-    const readyStep = (row: StepRow, node: CompiledNode): NodeSync => {
+    const readyStep = (row: StepRow, node: CompiledNode, schedule: boolean): NodeSync => {
       if (row.status === 'pending') {
+        // Only the first live child in a sequential group is promoted; later
+        // siblings are inspected read-only so a failed branch still fails fast.
+        if (!schedule || ready.length >= limit) return { status: 'waiting' }
         const updated = mark(row, { status: 'ready' })
         this.store.event(
           runID,
@@ -289,7 +291,7 @@ export class Runtime {
       return { status: 'waiting' }
     }
 
-    const sync = (node: CompiledNode, parentPath: string | null): NodeSync => {
+    const sync = (node: CompiledNode, parentPath: string | null, schedule: boolean): NodeSync => {
       const row = ensure(node, parentPath)
 
       if (node.kind === 'task') {
@@ -372,7 +374,7 @@ export class Runtime {
           }
           return { status: 'waiting' }
         }
-        return readyStep(row, node)
+        return readyStep(row, node, schedule)
       }
 
       if (node.kind === 'router') {
@@ -383,7 +385,7 @@ export class Runtime {
           if (!route?.target) {
             return { status: 'failed' }
           }
-          const target = sync(route.target, node.path)
+          const target = sync(route.target, node.path, schedule)
           if (target.status === 'failed') {
             return { status: 'failed' }
           }
@@ -398,7 +400,7 @@ export class Runtime {
         }
         if (row.status === 'failed') return { status: 'failed' }
         if (row.status === 'skipped') return { status: 'done' }
-        return readyStep(row, node)
+        return readyStep(row, node, schedule)
       }
 
       // pipeline / group
@@ -409,56 +411,93 @@ export class Runtime {
         mark(row, { status: 'done', finished_at: now() })
         return { status: 'done' }
       }
-      const background = children.filter((child) => child.background)
-      const foreground = children.filter((child) => !child.background)
-
-      if (background.length) {
-        for (const child of background) {
-          const result = sync(child, node.path)
-          if (result.status === 'failed') {
-            mark(row, { status: 'failed', error: `${child.name} failed`, finished_at: now() })
-            return { status: 'failed' }
-          }
-          if (result.status !== 'done') {
-            mark(row, { status: 'running' })
-            return { status: 'running' }
-          }
+      // Background children are prioritized, then foreground steps run in
+      // declaration order. Inspect every child, even after a live one, so a
+      // failure anywhere in the group is never hidden behind an earlier step.
+      const ordered = [
+        ...children.filter((child) => child.background),
+        ...children.filter((child) => !child.background),
+      ]
+      let blocked = false
+      let failedChild: CompiledNode | undefined
+      for (const child of ordered) {
+        const result = sync(child, node.path, schedule && !blocked)
+        if (result.status === 'failed') {
+          failedChild = child
+          break
         }
+        if (result.status !== 'done') blocked = true
       }
 
-      for (const child of foreground) {
-        const result = sync(child, node.path)
-        if (result.status === 'failed') {
-          mark(row, { status: 'failed', error: `${child.name} failed`, finished_at: now() })
-          return { status: 'failed' }
-        }
-        if (result.status !== 'done') {
-          mark(row, { status: 'running' })
-          return { status: 'running' }
-        }
+      if (failedChild) {
+        mark(row, { status: 'failed', error: `${failedChild.name} failed`, finished_at: now() })
+        return { status: 'failed' }
+      }
+      if (blocked) {
+        mark(row, { status: 'running' })
+        return { status: 'running' }
       }
 
       mark(row, { status: 'done', finished_at: now() })
       return { status: 'done' }
     }
 
-    const result = sync(root, null)
+    const result = sync(root, null, true)
     const latest = this.store.run(runID) as RunRow
-    if (result.status === 'failed' && latest.state !== 'completed') {
-      this.store.updateRun(runID, {
-        state: 'failed',
-        finished_at: now(),
-        error: latest.error ?? 'pipeline failed',
+    if (isTerminal(latest)) return { run: latest, ready: [] }
+    if (result.status === 'failed') {
+      const failedSteps = this.store
+        .steps(runID)
+        .filter((step) => step.status === 'failed' && step.error)
+      // Prefer the leaf failure over the container summary it produced.
+      const failedStep =
+        failedSteps.find((step) => step.type === 'task' || step.type === 'router') ?? failedSteps[0]
+      const error = latest.error ?? failedStep?.error ?? 'pipeline failed'
+      this.store.transaction(() => {
+        this.store.updateRun(runID, { state: 'failed', finished_at: now(), error })
+        this.store.event(runID, 'run.failed', { reason: error })
+        this.settleRun(runID, 'parent_failed')
       })
-      this.store.event(runID, 'run.failed', { reason: latest.error ?? 'pipeline failed' })
-    } else if (result.status === 'done' && latest.state !== 'completed') {
+    } else if (result.status === 'done') {
       this.store.updateRun(runID, { state: 'completed', finished_at: now() })
       this.store.event(runID, 'run.completed', {})
-    } else if (latest.state !== 'completed' && latest.state !== 'cancelled') {
+    } else {
       const state = ready.length ? 'running' : 'waiting'
       if (latest.state !== state) this.store.updateRun(runID, { state })
     }
     return { run: this.store.run(runID) as RunRow, ready }
+  }
+
+  /**
+   * Close every live step when a run ends without completing. The step that
+   * failed keeps its failure; interrupted work becomes cancelled and work that
+   * never started becomes skipped. Clearing the lease here also rejects any
+   * late worker call for the step.
+   */
+  private settleRun(runID: number, childReason: string): void {
+    const at = now()
+    for (const step of this.store.steps(runID)) {
+      if (!LIVE.has(step.status)) continue
+      const cancelled = step.status === 'running' || step.status === 'waiting_children'
+      if (cancelled && step.current_attempt_id !== null) {
+        this.store.updateStepAttempt(Number(step.current_attempt_id), {
+          status: 'cancelled',
+          finished_at: at,
+        })
+      }
+      this.store.updateStep(Number(step.id), {
+        status: cancelled ? 'cancelled' : 'skipped',
+        finished_at: at,
+        lease_id: null,
+        lease_owner: null,
+        lease_expires_at: null,
+      })
+    }
+    for (const child of this.store.db
+      .prepare('SELECT * FROM runs WHERE parent_run_id = ?')
+      .all(runID) as RunRow[]) {
+      if (!isTerminal(child)) this.cancel(Number(child.id), childReason)
+    }
   }
 
   private latestResult(runID: number): string | null {
@@ -470,7 +509,7 @@ export class Runtime {
   }
 
   claim(runID: number, limit = 1, owner = 'dispatcher'): WorkOrder[] {
-    const advanced = this.advance(runID)
+    const advanced = this.advance(runID, limit)
     const run = advanced.run
     const root = JSON.parse(run.snapshot) as CompiledNode
     const orders: WorkOrder[] = []
@@ -585,6 +624,9 @@ export class Runtime {
   ): { run: RunRow; row: StepRow } {
     const run = this.store.run(runID)
     if (!run) throw new OrchestrationErrorWithCode('run_missing', `run ${runID} does not exist`)
+    if (isTerminal(run)) {
+      throw new OrchestrationErrorWithCode('run_terminal', `run ${runID} is ${run.state}`)
+    }
     const row = this.store.step(runID, path)
     if (!row) throw new OrchestrationErrorWithCode('step_missing', `step ${path} does not exist`)
     if (row.lease_id !== token) {
@@ -881,6 +923,14 @@ export class Runtime {
       elapsedSeconds: row.started_at ? ageMs(row.started_at) / 1000 : 0,
       violations: usage?.violations ?? Number(row.violations),
     }
+    if (isTerminal(run)) {
+      return {
+        effect: 'deny',
+        reason: `run is ${run.state}`,
+        remaining: remainingBudget(budget, current),
+        closed: true,
+      }
+    }
     if (token && row.status === 'running' && row.lease_id !== token) {
       return {
         effect: 'deny',
@@ -1025,7 +1075,7 @@ export class Runtime {
     if (!run) throw new OrchestrationErrorWithCode('run_missing', `run ${runID} does not exist`)
     const row = this.store.step(runID, path)
     if (!row) throw new OrchestrationErrorWithCode('step_missing', `step ${path} does not exist`)
-    if (row.status !== 'running') return row
+    if (isTerminal(run) || row.status !== 'running') return row
     if (run.enforcement === 'observed') {
       this.store.event(runID, 'policy.observed', { step: path, reason }, row.current_attempt_id)
       return row
@@ -1087,35 +1137,8 @@ export class Runtime {
     if (run.state !== 'cancelled') {
       this.store.transaction(() => {
         this.store.updateRun(runID, { state: 'cancelled', finished_at: now(), error: reason })
-        for (const step of this.store.steps(runID)) {
-          if (
-            step.status === 'running' ||
-            step.status === 'ready' ||
-            step.status === 'waiting_children'
-          ) {
-            if (step.current_attempt_id !== null) {
-              this.store.updateStepAttempt(Number(step.current_attempt_id), {
-                status: 'cancelled',
-                finished_at: now(),
-              })
-            }
-            this.store.updateStep(Number(step.id), {
-              status: 'cancelled',
-              finished_at: now(),
-              lease_id: null,
-              lease_owner: null,
-              lease_expires_at: null,
-            })
-          }
-        }
         this.store.event(runID, 'run.cancelled', { reason })
-        for (const child of this.store.db
-          .prepare('SELECT * FROM runs WHERE parent_run_id = ?')
-          .all(runID) as RunRow[]) {
-          if (child.state !== 'completed' && child.state !== 'cancelled') {
-            this.cancel(Number(child.id), 'parent_cancelled')
-          }
-        }
+        this.settleRun(runID, 'parent_cancelled')
       })
     }
     return this.store.run(runID) as RunRow
@@ -1124,15 +1147,22 @@ export class Runtime {
   tick(): { alerts: AlertRow[] } {
     const alerts: AlertRow[] = []
     for (const run of this.store.activeRuns()) {
-      this.advance(Number(run.id))
-      for (const step of this.store.steps(Number(run.id))) {
-        if (step.status !== 'running') continue
+      const runID = Number(run.id)
+      this.advance(runID)
+      for (const snapshot of this.store.steps(runID)) {
+        // Re-read the row: failing one step settles every other live step, so
+        // the snapshot taken at loop entry is stale after the first failure.
+        const step = this.store.step(runID, snapshot.path)
+        if (!step || step.status !== 'running') continue
         if (step.type !== 'task' && step.type !== 'router') continue
         const stalled = ageMs(step.heartbeat_at) > this.stalledMs
         const expired = step.lease_expires_at ? ageMs(step.lease_expires_at) >= 0 : false
         if (!stalled && !expired) continue
         const reason = expired ? 'lease expired' : 'heartbeat stalled'
         const attemptID = step.current_attempt_id
+        const body = expired
+          ? 'The worker lease expired.'
+          : 'The worker stopped reporting heartbeats.'
         if (Number(step.attempt) < Number(step.max_attempts)) {
           this.store.transaction(() => {
             if (attemptID !== null) {
@@ -1150,62 +1180,59 @@ export class Runtime {
               lease_expires_at: null,
             })
             const alert = this.store.alert({
-              run_id: Number(run.id),
+              run_id: runID,
               step_path: step.path,
               kind: 'stalled',
               title: `Stalled step: ${step.name}`,
-              body: expired
-                ? 'The worker lease expired.'
-                : 'The worker stopped reporting heartbeats.',
+              body,
             })
             this.store.event(
-              Number(run.id),
+              runID,
               'watchdog.retry',
               { step: step.path, alert: alert.id, reason },
               attemptID
             )
             alerts.push(alert)
           })
-        } else {
-          this.store.transaction(() => {
-            if (attemptID !== null) {
-              this.store.updateStepAttempt(Number(attemptID), {
-                status: 'failed',
-                error: reason,
-                finished_at: now(),
-              })
-            }
-            this.store.updateStep(Number(step.id), {
+          this.advance(runID)
+          continue
+        }
+        this.store.transaction(() => {
+          if (attemptID !== null) {
+            this.store.updateStepAttempt(Number(attemptID), {
               status: 'failed',
               error: reason,
               finished_at: now(),
-              lease_id: null,
-              lease_owner: null,
-              lease_expires_at: null,
             })
-            const alert = this.store.alert({
-              run_id: Number(run.id),
-              step_path: step.path,
-              kind: 'stalled',
-              title: `Step exhausted retries: ${step.name}`,
-              body: expired
-                ? 'The worker lease expired.'
-                : 'The worker stopped reporting heartbeats.',
-            })
-            this.store.updateRun(Number(run.id), {
-              state: 'failed',
-              finished_at: now(),
-              error: alert.body,
-            })
-            this.store.event(
-              Number(run.id),
-              'run.failed',
-              { step: step.path, alert: alert.id },
-              attemptID
-            )
-            alerts.push(alert)
+          }
+          this.store.updateStep(Number(step.id), {
+            status: 'failed',
+            error: reason,
+            finished_at: now(),
+            lease_id: null,
+            lease_owner: null,
+            lease_expires_at: null,
           })
-        }
+          const alert = this.store.alert({
+            run_id: runID,
+            step_path: step.path,
+            kind: 'stalled',
+            title: `Step exhausted retries: ${step.name}`,
+            body,
+          })
+          this.store.event(
+            runID,
+            'step.failed',
+            { step: step.path, attempt: Number(step.attempt), error: reason },
+            attemptID
+          )
+          this.store.event(runID, 'alert.created', { alert: alert.id, kind: 'stalled' }, attemptID)
+          alerts.push(alert)
+        })
+        // The run state is not written here: advance() owns the transition and
+        // settles every other live step in the same pass.
+        this.advance(runID)
+        break
       }
     }
     return { alerts }

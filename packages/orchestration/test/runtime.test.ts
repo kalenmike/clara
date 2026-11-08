@@ -291,6 +291,85 @@ describe('runtime', () => {
     expect(store.step(started.run.id, work.step_path)?.status).toBe('ready')
   })
 
+  it('settles the whole step tree when a stalled step exhausts its retries', () => {
+    adapter()
+    const started = runtime.start({ workspace, prompt: 'build a feature', target: 'std:software' })
+    const router = started.work[0]
+    runtime.route(started.run.id, router.step_path, router.work_token, 'feature')
+
+    let work = runtime.next(started.run.id)[0]
+    runtime.fail(started.run.id, work.step_path, work.work_token, 'boom')
+    work = runtime.next(started.run.id)[0]
+    runtime.fail(started.run.id, work.step_path, work.work_token, 'boom')
+    work = runtime.next(started.run.id)[0]
+
+    const row = store.step(started.run.id, work.step_path)
+    store.updateStep(Number(row?.id), {
+      heartbeat_at: new Date(Date.now() - 600_000).toISOString(),
+      lease_expires_at: new Date(Date.now() + 600_000).toISOString(),
+    })
+
+    runtime.tick()
+
+    const run = store.run(started.run.id)
+    expect(run?.state).toBe('failed')
+    expect(run?.error).toBe('heartbeat stalled')
+    const steps = store.steps(started.run.id)
+    expect(steps.find((step) => step.path === router.step_path)?.status).toBe('done')
+    expect(steps.find((step) => step.path === work.step_path)?.status).toBe('failed')
+    expect(
+      steps.filter((step) =>
+        ['pending', 'ready', 'running', 'waiting_children'].includes(step.status)
+      )
+    ).toHaveLength(0)
+    expect(
+      steps.every((step) => ['skipped', 'cancelled', 'failed', 'done'].includes(step.status))
+    ).toBe(true)
+    expect(
+      store.events(started.run.id).filter((event) => event.type === 'run.failed')
+    ).toHaveLength(1)
+    expect(store.stepAttempts(started.run.id, work.step_path)[2].status).toBe('failed')
+    expect(() => runtime.complete(started.run.id, work.step_path, work.work_token, 'late')).toThrow(
+      /is failed/
+    )
+  })
+
+  it('fails a group when a later child is already failed', () => {
+    const started = runtime.start({ workspace, prompt: 'patch', target: 'quick_patch' })
+    const first = started.work[0]
+    const later = store.steps(started.run.id).find((step) => step.name === 'quick_verify')
+    expect(later).toBeTruthy()
+    if (!later) return
+    store.updateStep(Number(later.id), {
+      status: 'failed',
+      error: 'boom',
+      finished_at: new Date().toISOString(),
+    })
+
+    runtime.advance(started.run.id)
+
+    expect(store.run(started.run.id)?.state).toBe('failed')
+    expect(store.step(started.run.id, first.step_path)?.status).toBe('cancelled')
+    expect(store.step(started.run.id, later.path)?.status).toBe('failed')
+  })
+
+  it('settles interrupted work as cancelled and never-started work as skipped on cancel', () => {
+    adapter()
+    const started = runtime.start({
+      workspace,
+      prompt: 'build a feature',
+      target: 'std:software/feature',
+    })
+    runtime.cancel(started.run.id, 'human')
+
+    const steps = store.steps(started.run.id)
+    expect(steps.find((step) => step.path === started.work[0].step_path)?.status).toBe('cancelled')
+    expect(steps.filter((step) => step.status === 'skipped').length).toBeGreaterThan(0)
+    expect(
+      steps.every((step) => ['skipped', 'cancelled', 'failed', 'done'].includes(step.status))
+    ).toBe(true)
+  })
+
   it('requires all strict adapter capabilities', () => {
     runtime.registerAdapter({
       harness: 'opencode',

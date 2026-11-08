@@ -134,7 +134,9 @@ first.
    `pipelines/*.yml`, `routers/*.md`, and `tasks/*.md`.
 2. **State is event-driven.** A completion, failure, route, or spawn triggers
    the next transition in one transaction. The watchdog only repairs expired
-   leases, silent workers, restart gaps, and deadline breaches.
+   leases, silent workers, restart gaps, and deadline breaches, and it feeds
+   every repair through the same transition instead of writing run state
+   directly.
 3. **Strict enforcement needs an adapter.** `enforcement: strict` fails closed
    unless a live adapter with the required capabilities is registered. MCP alone
    cannot enforce native tool policy.
@@ -175,11 +177,28 @@ not look like a stall.
 The watchdog runs every ten seconds. A task or router step whose heartbeat is
 older than `CLARA_ORCHESTRATION_STALLED_MS` (default five minutes) or whose lease
 expired is requeued while attempts remain, or failed with a `stalled` alert. The
-timeout detects a harness that stopped reporting, not model latency.
+timeout detects a harness that stopped reporting, not model latency. A failure
+is handed back to the normal transition, so the run and every ancestor step
+settle together.
 
 A managed worker that loses its lease is stopped immediately. A fallback binding
 of the parent session only detaches, so a retry never interrupts the human's
 conversation.
+
+## Step and run invariants
+
+A container is `failed` when any child failed, `done` only when every child
+succeeded, and `running` otherwise. Children are inspected even after an earlier
+live sibling, so a failure is never hidden behind declaration order. A router
+row stays `done` once it records its route; the selected branch carries the
+failure.
+
+When a run ends failed or cancelled, every step settles in the same transaction:
+the failing step keeps `failed`, interrupted work becomes `cancelled`, and work
+that never started becomes `skipped`. Leases are cleared, child runs are
+cancelled, and the terminal run state is monotonic. A terminal run therefore
+never exposes a `pending`, `ready`, `running`, or `waiting_children` step, and a
+late worker call is rejected.
 
 ## Attempt history
 
@@ -357,9 +376,13 @@ the orchestrator setup" or directly with `target: std:diagnostics`. See
   corrective turn, then completes from its final text with `inferred: true`; a
   router still fails with `missing control call`.
 - A worker disappears: its lease expires, the watchdog marks it retried or
-  failed, and the alert reaches the origin session.
-- A background child fails: the group fails fast, siblings are cancelled, and
-  the group's retry or escalation policy applies.
+  failed, and the alert reaches the origin session. A failure settles the run
+  and every ancestor step in the same transition.
+- A background child fails: the group fails fast even when an earlier sibling is
+  still live, live steps are cancelled, and the group's retry or escalation
+  policy applies.
+- A worker finishes after its run already failed: the call is rejected with
+  `run_terminal` instead of recording work under a terminal run.
 - A spawned batch succeeds: the parent step records the child results and the
   pipeline continues without a second model turn.
 - The origin session is archived, missing, or no longer uses the Clara agent:
