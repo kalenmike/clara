@@ -134,13 +134,13 @@ first.
    `pipelines/*.yml`, `routers/*.md`, and `tasks/*.md`.
 2. **State is event-driven.** A completion, failure, route, or spawn triggers
    the next transition in one transaction. The watchdog only repairs expired
-   leases, missing heartbeats, restart gaps, and deadline breaches.
+   leases, silent workers, restart gaps, and deadline breaches.
 3. **Strict enforcement needs an adapter.** `enforcement: strict` fails closed
    unless a live adapter with the required capabilities is registered. MCP alone
    cannot enforce native tool policy.
-4. **Leases own work.** Every work order carries a token. Completion, failure,
-   routing, and spawn require the matching lease. A second worker cannot close
-   the same step.
+4. **Leases own work.** Every work order carries a token. Renewal, completion,
+   failure, routing, and spawn require the matching lease. A second worker
+   cannot keep or close the same step.
 5. **One logical conversation.** The root run records its origin session and
    worker sessions stay hidden automation. The OpenCode adapter delivers new
    alerts and finished root runs into the origin session; the inbox and SSE
@@ -158,6 +158,23 @@ first.
    local instance. A service started from the CLI, MCP bridge, or Docker is
    detected but left under its own management. Clients receive the effective
    health state as `orchestration` and use it for the Workers grouping.
+
+## Leases and heartbeats
+
+A claim returns a work token and a lease. While a step runs, the adapter renews
+the lease every ten seconds; Clara Lab does the same for work it holds. Renewal
+requires the current work token, so an abandoned attempt cannot keep a retried
+step alive. The model never heartbeats itself, and a long turn or tool call does
+not look like a stall.
+
+The watchdog runs every ten seconds. A task or router step whose heartbeat is
+older than `CLARA_ORCHESTRATION_STALLED_MS` (default five minutes) or whose lease
+expired is requeued while attempts remain, or failed with a `stalled` alert. The
+timeout detects a harness that stopped reporting, not model latency.
+
+A managed worker that loses its lease is stopped immediately. A fallback binding
+of the parent session only detaches, so a retry never interrupts the human's
+conversation.
 
 ## Router criteria
 
@@ -245,6 +262,13 @@ attempt, or budget. Those are orchestrator state. The adapter binds the run id,
 step path, and work token to the managed session and supplies them to the control
 tools, so a worker only sends the route key, the result, or the failure reason.
 
+The worker is expected to finish through a Clara control tool. If a managed task
+session goes idle without one, the adapter sends a single corrective turn. If it
+still does not call a control tool, the adapter records the final assistant text
+as an inferred completion (`{ summary, inferred: true }`) instead of discarding
+correct work. Routers never infer a decision: a missing route key fails the
+step.
+
 The adapter also scopes the tool list for each model call. A router sees only
 `clara_route` and `clara_fail`; a task keeps its repository tools and sees only
 `clara_complete`, `clara_fail`, and `clara_spawn` from the Clara namespace. The
@@ -287,9 +311,9 @@ docs:    assess_docs → update_docs → verify_docs → docs_review
 - A strict run starts with no adapter: it is refused with
   `enforcement_unavailable`, never downgraded silently.
 - A router selects an unknown route: the step is rejected and the run fails.
-- A worker answers in text without calling a Clara control tool: the adapter
-  fails the step with `missing control call` instead of waiting for the
-  heartbeat watchdog.
+- A worker answers in text without calling a Clara control tool: a task gets one
+  corrective turn, then completes from its final text with `inferred: true`; a
+  router still fails with `missing control call`.
 - A worker disappears: its lease expires, the watchdog marks it retried or
   failed, and the alert reaches the origin session.
 - A background child fails: the group fails fast, siblings are cancelled, and

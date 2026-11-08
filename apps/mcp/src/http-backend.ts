@@ -139,6 +139,7 @@ export class HttpBackend implements ClaraBackend {
     command?: string
     network?: string
     usage?: UsageInput
+    work_token?: string
   }) {
     return this.request(
       'POST',
@@ -147,7 +148,7 @@ export class HttpBackend implements ClaraBackend {
     )
   }
 
-  async usage(input: { run_id: number; step_path: string; usage: UsageInput }) {
+  async usage(input: { run_id: number; step_path: string; work_token: string; usage: UsageInput }) {
     return this.request(
       'POST',
       `/v1/runs/${input.run_id}/steps/${encodeURIComponent(input.step_path)}/usage`,
@@ -155,8 +156,12 @@ export class HttpBackend implements ClaraBackend {
     )
   }
 
-  async heartbeat(runID: number, stepPath: string) {
-    return this.request('POST', `/v1/runs/${runID}/steps/${encodeURIComponent(stepPath)}/heartbeat`)
+  async heartbeat(runID: number, stepPath: string, workToken: string) {
+    return this.request(
+      'POST',
+      `/v1/runs/${runID}/steps/${encodeURIComponent(stepPath)}/heartbeat`,
+      { work_token: workToken }
+    )
   }
 
   async catalog(workspace: string) {
