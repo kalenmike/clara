@@ -98,9 +98,10 @@ export function useGitChanges(
 }
 
 /**
- * Recent commits from the session's own directory. The request travels through
- * the home agent, which applies the admin shell policy before forwarding it to
- * OpenCode. Direct connections have no agent, so the panel hides this view.
+ * Recent commits from the session's own directory. The caller filters them to
+ * the session window. The request travels through the home agent, which applies
+ * the admin shell policy before forwarding it to OpenCode. Direct connections
+ * have no agent, so the panel hides this view.
  */
 export function useGitCommits(directory: string | undefined, enabled: boolean) {
   const { client } = useConnection()
@@ -197,6 +198,19 @@ const RECORD_SEPARATOR = '\x1e'
 const HASH_PATTERN = /^[0-9a-f]{7,40}$/
 const CONVENTIONAL_HEADER = /^([a-z]+)(?:\(([^()]+)\))?(!)?:\s+(.+)$/i
 const CO_AUTHOR_TRAILER = /^co-authored-by:\s*(.*?)\s*<([^<>]+)>\s*$/i
+
+/**
+ * Keep the commits authored after the session started. `startedAt` is the
+ * session's creation time in milliseconds; an unknown timestamp keeps the
+ * whole log so the view can still render.
+ */
+export function commitsSince(commits: GitCommit[], startedAt: number | undefined): GitCommit[] {
+  if (startedAt === undefined) return commits
+  return commits.filter((commit) => {
+    const authoredAt = Date.parse(commit.authoredAt)
+    return Number.isFinite(authoredAt) && authoredAt >= startedAt
+  })
+}
 
 /** Read one `git log` run in the record format above. */
 export function parseGitLog(value: string): GitCommit[] {

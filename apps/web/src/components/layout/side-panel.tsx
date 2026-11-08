@@ -111,7 +111,12 @@ export function SidePanel({
           <SessionInfoPanel session={session} snapshot={snapshot} />
         </TabsContent>
         <TabsContent value="git" className="min-h-0 flex-1 overflow-y-auto p-3">
-          <GitPanel directory={directory} projectID={projectID} canonical={canonical} />
+          <GitPanel
+            directory={directory}
+            projectID={projectID}
+            canonical={canonical}
+            sessionStartedAt={session?.time.created}
+          />
         </TabsContent>
         <TabsContent value="terminal" className="min-h-0 flex-1 overflow-hidden p-0">
           <PairTerminal

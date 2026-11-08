@@ -43,11 +43,14 @@ export function GitPanel({
   directory,
   projectID,
   canonical,
+  sessionStartedAt,
 }: {
   directory: string | undefined
   projectID: string | undefined
   /** The project's canonical directory, used to mark the default worktree. */
   canonical: string | undefined
+  /** The session's creation time, used to scope commit history. */
+  sessionStartedAt: number | undefined
 }) {
   const { config } = useConnection()
   const queryClient = useQueryClient()
@@ -316,7 +319,7 @@ export function GitPanel({
 
         <TabsContent value="commits">
           {hostCommands ? (
-            <GitCommitList directory={directory} />
+            <GitCommitList directory={directory} sessionStartedAt={sessionStartedAt} />
           ) : (
             <GitPanelMessage
               title="Commit history needs the home agent"

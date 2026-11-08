@@ -2,11 +2,11 @@
 
 ## Summary
 
-The Git tab answers "what branch am I on, what has changed, what did I just
-commit, and where are my worktrees?" without leaving the chat. It has three
-views: **Changes** for the working tree and commit ranges, **Commits** for the
-last ten commits with a conventional-commit preview, and **Worktrees** for
-every worktree the project knows about.
+The Git tab answers "what branch am I on, what has changed, what did this
+session commit, and where are my worktrees?" without leaving the chat. It has
+three views: **Changes** for the working tree and commit ranges, **Commits** for
+the commits authored since the session started with a conventional-commit
+preview, and **Worktrees** for every worktree the project knows about.
 
 All three read the repository on the **OpenCode host**, at the selected
 session's own directory. The browser never reads its own filesystem.
@@ -25,9 +25,11 @@ session's own directory. The browser never reads its own filesystem.
      bar, and the per-file rows. Each row shows `A`, `M`, or `D`, the file name,
      its directory, line counts, and a small churn bar.
 5. **Commits**:
-   - Read the last ten commits. Each row shows the short hash and the subject,
-     parsed into a conventional `type(scope): description` when it follows the
-     convention.
+   - Read the commits authored since this session started. Clara reads the
+     directory's last ten commits and keeps those with an author date at or
+     after the session's creation time. Each row shows the short hash and the
+     subject, parsed into a conventional `type(scope): description` when it
+     follows the convention.
    - The type is colored by kind, the scope in its own color, and the
      description in the normal text color. Non-conventional subjects render as
      written.
@@ -57,9 +59,12 @@ session's own directory. The browser never reads its own filesystem.
 4. **Commits** runs exactly one command on the host:
    `git log -n 10 --format=%H%x1f%an%x1f%ae%x1f%aI%x1f%s%x1f%b%x1e`. The field
    and record separators keep multiline bodies intact. Clara never accepts a
-   command from the page or the user; the string is fixed in `use-git.ts`.
-   Conventional headers are split into type, scope, and description for the
-   preview, and `Co-authored-by:` trailers are lifted out of the body.
+   command from the page or the user; the string is fixed in `use-git.ts`. The
+   browser then keeps only commits whose author date is at or after
+   `session.time.created`, so the view reflects this session's work instead of
+   the host's whole HEAD. Conventional headers are split into type, scope, and
+   description for the preview, and `Co-authored-by:` trailers are lifted out of
+   the body.
 5. **Commits only work through the home agent.** The request travels over the
    encrypted session, the agent applies the admin shell policy, and only then is
    it forwarded to OpenCode's shell API. A direct OpenCode connection has no
@@ -92,8 +97,9 @@ session's own directory. The browser never reads its own filesystem.
   history is fetched.
 - **Detached HEAD** — the branch row shows `detached HEAD`, the default badge is
   hidden, and `git log` still works.
-- **No commits yet** — `git log` exits non-zero; the view shows "No commits
-  yet." instead of an error.
+- **No commits in this session** — the view shows "No commits since this
+  session started." even when the directory has older history. A repository with
+  no commits at all lands in the same state instead of an error.
 - **Non-conventional subject** — the row shows the subject unchanged, with no
   type or scope colors.
 - **No commit body** — the expanded row shows the date and author only.
@@ -103,8 +109,9 @@ session's own directory. The browser never reads its own filesystem.
   back to the working tree.
 - **Clean tree or empty range** — the file list is replaced by "No changes in
   this range."
-- **Session switched** — queries are keyed by directory, so the previous
-  session's branch, commits, and current worktree never linger.
+- **Session switched** — queries are keyed by directory and the commit list is
+  filtered by the selected session's creation time, so the previous session's
+  branch, commits, and current worktree never linger.
 - **Session in a worktree** — commits and changes come from the worktree.
   `vcs.base` returns `503 Choose a review base` there, so **Base branch** can
   fail even though the branch name is known.
@@ -161,8 +168,12 @@ hostile client or a compromised origin.
   `vcs.get/base/status/diff/branch` only, so history needs `git log` through the
   shell API. That is why the feature depends on the home agent and a server
   policy.
-- **History is the host's HEAD**, not "commits this session made". Two sessions in
-  the same directory see the same ten commits.
+- **Session scope is time-based.** OpenCode records no commit IDs for a session,
+  so Clara keeps commits whose author date is at or after `session.time.created`.
+  A manual commit made in the same directory during the session is included, an
+  amended commit keeps its original author date, and one of the session's own
+  commits can drop out if more than ten newer commits push it out of the log
+  window.
 - **Each history read spawns a process** on the host and writes a small shell job
   file that Clara removes afterwards. On a slow volume or a very large
   repository, expect a short delay; the request is capped at ten seconds.
@@ -193,8 +204,8 @@ hostile client or a compromised origin.
 - Commit row: `src/components/layout/git-commit-row.tsx`
 - Worktree view: `src/components/layout/git-worktree-list.tsx`
 - Shared messages: `src/components/layout/git-panel-parts.tsx`
-- Hooks and parsers: `src/features/git/use-git.ts` (`parseGitLog`,
-  `parseConventionalHeader`, `splitCommitBody`)
+- Hooks and parsers: `src/features/git/use-git.ts` (`commitsSince`,
+  `parseGitLog`, `parseConventionalHeader`, `splitCommitBody`)
 - Branch and provider: `client.vcs.get({ location: { directory } })`
 - Review base: `client.vcs.base({ location: { directory } })`
 - Working tree: `client.vcs.status({ location: { directory } })`
