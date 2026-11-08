@@ -138,20 +138,7 @@ export function createOrchestratorServer(options: OrchestratorServerOptions): Or
         return
       }
       if (url.pathname === '/v1/runs' && req.method === 'GET') {
-        const runs = await backend.list()
-        if (url.searchParams.get('summary') === '1') {
-          json(
-            res,
-            200,
-            runs.map((run) => {
-              const summary: Record<string, unknown> = { ...run }
-              delete summary.snapshot
-              return summary
-            })
-          )
-          return
-        }
-        json(res, 200, runs)
+        json(res, 200, await backend.list())
         return
       }
       if (url.pathname === '/v1/runs' && req.method === 'POST') {
@@ -192,6 +179,16 @@ export function createOrchestratorServer(options: OrchestratorServerOptions): Or
       }
       if (url.pathname.match(/^\/v1\/runs\/\d+$/) && req.method === 'GET') {
         json(res, 200, await backend.status(runID(url)))
+        return
+      }
+      const snapshotMatch = url.pathname.match(/^\/v1\/runs\/(\d+)\/snapshot$/)
+      if (snapshotMatch && req.method === 'GET') {
+        json(res, 200, await backend.pinned(Number(snapshotMatch[1])))
+        return
+      }
+      const stepDetailMatch = url.pathname.match(/^\/v1\/runs\/(\d+)\/steps\/(.+)$/)
+      if (stepDetailMatch && req.method === 'GET') {
+        json(res, 200, await backend.step(Number(stepDetailMatch[1]), decode(stepDetailMatch[2])))
         return
       }
       if (url.pathname.match(/^\/v1\/runs\/\d+\/next$/) && req.method === 'POST') {

@@ -138,7 +138,9 @@ first.
    remain the read-only fallback.
 6. **Package references are stable.** `std:software` is the package entry;
    `std:software/feature` is a named pipeline. In-flight runs pin the resolved
-   snapshot and hash.
+   snapshot and hash. Run lists, run status, and every MCP run payload omit the
+   pinned tree; the full step prompt, policy, limits, result, and lease are read
+   only from the Lab's dedicated endpoints.
 7. **Orchestration is independent of Clara management.** The old
    `management.enabled` switch gates only the legacy ledger plugin. The
    orchestration service runs whenever it is installed, the config is active,
@@ -347,6 +349,12 @@ docs:    assess_docs → update_docs → verify_docs → docs_review
 - References: `std:software` (package entry), `std:software/feature`,
   `std:software/bug`, and `std:software/docs` (named pipelines), `std:research`
   (research brief), bare names (same package).
+- Run responses: `GET /v1/runs`, `GET /v1/runs/:id`, and all MCP run payloads
+  return summaries without `snapshot`, and status steps omit prompts, policy,
+  limits, and lease tokens while keeping results. `GET /v1/runs/:id/snapshot` returns
+  `{ run_id, hash, snapshot }`; `GET /v1/runs/:id/steps/:path` returns the full
+  step row. Both endpoints are bearer-protected, are not MCP tools, and exist
+  for the Lab.
 - SSE: `GET /v1/events?since=<event-id>` publishes run, step, policy, and alert
   events for bridge notifications and direct harness subscriptions.
 - See [capabilities.md](capabilities.md) for shipped scope.

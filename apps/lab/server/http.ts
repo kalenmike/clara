@@ -192,8 +192,18 @@ export async function startLabServer(options: LabServerOptions): Promise<LabServ
 
       const runMatch = url.pathname.match(/^\/api\/runs\/(\d+)$/)
       if (method === 'GET' && runMatch) {
-        const result = await runtime.callTool('clara_status', { run_id: Number(runMatch[1]) }, 'ui')
+        const result = await runtime.runStatus(Number(runMatch[1]))
         json(response, 200, { ok: !result.isError, isError: result.isError, value: result.value })
+        return
+      }
+
+      const stepMatch = url.pathname.match(/^\/api\/runs\/(\d+)\/steps\/(.+)$/)
+      if (method === 'GET' && stepMatch) {
+        json(
+          response,
+          200,
+          await runtime.stepDetail(Number(stepMatch[1]), decodeURIComponent(stepMatch[2]))
+        )
         return
       }
 
@@ -321,19 +331,17 @@ export async function startLabServer(options: LabServerOptions): Promise<LabServ
         })
         return
       }
-      const status = await context.runtime.callTool('clara_status', { run_id: runID }, 'ui')
-      const run =
-        status.value && typeof status.value === 'object'
-          ? (status.value as { run?: { snapshot?: string; hash?: string } }).run
-          : undefined
-      if (!run?.snapshot) {
-        throw new HttpError(422, 'run_missing', `Run ${runID} has no pinned snapshot`)
-      }
-      const pinned = inspectSnapshot(run.snapshot)
+      const pinned = await context.runtime.pinnedSnapshot(runID).catch((error: unknown) => {
+        throw new HttpError(
+          422,
+          'run_missing',
+          error instanceof Error ? error.message : `Run ${runID} has no pinned snapshot`
+        )
+      })
       json(response, 200, {
         currentHash: preview.compiled.hash,
-        runHash: run.hash,
-        diff: diffCompiled(preview.compiled.root, pinned),
+        runHash: pinned.hash,
+        diff: diffCompiled(preview.compiled.root, inspectSnapshot(pinned.snapshot)),
       })
       return
     }

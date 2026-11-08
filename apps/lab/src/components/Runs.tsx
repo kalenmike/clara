@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
-import { callTool, getRun, getRuns, registerAdapter, setHeartbeat } from '../api'
+import { callTool, getRun, getRuns, getStep, registerAdapter, setHeartbeat } from '../api'
 import type { LabStream } from '../useLab'
-import type { PreflightResult, RunRow, StatusResult, StepRow } from '../types'
+import type { PreflightResult, RunRow, StatusResult, StepRow, StepSummary } from '../types'
 import { dateTime, short, statusTone } from '../lib/format'
 import { friendlyError } from '../lib/errors'
 import { Badge, Field } from './Badge'
@@ -20,31 +20,6 @@ function valueText(value: unknown): string {
 function needsAdapter(value: unknown): boolean {
   const text = valueText(value).toLowerCase()
   return text.includes('enforcement_unavailable') || text.includes('strict enforcement')
-}
-
-interface CompiledLike {
-  kind?: string
-  children?: CompiledLike[]
-  routes?: Array<{ target?: CompiledLike }>
-}
-
-function pipelineTaskCount(snapshot: string): number | undefined {
-  try {
-    const root = JSON.parse(snapshot) as CompiledLike
-    if (root.kind !== 'pipeline') return undefined
-    let count = 0
-    const walk = (node: CompiledLike): void => {
-      if (node.kind === 'task' || node.kind === 'router') count++
-      for (const child of node.children ?? []) walk(child)
-      for (const route of node.routes ?? []) {
-        if (route.target) walk(route.target)
-      }
-    }
-    walk(root)
-    return count
-  } catch {
-    return undefined
-  }
 }
 
 export function Runs({
@@ -78,6 +53,7 @@ export function Runs({
   const [selectedID, setSelectedID] = useState<number | undefined>()
   const [status, setStatus] = useState<StatusResult | null>(null)
   const [selectedStep, setSelectedStep] = useState<string | undefined>()
+  const [stepDetail, setStepDetail] = useState<StepRow | null>(null)
   const [prompt, setPrompt] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
@@ -139,6 +115,27 @@ export function Runs({
     }, 400)
     return () => window.clearTimeout(timer)
   }, [active, stream.eventRevision, selectedID, refreshRuns, refreshStatus])
+
+  useEffect(() => {
+    if (!active || !selectedID || !selectedStep) {
+      setStepDetail(null)
+      return
+    }
+    let cancelled = false
+    getStep(selectedID, selectedStep)
+      .then((value) => {
+        if (!cancelled) setStepDetail(value)
+      })
+      .catch((cause) => {
+        if (!cancelled) {
+          setStepDetail(null)
+          setError(message(cause))
+        }
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [active, selectedID, selectedStep, status])
 
   const start = async (): Promise<void> => {
     if (!prompt.trim()) {
@@ -278,7 +275,6 @@ export function Runs({
   const events = selectedID
     ? stream.events.filter((event) => event.run_id === selectedID)
     : stream.events
-  const step = status?.steps.find((entry) => entry.path === selectedStep)
   const heartbeat = stream.snapshot?.heartbeat ?? true
   const adapters = stream.snapshot?.adapters ?? []
   const taskSteps =
@@ -286,7 +282,7 @@ export function Runs({
   const doneSteps = taskSteps.filter(
     (entry) => entry.status === 'done' || entry.status === 'skipped'
   ).length
-  const totalSteps = status ? pipelineTaskCount(status.run.snapshot) : undefined
+  const totalSteps = status?.taskCount
   const friendly = error ? friendlyError(error, 'start') : null
   const isActiveRun =
     status?.run.state === 'running' ||
@@ -541,9 +537,9 @@ export function Runs({
               <RunTree
                 steps={status.steps}
                 selected={selectedStep}
-                onSelect={(entry: StepRow) => setSelectedStep(entry.path)}
+                onSelect={(entry: StepSummary) => setSelectedStep(entry.path)}
               />
-              <RunStepDetail step={step} />
+              <RunStepDetail step={stepDetail ?? undefined} />
 
               {status.children.length ? (
                 <>

@@ -88,11 +88,57 @@ describe('orchestrator HTTP service', () => {
   })
 
   it('lists run summaries without pinned snapshots', async () => {
-    const response = await fetch(`${base}/v1/runs?summary=1`, { headers: auth() })
-    expect(response.status).toBe(200)
-    const runs = (await response.json()) as Array<Record<string, unknown>>
-    expect(runs.length).toBeGreaterThan(0)
-    expect(runs.every((run) => 'id' in run && !('snapshot' in run))).toBe(true)
+    for (const path of ['/v1/runs', '/v1/runs?summary=1']) {
+      const response = await fetch(`${base}${path}`, { headers: auth() })
+      expect(response.status).toBe(200)
+      const runs = (await response.json()) as Array<Record<string, unknown>>
+      expect(runs.length).toBeGreaterThan(0)
+      expect(runs.every((run) => 'id' in run && !('snapshot' in run))).toBe(true)
+    }
+  })
+
+  it('keeps prompts, lease tokens, and pinned trees out of status summaries', async () => {
+    const list = (await (await fetch(`${base}/v1/runs`, { headers: auth() })).json()) as Array<{
+      id: number
+    }>
+    const runID = list[0].id
+    const status = (await (
+      await fetch(`${base}/v1/runs/${runID}`, { headers: auth() })
+    ).json()) as {
+      run: Record<string, unknown>
+      steps: Array<Record<string, unknown>>
+      children: Array<Record<string, unknown>>
+    }
+    expect('snapshot' in status.run).toBe(false)
+    expect(status.children.every((run) => !('snapshot' in run))).toBe(true)
+    expect(status.steps.length).toBeGreaterThan(0)
+    expect(
+      status.steps.every(
+        (step) =>
+          !('prompt' in step) && !('policy' in step) && !('limits' in step) && !('lease_id' in step)
+      )
+    ).toBe(true)
+
+    const denied = await fetch(`${base}/v1/runs/${runID}/snapshot`)
+    expect(denied.status).toBe(401)
+
+    const pinned = (await (
+      await fetch(`${base}/v1/runs/${runID}/snapshot`, { headers: auth() })
+    ).json()) as { run_id: number; hash: string; snapshot: string }
+    expect(pinned.run_id).toBe(runID)
+    expect(pinned.hash).toBe(String(status.run.hash))
+    expect(JSON.parse(pinned.snapshot)).toMatchObject({ kind: 'pipeline' })
+
+    const taskStep = status.steps.find((step) => step.type === 'task') ?? status.steps[0]
+    const stepPath = String(taskStep.path)
+    const detail = (await (
+      await fetch(`${base}/v1/runs/${runID}/steps/${encodeURIComponent(stepPath)}`, {
+        headers: auth(),
+      })
+    ).json()) as Record<string, unknown>
+    expect(detail.path).toBe(stepPath)
+    expect(typeof detail.prompt).toBe('string')
+    expect('lease_id' in detail).toBe(true)
   })
 
   it('fails closed for strict runs until an adapter is registered', async () => {
@@ -138,6 +184,25 @@ describe('orchestrator HTTP service', () => {
       arguments: { workspace, prompt: 'patch it', target: 'quick_patch' },
     })
     expect(result.isError).toBeFalsy()
+    const started = result.structuredContent as {
+      run: { id: number } & Record<string, unknown>
+    }
+    expect('snapshot' in started.run).toBe(false)
+
+    const listed = await client.callTool({ name: 'clara_list', arguments: {} })
+    const items = (listed.structuredContent as { items: Array<Record<string, unknown>> }).items
+    expect(items.every((run) => !('snapshot' in run))).toBe(true)
+
+    const status = await client.callTool({
+      name: 'clara_status',
+      arguments: { run_id: started.run.id },
+    })
+    const detail = status.structuredContent as {
+      run: Record<string, unknown>
+      steps: Array<Record<string, unknown>>
+    }
+    expect('snapshot' in detail.run).toBe(false)
+    expect(detail.steps.every((step) => !('prompt' in step) && !('lease_id' in step))).toBe(true)
     await client.close()
   })
 })

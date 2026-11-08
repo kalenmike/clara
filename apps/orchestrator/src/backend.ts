@@ -1,5 +1,11 @@
 import type { ClaraBackend, UsageInput } from '@clara/mcp-server'
-import { catalogSummary, Runtime } from '@clara/orchestration'
+import {
+  catalogSummary,
+  runSummary,
+  Runtime,
+  stepSummary,
+  type StepRow,
+} from '@clara/orchestration'
 
 export class RuntimeBackend implements ClaraBackend {
   readonly runtime: Runtime
@@ -19,7 +25,8 @@ export class RuntimeBackend implements ClaraBackend {
       kind?: 'human' | 'agent' | 'api' | 'worker'
     }
   }) {
-    return this.runtime.start(input)
+    const result = this.runtime.start(input)
+    return { ...result, run: runSummary(result.run) }
   }
 
   async next(runID: number, limit?: number) {
@@ -33,13 +40,14 @@ export class RuntimeBackend implements ClaraBackend {
     result: unknown
     usage?: UsageInput
   }) {
-    return this.runtime.complete(
+    const result = this.runtime.complete(
       input.run_id,
       input.step_path,
       input.work_token,
       input.result,
       input.usage
     )
+    return { ...result, run: runSummary(result.run) }
   }
 
   async fail(input: {
@@ -49,17 +57,19 @@ export class RuntimeBackend implements ClaraBackend {
     error: string
     usage?: UsageInput
   }) {
-    return this.runtime.fail(
+    const result = this.runtime.fail(
       input.run_id,
       input.step_path,
       input.work_token,
       input.error,
       input.usage
     )
+    return { ...result, run: runSummary(result.run) }
   }
 
   async route(input: { run_id: number; step_path: string; work_token: string; route: string }) {
-    return this.runtime.route(input.run_id, input.step_path, input.work_token, input.route)
+    const result = this.runtime.route(input.run_id, input.step_path, input.work_token, input.route)
+    return { ...result, run: runSummary(result.run) }
   }
 
   async spawn(input: {
@@ -73,7 +83,7 @@ export class RuntimeBackend implements ClaraBackend {
     policy?: unknown
     limits?: unknown
   }) {
-    return this.runtime.spawn(input.run_id, input.step_path, input.work_token, {
+    const result = this.runtime.spawn(input.run_id, input.step_path, input.work_token, {
       count: input.count,
       prompt: input.prompt,
       ...(input.model ? { model: input.model } : {}),
@@ -81,14 +91,33 @@ export class RuntimeBackend implements ClaraBackend {
       ...(input.policy ? { policy: input.policy as never } : {}),
       ...(input.limits ? { limits: input.limits as never } : {}),
     })
+    return {
+      ...result,
+      run: runSummary(result.run),
+      children: result.children.map(runSummary),
+    }
   }
 
   async status(runID: number) {
-    return this.runtime.status(runID)
+    const result = this.runtime.status(runID)
+    return {
+      ...result,
+      run: runSummary(result.run),
+      steps: result.steps.map(stepSummary),
+      children: result.children.map(runSummary),
+    }
   }
 
   async list() {
-    return this.runtime.list()
+    return this.runtime.list().map(runSummary)
+  }
+
+  async pinned(runID: number) {
+    return this.runtime.pinned(runID)
+  }
+
+  async step(runID: number, path: string): Promise<StepRow> {
+    return this.runtime.stepDetail(runID, path)
   }
 
   async inbox() {
@@ -101,7 +130,7 @@ export class RuntimeBackend implements ClaraBackend {
   }
 
   async cancel(runID: number, reason: string) {
-    return this.runtime.cancel(runID, reason)
+    return runSummary(this.runtime.cancel(runID, reason))
   }
 
   async tick() {

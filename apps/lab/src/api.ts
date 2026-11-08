@@ -6,6 +6,7 @@ import type {
   PreflightResult,
   RunRow,
   StatusResult,
+  StepRow,
   ToolEnvelope,
 } from './types'
 
@@ -100,6 +101,10 @@ export function getRuns(): Promise<ToolEnvelope<RunRow[]>> {
 
 export function getRun(id: number): Promise<ToolEnvelope<StatusResult>> {
   return request<ToolEnvelope<StatusResult>>(`/api/runs/${id}`)
+}
+
+export function getStep(runID: number, stepPath: string): Promise<StepRow> {
+  return request<StepRow>(`/api/runs/${runID}/steps/${encodeURIComponent(stepPath)}`)
 }
 
 export function getInbox(): Promise<ToolEnvelope<AlertRow[]>> {

@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import type { CompiledNode, StepRow } from '../types'
+import type { CompiledNode, StepSummary } from '../types'
 import { ago, modelLabel, statusTone } from '../lib/format'
 import { Badge } from './Badge'
 
@@ -113,9 +113,9 @@ export function RunTree({
   selected,
   onSelect,
 }: {
-  steps: StepRow[]
+  steps: StepSummary[]
   selected?: string
-  onSelect: (step: StepRow) => void
+  onSelect: (step: StepSummary) => void
 }) {
   if (!steps.length) return <div className="empty">No steps yet.</div>
   return (

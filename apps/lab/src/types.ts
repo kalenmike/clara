@@ -125,7 +125,6 @@ export interface RunRow {
   origin_agent: string | null
   origin_kind: string
   pipeline_ref: string
-  snapshot: string
   hash: string
   enforcement: string
   notification: string | null
@@ -167,6 +166,11 @@ export interface StepRow {
   updated_at: string
 }
 
+export type StepSummary = Omit<
+  StepRow,
+  'prompt' | 'policy' | 'limits' | 'lease_id' | 'lease_owner' | 'lease_expires_at'
+>
+
 export interface AlertRow {
   id: number
   run_id: number
@@ -181,9 +185,10 @@ export interface AlertRow {
 
 export interface StatusResult {
   run: RunRow
-  steps: StepRow[]
+  steps: StepSummary[]
   alerts: AlertRow[]
   children: RunRow[]
+  taskCount?: number
 }
 
 export interface ToolEnvelope<T = unknown> {

@@ -184,7 +184,24 @@ describe('lab server', () => {
     expect((next.value as { value: unknown[] }).value).toHaveLength(1)
 
     const status = await get(`/api/runs/${runID}`)
-    expect((status.value as { value: { steps: unknown[] } }).value.steps.length).toBeGreaterThan(1)
+    const statusValue = (
+      status.value as {
+        value: {
+          run: { hash: string }
+          steps: Array<Record<string, unknown>>
+          taskCount?: number
+        }
+      }
+    ).value
+    expect(statusValue.steps.length).toBeGreaterThan(1)
+    expect(statusValue.steps.every((step) => !('prompt' in step))).toBe(true)
+    expect(statusValue.taskCount).toBeGreaterThan(0)
+
+    const taskStep = statusValue.steps.find((step) => step.type === 'task') ?? statusValue.steps[0]
+    const stepPath = String(taskStep.path)
+    const detail = await get(`/api/runs/${runID}/steps/${encodeURIComponent(stepPath)}`)
+    expect((detail.value as { path: string }).path).toBe(stepPath)
+    expect(typeof (detail.value as { prompt: string }).prompt).toBe('string')
   })
 
   it('compares a pinned run with the current files', async () => {

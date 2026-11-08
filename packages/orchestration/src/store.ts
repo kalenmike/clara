@@ -60,6 +60,37 @@ export interface StepRow extends Row {
   updated_at: string
 }
 
+/** A run row safe to return to MCP callers: the pinned tree stays internal. */
+export type RunSummary = Omit<RunRow, 'snapshot'>
+
+/**
+ * A step row safe to return to MCP callers. Prompts, policy, limits, and lease
+ * credentials are available only from the step detail endpoint; results stay
+ * because status answers report what a step produced.
+ */
+export type StepSummary = Omit<
+  StepRow,
+  'prompt' | 'policy' | 'limits' | 'lease_id' | 'lease_owner' | 'lease_expires_at'
+>
+
+export function runSummary(run: RunRow): RunSummary {
+  const { snapshot: _snapshot, ...summary } = run
+  return summary
+}
+
+export function stepSummary(step: StepRow): StepSummary {
+  const {
+    prompt: _prompt,
+    policy: _policy,
+    limits: _limits,
+    lease_id: _leaseId,
+    lease_owner: _leaseOwner,
+    lease_expires_at: _leaseExpiresAt,
+    ...summary
+  } = step
+  return summary
+}
+
 export interface AlertRow extends Row {
   id: number
   run_id: number
