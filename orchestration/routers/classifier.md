@@ -20,8 +20,10 @@ limits:
 
 # Primary router
 
-Select exactly one route key from the list in the work order.
+Choose exactly one route key from the work order.
 
 [ROUTES]
 
-Return only the route key and a one-sentence reason. Do not edit files or run commands.
+Call `clara_route` exactly once with the `run_id`, `step_path`, `work_token`, and `route` from the work order.
+Do not call `clara_complete`. Do not edit files, run commands, or search for the route tool; it is available directly.
+If the route tool is unavailable, call `clara_fail` with the same identifiers and a short reason.
