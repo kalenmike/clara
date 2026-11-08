@@ -6,33 +6,68 @@ Clara orchestration is a local service and MCP bridge that runs package-based
 pipelines without taking over the harness's agent loop. A pipeline is YAML and
 Markdown data under `lib/std` or the workspace; the service owns run state,
 leases, transitions, budgets, and alerts, while a thin harness adapter executes
-work orders and enforces strict policy.
+work orders, enforces strict policy, and carries results back to the
+human-facing Clara agent.
 
 ## User flow
 
 1. Start the service with `pnpm clara orchestration start`, or let the MCP
    bridge start it on first use.
-2. Install the generic MCP entry with `pnpm clara mcp install`, or install the
-   OpenCode strict adapter with `pnpm clara adapter install opencode`.
+2. Install the OpenCode strict adapter with
+   `pnpm clara adapter install opencode`. The adapter installs the `clara`
+   agent and removes the old adapter-generated `/pipeline` command.
 3. Before handing a package to an agent, run `pnpm clara lab` to choose the host
    files, read the workspace the service reports, preview the compiled target,
    inspect each rendered prompt and policy, and compare it with a pinned run.
    The same console can then act as the agent and drive the run by hand. See
    [lab.md](lab.md).
-4. In OpenCode, run `/pipeline <request>`. The installed command tells the
-   agent to call `clara_start` with the full request and the current workspace.
-   Any agent with the Clara tools can also call `clara_start` directly. The
-   OpenCode adapter records its session as the run origin automatically; a
-   generic MCP caller can pass `origin.session_id` explicitly.
+4. In OpenCode, select the **Clara** agent. She is the human-facing interface,
+   not a pipeline worker:
+   - a concrete new-work request calls `clara_start` and replies with the run id;
+   - a status question reads `clara_list`, `clara_inbox`, or `clara_status`;
+   - a greeting, thanks, or general question is answered without a run;
+   - an ambiguous request gets one clarifying question.
+
+   The agent has no read, edit, shell, network, or subagent tools, so it cannot
+   do pipeline work itself.
+
 5. The service compiles and snapshots the pipeline, creates a run, and returns
-   work orders. In conductor mode the adapter dispatches managed workers.
+   work orders. In conductor mode the adapter dispatches the first work order to
+   a managed worker session and records the calling session as the run origin.
 6. Workers report results with `clara_complete`, failures with `clara_fail`,
    router choices with `clara_route`, and dynamic fan-out with `clara_spawn`.
 7. The service advances immediately on completion. It opens alerts for
-   failures, budget exhaustion, stalls, and needs-input events.
-8. The service records the root origin and exposes the run, alerts, and SSE
-   events. Automatic delivery of the final result into the origin session is a
-   known gap; use `clara_status` or `clara_inbox` until it lands.
+   failures, budget exhaustion, and stalls.
+8. The adapter delivers new alerts and finished root runs back into the origin
+   session as queued synthetic prompts. Clara reads the run or alert, tells the
+   human what happened, and waits for a decision. She does not poll.
+9. A generic MCP caller that does not use the adapter is in manual work-order
+   mode: `clara_start` returns a work order, and the caller executes it. The
+   MCP installer keeps a separate `/pipeline` command for that path.
+
+## Clara agent
+
+The adapter installs `~/.config/opencode/agents/clara.md` as a primary agent.
+She is the expected entry point in OpenCode.
+
+Her default is read-first:
+
+- A concrete new-work request creates one run and stops with the run id.
+- A status question reads the orchestrator and answers from it.
+- A greeting, thanks, or general question never creates a run.
+- An ambiguous request gets one clarifying question.
+- An answer to an alert resolves or cancels the alert, not a new run.
+
+The agent has only `clara_start`, `clara_status`, `clara_list`, `clara_inbox`,
+`clara_ack`, `clara_cancel`, and `clara_catalog`. The worker tools and every
+repository tool are denied by permissions, not just by the prompt. The adapter
+also refuses `clara_start` from any other agent, so a build session cannot
+silently become a second interface. If an answer needs repository context, the
+agent treats it as work and asks before starting a run.
+
+The adapter delivers new alerts and finished root runs into the same session as
+queued synthetic prompts. The agent reports the result or decision and waits.
+This is the same pattern as the legacy ledger's attention delivery.
 
 ## Container deployment
 
@@ -85,8 +120,9 @@ only the private Docker network can reach it. The database lives in the
    routing, and spawn require the matching lease. A second worker cannot close
    the same step.
 5. **One logical conversation.** The root run records its origin session and
-   worker sessions stay hidden automation. Results and alerts are available
-   through status, the inbox, and SSE; adapters may deliver them into the origin.
+   worker sessions stay hidden automation. The OpenCode adapter delivers new
+   alerts and finished root runs into the origin session; the inbox and SSE
+   remain the read-only fallback.
 6. **Package references are stable.** `std:software` is the package entry;
    `std:software/feature` is a named pipeline. In-flight runs pin the resolved
    snapshot and hash.
@@ -193,11 +229,13 @@ docs:    assess_docs → update_docs → verify_docs → docs_review
   the group's retry or escalation policy applies.
 - A spawned batch succeeds: the parent step records the child results and the
   pipeline continues without a second model turn.
-- The origin session is archived or missing: the result stays in the inbox and
-  the adapter creates a new user-facing session.
+- The origin session is archived, missing, or no longer uses the Clara agent:
+  the result stays in the inbox and the adapter does not prompt that session.
 - The package tree changes mid-run: the pinned snapshot still applies.
 - The service restarts with ready work: the outbox and step state restore the
   next work order; no watchdog tick is required to advance healthy work.
+- The adapter restarts with active runs: it adopts non-terminal runs for its
+  workspace, so dispatch and delivery resume without a new user request.
 - A worker exceeds its turn/tool/token budget: policy checks deny further
   tools, but the Clara control tools (`clara_route`, `clara_complete`,
   `clara_fail`, `clara_spawn`) stay available so the worker can still finish
@@ -230,8 +268,12 @@ docs:    assess_docs → update_docs → verify_docs → docs_review
 - Token limits depend on harness-reported usage. The OpenCode adapter does not
   report model token usage yet, so token budgets are advisory in that harness;
   turn, tool-call, wall-clock, and attempt limits are exact.
-- The OpenCode adapter records the origin session but does not yet push final
-  results or alerts into it automatically; use `clara_status` or `clara_inbox`.
+- There is no needs-input tool yet. A worker can fail, but it cannot pause and
+  ask the human a question mid-step.
+- Delivery targets the Clara agent (`CLARA_INTERFACE_AGENT`, default `clara`).
+  A run started from another agent leaves its alerts in the inbox.
+- Multiple OpenCode adapters registered for the same workspace would both adopt
+  active runs. Run one adapter per workspace.
 - The generic MCP bridge cannot see the harness session ID. Pass
   `origin.session_id` or use an adapter to bind the root session.
 - The web Settings catalog still reads the legacy JSON pipelines; the package
@@ -258,8 +300,8 @@ docs:    assess_docs → update_docs → verify_docs → docs_review
   external sources, verifies every material claim against independent dated
   sources, and returns a concise linked Markdown report.
 - Primary config: `orchestration/index.yml`.
-- Data: `${CLARA_DATA_DIR:-~/.local/share/clara}/orchestration.db` and
-  `orchestrator.token`.
+- Data: `${CLARA_DATA_DIR:-~/.local/share/clara}/orchestration.db`,
+  `orchestrator.token`, and `policy-delivery.json` (adapter delivery cursor).
 - Workspace: `GET /v1/config` reports the service workspace from
   `CLARA_ORCHESTRATION_WORKSPACE` (default: the service's working directory),
   plus `CLARA_STD_DIR` and `CLARA_ORCHESTRATION_CONFIG` when set.
@@ -268,8 +310,15 @@ docs:    assess_docs → update_docs → verify_docs → docs_review
   `pnpm clara mcp install|uninstall|config|status`,
   `pnpm clara adapter install opencode|uninstall|status`,
   `pnpm clara lab [serve|check]`.
-- OpenCode entry point: `/pipeline <request>` (installed by the MCP and adapter
-  installers at `~/.config/opencode/commands/pipeline.md`).
+- OpenCode entry point: the `clara` agent at
+  `~/.config/opencode/agents/clara.md`, installed by the adapter. The MCP-only
+  path keeps a manual `/pipeline` command at
+  `~/.config/opencode/commands/pipeline.md`.
+- Adapter delivery: non-terminal runs are adopted at startup. New alerts and
+  finished root runs are queued into origins whose agent is
+  `CLARA_INTERFACE_AGENT` (default `clara`). The delivery cursor is
+  `policy-delivery.json`; a missing file is treated as a fresh install, so
+  historical terminal runs are not replayed.
 - MCP tools: `clara_start`, `clara_next`, `clara_complete`, `clara_fail`,
   `clara_route`, `clara_spawn`, `clara_status`, `clara_inbox`, `clara_cancel`,
   `clara_tick`, `clara_check`, `clara_usage`, `clara_heartbeat`,

@@ -8,12 +8,16 @@
 // Install it next to the MCP bridge when a workspace uses `enforcement: strict`.
 // The MCP bridge remains the generic surface for other harnesses.
 
-import { existsSync, readFileSync } from 'node:fs'
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { homedir } from 'node:os'
-import { join } from 'node:path'
+import { join, resolve } from 'node:path'
+import { isTerminalState, planDeliveries } from './delivery.ts'
+import type { DeliveryAlert, DeliveryRun } from './delivery.ts'
 
 const NAMESPACE = 'clara'
 const CAPABILITIES = ['tool_policy', 'path_policy', 'shell_policy', 'turn_limit', 'token_limit']
+const INTERFACE_AGENT = process.env.CLARA_INTERFACE_AGENT?.trim() || 'clara'
+const DELIVERY_LIMIT = 500
 
 type Any = any
 
@@ -56,6 +60,44 @@ function serviceConfig(): ServiceConfig {
     process.env.CLARA_ORCHESTRATION_TOKEN_FILE?.trim() || join(dataDir(), 'orchestrator.token')
   const token = existsSync(path) ? readFileSync(path, 'utf8').trim() : ''
   return { url, token }
+}
+
+interface DeliveryState {
+  alerts: Set<number>
+  runs: Set<number>
+}
+
+function deliveryFile(): string {
+  return join(dataDir(), 'policy-delivery.json')
+}
+
+function readDeliveryState(): DeliveryState {
+  const path = deliveryFile()
+  if (!existsSync(path)) return { alerts: new Set(), runs: new Set() }
+  try {
+    const parsed = JSON.parse(readFileSync(path, 'utf8')) as { alerts?: unknown; runs?: unknown }
+    const ids = (value: unknown): Set<number> =>
+      new Set(Array.isArray(value) ? value.map(Number).filter(Number.isFinite) : [])
+    return { alerts: ids(parsed.alerts), runs: ids(parsed.runs) }
+  } catch {
+    return { alerts: new Set(), runs: new Set() }
+  }
+}
+
+function writeDeliveryState(state: DeliveryState): void {
+  try {
+    mkdirSync(dataDir(), { recursive: true, mode: 0o700 })
+    writeFileSync(
+      deliveryFile(),
+      `${JSON.stringify({
+        alerts: [...state.alerts].slice(-DELIVERY_LIMIT),
+        runs: [...state.runs].slice(-DELIVERY_LIMIT),
+      })}\n`,
+      { mode: 0o600 }
+    )
+  } catch {
+    // Delivery state is best effort. A lost file re-sends one open alert.
+  }
 }
 
 async function call<T = unknown>(
@@ -167,6 +209,8 @@ export default {
     const active = new Map<string, ActiveWork>()
     const seenMessages = new Set<string>()
     const activeRuns = new Set<number>()
+    const hadDeliveryState = existsSync(deliveryFile())
+    const delivery = readDeliveryState()
     let adapterID: string | undefined
     const lastTurn = new Map<string, number>()
 
@@ -323,6 +367,101 @@ export default {
       return dispatched
     }
 
+    // Resume dispatch after an OpenCode or plugin restart. The orchestrator keeps
+    // the run state; the adapter only needs the run ids to keep claiming work.
+    const adoptRuns = async (): Promise<void> => {
+      try {
+        const runs = await call<DeliveryRun[]>(config, 'GET', '/v1/runs?summary=1')
+        const current = resolve(workspace(ctx))
+        let adopted = 0
+        for (const run of runs) {
+          if (!run || run.origin_harness !== 'opencode') continue
+          if (run.workspace && resolve(run.workspace) !== current) continue
+          const runID = Number(run.id)
+          if (!Number.isFinite(runID)) continue
+          if (isTerminalState(String(run.state))) {
+            // A fresh install should not replay every historical result.
+            // Later restarts may still deliver a run that finished while the
+            // plugin was down.
+            if (!hadDeliveryState && run.parent_run_id == null) delivery.runs.add(runID)
+            continue
+          }
+          activeRuns.add(runID)
+          adopted += 1
+        }
+        if (!hadDeliveryState) writeDeliveryState(delivery)
+        if (adopted) console.log(`[clara-policy] adopted ${adopted} active run(s)`)
+      } catch (error) {
+        console.error(`[clara-policy] run adoption failed: ${(error as Error).message}`)
+      }
+    }
+
+    const usableOrigin = async (origin: string): Promise<boolean> => {
+      const sessions = ctx.session as Any
+      if (typeof sessions?.get !== 'function') return true
+      try {
+        const info = await sessions.get({ sessionID: origin })
+        if (!info) return false
+        if (info.time?.archived != null) return false
+        if (info.parentID) return false
+        if (info.metadata?.automation === true) return false
+        const agent = typeof info.agent === 'string' ? info.agent : ''
+        return !INTERFACE_AGENT || !agent || agent === INTERFACE_AGENT
+      } catch {
+        return false
+      }
+    }
+
+    const deliverRuns = async (): Promise<void> => {
+      if (!ctx.session?.prompt) return
+      try {
+        const current = resolve(workspace(ctx))
+        const [runs, alerts] = await Promise.all([
+          call<DeliveryRun[]>(config, 'GET', '/v1/runs?summary=1'),
+          call<DeliveryAlert[]>(config, 'GET', '/v1/inbox'),
+        ])
+        const messages = planDeliveries({
+          runs: runs.filter(
+            (run) =>
+              run.origin_harness === 'opencode' &&
+              (!run.workspace || resolve(run.workspace) === current)
+          ),
+          alerts,
+          deliveredAlerts: delivery.alerts,
+          deliveredRuns: delivery.runs,
+          interfaceAgent: INTERFACE_AGENT,
+        })
+        for (const message of messages) {
+          if (!(await usableOrigin(message.sessionID))) continue
+          try {
+            await ctx.session.prompt({
+              sessionID: message.sessionID,
+              text: message.text,
+              metadata: {
+                source: 'clara',
+                synthetic: true,
+                clara: {
+                  run_id: message.runID,
+                  ...(message.alertIDs.length ? { alerts: message.alertIDs } : {}),
+                  delivery: message.terminal ? 'result' : 'escalation',
+                },
+              },
+              delivery: 'queue',
+            })
+            for (const id of message.alertIDs) delivery.alerts.add(Number(id))
+            if (message.terminal) delivery.runs.add(message.runID)
+            writeDeliveryState(delivery)
+          } catch (error) {
+            console.error(
+              `[clara-policy] delivery to ${message.sessionID} failed: ${(error as Error).message}`
+            )
+          }
+        }
+      } catch {
+        // The service may be restarting.
+      }
+    }
+
     const checkTool = async (work: ActiveWork, name: string, args: Any): Promise<void> => {
       if (work.closed) throw new Error('Clara policy: the step is no longer running')
       const action = name === 'task' ? 'task' : name === 'shell' || name === 'bash' ? 'shell' : name
@@ -367,6 +506,8 @@ export default {
     }
 
     await register()
+    await adoptRuns()
+    void deliverRuns()
     const heartbeat = setInterval(() => {
       if (adapterID)
         void call(config, 'POST', `/v1/adapters/${adapterID}/heartbeat`).catch(() => {})
@@ -502,6 +643,13 @@ export default {
     }, 2_000)
     dispatchTimer.unref?.()
 
+    // Wake the origin session for new alerts and finished root runs. The
+    // orchestrator owns the state; this timer only bridges it back to chat.
+    const deliveryTimer = setInterval(() => {
+      void deliverRuns()
+    }, 3_000)
+    deliveryTimer.unref?.()
+
     await ctx.tool.transform((editor: Any) => {
       editor.namespace({
         name: NAMESPACE,
@@ -512,7 +660,7 @@ export default {
       editor.add(
         tool(
           'start',
-          'Start a Clara pipeline and dispatch its first work order.',
+          'Start a new Clara run for a concrete work request. Do not call for status, questions, or an existing run.',
           {
             type: 'object',
             properties: {
@@ -524,6 +672,10 @@ export default {
             additionalProperties: false,
           },
           async (input: Any, context: Any) => {
+            const agent = typeof context?.agent === 'string' ? context.agent : ''
+            if (INTERFACE_AGENT && agent && agent !== INTERFACE_AGENT) {
+              throw new Error(`Clara: start runs from the ${INTERFACE_AGENT} agent, not ${agent}.`)
+            }
             const started = await call<Any>(config, 'POST', '/v1/runs', {
               prompt: input.prompt,
               workspace: input.workspace ?? workspace(context),
@@ -531,7 +683,7 @@ export default {
               origin: {
                 session_id: sessionID(context) ?? null,
                 harness: 'opencode',
-                agent: typeof context?.agent === 'string' ? context.agent : null,
+                agent: agent || null,
                 kind: 'human',
               },
             })
@@ -540,7 +692,7 @@ export default {
             return content({
               run: started.run,
               dispatched,
-              note: 'The pipeline is dispatched. Use clara_status to follow it; managed workers will report results.',
+              note: 'The pipeline is dispatched. Reply to the human with the run id and stop; managed workers will report results. Do not poll unless the human asks.',
             })
           }
         )
@@ -710,7 +862,7 @@ export default {
       editor.add(
         tool(
           'status',
-          'Read a run and its work tree.',
+          'Read a run and its work tree. Use for status questions; never to start work.',
           {
             type: 'object',
             properties: { run_id: { type: 'number' } },
@@ -728,20 +880,23 @@ export default {
       editor.add(
         tool(
           'list',
-          'List recent orchestration runs.',
+          'List recent root orchestration runs. Use for status questions.',
           {
             type: 'object',
             properties: {},
             additionalProperties: false,
           },
-          async () => content(await call(config, 'GET', '/v1/runs'))
+          async () => {
+            const runs = await call<Any[]>(config, 'GET', '/v1/runs?summary=1')
+            return content(runs.filter((run) => run?.parent_run_id == null))
+          }
         )
       )
 
       editor.add(
         tool(
           'inbox',
-          'List open orchestration alerts.',
+          'List open orchestration alerts. Use to answer what needs attention.',
           {
             type: 'object',
             properties: {},
@@ -754,7 +909,7 @@ export default {
       editor.add(
         tool(
           'ack',
-          'Resolve an open alert.',
+          'Resolve an open alert after the human acknowledges it. It does not retry the run.',
           {
             type: 'object',
             properties: { alert_id: { type: 'number' } },
@@ -769,7 +924,7 @@ export default {
       editor.add(
         tool(
           'cancel',
-          'Cancel a run and its child runs.',
+          'Cancel a run and its child runs. Use only on an explicit human request.',
           {
             type: 'object',
             properties: { run_id: { type: 'number' }, reason: { type: 'string' } },
@@ -788,6 +943,10 @@ export default {
               lastTurn.delete(id)
             }
             activeRuns.delete(Number(input.run_id))
+            // The human already got the cancellation response. Do not queue a
+            // second terminal message for the same run.
+            delivery.runs.add(Number(input.run_id))
+            writeDeliveryState(delivery)
             return content(response)
           }
         )
@@ -839,7 +998,7 @@ export default {
       editor.add(
         tool(
           'catalog',
-          'Read the resolved package catalog for a workspace.',
+          'Read the resolved package catalog. Use to answer what Clara can run.',
           {
             type: 'object',
             properties: { workspace: { type: 'string' } },
@@ -862,6 +1021,7 @@ export default {
     return () => {
       clearInterval(heartbeat)
       clearInterval(dispatchTimer)
+      clearInterval(deliveryTimer)
       if (adapterID) void call(config, 'DELETE', `/v1/adapters/${adapterID}`).catch(() => {})
     }
   },

@@ -1,11 +1,13 @@
-// Install the OpenCode /pipeline command that turns a chat message into a
-// Clara orchestration entry point. The command is a prompt template, not a
-// tool call by itself; it tells the agent to call clara_start with the full
-// argument string.
+// Install the OpenCode /pipeline command for the generic MCP bridge.
+//
+// This is the manual work-order path. When the Clara adapter is installed, the
+// human-facing entry point is the Clara agent and this command is not used.
 
-import { existsSync, mkdirSync, unlinkSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, readFileSync, unlinkSync, writeFileSync } from 'node:fs'
 import { homedir } from 'node:os'
 import { join } from 'node:path'
+
+export const MCP_COMMAND_MARKER = '<!-- clara:mcp-work-order -->'
 
 export function commandsDir() {
   const configHome = process.env.XDG_CONFIG_HOME?.trim() || join(homedir(), '.config')
@@ -18,25 +20,46 @@ export function commandPath() {
 
 export function commandBody() {
   return `---
-description: Start a Clara orchestration pipeline for this request
+description: Run a Clara orchestration work order (manual MCP mode)
 ---
 
-Start a Clara orchestration pipeline for the following request.
+${MCP_COMMAND_MARKER}
+
+This command is for the generic MCP bridge. When the Clara adapter is
+installed, select the **Clara** agent instead; it submits the request and
+handles escalations.
+
+Submit the request below to Clara orchestration.
 
 Request:
 $ARGUMENTS
 
-Call the Clara start tool (for example \`clara_start\` through MCP, or
-\`tools.clara.start\` in Code Mode) with:
+Call \`clara_start\` with:
 - \`prompt\`: the complete request above.
-- \`workspace\`: the absolute path of the current project. Run \`pwd\` if you do not already know it.
+- \`workspace\`: the absolute project root. Run \`pwd\` if needed.
 - no \`target\` unless I explicitly name a package or pipeline.
 
-Follow the returned instructions. In conductor mode the adapter dispatches a
-managed worker and returns a dispatch receipt; in work-order mode it returns a
-work order you must execute. Do not just describe the pipeline.
-If the Clara start tool is unavailable, say that the Clara adapter or MCP entry is not installed.
+The result contains a work order. Read it and do the work with your own tools.
+Close the step with \`clara_complete\`, \`clara_route\`, or \`clara_fail\` using the
+returned identifiers. Do not just describe the pipeline.
+
+If \`clara_start\` is unavailable, say that the Clara MCP entry is not installed.
 `
+}
+
+const GENERATED_DESCRIPTIONS = [
+  'Start a Clara orchestration pipeline for this request',
+  'Start a Clara orchestration pipeline for the following request.',
+]
+
+const GENERATED_CALLS = ['Call the `clara_start` tool', 'Call the Clara start tool']
+
+export function isGeneratedCommand(body) {
+  if (body.includes(MCP_COMMAND_MARKER)) return true
+  return (
+    GENERATED_DESCRIPTIONS.some((line) => body.includes(line)) &&
+    GENERATED_CALLS.some((line) => body.includes(line))
+  )
 }
 
 export function installCommand({ force = false } = {}) {
@@ -44,18 +67,29 @@ export function installCommand({ force = false } = {}) {
   const body = commandBody()
   mkdirSync(commandsDir(), { recursive: true, mode: 0o700 })
   if (existsSync(path) && !force) {
-    // Do not overwrite a user-authored command with the same name.
-    return { path, written: false }
+    const existing = readFileSync(path, 'utf8')
+    // Update an old generated command, but keep a user-authored one.
+    if (!isGeneratedCommand(existing)) return { path, written: false, kept: true }
   }
   writeFileSync(path, body, { mode: 0o600 })
-  return { path, written: true }
+  return { path, written: true, kept: false }
 }
 
 export function removeCommand() {
   const path = commandPath()
-  if (!existsSync(path)) return { path, removed: false }
+  if (!existsSync(path)) return { path, removed: false, kept: false }
   unlinkSync(path)
-  return { path, removed: true }
+  return { path, removed: true, kept: false }
+}
+
+export function removeGeneratedCommand() {
+  const path = commandPath()
+  if (!existsSync(path)) return { path, removed: false, kept: false }
+  const body = readFileSync(path, 'utf8')
+  if (body.includes(MCP_COMMAND_MARKER)) return { path, removed: false, kept: true }
+  if (!isGeneratedCommand(body)) return { path, removed: false, kept: true }
+  unlinkSync(path)
+  return { path, removed: true, kept: false }
 }
 
 export function commandExists() {

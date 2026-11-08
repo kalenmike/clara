@@ -33,9 +33,12 @@ const text = (value: unknown) => {
   }
 }
 
-export const SERVER_INSTRUCTIONS = `You are connected to Clara's orchestration service.
+export const SERVER_INSTRUCTIONS = `You are connected to Clara's orchestration service through MCP.
 
-To run a pipeline:
+MCP is the generic work-order surface. Calling clara_start does not dispatch a
+background worker: it returns a work order that you must execute yourself.
+
+To run a pipeline manually:
 1. Call clara_start with the user's prompt and the workspace path.
 2. Read the returned work order. Do the work with your own tools.
 3. Call clara_complete with the run_id, step_path, work_token, and result.
@@ -43,9 +46,13 @@ To run a pipeline:
 5. If you are blocked, call clara_fail.
 6. If the step needs dynamic workers, call clara_spawn.
 
-In conductor mode the adapter may dispatch a managed worker and return a
-dispatch receipt instead of a work order; follow the receipt with clara_status
-instead of treating it as a work order.
+Do not call clara_start for status questions. Use clara_status, clara_list, or
+clara_inbox instead.
+
+The OpenCode adapter is conductor mode. When it is installed, the Clara agent
+starts runs, background workers execute them, and the adapter delivers
+escalations and results back into the origin session. MCP callers do not see
+that dispatch receipt.
 
 Never invent the next step; always use the response. The service owns state, leases, retries, budgets, and alerts.`
 

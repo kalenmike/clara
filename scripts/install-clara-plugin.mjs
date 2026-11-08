@@ -87,6 +87,13 @@ function installAgents() {
     fail(`${agentsFile} must contain an "agents" object`)
   }
 
+  // The orchestration adapter installs the human-facing Clara agent. Do not
+  // overwrite it with the legacy ledger interface when both are present.
+  if (existsSync(join(opencodeDir, 'plugins', 'clara-policy')) && definitions.agents.clara) {
+    delete definitions.agents.clara
+    console.log('skip agent clara: the Clara orchestration adapter owns it')
+  }
+
   const manifest = readManifest()
   const next = { ...manifest.agents }
   const conflicts = []
