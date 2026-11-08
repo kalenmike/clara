@@ -1,5 +1,12 @@
 import { describe, expect, it } from 'vitest'
-import { parseConventionalHeader, parseGitLog, resolveWorktrees, splitCommitBody } from './use-git'
+import {
+  commitsSince,
+  parseConventionalHeader,
+  parseGitLog,
+  resolveWorktrees,
+  splitCommitBody,
+  type GitCommit,
+} from './use-git'
 
 const FIELD = '\x1f'
 const RECORD = '\x1e'
@@ -75,6 +82,43 @@ describe('parseGitLog', () => {
     expect(parseGitLog('')).toEqual([])
     expect(parseGitLog('fatal: not a git repository')).toEqual([])
     expect(parseGitLog('not-a-hash value')).toEqual([])
+  })
+})
+
+describe('commitsSince', () => {
+  function commit(hash: string, authoredAt: string): GitCommit {
+    return {
+      hash,
+      authorName: 'Ada Lovelace',
+      authorEmail: 'ada@example.com',
+      authoredAt,
+      subject: 'feat(web): add commits',
+      body: '',
+    }
+  }
+
+  it('keeps commits at or after the session start', () => {
+    const startedAt = Date.parse('2026-11-08T10:00:00Z')
+    const commits = [
+      commit('aaa1111', '2026-11-08T10:05:00Z'),
+      commit('bbb2222', '2026-11-08T11:00:00+01:00'),
+      commit('ccc3333', '2026-11-08T09:59:59Z'),
+    ]
+
+    expect(commitsSince(commits, startedAt).map((item) => item.hash)).toEqual([
+      'aaa1111',
+      'bbb2222',
+    ])
+  })
+
+  it('keeps the whole log when the session start is unknown', () => {
+    const commits = [commit('aaa1111', '2026-11-08T10:05:00Z')]
+    expect(commitsSince(commits, undefined)).toBe(commits)
+  })
+
+  it('drops commits with an unreadable author date', () => {
+    const commits = [commit('aaa1111', 'not-a-date')]
+    expect(commitsSince(commits, Date.parse('2026-11-08T10:00:00Z'))).toEqual([])
   })
 })
 
