@@ -134,6 +134,12 @@ export class Runtime {
   private catalogCache = new Map<string, { at: number; catalog: LoadedCatalog }>()
   /** Attempt ids that already emitted a budget event, so a denied tool storm logs once. */
   private budgetNotified = new Set<number>()
+  /**
+   * Completed attempts remember their work token for a short window. A worker
+   * can report the final model turn after it recorded its result because the
+   * harness closes the step before the turn's usage event arrives.
+   */
+  private completedUsage = new Map<number, { token: string; expires: number }>()
 
   constructor(options: RuntimeOptions) {
     this.store = options.store
@@ -701,6 +707,7 @@ export class Runtime {
         attemptID
       )
     })
+    this.rememberCompletedUsage(attemptID, token)
     return this.advance(runID)
   }
 
@@ -742,6 +749,7 @@ export class Runtime {
         })
         this.store.event(runID, 'step.retry', { step: path, attempt, error }, attemptID)
       })
+      this.rememberCompletedUsage(attemptID, token)
       const advanced = this.advance(runID)
       return { run: advanced.run, retry: true, ready: advanced.ready }
     }
@@ -773,6 +781,7 @@ export class Runtime {
       })
       this.store.event(runID, 'alert.created', { alert: alert.id, kind: 'failure' }, attemptID)
     })
+    this.rememberCompletedUsage(attemptID, token)
     const advanced = this.advance(runID)
     return { run: advanced.run, retry: false, ready: advanced.ready }
   }
@@ -811,6 +820,7 @@ export class Runtime {
       })
       this.store.event(runID, 'step.routed', { step: path, route }, attemptID)
     })
+    this.rememberCompletedUsage(attemptID, token)
     return this.advance(runID)
   }
 
@@ -1083,7 +1093,55 @@ export class Runtime {
     return this.recordViolation(run, row, reason)
   }
 
+  private rememberCompletedUsage(attemptID: number | null, token: string): void {
+    if (attemptID === null) return
+    const at = Date.now()
+    for (const [id, entry] of this.completedUsage) {
+      if (entry.expires < at) this.completedUsage.delete(id)
+    }
+    this.completedUsage.set(attemptID, { token, expires: at + 5 * 60_000 })
+  }
+
+  private lateUsage(runID: number, row: StepRow, token: string, usage: Partial<Usage>): StepRow {
+    const attemptID = row.current_attempt_id
+    const remembered = attemptID === null ? undefined : this.completedUsage.get(attemptID)
+    if (!remembered || remembered.token !== token || remembered.expires < Date.now()) {
+      throw new OrchestrationErrorWithCode(
+        'step_not_running',
+        `step ${row.path} is ${row.status} and no longer accepts usage`
+      )
+    }
+    const fields = {
+      ...(usage.turns !== undefined ? { turns: Math.max(Number(row.turns), usage.turns) } : {}),
+      ...(usage.tokens !== undefined ? { tokens: Math.max(Number(row.tokens), usage.tokens) } : {}),
+      ...(usage.toolCalls !== undefined
+        ? { tool_calls: Math.max(Number(row.tool_calls), usage.toolCalls) }
+        : {}),
+      ...(usage.violations !== undefined
+        ? { violations: Math.max(Number(row.violations), usage.violations) }
+        : {}),
+    }
+    if (!Object.keys(fields).length) return row
+    this.store.transaction(() => {
+      this.store.updateStep(Number(row.id), fields)
+      if (attemptID !== null) {
+        this.store.updateStepAttempt(Number(attemptID), fields)
+      }
+    })
+    return this.store.step(runID, row.path) as StepRow
+  }
+
   usage(runID: number, path: string, token: string, usage: Partial<Usage>): StepRow {
+    const run = this.store.run(runID)
+    if (!run) throw new OrchestrationErrorWithCode('run_missing', `run ${runID} does not exist`)
+    const known = this.store.step(runID, path)
+    if (!known) {
+      throw new OrchestrationErrorWithCode('step_missing', `step ${path} does not exist`)
+    }
+    // A harness reports the last model turn after it records the result. Keep
+    // accepting a higher total from the attempt that just owned the step, but
+    // never let a stale attempt overwrite a live one.
+    if (known.status !== 'running') return this.lateUsage(runID, known, token, usage)
     const { row } = this.requireRunningStep(runID, path, token)
     const attemptID = row.current_attempt_id
     const fields = {

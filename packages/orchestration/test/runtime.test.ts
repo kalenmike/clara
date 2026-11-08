@@ -389,6 +389,42 @@ describe('runtime', () => {
     expect(store.step(started.run.id, work.step_path)?.status).toBe('running')
   })
 
+  it('accepts the final usage update after a step completes', () => {
+    const started = runtime.start({ workspace, prompt: 'patch', target: 'quick_patch' })
+    const work = started.work[0]
+    runtime.complete(started.run.id, work.step_path, work.work_token, { ok: true }, { turns: 1 })
+    const updated = runtime.usage(started.run.id, work.step_path, work.work_token, {
+      turns: 2,
+      tokens: 250,
+      toolCalls: 3,
+    })
+    expect(updated).toMatchObject({ status: 'done', turns: 2, tokens: 250, tool_calls: 3 })
+    const attempt = store.stepAttempts(started.run.id, work.step_path)[0]
+    expect(attempt).toMatchObject({ status: 'done', turns: 2, tokens: 250, tool_calls: 3 })
+  })
+
+  it('never lets a late usage update lower a completed total', () => {
+    const started = runtime.start({ workspace, prompt: 'patch', target: 'quick_patch' })
+    const work = started.work[0]
+    runtime.complete(started.run.id, work.step_path, work.work_token, { ok: true }, { tokens: 250 })
+    const updated = runtime.usage(started.run.id, work.step_path, work.work_token, { tokens: 200 })
+    expect(updated.tokens).toBe(250)
+  })
+
+  it('rejects a late usage update from an old attempt or token', () => {
+    const started = runtime.start({ workspace, prompt: 'patch', target: 'quick_patch' })
+    const first = started.work[0]
+    runtime.fail(started.run.id, first.step_path, first.work_token, 'boom')
+    const second = runtime.next(started.run.id)[0]
+    expect(() =>
+      runtime.usage(started.run.id, first.step_path, first.work_token, { tokens: 10 })
+    ).toThrow(/work token/)
+    runtime.complete(started.run.id, second.step_path, second.work_token, { ok: true })
+    expect(() =>
+      runtime.usage(started.run.id, second.step_path, 'stale-token', { tokens: 10 })
+    ).toThrow(/no longer accepts usage/)
+  })
+
   it('requires the work token to renew a lease', () => {
     const started = runtime.start({ workspace, prompt: 'patch', target: 'quick_patch' })
     const work = started.work[0]

@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import type { CompiledNode, StepSummary } from '../types'
-import { ago, modelLabel, statusTone } from '../lib/format'
+import { ago, formatTokens, modelLabel, statusTone } from '../lib/format'
 import { Badge } from './Badge'
 
 function kindTone(kind: string): 'ok' | 'bad' | 'live' | 'idle' | 'warn' {
@@ -141,7 +141,7 @@ export function RunTree({
             ) : null}
             {step.turns || step.tokens || step.tool_calls || step.violations ? (
               <span className="muted">
-                {step.turns}t · {step.tokens}k · {step.tool_calls} calls
+                {step.turns}t · {formatTokens(step.tokens)} tokens · {step.tool_calls} calls
                 {step.violations ? ` · ${step.violations} violations` : ''}
               </span>
             ) : null}
