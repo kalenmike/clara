@@ -20,7 +20,8 @@ rolls into the next visible reply so token and cost totals are not lost. A thin
 usage bar along the bottom of the pane carries the whole session's input,
 output, reasoning, and cache tokens, its cost, and how long ago the session
 started; it reads server session totals, so lazy history pages cannot leave it
-short. Actions
+short. The header names the session, shows whether it is busy or idle, and
+names the active agent. Actions
 Clara triggers on the person's behalf — requesting a plan,
 refreshing it, and starting work — and the person's answers to an agent
 question appear as compact system rows in the thread rather than as if the
@@ -47,9 +48,11 @@ See [fork.md](fork.md).
 
 ## User flow
 
-1. Open a session from the sidebar or project page. A session with no messages
-   and no saved draft shows a dedicated New message view instead of the message
-   list. Creating a new session opens the composer automatically in the
+1. Open a session from the sidebar or project page. The header shows the
+   session title, whether it is busy or idle, and the active agent. A session
+   with no messages and no saved draft shows a dedicated New message view
+   instead of the message list. Creating a new session opens the composer
+   automatically in the
    last-used size (expanded by default) and binds it to the new session. Opening
    an empty draft with locally saved text opens the composer too; otherwise
    press **New** to reopen it bound to that session.
@@ -59,7 +62,7 @@ See [fork.md](fork.md).
    from its first line. A session that is still running keeps following the
    newest output instead. The down-arrow control jumps to the newest output.
 3. Click **Reply**, type in the reply window, and press Enter; the prompt appears
-   immediately and the header switches to "running". If the composer was already
+   immediately and the header switches to "busy". If the composer was already
    open or minimized on another session, it stays connected there instead; close
    it to reply to the session on screen, or use its return button to go back.
 4. Assistant text streams in. Turn on internal output in the header to see
@@ -288,6 +291,11 @@ See [fork.md](fork.md).
     stay complete. The floating Done, Reply, jump, and reply-window controls
     sit above it, and it scrolls horizontally on narrow screens instead of
     wrapping.
+21. The header's second line shows the run state (`busy`, `retry N`, or `idle`)
+    and the active agent. The state is seeded from the server's active-session
+    map when the thread opens, then kept live by status, execution, and step
+    events. A reconnect reseeds it, so a session that was already running does
+    not read as idle after a reload or a missed event.
 
 ## Edge cases
 
@@ -309,6 +317,14 @@ See [fork.md](fork.md).
   automatically when locally saved text exists.
 - **Draft restored** — reopening an empty draft with locally saved text opens
   the composer with that text; after closing, the New button shows a draft dot.
+- **Running session opened mid-run** — the header seeds `busy` from the active
+  session map even though the event stream does not replay the current status,
+  then returns to `idle` when the run ends.
+- **Reconnect after a missed run** — status seed markers are cleared with the
+  history reset, so the next active-session fetch corrects a stale `busy` or
+  `idle` label.
+- **Session without an agent** — the header's second line falls back to `build`
+  beside the state.
 - **Empty session usage bar** — a session with no messages shows zero tokens,
   `$0.00`, and "started just now".
 - **Estimated cost in the usage bar** — the bar marks an estimate with `~`,
@@ -463,9 +479,6 @@ See [fork.md](fork.md).
   MCP elicitations are not logged in the thread.
 - The opening position is settled over a few frames; scrolling in the first
   moments after opening can cancel the adjustment mid-measurement.
-- A thread whose live status has not reached the client yet is treated as idle
-  on open, so it starts at the top of the newest message instead of following
-  output.
 
 ## Technical appendix
 
@@ -565,6 +578,12 @@ delivery: 'steer' })` for Start. Send with a typed message calls
   "started ... ago" wording. Token and cost totals come from
   `snapshot.tokens ?? session.tokens` and `useSessionCost`, not the loaded
   pages.
+- Run state: `src/features/chat/chat-store.ts` seeds `busy` or `idle` from
+  `client.session.active()` through `src/features/chat/use-session-status.ts`;
+  live `session.status`, `session.execution.*`, `session.step.started`, and
+  `session.idle` events supersede the seed. Reconnects clear the seed markers in
+  `src/providers/event-provider.tsx`. The header line lives in
+  `src/components/chat/chat-header.tsx`.
 - Internal-output preference: `clara.internalMessages` in `localStorage`
 - Local composer draft: `clara.draft.<sessionID>` in `localStorage`
 - Related: [capabilities](capabilities.md), [composer](composer.md)
