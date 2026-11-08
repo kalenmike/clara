@@ -242,15 +242,124 @@ async function status(): Promise<void> {
   process.exitCode = statusExitCode(report)
 }
 
+interface HelpOption {
+  flags: string
+  description: string
+}
+
+interface CommandHelp {
+  name: string
+  summary: string
+  usage: string
+  options?: HelpOption[]
+}
+
+const helpOption: HelpOption = { flags: '-h, --help', description: 'Show help' }
+
+const commandHelp: CommandHelp[] = [
+  {
+    name: 'serve',
+    summary: 'Run the service in the foreground',
+    usage: 'serve',
+  },
+  {
+    name: 'start',
+    summary: 'Start the service in the background',
+    usage: 'start [--docker] [--build]',
+    options: [
+      {
+        flags: '--docker',
+        description: 'Start the compose-managed container instead of a local process',
+      },
+      {
+        flags: '--build',
+        description: 'Rebuild the image before starting (requires --docker)',
+      },
+    ],
+  },
+  {
+    name: 'stop',
+    summary: 'Stop the running service',
+    usage: 'stop [--docker]',
+    options: [{ flags: '--docker', description: 'Stop the compose-managed container' }],
+  },
+  {
+    name: 'status',
+    summary: 'Show which instance is running',
+    usage: 'status',
+  },
+  {
+    name: 'token',
+    summary: 'Print the orchestration token',
+    usage: 'token',
+  },
+]
+
+function renderHelp(command?: string): boolean {
+  const selected = command ? commandHelp.find((item) => item.name === command) : undefined
+  if (command && !selected) return false
+
+  if (selected) {
+    const options = [...(selected.options ?? []), helpOption]
+    const width = Math.max(...options.map((option) => option.flags.length))
+    console.log(
+      [
+        selected.summary,
+        '',
+        'Usage:',
+        `  clara-orchestrator ${selected.usage}`,
+        '',
+        'Options:',
+        ...options.map((option) => `  ${option.flags.padEnd(width)}  ${option.description}`),
+      ].join('\n')
+    )
+    return true
+  }
+
+  const width = Math.max(...commandHelp.map((item) => item.name.length), 'help'.length)
+  console.log(
+    [
+      'Clara orchestration service',
+      '',
+      'Usage:',
+      '  clara-orchestrator <command> [options]',
+      '',
+      'Commands:',
+      ...commandHelp.map((item) => `  ${item.name.padEnd(width)}  ${item.summary}`),
+      `  ${'help'.padEnd(width)}  Show help for a command`,
+      '',
+      'Options:',
+      `  ${helpOption.flags}  ${helpOption.description}`,
+    ].join('\n')
+  )
+  return true
+}
+
 async function main(): Promise<void> {
   const command = process.argv[2] ?? 'help'
   const args = process.argv.slice(3)
+
   if (command === 'help' || command === '--help' || command === '-h') {
-    console.log(
-      'Clara orchestration service\n\nUsage: clara-orchestrator <serve|start [--docker] [--build]|stop [--docker]|status|token>'
-    )
+    const target = command === 'help' ? args.find((arg) => !arg.startsWith('-')) : undefined
+    if (target && !renderHelp(target)) {
+      console.error(`unknown command: ${target}`)
+      renderHelp()
+      process.exitCode = 1
+      return
+    }
+    if (!target) renderHelp()
     return
   }
+
+  if (args.includes('--help') || args.includes('-h')) {
+    if (!renderHelp(command)) {
+      console.error(`unknown command: ${command}`)
+      renderHelp()
+      process.exitCode = 1
+    }
+    return
+  }
+
   if (command === 'serve') return serve()
   if (command === 'start') return start(args)
   if (command === 'stop') return stop(args)
@@ -260,10 +369,8 @@ async function main(): Promise<void> {
     return
   }
   console.error(`unknown command: ${command}`)
-  console.error(
-    'usage: clara-orchestrator <serve|start [--docker] [--build]|stop [--docker]|status|token>'
-  )
-  process.exit(1)
+  renderHelp()
+  process.exitCode = 1
 }
 
 void main().catch((error) => {
