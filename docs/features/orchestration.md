@@ -402,8 +402,9 @@ operator can start it directly with `target: std:diagnostics`. See
   available so the worker can still finish or report the failure. A completion
   that arrives over budget is kept and marked `over_budget` on its
   `step.completed` event instead of being retried; the result is never
-  discarded. Token budgets stay advisory until the adapter reports model token
-  usage.
+  discarded. The OpenCode adapter reports model token usage from
+  assistant-message events, so token budgets are enforced for managed workers
+  too.
 - A step is `observed`: permission denials are recorded as `policy.observed`
   events, but tools are not blocked. `strict` and `sandboxed` steps deny and
   count violations. Enforcement mode does not relax the resource budgets above.
@@ -428,9 +429,10 @@ operator can start it directly with `target: std:diagnostics`. See
 
 - The OpenCode adapter is the first strict adapter. Other harnesses can use the
   generic MCP surface in observed mode or implement the adapter protocol.
-- Token limits depend on harness-reported usage. The OpenCode adapter does not
-  report model token usage yet, so token budgets are advisory in that harness;
-  turn, tool-call, wall-clock, and attempt limits are exact.
+- Token limits depend on harness-reported usage. The OpenCode adapter reports
+  model token usage from assistant-message events; another harness must report
+  it through `clara_usage`. Turn, tool-call, wall-clock, and attempt limits are
+  exact.
 - There is no needs-input tool yet. A worker can fail, but it cannot pause and
   ask the human a question mid-step.
 - Delivery targets the Clara agent (`CLARA_INTERFACE_AGENT`, default `clara`).
