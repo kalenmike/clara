@@ -283,7 +283,9 @@ export default {
       if (!ctx.session?.create || !ctx.session?.prompt || !ctx.session?.switchAgent) return false
       const parentSession = sessionID(context)
       const directory =
-        typeof work?.workspace === 'string' && work.workspace ? work.workspace : resolveWorkspace(context)
+        typeof work?.workspace === 'string' && work.workspace
+          ? work.workspace
+          : resolveWorkspace(context)
       const agent = process.env.CLARA_WORKER_AGENT?.trim() || 'general'
       const model = modelRef(work)
       if (
