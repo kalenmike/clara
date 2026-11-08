@@ -22,6 +22,22 @@ export function pidPath(): string {
   return join(dataDir(), 'orchestrator.pid')
 }
 
+/**
+ * Whether this process runs inside a container. The image sets
+ * CLARA_ORCHESTRATION_CONTAINER=1 so a host-side status probe can tell a
+ * container apart from a local PID.
+ */
+export function containerized(): boolean {
+  const value = process.env.CLARA_ORCHESTRATION_CONTAINER?.trim().toLowerCase()
+  return value === '1' || value === 'true' || value === 'yes'
+}
+
+export type InstanceMode = 'local' | 'container'
+
+export function instanceMode(): InstanceMode {
+  return containerized() ? 'container' : 'local'
+}
+
 export function logPath(): string {
   return join(dataDir(), 'orchestrator.log')
 }

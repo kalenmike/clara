@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 import { spawn } from 'node:child_process'
-import { closeSync, existsSync, openSync, readFileSync, unlinkSync, writeFileSync } from 'node:fs'
+import { closeSync, openSync, unlinkSync, writeFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { Runtime, Store } from '@clara/orchestration'
 import {
@@ -15,13 +15,15 @@ import {
   stdDir,
   workspace,
 } from './config.ts'
+import {
+  collectStatus,
+  formatStatus,
+  probeHealth,
+  readPidState,
+  statusExitCode,
+  stopService,
+} from './lifecycle.ts'
 import { createOrchestratorServer } from './server.ts'
-
-function health(): Promise<boolean> {
-  return fetch(`${baseURL()}/health`)
-    .then((response) => response.ok)
-    .catch(() => false)
-}
 
 function selfCommand(): string[] {
   const entry = fileURLToPath(import.meta.url)
@@ -86,10 +88,29 @@ async function serve(): Promise<void> {
 }
 
 async function start(): Promise<void> {
-  if (await health()) {
-    console.log(`already running at ${baseURL()}`)
+  const probe = await probeHealth()
+  const pid = readPidState()
+  if (probe.status === 'current') {
+    if (probe.mode === 'container') {
+      console.log(`already running in a container at ${baseURL()}`)
+      console.log('stop it with `pnpm docker:orchestrator:down`')
+      return
+    }
+    if (
+      pid.alive &&
+      pid.pid !== null &&
+      (probe.mode === 'unknown' || probe.pid === null || probe.pid === pid.pid)
+    ) {
+      console.log(`already running at ${baseURL()} (pid ${pid.pid})`)
+      return
+    }
+    console.log(`already running at ${baseURL()}; not starting another instance`)
     return
   }
+  if (probe.status === 'foreign') {
+    throw new Error(`another service is already using ${baseURL()}`)
+  }
+
   const out = openSync(logPath(), 'a', 0o600)
   const [command, ...args] = selfCommand()
   const child = spawn(command, [...args, 'serve', '--detached'], {
@@ -101,7 +122,8 @@ async function start(): Promise<void> {
   child.unref()
   for (let attempt = 0; attempt < 50; attempt++) {
     await new Promise((resolve) => setTimeout(resolve, 100))
-    if (await health()) {
+    const next = await probeHealth()
+    if (next.status === 'current') {
       console.log(`started at ${baseURL()}`)
       return
     }
@@ -109,54 +131,87 @@ async function start(): Promise<void> {
   throw new Error(`service did not become healthy; see ${logPath()}`)
 }
 
-async function stop(): Promise<void> {
-  if (!existsSync(pidPath())) {
-    console.log('not running')
+async function stop(args: string[]): Promise<void> {
+  const result = await stopService({ docker: args.includes('--docker') })
+  if (result.kind === 'stopped') {
+    console.log(`stopped pid ${result.pid}`)
     return
   }
-  const pid = Number(readFileSync(pidPath(), 'utf8').trim())
-  if (!Number.isInteger(pid) || pid <= 0) {
-    removePid()
-    console.log('removed invalid pid file')
+  if (result.kind === 'already-stopped') {
+    console.log(
+      result.stalePid === null
+        ? 'not running'
+        : `not running (removed stale pid file for pid ${result.stalePid})`
+    )
     return
   }
-  try {
-    process.kill(pid, 'SIGTERM')
-    console.log(`stopped pid ${pid}`)
-  } catch {
-    console.log('process already stopped')
+  if (result.kind === 'not-exited') {
+    console.log(`pid ${result.pid} is still running after SIGTERM`)
+    process.exitCode = 1
+    return
   }
-  removePid()
+  if (result.kind === 'container') {
+    console.log(`the orchestrator is running in a Docker container at ${baseURL()}`)
+    console.log(
+      'stop it with `pnpm docker:orchestrator:down`, or run `pnpm clara orchestration stop --docker`'
+    )
+    process.exitCode = 1
+    return
+  }
+  if (result.kind === 'container-down') {
+    if (result.result.ok) {
+      console.log('stopped the docker container')
+      return
+    }
+    if (result.result.error) console.error(`could not run docker: ${result.result.error}`)
+    else console.error(`docker compose down failed (exit ${result.result.code ?? 'unknown'})`)
+    process.exitCode = 1
+    return
+  }
+  if (result.kind === 'external') {
+    console.log(
+      `the orchestrator is running at ${baseURL()} but was not started from this data directory`
+    )
+    console.log(
+      'stop it where it was started, or use `pnpm docker:orchestrator:down` for the compose service'
+    )
+    process.exitCode = 1
+    return
+  }
+  if (result.kind === 'foreign') {
+    console.log(`another service is using ${baseURL()}; nothing was stopped`)
+    process.exitCode = 1
+    return
+  }
+  console.error(`could not stop the orchestrator: ${result.message}`)
+  process.exitCode = 1
 }
 
 async function status(): Promise<void> {
-  const running = await health()
-  const pid = existsSync(pidPath()) ? readFileSync(pidPath(), 'utf8').trim() : 'none'
-  console.log(`service: ${running ? 'running' : 'stopped'}`)
-  console.log(`url: ${baseURL()}`)
-  console.log(`pid: ${pid}`)
-  console.log(`database: ${dbPath()}`)
-  if (!running) process.exitCode = 1
+  const report = await collectStatus()
+  for (const line of formatStatus(report)) console.log(line)
+  process.exitCode = statusExitCode(report)
 }
 
 async function main(): Promise<void> {
   const command = process.argv[2] ?? 'serve'
+  const args = process.argv.slice(3)
   if (command === 'help' || command === '--help' || command === '-h') {
     console.log(
-      'Clara orchestration service\n\nUsage: clara-orchestrator <serve|start|stop|status|token>'
+      'Clara orchestration service\n\nUsage: clara-orchestrator <serve|start|stop [--docker]|status|token>'
     )
     return
   }
   if (command === 'serve') return serve()
   if (command === 'start') return start()
-  if (command === 'stop') return stop()
+  if (command === 'stop') return stop(args)
   if (command === 'status') return status()
   if (command === 'token') {
     console.log(ensureToken())
     return
   }
   console.error(`unknown command: ${command}`)
-  console.error('usage: clara-orchestrator <serve|start|stop|status|token>')
+  console.error('usage: clara-orchestrator <serve|start|stop [--docker]|status|token>')
   process.exit(1)
 }
 

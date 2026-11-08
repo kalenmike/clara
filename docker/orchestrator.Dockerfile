@@ -44,6 +44,7 @@ ENV CLARA_ORCHESTRATION_HOST=0.0.0.0
 ENV CLARA_ORCHESTRATION_PORT=8789
 ENV CLARA_ORCHESTRATION_WORKSPACE=/workspace/clara
 ENV CLARA_STD_DIR=/opt/clara/lib/std
+ENV CLARA_ORCHESTRATION_CONTAINER=1
 
 WORKDIR /app
 RUN mkdir -p /data /opt/clara && chown -R node:node /app /data /opt/clara

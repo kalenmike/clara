@@ -37,6 +37,22 @@ describe('orchestrator HTTP service', () => {
     expect(denied.status).toBe(401)
   })
 
+  it('advertises whether it runs locally or in a container', async () => {
+    const previous = process.env.CLARA_ORCHESTRATION_CONTAINER
+    try {
+      delete process.env.CLARA_ORCHESTRATION_CONTAINER
+      const local = (await (await fetch(`${base}/health`)).json()) as Record<string, unknown>
+      expect(local).toMatchObject({ ok: true, service: 'clara-orchestrator', mode: 'local' })
+
+      process.env.CLARA_ORCHESTRATION_CONTAINER = '1'
+      const container = (await (await fetch(`${base}/health`)).json()) as Record<string, unknown>
+      expect(container).toMatchObject({ mode: 'container' })
+    } finally {
+      if (previous === undefined) delete process.env.CLARA_ORCHESTRATION_CONTAINER
+      else process.env.CLARA_ORCHESTRATION_CONTAINER = previous
+    }
+  })
+
   it('reports its configured workspace to authenticated callers', async () => {
     const denied = await fetch(`${base}/v1/config`)
     expect(denied.status).toBe(401)
