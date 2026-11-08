@@ -27,11 +27,13 @@ interface ActiveWork {
   step_path: string
   work_token: string
   name: string
+  session: string
+  workspace: string
+  enforcement: string
   turns: number
   toolCalls: number
   tokens: number
-  violations: number
-  lastTurnAt: number
+  closed: boolean
 }
 
 function dataDir(): string {
@@ -111,19 +113,37 @@ function workspace(context: Any): string {
 }
 
 function promptFor(work: Any): string {
+  const identifiers = `run_id: ${work.run_id}
+step_path: ${work.step_path}
+work_token: ${work.work_token}`
+  const routes = Array.isArray(work.routes)
+    ? work.routes
+        .map((route: Any) => `- \`${route.when}\`${route.criteria ? ` — ${route.criteria}` : ''}`)
+        .join('\n')
+    : ''
+  const instructions = routes
+    ? `This is a router step. Call clara_route exactly once with:
+${identifiers}
+route: one of the keys below
+
+${routes}
+
+Do not call clara_complete, do not search for the tool, and do not edit files or run commands. If the route tool is unavailable, call clara_fail with the same identifiers and a short reason.`
+    : `When you finish, call clara_complete with:
+${identifiers}
+and a concise result.
+
+If you are blocked, call clara_fail with the same identifiers and a short reason. Do not call clara_complete unless the work is actually done.`
   return `${work.prompt}
 
 ---
 Clara work order
-run_id: ${work.run_id}
-step_path: ${work.step_path}
-work_token: ${work.work_token}
+${identifiers}
 attempt: ${work.attempt}/${work.max_attempts}
 enforcement: ${work.enforcement}
 
-When you finish, call clara_complete with these exact identifiers and a concise result.
-If you are blocked, call clara_fail. Do not call clara_complete unless the work is actually done.
-${work.routes ? `Available routes: ${work.routes.map((route: Any) => route.when).join(', ')}. Call clara_route with one of them.` : ''}
+${instructions}
+${work.enforcement === 'observed' ? 'This step is observed: policy violations are recorded but do not block tools.' : ''}
 `
 }
 
@@ -136,7 +156,37 @@ export default {
     const seenMessages = new Set<string>()
     const activeRuns = new Set<number>()
     let adapterID: string | undefined
-    let lastTurn = 0
+    const lastTurn = new Map<string, number>()
+
+    const terminal = (state: string): boolean =>
+      state === 'completed' || state === 'failed' || state === 'cancelled'
+
+    const pruneRun = (run: { id?: number; state?: string } | undefined): void => {
+      if (run?.id !== undefined && run.state && terminal(run.state)) activeRuns.delete(run.id)
+    }
+
+    const stop = async (session: string): Promise<void> => {
+      const sessions = ctx.session as Any
+      try {
+        if (typeof sessions?.interrupt === 'function') {
+          await sessions.interrupt({ sessionID: session, resume: false })
+        } else if (typeof sessions?.abort === 'function') {
+          await sessions.abort({ sessionID: session })
+        } else if (typeof sessions?.cancel === 'function') {
+          await sessions.cancel({ sessionID: session })
+        }
+      } catch {
+        // The session may already be finished.
+      }
+    }
+
+    const finish = (session: string | undefined): void => {
+      if (!session) return
+      active.delete(session)
+      lastTurn.delete(session)
+      const timer = setTimeout(() => void stop(session), 1_000)
+      timer.unref?.()
+    }
 
     const persist = async (work: ActiveWork): Promise<void> => {
       await call(
@@ -148,7 +198,6 @@ export default {
             turns: work.turns,
             toolCalls: work.toolCalls,
             tokens: work.tokens,
-            violations: work.violations,
           },
         }
       ).catch(() => {})
@@ -170,27 +219,44 @@ export default {
 
     const bind = (session: string | undefined, work: Any): void => {
       if (!session) return
+      const runID = Number(work.run_id)
+      const stepPath = String(work.step_path)
+      // A retry gets a new managed session. Stop any worker that still owns
+      // the previous attempt so it cannot keep running and mutating files.
+      for (const [id, existing] of active) {
+        if (id === session) continue
+        if (existing.run_id !== runID || existing.step_path !== stepPath) continue
+        existing.closed = true
+        void stop(id)
+        active.delete(id)
+        lastTurn.delete(id)
+      }
       active.set(session, {
-        run_id: Number(work.run_id),
-        step_path: String(work.step_path),
+        run_id: runID,
+        step_path: stepPath,
         work_token: String(work.work_token),
         name: String(work.name),
+        session,
+        workspace: String(work.workspace ?? workspace(ctx)),
+        enforcement: String(work.enforcement ?? 'observed'),
         turns: 0,
         toolCalls: 0,
         tokens: 0,
-        violations: 0,
-        lastTurnAt: 0,
+        closed: false,
       })
-      activeRuns.add(Number(work.run_id))
+      activeRuns.add(runID)
     }
 
     const dispatch = async (work: Any, context: Any): Promise<boolean> => {
       if (!ctx.session?.create || !ctx.session?.prompt || !ctx.session?.switchAgent) return false
       const parentSession = sessionID(context)
+      const directory =
+        typeof work?.workspace === 'string' && work.workspace ? work.workspace : workspace(context)
+      const agent = process.env.CLARA_WORKER_AGENT?.trim() || 'general'
       try {
         const created = await ctx.session.create({
           title: `Clara ${work.name} (run ${work.run_id})`,
-          location: { directory: workspace(context) },
+          location: { directory },
           metadata: {
             automation: true,
             clara: {
@@ -200,10 +266,7 @@ export default {
             },
           },
         })
-        await ctx.session.switchAgent({
-          sessionID: created.id,
-          agent: typeof context?.agent === 'string' ? context.agent : 'general',
-        })
+        await ctx.session.switchAgent({ sessionID: created.id, agent })
         bind(created.id, work)
         await ctx.session.prompt({
           sessionID: created.id,
@@ -231,45 +294,45 @@ export default {
       return dispatched
     }
 
-    const reportDenied = async (work: ActiveWork, reason: string): Promise<void> => {
-      work.violations += 1
-      await call(
-        config,
-        'POST',
-        `/v1/runs/${work.run_id}/steps/${encodeURIComponent(work.step_path)}/violation`,
-        {
-          reason,
-        }
-      ).catch(() => {})
-      await persist(work)
-    }
-
     const checkTool = async (work: ActiveWork, name: string, args: Any): Promise<void> => {
+      if (work.closed) throw new Error('Clara policy: the step is no longer running')
       const action = name === 'task' ? 'task' : name === 'shell' || name === 'bash' ? 'shell' : name
       const resources: string[] = []
       if (typeof args?.filePath === 'string') resources.push(args.filePath)
       if (typeof args?.path === 'string') resources.push(args.path)
       if (typeof args?.command === 'string') resources.push(args.command)
-      const decision = await call<{ effect: string; reason?: string }>(
-        config,
-        'POST',
-        `/v1/runs/${work.run_id}/steps/${encodeURIComponent(work.step_path)}/check`,
-        {
-          action,
-          tool: name,
-          ...(resources.length ? { resources } : {}),
-          ...(typeof args?.command === 'string' ? { command: args.command } : {}),
-          ...(typeof args?.url === 'string' ? { network: args.url } : {}),
-          usage: {
-            turns: work.turns,
-            toolCalls: work.toolCalls,
-            tokens: work.tokens,
-            violations: work.violations,
-          },
-        }
-      ).catch(() => undefined)
+      let decision: { effect: string; reason?: string; closed?: boolean } | undefined
+      try {
+        decision = await call<{ effect: string; reason?: string; closed?: boolean }>(
+          config,
+          'POST',
+          `/v1/runs/${work.run_id}/steps/${encodeURIComponent(work.step_path)}/check`,
+          {
+            action,
+            tool: name,
+            ...(resources.length ? { resources } : {}),
+            ...(typeof args?.command === 'string' ? { command: args.command } : {}),
+            ...(typeof args?.url === 'string' ? { network: args.url } : {}),
+            usage: {
+              turns: work.turns,
+              toolCalls: work.toolCalls,
+              tokens: work.tokens,
+            },
+          }
+        )
+      } catch (error) {
+        if (work.enforcement === 'observed') return
+        work.closed = true
+        void stop(work.session)
+        throw new Error(`Clara policy: policy check unavailable (${(error as Error).message})`, {
+          cause: error,
+        })
+      }
+      if (decision?.closed) {
+        work.closed = true
+        void stop(work.session)
+      }
       if (decision?.effect === 'deny') {
-        await reportDenied(work, decision.reason ?? `tool ${name} denied`)
         throw new Error(`Clara policy: ${decision.reason ?? `tool ${name} is denied`}`)
       }
     }
@@ -288,8 +351,9 @@ export default {
         .hook('context', async (event: Any) => {
           const id = typeof event?.sessionID === 'string' ? event.sessionID : undefined
           if (!id || !active.has(id)) return
-          if (Date.now() - lastTurn < 250) return
-          lastTurn = Date.now()
+          const at = Date.now()
+          if (at - (lastTurn.get(id) ?? 0) < 250) return
+          lastTurn.set(id, at)
           const work = active.get(id) as ActiveWork
           work.turns += 1
           turnsFromContext = true
@@ -343,25 +407,42 @@ export default {
           if (!id || !active.has(id)) return
           if (event.effect === 'deny') return
           const work = active.get(id) as ActiveWork
-          const decision = await call<{ effect: string; reason?: string }>(
-            config,
-            'POST',
-            `/v1/runs/${work.run_id}/steps/${encodeURIComponent(work.step_path)}/check`,
-            {
-              action: String(event.action ?? 'tool'),
-              resources: Array.isArray(event.resources) ? event.resources : [],
-              usage: {
-                turns: work.turns,
-                toolCalls: work.toolCalls,
-                tokens: work.tokens,
-                violations: work.violations,
-              },
-            }
-          ).catch(() => undefined)
+          if (work.closed) {
+            event.effect = 'deny'
+            event.message = 'Clara policy: the step is no longer running'
+            return
+          }
+          let decision: { effect: string; reason?: string; closed?: boolean } | undefined
+          try {
+            decision = await call<{ effect: string; reason?: string; closed?: boolean }>(
+              config,
+              'POST',
+              `/v1/runs/${work.run_id}/steps/${encodeURIComponent(work.step_path)}/check`,
+              {
+                action: String(event.action ?? 'tool'),
+                resources: Array.isArray(event.resources) ? event.resources : [],
+                usage: {
+                  turns: work.turns,
+                  toolCalls: work.toolCalls,
+                  tokens: work.tokens,
+                },
+              }
+            )
+          } catch (error) {
+            if (work.enforcement === 'observed') return
+            work.closed = true
+            void stop(work.session)
+            event.effect = 'deny'
+            event.message = `Clara policy: policy check unavailable (${(error as Error).message})`
+            return
+          }
+          if (decision?.closed) {
+            work.closed = true
+            void stop(work.session)
+          }
           if (decision?.effect === 'deny') {
             event.effect = 'deny'
             event.message = decision.reason ?? 'Denied by Clara policy'
-            await reportDenied(work, event.message)
           }
         })
         .catch(() => {})
@@ -374,8 +455,16 @@ export default {
         for (const runID of activeRuns) {
           try {
             const work = await call<Any[]>(config, 'POST', `/v1/runs/${runID}/next`, { limit: 8 })
-            if (!work.length) continue
-            await dispatchWork(work, ctx)
+            if (work.length) {
+              await dispatchWork(work, ctx)
+              continue
+            }
+            const run = await call<{ id: number; state: string }>(
+              config,
+              'GET',
+              `/v1/runs/${runID}`
+            )
+            pruneRun(run)
           } catch {
             // The service may be restarting.
           }
@@ -442,6 +531,7 @@ export default {
             additionalProperties: false,
           },
           async (input: Any, context: Any) => {
+            activeRuns.add(Number(input.run_id))
             const work = await call<Any[]>(config, 'POST', `/v1/runs/${input.run_id}/next`, {
               limit: input.limit ?? 1,
             })
@@ -478,12 +568,12 @@ export default {
                       turns: work.turns,
                       toolCalls: work.toolCalls,
                       tokens: work.tokens,
-                      violations: work.violations,
                     },
                   }
                 : {}),
             })
-            if (id) active.delete(id)
+            pruneRun(response.run)
+            finish(id)
             return content(response)
           }
         )
@@ -517,12 +607,12 @@ export default {
                       turns: work.turns,
                       toolCalls: work.toolCalls,
                       tokens: work.tokens,
-                      violations: work.violations,
                     },
                   }
                 : {}),
             })
-            if (id) active.delete(id)
+            pruneRun(response.run)
+            finish(id)
             return content(response)
           }
         )
@@ -547,7 +637,8 @@ export default {
             const id = sessionID(context)
             const path = `/v1/runs/${input.run_id}/steps/${encodeURIComponent(input.step_path)}/route`
             const response = await call<Any>(config, 'POST', path, input)
-            if (id) active.delete(id)
+            pruneRun(response.run)
+            finish(id)
             return content(response)
           }
         )
@@ -569,10 +660,11 @@ export default {
             required: ['run_id', 'step_path', 'work_token', 'count', 'prompt'],
             additionalProperties: false,
           },
-          async (input: Any) => {
+          async (input: Any, context: Any) => {
             const path = `/v1/runs/${input.run_id}/steps/${encodeURIComponent(input.step_path)}/spawn`
             const response = await call<Any>(config, 'POST', path, input)
             for (const child of response.children ?? []) activeRuns.add(Number(child.id))
+            finish(sessionID(context))
             return content(response)
           }
         )
@@ -588,7 +680,11 @@ export default {
             required: ['run_id'],
             additionalProperties: false,
           },
-          async (input: Any) => content(await call(config, 'GET', `/v1/runs/${input.run_id}`))
+          async (input: Any) => {
+            const response = await call<Any>(config, 'GET', `/v1/runs/${input.run_id}`)
+            pruneRun(response.run)
+            return content(response)
+          }
         )
       )
 
@@ -643,12 +739,20 @@ export default {
             required: ['run_id'],
             additionalProperties: false,
           },
-          async (input: Any) =>
-            content(
-              await call(config, 'POST', `/v1/runs/${input.run_id}/cancel`, {
-                reason: input.reason ?? 'human',
-              })
-            )
+          async (input: Any) => {
+            const response = await call<Any>(config, 'POST', `/v1/runs/${input.run_id}/cancel`, {
+              reason: input.reason ?? 'human',
+            })
+            for (const [id, work] of active) {
+              if (work.run_id !== Number(input.run_id)) continue
+              work.closed = true
+              void stop(id)
+              active.delete(id)
+              lastTurn.delete(id)
+            }
+            activeRuns.delete(Number(input.run_id))
+            return content(response)
+          }
         )
       )
 
