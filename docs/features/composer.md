@@ -28,7 +28,8 @@ can answer a form or start work with an optional custom message.
    opening an empty draft that has locally saved text.
 2. Type in the large editor. The docked window stays non-modal, so the thread
    remains readable and scrollable behind it.
-3. Press Enter to send with steering, or Shift+Enter to add a line.
+3. Press Enter to send with steering, or Shift+Enter to add a line. On touch
+   devices Enter always adds a line; tap Send to submit.
 4. Before the first agent reply, use the send button's chevron menu and choose
    **Save as draft**. Clara sends the prompt with OpenCode's no-reply mode,
    updates an untitled session to a short title, and leaves the session in
@@ -146,6 +147,10 @@ can answer a form or start work with an optional custom message.
 
 - **Empty or whitespace-only prompt** — Send, Save as draft, and Send as queued
   are disabled.
+- **Mobile Enter** — touch keyboards have no Shift key, so Enter always inserts
+  a new line there, including while the `/` or `@` menu is open; tap a menu item
+  to select it and tap Send to submit. Devices with a fine primary pointer keep
+  the desktop shortcuts.
 - **Mobile focus zoom** — every text input and textarea renders at 16px or more
   on phones (`text-base md:text-sm` or `text-base md:text-xs`). iOS Safari zooms
   the page when a focused field is smaller than 16px, which crops the composer's
