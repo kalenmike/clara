@@ -344,6 +344,12 @@ describe('package loader', () => {
     const collect = diagnostics.root.children?.find((step) => step.name === 'collect_evidence')
     expect(collect?.prompt).toContain('pnpm clara orchestration analyze')
     expect(collect?.promptSource).toBe('task')
+    const audit = diagnostics.root.children?.find((step) => step.name === 'audit_setup')
+    expect(audit?.limits?.turns).toEqual({
+      initial: 36,
+      growth_rate: 4,
+      absolute_max: 48,
+    })
     expect(diagnostics.root.enforcement).toBe('observed')
   })
 
