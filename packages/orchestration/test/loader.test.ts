@@ -328,4 +328,30 @@ describe('package loader', () => {
     expect(route?.run).toBe('std:research')
     expect(route?.criteria).toContain('external research')
   })
+
+  it('loads the diagnostics package', () => {
+    const catalog = loadCatalog(config)
+    const diagnostics = compileRun(catalog, 'std:diagnostics')
+    expect(diagnostics.root.kind).toBe('pipeline')
+    expect(diagnostics.root.children?.map((step) => step.name)).toEqual([
+      'collect_evidence',
+      'pattern_failures',
+      'audit_setup',
+      'rank_issues',
+      'propose_fixes',
+      'review_report',
+    ])
+    const collect = diagnostics.root.children?.find((step) => step.name === 'collect_evidence')
+    expect(collect?.prompt).toContain('pnpm clara orchestration analyze')
+    expect(collect?.promptSource).toBe('task')
+    expect(diagnostics.root.enforcement).toBe('observed')
+  })
+
+  it('routes diagnostics requests from the primary classifier', () => {
+    const catalog = loadCatalog(config)
+    const primary = compileRun(catalog)
+    const route = primary.root.routes?.find((candidate) => candidate.when === 'diagnostics')
+    expect(route?.run).toBe('std:diagnostics')
+    expect(route?.criteria).toContain('self-analyze the orchestrator')
+  })
 })

@@ -158,6 +158,11 @@ first.
    local instance. A service started from the CLI, MCP bridge, or Docker is
    detected but left under its own management. Clients receive the effective
    health state as `orchestration` and use it for the Workers grouping.
+8. **Diagnosis is evidence-first.** The `std:diagnostics` package runs a
+   deterministic analyzer over run history, then interprets the report. The
+   analyzer prefers the live service, falls back to a read-only database open,
+   and never mutates state. The pipeline reports findings and proposed fixes; it
+   does not apply them.
 
 ## Leases and heartbeats
 
@@ -306,6 +311,17 @@ bug:     identify_bug → write_regression_test → fix_bug → verify_bug_fix �
 docs:    assess_docs → update_docs → verify_docs → docs_review
 ```
 
+## Diagnostics pipeline
+
+The `std:diagnostics` package audits the orchestrator itself. Its `diagnose`
+pipeline collects a deterministic report from run history, patterns the
+failures, audits the package and watchdog setup, ranks issues, proposes fixes,
+and returns the reviewed Markdown report. It uses `observed` enforcement so a
+missing or stale adapter does not block the diagnosis, and its tasks never edit
+files or mutate the database. Run it from Clara with a request such as "audit
+the orchestrator setup" or directly with `target: std:diagnostics`. See
+[diagnostics.md](diagnostics.md).
+
 ## Edge cases
 
 - A strict run starts with no adapter: it is refused with
@@ -386,10 +402,12 @@ docs:    assess_docs → update_docs → verify_docs → docs_review
 - Engine: `packages/orchestration`; policy: `packages/policy`; shared MCP tools:
   `packages/mcp-server`; OpenCode adapter: `plugins/clara-policy`; developer
   preview and probe: `packages/devtools` and `apps/lab`.
-- Standard packages: `lib/std/software`, `lib/std/content`, and
-  `lib/std/research`. The research pipeline scopes the question, gathers
-  external sources, verifies every material claim against independent dated
-  sources, and returns a concise linked Markdown report.
+- Standard packages: `lib/std/software`, `lib/std/content`,
+  `lib/std/research`, and `lib/std/diagnostics`. The research pipeline scopes
+  the question, gathers external sources, verifies every material claim against
+  independent dated sources, and returns a concise linked Markdown report. The
+  diagnostics pipeline analyzes the orchestrator database and setup, then
+  returns ranked issues with proposed fixes.
 - Primary config: `orchestration/index.yml`.
 - Data: `${CLARA_DATA_DIR:-~/.local/share/clara}/orchestration.db`,
   `orchestrator.token`, and `policy-delivery.json` (adapter delivery cursor).
@@ -398,11 +416,15 @@ docs:    assess_docs → update_docs → verify_docs → docs_review
   plus `CLARA_STD_DIR` and `CLARA_ORCHESTRATION_CONFIG` when set.
 - Container: `docker compose -f docker/compose.yml up -d --build orchestrator`.
 - Commands:
-  `pnpm clara orchestration start [--docker] [--build]|stop [--docker]|status|serve|token`,
+  `pnpm clara orchestration start [--docker] [--build]|stop [--docker]|status|serve|token|analyze`,
   `pnpm clara mcp install|uninstall|config|status`,
   `pnpm clara adapter install opencode|uninstall|status`,
   `pnpm clara lab [serve|check]`. Running `pnpm clara orchestration` without a
   subcommand prints help instead of starting the service.
+- Diagnostics: `pnpm clara orchestration analyze [--json] [--days n] [--db
+path] [--url url]` and `GET /v1/diagnostics?days=30`. The analyzer is
+  `packages/orchestration/src/diagnostics.ts`; see
+  [diagnostics.md](diagnostics.md).
 - OpenCode entry point: the `clara` agent at
   `~/.config/opencode/agents/clara.md`, installed by the adapter. The MCP-only
   path keeps a manual `/pipeline` command at
@@ -424,7 +446,8 @@ docs:    assess_docs → update_docs → verify_docs → docs_review
   `criteria`.
 - References: `std:software` (package entry), `std:software/feature`,
   `std:software/bug`, and `std:software/docs` (named pipelines), `std:research`
-  (research brief), bare names (same package).
+  (research brief), `std:diagnostics` (self-diagnosis), bare names (same
+  package).
 - Run responses: `GET /v1/runs`, `GET /v1/runs/:id`, and all MCP run payloads
   return summaries without `snapshot`, and status steps omit prompts, policy,
   limits, and lease tokens while keeping results. `GET /v1/runs/:id/snapshot` returns

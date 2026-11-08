@@ -1,0 +1,15 @@
+id: diagnostics
+name: Orchestrator diagnostics
+version: 1
+description: Audit orchestrator history, failures, alerts, and setup; report ranked issues with proposed fixes.
+
+entry:
+  pipeline: diagnose
+
+defaults:
+  model: 'deepseek-v4.1-flash'
+  provider: 'opencode-go'
+  task_dir: ./tasks
+  # Diagnostics must run when the setup is already broken, including when the
+  # strict adapter is missing or stale. The tasks stay read-only by prompt.
+  enforcement: observed

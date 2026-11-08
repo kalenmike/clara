@@ -14,6 +14,7 @@ import {
   type StepPolicy,
   type Usage,
 } from '@clara/policy'
+import { analyzeDatabase, type DiagnosticsOptions, type DiagnosticsReport } from './diagnostics.ts'
 import { compileRun, loadCatalog } from './loader.ts'
 import type { CompiledNode, LoadedCatalog } from './types.ts'
 import { now, type AlertRow, type RunRow, type StepRow, Store } from './store.ts'
@@ -985,6 +986,11 @@ export class Runtime {
 
   list(): RunRow[] {
     return this.store.runs()
+  }
+
+  /** Read-only analysis of run history, failures, alerts, and setup signals. */
+  diagnostics(options: DiagnosticsOptions = {}): DiagnosticsReport {
+    return analyzeDatabase(this.store.db, options)
   }
 
   /** The pinned compiled tree for a run. Only the Lab reads this. */
