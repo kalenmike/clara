@@ -1,4 +1,4 @@
-export type LabTab = 'pipeline' | 'run' | 'traffic'
+export type LabTab = 'pipeline' | 'runs' | 'traffic' | 'console' | 'sessions' | 'settings'
 
 export interface LabSettings {
   hostWorkspace: string
@@ -15,9 +15,15 @@ export const DEFAULT_SETTINGS: LabSettings = {
 }
 
 const KEY = 'clara-lab.settings.v1'
+const TABS: LabTab[] = ['pipeline', 'runs', 'traffic', 'console', 'sessions', 'settings']
 
 function string(value: unknown): string {
   return typeof value === 'string' ? value : ''
+}
+
+function tab(value: unknown): LabTab {
+  if (value === 'run') return 'runs'
+  return TABS.includes(value as LabTab) ? (value as LabTab) : 'pipeline'
 }
 
 export function loadSettings(): LabSettings {
@@ -29,10 +35,7 @@ export function loadSettings(): LabSettings {
       hostWorkspace: string(parsed.hostWorkspace),
       target: string(parsed.target),
       pauseAfterStep: parsed.pauseAfterStep === true,
-      tab:
-        parsed.tab === 'run' || parsed.tab === 'traffic' || parsed.tab === 'pipeline'
-          ? parsed.tab
-          : 'pipeline',
+      tab: tab(parsed.tab),
     }
   } catch {
     return { ...DEFAULT_SETTINGS }

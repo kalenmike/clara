@@ -1,10 +1,19 @@
 import { useCallback, useEffect, useState } from 'react'
-import { callTool, getRun, getRuns, getStep, registerAdapter, setHeartbeat } from '../api'
+import {
+  callTool,
+  cancelAllRuns,
+  getRun,
+  getRuns,
+  getStep,
+  registerAdapter,
+  setHeartbeat,
+} from '../api'
 import type { LabStream } from '../useLab'
 import type { PreflightResult, RunRow, StatusResult, StepRow, StepSummary } from '../types'
 import { dateTime, short, statusTone } from '../lib/format'
 import { friendlyError } from '../lib/errors'
 import { Badge, Field } from './Badge'
+import { Icon } from './Icon'
 import { RunEvents, RunStepDetail } from './RunDetail'
 import { RunTree } from './StepTree'
 import { WorkOrderCard } from './WorkOrderCard'
@@ -33,7 +42,7 @@ export function Runs({
   preflight,
   onPreflight,
   onGoToPipeline,
-  onGoToSetup,
+  onOpenSettings,
   onNotice,
 }: {
   stream: LabStream
@@ -46,7 +55,7 @@ export function Runs({
   preflight: PreflightResult | null
   onPreflight: () => void
   onGoToPipeline: () => void
-  onGoToSetup: () => void
+  onOpenSettings: () => void
   onNotice: (message: string) => void
 }) {
   const [runs, setRuns] = useState<RunRow[]>([])
@@ -233,6 +242,34 @@ export function Runs({
     }
   }
 
+  const killAll = async (): Promise<void> => {
+    if (!window.confirm('Cancel every active run and its children? This cannot be undone.')) return
+    setBusy(true)
+    setError(null)
+    try {
+      const result = await cancelAllRuns()
+      await refreshRuns()
+      if (selectedID) await refreshStatus(selectedID)
+      if (result.failed.length) {
+        setError(
+          `Cancelled ${result.cancelled} runs, but ${result.failed.length} failed: ${result.failed
+            .map((entry) => `#${entry.id} ${entry.error}`)
+            .join('; ')}`
+        )
+      } else {
+        onNotice(
+          result.cancelled
+            ? `Cancelled ${result.cancelled} active run${result.cancelled === 1 ? '' : 's'}.`
+            : 'No active runs to cancel.'
+        )
+      }
+    } catch (cause) {
+      setError(message(cause))
+    } finally {
+      setBusy(false)
+    }
+  }
+
   const ack = async (alertID: number): Promise<void> => {
     try {
       await callTool('clara_ack', { alert_id: alertID })
@@ -250,24 +287,6 @@ export function Runs({
     }
   }
 
-  const register = async (): Promise<void> => {
-    if (!runtimeWorkspace.trim()) {
-      setError('The orchestrator has not reported its workspace yet. Reconnect in Setup.')
-      return
-    }
-    setBusy(true)
-    setError(null)
-    try {
-      await registerAdapter(runtimeWorkspace)
-      onPreflight()
-      onNotice('Registered the clara-lab adapter.')
-    } catch (cause) {
-      setError(message(cause))
-    } finally {
-      setBusy(false)
-    }
-  }
-
   const work = (stream.snapshot?.work ?? []).filter(
     (record) => !selectedID || record.order.run_id === selectedID
   )
@@ -276,7 +295,6 @@ export function Runs({
     ? stream.events.filter((event) => event.run_id === selectedID)
     : stream.events
   const heartbeat = stream.snapshot?.heartbeat ?? true
-  const adapters = stream.snapshot?.adapters ?? []
   const taskSteps =
     status?.steps.filter((entry) => entry.type === 'task' || entry.type === 'router') ?? []
   const doneSteps = taskSteps.filter(
@@ -288,29 +306,99 @@ export function Runs({
     status?.run.state === 'running' ||
     status?.run.state === 'waiting' ||
     status?.run.state === 'queued'
+  const activeRunCount = runs.filter((run) =>
+    ['running', 'waiting', 'queued'].includes(run.state)
+  ).length
+  const orderedRuns = [...runs].sort((left, right) => {
+    const rank = (state: string): number =>
+      ['running', 'waiting', 'queued'].includes(state) ? 0 : 1
+    return rank(left.state) - rank(right.state)
+  })
 
   return (
-    <div className="runs">
-      <div className="toolbar">
-        <label className="check">
-          <input
-            type="checkbox"
-            checked={pauseAfterStep}
-            onChange={(event) => onPauseAfterStepChange(event.target.checked)}
+    <div className="view runs-view">
+      <header className="view-head">
+        <div>
+          <div className="view-kicker">Operations</div>
+          <h1>Runs</h1>
+          <p className="muted">
+            Start, inspect, and recover orchestration runs. You are the model at every task step.
+          </p>
+        </div>
+        <div className="view-head-actions">
+          {activeRunCount ? <Badge tone="live">{activeRunCount} active</Badge> : null}
+          {heartbeat ? null : <Badge tone="warn">heartbeats paused</Badge>}
+          <button
+            type="button"
+            className="button"
+            onClick={() => void refreshRuns()}
+            disabled={busy}
+          >
+            Refresh
+          </button>
+          <button
+            type="button"
+            className="button danger"
+            onClick={() => void killAll()}
+            disabled={busy || !activeRunCount}
+          >
+            Kill all runs
+          </button>
+        </div>
+      </header>
+
+      <section className="run-start panel">
+        <div className="run-start-head">
+          <div>
+            <h2>Start a run</h2>
+            <p className="muted">
+              Target <strong>{target || 'Entry router'}</strong> · workspace{' '}
+              <code>{runtimeWorkspace || 'waiting for the orchestrator'}</code>
+            </p>
+          </div>
+          <button type="button" className="link" onClick={onGoToPipeline}>
+            Change pipeline
+          </button>
+        </div>
+        <div className="run-start-row">
+          <textarea
+            rows={2}
+            value={prompt}
+            onChange={(event) => setPrompt(event.target.value)}
+            placeholder="What should the pipeline work on?"
           />
-          Pause after each step
-        </label>
-        <button type="button" className="button" onClick={() => void refreshRuns()} disabled={busy}>
-          Refresh
-        </button>
-        <button type="button" className="button ghost" onClick={onGoToPipeline}>
-          Change pipeline
-        </button>
-        <button type="button" className="button ghost" onClick={onGoToSetup}>
-          Setup
-        </button>
-        {heartbeat ? null : <Badge tone="warn">heartbeats paused</Badge>}
-      </div>
+          <button
+            type="button"
+            className="button primary run-start-button"
+            onClick={() => void start()}
+            disabled={busy || !prompt.trim()}
+          >
+            <Icon name="play" size={14} />
+            Start run
+          </button>
+        </div>
+        <div className="run-start-meta">
+          <label className="check">
+            <input
+              type="checkbox"
+              checked={pauseAfterStep}
+              onChange={(event) => onPauseAfterStepChange(event.target.checked)}
+            />
+            Pause after each step
+          </label>
+          <span className="muted">
+            Origin is recorded as <code>clara-lab / lab / agent</code>.
+          </span>
+          {preflight?.host.strict && !preflight.adapter.ok ? (
+            <span className="tone-warn">
+              This pipeline is strict. The lab will register its adapter when you start.{' '}
+              <button type="button" className="link" onClick={onOpenSettings}>
+                Settings
+              </button>
+            </span>
+          ) : null}
+        </div>
+      </section>
 
       {friendly ? (
         <div className="banner bad">
@@ -326,7 +414,7 @@ export function Runs({
             <span className="muted">{runs.length}</span>
           </div>
           <div className="run-list-items">
-            {runs.map((run) => (
+            {orderedRuns.map((run) => (
               <button
                 key={run.id}
                 type="button"
@@ -343,27 +431,6 @@ export function Runs({
               </button>
             ))}
             {!runs.length ? <div className="empty">No runs yet.</div> : null}
-          </div>
-
-          <div className="panel-head">
-            <h3>Adapter</h3>
-          </div>
-          <div className="adapter">
-            <div className="row-between">
-              <span>{adapters.length ? `live (${adapters.length})` : 'not registered'}</span>
-              <button
-                type="button"
-                className="link"
-                onClick={() => void register()}
-                disabled={busy}
-              >
-                register
-              </button>
-            </div>
-            <div className="muted">
-              Strict pipelines need the clara-lab adapter. It is for orchestration testing, not real
-              enforcement.
-            </div>
           </div>
 
           {status?.alerts.length ? (
@@ -395,77 +462,37 @@ export function Runs({
         </aside>
 
         <section className="panel run-main">
-          <details className="start-panel" open={!runs.length}>
-            <summary>
-              <strong>Start a run</strong>
-              <span className="muted"> you are the AI: read the task, send the result</span>
-            </summary>
-            <div className="start-form">
-              <label className="full">
-                Prompt
-                <textarea
-                  rows={3}
-                  value={prompt}
-                  onChange={(event) => setPrompt(event.target.value)}
-                  placeholder="What should the pipeline work on?"
-                />
-              </label>
-              <div className="start-context">
-                <span>
-                  Pipeline <strong>{target || 'Entry router'}</strong>{' '}
-                  <button type="button" className="link" onClick={onGoToPipeline}>
-                    change
-                  </button>
-                </span>
-                <span>
-                  Orchestrator sees{' '}
-                  <code>{runtimeWorkspace || 'waiting for the orchestrator'}</code>{' '}
-                  <button type="button" className="link" onClick={onGoToSetup}>
-                    setup
-                  </button>
-                </span>
-              </div>
-              {preflight?.host.strict && !preflight.adapter.ok ? (
-                <div className="banner warn">
-                  This pipeline is strict. Clara Lab will register its own adapter when you start.
-                </div>
-              ) : null}
-              <div className="row">
-                <button
-                  type="button"
-                  className="button primary"
-                  onClick={() => void start()}
-                  disabled={busy || !prompt.trim()}
-                >
-                  Start run
-                </button>
-                <span className="muted">
-                  Origin is recorded as <code>clara-lab / lab / agent</code>.
-                </span>
-              </div>
-            </div>
-          </details>
-
           {status ? (
             <>
               <div className="run-head">
                 <div>
                   <div className="work-title">
                     <Badge tone={statusTone(status.run.state)}>{status.run.state}</Badge>
-                    <h3>Run #{status.run.id}</h3>
+                    <h2>Run #{status.run.id}</h2>
                     <span className="muted">{status.run.target}</span>
                   </div>
                   <div className="muted">{short(status.run.prompt, 180)}</div>
                 </div>
-                <div className="chips">
-                  <span className="chip">
-                    {totalSteps ? `${doneSteps}/${totalSteps} steps` : `${doneSteps} steps done`}
-                  </span>
-                  {current ? <span className="chip">now: {current.order.name}</span> : null}
-                  <span className="chip">{status.run.pipeline_ref}</span>
-                  {status.run.enforcement === 'strict' ? (
-                    <span className="chip chip-warn">strict</span>
-                  ) : null}
+                <div className="run-head-actions">
+                  <div className="chips">
+                    <span className="chip">
+                      {totalSteps ? `${doneSteps}/${totalSteps} steps` : `${doneSteps} steps done`}
+                    </span>
+                    {current ? <span className="chip">now: {current.order.name}</span> : null}
+                    <span className="chip">{status.run.pipeline_ref}</span>
+                    {status.run.enforcement === 'strict' ? (
+                      <span className="chip chip-warn">strict</span>
+                    ) : null}
+                  </div>
+                  <button
+                    type="button"
+                    className="button danger"
+                    onClick={() => void cancel()}
+                    disabled={busy || !isActiveRun}
+                  >
+                    <Icon name="stop" size={14} />
+                    Cancel run
+                  </button>
                 </div>
               </div>
 
@@ -582,22 +609,6 @@ export function Runs({
                   <button type="button" className="button" onClick={() => void toggleHeartbeat()}>
                     {heartbeat ? 'Pause heartbeats' : 'Resume heartbeats'}
                   </button>
-                  <button
-                    type="button"
-                    className="button"
-                    onClick={() => void register()}
-                    disabled={busy}
-                  >
-                    Re-register adapter
-                  </button>
-                  <button
-                    type="button"
-                    className="button danger"
-                    onClick={() => void cancel()}
-                    disabled={busy}
-                  >
-                    Cancel run
-                  </button>
                 </div>
                 <div className="muted">
                   Heartbeat holds the lease while you type. Pausing it lets the watchdog retry the
@@ -605,9 +616,17 @@ export function Runs({
                 </div>
               </details>
             </>
-          ) : runs.length ? (
-            <div className="empty">Select a run from the list.</div>
-          ) : null}
+          ) : (
+            <div className="run-empty">
+              <Icon name="runs" size={28} />
+              <h2>{runs.length ? 'Select a run' : 'No runs yet'}</h2>
+              <p className="muted">
+                {runs.length
+                  ? 'Choose a run from the list to inspect its steps, work orders, and events.'
+                  : 'Start the pipeline above to claim the first work order. The lab will hold it while you type the result.'}
+              </p>
+            </div>
+          )}
         </section>
       </div>
     </div>

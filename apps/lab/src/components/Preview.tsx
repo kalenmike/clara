@@ -4,6 +4,7 @@ import type { CompiledNode, LabPreviewResult, RunRow } from '../types'
 import type { LabStream } from '../useLab'
 import { Badge } from './Badge'
 import { Diagnostics } from './Diagnostics'
+import { Icon } from './Icon'
 import { Inspector } from './Inspector'
 import { CompiledTree } from './StepTree'
 import { SourceView } from './SourceView'
@@ -18,7 +19,7 @@ export function Preview({
   onTargetChange,
   active,
   onRun,
-  onEditSetup,
+  onOpenSettings,
 }: {
   stream: LabStream
   hostWorkspace: string
@@ -26,7 +27,7 @@ export function Preview({
   onTargetChange: (target: string) => void
   active: boolean
   onRun: () => void
-  onEditSetup: () => void
+  onOpenSettings: () => void
 }) {
   const [result, setResult] = useState<LabPreviewResult | null>(null)
   const [selected, setSelected] = useState<CompiledNode | undefined>()
@@ -39,6 +40,7 @@ export function Preview({
   const [diff, setDiff] = useState<DiffResponse | null>(null)
   const [diffError, setDiffError] = useState<string | null>(null)
   const [diffLoading, setDiffLoading] = useState(false)
+  const [compareOpen, setCompareOpen] = useState(false)
 
   const seenPreview = useRef(0)
 
@@ -128,15 +130,36 @@ export function Preview({
   const friendly = error ? friendlyError(error, 'host') : null
 
   return (
-    <div className="preview">
-      <div className="toolbar">
-        <div className="workspace-chip">
-          <span className="muted">Files</span>
-          <code>{hostWorkspace || 'Choose a workspace in Setup'}</code>
-          <button type="button" className="link" onClick={onEditSetup}>
-            change
+    <div className="view preview-view">
+      <header className="view-head">
+        <div>
+          <div className="view-kicker">Author</div>
+          <h1>Review pipeline</h1>
+          <p className="muted">
+            Inspect the compiled tree, catch configuration mistakes, and jump into source before
+            starting a run.
+          </p>
+        </div>
+        <div className="view-head-actions">
+          {reloaded ? <Badge tone="ok">files changed · reloaded</Badge> : null}
+          <button
+            type="button"
+            className="button"
+            onClick={() => {
+              setCompareOpen((value) => !value)
+              if (!compareOpen && !runs.length) void loadRuns()
+            }}
+          >
+            Compare run
+          </button>
+          <button type="button" className="button primary" onClick={onRun} disabled={!compiled}>
+            <Icon name="play" size={14} />
+            Run this pipeline
           </button>
         </div>
+      </header>
+
+      <div className="toolbar review-toolbar">
         <label className="grow">
           Pipeline
           <select
@@ -161,13 +184,20 @@ export function Preview({
           onClick={() => void load(hostWorkspace, target)}
           disabled={loading || !hostWorkspace}
         >
+          <Icon name="refresh" size={14} />
           {loading ? 'Loading…' : 'Reload'}
         </button>
-        <button type="button" className="button primary" onClick={onRun} disabled={!compiled}>
-          Run this pipeline
-        </button>
-        {reloaded ? <Badge tone="ok">files changed · reloaded</Badge> : null}
       </div>
+
+      {!hostWorkspace ? (
+        <div className="banner warn">
+          No workspace selected.{' '}
+          <button type="button" className="link" onClick={onOpenSettings}>
+            Choose one in Settings
+          </button>
+          .
+        </div>
+      ) : null}
 
       {pipelineInfo ? (
         <div className="pipeline-summary">
@@ -301,108 +331,115 @@ export function Preview({
         </section>
       </div>
 
-      <details
-        className="panel compare"
-        onToggle={(event) => {
-          if (event.currentTarget.open && !runs.length) void loadRuns()
-        }}
-      >
-        <summary>
-          <strong>Compare with a pinned run</strong>
-          <span className="muted"> current files ↔ the snapshot a run started with</span>
-        </summary>
-        <div className="compare-body">
-          <div className="row">
-            <select
-              value={runID ?? ''}
-              onChange={(event) => setRunID(Number(event.target.value) || undefined)}
-            >
-              <option value="">Select a run…</option>
-              {runs.map((run) => (
-                <option key={run.id} value={run.id}>
-                  #{run.id} {run.target} · {run.state}
-                </option>
-              ))}
-            </select>
-            <button type="button" className="button" onClick={() => void loadRuns()}>
-              Refresh runs
-            </button>
+      {compareOpen ? (
+        <section className="panel compare">
+          <div className="section-head">
+            <div>
+              <h2>Compare with a pinned run</h2>
+              <p className="muted">Current files against the snapshot a run started with.</p>
+            </div>
             <button
               type="button"
-              className="button primary"
-              onClick={() => void compare()}
-              disabled={!runID || diffLoading}
+              className="button ghost small"
+              onClick={() => setCompareOpen(false)}
             >
-              {diffLoading ? 'Comparing…' : 'Compare'}
+              <Icon name="close" size={14} />
+              Close
             </button>
           </div>
-          {diffError ? <div className="banner bad">{diffError}</div> : null}
-          {diff ? (
-            <div className="diff">
-              <div className="stats">
-                <span>current {short(diff.currentHash, 22)}</span>
-                <span>run {short(diff.runHash ?? '—', 22)}</span>
-                <span>{diff.diff.summary.added} added</span>
-                <span>{diff.diff.summary.removed} removed</span>
-                <span>{diff.diff.summary.changed} changed</span>
-                <span>{diff.diff.summary.unchanged} unchanged</span>
-              </div>
-              {diff.diff.changes.length ? (
-                <div className="diff-list">
-                  {diff.diff.changes.map((change) => (
-                    <details key={change.path} className={`diff-item diff-${change.kind}`}>
-                      <summary>
-                        <Badge
-                          tone={
-                            change.kind === 'added'
-                              ? 'ok'
-                              : change.kind === 'removed'
-                                ? 'bad'
-                                : 'warn'
-                          }
-                        >
-                          {change.kind}
-                        </Badge>
-                        <code>{change.path}</code>
-                        {compiled ? (
-                          <button
-                            type="button"
-                            className="link"
-                            onClick={(event) => {
-                              event.preventDefault()
-                              const node = findCompiledNode(compiled.root, change.path)
-                              if (node) setSelected(node)
-                            }}
-                          >
-                            select
-                          </button>
-                        ) : null}
-                      </summary>
-                      {change.fields.length ? (
-                        <div className="field-diff">
-                          {change.fields.map((field) => (
-                            <div key={field.field} className="field-diff-row">
-                              <strong>{field.field}</strong>
-                              <div className="field-diff-value">
-                                <span className="muted">run</span> {short(field.before, 220)}
-                              </div>
-                              <div className="field-diff-value">
-                                <span className="muted">now</span> {short(field.after, 220)}
-                              </div>
-                            </div>
-                          ))}
-                        </div>
-                      ) : null}
-                    </details>
-                  ))}
-                </div>
-              ) : (
-                <div className="empty">The current files match the pinned run snapshot.</div>
-              )}
+          <div className="compare-body">
+            <div className="row">
+              <select
+                value={runID ?? ''}
+                onChange={(event) => setRunID(Number(event.target.value) || undefined)}
+              >
+                <option value="">Select a run…</option>
+                {runs.map((run) => (
+                  <option key={run.id} value={run.id}>
+                    #{run.id} {run.target} · {run.state}
+                  </option>
+                ))}
+              </select>
+              <button type="button" className="button" onClick={() => void loadRuns()}>
+                Refresh runs
+              </button>
+              <button
+                type="button"
+                className="button primary"
+                onClick={() => void compare()}
+                disabled={!runID || diffLoading}
+              >
+                {diffLoading ? 'Comparing…' : 'Compare'}
+              </button>
             </div>
-          ) : null}
-        </div>
-      </details>
+            {diffError ? <div className="banner bad">{diffError}</div> : null}
+            {diff ? (
+              <div className="diff">
+                <div className="stats">
+                  <span>current {short(diff.currentHash, 22)}</span>
+                  <span>run {short(diff.runHash ?? '—', 22)}</span>
+                  <span>{diff.diff.summary.added} added</span>
+                  <span>{diff.diff.summary.removed} removed</span>
+                  <span>{diff.diff.summary.changed} changed</span>
+                  <span>{diff.diff.summary.unchanged} unchanged</span>
+                </div>
+                {diff.diff.changes.length ? (
+                  <div className="diff-list">
+                    {diff.diff.changes.map((change) => (
+                      <details key={change.path} className={`diff-item diff-${change.kind}`}>
+                        <summary>
+                          <Badge
+                            tone={
+                              change.kind === 'added'
+                                ? 'ok'
+                                : change.kind === 'removed'
+                                  ? 'bad'
+                                  : 'warn'
+                            }
+                          >
+                            {change.kind}
+                          </Badge>
+                          <code>{change.path}</code>
+                          {compiled ? (
+                            <button
+                              type="button"
+                              className="link"
+                              onClick={(event) => {
+                                event.preventDefault()
+                                const node = findCompiledNode(compiled.root, change.path)
+                                if (node) setSelected(node)
+                              }}
+                            >
+                              select
+                            </button>
+                          ) : null}
+                        </summary>
+                        {change.fields.length ? (
+                          <div className="field-diff">
+                            {change.fields.map((field) => (
+                              <div key={field.field} className="field-diff-row">
+                                <strong>{field.field}</strong>
+                                <div className="field-diff-value">
+                                  <span className="muted">run</span> {short(field.before, 220)}
+                                </div>
+                                <div className="field-diff-value">
+                                  <span className="muted">now</span> {short(field.after, 220)}
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        ) : null}
+                      </details>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="empty">The current files match the pinned run snapshot.</div>
+                )}
+              </div>
+            ) : null}
+          </div>
+        </section>
+      ) : null}
     </div>
   )
 }
