@@ -974,6 +974,22 @@ export class Runtime {
     return this.store.runs()
   }
 
+  /** The pinned compiled tree for a run. Only the Lab reads this. */
+  pinned(runID: number): { run_id: number; hash: string; snapshot: string } {
+    const run = this.store.run(runID)
+    if (!run) throw new OrchestrationErrorWithCode('run_missing', `run ${runID} does not exist`)
+    return { run_id: Number(run.id), hash: run.hash, snapshot: run.snapshot }
+  }
+
+  /** The full step row, including its rendered prompt and lease metadata. */
+  stepDetail(runID: number, path: string): StepRow {
+    const run = this.store.run(runID)
+    if (!run) throw new OrchestrationErrorWithCode('run_missing', `run ${runID} does not exist`)
+    const step = this.store.step(runID, path)
+    if (!step) throw new OrchestrationErrorWithCode('step_missing', `step ${path} does not exist`)
+    return step
+  }
+
   registerAdapter(input: {
     harness: string
     workspace: string
