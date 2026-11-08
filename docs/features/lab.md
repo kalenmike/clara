@@ -34,8 +34,9 @@ writing custom pipelines, not for end users.
    and press **Complete and continue** (or **Choose route** for a router). The
    next step is claimed automatically unless **Pause after each step** is on.
 7. Use the dock header to switch between recent debug runs, **Pull next**,
-   **Cancel run**, and open a run in **Runs**. Heartbeat controls stay with the
-   active debug claim.
+   **Cancel run**, and open a run in **Runs**. The dock opens collapsed by
+   default and only resumes an active debug run; otherwise it shows the
+   start-a-run state. Heartbeat controls stay with the active debug claim.
 8. Open **Runs** for observation. Owned runs are listed by default and debug
    runs are hidden behind a persisted **Show debug runs** toggle. The page never
    starts or steps a run. **Cancel run** stops the selected run; **Kill all
@@ -178,6 +179,9 @@ writing custom pipelines, not for end users.
   many hidden debug runs it will also cancel.
 - **Continue on Review** is pressed on a debug run: Review opens the Debug dock,
   selects that run, and expands the dock.
+- Review opens with no debug run in flight: the Debug dock stays collapsed and
+  shows the start-a-run state instead of the most recent cancelled or failed
+  run. An active debug run is selected automatically.
 - A debug run finishes: the dock keeps the completed run selected so it can be
   compared or opened in Runs; the next start replaces it.
 - Traffic is dominated by adapter heartbeats: the call list hides heartbeats by
@@ -295,7 +299,8 @@ writing custom pipelines, not for end users.
   stored there.
 - Debug runs are runs with `origin_harness: "clara-lab"`. The Debug dock starts
   them with origin `{ harness: "clara-lab", agent: "lab", kind: "agent" }` and
-  selects them by ID; **Runs** filters the same origin client-side.
+  selects them by ID; **Runs** filters the same origin client-side. On load the
+  dock resumes only the newest active debug run; terminal runs stay pickable.
 - SDK package: `@clara/devtools` exports `resolveWorkspace`, `previewPipeline`,
   `listTargets`, `describePackages`, `collectSources`, `diagnoseCompiled`,
   `diagnoseCatalog`, `diffCompiled`, and `inspectSnapshot`.

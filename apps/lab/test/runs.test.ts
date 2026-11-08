@@ -1,6 +1,13 @@
 import { describe, expect, it } from 'vitest'
 import type { RunRow } from '../src/types'
-import { debugRuns, isActiveRun, isDebugRun, sortRuns, visibleRuns } from '../src/lib/runs'
+import {
+  debugRuns,
+  isActiveRun,
+  isDebugRun,
+  latestActiveRun,
+  sortRuns,
+  visibleRuns,
+} from '../src/lib/runs'
 
 function run(id: number, overrides: Partial<RunRow> = {}): RunRow {
   return {
@@ -66,5 +73,23 @@ describe('lab run origins', () => {
     expect(isActiveRun(run(3, { state: 'queued' }))).toBe(true)
     expect(isActiveRun(run(4, { state: 'completed' }))).toBe(false)
     expect(isActiveRun(run(5, { state: 'cancelled' }))).toBe(false)
+  })
+
+  it('selects the newest active debug run', () => {
+    const runs = [
+      run(6, { state: 'running', origin_harness: 'clara-lab' }),
+      run(9, { state: 'waiting', origin_harness: 'clara-lab' }),
+      run(12, { state: 'completed', origin_harness: 'clara-lab' }),
+    ]
+    expect(latestActiveRun(runs)?.id).toBe(9)
+  })
+
+  it('returns no run when every debug run is terminal', () => {
+    const runs = [
+      run(1, { state: 'cancelled', origin_harness: 'clara-lab' }),
+      run(2, { state: 'failed', origin_harness: 'clara-lab' }),
+      run(3, { state: 'completed', origin_harness: 'clara-lab' }),
+    ]
+    expect(latestActiveRun(runs)).toBeUndefined()
   })
 })
