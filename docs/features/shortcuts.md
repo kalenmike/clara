@@ -105,7 +105,8 @@ actions; direct keys handle interruption and switching.
 | `shift+enter`             | Newline                        |
 
 `ctrl+x` only starts the leader when focus is outside a text field; inside one
-it stays the browser's cut.
+it stays the browser's cut. On touch devices Enter inserts a newline because
+those keyboards have no Shift key, and the composer's Send button submits.
 
 - Hook: `src/hooks/use-keybinds.ts`
 - Text-field check: `src/lib/keyboard.ts` (`isTextEntryTarget`)

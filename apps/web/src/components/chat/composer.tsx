@@ -57,6 +57,7 @@ import {
 } from '@/features/chat/use-forms'
 import { useStartWork } from '@/features/chat/use-start-work'
 import { draftTitleFromText } from '@/features/sessions/draft-title'
+import { useIsTouchDevice } from '@/hooks/use-is-touch-device'
 import { describeConnectionError } from '@/lib/client'
 import { readDraft, saveDraft } from '@/lib/storage'
 import { useConnection } from '@/providers/connection-provider'
@@ -129,6 +130,7 @@ export function Composer({
   const skillsQuery = useSkills(directory)
   const referencesQuery = useReferences(directory)
   const { isModelHidden } = useModelVisibility()
+  const isTouchDevice = useIsTouchDevice()
   const sendPrompt = useSendPrompt(sessionID)
   const runCommand = useRunCommand(sessionID)
   const saveAsDraft = useSaveDraft(sessionID)
@@ -604,7 +606,7 @@ export function Composer({
         setActiveIndex((index) => (index - 1 + items.length) % items.length)
         return
       }
-      if (event.key === 'Enter' && !event.shiftKey) {
+      if (event.key === 'Enter' && !event.shiftKey && !isTouchDevice) {
         event.preventDefault()
         const item = items[activeIndex]
         if (item) selectItem(item)
@@ -630,6 +632,9 @@ export function Composer({
     }
 
     if (event.key === 'Enter' && !event.shiftKey) {
+      // Touch keyboards have no Shift key, so Enter must insert a newline
+      // there. The Send button submits on touch devices.
+      if (isTouchDevice) return
       event.preventDefault()
       if (text.trim().length > 0) submit()
     }
