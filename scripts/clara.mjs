@@ -64,22 +64,34 @@ function ledger(args) {
   })
 }
 
+// Developer commands prefer their TypeScript source. A stale apps/*/dist build
+// from before a merge would otherwise hide new flags.
+function runTypeScript(source, built, args, label) {
+  if (existsSync(source)) {
+    return runNode(source, args, {
+      nodeArgs: ['--experimental-strip-types', '--no-warnings'],
+    })
+  }
+  if (existsSync(built)) return runNode(built, args)
+  fail(`${label} is not built and its source is missing. Run \`pnpm build\` first.`)
+}
+
 function orchestration(args) {
-  const built = join(root, 'apps/orchestrator/dist/index.js')
-  const source = join(root, 'apps/orchestrator/src/index.ts')
-  const entry = existsSync(built) ? built : source
-  return runNode(entry, args, {
-    nodeArgs: existsSync(built) ? [] : ['--experimental-strip-types', '--no-warnings'],
-  })
+  return runTypeScript(
+    join(root, 'apps/orchestrator/src/index.ts'),
+    join(root, 'apps/orchestrator/dist/index.js'),
+    args,
+    'The orchestration service'
+  )
 }
 
 function lab(args) {
-  const built = join(root, 'apps/lab/dist/server/index.js')
-  const source = join(root, 'apps/lab/server/index.ts')
-  const entry = existsSync(built) ? built : source
-  return runNode(entry, args, {
-    nodeArgs: existsSync(built) ? [] : ['--experimental-strip-types', '--no-warnings'],
-  })
+  return runTypeScript(
+    join(root, 'apps/lab/server/index.ts'),
+    join(root, 'apps/lab/dist/server/index.js'),
+    args,
+    'Clara Lab'
+  )
 }
 
 function mcp(args) {
