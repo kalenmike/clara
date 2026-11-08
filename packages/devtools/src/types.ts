@@ -16,6 +16,14 @@ export interface ResolvedWorkspace {
   stdDir?: string
 }
 
+export interface ModelOption {
+  providerID: string
+  id: string
+  name?: string
+  enabled?: boolean
+  type?: string
+}
+
 export interface PreviewInput {
   workspace?: string
   configPath?: string
@@ -23,6 +31,7 @@ export interface PreviewInput {
   target?: string
   cwd?: string
   adapters?: AdapterInfo[]
+  models?: ModelOption[]
 }
 
 export type DiagnosticSeverity = 'error' | 'warning' | 'info'

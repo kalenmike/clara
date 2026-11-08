@@ -175,6 +175,16 @@ export function Setup({
                   ) : undefined
                 }
               />
+              <PreflightRow
+                label="OpenCode models"
+                ok={preflight.models.ok}
+                detail={
+                  preflight.models.ok
+                    ? `${preflight.models.count} models available`
+                    : 'not checked — model existence is unverified'
+                }
+                hint={preflight.models.ok ? preflight.models.url : preflight.models.error}
+              />
             </div>
           ) : (
             <div className="muted setup-hint">

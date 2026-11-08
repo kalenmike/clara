@@ -14,6 +14,7 @@ import {
   workspace,
 } from './config.ts'
 import { startLabServer } from './http.ts'
+import { createModelCatalogLoader } from './models.ts'
 import { LabRuntime } from './runtime.ts'
 
 interface Options {
@@ -84,11 +85,13 @@ function formatDiagnostic(diagnostic: Diagnostic): string {
 }
 
 async function check(options: Options): Promise<void> {
+  const catalog = await createModelCatalogLoader({ timeoutMs: 1_500 })().catch(() => undefined)
   const result = previewPipeline({
     ...(options.workspace ? { workspace: options.workspace } : {}),
     ...(options.target ? { target: options.target } : {}),
     ...(options.configPath ? { configPath: options.configPath } : {}),
     ...(options.stdDir ? { stdDir: options.stdDir } : {}),
+    ...(catalog?.ok ? { models: catalog.models } : {}),
   })
   const errors = result.diagnostics.filter((diagnostic) => diagnostic.severity === 'error')
   if (options.json) {
@@ -99,6 +102,9 @@ async function check(options: Options): Promise<void> {
           target: result.selected,
           hash: result.compiled?.hash,
           stats: result.stats,
+          models: catalog
+            ? { ok: catalog.ok, url: catalog.url, count: catalog.models.length }
+            : { ok: false },
           diagnostics: result.diagnostics,
         },
         null,
@@ -117,6 +123,13 @@ async function check(options: Options): Promise<void> {
         )
       }
     }
+    console.log(
+      `models:    ${
+        catalog?.ok
+          ? `${catalog.models.length} available from ${catalog.url}`
+          : `not checked${catalog?.error ? ` (${catalog.error})` : ''}`
+      }`
+    )
     if (result.diagnostics.length) {
       console.log('')
       console.log('diagnostics:')

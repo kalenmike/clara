@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import type { CompiledNode, StepRow } from '../types'
-import { ago, statusTone } from '../lib/format'
+import { ago, modelLabel, statusTone } from '../lib/format'
 import { Badge } from './Badge'
 
 function kindTone(kind: string): 'ok' | 'bad' | 'live' | 'idle' | 'warn' {
@@ -60,7 +60,9 @@ function CompiledRow({
         >
           <Badge tone={kindTone(node.kind)}>{node.kind}</Badge>
           <span className="tree-name">{node.title}</span>
-          {node.model ? <span className="chip">{node.model}</span> : null}
+          {node.model ? (
+            <span className="chip">{modelLabel(node.model, node.provider)}</span>
+          ) : null}
           {node.enforcement ? (
             <span className={`chip chip-${node.enforcement === 'strict' ? 'warn' : 'idle'}`}>
               {node.enforcement}

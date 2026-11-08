@@ -9,5 +9,5 @@ export default defineConfig({
   // The web build owns dist/web and runs first.
   clean: false,
   noExternal: [/^@clara\//],
-  external: ['@modelcontextprotocol/sdk', 'yaml', 'zod', 'better-sqlite3'],
+  external: ['@modelcontextprotocol/sdk', '@opencode/client', 'yaml', 'zod', 'better-sqlite3'],
 })

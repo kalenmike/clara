@@ -1,17 +1,31 @@
 import { SERVER_INSTRUCTIONS } from '@clara/mcp-server'
-import {
-  previewPipeline,
-  type AdapterInfo,
-  type PreviewInput,
-  type PreviewResult,
-} from '@clara/devtools'
+import { previewPipeline, type AdapterInfo, type PreviewInput } from '@clara/devtools'
 import { EventRelay } from './orchestrator-events.ts'
 import { McpClient, type ToolResult } from './mcp.ts'
+import { createModelCatalogLoader, type ModelCatalog, type ModelCatalogSource } from './models.ts'
 import { LabState, workKey } from './state.ts'
-import type { AdapterRow, PreflightResult, StepRow, WorkOrder } from './types.ts'
+import type {
+  AdapterRow,
+  LabPreviewResult,
+  ModelCatalogSummary,
+  PreflightResult,
+  StepRow,
+  WorkOrder,
+} from './types.ts'
 
 function message(error: unknown): string {
   return error instanceof Error ? error.message : String(error)
+}
+
+function modelSummary(catalog: ModelCatalog): ModelCatalogSummary {
+  return {
+    ok: catalog.ok,
+    reachable: catalog.reachable,
+    url: catalog.url,
+    count: catalog.models.length,
+    ...(catalog.error ? { error: catalog.error } : {}),
+    fetchedAt: catalog.fetchedAt,
+  }
 }
 
 function capabilities(value: string): string[] {
@@ -42,6 +56,7 @@ export class LabRuntime {
   readonly mcp: McpClient
   private readonly url: string
   private readonly token: string
+  private readonly modelCatalog: ModelCatalogSource
   private readonly events: EventRelay
   private heartbeatTimer: NodeJS.Timeout | undefined
   private retryTimer: NodeJS.Timeout | undefined
@@ -49,9 +64,15 @@ export class LabRuntime {
   private reconnectInFlight = false
   private adaptersLoaded = false
 
-  constructor(options: { url: string; token: string; workspace: string }) {
+  constructor(options: {
+    url: string
+    token: string
+    workspace: string
+    models?: ModelCatalogSource
+  }) {
     this.url = options.url
     this.token = options.token
+    this.modelCatalog = options.models ?? createModelCatalogLoader()
     this.mcp = new McpClient(options.url, options.token)
     this.state.orchestrator = options.url
     this.state.workspace = options.workspace
@@ -134,11 +155,24 @@ export class LabRuntime {
     }
   }
 
-  async preview(input: PreviewInput): Promise<PreviewResult> {
+  async preview(input: PreviewInput): Promise<LabPreviewResult> {
     if (this.mcp.connected && !this.adaptersLoaded) {
       await this.refreshAdapters(input.workspace ?? this.state.workspace).catch(() => {})
     }
-    return previewPipeline({ ...input, adapters: this.adapterInfo() })
+    const catalog = await this.modelCatalog().catch((error: unknown): ModelCatalog => ({
+      ok: false,
+      reachable: false,
+      url: '',
+      models: [],
+      error: message(error),
+      fetchedAt: new Date().toISOString(),
+    }))
+    const result = previewPipeline({
+      ...input,
+      adapters: this.adapterInfo(),
+      ...(catalog.ok ? { models: catalog.models } : {}),
+    })
+    return { ...result, modelCatalog: modelSummary(catalog) }
   }
 
   async preflight(input: {
@@ -149,10 +183,19 @@ export class LabRuntime {
     const hostWorkspace = input.hostWorkspace.trim() || this.state.workspace
     const runtimeWorkspace = input.runtimeWorkspace.trim() || hostWorkspace
     const target = input.target?.trim() || undefined
+    const catalog = await this.modelCatalog().catch((error: unknown): ModelCatalog => ({
+      ok: false,
+      reachable: false,
+      url: '',
+      models: [],
+      error: message(error),
+      fetchedAt: new Date().toISOString(),
+    }))
     const result: PreflightResult = {
       host: { ok: false },
       runtime: { ok: false },
       adapter: { required: false, ok: true },
+      models: modelSummary(catalog),
     }
 
     try {

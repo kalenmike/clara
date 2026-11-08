@@ -52,6 +52,11 @@ export function short(value: unknown, max = 140): string {
   return text.length > max ? `${text.slice(0, max - 1)}…` : text
 }
 
+export function modelLabel(model?: string | null, provider?: string | null): string {
+  if (!model) return 'default'
+  return provider ? `${provider}/${model}` : model
+}
+
 export function parseMaybeJson(value: string): unknown {
   const text = value.trim()
   if (!text) return undefined

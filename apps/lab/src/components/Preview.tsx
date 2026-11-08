@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { ApiError, getDiff, getRuns, preview, type DiffResponse } from '../api'
-import type { CompiledNode, PreviewResult, RunRow } from '../types'
+import type { CompiledNode, LabPreviewResult, RunRow } from '../types'
 import type { LabStream } from '../useLab'
 import { Badge } from './Badge'
 import { Diagnostics } from './Diagnostics'
@@ -28,7 +28,7 @@ export function Preview({
   onRun: () => void
   onEditSetup: () => void
 }) {
-  const [result, setResult] = useState<PreviewResult | null>(null)
+  const [result, setResult] = useState<LabPreviewResult | null>(null)
   const [selected, setSelected] = useState<CompiledNode | undefined>()
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -179,6 +179,13 @@ export function Preview({
           {compiled?.root.enforcement ? (
             <Badge tone={compiled.root.enforcement === 'strict' ? 'warn' : 'idle'}>
               {compiled.root.enforcement}
+            </Badge>
+          ) : null}
+          {result?.modelCatalog ? (
+            <Badge tone={result.modelCatalog.ok ? 'ok' : 'warn'}>
+              {result.modelCatalog.ok
+                ? `${result.modelCatalog.count} models`
+                : 'models not checked'}
             </Badge>
           ) : null}
         </div>

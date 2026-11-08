@@ -20,6 +20,7 @@
     "@clara/mcp-server": "workspace:*",
     "@clara/policy": "workspace:*",
     "@modelcontextprotocol/sdk": "^1.24.3",
+    "@opencode/client": "2.1.1",
     "react": "^19.3.1",
     "react-dom": "^19.3.1",
     "yaml": "^2.8.1",
