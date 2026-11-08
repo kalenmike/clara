@@ -9,6 +9,10 @@ export const NAMESPACE = 'clara'
 
 const ROUTER_TOOLS = new Set([`${NAMESPACE}_route`, `${NAMESPACE}_fail`])
 const TASK_TOOLS = new Set([`${NAMESPACE}_complete`, `${NAMESPACE}_fail`, `${NAMESPACE}_spawn`])
+// Code Mode is a transport for tools, not a tool a step owns. Never delete its
+// gateway while scoping: a model that is told to use `execute` will otherwise
+// emit the call as text because the gateway is missing.
+const GATEWAY_TOOLS = new Set(['execute', 'search'])
 
 export interface PromptStepResult {
   path?: string
@@ -98,12 +102,14 @@ export function scopeWorkerTools(tools: ToolRecord | undefined, work: ScopedWork
   if (!tools || !work.managed) return
   if (work.kind === 'router') {
     for (const name of Object.keys(tools)) {
+      if (GATEWAY_TOOLS.has(name)) continue
       if (!ROUTER_TOOLS.has(name)) delete tools[name]
     }
     applyRouteSchema(tools, work.routes)
     return
   }
   for (const name of Object.keys(tools)) {
+    if (GATEWAY_TOOLS.has(name)) continue
     if (name.startsWith(`${NAMESPACE}_`) && !TASK_TOOLS.has(name)) delete tools[name]
   }
 }

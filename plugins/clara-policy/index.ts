@@ -44,6 +44,7 @@ interface ActiveWork {
   toolCalls: number
   tokens: number
   closed: boolean
+  watching: boolean
 }
 
 function dataDir(): string {
@@ -134,13 +135,15 @@ async function call<T = unknown>(
   return parsed as T
 }
 
+export const CONTROL_TOOL_OPTIONS = { namespace: NAMESPACE, codemode: false }
+
 function tool(
   name: string,
   description: string,
   input: Record<string, unknown>,
   execute: (input: Any, context: Any) => Promise<{ content: string }>
 ) {
-  return { name, description, input, execute, options: { namespace: NAMESPACE } }
+  return { name, description, input, execute, options: CONTROL_TOOL_OPTIONS }
 }
 
 function sessionID(context: Any): string | undefined {
@@ -226,6 +229,52 @@ export default {
       ).catch(() => {})
     }
 
+    const failMissingControl = async (work: ActiveWork): Promise<void> => {
+      if (work.closed) return
+      work.closed = true
+      try {
+        const response = await call<Any>(
+          config,
+          'POST',
+          `/v1/runs/${work.run_id}/steps/${encodeURIComponent(work.step_path)}/fail`,
+          {
+            work_token: work.work_token,
+            error: 'The worker finished without calling a Clara control tool',
+            usage: {
+              turns: work.turns,
+              toolCalls: work.toolCalls,
+              tokens: work.tokens,
+            },
+          }
+        )
+        pruneRun(response.run)
+      } catch (error) {
+        console.error(
+          `[clara-policy] failed to report a missing control call: ${(error as Error).message}`
+        )
+      }
+      finish(work.session)
+    }
+
+    // A text-only answer is not a completed work order. Wait for the managed
+    // session's agent loop to go idle, then fail the step if no Clara control
+    // tool closed the binding.
+    const watchControl = (session: string, work: ActiveWork): void => {
+      if (!work.managed) return
+      const sessions = ctx.session as Any
+      if (typeof sessions?.wait !== 'function') return
+      void (async () => {
+        try {
+          await sessions.wait({ sessionID: session })
+        } catch {
+          return
+        }
+        if (work.closed) return
+        const timer = setTimeout(() => void failMissingControl(work), 500)
+        timer.unref?.()
+      })().catch(() => {})
+    }
+
     const register = async (): Promise<void> => {
       try {
         const registered = await call<{ id: string }>(config, 'POST', '/v1/adapters/register', {
@@ -275,18 +324,45 @@ export default {
         toolCalls: 0,
         tokens: 0,
         closed: false,
+        watching: false,
       })
       activeRuns.add(runID)
     }
 
+    const DEFAULT_WORKER_AGENT = 'build'
+
+    // Managed workers run in top-level sessions, so the worker agent must be
+    // usable as a primary agent. An invalid or subagent-only override falls
+    // back to the built-in build agent instead of silently inheriting the
+    // caller's agent.
+    const resolveWorkerAgent = async (): Promise<string> => {
+      const requested = process.env.CLARA_WORKER_AGENT?.trim() || DEFAULT_WORKER_AGENT
+      const agents = ctx.agent as Any
+      if (typeof agents?.get !== 'function') return requested
+      try {
+        const info = await agents.get({ agentID: requested })
+        const mode =
+          info && typeof info === 'object' ? (info as { mode?: unknown }).mode : undefined
+        if (info && mode !== 'subagent') return requested
+        console.warn(
+          `[clara-policy] worker agent ${requested} is not a primary agent; using ${DEFAULT_WORKER_AGENT}`
+        )
+      } catch {
+        console.warn(
+          `[clara-policy] worker agent ${requested} is unavailable; using ${DEFAULT_WORKER_AGENT}`
+        )
+      }
+      return DEFAULT_WORKER_AGENT
+    }
+
     const dispatch = async (work: Any, context: Any): Promise<boolean> => {
-      if (!ctx.session?.create || !ctx.session?.prompt || !ctx.session?.switchAgent) return false
+      if (!ctx.session?.create || !ctx.session?.prompt) return false
       const parentSession = sessionID(context)
       const directory =
         typeof work?.workspace === 'string' && work.workspace
           ? work.workspace
           : resolveWorkspace(context)
-      const agent = process.env.CLARA_WORKER_AGENT?.trim() || 'general'
+      const agent = await resolveWorkerAgent()
       const model = modelRef(work)
       if (
         (typeof work?.model === 'string' && work.model && !model) ||
@@ -300,6 +376,7 @@ export default {
         const created = await ctx.session.create({
           title: `Clara ${work.name} (run ${work.run_id})`,
           location: { directory },
+          agent,
           ...(model ? { model } : {}),
           metadata: {
             automation: true,
@@ -310,11 +387,37 @@ export default {
             },
           },
         })
-        await ctx.session.switchAgent({ sessionID: created.id, agent })
-        // Switching the agent may select the agent's own model. Pin the work
-        // order model afterwards so every pipeline step uses what it declares.
-        if (model && typeof ctx.session.switchModel === 'function') {
-          await ctx.session.switchModel({ sessionID: created.id, model })
+        if (typeof ctx.session.get === 'function') {
+          let info = await ctx.session.get({ sessionID: created.id })
+          if (!info) throw new Error(`managed session ${created.id} was not persisted`)
+          if (info.agent && info.agent !== agent && typeof ctx.session.switchAgent === 'function') {
+            await ctx.session.switchAgent({ sessionID: created.id, agent })
+            info = await ctx.session.get({ sessionID: created.id })
+          }
+          if (
+            model &&
+            (info.model?.providerID !== model.providerID || info.model?.id !== model.id) &&
+            typeof ctx.session.switchModel === 'function'
+          ) {
+            await ctx.session.switchModel({ sessionID: created.id, model })
+            info = await ctx.session.get({ sessionID: created.id })
+          }
+          if (info.agent && info.agent !== agent) {
+            throw new Error(`managed session ${created.id} uses agent ${info.agent}, not ${agent}`)
+          }
+          if (
+            model &&
+            (info.model?.providerID !== model.providerID || info.model?.id !== model.id)
+          ) {
+            throw new Error(
+              `managed session ${created.id} uses model ${info.model?.providerID ?? '-'}/${info.model?.id ?? '-'}, not ${model.providerID}/${model.id}`
+            )
+          }
+          if (info.location?.directory && resolve(info.location.directory) !== resolve(directory)) {
+            throw new Error(
+              `managed session ${created.id} is at ${info.location.directory}, not ${directory}`
+            )
+          }
         }
         bind(created.id, work, true)
         await ctx.session.prompt({
@@ -502,6 +605,10 @@ export default {
           // Only adapter-created sessions are scoped; a fallback binding of the
           // parent session must keep the human-facing agent's tool set.
           scopeWorkerTools(event?.tools, work)
+          if (!work.watching) {
+            work.watching = true
+            watchControl(id, work)
+          }
           const at = Date.now()
           if (at - (lastTurn.get(id) ?? 0) < 250) return
           lastTurn.set(id, at)

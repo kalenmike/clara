@@ -68,6 +68,8 @@ test('scopes a router to route and fail and constrains the route enum', () => {
   const tools: Record<string, unknown> = {
     read: {},
     shell: {},
+    execute: {},
+    search: {},
     [toolName('route')]: { input: { type: 'object' } },
     [toolName('fail')]: {},
     [toolName('complete')]: {},
@@ -77,7 +79,10 @@ test('scopes a router to route and fail and constrains the route enum', () => {
     managed: true,
     routes: [{ when: 'content' }, { when: 'software-development' }],
   })
-  assert.deepEqual(Object.keys(tools).sort(), [toolName('fail'), toolName('route')].sort())
+  assert.deepEqual(
+    Object.keys(tools).sort(),
+    ['execute', 'search', toolName('fail'), toolName('route')].sort()
+  )
   const route = tools[toolName('route')] as {
     input: { properties: { route: { enum: string[] } } }
   }
@@ -88,6 +93,8 @@ test('scopes a task to its control tools but keeps repository tools', () => {
   const tools: Record<string, unknown> = {
     read: {},
     shell: {},
+    execute: {},
+    search: {},
     [toolName('start')]: {},
     [toolName('status')]: {},
     [toolName('complete')]: {},
@@ -97,8 +104,32 @@ test('scopes a task to its control tools but keeps repository tools', () => {
   scopeWorkerTools(tools, { kind: 'task', managed: true })
   assert.deepEqual(
     Object.keys(tools).sort(),
-    ['read', 'shell', toolName('complete'), toolName('fail'), toolName('spawn')].sort()
+    [
+      'read',
+      'shell',
+      'execute',
+      'search',
+      toolName('complete'),
+      toolName('fail'),
+      toolName('spawn'),
+    ].sort()
   )
+})
+
+test('never deletes the Code Mode gateway when scoping a router', () => {
+  const tools: Record<string, unknown> = {
+    execute: {},
+    search: {},
+    read: {},
+    [toolName('route')]: { input: { type: 'object' } },
+    [toolName('fail')]: {},
+  }
+  scopeWorkerTools(tools, { kind: 'router', managed: true })
+  assert.ok('execute' in tools)
+  assert.ok('search' in tools)
+  assert.ok(toolName('route') in tools)
+  assert.ok(toolName('fail') in tools)
+  assert.ok(!('read' in tools))
 })
 
 test('does not scope a fallback parent binding', () => {
