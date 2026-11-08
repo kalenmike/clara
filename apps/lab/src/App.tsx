@@ -1,22 +1,124 @@
-import { useCallback, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
+import { preflight, registerAdapter, reconnect } from './api'
 import { Badge } from './components/Badge'
 import { Preview } from './components/Preview'
 import { Runs } from './components/Runs'
+import { Setup } from './components/Setup'
 import { Traffic } from './components/Traffic'
+import { friendlyError } from './lib/errors'
+import { loadSettings, saveSettings, type LabSettings, type LabTab } from './lib/settings'
+import type { PreflightResult } from './types'
 import { useLabStream } from './useLab'
-
-type Tab = 'preview' | 'runs' | 'traffic'
 
 export function App() {
   const stream = useLabStream()
-  const [tab, setTab] = useState<Tab>('preview')
-  const [startTarget, setStartTarget] = useState<string | undefined>()
+  const [settings, setSettings] = useState<LabSettings>(() => loadSettings())
+  const [preflightResult, setPreflightResult] = useState<PreflightResult | null>(null)
+  const [preflightLoading, setPreflightLoading] = useState(false)
+  const [preflightError, setPreflightError] = useState<string | null>(null)
+  const [notice, setNotice] = useState<string | null>(null)
+  const [setupOpen, setSetupOpen] = useState(true)
+  const setupRef = useRef<HTMLDivElement>(null)
+  const autoCollapsed = useRef(false)
 
-  const useTarget = (target: string): void => {
-    setStartTarget(target)
-    setTab('runs')
+  const update = useCallback((patch: Partial<LabSettings>) => {
+    setSettings((current) => {
+      const next = { ...current, ...patch }
+      saveSettings(next)
+      return next
+    })
+    if (
+      patch.hostWorkspace !== undefined ||
+      patch.runtimeWorkspace !== undefined ||
+      patch.target !== undefined
+    ) {
+      setPreflightResult(null)
+      setPreflightError(null)
+    }
+  }, [])
+
+  useEffect(() => {
+    if (settings.hostWorkspace || !stream.snapshot?.workspace) return
+    update({ hostWorkspace: stream.snapshot.workspace })
+  }, [settings.hostWorkspace, stream.snapshot?.workspace, update])
+
+  useEffect(() => {
+    if (!notice) return
+    const timer = window.setTimeout(() => setNotice(null), 5000)
+    return () => window.clearTimeout(timer)
+  }, [notice])
+
+  useEffect(() => {
+    if (!preflightResult || autoCollapsed.current) return
+    const ok =
+      preflightResult.host.ok &&
+      preflightResult.runtime.ok &&
+      (!preflightResult.adapter.required || preflightResult.adapter.ok)
+    if (ok) {
+      autoCollapsed.current = true
+      setSetupOpen(false)
+    }
+  }, [preflightResult])
+
+  useEffect(() => {
+    if (preflightError) setSetupOpen(true)
+  }, [preflightError])
+
+  const hostWorkspace = settings.hostWorkspace.trim() || stream.snapshot?.workspace || ''
+  const runtimeWorkspace = settings.runtimeWorkspace.trim() || hostWorkspace
+
+  const runPreflight = useCallback(async (): Promise<void> => {
+    if (!hostWorkspace) return
+    setPreflightLoading(true)
+    setPreflightError(null)
+    try {
+      const result = await preflight({
+        hostWorkspace,
+        runtimeWorkspace: runtimeWorkspace || hostWorkspace,
+        ...(settings.target ? { target: settings.target } : {}),
+      })
+      setPreflightResult(result)
+    } catch (cause) {
+      setPreflightError(cause instanceof Error ? cause.message : String(cause))
+    } finally {
+      setPreflightLoading(false)
+    }
+  }, [hostWorkspace, runtimeWorkspace, settings.target])
+
+  useEffect(() => {
+    if (!stream.snapshot || !hostWorkspace) return
+    const timer = window.setTimeout(() => void runPreflight(), 800)
+    return () => window.clearTimeout(timer)
+  }, [stream.snapshot?.connected, hostWorkspace, runtimeWorkspace, settings.target, runPreflight])
+
+  const setTab = (tab: LabTab): void => {
+    update({ tab })
   }
-  const consumeTarget = useCallback(() => setStartTarget(undefined), [])
+
+  const enableAdapter = async (): Promise<void> => {
+    try {
+      await registerAdapter(runtimeWorkspace || hostWorkspace)
+      setNotice('Registered the clara-lab adapter for this workspace.')
+      await runPreflight()
+    } catch (cause) {
+      setPreflightError(cause instanceof Error ? cause.message : String(cause))
+    }
+  }
+
+  const reconnectNow = async (): Promise<void> => {
+    try {
+      await reconnect()
+      setNotice('Reconnected to the orchestrator.')
+      await runPreflight()
+    } catch (cause) {
+      setPreflightError(cause instanceof Error ? cause.message : String(cause))
+    }
+  }
+
+  const goToSetup = (): void => {
+    setSetupOpen(true)
+    setupRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+  }
 
   if (!stream.snapshot) {
     return (
@@ -30,6 +132,7 @@ export function App() {
   }
 
   const snapshot = stream.snapshot
+  const runtimeError = snapshot.lastError ? friendlyError(snapshot.lastError, 'runtime') : null
 
   return (
     <div className="app">
@@ -38,49 +141,73 @@ export function App() {
           <span className="brand-mark">C</span>
           <div>
             <h1>Clara Lab</h1>
-            <p className="muted">Pipeline preview and agent probe</p>
+            <p className="muted">Pick a pipeline, preview it, then act as the AI step by step.</p>
           </div>
         </div>
         <div className="app-status">
           <Badge tone={snapshot.connected ? 'ok' : 'bad'}>
-            {snapshot.connected ? 'orchestrator connected' : 'orchestrator offline'}
+            {snapshot.connected ? 'connected' : 'offline'}
           </Badge>
-          <Badge tone={snapshot.heartbeat ? 'ok' : 'warn'}>
-            {snapshot.heartbeat ? 'heartbeat on' : 'heartbeat paused'}
+          <Badge tone={snapshot.tokenPresent ? 'ok' : 'warn'}>
+            {snapshot.tokenPresent ? 'token ready' : 'no token'}
           </Badge>
-          <span className="muted">{snapshot.orchestrator}</span>
-          <span className="muted">{snapshot.workspace}</span>
+          <button type="button" className="button ghost small" onClick={goToSetup}>
+            Setup
+          </button>
         </div>
       </header>
 
+      <div ref={setupRef}>
+        <Setup
+          snapshot={snapshot}
+          hostWorkspace={settings.hostWorkspace}
+          runtimeWorkspace={settings.runtimeWorkspace}
+          onHostWorkspace={(value) => update({ hostWorkspace: value })}
+          onRuntimeWorkspace={(value) => update({ runtimeWorkspace: value })}
+          preflight={preflightResult}
+          loading={preflightLoading}
+          error={preflightError}
+          open={setupOpen}
+          onToggle={() => setSetupOpen((value) => !value)}
+          onCheck={() => void runPreflight()}
+          onReconnect={() => void reconnectNow()}
+          onEnableAdapter={() => void enableAdapter()}
+        />
+      </div>
+
       {stream.error ? <div className="banner warn">{stream.error}</div> : null}
-      {snapshot.lastError ? <div className="banner warn">{snapshot.lastError}</div> : null}
-      {!snapshot.tokenPresent ? (
+      {runtimeError ? (
         <div className="banner warn">
-          No orchestrator token was found. Start the service with{' '}
-          <code>pnpm clara orchestration start</code> or set <code>CLARA_ORCHESTRATION_TOKEN</code>.
+          <strong>{runtimeError.title}.</strong> {runtimeError.hint ?? runtimeError.detail}
         </div>
       ) : null}
+      {!snapshot.tokenPresent ? (
+        <div className="banner warn">
+          No orchestrator token was found. Start the service or set{' '}
+          <code>CLARA_ORCHESTRATION_TOKEN</code>, then restart the lab.
+        </div>
+      ) : null}
+      {notice ? <div className="banner ok">{notice}</div> : null}
 
       <nav className="tabs">
         <button
           type="button"
-          className={`tab ${tab === 'preview' ? 'active' : ''}`}
-          onClick={() => setTab('preview')}
+          className={`tab ${settings.tab === 'pipeline' ? 'active' : ''}`}
+          onClick={() => setTab('pipeline')}
         >
-          Preview
+          Pipeline
         </button>
         <button
           type="button"
-          className={`tab ${tab === 'runs' ? 'active' : ''}`}
-          onClick={() => setTab('runs')}
+          className={`tab ${settings.tab === 'run' ? 'active' : ''}`}
+          onClick={() => setTab('run')}
         >
-          Runs
+          Run
           {snapshot.work.length ? <span className="tab-count">{snapshot.work.length}</span> : null}
         </button>
         <button
           type="button"
-          className={`tab ${tab === 'traffic' ? 'active' : ''}`}
+          className={`tab ${settings.tab === 'traffic' ? 'active' : ''}`}
           onClick={() => setTab('traffic')}
         >
           Traffic
@@ -89,17 +216,34 @@ export function App() {
       </nav>
 
       <main className="app-body">
-        <div hidden={tab !== 'preview'}>
-          <Preview stream={stream} onUseTarget={useTarget} />
+        <div hidden={settings.tab !== 'pipeline'}>
+          <Preview
+            stream={stream}
+            hostWorkspace={hostWorkspace}
+            target={settings.target}
+            onTargetChange={(target) => update({ target })}
+            active={settings.tab === 'pipeline'}
+            onRun={() => setTab('run')}
+            onEditSetup={goToSetup}
+          />
         </div>
-        {tab === 'runs' ? (
+        <div hidden={settings.tab !== 'run'}>
           <Runs
             stream={stream}
-            {...(startTarget !== undefined ? { initialTarget: startTarget } : {})}
-            onInitialTargetConsumed={consumeTarget}
+            hostWorkspace={hostWorkspace}
+            runtimeWorkspace={runtimeWorkspace}
+            target={settings.target}
+            pauseAfterStep={settings.pauseAfterStep}
+            onPauseAfterStepChange={(value) => update({ pauseAfterStep: value })}
+            active={settings.tab === 'run'}
+            preflight={preflightResult}
+            onPreflight={() => void runPreflight()}
+            onGoToPipeline={() => setTab('pipeline')}
+            onGoToSetup={goToSetup}
+            onNotice={setNotice}
           />
-        ) : null}
-        {tab === 'traffic' ? <Traffic stream={stream} /> : null}
+        </div>
+        {settings.tab === 'traffic' ? <Traffic stream={stream} /> : null}
       </main>
     </div>
   )

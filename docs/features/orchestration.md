@@ -14,10 +14,11 @@ work orders and enforces strict policy.
    bridge start it on first use.
 2. Install the generic MCP entry with `pnpm clara mcp install`, or install the
    OpenCode strict adapter with `pnpm clara adapter install opencode`.
-3. Before handing a package to an agent, run `pnpm clara lab` to preview the
-   compiled target, inspect each rendered prompt and policy, and compare it with
-   a pinned run. The same console can then act as the agent and drive the run by
-   hand. See [lab.md](lab.md).
+3. Before handing a package to an agent, run `pnpm clara lab` to map the host
+   and orchestrator workspace paths, preview the compiled target, inspect each
+   rendered prompt and policy, and compare it with a pinned run. The same
+   console can then act as the agent and drive the run by hand. See
+   [lab.md](lab.md).
 4. In OpenCode, run `/pipeline <request>`. The installed command tells the
    agent to call `clara_start` with the full request and the current workspace.
    Any agent with the Clara tools can also call `clara_start` directly. The

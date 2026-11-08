@@ -106,5 +106,7 @@ pnpm clara lab check --json            # CI-friendly diagnostics
 
 `check` exits non-zero on compile errors. It ignores warnings, so it can run in
 a pre-commit hook or CI without blocking on author feedback. The lab compiles
-the files on the host; keep the workspace mount identical when the orchestrator
-runs in a container. See [features/lab.md](features/lab.md).
+the files on the host; when the orchestrator runs in a container, enter the host
+path under **Files on this machine** and the container mount under **Workspace
+inside the orchestrator** in Setup, then run **Check setup**. See
+[features/lab.md](features/lab.md).

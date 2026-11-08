@@ -8,17 +8,26 @@ import { Inspector } from './Inspector'
 import { CompiledTree } from './StepTree'
 import { SourceView } from './SourceView'
 import { short } from '../lib/format'
+import { friendlyError } from '../lib/errors'
 import { findCompiledNode } from '../lib/tree'
 
 export function Preview({
   stream,
-  onUseTarget,
+  hostWorkspace,
+  target,
+  onTargetChange,
+  active,
+  onRun,
+  onEditSetup,
 }: {
   stream: LabStream
-  onUseTarget: (target: string) => void
+  hostWorkspace: string
+  target: string
+  onTargetChange: (target: string) => void
+  active: boolean
+  onRun: () => void
+  onEditSetup: () => void
 }) {
-  const [workspace, setWorkspace] = useState(stream.snapshot?.workspace ?? '')
-  const [target, setTarget] = useState('')
   const [result, setResult] = useState<PreviewResult | null>(null)
   const [selected, setSelected] = useState<CompiledNode | undefined>()
   const [loading, setLoading] = useState(false)
@@ -31,7 +40,6 @@ export function Preview({
   const [diffError, setDiffError] = useState<string | null>(null)
   const [diffLoading, setDiffLoading] = useState(false)
 
-  const booted = useRef(false)
   const seenPreview = useRef(0)
 
   const load = useCallback(async (nextWorkspace: string, nextTarget: string) => {
@@ -44,8 +52,11 @@ export function Preview({
         ...(nextTarget ? { target: nextTarget } : {}),
       })
       setResult(value)
-      setSelected(value.compiled?.root)
-      if (value.workspace) setWorkspace(value.workspace.workspace)
+      setSelected((current) => {
+        if (!value.compiled) return undefined
+        if (!current) return value.compiled.root
+        return findCompiledNode(value.compiled.root, current.path) ?? value.compiled.root
+      })
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : String(cause))
     } finally {
@@ -54,12 +65,10 @@ export function Preview({
   }, [])
 
   useEffect(() => {
-    if (booted.current || !stream.snapshot) return
-    booted.current = true
-    const initial = stream.snapshot.workspace
-    setWorkspace(initial)
-    void load(initial, '')
-  }, [stream.snapshot, load])
+    if (!active || !hostWorkspace) return
+    const timer = window.setTimeout(() => void load(hostWorkspace, target), 350)
+    return () => window.clearTimeout(timer)
+  }, [active, hostWorkspace, target, load])
 
   useEffect(() => {
     if (!seenPreview.current) {
@@ -68,16 +77,15 @@ export function Preview({
     }
     if (stream.previewRevision === seenPreview.current) return
     seenPreview.current = stream.previewRevision
-    if (!workspace) return
-    void load(workspace, target).then(() => {
+    if (!active || !hostWorkspace) return
+    void load(hostWorkspace, target).then(() => {
       setReloaded(true)
       window.setTimeout(() => setReloaded(false), 1800)
     })
-  }, [stream.previewRevision, workspace, target, load])
+  }, [stream.previewRevision, active, hostWorkspace, target, load])
 
   const chooseTarget = (value: string): void => {
-    setTarget(value)
-    void load(workspace, value)
+    onTargetChange(value)
   }
 
   const loadRuns = async (): Promise<void> => {
@@ -98,7 +106,7 @@ export function Preview({
     try {
       const value = await getDiff({
         run_id: runID,
-        workspace,
+        workspace: hostWorkspace,
         ...(target ? { target } : {}),
       })
       setDiff(value)
@@ -113,52 +121,75 @@ export function Preview({
   const compiled = result?.compiled
   const entry = result?.targets.find((item) => item.ref === '')
   const otherTargets = result?.targets.filter((item) => item.ref !== '') ?? []
+  const pipelineInfo =
+    target === ''
+      ? result?.selected
+      : (otherTargets.find((item) => item.ref === target) ?? result?.selected)
+  const friendly = error ? friendlyError(error, 'host') : null
 
   return (
     <div className="preview">
       <div className="toolbar">
+        <div className="workspace-chip">
+          <span className="muted">Files</span>
+          <code>{hostWorkspace || 'Choose a workspace in Setup'}</code>
+          <button type="button" className="link" onClick={onEditSetup}>
+            change
+          </button>
+        </div>
         <label className="grow">
-          Workspace
-          <input
-            value={workspace}
-            onChange={(event) => setWorkspace(event.target.value)}
-            onKeyDown={(event) => {
-              if (event.key === 'Enter') void load(workspace, target)
-            }}
-            placeholder="/path/to/workspace"
-          />
-        </label>
-        <label>
-          Target
-          <select value={target} onChange={(event) => chooseTarget(event.target.value)}>
+          Pipeline
+          <select
+            value={target}
+            onChange={(event) => chooseTarget(event.target.value)}
+            disabled={!result}
+          >
             <option value="">{entry?.label ?? 'Package entry'}</option>
             {otherTargets.map((item) => (
               <option key={item.ref} value={item.ref}>
                 {item.label}
               </option>
             ))}
+            {target && !otherTargets.some((item) => item.ref === target) ? (
+              <option value={target}>{target}</option>
+            ) : null}
           </select>
         </label>
         <button
           type="button"
           className="button"
-          onClick={() => void load(workspace, target)}
-          disabled={loading}
+          onClick={() => void load(hostWorkspace, target)}
+          disabled={loading || !hostWorkspace}
         >
           {loading ? 'Loading…' : 'Reload'}
         </button>
-        <button
-          type="button"
-          className="button primary"
-          onClick={() => onUseTarget(target)}
-          disabled={!compiled}
-        >
-          Use in probe
+        <button type="button" className="button primary" onClick={onRun} disabled={!compiled}>
+          Run this pipeline
         </button>
         {reloaded ? <Badge tone="ok">files changed · reloaded</Badge> : null}
       </div>
 
-      {error ? <div className="banner bad">{error}</div> : null}
+      {pipelineInfo ? (
+        <div className="pipeline-summary">
+          <strong>{pipelineInfo.label}</strong>
+          {pipelineInfo.description ? <span>{pipelineInfo.description}</span> : null}
+          {!target ? (
+            <span className="muted">Entry router — it chooses a pipeline at runtime.</span>
+          ) : null}
+          {compiled?.root.enforcement ? (
+            <Badge tone={compiled.root.enforcement === 'strict' ? 'warn' : 'idle'}>
+              {compiled.root.enforcement}
+            </Badge>
+          ) : null}
+        </div>
+      ) : null}
+
+      {friendly ? (
+        <div className="banner bad">
+          <strong>{friendly.title}.</strong> {friendly.detail}
+          {friendly.hint ? <div className="muted">{friendly.hint}</div> : null}
+        </div>
+      ) : null}
 
       <div className="preview-grid">
         <aside className="panel packages">

@@ -2,6 +2,7 @@ import type {
   AlertRow,
   CompiledDiff,
   LabSnapshot,
+  PreflightResult,
   PreviewResult,
   RunRow,
   StatusResult,
@@ -70,6 +71,16 @@ export interface PreviewRequest {
 
 export function preview(input: PreviewRequest): Promise<PreviewResult> {
   return request<PreviewResult>('/api/preview', mutation(input))
+}
+
+export interface PreflightRequest {
+  hostWorkspace: string
+  runtimeWorkspace: string
+  target?: string
+}
+
+export function preflight(input: PreflightRequest): Promise<PreflightResult> {
+  return request<PreflightResult>('/api/preflight', mutation(input))
 }
 
 export function callTool<T = unknown>(

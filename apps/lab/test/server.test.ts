@@ -43,7 +43,6 @@ beforeAll(async () => {
   store = new Store(':memory:')
   const orchestrationRuntime = new Runtime({
     store,
-    configPath: `${workspace}/orchestration/index.yml`,
   })
   orchestrator = createOrchestratorServer({
     runtime: orchestrationRuntime,
@@ -161,9 +160,62 @@ describe('lab server', () => {
     expect(denied.response.status).toBe(403)
   })
 
+  it('preflights the host and orchestrator workspaces', async () => {
+    const quick = await post('/api/preflight', {
+      hostWorkspace: workspace,
+      runtimeWorkspace: workspace,
+      target: 'quick_patch',
+    })
+    expect(quick.response.status).toBe(200)
+    const quickValue = quick.value as {
+      host: { ok: boolean; strict?: boolean }
+      runtime: { ok: boolean; packages?: number }
+      adapter: { required: boolean; ok: boolean }
+    }
+    expect(quickValue.host.ok).toBe(true)
+    expect(quickValue.host.strict).toBe(false)
+    expect(quickValue.runtime.ok).toBe(true)
+    expect(quickValue.adapter.required).toBe(false)
+
+    const strict = await post('/api/preflight', {
+      hostWorkspace: workspace,
+      runtimeWorkspace: workspace,
+      target: 'std:software/feature',
+    })
+    const strictValue = strict.value as {
+      host: { ok: boolean; strict?: boolean }
+      adapter: { required: boolean; ok: boolean }
+    }
+    expect(strictValue.host.ok).toBe(true)
+    expect(strictValue.host.strict).toBe(true)
+    expect(strictValue.adapter.required).toBe(true)
+    expect(strictValue.adapter.ok).toBe(false)
+
+    const missing = await post('/api/preflight', {
+      hostWorkspace: workspace,
+      runtimeWorkspace: '/definitely/not/here',
+      target: 'quick_patch',
+    })
+    const missingValue = missing.value as {
+      host: { ok: boolean }
+      runtime: { ok: boolean; error?: string }
+    }
+    expect(missingValue.host.ok).toBe(true)
+    expect(missingValue.runtime.ok).toBe(false)
+    expect(missingValue.runtime.error).toBeTruthy()
+  })
+
   it('registers an adapter for strict targets', async () => {
     const registered = await post('/api/adapter/register', { workspace })
     expect(registered.response.status).toBe(200)
+    const preflight = await post('/api/preflight', {
+      hostWorkspace: workspace,
+      runtimeWorkspace: workspace,
+      target: 'std:software/feature',
+    })
+    const preflightValue = preflight.value as { adapter: { required: boolean; ok: boolean } }
+    expect(preflightValue.adapter.required).toBe(true)
+    expect(preflightValue.adapter.ok).toBe(true)
     const started = await post('/api/tools/clara_start', {
       prompt: 'strict lab test',
       workspace,
