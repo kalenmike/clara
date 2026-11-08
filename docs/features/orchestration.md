@@ -221,11 +221,13 @@ the other is inherited. Work orders expose both fields, and an entry router
 inherits the package defaults so router classification uses the same model as
 the pipeline it selects.
 
-The OpenCode adapter creates managed worker sessions with
-`{ providerID, id }` from the work order, switches the worker agent, then pins
-the model again so an agent-level model cannot override the pipeline. A step
-without a model falls back to the harness default, which the lab flags as a
-warning.
+The OpenCode adapter creates each managed worker session with the work order's
+`{ providerID, id }` and a primary worker agent, then verifies the persisted
+agent, model, and workspace before prompting it. A step without a model falls
+back to the harness default, which the lab flags as a warning. The worker agent
+defaults to `build` and can be overridden with `CLARA_WORKER_AGENT`; a
+subagent-only or missing override falls back to `build` because managed workers
+run in top-level sessions.
 
 ## Worker prompt
 
@@ -249,6 +251,14 @@ The adapter also scopes the tool list for each model call. A router sees only
 route parameter is an enum of the work order's route keys, so routing is a
 structured choice instead of a free string. The orchestrator still validates the
 key and rejects an unknown route.
+
+Clara control tools are registered as native tools, not Code Mode-only tools.
+If the harness still has Code Mode enabled, the adapter preserves the `execute`
+and `search` gateway instead of deleting it. A Code Mode session can therefore
+keep using scripts for repository work while calling `clara_route`,
+`clara_complete`, and `clara_fail` directly. Removing the gateway would make the
+model emit the call as plain text because the harness had told it to use
+`execute`.
 
 Tool scoping applies only to sessions the adapter created. If dispatch falls
 back to the parent session, that session keeps the human-facing agent's tools.
@@ -277,6 +287,9 @@ docs:    assess_docs → update_docs → verify_docs → docs_review
 - A strict run starts with no adapter: it is refused with
   `enforcement_unavailable`, never downgraded silently.
 - A router selects an unknown route: the step is rejected and the run fails.
+- A worker answers in text without calling a Clara control tool: the adapter
+  fails the step with `missing control call` instead of waiting for the
+  heartbeat watchdog.
 - A worker disappears: its lease expires, the watchdog marks it retried or
   failed, and the alert reaches the origin session.
 - A background child fails: the group fails fast, siblings are cancelled, and
@@ -333,8 +346,9 @@ docs:    assess_docs → update_docs → verify_docs → docs_review
 - The web Settings page does not show the package catalog yet; it is available
   through Clara Lab, `pnpm clara lab check`, and MCP `clara_catalog`.
 - The OpenCode adapter dispatches managed workers in the run workspace with a
-  dedicated worker agent (`CLARA_WORKER_AGENT`, default `general`), not the
-  caller's agent.
+  primary worker agent (`CLARA_WORKER_AGENT`, default `build`), not the caller's
+  agent. Subagent-only overrides fall back to `build` because managed workers run
+  in top-level sessions.
 - Clara Lab compiles the files on the host. A containerized service with a
   different workspace mount can produce a different preview than the run.
 
