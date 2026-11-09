@@ -162,3 +162,90 @@ test('a failed poll does not wedge later cycles', async () => {
   await cycle()
   assert.deepEqual(delivered, [21])
 })
+
+test('delivers a terminal run once across independent adapter instances', async () => {
+  let claimed = false
+  let delivered = 0
+  const cycle = (state: DeliveryState) =>
+    createDeliveryCycle({
+      load: async () => ({ runs: [run()], alerts: [] }),
+      usableOrigin: async () => true,
+      claim: async (message) => {
+        if (claimed) return null
+        claimed = true
+        return message
+      },
+      deliver: async () => {
+        delivered += 1
+      },
+      state,
+      persist: () => {},
+    })
+
+  const one = emptyState()
+  const two = emptyState()
+  await Promise.all([cycle(one)(), cycle(two)()])
+
+  assert.equal(delivered, 1)
+  assert.deepEqual([...one.runs], [21])
+  assert.deepEqual([...two.runs], [21])
+})
+
+test('stops re-claiming a message another instance owns', async () => {
+  let claims = 0
+  let delivered = 0
+  const state = emptyState()
+  const cycle = createDeliveryCycle({
+    load: async () => ({ runs: [run()], alerts: [] }),
+    usableOrigin: async () => true,
+    claim: async () => {
+      claims += 1
+      return null
+    },
+    deliver: async () => {
+      delivered += 1
+    },
+    state,
+    persist: () => {},
+  })
+
+  await cycle()
+  assert.equal(claims, 1)
+  assert.equal(delivered, 0)
+  assert.deepEqual([...state.runs], [21])
+
+  await cycle()
+  assert.equal(claims, 1)
+  assert.equal(delivered, 0)
+})
+
+test('releases the claim when the prompt rejects so another cycle retries', async () => {
+  const state = emptyState()
+  let attempts = 0
+  let released = 0
+  const cycle = createDeliveryCycle({
+    load: async () => ({ runs: [run()], alerts: [] }),
+    usableOrigin: async () => true,
+    claim: async (message) => message,
+    release: async () => {
+      released += 1
+    },
+    deliver: async () => {
+      attempts += 1
+      if (attempts === 1) throw new Error('provider unavailable')
+    },
+    state,
+    persist: () => {},
+    onError: () => {},
+  })
+
+  await cycle()
+  assert.equal(attempts, 1)
+  assert.equal(released, 1)
+  assert.deepEqual([...state.runs], [])
+
+  await cycle()
+  assert.equal(attempts, 2)
+  assert.equal(released, 1)
+  assert.deepEqual([...state.runs], [21])
+})

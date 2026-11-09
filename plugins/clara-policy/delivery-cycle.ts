@@ -9,6 +9,7 @@
 
 import {
   planDeliveries,
+  rememberDelivery,
   reserveDelivery,
   type DeliveryAlert,
   type DeliveryMessage,
@@ -19,6 +20,14 @@ import {
 export interface DeliveryCycleInput {
   load: () => Promise<{ runs: DeliveryRun[]; alerts: DeliveryAlert[] }>
   usableOrigin: (sessionID: string) => Promise<boolean>
+  /**
+   * Ask the orchestrator to claim the run and/or alerts for this instance.
+   * Return null when another instance owns the message. The orchestrator is
+   * the cross-process source of truth, so a claim must succeed before a prompt.
+   */
+  claim?: (message: DeliveryMessage) => Promise<DeliveryMessage | null>
+  /** Give a claim back after the prompt itself rejects, so it can be retried. */
+  release?: (message: DeliveryMessage) => Promise<void>
   deliver: (message: DeliveryMessage) => Promise<void>
   state: DeliveryState
   persist: () => void
@@ -45,8 +54,25 @@ export function createDeliveryCycle(input: DeliveryCycleInput): () => Promise<vo
         deliveredRuns: input.state.runs,
         interfaceAgent: input.interfaceAgent,
       })
-      for (const message of messages) {
-        if (!(await input.usableOrigin(message.sessionID))) continue
+      for (const planned of messages) {
+        if (!(await input.usableOrigin(planned.sessionID))) continue
+        let message = planned
+        if (input.claim) {
+          try {
+            const claimed = await input.claim(planned)
+            if (!claimed) {
+              // Another adapter instance delivered it. Remember the ids
+              // locally too, so this instance does not keep re-claiming.
+              rememberDelivery(input.state, planned)
+              input.persist()
+              continue
+            }
+            message = claimed
+          } catch (error) {
+            report(error)
+            continue
+          }
+        }
         const rollback = reserveDelivery(input.state, message)
         input.persist()
         try {
@@ -54,6 +80,13 @@ export function createDeliveryCycle(input: DeliveryCycleInput): () => Promise<vo
         } catch (error) {
           rollback()
           input.persist()
+          if (input.release) {
+            try {
+              await input.release(message)
+            } catch (releaseError) {
+              report(releaseError)
+            }
+          }
           report(error)
         }
       }

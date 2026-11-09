@@ -12,7 +12,7 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { homedir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { createDeliveryCycle } from './delivery-cycle.ts'
-import { isTerminalState } from './delivery.ts'
+import { applyDeliveryClaim, isTerminalState } from './delivery.ts'
 import type { DeliveryAlert, DeliveryRun, DeliveryState } from './delivery.ts'
 import { capToolResult } from './output.ts'
 import { NAMESPACE, renderWorkPrompt, scopeWorkerTools } from './prompt.ts'
@@ -763,6 +763,25 @@ export default {
             }
           },
           usableOrigin,
+          claim: async (message) => {
+            const claimed = await call<{ terminal: boolean; alerts: number[] }>(
+              config,
+              'POST',
+              `/v1/runs/${message.runID}/delivery/claim`,
+              {
+                session_id: message.sessionID,
+                terminal: message.terminal,
+                alert_ids: message.alertIDs,
+              }
+            )
+            return applyDeliveryClaim(message, claimed)
+          },
+          release: async (message) => {
+            await call(config, 'POST', `/v1/runs/${message.runID}/delivery/release`, {
+              terminal: message.terminal,
+              alert_ids: message.alertIDs,
+            })
+          },
           deliver: async (message) => {
             await sessions.prompt({
               sessionID: message.sessionID,
