@@ -1,8 +1,6 @@
 id: research
 name: Research brief
 description: Scope, search externally, verify against independent sources, and deliver a concise linked report.
-default_model: 'deepseek-v4.1-flash'
-default_provider: 'opencode-go'
 enforcement: observed
 steps:
   - name: scope_research

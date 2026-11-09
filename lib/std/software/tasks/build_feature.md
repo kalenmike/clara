@@ -1,7 +1,5 @@
 ---
 description: Implement the feature against the frozen tests
-model: 'deepseek-v4.1-flash'
-provider: 'opencode-go'
 permissions:
   - action: edit
     resource: '*'

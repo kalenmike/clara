@@ -1,7 +1,5 @@
 ---
 description: Verify the bug fix against the regression test and repository gates
-model: 'deepseek-v4.1-flash'
-provider: 'opencode-go'
 permissions:
   - action: edit
     resource: '*'

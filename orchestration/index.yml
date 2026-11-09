@@ -1,8 +1,25 @@
 is_active: true
 
+# Workspace defaults. Imported packages that do not declare their own model
+# and provider inherit these values. Uncomment and set the provider and model
+# your OpenCode install has access to.
 defaults:
-  model: 'deepseek-v4.1-flash'
-  provider: 'opencode-go'
+  # provider: 'opencode-go'
+  # model: 'deepseek-v4.1-flash'
+
+# Override a standard package without editing lib/std. Only the keys you set
+# are replaced; everything else still comes from the package.
+# overrides:
+#   std:software:
+#     defaults:
+#       provider: 'opencode-go'
+#       model: 'deepseek-v4.1-flash'
+#     pipelines:
+#       feature:
+#         default_model: 'deepseek-v4.1-flash'
+#     tasks:
+#       code_review:
+#         model: 'deepseek-v4.1-flash'
 
 imports:
   std:

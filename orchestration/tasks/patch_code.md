@@ -1,6 +1,5 @@
 ---
 description: Apply a small, targeted code patch
-model: 'deepseek-v4.1-flash'
 permissions:
   - action: edit
     resource: '*'

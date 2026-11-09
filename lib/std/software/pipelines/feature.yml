@@ -1,8 +1,6 @@
 id: feature
 name: Feature development
 description: Standard feature development lifecycle
-default_model: 'deepseek-v4.1-flash'
-default_provider: 'opencode-go'
 enforcement: strict
 steps:
   - name: create_spec

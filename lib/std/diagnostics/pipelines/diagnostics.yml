@@ -1,8 +1,6 @@
 id: diagnose
 name: Orchestrator self-diagnosis
 description: Collect deterministic evidence, find failure patterns, audit setup, rank issues, and return fixes.
-default_model: 'deepseek-v4.1-flash'
-default_provider: 'opencode-go'
 enforcement: observed
 steps:
   - name: collect_evidence
