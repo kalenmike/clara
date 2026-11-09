@@ -14,6 +14,7 @@ import { join, resolve } from 'node:path'
 import { createDeliveryCycle } from './delivery-cycle.ts'
 import { isTerminalState } from './delivery.ts'
 import type { DeliveryAlert, DeliveryRun, DeliveryState } from './delivery.ts'
+import { capToolResult } from './output.ts'
 import { NAMESPACE, renderWorkPrompt, scopeWorkerTools } from './prompt.ts'
 import { tokenDelta, tokensFromEvent, tokenTotal } from './usage.ts'
 import type { ModelTokens } from './usage.ts'
@@ -907,6 +908,21 @@ export default {
           work.toolCalls += 1
           await checkTool(work, String(event?.tool ?? 'tool'), event?.input ?? event?.args ?? {})
           await persist(work)
+        })
+        .catch(() => {})
+
+      // Keep one tool result from consuming a whole step's budget. Only
+      // managed workers are capped; the human's session keeps full output.
+      await ctx.tool
+        .hook('execute.after', async (event: Any) => {
+          const id = typeof event?.sessionID === 'string' ? event.sessionID : undefined
+          if (!id) return
+          const work = active.get(id)
+          if (!work?.managed) return
+          const tool = String(event?.tool ?? '')
+          if (tool.startsWith(`${NAMESPACE}_`)) return
+          if (event?.status !== undefined && event.status !== 'completed') return
+          capToolResult(event)
         })
         .catch(() => {})
     }

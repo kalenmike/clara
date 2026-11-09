@@ -417,7 +417,9 @@ operator can start it directly with `target: std:diagnostics`. See
   `# Previous attempt` handoff. The last attempt fails the step and the run.
   The OpenCode adapter reports model token usage from
   assistant-message events, so token budgets are enforced for managed workers
-  too.
+  too. It also caps each managed tool result at 48k characters with a
+  truncation marker, so one large read or grep cannot consume a step's whole
+  budget; the human's session is never capped.
 - A step is `observed`: permission denials are recorded as `policy.observed`
   events, but tools are not blocked. `strict` and `sandboxed` steps deny and
   count violations. Enforcement mode does not relax the resource budgets above.
