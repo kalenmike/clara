@@ -6,7 +6,16 @@ steps:
     type: task
   - name: draft
     type: task
+    inputs:
+      brief: brief
   - name: edit
     type: task
+    inputs:
+      brief: brief
+      draft: draft
   - name: deliver
     type: task
+    inputs:
+      brief: brief
+      draft: draft
+      edit: edit

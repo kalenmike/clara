@@ -7,13 +7,46 @@ steps:
     type: task
   - name: plan_implementation
     type: task
+    inputs:
+      spec: create_spec
+    artifacts:
+      spec: spec.md
   - name: write_tests
     type: task
+    inputs:
+      spec: create_spec
+      plan: plan_implementation
+    artifacts:
+      spec: spec.md
   - name: build_feature
     type: task
+    inputs:
+      spec: create_spec
+      plan: plan_implementation
+      tests: write_tests
+    artifacts:
+      spec: spec.md
   - name: verify_implementation
     type: task
+    inputs:
+      spec: create_spec
+      build: build_feature
+    artifacts:
+      spec: spec.md
   - name: code_review
     type: task
+    inputs:
+      spec: create_spec
+      tests: write_tests
+      build: build_feature
+      verify: verify_implementation
+    artifacts:
+      spec: spec.md
   - name: update_docs
     type: task
+    inputs:
+      spec: create_spec
+      review: code_review
+    artifacts:
+      spec: spec.md
+      docs: docs/README.md
