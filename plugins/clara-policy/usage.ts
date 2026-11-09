@@ -43,8 +43,8 @@ export function tokenTotal(usage: ModelTokens | undefined): number {
 // session re-reads its context every turn. Weight cache traffic down for budget
 // enforcement so a step is not cut off by tokens it did not really spend. Step
 // rows and cost displays keep the raw count.
-export const CACHE_READ_WEIGHT = 0.1
-export const CACHE_WRITE_WEIGHT = 0.1
+const CACHE_READ_WEIGHT = 0.1
+const CACHE_WRITE_WEIGHT = 0.1
 
 export function budgetTokenTotal(usage: ModelTokens | undefined): number {
   if (!usage) return 0
