@@ -99,7 +99,8 @@ start an agent run and move on, so they do not have to watch the sidebar.
     device's push subscription stay local. See [sync](sync.md).
 13. Orchestration alerts use the same four session attention states as every
     other session. The adapter delivers new alerts and finished root runs into
-    the origin session as queued synthetic prompts.
+    the origin session as queued synthetic prompts, at most one completion
+    prompt per finished root run.
 14. While orchestration is reachable, sessions with `metadata.automation === true`
     do not raise their own session alerts. Worker completion is noise; the
     origin conversation is the actionable alert.
@@ -285,7 +286,8 @@ start an agent run and move on, so they do not have to watch the sidebar.
 - Push monitor: `apps/server/src/push/` reads `/api/event`, applies the same
   750 ms evaluation delay and 5 s cooldown, then sends through `web-push`
 - Orchestration delivery: `plugins/clara-policy/delivery.ts` plans alerts and
-  finished root runs; the adapter queues them into the origin session.
+  finished root runs; `delivery-cycle.ts` serializes the cycle and reserves each
+  run before the prompt; the adapter queues them into the origin session.
 - Alert destination: the root run's origin session when it still uses the
   Clara interface agent.
 - Worker filter: `isClaraWorkerTitle` in

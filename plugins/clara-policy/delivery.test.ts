@@ -1,6 +1,11 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { planDeliveries, type DeliveryAlert, type DeliveryRun } from './delivery.ts'
+import {
+  planDeliveries,
+  reserveDelivery,
+  type DeliveryAlert,
+  type DeliveryRun,
+} from './delivery.ts'
 
 const run = (overrides: Partial<DeliveryRun> = {}): DeliveryRun => ({
   id: 12,
@@ -145,4 +150,55 @@ test('limits the alert detail in a message', () => {
   assert.equal(messages.length, 1)
   assert.equal(messages[0].alertIDs.length, 5)
   assert.match(messages[0].text, /2 more open alert/)
+})
+
+test('reserveDelivery marks a terminal run and its alerts delivered', () => {
+  const state = { alerts: new Set<number>(), runs: new Set<number>() }
+  reserveDelivery(state, {
+    runID: 12,
+    sessionID: 'ses_origin',
+    alertIDs: [7],
+    terminal: true,
+    text: 'Clara run 12 completed.',
+  })
+  assert.deepEqual([...state.runs], [12])
+  assert.deepEqual([...state.alerts], [7])
+})
+
+test('reserveDelivery rollback removes only ids it added', () => {
+  const state = { alerts: new Set([7]), runs: new Set([12]) }
+  const rollback = reserveDelivery(state, {
+    runID: 12,
+    sessionID: 'ses_origin',
+    alertIDs: [7, 8],
+    terminal: true,
+    text: 'Clara run 12 completed.',
+  })
+  assert.deepEqual([...state.alerts], [7, 8])
+  rollback()
+  assert.deepEqual([...state.alerts], [7])
+  assert.deepEqual([...state.runs], [12])
+})
+
+test('a reserved terminal run is not planned again', () => {
+  const state = { alerts: new Set<number>(), runs: new Set<number>() }
+  const messages = planDeliveries({
+    runs: [run({ state: 'completed' })],
+    alerts: [],
+    deliveredAlerts: state.alerts,
+    deliveredRuns: state.runs,
+    interfaceAgent: 'clara',
+  })
+  assert.equal(messages.length, 1)
+  reserveDelivery(state, messages[0])
+  assert.deepEqual(
+    planDeliveries({
+      runs: [run({ state: 'completed' })],
+      alerts: [],
+      deliveredAlerts: state.alerts,
+      deliveredRuns: state.runs,
+      interfaceAgent: 'clara',
+    }),
+    []
+  )
 })
