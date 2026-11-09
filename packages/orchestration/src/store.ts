@@ -149,6 +149,11 @@ export interface AdapterRow extends Row {
   created_at: string
 }
 
+export interface DeliveryClaimResult {
+  terminal: boolean
+  alerts: number[]
+}
+
 export const now = (): string => new Date().toISOString()
 
 export class Store {
@@ -284,6 +289,16 @@ export class Store {
         created_at TEXT NOT NULL
       );
       CREATE INDEX IF NOT EXISTS idx_adapters_workspace ON adapters (workspace, heartbeat_at);
+
+      CREATE TABLE IF NOT EXISTS delivery_claims (
+        run_id INTEGER NOT NULL REFERENCES runs(id) ON DELETE CASCADE,
+        kind TEXT NOT NULL,
+        ref_id INTEGER NOT NULL,
+        session_id TEXT,
+        created_at TEXT NOT NULL,
+        PRIMARY KEY (kind, ref_id)
+      );
+      CREATE INDEX IF NOT EXISTS idx_delivery_claims_run ON delivery_claims (run_id, kind);
     `)
     this.ensureColumn('steps', 'provider', 'TEXT')
     this.ensureColumn('steps', 'current_attempt_id', 'INTEGER')
@@ -574,6 +589,73 @@ export class Store {
     return this.db
       .prepare("SELECT * FROM alerts WHERE status = 'open' AND run_id = ? ORDER BY id")
       .all(runID) as AlertRow[]
+  }
+
+  /**
+   * Reserve a terminal run and/or its alerts for delivery to one origin
+   * session. Each kind is claimed at most once, so independent adapter
+   * processes cannot queue the same wake. A claim is written before the
+   * adapter awaits its prompt and released explicitly when that prompt fails.
+   */
+  claimDelivery(input: {
+    run_id: number
+    session_id?: string | null
+    terminal?: boolean
+    alert_ids?: number[]
+  }): DeliveryClaimResult {
+    const at = now()
+    return this.transaction(() => {
+      const insert = this.db.prepare(
+        `INSERT OR IGNORE INTO delivery_claims (run_id, kind, ref_id, session_id, created_at)
+         VALUES (?, ?, ?, ?, ?)`
+      )
+      let terminal = false
+      if (input.terminal) {
+        const info = insert.run(
+          input.run_id,
+          'terminal',
+          input.run_id,
+          input.session_id ?? null,
+          at
+        )
+        terminal = info.changes === 1
+        if (!terminal) return { terminal: false, alerts: [] }
+      }
+
+      const alerts: number[] = []
+      if (input.alert_ids?.length) {
+        const belongs = this.db.prepare('SELECT id FROM alerts WHERE id = ? AND run_id = ?')
+        for (const value of input.alert_ids) {
+          const alertID = Number(value)
+          if (!Number.isInteger(alertID) || alertID <= 0) continue
+          if (!belongs.get(alertID, input.run_id)) continue
+          const info = insert.run(input.run_id, 'alert', alertID, input.session_id ?? null, at)
+          if (info.changes === 1) alerts.push(alertID)
+        }
+      }
+      return { terminal, alerts }
+    })
+  }
+
+  releaseDelivery(input: { run_id: number; terminal?: boolean; alert_ids?: number[] }): void {
+    this.transaction(() => {
+      if (input.terminal) {
+        this.db
+          .prepare(
+            "DELETE FROM delivery_claims WHERE kind = 'terminal' AND ref_id = ? AND run_id = ?"
+          )
+          .run(input.run_id, input.run_id)
+      }
+      if (!input.alert_ids?.length) return
+      const remove = this.db.prepare(
+        "DELETE FROM delivery_claims WHERE kind = 'alert' AND ref_id = ? AND run_id = ?"
+      )
+      for (const value of input.alert_ids) {
+        const alertID = Number(value)
+        if (!Number.isInteger(alertID) || alertID <= 0) continue
+        remove.run(alertID, input.run_id)
+      }
+    })
   }
 
   adapter(id: string): AdapterRow | undefined {

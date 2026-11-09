@@ -147,6 +147,18 @@ export class RuntimeBackend implements ClaraBackend {
     return { ok: true }
   }
 
+  async claimDelivery(
+    runID: number,
+    input: { session_id?: string | null; terminal?: boolean; alert_ids?: number[] }
+  ) {
+    return this.runtime.claimDelivery(runID, input)
+  }
+
+  async releaseDelivery(runID: number, input: { terminal?: boolean; alert_ids?: number[] }) {
+    this.runtime.releaseDelivery(runID, input)
+    return { ok: true }
+  }
+
   async cancel(runID: number, reason: string) {
     return runSummary(this.runtime.cancel(runID, reason))
   }
