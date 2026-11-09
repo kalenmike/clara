@@ -23,8 +23,11 @@ writing custom pipelines, not for end users.
    available. The status bar carries only the resulting problem state.
 4. On **Review**, choose a pipeline. The compiled tree shows every step, route,
    `provider/model`, policy, budget, and source file. Diagnostics sit above the
-   tree so errors and warnings are the first thing you see. **Compare run** opens
-   the pinned-snapshot diff without hiding it in an accordion.
+   tree so errors and warnings are the first thing you see. The Inspector's
+   **Inputs** tab shows each declared input with its resolved step path, the
+   artifacts the step may read, and whether the original request is included.
+   **Compare run** opens the pinned-snapshot diff without hiding it in an
+   accordion.
 5. Press **Run this pipeline** to open the **Debug** dock at the bottom of
    Review. The dock carries the pipeline and the orchestrator-reported
    workspace. Start a run there; the lab selects it and claims the first work

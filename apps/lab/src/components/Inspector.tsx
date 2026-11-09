@@ -2,14 +2,15 @@ import { useMemo, useState } from 'react'
 import { computeBudget } from '@clara/policy'
 import type { CompiledNode } from '../types'
 import { modelLabel } from '../lib/format'
+import { findCompiledNode } from '../lib/tree'
 import { JsonView, CopyButton } from './Json'
 import { Badge, Field } from './Badge'
 import { SourceView } from './SourceView'
 
-const TABS = ['prompt', 'policy', 'limits', 'routes', 'source', 'raw'] as const
+const TABS = ['prompt', 'inputs', 'policy', 'limits', 'routes', 'source', 'raw'] as const
 type Tab = (typeof TABS)[number]
 
-export function Inspector({ node }: { node?: CompiledNode }) {
+export function Inspector({ node, root }: { node?: CompiledNode; root?: CompiledNode }) {
   const [tab, setTab] = useState<Tab>('prompt')
   const budget = useMemo(() => (node ? computeBudget(node.limits, 1) : undefined), [node])
 
@@ -68,6 +69,8 @@ export function Inspector({ node }: { node?: CompiledNode }) {
           <pre className="prompt">{node.prompt ?? '(no prompt)'}</pre>
         </div>
       ) : null}
+
+      {tab === 'inputs' ? <InspectorInputs node={node} root={root} /> : null}
 
       {tab === 'policy' ? (
         <div className="inspector-body">
@@ -138,6 +141,60 @@ export function Inspector({ node }: { node?: CompiledNode }) {
           <JsonView value={node} />
         </div>
       ) : null}
+    </div>
+  )
+}
+
+function InspectorInputs({ node, root }: { node: CompiledNode; root?: CompiledNode }) {
+  const inputs = Object.entries(node.inputs ?? {})
+  const artifacts = Object.entries(node.artifacts ?? {})
+  const request = node.request !== false
+
+  return (
+    <div className="inspector-body">
+      <Field
+        label="Request"
+        value={request ? 'Included as background' : 'Omitted (request: false)'}
+      />
+
+      <h4>Inputs</h4>
+      {inputs.length ? (
+        <div className="input-list">
+          {inputs.map(([label, path]) => {
+            const target = root ? findCompiledNode(root, path) : undefined
+            return (
+              <div className="input-item" key={`${label}:${path}`}>
+                <div className="row-between">
+                  <strong>{label}</strong>
+                  <span className="muted">
+                    {target ? `${target.kind} · ${target.title}` : 'unresolved step'}
+                  </span>
+                </div>
+                <code>{path}</code>
+              </div>
+            )
+          })}
+        </div>
+      ) : (
+        <div className="muted">No inputs are declared.</div>
+      )}
+
+      <h4>Artifacts</h4>
+      {artifacts.length ? (
+        <ul className="input-artifacts">
+          {artifacts.map(([label, path]) => (
+            <li key={`${label}:${path}`}>
+              <strong>{label}</strong> <code>{path}</code>
+            </li>
+          ))}
+        </ul>
+      ) : (
+        <div className="muted">No artifacts are declared.</div>
+      )}
+
+      <div className="muted inputs-note">
+        Input results appear in Runs after the referenced steps execute.
+      </div>
     </div>
   )
 }
