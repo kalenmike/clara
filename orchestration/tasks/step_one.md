@@ -1,5 +1,5 @@
 ---
-description: Apply a small, targeted code patch
+description: An example task
 permissions:
   - action: edit
     resource: '*'

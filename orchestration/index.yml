@@ -56,14 +56,14 @@ router:
       criteria: a request to audit, diagnose, or self-analyze the orchestrator itself, including its database, run history, failures, alerts, retries, or pipeline setup.
       run: std:diagnostics
 
-pipelines:
-  quick_patch:
-    name: Quick patch
-    description: 'A fast local lifecycle patch'
-    steps:
-      - name: patch_code
-        type: task
-      - name: quick_verify
-        type: task
-        inputs:
-          patch: patch_code
+# pipelines:
+#   inline_example:
+#     name: An example of an inline pipeline
+#     description: 'A quick and easy pipeline without imports'
+#     steps:
+#       - name: step_one
+#         type: task
+#       - name: step_two
+#         type: task
+#         inputs:
+#           patch: step_one
