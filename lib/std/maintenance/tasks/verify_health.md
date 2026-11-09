@@ -2,13 +2,13 @@
 description: Verify every captured service and adapter with health checks
 limits:
   turns:
-    initial: 4
-    growth_rate: 2
-    absolute_max: 8
+    initial: 100
+    growth_rate: 50
+    absolute_max: 150
   tokens:
-    initial: 20000
+    initial: 1500000
     growth_rate: 1.5
-    absolute_max: 40000
+    absolute_max: 2000000
   wall_clock_seconds: 300
 permissions:
   - action: edit

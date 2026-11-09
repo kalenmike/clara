@@ -2,13 +2,13 @@
 description: Propose the smallest concrete fix and verification for each issue
 limits:
   turns:
-    initial: 10
-    growth_rate: 2
-    absolute_max: 16
+    initial: 100
+    growth_rate: 50
+    absolute_max: 150
   tokens:
-    initial: 80000
+    initial: 1500000
     growth_rate: 1.5
-    absolute_max: 160000
+    absolute_max: 2000000
 permissions:
   - action: edit
     resource: '*'

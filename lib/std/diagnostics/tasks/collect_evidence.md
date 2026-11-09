@@ -2,13 +2,13 @@
 description: Run the deterministic orchestrator analyzer and return its report
 limits:
   turns:
-    initial: 4
-    growth_rate: 2
-    absolute_max: 8
+    initial: 100
+    growth_rate: 50
+    absolute_max: 150
   tokens:
-    initial: 50000
+    initial: 1500000
     growth_rate: 1.5
-    absolute_max: 90000
+    absolute_max: 2000000
 permissions:
   - action: edit
     resource: '*'

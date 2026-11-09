@@ -396,8 +396,13 @@ describe('package loader', () => {
       expect(step.retries?.auto_attempts).toBeGreaterThan(1)
     }
     const fix = children.find((step) => step.name === 'fix_bug')
-    expect(fix?.limits?.tokens?.initial).toBe(120_000)
-    expect(fix?.limits?.tokens?.absolute_max).toBe(360_000)
+    expect(fix?.limits?.turns).toEqual({
+      initial: 100,
+      growth_rate: 50,
+      absolute_max: 150,
+    })
+    expect(fix?.limits?.tokens?.initial).toBe(1_500_000)
+    expect(fix?.limits?.tokens?.absolute_max).toBe(2_000_000)
     expect(fix?.retries?.auto_attempts).toBe(3)
   })
 
@@ -559,6 +564,14 @@ describe('package loader', () => {
       'edit',
       'deliver',
     ])
+    const brief = content.root.children?.find((step) => step.name === 'brief')
+    expect(brief?.limits?.turns).toEqual({
+      initial: 100,
+      growth_rate: 50,
+      absolute_max: 150,
+    })
+    expect(brief?.limits?.tokens?.initial).toBe(1_500_000)
+    expect(brief?.limits?.tokens?.absolute_max).toBe(2_000_000)
   })
 
   it('loads the research package', () => {
@@ -608,9 +621,9 @@ describe('package loader', () => {
     expect(collect?.promptSource).toBe('task')
     const audit = diagnostics.root.children?.find((step) => step.name === 'audit_setup')
     expect(audit?.limits?.turns).toEqual({
-      initial: 36,
-      growth_rate: 4,
-      absolute_max: 48,
+      initial: 100,
+      growth_rate: 50,
+      absolute_max: 150,
     })
     expect(diagnostics.root.enforcement).toBe('observed')
   })
