@@ -87,6 +87,10 @@ describe('lab server', () => {
       service: 'clara-lab',
       connected: true,
       orchestratorWorkspace: workspace,
+      pid: expect.any(Number),
+      port: expect.any(Number),
+      root: expect.any(String),
+      startedAt: expect.any(String),
     })
 
     const state = await get('/api/state')
