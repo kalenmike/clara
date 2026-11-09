@@ -46,9 +46,9 @@ router:
     - when: software-development
       criteria: a normal software feature, bug, or documentation request.
       run: std:software
-    - when: quick-patch
-      criteria: a small, local lifecycle patch with no full spec cycle.
-      run: quick_patch
+    # - when: example
+    #   criteria: run this to show another example route
+    #   run: inline_example
     - when: research
       criteria: a request for external research, industry or market analysis, source gathering, or a cited research brief.
       run: std:research
