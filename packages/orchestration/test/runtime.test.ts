@@ -3,6 +3,7 @@ import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { beforeEach, describe, expect, it } from 'vitest'
+import { reserveTokens } from '@clara/policy'
 import { Runtime, Store } from '../src/index.ts'
 
 const workspace = fileURLToPath(new URL('../../../', import.meta.url))
@@ -635,6 +636,36 @@ describe('runtime', () => {
       { turns: 99 }
     )
     expect(routed.effect).toBe('allow')
+  })
+
+  it('denies work tools once only the token reserve is left', () => {
+    const started = runtime.start({
+      workspace,
+      prompt: 'write a short article',
+    })
+    const work = started.work[0]
+    const reserve = reserveTokens(work.budget)
+    const near = { tokens: work.budget.tokens - reserve }
+    const denied = runtime.check(
+      started.run.id,
+      work.step_path,
+      { action: 'read', tool: 'read' },
+      near
+    )
+    expect(denied.effect).toBe('deny')
+    expect(denied.budgetExhausted).toBe('token reserve reached')
+    expect(denied.reason).toContain('reserved for the final report')
+    expect(
+      store.events(started.run.id).filter((event) => event.type === 'budget.exhausted')
+    ).toHaveLength(1)
+
+    const completed = runtime.check(
+      started.run.id,
+      work.step_path,
+      { action: 'clara_complete', tool: 'clara_complete' },
+      near
+    )
+    expect(completed.effect).toBe('allow')
   })
 
   it('retries a strict step after the violation limit and resets usage for the next attempt', () => {

@@ -79,6 +79,8 @@ export interface PolicyDecision {
   }
   /** Total violations recorded for the step after this decision. */
   violations?: number
+  /** Set when the denial comes from a resource budget (hard limit or reserve). */
+  budgetExhausted?: string
   /** The step is no longer running (it was retried or failed). */
   closed?: boolean
 }

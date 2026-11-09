@@ -405,8 +405,11 @@ operator can start it directly with `target: std:diagnostics`. See
   enforcement mode, including `observed`. Policy checks deny further work tools
   and record one `budget.exhausted` event per attempt, but the Clara control
   tools (`clara_route`, `clara_complete`, `clara_fail`, `clara_spawn`) stay
-  available so the worker can still finish or report the failure. A completion
-  that arrives over budget is kept and marked `over_budget` on its
+  available so the worker can still finish or report the failure. The token
+  budget reserves its last 8% (capped at 10k tokens) for the final report, so
+  work tools are denied before the hard limit and the worker keeps enough room
+  to answer. The reserve shares the attempt's single `budget.exhausted` event.
+  A completion that arrives over budget is kept and marked `over_budget` on its
   `step.completed` event instead of being retried; the result is never
   discarded. The OpenCode adapter reports model token usage from
   assistant-message events, so token budgets are enforced for managed workers

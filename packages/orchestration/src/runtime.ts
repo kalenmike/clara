@@ -959,7 +959,7 @@ export class Runtime {
     }
     const decision = evaluatePolicy(policy, budget, current, check)
     if (decision.effect !== 'deny') return decision
-    const exceeded = budgetExceeded(budget, current)
+    const exceeded = decision.budgetExhausted ?? budgetExceeded(budget, current)
     if (exceeded && !isControlTool(check.tool)) {
       // Budgets are resource caps, not permission rules. Enforce them in every
       // enforcement mode so an observed step cannot run unbounded, but keep the
@@ -982,7 +982,7 @@ export class Runtime {
       return {
         ...decision,
         effect: 'deny',
-        reason: `budget exhausted: ${decision.reason ?? exceeded}; call clara_complete with your result now`,
+        reason: `budget exhausted: ${decision.reason ?? exceeded}; call clara_complete with your result or clara_fail with the handoff now`,
         closed: false,
       }
     }

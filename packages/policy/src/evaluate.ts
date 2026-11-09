@@ -1,4 +1,4 @@
-import { budgetExceeded, remainingBudget } from './budget.ts'
+import { budgetExceeded, remainingBudget, reserveTokens } from './budget.ts'
 import { matches, matchesAny } from './match.ts'
 import type { EffectiveBudget, PolicyCheck, PolicyDecision, StepPolicy, Usage } from './types.ts'
 
@@ -55,7 +55,19 @@ export function evaluatePolicy(
   const remaining = remainingBudget(budget, usage)
   const exceeded = budgetExceeded(budget, usage)
   if (exceeded && !isControlTool(check.tool)) {
-    return { effect: 'deny', reason: exceeded, remaining }
+    return { effect: 'deny', reason: exceeded, remaining, budgetExhausted: exceeded }
+  }
+
+  // Stop starting new work once only the reserve is left. Control tools stay
+  // available so the worker can report a result or a handoff.
+  const reserve = reserveTokens(budget)
+  if (!isControlTool(check.tool) && remaining.tokens <= reserve) {
+    return {
+      effect: 'deny',
+      reason: `token reserve reached: ${remaining.tokens} tokens remain and ${reserve} are reserved for the final report; call clara_complete or clara_fail now`,
+      remaining,
+      budgetExhausted: 'token reserve reached',
+    }
   }
 
   if (!policy) return { effect: 'allow', remaining }

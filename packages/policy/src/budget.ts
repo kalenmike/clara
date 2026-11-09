@@ -32,6 +32,17 @@ export function computeBudget(limits: Limits | undefined, attempt = 1): Effectiv
   }
 }
 
+// A hard token limit only stops the worker between tool calls, so one large
+// tool result can carry it far past the limit before the next check. Keep a
+// slice of the budget unused so the worker can still afford its final report
+// instead of being cut off mid-investigation.
+const RESERVE_RATE = 0.08
+const RESERVE_MAX = 10_000
+
+export function reserveTokens(budget: EffectiveBudget): number {
+  return Math.max(0, Math.min(RESERVE_MAX, Math.floor(budget.tokens * RESERVE_RATE)))
+}
+
 export function emptyUsage(): Usage {
   return { turns: 0, toolCalls: 0, tokens: 0, elapsedSeconds: 0, violations: 0 }
 }
