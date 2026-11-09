@@ -205,29 +205,30 @@ or the relay.
 
 ## Scripts
 
-| Command                    | Purpose                                             |
-| -------------------------- | --------------------------------------------------- |
-| `pnpm task session start`  | Create a task worktree under `../clara-worktrees`   |
-| `pnpm task session list`   | List task worktrees                                 |
-| `pnpm task session close`  | Check, merge, and remove a task worktree            |
-| `pnpm dev`                 | Web dev server and home agent                       |
-| `pnpm dev:web`             | Web only                                            |
-| `pnpm dev:panel`           | Agent panel dev server                              |
-| `pnpm dev:server`          | Home agent only                                     |
-| `pnpm dev:relay`           | Local `wrangler dev` for the Worker/DO              |
-| `pnpm build`               | Build every workspace package                       |
-| `pnpm clara pair`          | Print a pairing code                                |
-| `pnpm clara control`       | Serve the built panel and open it in a browser      |
-| `pnpm clara serve`         | Run the built home agent                            |
-| `pnpm clara pass`          | Print the local OpenCode server password            |
-| `pnpm clara orchestration` | Start, stop, or inspect the orchestration service   |
-| `pnpm test`                | Run crypto, protocol, server, web, and Worker tests |
-| `pnpm check`               | Typecheck + lint + format + Knip + tests            |
-| `pnpm commitlint`          | Lint the last commit message                        |
-| `pnpm deploy:web`          | Build and deploy the Pages project                  |
-| `pnpm deploy:relay`        | Deploy the Worker and DO migration                  |
-| `pnpm format`              | Prettier write                                      |
-| `pnpm format:check`        | Prettier check                                      |
+| Command                    | Purpose                                                     |
+| -------------------------- | ----------------------------------------------------------- |
+| `pnpm task session start`  | Create a task worktree under `../clara-worktrees`           |
+| `pnpm task session list`   | List task worktrees                                         |
+| `pnpm task session close`  | Check, merge, and remove a task worktree                    |
+| `pnpm dev`                 | Web dev server and home agent                               |
+| `pnpm dev:web`             | Web only                                                    |
+| `pnpm dev:panel`           | Agent panel dev server                                      |
+| `pnpm dev:server`          | Home agent only                                             |
+| `pnpm dev:relay`           | Local `wrangler dev` for the Worker/DO                      |
+| `pnpm build`               | Build every workspace package                               |
+| `pnpm clara pair`          | Print a pairing code                                        |
+| `pnpm clara control`       | Serve the built panel and open it in a browser              |
+| `pnpm clara serve`         | Run the built home agent                                    |
+| `pnpm clara pass`          | Print the local OpenCode server password                    |
+| `pnpm clara orchestration` | Start, stop, or inspect the orchestration service           |
+| `pnpm clara rebuild`       | Rebuild Clara, restart the captured services, verify health |
+| `pnpm test`                | Run crypto, protocol, server, web, and Worker tests         |
+| `pnpm check`               | Typecheck + lint + format + Knip + tests                    |
+| `pnpm commitlint`          | Lint the last commit message                                |
+| `pnpm deploy:web`          | Build and deploy the Pages project                          |
+| `pnpm deploy:relay`        | Deploy the Worker and DO migration                          |
+| `pnpm format`              | Prettier write                                              |
+| `pnpm format:check`        | Prettier check                                              |
 
 ## Security
 

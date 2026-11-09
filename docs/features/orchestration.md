@@ -173,6 +173,10 @@ first.
    analyzer prefers the live service, falls back to a read-only database open,
    and never mutates state. The pipeline reports findings and proposed fixes; it
    does not apply them.
+9. **Maintenance restores the captured setup.** The `std:maintenance` package
+   snapshots which services and adapters were running, rebuilds the checkout,
+   and restarts only that set. The orchestrator is restarted last, and a restart
+   journal makes a retry resume instead of repeating the rebuild.
 
 ## Leases and heartbeats
 
@@ -399,6 +403,22 @@ the orchestrator setup"; the configured router selects it. In the Lab, an
 operator can start it directly with `target: std:diagnostics`. See
 [diagnostics.md](diagnostics.md).
 
+## Maintenance pipeline
+
+The `std:maintenance` package rebuilds Clara and restores the setup it captured.
+Its `rebuild` pipeline snapshots the running services and adapters, runs
+`pnpm install --frozen-lockfile` and `pnpm build`, installs the OpenCode
+adapter, restarts only the services that were running, and verifies every health
+endpoint. The deterministic mechanics live in `pnpm clara rebuild
+status|build|adapters|restart|health`; each pipeline task allows only that one
+command. The orchestrator restarts last, the command waits for `/health` before
+the worker reports completion, and a restart journal makes a watchdog retry
+resume instead of repeating the rebuild. An orchestrator reached through a
+non-loopback URL is treated as external and verified but not restarted unless
+the operator passes `--manage-external`. The pipeline uses `observed`
+enforcement so it can run while the adapter or setup is degraded. See
+[maintenance.md](maintenance.md).
+
 ## Edge cases
 
 - A strict run starts with no adapter: it is refused with
@@ -503,11 +523,13 @@ operator can start it directly with `target: std:diagnostics`. See
   `packages/mcp-server`; OpenCode adapter: `plugins/clara-policy`; developer
   preview and probe: `packages/devtools` and `apps/lab`.
 - Standard packages: `lib/std/software`, `lib/std/content`,
-  `lib/std/research`, and `lib/std/diagnostics`. The research pipeline scopes
-  the question, gathers external sources, verifies every material claim against
-  independent dated sources, and returns a concise linked Markdown report. The
-  diagnostics pipeline analyzes the orchestrator database and setup, then
-  returns ranked issues with proposed fixes.
+  `lib/std/research`, `lib/std/diagnostics`, and `lib/std/maintenance`. The
+  research pipeline scopes the question, gathers external sources, verifies
+  every material claim against independent dated sources, and returns a concise
+  linked Markdown report. The diagnostics pipeline analyzes the orchestrator
+  database and setup, then returns ranked issues with proposed fixes. The
+  maintenance pipeline rebuilds Clara, reinstalls its adapters, restarts the
+  captured services, and verifies health. See [maintenance.md](maintenance.md).
 - Primary config: `orchestration/index.yml`.
 - Data: `${CLARA_DATA_DIR:-~/.local/share/clara}/orchestration.db`,
   `orchestrator.token`, and `policy-delivery.json` (adapter delivery cursor).
@@ -519,6 +541,7 @@ operator can start it directly with `target: std:diagnostics`. See
   `pnpm clara orchestration start [--docker] [--build]|stop [--docker]|status|serve|token|analyze`,
   `pnpm clara mcp install|uninstall|config|status`,
   `pnpm clara adapter install opencode|uninstall|status`,
+  `pnpm clara rebuild status|build|adapters|restart|health`,
   `pnpm clara lab [serve|check]`. Running `pnpm clara orchestration` without a
   subcommand prints help instead of starting the service.
 - Diagnostics: `pnpm clara orchestration analyze [--json] [--days n] [--db
@@ -548,9 +571,9 @@ path] [--url url]` and `GET /v1/diagnostics?days=30`. The analyzer is
   `criteria`.
 - References: `std:software` (package entry), `std:software/feature`,
   `std:software/bug`, and `std:software/docs` (named pipelines), `std:research`
-  (research brief), `std:diagnostics` (self-diagnosis), bare names (same
-  package). These are for the Lab and operator tooling; model-facing
-  `clara_start` always uses the configured entry.
+  (research brief), `std:diagnostics` (self-diagnosis), `std:maintenance`
+  (rebuild and restart), bare names (same package). These are for the Lab and
+  operator tooling; model-facing `clara_start` always uses the configured entry.
 - Run responses: `GET /v1/runs`, `GET /v1/runs/:id`, and all MCP run payloads
   return summaries without `snapshot`, and status steps omit prompts, policy,
   limits, and lease tokens while keeping results. `GET /v1/runs/:id/snapshot` returns

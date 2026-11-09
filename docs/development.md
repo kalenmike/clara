@@ -76,6 +76,7 @@ pnpm clara control
 pnpm clara serve [--rotate] [--no-panel]
 pnpm clara pass
 pnpm clara orchestration <serve|start|stop|status|token>
+pnpm clara rebuild <status|build|adapters|restart|health>
 pnpm clara lab [serve|check]
 ```
 
@@ -86,6 +87,11 @@ for one command.
 `pnpm clara control` and `pnpm clara serve` use the built agent, so run
 `pnpm build` first. `pnpm clara pass` reads the password from
 `${XDG_STATE_HOME:-~/.local/state}/opencode/service.json`.
+`pnpm clara rebuild` snapshots the running services, rebuilds the primary
+checkout, installs the adapters, restarts only the captured services, and
+verifies their health. The standard `std:maintenance/rebuild` pipeline drives
+the same commands one step at a time; see
+[features/maintenance.md](features/maintenance.md).
 
 Use these commands instead of calling the workspace scripts directly so that
 agents and developers share one command surface.
