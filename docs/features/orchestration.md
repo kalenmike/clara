@@ -319,19 +319,62 @@ prompting it. The worker agent defaults to `build` and can be overridden with
 `CLARA_WORKER_AGENT`; a subagent-only or missing override falls back to `build`
 because managed workers run in top-level sessions.
 
+## Inputs and artifacts
+
+A step declares the earlier results it uses instead of receiving every result in
+the run:
+
+```yaml
+steps:
+  - name: create_spec
+    type: task
+  - name: code_review
+    type: task
+    inputs:
+      spec: create_spec
+      tests: write_tests
+    artifacts:
+      spec: spec.md
+      docs: docs/README.md
+```
+
+`inputs` maps a label to an earlier sibling step; `artifacts` maps a label to a
+workspace-relative path or glob. Both accept a list for the common case where
+the label and the target are the same (`inputs: [create_spec]`,
+`artifacts: [spec.md]`).
+
+- The compiler resolves every input label to the compiled step path, so the
+  pinned snapshot and run hash cover the wiring.
+- Inputs must point to an earlier sibling in the same pipeline or group.
+  Unknown, forward, self, and `background: true` references fail at compile
+  time with the available names.
+- A declared input is rendered in full. Nothing else is pushed: an undeclared
+  result does not appear in the work order and cannot be read by the worker. A
+  step with no `inputs` receives no earlier result, only its artifacts and the
+  request reference.
+- Artifacts are paths, not contents. The worker reads them with its own tools;
+  the preview flags a literal path that does not exist.
+- A step waits until its declared inputs have results. If one can never produce
+  a result, the step fails with `input_unavailable` instead of starting without
+  it.
+
 ## Worker prompt
 
 The adapter turns a work order into one model prompt:
 
 1. the pinned step prompt from the package; a router prompt already contains the
    rendered route list, so the adapter never appends it again,
-2. the root request from `context.prompt`,
-3. the results of completed steps from `context.steps`, excluding the current
-   step's own previous attempt; each result is capped at 4k characters and the
-   section at 12k, keeping the newest blocks,
+2. the declared input results from `context.inputs`, in full, under `# Inputs`,
+3. the artifact paths from `context.artifacts` under `# Artifacts`,
 4. the previous attempt's error and partial result on a retry, under
    `# Previous attempt`,
-5. one finish instruction for the step kind.
+5. the root request from `context.prompt` under `# Reference: original request`,
+   with a precedence note that the step instruction is authoritative and the
+   request is background scope; `request: false` omits it,
+6. one finish instruction for the step kind.
+
+A router is the exception: the request is its primary input, so it follows the
+router instructions as `# Request` without the background note.
 
 The prompt does not repeat the run id, step path, work token, model, enforcement,
 attempt, or budget. Those are orchestrator state. The adapter binds the run id,

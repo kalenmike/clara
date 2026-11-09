@@ -11,6 +11,7 @@ import {
 } from './models.ts'
 import { OpenCodeObserver } from './opencode.ts'
 import { LabState, workKey } from './state.ts'
+import { resolveStepWiring } from './step-wiring.ts'
 import type {
   AdapterRow,
   CancelAllResult,
@@ -19,6 +20,8 @@ import type {
   OpenCodeSessionsResult,
   PreflightResult,
   RunRow,
+  StatusResult,
+  StepDetail,
   StepRow,
   StepSummary,
   WorkOrder,
@@ -413,8 +416,14 @@ export class LabRuntime {
     return this.getJson(`/v1/runs/${runID}/snapshot`)
   }
 
-  stepDetail(runID: number, stepPath: string): Promise<StepRow> {
-    return this.getJson(`/v1/runs/${runID}/steps/${encodeURIComponent(stepPath)}`)
+  async stepDetail(runID: number, stepPath: string): Promise<StepDetail> {
+    const [step, pinned, status] = await Promise.all([
+      this.getJson<StepRow>(`/v1/runs/${runID}/steps/${encodeURIComponent(stepPath)}`),
+      this.pinnedSnapshot(runID).catch(() => undefined),
+      this.getJson<StatusResult>(`/v1/runs/${runID}`).catch(() => undefined),
+    ])
+    const wiring = resolveStepWiring(pinned?.snapshot, stepPath, status?.steps ?? [])
+    return { ...step, ...wiring }
   }
 
   private async getJson<T>(path: string): Promise<T> {

@@ -4,6 +4,7 @@ import type { WorkRecord } from '../types'
 import { friendlyError } from '../lib/errors'
 import { modelLabel, parseMaybeJson, short } from '../lib/format'
 import { Badge } from './Badge'
+import { InputList } from './Inputs'
 import { JsonView } from './Json'
 
 function numeric(value: string): number | undefined {
@@ -253,11 +254,22 @@ export function WorkOrderCard({
             </span>
           </div>
           <pre className="prompt">{order.prompt}</pre>
-          <details className="context">
-            <summary>Context ({order.context.steps.length} prior steps)</summary>
-            <div className="muted">Root request</div>
-            <pre className="prompt small">{order.context.prompt}</pre>
-            <JsonView value={order.context.steps} />
+          <details className="panel step-panel">
+            <summary>
+              <span>Inputs and artifacts</span>
+              <span className="muted">
+                {order.context.inputs.length ? `${order.context.inputs.length} declared` : 'none'}
+              </span>
+            </summary>
+            <div className="step-panel-body">
+              <InputList
+                inputs={order.context.inputs}
+                artifacts={order.context.artifacts}
+                empty="This step declares no inputs."
+              />
+              <h4>Root request</h4>
+              <pre className="prompt small">{order.context.prompt}</pre>
+            </div>
           </details>
           {order.policy ? (
             <details className="context">

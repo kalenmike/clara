@@ -7,11 +7,24 @@ steps:
     type: task
   - name: pattern_failures
     type: task
+    inputs:
+      evidence: collect_evidence
   - name: audit_setup
     type: task
+    inputs:
+      evidence: collect_evidence
   - name: rank_issues
     type: task
+    inputs:
+      patterns: pattern_failures
+      audit: audit_setup
   - name: propose_fixes
     type: task
+    inputs:
+      ranked: rank_issues
+      patterns: pattern_failures
   - name: review_report
     type: task
+    inputs:
+      fixes: propose_fixes
+      ranked: rank_issues

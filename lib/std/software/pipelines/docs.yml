@@ -7,7 +7,22 @@ steps:
     type: task
   - name: update_docs
     type: task
+    inputs:
+      assessment: assess_docs
+    artifacts:
+      docs: docs/README.md
   - name: verify_docs
     type: task
+    inputs:
+      assessment: assess_docs
+      update: update_docs
+    artifacts:
+      docs: docs/README.md
   - name: docs_review
     type: task
+    inputs:
+      assessment: assess_docs
+      update: update_docs
+      verify: verify_docs
+    artifacts:
+      docs: docs/README.md

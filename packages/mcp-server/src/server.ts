@@ -46,8 +46,9 @@ background worker: it returns a work order that you must execute yourself.
 To run a pipeline manually:
 1. Call clara_start with the user's prompt.
 2. Read the returned work order. Its prompt is the step instruction,
-   context.prompt is the root request, and context.steps holds prior step
-   results. Do the work with your own tools.
+   context.prompt is the root request as background scope, context.inputs
+   holds the results of the steps it declares, and context.artifacts lists
+   workspace files to read. Do the work with your own tools.
 3. Call clara_complete with the run_id, step_path, work_token, and result.
 4. If the work order is a router, call clara_route with one of the supplied routes.
 5. If you are blocked, call clara_fail.

@@ -196,6 +196,50 @@ describe('pipeline preview', () => {
     }
   })
 
+  it('reports steps without inputs and resolves wiring', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'clara-wiring-'))
+    try {
+      writeFileSync(
+        join(dir, 'index.yml'),
+        [
+          'id: temp',
+          'name: Temp',
+          'version: 1',
+          'entry: main',
+          'pipelines:',
+          '  main:',
+          '    steps:',
+          '      - name: first',
+          '        type: task',
+          '        prompt: do it',
+          '      - name: second',
+          '        type: task',
+          '        prompt: do it',
+          '      - name: third',
+          '        type: task',
+          '        prompt: do it',
+          '        inputs:',
+          '          one: first',
+          '        artifacts:',
+          '          spec: spec.md',
+        ].join('\n')
+      )
+      const result = previewPipeline({ workspace: dir })
+      const children = result.compiled?.root.children ?? []
+      expect(children.find((step) => step.name === 'third')?.inputs).toEqual({
+        one: 'temp/1-first',
+      })
+      expect(children.find((step) => step.name === 'third')?.artifacts).toEqual({
+        spec: 'spec.md',
+      })
+      const missing = result.diagnostics.filter((entry) => entry.code === 'inputs_missing')
+      expect(missing).toHaveLength(1)
+      expect(missing[0].stepPath).toContain('2-second')
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
+
   it('collects and classifies source files', () => {
     const result = previewPipeline({ workspace: root, target: 'std:software/feature' })
     const sources = collectSources(

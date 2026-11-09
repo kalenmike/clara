@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useState } from 'react'
 import { callTool, cancelAllRuns, getRun, getRuns, getStep } from '../api'
 import type { LabStream } from '../useLab'
-import type { RunRow, StatusResult, StepRow, StepSummary } from '../types'
-import { dateTime, modelLabel, short, statusTone } from '../lib/format'
+import type { RunRow, StatusResult, StepDetail, StepSummary } from '../types'
+import { dateTime, formatTokens, modelLabel, short, statusTone } from '../lib/format'
 import { friendlyError } from '../lib/errors'
 import {
   debugRuns as onlyDebugRuns,
@@ -13,6 +13,7 @@ import {
 } from '../lib/runs'
 import { Badge, Field } from './Badge'
 import { Icon } from './Icon'
+import { totalUsage } from '../lib/usage'
 import { RunEvents, RunStepDetail } from './RunDetail'
 import { RunTree } from './StepTree'
 
@@ -59,7 +60,7 @@ export function Runs({
   const [selectedID, setSelectedID] = useState<number | undefined>()
   const [status, setStatus] = useState<StatusResult | null>(null)
   const [selectedStep, setSelectedStep] = useState<string | undefined>()
-  const [stepDetail, setStepDetail] = useState<StepRow | null>(null)
+  const [stepDetail, setStepDetail] = useState<StepDetail | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
 
@@ -179,6 +180,7 @@ export function Runs({
   const hiddenDebugActive = debug.filter(isActiveRun).length
   const selectedStatus = status && status.run.id === selectedID ? status : null
   const selectedRun = selectedStatus?.run ?? visible.find((run) => run.id === selectedID)
+  const totals = totalUsage(selectedStatus?.steps ?? [])
   const currentWork = (stream.snapshot?.work ?? []).find(
     (record) => record.order.run_id === selectedID
   )
@@ -432,6 +434,8 @@ export function Runs({
                   value={selectedRun.finished_at ? dateTime(selectedRun.finished_at) : '—'}
                 />
                 <Field label="Hash" value={selectedRun.hash.slice(0, 20)} />
+                <Field label="Tokens" value={formatTokens(totals.tokens)} />
+                <Field label="Calls" value={totals.calls} />
               </div>
               {selectedRun.error ? <div className="banner bad">{selectedRun.error}</div> : null}
 
