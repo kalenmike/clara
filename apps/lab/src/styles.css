@@ -1902,9 +1902,17 @@ details > summary {
   padding: 7px 8px;
 }
 
+.input-item code {
+  overflow-wrap: anywhere;
+}
+
 .input-artifacts {
   margin: 4px 0 0;
   padding-left: 18px;
+}
+
+.inputs-note {
+  margin-top: 10px;
 }
 
 .children {
