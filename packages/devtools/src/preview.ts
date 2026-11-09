@@ -38,6 +38,9 @@ const SOURCE_FIELDS = [
   'limits',
   'requires',
   'strategy',
+  'inputs',
+  'artifacts',
+  'request',
   'source',
   'packageId',
   'declared',
@@ -238,7 +241,11 @@ export function diagnoseCompiled(
     ...(models ? { models } : {}),
   }
 
-  const walk = (node: CompiledNode, parentKind?: CompiledNode['kind']): void => {
+  const walk = (
+    node: CompiledNode,
+    parentKind?: CompiledNode['kind'],
+    hasPriorSibling = false
+  ): void => {
     if (context.seen.has(node.path)) {
       diagnostics.push({
         severity: 'error',
@@ -331,6 +338,15 @@ export function diagnoseCompiled(
           stepPath: node.path,
         })
       }
+      if (!node.inputs && hasPriorSibling) {
+        diagnostics.push({
+          severity: 'warning',
+          code: 'inputs_missing',
+          message: `Step "${node.name}" declares no inputs, so it receives no earlier step result. Add inputs if it needs one; otherwise confirm it only needs its artifacts and the request.`,
+          stepPath: node.path,
+          ...(node.source ? { path: node.source } : {}),
+        })
+      }
     }
 
     if (node.kind === 'router') {
@@ -401,9 +417,11 @@ export function diagnoseCompiled(
       })
     }
 
-    for (const child of node.children ?? []) walk(child, node.kind)
+    for (const [index, child] of (node.children ?? []).entries()) {
+      walk(child, node.kind, index > 0)
+    }
     for (const route of node.routes ?? []) {
-      if (route.target) walk(route.target, 'router')
+      if (route.target) walk(route.target, 'router', false)
     }
   }
 
