@@ -248,9 +248,9 @@ router:
     - when: software-development
       criteria: a normal software feature, bug, or example request.
       run: std:software
-    - when: quick-patch
-      criteria: a small, local lifecycle patch with no full spec cycle.
-      run: quick_patch
+    - when: research
+      criteria: a request for external research or a cited brief.
+      run: std:research
 ```
 
 The engine renders those entries as a bullet list and substitutes it for
@@ -258,7 +258,7 @@ The engine renders those entries as a bullet list and substitutes it for
 
 ```text
 - `software-development` — a normal software feature, bug, or example request.
-- `quick-patch` — a small, local lifecycle patch with no full spec cycle.
+- `research` — a request for external research or a cited brief.
 ```
 
 Routers without the placeholder get the list appended under a `## Routes`
