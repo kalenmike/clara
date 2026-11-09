@@ -482,9 +482,9 @@ describe('package loader', () => {
     }
   })
 
-  it('compiles a local pipeline and fails closed on a missing import', () => {
+  it('compiles a pipeline and fails closed on a missing import', () => {
     const catalog = loadCatalog(config)
-    expect(compileRun(catalog, 'quick_patch').root.kind).toBe('pipeline')
+    expect(compileRun(catalog, 'std:maintenance/rebuild').root.kind).toBe('pipeline')
     expect(() => compileRun(catalog, 'std:missing')).toThrow(/unknown import/)
   })
 

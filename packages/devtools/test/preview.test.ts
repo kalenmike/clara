@@ -20,7 +20,6 @@ describe('pipeline preview', () => {
     const result = previewPipeline({ workspace: root })
     const refs = result.targets.map((target) => target.ref)
     expect(refs).toContain('')
-    expect(refs).toContain('quick_patch')
     expect(refs).toContain('std:software')
     expect(refs).toContain('std:software/feature')
     expect(refs).toContain('std:content/content')
@@ -283,7 +282,7 @@ describe('workspace resolution', () => {
 
 describe('compiled diff', () => {
   it('reports changed fields and added or removed nodes', () => {
-    const result = previewPipeline({ workspace: root, target: 'quick_patch' })
+    const result = previewPipeline({ workspace: root, target: 'std:maintenance/rebuild' })
     const current = result.compiled?.root as CompiledNode
     const pinned = structuredClone(current)
     const child = pinned.children?.[0]
@@ -300,7 +299,7 @@ describe('compiled diff', () => {
   })
 
   it('inspects both run snapshots and compile snapshots', () => {
-    const result = previewPipeline({ workspace: root, target: 'quick_patch' })
+    const result = previewPipeline({ workspace: root, target: 'std:maintenance/rebuild' })
     const rootNode = result.compiled?.root as CompiledNode
     expect(inspectSnapshot(JSON.stringify(rootNode)).path).toBe(rootNode.path)
     expect(

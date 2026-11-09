@@ -96,14 +96,14 @@ describe('lab server', () => {
     const state = await get('/api/state')
     expect(state.value).toMatchObject({ orchestratorWorkspace: workspace })
 
-    const preview = await post('/api/preview', { workspace, target: 'quick_patch' })
+    const preview = await post('/api/preview', { workspace, target: 'std:maintenance/rebuild' })
     expect(preview.response.status).toBe(200)
     const value = preview.value as {
       compiled?: { root: { kind: string } }
       selected?: { ref: string }
       sources: Array<{ path: string; kind: string }>
     }
-    expect(value.selected?.ref).toBe('quick_patch')
+    expect(value.selected?.ref).toBe('std:maintenance/rebuild')
     expect(value.compiled?.root.kind).toBe('pipeline')
     expect(value.sources.some((source) => source.kind === 'pipeline')).toBe(true)
   })
@@ -139,7 +139,7 @@ describe('lab server', () => {
       expect(value.modelCatalog?.count).toBe(1)
       expect(value.diagnostics.map((entry) => entry.code)).toContain('model_unknown')
     } finally {
-      await post('/api/preview', { workspace, target: 'quick_patch' }).catch(() => {})
+      await post('/api/preview', { workspace, target: 'std:maintenance/rebuild' }).catch(() => {})
       rmSync(dir, { recursive: true, force: true })
     }
   })
@@ -163,7 +163,7 @@ describe('lab server', () => {
     const started = await post('/api/tools/clara_start', {
       prompt: 'lab server test',
       workspace,
-      target: 'quick_patch',
+      target: 'std:maintenance/rebuild',
       origin: { harness: 'clara-lab', kind: 'agent' },
     })
     expect(started.response.status).toBe(200)
@@ -217,19 +217,19 @@ describe('lab server', () => {
   it('compares a pinned run with the current files', async () => {
     const runs = await get('/api/runs')
     const list = (runs.value as { value: Array<{ id: number; target: string }> }).value
-    const run = list.find((entry) => entry.target === 'quick_patch')
+    const run = list.find((entry) => entry.target === 'std:maintenance/rebuild')
     expect(run).toBeTruthy()
     const diff = await post('/api/diff', {
       run_id: run?.id,
       workspace,
-      target: 'quick_patch',
+      target: 'std:maintenance/rebuild',
     })
     expect(diff.response.status).toBe(200)
     expect((diff.value as { diff: { summary: { added: number } } }).diff.summary.added).toBe(0)
   })
 
   it('only reads files that belong to the preview', async () => {
-    await post('/api/preview', { workspace, target: 'quick_patch' })
+    await post('/api/preview', { workspace, target: 'std:maintenance/rebuild' })
     const allowed = await get(
       `/api/source?path=${encodeURIComponent(join(workspace, 'orchestration', 'index.yml'))}`
     )
@@ -243,7 +243,7 @@ describe('lab server', () => {
   it('preflights the host and orchestrator workspaces', async () => {
     const quick = await post('/api/preflight', {
       hostWorkspace: workspace,
-      target: 'quick_patch',
+      target: 'std:maintenance/rebuild',
     })
     expect(quick.response.status).toBe(200)
     const quickValue = quick.value as {
@@ -275,7 +275,7 @@ describe('lab server', () => {
     const missing = await post('/api/preflight', {
       hostWorkspace: workspace,
       runtimeWorkspace: '/definitely/not/here',
-      target: 'quick_patch',
+      target: 'std:maintenance/rebuild',
     })
     const missingValue = missing.value as {
       host: { ok: boolean }
@@ -290,13 +290,13 @@ describe('lab server', () => {
     const first = await post('/api/tools/clara_start', {
       prompt: 'cancel all first',
       workspace,
-      target: 'quick_patch',
+      target: 'std:maintenance/rebuild',
       origin: { harness: 'clara-lab', kind: 'agent' },
     })
     const second = await post('/api/tools/clara_start', {
       prompt: 'cancel all second',
       workspace,
-      target: 'quick_patch',
+      target: 'std:maintenance/rebuild',
       origin: { harness: 'clara-lab', kind: 'agent' },
     })
     expect(first.response.status).toBe(200)
