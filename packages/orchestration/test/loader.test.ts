@@ -482,9 +482,9 @@ describe('package loader', () => {
     }
   })
 
-  it('compiles a local pipeline and fails closed on a missing import', () => {
+  it('compiles a pipeline and fails closed on a missing import', () => {
     const catalog = loadCatalog(config)
-    expect(compileRun(catalog, 'quick_patch').root.kind).toBe('pipeline')
+    expect(compileRun(catalog, 'std:maintenance/rebuild').root.kind).toBe('pipeline')
     expect(() => compileRun(catalog, 'std:missing')).toThrow(/unknown import/)
   })
 
@@ -797,5 +797,32 @@ describe('package loader', () => {
     } finally {
       rmSync(escape, { recursive: true, force: true })
     }
+  })
+
+  it('loads the maintenance package', () => {
+    const catalog = loadCatalog(config)
+    const maintenance = compileRun(catalog, 'std:maintenance')
+    expect(maintenance.root.kind).toBe('pipeline')
+    expect(maintenance.root.children?.map((step) => step.name)).toEqual([
+      'capture_setup',
+      'build',
+      'install_adapters',
+      'restart_services',
+      'verify_health',
+    ])
+    expect(maintenance.root.enforcement).toBe('observed')
+    expect(maintenance.root.children?.every((step) => step.promptSource === 'task')).toBe(true)
+    const capture = maintenance.root.children?.find((step) => step.name === 'capture_setup')
+    expect(capture?.prompt).toContain('pnpm clara rebuild status --json')
+    const restart = maintenance.root.children?.find((step) => step.name === 'restart_services')
+    expect(restart?.limits?.wall_clock_seconds).toBe(900)
+  })
+
+  it('routes explicit rebuild requests from the primary classifier', () => {
+    const catalog = loadCatalog(config)
+    const primary = compileRun(catalog)
+    const route = primary.root.routes?.find((candidate) => candidate.when === 'rebuild')
+    expect(route?.run).toBe('std:maintenance')
+    expect(route?.criteria).toContain('explicit request to rebuild Clara')
   })
 })

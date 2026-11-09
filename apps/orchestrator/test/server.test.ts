@@ -94,14 +94,14 @@ describe('orchestrator HTTP service', () => {
     const started = await fetch(`${base}/v1/runs`, {
       method: 'POST',
       headers: auth({ 'content-type': 'application/json' }),
-      body: JSON.stringify({ workspace, prompt: 'patch it', target: 'quick_patch' }),
+      body: JSON.stringify({ workspace, prompt: 'patch it', target: 'std:maintenance/rebuild' }),
     })
     expect(started.status).toBe(201)
     const body = (await started.json()) as {
       run: { id: number }
       work: Array<{ step_path: string; work_token: string; name: string }>
     }
-    expect(body.work[0].name).toBe('patch_code')
+    expect(body.work[0].name).toBe('capture_setup')
     const completed = await fetch(
       `${base}/v1/runs/${body.run.id}/steps/${encodeURIComponent(body.work[0].step_path)}/complete`,
       {
@@ -112,14 +112,14 @@ describe('orchestrator HTTP service', () => {
     )
     expect(completed.status).toBe(200)
     const advanced = (await completed.json()) as { ready: Array<{ name: string }> }
-    expect(advanced.ready[0].name).toBe('quick_verify')
+    expect(advanced.ready[0].name).toBe('build')
   })
 
   it('starts a run in the configured workspace when none is sent', async () => {
     const started = await fetch(`${base}/v1/runs`, {
       method: 'POST',
       headers: auth({ 'content-type': 'application/json' }),
-      body: JSON.stringify({ prompt: 'patch it', target: 'quick_patch' }),
+      body: JSON.stringify({ prompt: 'patch it', target: 'std:maintenance/rebuild' }),
     })
     expect(started.status).toBe(201)
     const body = (await started.json()) as {
@@ -127,14 +127,14 @@ describe('orchestrator HTTP service', () => {
       work: Array<{ name: string }>
     }
     expect(body.run.workspace).toBe(resolve(workspace))
-    expect(body.work[0].name).toBe('patch_code')
+    expect(body.work[0].name).toBe('capture_setup')
   })
 
   it('requires the work token to renew a step lease', async () => {
     const started = await fetch(`${base}/v1/runs`, {
       method: 'POST',
       headers: auth({ 'content-type': 'application/json' }),
-      body: JSON.stringify({ workspace, prompt: 'patch it', target: 'quick_patch' }),
+      body: JSON.stringify({ workspace, prompt: 'patch it', target: 'std:maintenance/rebuild' }),
     })
     const body = (await started.json()) as {
       run: { id: number }
@@ -247,7 +247,7 @@ describe('orchestrator HTTP service', () => {
     const started = await fetch(`${base}/v1/runs`, {
       method: 'POST',
       headers: auth({ 'content-type': 'application/json' }),
-      body: JSON.stringify({ workspace, prompt: 'patch it', target: 'quick_patch' }),
+      body: JSON.stringify({ workspace, prompt: 'patch it', target: 'std:maintenance/rebuild' }),
     })
     const body = (await started.json()) as {
       run: { id: number }

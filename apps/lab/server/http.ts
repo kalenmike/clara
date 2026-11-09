@@ -3,6 +3,7 @@ import { createServer, type IncomingMessage, type Server, type ServerResponse } 
 import { join } from 'node:path'
 import type { AddressInfo } from 'node:net'
 import { diffCompiled, inspectSnapshot, type PreviewInput } from '@clara/devtools'
+import { repoRoot } from './config.ts'
 import { PickerUnavailable, pickDirectory } from './picker.ts'
 import type { LabRuntime } from './runtime.ts'
 import { checkLabRequest, LAB_HEADER } from './security.ts'
@@ -134,6 +135,10 @@ export async function startLabServer(options: LabServerOptions): Promise<LabServ
           ok: true,
           service: 'clara-lab',
           version: options.version ?? '0.1.0',
+          pid: process.pid,
+          port,
+          root: repoRoot(),
+          startedAt: new Date(Date.now() - process.uptime() * 1000).toISOString(),
           workspace: runtime.state.workspace,
           orchestratorWorkspace: runtime.state.orchestratorWorkspace,
           orchestrator: runtime.state.orchestrator,

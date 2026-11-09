@@ -61,5 +61,6 @@ here, it is not part of the canonical set.
 | [git.md](features/git.md)                       | You are working on the branch and change summary in the right panel      |
 | [orchestration.md](features/orchestration.md)   | You are working on the orchestration service, packages, or MCP adapter   |
 | [diagnostics.md](features/diagnostics.md)       | You are auditing run history, failures, alerts, or pipeline setup        |
+| [maintenance.md](features/maintenance.md)       | You are rebuilding Clara or restarting its local services                |
 | [lab.md](features/lab.md)                       | You are writing or debugging a custom orchestration package              |
 | [shortcuts.md](features/shortcuts.md)           | You are working on keyboard behavior                                     |

@@ -54,6 +54,7 @@
     }
   },
   "ignore": ["apps/web/src/components/ui/**"],
+  "ignoreBinaries": ["ss"],
   "ignoreDependencies": ["yaml", "cloudflare", "better-sqlite3"],
   "rules": {
     "exports": "off",

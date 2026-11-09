@@ -27,6 +27,7 @@ imports:
     - path: content
     - path: research
     - path: diagnostics
+    - path: maintenance
 
 watchdog:
   enabled: true
@@ -40,6 +41,9 @@ router:
   id: classifier
   path: ./routers/classifier.md
   routes:
+    - when: rebuild
+      criteria: an explicit request to rebuild Clara itself, reinstall its adapters, restart all local Clara services, or verify their health.
+      run: std:maintenance
     - when: content
       criteria: a request to write, draft, edit, or deliver an article, post, essay, or other prose content.
       run: std:content

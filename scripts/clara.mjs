@@ -82,6 +82,10 @@ function adapter(args) {
   return runNode(join(root, 'scripts/install-clara-adapter.mjs'), args)
 }
 
+function rebuild(args) {
+  return runNode(join(root, 'scripts/rebuild.mjs'), args)
+}
+
 const clara = {
   name: 'clara',
   summary: 'Clara developer tools',
@@ -171,6 +175,19 @@ const clara = {
       passthroughHelp: true,
       examples: ['pnpm clara adapter install opencode', 'pnpm clara adapter status'],
       run: adapter,
+    },
+    {
+      name: 'rebuild',
+      summary: 'Rebuild Clara, reinstall adapters, restart services, and verify health',
+      usage: '<status|build|adapters|restart|health> [options]',
+      passthroughHelp: true,
+      examples: [
+        'pnpm clara rebuild status --json',
+        'pnpm clara rebuild build --json',
+        'pnpm clara rebuild restart --dry-run',
+        'pnpm clara rebuild health --json',
+      ],
+      run: rebuild,
     },
   ],
 }
