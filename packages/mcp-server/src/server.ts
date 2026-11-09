@@ -6,6 +6,7 @@ const usageSchema = z
   .object({
     turns: z.number().int().nonnegative().optional(),
     tokens: z.number().int().nonnegative().optional(),
+    budgetTokens: z.number().int().nonnegative().optional(),
     toolCalls: z.number().int().nonnegative().optional(),
     violations: z.number().int().nonnegative().optional(),
   })

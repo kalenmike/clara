@@ -810,6 +810,32 @@ describe('runtime', () => {
     }
   })
 
+  it('enforces the cache-weighted budget when the harness reports one', () => {
+    const started = runtime.start({
+      workspace,
+      prompt: 'write a short article',
+    })
+    const work = started.work[0]
+    // Raw usage looks exhausted, but the cache-weighted total is small.
+    const allowed = runtime.check(
+      started.run.id,
+      work.step_path,
+      { action: 'read', tool: 'read' },
+      { tokens: 999_999, budgetTokens: 500 }
+    )
+    expect(allowed.effect).toBe('allow')
+
+    // The reverse: raw usage looks fine, the weighted total is over budget.
+    const denied = runtime.check(
+      started.run.id,
+      work.step_path,
+      { action: 'read', tool: 'read' },
+      { tokens: 10, budgetTokens: work.budget.tokens + 1 }
+    )
+    expect(denied.effect).toBe('deny')
+    expect(denied.budgetExhausted).toBe('token limit reached')
+  })
+
   it('retries a strict step after the violation limit and resets usage for the next attempt', () => {
     adapter()
     const started = runtime.start({

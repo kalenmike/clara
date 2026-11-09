@@ -16,7 +16,13 @@ import { isTerminalState } from './delivery.ts'
 import type { DeliveryAlert, DeliveryRun, DeliveryState } from './delivery.ts'
 import { capToolResult } from './output.ts'
 import { NAMESPACE, renderWorkPrompt, scopeWorkerTools } from './prompt.ts'
-import { tokenDelta, tokensFromEvent, tokenTotal } from './usage.ts'
+import {
+  budgetTokenDelta,
+  budgetTokenTotal,
+  tokenDelta,
+  tokensFromEvent,
+  tokenTotal,
+} from './usage.ts'
 import type { ModelTokens } from './usage.ts'
 import { catalogPath, needsExplicitWorkspace, resolveWorkspace } from './workspace.ts'
 
@@ -47,7 +53,10 @@ interface ActiveWork {
   turns: number
   toolCalls: number
   tokens: number
+  /** Cache-weighted total used for budget enforcement. */
+  budgetTokens: number
   tokenMessages: Map<string, number>
+  budgetMessages: Map<string, number>
   lastUsagePersist?: number
   closed: boolean
   watching: boolean
@@ -336,8 +345,10 @@ export default {
       final = false
     ): boolean => {
       const delta = tokenDelta(work.tokenMessages, messageID, usage)
-      if (!delta) return false
+      const budget = budgetTokenDelta(work.budgetMessages, messageID, usage)
+      if (!delta && !budget) return false
       work.tokens += delta
+      work.budgetTokens += budget
       const at = Date.now()
       if (final || at - (work.lastUsagePersist ?? 0) >= 1_000) {
         work.lastUsagePersist = at
@@ -355,10 +366,12 @@ export default {
       try {
         const info = await ctx.session.get({ sessionID: work.session })
         const total = tokenTotal(info?.tokens)
+        const budget = budgetTokenTotal(info?.tokens)
         if (total > work.tokens) {
           work.tokens = total
           work.lastUsagePersist = Date.now()
         }
+        if (budget > work.budgetTokens) work.budgetTokens = budget
       } catch {
         // Event usage remains the source of truth when session info is unavailable.
       }
@@ -538,7 +551,9 @@ export default {
         turns: 0,
         toolCalls: 0,
         tokens: 0,
+        budgetTokens: 0,
         tokenMessages: new Map(),
+        budgetMessages: new Map(),
         closed: false,
         watching: false,
         corrected: false,
@@ -795,6 +810,7 @@ export default {
               turns: work.turns,
               toolCalls: work.toolCalls,
               tokens: work.tokens,
+              budgetTokens: work.budgetTokens,
             },
           }
         )
@@ -953,6 +969,7 @@ export default {
                   turns: work.turns,
                   toolCalls: work.toolCalls,
                   tokens: work.tokens,
+                  budgetTokens: work.budgetTokens,
                 },
               }
             )

@@ -971,7 +971,7 @@ export class Runtime {
     const budget = computeBudget(limits, Number(row.attempt) || 1)
     const current: Usage = {
       turns: usage?.turns ?? Number(row.turns),
-      tokens: usage?.tokens ?? Number(row.tokens),
+      tokens: usage?.budgetTokens ?? usage?.tokens ?? Number(row.tokens),
       toolCalls: usage?.toolCalls ?? Number(row.tool_calls),
       elapsedSeconds: row.started_at ? ageMs(row.started_at) / 1000 : 0,
       violations: usage?.violations ?? Number(row.violations),

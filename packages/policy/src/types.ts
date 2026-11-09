@@ -55,6 +55,8 @@ export interface Usage {
   turns: number
   toolCalls: number
   tokens: number
+  /** Cache-weighted tokens for budget enforcement; falls back to `tokens`. */
+  budgetTokens?: number
   elapsedSeconds: number
   violations: number
 }
