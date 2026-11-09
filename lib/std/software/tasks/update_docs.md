@@ -1,7 +1,5 @@
 ---
 description: Apply the documented impact to the workspace docs
-model: 'deepseek-v4.1-flash'
-provider: 'opencode-go'
 permissions:
   - action: edit
     resource: '*'

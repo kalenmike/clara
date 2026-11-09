@@ -263,40 +263,57 @@ prompt is part of the pinned run snapshot and the work order.
 
 ## Models and providers
 
-Every dispatched step carries a model and the provider that owns it. The
-service does not call a model, but it must preserve both so the harness can pin
-the worker session.
+The service does not call a model, but every dispatched step carries the model
+and provider that owns it so the harness can pin the worker session. Standard
+packages do not pin a model. They inherit the workspace defaults, so a fresh
+install runs against whatever provider the user's OpenCode can reach.
 
 ```yaml
+# orchestration/index.yml
 defaults:
   provider: opencode-go
   model: deepseek-v4.1-flash
 
-pipelines:
-  feature:
-    default_provider: opencode-go
-    default_model: deepseek-v4.1-flash
-    steps:
-      - name: create_spec
-        type: task
-        provider: opencode-go
-        model: deepseek-v4.1-flash
+overrides:
+  std:research:
+    defaults:
+      provider: openai
+      model: gpt-5
+    pipelines:
+      research:
+        default_model: gpt-5
+    tasks:
+      draft_report:
+        model: gpt-5
 ```
 
-Resolution runs from the package manifest (`defaults.provider` /
-`defaults.model`) through the pipeline (`default_provider` / `default_model`)
-to the step or task (`provider` / `model`). A step may override only one half;
-the other is inherited. Work orders expose both fields, and an entry router
-inherits the package defaults so router classification uses the same model as
-the pipeline it selects.
+The workspace `defaults` apply to the root package and every imported package.
+An imported package can still declare its own defaults. Resolution runs from
+the most specific value to the least:
 
-The OpenCode adapter creates each managed worker session with the work order's
-`{ providerID, id }` and a primary worker agent, then verifies the persisted
-agent, model, and workspace before prompting it. A step without a model falls
-back to the harness default, which the lab flags as a warning. The worker agent
-defaults to `build` and can be overridden with `CLARA_WORKER_AGENT`; a
-subagent-only or missing override falls back to `build` because managed workers
-run in top-level sessions.
+1. step `model` / `provider`
+2. pipeline `default_model` / `default_provider`
+3. task frontmatter `model` / `provider`
+4. package manifest `defaults.model` / `defaults.provider`
+5. workspace `defaults`
+
+A step may override only one half; the other is inherited independently.
+
+`overrides` replaces only the keys it names for an imported package, keyed by
+its import ref (`std:software`). It accepts `defaults` (`model` / `provider`),
+`pipelines.<id>` (`default_model` / `default_provider`), and `tasks.<name>`
+(`model` / `provider`). Unknown packages, pipelines, tasks, and keys fail at
+load time. Standard packages never need editing: the override is applied before
+compilation, so the lab preview, pinned snapshot, and hash all reflect the
+effective values.
+
+A package or step with no model or provider falls back to the harness default,
+which the lab flags with `model_unset`. The OpenCode adapter creates each
+managed worker session with the work order's `{ providerID, id }` and a primary
+worker agent, then verifies the persisted agent, model, and workspace before
+prompting it. The worker agent defaults to `build` and can be overridden with
+`CLARA_WORKER_AGENT`; a subagent-only or missing override falls back to `build`
+because managed workers run in top-level sessions.
 
 ## Worker prompt
 
@@ -506,7 +523,9 @@ path] [--url url]` and `GET /v1/diagnostics?days=30`. The analyzer is
   declares the entry, imports, defaults, and can override discovered assets.
   Defaults accept `provider`, `model`, `task_dir`, and `enforcement`; pipelines
   accept `default_provider` / `default_model`; steps and tasks accept
-  `provider` / `model`. Router routes accept `when`, `run`, and optional
+  `provider` / `model`. The workspace config also accepts `overrides`, keyed by
+  import ref, with `defaults`, `pipelines.<id>`, and `tasks.<name>` model and
+  provider patches. Router routes accept `when`, `run`, and optional
   `criteria`.
 - References: `std:software` (package entry), `std:software/feature`,
   `std:software/bug`, and `std:software/docs` (named pipelines), `std:research`

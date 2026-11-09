@@ -1,6 +1,5 @@
 ---
 description: Verify a quick patch
-model: 'deepseek-v4.1-flash'
 permissions:
   - action: edit
     resource: '*'

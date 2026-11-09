@@ -1,7 +1,5 @@
 ---
 description: Verify documentation links, index coverage, and format
-model: 'deepseek-v4.1-flash'
-provider: 'opencode-go'
 permissions:
   - action: edit
     resource: '*'

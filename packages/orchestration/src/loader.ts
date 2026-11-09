@@ -10,13 +10,16 @@ import type {
   ImportSpec,
   LoadedCatalog,
   LoadedPackage,
+  ModelSelection,
   PackageEntry,
   PackageManifest,
+  PackageOverrides,
   PipelineDefinition,
   RouteDefinition,
   RouterDefinition,
   StepDefinition,
   TaskDefinition,
+  WorkspaceOverrides,
 } from './types.ts'
 
 export interface LoadOptions {
@@ -90,6 +93,104 @@ function normalizeImports(
           : {}),
       }
     })
+  }
+  return result
+}
+
+function optionalString(
+  raw: Record<string, unknown>,
+  key: string,
+  source: string,
+  path: string
+): string | undefined {
+  if (!(key in raw)) return undefined
+  const value = str(raw[key])
+  if (!value) throw new OrchestrationError(source, `${path}.${key} must be a non-empty string`)
+  return value
+}
+
+function assertKnownKeys(
+  raw: Record<string, unknown>,
+  allowed: readonly string[],
+  source: string,
+  path: string
+): void {
+  for (const key of Object.keys(raw)) {
+    if (!allowed.includes(key)) {
+      throw new OrchestrationError(source, `${path}.${key} is not supported`)
+    }
+  }
+}
+
+function normalizeModelSelection(
+  raw: Record<string, unknown>,
+  source: string,
+  path: string
+): ModelSelection {
+  assertKnownKeys(raw, ['model', 'provider'], source, path)
+  return {
+    ...(optionalString(raw, 'model', source, path) ? { model: String(raw.model) } : {}),
+    ...(optionalString(raw, 'provider', source, path) ? { provider: String(raw.provider) } : {}),
+  }
+}
+
+function normalizeOverrides(value: unknown, source: string): WorkspaceOverrides {
+  if (value === undefined) return {}
+  if (!isRecord(value)) throw new OrchestrationError(source, 'overrides must be an object')
+  const result: WorkspaceOverrides = {}
+  for (const [ref, raw] of Object.entries(value)) {
+    const path = `overrides.${ref}`
+    const parsed = parseRef(ref)
+    if (!parsed.namespace || parsed.pipeline) {
+      throw new OrchestrationError(
+        source,
+        `${path} must be namespace:package, for example std:software`
+      )
+    }
+    if (!isRecord(raw)) throw new OrchestrationError(source, `${path} must be an object`)
+    assertKnownKeys(raw, ['defaults', 'pipelines', 'tasks'], source, path)
+    const override: PackageOverrides = {}
+    if (raw.defaults !== undefined) {
+      if (!isRecord(raw.defaults)) {
+        throw new OrchestrationError(source, `${path}.defaults must be an object`)
+      }
+      override.defaults = normalizeModelSelection(raw.defaults, source, `${path}.defaults`)
+    }
+    if (raw.pipelines !== undefined) {
+      if (!isRecord(raw.pipelines)) {
+        throw new OrchestrationError(source, `${path}.pipelines must be an object`)
+      }
+      override.pipelines = {}
+      for (const [id, patch] of Object.entries(raw.pipelines)) {
+        const pipelinePath = `${path}.pipelines.${id}`
+        if (!isRecord(patch)) {
+          throw new OrchestrationError(source, `${pipelinePath} must be an object`)
+        }
+        assertKnownKeys(patch, ['default_model', 'default_provider'], source, pipelinePath)
+        override.pipelines[id] = {
+          ...(optionalString(patch, 'default_model', source, pipelinePath)
+            ? { default_model: String(patch.default_model) }
+            : {}),
+          ...(optionalString(patch, 'default_provider', source, pipelinePath)
+            ? { default_provider: String(patch.default_provider) }
+            : {}),
+        }
+      }
+    }
+    if (raw.tasks !== undefined) {
+      if (!isRecord(raw.tasks)) {
+        throw new OrchestrationError(source, `${path}.tasks must be an object`)
+      }
+      override.tasks = {}
+      for (const [name, patch] of Object.entries(raw.tasks)) {
+        const taskPath = `${path}.tasks.${name}`
+        if (!isRecord(patch)) {
+          throw new OrchestrationError(source, `${taskPath} must be an object`)
+        }
+        override.tasks[name] = normalizeModelSelection(patch, source, taskPath)
+      }
+    }
+    result[ref] = override
   }
   return result
 }
@@ -524,9 +625,56 @@ function loadPackageDirectory(
   return pkg
 }
 
+function applyOverrides(root: LoadedPackage, overrides: WorkspaceOverrides, source: string): void {
+  for (const [ref, override] of Object.entries(overrides)) {
+    const parsed = parseRef(ref)
+    const target = parsed.namespace
+      ? importedPackage(root, parsed.namespace, parsed.alias)
+      : undefined
+    if (!target) {
+      const loaded = [...root.imports.entries()].flatMap(([namespace, packages]) =>
+        packages.map((pkg) => `${namespace}:${pkg.manifest.id}`)
+      )
+      throw new OrchestrationError(
+        source,
+        `overrides.${ref}: unknown package import${
+          loaded.length ? `; loaded imports are ${loaded.join(', ')}` : ''
+        }`
+      )
+    }
+    if (override.defaults) {
+      target.manifest.defaults = {
+        ...(target.manifest.defaults ?? {}),
+        ...override.defaults,
+      }
+    }
+    for (const [id, patch] of Object.entries(override.pipelines ?? {})) {
+      const pipeline = target.pipelines.get(id)
+      if (!pipeline) {
+        throw new OrchestrationError(
+          source,
+          `overrides.${ref}.pipelines.${id}: pipeline not found in ${target.manifest.id}`
+        )
+      }
+      target.pipelines.set(id, { ...pipeline, ...patch })
+    }
+    for (const [name, patch] of Object.entries(override.tasks ?? {})) {
+      const task = target.tasks.get(name)
+      if (!task) {
+        throw new OrchestrationError(
+          source,
+          `overrides.${ref}.tasks.${name}: task not found in ${target.manifest.id}`
+        )
+      }
+      target.tasks.set(name, { ...task, ...patch })
+    }
+  }
+}
+
 export function loadCatalog(configPath: string, options: LoadOptions = {}): LoadedCatalog {
   const index = indexPath(resolve(configPath))
   const stdDir = options.stdDir ? resolve(options.stdDir) : findStdDir(dirname(index))
+  const raw = parseYamlRecord(readFileSync(index, 'utf8'), index)
   const root = loadPackageDirectory(index, options, stdDir, new Set(), 0)
   const packages: LoadedPackage[] = [root]
   const seen = new Set<string>([resolve(root.dir)])
@@ -542,6 +690,7 @@ export function loadCatalog(configPath: string, options: LoadOptions = {}): Load
     }
   }
   visit(root)
+  applyOverrides(root, normalizeOverrides(raw.overrides, index), index)
   return { root, packages, configPath: index, stdDir }
 }
 
@@ -697,10 +846,23 @@ function compileStep(
   inheritedProvider?: string,
   inheritedPolicy?: StepPolicy,
   inheritedLimits?: Limits,
-  inheritedSource?: string
+  inheritedSource?: string,
+  fallbackModel?: string,
+  fallbackProvider?: string
 ): CompiledNode {
-  const model = step.model ?? inheritedModel ?? pkg.manifest.defaults?.model
-  const provider = step.provider ?? inheritedProvider ?? pkg.manifest.defaults?.provider
+  const resolvedTask = step.type === 'task' ? taskPrompt(pkg, step) : undefined
+  const model =
+    step.model ??
+    inheritedModel ??
+    resolvedTask?.task?.model ??
+    pkg.manifest.defaults?.model ??
+    fallbackModel
+  const provider =
+    step.provider ??
+    inheritedProvider ??
+    resolvedTask?.task?.provider ??
+    pkg.manifest.defaults?.provider ??
+    fallbackProvider
   const policy = policyFromStep(step, undefined, inheritedPolicy)
   const limits = step.limits ?? inheritedLimits
   const enforcement = step.enforcement ?? pkg.manifest.defaults?.enforcement
@@ -724,31 +886,29 @@ function compileStep(
   }
 
   if (step.type === 'task') {
-    const resolved = taskPrompt(pkg, step)
+    if (!resolvedTask) throw new OrchestrationError(path, `task step ${step.name} did not resolve`)
     return {
       ...base,
       kind: 'task',
-      prompt: resolved.prompt,
-      promptSource: resolved.source,
-      ...(resolved.task ? { task: resolved.task.name } : {}),
-      ...(resolved.task?.source ? { source: resolved.task.source } : {}),
-      ...(resolved.task?.model && !model ? { model: resolved.task.model } : {}),
-      ...(resolved.task?.provider && !provider ? { provider: resolved.task.provider } : {}),
-      ...(policyFromStep(step, resolved.task, inheritedPolicy)
-        ? { policy: policyFromStep(step, resolved.task, inheritedPolicy) }
+      prompt: resolvedTask.prompt,
+      promptSource: resolvedTask.source,
+      ...(resolvedTask.task ? { task: resolvedTask.task.name } : {}),
+      ...(resolvedTask.task?.source ? { source: resolvedTask.task.source } : {}),
+      ...(policyFromStep(step, resolvedTask.task, inheritedPolicy)
+        ? { policy: policyFromStep(step, resolvedTask.task, inheritedPolicy) }
         : {}),
-      ...((step.limits ?? resolved.task?.limits ?? inheritedLimits)
-        ? { limits: step.limits ?? resolved.task?.limits ?? inheritedLimits }
+      ...((step.limits ?? resolvedTask.task?.limits ?? inheritedLimits)
+        ? { limits: step.limits ?? resolvedTask.task?.limits ?? inheritedLimits }
         : {}),
-      ...((step.retries ?? resolved.task?.retries)
-        ? { retries: step.retries ?? resolved.task?.retries }
+      ...((step.retries ?? resolvedTask.task?.retries)
+        ? { retries: step.retries ?? resolvedTask.task?.retries }
         : {}),
     }
   }
 
   if (step.type === 'pipeline') {
     if (step.ref) {
-      const target = compileRef(pkg, step.ref, path, stack)
+      const target = compileRef(pkg, step.ref, path, stack, model, provider)
       return {
         ...target,
         path,
@@ -775,11 +935,13 @@ function compileStep(
           child,
           `${path}/${index + 1}-${child.name}`,
           stack,
-          model,
-          provider,
+          step.model ?? inheritedModel,
+          step.provider ?? inheritedProvider,
           policy,
           limits,
-          base.source
+          base.source,
+          fallbackModel,
+          fallbackProvider
         )
       ),
     }
@@ -796,11 +958,13 @@ function compileStep(
           child,
           `${path}/${index + 1}-${child.name}`,
           stack,
-          model,
-          provider,
+          step.model ?? inheritedModel,
+          step.provider ?? inheritedProvider,
           policy,
           limits,
-          base.source
+          base.source,
+          fallbackModel,
+          fallbackProvider
         )
       ),
     }
@@ -812,7 +976,7 @@ function compileStep(
   stack.add(routerKey)
   const routes: CompiledRoute[] = router.routes.map((route) => ({
     ...route,
-    target: compileRef(pkg, route.run, `${path}/route-${route.when}`, stack),
+    target: compileRef(pkg, route.run, `${path}/route-${route.when}`, stack, model, provider),
   }))
   stack.delete(routerKey)
   return {
@@ -833,7 +997,9 @@ function compilePipeline(
   pkg: LoadedPackage,
   id: string,
   path: string,
-  stack: Set<string>
+  stack: Set<string>,
+  fallbackModel?: string,
+  fallbackProvider?: string
 ): CompiledNode {
   const pipeline = pkg.pipelines.get(id)
   if (!pipeline)
@@ -849,11 +1015,14 @@ function compilePipeline(
     packageId: pkg.manifest.id,
     declared: declaredFields(pipeline as unknown as Record<string, unknown>, PIPELINE_FIELDS),
     ...(pipeline.description ? { description: pipeline.description } : {}),
-    ...((pipeline.default_model ?? pkg.manifest.defaults?.model)
-      ? { model: pipeline.default_model ?? pkg.manifest.defaults?.model }
+    ...((pipeline.default_model ?? pkg.manifest.defaults?.model ?? fallbackModel)
+      ? { model: pipeline.default_model ?? pkg.manifest.defaults?.model ?? fallbackModel }
       : {}),
-    ...((pipeline.default_provider ?? pkg.manifest.defaults?.provider)
-      ? { provider: pipeline.default_provider ?? pkg.manifest.defaults?.provider }
+    ...((pipeline.default_provider ?? pkg.manifest.defaults?.provider ?? fallbackProvider)
+      ? {
+          provider:
+            pipeline.default_provider ?? pkg.manifest.defaults?.provider ?? fallbackProvider,
+        }
       : {}),
     ...(pipeline.policy ? { policy: pipeline.policy } : {}),
     ...(pipeline.limits ? { limits: pipeline.limits } : {}),
@@ -867,11 +1036,13 @@ function compilePipeline(
         step,
         `${path}/${index + 1}-${step.name}`,
         stack,
-        pipeline.default_model ?? pkg.manifest.defaults?.model,
-        pipeline.default_provider ?? pkg.manifest.defaults?.provider,
+        pipeline.default_model,
+        pipeline.default_provider,
         pipeline.policy,
         pipeline.limits,
-        pipeline.source
+        pipeline.source,
+        fallbackModel,
+        fallbackProvider
       )
     ),
     ...(pipeline.source ? { source: pipeline.source } : {}),
@@ -880,7 +1051,13 @@ function compilePipeline(
   return node
 }
 
-function compileEntry(pkg: LoadedPackage, path: string, stack: Set<string>): CompiledNode {
+function compileEntry(
+  pkg: LoadedPackage,
+  path: string,
+  stack: Set<string>,
+  fallbackModel?: string,
+  fallbackProvider?: string
+): CompiledNode {
   const entry = pkg.entry
   if (entry.router) {
     const router = pkg.routers.get(entry.router)
@@ -888,9 +1065,11 @@ function compileEntry(pkg: LoadedPackage, path: string, stack: Set<string>): Com
     const routerKey = `${pkg.dir}#router:${router.id}`
     if (stack.has(routerKey)) throw new OrchestrationError(path, `router cycle at ${router.id}`)
     stack.add(routerKey)
+    const model = pkg.manifest.defaults?.model ?? fallbackModel
+    const provider = pkg.manifest.defaults?.provider ?? fallbackProvider
     const routes = router.routes.map((route) => ({
       ...route,
-      target: compileRef(pkg, route.run, `${path}/route-${route.when}`, stack),
+      target: compileRef(pkg, route.run, `${path}/route-${route.when}`, stack, model, provider),
     }))
     stack.delete(routerKey)
     const node: CompiledNode = {
@@ -903,8 +1082,8 @@ function compileEntry(pkg: LoadedPackage, path: string, stack: Set<string>): Com
       prompt: renderRouterPrompt(router.instructions, router.routes),
       promptSource: 'router',
       routes,
-      ...(pkg.manifest.defaults?.model ? { model: pkg.manifest.defaults.model } : {}),
-      ...(pkg.manifest.defaults?.provider ? { provider: pkg.manifest.defaults.provider } : {}),
+      ...(model ? { model } : {}),
+      ...(provider ? { provider } : {}),
       ...(router.description ? { description: router.description } : {}),
       ...(router.strategy ? { strategy: router.strategy } : {}),
       ...(router.policy ? { policy: router.policy } : {}),
@@ -917,7 +1096,9 @@ function compileEntry(pkg: LoadedPackage, path: string, stack: Set<string>): Com
     }
     return node
   }
-  if (entry.pipeline) return compilePipeline(pkg, entry.pipeline, path, stack)
+  if (entry.pipeline) {
+    return compilePipeline(pkg, entry.pipeline, path, stack, fallbackModel, fallbackProvider)
+  }
   throw new OrchestrationError(path, `package ${pkg.manifest.id} has no entry`)
 }
 
@@ -925,32 +1106,44 @@ export function compileRef(
   pkg: LoadedPackage,
   ref: string,
   path: string,
-  stack: Set<string> = new Set()
+  stack: Set<string> = new Set(),
+  fallbackModel?: string,
+  fallbackProvider?: string
 ): CompiledNode {
   const parsed = parseRef(ref)
   if (parsed.namespace) {
     const target = importedPackage(pkg, parsed.namespace, parsed.alias)
     if (!target)
       throw new OrchestrationError(path, `unknown import ${parsed.namespace}:${parsed.alias}`)
-    if (parsed.pipeline) return compilePipeline(target, parsed.pipeline, path, stack)
-    return compileEntry(target, path, stack)
+    if (parsed.pipeline) {
+      return compilePipeline(target, parsed.pipeline, path, stack, fallbackModel, fallbackProvider)
+    }
+    return compileEntry(target, path, stack, fallbackModel, fallbackProvider)
   }
   if (parsed.pipeline) {
     // A slash without a namespace is a local path-like reference.
-    return compilePipeline(pkg, parsed.alias, path, stack)
+    return compilePipeline(pkg, parsed.alias, path, stack, fallbackModel, fallbackProvider)
   }
   // A bare package id selects that package's entry. Keep a real pipeline with
   // the same id working by only using the entry when no pipeline matches.
   if (parsed.alias === pkg.manifest.id && !pkg.pipelines.has(parsed.alias)) {
-    return compileEntry(pkg, path, stack)
+    return compileEntry(pkg, path, stack, fallbackModel, fallbackProvider)
   }
-  return compilePipeline(pkg, parsed.alias, path, stack)
+  return compilePipeline(pkg, parsed.alias, path, stack, fallbackModel, fallbackProvider)
 }
 
 export function compileRun(catalog: LoadedCatalog, targetRef?: string): CompiledRun {
+  const fallbackModel = catalog.root.manifest.defaults?.model
+  const fallbackProvider = catalog.root.manifest.defaults?.provider
   const root = targetRef
-    ? compileRef(catalog.root, targetRef, targetRef, new Set())
-    : compileEntry(catalog.root, catalog.root.manifest.id, new Set())
+    ? compileRef(catalog.root, targetRef, targetRef, new Set(), fallbackModel, fallbackProvider)
+    : compileEntry(
+        catalog.root,
+        catalog.root.manifest.id,
+        new Set(),
+        fallbackModel,
+        fallbackProvider
+      )
   const sources = [...new Set(catalog.packages.flatMap((pkg) => pkg.sources))].sort()
   const snapshot = JSON.stringify({
     root,
