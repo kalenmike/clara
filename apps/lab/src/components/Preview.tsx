@@ -352,7 +352,7 @@ export function Preview({
           </section>
 
           <section className="panel inspector-panel">
-            <Inspector node={selected} />
+            <Inspector node={selected} root={result?.compiled?.root} />
           </section>
         </div>
 
