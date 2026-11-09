@@ -38,6 +38,12 @@ export interface StepDefinition {
   task?: string
   ref?: string
   path?: string
+  /** label -> earlier sibling step name, resolved to a compiled path. */
+  inputs?: Record<string, string>
+  /** label -> workspace-relative path or glob the step reads itself. */
+  artifacts?: Record<string, string>
+  /** Whether the worker prompt includes the root request as background. */
+  request?: boolean
   routes?: RouteDefinition[]
   strategy?: RouterStrategy
   steps?: StepDefinition[]
@@ -196,6 +202,12 @@ export interface CompiledNode {
   requires?: Requirement
   background?: boolean
   retries?: RetryPolicy
+  /** label -> resolved compiled step path. */
+  inputs?: Record<string, string>
+  /** label -> workspace-relative path or glob. */
+  artifacts?: Record<string, string>
+  /** Whether the worker prompt includes the root request as background. */
+  request?: boolean
   strategy?: RouterStrategy
   children?: CompiledNode[]
   routes?: CompiledRoute[]

@@ -65,3 +65,5 @@ pipelines:
         type: task
       - name: quick_verify
         type: task
+        inputs:
+          patch: patch_code

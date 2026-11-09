@@ -7,11 +7,30 @@ steps:
     type: task
   - name: write_regression_test
     type: task
+    inputs:
+      bug: identify_bug
   - name: fix_bug
     type: task
+    inputs:
+      bug: identify_bug
+      test: write_regression_test
   - name: verify_bug_fix
     type: task
+    inputs:
+      bug: identify_bug
+      test: write_regression_test
+      fix: fix_bug
   - name: code_review
     type: task
+    inputs:
+      bug: identify_bug
+      test: write_regression_test
+      fix: fix_bug
+      verify: verify_bug_fix
   - name: update_docs
     type: task
+    inputs:
+      bug: identify_bug
+      review: code_review
+    artifacts:
+      docs: docs/README.md

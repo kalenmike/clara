@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { callTool, cancelAllRuns, getRun, getRuns, getStep } from '../api'
 import type { LabStream } from '../useLab'
-import type { RunRow, StatusResult, StepRow, StepSummary } from '../types'
+import type { RunRow, StatusResult, StepDetail, StepSummary } from '../types'
 import { dateTime, modelLabel, short, statusTone } from '../lib/format'
 import { friendlyError } from '../lib/errors'
 import {
@@ -59,7 +59,7 @@ export function Runs({
   const [selectedID, setSelectedID] = useState<number | undefined>()
   const [status, setStatus] = useState<StatusResult | null>(null)
   const [selectedStep, setSelectedStep] = useState<string | undefined>()
-  const [stepDetail, setStepDetail] = useState<StepRow | null>(null)
+  const [stepDetail, setStepDetail] = useState<StepDetail | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
 

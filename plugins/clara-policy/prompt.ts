@@ -2,8 +2,8 @@
 // OpenCode adapter.
 //
 // The orchestrator owns the work order: it carries the pinned step prompt, the
-// root request, and the results of completed steps. The adapter turns that into
-// one model prompt and hides tools the step does not own.
+// declared input results, the artifact paths, and the root request. The adapter
+// turns that into one model prompt and hides tools the step does not own.
 
 export const NAMESPACE = 'clara'
 
@@ -14,16 +14,25 @@ const TASK_TOOLS = new Set([`${NAMESPACE}_complete`, `${NAMESPACE}_fail`, `${NAM
 // emit the call as text because the gateway is missing.
 const GATEWAY_TOOLS = new Set(['execute', 'search'])
 
-export interface PromptStepResult {
+export interface PromptInput {
+  label?: string
   path?: string
   name?: string
   result?: unknown
+}
+
+export interface PromptArtifact {
+  label?: string
+  path?: string
+  exists?: boolean
 }
 
 export interface PromptWork {
   step_path?: string
   kind?: string
   prompt?: string
+  /** Set false to omit the root request reference from this step. */
+  request?: boolean
   retry?: {
     attempt?: number
     error?: string
@@ -31,7 +40,8 @@ export interface PromptWork {
   }
   context?: {
     prompt?: string
-    steps?: PromptStepResult[]
+    inputs?: PromptInput[]
+    artifacts?: PromptArtifact[]
   }
 }
 
@@ -48,23 +58,72 @@ export function toolName(name: string): string {
 }
 
 // The step prompt already carries the rendered route list, so the adapter must
-// not append it again. It only adds the root request and prior step results.
+// not append it again. A step gets exactly the inputs it declares, its artifact
+// paths, and the request as background. Nothing else is pushed.
 export function renderWorkPrompt(work: PromptWork): string {
   const sections: string[] = []
   const step = typeof work.prompt === 'string' ? work.prompt.trim() : ''
   if (step) sections.push(step)
 
   const request = typeof work.context?.prompt === 'string' ? work.context.prompt.trim() : ''
-  if (request) sections.push(`# Request\n\n${request}`)
+  const router = work.kind === 'router'
 
-  const prior = renderPriorResults(work.context?.steps, work.step_path)
-  if (prior) sections.push(`# Prior results\n\n${prior}`)
+  // A router classifies the request, so it is primary input there rather than
+  // background scope.
+  if (router && request) sections.push(`# Request\n\n${request}`)
+
+  const inputs = renderInputs(work.context?.inputs)
+  if (inputs) sections.push(`# Inputs\n\n${inputs}`)
+
+  const artifacts = renderArtifacts(work.context?.artifacts)
+  if (artifacts) {
+    sections.push(
+      `# Artifacts\n\nRead these from the workspace when you need them.\n\n${artifacts}`
+    )
+  }
 
   const previous = renderPreviousAttempt(work.retry)
   if (previous) sections.push(`# Previous attempt\n\n${previous}`)
 
+  if (!router && request && work.request !== false) {
+    sections.push(`# Reference: original request\n\n${REFERENCE_NOTE}\n\n${request}`)
+  }
+
   sections.push(finishInstruction(work.kind))
   return sections.filter(Boolean).join('\n\n---\n\n')
+}
+
+const REFERENCE_NOTE =
+  'Background scope only. The task above is authoritative. Do not restate this request, re-plan it, or treat it as a second instruction. Use it only to keep the work aligned with what the human asked for.'
+
+function renderInputs(inputs: PromptInput[] | undefined): string {
+  if (!Array.isArray(inputs)) return ''
+  return inputs
+    .map((input) => {
+      const result = renderResult(input.result)
+      if (!result) return ''
+      const label = typeof input.label === 'string' ? input.label : ''
+      const name = typeof input.name === 'string' ? input.name : ''
+      const heading = label === name ? label : [label, name].filter(Boolean).join(' — ')
+      return `### ${heading || 'Input'}\n\n${result}`
+    })
+    .filter(Boolean)
+    .join('\n\n')
+}
+
+function renderArtifacts(artifacts: PromptArtifact[] | undefined): string {
+  if (!Array.isArray(artifacts)) return ''
+  return artifacts
+    .flatMap((artifact) => {
+      if (typeof artifact?.path !== 'string' || !artifact.path) return []
+      const label =
+        typeof artifact.label === 'string' && artifact.label && artifact.label !== artifact.path
+          ? `${artifact.label} — `
+          : ''
+      const missing = artifact.exists === false ? ' (missing)' : ''
+      return [`- ${label}\`${artifact.path}\`${missing}`]
+    })
+    .join('\n')
 }
 
 function renderPreviousAttempt(retry: PromptWork['retry']): string {
@@ -82,44 +141,6 @@ function renderPreviousAttempt(retry: PromptWork['retry']): string {
 
 function clip(text: string, limit: number): string {
   return text.length > limit ? `${text.slice(0, limit)}\n… truncated` : text
-}
-
-// Prior results are the worker's shared memory between steps. Keep the most
-// recent blocks and trim each one: a long handoff is useful, but pasting all of
-// them into every later prompt multiplies the step's input tokens.
-const PRIOR_RESULTS_LIMIT = 12_000
-const PRIOR_STEP_LIMIT = 4_000
-
-function renderPriorResults(
-  steps: PromptStepResult[] | undefined,
-  current: string | undefined
-): string {
-  if (!Array.isArray(steps)) return ''
-  const blocks = steps
-    .filter((step) => step && step.path !== current)
-    .map((step) => {
-      const result = renderResult(step.result)
-      if (!result) return ''
-      const path = typeof step.path === 'string' ? step.path : ''
-      const name = typeof step.name === 'string' ? step.name : ''
-      const heading = [path, name].filter(Boolean).join(' — ')
-      return `### ${heading || 'Prior step'}\n\n${clip(result, PRIOR_STEP_LIMIT)}`
-    })
-    .filter(Boolean)
-
-  let total = blocks.reduce((sum, block) => sum + block.length + 2, 0)
-  let dropped = 0
-  while (blocks.length > 1 && total > PRIOR_RESULTS_LIMIT) {
-    total -= blocks[0].length + 2
-    blocks.shift()
-    dropped += 1
-  }
-  if (dropped) {
-    blocks.unshift(
-      `… ${dropped} earlier result${dropped === 1 ? '' : 's'} omitted; open the run to see ${dropped === 1 ? 'it' : 'them'}`
-    )
-  }
-  return blocks.join('\n\n')
 }
 
 function renderResult(value: unknown): string {

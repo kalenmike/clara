@@ -13,6 +13,20 @@ export interface LabPreviewResult extends PreviewResult {
   modelCatalog?: ModelCatalogSummary
 }
 
+export interface StepInput {
+  label: string
+  path: string
+  name: string
+  status?: string
+  result: unknown
+}
+
+export interface StepArtifact {
+  label: string
+  path: string
+  exists?: boolean
+}
+
 export interface WorkOrder {
   run_id: number
   step_path: string
@@ -37,7 +51,8 @@ export interface WorkOrder {
   }>
   context: {
     prompt: string
-    steps: Array<{ path: string; name: string; result: unknown }>
+    inputs: StepInput[]
+    artifacts: StepArtifact[]
   }
 }
 
@@ -109,6 +124,12 @@ export type StepSummary = Omit<
   StepRow,
   'prompt' | 'policy' | 'limits' | 'lease_id' | 'lease_owner' | 'lease_expires_at'
 >
+
+export interface StepDetail extends StepRow {
+  inputs: StepInput[]
+  artifacts: StepArtifact[]
+  request: boolean
+}
 
 export interface AlertRow {
   id: number

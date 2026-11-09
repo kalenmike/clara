@@ -4,9 +4,10 @@ import { join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { beforeEach, describe, expect, it } from 'vitest'
 import { reserveTokens } from '@clara/policy'
-import { Runtime, Store } from '../src/index.ts'
+import { Runtime, Store, loadCatalog } from '../src/index.ts'
 
 const workspace = fileURLToPath(new URL('../../../', import.meta.url))
+const defaults = loadCatalog(join(workspace, 'orchestration', 'index.yml')).root.manifest.defaults
 let store: Store
 let runtime: Runtime
 
@@ -71,6 +72,44 @@ function budgetRuntime(options: { attempts: number; onExhausted: 'keep' | 'fail'
   return { runtime: tempRuntime, store: tempStore, dir }
 }
 
+function wiringRuntime() {
+  const dir = mkdtempSync(join(tmpdir(), 'clara-wiring-'))
+  mkdirSync(join(dir, 'orchestration'), { recursive: true })
+  writeFileSync(
+    join(dir, 'orchestration', 'index.yml'),
+    [
+      'id: temp',
+      'name: Temp',
+      'version: 1',
+      'entry:',
+      '  pipeline: work',
+      'pipelines:',
+      '  work:',
+      '    steps:',
+      '      - name: first',
+      '        type: task',
+      '        prompt: do it',
+      '      - name: zero',
+      '        type: task',
+      '        prompt: do it',
+      '      - name: second',
+      '        type: task',
+      '        prompt: do it',
+      '        inputs:',
+      '          one: first',
+      '        artifacts:',
+      '          - spec.md',
+      '          - missing.md',
+    ].join('\n')
+  )
+  const tempStore = new Store(':memory:')
+  const tempRuntime = new Runtime({
+    store: tempStore,
+    configPath: join(dir, 'orchestration', 'index.yml'),
+  })
+  return { runtime: tempRuntime, store: tempStore, dir }
+}
+
 describe('runtime', () => {
   it('fails closed for strict runs without an adapter', () => {
     expect(() =>
@@ -87,8 +126,8 @@ describe('runtime', () => {
     })
     expect(started.work).toHaveLength(1)
     expect(started.work[0].name).toBe('create_spec')
-    expect(started.work[0].provider).toBeUndefined()
-    expect(started.work[0].model).toBeUndefined()
+    expect(started.work[0].provider).toBe(defaults?.provider)
+    expect(started.work[0].model).toBe(defaults?.model)
     expect(started.work[0].work_token).toBeTruthy()
 
     const completed = runtime.complete(
@@ -100,6 +139,40 @@ describe('runtime', () => {
     expect(completed.ready.map((step) => step.name)).toContain('plan_implementation')
     const next = runtime.next(started.run.id)
     expect(next[0].name).toBe('plan_implementation')
+  })
+
+  it('carries only declared inputs and artifact paths in the work order', () => {
+    const { runtime: temp, dir } = wiringRuntime()
+    try {
+      writeFileSync(join(dir, 'spec.md'), '# Spec')
+      const started = temp.start({ workspace: dir, prompt: 'do it' })
+      const first = started.work[0]
+      const body = 'evidence '.repeat(2_000)
+      temp.complete(started.run.id, first.step_path, first.work_token, body)
+
+      const zero = temp.next(started.run.id)[0]
+      expect(zero.name).toBe('zero')
+      expect(zero.context.inputs).toEqual([])
+      expect(zero.context.artifacts).toEqual([])
+      temp.complete(started.run.id, zero.step_path, zero.work_token, { summary: 'zero done' })
+
+      const second = temp.next(started.run.id)[0]
+      expect(second.name).toBe('second')
+      expect(second.context.inputs).toHaveLength(1)
+      expect(second.context.inputs[0]).toMatchObject({
+        label: 'one',
+        path: 'temp/1-first',
+        name: 'first',
+      })
+      expect(second.context.inputs[0].result).toBe(body)
+      expect(second.context).not.toHaveProperty('steps')
+      expect(second.context.artifacts).toEqual([
+        { label: 'spec.md', path: 'spec.md', exists: true },
+        { label: 'missing.md', path: 'missing.md', exists: false },
+      ])
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
   })
 
   it('puts workspace model defaults on work orders', () => {
@@ -142,8 +215,8 @@ describe('runtime', () => {
     adapter()
     const started = runtime.start({ workspace, prompt: 'a new feature', target: 'std:software' })
     expect(started.work[0].kind).toBe('router')
-    expect(started.work[0].provider).toBeUndefined()
-    expect(started.work[0].model).toBeUndefined()
+    expect(started.work[0].provider).toBe(defaults?.provider)
+    expect(started.work[0].model).toBe(defaults?.model)
     expect(started.work[0].routes?.map((route) => route.when)).toEqual([
       'feature',
       'bug',

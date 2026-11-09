@@ -290,6 +290,41 @@ function renderRouterPrompt(instructions: string, routes: RouteDefinition[]): st
     : `## Routes\n\n${list}`
 }
 
+function normalizeWiring(
+  value: unknown,
+  field: string,
+  source: string
+): Record<string, string> | undefined {
+  if (value === undefined) return undefined
+  const result: Record<string, string> = {}
+  const add = (label: string, target: string): void => {
+    const name = label.trim()
+    if (!name) throw new OrchestrationError(source, `${field} has an empty label`)
+    const ref = target.trim()
+    if (!ref) throw new OrchestrationError(source, `${field}.${name} is empty`)
+    if (result[name] !== undefined)
+      throw new OrchestrationError(source, `${field}.${name} is declared twice`)
+    result[name] = ref
+  }
+  if (Array.isArray(value)) {
+    for (const item of value) {
+      if (typeof item !== 'string' || !item.trim())
+        throw new OrchestrationError(source, `${field} entries must be non-empty strings`)
+      add(item, item)
+    }
+    return result
+  }
+  if (isRecord(value)) {
+    for (const [label, item] of Object.entries(value)) {
+      if (typeof item !== 'string')
+        throw new OrchestrationError(source, `${field}.${label} must be a step name or path`)
+      add(label, item)
+    }
+    return result
+  }
+  throw new OrchestrationError(source, `${field} must be a list or a mapping`)
+}
+
 function normalizeStep(raw: unknown, source: string, index: number): StepDefinition {
   if (!isRecord(raw)) throw new OrchestrationError(source, `steps[${index}] must be an object`)
   const name = str(raw.name) ?? str(raw.id)
@@ -298,6 +333,8 @@ function normalizeStep(raw: unknown, source: string, index: number): StepDefinit
   if (!['task', 'pipeline', 'router', 'group'].includes(type)) {
     throw new OrchestrationError(source, `steps[${index}].type is invalid`)
   }
+  const inputs = normalizeWiring(raw.inputs, `steps[${index}].inputs`, source)
+  const artifacts = normalizeWiring(raw.artifacts, `steps[${index}].artifacts`, source)
   return {
     name,
     type,
@@ -307,6 +344,9 @@ function normalizeStep(raw: unknown, source: string, index: number): StepDefinit
     ...(str(raw.task) ? { task: String(raw.task) } : {}),
     ...(str(raw.ref) ? { ref: String(raw.ref) } : {}),
     ...(str(raw.path) ? { path: String(raw.path) } : {}),
+    ...(inputs ? { inputs } : {}),
+    ...(artifacts ? { artifacts } : {}),
+    ...(bool(raw.request) !== undefined ? { request: Boolean(raw.request) } : {}),
     ...(Array.isArray(raw.routes) ? { routes: normalizeRoutes(raw.routes) } : {}),
     ...(str(raw.strategy) ? { strategy: String(raw.strategy) as StepDefinition['strategy'] } : {}),
     ...(Array.isArray(raw.steps)
@@ -782,6 +822,9 @@ const STEP_FIELDS = [
   'path',
   'task',
   'ref',
+  'inputs',
+  'artifacts',
+  'request',
 ] as const
 
 const PIPELINE_FIELDS = [
@@ -882,6 +925,9 @@ function compileStep(
     ...(step.requires ? { requires: step.requires } : {}),
     ...(step.background !== undefined ? { background: step.background } : {}),
     ...(step.retries ? { retries: step.retries } : {}),
+    ...(step.inputs ? { inputs: { ...step.inputs } } : {}),
+    ...(step.artifacts ? { artifacts: { ...step.artifacts } } : {}),
+    ...(step.request !== undefined ? { request: step.request } : {}),
     ...(source ? { source } : {}),
   }
 
@@ -923,6 +969,9 @@ function compileStep(
         ...(step.limits ? { limits: step.limits } : {}),
         ...(step.enforcement ? { enforcement: step.enforcement } : {}),
         ...(step.retries ? { retries: step.retries } : {}),
+        ...(step.inputs ? { inputs: { ...step.inputs } } : {}),
+        ...(step.artifacts ? { artifacts: { ...step.artifacts } } : {}),
+        ...(step.request !== undefined ? { request: step.request } : {}),
       }
     }
     if (!step.steps?.length) throw new OrchestrationError(path, 'pipeline step needs ref or steps')
@@ -1132,6 +1181,72 @@ export function compileRef(
   return compilePipeline(pkg, parsed.alias, path, stack, fallbackModel, fallbackProvider)
 }
 
+function resolveWiring(root: CompiledNode): void {
+  const resolveContainer = (container: CompiledNode): void => {
+    const children = container.children ?? []
+    const byName = new Map<string, CompiledNode>()
+    for (const child of children) {
+      if (byName.has(child.name)) {
+        throw new OrchestrationError(
+          container.path,
+          `duplicate step name "${child.name}" in ${container.name}`
+        )
+      }
+      byName.set(child.name, child)
+    }
+    for (const [index, child] of children.entries()) {
+      if (child.inputs) {
+        const resolved: Record<string, string> = {}
+        for (const [label, ref] of Object.entries(child.inputs)) {
+          const target = byName.get(ref)
+          if (!target) {
+            const names = [...byName.keys()].filter((name) => name !== child.name)
+            throw new OrchestrationError(
+              child.path,
+              `inputs.${label}: step "${ref}" is not in this pipeline${
+                names.length ? ` (available: ${names.join(', ')})` : ''
+              }`
+            )
+          }
+          if (target === child) {
+            throw new OrchestrationError(
+              child.path,
+              `inputs.${label}: a step cannot reference itself`
+            )
+          }
+          if (children.indexOf(target) > index) {
+            throw new OrchestrationError(
+              child.path,
+              `inputs.${label}: "${ref}" comes later in the pipeline; inputs must reference an earlier step`
+            )
+          }
+          if (target.background) {
+            throw new OrchestrationError(
+              child.path,
+              `inputs.${label}: "${ref}" is background, so its result is not guaranteed when this step starts`
+            )
+          }
+          resolved[label] = target.path
+        }
+        child.inputs = resolved
+      }
+      for (const [label, artifact] of Object.entries(child.artifacts ?? {})) {
+        if (isAbsolute(artifact) || artifact.split(/[\\/]/).includes('..')) {
+          throw new OrchestrationError(
+            child.path,
+            `artifacts.${label}: "${artifact}" must be a workspace-relative path`
+          )
+        }
+      }
+      resolveContainer(child)
+    }
+    for (const route of container.routes ?? []) {
+      if (route.target) resolveContainer(route.target)
+    }
+  }
+  resolveContainer(root)
+}
+
 export function compileRun(catalog: LoadedCatalog, targetRef?: string): CompiledRun {
   const fallbackModel = catalog.root.manifest.defaults?.model
   const fallbackProvider = catalog.root.manifest.defaults?.provider
@@ -1144,6 +1259,7 @@ export function compileRun(catalog: LoadedCatalog, targetRef?: string): Compiled
         fallbackModel,
         fallbackProvider
       )
+  resolveWiring(root)
   const sources = [...new Set(catalog.packages.flatMap((pkg) => pkg.sources))].sort()
   const snapshot = JSON.stringify({
     root,

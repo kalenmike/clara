@@ -8,6 +8,24 @@ import { catalogSummary, compileRun, loadCatalog } from '../src/index.ts'
 const root = fileURLToPath(new URL('../../../', import.meta.url))
 const config = `${root}/orchestration/index.yml`
 
+function pipelinePackage(steps: string[]): string {
+  const dir = mkdtempSync(join(tmpdir(), 'clara-wiring-'))
+  writeFileSync(
+    join(dir, 'index.yml'),
+    [
+      'id: temp',
+      'name: Temp',
+      'version: 1',
+      'entry: main',
+      'pipelines:',
+      '  main:',
+      '    steps:',
+      ...steps,
+    ].join('\n')
+  )
+  return dir
+}
+
 describe('package loader', () => {
   it('discovers the std software package and primary pipelines', () => {
     const catalog = loadCatalog(config)
@@ -20,6 +38,7 @@ describe('package loader', () => {
 
   it('compiles the package entry router and a named pipeline', () => {
     const catalog = loadCatalog(config)
+    const defaults = catalog.root.manifest.defaults
     const entry = compileRun(catalog, 'std:software')
     expect(entry.root.kind).toBe('router')
     expect(entry.root.routes?.map((route) => route.when)).toEqual([
@@ -27,8 +46,8 @@ describe('package loader', () => {
       'bug',
       'documentation',
     ])
-    expect(entry.root.provider).toBeUndefined()
-    expect(entry.root.model).toBeUndefined()
+    expect(entry.root.provider).toBe(defaults?.provider)
+    expect(entry.root.model).toBe(defaults?.model)
 
     const feature = compileRun(catalog, 'std:software/feature')
     expect(feature.root.kind).toBe('pipeline')
@@ -44,15 +63,15 @@ describe('package loader', () => {
     expect(feature.root.children?.[0].policy?.rules?.[0].effect).toBe('deny')
     expect(feature.hash).toMatch(/^sha256:[a-f0-9]{64}$/)
     expect(feature.root.packageId).toBe('software')
-    expect(feature.root.provider).toBeUndefined()
-    expect(feature.root.model).toBeUndefined()
+    expect(feature.root.provider).toBe(defaults?.provider)
+    expect(feature.root.model).toBe(defaults?.model)
     expect(feature.root.declared).toEqual(expect.arrayContaining(['enforcement']))
     const first = feature.root.children?.[0]
     expect(first?.packageId).toBe('software')
     expect(first?.task).toBe('create_spec')
     expect(first?.promptSource).toBe('task')
-    expect(first?.provider).toBeUndefined()
-    expect(first?.model).toBeUndefined()
+    expect(first?.provider).toBe(defaults?.provider)
+    expect(first?.model).toBe(defaults?.model)
     expect(first?.source).toContain('/tasks/create_spec.md')
   })
 
@@ -602,5 +621,181 @@ describe('package loader', () => {
     const route = primary.root.routes?.find((candidate) => candidate.when === 'diagnostics')
     expect(route?.run).toBe('std:diagnostics')
     expect(route?.criteria).toContain('self-analyze the orchestrator')
+  })
+
+  it('resolves list and mapping inputs to compiled step paths', () => {
+    const dir = pipelinePackage([
+      '      - name: first',
+      '        type: task',
+      '        prompt: do it',
+      '      - name: second',
+      '        type: task',
+      '        prompt: do it',
+      '        inputs:',
+      '          one: first',
+      '        artifacts:',
+      '          spec: spec.md',
+      '        request: false',
+      '      - name: third',
+      '        type: task',
+      '        prompt: do it',
+      '        inputs:',
+      '          - first',
+      '          - second',
+    ])
+    try {
+      const main = compileRun(loadCatalog(dir), 'main')
+      const second = main.root.children?.find((step) => step.name === 'second')
+      const third = main.root.children?.find((step) => step.name === 'third')
+      expect(second?.inputs).toEqual({ one: 'main/1-first' })
+      expect(second?.artifacts).toEqual({ spec: 'spec.md' })
+      expect(second?.request).toBe(false)
+      expect(second?.declared).toEqual(expect.arrayContaining(['inputs', 'artifacts', 'request']))
+      expect(third?.inputs).toEqual({
+        first: 'main/1-first',
+        second: 'main/2-second',
+      })
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('resolves inputs inside router route targets', () => {
+    const dir = pipelinePackage([])
+    try {
+      writeFileSync(
+        join(dir, 'index.yml'),
+        [
+          'id: temp',
+          'name: Temp',
+          'version: 1',
+          'entry: main',
+          'pipelines:',
+          '  main:',
+          '    steps:',
+          '      - name: classify',
+          '        type: router',
+          '        routes:',
+          '          - when: a',
+          '            run: branch',
+          '  branch:',
+          '    steps:',
+          '      - name: first',
+          '        type: task',
+          '        prompt: do it',
+          '      - name: second',
+          '        type: task',
+          '        prompt: do it',
+          '        inputs:',
+          '          one: first',
+        ].join('\n')
+      )
+      const main = compileRun(loadCatalog(dir), 'main')
+      const branch = main.root.children?.[0].routes?.[0].target
+      expect(branch?.children?.[1].inputs).toEqual({
+        one: 'main/1-classify/route-a/1-first',
+      })
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('rejects an unknown input with the available step names', () => {
+    const dir = pipelinePackage([
+      '      - name: first',
+      '        type: task',
+      '        prompt: do it',
+      '      - name: second',
+      '        type: task',
+      '        prompt: do it',
+      '        inputs:',
+      '          missing: create_spec',
+    ])
+    try {
+      expect(() => compileRun(loadCatalog(dir), 'main')).toThrow(
+        /inputs\.missing: step "create_spec" is not in this pipeline \(available: first\)/
+      )
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('rejects forward and self references', () => {
+    const forward = pipelinePackage([
+      '      - name: first',
+      '        type: task',
+      '        prompt: do it',
+      '        inputs:',
+      '          later: second',
+      '      - name: second',
+      '        type: task',
+      '        prompt: do it',
+    ])
+    try {
+      expect(() => compileRun(loadCatalog(forward), 'main')).toThrow(/comes later in the pipeline/)
+    } finally {
+      rmSync(forward, { recursive: true, force: true })
+    }
+
+    const self = pipelinePackage([
+      '      - name: first',
+      '        type: task',
+      '        prompt: do it',
+      '        inputs:',
+      '          self: first',
+    ])
+    try {
+      expect(() => compileRun(loadCatalog(self), 'main')).toThrow(/cannot reference itself/)
+    } finally {
+      rmSync(self, { recursive: true, force: true })
+    }
+  })
+
+  it('rejects a background input', () => {
+    const dir = pipelinePackage([
+      '      - name: first',
+      '        type: task',
+      '        prompt: do it',
+      '        background: true',
+      '      - name: second',
+      '        type: task',
+      '        prompt: do it',
+      '        inputs:',
+      '          bg: first',
+    ])
+    try {
+      expect(() => compileRun(loadCatalog(dir), 'main')).toThrow(/is background/)
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('rejects duplicate step names and escaping artifacts', () => {
+    const duplicate = pipelinePackage([
+      '      - name: first',
+      '        type: task',
+      '        prompt: do it',
+      '      - name: first',
+      '        type: task',
+      '        prompt: do it',
+    ])
+    try {
+      expect(() => compileRun(loadCatalog(duplicate), 'main')).toThrow(/duplicate step name/)
+    } finally {
+      rmSync(duplicate, { recursive: true, force: true })
+    }
+
+    const escape = pipelinePackage([
+      '      - name: first',
+      '        type: task',
+      '        prompt: do it',
+      '        artifacts:',
+      '          - ../secret.md',
+    ])
+    try {
+      expect(() => compileRun(loadCatalog(escape), 'main')).toThrow(/workspace-relative path/)
+    } finally {
+      rmSync(escape, { recursive: true, force: true })
+    }
   })
 })

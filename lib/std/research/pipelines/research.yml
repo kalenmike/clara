@@ -7,11 +7,25 @@ steps:
     type: task
   - name: gather_sources
     type: task
+    inputs:
+      scope: scope_research
   - name: verify_sources
     type: task
+    inputs:
+      scope: scope_research
+      sources: gather_sources
   - name: draft_report
     type: task
+    inputs:
+      scope: scope_research
+      sources: gather_sources
+      verified: verify_sources
   - name: review_report
     type: task
+    inputs:
+      draft: draft_report
+      verified: verify_sources
   - name: deliver_report
     type: task
+    inputs:
+      review: review_report

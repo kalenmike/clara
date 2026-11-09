@@ -15,13 +15,14 @@ const routerWork = {
   ].join('\n'),
   context: {
     prompt: 'Add a dark mode toggle to the settings page.',
-    steps: [],
   },
 }
 
 test('renders the root request and the compiled router prompt once', () => {
   const prompt = renderWorkPrompt(routerWork)
   assert.match(prompt, /Add a dark mode toggle/)
+  assert.match(prompt, /# Request/)
+  assert.doesNotMatch(prompt, /# Reference/)
   assert.equal(prompt.match(/`content`/g)?.length, 1)
   assert.match(prompt, /Call `clara_route`/)
   assert.doesNotMatch(prompt, /work_token/)
@@ -31,37 +32,89 @@ test('renders the root request and the compiled router prompt once', () => {
   assert.doesNotMatch(prompt, /Clara work order/)
 })
 
-test('renders prior results and skips the current step', () => {
+test('renders declared inputs with labels and full bodies', () => {
   const prompt = renderWorkPrompt({
-    step_path: '2-draft',
+    step_path: '4-review',
     kind: 'task',
-    prompt: '# Task: Draft\n\nWrite the draft from the approved brief.',
+    prompt: '# Task: Review',
     context: {
-      prompt: 'Write a launch post.',
-      steps: [
-        { path: '1-brief', name: 'brief', result: 'Audience: developers. Tone: direct.' },
-        { path: '2-draft', name: 'draft', result: 'stale retry output' },
+      prompt: 'Add a dark mode toggle.',
+      inputs: [
+        { label: 'spec', path: '1-create_spec', name: 'create_spec', result: 'Spec body.' },
+        {
+          label: 'tests',
+          path: '3-write_tests',
+          name: 'write_tests',
+          result: { command: 'pnpm test', passed: 12 },
+        },
       ],
     },
   })
-  assert.match(prompt, /# Prior results/)
-  assert.match(prompt, /Audience: developers/)
-  assert.doesNotMatch(prompt, /stale retry output/)
+  assert.match(prompt, /# Inputs/)
+  assert.match(prompt, /### spec — create_spec/)
+  assert.match(prompt, /Spec body\./)
+  assert.match(prompt, /### tests — write_tests/)
+  assert.match(prompt, /"passed": 12/)
   assert.match(prompt, /call `clara_complete`/)
 })
 
-test('renders structured prior results as JSON', () => {
+test('renders a declared input in full', () => {
+  const body = 'z'.repeat(20_000)
   const prompt = renderWorkPrompt({
-    step_path: '2-verify',
+    step_path: '2-next',
     kind: 'task',
-    prompt: '# Task: Verify',
+    prompt: '# Task: Next',
     context: {
-      prompt: 'Research the market.',
-      steps: [{ path: '1-gather', name: 'gather', result: { sources: ['https://example.com'] } }],
+      prompt: 'do it',
+      inputs: [{ label: 'evidence', path: '1-evidence', name: 'collect_evidence', result: body }],
     },
   })
-  assert.match(prompt, /"sources"/)
-  assert.match(prompt, /https:\/\/example\.com/)
+  assert.match(prompt, /z{20000}/)
+  assert.doesNotMatch(prompt, /truncated/)
+})
+
+test('demotes the root request to background scope', () => {
+  const prompt = renderWorkPrompt({
+    step_path: '2-draft',
+    kind: 'task',
+    prompt: '# Task: Draft',
+    context: { prompt: 'Write a launch post.' },
+  })
+  assert.match(prompt, /# Reference: original request/)
+  assert.match(prompt, /Background scope only/)
+  assert.match(prompt, /Do not restate this request/)
+  assert.match(prompt, /Write a launch post\./)
+  assert.doesNotMatch(prompt, /# Request\n/)
+})
+
+test('omits the root request when the step opts out', () => {
+  const prompt = renderWorkPrompt({
+    step_path: '4-deliver',
+    kind: 'task',
+    prompt: '# Task: Deliver',
+    request: false,
+    context: { prompt: 'Write a launch post.' },
+  })
+  assert.doesNotMatch(prompt, /# Reference/)
+  assert.doesNotMatch(prompt, /Write a launch post\./)
+})
+
+test('renders artifact paths and marks missing files', () => {
+  const prompt = renderWorkPrompt({
+    step_path: '4-review',
+    kind: 'task',
+    prompt: '# Task: Review',
+    context: {
+      prompt: 'Add a toggle.',
+      artifacts: [
+        { label: 'spec', path: 'spec.md', exists: true },
+        { label: 'docs', path: 'docs/README.md', exists: false },
+      ],
+    },
+  })
+  assert.match(prompt, /# Artifacts/)
+  assert.match(prompt, /spec — `spec\.md`/)
+  assert.match(prompt, /docs — `docs\/README\.md` \(missing\)/)
 })
 
 test('renders the previous attempt so a retry does not repeat the work', () => {
@@ -76,7 +129,6 @@ test('renders the previous attempt so a retry does not repeat the work', () => {
     },
     context: {
       prompt: 'Fix the repeat notification.',
-      steps: [],
     },
   })
   assert.match(prompt, /# Previous attempt/)
@@ -90,42 +142,9 @@ test('omits the previous attempt on a first attempt', () => {
     step_path: '1-fix',
     kind: 'task',
     prompt: '# Task: Fix',
-    context: { prompt: 'Fix it.', steps: [] },
+    context: { prompt: 'Fix it.' },
   })
   assert.doesNotMatch(prompt, /# Previous attempt/)
-})
-
-test('keeps prior results bounded and favors the newest steps', () => {
-  const steps = Array.from({ length: 6 }, (_, index) => ({
-    path: `${index + 1}-step`,
-    name: `step${index + 1}`,
-    result: 'x'.repeat(5_000),
-  }))
-  const prompt = renderWorkPrompt({
-    step_path: '7-final',
-    kind: 'task',
-    prompt: '# Task: Final',
-    context: { prompt: 'do it', steps },
-  })
-  const section = prompt.split('# Prior results\n\n')[1]?.split('\n\n---')[0] ?? ''
-  assert.ok(section.length < 13_500)
-  assert.match(section, /earlier results omitted/)
-  assert.match(section, /6-step/)
-  assert.doesNotMatch(section, /1-step/)
-})
-
-test('clips one oversized prior result', () => {
-  const prompt = renderWorkPrompt({
-    step_path: '2-next',
-    kind: 'task',
-    prompt: '# Task: Next',
-    context: {
-      prompt: 'do it',
-      steps: [{ path: '1-big', name: 'big', result: 'y'.repeat(10_000) }],
-    },
-  })
-  assert.match(prompt, /… truncated/)
-  assert.ok(prompt.length < 6_000)
 })
 
 test('scopes a router to route and fail and constrains the route enum', () => {
