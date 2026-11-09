@@ -66,6 +66,8 @@ export interface WorkOrder {
   enforcement: string
   background: boolean
   routes?: Array<{ when: string; run: string; criteria?: string; description?: string }>
+  /** Present on a retry: why the previous attempt ended and what it produced. */
+  retry?: { attempt: number; error: string; result: unknown }
   context: {
     prompt: string
     steps: Array<{ path: string; name: string; result: unknown }>
@@ -115,6 +117,17 @@ function ageMs(iso: string | null): number {
   return Number.isFinite(time) ? Date.now() - time : Number.POSITIVE_INFINITY
 }
 
+const HANDOFF_LIMIT = 2_000
+
+// Keep a blocked worker's partial result short enough to store and render in
+// the next attempt's prompt without turning a failure into a context bomb.
+function handoffText(result: unknown): string {
+  if (result === null || result === undefined) return ''
+  const raw = typeof result === 'string' ? result : JSON.stringify(result)
+  const text = String(raw ?? '').trim()
+  return text.length > HANDOFF_LIMIT ? `${text.slice(0, HANDOFF_LIMIT)}…` : text
+}
+
 export class OrchestrationErrorWithCode extends Error {
   readonly code: string
   constructor(code: string, message: string) {
@@ -132,8 +145,6 @@ export class Runtime {
   private readonly stalledMs: number
   private readonly adapterStaleMs: number
   private catalogCache = new Map<string, { at: number; catalog: LoadedCatalog }>()
-  /** Attempt ids that already emitted a budget event, so a denied tool storm logs once. */
-  private budgetNotified = new Set<number>()
   /**
    * Completed attempts remember their work token for a short window. A worker
    * can report the final model turn after it recorded its result because the
@@ -585,6 +596,17 @@ export class Runtime {
         name: step.name,
         result: parseJson<unknown>(step.result, null),
       }))
+    const previous =
+      Number(row.attempt) > 1
+        ? this.store.stepAttempt(Number(run.id), row.path, Number(row.attempt) - 1)
+        : undefined
+    const retry = previous?.error
+      ? {
+          attempt: Number(previous.attempt),
+          error: previous.error,
+          result: parseJson<unknown>(previous.result, null),
+        }
+      : undefined
     return {
       run_id: Number(run.id),
       step_path: node.path,
@@ -612,6 +634,7 @@ export class Runtime {
             })),
           }
         : {}),
+      ...(retry ? { retry } : {}),
       context: {
         prompt: run.prompt,
         steps: completed,
@@ -665,12 +688,31 @@ export class Runtime {
       elapsedSeconds: row.started_at ? ageMs(row.started_at) / 1000 : 0,
       violations,
     })
+    const attemptID = row.current_attempt_id
+    const serialized = JSON.stringify(result ?? null)
+    // A worker that was cut off by its budget reports a handoff, not a result.
+    // When the step opts into `on_exhausted: fail`, retry it with a larger
+    // budget instead of advancing the pipeline on partial work. The handoff is
+    // kept on the attempt and surfaces as `retry` in the next work order.
+    if (limits?.on_exhausted === 'fail' && attemptID !== null) {
+      const attempt = this.store.stepAttempt(runID, path, Number(row.attempt))
+      if (attempt?.budget_exhausted === 1) {
+        const handoff = handoffText(result)
+        if (handoff) this.store.updateStepAttempt(Number(attemptID), { result: serialized })
+        const failed = this.fail(
+          runID,
+          path,
+          token,
+          `budget exhausted before the step finished${handoff ? `; handoff: ${handoff}` : ''}`,
+          { turns, tokens, toolCalls, violations }
+        )
+        return { run: failed.run, ready: failed.ready }
+      }
+    }
     // A valid completion is final. A worker that reports a result has produced
     // work worth keeping, even when it had to exceed its budget to get there;
     // retrying would discard the result and run the step again. The overrun is
     // recorded on the completion event instead.
-    const attemptID = row.current_attempt_id
-    const serialized = JSON.stringify(result ?? null)
     this.store.transaction(() => {
       if (attemptID !== null) {
         this.store.updateStepAttempt(Number(attemptID), {
@@ -928,7 +970,7 @@ export class Runtime {
     const budget = computeBudget(limits, Number(row.attempt) || 1)
     const current: Usage = {
       turns: usage?.turns ?? Number(row.turns),
-      tokens: usage?.tokens ?? Number(row.tokens),
+      tokens: usage?.budgetTokens ?? usage?.tokens ?? Number(row.tokens),
       toolCalls: usage?.toolCalls ?? Number(row.tool_calls),
       elapsedSeconds: row.started_at ? ageMs(row.started_at) / 1000 : 0,
       violations: usage?.violations ?? Number(row.violations),
@@ -959,30 +1001,33 @@ export class Runtime {
     }
     const decision = evaluatePolicy(policy, budget, current, check)
     if (decision.effect !== 'deny') return decision
-    const exceeded = budgetExceeded(budget, current)
+    const exceeded = decision.budgetExhausted ?? budgetExceeded(budget, current)
     if (exceeded && !isControlTool(check.tool)) {
       // Budgets are resource caps, not permission rules. Enforce them in every
       // enforcement mode so an observed step cannot run unbounded, but keep the
       // session alive so the worker can still report a result or failure.
       const attemptID = row.current_attempt_id
-      if (attemptID !== null && !this.budgetNotified.has(attemptID)) {
-        this.budgetNotified.add(attemptID)
-        this.store.event(
-          runID,
-          'budget.exhausted',
-          {
-            step: path,
-            action: check.action,
-            tool: check.tool,
-            reason: exceeded,
-          },
-          attemptID
-        )
+      if (attemptID !== null) {
+        const previous = this.store.stepAttempt(Number(run.id), path, Number(row.attempt))
+        if (previous?.budget_exhausted !== 1) {
+          this.store.updateStepAttempt(Number(attemptID), { budget_exhausted: 1 })
+          this.store.event(
+            runID,
+            'budget.exhausted',
+            {
+              step: path,
+              action: check.action,
+              tool: check.tool,
+              reason: exceeded,
+            },
+            attemptID
+          )
+        }
       }
       return {
         ...decision,
         effect: 'deny',
-        reason: `budget exhausted: ${decision.reason ?? exceeded}; call clara_complete with your result now`,
+        reason: `budget exhausted: ${decision.reason ?? exceeded}; call clara_complete with your result or clara_fail with the handoff now`,
         closed: false,
       }
     }

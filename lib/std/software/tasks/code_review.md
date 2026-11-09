@@ -16,10 +16,15 @@ permissions:
 limits:
   turns:
     initial: 6
+    growth_rate: 1.5
     absolute_max: 10
   tokens:
-    initial: 60000
-    absolute_max: 140000
+    initial: 70000
+    growth_rate: 1.5
+    absolute_max: 210000
+  on_exhausted: fail
+retries:
+  auto_attempts: 2
 ---
 
 # Task: Code review

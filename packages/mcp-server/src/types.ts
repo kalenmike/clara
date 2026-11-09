@@ -8,6 +8,8 @@ export interface OriginInput {
 export interface UsageInput {
   turns?: number
   tokens?: number
+  /** Cache-weighted tokens for budget enforcement; falls back to `tokens`. */
+  budgetTokens?: number
   toolCalls?: number
   violations?: number
 }

@@ -76,6 +76,7 @@ export interface StepAttemptRow extends Row {
   tokens: number
   tool_calls: number
   violations: number
+  budget_exhausted: number
   error: string | null
   result: string | null
   model: string | null
@@ -200,6 +201,7 @@ export class Store {
         tokens INTEGER NOT NULL DEFAULT 0,
         tool_calls INTEGER NOT NULL DEFAULT 0,
         violations INTEGER NOT NULL DEFAULT 0,
+        budget_exhausted INTEGER NOT NULL DEFAULT 0,
         error TEXT,
         result TEXT,
         model TEXT,
@@ -286,6 +288,7 @@ export class Store {
     this.ensureColumn('steps', 'provider', 'TEXT')
     this.ensureColumn('steps', 'current_attempt_id', 'INTEGER')
     this.ensureColumn('events', 'attempt_id', 'INTEGER')
+    this.ensureColumn('step_attempts', 'budget_exhausted', 'INTEGER NOT NULL DEFAULT 0')
   }
 
   /** Run a callback in one SQLite transaction (savepoints when nested). */

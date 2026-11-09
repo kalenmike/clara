@@ -25,10 +25,15 @@ permissions:
 limits:
   turns:
     initial: 6
+    growth_rate: 1.5
     absolute_max: 12
   tokens:
-    initial: 50000
-    absolute_max: 120000
+    initial: 60000
+    growth_rate: 1.5
+    absolute_max: 180000
+  on_exhausted: fail
+retries:
+  auto_attempts: 2
 ---
 
 # Task: Update docs

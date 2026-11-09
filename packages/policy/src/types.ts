@@ -42,12 +42,21 @@ export interface Limits {
   max_tool_calls?: number
   wall_clock_seconds?: number
   max_violations?: number
+  /**
+   * What to do when a worker that ran out of budget reports a result. `keep`
+   * accepts the over-budget result and advances (the historical behavior);
+   * `fail` treats the attempt as unfinished so it retries with a larger budget
+   * and the worker's handoff in context.
+   */
+  on_exhausted?: 'keep' | 'fail'
 }
 
 export interface Usage {
   turns: number
   toolCalls: number
   tokens: number
+  /** Cache-weighted tokens for budget enforcement; falls back to `tokens`. */
+  budgetTokens?: number
   elapsedSeconds: number
   violations: number
 }
@@ -79,6 +88,8 @@ export interface PolicyDecision {
   }
   /** Total violations recorded for the step after this decision. */
   violations?: number
+  /** Set when the denial comes from a resource budget (hard limit or reserve). */
+  budgetExhausted?: string
   /** The step is no longer running (it was retried or failed). */
   closed?: boolean
 }

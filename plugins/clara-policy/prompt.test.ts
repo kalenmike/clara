@@ -64,6 +64,70 @@ test('renders structured prior results as JSON', () => {
   assert.match(prompt, /https:\/\/example\.com/)
 })
 
+test('renders the previous attempt so a retry does not repeat the work', () => {
+  const prompt = renderWorkPrompt({
+    step_path: '3-fix',
+    kind: 'task',
+    prompt: '# Task: Fix',
+    retry: {
+      attempt: 1,
+      error: 'budget exhausted before the step finished',
+      result: { rootCause: 'runtime.ts reserves after the await' },
+    },
+    context: {
+      prompt: 'Fix the repeat notification.',
+      steps: [],
+    },
+  })
+  assert.match(prompt, /# Previous attempt/)
+  assert.match(prompt, /Attempt 1 ended before the step finished/)
+  assert.match(prompt, /runtime\.ts reserves after the await/)
+  assert.match(prompt, /Do not repeat the same investigation/)
+})
+
+test('omits the previous attempt on a first attempt', () => {
+  const prompt = renderWorkPrompt({
+    step_path: '1-fix',
+    kind: 'task',
+    prompt: '# Task: Fix',
+    context: { prompt: 'Fix it.', steps: [] },
+  })
+  assert.doesNotMatch(prompt, /# Previous attempt/)
+})
+
+test('keeps prior results bounded and favors the newest steps', () => {
+  const steps = Array.from({ length: 6 }, (_, index) => ({
+    path: `${index + 1}-step`,
+    name: `step${index + 1}`,
+    result: 'x'.repeat(5_000),
+  }))
+  const prompt = renderWorkPrompt({
+    step_path: '7-final',
+    kind: 'task',
+    prompt: '# Task: Final',
+    context: { prompt: 'do it', steps },
+  })
+  const section = prompt.split('# Prior results\n\n')[1]?.split('\n\n---')[0] ?? ''
+  assert.ok(section.length < 13_500)
+  assert.match(section, /earlier results omitted/)
+  assert.match(section, /6-step/)
+  assert.doesNotMatch(section, /1-step/)
+})
+
+test('clips one oversized prior result', () => {
+  const prompt = renderWorkPrompt({
+    step_path: '2-next',
+    kind: 'task',
+    prompt: '# Task: Next',
+    context: {
+      prompt: 'do it',
+      steps: [{ path: '1-big', name: 'big', result: 'y'.repeat(10_000) }],
+    },
+  })
+  assert.match(prompt, /… truncated/)
+  assert.ok(prompt.length < 6_000)
+})
+
 test('scopes a router to route and fail and constrains the route enum', () => {
   const tools: Record<string, unknown> = {
     read: {},

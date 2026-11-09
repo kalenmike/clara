@@ -6,6 +6,7 @@ import {
   evaluatePolicy,
   isControlTool,
   matches,
+  reserveTokens,
 } from '../src/index.ts'
 
 describe('glob matching', () => {
@@ -90,5 +91,28 @@ describe('evaluatePolicy', () => {
     expect(evaluatePolicy(undefined, budget, usage, { action: 'read', tool: 'read' }).effect).toBe(
       'deny'
     )
+  })
+
+  it('reserves part of the token budget for the final report', () => {
+    expect(reserveTokens(computeBudget({ tokens: { initial: 1_000 } }))).toBe(80)
+    expect(reserveTokens(computeBudget({ tokens: { initial: 250_000 } }))).toBe(10_000)
+
+    const near = computeBudget({ tokens: { initial: 1_000 } })
+    const usage = { ...emptyUsage(), tokens: 930 }
+    const denied = evaluatePolicy(undefined, near, usage, { action: 'read', tool: 'read' })
+    expect(denied.effect).toBe('deny')
+    expect(denied.budgetExhausted).toBe('token reserve reached')
+    expect(
+      evaluatePolicy(undefined, near, usage, { action: 'clara_complete', tool: 'clara_complete' })
+        .effect
+    ).toBe('allow')
+    expect(
+      evaluatePolicy(
+        undefined,
+        near,
+        { ...emptyUsage(), tokens: 500 },
+        { action: 'read', tool: 'read' }
+      ).effect
+    ).toBe('allow')
   })
 })

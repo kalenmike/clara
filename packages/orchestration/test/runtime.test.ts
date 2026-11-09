@@ -3,6 +3,7 @@ import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { beforeEach, describe, expect, it } from 'vitest'
+import { reserveTokens } from '@clara/policy'
 import { Runtime, Store } from '../src/index.ts'
 
 const workspace = fileURLToPath(new URL('../../../', import.meta.url))
@@ -20,6 +21,54 @@ function adapter(): void {
     workspace,
     capabilities: ['tool_policy', 'turn_limit', 'token_limit'],
   })
+}
+
+function budgetRuntime(options: { attempts: number; onExhausted: 'keep' | 'fail' }) {
+  const dir = mkdtempSync(join(tmpdir(), 'clara-budget-'))
+  mkdirSync(join(dir, 'orchestration', 'tasks'), { recursive: true })
+  writeFileSync(
+    join(dir, 'orchestration', 'index.yml'),
+    [
+      'id: temp',
+      'name: Temp',
+      'version: 1',
+      'entry:',
+      '  pipeline: work',
+      'pipelines:',
+      '  work:',
+      '    enforcement: strict',
+      '    steps:',
+      '      - name: do_work',
+      '        type: task',
+    ].join('\n')
+  )
+  writeFileSync(
+    join(dir, 'orchestration', 'tasks', 'do_work.md'),
+    [
+      '---',
+      'description: Do work',
+      'limits:',
+      '  tokens:',
+      '    initial: 1000',
+      `  on_exhausted: ${options.onExhausted}`,
+      'retries:',
+      `  auto_attempts: ${options.attempts}`,
+      '---',
+      '',
+      '# Do work',
+    ].join('\n')
+  )
+  const tempStore = new Store(':memory:')
+  const tempRuntime = new Runtime({
+    store: tempStore,
+    configPath: join(dir, 'orchestration', 'index.yml'),
+  })
+  tempRuntime.registerAdapter({
+    harness: 'opencode',
+    workspace: dir,
+    capabilities: ['tool_policy', 'turn_limit', 'token_limit'],
+  })
+  return { runtime: tempRuntime, store: tempStore, dir }
 }
 
 describe('runtime', () => {
@@ -671,6 +720,156 @@ describe('runtime', () => {
       { turns: 99 }
     )
     expect(routed.effect).toBe('allow')
+  })
+
+  it('denies work tools once only the token reserve is left', () => {
+    const started = runtime.start({
+      workspace,
+      prompt: 'write a short article',
+    })
+    const work = started.work[0]
+    const reserve = reserveTokens(work.budget)
+    const near = { tokens: work.budget.tokens - reserve }
+    const denied = runtime.check(
+      started.run.id,
+      work.step_path,
+      { action: 'read', tool: 'read' },
+      near
+    )
+    expect(denied.effect).toBe('deny')
+    expect(denied.budgetExhausted).toBe('token reserve reached')
+    expect(denied.reason).toContain('reserved for the final report')
+    expect(
+      store.events(started.run.id).filter((event) => event.type === 'budget.exhausted')
+    ).toHaveLength(1)
+
+    const completed = runtime.check(
+      started.run.id,
+      work.step_path,
+      { action: 'clara_complete', tool: 'clara_complete' },
+      near
+    )
+    expect(completed.effect).toBe('allow')
+  })
+
+  it('retries a completion cut short by the budget and carries the handoff', () => {
+    const temp = budgetRuntime({ attempts: 2, onExhausted: 'fail' })
+    try {
+      const started = temp.runtime.start({ workspace: temp.dir, prompt: 'fix it' })
+      const work = started.work[0]
+      const denied = temp.runtime.check(
+        started.run.id,
+        work.step_path,
+        { action: 'read', tool: 'read' },
+        { tokens: 1_000 }
+      )
+      expect(denied.budgetExhausted).toBe('token limit reached')
+
+      const completed = temp.runtime.complete(
+        started.run.id,
+        work.step_path,
+        work.work_token,
+        { summary: 'root cause is in runtime.ts' },
+        { tokens: 1_000 }
+      )
+      expect(completed.ready.map((step) => step.path)).toEqual([work.step_path])
+      const retried = temp.store.step(started.run.id, work.step_path)
+      expect(retried?.status).toBe('ready')
+      expect(retried?.error).toContain('budget exhausted before the step finished')
+      expect(temp.store.events(started.run.id).some((event) => event.type === 'step.retry')).toBe(
+        true
+      )
+
+      const next = temp.runtime.next(started.run.id)[0]
+      expect(next.attempt).toBe(2)
+      expect(next.retry?.attempt).toBe(1)
+      expect(next.retry?.result).toEqual({ summary: 'root cause is in runtime.ts' })
+      expect(next.retry?.error).toContain('handoff')
+
+      // The retry did not run out of budget, so its completion is final.
+      temp.runtime.complete(started.run.id, next.step_path, next.work_token, { summary: 'fixed' })
+      expect(temp.store.step(started.run.id, work.step_path)?.status).toBe('done')
+    } finally {
+      rmSync(temp.dir, { recursive: true, force: true })
+    }
+  })
+
+  it('fails the last attempt when the budget cut the step short', () => {
+    const temp = budgetRuntime({ attempts: 1, onExhausted: 'fail' })
+    try {
+      const started = temp.runtime.start({ workspace: temp.dir, prompt: 'fix it' })
+      const work = started.work[0]
+      temp.runtime.check(
+        started.run.id,
+        work.step_path,
+        { action: 'read', tool: 'read' },
+        { tokens: 1_000 }
+      )
+      temp.runtime.complete(started.run.id, work.step_path, work.work_token, {
+        summary: 'partial handoff',
+      })
+      expect(temp.store.step(started.run.id, work.step_path)?.status).toBe('failed')
+      expect(temp.store.run(started.run.id)?.state).toBe('failed')
+      expect(temp.runtime.inbox().filter((alert) => alert.kind === 'failure')).toHaveLength(1)
+    } finally {
+      rmSync(temp.dir, { recursive: true, force: true })
+    }
+  })
+
+  it('keeps an exhausted completion when the step opts out', () => {
+    const temp = budgetRuntime({ attempts: 2, onExhausted: 'keep' })
+    try {
+      const started = temp.runtime.start({ workspace: temp.dir, prompt: 'fix it' })
+      const work = started.work[0]
+      temp.runtime.check(
+        started.run.id,
+        work.step_path,
+        { action: 'read', tool: 'read' },
+        { tokens: 1_000 }
+      )
+      temp.runtime.complete(
+        started.run.id,
+        work.step_path,
+        work.work_token,
+        {
+          summary: 'kept result',
+        },
+        { tokens: 1_000 }
+      )
+      expect(temp.store.step(started.run.id, work.step_path)?.status).toBe('done')
+      const completed = temp.store
+        .events(started.run.id)
+        .find((event) => event.type === 'step.completed')
+      expect(JSON.parse(completed?.payload ?? '{}').over_budget).toBe('token limit reached')
+    } finally {
+      rmSync(temp.dir, { recursive: true, force: true })
+    }
+  })
+
+  it('enforces the cache-weighted budget when the harness reports one', () => {
+    const started = runtime.start({
+      workspace,
+      prompt: 'write a short article',
+    })
+    const work = started.work[0]
+    // Raw usage looks exhausted, but the cache-weighted total is small.
+    const allowed = runtime.check(
+      started.run.id,
+      work.step_path,
+      { action: 'read', tool: 'read' },
+      { tokens: 999_999, budgetTokens: 500 }
+    )
+    expect(allowed.effect).toBe('allow')
+
+    // The reverse: raw usage looks fine, the weighted total is over budget.
+    const denied = runtime.check(
+      started.run.id,
+      work.step_path,
+      { action: 'read', tool: 'read' },
+      { tokens: 10, budgetTokens: work.budget.tokens + 1 }
+    )
+    expect(denied.effect).toBe('deny')
+    expect(denied.budgetExhausted).toBe('token limit reached')
   })
 
   it('retries a strict step after the violation limit and resets usage for the next attempt', () => {

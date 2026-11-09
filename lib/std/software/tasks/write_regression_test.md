@@ -40,20 +40,27 @@ permissions:
 limits:
   turns:
     initial: 8
+    growth_rate: 1.5
     absolute_max: 16
   tokens:
-    initial: 80000
-    absolute_max: 200000
+    initial: 100000
+    growth_rate: 1.5
+    absolute_max: 300000
+  on_exhausted: fail
+retries:
+  auto_attempts: 2
 ---
 
 # Task: Write the regression test
 
 Write the test that reproduces the identified bug before the fix exists.
 
+- Read `# Prior results` first: reuse the root cause and repro command from `identify_bug`. Do not repeat that investigation.
+- If `# Previous attempt` is present, continue from its handoff.
 - One focused test that fails on the current code for the reported reason.
 - Name it after the failed behavior, not the fix.
 - Stay inside tests and test files. Do not edit source.
 - Run the test and capture the failure output.
 - If the bug cannot be reproduced, stop and report why.
 
-Return the test path, the exact command, and the failing output.
+Return a compact JSON result with `testPath`, `command`, `failingOutput`, and `reproduced`.

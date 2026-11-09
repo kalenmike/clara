@@ -24,6 +24,11 @@ export interface PromptWork {
   step_path?: string
   kind?: string
   prompt?: string
+  retry?: {
+    attempt?: number
+    error?: string
+    result?: unknown
+  }
   context?: {
     prompt?: string
     steps?: PromptStepResult[]
@@ -55,16 +60,42 @@ export function renderWorkPrompt(work: PromptWork): string {
   const prior = renderPriorResults(work.context?.steps, work.step_path)
   if (prior) sections.push(`# Prior results\n\n${prior}`)
 
+  const previous = renderPreviousAttempt(work.retry)
+  if (previous) sections.push(`# Previous attempt\n\n${previous}`)
+
   sections.push(finishInstruction(work.kind))
   return sections.filter(Boolean).join('\n\n---\n\n')
 }
+
+function renderPreviousAttempt(retry: PromptWork['retry']): string {
+  if (!retry) return ''
+  const attempt = typeof retry.attempt === 'number' ? retry.attempt : 1
+  const error = typeof retry.error === 'string' ? retry.error.trim() : ''
+  const result = renderResult(retry.result)
+  if (!error && !result) return ''
+  const lines = [`Attempt ${attempt} ended before the step finished.`]
+  if (error) lines.push(error)
+  if (result) lines.push(`What it produced:\n\n${clip(result, 4_000)}`)
+  lines.push('Build on this. Do not repeat the same investigation unless it is wrong.')
+  return lines.join('\n\n')
+}
+
+function clip(text: string, limit: number): string {
+  return text.length > limit ? `${text.slice(0, limit)}\n… truncated` : text
+}
+
+// Prior results are the worker's shared memory between steps. Keep the most
+// recent blocks and trim each one: a long handoff is useful, but pasting all of
+// them into every later prompt multiplies the step's input tokens.
+const PRIOR_RESULTS_LIMIT = 12_000
+const PRIOR_STEP_LIMIT = 4_000
 
 function renderPriorResults(
   steps: PromptStepResult[] | undefined,
   current: string | undefined
 ): string {
   if (!Array.isArray(steps)) return ''
-  return steps
+  const blocks = steps
     .filter((step) => step && step.path !== current)
     .map((step) => {
       const result = renderResult(step.result)
@@ -72,10 +103,23 @@ function renderPriorResults(
       const path = typeof step.path === 'string' ? step.path : ''
       const name = typeof step.name === 'string' ? step.name : ''
       const heading = [path, name].filter(Boolean).join(' — ')
-      return `### ${heading || 'Prior step'}\n\n${result}`
+      return `### ${heading || 'Prior step'}\n\n${clip(result, PRIOR_STEP_LIMIT)}`
     })
     .filter(Boolean)
-    .join('\n\n')
+
+  let total = blocks.reduce((sum, block) => sum + block.length + 2, 0)
+  let dropped = 0
+  while (blocks.length > 1 && total > PRIOR_RESULTS_LIMIT) {
+    total -= blocks[0].length + 2
+    blocks.shift()
+    dropped += 1
+  }
+  if (dropped) {
+    blocks.unshift(
+      `… ${dropped} earlier result${dropped === 1 ? '' : 's'} omitted; open the run to see ${dropped === 1 ? 'it' : 'them'}`
+    )
+  }
+  return blocks.join('\n\n')
 }
 
 function renderResult(value: unknown): string {

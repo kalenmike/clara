@@ -323,8 +323,11 @@ The adapter turns a work order into one model prompt:
    rendered route list, so the adapter never appends it again,
 2. the root request from `context.prompt`,
 3. the results of completed steps from `context.steps`, excluding the current
-   step's own previous attempt,
-4. one finish instruction for the step kind.
+   step's own previous attempt; each result is capped at 4k characters and the
+   section at 12k, keeping the newest blocks,
+4. the previous attempt's error and partial result on a retry, under
+   `# Previous attempt`,
+5. one finish instruction for the step kind.
 
 The prompt does not repeat the run id, step path, work token, model, enforcement,
 attempt, or budget. Those are orchestrator state. The adapter binds the run id,
@@ -371,7 +374,10 @@ failing regression test, the smallest fix, verification, review, and docs.
 Documentation-only work runs assessment, in-place updates, link and index
 verification, and review. Every task step resolves to a Markdown task under
 `lib/std/software/tasks`; the loader test fails when a pipeline names a missing
-task.
+task. Bug tasks opt into `on_exhausted: fail`, carry a token `growth_rate` so a
+retry has more room than the attempt it replaces, and limit automated attempts
+(one retry for most steps, two for the fix) so a failing lifecycle stops with
+an alert instead of spending a larger budget on the same investigation.
 
 ```text
 feature: create_spec → plan_implementation → write_tests → build_feature →
@@ -422,12 +428,25 @@ operator can start it directly with `target: std:diagnostics`. See
   enforcement mode, including `observed`. Policy checks deny further work tools
   and record one `budget.exhausted` event per attempt, but the Clara control
   tools (`clara_route`, `clara_complete`, `clara_fail`, `clara_spawn`) stay
-  available so the worker can still finish or report the failure. A completion
-  that arrives over budget is kept and marked `over_budget` on its
+  available so the worker can still finish or report the failure. The token
+  budget reserves its last 8% (capped at 10k tokens) for the final report, so
+  work tools are denied before the hard limit and the worker keeps enough room
+  to answer. The reserve shares the attempt's single `budget.exhausted` event.
+  A completion that arrives over budget is kept and marked `over_budget` on its
   `step.completed` event instead of being retried; the result is never
-  discarded. The OpenCode adapter reports model token usage from
+  discarded. A step that sets `limits.on_exhausted: fail` opts out: when a
+  budget denial cut the worker short, the attempt is retried instead of
+  advancing, and the partial result is carried into the next attempt as a
+  `# Previous attempt` handoff. The last attempt fails the step and the run.
+  The OpenCode adapter reports model token usage from
   assistant-message events, so token budgets are enforced for managed workers
-  too.
+  too. It also reports a cache-weighted `budgetTokens` total (cache reads and
+  writes count at 10%, because a long session re-reads its context every turn)
+  and enforcement prefers it; step rows and cost displays keep the raw count.
+  A harness that only reports `tokens` keeps the raw behavior. The adapter
+  caps each managed tool result at 48k characters with a truncation marker, so
+  one large read or grep cannot consume a step's whole budget; the human's
+  session is never capped.
 - A step is `observed`: permission denials are recorded as `policy.observed`
   events, but tools are not blocked. `strict` and `sandboxed` steps deny and
   count violations. Enforcement mode does not relax the resource budgets above.
