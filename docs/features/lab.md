@@ -99,8 +99,11 @@ writing custom pipelines, not for end users.
     When OpenCode is offline the preview still compiles; model existence is
     shown as unchecked instead of failing the setup.
 12. **The lab shows the raw work order.** The step card shows `order.prompt` and
-    its `context` separately. The OpenCode adapter composes the step prompt, root
-    request, and prior results into the managed worker prompt.
+    its `context` separately. The preview shows the resolved `inputs` and
+    `artifacts` wiring and warns with `inputs_missing` when a step with prior
+    siblings declares none. The OpenCode adapter composes the step prompt,
+    declared inputs, artifacts, and the background request into the managed
+    worker prompt.
 13. **Review owns the debug loop.** Starting, pausing, pulling, completing,
     routing, spawning, and heartbeat controls live in the Debug dock on
     **Review**. **Runs** never starts or steps a run.
