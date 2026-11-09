@@ -7,9 +7,21 @@ steps:
     type: task
   - name: build
     type: task
+    inputs:
+      setup: capture_setup
   - name: install_adapters
     type: task
+    inputs:
+      setup: capture_setup
+      build: build
   - name: restart_services
     type: task
+    inputs:
+      setup: capture_setup
+      build: build
+      adapters: install_adapters
   - name: verify_health
     type: task
+    inputs:
+      setup: capture_setup
+      restart: restart_services
