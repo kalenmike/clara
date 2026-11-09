@@ -660,6 +660,46 @@ describe('package loader', () => {
     }
   })
 
+  it('resolves inputs inside router route targets', () => {
+    const dir = pipelinePackage([])
+    try {
+      writeFileSync(
+        join(dir, 'index.yml'),
+        [
+          'id: temp',
+          'name: Temp',
+          'version: 1',
+          'entry: main',
+          'pipelines:',
+          '  main:',
+          '    steps:',
+          '      - name: classify',
+          '        type: router',
+          '        routes:',
+          '          - when: a',
+          '            run: branch',
+          '  branch:',
+          '    steps:',
+          '      - name: first',
+          '        type: task',
+          '        prompt: do it',
+          '      - name: second',
+          '        type: task',
+          '        prompt: do it',
+          '        inputs:',
+          '          one: first',
+        ].join('\n')
+      )
+      const main = compileRun(loadCatalog(dir), 'main')
+      const branch = main.root.children?.[0].routes?.[0].target
+      expect(branch?.children?.[1].inputs).toEqual({
+        one: 'main/1-classify/route-a/1-first',
+      })
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
+
   it('rejects an unknown input with the available step names', () => {
     const dir = pipelinePackage([
       '      - name: first',

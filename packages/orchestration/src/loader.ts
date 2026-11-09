@@ -1240,6 +1240,9 @@ function resolveWiring(root: CompiledNode): void {
       }
       resolveContainer(child)
     }
+    for (const route of container.routes ?? []) {
+      if (route.target) resolveContainer(route.target)
+    }
   }
   resolveContainer(root)
 }
