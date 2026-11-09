@@ -810,7 +810,7 @@ export default {
               turns: work.turns,
               toolCalls: work.toolCalls,
               tokens: work.tokens,
-              budgetTokens: work.budgetTokens,
+              ...(work.budgetTokens > 0 ? { budgetTokens: work.budgetTokens } : {}),
             },
           }
         )
@@ -969,7 +969,7 @@ export default {
                   turns: work.turns,
                   toolCalls: work.toolCalls,
                   tokens: work.tokens,
-                  budgetTokens: work.budgetTokens,
+                  ...(work.budgetTokens > 0 ? { budgetTokens: work.budgetTokens } : {}),
                 },
               }
             )
