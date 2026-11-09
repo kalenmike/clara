@@ -70,7 +70,8 @@ export interface WorkOrder {
   retry?: { attempt: number; error: string; result: unknown }
   context: {
     prompt: string
-    steps: Array<{ path: string; name: string; result: unknown }>
+    inputs: Array<{ label: string; path: string; name: string; result: unknown }>
+    artifacts: Array<{ label: string; path: string; exists?: boolean }>
   }
 }
 
@@ -100,6 +101,11 @@ interface NodeSync {
 }
 
 const DONE = new Set(['done', 'skipped'])
+const GLOB_CHARS = /[*?[\]{}]/
+
+function isLiteralPath(path: string): boolean {
+  return !GLOB_CHARS.test(path)
+}
 const LIVE = new Set(['pending', 'ready', 'running', 'waiting_children'])
 
 function parseJson<T>(value: string | null | undefined, fallback: T): T {
@@ -310,6 +316,44 @@ export class Runtime {
 
     const sync = (node: CompiledNode, parentPath: string | null, schedule: boolean): NodeSync => {
       const row = ensure(node, parentPath)
+
+      if (
+        (node.kind === 'task' || node.kind === 'router') &&
+        node.inputs &&
+        (row.status === 'pending' || row.status === 'ready')
+      ) {
+        const gate = this.inputGate(node, steps)
+        if (gate === 'waiting') return { status: 'running' }
+        if (gate === 'failed') {
+          const label =
+            Object.entries(node.inputs).find(([, inputPath]) => {
+              const input = steps.get(inputPath)
+              if (input?.result) return false
+              return (
+                !input ||
+                input.status === 'failed' ||
+                input.status === 'skipped' ||
+                input.status === 'cancelled'
+              )
+            })?.[0] ?? 'unknown'
+          const error = `input "${label}" is unavailable`
+          mark(row, {
+            status: 'failed',
+            error,
+            finished_at: now(),
+            lease_id: null,
+            lease_owner: null,
+            lease_expires_at: null,
+          })
+          this.store.event(
+            runID,
+            'step.failed',
+            { step: node.path, reason: 'input_unavailable', input: label },
+            row.current_attempt_id
+          )
+          return { status: 'failed' }
+        }
+      }
 
       if (node.kind === 'task') {
         if (row.status === 'waiting_children') {
@@ -525,6 +569,22 @@ export class Runtime {
     return null
   }
 
+  private inputGate(
+    node: CompiledNode,
+    steps: Map<string, StepRow>
+  ): 'ok' | 'waiting' | 'failed' {
+    let waiting = false
+    for (const path of Object.values(node.inputs ?? {})) {
+      const input = steps.get(path)
+      if (!input) return 'failed'
+      if (input.result) continue
+      if (input.status === 'failed' || input.status === 'skipped' || input.status === 'cancelled')
+        return 'failed'
+      waiting = true
+    }
+    return waiting ? 'waiting' : 'ok'
+  }
+
   claim(runID: number, limit = 1, owner = 'dispatcher'): WorkOrder[] {
     const advanced = this.advance(runID, limit)
     const run = advanced.run
@@ -587,15 +647,24 @@ export class Runtime {
     const policy = parseJson<StepPolicy | undefined>(row.policy, undefined)
     const limits = parseJson<Limits | undefined>(row.limits, undefined)
     const budget = computeBudget(limits, Number(row.attempt) || 1)
-    const completed = this.store
-      .steps(Number(run.id))
-      .filter((step) => step.result && ['task', 'router', 'pipeline', 'group'].includes(step.type))
-      .slice(-20)
-      .map((step) => ({
-        path: step.path,
-        name: step.name,
-        result: parseJson<unknown>(step.result, null),
-      }))
+    const steps = new Map(this.store.steps(Number(run.id)).map((step) => [step.path, step]))
+    const inputs = Object.entries(node.inputs ?? {}).flatMap(([label, path]) => {
+      const input = steps.get(path)
+      if (!input?.result) return []
+      return [
+        {
+          label,
+          path: input.path,
+          name: input.name,
+          result: parseJson<unknown>(input.result, null),
+        },
+      ]
+    })
+    const artifacts = Object.entries(node.artifacts ?? {}).map(([label, path]) => ({
+      label,
+      path,
+      ...(isLiteralPath(path) ? { exists: existsSync(join(run.workspace, path)) } : {}),
+    }))
     const previous =
       Number(row.attempt) > 1
         ? this.store.stepAttempt(Number(run.id), row.path, Number(row.attempt) - 1)
@@ -637,7 +706,8 @@ export class Runtime {
       ...(retry ? { retry } : {}),
       context: {
         prompt: run.prompt,
-        steps: completed,
+        inputs,
+        artifacts,
       },
     }
   }
