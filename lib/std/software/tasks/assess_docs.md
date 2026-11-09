@@ -15,11 +15,13 @@ permissions:
     effect: allow
 limits:
   turns:
-    initial: 4
-    absolute_max: 8
+    initial: 100
+    growth_rate: 50
+    absolute_max: 150
   tokens:
-    initial: 40000
-    absolute_max: 100000
+    initial: 1500000
+    growth_rate: 1.5
+    absolute_max: 2000000
 ---
 
 # Task: Assess documentation impact

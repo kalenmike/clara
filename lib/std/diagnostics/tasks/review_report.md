@@ -2,13 +2,13 @@
 description: Audit the diagnosis against evidence and return the final report
 limits:
   turns:
-    initial: 8
-    growth_rate: 2
-    absolute_max: 14
+    initial: 100
+    growth_rate: 50
+    absolute_max: 150
   tokens:
-    initial: 60000
+    initial: 1500000
     growth_rate: 1.5
-    absolute_max: 120000
+    absolute_max: 2000000
 permissions:
   - action: edit
     resource: '*'

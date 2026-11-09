@@ -57,13 +57,13 @@ permissions:
     effect: allow
 limits:
   turns:
-    initial: 10
-    growth_rate: 1.5
-    absolute_max: 18
+    initial: 100
+    growth_rate: 50
+    absolute_max: 150
   tokens:
-    initial: 120000
+    initial: 1500000
     growth_rate: 1.5
-    absolute_max: 360000
+    absolute_max: 2000000
   on_exhausted: fail
 retries:
   auto_attempts: 3

@@ -12,13 +12,13 @@ permissions:
     effect: deny
 limits:
   turns:
-    initial: 4
-    growth_rate: 2
-    absolute_max: 10
+    initial: 100
+    growth_rate: 50
+    absolute_max: 150
   tokens:
-    initial: 50000
+    initial: 1500000
     growth_rate: 1.5
-    absolute_max: 150000
+    absolute_max: 2000000
 ---
 
 # Task: Create specification

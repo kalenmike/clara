@@ -18,11 +18,13 @@ permissions:
     effect: allow
 limits:
   turns:
-    initial: 8
-    absolute_max: 14
+    initial: 100
+    growth_rate: 50
+    absolute_max: 150
   tokens:
-    initial: 80000
-    absolute_max: 180000
+    initial: 1500000
+    growth_rate: 1.5
+    absolute_max: 2000000
 ---
 
 # Task: Verify the implementation

@@ -2,13 +2,13 @@
 description: Install or refresh the OpenCode adapter and MCP entry
 limits:
   turns:
-    initial: 4
-    growth_rate: 2
-    absolute_max: 8
+    initial: 100
+    growth_rate: 50
+    absolute_max: 150
   tokens:
-    initial: 16000
+    initial: 1500000
     growth_rate: 1.5
-    absolute_max: 32000
+    absolute_max: 2000000
   wall_clock_seconds: 300
 permissions:
   - action: edit

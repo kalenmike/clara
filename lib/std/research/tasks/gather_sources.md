@@ -2,13 +2,13 @@
 description: Gather external, dated evidence with a search trail and source ledger
 limits:
   turns:
-    initial: 20
-    growth_rate: 2
-    absolute_max: 40
+    initial: 100
+    growth_rate: 50
+    absolute_max: 150
   tokens:
-    initial: 180000
+    initial: 1500000
     growth_rate: 1.5
-    absolute_max: 400000
+    absolute_max: 2000000
 permissions:
   - action: edit
     resource: '*'

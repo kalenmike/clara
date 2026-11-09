@@ -2,13 +2,13 @@
 description: Capture the running Clara services, adapters, and build checkout
 limits:
   turns:
-    initial: 4
-    growth_rate: 2
-    absolute_max: 8
+    initial: 100
+    growth_rate: 50
+    absolute_max: 150
   tokens:
-    initial: 40000
+    initial: 1500000
     growth_rate: 1.5
-    absolute_max: 80000
+    absolute_max: 2000000
 permissions:
   - action: edit
     resource: '*'

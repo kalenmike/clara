@@ -2,13 +2,13 @@
 description: Find consistent failures, error families, and retry patterns in the evidence
 limits:
   turns:
-    initial: 6
-    growth_rate: 2
-    absolute_max: 10
+    initial: 100
+    growth_rate: 50
+    absolute_max: 150
   tokens:
-    initial: 50000
+    initial: 1500000
     growth_rate: 1.5
-    absolute_max: 100000
+    absolute_max: 2000000
 permissions:
   - action: edit
     resource: '*'

@@ -2,13 +2,13 @@
 description: Install locked dependencies and build every Clara package
 limits:
   turns:
-    initial: 6
-    growth_rate: 2
-    absolute_max: 12
+    initial: 100
+    growth_rate: 50
+    absolute_max: 150
   tokens:
-    initial: 20000
+    initial: 1500000
     growth_rate: 1.5
-    absolute_max: 40000
+    absolute_max: 2000000
   wall_clock_seconds: 1800
 permissions:
   - action: edit

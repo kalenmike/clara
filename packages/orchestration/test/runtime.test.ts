@@ -654,8 +654,8 @@ describe('runtime', () => {
     const started = runtime.start({ workspace, prompt: 'patch', target: 'std:maintenance/rebuild' })
     const work = started.work[0]
     const advanced = runtime.complete(started.run.id, work.step_path, work.work_token, 'too much', {
-      turns: 99,
-      tokens: 999_999,
+      turns: work.budget.turns + 1,
+      tokens: 0,
     })
     expect(advanced.ready.map((step) => step.name)).toEqual(['build'])
     const row = store.step(started.run.id, work.step_path)
