@@ -46,7 +46,8 @@ writing custom pipelines, not for end users.
    traffic log. Selecting a step opens collapsed Prompt, Result, Inputs, and
    Policy/limits/raw sections. Prompt toggles between rendered Markdown and raw
    text; Result toggles between Markdown, pretty JSON, and raw text. Inputs
-   lists every declared input with its source path, status, and result.
+   lists every declared input with its source path, status, and result. The
+   selected run header totals tokens and tool calls across all of its steps.
 10. Open **Console** to call the orchestrator MCP surface directly. It renders a
     form from each tool's input schema with required, range, and enum hints
     under every field, keeps the raw JSON editor behind a Form/JSON toggle, and
@@ -113,7 +114,9 @@ writing custom pipelines, not for end users.
 14. **Runs is observation-first.** **Runs** shows owned runs by default and hides
     debug runs behind a persisted **Show debug runs** toggle. The active count
     includes hidden debug runs, and the empty state explains how to reveal them.
-    Hidden debug runs carry a **debug** badge when shown.
+    Hidden debug runs carry a **debug** badge when shown. The selected run
+    header totals tokens and tool calls across every step, whether or not the
+    run is still active.
 15. **Ownership is visible.** Runs started by the lab carry
     `origin_harness: "clara-lab"`; runs started by OpenCode carry their own
     origin and session. The Debug dock only steps lab-origin runs. A run with no
