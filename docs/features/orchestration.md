@@ -357,7 +357,10 @@ failing regression test, the smallest fix, verification, review, and docs.
 Documentation-only work runs assessment, in-place updates, link and index
 verification, and review. Every task step resolves to a Markdown task under
 `lib/std/software/tasks`; the loader test fails when a pipeline names a missing
-task.
+task. Bug tasks opt into `on_exhausted: fail`, carry a token `growth_rate` so a
+retry has more room than the attempt it replaces, and limit automated attempts
+(one retry for most steps, two for the fix) so a failing lifecycle stops with
+an alert instead of spending a larger budget on the same investigation.
 
 ```text
 feature: create_spec → plan_implementation → write_tests → build_feature →

@@ -42,10 +42,15 @@ permissions:
 limits:
   turns:
     initial: 8
+    growth_rate: 1.5
     absolute_max: 16
   tokens:
-    initial: 80000
-    absolute_max: 200000
+    initial: 100000
+    growth_rate: 1.5
+    absolute_max: 300000
+  on_exhausted: fail
+retries:
+  auto_attempts: 2
 ---
 
 # Task: Write the regression test

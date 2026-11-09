@@ -21,10 +21,15 @@ permissions:
 limits:
   turns:
     initial: 6
+    growth_rate: 1.5
     absolute_max: 12
   tokens:
-    initial: 60000
-    absolute_max: 140000
+    initial: 80000
+    growth_rate: 1.5
+    absolute_max: 240000
+  on_exhausted: fail
+retries:
+  auto_attempts: 2
 ---
 
 # Task: Verify the bug fix

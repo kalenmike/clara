@@ -139,6 +139,22 @@ describe('package loader', () => {
     ])
   })
 
+  it('gives the bug lifecycle retry growth and fail-on-exhausted budgets', () => {
+    const catalog = loadCatalog(config)
+    const bug = compileRun(catalog, 'std:software/bug')
+    const children = bug.root.children ?? []
+    expect(children).toHaveLength(6)
+    for (const step of children) {
+      expect(step.limits?.on_exhausted).toBe('fail')
+      expect(step.limits?.tokens?.growth_rate).toBeGreaterThan(1)
+      expect(step.retries?.auto_attempts).toBeGreaterThan(1)
+    }
+    const fix = children.find((step) => step.name === 'fix_bug')
+    expect(fix?.limits?.tokens?.initial).toBe(120_000)
+    expect(fix?.limits?.tokens?.absolute_max).toBe(360_000)
+    expect(fix?.retries?.auto_attempts).toBe(3)
+  })
+
   it('compiles the documentation lifecycle', () => {
     const catalog = loadCatalog(config)
     const docs = compileRun(catalog, 'std:software/docs')
