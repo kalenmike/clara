@@ -40,6 +40,7 @@ test('weights cached tokens down for budget enforcement', () => {
     1_550
   )
   assert.equal(budgetTokenTotal({ input: 10, cache: { read: 4 }, total: 99 }), 11)
+  assert.equal(budgetTokenTotal({ total: 42 }), 42)
   assert.equal(budgetTokenTotal(undefined), 0)
 })
 

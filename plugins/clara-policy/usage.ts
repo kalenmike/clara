@@ -52,7 +52,8 @@ export function budgetTokenTotal(usage: ModelTokens | undefined): number {
     count(usage.cache?.read) * CACHE_READ_WEIGHT + count(usage.cache?.write) * CACHE_WRITE_WEIGHT
   const parts =
     count(usage.input) + count(usage.output) + count(usage.reasoning) + Math.ceil(cached)
-  return parts
+  // Some harnesses only report an aggregate. Use it when the fields are empty.
+  return parts > 0 ? parts : count(usage.total)
 }
 
 function delta(seen: Map<string, number>, messageID: string, total: number): number {
