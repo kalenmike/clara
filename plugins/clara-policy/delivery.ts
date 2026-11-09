@@ -33,6 +33,9 @@ export interface DeliveryMessage {
   alertIDs: number[]
   terminal: boolean
   text: string
+  /** Source rows, present when the planner built this message. */
+  run?: DeliveryRun
+  alerts?: DeliveryAlert[]
 }
 
 export interface DeliveryState {
@@ -54,6 +57,15 @@ export function reserveDelivery(state: DeliveryState, message: DeliveryMessage):
     for (const id of addedAlerts) state.alerts.delete(id)
     if (addedRun) state.runs.delete(message.runID)
   }
+}
+
+/**
+ * Mark a message the orchestrator assigned to another instance, so this
+ * instance stops planning it on every poll.
+ */
+export function rememberDelivery(state: DeliveryState, message: DeliveryMessage): void {
+  for (const id of message.alertIDs) state.alerts.add(Number(id))
+  if (message.terminal) state.runs.add(message.runID)
 }
 
 const TERMINAL_STATES = new Set(['completed', 'failed', 'cancelled'])
@@ -95,6 +107,8 @@ export function planDeliveries(input: {
       alertIDs: alerts.map((alert) => Number(alert.id)),
       terminal: false,
       text: alertText(run, alerts),
+      run,
+      alerts,
     })
     seenRuns.add(runID)
   }
@@ -115,6 +129,8 @@ export function planDeliveries(input: {
       alertIDs: alerts.map((alert) => Number(alert.id)),
       terminal: true,
       text: terminalText(run, alerts),
+      run,
+      alerts,
     })
   }
 
@@ -143,6 +159,29 @@ function alertLines(alerts: DeliveryAlert[]): string {
     shown.push(`- and ${alerts.length - MAX_ALERTS_IN_MESSAGE} more open alert(s)`)
   }
   return shown.join('\n')
+}
+
+export function messageText(run: DeliveryRun, alerts: DeliveryAlert[], terminal: boolean): string {
+  return terminal ? terminalText(run, alerts) : alertText(run, alerts)
+}
+
+/**
+ * Narrow a planned message to what the orchestrator actually claimed. Return
+ * null when another adapter instance owns the run or all of its alerts.
+ */
+export function applyDeliveryClaim(
+  message: DeliveryMessage,
+  claim: { terminal: boolean; alerts: number[] }
+): DeliveryMessage | null {
+  if (message.terminal && !claim.terminal) return null
+  if (!message.terminal && !claim.alerts.length) return null
+  const alerts = (message.alerts ?? []).filter((alert) => claim.alerts.includes(Number(alert.id)))
+  return {
+    ...message,
+    alertIDs: claim.alerts,
+    alerts,
+    ...(message.run ? { text: messageText(message.run, alerts, message.terminal) } : {}),
+  }
 }
 
 function alertText(run: DeliveryRun, alerts: DeliveryAlert[]): string {

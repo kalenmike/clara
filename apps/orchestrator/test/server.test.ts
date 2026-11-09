@@ -294,6 +294,83 @@ describe('orchestrator HTTP service', () => {
     expect(((await missing.json()) as { error: { code: string } }).error.code).toBe('step_missing')
   })
 
+  it('claims a terminal delivery once and releases it for a retry', async () => {
+    const started = await fetch(`${base}/v1/runs`, {
+      method: 'POST',
+      headers: auth({ 'content-type': 'application/json' }),
+      body: JSON.stringify({ workspace, prompt: 'patch it', target: 'std:maintenance/rebuild' }),
+    })
+    const body = (await started.json()) as { run: { id: number } }
+    const claimURL = `${base}/v1/runs/${body.run.id}/delivery/claim`
+    const releaseURL = `${base}/v1/runs/${body.run.id}/delivery/release`
+    const claim = (terminal: boolean) =>
+      fetch(claimURL, {
+        method: 'POST',
+        headers: auth({ 'content-type': 'application/json' }),
+        body: JSON.stringify({ terminal }),
+      })
+
+    const before = await claim(true)
+    expect(await before.json()).toEqual({ terminal: false, alerts: [] })
+
+    runtime.store.updateRun(body.run.id, {
+      state: 'completed',
+      finished_at: new Date().toISOString(),
+    })
+
+    const responses = await Promise.all([claim(true), claim(true)])
+    const results = (await Promise.all(responses.map((response) => response.json()))) as Array<{
+      terminal: boolean
+      alerts: number[]
+    }>
+    expect(results.filter((result) => result.terminal)).toHaveLength(1)
+    expect(results.filter((result) => !result.terminal)).toHaveLength(1)
+
+    const released = await fetch(releaseURL, {
+      method: 'POST',
+      headers: auth({ 'content-type': 'application/json' }),
+      body: JSON.stringify({ terminal: true }),
+    })
+    expect(await released.json()).toEqual({ ok: true })
+
+    const retried = await claim(true)
+    expect(await retried.json()).toEqual({ terminal: true, alerts: [] })
+  })
+
+  it('claims each delivery alert once and releases named alerts', async () => {
+    const generated = await fetch(`${base}/v1/runs`, {
+      method: 'POST',
+      headers: auth({ 'content-type': 'application/json' }),
+      body: JSON.stringify({ workspace, prompt: 'patch it', target: 'std:maintenance/rebuild' }),
+    })
+    const body = (await generated.json()) as { run: { id: number } }
+    const alert = runtime.store.alert({
+      run_id: body.run.id,
+      step_path: null,
+      kind: 'failure',
+      title: 'Test alert',
+      body: 'boom',
+    })
+    const claimURL = `${base}/v1/runs/${body.run.id}/delivery/claim`
+    const releaseURL = `${base}/v1/runs/${body.run.id}/delivery/release`
+    const claim = () =>
+      fetch(claimURL, {
+        method: 'POST',
+        headers: auth({ 'content-type': 'application/json' }),
+        body: JSON.stringify({ alert_ids: [alert.id] }),
+      })
+
+    expect(await (await claim()).json()).toEqual({ terminal: false, alerts: [alert.id] })
+    expect(await (await claim()).json()).toEqual({ terminal: false, alerts: [] })
+
+    await fetch(releaseURL, {
+      method: 'POST',
+      headers: auth({ 'content-type': 'application/json' }),
+      body: JSON.stringify({ alert_ids: [alert.id] }),
+    })
+    expect(await (await claim()).json()).toEqual({ terminal: false, alerts: [alert.id] })
+  })
+
   it('serves the MCP tool surface over Streamable HTTP', async () => {
     const transport = new StreamableHTTPClientTransport(new URL(`${base}/mcp`), {
       requestInit: { headers: auth() },

@@ -223,6 +223,35 @@ export function createOrchestratorServer(options: OrchestratorServerOptions): Or
         )
         return
       }
+      const deliveryMatch = url.pathname.match(/^\/v1\/runs\/(\d+)\/delivery\/(claim|release)$/)
+      if (deliveryMatch && req.method === 'POST') {
+        const rid = Number(deliveryMatch[1])
+        const input = await body(req)
+        const alertIDs = Array.isArray(input.alert_ids)
+          ? input.alert_ids.map(Number).filter((id) => Number.isInteger(id) && id > 0)
+          : []
+        if (deliveryMatch[2] === 'claim') {
+          json(
+            res,
+            200,
+            await backend.claimDelivery(rid, {
+              session_id: typeof input.session_id === 'string' ? input.session_id : null,
+              terminal: input.terminal === true,
+              alert_ids: alertIDs,
+            })
+          )
+        } else {
+          json(
+            res,
+            200,
+            await backend.releaseDelivery(rid, {
+              terminal: input.terminal === true,
+              alert_ids: alertIDs,
+            })
+          )
+        }
+        return
+      }
       const stepMatch = url.pathname.match(
         /^\/v1\/runs\/(\d+)\/steps\/(.+)\/(complete|fail|route|check|usage|heartbeat|spawn|violation)$/
       )

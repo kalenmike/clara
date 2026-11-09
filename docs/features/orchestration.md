@@ -44,11 +44,12 @@ human-facing Clara agent.
 7. The service advances immediately on completion. It opens alerts for
    failures, budget exhaustion, and stalls.
 8. The adapter delivers new alerts and finished root runs back into the origin
-   session as queued synthetic prompts. Delivery is serialized and the run is
-   reserved before the prompt, so a finished root run wakes the origin exactly
-   once even when the poll interval overlaps a slow prompt. Clara reads the run
-   or alert, tells the human what happened, and waits for a decision. She does
-   not poll.
+   session as queued synthetic prompts. Before queueing a wake, it asks the
+   orchestrator to claim the run or alert; the claim is persisted before the
+   prompt and released if the prompt fails. A finished root run therefore wakes
+   the origin exactly once even when several adapter instances, or overlapping
+   poll cycles, see the same transition. Clara reads the run or alert, tells the
+   human what happened, and waits for a decision. She does not poll.
 9. A generic MCP caller that does not use the adapter is in manual work-order
    mode: `clara_start` returns a work order, and the caller executes it. The
    MCP installer keeps a separate `/pipeline` command for that path.
@@ -74,10 +75,12 @@ silently become a second interface. If an answer needs repository context, the
 agent treats it as work and asks before starting a run.
 
 The adapter delivers new alerts and finished root runs into the same session as
-queued synthetic prompts. One delivery cycle runs at a time, and a run's ids are
-reserved before the awaited prompt and rolled back if it fails, so overlapping
-poll cycles cannot queue the same completion twice. The agent reports the
-result or decision and waits.
+queued synthetic prompts. The orchestrator is the source of truth for delivery:
+the adapter claims the terminal run and its alerts before it awaits the prompt,
+and releases the claim if the prompt fails. The local delivery cycle is also
+serialized, so overlapping polls or several OpenCode locations loading the same
+plugin cannot queue the same completion twice. The agent reports the result or
+decision and waits.
 The origin session stays the one actionable conversation while workers remain
 hidden automation.
 
@@ -597,9 +600,13 @@ path] [--url url]` and `GET /v1/diagnostics?days=30`. The analyzer is
   `~/.config/opencode/commands/pipeline.md`.
 - Adapter delivery: non-terminal runs are adopted at startup. New alerts and
   finished root runs are queued into origins whose agent is
-  `CLARA_INTERFACE_AGENT` (default `clara`). The delivery cursor is
-  `policy-delivery.json`; a missing file is treated as a fresh install, so
-  historical terminal runs are not replayed.
+  `CLARA_INTERFACE_AGENT` (default `clara`). `POST /v1/runs/:id/delivery/claim`
+  atomically reserves the terminal run and named alerts, and
+  `POST /v1/runs/:id/delivery/release` returns them when the prompt fails.
+  The local cursor in `policy-delivery.json` avoids unnecessary claims; a
+  missing file is treated as a fresh install, so historical terminal runs are
+  not replayed. Claims persist in the orchestrator database, so adapter
+  restarts and multiple plugin instances cannot re-send a finished run.
 - MCP tools: `clara_start`, `clara_next`, `clara_complete`, `clara_fail`,
   `clara_route`, `clara_spawn`, `clara_status`, `clara_attempts`, `clara_inbox`,
   `clara_cancel`, `clara_tick`, `clara_check`, `clara_usage`, `clara_heartbeat`,
@@ -623,8 +630,10 @@ path] [--url url]` and `GET /v1/diagnostics?days=30`. The analyzer is
   `{ run_id, hash, snapshot }`; `GET /v1/runs/:id/steps/:path` returns the full
   step row. `GET /v1/runs/:id/attempts` and
   `GET /v1/runs/:id/steps/:path/attempts` return attempts, and `clara_attempts`
-  exposes the same history over MCP. These endpoints are bearer-protected and
-  exist for the Lab and analysis.
+  exposes the same history over MCP. `POST /v1/runs/:id/delivery/claim` and
+  `POST /v1/runs/:id/delivery/release` reserve or return a terminal run and its
+  named alerts for the origin-session adapter. These endpoints are
+  bearer-protected and exist for the Lab and analysis.
 - SSE: `GET /v1/events?since=<event-id>` publishes run, step, policy, and alert
   events for bridge notifications and direct harness subscriptions. Step events
   carry `attempt_id` so subscribers can join them to `step_attempts`.

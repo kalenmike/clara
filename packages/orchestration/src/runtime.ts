@@ -21,6 +21,7 @@ import type { CompiledNode, LoadedCatalog } from './types.ts'
 import {
   now,
   type AlertRow,
+  type DeliveryClaimResult,
   type RunRow,
   type StepAttemptRow,
   type StepRow,
@@ -1414,6 +1415,40 @@ export class Runtime {
 
   ack(alertID: number): void {
     this.store.resolveAlert(alertID)
+  }
+
+  /**
+   * Reserve a terminal root run and/or its alerts for delivery. The adapter
+   * calls this before it queues a wake, so several plugin instances sharing one
+   * orchestrator cannot all deliver the same terminal transition. A terminal
+   * claim is only granted for a finished root run; child runs roll up.
+   */
+  claimDelivery(
+    runID: number,
+    input: { session_id?: string | null; terminal?: boolean; alert_ids?: number[] }
+  ): DeliveryClaimResult {
+    const run = this.store.run(runID)
+    if (!run) throw new OrchestrationErrorWithCode('run_missing', `run ${runID} does not exist`)
+    if (input.terminal && (run.parent_run_id != null || !isTerminal(run))) {
+      return { terminal: false, alerts: [] }
+    }
+    return this.store.claimDelivery({
+      run_id: runID,
+      session_id: input.session_id ?? null,
+      terminal: input.terminal === true,
+      alert_ids: input.alert_ids ?? [],
+    })
+  }
+
+  /** Release a claim whose prompt failed so another delivery cycle can retry. */
+  releaseDelivery(runID: number, input: { terminal?: boolean; alert_ids?: number[] }): void {
+    const run = this.store.run(runID)
+    if (!run) throw new OrchestrationErrorWithCode('run_missing', `run ${runID} does not exist`)
+    this.store.releaseDelivery({
+      run_id: runID,
+      terminal: input.terminal === true,
+      alert_ids: input.alert_ids ?? [],
+    })
   }
 
   list(): RunRow[] {

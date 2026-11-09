@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 import {
+  applyDeliveryClaim,
   planDeliveries,
   reserveDelivery,
   type DeliveryAlert,
@@ -201,4 +202,44 @@ test('a reserved terminal run is not planned again', () => {
     }),
     []
   )
+})
+
+test('applies only the terminal run and alerts the orchestrator claimed', () => {
+  const [message] = planDeliveries({
+    runs: [run({ state: 'failed' })],
+    alerts: [alert({ id: 7, title: 'Alert seven' }), alert({ id: 8, title: 'Alert eight' })],
+    deliveredAlerts: new Set(),
+    deliveredRuns: new Set(),
+    interfaceAgent: 'clara',
+  })
+
+  const claimed = applyDeliveryClaim(message, { terminal: true, alerts: [8] })
+  assert.ok(claimed)
+  assert.deepEqual(claimed.alertIDs, [8])
+  assert.deepEqual(
+    claimed.alerts?.map((item) => item.id),
+    [8]
+  )
+  assert.match(claimed.text, /Alert eight/)
+  assert.doesNotMatch(claimed.text, /Alert seven/)
+})
+
+test('drops a message another instance already claimed', () => {
+  const [terminal] = planDeliveries({
+    runs: [run({ state: 'completed' })],
+    alerts: [],
+    deliveredAlerts: new Set(),
+    deliveredRuns: new Set(),
+    interfaceAgent: 'clara',
+  })
+  assert.equal(applyDeliveryClaim(terminal, { terminal: false, alerts: [] }), null)
+
+  const [escalation] = planDeliveries({
+    runs: [run()],
+    alerts: [alert({ id: 7 })],
+    deliveredAlerts: new Set(),
+    deliveredRuns: new Set(),
+    interfaceAgent: 'clara',
+  })
+  assert.equal(applyDeliveryClaim(escalation, { terminal: false, alerts: [] }), null)
 })

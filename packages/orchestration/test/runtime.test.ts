@@ -1119,4 +1119,125 @@ describe('runtime', () => {
     ).toHaveLength(failures)
     expect(store.run(started.run.id)?.finished_at).toBe(failed?.finished_at)
   })
+
+  it('claims a terminal delivery once across adapter instances', () => {
+    const started = runtime.start({ workspace, prompt: 'patch', target: 'std:maintenance/rebuild' })
+    expect(runtime.claimDelivery(started.run.id, { terminal: true })).toEqual({
+      terminal: false,
+      alerts: [],
+    })
+
+    store.updateRun(started.run.id, {
+      state: 'completed',
+      finished_at: new Date().toISOString(),
+    })
+
+    expect(runtime.claimDelivery(started.run.id, { terminal: true })).toEqual({
+      terminal: true,
+      alerts: [],
+    })
+    expect(runtime.claimDelivery(started.run.id, { terminal: true })).toEqual({
+      terminal: false,
+      alerts: [],
+    })
+
+    runtime.releaseDelivery(started.run.id, { terminal: true })
+    expect(runtime.claimDelivery(started.run.id, { terminal: true })).toEqual({
+      terminal: true,
+      alerts: [],
+    })
+  })
+
+  it('claims each delivery alert once and releases only the named ids', () => {
+    const started = runtime.start({ workspace, prompt: 'patch', target: 'std:maintenance/rebuild' })
+    const first = store.alert({
+      run_id: started.run.id,
+      step_path: null,
+      kind: 'failure',
+      title: 'First',
+      body: 'boom',
+    })
+    const second = store.alert({
+      run_id: started.run.id,
+      step_path: null,
+      kind: 'failure',
+      title: 'Second',
+      body: 'boom',
+    })
+
+    expect(runtime.claimDelivery(started.run.id, { alert_ids: [first.id, second.id] })).toEqual({
+      terminal: false,
+      alerts: [first.id, second.id],
+    })
+    expect(runtime.claimDelivery(started.run.id, { alert_ids: [first.id, second.id] })).toEqual({
+      terminal: false,
+      alerts: [],
+    })
+
+    runtime.releaseDelivery(started.run.id, { alert_ids: [first.id] })
+    expect(runtime.claimDelivery(started.run.id, { alert_ids: [first.id, second.id] })).toEqual({
+      terminal: false,
+      alerts: [first.id],
+    })
+  })
+
+  it('does not claim an alert that belongs to another run', () => {
+    const one = runtime.start({ workspace, prompt: 'patch', target: 'std:maintenance/rebuild' })
+    const two = runtime.start({ workspace, prompt: 'patch', target: 'std:maintenance/rebuild' })
+    const alert = store.alert({
+      run_id: two.run.id,
+      step_path: null,
+      kind: 'failure',
+      title: 'Other',
+      body: 'boom',
+    })
+
+    expect(runtime.claimDelivery(one.run.id, { alert_ids: [alert.id] })).toEqual({
+      terminal: false,
+      alerts: [],
+    })
+    expect(runtime.claimDelivery(two.run.id, { alert_ids: [alert.id] })).toEqual({
+      terminal: false,
+      alerts: [alert.id],
+    })
+  })
+
+  it('keeps delivery claims across a store reopen', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'clara-delivery-claims-'))
+    const path = join(dir, 'orchestration.db')
+    try {
+      const firstStore = new Store(path)
+      const firstRuntime = new Runtime({
+        store: firstStore,
+        configPath: `${workspace}/orchestration/index.yml`,
+      })
+      const started = firstRuntime.start({
+        workspace,
+        prompt: 'patch',
+        target: 'std:maintenance/rebuild',
+      })
+      firstStore.updateRun(started.run.id, {
+        state: 'completed',
+        finished_at: new Date().toISOString(),
+      })
+      expect(firstRuntime.claimDelivery(started.run.id, { terminal: true })).toEqual({
+        terminal: true,
+        alerts: [],
+      })
+      firstStore.db.close()
+
+      const secondStore = new Store(path)
+      const secondRuntime = new Runtime({
+        store: secondStore,
+        configPath: `${workspace}/orchestration/index.yml`,
+      })
+      expect(secondRuntime.claimDelivery(started.run.id, { terminal: true })).toEqual({
+        terminal: false,
+        alerts: [],
+      })
+      secondStore.db.close()
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
 })
