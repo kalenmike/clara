@@ -122,7 +122,8 @@ const HANDOFF_LIMIT = 2_000
 // Keep a blocked worker's partial result short enough to store and render in
 // the next attempt's prompt without turning a failure into a context bomb.
 function handoffText(result: unknown): string {
-  const raw = typeof result === 'string' ? result : JSON.stringify(result ?? null)
+  if (result === null || result === undefined) return ''
+  const raw = typeof result === 'string' ? result : JSON.stringify(result)
   const text = String(raw ?? '').trim()
   return text.length > HANDOFF_LIMIT ? `${text.slice(0, HANDOFF_LIMIT)}…` : text
 }
@@ -144,8 +145,6 @@ export class Runtime {
   private readonly stalledMs: number
   private readonly adapterStaleMs: number
   private catalogCache = new Map<string, { at: number; catalog: LoadedCatalog }>()
-  /** Attempt ids that already emitted a budget event, so a denied tool storm logs once. */
-  private budgetNotified = new Set<number>()
   /**
    * Completed attempts remember their work token for a short window. A worker
    * can report the final model turn after it recorded its result because the
@@ -1024,7 +1023,6 @@ export class Runtime {
             attemptID
           )
         }
-        this.budgetNotified.add(attemptID)
       }
       return {
         ...decision,
