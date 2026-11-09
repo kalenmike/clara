@@ -11,8 +11,9 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { homedir } from 'node:os'
 import { join, resolve } from 'node:path'
-import { isTerminalState, planDeliveries } from './delivery.ts'
-import type { DeliveryAlert, DeliveryRun } from './delivery.ts'
+import { createDeliveryCycle } from './delivery-cycle.ts'
+import { isTerminalState } from './delivery.ts'
+import type { DeliveryAlert, DeliveryRun, DeliveryState } from './delivery.ts'
 import { NAMESPACE, renderWorkPrompt, scopeWorkerTools } from './prompt.ts'
 import { tokenDelta, tokensFromEvent, tokenTotal } from './usage.ts'
 import type { ModelTokens } from './usage.ts'
@@ -145,11 +146,6 @@ function serviceConfig(): ServiceConfig {
     process.env.CLARA_ORCHESTRATION_TOKEN_FILE?.trim() || join(dataDir(), 'orchestrator.token')
   const token = existsSync(path) ? readFileSync(path, 'utf8').trim() : ''
   return { url, token }
-}
-
-interface DeliveryState {
-  alerts: Set<number>
-  runs: Set<number>
 }
 
 function deliveryFile(): string {
@@ -732,29 +728,27 @@ export default {
       }
     }
 
-    const deliverRuns = async (): Promise<void> => {
-      if (!ctx.session?.prompt) return
-      try {
-        const current = resolve(currentWorkspace())
-        const [runs, alerts] = await Promise.all([
-          call<DeliveryRun[]>(config, 'GET', '/v1/runs?summary=1'),
-          call<DeliveryAlert[]>(config, 'GET', '/v1/inbox'),
-        ])
-        const messages = planDeliveries({
-          runs: runs.filter(
-            (run) =>
-              run.origin_harness === 'opencode' &&
-              (!run.workspace || resolve(run.workspace) === current)
-          ),
-          alerts,
-          deliveredAlerts: delivery.alerts,
-          deliveredRuns: delivery.runs,
-          interfaceAgent: INTERFACE_AGENT,
-        })
-        for (const message of messages) {
-          if (!(await usableOrigin(message.sessionID))) continue
-          try {
-            await ctx.session.prompt({
+    const sessions = ctx.session as Any
+    const deliverRuns = sessions?.prompt
+      ? createDeliveryCycle({
+          load: async () => {
+            const current = resolve(currentWorkspace())
+            const [runs, alerts] = await Promise.all([
+              call<DeliveryRun[]>(config, 'GET', '/v1/runs?summary=1'),
+              call<DeliveryAlert[]>(config, 'GET', '/v1/inbox'),
+            ])
+            return {
+              runs: runs.filter(
+                (run) =>
+                  run.origin_harness === 'opencode' &&
+                  (!run.workspace || resolve(run.workspace) === current)
+              ),
+              alerts,
+            }
+          },
+          usableOrigin,
+          deliver: async (message) => {
+            await sessions.prompt({
               sessionID: message.sessionID,
               text: message.text,
               metadata: {
@@ -768,19 +762,13 @@ export default {
               },
               delivery: 'queue',
             })
-            for (const id of message.alertIDs) delivery.alerts.add(Number(id))
-            if (message.terminal) delivery.runs.add(message.runID)
-            writeDeliveryState(delivery)
-          } catch (error) {
-            console.error(
-              `[clara-policy] delivery to ${message.sessionID} failed: ${(error as Error).message}`
-            )
-          }
-        }
-      } catch {
-        // The service may be restarting.
-      }
-    }
+          },
+          state: delivery,
+          persist: () => writeDeliveryState(delivery),
+          interfaceAgent: INTERFACE_AGENT,
+          onError: (message) => console.error(`[clara-policy] delivery failed: ${message}`),
+        })
+      : async (): Promise<void> => {}
 
     const checkTool = async (work: ActiveWork, name: string, args: Any): Promise<void> => {
       if (work.closed) throw new Error('Clara policy: the step is no longer running')

@@ -35,6 +35,27 @@ export interface DeliveryMessage {
   text: string
 }
 
+export interface DeliveryState {
+  alerts: Set<number>
+  runs: Set<number>
+}
+
+/**
+ * Reserve a message before it is delivered, so an overlapping or interrupted
+ * cycle cannot plan it again. Returns a rollback that removes only the ids this
+ * reservation added.
+ */
+export function reserveDelivery(state: DeliveryState, message: DeliveryMessage): () => void {
+  const addedAlerts = message.alertIDs.map(Number).filter((id) => !state.alerts.has(id))
+  const addedRun = message.terminal && !state.runs.has(message.runID)
+  for (const id of addedAlerts) state.alerts.add(id)
+  if (addedRun) state.runs.add(message.runID)
+  return () => {
+    for (const id of addedAlerts) state.alerts.delete(id)
+    if (addedRun) state.runs.delete(message.runID)
+  }
+}
+
 const TERMINAL_STATES = new Set(['completed', 'failed', 'cancelled'])
 const MAX_ALERTS_IN_MESSAGE = 3
 
