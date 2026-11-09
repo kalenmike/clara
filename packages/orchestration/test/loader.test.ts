@@ -27,8 +27,12 @@ describe('package loader', () => {
       'bug',
       'documentation',
     ])
-    expect(entry.root.provider).toBeUndefined()
-    expect(entry.root.model).toBeUndefined()
+    // The workspace defaults apply to imported packages; the package itself
+    // does not pin a model.
+    expect(entry.root.provider).toBe('opencode-go')
+    expect(entry.root.model).toBe('deepseek-v4.1-flash')
+    expect(entry.root.declared ?? []).not.toContain('provider')
+    expect(entry.root.declared ?? []).not.toContain('model')
 
     const feature = compileRun(catalog, 'std:software/feature')
     expect(feature.root.kind).toBe('pipeline')
@@ -44,15 +48,15 @@ describe('package loader', () => {
     expect(feature.root.children?.[0].policy?.rules?.[0].effect).toBe('deny')
     expect(feature.hash).toMatch(/^sha256:[a-f0-9]{64}$/)
     expect(feature.root.packageId).toBe('software')
-    expect(feature.root.provider).toBeUndefined()
-    expect(feature.root.model).toBeUndefined()
+    expect(feature.root.provider).toBe('opencode-go')
+    expect(feature.root.model).toBe('deepseek-v4.1-flash')
     expect(feature.root.declared).toEqual(expect.arrayContaining(['enforcement']))
     const first = feature.root.children?.[0]
     expect(first?.packageId).toBe('software')
     expect(first?.task).toBe('create_spec')
     expect(first?.promptSource).toBe('task')
-    expect(first?.provider).toBeUndefined()
-    expect(first?.model).toBeUndefined()
+    expect(first?.provider).toBe('opencode-go')
+    expect(first?.model).toBe('deepseek-v4.1-flash')
     expect(first?.source).toContain('/tasks/create_spec.md')
   })
 
@@ -602,5 +606,32 @@ describe('package loader', () => {
     const route = primary.root.routes?.find((candidate) => candidate.when === 'diagnostics')
     expect(route?.run).toBe('std:diagnostics')
     expect(route?.criteria).toContain('self-analyze the orchestrator')
+  })
+
+  it('loads the maintenance package', () => {
+    const catalog = loadCatalog(config)
+    const maintenance = compileRun(catalog, 'std:maintenance')
+    expect(maintenance.root.kind).toBe('pipeline')
+    expect(maintenance.root.children?.map((step) => step.name)).toEqual([
+      'capture_setup',
+      'build',
+      'install_adapters',
+      'restart_services',
+      'verify_health',
+    ])
+    expect(maintenance.root.enforcement).toBe('observed')
+    expect(maintenance.root.children?.every((step) => step.promptSource === 'task')).toBe(true)
+    const capture = maintenance.root.children?.find((step) => step.name === 'capture_setup')
+    expect(capture?.prompt).toContain('pnpm clara rebuild status --json')
+    const restart = maintenance.root.children?.find((step) => step.name === 'restart_services')
+    expect(restart?.limits?.wall_clock_seconds).toBe(900)
+  })
+
+  it('routes explicit rebuild requests from the primary classifier', () => {
+    const catalog = loadCatalog(config)
+    const primary = compileRun(catalog)
+    const route = primary.root.routes?.find((candidate) => candidate.when === 'rebuild')
+    expect(route?.run).toBe('std:maintenance')
+    expect(route?.criteria).toContain('explicit request to rebuild Clara')
   })
 })

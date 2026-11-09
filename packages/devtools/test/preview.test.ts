@@ -24,7 +24,23 @@ describe('pipeline preview', () => {
     expect(refs).toContain('std:software')
     expect(refs).toContain('std:software/feature')
     expect(refs).toContain('std:content/content')
+    expect(refs).toContain('std:maintenance')
+    expect(refs).toContain('std:maintenance/rebuild')
     expect(result.catalog?.packages.map((pkg) => pkg.id)).toContain('software')
+  })
+
+  it('compiles the maintenance rebuild pipeline', () => {
+    const result = previewPipeline({ workspace: root, target: 'std:maintenance/rebuild' })
+    expect(result.selected?.ref).toBe('std:maintenance/rebuild')
+    const names = result.compiled?.root.children?.map((step) => step.name) ?? []
+    expect(names).toEqual([
+      'capture_setup',
+      'build',
+      'install_adapters',
+      'restart_services',
+      'verify_health',
+    ])
+    expect(result.diagnostics.filter((entry) => entry.severity === 'error')).toEqual([])
   })
 
   it('compiles a named pipeline with rendered prompts and sources', () => {

@@ -1,0 +1,13 @@
+id: maintenance
+name: Clara maintenance
+version: 1
+description: Rebuild Clara, reinstall its adapters, restart the captured services, and verify health.
+
+entry:
+  pipeline: rebuild
+
+defaults:
+  task_dir: ./tasks
+  # The rebuild must run while the adapter or setup is degraded. Tasks stay
+  # narrow: each one allows only its own `pnpm clara rebuild` command.
+  enforcement: observed

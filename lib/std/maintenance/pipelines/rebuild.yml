@@ -1,0 +1,15 @@
+id: rebuild
+name: Rebuild Clara
+description: Snapshot the running setup, rebuild, install adapters, restart the same services, and verify health.
+enforcement: observed
+steps:
+  - name: capture_setup
+    type: task
+  - name: build
+    type: task
+  - name: install_adapters
+    type: task
+  - name: restart_services
+    type: task
+  - name: verify_health
+    type: task

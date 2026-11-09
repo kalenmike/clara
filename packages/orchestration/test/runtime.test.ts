@@ -87,8 +87,8 @@ describe('runtime', () => {
     })
     expect(started.work).toHaveLength(1)
     expect(started.work[0].name).toBe('create_spec')
-    expect(started.work[0].provider).toBeUndefined()
-    expect(started.work[0].model).toBeUndefined()
+    expect(started.work[0].provider).toBe('opencode-go')
+    expect(started.work[0].model).toBe('deepseek-v4.1-flash')
     expect(started.work[0].work_token).toBeTruthy()
 
     const completed = runtime.complete(
@@ -142,8 +142,8 @@ describe('runtime', () => {
     adapter()
     const started = runtime.start({ workspace, prompt: 'a new feature', target: 'std:software' })
     expect(started.work[0].kind).toBe('router')
-    expect(started.work[0].provider).toBeUndefined()
-    expect(started.work[0].model).toBeUndefined()
+    expect(started.work[0].provider).toBe('opencode-go')
+    expect(started.work[0].model).toBe('deepseek-v4.1-flash')
     expect(started.work[0].routes?.map((route) => route.when)).toEqual([
       'feature',
       'bug',
@@ -656,6 +656,7 @@ describe('runtime', () => {
     expect(router.kind).toBe('router')
     expect(router.workspace).toBe(resolve(workspace))
     expect(router.routes?.map((route) => route.when)).toEqual([
+      'rebuild',
       'content',
       'software-development',
       'quick-patch',
