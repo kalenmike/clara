@@ -4,9 +4,10 @@ import { join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { beforeEach, describe, expect, it } from 'vitest'
 import { reserveTokens } from '@clara/policy'
-import { Runtime, Store } from '../src/index.ts'
+import { Runtime, Store, loadCatalog } from '../src/index.ts'
 
 const workspace = fileURLToPath(new URL('../../../', import.meta.url))
+const defaults = loadCatalog(join(workspace, 'orchestration', 'index.yml')).root.manifest.defaults
 let store: Store
 let runtime: Runtime
 
@@ -87,8 +88,8 @@ describe('runtime', () => {
     })
     expect(started.work).toHaveLength(1)
     expect(started.work[0].name).toBe('create_spec')
-    expect(started.work[0].provider).toBeUndefined()
-    expect(started.work[0].model).toBeUndefined()
+    expect(started.work[0].provider).toBe(defaults?.provider)
+    expect(started.work[0].model).toBe(defaults?.model)
     expect(started.work[0].work_token).toBeTruthy()
 
     const completed = runtime.complete(
@@ -142,8 +143,8 @@ describe('runtime', () => {
     adapter()
     const started = runtime.start({ workspace, prompt: 'a new feature', target: 'std:software' })
     expect(started.work[0].kind).toBe('router')
-    expect(started.work[0].provider).toBeUndefined()
-    expect(started.work[0].model).toBeUndefined()
+    expect(started.work[0].provider).toBe(defaults?.provider)
+    expect(started.work[0].model).toBe(defaults?.model)
     expect(started.work[0].routes?.map((route) => route.when)).toEqual([
       'feature',
       'bug',

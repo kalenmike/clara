@@ -20,6 +20,7 @@ describe('package loader', () => {
 
   it('compiles the package entry router and a named pipeline', () => {
     const catalog = loadCatalog(config)
+    const defaults = catalog.root.manifest.defaults
     const entry = compileRun(catalog, 'std:software')
     expect(entry.root.kind).toBe('router')
     expect(entry.root.routes?.map((route) => route.when)).toEqual([
@@ -27,8 +28,8 @@ describe('package loader', () => {
       'bug',
       'documentation',
     ])
-    expect(entry.root.provider).toBeUndefined()
-    expect(entry.root.model).toBeUndefined()
+    expect(entry.root.provider).toBe(defaults?.provider)
+    expect(entry.root.model).toBe(defaults?.model)
 
     const feature = compileRun(catalog, 'std:software/feature')
     expect(feature.root.kind).toBe('pipeline')
@@ -44,15 +45,15 @@ describe('package loader', () => {
     expect(feature.root.children?.[0].policy?.rules?.[0].effect).toBe('deny')
     expect(feature.hash).toMatch(/^sha256:[a-f0-9]{64}$/)
     expect(feature.root.packageId).toBe('software')
-    expect(feature.root.provider).toBeUndefined()
-    expect(feature.root.model).toBeUndefined()
+    expect(feature.root.provider).toBe(defaults?.provider)
+    expect(feature.root.model).toBe(defaults?.model)
     expect(feature.root.declared).toEqual(expect.arrayContaining(['enforcement']))
     const first = feature.root.children?.[0]
     expect(first?.packageId).toBe('software')
     expect(first?.task).toBe('create_spec')
     expect(first?.promptSource).toBe('task')
-    expect(first?.provider).toBeUndefined()
-    expect(first?.model).toBeUndefined()
+    expect(first?.provider).toBe(defaults?.provider)
+    expect(first?.model).toBe(defaults?.model)
     expect(first?.source).toContain('/tasks/create_spec.md')
   })
 
