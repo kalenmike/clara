@@ -569,10 +569,7 @@ export class Runtime {
     return null
   }
 
-  private inputGate(
-    node: CompiledNode,
-    steps: Map<string, StepRow>
-  ): 'ok' | 'waiting' | 'failed' {
+  private inputGate(node: CompiledNode, steps: Map<string, StepRow>): 'ok' | 'waiting' | 'failed' {
     let waiting = false
     for (const path of Object.values(node.inputs ?? {})) {
       const input = steps.get(path)

@@ -77,7 +77,9 @@ export function renderWorkPrompt(work: PromptWork): string {
 
   const artifacts = renderArtifacts(work.context?.artifacts)
   if (artifacts) {
-    sections.push(`# Artifacts\n\nRead these from the workspace when you need them.\n\n${artifacts}`)
+    sections.push(
+      `# Artifacts\n\nRead these from the workspace when you need them.\n\n${artifacts}`
+    )
   }
 
   const previous = renderPreviousAttempt(work.retry)
