@@ -25,8 +25,8 @@ repository read and grep tools; do not edit files and do not run the pipelines.
 
 Start with:
 
-- `orchestration/index.yml` for imports, defaults, watchdog thresholds, the
-  escalation pipeline, and router criteria,
+- `orchestration/index.yml` for imports, defaults, package overrides, watchdog
+  thresholds, the escalation pipeline, and router criteria,
 - each `lib/std/*/index.yml` for defaults, enforcement, and entry points,
 - `lib/std/*/pipelines/*.yml` for steps, retries, limits, and enforcement,
 - `lib/std/*/routers/*.md` for route criteria, turn and token budgets,
