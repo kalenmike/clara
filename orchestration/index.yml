@@ -50,9 +50,9 @@ router:
     - when: software-development
       criteria: a normal software feature, bug, or documentation request.
       run: std:software
-    - when: quick-patch
-      criteria: a small, local lifecycle patch with no full spec cycle.
-      run: quick_patch
+    # - when: example
+    #   criteria: run this to show another example route
+    #   run: inline_example
     - when: research
       criteria: a request for external research, industry or market analysis, source gathering, or a cited research brief.
       run: std:research
@@ -60,14 +60,14 @@ router:
       criteria: a request to audit, diagnose, or self-analyze the orchestrator itself, including its database, run history, failures, alerts, retries, or pipeline setup.
       run: std:diagnostics
 
-pipelines:
-  quick_patch:
-    name: Quick patch
-    description: 'A fast local lifecycle patch'
-    steps:
-      - name: patch_code
-        type: task
-      - name: quick_verify
-        type: task
-        inputs:
-          patch: patch_code
+# pipelines:
+#   inline_example:
+#     name: An example of an inline pipeline
+#     description: 'A quick and easy pipeline without imports'
+#     steps:
+#       - name: step_one
+#         type: task
+#       - name: step_two
+#         type: task
+#         inputs:
+#           patch: step_one
