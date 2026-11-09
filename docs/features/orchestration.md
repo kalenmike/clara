@@ -306,8 +306,11 @@ The adapter turns a work order into one model prompt:
    rendered route list, so the adapter never appends it again,
 2. the root request from `context.prompt`,
 3. the results of completed steps from `context.steps`, excluding the current
-   step's own previous attempt,
-4. one finish instruction for the step kind.
+   step's own previous attempt; each result is capped at 4k characters and the
+   section at 12k, keeping the newest blocks,
+4. the previous attempt's error and partial result on a retry, under
+   `# Previous attempt`,
+5. one finish instruction for the step kind.
 
 The prompt does not repeat the run id, step path, work token, model, enforcement,
 attempt, or budget. Those are orchestrator state. The adapter binds the run id,

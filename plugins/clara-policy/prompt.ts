@@ -84,12 +84,18 @@ function clip(text: string, limit: number): string {
   return text.length > limit ? `${text.slice(0, limit)}\n… truncated` : text
 }
 
+// Prior results are the worker's shared memory between steps. Keep the most
+// recent blocks and trim each one: a long handoff is useful, but pasting all of
+// them into every later prompt multiplies the step's input tokens.
+const PRIOR_RESULTS_LIMIT = 12_000
+const PRIOR_STEP_LIMIT = 4_000
+
 function renderPriorResults(
   steps: PromptStepResult[] | undefined,
   current: string | undefined
 ): string {
   if (!Array.isArray(steps)) return ''
-  return steps
+  const blocks = steps
     .filter((step) => step && step.path !== current)
     .map((step) => {
       const result = renderResult(step.result)
@@ -97,10 +103,23 @@ function renderPriorResults(
       const path = typeof step.path === 'string' ? step.path : ''
       const name = typeof step.name === 'string' ? step.name : ''
       const heading = [path, name].filter(Boolean).join(' — ')
-      return `### ${heading || 'Prior step'}\n\n${result}`
+      return `### ${heading || 'Prior step'}\n\n${clip(result, PRIOR_STEP_LIMIT)}`
     })
     .filter(Boolean)
-    .join('\n\n')
+
+  let total = blocks.reduce((sum, block) => sum + block.length + 2, 0)
+  let dropped = 0
+  while (blocks.length > 1 && total > PRIOR_RESULTS_LIMIT) {
+    total -= blocks[0].length + 2
+    blocks.shift()
+    dropped += 1
+  }
+  if (dropped) {
+    blocks.unshift(
+      `… ${dropped} earlier result${dropped === 1 ? '' : 's'} omitted; open the run to see ${dropped === 1 ? 'it' : 'them'}`
+    )
+  }
+  return blocks.join('\n\n')
 }
 
 function renderResult(value: unknown): string {

@@ -31,10 +31,12 @@ limits:
 
 Verify the fix against the regression test and the repository gates.
 
+- Read `# Prior results` to get the changed files and the regression test path; do not re-derive them.
+- If `# Previous attempt` is present, skip gates that already ran and passed.
 - Run the regression test first; it must pass now.
 - Run the focused suite for the affected package.
 - Run `pnpm check` and `pnpm build`.
 - Confirm the regression test was not changed by the fix.
 - Do not edit files.
 
-Return pass/fail per gate, the exact commands, and any remaining risk.
+Return a compact JSON result with `gates` (each gate's pass/fail and command), `regressionUnchanged`, and `remainingRisk`.

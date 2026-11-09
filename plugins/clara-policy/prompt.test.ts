@@ -95,6 +95,39 @@ test('omits the previous attempt on a first attempt', () => {
   assert.doesNotMatch(prompt, /# Previous attempt/)
 })
 
+test('keeps prior results bounded and favors the newest steps', () => {
+  const steps = Array.from({ length: 6 }, (_, index) => ({
+    path: `${index + 1}-step`,
+    name: `step${index + 1}`,
+    result: 'x'.repeat(5_000),
+  }))
+  const prompt = renderWorkPrompt({
+    step_path: '7-final',
+    kind: 'task',
+    prompt: '# Task: Final',
+    context: { prompt: 'do it', steps },
+  })
+  const section = prompt.split('# Prior results\n\n')[1]?.split('\n\n---')[0] ?? ''
+  assert.ok(section.length < 13_500)
+  assert.match(section, /earlier results omitted/)
+  assert.match(section, /6-step/)
+  assert.doesNotMatch(section, /1-step/)
+})
+
+test('clips one oversized prior result', () => {
+  const prompt = renderWorkPrompt({
+    step_path: '2-next',
+    kind: 'task',
+    prompt: '# Task: Next',
+    context: {
+      prompt: 'do it',
+      steps: [{ path: '1-big', name: 'big', result: 'y'.repeat(10_000) }],
+    },
+  })
+  assert.match(prompt, /… truncated/)
+  assert.ok(prompt.length < 6_000)
+})
+
 test('scopes a router to route and fail and constrains the route enum', () => {
   const tools: Record<string, unknown> = {
     read: {},
