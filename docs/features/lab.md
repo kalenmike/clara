@@ -43,7 +43,10 @@ writing custom pipelines, not for end users.
    runs** cancels every non-terminal root run after confirmation, including
    debug runs hidden by the toggle.
 9. Follow run progress in the read-only step tree, the per-run events, and the
-   traffic log.
+   traffic log. Selecting a step opens collapsed Prompt, Result, Inputs, and
+   Policy/limits/raw sections. Prompt toggles between rendered Markdown and raw
+   text; Result toggles between Markdown, pretty JSON, and raw text. Inputs
+   lists every declared input with its source path, status, and result.
 10. Open **Console** to call the orchestrator MCP surface directly. It renders a
     form from each tool's input schema with required, range, and enum hints
     under every field, keeps the raw JSON editor behind a Form/JSON toggle, and
@@ -98,12 +101,12 @@ writing custom pipelines, not for end users.
     `model_missing`, `model_unset`, `model_unknown`, and `model_disabled`.
     When OpenCode is offline the preview still compiles; model existence is
     shown as unchecked instead of failing the setup.
-12. **The lab shows the raw work order.** The step card shows `order.prompt` and
-    its `context` separately. The preview shows the resolved `inputs` and
-    `artifacts` wiring and warns with `inputs_missing` when a step with prior
-    siblings declares none. The OpenCode adapter composes the step prompt,
-    declared inputs, artifacts, and the background request into the managed
-    worker prompt.
+12. **The lab shows the raw work order.** The step card shows `order.prompt`,
+    its declared inputs and artifacts, and the background request separately.
+    The preview shows the resolved `inputs` and `artifacts` wiring and warns
+    with `inputs_missing` when a step with prior siblings declares none. The
+    OpenCode adapter composes the step prompt, declared inputs, artifacts, and
+    the background request into the managed worker prompt.
 13. **Review owns the debug loop.** Starting, pausing, pulling, completing,
     routing, spawning, and heartbeat controls live in the Debug dock on
     **Review**. **Runs** never starts or steps a run.
