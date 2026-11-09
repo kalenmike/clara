@@ -411,7 +411,11 @@ operator can start it directly with `target: std:diagnostics`. See
   to answer. The reserve shares the attempt's single `budget.exhausted` event.
   A completion that arrives over budget is kept and marked `over_budget` on its
   `step.completed` event instead of being retried; the result is never
-  discarded. The OpenCode adapter reports model token usage from
+  discarded. A step that sets `limits.on_exhausted: fail` opts out: when a
+  budget denial cut the worker short, the attempt is retried instead of
+  advancing, and the partial result is carried into the next attempt as a
+  `# Previous attempt` handoff. The last attempt fails the step and the run.
+  The OpenCode adapter reports model token usage from
   assistant-message events, so token budgets are enforced for managed workers
   too.
 - A step is `observed`: permission denials are recorded as `policy.observed`

@@ -64,6 +64,37 @@ test('renders structured prior results as JSON', () => {
   assert.match(prompt, /https:\/\/example\.com/)
 })
 
+test('renders the previous attempt so a retry does not repeat the work', () => {
+  const prompt = renderWorkPrompt({
+    step_path: '3-fix',
+    kind: 'task',
+    prompt: '# Task: Fix',
+    retry: {
+      attempt: 1,
+      error: 'budget exhausted before the step finished',
+      result: { rootCause: 'runtime.ts reserves after the await' },
+    },
+    context: {
+      prompt: 'Fix the repeat notification.',
+      steps: [],
+    },
+  })
+  assert.match(prompt, /# Previous attempt/)
+  assert.match(prompt, /Attempt 1 ended before the step finished/)
+  assert.match(prompt, /runtime\.ts reserves after the await/)
+  assert.match(prompt, /Do not repeat the same investigation/)
+})
+
+test('omits the previous attempt on a first attempt', () => {
+  const prompt = renderWorkPrompt({
+    step_path: '1-fix',
+    kind: 'task',
+    prompt: '# Task: Fix',
+    context: { prompt: 'Fix it.', steps: [] },
+  })
+  assert.doesNotMatch(prompt, /# Previous attempt/)
+})
+
 test('scopes a router to route and fail and constrains the route enum', () => {
   const tools: Record<string, unknown> = {
     read: {},

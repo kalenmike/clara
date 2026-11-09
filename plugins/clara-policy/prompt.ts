@@ -24,6 +24,11 @@ export interface PromptWork {
   step_path?: string
   kind?: string
   prompt?: string
+  retry?: {
+    attempt?: number
+    error?: string
+    result?: unknown
+  }
   context?: {
     prompt?: string
     steps?: PromptStepResult[]
@@ -55,8 +60,28 @@ export function renderWorkPrompt(work: PromptWork): string {
   const prior = renderPriorResults(work.context?.steps, work.step_path)
   if (prior) sections.push(`# Prior results\n\n${prior}`)
 
+  const previous = renderPreviousAttempt(work.retry)
+  if (previous) sections.push(`# Previous attempt\n\n${previous}`)
+
   sections.push(finishInstruction(work.kind))
   return sections.filter(Boolean).join('\n\n---\n\n')
+}
+
+function renderPreviousAttempt(retry: PromptWork['retry']): string {
+  if (!retry) return ''
+  const attempt = typeof retry.attempt === 'number' ? retry.attempt : 1
+  const error = typeof retry.error === 'string' ? retry.error.trim() : ''
+  const result = renderResult(retry.result)
+  if (!error && !result) return ''
+  const lines = [`Attempt ${attempt} ended before the step finished.`]
+  if (error) lines.push(error)
+  if (result) lines.push(`What it produced:\n\n${clip(result, 4_000)}`)
+  lines.push('Build on this. Do not repeat the same investigation unless it is wrong.')
+  return lines.join('\n\n')
+}
+
+function clip(text: string, limit: number): string {
+  return text.length > limit ? `${text.slice(0, limit)}\n… truncated` : text
 }
 
 function renderPriorResults(

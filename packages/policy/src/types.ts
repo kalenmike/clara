@@ -42,6 +42,13 @@ export interface Limits {
   max_tool_calls?: number
   wall_clock_seconds?: number
   max_violations?: number
+  /**
+   * What to do when a worker that ran out of budget reports a result. `keep`
+   * accepts the over-budget result and advances (the historical behavior);
+   * `fail` treats the attempt as unfinished so it retries with a larger budget
+   * and the worker's handoff in context.
+   */
+  on_exhausted?: 'keep' | 'fail'
 }
 
 export interface Usage {
