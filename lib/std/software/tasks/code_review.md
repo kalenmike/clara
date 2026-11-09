@@ -1,7 +1,5 @@
 ---
 description: Review the implementation against the specification
-model: 'deepseek-v4.1-flash'
-provider: 'opencode-go'
 permissions:
   - action: edit
     resource: '*'

@@ -102,6 +102,24 @@ export interface ImportSpec {
   select?: string[]
 }
 
+/** Model and provider selected by the workspace, a package, or a step. */
+export interface ModelSelection {
+  model?: string
+  provider?: string
+}
+
+export interface PackageOverrides {
+  /** Replaces the imported package's defaults. */
+  defaults?: ModelSelection
+  /** Replaces pipeline-level defaults by pipeline id. */
+  pipelines?: Record<string, { default_model?: string; default_provider?: string }>
+  /** Replaces task frontmatter by task name. */
+  tasks?: Record<string, ModelSelection>
+}
+
+/** Workspace-level overrides keyed by an import ref such as `std:software`. */
+export type WorkspaceOverrides = Record<string, PackageOverrides>
+
 export interface PackageEntry {
   pipeline?: string
   router?: string

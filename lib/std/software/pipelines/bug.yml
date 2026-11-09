@@ -1,8 +1,6 @@
 id: bug
 name: Bug lifecycle
 description: Hotfix and regression lifecycle
-default_model: 'deepseek-v4.1-flash'
-default_provider: 'opencode-go'
 enforcement: strict
 steps:
   - name: identify_bug

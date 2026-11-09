@@ -1,7 +1,5 @@
 ---
 description: Fix the identified bug against the frozen regression test
-model: 'deepseek-v4.1-flash'
-provider: 'opencode-go'
 permissions:
   - action: edit
     resource: '*'

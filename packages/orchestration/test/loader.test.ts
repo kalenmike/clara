@@ -27,8 +27,8 @@ describe('package loader', () => {
       'bug',
       'documentation',
     ])
-    expect(entry.root.provider).toBe('opencode-go')
-    expect(entry.root.model).toBe('deepseek-v4.1-flash')
+    expect(entry.root.provider).toBeUndefined()
+    expect(entry.root.model).toBeUndefined()
 
     const feature = compileRun(catalog, 'std:software/feature')
     expect(feature.root.kind).toBe('pipeline')
@@ -44,17 +44,15 @@ describe('package loader', () => {
     expect(feature.root.children?.[0].policy?.rules?.[0].effect).toBe('deny')
     expect(feature.hash).toMatch(/^sha256:[a-f0-9]{64}$/)
     expect(feature.root.packageId).toBe('software')
-    expect(feature.root.provider).toBe('opencode-go')
-    expect(feature.root.model).toBe('deepseek-v4.1-flash')
-    expect(feature.root.declared).toEqual(
-      expect.arrayContaining(['default_model', 'default_provider', 'enforcement'])
-    )
+    expect(feature.root.provider).toBeUndefined()
+    expect(feature.root.model).toBeUndefined()
+    expect(feature.root.declared).toEqual(expect.arrayContaining(['enforcement']))
     const first = feature.root.children?.[0]
     expect(first?.packageId).toBe('software')
     expect(first?.task).toBe('create_spec')
     expect(first?.promptSource).toBe('task')
-    expect(first?.provider).toBe('opencode-go')
-    expect(first?.model).toBe('deepseek-v4.1-flash')
+    expect(first?.provider).toBeUndefined()
+    expect(first?.model).toBeUndefined()
     expect(first?.source).toContain('/tasks/create_spec.md')
   })
 
@@ -120,6 +118,235 @@ describe('package loader', () => {
       expect(manifest.root.model).toBe('manifest-model')
       expect(manifest.root.children?.[0].provider).toBe('manifest-provider')
       expect(manifest.root.children?.[0].model).toBe('manifest-model')
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('keeps standard packages free of model and provider defaults', () => {
+    const catalog = loadCatalog(config)
+    const stdRoot = join(root, 'lib', 'std')
+    const std = catalog.packages.filter((pkg) => pkg.dir.startsWith(stdRoot))
+    expect(std.length).toBeGreaterThan(0)
+    for (const pkg of std) {
+      expect(pkg.manifest.defaults?.model).toBeUndefined()
+      expect(pkg.manifest.defaults?.provider).toBeUndefined()
+      for (const pipeline of pkg.pipelines.values()) {
+        expect(pipeline.default_model).toBeUndefined()
+        expect(pipeline.default_provider).toBeUndefined()
+      }
+      for (const task of pkg.tasks.values()) {
+        expect(task.model).toBeUndefined()
+        expect(task.provider).toBeUndefined()
+      }
+    }
+  })
+
+  it('inherits workspace defaults across imported packages', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'clara-workspace-defaults-'))
+    try {
+      writeFileSync(
+        join(dir, 'index.yml'),
+        [
+          'id: temp',
+          'name: Temp',
+          'version: 1',
+          'defaults:',
+          '  model: workspace-model',
+          '  provider: workspace-provider',
+          'imports:',
+          '  std:',
+          `    - path: ${join(root, 'lib', 'std', 'software')}`,
+        ].join('\n')
+      )
+      const catalog = loadCatalog(dir)
+      const entry = compileRun(catalog, 'std:software')
+      expect(entry.root.model).toBe('workspace-model')
+      expect(entry.root.provider).toBe('workspace-provider')
+
+      const feature = compileRun(catalog, 'std:software/feature')
+      expect(feature.root.model).toBe('workspace-model')
+      expect(feature.root.provider).toBe('workspace-provider')
+      const first = feature.root.children?.[0]
+      expect(first?.model).toBe('workspace-model')
+      expect(first?.provider).toBe('workspace-provider')
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('resolves step, pipeline, task, package, and workspace model order', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'clara-precedence-'))
+    try {
+      const pkg = join(dir, 'pkg')
+      mkdirSync(join(pkg, 'tasks'), { recursive: true })
+      writeFileSync(
+        join(pkg, 'index.yml'),
+        [
+          'id: pkg',
+          'name: Pkg',
+          'version: 1',
+          'defaults:',
+          '  model: package-model',
+          '  provider: package-provider',
+          'pipelines:',
+          '  main:',
+          '    steps:',
+          '      - name: plain',
+          '        type: task',
+          '        prompt: do it',
+          '      - name: custom',
+          '        type: task',
+          '        task: thing',
+          '  with_default:',
+          '    default_model: pipeline-model',
+          '    default_provider: pipeline-provider',
+          '    steps:',
+          '      - name: plain',
+          '        type: task',
+          '        prompt: do it',
+          '      - name: custom',
+          '        type: task',
+          '        task: thing',
+          '  explicit:',
+          '    steps:',
+          '      - name: explicit',
+          '        type: task',
+          '        prompt: do it',
+          '        model: step-model',
+          '        provider: step-provider',
+        ].join('\n')
+      )
+      writeFileSync(
+        join(pkg, 'tasks', 'thing.md'),
+        ['---', 'model: task-model', 'provider: task-provider', '---', 'Do the thing.'].join('\n')
+      )
+      writeFileSync(
+        join(dir, 'index.yml'),
+        [
+          'id: temp',
+          'name: Temp',
+          'version: 1',
+          'defaults:',
+          '  model: workspace-model',
+          '  provider: workspace-provider',
+          'imports:',
+          '  x:',
+          '    - path: ./pkg',
+        ].join('\n')
+      )
+      const catalog = loadCatalog(dir)
+      const main = compileRun(catalog, 'x:pkg/main')
+      const plain = main.root.children?.find((step) => step.name === 'plain')
+      const custom = main.root.children?.find((step) => step.name === 'custom')
+      expect(plain?.model).toBe('package-model')
+      expect(plain?.provider).toBe('package-provider')
+      expect(custom?.model).toBe('task-model')
+      expect(custom?.provider).toBe('task-provider')
+
+      const withDefault = compileRun(catalog, 'x:pkg/with_default')
+      const pipelinePlain = withDefault.root.children?.find((step) => step.name === 'plain')
+      const pipelineCustom = withDefault.root.children?.find((step) => step.name === 'custom')
+      expect(pipelinePlain?.model).toBe('pipeline-model')
+      expect(pipelineCustom?.model).toBe('pipeline-model')
+
+      const explicit = compileRun(catalog, 'x:pkg/explicit')
+      expect(explicit.root.children?.[0].model).toBe('step-model')
+      expect(explicit.root.children?.[0].provider).toBe('step-provider')
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('applies workspace overrides to imported packages', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'clara-overrides-'))
+    try {
+      writeFileSync(
+        join(dir, 'index.yml'),
+        [
+          'id: temp',
+          'name: Temp',
+          'version: 1',
+          'defaults:',
+          '  model: workspace-model',
+          '  provider: workspace-provider',
+          'overrides:',
+          '  std:software:',
+          '    defaults:',
+          '      model: override-model',
+          '      provider: override-provider',
+          '    pipelines:',
+          '      feature:',
+          '        default_model: feature-model',
+          '        default_provider: feature-provider',
+          '    tasks:',
+          '      identify_bug:',
+          '        model: task-model',
+          '        provider: task-provider',
+          'imports:',
+          '  std:',
+          `    - path: ${join(root, 'lib', 'std', 'software')}`,
+        ].join('\n')
+      )
+      const catalog = loadCatalog(dir)
+
+      const feature = compileRun(catalog, 'std:software/feature')
+      expect(feature.root.model).toBe('feature-model')
+      expect(feature.root.provider).toBe('feature-provider')
+      const spec = feature.root.children?.find((step) => step.name === 'create_spec')
+      expect(spec?.model).toBe('feature-model')
+      expect(spec?.provider).toBe('feature-provider')
+
+      const bug = compileRun(catalog, 'std:software/bug')
+      expect(bug.root.model).toBe('override-model')
+      expect(bug.root.provider).toBe('override-provider')
+      const identify = bug.root.children?.find((step) => step.name === 'identify_bug')
+      expect(identify?.model).toBe('task-model')
+      expect(identify?.provider).toBe('task-provider')
+      const fix = bug.root.children?.find((step) => step.name === 'fix_bug')
+      expect(fix?.model).toBe('override-model')
+      expect(fix?.provider).toBe('override-provider')
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('rejects unknown or malformed overrides', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'clara-bad-overrides-'))
+    try {
+      const write = (overrides: string[]): void => {
+        writeFileSync(
+          join(dir, 'index.yml'),
+          [
+            'id: temp',
+            'name: Temp',
+            'version: 1',
+            'imports:',
+            '  std:',
+            `    - path: ${join(root, 'lib', 'std', 'software')}`,
+            'overrides:',
+            ...overrides,
+          ].join('\n')
+        )
+      }
+
+      write(['  std:missing:', '    defaults:', '      model: m'])
+      expect(() => loadCatalog(dir)).toThrow(/unknown package import/)
+
+      write(['  std:software:', '    pipelines:', '      missing:', '        default_model: m'])
+      expect(() => loadCatalog(dir)).toThrow(/pipeline not found/)
+
+      write(['  std:software:', '    tasks:', '      missing:', '        model: m'])
+      expect(() => loadCatalog(dir)).toThrow(/task not found/)
+
+      write(['  std:software:', '    defaults:', '      provder: m'])
+      expect(() => loadCatalog(dir)).toThrow(/provder is not supported/)
+
+      write(['  std:software:', '    defaults:', '      model: ""'])
+      expect(() => loadCatalog(dir)).toThrow(/must be a non-empty string/)
+
+      write(['  software:', '    defaults:', '      model: m'])
+      expect(() => loadCatalog(dir)).toThrow(/must be namespace:package/)
     } finally {
       rmSync(dir, { recursive: true, force: true })
     }

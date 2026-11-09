@@ -1,7 +1,5 @@
 ---
 description: Write the failing regression test for an identified bug
-model: 'deepseek-v4.1-flash'
-provider: 'opencode-go'
 permissions:
   - action: edit
     resource: '*'

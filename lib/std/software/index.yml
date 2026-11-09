@@ -7,8 +7,6 @@ entry:
   router: classifier
 
 defaults:
-  model: 'deepseek-v4.1-flash'
-  provider: 'opencode-go'
   task_dir: ./tasks
   enforcement: strict
 

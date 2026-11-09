@@ -87,8 +87,8 @@ describe('runtime', () => {
     })
     expect(started.work).toHaveLength(1)
     expect(started.work[0].name).toBe('create_spec')
-    expect(started.work[0].provider).toBe('opencode-go')
-    expect(started.work[0].model).toBe('deepseek-v4.1-flash')
+    expect(started.work[0].provider).toBeUndefined()
+    expect(started.work[0].model).toBeUndefined()
     expect(started.work[0].work_token).toBeTruthy()
 
     const completed = runtime.complete(
@@ -102,12 +102,48 @@ describe('runtime', () => {
     expect(next[0].name).toBe('plan_implementation')
   })
 
+  it('puts workspace model defaults on work orders', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'clara-runtime-models-'))
+    try {
+      mkdirSync(join(dir, 'orchestration'))
+      writeFileSync(
+        join(dir, 'orchestration', 'index.yml'),
+        [
+          'id: temp',
+          'name: Temp',
+          'version: 1',
+          'defaults:',
+          '  provider: workspace-provider',
+          '  model: workspace-model',
+          'imports:',
+          '  std:',
+          `    - path: ${join(workspace, 'lib', 'std', 'software')}`,
+        ].join('\n')
+      )
+      const local = new Runtime({ store, configPath: join(dir, 'orchestration', 'index.yml') })
+      local.registerAdapter({
+        harness: 'opencode',
+        workspace: dir,
+        capabilities: ['tool_policy', 'turn_limit', 'token_limit'],
+      })
+      const started = local.start({
+        workspace: dir,
+        prompt: 'build it',
+        target: 'std:software/feature',
+      })
+      expect(started.work[0].provider).toBe('workspace-provider')
+      expect(started.work[0].model).toBe('workspace-model')
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
+
   it('routes from a package entry router and records the decision', () => {
     adapter()
     const started = runtime.start({ workspace, prompt: 'a new feature', target: 'std:software' })
     expect(started.work[0].kind).toBe('router')
-    expect(started.work[0].provider).toBe('opencode-go')
-    expect(started.work[0].model).toBe('deepseek-v4.1-flash')
+    expect(started.work[0].provider).toBeUndefined()
+    expect(started.work[0].model).toBeUndefined()
     expect(started.work[0].routes?.map((route) => route.when)).toEqual([
       'feature',
       'bug',

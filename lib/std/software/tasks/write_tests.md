@@ -1,7 +1,5 @@
 ---
 description: Write the tests that define done
-model: 'deepseek-v4.1-flash'
-provider: 'opencode-go'
 permissions:
   - action: edit
     resource: '*'
