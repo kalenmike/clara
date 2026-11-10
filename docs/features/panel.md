@@ -70,9 +70,12 @@ monitoring on or off, and gates or paces client settings sync.
    stopped, so the stopped state is readable from the switch colors alone. The
    shell policy stays editable because it only applies while connections are
    up.
-10. Review the connected-client table and the storage list. Status badges call
-    out degraded OpenCode, relay, push, permissions, or missing files. The
-    storage header summarizes the most severe entry and its count.
+10. Review the connected-client table and the storage list. A one-time pairing
+    session appears with a **Pairing** badge and no device until enrollment
+    finishes; it is excluded from the active count and the local E2EE session
+    count. Status badges call out degraded OpenCode, relay, push, permissions,
+    or missing files. The storage header summarizes the most severe entry and
+    its count.
 11. In **Traffic**, read the last minute's in and out rates, the request and
     error rates, the two sparklines for the last hour, and the totals since the
     window started. The card shows the local-versus-relay split, a peak minute,
@@ -237,6 +240,9 @@ monitoring on or off, and gates or paces client settings sync.
 - **A feature fails to start** — the saved choice remains, the card shows the
   error, and the rest of the agent keeps running.
 - **No clients** — the client table shows an empty state.
+- **A pairing session is listed** — the row carries a **Pairing** badge instead
+  of a device. It is the one-time enrollment connection, not a failed client,
+  and the agent retires it as soon as the device-enrolled response is sent.
 - **The panel is screenshared** — sensitive values load masked and the eye
   button reveals them for the tab. Masked values lose their full-value tooltips
   and copy buttons, and the same scrubber covers activity messages and error
