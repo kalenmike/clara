@@ -131,8 +131,7 @@ export function useGitChanges(
  * Commits from the session's own directory inside its window. The window is
  * enforced by the host command, so no unrelated commits are fetched. The
  * request travels through the home agent, which applies the admin shell policy
- * before forwarding it to OpenCode. Direct connections have no agent, so the
- * panel hides this view.
+ * before forwarding it to OpenCode.
  */
 export function useGitCommits(
   directory: string | undefined,

@@ -46,7 +46,7 @@ registerRoute(
       // all, and an old document is only useful for the next few launches.
       plugins: [new ExpirationPlugin({ maxEntries: 25, maxAgeSeconds: 7 * 24 * 60 * 60 })],
     }),
-    { denylist: [/^\/api\//, /^\/oc\//] }
+    { denylist: [/^\/api\//] }
   )
 )
 

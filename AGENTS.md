@@ -98,8 +98,8 @@ create a task worktree outside `../clara-worktrees` (override with
 - The SDK package is `@opencode/client`, version-matched to the server. Do not
   swap it for `@opencode-ai/sdk` (v1 API) or import `@opencode/sdk` into the
   browser (embedded Node server).
-- In direct mode the browser sends HTTP basic auth with the `opencode` user.
-  In relay/local mode the home agent adds basic auth; the browser never receives
+- The browser connects only through the home agent over the local or relay
+  WebSocket. The home agent adds OpenCode basic auth; the browser never receives
   the password.
 - Harness connections are configured in the authenticated agent panel and
   stored in the home agent's SQLite database. The server does not read OpenCode's
@@ -107,7 +107,6 @@ create a task worktree outside `../clara-worktrees` (override with
   environment.
 - Session lists are scoped by `directory`, not `project`. Sessions can report
   `projectID: "global"`; always build links from the selected project ID.
-- The Vite dev server still proxies `/oc` for direct mode.
 
 Read [docs/architecture/overview.md](docs/architecture/overview.md) before
 changing connection, auth, streaming, or version pins. Read

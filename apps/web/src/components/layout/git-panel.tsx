@@ -25,7 +25,6 @@ import {
   type GitRange,
 } from '@/features/git/use-git'
 import { useSessionWording } from '@/features/sessions/use-wording'
-import { isRelayConfig } from '@/lib/client'
 import { errorMessage } from '@/lib/errors'
 import { formatCount } from '@/lib/format'
 import { cn } from '@/lib/utils'
@@ -72,10 +71,10 @@ export function GitPanel({
   }, [directory])
 
   /**
-   * Commit history runs `git log` on the host, so it only exists when the
-   * request travels through the home agent and its shell policy.
+   * Commit history runs `git log` on the host, so it only exists while the
+   * request can travel through the home agent and its shell policy.
    */
-  const hostCommands = Boolean(config && isRelayConfig(config))
+  const hostCommands = Boolean(config)
 
   const info = infoQuery.data
   const currentBranch = info?.branch.current
@@ -328,8 +327,8 @@ export function GitPanel({
             <GitCommitList directory={directory} commitWindow={commitWindow} />
           ) : (
             <GitPanelMessage
-              title="Commit history needs the home agent"
-              description="Clara runs the log on the host through the Clara server. A direct OpenCode connection has no agent to apply the shell policy."
+              title="Commit history is unavailable"
+              description="Reconnect to the Clara server to load commit history through its shell policy."
             />
           )}
         </TabsContent>

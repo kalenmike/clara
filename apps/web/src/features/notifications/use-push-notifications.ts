@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import type { PushSubscriptionPayload } from '@clara/shared-types'
-import { isRelayConfig } from '@/lib/client'
 import { useConnection } from '@/providers/connection-provider'
 import { readNotificationPermission, requestNotificationPermission } from './notifier'
 import {
@@ -32,7 +31,7 @@ export type PushNotificationsState = {
 }
 
 export function usePushNotifications(): PushNotificationsState {
-  const { config, control, generation, relayStatus } = useConnection()
+  const { control, generation, relayStatus } = useConnection()
   const { settings, update } = useNotificationSettings()
   const [enabled, setEnabled] = useState(false)
   const [busy, setBusy] = useState(false)
@@ -41,17 +40,13 @@ export function usePushNotifications(): PushNotificationsState {
 
   const supported = pushSupported()
   const publicKey = relayStatus?.agent?.pushPublicKey
-  const relayMode = Boolean(config && isRelayConfig(config))
   const online = relayStatus?.state === 'open'
-  const available = supported && relayMode && online && Boolean(control && publicKey)
+  const available = supported && online && Boolean(control && publicKey)
   const isIosDevice = isIos()
   const isInstalled = isStandalone()
 
   const reason = useMemo(() => {
     if (!supported) return 'This browser does not support Web Push notifications.'
-    if (!relayMode) {
-      return 'Push needs the Clara home agent. Connect with a pairing code or local WebSocket.'
-    }
     if (!online) return 'Connect to the Clara home server to manage push notifications.'
     if (!publicKey) {
       return 'The Clara home server does not support push notifications yet. Update and reconnect it.'
@@ -61,7 +56,7 @@ export function usePushNotifications(): PushNotificationsState {
       return 'On iPhone and iPad, add Clara to the Home Screen and open it from that icon first.'
     }
     return null
-  }, [control, isInstalled, isIosDevice, online, publicKey, relayMode, supported])
+  }, [control, isInstalled, isIosDevice, online, publicKey, supported])
 
   const sendSubscription = useCallback(
     async (subscription: PushSubscriptionPayload) => {

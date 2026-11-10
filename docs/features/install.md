@@ -75,7 +75,7 @@ asking anyone to delete and re-add the home-screen icon.
 
 - Worker: `apps/web/src/sw.ts`. Built with `strategies: 'injectManifest'` and
   `rollupFormat: 'iife'`; navigations match by `request.mode === 'navigate'`,
-  which keeps `/api` and `/oc` out of the cache.
+  which keeps `/api` out of the cache.
 - Registration and update state: `apps/web/src/features/pwa/update-store.ts`
   (`updateViaCache: 'none'`). Checks run on `visibilitychange`, `focus`, and a
   restored `pageshow`.

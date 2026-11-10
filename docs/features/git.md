@@ -70,9 +70,7 @@ session's own directory. The browser never reads its own filesystem.
    `Co-authored-by:` trailers are lifted out of the body.
 5. **Commits only work through the home agent.** The request travels over the
    encrypted session, the agent applies the admin shell policy, and only then is
-   it forwarded to OpenCode's shell API. A direct OpenCode connection has no
-   agent to enforce a policy, so the view explains that history needs the home
-   agent instead of running the command.
+   it forwarded to OpenCode's shell API.
 6. If the server policy blocks the command, the agent returns `403` and the view
    says commit history is disabled on this server. If the OpenCode version has no
    shell routes, the view says history is unavailable.
@@ -131,8 +129,6 @@ session's own directory. The browser never reads its own filesystem.
   are unavailable rather than guessing a project.
 - **Server policy blocks commands** — the Commits view shows an admin-disabled
   state with no retry loop.
-- **Direct connection** — the Commits view explains that history needs the home
-  agent.
 - **Git tab closed** — no git, history, or worktree requests run while another
   panel tab is showing.
 
@@ -146,9 +142,8 @@ capability boundary for the OpenCode API:
   requests. Writing files (`/api/experimental/fs/write`), starting a session and
   prompting an agent, or calling a plugin RPC (`/api/rpc/{rpcID}/{method}`) can
   all have effects on the host.
-- Direct mode has no home agent at all, so no Clara-enforced policy applies.
-  Clara hides host history there, but a modified web build can still call
-  OpenCode directly.
+- A modified web build can still call non-command OpenCode APIs through the
+  agent, and the agent forwards them.
 - The policy itself is changed from the loopback panel, which has no
   authentication beyond being reachable only from the machine.
 

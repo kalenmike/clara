@@ -136,7 +136,7 @@ monitoring on or off, and gates or paces client settings sync.
 8. **This is a guardrail, not a sandbox.** The policy governs command requests
    relayed by this agent. It does not restrict the rest of the OpenCode API: file
    writes, prompts that let an agent run tools, and plugin RPC can still affect
-   the host. Direct connections bypass the agent entirely. See [git](git.md) for
+   the host. See [git](git.md) for
    the full caveat.
 9. **Traffic monitoring is advisory and in memory.** The meter counts frame
    sizes, decrypted request actions, and the failures the agent already detects;

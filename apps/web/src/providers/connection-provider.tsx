@@ -14,9 +14,6 @@ import {
   connectionKey,
   createClient,
   describeConnectionError,
-  detectLocalService,
-  isRelayConfig,
-  localProxyConfig,
   resolveRelayWsUrl,
   type ClientControl,
   type ClientHandle,
@@ -38,7 +35,7 @@ const RECONNECT_TIMEOUT_MS = 5_000
  */
 const BOOT_TIMEOUT_MS = 12_000
 
-export type ConnectionBootSource = 'pairing-link' | 'stored' | 'local' | null
+export type ConnectionBootSource = 'pairing-link' | 'stored' | null
 
 type ConnectionContextValue = {
   config: ConnectionConfig | null
@@ -47,10 +44,9 @@ type ConnectionContextValue = {
   status: ConnectionStatus
   error: string | null
   attempt: ConnectionConfig | null
-  /** True until the initial stored/local/link attempt has settled. */
+  /** True until the initial stored/link attempt has settled. */
   booting: boolean
   bootSource: ConnectionBootSource
-  localInfo: ServerInfo | null
   relayStatus: RelayTransportStatus | null
   /** Bumped when a new client is installed so the stream resubscribes. */
   generation: number
@@ -58,7 +54,6 @@ type ConnectionContextValue = {
   reconnecting: boolean
   reconnectError: string | null
   connect: (config: ConnectionConfig) => Promise<boolean>
-  connectLocal: () => Promise<boolean>
   reconnect: () => Promise<boolean>
   disconnect: () => void
 }
@@ -79,9 +74,8 @@ export function ConnectionProvider({ children }: { children: ReactNode }) {
   const [booting, setBooting] = useState(true)
   const [bootSource, setBootSource] = useState<ConnectionBootSource>(() => {
     if (hasPendingPairingLink()) return 'pairing-link'
-    return attempt ? 'stored' : 'local'
+    return attempt ? 'stored' : null
   })
-  const [localInfo, setLocalInfo] = useState<ServerInfo | null>(null)
   const [relayStatus, setRelayStatus] = useState<RelayTransportStatus | null>(null)
   const [control, setControl] = useState<ClientControl | null>(null)
   const [generation, setGeneration] = useState(0)
@@ -106,12 +100,8 @@ export function ConnectionProvider({ children }: { children: ReactNode }) {
     unsubscribeRef.current = null
     handleRef.current?.close()
     handleRef.current = handle
-    setControl(handle.control ?? null)
-    if (handle.subscribeStatus) {
-      unsubscribeRef.current = handle.subscribeStatus(setRelayStatus)
-    } else {
-      setRelayStatus(null)
-    }
+    setControl(handle.control)
+    unsubscribeRef.current = handle.subscribeStatus(setRelayStatus)
   }, [])
 
   const connect = useCallback(
@@ -151,10 +141,6 @@ export function ConnectionProvider({ children }: { children: ReactNode }) {
     },
     [clearHandle, installHandle, queryClient]
   )
-
-  const connectLocal = useCallback(async () => {
-    return connect(localProxyConfig())
-  }, [connect])
 
   /**
    * Re-prove an existing connection without leaving the app or losing the
@@ -221,10 +207,11 @@ export function ConnectionProvider({ children }: { children: ReactNode }) {
         if (pairing) {
           setBootSource('pairing-link')
           await connect({
-            mode: 'relay',
-            ...pairing,
             wsUrl: resolveRelayWsUrl(pairing.wsUrl, pairing.room),
-            remember: true,
+            room: pairing.room,
+            clientToken: pairing.clientToken,
+            psk: pairing.psk,
+            fingerprint: pairing.fingerprint,
             label: 'Clara server',
           })
           return
@@ -235,19 +222,8 @@ export function ConnectionProvider({ children }: { children: ReactNode }) {
           setBootSource('stored')
           // Re-resolve the stored endpoint so a deployment switch change applies
           // to devices paired before it was set. Local pairings keep their URL.
-          const config = isRelayConfig(stored)
-            ? { ...stored, wsUrl: resolveRelayWsUrl(stored.wsUrl, stored.room) }
-            : stored
-          // Do not make the stored connection wait for the local-service probe.
-          if (!isRelayConfig(config)) void detectLocalService().then(setLocalInfo)
-          await connect(config)
-          return
+          await connect({ ...stored, wsUrl: resolveRelayWsUrl(stored.wsUrl, stored.room) })
         }
-
-        setBootSource('local')
-        const local = await detectLocalService()
-        setLocalInfo(local)
-        if (local) await connect(localProxyConfig())
       } finally {
         window.clearTimeout(timeout)
         setBooting(false)
@@ -269,14 +245,12 @@ export function ConnectionProvider({ children }: { children: ReactNode }) {
       attempt,
       booting,
       bootSource,
-      localInfo,
       relayStatus,
       generation,
       control,
       reconnecting,
       reconnectError,
       connect,
-      connectLocal,
       reconnect,
       disconnect,
     }),
@@ -289,14 +263,12 @@ export function ConnectionProvider({ children }: { children: ReactNode }) {
       attempt,
       booting,
       bootSource,
-      localInfo,
       relayStatus,
       generation,
       control,
       reconnecting,
       reconnectError,
       connect,
-      connectLocal,
       reconnect,
       disconnect,
     ]

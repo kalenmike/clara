@@ -168,9 +168,9 @@ start an agent run and move on, so they do not have to watch the sidebar.
   the stored user agent; the next subscribe records the class explicitly.
 - **Relay reconnect** — presence is re-sent on the next heartbeat, and a stale
   presence entry expires after one minute.
-- **Push unavailable** — direct HTTP mode, a home agent without push support, a
-  denied permission, or an iPhone that has not installed Clara keeps push off.
-  Settings explains which condition applies.
+- **Push unavailable** — a home agent without push support, a denied permission,
+  or an iPhone that has not installed Clara keeps push off. Settings explains
+  which condition applies.
 - **iPhone or iPad** — Clara must be installed from Safari and opened from the
   Home Screen icon before permission, subscription, or push delivery works.
 - **Push subscription expired** — a `404` or `410` from the push service removes
@@ -199,7 +199,6 @@ start an agent run and move on, so they do not have to watch the sidebar.
 
 ## Out of scope
 
-- Push notifications in direct HTTP mode.
 - Per-project or per-kind push filters; all four attention states share the push
   switch.
 - Syncing browser notification permission, the desktop switch, or a device's

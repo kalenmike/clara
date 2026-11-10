@@ -2,8 +2,9 @@
 
 A secure web client for [OpenCode](https://opencode.ai) sessions: projects,
 sessions, streaming chat, agents, models, slash commands, `@` mentions, and live
-usage. Clara can reach a home OpenCode server through an end-to-end encrypted
-Cloudflare relay, or connect directly on a trusted network.
+usage. Clara reaches a home OpenCode server through an end-to-end encrypted
+WebSocket, either through the Cloudflare relay or over a local connection on a
+trusted network.
 
 ## Requirements
 
@@ -49,14 +50,14 @@ worktree and branch. See [docs/development.md](docs/development.md).
 
 ```bash
 pnpm install
-opencode service start      # or: opencode serve --cors http://localhost:5173
+opencode service start      # or: opencode serve
 pnpm dev                    # web on :5173 and the home agent on :8788
+pnpm clara pair             # print a pairing code for the connect screen
 ```
 
-Open <http://localhost:5173>. The connect screen accepts a pairing code or a
-direct OpenCode URL/password. The home agent does **not** read OpenCode's
-`service.json`; it reads the harness connection saved in the authenticated
-panel.
+Open <http://localhost:5173> and pair with the code from `pnpm clara pair`. The
+home agent does **not** read OpenCode's `service.json`; it reads the harness
+connection saved in the authenticated panel.
 
 First run:
 
@@ -187,8 +188,7 @@ cannot open a `ws://` socket. For phones, configure the relay instead.
 
 `VITE_CLARA_WS_URL` is the relay deployment switch: it retargets relay-room
 pairings and is ignored for `local` pairing codes. When unset, the pairing
-payload's URL is used for both. An empty variable does not select direct mode —
-that comes from the connect screen or the `/oc` dev proxy. See
+payload's URL is used. See
 [docs/architecture/relay.md](docs/architecture/relay.md) for the full topology.
 
 ## Push notifications
@@ -218,22 +218,6 @@ The agent can store non-secret browser preferences for paired devices, with
 per-namespace revisions, deletes, and size limits over the E2EE session. The
 storage and protocol exist; the web client does not sync settings yet and there
 is no UI for it. See [docs/features/sync.md](docs/features/sync.md).
-
-## Direct mode
-
-Start OpenCode with Clara's origin allowed:
-
-```bash
-opencode serve --cors http://localhost:5173
-```
-
-Open **Connect**, enter the URL (for example `http://127.0.0.1:4096`) and the
-password printed by `opencode serve` as `server password …`. Optionally check
-"Remember this connection".
-
-`pnpm dev` and `pnpm preview` include the `/oc` proxy, which discovers a service
-started with `opencode service start`. Production builds use manual credentials
-or the relay.
 
 ## Scripts
 

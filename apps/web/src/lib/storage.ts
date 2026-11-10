@@ -2,7 +2,6 @@ import type { ConnectionConfig } from '@/lib/client'
 import { notifySettingChanged } from '@/lib/setting-events'
 
 const LOCAL_KEY = 'clara.connection.local'
-const SESSION_KEY = 'clara.connection.session'
 
 type StoredConnection = ConnectionConfig
 
@@ -10,31 +9,19 @@ function parse(raw: string | null): StoredConnection | null {
   if (!raw) return null
   try {
     const value = JSON.parse(raw) as Record<string, unknown>
-    if (value.mode === 'relay') {
-      const wsUrl = typeof value.wsUrl === 'string' ? value.wsUrl : ''
-      const room = typeof value.room === 'string' ? value.room : ''
-      const clientToken = typeof value.clientToken === 'string' ? value.clientToken : ''
-      const psk = typeof value.psk === 'string' ? value.psk : ''
-      const fingerprint = typeof value.fingerprint === 'string' ? value.fingerprint : ''
-      if (!wsUrl || !room || !clientToken || !psk || !fingerprint) return null
-      return {
-        mode: 'relay',
-        wsUrl,
-        room,
-        clientToken,
-        psk,
-        fingerprint,
-        label: typeof value.label === 'string' ? value.label : undefined,
-        remember: Boolean(value.remember),
-      }
-    }
-    if (typeof value.baseUrl !== 'string' || value.baseUrl.length === 0) return null
+    const wsUrl = typeof value.wsUrl === 'string' ? value.wsUrl : ''
+    const room = typeof value.room === 'string' ? value.room : ''
+    const clientToken = typeof value.clientToken === 'string' ? value.clientToken : ''
+    const psk = typeof value.psk === 'string' ? value.psk : ''
+    const fingerprint = typeof value.fingerprint === 'string' ? value.fingerprint : ''
+    if (!wsUrl || !room || !clientToken || !psk || !fingerprint) return null
     return {
-      mode: 'direct',
-      baseUrl: value.baseUrl,
-      password: typeof value.password === 'string' ? value.password : undefined,
+      wsUrl,
+      room,
+      clientToken,
+      psk,
+      fingerprint,
       label: typeof value.label === 'string' ? value.label : undefined,
-      remember: Boolean(value.remember),
     }
   } catch {
     return null
@@ -42,25 +29,14 @@ function parse(raw: string | null): StoredConnection | null {
 }
 
 export function loadStoredConnection(): StoredConnection | null {
-  return (
-    parse(window.localStorage.getItem(LOCAL_KEY)) ??
-    parse(window.sessionStorage.getItem(SESSION_KEY))
-  )
+  return parse(window.localStorage.getItem(LOCAL_KEY))
 }
 
 export function saveStoredConnection(config: ConnectionConfig): void {
-  const serialized = JSON.stringify(config)
-  window.sessionStorage.removeItem(SESSION_KEY)
-  window.localStorage.removeItem(LOCAL_KEY)
-  if (config.remember) {
-    window.localStorage.setItem(LOCAL_KEY, serialized)
-  } else {
-    window.sessionStorage.setItem(SESSION_KEY, serialized)
-  }
+  window.localStorage.setItem(LOCAL_KEY, JSON.stringify(config))
 }
 
 export function clearStoredConnection(): void {
-  window.sessionStorage.removeItem(SESSION_KEY)
   window.localStorage.removeItem(LOCAL_KEY)
 }
 
