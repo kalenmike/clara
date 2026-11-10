@@ -1075,6 +1075,12 @@ describe('agent client sync', () => {
       expect(active?.id).toBe(deviceId)
       expect(active?.key).toBe(enrollmentKey)
 
+      // The pairing session has no purpose after the response is delivered and
+      // must not linger in the panel until the idle sweep.
+      await waitFor(() =>
+        agent.getSnapshot().some((session) => session.sid === enrollSid) ? undefined : true
+      )
+
       const deviceSid = 'device-session'
       const deviceNonce = bytesToBase64Url(randomBytes(16))
       const helloCount = frames.filter((frame) => frame.t === 'hello').length
