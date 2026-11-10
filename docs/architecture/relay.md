@@ -87,8 +87,9 @@ read or forge E2EE frames. Rotate both tokens if either leaks.
 3. Deploy the Worker with `pnpm deploy:relay`; it creates the DO namespace. Add
    your own custom domain route in `workers/relay/wrangler.jsonc` or the
    Cloudflare dashboard, or use the workers.dev URL.
-4. Set the Worker secrets and matching server environment variables, including
-   `CLARA_PAIRING_BASE_URL` for your web URL.
+4. Set the Worker secrets and matching server environment variables. Open the
+   agent panel and set **Web URL** to your web URL; `CLARA_PAIRING_BASE_URL`
+   overrides it if you prefer environment configuration.
 5. Start the home agent with `CLARA_RELAY_URL`, `CLARA_RELAY_ROOM`,
    `CLARA_AGENT_TOKEN`, and `CLARA_CLIENT_TOKEN`. When the room is omitted, the
    agent generates one and persists it in `server.json`; keep that value stable,

@@ -68,7 +68,8 @@ start an agent run and move on, so they do not have to watch the sidebar.
    handles its own alert, and a hidden or closed Clara leaves delivery to the
    service worker push so the person is not notified twice. Desktop devices
    always receive push; mobile devices are held while a desktop client is
-   present at the desk.
+   present at the desk. The VAPID contact defaults to `https://clara.local`; the
+   agent panel can edit it and `CLARA_VAPID_SUBJECT` overrides it.
 7. Settings shows the controls that fit the current device. **Desktop
    notifications** appears only when the primary pointer is fine, such as a
    laptop with a mouse or trackpad. **Push notifications** appears on every
@@ -296,7 +297,8 @@ start an agent run and move on, so they do not have to watch the sidebar.
   `0600`); VAPID keys live in `vapid.json` next to it
 - Push service worker: `apps/web/public/push-sw.js`, loaded by the Clara worker
   (`apps/web/src/sw.ts`) with `importScripts`
-- Push setup: `CLARA_VAPID_SUBJECT` optionally overrides the default subject;
+- Push setup: the agent panel's VAPID contact (stored in `vapid.json`) or
+  `CLARA_VAPID_SUBJECT` overrides the default subject `https://clara.local`;
   `CLARA_VAPID_PUBLIC_KEY` and `CLARA_VAPID_PRIVATE_KEY` override the stored key
   pair
 - Related: [sessions](sessions.md), [capabilities](capabilities.md),

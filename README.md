@@ -201,9 +201,9 @@ the browser must use a different relay endpoint than the agent:
 VITE_CLARA_WS_URL=wss://relay.example pnpm clara web start --docker --build
 ```
 
-The default pairing base is `http://127.0.0.1:8080`, so a local code prints a
-link to this container. Set `CLARA_PAIRING_BASE_URL` to your own HTTPS web URL
-for Pages or a remote deployment.
+The default Web URL is `http://127.0.0.1:8080`, so a local code prints a link
+to this container. Set **Web URL** in the agent panel for Pages or a remote
+deployment; `CLARA_PAIRING_BASE_URL` still overrides the panel for automation.
 
 Local pairing works from `http://127.0.0.1:8080` or an SSH tunnel. An HTTPS page
 cannot open a `ws://` socket, so phones and remote browsers still need the relay.
@@ -244,8 +244,9 @@ Add `--local` (`pnpm clara pair --local`) to force a local-only
 code even when the agent has a relay configured. The local listener runs
 alongside the relay client, so this exercises the WebSocket transport — including
 the shell policy — without sending traffic through Cloudflare. For the dev app,
-set `CLARA_PAIRING_BASE_URL=http://localhost:5173` when pairing so the printed
-link opens Vite directly.
+set **Web URL** to `http://localhost:5173` in the agent panel (or set
+`CLARA_PAIRING_BASE_URL=http://localhost:5173` when pairing) so the printed link
+opens Vite directly.
 
 A `local` pairing code only works where that URL is reachable, and an HTTPS page
 cannot open a `ws://` socket. For phones, configure the relay instead.
@@ -279,14 +280,14 @@ cannot open a `ws://` socket. For phones, configure the relay instead.
 
    ```bash
    CLARA_RELAY_URL=wss://relay.example
-   CLARA_PAIRING_BASE_URL=https://your-clara.example
    CLARA_RELAY_ROOM=<generated on first run, persisted in server.json>
    CLARA_AGENT_TOKEN=<must match the Worker secret>
    CLARA_CLIENT_TOKEN=<must match the Worker secret>
    ```
 
-   Use your own relay and web URLs. The pairing base defaults to the local web
-   container, so set it explicitly for a Pages deployment.
+   Use your own relay URL. Open the agent panel and set **Web URL** to
+   `https://your-clara.example` for a Pages deployment; `CLARA_PAIRING_BASE_URL`
+   overrides the panel if you prefer environment configuration.
 
 5. Restart the agent and check `relay connecting` / `relay online` in its log.
    `pnpm clara pair` must then print a random `Room:` and a `/room/<id>` link;
@@ -316,8 +317,9 @@ subscriptions at `~/.config/clara/subscriptions.json`.
 - `pnpm clara pair --rotate` clears all stored push
   subscriptions as well as rotating the pairing key; restart the running home
   agent afterward.
-- `CLARA_VAPID_SUBJECT` overrides the VAPID contact subject; the default is the
-  pairing base URL.
+- `CLARA_VAPID_SUBJECT` overrides the VAPID contact subject. The default is
+  `https://clara.local`; the agent panel can edit the contact stored in
+  `vapid.json`.
 - Test push from a production build with the home agent URL
   (`VITE_CLARA_WS_URL=ws://127.0.0.1:8788 pnpm build && pnpm preview`) or the
   deployed PWA; the Vite dev server does not enable the service worker.
