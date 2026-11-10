@@ -22,7 +22,9 @@ apps/panel            Authenticated dashboard and setup surface served by the ho
 apps/server           Node home agent, harness proxy, local WS + outbound relay
 apps/orchestrator     Loopback orchestration service, REST/SSE/MCP
 apps/mcp              stdio MCP bridge to the orchestration service
-plugins/clara-policy  OpenCode strict enforcement adapter
+plugins/clara-policy  OpenCode strict enforcement binding
+packages/adapter      Harness adapter installer, shared runner, and MCP registration
+packages/adapter-core Harness-neutral adapter client, delivery, prompt, and runner pieces
 packages/shared-types Wire frames, actions, states, pairing payloads
 packages/orchestration Package loader, runtime, leases, and watchdog
 packages/runner       Shared script runner for harness adapters
