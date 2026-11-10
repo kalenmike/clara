@@ -60,7 +60,10 @@ See [fork.md](fork.md).
    newest message at the top of the view, directly below the header and any
    permission or saved-draft panel above the thread, so a long reply is readable
    from its first line. A session that is still running keeps following the
-   newest output instead. The down-arrow control jumps to the newest output.
+   newest output instead. A stacked pair of arrow controls at the left edge
+   steps through the thread: a single press puts the top of the next or previous
+   message at the top of the view, and a double press jumps to the newest output
+   or the top of the loaded history.
 3. Click **Reply**, type in the reply window, and press Enter; the prompt appears
    immediately and the header switches to "busy". If the composer was already
    open or minimized on another session, it stays connected there instead; close
@@ -163,7 +166,11 @@ See [fork.md](fork.md).
    folds independently to its title; folded content is clipped and not
    focusable. Folding is held in memory for the mounted card and resets when the
    person leaves the session. Question forms and the plan-ready handoff live in
-   the composer instead, so they do not push the thread down.
+   the composer instead, so they do not push the thread down. The left-edge up
+   and down arrows step by message and skip system-event and hidden-activity
+   rows; a single press aligns the next or previous message to the top, and at
+   the ends it moves to the bottom or top. A double press always jumps to the
+   bottom or top.
 5. Unknown event types are ignored so a newer server does not break the view.
 6. Each message renders as a full-width row with a `U`/`A` avatar, sender name,
    timestamp, and a divider. A user message with `metadata.synthetic === true`
@@ -288,7 +295,7 @@ See [fork.md](fork.md).
     output, reasoning, and cache-read plus cache-write tokens, the cost in the
     selected display mode, and how long ago the session started. It reads the
     server's session totals rather than the loaded pages, so long conversations
-    stay complete. The floating Done, Reply, jump, and reply-window controls
+    stay complete. The floating Done, Reply, step, and reply-window controls
     sit above it, and it scrolls horizontally on narrow screens instead of
     wrapping.
 21. The header's second line shows the run state (`busy`, `retry N`, or `idle`)
@@ -333,6 +340,14 @@ See [fork.md](fork.md).
   the bottom safe-area inset while it is the lowest element.
 - **Long-open session** — the "started ... ago" wording refreshes about once a
   minute while the bar stays open.
+- **Message step timing** — a single press waits about 250 ms for a possible
+  second press, so a double press never flashes the intermediate message.
+- **Message step at an edge** — a single down press on the last message goes to
+  the bottom, a single up press on the first message goes to the top, and a
+  double press at either edge keeps the view in place.
+- **Message step visibility** — the down arrow hides at the bottom and the up
+  arrow hides at the top; both slots stay reserved so the visible arrow does not
+  move.
 - **Composer open on another session** — the thread stays on the current session
   while the composer title and connection line name the connected session. All
   sends target that session, the return control jumps back, and closing the
@@ -479,6 +494,8 @@ See [fork.md](fork.md).
   MCP elicitations are not logged in the thread.
 - The opening position is settled over a few frames; scrolling in the first
   moments after opening can cancel the adjustment mid-measurement.
+- Double-press gestures are pointer-only; keyboard activation performs the
+  single step.
 
 ## Technical appendix
 
@@ -572,6 +589,10 @@ delivery: 'steer' })` for Start. Send with a typed message calls
   rolls those totals into the next visible reply and emits a
   `hidden-activity` row when none follows. The row lives in
   `src/components/chat/hidden-activity-row.tsx`.
+- Message step controls: `src/components/chat/message-list.tsx` renders the
+  left-edge arrows and owns the double-press window;
+  `src/features/chat/message-navigation.ts` picks the next or previous message
+  row and skips system events and hidden activity.
 - Session usage bar: `src/components/chat/session-stats-bar.tsx` renders the
   whole-session line, `src/features/chat/session-usage.ts` formats the token and
   cost segments, and `formatSessionAge` in `src/lib/format.ts` owns the
