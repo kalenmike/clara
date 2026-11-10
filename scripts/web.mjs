@@ -61,8 +61,8 @@ async function start() {
     return
   }
   console.log(`web: ${webURL()}/`)
-  console.log('Pair with `pnpm clara server pair` for a local code, or rebuild with')
-  console.log('VITE_CLARA_WS_URL=wss://… for relay pairings.')
+  console.log('Run `pnpm clara server pair` for the agent pairing mode, or add --local')
+  console.log('to force a local code.')
   console.log('An HTTPS page cannot open a ws:// socket; remote clients need the relay.')
 }
 

@@ -121,9 +121,9 @@ and `pnpm clara orchestration inspect`.
   that was down before the rebuild.
 - **The web client runs in a container:** restart stops and recreates it with
   `pnpm clara web stop --docker` and `pnpm clara web start --docker --build`,
-  then waits for `/healthz`. The fresh build reuses `VITE_CLARA_WS_URL` from
-  `docker/.env`, so keep the relay endpoint there when the app was built for
-  relay pairings.
+  then waits for `/healthz`. The fresh build reuses any `VITE_CLARA_WS_URL` in
+  `docker/.env`, so keep a retargeted relay endpoint there when the image uses
+  one.
 - **The web client is served outside compose:** a healthy `/healthz` without a
   running compose service is captured as `local` and skipped with a warning;
   the pipeline cannot rebuild a static server it does not manage.
@@ -186,8 +186,8 @@ clara`. A manually started agent is restarted from the captured root with its
   compose service. A web client served by another static server is captured as
   `local` and is not restarted by the pipeline.
 - A rebuilt web image takes `VITE_CLARA_WS_URL` from `docker/.env` (or the
-  environment). If the value is missing, the new image falls back to local
-  pairing codes even when the previous image used the relay.
+  environment). If a previous image retargeted relay rooms and the value is
+  missing, the new image falls back to the relay URL in each pairing code.
 - A Lab started with `pnpm dev:lab` is restarted as the built Lab server, not
   with its Vite development process.
 - A containerized OpenCode needs host access to `pnpm`, git, docker or systemd,

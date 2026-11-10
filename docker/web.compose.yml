@@ -7,8 +7,9 @@
 # The container joins the clara network so a reverse proxy beside it can reach
 # `web:80`. Publish it on host loopback and open http://127.0.0.1:8080.
 #
-# Set VITE_CLARA_WS_URL in docker/.env and rebuild for relay pairings. Leaving
-# it unset keeps local pairing codes working from http://127.0.0.1:8080.
+# VITE_CLARA_WS_URL is only needed to retarget relay rooms to a relay endpoint
+# different from the one in the pairing code. Local codes keep their own ws://
+# URL, so leaving it unset works for both modes.
 
 name: clara-web
 

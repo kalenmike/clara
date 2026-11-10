@@ -138,8 +138,11 @@ Open <http://127.0.0.1:8080>. The image builds the same bundle as
 `pnpm --filter @clara/web build` and serves it with nginx on host loopback; the
 Pages headers and cache rules are mirrored in `docker/web.nginx.conf`.
 
-Leave `VITE_CLARA_WS_URL` unset for local pairing codes. For relay pairings, set
-it in `docker/.env` and rebuild:
+Pairing mode comes from the agent, not the web image. `pnpm clara server pair
+--docker` prints a relay code when the agent has a relay configured and a local
+code otherwise; add `--local` to force a local code. The relay code already
+carries its `wss://…/room/<id>` URL, so `VITE_CLARA_WS_URL` is only needed when
+the browser must use a different relay endpoint than the agent:
 
 ```bash
 VITE_CLARA_WS_URL=wss://relay.example pnpm clara web start --docker --build
