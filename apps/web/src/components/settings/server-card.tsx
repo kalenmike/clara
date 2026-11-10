@@ -5,7 +5,7 @@ import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Separator } from '@/components/ui/separator'
-import { connectionUrl, isRelayConfig } from '@/lib/client'
+import { connectionUrl } from '@/lib/client'
 import { useConnection } from '@/providers/connection-provider'
 import { useEventStream } from '@/providers/event-provider'
 import { usePush } from '@/providers/push-provider'
@@ -26,7 +26,7 @@ export function ServerCard({ simplified }: { simplified: boolean }) {
   const retry = async () => {
     const ok = await reconnect()
     if (ok) toast.success('Reconnected to OpenCode')
-    else toast.error('Could not reach the server. Check that OpenCode is running.')
+    else toast.error('Could not reach the Clara server. Check that the home agent is running.')
   }
 
   return (
@@ -43,7 +43,10 @@ export function ServerCard({ simplified }: { simplified: boolean }) {
         {!simplified && (
           <>
             <Row label="URL" value={connectionUrl(config)} />
-            <Row label="Mode" value={config && isRelayConfig(config) ? 'E2EE relay' : 'direct'} />
+            <Row
+              label="Transport"
+              value={config ? (config.room === 'local' ? 'Local WebSocket' : 'E2EE relay') : '—'}
+            />
             {relayStatus && <Row label="Relay" value={relayStatus.state} />}
             {relayStatus?.agent?.opencodeVersion && (
               <Row label="OpenCode" value={relayStatus.agent.opencodeVersion} />
