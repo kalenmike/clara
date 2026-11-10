@@ -22,7 +22,11 @@ function record(overrides = {}) {
     healthy: true,
     url: 'http://127.0.0.1:8790',
     error: null,
-    details: { panel: 'running', local: 'running', admin: 'configured' },
+    details: {
+      panel: 'running at http://127.0.0.1:8790',
+      local: 'running at http://127.0.0.1:8788',
+      admin: 'configured',
+    },
     ...overrides,
   }
 }
@@ -102,10 +106,15 @@ test('renders the same table for a stack and for one service', () => {
   assert.match(lines.join('\n'), /web: unreachable/)
 
   const single = []
-  renderStatus([record()], { title: 'Clara server', write: (line) => single.push(line) })
+  renderStatus([record()], {
+    title: 'Clara server',
+    urlHeader: 'PANEL',
+    write: (line) => single.push(line),
+  })
   assert.equal(single[0], 'Clara server')
-  assert.match(single.join('\n'), /panel\s+running/)
-  assert.match(single.join('\n'), /local\s+running/)
+  assert.match(single.join('\n'), /SERVICE\s+CONTAINER\s+STATE\s+PANEL/)
+  assert.match(single.join('\n'), /panel\s+running at http:\/\/127\.0\.0\.1:8790/)
+  assert.match(single.join('\n'), /local\s+running at http:\/\/127\.0\.0\.1:8788/)
   assert.match(single.join('\n'), /admin\s+configured/)
 })
 

@@ -5,6 +5,7 @@
 //   pnpm clara server stop [--local|--docker]
 //   pnpm clara server restart [--local|--docker] [--build]
 //   pnpm clara server status
+//   pnpm clara server panel
 //   pnpm clara server setup-token [--docker|--host]
 //   pnpm clara server admin reset [--docker|--host]
 //   pnpm clara server pair [--docker|--host]
@@ -23,6 +24,7 @@ import {
   waitForPanel,
 } from './lib/server-control.mjs'
 import { followLog, logPath, parseMode, startDetached, stopDetached } from './lib/local-runtime.mjs'
+import { openPanel } from './lib/panel.mjs'
 import { root, runPnpm } from './lib/router.mjs'
 import { collectStatus, renderJSON, renderStatus, statusExitCode } from './lib/status.mjs'
 
@@ -57,6 +59,9 @@ switch (command) {
     break
   case 'status':
     await printStatus()
+    break
+  case 'panel':
+    await panel()
     break
   case 'setup-token':
     await runServerProcessFor(['admin', 'setup-token'])
@@ -94,7 +99,7 @@ async function start() {
     process.exitCode = 1
     return
   }
-  console.log(`server panel: ${panelURL()}/`)
+  console.log(`panel: ${panelURL()}/`)
   console.log('If this is the first run, open the panel and use the one-time setup token:')
   console.log('  pnpm clara server setup-token --docker')
   console.log('The token is also written to admin-setup.txt in the clara-server-config volume.')
@@ -124,7 +129,7 @@ async function startLocal() {
       process.exitCode = 1
       return
     }
-    console.log(`server panel: ${panelURL()}/ (already running locally)`)
+    console.log(`panel: ${panelURL()}/ (already running locally)`)
     return
   }
 
@@ -140,7 +145,7 @@ async function startLocal() {
   })
 
   if (result.status === 'started' || result.status === 'running') {
-    console.log(`server panel: ${panelURL()}/`)
+    console.log(`panel: ${panelURL()}/`)
     console.log(`  logs:  ${logPath('server')}`)
     console.log('Stop it with `pnpm clara server stop --local`.')
     return
@@ -191,10 +196,36 @@ async function restart() {
   return start()
 }
 
+async function panel() {
+  if (process.env.CLARA_PANEL_DISABLED === '1') {
+    console.error('The panel is disabled by CLARA_PANEL_DISABLED=1. Unset it and try again.')
+    process.exitCode = 1
+    return
+  }
+  const url = `${panelURL()}/`
+  const health = await probe(`${panelURL()}/health`)
+  if (health.ok && health.body?.service === 'clara-server') {
+    console.log(`panel: ${url}`)
+    openPanel(url)
+    return
+  }
+  if (health.ok) {
+    const service =
+      typeof health.body?.service === 'string' ? health.body.service : 'another service'
+    console.error(`${panelURL()} answered as ${service}, not the Clara home agent.`)
+  } else {
+    console.error(`The home agent is not serving the panel at ${url}.`)
+  }
+  console.error(
+    'Start it with `pnpm clara server start --local` or `pnpm clara server start --docker`.'
+  )
+  process.exitCode = 1
+}
+
 async function printStatus() {
   const [record] = await collectStatus(['server'])
   if (json) renderJSON([record])
-  else renderStatus([record], { title: 'Clara server' })
+  else renderStatus([record], { title: 'Clara server', urlHeader: 'PANEL' })
   process.exitCode = statusExitCode([record])
 }
 
@@ -266,6 +297,7 @@ Commands:
   stop                         Stop the container, or the local agent with --local
   restart [--build]            Restart the selected mode
   status [--json]              Probe the panel and local listener
+  panel                        Open the agent panel in a browser
   setup-token                  Print the one-time panel setup token
   admin reset                  Reset the panel superadmin password
   pair                         Print a pairing code from the agent

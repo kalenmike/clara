@@ -293,7 +293,8 @@ function printSummary(selection) {
   if (selection.server) {
     const flag = selection.mode === 'local' ? '--local' : '--docker'
     console.log('')
-    console.log(`First run: open the panel and use \`pnpm clara server setup-token ${flag}\`.`)
+    console.log('Open the panel with `pnpm clara server panel`.')
+    console.log(`First run: use \`pnpm clara server setup-token ${flag}\` for the one-time token.`)
     console.log(`Pair a device with \`pnpm clara server pair ${flag}\`.`)
   }
   if (!selection.web) {
@@ -340,7 +341,7 @@ Pass --local to run the selected services as detached local processes, or
 mode.
 
 Use the scoped commands for independent control:
-  pnpm clara server start|stop|restart|status
+  pnpm clara server start|stop|restart|status|panel
   pnpm clara web start|stop|restart|status|logs
   pnpm clara orchestrator start|stop|restart|status`)
 }
