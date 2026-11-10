@@ -44,9 +44,15 @@ export class RuntimeBackend implements ClaraBackend {
     return { ...result, run: runSummary(result.run) }
   }
 
-  async next(runID: number, limit?: number, capabilities?: string[]) {
+  async next(
+    runID: number,
+    limit?: number,
+    capabilities?: string[],
+    harness?: string
+  ) {
     return this.runtime.next(runID, limit ?? 1, 'mcp', {
       ...(capabilities ? { capabilities } : {}),
+      ...(harness ? { harness, role: 'harness' } : {}),
     })
   }
 
@@ -60,6 +66,7 @@ export class RuntimeBackend implements ClaraBackend {
       this.workspace(input.workspace),
       {
         capabilities: input.capabilities,
+        role: 'runner',
         ...(input.runner ? { runner: input.runner } : {}),
       },
       input.limit ?? 1,

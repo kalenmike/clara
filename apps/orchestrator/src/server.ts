@@ -239,7 +239,17 @@ export function createOrchestratorServer(options: OrchestratorServerOptions): Or
         const capabilities = Array.isArray(input.capabilities)
           ? input.capabilities.filter((item): item is string => typeof item === 'string')
           : undefined
-        json(res, 200, await backend.next(runID(url), number(input.limit, 1), capabilities))
+        const harness = typeof input.harness === 'string' ? input.harness.trim() : ''
+        json(
+          res,
+          200,
+          await backend.next(
+            runID(url),
+            number(input.limit, 1),
+            capabilities,
+            harness || undefined
+          )
+        )
         return
       }
       const outputMatch = url.pathname.match(/^\/v1\/runs\/(\d+)\/steps\/(.+)\/output$/)

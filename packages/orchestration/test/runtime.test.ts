@@ -246,6 +246,123 @@ describe('runtime', () => {
     ).toThrow(/strict enforcement/)
   })
 
+  it('routes agent work to the origin harness', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'clara-harness-origin-'))
+    try {
+      mkdirSync(join(dir, 'orchestration', 'agents'), { recursive: true })
+      writeFileSync(
+        join(dir, 'orchestration', 'index.yml'),
+        [
+          'id: temp',
+          'name: Temp',
+          'version: 1',
+          'entry:',
+          '  pipeline: work',
+          'pipelines:',
+          '  work:',
+          '    enforcement: strict',
+          '    steps:',
+          '      - name: review',
+          '        type: agent',
+        ].join('\n')
+      )
+      writeFileSync(
+        join(dir, 'orchestration', 'agents', 'review.md'),
+        '---\ndescription: Review\n---\n\nReview it.'
+      )
+      const local = new Runtime({
+        store: new Store(':memory:'),
+        configPath: join(dir, 'orchestration', 'index.yml'),
+      })
+      const capabilities = ['tool_policy', 'turn_limit', 'token_limit']
+      local.registerAdapter({ harness: 'opencode', workspace: dir, capabilities })
+      local.registerAdapter({ harness: 'claudecode', workspace: dir, capabilities })
+
+      const started = local.start({
+        workspace: dir,
+        prompt: 'go',
+        capabilities: ['script'],
+        origin: { harness: 'opencode' },
+      })
+      expect(started.work).toEqual([])
+      expect(
+        local.next(started.run.id, 1, 'claudecode', {
+          capabilities: ['agent'],
+          harness: 'claudecode',
+          role: 'harness',
+        })
+      ).toEqual([])
+      expect(
+        local.next(started.run.id, 1, 'opencode', {
+          capabilities: ['agent'],
+          harness: 'opencode',
+          role: 'harness',
+        })
+      ).toHaveLength(1)
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('lets a pinned adapter claim work started from another harness', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'clara-harness-pin-'))
+    try {
+      mkdirSync(join(dir, 'orchestration', 'agents'), { recursive: true })
+      writeFileSync(
+        join(dir, 'orchestration', 'index.yml'),
+        [
+          'id: temp',
+          'name: Temp',
+          'version: 1',
+          'entry:',
+          '  pipeline: work',
+          'pipelines:',
+          '  work:',
+          '    enforcement: strict',
+          '    steps:',
+          '      - name: review',
+          '        type: agent',
+          '        requires:',
+          '          adapter: claudecode',
+        ].join('\n')
+      )
+      writeFileSync(
+        join(dir, 'orchestration', 'agents', 'review.md'),
+        '---\ndescription: Review\n---\n\nReview it.'
+      )
+      const local = new Runtime({
+        store: new Store(':memory:'),
+        configPath: join(dir, 'orchestration', 'index.yml'),
+      })
+      const capabilities = ['tool_policy', 'turn_limit', 'token_limit']
+      local.registerAdapter({ harness: 'opencode', workspace: dir, capabilities })
+      local.registerAdapter({ harness: 'claudecode', workspace: dir, capabilities })
+
+      const started = local.start({
+        workspace: dir,
+        prompt: 'go',
+        capabilities: ['script'],
+        origin: { harness: 'opencode' },
+      })
+      expect(
+        local.next(started.run.id, 1, 'opencode', {
+          capabilities: ['agent'],
+          harness: 'opencode',
+          role: 'harness',
+        })
+      ).toEqual([])
+      expect(
+        local.next(started.run.id, 1, 'claudecode', {
+          capabilities: ['agent'],
+          harness: 'claudecode',
+          role: 'harness',
+        })
+      ).toHaveLength(1)
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
+
   it('starts, completes, and advances a strict pipeline', () => {
     adapter()
     const started = runtime.start({

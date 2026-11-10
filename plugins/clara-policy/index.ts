@@ -1110,6 +1110,7 @@ export default {
             const work = await call<Any[]>(config, 'POST', `/v1/runs/${runID}/next`, {
               limit: 8,
               capabilities: ['agent'],
+              harness: 'opencode',
             })
             if (work.length) {
               await dispatchWork(work, ctx)
