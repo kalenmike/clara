@@ -213,7 +213,7 @@ export function formatStatus(report: StatusReport): string[] {
 
   if (report.state === 'container') {
     lines.push('database: managed by the container (host mount from CLARA_DATA_DIR)')
-    lines.push('stop: pnpm clara orchestration stop --docker')
+    lines.push('stop: pnpm clara orchestrator stop --docker')
   } else if (report.state === 'external') {
     lines.push('database: unknown (not this data directory)')
   } else if (report.state !== 'foreign') {
@@ -222,9 +222,7 @@ export function formatStatus(report: StatusReport): string[] {
 
   if (report.state === 'external') {
     lines.push('warning: no local pid file; this instance was not started from this data directory')
-    lines.push(
-      'stop: stop it where it was started, or use `pnpm clara orchestration stop --docker`'
-    )
+    lines.push('stop: stop it where it was started, or use `pnpm clara orchestrator stop --docker`')
   }
   if (report.state === 'unresponsive') {
     lines.push(`warning: the process is alive but ${report.url}/health did not respond`)
@@ -257,8 +255,8 @@ function repoRoot(): string {
 }
 
 export function composeArgs(action: ComposeAction, build = false): string[] {
-  if (action === 'down') return ['compose', '-f', 'docker/compose.yml', 'down']
-  const args = ['compose', '-f', 'docker/compose.yml', 'up', '-d']
+  if (action === 'down') return ['compose', '-f', 'docker/orchestrator.compose.yml', 'down']
+  const args = ['compose', '-f', 'docker/orchestrator.compose.yml', 'up', '-d']
   if (build) args.push('--build')
   args.push('orchestrator')
   return args

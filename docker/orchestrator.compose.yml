@@ -2,16 +2,17 @@
 #
 #   export CLARA_ORCHESTRATION_TOKEN="$(openssl rand -hex 32)"
 #   export CLARA_WORKSPACE=/absolute/path/to/your/workspace
-#   docker compose -f docker/compose.yml up -d --build
+#   docker compose -f docker/orchestrator.compose.yml up -d --build
 #
-# The orchestrator listens only on the private `clara` network. Do not publish
-# port 8789 to the host. The OpenCode container joins the same network and uses
-# http://orchestrator:8789.
+# The orchestrator listens only on the private `clara` network. The host
+# loopback publish exists for host tools; the OpenCode container joins the same
+# network and uses http://orchestrator:8789.
 
 name: clara
 
 services:
   orchestrator:
+    container_name: clara-orchestrator
     build:
       context: ..
       dockerfile: docker/orchestrator.Dockerfile
@@ -31,7 +32,6 @@ services:
       - clara
     ports:
       - '127.0.0.1:8789:8789'
-    # No ports: only other services on the clara network can reach it.
     healthcheck:
       test:
         [
