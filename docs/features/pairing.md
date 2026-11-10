@@ -47,8 +47,7 @@ configuration locally.
    relay, and an HTTPS page cannot open its `ws://` socket. `clara-server pair
 --local` forces such a code even when the agent has a relay configured; the
    local listener runs alongside the relay client.
-6. A device is stored in `localStorage` after pairing; direct connections keep
-   the existing session/local-storage remember rule.
+6. A device is stored in `localStorage` after pairing.
 7. The fingerprint shown by the web must match the terminal fingerprint before
    the connection is trusted.
 8. One PSK and one client token are shared by all paired devices in v1.
@@ -118,7 +117,7 @@ configuration locally.
   decoded on a detached canvas; the stream stops on detection or close
 - Camera policy: `Permissions-Policy: camera=(self)` in
   `apps/web/public/_headers`; self-hosted deployments must send the same header
-- Storage key: `clara.connection.local` / `clara.connection.session`
+- Storage key: `clara.connection.local`
 - Connect screen: `/connect`
 - Server config: `~/.config/clara/server.json` (mode `0600`)
 - Push subscriptions: `~/.config/clara/subscriptions.json`, cleared by

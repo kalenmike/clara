@@ -65,8 +65,8 @@ at all and how often clients check for changes.
 
 ## Edge cases
 
-- **Direct HTTP connection** — the Sync tab stays visible but disabled and
-  explains that it needs the Clara home agent.
+- **Not connected** — the Sync tab stays visible but disabled until the home
+  agent transport is open.
 - **Admin disables sync** — connected clients update from the agent's broadcast,
   the tab disappears, and the engine stops. The stored namespace and each
   device's category choices remain.

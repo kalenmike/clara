@@ -28,7 +28,7 @@ same version as the server it targets (2.1.1). Before bumping either side:
 1. Check the server's `/openapi.json` for endpoint or payload changes.
 2. Update the client package to the same version.
 3. Run `pnpm check` and re-test connect, stream, send, and switch flows through
-   both direct and relay transports.
+   both the local WebSocket and relay transports.
 
 `@opencode-ai/sdk` is not used: that package targets the v1 API and does not
 match the v2 server. `@opencode/sdk` bundles an embedded Node server and is not
@@ -67,7 +67,6 @@ Clara home agent ──outbound WSS──▶ Worker ──▶ RelayRoom DO ◀�
       └── Web Push (VAPID) ──▶ Apple / browser push service ──▶ service worker
 
 Local mode: web ──WSS──▶ home agent ──▶ active harness (OpenCode now)
-Direct mode: web ──HTTP/SSE──▶ OpenCode (legacy / operator-managed)
 Panel: browser ──HTTP 127.0.0.1:8790──▶ home agent (auth + setup + controls)
 Harness: panel ──▶ SQLite harness_connections (encrypted secret) ──▶ harness client
 Docker: home agent, orchestrator, and OpenCode on the `clara` bridge network
@@ -81,41 +80,28 @@ See [relay.md](relay.md), [e2ee.md](e2ee.md), and
 
 ## Connecting
 
-Clara supports three modes:
+Clara supports two transports, both through the home agent:
 
-| Mode        | Selected by                        | Auth                                                  |
-| ----------- | ---------------------------------- | ----------------------------------------------------- |
-| Relay       | `VITE_CLARA_WS_URL` + pairing code | E2EE PSK + relay client token                         |
-| Local agent | Pairing payload URL (`local` room) | E2EE PSK + local WebSocket                            |
-| Direct      | No pairing                         | OpenCode HTTP basic auth, or the Vite `/oc` dev proxy |
+| Mode        | Selected by                        | Auth                          |
+| ----------- | ---------------------------------- | ----------------------------- |
+| Relay       | `VITE_CLARA_WS_URL` + pairing code | E2EE PSK + relay client token |
+| Local agent | Pairing payload URL (`local` room) | E2EE PSK + local WebSocket    |
 
 The connect screen first proves any pairing link or stored device behind a
-branded splash. If none connects, it offers a chooser with the pairing form and
-the direct URL/password fallback; only the chosen form renders. Pairing is
+branded splash. If none connects, it shows the pairing form. There is no direct
+HTTP option: every browser connection goes through the home agent. Pairing is
 described in [pairing.md](../features/pairing.md).
 
-Direct mode reads the background service registration when present:
-
-```text
-${XDG_STATE_HOME:-~/.local/state}/opencode/service.json
-```
-
-The Vite dev server proxies `/oc` to that service with the `authorization`
-header attached, so the browser never sees the password. `opencode serve` does
-not write `service.json`; connect to it manually with its URL and the password
-printed at startup, and allow Clara's origin with `--cors`.
-
-In relay/local mode the OpenCode password never reaches the browser. The home
-agent adds basic auth, strips client-supplied authorization/hop-by-hop headers,
-and only proxies `/api/` paths on the configured origin.
+The OpenCode password never reaches the browser. The home agent adds basic auth,
+strips client-supplied authorization/hop-by-hop headers, and only proxies
+`/api/` paths on the configured origin.
 
 ## Runtime shape
 
 ```text
 ConnectionProvider
   └─ creates the SDK client
-       ├─ direct: OpenCode.make({ baseUrl, headers })
-       └─ relay/local: OpenCode.make({ fetch: relayFetchOverWebSocket })
+       └─ OpenCode.make({ fetch: relayFetchOverWebSocket })
             ├─ TanStack Query: projects, sessions, messages, catalog, approvals
             └─ EventProvider: one SSE subscription for the whole tab
                  ├─ chatStore: applies streaming deltas per session
@@ -165,7 +151,7 @@ ConnectionProvider
 
 | Route                        | Screen                                                     |
 | ---------------------------- | ---------------------------------------------------------- |
-| `/connect`                   | Pairing, direct server form, local service detection       |
+| `/connect`                   | Pairing and stored-device connection                       |
 | `/`                          | Start view; creates a session and opens its draft composer |
 | `/p/:projectId`              | Project details and session grid                           |
 | `/p/:projectId/s/:sessionId` | Chat                                                       |
@@ -220,9 +206,9 @@ saved shell policy allows the request:
   request's location.
 
 The policy lives in `clara.db`, is read on every request, and is changed from the
-loopback panel. It applies only to requests that travel through the agent.
-Direct connections and non-command APIs are outside it. It is a guardrail, not a
-sandbox: see [git.md](features/git.md#not-a-sandbox).
+loopback panel. It applies only to command requests; other OpenCode APIs are
+outside it. It is a guardrail, not a sandbox: see
+[git.md](features/git.md#not-a-sandbox).
 
 ## Streaming model
 
@@ -238,15 +224,15 @@ The event stream is the source of truth while a run is active:
 - `session.step.failed` and `session.execution.failed` attach the provider error
   to the assistant turn.
 
-A refetch on idle reconciles the stream with persisted history. In relay mode a
-dropped WebSocket errors the SSE response, and the existing EventProvider loop
-re-subscribes through the transport.
+A refetch on idle reconciles the stream with persisted history. On the WebSocket
+transport a dropped socket errors the SSE response, and the existing EventProvider
+loop re-subscribes through the transport.
 
 ## Security notes
 
 - The shell policy is a guardrail, not a sandbox. It filters command requests
   relayed by the agent, but a modified web build can still use non-command
-  OpenCode APIs, and direct mode has no Clara-enforced policy at all.
+  OpenCode APIs through the agent.
 - Never commit `service.json`, passwords, pairing codes, PSKs, relay tokens,
   `secrets.key`, or `admin-setup.txt`.
 - The home agent's config is `~/.config/clara/server.json` (mode `0600`).
