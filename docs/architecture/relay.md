@@ -88,7 +88,9 @@ read or forge E2EE frames. Rotate both tokens if either leaks.
    binds the custom domain.
 4. Set the Worker secrets and matching server environment variables.
 5. Start the home agent with `CLARA_RELAY_URL`, `CLARA_RELAY_ROOM`,
-   `CLARA_AGENT_TOKEN`, and `CLARA_CLIENT_TOKEN`.
+   `CLARA_AGENT_TOKEN`, and `CLARA_CLIENT_TOKEN`. When the room is omitted, the
+   agent generates one and persists it in `server.json`; keep that value stable,
+   because every pairing code is scoped to it.
 6. Run `node apps/server/dist/index.js pair` and scan the QR from the phone.
 
 ## Failure behavior

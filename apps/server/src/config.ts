@@ -89,36 +89,32 @@ export function loadConfig(options: { rotate?: boolean; local?: boolean } = {}):
     process.env.CLARA_LOCAL_PORT ?? String(file.local?.port ?? DEFAULT_LOCAL_PORT)
   )
 
-  const relayUrl = process.env.CLARA_RELAY_URL ?? file.relay?.url
-  const relayUrlSource: ConfigSource =
-    process.env.CLARA_RELAY_URL !== undefined
-      ? 'env'
-      : file.relay?.url !== undefined
-        ? 'file'
-        : 'none'
-  const configuredRoom = process.env.CLARA_RELAY_ROOM ?? file.relay?.room
+  // Compose passes optional values through as empty strings (`${VAR:-}`). An
+  // empty value means "not set": it must not mask server.json or force a new
+  // relay room on every process start.
+  const envRelayUrl = readEnv('CLARA_RELAY_URL')
+  const fileRelayUrl = nonEmpty(file.relay?.url)
+  const relayUrl = envRelayUrl ?? fileRelayUrl
+  const relayUrlSource: ConfigSource = envRelayUrl ? 'env' : fileRelayUrl ? 'file' : 'none'
+  const envRoom = readEnv('CLARA_RELAY_ROOM')
+  const fileRoom = nonEmpty(file.relay?.room)
+  const configuredRoom = envRoom ?? fileRoom
   const relayRoom = configuredRoom || createRoom()
   const relayRoomSource: ConfigSource = !relayUrl
     ? 'none'
     : !configuredRoom
       ? 'generated'
-      : process.env.CLARA_RELAY_ROOM !== undefined
+      : envRoom
         ? 'env'
         : 'file'
-  const agentToken = process.env.CLARA_AGENT_TOKEN ?? file.relay?.agentToken
-  const agentTokenSource: ConfigSource =
-    process.env.CLARA_AGENT_TOKEN !== undefined
-      ? 'env'
-      : file.relay?.agentToken !== undefined
-        ? 'file'
-        : 'none'
-  const clientToken = process.env.CLARA_CLIENT_TOKEN ?? file.relay?.clientToken
-  const clientTokenSource: ConfigSource =
-    process.env.CLARA_CLIENT_TOKEN !== undefined
-      ? 'env'
-      : file.relay?.clientToken !== undefined
-        ? 'file'
-        : 'none'
+  const envAgentToken = readEnv('CLARA_AGENT_TOKEN')
+  const fileAgentToken = nonEmpty(file.relay?.agentToken)
+  const agentToken = envAgentToken ?? fileAgentToken
+  const agentTokenSource: ConfigSource = envAgentToken ? 'env' : fileAgentToken ? 'file' : 'none'
+  const envClientToken = readEnv('CLARA_CLIENT_TOKEN')
+  const fileClientToken = nonEmpty(file.relay?.clientToken)
+  const clientToken = envClientToken ?? fileClientToken
+  const clientTokenSource: ConfigSource = envClientToken ? 'env' : fileClientToken ? 'file' : 'none'
 
   // A local-only pairing command skips the relay entirely: it neither needs the
   // tokens nor emits a relay room, and the local listener runs independently of
@@ -210,7 +206,9 @@ function persistConfig(
   config: ServerConfig,
   rotated: boolean
 ): void {
-  const relayChanged = Boolean(config.relay) && previous.relay?.room !== config.relay?.room
+  const relayChanged =
+    Boolean(config.relay) &&
+    (previous.relay?.url !== config.relay?.url || previous.relay?.room !== config.relay?.room)
   const pskChanged = rotated || previous.psk !== config.psk
   const localChanged =
     previous.local?.host !== config.local.host || previous.local?.port !== config.local.port
@@ -277,6 +275,17 @@ function parsePort(value: string): number {
 
 function createRoom(): string {
   return bytesToBase64Url(randomBytes(16))
+}
+
+/** Environment values set to whitespace only are treated as absent. */
+function readEnv(name: string): string | undefined {
+  const value = process.env[name]?.trim()
+  return value ? value : undefined
+}
+
+function nonEmpty(value: string | undefined): string | undefined {
+  const trimmed = value?.trim()
+  return trimmed ? trimmed : undefined
 }
 
 function errorMessage(cause: unknown): string {

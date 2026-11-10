@@ -72,7 +72,9 @@ configuration locally.
 - **Fingerprint mismatch** — the transport closes with `4001`; the connect
   screen reports a key mismatch and asks for a fresh code.
 - **Relay offline** — the device connects but the agent is absent; the client
-  closes with `1013` and the form reports a connection failure.
+  closes with `1013` and the form reports a connection failure. Confirm the
+  pairing room matches the relay card in the agent panel: the room is part of
+  every pair code, and a mismatch looks exactly like an offline agent.
 - **Wrong relay token** — the Worker returns `401` before the upgrade.
 - **Agent restart** — the DO closes clients with `1012`; the web reconnects and
   re-handshakes automatically.
