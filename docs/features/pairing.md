@@ -77,7 +77,21 @@ camera or pastes the same code, and Clara stores the device credential locally.
 - **Code already used** — the agent rejects enrollment with a used-code error.
   Generate a new code; the first device is listed in the panel.
 - **Camera permission denied** — the scanner explains how to allow access,
-  including iPhone Settings → Clara → Camera. Paste still works.
+  including Settings → Safari → Camera on iPhone (home-screen apps share
+  Safari's permission). Paste still works.
+- **No prompt on iPhone** — Clara requests the camera before loading anything
+  else and reports the step that stalled after a deadline instead of waiting
+  forever. The message names Settings → Safari → Camera, and offers retry or
+  paste.
+- **Camera opened but no picture** — a granted stream that never delivers frames
+  (common after an iPhone app resumes) is reported after eight seconds with the
+  close-and-reopen or restart advice instead of showing a black preview.
+- **Scanner backgrounded** — leaving the app stops the stream; returning
+  rebuilds the video element and starts the camera again, because iOS can leave
+  the resumed pipeline dead.
+- **Camera stops mid-scan** — an unexpectedly ended track reports that the
+  camera stopped and offers another attempt; closing the scanner still releases
+  the camera.
 - **No camera or camera busy** — the scanner names the condition and offers
   paste instead.
 - **Insecure page** — browsers only open the camera on HTTPS or localhost, so the
@@ -140,8 +154,11 @@ camera or pastes the same code, and Clara stores the device credential locally.
 - Pair command: `node apps/server/dist/index.js pair [--local] [--no-qr] [--revoke-all] [--revoke <id>]`
 - Pairing URL: `<webUrl>/#pair=<base64url(JSON)>`
 - Payload: `{ v, wsUrl, room, clientToken, enrollId, enrollToken, fingerprint, expiresAt }`
-- Scanner: `getUserMedia` with the rear camera, `jsqr` loaded on demand, frames
-  decoded on a detached canvas; the stream stops on detection or close
+- Scanner: `getUserMedia` is requested first, with `jsqr` loaded in parallel on
+  demand; frames are decoded on a detached canvas and the stream stops on
+  detection or close. Camera start, decoder load, and first-frame paint each
+  have a deadline, the dialog names the current step, and every attempt gets a
+  fresh `<video>` element because iOS can wedge a stopped one
 - Camera policy: `Permissions-Policy: camera=(self)` in
   `apps/web/public/_headers`; self-hosted deployments must send the same header
 - Storage: IndexedDB `clara-devices` / `device`; no connection secret in
