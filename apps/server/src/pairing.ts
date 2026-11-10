@@ -11,10 +11,11 @@ import type { DeviceStore } from './store/devices.ts'
 
 export type PairingOptions = {
   /**
-   * The command asked for a local-only code. The relay is already absent from
-   * the config in that case, but the printed guidance differs.
+   * The command asked for a local-only code with --no-relay. The relay is
+   * already absent from the config in that case, but the printed guidance
+   * differs.
    */
-  local?: boolean
+  noRelay?: boolean
 }
 
 export async function createPairingPayload(
@@ -82,8 +83,8 @@ export async function printPairing(
   console.log(`  Expires:     in ${minutes} minute(s), one device`)
   if (!config.relay) {
     console.log(
-      options.local
-        ? '  Relay:       bypassed by --local; this code only works on the local machine.'
+      options.noRelay
+        ? '  Relay:       bypassed by --no-relay; this code only works on the local machine.'
         : '  Relay:       not configured; this code only works on the local machine.'
     )
   }

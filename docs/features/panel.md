@@ -349,11 +349,12 @@ monitoring on or off, and gates or paces client settings sync.
   separate service
 - Docker (default): `pnpm clara server start|stop|restart|status|setup-token|pair|admin|logs`;
   `setup-token`, `admin`, and `pair` target the running deployment
-  automatically, and `--docker`/`--host` force the container or a local
-  install. Pass `--local` to `start`, `stop`, `restart`, or `logs` to use the
-  detached local agent instead. The rebuild snapshot records the home agent as
-  `container` or `local` and recreates a container with stop/start instead of
-  signalling a PID. See [maintenance.md](maintenance.md).
+  automatically, and `--docker`/`--host`/`--local` force the container or the
+  host install. Pass `--local` to `start`, `stop`, `restart`, or `logs` to use
+  the detached local agent instead. `pair --no-relay` emits a local-only code.
+  The rebuild snapshot records the home agent as `container` or `local` and
+  recreates a container with stop/start instead of signalling a PID. See
+  [maintenance.md](maintenance.md).
 - Dev UI: `pnpm dev:panel` (Vite on `5174`, proxying `/panel/api` to `8790`; the
   proxy rewrites `Host` and `Origin`, and the browser carries the session cookie)
 - Snapshot sections: agent, auth, config, harness, harnesses, devices, local transport,

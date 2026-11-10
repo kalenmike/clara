@@ -181,9 +181,23 @@ describe('pair command configuration', () => {
 
     expect(logs.join('\n')).toContain('https://saved.example/#pair=')
   })
+
+  it('names --no-relay in the local-only guidance', async () => {
+    const logs: string[] = []
+    const spy = vi.spyOn(console, 'log').mockImplementation((...args: unknown[]) => {
+      logs.push(args.map(String).join(' '))
+    })
+    try {
+      await printPairing(baseConfig(), fakeDevices(), false, { noRelay: true })
+    } finally {
+      spy.mockRestore()
+    }
+
+    expect(logs.join('\n')).toContain('bypassed by --no-relay')
+  })
 })
 
-describe('loadConfig local pairing', () => {
+describe('loadConfig no-relay pairing', () => {
   it('drops the relay so a local code needs no relay tokens', async () => {
     const dir = tempDir()
     process.env.CLARA_CONFIG_DIR = dir
@@ -193,7 +207,7 @@ describe('loadConfig local pairing', () => {
 
     expect(() => loadConfig()).toThrow(/Missing CLARA_AGENT_TOKEN and CLARA_CLIENT_TOKEN/)
 
-    const config = loadConfig({ local: true })
+    const config = loadConfig({ noRelay: true })
     expect(config.relay).toBeUndefined()
     expect(config.sources.relayUrl).toBe('none')
 

@@ -291,11 +291,16 @@ function printSummary(selection) {
   if (selection.orchestrator) console.log(`  orchestrator: ${orchestratorURL()}/`)
 
   if (selection.server) {
-    const flag = selection.mode === 'local' ? '--local' : '--docker'
+    const target = selection.mode === 'local' ? '--local' : '--docker'
     console.log('')
     console.log('Open the panel with `pnpm clara server panel`.')
-    console.log(`First run: use \`pnpm clara server setup-token ${flag}\` for the one-time token.`)
-    console.log(`Pair a device with \`pnpm clara server pair ${flag}\`.`)
+    console.log(
+      `First run: use \`pnpm clara server setup-token ${target}\` for the one-time token.`
+    )
+    console.log(`Pair a device with \`pnpm clara server pair ${target}\`.`)
+    if (selection.mode === 'local') {
+      console.log('Add `--no-relay` to that pair command for a local-only code.')
+    }
   }
   if (!selection.web) {
     console.log('')

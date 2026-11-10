@@ -47,7 +47,7 @@ own device key through a one-time code; there is no shared browser key.
 2. The transport never sends the OpenCode password to the browser. The agent
    adds basic auth and only proxies `/api/` paths on the configured origin.
 3. `VITE_CLARA_WS_URL` retargets relay-room pairings; a `local` pairing keeps the
-   endpoint from its payload. `clara-server pair --local` produces a `local`
+   endpoint from its payload. `clara-server pair --no-relay` produces a `local`
    pairing even when the agent has a relay configured.
 4. A stored device is retried on boot before the pair form renders. Existing
    clients from before per-device credentials must re-pair.

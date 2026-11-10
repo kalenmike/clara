@@ -19,7 +19,7 @@ test('explicit flags win over detection', () => {
 test('passing both explicit flags is ambiguous', () => {
   const result = resolveServerTarget({ docker: true, local: true })
   assert.equal(result.target, 'ambiguous')
-  assert.match(result.reason, /--docker and --host/)
+  assert.match(result.reason, /--docker and --host\/--local/)
 })
 
 test('the panel health mode selects the target', () => {

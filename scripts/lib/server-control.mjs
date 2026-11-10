@@ -164,7 +164,7 @@ export function serverLocalState(env = process.env) {
  */
 export function resolveServerTarget(input = {}) {
   if (input.docker === true && input.local === true) {
-    return { target: 'ambiguous', reason: 'both --docker and --host were passed' }
+    return { target: 'ambiguous', reason: 'both --docker and --host/--local were passed' }
   }
   if (input.docker === true) return { target: 'container', reason: '--docker' }
   if (input.local === true) return { target: 'local', reason: '--host' }

@@ -37,7 +37,7 @@ async function main(): Promise<void> {
   if (command !== 'serve' && command !== 'pair') {
     console.error(`Unknown command: ${command}`)
     console.error('Usage: clara-server [serve|pair|admin] [--no-panel]')
-    console.error('       clara-server pair [--local] [--no-qr] [--revoke-all|--revoke <id>]')
+    console.error('       clara-server pair [--no-relay] [--no-qr] [--revoke-all|--revoke <id>]')
     console.error('       clara-server admin reset|setup-token')
     process.exitCode = 2
     return
@@ -45,8 +45,8 @@ async function main(): Promise<void> {
 
   // A local-only code is a pairing command option; serving must keep its relay
   // config so the outbound transport still starts.
-  const localPairing = command === 'pair' && args.includes('--local')
-  const config = loadConfig({ local: localPairing })
+  const noRelay = command === 'pair' && args.includes('--no-relay')
+  const config = loadConfig({ noRelay })
 
   const database = openDatabase(config.dbPath)
   const secretKey = await readSecretKey(config.configDir)
@@ -85,7 +85,7 @@ async function main(): Promise<void> {
         console.log('Restart the running agent to apply the revocation immediately.')
         return
       }
-      await printPairing(config, devices, !args.includes('--no-qr'), { local: localPairing })
+      await printPairing(config, devices, !args.includes('--no-qr'), { noRelay })
       return
     } finally {
       closeDatabase(database)
@@ -227,7 +227,7 @@ async function main(): Promise<void> {
   log(`pairing config: ${config.configPath}`)
   log('print a pairing code with: clara-server pair')
   if (args.includes('--pair') || args.includes('--qr')) {
-    await printPairing(config, devices, true, { local: localPairing })
+    await printPairing(config, devices, true, { noRelay })
   }
 
   let stopping = false

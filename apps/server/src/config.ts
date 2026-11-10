@@ -61,7 +61,7 @@ const DEFAULT_LOCAL_HOST = '127.0.0.1'
 const DEFAULT_LOCAL_PORT = 8788
 const DEFAULT_WEB_PORT = 8080
 
-export function loadConfig(options: { local?: boolean } = {}): ServerConfig {
+export function loadConfig(options: { noRelay?: boolean } = {}): ServerConfig {
   const configDir = resolveConfigDir()
   const dataDir = resolveDataDir()
   const configPath = join(configDir, 'server.json')
@@ -114,11 +114,11 @@ export function loadConfig(options: { local?: boolean } = {}): ServerConfig {
   const clientToken = envClientToken ?? fileClientToken
   const clientTokenSource: ConfigSource = envClientToken ? 'env' : fileClientToken ? 'file' : 'none'
 
-  // A local-only pairing command skips the relay entirely: it neither needs the
+  // A --no-relay pairing command skips the relay entirely: it neither needs the
   // tokens nor emits a relay room, and the local listener runs independently of
   // the relay client on a serving agent.
   const relay =
-    !options.local && relayUrl
+    !options.noRelay && relayUrl
       ? {
           url: normalizeRelayUrl(relayUrl),
           room: relayRoom,

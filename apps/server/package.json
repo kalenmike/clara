@@ -14,7 +14,7 @@
     "typecheck": "tsc -p tsconfig.json",
     "test": "vitest run",
     "pair": "tsx src/index.ts pair",
-    "pair:local": "tsx src/index.ts pair --local"
+    "pair:no-relay": "tsx src/index.ts pair --no-relay"
   },
   "dependencies": {
     "@clara/crypto": "workspace:*",

@@ -89,7 +89,7 @@ pnpm clara mcp install|config|status
 pnpm clara runner
 
 # Setup
-pnpm clara pair [--local] [--no-qr] [--no-panel] [--revoke-all] [--revoke <id>] [--docker|--host]
+pnpm clara pair [--no-relay] [--no-qr] [--no-panel] [--revoke-all] [--revoke <id>] [--docker|--host|--local]
 
 # Tools
 pnpm clara lab [serve|check]
@@ -100,8 +100,9 @@ Run `pnpm clara --help` for the command list and `pnpm clara <command> --help`
 for one command.
 
 `pnpm clara pair` runs the server source directly for a local target and does
-not need a build. It probes the running deployment first; `--host` forces the
-host install and `--docker` the container.
+not need a build. It probes the running deployment first; `--local`/`--host`
+force the host install and `--docker` the container. Add `--no-relay` for a
+local-only pairing code even when the agent has a relay configured.
 `pnpm clara server panel` opens a panel that is already being served; start the
 agent first with `pnpm clara server start --local` (or `--docker`).
 `pnpm clara start` starts Docker by default: it creates the `clara` network,

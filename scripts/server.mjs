@@ -6,9 +6,9 @@
 //   pnpm clara server restart [--local|--docker] [--build]
 //   pnpm clara server status
 //   pnpm clara server panel
-//   pnpm clara server setup-token [--docker|--host]
-//   pnpm clara server admin reset [--docker|--host]
-//   pnpm clara server pair [--docker|--host]
+//   pnpm clara server setup-token [--docker|--host|--local]
+//   pnpm clara server admin reset [--docker|--host|--local]
+//   pnpm clara server pair [--no-relay] [--docker|--host|--local]
 //   pnpm clara server logs [--local|--docker]
 
 import { existsSync } from 'node:fs'
@@ -30,9 +30,8 @@ import { collectStatus, renderJSON, renderStatus, statusExitCode } from './lib/s
 
 const args = process.argv.slice(2)
 const command = args[0] ?? 'status'
-const mode = parseMode(args)
 const docker = args.includes('--docker')
-const host = args.includes('--host')
+const local = args.includes('--host') || args.includes('--local')
 const build = args.includes('--build')
 const json = args.includes('--json')
 
@@ -82,7 +81,7 @@ switch (command) {
 }
 
 async function start() {
-  if (mode === 'local') return startLocal()
+  if (parseMode(args) === 'local') return startLocal()
   if (ensureNetwork() !== 0) {
     process.exitCode = 1
     return
@@ -156,7 +155,7 @@ async function startLocal() {
 }
 
 async function stop() {
-  if (mode === 'local') return stopLocal()
+  if (parseMode(args) === 'local') return stopLocal()
   const code = compose(['down'])
   if (code !== 0) process.exitCode = code
   else console.log('server container stopped')
@@ -183,7 +182,7 @@ async function stopLocal() {
 }
 
 async function restart() {
-  if (mode === 'local') {
+  if (parseMode(args) === 'local') {
     await stopLocal()
     if (process.exitCode) return
     return startLocal()
@@ -232,7 +231,7 @@ async function printStatus() {
 async function admin() {
   const action = args[1]
   if (action !== 'reset' && action !== 'setup-token') {
-    console.error('Usage: pnpm clara server admin reset|setup-token [--docker|--host]')
+    console.error('Usage: pnpm clara server admin reset|setup-token [--docker|--host|--local]')
     process.exitCode = 2
     return
   }
@@ -240,7 +239,9 @@ async function admin() {
 }
 
 async function pair() {
-  const forwarded = args.slice(1).filter((arg) => arg !== '--docker' && arg !== '--host')
+  const forwarded = args
+    .slice(1)
+    .filter((arg) => arg !== '--docker' && arg !== '--host' && arg !== '--local')
   await runServerProcessFor(['pair', ...forwarded])
 }
 
@@ -270,15 +271,17 @@ async function runServerProcessFor(serverArgs) {
 }
 
 async function chooseTarget() {
-  const result = await detectServerTarget({ docker, local: host })
+  const result = await detectServerTarget({ docker, local })
   if (result.target !== 'ambiguous') return result.target
   console.error(`Cannot choose where to run the command: ${result.reason}.`)
-  console.error('Pass --docker for the clara-server container, or --host for a local install.')
+  console.error(
+    'Pass --docker for the clara-server container, or --local/--host for a local install.'
+  )
   return undefined
 }
 
 async function logs() {
-  if (mode === 'local') {
+  if (parseMode(args) === 'local') {
     await followLog('server')
     return
   }
@@ -290,7 +293,7 @@ function printHelp() {
   console.log(`Manage the Clara home agent
 
 Usage:
-  pnpm clara server <command> [--local|--docker] [options]
+  pnpm clara server <command> [--local|--docker|--host] [options]
 
 Commands:
   start [--build]              Start the container, or the local agent with --local
@@ -300,11 +303,11 @@ Commands:
   panel                        Open the agent panel in a browser
   setup-token                  Print the one-time panel setup token
   admin reset                  Reset the panel superadmin password
-  pair                         Print a pairing code from the agent
+  pair [--no-relay]            Print a pairing code from the selected deployment
   logs                         Follow container logs, or the local log with --local
 
 Docker is the default. Pass --local to run the built agent as a detached local
-process instead. setup-token, admin, and pair target the running deployment
-automatically and report which one they chose; pass --docker for the container
-or --host for a local install when both exist.`)
+process for start, stop, restart, and logs. For setup-token, admin, and pair,
+--local and --host select the host install and --docker selects the container.
+Pair with --no-relay to emit a local-only code even when a relay is configured.`)
 }
