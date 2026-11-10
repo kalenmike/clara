@@ -81,7 +81,7 @@ pnpm clara backup [--output <path>]
 pnpm clara restore <archive> [--force]
 
 # Services
-pnpm clara server <start|stop|restart|status [--json]|panel|setup-token|pair|admin|logs> [--local|--docker] [--host] [--build]
+pnpm clara server <start|stop|restart|status [--json]|panel|setup-token|pair|admin|logs> [--local|--docker] [--build]
 pnpm clara web <start|stop|restart|status [--json]|logs> [--local|--docker] [--build]
 pnpm clara orchestrator <serve|start|stop|restart|status [--json]|logs|token> [--local|--docker] [--build]
 pnpm clara adapter install --opencode [--mcp]
@@ -89,7 +89,7 @@ pnpm clara mcp install|config|status
 pnpm clara runner
 
 # Setup
-pnpm clara pair [--no-relay] [--no-qr] [--no-panel] [--revoke-all] [--revoke <id>] [--docker|--host|--local]
+pnpm clara pair [--no-relay] [--no-qr] [--no-panel] [--revoke-all] [--revoke <id>] [--docker|--local]
 
 # Tools
 pnpm clara lab [serve|check]
@@ -100,9 +100,10 @@ Run `pnpm clara --help` for the command list and `pnpm clara <command> --help`
 for one command.
 
 `pnpm clara pair` runs the server source directly for a local target and does
-not need a build. It probes the running deployment first; `--local`/`--host`
-force the host install and `--docker` the container. Add `--no-relay` for a
-local-only pairing code even when the agent has a relay configured.
+not need a build. It probes the running deployment first; `--local` forces the
+host install and `--docker` the container. Add `--no-relay` for a local-only
+pairing code and the local web app link even when the agent has a relay
+configured.
 `pnpm clara server panel` opens a panel that is already being served; start the
 agent first with `pnpm clara server start --local` (or `--docker`).
 `pnpm clara start` starts Docker by default: it creates the `clara` network,
@@ -163,7 +164,7 @@ install by archiving its two host directories.
 Host-side commands that read or write panel state (`pnpm clara server
 setup-token`, `server admin`, and `pair`) probe the panel's `/health` mode and
 then the Docker/local state to pick a target, and print which one they chose.
-`--docker` forces the `clara-server` container and `--host` forces a local
+`--docker` forces the `clara-server` container and `--local` forces a local
 install. When both a local install and Docker state exist and neither is
 running, the command refuses to guess and exits; pass one of the flags.
 
