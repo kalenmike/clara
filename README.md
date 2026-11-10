@@ -125,6 +125,35 @@ pnpm clara start --build --no-orchestrator
 environment changes. Add `--build` to rebuild first. `stop` is stack-wide; use
 the scoped commands below to control one service.
 
+Docker state lives in named volumes, never in the local install directories:
+
+| Volume                    | Contents                                                                            |
+| ------------------------- | ----------------------------------------------------------------------------------- |
+| `clara-server-config`     | `server.json`, `vapid.json`, `subscriptions.json`, `secrets.key`, `admin-setup.txt` |
+| `clara-server-data`       | `clara.db`                                                                          |
+| `clara-orchestrator-data` | `orchestration.db` and the container token                                          |
+
+Only the workspace is a host bind. Set `CLARA_SERVER_CONFIG_DIR`,
+`CLARA_SERVER_DATA_DIR`, or `CLARA_ORCHESTRATOR_DATA_DIR` in `docker/.env` to an
+absolute host path when you want to bind one of those states instead. Local
+installs (`pnpm clara serve`, `pnpm dev`, and `pnpm clara orchestrator start`
+without `--docker`) keep using `~/.config/clara` and `~/.local/share/clara`;
+they never read `docker/.env` or the Docker volumes. See
+[docs/development.md](docs/development.md#local-and-docker-state) for the full
+state map and the one-time migration.
+
+Archive and restore the Docker volumes with the stack stopped:
+
+```bash
+pnpm clara stop
+pnpm clara backup --output ~/clara-backup.tar.gz
+pnpm clara restore ~/clara-backup.tar.gz --force
+pnpm clara start
+```
+
+`restore` refuses to overwrite existing volumes without `--force`, and
+`docker compose down -v` deletes them.
+
 `status` uses one table for every service, shows the container name and whether
 the endpoint answers, and exits nonzero when any selected service is not
 running. It accepts the same `--no-server`, `--no-web`, and `--no-orchestrator`
@@ -139,7 +168,7 @@ server        clara-server         running (container)  http://127.0.0.1:8790
 web           clara-web            running (container)  http://127.0.0.1:8080
 
 Details
-  orchestrator  database: container data mount; pid: none
+  orchestrator  database: Docker volume clara-orchestrator-data; pid: none
   server        panel: running; local: running (http://127.0.0.1:8788); admin: configured
   web           kind: static SPA
 ```
@@ -168,8 +197,9 @@ loopback origin. Do not publish plain HTTP on the LAN. See
 [docs/features/connection.md](docs/features/connection.md) and
 [docs/features/panel.md](docs/features/panel.md).
 
-Existing installs that keep their databases under `~/.config/clara` should stop
-the agent and OpenCode, then move them once:
+Local installs that keep their databases under `~/.config/clara` should stop
+the agent and OpenCode, then move them once. Docker installs do not use these
+directories; use the volume migration guide instead.
 
 ```bash
 mkdir -p ~/.local/share/clara
