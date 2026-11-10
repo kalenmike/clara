@@ -136,10 +136,10 @@ async function collectServerStatus() {
   }
   if (session?.ok && session.body) {
     const body = session.body
-    details.auth = body.authenticated ? `signed in as ${body.user.username}` : 'signed out'
-    details.setup = body.setupRequired ? 'required' : 'complete'
+    details.admin = body.setupRequired ? 'setup required' : 'configured'
+    if (body.authenticated) details.session = `signed in as ${body.user.username}`
   } else {
-    details.auth = 'unknown'
+    details.admin = 'unknown'
   }
 
   const error =
