@@ -12,19 +12,15 @@ import { detectServerTarget } from './lib/server-control.mjs'
 async function pair(args) {
   const result = await detectServerTarget({
     docker: args.includes('--docker'),
-    local: args.includes('--host') || args.includes('--local'),
+    local: args.includes('--local'),
   })
   if (result.target === 'ambiguous') {
     console.error(`Cannot choose where to read the pairing code: ${result.reason}.`)
-    console.error(
-      'Pass --docker for the clara-server container, or --local/--host for a local install.'
-    )
+    console.error('Pass --docker for the clara-server container, or --local for a local install.')
     process.exitCode = 1
     return
   }
-  const forwarded = args.filter(
-    (arg) => arg !== '--docker' && arg !== '--host' && arg !== '--local'
-  )
+  const forwarded = args.filter((arg) => arg !== '--docker' && arg !== '--local')
   if (result.target === 'container') {
     return runNode(join(root, 'scripts/server.mjs'), ['pair', '--docker', ...forwarded])
   }
@@ -99,7 +95,7 @@ const clara = {
   summary: 'Clara developer tools',
   examples: [
     'pnpm clara start --local --build',
-    'pnpm clara server setup-token --host',
+    'pnpm clara server setup-token --local',
     'pnpm clara server panel',
     'pnpm clara pair --no-relay',
     'pnpm clara adapter install --opencode',
@@ -182,7 +178,7 @@ const clara = {
       group: 'Services',
       summary: 'Start, stop, inspect, open the panel, or pair the home agent',
       usage:
-        '<start|stop|restart|status [--json]|panel|setup-token|admin|pair|logs> [--local|--docker] [--host] [--build]',
+        '<start|stop|restart|status [--json]|panel|setup-token|admin|pair|logs> [--local|--docker] [--build]',
       passthroughHelp: true,
       examples: [
         'pnpm clara server start',
@@ -273,16 +269,18 @@ const clara = {
       group: 'Setup',
       summary: 'Print a pairing code for a device',
       usage:
-        '[--no-relay] [--no-qr] [--no-panel] [--revoke-all] [--revoke <id>] [--docker|--host|--local]',
+        '[--no-relay] [--no-qr] [--no-panel] [--revoke-all] [--revoke <id>] [--docker|--local]',
       options: [
-        { flags: '--no-relay', description: 'Force a local-only pairing code' },
+        {
+          flags: '--no-relay',
+          description: 'Force a local-only code that opens the local web app',
+        },
         { flags: '--revoke-all', description: 'Revoke every device and clear push subscriptions' },
         { flags: '--revoke <id>', description: 'Revoke one device by id' },
         { flags: '--no-qr', description: 'Print the code without the QR block' },
         { flags: '--no-panel', description: 'Do not start the panel listener while pairing' },
         { flags: '--docker', description: 'Read the code from the server container' },
-        { flags: '--host', description: 'Read the code from a local install' },
-        { flags: '--local', description: 'Read the code from a local install (same as --host)' },
+        { flags: '--local', description: 'Read the code from the local install' },
       ],
       run: pair,
     },
