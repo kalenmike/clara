@@ -3,8 +3,25 @@ import { existsSync } from 'node:fs'
 import { join } from 'node:path'
 import { root, run } from './router.mjs'
 
-export const COMPOSE_FILE = join(root, 'docker', 'server.compose.yml')
-export const ENV_FILE = join(root, 'docker', '.env')
+export function composeFile(repoRoot = root) {
+  return join(repoRoot, 'docker', 'server.compose.yml')
+}
+
+export function envFile(repoRoot = root) {
+  return join(repoRoot, 'docker', '.env')
+}
+
+export function compose(args, repoRoot = root) {
+  return run('docker', composeArgs(args, repoRoot), { cwd: repoRoot })
+}
+
+/** Load docker/.env so `clara server ... --docker` matches the documented setup. */
+function composeArgs(args, repoRoot = root) {
+  const file = envFile(repoRoot)
+  const envArgs = existsSync(file) ? ['--env-file', file] : []
+  return ['compose', ...envArgs, '-f', composeFile(repoRoot), ...args]
+}
+
 export const SERVER_ENTRY = join(root, 'apps', 'server', 'dist', 'index.js')
 export const NETWORK = 'clara'
 
@@ -22,16 +39,6 @@ export function panelURL(env = process.env) {
 
 export function localURL(env = process.env) {
   return `http://127.0.0.1:${localPort(env)}`
-}
-
-export function compose(args) {
-  return run('docker', composeArgs(args), { cwd: root })
-}
-
-/** Load docker/.env so `clara server ... --docker` matches the documented setup. */
-function composeArgs(args) {
-  const envFile = existsSync(ENV_FILE) ? ['--env-file', ENV_FILE] : []
-  return ['compose', ...envFile, '-f', COMPOSE_FILE, ...args]
 }
 
 export function ensureNetwork() {
@@ -64,9 +71,9 @@ export async function waitForPanel(timeoutMs = 60_000, env = process.env) {
   return undefined
 }
 
-export function serverRunningInCompose() {
-  const result = spawnSync('docker', composeArgs(['ps', '-q', 'server']), {
-    cwd: root,
+export function serverRunningInCompose(repoRoot = root) {
+  const result = spawnSync('docker', composeArgs(['ps', '-q', 'server'], repoRoot), {
+    cwd: repoRoot,
     encoding: 'utf8',
   })
   return result.status === 0 && result.stdout.trim().length > 0

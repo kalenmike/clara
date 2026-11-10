@@ -27,6 +27,40 @@ export function primaryWorktree(worktrees) {
   return worktrees.length > 0 ? worktrees[0].path : undefined
 }
 
+/**
+ * The deployment form captured at status time. `compose` says whether the
+ * home-agent container is running even when its panel is unreachable.
+ */
+export function deploymentModes({ orchestrator, lab, control, compose = {} } = {}) {
+  const orchestratorMode =
+    orchestrator?.mode === 'container' ? 'container' : orchestrator?.expected ? 'local' : 'stopped'
+  const controlMode =
+    control?.mode === 'container' || control?.panel?.container === true || compose.control === true
+      ? 'container'
+      : control?.expected
+        ? 'local'
+        : 'stopped'
+  const labMode = lab?.expected ? 'host' : 'stopped'
+  return {
+    orchestrator: {
+      mode: orchestratorMode,
+      container: orchestratorMode === 'container',
+      external: Boolean(orchestrator?.external),
+    },
+    control: { mode: controlMode, container: controlMode === 'container' },
+    lab: { mode: labMode },
+  }
+}
+
+function capturedMode(name, captured, state) {
+  const deployment = state?.deployment?.[name]
+  if (deployment?.mode) return deployment.mode
+  if (captured?.external) return captured?.mode ?? 'local'
+  if (captured?.mode === 'container' || captured?.panel?.container === true) return 'container'
+  if (!captured?.expected) return 'stopped'
+  return name === 'lab' ? 'host' : 'local'
+}
+
 export function restartPlan(state, { skip = [], manageExternal = false, only } = {}) {
   const skipped = new Set(skip)
   const wanted = only ? new Set(only) : undefined
@@ -35,26 +69,32 @@ export function restartPlan(state, { skip = [], manageExternal = false, only } =
 
   for (const name of SERVICE_ORDER) {
     const captured = state?.[name]
+    const mode = capturedMode(name, captured, state)
     if (skipped.has(name)) {
-      services.push({ name, action: 'skip', reason: 'skipped by flag' })
+      services.push({ name, action: 'skip', reason: 'skipped by flag', mode })
       continue
     }
     if (!captured?.expected) {
-      services.push({ name, action: 'skip', reason: 'not running when captured' })
+      services.push({ name, action: 'skip', reason: 'not running when captured', mode })
       continue
     }
     if (wanted && !wanted.has(name)) {
-      services.push({ name, action: 'skip', reason: 'already healthy' })
+      services.push({ name, action: 'skip', reason: 'already healthy', mode })
       continue
     }
     if (name === 'orchestrator' && captured.external && !manageExternal) {
-      services.push({ name, action: 'skip', reason: 'managed outside this checkout' })
+      services.push({
+        name,
+        action: 'skip',
+        reason: 'managed outside this checkout',
+        mode,
+      })
       warnings.push(
         `orchestrator at ${captured.url} is external; pass --manage-external to restart it`
       )
       continue
     }
-    services.push({ name, action: 'restart', reason: 'running when captured' })
+    services.push({ name, action: 'restart', reason: 'running when captured', mode })
   }
 
   return { services, warnings }
@@ -114,13 +154,18 @@ export function evaluateHealth(state, observed, { adapter, now = new Date() } = 
     state?.orchestrator?.expected,
     observed?.orchestrator
   )
+  const capturedOrchestratorMode =
+    state?.deployment?.orchestrator?.mode ?? state?.orchestrator?.mode
+  const observedOrchestratorMode = observed?.orchestrator?.mode
   if (
     state?.orchestrator?.expected &&
     observed?.orchestrator?.healthy &&
-    observed.orchestrator.mode !== state.orchestrator.mode
+    capturedOrchestratorMode &&
+    observedOrchestratorMode &&
+    observedOrchestratorMode !== capturedOrchestratorMode
   ) {
     orchestrator.warnings.push(
-      `mode changed from ${state.orchestrator.mode} to ${observed.orchestrator.mode}`
+      `mode changed from ${capturedOrchestratorMode} to ${observedOrchestratorMode}`
     )
   }
   if (
@@ -151,6 +196,17 @@ export function evaluateHealth(state, observed, { adapter, now = new Date() } = 
   services.push(lab)
 
   const control = serviceResult('control', state?.control?.expected, observed?.control)
+  const capturedControlMode = state?.deployment?.control?.mode ?? state?.control?.mode
+  const observedControlMode = observed?.control?.mode ?? observed?.control?.panel?.mode
+  if (
+    state?.control?.expected &&
+    observed?.control?.healthy &&
+    capturedControlMode &&
+    observedControlMode &&
+    capturedControlMode !== observedControlMode
+  ) {
+    control.warnings.push(`mode changed from ${capturedControlMode} to ${observedControlMode}`)
+  }
   if (
     state?.control?.panel &&
     observed?.control?.healthy &&

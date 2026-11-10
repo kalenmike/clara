@@ -42,6 +42,7 @@ import {
   waitForProbe,
 } from './probe.mjs'
 import {
+  deploymentModes,
   evaluateHealth,
   parseWorktreeList,
   primaryWorktree,
@@ -49,6 +50,7 @@ import {
   restartPlan,
   summarizeHealth,
 } from './plan.mjs'
+import { serverRunningInCompose } from '../server-control.mjs'
 
 const PNPM = process.platform === 'win32' ? 'pnpm.cmd' : 'pnpm'
 const DEFAULT_PROGRESS = (text) => process.stderr.write(text)
@@ -232,6 +234,20 @@ export async function runStatus(options = {}) {
     control,
     adapters: adapterSnapshot(root),
   }
+  const deployment = deploymentModes({
+    orchestrator,
+    lab,
+    control,
+    compose: { control: serverRunningInCompose(root) },
+  })
+  state.deployment = deployment
+  state.orchestrator = { ...orchestrator, mode: deployment.orchestrator.mode }
+  state.control = {
+    ...control,
+    mode: deployment.control.mode,
+    container: deployment.control.container,
+  }
+  state.lab = { ...lab, mode: deployment.lab.mode }
 
   writeState(state, options.statePath)
   return state
@@ -517,6 +533,7 @@ export async function runInspect(options = {}) {
       available: false,
       reason: `no rebuild snapshot at ${selectedStatePath}`,
       snapshot: { path: selectedStatePath },
+      deployment: null,
       log: { path: logPath(), tail: '' },
     }
   }
@@ -542,6 +559,16 @@ export async function runInspect(options = {}) {
       git: state.git ?? null,
       environment: state.environment ?? null,
     },
+    deployment:
+      state.deployment ??
+      deploymentModes({
+        orchestrator: state.orchestrator,
+        lab: state.lab,
+        control: state.control,
+        compose: {
+          control: serverRunningInCompose(state.installRoot ?? state.root),
+        },
+      }),
     journal: {
       path: selectedJournalPath,
       status: journal?.status ?? null,
@@ -569,6 +596,11 @@ export function formatInspect(result) {
   const lines = [
     `snapshot   ${result.snapshot.path} (${result.snapshot.stale ? 'stale' : 'fresh'})`,
     `root       ${result.snapshot.root ?? '-'}`,
+    `modes      control ${result.deployment?.control?.mode ?? 'unknown'}, orchestrator ${
+      result.deployment?.orchestrator?.mode ?? 'unknown'
+    }${result.deployment?.orchestrator?.external ? ' external' : ''}, lab ${
+      result.deployment?.lab?.mode ?? 'unknown'
+    }`,
     `journal    ${result.journal.status ?? 'none'}`,
   ]
   if (result.pending.length) lines.push(`pending    ${result.pending.join(', ')}`)
@@ -718,16 +750,13 @@ async function restartLab(state, options) {
 
 async function restartControl(state, options) {
   const control = state.control
-  if (control.panel?.container === true || control.mode === 'container') {
-    logCommand('restarting control through docker compose')
-    const result = await runCli(['server', 'start', '--docker', '--build'], {
-      cwd: state.root,
-      progress: options.progress ?? DEFAULT_PROGRESS,
-      log: (text) => appendLog(process.env, text),
-    })
-    if (!result.ok)
-      throw new Error(`server container start failed (exit ${result.code ?? 'unknown'})`)
-    await waitForControl(control)
+  const buildRoot = state.installRoot ?? state.root
+  let mode = state.deployment?.control?.mode ?? control.mode
+  if (!mode || mode === 'stopped') {
+    mode = serverRunningInCompose(buildRoot) ? 'container' : 'local'
+  }
+  if (mode === 'container') {
+    await restartControlContainer(buildRoot, control, options)
     return
   }
   if (control.systemd === true) {
@@ -747,6 +776,15 @@ async function restartControl(state, options) {
     panelPort: control.panelPort,
     localPort: control.localPort,
   })
+  if (current.mode === 'container') {
+    if (!options.force) {
+      throw new Error(
+        'the snapshot captured a local home agent but it is running in a container; stop the container or re-capture with `pnpm clara rebuild status`'
+      )
+    }
+    await restartControlContainer(buildRoot, control, options)
+    return
+  }
   const pid = current.expected
     ? (current.pid ?? findListenerPid(current.panelPort) ?? findListenerPid(current.localPort))
     : control.pid
@@ -766,8 +804,30 @@ async function restartControl(state, options) {
   return startControl(state, control, { ...process.env })
 }
 
+async function restartControlContainer(buildRoot, control, options) {
+  logCommand('stopping control through docker compose')
+  const stop = await runCli(['server', 'stop', '--docker'], {
+    cwd: buildRoot,
+    progress: options.progress ?? DEFAULT_PROGRESS,
+    log: (text) => appendLog(process.env, text),
+  })
+  if (!stop.ok) {
+    throw new Error(`server container stop failed (exit ${stop.code ?? 'unknown'})`)
+  }
+  logCommand('starting control through docker compose')
+  const start = await runCli(['server', 'start', '--docker', '--build'], {
+    cwd: buildRoot,
+    progress: options.progress ?? DEFAULT_PROGRESS,
+    log: (text) => appendLog(process.env, text),
+  })
+  if (!start.ok) {
+    throw new Error(`server container start failed (exit ${start.code ?? 'unknown'})`)
+  }
+  await waitForControl(control)
+}
+
 async function startControl(state, control, env) {
-  const root = state.root
+  const root = state.installRoot ?? state.root
   const entry = join(root, 'apps', 'server', 'dist', 'index.js')
   if (!existsSync(entry)) throw new Error(`agent entry not found at ${entry}`)
   const args = [entry]
@@ -801,7 +861,7 @@ async function restartOrchestrator(state, options) {
     )
   }
 
-  const root = state.root
+  const root = state.installRoot ?? state.root
   const env = { ...process.env, CLARA_DATA_DIR: dataDir() }
   if (orchestrator.workspace) env.CLARA_ORCHESTRATION_WORKSPACE = orchestrator.workspace
   if (orchestrator.stdDir) env.CLARA_STD_DIR = orchestrator.stdDir
@@ -859,7 +919,9 @@ export function formatRestart(result) {
   if (result.dryRun) {
     const lines = ['restart plan (dry run):']
     for (const service of result.plan.services) {
-      lines.push(`  ${service.action.padEnd(8)} ${service.name.padEnd(12)} ${service.reason}`)
+      lines.push(
+        `  ${service.action.padEnd(8)} ${service.name.padEnd(12)} ${(service.mode ?? '').padEnd(9)} ${service.reason}`
+      )
     }
     for (const warning of result.plan.warnings) lines.push(`  warn     ${warning}`)
     return lines
@@ -869,7 +931,7 @@ export function formatRestart(result) {
   if (result.completed?.length) lines.push(`restarted: ${result.completed.join(', ')}`)
   const skipped = result.plan.services
     .filter((service) => service.action === 'skip')
-    .map((service) => `${service.name} (${service.reason})`)
+    .map((service) => `${service.name} (${service.reason}, ${service.mode ?? 'unknown'})`)
   if (skipped.length) lines.push(`skipped:   ${skipped.join(', ')}`)
   for (const error of result.errors ?? []) {
     lines.push(`error:    ${error.service}: ${error.message}`)

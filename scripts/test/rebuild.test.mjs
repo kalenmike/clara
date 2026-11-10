@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict'
+import { createServer } from 'node:http'
 import { mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
@@ -6,6 +7,7 @@ import test from 'node:test'
 
 import { adapterSnapshot } from '../lib/rebuild/run.mjs'
 import {
+  deploymentModes,
   evaluateHealth,
   parseWorktreeList,
   primaryWorktree,
@@ -18,6 +20,7 @@ import {
   parseLsofPids,
   parseSsListeners,
   positiveInt,
+  probeControl,
 } from '../lib/rebuild/probe.mjs'
 import { isSnapshotStale, readState, tail, writeState } from '../lib/rebuild/state.mjs'
 
@@ -140,6 +143,120 @@ test('restart plan leaves stopped services alone', () => {
       ['control', 'skip'],
       ['orchestrator', 'skip'],
     ]
+  )
+})
+
+test('deployment modes save local, container, external, and stopped forms', () => {
+  const local = deploymentModes({
+    orchestrator: { expected: true, mode: 'local' },
+    lab: { expected: true },
+    control: { expected: true, mode: 'local' },
+  })
+  assert.deepEqual(local, {
+    orchestrator: { mode: 'local', container: false, external: false },
+    control: { mode: 'local', container: false },
+    lab: { mode: 'host' },
+  })
+
+  const container = deploymentModes({
+    orchestrator: { expected: true, mode: 'container' },
+    lab: { expected: false },
+    control: { expected: true, panel: { container: true } },
+  })
+  assert.equal(container.orchestrator.mode, 'container')
+  assert.equal(container.control.mode, 'container')
+  assert.equal(container.control.container, true)
+  assert.equal(container.lab.mode, 'stopped')
+
+  const compose = deploymentModes({
+    orchestrator: { expected: false },
+    lab: { expected: false },
+    control: { expected: true, local: { healthy: true } },
+    compose: { control: true },
+  })
+  assert.equal(compose.control.mode, 'container')
+
+  const external = deploymentModes({
+    orchestrator: { expected: true, mode: 'container', external: true },
+    lab: { expected: false },
+    control: { expected: false },
+  })
+  assert.equal(external.orchestrator.mode, 'container')
+  assert.equal(external.orchestrator.external, true)
+  assert.equal(external.control.mode, 'stopped')
+})
+
+test('probe control reads container mode from the panel health endpoint', async () => {
+  const server = createServer((request, response) => {
+    if (request.url === '/health') {
+      response.setHeader('content-type', 'application/json')
+      response.end(
+        JSON.stringify({ ok: true, service: 'clara-server', version: 'test', mode: 'container' })
+      )
+      return
+    }
+    response.statusCode = 404
+    response.end('{}')
+  })
+  await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve))
+  const address = server.address()
+  const port = typeof address === 'object' && address ? address.port : 0
+  try {
+    const probe = await probeControl({ panelPort: port, localPort: port + 1, timeoutMs: 500 })
+    assert.equal(probe.expected, true)
+    assert.equal(probe.mode, 'container')
+    assert.equal(probe.panel?.container, true)
+    assert.equal(probe.pid, null)
+    assert.equal(probe.systemd, false)
+  } finally {
+    await new Promise((resolve) => server.close(resolve))
+  }
+})
+
+test('restart plan records the captured deployment mode', () => {
+  const plan = restartPlan(
+    state({
+      control: {
+        expected: true,
+        healthy: true,
+        state: 'running',
+        mode: 'container',
+        panel: { healthy: true, container: true },
+        local: { healthy: true },
+      },
+    })
+  )
+  assert.equal(plan.services.find((service) => service.name === 'control')?.mode, 'container')
+  assert.equal(plan.services.find((service) => service.name === 'lab')?.mode, 'host')
+})
+
+test('health warns when the home agent changes deployment mode', () => {
+  const report = evaluateHealth(
+    state({
+      control: {
+        expected: true,
+        healthy: true,
+        state: 'running',
+        mode: 'container',
+        panel: { healthy: true, container: true },
+        local: { healthy: true },
+      },
+    }),
+    observed({
+      control: {
+        expected: true,
+        healthy: true,
+        state: 'running',
+        mode: 'local',
+        panel: { healthy: true },
+        local: { healthy: true },
+      },
+    }),
+    { adapter }
+  )
+  assert.equal(report.ok, true)
+  assert.ok(
+    report.warnings.some((warning) => warning.includes('mode changed from container to local'))
   )
 })
 
