@@ -13,6 +13,11 @@ import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { spawnSync } from 'node:child_process'
 import { installCommand, removeCommand } from './lib/clara-command.mjs'
+import {
+  dockerTokenPath,
+  orchestratorContainerRunning,
+  readDockerToken,
+} from './lib/stack-control.mjs'
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 const mcpEntry = join(root, 'apps', 'mcp', 'dist', 'index.js')
@@ -71,7 +76,7 @@ function install() {
   console.log('')
   console.log('HTTP MCP endpoint:')
   console.log(`  ${baseURL}/mcp`)
-  console.log('  Authorization: Bearer <token from ' + tokenFile + '>')
+  console.log('  Authorization: Bearer <token from ' + activeTokenFile() + '>')
 }
 
 function uninstall() {
@@ -144,7 +149,15 @@ function stdioEntry() {
   return { command: process.execPath, args: [mcpEntry] }
 }
 
+function activeTokenFile() {
+  return orchestratorContainerRunning() ? dockerTokenPath() : tokenFile
+}
+
 function readToken() {
+  if (orchestratorContainerRunning()) {
+    const dockerToken = readDockerToken(root)
+    if (dockerToken) return dockerToken
+  }
   if (!existsSync(tokenFile)) return ''
   return readFileSync(tokenFile, 'utf8').trim()
 }

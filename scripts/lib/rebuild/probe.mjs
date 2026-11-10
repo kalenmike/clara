@@ -8,6 +8,7 @@ import { spawnSync } from 'node:child_process'
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { setTimeout as delay } from 'node:timers/promises'
+import { readDockerToken, orchestratorContainerRunning } from '../stack-control.mjs'
 import { dataDir } from './state.mjs'
 
 const LOOPBACK_HOSTS = new Set(['127.0.0.1', 'localhost', '::1', '[::1]'])
@@ -50,10 +51,25 @@ export function isLoopbackURL(value) {
 export function readToken(env = process.env) {
   const configured = env.CLARA_ORCHESTRATION_TOKEN?.trim()
   if (configured) return configured
-  const path =
-    env.CLARA_ORCHESTRATION_TOKEN_FILE?.trim() || join(dataDir(env), 'orchestrator.token')
+
+  const file = env.CLARA_ORCHESTRATION_TOKEN_FILE?.trim()
+  if (file) {
+    try {
+      return readFileSync(file, 'utf8').trim()
+    } catch {
+      return ''
+    }
+  }
+
+  // The Docker stack keeps its own control token so a local install and a
+  // containerised stack never share credentials.
+  if (orchestratorContainerRunning()) {
+    const dockerToken = readDockerToken(undefined, env)
+    if (dockerToken) return dockerToken
+  }
+
   try {
-    return readFileSync(path, 'utf8').trim()
+    return readFileSync(join(dataDir(env), 'orchestrator.token'), 'utf8').trim()
   } catch {
     return ''
   }
