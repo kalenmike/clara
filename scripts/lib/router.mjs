@@ -100,9 +100,21 @@ export function renderHelp(tree, path = []) {
 
   if (node.commands?.length) {
     const width = Math.max(...node.commands.map((command) => command.name.length))
-    lines.push('', 'Commands:')
+    const groups = []
     for (const command of node.commands) {
-      lines.push(`  ${command.name.padEnd(width)}  ${command.summary}`)
+      const label = command.group ?? 'Commands'
+      let group = groups.find((entry) => entry.label === label)
+      if (!group) {
+        group = { label, commands: [] }
+        groups.push(group)
+      }
+      group.commands.push(command)
+    }
+    for (const group of groups) {
+      lines.push('', `${group.label}:`)
+      for (const command of group.commands) {
+        lines.push(`  ${command.name.padEnd(width)}  ${command.summary}`)
+      }
     }
   }
 

@@ -76,9 +76,8 @@ export function explainOpenCodeError(
       kind: 'auth',
       hint: [
         opening,
-        'Run pnpm clara pass to check the local service password, then either:',
-        '- set CLARA_OPENCODE_PASSWORD before starting the lab, or',
-        `- make sure ${config.serviceFile} contains both "url" and "password".`,
+        'Set CLARA_OPENCODE_PASSWORD before starting the lab, or',
+        `make sure ${config.serviceFile} contains both "url" and "password".`,
         'After changing either one, press Reconnect OpenCode.',
       ].join('\n'),
     }

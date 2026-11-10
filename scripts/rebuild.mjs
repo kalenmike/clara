@@ -34,15 +34,18 @@ const USAGE = [
   '  pnpm clara rebuild status [--json] [--root <path>] [--state <path>]',
   '  pnpm clara rebuild build [--json] [--root <path>] [--state <path>]',
   '  pnpm clara rebuild adapters [--json] [--root <path>] [--state <path>] [--mcp|--no-mcp]',
-  '  pnpm clara rebuild restart [--json] [--dry-run] [--manage-external] [--force] [--skip <service>]',
-  '  pnpm clara rebuild health [--json] [--state <path>]',
+  '  pnpm clara rebuild restart [--json] [--dry-run] [--local|--docker|--all] [--manage-external] [--force] [--skip <service>]',
+  '  pnpm clara rebuild health [--json] [--state <path>] [--local|--docker|--all]',
   '  pnpm clara rebuild inspect [--json] [--state <path>] [--lines <n>]',
-  '  pnpm clara rebuild recover [--json] [--manage-external] [--force] [--skip <service>]',
+  '  pnpm clara rebuild recover [--json] [--local|--docker|--all] [--manage-external] [--force] [--skip <service>]',
   '',
   'Options:',
   '  --root <path>       Build checkout (default: the primary worktree)',
   '  --state <path>      Snapshot path (default: <data dir>/rebuild/setup.json)',
   '  --json              Print machine-readable JSON on stdout',
+  '  --local             Manage local services only',
+  '  --docker            Manage container services only (default)',
+  '  --all               Manage local and container services together',
   '  --dry-run           Show the restart plan without changing services',
   '  --manage-external   Restart an orchestrator that is managed outside this checkout',
   '  --force             Ignore a stale snapshot or completed restart journal',
@@ -129,7 +132,8 @@ async function run(command, options) {
 }
 
 function parseArgs(argv) {
-  const options = { json: false, skip: [] }
+  const options = { json: false, skip: [], mode: 'docker' }
+  const modes = new Set()
   let command
   let help = false
 
@@ -139,6 +143,8 @@ function parseArgs(argv) {
       help = true
     } else if (arg === '--json') {
       options.json = true
+    } else if (arg === '--local' || arg === '--docker' || arg === '--all') {
+      modes.add(arg.slice(2))
     } else if (arg === '--dry-run') {
       options.dryRun = true
     } else if (arg === '--manage-external') {
@@ -175,6 +181,9 @@ function parseArgs(argv) {
       throw new Error(`Unexpected argument ${arg}`)
     }
   }
+
+  if (modes.size > 1) throw new Error('--local, --docker, and --all cannot be combined')
+  if (modes.size === 1) options.mode = [...modes][0]
 
   return { command, options, help }
 }

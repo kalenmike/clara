@@ -37,6 +37,39 @@ test('renders root help with commands, examples, and version', () => {
   assert.match(help, /pnpm demo run/)
 })
 
+test('groups commands under their headings in first-appearance order', () => {
+  const grouped = {
+    name: 'demo',
+    summary: 'Demo tools',
+    commands: [
+      { name: 'run', summary: 'Run something', group: 'Stack', run: () => 0 },
+      { name: 'stop', summary: 'Stop something', group: 'Stack', run: () => 0 },
+      { name: 'serve', summary: 'Serve something', group: 'Services', run: () => 0 },
+      { name: 'misc', summary: 'Unfiled command', run: () => 0 },
+    ],
+  }
+  const help = renderHelp(grouped)
+  assert.match(help, /Stack:\n {2}run\s+Run something\n {2}stop\s+Stop something/)
+  assert.match(help, /Services:\n {2}serve\s+Serve something/)
+  assert.match(help, /Commands:\n {2}misc\s+Unfiled command/)
+  assert.equal(help.match(/Stack:/g)?.length, 1)
+  assert.doesNotMatch(help, /Services:\n[\s\S]*Stop something/)
+})
+
+test('aligns grouped command columns to the widest name', () => {
+  const grouped = {
+    name: 'demo',
+    summary: 'Demo tools',
+    commands: [
+      { name: 'run', summary: 'Run', group: 'Stack', run: () => 0 },
+      { name: 'orchestrator', summary: 'Orchestrate', group: 'Services', run: () => 0 },
+    ],
+  }
+  const help = renderHelp(grouped)
+  assert.match(help, / {2}run {11}Run/)
+  assert.match(help, / {2}orchestrator {2}Orchestrate/)
+})
+
 test('renders leaf usage and options', () => {
   const help = renderHelp(tree, ['run'])
   assert.match(help, /pnpm demo run \[name\]/)

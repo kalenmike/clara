@@ -1,13 +1,14 @@
 #!/usr/bin/env node
-// Docker and host controls for the Clara home agent.
+// Docker and local controls for the Clara home agent.
 //
-//   pnpm clara server start --docker [--build]
-//   pnpm clara server stop --docker
+//   pnpm clara server start [--local|--docker] [--build]
+//   pnpm clara server stop [--local|--docker]
+//   pnpm clara server restart [--local|--docker] [--build]
 //   pnpm clara server status
-//   pnpm clara server setup-token
+//   pnpm clara server setup-token [--docker|--host]
 //   pnpm clara server admin reset [--docker|--host]
 //   pnpm clara server pair [--docker|--host]
-//   pnpm clara server logs --docker
+//   pnpm clara server logs [--local|--docker]
 
 import { existsSync } from 'node:fs'
 import {
@@ -15,15 +16,19 @@ import {
   detectServerTarget,
   ensureNetwork,
   panelURL,
+  probe,
   runLocalServerProcess,
   runServerProcess,
   SERVER_ENTRY,
   waitForPanel,
 } from './lib/server-control.mjs'
+import { followLog, logPath, parseMode, startDetached, stopDetached } from './lib/local-runtime.mjs'
+import { root, runPnpm } from './lib/router.mjs'
 import { collectStatus, renderJSON, renderStatus, statusExitCode } from './lib/status.mjs'
 
 const args = process.argv.slice(2)
 const command = args[0] ?? 'status'
+const mode = parseMode(args)
 const docker = args.includes('--docker')
 const host = args.includes('--host')
 const build = args.includes('--build')
@@ -47,6 +52,9 @@ switch (command) {
   case 'stop':
     await stop()
     break
+  case 'restart':
+    await restart()
+    break
   case 'status':
     await printStatus()
     break
@@ -69,11 +77,7 @@ switch (command) {
 }
 
 async function start() {
-  if (!docker) {
-    console.error('Use `pnpm clara serve` for a local foreground agent, or `--docker`.')
-    process.exitCode = 1
-    return
-  }
+  if (mode === 'local') return startLocal()
   if (ensureNetwork() !== 0) {
     process.exitCode = 1
     return
@@ -92,19 +96,99 @@ async function start() {
   }
   console.log(`server panel: ${panelURL()}/`)
   console.log('If this is the first run, open the panel and use the one-time setup token:')
-  console.log('  pnpm clara server setup-token')
+  console.log('  pnpm clara server setup-token --docker')
   console.log('The token is also written to admin-setup.txt in the clara-server-config volume.')
 }
 
-async function stop() {
-  if (!docker) {
-    console.error('Use `pnpm clara serve` to run a local foreground agent. Stop it with Ctrl-C.')
+async function startLocal() {
+  if (build) {
+    const code = runPnpm(['--filter', '@clara/server', 'build'], { cwd: root })
+    if (code !== 0) {
+      console.error('error: the local server build failed.')
+      process.exitCode = code
+      return
+    }
+  }
+  if (!existsSync(SERVER_ENTRY)) {
+    console.error('The home agent is not built. Run `pnpm build` first.')
     process.exitCode = 1
     return
   }
+
+  const current = await probe(`${panelURL()}/health`)
+  if (current.ok && current.body?.service === 'clara-server') {
+    if (current.body.mode === 'container') {
+      console.error(
+        'The home agent is running in a container. Stop it before starting a local agent.'
+      )
+      process.exitCode = 1
+      return
+    }
+    console.log(`server panel: ${panelURL()}/ (already running locally)`)
+    return
+  }
+
+  const result = await startDetached({
+    name: 'server',
+    command: process.execPath,
+    args: [SERVER_ENTRY],
+    cwd: root,
+    healthy: async () => {
+      const health = await probe(`${panelURL()}/health`)
+      return health.ok && health.body?.service === 'clara-server'
+    },
+  })
+
+  if (result.status === 'started' || result.status === 'running') {
+    console.log(`server panel: ${panelURL()}/`)
+    console.log(`  logs:  ${logPath('server')}`)
+    console.log('Stop it with `pnpm clara server stop --local`.')
+    return
+  }
+  console.error(`error: the local server did not start (${result.status}).`)
+  if (result.log) console.error(`Check ${result.log}.`)
+  process.exitCode = 1
+}
+
+async function stop() {
+  if (mode === 'local') return stopLocal()
   const code = compose(['down'])
   if (code !== 0) process.exitCode = code
   else console.log('server container stopped')
+}
+
+async function stopLocal() {
+  const result = await stopDetached({ name: 'server' })
+  if (result.status === 'stopped' || result.status === 'stale') {
+    console.log(
+      result.status === 'stopped' ? `stopped local server (pid ${result.pid})` : 'not running'
+    )
+    return
+  }
+  if (result.status === 'not-running') {
+    console.log('not running')
+    return
+  }
+  console.error(
+    result.status === 'not-exited'
+      ? `pid ${result.pid} is still running after SIGTERM`
+      : `could not stop the local server: ${result.reason ?? result.status}`
+  )
+  process.exitCode = 1
+}
+
+async function restart() {
+  if (mode === 'local') {
+    await stopLocal()
+    if (process.exitCode) return
+    return startLocal()
+  }
+  const code = compose(['down'])
+  if (code !== 0) {
+    process.exitCode = code
+    return
+  }
+  return start()
 }
 
 async function printStatus() {
@@ -162,10 +246,9 @@ async function chooseTarget() {
   return undefined
 }
 
-function logs() {
-  if (!docker) {
-    console.error('Use `pnpm clara serve` to see local agent logs.')
-    process.exitCode = 1
+async function logs() {
+  if (mode === 'local') {
+    await followLog('server')
     return
   }
   const code = compose(['logs', '-f', 'server'])
@@ -176,19 +259,20 @@ function printHelp() {
   console.log(`Manage the Clara home agent
 
 Usage:
-  pnpm clara server <command> [--docker|--host]
+  pnpm clara server <command> [--local|--docker] [options]
 
 Commands:
-  start [--docker] [--build]   Start the container (local: use pnpm clara serve)
-  stop --docker                Stop and remove the container
+  start [--build]              Start the container, or the local agent with --local
+  stop                         Stop the container, or the local agent with --local
+  restart [--build]            Restart the selected mode
   status [--json]              Probe the panel and local listener
   setup-token                  Print the one-time panel setup token
   admin reset                  Reset the panel superadmin password
   pair                         Print a pairing code from the agent
-  logs --docker                Follow container logs
+  logs                         Follow container logs, or the local log with --local
 
-setup-token, admin, and pair target the running deployment automatically and
-report which one they chose. Pass --docker for the clara-server container or
---host for a local install when both exist.
-Local mode stays unchanged: pnpm clara serve runs the built agent in the foreground.`)
+Docker is the default. Pass --local to run the built agent as a detached local
+process instead. setup-token, admin, and pair target the running deployment
+automatically and report which one they chose; pass --docker for the container
+or --host for a local install when both exist.`)
 }

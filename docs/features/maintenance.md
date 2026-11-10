@@ -211,7 +211,8 @@ clara`. A manually started agent is restarted from the captured root with its
 - CLI: `pnpm clara rebuild status|build|adapters|restart|health|inspect|recover`
   with `--json`, `--root <path>`, `--state <path>`, `--dry-run`,
   `--manage-external`, `--force`, `--skip <service>`, `--lines <n>`, and
-  `--mcp` / `--no-mcp`.
+  `--mcp` / `--no-mcp`. Service restarts default to Docker; pass `--local` for
+  local services or `--all` for a mixed setup.
 - Run evidence: `pnpm clara orchestrator inspect [--run <id> | --request
 <path> | --request-env] [--json]`. `--request-env` reads `CLARA_REQUEST` in a
   script step. Without a run id it selects the latest failed root run for the

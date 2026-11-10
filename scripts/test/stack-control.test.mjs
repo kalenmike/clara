@@ -20,6 +20,7 @@ test('selects all services by default', () => {
     orchestrator: true,
     build: false,
     json: false,
+    mode: 'docker',
   })
 })
 
@@ -32,8 +33,16 @@ test('handles multiple exclusions, build, and json', () => {
       orchestrator: false,
       build: true,
       json: true,
+      mode: 'docker',
     }
   )
+})
+
+test('parses local and explicit docker modes', () => {
+  assert.equal(parseSelection(['--local']).mode, 'local')
+  assert.equal(parseSelection(['--docker']).mode, 'docker')
+  assert.equal(parseSelection(['--local', '--build']).build, true)
+  assert.throws(() => parseSelection(['--local', '--docker']), /cannot be combined/)
 })
 
 test('can exclude every service', () => {

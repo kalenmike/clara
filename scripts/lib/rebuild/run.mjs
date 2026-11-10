@@ -448,6 +448,7 @@ export async function runRestart(options = {}) {
     skip: options.skip ?? [],
     manageExternal: options.manageExternal === true,
     ...(options.only ? { only: options.only } : {}),
+    mode: options.mode ?? 'all',
   })
   if (options.dryRun) {
     return {
@@ -644,6 +645,7 @@ export async function runRecover(options = {}) {
   const plan = recoveryPlan(state, before, {
     skip: options.skip ?? [],
     manageExternal: options.manageExternal === true,
+    mode: options.mode ?? 'all',
   })
   if (!plan.only.length) {
     return {
@@ -705,6 +707,38 @@ async function restartService(name, state, options) {
 async function restartWeb(state, options) {
   const web = state.web
   const root = state.installRoot ?? state.root
+  const mode = state.deployment?.web?.mode ?? web.mode ?? 'container'
+  if (mode === 'local') {
+    logCommand('stopping the local web client')
+    const stop = await runCli(['web', 'stop', '--local'], {
+      cwd: root,
+      progress: options.progress ?? DEFAULT_PROGRESS,
+      log: (text) => appendLog(process.env, text),
+    })
+    if (!stop.ok) {
+      throw new Error(`local web stop failed (exit ${stop.code ?? 'unknown'})`)
+    }
+    logCommand('starting the local web client')
+    const start = await runCli(['web', 'start', '--local'], {
+      cwd: root,
+      progress: options.progress ?? DEFAULT_PROGRESS,
+      log: (text) => appendLog(process.env, text),
+    })
+    if (!start.ok) {
+      throw new Error(`local web start failed (exit ${start.code ?? 'unknown'})`)
+    }
+    const port = web.port ?? webPort()
+    const result = await waitForProbe(
+      () => probeWeb({ port, container: false }),
+      (probe) => probe.expected && probe.healthy,
+      { timeoutMs: 300_000 }
+    )
+    if (!result.ok) {
+      throw new Error(`web did not become healthy at ${web.url ?? `http://127.0.0.1:${port}`}`)
+    }
+    return
+  }
+
   logCommand('stopping web through docker compose')
   const stop = await runCli(['web', 'stop', '--docker'], {
     cwd: root,
@@ -1016,7 +1050,11 @@ export async function runHealth(options = {}) {
       : { expected: false, healthy: false, state: 'stopped' },
   ])
   const adapter = adapterSnapshot(state.installRoot ?? state.root)
-  const report = evaluateHealth(state, { orchestrator, lab, control, web }, { adapter })
+  const report = evaluateHealth(
+    state,
+    { orchestrator, lab, control, web },
+    { adapter, mode: options.mode ?? 'all' }
+  )
   report.snapshot = options.statePath ?? statePath()
   return report
 }

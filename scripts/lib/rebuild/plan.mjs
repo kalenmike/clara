@@ -59,7 +59,7 @@ export function deploymentModes({ orchestrator, lab, control, web, compose = {} 
   }
 }
 
-function capturedMode(name, captured, state) {
+function deploymentMode(name, captured, state) {
   const deployment = state?.deployment?.[name]
   if (deployment?.mode) return deployment.mode
   if (captured?.external) return captured?.mode ?? 'local'
@@ -68,7 +68,17 @@ function capturedMode(name, captured, state) {
   return name === 'lab' ? 'host' : 'local'
 }
 
-export function restartPlan(state, { skip = [], manageExternal = false, only } = {}) {
+function serviceMode(name, state, captured) {
+  if (name === 'lab') return 'local'
+  const mode = state?.deployment?.[name]?.mode ?? captured?.mode
+  if (mode === 'container') return 'docker'
+  if (mode === 'local' || mode === 'host') return 'local'
+  if (name === 'control' && captured?.panel?.container === true) return 'docker'
+  if (captured?.expected) return 'local'
+  return 'stopped'
+}
+
+export function restartPlan(state, { skip = [], manageExternal = false, only, mode = 'all' } = {}) {
   const skipped = new Set(skip)
   const wanted = only ? new Set(only) : undefined
   const services = []
@@ -76,24 +86,38 @@ export function restartPlan(state, { skip = [], manageExternal = false, only } =
 
   for (const name of SERVICE_ORDER) {
     const captured = state?.[name]
-    const mode = capturedMode(name, captured, state)
+    const capturedMode = deploymentMode(name, captured, state)
+    if (mode !== 'all' && serviceMode(name, state, captured) !== mode) {
+      services.push({ name, action: 'skip', reason: `not a ${mode} service`, mode: capturedMode })
+      continue
+    }
     if (skipped.has(name)) {
-      services.push({ name, action: 'skip', reason: 'skipped by flag', mode })
+      services.push({ name, action: 'skip', reason: 'skipped by flag', mode: capturedMode })
       continue
     }
     if (!captured?.expected) {
-      services.push({ name, action: 'skip', reason: 'not running when captured', mode })
+      services.push({
+        name,
+        action: 'skip',
+        reason: 'not running when captured',
+        mode: capturedMode,
+      })
       continue
     }
-    if (name === 'web' && mode !== 'container') {
-      services.push({ name, action: 'skip', reason: 'served outside this checkout', mode })
+    if (name === 'web' && capturedMode !== 'container' && mode !== 'local') {
+      services.push({
+        name,
+        action: 'skip',
+        reason: 'served outside this checkout',
+        mode: capturedMode,
+      })
       warnings.push(
         `web at ${captured.url ?? 'the configured port'} is not a container; restart it where it is served`
       )
       continue
     }
     if (wanted && !wanted.has(name)) {
-      services.push({ name, action: 'skip', reason: 'already healthy', mode })
+      services.push({ name, action: 'skip', reason: 'already healthy', mode: capturedMode })
       continue
     }
     if (name === 'orchestrator' && captured.external && !manageExternal) {
@@ -101,14 +125,14 @@ export function restartPlan(state, { skip = [], manageExternal = false, only } =
         name,
         action: 'skip',
         reason: 'managed outside this checkout',
-        mode,
+        mode: capturedMode,
       })
       warnings.push(
         `orchestrator at ${captured.url} is external; pass --manage-external to restart it`
       )
       continue
     }
-    services.push({ name, action: 'restart', reason: 'running when captured', mode })
+    services.push({ name, action: 'restart', reason: 'running when captured', mode: capturedMode })
   }
 
   return { services, warnings }
@@ -159,7 +183,7 @@ function samePath(left, right) {
   return String(left).replace(/\/$/, '') === String(right).replace(/\/$/, '')
 }
 
-export function evaluateHealth(state, observed, { adapter, now = new Date() } = {}) {
+export function evaluateHealth(state, observed, { adapter, now = new Date(), mode = 'all' } = {}) {
   const services = []
   const warnings = []
 
@@ -278,8 +302,15 @@ export function evaluateHealth(state, observed, { adapter, now = new Date() } = 
     warnings.push(...service.warnings)
   }
 
+  const selected =
+    mode === 'all'
+      ? services
+      : services.filter(
+          (service) => serviceMode(service.name, state, state?.[service.name]) === mode
+        )
+
   const ok =
-    services.every((service) => !service.expected || service.healthy) &&
+    selected.every((service) => !service.expected || service.healthy) &&
     opencodeAdapter.linked &&
     opencodeAdapter.agentInstalled &&
     (!mcp.expected || mcp.configured)
@@ -287,7 +318,7 @@ export function evaluateHealth(state, observed, { adapter, now = new Date() } = 
   return {
     ok,
     checkedAt: now.toISOString(),
-    services,
+    services: selected,
     adapters: { opencode: opencodeAdapter, mcp },
     warnings,
   }
