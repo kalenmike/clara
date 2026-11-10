@@ -155,7 +155,7 @@ function Panel({ state, session }: { state: SnapshotState; session: SessionContr
               now={clock}
             />
 
-            <ClientsTable clients={data.clients} now={clock} />
+            <ClientsTable clients={data.clients} devices={data.devices} now={clock} />
 
             <DevicesCard devices={data.devices} now={clock} onChanged={refresh} />
 
