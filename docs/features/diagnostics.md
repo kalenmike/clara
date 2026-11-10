@@ -7,7 +7,10 @@ It runs a deterministic analyzer over the SQLite database, interprets the
 failure patterns in a six-step pipeline, and returns a ranked report of bugs,
 failure points, and proposed fixes. It is the self-analysis path for questions
 such as why a pipeline keeps failing, which steps exhaust their retries, or
-whether the watchdog and budgets are configured correctly.
+whether the watchdog and budgets are configured correctly. For one failed
+maintenance run, use `std:maintenance/diagnose`, which reads that run's attempts
+and the rebuild snapshot instead of aggregating history. See
+[maintenance.md](maintenance.md).
 
 ## User flow
 
