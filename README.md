@@ -140,7 +140,7 @@ web           clara-web            running (container)  http://127.0.0.1:8080
 
 Details
   orchestrator  database: container data mount; pid: none
-  server        panel: running; local: running (http://127.0.0.1:8788); auth: signed out; setup: complete
+  server        panel: running; local: running (http://127.0.0.1:8788); admin: configured
   web           kind: static SPA
 ```
 

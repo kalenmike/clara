@@ -22,7 +22,7 @@ function record(overrides = {}) {
     healthy: true,
     url: 'http://127.0.0.1:8790',
     error: null,
-    details: { panel: 'running', local: 'running' },
+    details: { panel: 'running', local: 'running', admin: 'configured' },
     ...overrides,
   }
 }
@@ -106,6 +106,7 @@ test('renders the same table for a stack and for one service', () => {
   assert.equal(single[0], 'Clara server')
   assert.match(single.join('\n'), /panel\s+running/)
   assert.match(single.join('\n'), /local\s+running/)
+  assert.match(single.join('\n'), /admin\s+configured/)
 })
 
 test('emits one record for a service and an envelope for the stack', () => {
