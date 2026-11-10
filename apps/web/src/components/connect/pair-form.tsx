@@ -60,7 +60,7 @@ export function PairForm({
           id="pairCode"
           value={value}
           onChange={(event) => onChange(event.target.value)}
-          placeholder="clara1_… or https://clara.kalenmichael.com/#pair=…"
+          placeholder="clara1_… or a #pair=… link"
           autoComplete="off"
           spellCheck={false}
         />
