@@ -146,6 +146,36 @@ test('restart plan restores only captured services, in order', () => {
   )
 })
 
+test('restart plan filters local and docker services', () => {
+  const local = restartPlan(state(), { mode: 'local' })
+  assert.deepEqual(
+    local.services.map((service) => [service.name, service.action]),
+    [
+      ['web', 'skip'],
+      ['lab', 'restart'],
+      ['control', 'restart'],
+      ['orchestrator', 'restart'],
+    ]
+  )
+
+  const docker = restartPlan(
+    state({
+      orchestrator: { expected: true, mode: 'container', url: 'http://127.0.0.1:8789' },
+      control: { expected: true, panel: { container: true }, panelPort: 8790 },
+    }),
+    { mode: 'docker' }
+  )
+  assert.deepEqual(
+    docker.services.map((service) => [service.name, service.action]),
+    [
+      ['web', 'restart'],
+      ['lab', 'skip'],
+      ['control', 'restart'],
+      ['orchestrator', 'restart'],
+    ]
+  )
+})
+
 test('restart plan leaves stopped services alone', () => {
   const plan = restartPlan(
     state({
