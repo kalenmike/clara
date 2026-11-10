@@ -3,10 +3,18 @@ import { existsSync, readFileSync, unlinkSync, writeFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import {
   analyzeDatabaseFile,
+  buildEvidence,
+  readRunEvidenceFile,
+  runIdFromRequest,
   summarizeDiagnostics,
   Runtime,
   Store,
+  type AlertRow,
   type DiagnosticsResult,
+  type RunEvidence,
+  type RunRow,
+  type StepAttemptRow,
+  type StepRow,
 } from '@clara/orchestration'
 import {
   baseURL,
@@ -366,6 +374,205 @@ async function analyze(args: string[]): Promise<void> {
   printDiagnostics(report)
 }
 
+interface InspectOptions {
+  json: boolean
+  runId?: number
+  request?: string
+  requestEnv?: boolean
+  workspace?: string
+  db?: string
+  url?: string
+}
+
+function inspectOptions(args: string[]): InspectOptions | undefined {
+  const options: InspectOptions = { json: false }
+  for (let index = 0; index < args.length; index++) {
+    const arg = args[index]
+    if (arg === '--json') {
+      options.json = true
+      continue
+    }
+    if (arg === '--request-env') {
+      options.requestEnv = true
+      continue
+    }
+    if (
+      arg === '--run' ||
+      arg === '--request' ||
+      arg === '--workspace' ||
+      arg === '--db' ||
+      arg === '--url'
+    ) {
+      const value = args[++index]
+      if (!value) return undefined
+      if (arg === '--run') {
+        const runId = Number(value)
+        if (!Number.isSafeInteger(runId) || runId < 1) return undefined
+        options.runId = runId
+      } else if (arg === '--request') {
+        options.request = value
+      } else if (arg === '--workspace') {
+        options.workspace = value
+      } else if (arg === '--db') {
+        options.db = value
+      } else {
+        options.url = value
+      }
+      continue
+    }
+    return undefined
+  }
+  return options
+}
+
+async function serviceEvidence(
+  url: string,
+  token: string,
+  options: { runId?: number; workspace?: string }
+): Promise<RunEvidence | undefined> {
+  const get = async (path: string): Promise<unknown> => {
+    try {
+      const response = await fetch(`${url}${path}`, {
+        headers: token ? { authorization: `Bearer ${token}` } : {},
+        signal: AbortSignal.timeout(10_000),
+      })
+      if (!response.ok) return undefined
+      return await response.json()
+    } catch {
+      return undefined
+    }
+  }
+
+  let run: RunRow | undefined
+  if (options.runId !== undefined) {
+    const status = (await get(`/v1/runs/${options.runId}`)) as { run?: RunRow } | undefined
+    run = status?.run
+  } else {
+    const runs = (await get('/v1/runs')) as RunRow[] | undefined
+    const candidates = (runs ?? []).filter(
+      (entry) =>
+        entry.state === 'failed' &&
+        entry.parent_run_id == null &&
+        (!options.workspace ||
+          resolveWorkspace(entry.workspace) === resolveWorkspace(options.workspace))
+    )
+    candidates.sort((left, right) => Number(right.id) - Number(left.id))
+    run = candidates[0]
+  }
+  if (!run) return undefined
+
+  const runID = Number(run.id)
+  const [status, attempts] = await Promise.all([
+    get(`/v1/runs/${runID}`),
+    get(`/v1/runs/${runID}/attempts`),
+  ])
+  if (!status) return undefined
+  const detail = status as {
+    run: RunRow
+    steps?: StepRow[]
+    alerts?: AlertRow[]
+    children?: RunRow[]
+  }
+  return buildEvidence({
+    source: 'service',
+    run: detail.run,
+    root: detail.run,
+    steps: detail.steps ?? [],
+    attempts: (attempts as StepAttemptRow[] | undefined) ?? [],
+    alerts: detail.alerts ?? [],
+    children: detail.children ?? [],
+  })
+}
+
+function resolveWorkspace(path: string): string {
+  return path.replace(/\/$/, '')
+}
+
+async function collectEvidence(
+  options: InspectOptions,
+  runId: number | undefined
+): Promise<RunEvidence> {
+  if (!options.db) {
+    const url = (options.url ?? serviceURL()).replace(/\/$/, '')
+    if (await serviceHealthy(url)) {
+      const evidence = await serviceEvidence(url, serviceToken(), {
+        ...(runId !== undefined ? { runId } : {}),
+        ...(options.workspace ? { workspace: options.workspace } : { workspace: workspace() }),
+      })
+      if (evidence) return evidence
+    }
+  }
+  return readRunEvidenceFile(options.db ?? dbPath(), {
+    ...(runId !== undefined ? { runId } : {}),
+    workspace: options.workspace ?? workspace(),
+  })
+}
+
+async function inspect(args: string[]): Promise<void> {
+  const options = inspectOptions(args)
+  if (!options) {
+    renderHelp('inspect')
+    process.exitCode = 2
+    return
+  }
+
+  let runId = options.runId
+  let reason = runId !== undefined ? 'explicit' : 'latest-failed'
+  const requestPath =
+    options.request ?? (options.requestEnv ? process.env.CLARA_REQUEST : undefined)
+  if (runId === undefined && requestPath) {
+    try {
+      const parsed = runIdFromRequest(readFileSync(requestPath, 'utf8'))
+      if (parsed !== undefined) {
+        runId = parsed
+        reason = 'request'
+      }
+    } catch {
+      // Fall back to the latest failed run.
+    }
+  }
+
+  const evidence = await collectEvidence(options, runId)
+  if (!evidence.available) {
+    if (options.json) console.log(JSON.stringify({ ...evidence, selected: null }, null, 2))
+    else console.log(evidence.reason ?? 'no failed run found')
+    process.exitCode = 1
+    return
+  }
+  const selected = { run_id: evidence.run?.id ?? null, reason }
+  if (options.json) {
+    console.log(JSON.stringify({ ...evidence, selected }, null, 2))
+    return
+  }
+  printEvidence(evidence, selected)
+}
+
+function printEvidence(
+  evidence: RunEvidence,
+  selected: { run_id: number | null; reason: string }
+): void {
+  const run = evidence.run
+  if (!run) return
+  console.log(`run ${run.id} ${run.pipeline_ref} — ${run.state} (${selected.reason})`)
+  console.log(`workspace ${run.workspace}`)
+  console.log(`error ${run.error ?? '—'}`)
+  if (evidence.failure) {
+    console.log(
+      `failure ${evidence.failure.step_path} attempt ${evidence.failure.attempt} (${evidence.failure.status}): ${evidence.failure.error ?? 'no error'}`
+    )
+  }
+  console.log('steps:')
+  for (const step of evidence.steps) {
+    const marker = step.status === 'failed' ? 'fail' : step.status
+    console.log(`  ${marker.padEnd(8)} ${step.path} (${step.type})`)
+  }
+  if (evidence.alerts.length) {
+    console.log('alerts:')
+    for (const alert of evidence.alerts)
+      console.log(`  ${alert.kind}: ${alert.title} — ${alert.body}`)
+  }
+}
+
 interface HelpOption {
   flags: string
   description: string
@@ -433,6 +640,33 @@ const commandHelp: CommandHelp[] = [
     name: 'token',
     summary: 'Print the orchestration token',
     usage: 'token',
+  },
+  {
+    name: 'inspect',
+    summary: 'Show the evidence for a failed run',
+    usage:
+      'inspect [--run <id> | --request <path> | --request-env] [--json] [--workspace <path>] [--db <path>] [--url <url>]',
+    options: [
+      {
+        flags: '--run <id>',
+        description: 'Inspect this run; defaults to the latest failed root run',
+      },
+      {
+        flags: '--request <path>',
+        description: 'Read a run id from a request file, then fall back to the latest failed run',
+      },
+      {
+        flags: '--request-env',
+        description: 'Read a run id from CLARA_REQUEST, as a script step does',
+      },
+      { flags: '--json', description: 'Print the full evidence as JSON' },
+      {
+        flags: '--workspace <path>',
+        description: 'Scope the latest-failed lookup to this workspace',
+      },
+      { flags: '--db <path>', description: 'Read this SQLite database instead of the service' },
+      { flags: '--url <url>', description: 'Read from a running orchestrator' },
+    ],
   },
 ]
 
@@ -506,6 +740,7 @@ async function main(): Promise<void> {
   if (command === 'stop') return stop(args)
   if (command === 'status') return status()
   if (command === 'analyze') return analyze(args)
+  if (command === 'inspect') return inspect(args)
   if (command === 'token') {
     console.log(ensureToken())
     return
