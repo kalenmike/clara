@@ -1,8 +1,10 @@
 import { spawnSync } from 'node:child_process'
+import { existsSync } from 'node:fs'
 import { join } from 'node:path'
 import { root, run } from './router.mjs'
 
 export const COMPOSE_FILE = join(root, 'docker', 'server.compose.yml')
+export const ENV_FILE = join(root, 'docker', '.env')
 export const SERVER_ENTRY = join(root, 'apps', 'server', 'dist', 'index.js')
 export const NETWORK = 'clara'
 
@@ -23,7 +25,13 @@ export function localURL(env = process.env) {
 }
 
 export function compose(args) {
-  return run('docker', ['compose', '-f', COMPOSE_FILE, ...args], { cwd: root })
+  return run('docker', composeArgs(args), { cwd: root })
+}
+
+/** Load docker/.env so `clara server ... --docker` matches the documented setup. */
+function composeArgs(args) {
+  const envFile = existsSync(ENV_FILE) ? ['--env-file', ENV_FILE] : []
+  return ['compose', ...envFile, '-f', COMPOSE_FILE, ...args]
 }
 
 export function ensureNetwork() {
@@ -57,7 +65,7 @@ export async function waitForPanel(timeoutMs = 60_000, env = process.env) {
 }
 
 export function serverRunningInCompose() {
-  const result = spawnSync('docker', ['compose', '-f', COMPOSE_FILE, 'ps', '-q', 'server'], {
+  const result = spawnSync('docker', composeArgs(['ps', '-q', 'server']), {
     cwd: root,
     encoding: 'utf8',
   })
