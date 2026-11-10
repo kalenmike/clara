@@ -71,7 +71,7 @@ correctly.
 ## Developer commands
 
 ```bash
-pnpm clara pair [--local] [--rotate] [--no-qr] [--no-panel]
+pnpm clara pair [--local] [--rotate] [--no-qr] [--no-panel] [--docker|--host]
 pnpm clara control
 pnpm clara serve [--rotate] [--no-panel]
 pnpm clara start [--no-server] [--no-web] [--no-orchestrator] [--build]
@@ -81,7 +81,7 @@ pnpm clara status [--no-server] [--no-web] [--no-orchestrator] [--json]
 pnpm clara logs <server|web|orchestrator>
 pnpm clara backup [--output <path>]
 pnpm clara restore <archive> [--force]
-pnpm clara server <start|stop|status [--json]|setup-token|pair|admin|logs> [--docker] [--build]
+pnpm clara server <start|stop|status [--json]|setup-token|pair|admin|logs> [--docker|--host] [--build]
 pnpm clara web <start|stop|status [--json]|logs> [--docker] [--build]
 pnpm clara pass
 pnpm clara orchestrator <serve|start|stop|status [--json]|token>
@@ -92,7 +92,9 @@ pnpm clara lab [serve|check]
 Run `pnpm clara --help` for the command list and `pnpm clara <command> --help`
 for one command.
 
-`pnpm clara pair` runs the server source directly and does not need a build.
+`pnpm clara pair` runs the server source directly for a local target and does
+not need a build. It probes the running deployment first; `--host` forces the
+host install and `--docker` the container.
 `pnpm clara control` and `pnpm clara serve` use the built agent, so run
 `pnpm build` first. `pnpm clara start` is the combined Docker command: it
 creates the `clara` network, bootstraps `docker/.env` and the orchestrator token
@@ -140,6 +142,13 @@ reads the other's service state.
 the rebuild snapshot under `~/.local/share/clara/rebuild` are the only shared
 host paths. Back up Docker volumes with `pnpm clara backup`; back up a local
 install by archiving its two host directories.
+
+Host-side commands that read or write panel state (`pnpm clara server
+setup-token`, `server admin`, and `pair`) probe the panel's `/health` mode and
+then the Docker/local state to pick a target, and print which one they chose.
+`--docker` forces the `clara-server` container and `--host` forces a local
+install. When both a local install and Docker state exist and neither is
+running, the command refuses to guess and exits; pass one of the flags.
 
 ### One-time migration to Docker volumes
 
