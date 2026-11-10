@@ -163,12 +163,12 @@ Clara stack
 
 SERVICE       CONTAINER            STATE                URL
 orchestrator  clara-orchestrator   running (container)  http://127.0.0.1:8789
-server        clara-server         running (container)  http://127.0.0.1:8790
+server        clara-server         running (container)  http://127.0.0.1:8788
 web           clara-web            running (container)  http://127.0.0.1:8080
 
 Details
   orchestrator  database: Docker volume clara-orchestrator-data; pid: none
-  server        panel: running; local: running (http://127.0.0.1:8788); admin: configured
+  server        panel: http://127.0.0.1:8790 (running); admin: configured
   web           kind: static SPA
 ```
 
@@ -176,7 +176,8 @@ Details
 same record for each service. The scoped
 `pnpm clara server status --json`, `pnpm clara web status --json`, and
 `pnpm clara orchestrator status --json` commands print one record with the same
-shape.
+shape. For the server record, `url` is the local listener and `details.panel`
+holds the panel URL.
 
 ### Server container
 

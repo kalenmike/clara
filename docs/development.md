@@ -119,7 +119,8 @@ old `pnpm clara serve` foreground command; local web serves the built
 `pnpm clara server start` and `pnpm clara orchestrator start` commands remain
 available when only one service is wanted.
 `pnpm clara status` renders one table for the selected services, using the same
-record shape for `server`, `web`, and `orchestrator`. Add `--json` for a
+record shape for `server`, `web`, and `orchestrator`. The server row uses its
+local listener URL; Details names the panel URL. Add `--json` for a
 machine-readable record or `{ "ok": true, "services": [...] }` envelope, and
 select a subset with the same `--no-*` flags as `start`.
 `pnpm clara web start --build` builds and serves the static SPA on
