@@ -68,6 +68,7 @@ describe('loadConfig sources', () => {
     expect(config.sources.localPort).toBe('default')
     expect(config.sources.relayUrl).toBe('none')
     expect(config.sources.pairingBaseUrl).toBe('default')
+    expect(config.pairingBaseUrl).toBe('http://127.0.0.1:8080')
     expect(config.sources.psk).toBe('generated')
     expect(config.dataDir).toBe(join(dataHome, 'clara'))
     expect(config.dbPath).toBe(join(dataHome, 'clara', 'clara.db'))

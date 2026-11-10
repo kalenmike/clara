@@ -61,7 +61,7 @@ type ConfigFile = {
 
 const DEFAULT_LOCAL_HOST = '127.0.0.1'
 const DEFAULT_LOCAL_PORT = 8788
-const DEFAULT_PAIRING_BASE_URL = 'https://clara.kalenmichael.com'
+const DEFAULT_PAIRING_BASE_URL = 'http://127.0.0.1:8080'
 
 export function loadConfig(options: { rotate?: boolean; local?: boolean } = {}): ServerConfig {
   const configDir = resolveConfigDir()
