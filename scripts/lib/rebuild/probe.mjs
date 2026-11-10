@@ -236,7 +236,7 @@ export async function probeWeb({ port = webPort(), timeoutMs = 1500, container =
   }
 }
 
-export async function probeControl({
+export async function probeServer({
   panelPort: panel = panelPort(),
   localPort: local = localPort(),
   timeoutMs = 1500,

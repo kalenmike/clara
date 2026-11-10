@@ -3,7 +3,7 @@
 // Keeping these functions independent of the filesystem and process table
 // makes the restart order and the health verdict easy to test.
 
-export const SERVICE_ORDER = ['web', 'lab', 'control', 'orchestrator']
+export const SERVICE_ORDER = ['web', 'lab', 'server', 'orchestrator']
 
 export function parseWorktreeList(output) {
   const worktrees = []
@@ -31,13 +31,13 @@ export function primaryWorktree(worktrees) {
  * The deployment form captured at status time. `compose` says whether the
  * home-agent container is running even when its panel is unreachable.
  */
-export function deploymentModes({ orchestrator, lab, control, web, compose = {} } = {}) {
+export function deploymentModes({ orchestrator, lab, server, web, compose = {} } = {}) {
   const orchestratorMode =
     orchestrator?.mode === 'container' ? 'container' : orchestrator?.expected ? 'local' : 'stopped'
-  const controlMode =
-    control?.mode === 'container' || control?.panel?.container === true || compose.control === true
+  const serverMode =
+    server?.mode === 'container' || server?.panel?.container === true || compose.server === true
       ? 'container'
-      : control?.expected
+      : server?.expected
         ? 'local'
         : 'stopped'
   const labMode = lab?.expected ? 'host' : 'stopped'
@@ -53,7 +53,7 @@ export function deploymentModes({ orchestrator, lab, control, web, compose = {} 
       container: orchestratorMode === 'container',
       external: Boolean(orchestrator?.external),
     },
-    control: { mode: controlMode, container: controlMode === 'container' },
+    server: { mode: serverMode, container: serverMode === 'container' },
     lab: { mode: labMode },
     web: { mode: webMode, container: webMode === 'container' },
   }
@@ -73,14 +73,19 @@ function serviceMode(name, state, captured) {
   const mode = state?.deployment?.[name]?.mode ?? captured?.mode
   if (mode === 'container') return 'docker'
   if (mode === 'local' || mode === 'host') return 'local'
-  if (name === 'control' && captured?.panel?.container === true) return 'docker'
+  if (name === 'server' && captured?.panel?.container === true) return 'docker'
   if (captured?.expected) return 'local'
   return 'stopped'
 }
 
+/** Map the pre-`server` service name so old commands and snapshots keep working. */
+function serviceName(name) {
+  return name === 'control' ? 'server' : name
+}
+
 export function restartPlan(state, { skip = [], manageExternal = false, only, mode = 'all' } = {}) {
-  const skipped = new Set(skip)
-  const wanted = only ? new Set(only) : undefined
+  const skipped = new Set(skip.map(serviceName))
+  const wanted = only ? new Set(only.map(serviceName)) : undefined
   const services = []
   const warnings = []
 
@@ -233,33 +238,33 @@ export function evaluateHealth(state, observed, { adapter, now = new Date(), mod
   }
   services.push(lab)
 
-  const control = serviceResult('control', state?.control?.expected, observed?.control)
-  const capturedControlMode = state?.deployment?.control?.mode ?? state?.control?.mode
-  const observedControlMode = observed?.control?.mode ?? observed?.control?.panel?.mode
+  const server = serviceResult('server', state?.server?.expected, observed?.server)
+  const capturedServerMode = state?.deployment?.server?.mode ?? state?.server?.mode
+  const observedServerMode = observed?.server?.mode ?? observed?.server?.panel?.mode
   if (
-    state?.control?.expected &&
-    observed?.control?.healthy &&
-    capturedControlMode &&
-    observedControlMode &&
-    capturedControlMode !== observedControlMode
+    state?.server?.expected &&
+    observed?.server?.healthy &&
+    capturedServerMode &&
+    observedServerMode &&
+    capturedServerMode !== observedServerMode
   ) {
-    control.warnings.push(`mode changed from ${capturedControlMode} to ${observedControlMode}`)
+    server.warnings.push(`mode changed from ${capturedServerMode} to ${observedServerMode}`)
   }
   if (
-    state?.control?.panel &&
-    observed?.control?.healthy &&
-    !observed.control.panel &&
-    state.control.local
+    state?.server?.panel &&
+    observed?.server?.healthy &&
+    !observed.server.panel &&
+    state.server.local
   ) {
-    control.warnings.push('panel is no longer answering; only the local listener is healthy')
+    server.warnings.push('panel is no longer answering; only the local listener is healthy')
   }
   if (
-    state?.control?.panel?.opencodeReachable &&
-    observed?.control?.panel?.opencodeReachable === false
+    state?.server?.panel?.opencodeReachable &&
+    observed?.server?.panel?.opencodeReachable === false
   ) {
-    control.warnings.push('OpenCode became unreachable during the rebuild')
+    server.warnings.push('OpenCode became unreachable during the rebuild')
   }
-  services.push(control)
+  services.push(server)
 
   const web = serviceResult('web', state?.web?.expected, observed?.web)
   const capturedWebMode = state?.deployment?.web?.mode ?? state?.web?.mode

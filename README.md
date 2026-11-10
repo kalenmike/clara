@@ -63,7 +63,7 @@ connection saved in the authenticated panel.
 First run:
 
 1. Start the agent (`pnpm dev` or `pnpm clara server start --local`).
-2. Open the panel at <http://127.0.0.1:8790>.
+2. Open the panel at <http://127.0.0.1:8790>, or run `pnpm clara server panel`.
 3. Read the one-time setup token from `~/.config/clara/admin-setup.txt` or run
    `pnpm clara server setup-token` (add `--docker` for the container).
 4. Choose the superadmin password, then add the OpenCode base URL and password.
@@ -84,10 +84,9 @@ pnpm dev:panel   # http://localhost:5174
 ```
 
 In a production build, the panel ships inside the agent and is available at
-<http://127.0.0.1:8790> after `pnpm build` and `pnpm clara server start --local`. Run
-`pnpm clara control` to open it: the command starts the built agent when it is
-not already serving the panel, opens the URL in a browser, and stays attached
-so the agent logs remain visible. The panel never travels through the relay.
+<http://127.0.0.1:8790> after `pnpm build` and `pnpm clara server start --local`.
+Run `pnpm clara server panel` to open it in a browser; the command only opens a
+panel that is already being served. The panel never travels through the relay.
 From it you can configure the OpenCode harness, disable the harness connection,
 local transport, relay, or push, start and stop the local orchestration service,
 and stop every external connection while the process, panel, and database stay
@@ -377,7 +376,7 @@ is no UI for it. See [docs/features/sync.md](docs/features/sync.md).
 | `pnpm dev:relay`          | Local `wrangler dev` for the Worker/DO                       |
 | `pnpm build`              | Build every workspace package                                |
 | `pnpm clara pair`         | Print a pairing code                                         |
-| `pnpm clara control`      | Serve the built panel and open it in a browser               |
+| `pnpm clara server panel` | Open the agent panel in a browser                            |
 | `pnpm clara start`        | Start the stack (Docker by default; `--local` for processes) |
 | `pnpm clara stop`         | Stop the stack                                               |
 | `pnpm clara restart`      | Restart the stack                                            |

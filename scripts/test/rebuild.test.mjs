@@ -20,10 +20,16 @@ import {
   parseLsofPids,
   parseSsListeners,
   positiveInt,
-  probeControl,
+  probeServer,
   probeWeb,
 } from '../lib/rebuild/probe.mjs'
-import { isSnapshotStale, readState, tail, writeState } from '../lib/rebuild/state.mjs'
+import {
+  isSnapshotStale,
+  migrateState,
+  readState,
+  tail,
+  writeState,
+} from '../lib/rebuild/state.mjs'
 
 const adapter = {
   opencode: {
@@ -57,7 +63,7 @@ function state(overrides = {}) {
       orchestrator: 'http://127.0.0.1:8789',
       connected: true,
     },
-    control: {
+    server: {
       expected: true,
       healthy: true,
       state: 'running',
@@ -98,7 +104,7 @@ function observed(overrides = {}) {
       workspace: '/work/clara',
       connected: true,
     },
-    control: {
+    server: {
       expected: true,
       healthy: true,
       state: 'running',
@@ -140,7 +146,7 @@ test('restart plan restores only captured services, in order', () => {
     [
       ['web', 'restart'],
       ['lab', 'restart'],
-      ['control', 'restart'],
+      ['server', 'restart'],
       ['orchestrator', 'restart'],
     ]
   )
@@ -153,7 +159,7 @@ test('restart plan filters local and docker services', () => {
     [
       ['web', 'skip'],
       ['lab', 'restart'],
-      ['control', 'restart'],
+      ['server', 'restart'],
       ['orchestrator', 'restart'],
     ]
   )
@@ -161,7 +167,7 @@ test('restart plan filters local and docker services', () => {
   const docker = restartPlan(
     state({
       orchestrator: { expected: true, mode: 'container', url: 'http://127.0.0.1:8789' },
-      control: { expected: true, panel: { container: true }, panelPort: 8790 },
+      server: { expected: true, panel: { container: true }, panelPort: 8790 },
     }),
     { mode: 'docker' }
   )
@@ -170,7 +176,7 @@ test('restart plan filters local and docker services', () => {
     [
       ['web', 'restart'],
       ['lab', 'skip'],
-      ['control', 'restart'],
+      ['server', 'restart'],
       ['orchestrator', 'restart'],
     ]
   )
@@ -181,7 +187,7 @@ test('restart plan leaves stopped services alone', () => {
     state({
       web: { expected: false, healthy: false, state: 'stopped' },
       lab: { expected: false, healthy: false, state: 'stopped' },
-      control: { expected: false, healthy: false, state: 'stopped' },
+      server: { expected: false, healthy: false, state: 'stopped' },
       orchestrator: { expected: false, healthy: false, state: 'unreachable' },
     })
   )
@@ -190,7 +196,7 @@ test('restart plan leaves stopped services alone', () => {
     [
       ['web', 'skip'],
       ['lab', 'skip'],
-      ['control', 'skip'],
+      ['server', 'skip'],
       ['orchestrator', 'skip'],
     ]
   )
@@ -200,12 +206,12 @@ test('deployment modes save local, container, external, and stopped forms', () =
   const local = deploymentModes({
     orchestrator: { expected: true, mode: 'local' },
     lab: { expected: true },
-    control: { expected: true, mode: 'local' },
+    server: { expected: true, mode: 'local' },
     web: { expected: true },
   })
   assert.deepEqual(local, {
     orchestrator: { mode: 'local', container: false, external: false },
-    control: { mode: 'local', container: false },
+    server: { mode: 'local', container: false },
     lab: { mode: 'host' },
     web: { mode: 'local', container: false },
   })
@@ -213,37 +219,37 @@ test('deployment modes save local, container, external, and stopped forms', () =
   const container = deploymentModes({
     orchestrator: { expected: true, mode: 'container' },
     lab: { expected: false },
-    control: { expected: true, panel: { container: true } },
+    server: { expected: true, panel: { container: true } },
     web: { expected: true, mode: 'container' },
   })
   assert.equal(container.orchestrator.mode, 'container')
-  assert.equal(container.control.mode, 'container')
-  assert.equal(container.control.container, true)
+  assert.equal(container.server.mode, 'container')
+  assert.equal(container.server.container, true)
   assert.equal(container.lab.mode, 'stopped')
   assert.equal(container.web.mode, 'container')
 
   const compose = deploymentModes({
     orchestrator: { expected: false },
     lab: { expected: false },
-    control: { expected: true, local: { healthy: true } },
+    server: { expected: true, local: { healthy: true } },
     web: { expected: false },
-    compose: { control: true, web: true },
+    compose: { server: true, web: true },
   })
-  assert.equal(compose.control.mode, 'container')
+  assert.equal(compose.server.mode, 'container')
   assert.equal(compose.web.mode, 'container')
 
   const external = deploymentModes({
     orchestrator: { expected: true, mode: 'container', external: true },
     lab: { expected: false },
-    control: { expected: false },
+    server: { expected: false },
   })
   assert.equal(external.orchestrator.mode, 'container')
   assert.equal(external.orchestrator.external, true)
-  assert.equal(external.control.mode, 'stopped')
+  assert.equal(external.server.mode, 'stopped')
   assert.equal(external.web.mode, 'stopped')
 })
 
-test('probe control reads container mode from the panel health endpoint', async () => {
+test('probe server reads container mode from the panel health endpoint', async () => {
   const server = createServer((request, response) => {
     if (request.url === '/health') {
       response.setHeader('content-type', 'application/json')
@@ -259,7 +265,7 @@ test('probe control reads container mode from the panel health endpoint', async 
   const address = server.address()
   const port = typeof address === 'object' && address ? address.port : 0
   try {
-    const probe = await probeControl({ panelPort: port, localPort: port + 1, timeoutMs: 500 })
+    const probe = await probeServer({ panelPort: port, localPort: port + 1, timeoutMs: 500 })
     assert.equal(probe.expected, true)
     assert.equal(probe.mode, 'container')
     assert.equal(probe.panel?.container, true)
@@ -337,7 +343,7 @@ test('health warns when the web client changes deployment mode', () => {
 test('restart plan records the captured deployment mode', () => {
   const plan = restartPlan(
     state({
-      control: {
+      server: {
         expected: true,
         healthy: true,
         state: 'running',
@@ -347,14 +353,14 @@ test('restart plan records the captured deployment mode', () => {
       },
     })
   )
-  assert.equal(plan.services.find((service) => service.name === 'control')?.mode, 'container')
+  assert.equal(plan.services.find((service) => service.name === 'server')?.mode, 'container')
   assert.equal(plan.services.find((service) => service.name === 'lab')?.mode, 'host')
 })
 
 test('health warns when the home agent changes deployment mode', () => {
   const report = evaluateHealth(
     state({
-      control: {
+      server: {
         expected: true,
         healthy: true,
         state: 'running',
@@ -364,7 +370,7 @@ test('health warns when the home agent changes deployment mode', () => {
       },
     }),
     observed({
-      control: {
+      server: {
         expected: true,
         healthy: true,
         state: 'running',
@@ -386,7 +392,7 @@ test('recovery plan restarts only expected unhealthy services', () => {
     services: [
       { name: 'web', expected: true, healthy: true },
       { name: 'lab', expected: true, healthy: false },
-      { name: 'control', expected: true, healthy: true },
+      { name: 'server', expected: true, healthy: true },
       { name: 'orchestrator', expected: true, healthy: true },
     ],
   }
@@ -397,7 +403,7 @@ test('recovery plan restarts only expected unhealthy services', () => {
     [
       ['web', 'skip'],
       ['lab', 'restart'],
-      ['control', 'skip'],
+      ['server', 'skip'],
       ['orchestrator', 'skip'],
     ]
   )
@@ -416,13 +422,13 @@ test('recovery plan ignores services stopped when captured', () => {
 })
 
 test('restart plan honours an explicit only list', () => {
-  const plan = restartPlan(state(), { only: ['control'] })
+  const plan = restartPlan(state(), { only: ['server'] })
   assert.deepEqual(
     plan.services.map((service) => [service.name, service.action]),
     [
       ['web', 'skip'],
       ['lab', 'skip'],
-      ['control', 'restart'],
+      ['server', 'restart'],
       ['orchestrator', 'skip'],
     ]
   )
@@ -578,6 +584,29 @@ test('round-trips the snapshot and rejects the wrong schema', () => {
   } finally {
     rmSync(dir, { recursive: true, force: true })
   }
+})
+
+test('migrates the legacy control snapshot keys to server', () => {
+  const state = migrateState({
+    schema: 1,
+    control: { expected: true, mode: 'local' },
+    deployment: { control: { mode: 'local', container: false } },
+  })
+  assert.deepEqual(state.server, { expected: true, mode: 'local' })
+  assert.deepEqual(state.deployment.server, { mode: 'local', container: false })
+  assert.equal('control' in state, false)
+  assert.equal('control' in state.deployment, false)
+})
+
+test('accepts the legacy control name in skip and only lists', () => {
+  const plan = restartPlan(state(), { skip: ['control'] })
+  assert.equal(plan.services.find((service) => service.name === 'server')?.action, 'skip')
+  assert.equal(
+    restartPlan(state(), { only: ['control'] }).services.find(
+      (service) => service.name === 'server'
+    )?.action,
+    'restart'
+  )
 })
 
 test('detects stale snapshots and trims long output', () => {

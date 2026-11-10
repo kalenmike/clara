@@ -2,7 +2,7 @@
 // Clara developer tools.
 //
 //   pnpm clara pair
-//   pnpm clara control
+//   pnpm clara server panel
 
 import { existsSync } from 'node:fs'
 import { join } from 'node:path'
@@ -33,10 +33,6 @@ function server(args) {
 
 function web(args) {
   return runNode(join(root, 'scripts/web.mjs'), args)
-}
-
-function control(args) {
-  return runNode(join(root, 'scripts/control.mjs'), args)
 }
 
 // Developer commands prefer their TypeScript source. A stale apps/*/dist build
@@ -101,6 +97,7 @@ const clara = {
     'pnpm clara start',
     'pnpm clara start --local',
     'pnpm clara server start --local',
+    'pnpm clara server panel',
     'pnpm clara pair --local',
     'pnpm clara lab',
   ],
@@ -179,15 +176,16 @@ const clara = {
     {
       name: 'server',
       group: 'Services',
-      summary: 'Start, stop, inspect, or pair the home agent',
+      summary: 'Start, stop, inspect, open the panel, or pair the home agent',
       usage:
-        '<start|stop|restart|status [--json]|setup-token|admin|pair|logs> [--local|--docker] [--host] [--build]',
+        '<start|stop|restart|status [--json]|panel|setup-token|admin|pair|logs> [--local|--docker] [--host] [--build]',
       passthroughHelp: true,
       examples: [
         'pnpm clara server start',
         'pnpm clara server start --local --build',
         'pnpm clara server stop --local',
         'pnpm clara server status --json',
+        'pnpm clara server panel',
         'pnpm clara server setup-token --docker',
         'pnpm clara server admin reset --docker',
         'pnpm clara server pair',
@@ -280,16 +278,6 @@ const clara = {
         { flags: '--host', description: 'Read the code from a local install' },
       ],
       run: pair,
-    },
-    {
-      name: 'control',
-      group: 'Setup',
-      summary: 'Serve the built panel and open it in a browser',
-      options: [
-        { flags: 'CLARA_PANEL_PORT', description: 'Panel port (default 8790)' },
-        { flags: 'CLARA_PANEL_DISABLED', description: 'Set to 1 to refuse to start the panel' },
-      ],
-      run: control,
     },
     {
       name: 'lab',

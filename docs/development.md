@@ -81,7 +81,7 @@ pnpm clara backup [--output <path>]
 pnpm clara restore <archive> [--force]
 
 # Services
-pnpm clara server <start|stop|restart|status [--json]|setup-token|pair|admin|logs> [--local|--docker] [--host] [--build]
+pnpm clara server <start|stop|restart|status [--json]|panel|setup-token|pair|admin|logs> [--local|--docker] [--host] [--build]
 pnpm clara web <start|stop|restart|status [--json]|logs> [--local|--docker] [--build]
 pnpm clara orchestrator <serve|start|stop|restart|status [--json]|logs|token> [--local|--docker] [--build]
 pnpm clara adapter install --opencode [--mcp]
@@ -90,7 +90,6 @@ pnpm clara runner
 
 # Setup
 pnpm clara pair [--local] [--rotate] [--no-qr] [--no-panel] [--docker|--host]
-pnpm clara control
 
 # Tools
 pnpm clara lab [serve|check]
@@ -103,7 +102,8 @@ for one command.
 `pnpm clara pair` runs the server source directly for a local target and does
 not need a build. It probes the running deployment first; `--host` forces the
 host install and `--docker` the container.
-`pnpm clara control` uses the built agent, so run `pnpm build` first.
+`pnpm clara server panel` opens a panel that is already being served; start the
+agent first with `pnpm clara server start --local` (or `--docker`).
 `pnpm clara start` starts Docker by default: it creates the `clara` network,
 bootstraps `docker/.env` and the orchestrator token on first run, then starts
 the selected services in orchestrator, server, web order. Pass `--local` to run

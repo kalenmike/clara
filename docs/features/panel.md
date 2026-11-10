@@ -17,10 +17,11 @@ monitoring on or off, and gates or paces client settings sync.
 
 ## User flow
 
-1. Run `pnpm clara control` after `pnpm build`. If the agent is not already
-   serving the panel, the command starts it and waits for the listener. The log
-   prints `panel at http://127.0.0.1:8790/`. For a container, start it with
-   `pnpm clara server start`.
+1. Start the agent after `pnpm build` with `pnpm clara server start --local`, or
+   `pnpm clara server start` for the container, then run
+   `pnpm clara server panel`. The open command only opens a panel that is
+   already being served; the start command prints the panel URL
+   (`http://127.0.0.1:8790/` by default).
 2. The command opens the panel. First run shows setup: read the one-time token
    from `admin-setup.txt` in the config directory, or run
    `pnpm clara server setup-token` (it targets the running deployment
@@ -339,9 +340,11 @@ monitoring on or off, and gates or paces client settings sync.
   - `CLARA_ADMIN_SETUP_TOKEN` or `CLARA_ADMIN_SETUP_TOKEN_FILE` supplies the first-run token
 - CLI: `clara-server serve --no-panel`, `clara-server admin reset|setup-token`
 - Built assets: `apps/server/dist/panel`, copied from `apps/panel/dist`
-- Open the built panel: `pnpm clara control` starts the agent when the panel is
-  not already answering, opens `http://127.0.0.1:${CLARA_PANEL_PORT:-8790}/`,
-  and stays attached to the agent it started
+- Open the built panel: `pnpm clara server panel` opens
+  `http://127.0.0.1:${CLARA_PANEL_PORT:-8790}/` in a browser when the agent is
+  already serving it; start the agent with `pnpm clara server start --local`
+  (or `--docker`) first. The panel is a surface of the home agent, not a
+  separate service
 - Docker (default): `pnpm clara server start|stop|restart|status|setup-token|pair|admin|logs`;
   `setup-token`, `admin`, and `pair` target the running deployment
   automatically, and `--docker`/`--host` force the container or a local
