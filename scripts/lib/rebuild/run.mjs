@@ -718,6 +718,18 @@ async function restartLab(state, options) {
 
 async function restartControl(state, options) {
   const control = state.control
+  if (control.panel?.container === true || control.mode === 'container') {
+    logCommand('restarting control through docker compose')
+    const result = await runCli(['server', 'start', '--docker', '--build'], {
+      cwd: state.root,
+      progress: options.progress ?? DEFAULT_PROGRESS,
+      log: (text) => appendLog(process.env, text),
+    })
+    if (!result.ok)
+      throw new Error(`server container start failed (exit ${result.code ?? 'unknown'})`)
+    await waitForControl(control)
+    return
+  }
   if (control.systemd === true) {
     logCommand('restarting control through systemctl --user restart clara')
     const result = await runStreaming('systemctl', ['--user', 'restart', 'clara'], {
