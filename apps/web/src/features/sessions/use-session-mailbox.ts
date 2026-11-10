@@ -19,7 +19,7 @@ export function useSessionMailboxSignals(sessions: SessionInfo[]) {
   return useQueries({
     queries: sessions.map((session) => ({
       queryKey: queryKeys.sessionMailbox(session.id),
-      queryFn: () => loadSessionMailboxSignals(client!, session.id),
+      queryFn: ({ signal }) => loadSessionMailboxSignals(client!, session.id, signal),
       enabled: Boolean(client),
       staleTime: 60_000,
       refetchOnWindowFocus: false,
