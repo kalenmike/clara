@@ -244,6 +244,7 @@ describe('PanelRuntime', () => {
     expect(snapshot.local.connections).toBe(1)
     expect(snapshot.relay.status).toBe('online')
     expect(snapshot.clients.map((client) => client.transport)).toEqual(['local', 'relay'])
+    expect(snapshot.clients.map((client) => client.kind)).toEqual(['device', 'device'])
     expect(snapshot.storage.map((entry) => entry.key)).toEqual([
       'config',
       'subscriptions',

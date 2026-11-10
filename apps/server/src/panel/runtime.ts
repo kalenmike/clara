@@ -427,6 +427,7 @@ function toClient(
   return {
     sid: session.sid,
     transport,
+    kind: session.kind,
     ...(session.deviceId ? { deviceId: session.deviceId } : {}),
     ...(session.deviceLabel ? { deviceLabel: session.deviceLabel } : {}),
     ...(session.deviceClass ? { deviceClass: session.deviceClass } : {}),
