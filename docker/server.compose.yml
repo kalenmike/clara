@@ -36,9 +36,13 @@ services:
       CLARA_RELAY_ROOM: ${CLARA_RELAY_ROOM:-}
       CLARA_AGENT_TOKEN: ${CLARA_AGENT_TOKEN:-}
       CLARA_CLIENT_TOKEN: ${CLARA_CLIENT_TOKEN:-}
-      # Local web container default. Set your own HTTPS web URL for Pages or a
-      # remote deployment.
-      CLARA_PAIRING_BASE_URL: ${CLARA_PAIRING_BASE_URL:-http://127.0.0.1:8080}
+      # Optional override. Set the Web URL in the agent panel instead.
+      CLARA_PAIRING_BASE_URL: ${CLARA_PAIRING_BASE_URL:-}
+      # Host port of the web client; the default panel Web URL uses it.
+      CLARA_WEB_PORT: ${CLARA_WEB_PORT:-8080}
+      CLARA_VAPID_PUBLIC_KEY: ${CLARA_VAPID_PUBLIC_KEY:-}
+      CLARA_VAPID_PRIVATE_KEY: ${CLARA_VAPID_PRIVATE_KEY:-}
+      CLARA_VAPID_SUBJECT: ${CLARA_VAPID_SUBJECT:-}
       CLARA_SECRET_KEY: ${CLARA_SECRET_KEY:-}
       CLARA_SECRET_KEY_FILE: ${CLARA_SECRET_KEY_FILE:-}
     volumes:

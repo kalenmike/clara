@@ -177,7 +177,7 @@ function printSummary(selection) {
   if (!selection.web) {
     console.log('')
     console.log(
-      'note: the web client is disabled; pairing links use CLARA_PAIRING_BASE_URL (default http://127.0.0.1:8080).'
+      `note: the web client is disabled; pairing links use the panel Web URL (default ${webURL()}).`
     )
   }
   if (!selection.server) {
