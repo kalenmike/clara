@@ -113,6 +113,11 @@ function materialize(order: ScriptWorkOrder, temp: string): Record<string, strin
   const request = join(temp, 'request.txt')
   writeFileSync(request, order.context.prompt ?? '')
   files.CLARA_REQUEST = request
+  if (order.context.failure) {
+    const failure = join(temp, 'failure.json')
+    writeFileSync(failure, JSON.stringify(order.context.failure, null, 2))
+    files.CLARA_FAILURE = failure
+  }
   files.CLARA_RUN_ID = String(order.run_id)
   files.CLARA_STEP_PATH = order.step_path
   return files

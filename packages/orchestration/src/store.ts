@@ -49,6 +49,9 @@ export interface StepRow extends Row {
   background: number
   result: string | null
   error: string | null
+  recovery_cycles: number
+  recovered: number
+  recovered_by: string | null
   lease_id: string | null
   lease_owner: string | null
   lease_expires_at: string | null
@@ -245,6 +248,9 @@ export class Store {
         background INTEGER NOT NULL DEFAULT 0,
         result TEXT,
         error TEXT,
+        recovery_cycles INTEGER NOT NULL DEFAULT 0,
+        recovered INTEGER NOT NULL DEFAULT 0,
+        recovered_by TEXT,
         lease_id TEXT,
         lease_owner TEXT,
         lease_expires_at TEXT,
@@ -313,6 +319,9 @@ export class Store {
     `)
     this.ensureColumn('steps', 'provider', 'TEXT')
     this.ensureColumn('steps', 'current_attempt_id', 'INTEGER')
+    this.ensureColumn('steps', 'recovery_cycles', 'INTEGER NOT NULL DEFAULT 0')
+    this.ensureColumn('steps', 'recovered', 'INTEGER NOT NULL DEFAULT 0')
+    this.ensureColumn('steps', 'recovered_by', 'TEXT')
     this.ensureColumn('events', 'attempt_id', 'INTEGER')
     this.ensureColumn('step_attempts', 'budget_exhausted', 'INTEGER NOT NULL DEFAULT 0')
     this.ensureColumn('step_attempts', 'exit_code', 'INTEGER')

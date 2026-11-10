@@ -78,6 +78,8 @@ export interface WorkOrder {
     prompt: string
     inputs: Array<{ label: string; path: string; name: string; result: unknown }>
     artifacts: Array<{ label: string; path: string; exists?: boolean }>
+    /** Present on a recovery step: the attempt that handed off to it. */
+    failure?: { step: string; attempt: number; error?: string; result?: unknown }
   }
 }
 
@@ -114,7 +116,7 @@ const GLOB_CHARS = /[*?[\]{}]/
 function isLiteralPath(path: string): boolean {
   return !GLOB_CHARS.test(path)
 }
-const LIVE = new Set(['pending', 'ready', 'running', 'waiting_children'])
+const LIVE = new Set(['pending', 'ready', 'running', 'waiting_children', 'recovering'])
 
 function parseJson<T>(value: string | null | undefined, fallback: T): T {
   if (!value) return fallback
@@ -137,6 +139,7 @@ const HANDOFF_LIMIT = 2_000
 function compiledLeaves(node: CompiledNode, out: CompiledNode[] = []): CompiledNode[] {
   if (node.kind === 'agent' || node.kind === 'router' || node.kind === 'script') out.push(node)
   for (const child of node.children ?? []) compiledLeaves(child, out)
+  for (const child of node.onFailure?.children ?? []) compiledLeaves(child, out)
   for (const route of node.routes ?? []) {
     if (route.target) compiledLeaves(route.target, out)
   }
@@ -395,8 +398,137 @@ export class Runtime {
       return { status: 'waiting' }
     }
 
+    const beginRecovery = (node: CompiledNode, row: StepRow, schedule: boolean): NodeSync => {
+      const recovery = node.onFailure
+      if (!recovery) return { status: 'failed' }
+      for (const child of recovery.children) ensure(child, node.path)
+      const cycle = Number(row.recovery_cycles) + 1
+      const updated = mark(row, {
+        status: 'recovering',
+        lease_id: null,
+        lease_owner: null,
+        lease_expires_at: null,
+      })
+      this.store.event(
+        runID,
+        'step.recovering',
+        { step: node.path, cycle, error: updated.error },
+        updated.current_attempt_id
+      )
+      return syncRecovery(node, updated, schedule)
+    }
+
+    const syncRecovery = (node: CompiledNode, row: StepRow, schedule: boolean): NodeSync => {
+      const recovery = node.onFailure
+      if (!recovery) return { status: 'failed' }
+      let blocked = false
+      let failedChild: CompiledNode | undefined
+      for (const child of recovery.children) {
+        const result = sync(child, node.path, schedule && !blocked)
+        if (result.status === 'failed') {
+          failedChild = child
+          break
+        }
+        if (result.status !== 'done') blocked = true
+      }
+      if (failedChild) {
+        const childRow = steps.get(failedChild.path)
+        const detail = childRow?.error ? `: ${childRow.error}` : ''
+        const combined = `${
+          row.error ? `${row.error}; ` : ''
+        }recovery failed at ${failedChild.name}${detail}`
+        mark(row, {
+          status: 'failed',
+          error: combined,
+          finished_at: now(),
+          lease_id: null,
+          lease_owner: null,
+          lease_expires_at: null,
+        })
+        this.store.event(
+          runID,
+          'step.recovery_failed',
+          { step: node.path, cycle: Number(row.recovery_cycles) + 1, error: combined },
+          row.current_attempt_id
+        )
+        const alert = this.store.alert({
+          run_id: runID,
+          step_path: node.path,
+          kind: 'recovery_failed',
+          title: `Recovery failed: ${node.name}`,
+          body: combined,
+        })
+        this.store.event(
+          runID,
+          'alert.created',
+          { alert: alert.id, kind: 'recovery_failed' },
+          row.current_attempt_id
+        )
+        return { status: 'failed' }
+      }
+      if (blocked) return { status: 'running' }
+
+      const cycle = Number(row.recovery_cycles) + 1
+      const results = recovery.children.map((child) => {
+        const childRow = steps.get(child.path)
+        return {
+          name: child.name,
+          path: child.path,
+          result: parseJson<unknown>(childRow?.result, null),
+        }
+      })
+      if (recovery.retry) {
+        const updated = mark(row, {
+          status: 'ready',
+          recovery_cycles: cycle,
+          finished_at: null,
+          lease_id: null,
+          lease_owner: null,
+          lease_expires_at: null,
+        })
+        this.store.event(
+          runID,
+          'step.recovered',
+          { step: node.path, cycle, retried: true },
+          row.current_attempt_id
+        )
+        return readyStep(updated, node, schedule)
+      }
+      mark(row, {
+        status: 'done',
+        recovery_cycles: cycle,
+        recovered: 1,
+        recovered_by: recovery.children.at(-1)?.path ?? null,
+        result: JSON.stringify({ recovered: true, steps: results }),
+        finished_at: now(),
+        lease_id: null,
+        lease_owner: null,
+        lease_expires_at: null,
+      })
+      this.store.event(
+        runID,
+        'step.recovered',
+        { step: node.path, cycle, retried: false },
+        row.current_attempt_id
+      )
+      return { status: 'done' }
+    }
+
     const sync = (node: CompiledNode, parentPath: string | null, schedule: boolean): NodeSync => {
       const row = ensure(node, parentPath)
+
+      if (
+        node.onFailure &&
+        (node.kind === 'agent' || node.kind === 'script' || node.kind === 'router')
+      ) {
+        if (row.status === 'recovering') return syncRecovery(node, row, schedule)
+        if (row.status === 'failed') {
+          if (Number(row.recovery_cycles) < node.onFailure.maxCycles) {
+            return beginRecovery(node, row, schedule)
+          }
+          return { status: 'failed' }
+        }
+      }
 
       if (
         (node.kind === 'agent' || node.kind === 'router' || node.kind === 'script') &&
@@ -610,7 +742,15 @@ export class Runtime {
       })
     } else if (result.status === 'done') {
       this.store.updateRun(runID, { state: 'completed', finished_at: now() })
-      this.store.event(runID, 'run.completed', {})
+      const recoveries = this.store
+        .steps(runID)
+        .filter((step) => step.recovered === 1)
+        .map((step) => ({
+          step: step.path,
+          cycles: Number(step.recovery_cycles),
+          recovered_by: step.recovered_by,
+        }))
+      this.store.event(runID, 'run.completed', recoveries.length ? { recoveries } : {})
     } else {
       const state = ready.length ? 'running' : 'waiting'
       if (latest.state !== state) this.store.updateRun(runID, { state })
@@ -628,7 +768,10 @@ export class Runtime {
     const at = now()
     for (const step of this.store.steps(runID)) {
       if (!LIVE.has(step.status)) continue
-      const cancelled = step.status === 'running' || step.status === 'waiting_children'
+      const cancelled =
+        step.status === 'running' ||
+        step.status === 'waiting_children' ||
+        step.status === 'recovering'
       if (cancelled && step.current_attempt_id !== null) {
         this.store.updateStepAttempt(Number(step.current_attempt_id), {
           status: 'cancelled',
@@ -730,6 +873,24 @@ export class Runtime {
     return orders
   }
 
+  private failureContext(
+    run: RunRow,
+    path: string
+  ): { step: string; attempt: number; error?: string; result?: unknown } | undefined {
+    const parent = this.store.step(Number(run.id), path)
+    if (!parent) return undefined
+    const attempts = this.store.stepAttempts(Number(run.id), path)
+    const latest = [...attempts]
+      .reverse()
+      .find((attempt) => attempt.error || attempt.status === 'failed' || attempt.status === 'retry')
+    return {
+      step: path,
+      attempt: Number(latest?.attempt ?? parent.attempt),
+      ...((latest?.error ?? parent.error) ? { error: String(latest?.error ?? parent.error) } : {}),
+      ...(latest?.result ? { result: parseJson<unknown>(latest.result, null) } : {}),
+    }
+  }
+
   private workOrder(run: RunRow, row: StepRow, node: CompiledNode, token: string): WorkOrder {
     const policy = parseJson<StepPolicy | undefined>(row.policy, undefined)
     const limits = parseJson<Limits | undefined>(row.limits, undefined)
@@ -764,6 +925,7 @@ export class Runtime {
         }
       : undefined
     const script = node.kind === 'script'
+    const failure = node.recoveryFor ? this.failureContext(run, node.recoveryFor) : undefined
     return {
       run_id: Number(run.id),
       step_path: node.path,
@@ -775,7 +937,7 @@ export class Runtime {
       workspace: run.workspace,
       work_token: token,
       attempt: Number(row.attempt),
-      max_attempts: Number(row.max_attempts),
+      max_attempts: Number(row.max_attempts) + Number(row.recovery_cycles),
       ...(!script && node.model ? { model: node.model } : {}),
       ...(!script && node.provider ? { provider: node.provider } : {}),
       ...(!script && policy ? { policy } : {}),
@@ -798,6 +960,7 @@ export class Runtime {
         prompt: run.prompt,
         inputs,
         artifacts,
+        ...(failure ? { failure } : {}),
       },
     }
   }
@@ -913,6 +1076,7 @@ export class Runtime {
         violations,
         finished_at: now(),
         error: null,
+        ...(Number(row.recovery_cycles) > 0 ? { recovered: 1 } : {}),
         lease_id: null,
         lease_owner: null,
         lease_expires_at: null,
@@ -939,9 +1103,13 @@ export class Runtime {
     usage?: Partial<Usage>,
     exitCode?: number
   ): { run: RunRow; retry: boolean; ready: StepRow[] } {
-    const { row } = this.requireRunningStep(runID, path, token)
+    const { run, row } = this.requireRunningStep(runID, path, token)
     const attempt = Number(row.attempt)
-    const maxAttempts = Number(row.max_attempts)
+    const maxAttempts = Number(row.max_attempts) + Number(row.recovery_cycles)
+    const node = findNode(JSON.parse(run.snapshot) as CompiledNode, path)
+    const recoveryArmed = Boolean(
+      node?.onFailure && Number(row.recovery_cycles) < node.onFailure.maxCycles
+    )
     const attemptID = row.current_attempt_id
     const fields = {
       turns: usage?.turns ?? Number(row.turns),
@@ -995,14 +1163,16 @@ export class Runtime {
         lease_expires_at: null,
       })
       this.store.event(runID, 'step.failed', { step: path, attempt, error }, attemptID)
-      const alert = this.store.alert({
-        run_id: runID,
-        step_path: path,
-        kind: 'failure',
-        title: `Step failed: ${row.name}`,
-        body: error,
-      })
-      this.store.event(runID, 'alert.created', { alert: alert.id, kind: 'failure' }, attemptID)
+      if (!recoveryArmed && !node?.recoveryFor) {
+        const alert = this.store.alert({
+          run_id: runID,
+          step_path: path,
+          kind: 'failure',
+          title: `Step failed: ${row.name}`,
+          body: error,
+        })
+        this.store.event(runID, 'alert.created', { alert: alert.id, kind: 'failure' }, attemptID)
+      }
     })
     this.rememberCompletedUsage(attemptID, token)
     const advanced = this.advance(runID)
@@ -1249,7 +1419,7 @@ export class Runtime {
     const budget = computeBudget(limits, Number(row.attempt) || 1)
     if (violations >= budget.maxViolations) {
       const attempt = Number(row.attempt)
-      const maxAttempts = Number(row.max_attempts)
+      const maxAttempts = Number(row.max_attempts) + Number(row.recovery_cycles)
       if (attempt < maxAttempts) {
         this.store.transaction(() => {
           if (attemptID !== null) {
@@ -1701,6 +1871,10 @@ export class Runtime {
 export function findNode(root: CompiledNode, path: string): CompiledNode | undefined {
   if (root.path === path) return root
   for (const child of root.children ?? []) {
+    const found = findNode(child, path)
+    if (found) return found
+  }
+  for (const child of root.onFailure?.children ?? []) {
     const found = findNode(child, path)
     if (found) return found
   }

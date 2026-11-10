@@ -147,6 +147,37 @@ test('omits the previous attempt on a first attempt', () => {
   assert.doesNotMatch(prompt, /# Previous attempt/)
 })
 
+test('renders the failure a recovery step is handling', () => {
+  const prompt = renderWorkPrompt({
+    step_path: 'verify/on_failure/1-recover',
+    kind: 'agent',
+    prompt: '# Task: Recover',
+    context: {
+      prompt: 'Rebuild Clara.',
+      failure: {
+        step: 'verify',
+        attempt: 2,
+        error: 'lab is not answering its health endpoint',
+        result: { ok: false, services: [{ name: 'lab', healthy: false }] },
+      },
+    },
+  })
+  assert.match(prompt, /# Failure being recovered/)
+  assert.match(prompt, /verify failed on attempt 2/)
+  assert.match(prompt, /lab is not answering its health endpoint/)
+  assert.match(prompt, /Work only on recovery/)
+})
+
+test('omits the failure section when there is no failure context', () => {
+  const prompt = renderWorkPrompt({
+    step_path: '1-verify',
+    kind: 'agent',
+    prompt: '# Task: Verify',
+    context: { prompt: 'Verify it.' },
+  })
+  assert.doesNotMatch(prompt, /# Failure being recovered/)
+})
+
 test('scopes a router to route and fail and constrains the route enum', () => {
   const tools: Record<string, unknown> = {
     read: {},

@@ -110,6 +110,135 @@ function wiringRuntime() {
   return { runtime: tempRuntime, store: tempStore, dir }
 }
 
+function recoveryRuntime(options: { retry?: boolean; cycles?: number } = {}) {
+  const dir = mkdtempSync(join(tmpdir(), 'clara-recovery-runtime-'))
+  mkdirSync(join(dir, 'orchestration'), { recursive: true })
+  writeFileSync(
+    join(dir, 'orchestration', 'index.yml'),
+    [
+      'id: temp',
+      'name: Temp',
+      'version: 1',
+      'entry:',
+      '  pipeline: main',
+      'pipelines:',
+      '  main:',
+      '    steps:',
+      '      - name: primary',
+      '        type: script',
+      '        command: pnpm test --json',
+      '        on_failure:',
+      `          max_cycles: ${options.cycles ?? 1}`,
+      `          retry: ${options.retry ?? true}`,
+      '          steps:',
+      '            - name: fix',
+      '              type: script',
+      '              command: pnpm fix --json',
+    ].join('\n')
+  )
+  const tempStore = new Store(':memory:')
+  const tempRuntime = new Runtime({
+    store: tempStore,
+    configPath: join(dir, 'orchestration', 'index.yml'),
+  })
+  return { runtime: tempRuntime, store: tempStore, dir }
+}
+
+describe('on_failure recovery', () => {
+  it('runs the recovery branch, retries the step, and completes without an alert', () => {
+    const { runtime: temp, store: tempStore, dir } = recoveryRuntime()
+    try {
+      const started = temp.start({ workspace: dir, prompt: 'recover it' })
+      const primary = started.work[0]
+      const failed = temp.fail(started.run.id, primary.step_path, primary.work_token, 'boom')
+      expect(failed.run.state).toBe('running')
+      expect(tempStore.openAlerts(started.run.id)).toEqual([])
+
+      const fix = temp.next(started.run.id)[0]
+      expect(fix.context.failure).toMatchObject({ step: primary.step_path, error: 'boom' })
+      temp.complete(started.run.id, fix.step_path, fix.work_token, { fixed: true })
+
+      const retry = temp.next(started.run.id)[0]
+      expect(retry.attempt).toBe(2)
+      temp.complete(started.run.id, retry.step_path, retry.work_token, { ok: true })
+
+      const status = temp.status(started.run.id)
+      expect(status.run.state).toBe('completed')
+      expect(status.steps.find((step) => step.name === 'primary')?.recovered).toBe(1)
+      expect(tempStore.openAlerts(started.run.id)).toEqual([])
+      const events = tempStore.events(started.run.id).map((event) => event.type)
+      expect(events).toContain('step.recovering')
+      expect(events).toContain('step.recovered')
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('marks the step done from the recovery result when retry is false', () => {
+    const { runtime: temp, dir } = recoveryRuntime({ retry: false })
+    try {
+      const started = temp.start({ workspace: dir, prompt: 'recover it' })
+      const primary = started.work[0]
+      temp.fail(started.run.id, primary.step_path, primary.work_token, 'boom')
+      const fix = temp.next(started.run.id)[0]
+      temp.complete(started.run.id, fix.step_path, fix.work_token, { fixed: true })
+
+      const status = temp.status(started.run.id)
+      expect(status.run.state).toBe('completed')
+      const row = status.steps.find((step) => step.name === 'primary')
+      expect(row?.recovered).toBe(1)
+      expect(JSON.parse(row?.result ?? '{}')).toMatchObject({ recovered: true })
+      expect(temp.next(started.run.id)).toEqual([])
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('fails the run with both errors when the recovery branch fails', () => {
+    const { runtime: temp, store: tempStore, dir } = recoveryRuntime()
+    try {
+      const started = temp.start({ workspace: dir, prompt: 'recover it' })
+      const primary = started.work[0]
+      temp.fail(started.run.id, primary.step_path, primary.work_token, 'boom')
+      const fix = temp.next(started.run.id)[0]
+      temp.fail(started.run.id, fix.step_path, fix.work_token, 'cannot fix')
+
+      const status = temp.status(started.run.id)
+      expect(status.run.state).toBe('failed')
+      expect(status.run.error).toContain('boom')
+      expect(status.run.error).toContain('recovery failed')
+      const alerts = tempStore.openAlerts(started.run.id)
+      expect(alerts).toHaveLength(1)
+      expect(alerts[0].kind).toBe('recovery_failed')
+      expect(alerts[0].body).toContain('cannot fix')
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('fails once a recovered step exhausts its added attempt', () => {
+    const { runtime: temp, store: tempStore, dir } = recoveryRuntime()
+    try {
+      const started = temp.start({ workspace: dir, prompt: 'recover it' })
+      const primary = started.work[0]
+      temp.fail(started.run.id, primary.step_path, primary.work_token, 'boom')
+      const fix = temp.next(started.run.id)[0]
+      temp.complete(started.run.id, fix.step_path, fix.work_token, { fixed: true })
+      const retry = temp.next(started.run.id)[0]
+      temp.fail(started.run.id, retry.step_path, retry.work_token, 'still broken')
+
+      const status = temp.status(started.run.id)
+      expect(status.run.state).toBe('failed')
+      const alerts = tempStore.openAlerts(started.run.id)
+      expect(alerts).toHaveLength(1)
+      expect(alerts[0].kind).toBe('failure')
+      expect(alerts[0].body).toBe('still broken')
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
+})
+
 describe('runtime', () => {
   it('fails closed for strict runs without an adapter', () => {
     expect(() =>

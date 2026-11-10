@@ -44,6 +44,7 @@ const SOURCE_FIELDS = [
   'enforcement',
   'background',
   'retries',
+  'onFailure',
   'policy',
   'limits',
   'requires',
@@ -232,6 +233,7 @@ export function statsFor(root: CompiledNode): PreviewStats {
     if (node.kind === 'pipeline') stats.pipelines++
     stats.routes += node.routes?.length ?? 0
     for (const child of node.children ?? []) walk(child)
+    for (const child of node.onFailure?.children ?? []) walk(child)
     for (const route of node.routes ?? []) {
       if (route.target) walk(route.target)
     }
@@ -452,6 +454,43 @@ export function diagnoseCompiled(
       })
     }
 
+    if (node.onFailure) {
+      if (node.kind !== 'agent' && node.kind !== 'script' && node.kind !== 'router') {
+        diagnostics.push({
+          severity: 'error',
+          code: 'on_failure_unsupported',
+          message: `Step "${node.name}" declares on_failure, which only agent, script, and router steps support.`,
+          stepPath: node.path,
+        })
+      }
+      if (!node.onFailure.children.length) {
+        diagnostics.push({
+          severity: 'error',
+          code: 'on_failure_empty',
+          message: `Step "${node.name}" declares on_failure without recovery steps.`,
+          stepPath: node.path,
+        })
+      }
+      if (node.onFailure.maxCycles < 1 || node.onFailure.maxCycles > 3) {
+        diagnostics.push({
+          severity: 'error',
+          code: 'on_failure_cycles',
+          message: `Step "${node.name}" sets on_failure.max_cycles outside 1..3.`,
+          stepPath: node.path,
+        })
+      }
+      for (const child of node.onFailure.children) {
+        if (child.onFailure) {
+          diagnostics.push({
+            severity: 'error',
+            code: 'on_failure_nested',
+            message: `Recovery step "${child.name}" declares another on_failure.`,
+            stepPath: child.path,
+          })
+        }
+      }
+    }
+
     const budget = computeBudget(node.limits, 1)
     if (node.limits && (budget.turns <= 0 || budget.tokens <= 0)) {
       diagnostics.push({
@@ -464,6 +503,9 @@ export function diagnoseCompiled(
 
     for (const [index, child] of (node.children ?? []).entries()) {
       walk(child, node.kind, index > 0)
+    }
+    for (const [index, child] of (node.onFailure?.children ?? []).entries()) {
+      walk(child, 'group', index > 0)
     }
     for (const route of node.routes ?? []) {
       if (route.target) walk(route.target, 'router', false)
@@ -478,6 +520,7 @@ export function diagnoseCompiled(
       if (node.kind === 'agent' || node.kind === 'router' || node.kind === 'script')
         leaves.push(node)
       for (const child of node.children ?? []) collect(child)
+      for (const child of node.onFailure?.children ?? []) collect(child)
       for (const route of node.routes ?? []) {
         if (route.target) collect(route.target)
       }

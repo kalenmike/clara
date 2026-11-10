@@ -927,7 +927,13 @@ export function analyzeDatabase(
     )
   }
 
-  const liveStepStatuses = new Set(['pending', 'ready', 'running', 'waiting_children'])
+  const liveStepStatuses = new Set([
+    'pending',
+    'ready',
+    'running',
+    'waiting_children',
+    'recovering',
+  ])
   const liveUnderTerminal = stepRows.filter(
     (step) =>
       TERMINAL_STATES.has(stateByRun.get(step.run_id) ?? '') && liveStepStatuses.has(step.status)

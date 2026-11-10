@@ -77,7 +77,7 @@ export function parseMaybeJson(value: string): unknown {
 export function statusTone(status: string): 'ok' | 'bad' | 'live' | 'idle' | 'warn' {
   if (['done', 'completed'].includes(status)) return 'ok'
   if (['failed', 'cancelled'].includes(status)) return 'bad'
-  if (['running', 'ready', 'waiting_children'].includes(status)) return 'live'
+  if (['running', 'ready', 'waiting_children', 'recovering'].includes(status)) return 'live'
   if (['waiting', 'pending'].includes(status)) return 'idle'
   return 'idle'
 }

@@ -6,6 +6,7 @@ import { parseMarkdownDocument, parseYamlRecord } from './frontmatter.ts'
 import type {
   AgentDefinition,
   CompiledNode,
+  CompiledRecovery,
   CompiledRoute,
   CompiledRun,
   ImportSpec,
@@ -435,6 +436,21 @@ function normalizeStep(raw: unknown, source: string, index: number): StepDefinit
     source,
     `steps[${index}].max_output_bytes`
   )
+  const onFailureRaw = isRecord(raw.on_failure) ? raw.on_failure : undefined
+  const onFailureMaxCycles =
+    onFailureRaw?.max_cycles === undefined ? undefined : num(onFailureRaw.max_cycles)
+  if (onFailureRaw?.max_cycles !== undefined && onFailureMaxCycles === undefined) {
+    throw new OrchestrationError(source, `steps[${index}].on_failure.max_cycles must be a number`)
+  }
+  const onFailure = onFailureRaw
+    ? {
+        ...(onFailureMaxCycles !== undefined ? { max_cycles: onFailureMaxCycles } : {}),
+        ...(bool(onFailureRaw.retry) !== undefined ? { retry: Boolean(onFailureRaw.retry) } : {}),
+        steps: Array.isArray(onFailureRaw.steps)
+          ? onFailureRaw.steps.map((step, child) => normalizeStep(step, source, child))
+          : [],
+      }
+    : undefined
   return {
     name,
     type,
@@ -469,6 +485,7 @@ function normalizeStep(raw: unknown, source: string, index: number): StepDefinit
     ...(isRecord(raw.policy) ? { policy: raw.policy as StepPolicy } : {}),
     ...(isRecord(raw.limits) ? { limits: raw.limits as Limits } : {}),
     ...(isRecord(raw.retries) ? { retries: raw.retries as { auto_attempts?: number } } : {}),
+    ...(onFailure ? { on_failure: onFailure } : {}),
     ...(str(raw.enforcement)
       ? { enforcement: String(raw.enforcement) as StepDefinition['enforcement'] }
       : {}),
@@ -774,6 +791,10 @@ function loadPackageDirectory(
       if (spec.select?.length) {
         const allowed = new Set(spec.select)
         child.pipelines = new Map([...child.pipelines].filter(([id]) => allowed.has(id)))
+        if (child.entry.pipeline && !child.pipelines.has(child.entry.pipeline)) {
+          const first = child.pipelines.keys().next().value as string | undefined
+          child.entry = first ? { pipeline: first } : {}
+        }
       }
       loaded.push(child)
     }
@@ -960,6 +981,7 @@ const STEP_FIELDS = [
   'enforcement',
   'background',
   'retries',
+  'on_failure',
   'permissions',
   'requires',
   'strategy',
@@ -1066,6 +1088,52 @@ function scriptSpec(pkg: LoadedPackage, step: StepDefinition, path: string): Scr
   }
 }
 
+function compileOnFailure(
+  pkg: LoadedPackage,
+  step: StepDefinition,
+  path: string,
+  stack: Set<string>,
+  model: string | undefined,
+  provider: string | undefined,
+  policy: StepPolicy | undefined,
+  limits: Limits | undefined,
+  source: string | undefined,
+  fallbackModel?: string,
+  fallbackProvider?: string
+): CompiledRecovery | undefined {
+  const definition = step.on_failure
+  if (!definition) return undefined
+  const maxCycles = definition.max_cycles ?? 1
+  if (!Number.isInteger(maxCycles) || maxCycles < 1 || maxCycles > 3) {
+    throw new OrchestrationError(path, 'on_failure.max_cycles must be an integer between 1 and 3')
+  }
+  if (!Array.isArray(definition.steps) || !definition.steps.length) {
+    throw new OrchestrationError(path, 'on_failure needs at least one step')
+  }
+  if (definition.retry !== undefined && typeof definition.retry !== 'boolean') {
+    throw new OrchestrationError(path, 'on_failure.retry must be a boolean')
+  }
+  const children = definition.steps.map((child, index) => {
+    const childPath = `${path}/on_failure/${index + 1}-${child.name}`
+    const node = compileStep(
+      pkg,
+      child,
+      childPath,
+      stack,
+      model,
+      provider,
+      policy,
+      limits,
+      source,
+      fallbackModel,
+      fallbackProvider,
+      true
+    )
+    return { ...node, recoveryFor: path }
+  })
+  return { maxCycles, retry: definition.retry ?? true, children }
+}
+
 function compileStep(
   pkg: LoadedPackage,
   step: StepDefinition,
@@ -1077,8 +1145,18 @@ function compileStep(
   inheritedLimits?: Limits,
   inheritedSource?: string,
   fallbackModel?: string,
-  fallbackProvider?: string
+  fallbackProvider?: string,
+  inRecovery = false
 ): CompiledNode {
+  if (inRecovery && step.on_failure) {
+    throw new OrchestrationError(path, 'a recovery step cannot declare on_failure')
+  }
+  if (!inRecovery && step.on_failure && !['agent', 'script', 'router'].includes(step.type)) {
+    throw new OrchestrationError(
+      path,
+      'on_failure is only supported on agent, script, and router steps'
+    )
+  }
   const resolvedAgent = step.type === 'agent' ? agentPrompt(pkg, step) : undefined
   const resolvedScript = step.type === 'script' ? scriptSpec(pkg, step, path) : undefined
   const model =
@@ -1121,6 +1199,22 @@ function compileStep(
     ...(step.request !== undefined ? { request: step.request } : {}),
     ...(source ? { source } : {}),
   }
+  const recovery =
+    step.type === 'agent' || step.type === 'script' || step.type === 'router'
+      ? compileOnFailure(
+          pkg,
+          step,
+          path,
+          stack,
+          model,
+          provider,
+          policy,
+          limits,
+          source,
+          fallbackModel,
+          fallbackProvider
+        )
+      : undefined
 
   if (step.type === 'agent') {
     if (!resolvedAgent)
@@ -1130,6 +1224,7 @@ function compileStep(
       kind: 'agent',
       prompt: resolvedAgent.prompt,
       promptSource: resolvedAgent.source,
+      ...(recovery ? { onFailure: recovery } : {}),
       ...(resolvedAgent.agent ? { agent: resolvedAgent.agent.name } : {}),
       ...(resolvedAgent.agent?.source ? { source: resolvedAgent.agent.source } : {}),
       ...(policyFromStep(step, resolvedAgent.agent, inheritedPolicy)
@@ -1151,6 +1246,7 @@ function compileStep(
       ...base,
       kind: 'script',
       script: resolvedScript,
+      ...(recovery ? { onFailure: recovery } : {}),
       retries: step.retries ?? { auto_attempts: 1 },
     }
   }
@@ -1193,7 +1289,8 @@ function compileStep(
           limits,
           base.source,
           fallbackModel,
-          fallbackProvider
+          fallbackProvider,
+          inRecovery
         )
       ),
     }
@@ -1216,7 +1313,8 @@ function compileStep(
           limits,
           base.source,
           fallbackModel,
-          fallbackProvider
+          fallbackProvider,
+          inRecovery
         )
       ),
     }
@@ -1236,6 +1334,7 @@ function compileStep(
     kind: 'router',
     prompt: renderRouterPrompt(router.instructions, router.routes),
     promptSource: 'router',
+    ...(recovery ? { onFailure: recovery } : {}),
     ...(router.source ? { source: router.source } : {}),
     routes,
     ...(router.strategy ? { strategy: router.strategy } : {}),
@@ -1386,6 +1485,15 @@ export function compileRef(
 
 function resolveWiring(root: CompiledNode): void {
   const resolveContainer = (container: CompiledNode): void => {
+    if (container.onFailure) {
+      resolveContainer({
+        path: container.path,
+        name: `${container.name} recovery`,
+        title: `${container.title} recovery`,
+        kind: 'group',
+        children: container.onFailure.children,
+      })
+    }
     const children = container.children ?? []
     const byName = new Map<string, CompiledNode>()
     for (const child of children) {
