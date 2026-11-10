@@ -20,11 +20,10 @@ function record(overrides = {}) {
     state: 'running',
     mode: 'container',
     healthy: true,
-    url: 'http://127.0.0.1:8790',
+    url: 'http://127.0.0.1:8788',
     error: null,
     details: {
-      panel: 'running at http://127.0.0.1:8790',
-      local: 'running at http://127.0.0.1:8788',
+      panel: 'http://127.0.0.1:8790 (running)',
       admin: 'configured',
     },
     ...overrides,
@@ -99,7 +98,10 @@ test('renders the same table for a stack and for one service', () => {
   )
   assert.equal(lines[0], 'Clara stack')
   assert.match(lines.join('\n'), /SERVICE\s+CONTAINER\s+STATE\s+URL/)
-  assert.match(lines.join('\n'), /server\s+clara-server\s+running \(container\)/)
+  assert.match(
+    lines.join('\n'),
+    /server\s+clara-server\s+running \(container\)\s+http:\/\/127\.0\.0\.1:8788/
+  )
   assert.match(lines.join('\n'), /web\s+clara-web\s+stopped/)
   assert.match(lines.join('\n'), /Details/)
   assert.match(lines.join('\n'), /Errors/)
@@ -108,13 +110,16 @@ test('renders the same table for a stack and for one service', () => {
   const single = []
   renderStatus([record()], {
     title: 'Clara server',
-    urlHeader: 'PANEL',
     write: (line) => single.push(line),
   })
   assert.equal(single[0], 'Clara server')
-  assert.match(single.join('\n'), /SERVICE\s+CONTAINER\s+STATE\s+PANEL/)
-  assert.match(single.join('\n'), /panel\s+running at http:\/\/127\.0\.0\.1:8790/)
-  assert.match(single.join('\n'), /local\s+running at http:\/\/127\.0\.0\.1:8788/)
+  assert.match(single.join('\n'), /SERVICE\s+CONTAINER\s+STATE\s+URL/)
+  assert.match(
+    single.join('\n'),
+    /server\s+clara-server\s+running \(container\)\s+http:\/\/127\.0\.0\.1:8788/
+  )
+  assert.match(single.join('\n'), /panel\s+http:\/\/127\.0\.0\.1:8790 \(running\)/)
+  assert.doesNotMatch(single.join('\n'), /local\s+http:\/\//)
   assert.match(single.join('\n'), /admin\s+configured/)
 })
 

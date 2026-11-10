@@ -132,14 +132,10 @@ async function collectServerStatus() {
 
   const session =
     panel.health === 'ok' ? await probe(`${panelURL()}/panel/api/v1/session`) : undefined
+  const panelState =
+    panel.health === 'ok' ? 'running' : panel.health === 'foreign' ? 'foreign service' : 'stopped'
   const details = {
-    panel:
-      panel.health === 'ok'
-        ? `running at ${panelURL()}`
-        : panel.health === 'foreign'
-          ? `foreign service at ${panelURL()}`
-          : `stopped at ${panelURL()}`,
-    local: local.ok ? `running at ${localURL()}` : `stopped at ${localURL()}`,
+    panel: `${panelURL()} (${panelState})`,
   }
   if (session?.ok && session.body) {
     const body = session.body
@@ -166,7 +162,7 @@ async function collectServerStatus() {
     state: resolved.state,
     mode: resolved.mode,
     healthy: resolved.state === 'running',
-    url: panelURL(),
+    url: localURL(),
     error: error ?? null,
     details,
   }
@@ -208,11 +204,8 @@ function detailLine(details) {
     .join('; ')
 }
 
-export function renderStatus(
-  records,
-  { title = 'Clara stack', write = console.log, urlHeader = 'URL' } = {}
-) {
-  const headers = ['SERVICE', 'CONTAINER', 'STATE', urlHeader]
+export function renderStatus(records, { title = 'Clara stack', write = console.log } = {}) {
+  const headers = ['SERVICE', 'CONTAINER', 'STATE', 'URL']
   const rows = records.map((record) => [
     record.service,
     record.container,

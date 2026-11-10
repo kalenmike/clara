@@ -225,7 +225,7 @@ async function panel() {
 async function printStatus() {
   const [record] = await collectStatus(['server'])
   if (json) renderJSON([record])
-  else renderStatus([record], { title: 'Clara server', urlHeader: 'PANEL' })
+  else renderStatus([record], { title: 'Clara server' })
   process.exitCode = statusExitCode([record])
 }
 
