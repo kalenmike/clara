@@ -11,8 +11,7 @@ trusted network.
 - Node 22 (see `.nvmrc`)
 - pnpm 11
 - A running OpenCode 2.1.x server
-- Optional: a Cloudflare account and the `clara.kalenmichael.com` zone for
-  remote access
+- Optional: a Cloudflare account and your own domain for remote access
 
 ## Workspace
 
@@ -148,6 +147,10 @@ the browser must use a different relay endpoint than the agent:
 VITE_CLARA_WS_URL=wss://relay.example pnpm clara web start --docker --build
 ```
 
+The default pairing base is `http://127.0.0.1:8080`, so a local code prints a
+link to this container. Set `CLARA_PAIRING_BASE_URL` to your own HTTPS web URL
+for Pages or a remote deployment.
+
 Local pairing works from `http://127.0.0.1:8080` or an SSH tunnel. An HTTPS page
 cannot open a `ws://` socket, so phones and remote browsers still need the relay.
 The container is static and the browser talks to the home agent directly; it
@@ -192,22 +195,28 @@ cannot open a `ws://` socket. For phones, configure the relay instead.
 2. Build the web app with:
 
    ```bash
-   VITE_CLARA_WS_URL=wss://relay.clara.kalenmichael.com pnpm --filter @clara/web build
+   VITE_CLARA_WS_URL=wss://relay.example pnpm --filter @clara/web build
    ```
 
-3. Deploy `apps/web/dist` to the Pages project `clara` and attach
-   `clara.kalenmichael.com`.
+   Use your own relay host. `pnpm deploy:web` reads `VITE_CLARA_WS_URL` from the
+   environment the same way.
+
+3. Deploy `apps/web/dist` to your Pages project and attach your own domain.
 
 4. Configure the home agent. The systemd unit reads
    `~/.config/clara/server.env` (`KEY=value`, mode `0600`) and restarts with it;
    a hand-started agent needs the same variables exported:
 
    ```bash
-   CLARA_RELAY_URL=wss://relay.clara.kalenmichael.com
+   CLARA_RELAY_URL=wss://relay.example
+   CLARA_PAIRING_BASE_URL=https://your-clara.example
    CLARA_RELAY_ROOM=<generated on first run, persisted in server.json>
    CLARA_AGENT_TOKEN=<must match the Worker secret>
    CLARA_CLIENT_TOKEN=<must match the Worker secret>
    ```
+
+   Use your own relay and web URLs. The pairing base defaults to the local web
+   container, so set it explicitly for a Pages deployment.
 
 5. Restart the agent and check `relay connecting` / `relay online` in its log.
    `pnpm clara pair` must then print a random `Room:` and a `/room/<id>` link;

@@ -33,13 +33,38 @@ export async function createPairingPayload(config: ServerConfig): Promise<Pairin
   }
 }
 
+const DEFAULT_LOCAL_WEB_PORT = 8080
+
+/**
+ * Local codes can only be used by a browser on the agent's host. Print them
+ * against the local web app instead of a remote deployment URL, unless the
+ * configured base is already loopback (for example the Vite dev server).
+ */
+export function pairingLinkBase(
+  payload: Pick<PairingPayload, 'room'>,
+  pairingBaseUrl: string,
+  localHost: string,
+  localWebPort = DEFAULT_LOCAL_WEB_PORT
+): string {
+  if (payload.room !== 'local' || isLoopbackUrl(pairingBaseUrl)) return pairingBaseUrl
+  const host = localHost.startsWith('[')
+    ? localHost
+    : localHost.includes(':')
+      ? `[${localHost}]`
+      : localHost
+  return `http://${host}:${localWebPort}`
+}
+
 export async function printPairing(
   config: ServerConfig,
   withQr = true,
   options: PairingOptions = {}
 ): Promise<PairingPayload> {
   const payload = await createPairingPayload(config)
-  const url = buildPairingUrl(config.pairingBaseUrl, payload)
+  const url = buildPairingUrl(
+    pairingLinkBase(payload, config.pairingBaseUrl, config.local.host),
+    payload
+  )
   const code = `${PAIRING_CODE_PREFIX}${encodePairingCode(payload)}`
 
   console.log('')
@@ -54,20 +79,6 @@ export async function printPairing(
         ? '  Relay:       bypassed by --local; this code only works on the local machine.'
         : '  Relay:       not configured; this code only works on the local machine.'
     )
-    if (!isLoopbackUrl(config.pairingBaseUrl)) {
-      console.log('  Warning:     this link opens a remote page, but the code is local-only.')
-      if (options.local) {
-        console.log('               Use the code in the local app, or set')
-        console.log(
-          '               CLARA_PAIRING_BASE_URL=http://localhost:5173 to print a local link.'
-        )
-      } else {
-        console.log('               Set CLARA_RELAY_URL, CLARA_RELAY_ROOM, CLARA_AGENT_TOKEN, and')
-        console.log(
-          '               CLARA_CLIENT_TOKEN on the home agent, restart it, and pair again.'
-        )
-      }
-    }
   }
   console.log('')
   if (withQr) qrcode.generate(url, { small: true })

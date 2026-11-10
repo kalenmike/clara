@@ -4,7 +4,7 @@ import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { generatePsk } from '@clara/crypto'
 import { loadConfig, type ServerConfig } from '../src/config.ts'
-import { createPairingPayload } from '../src/pairing.ts'
+import { createPairingPayload, pairingLinkBase } from '../src/pairing.ts'
 
 const tempDirs: string[] = []
 const ENV_KEYS = [
@@ -104,6 +104,32 @@ describe('createPairingPayload', () => {
       room: 'room-1',
       clientToken: 'client',
     })
+  })
+})
+
+describe('pairingLinkBase', () => {
+  it('uses the configured base for relay payloads', () => {
+    expect(pairingLinkBase({ room: 'room-1' }, 'https://clara.example', '127.0.0.1')).toBe(
+      'https://clara.example'
+    )
+  })
+
+  it('keeps a loopback configured base for local payloads', () => {
+    expect(pairingLinkBase({ room: 'local' }, 'http://localhost:5173', '127.0.0.1')).toBe(
+      'http://localhost:5173'
+    )
+  })
+
+  it('prints the local web app for local payloads when the base is remote', () => {
+    expect(pairingLinkBase({ room: 'local' }, 'https://clara.example', '127.0.0.1')).toBe(
+      'http://127.0.0.1:8080'
+    )
+  })
+
+  it('formats an IPv6 local host', () => {
+    expect(pairingLinkBase({ room: 'local' }, 'https://clara.example', '::1')).toBe(
+      'http://[::1]:8080'
+    )
   })
 })
 

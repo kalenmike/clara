@@ -8,7 +8,7 @@
     "build": "tsc -b && vite build",
     "preview": "vite preview",
     "test": "vitest run",
-    "deploy": "VITE_CLARA_WS_URL=wss://relay.clara.kalenmichael.com pnpm build && wrangler pages deploy dist --project-name clara"
+    "deploy": "pnpm build && wrangler pages deploy dist --project-name clara"
   },
   "dependencies": {
     "@clara/crypto": "workspace:*",
