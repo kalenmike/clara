@@ -81,6 +81,18 @@ export async function readOrchestrationControl(
 
 /** Start a local service when nothing else is answering. */
 export async function startOrchestration(): Promise<void> {
+  if (isContainerized()) {
+    const report = await collectStatus()
+    if (report.state === 'local' || report.state === 'container' || report.state === 'external') {
+      return
+    }
+    throw new PanelControlError(
+      409,
+      'orchestrator_container',
+      'The orchestrator is managed by Docker on this host. Start it with `pnpm clara orchestration start --docker` or docker compose.'
+    )
+  }
+
   const command = orchestrationCommand()
   if (!command) {
     throw new PanelControlError(
@@ -121,7 +133,7 @@ export async function stopOrchestration(): Promise<void> {
     throw new PanelControlError(
       409,
       'orchestrator_container',
-      'The orchestrator is running in Docker. Stop it with `pnpm docker:orchestrator:down`.'
+      'The orchestrator is running in Docker. Stop it with `pnpm clara orchestration stop --docker`.'
     )
   }
   if (result.kind === 'external') {
@@ -149,4 +161,9 @@ export async function stopOrchestration(): Promise<void> {
     throw new PanelControlError(503, 'orchestrator_stop_failed', result.message)
   }
   throw new PanelControlError(503, 'orchestrator_stop_failed', 'Could not stop the orchestrator')
+}
+
+function isContainerized(): boolean {
+  const value = process.env.CLARA_SERVER_CONTAINER?.trim().toLowerCase()
+  return value === '1' || value === 'true' || value === 'yes'
 }

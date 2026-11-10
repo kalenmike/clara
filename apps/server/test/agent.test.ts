@@ -20,7 +20,9 @@ import {
   type WireFrame,
 } from '@clara/shared-types'
 import { Agent, type AgentPolicy } from '../src/agent.ts'
-import { OpenCodeClient } from '../src/opencode.ts'
+import type { HarnessManager } from '../src/harness/manager.ts'
+import { HarnessUnconfiguredError } from '../src/harness/types.ts'
+import { OpenCodeClient, type HttpRequestAction } from '../src/opencode.ts'
 import type { PushService } from '../src/push/service.ts'
 import {
   ClientStorageStore,
@@ -29,6 +31,17 @@ import {
 } from '../src/store/client-storage.ts'
 import { closeDatabase, openDatabase, type ClaraDatabase } from '../src/store/database.ts'
 import { TrafficMeter } from '../src/traffic.ts'
+
+function fakeHarness(url: string, configured = true): HarnessManager {
+  const client = new OpenCodeClient(url)
+  return {
+    configured,
+    request: (action: HttpRequestAction, signal: AbortSignal) => {
+      if (!configured) return Promise.reject(new HarnessUnconfiguredError())
+      return client.request(action, signal)
+    },
+  } as unknown as HarnessManager
+}
 
 type FakeOpenCode = {
   url: string
@@ -93,7 +106,8 @@ async function connect(
   push?: PushService,
   sync?: ClientStorageStore,
   policy?: AgentPolicy,
-  traffic?: TrafficMeter
+  traffic?: TrafficMeter,
+  configured = true
 ): Promise<{
   agent: Agent
   client: Client
@@ -104,7 +118,7 @@ async function connect(
   const clientNonce = bytesToBase64Url(randomBytes(16))
   const frames: WireFrame[] = []
   const agent = new Agent({
-    openCode: new OpenCodeClient(fake.url),
+    harness: fakeHarness(fake.url, configured),
     psk,
     info: { version: 'test', protocol: PROTOCOL_VERSION },
     send: (frame) => frames.push(frame),
@@ -188,6 +202,44 @@ afterEach(() => {
 })
 
 describe('agent', () => {
+  it('returns a clear 503 when no harness is configured', async () => {
+    const fake = await startFakeOpenCode()
+    try {
+      const { agent, client, frames } = await connect(
+        fake,
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        false
+      )
+      await waitFor(() => (frames.length >= 2 ? true : undefined))
+      await send(client, agent, { type: 'ready.ack', agent: { version: 'web', protocol: 1 } })
+      await send(client, agent, {
+        type: 'http.request',
+        id: 'unconfigured',
+        method: 'GET',
+        path: '/api/info',
+      })
+
+      const states = await waitFor(async () => {
+        const parsed = await readStates(client, frames)
+        return parsed.some((state) => state.type === 'http.end') ? parsed : undefined
+      })
+      const response = states.find((state) => state.type === 'http.response')
+      expect(response && response.type === 'http.response' ? response.status : undefined).toBe(503)
+      const body = states
+        .filter((state) => state.type === 'http.chunk')
+        .map((state) =>
+          Buffer.from(state.type === 'http.chunk' ? state.data : '', 'base64url').toString('utf8')
+        )
+        .join('')
+      expect(JSON.parse(body)).toMatchObject({ error: { code: 'harness_unconfigured' } })
+    } finally {
+      await fake.close()
+    }
+  })
+
   it('proxies an API request over an encrypted session', async () => {
     const fake = await startFakeOpenCode()
     try {
@@ -433,7 +485,7 @@ describe('agent', () => {
       const clientNonce = bytesToBase64Url(randomBytes(16))
       const frames: WireFrame[] = []
       const agent = new Agent({
-        openCode: new OpenCodeClient(fake.url),
+        harness: fakeHarness(fake.url),
         psk,
         info: { version: 'test', protocol: PROTOCOL_VERSION },
         send: (frame) => frames.push(frame),

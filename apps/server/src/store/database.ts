@@ -5,7 +5,7 @@ import Database from 'better-sqlite3'
 
 export type ClaraDatabase = Database.Database
 
-export const SCHEMA_VERSION = 5
+export const SCHEMA_VERSION = 6
 
 const BUSY_TIMEOUT_MS = 5_000
 const DATABASE_MODE = 0o600
@@ -93,6 +93,63 @@ const MIGRATIONS: Migration[] = [
     db.prepare(
       'INSERT INTO settings (key, value, updated_at) VALUES (?, ?, ?) ON CONFLICT (key) DO NOTHING'
     ).run('orchestration.enabled', JSON.stringify(false), Date.now())
+  },
+  /**
+   * Harness connections and panel authentication arrived together. Harness
+   * credentials are encrypted separately from the non-secret settings table;
+   * the panel stores only password hashes, never a plaintext admin key.
+   */
+  (db) => {
+    db.exec(`
+      CREATE TABLE harness_connections (
+        id TEXT PRIMARY KEY,
+        kind TEXT NOT NULL,
+        label TEXT NOT NULL,
+        base_url TEXT NOT NULL,
+        auth_type TEXT NOT NULL,
+        username TEXT,
+        options_json TEXT NOT NULL,
+        is_active INTEGER NOT NULL DEFAULT 0,
+        last_test_at INTEGER,
+        last_test_ok INTEGER,
+        last_test_error TEXT,
+        created_at INTEGER NOT NULL,
+        updated_at INTEGER NOT NULL
+      );
+
+      CREATE UNIQUE INDEX harness_connections_active
+        ON harness_connections(is_active)
+        WHERE is_active = 1;
+
+      CREATE TABLE harness_secrets (
+        connection_id TEXT NOT NULL REFERENCES harness_connections(id) ON DELETE CASCADE,
+        field TEXT NOT NULL,
+        ciphertext BLOB NOT NULL,
+        nonce BLOB NOT NULL,
+        key_version INTEGER NOT NULL,
+        updated_at INTEGER NOT NULL,
+        PRIMARY KEY (connection_id, field)
+      ) WITHOUT ROWID;
+
+      CREATE TABLE panel_users (
+        id TEXT PRIMARY KEY,
+        username TEXT NOT NULL UNIQUE,
+        password_hash TEXT NOT NULL,
+        role TEXT NOT NULL,
+        disabled INTEGER NOT NULL DEFAULT 0,
+        session_version INTEGER NOT NULL DEFAULT 0,
+        created_at INTEGER NOT NULL,
+        updated_at INTEGER NOT NULL,
+        last_login_at INTEGER
+      );
+
+      CREATE TABLE panel_setup_tokens (
+        token_hash TEXT PRIMARY KEY,
+        user_id TEXT REFERENCES panel_users(id) ON DELETE CASCADE,
+        expires_at INTEGER NOT NULL,
+        created_at INTEGER NOT NULL
+      );
+    `)
   },
 ]
 

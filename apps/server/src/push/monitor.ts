@@ -1,6 +1,6 @@
 import type { Project, SessionInfo, V2Event } from '@opencode/client'
 import type { AttentionKind } from '@clara/shared-types'
-import type { OpenCodeClient } from '../opencode.ts'
+import type { HarnessManager } from '../harness/manager.ts'
 import { isArchivedSession, isSnoozedSession, loadSessionAttention } from './attention.ts'
 import { getSession, listProjects, openEventStream } from './opencode.ts'
 import { buildPushPayload } from './payload.ts'
@@ -15,7 +15,7 @@ const WATCHDOG_MS = 5_000
 const MAX_BACKOFF_MS = 30_000
 
 export type PushMonitorOptions = {
-  openCode: OpenCodeClient
+  harness: HarnessManager
   push: PushService
   /** True while a desktop client is visible and recently used. */
   isDeskActive?: () => boolean
@@ -30,7 +30,7 @@ export type PushMonitorOptions = {
  * for the closed-app and suspended-tab cases.
  */
 export class PushMonitor {
-  private readonly openCode: OpenCodeClient
+  private readonly harness: HarnessManager
   private readonly push: PushService
   private readonly isDeskActive?: () => boolean
   private readonly suppressSession?: (session: SessionInfo) => boolean
@@ -43,7 +43,7 @@ export class PushMonitor {
   private stopped = true
 
   constructor(options: PushMonitorOptions) {
-    this.openCode = options.openCode
+    this.harness = options.harness
     this.push = options.push
     this.isDeskActive = options.isDeskActive
     this.suppressSession = options.suppressSession
@@ -78,7 +78,7 @@ export class PushMonitor {
       watchdog.unref()
 
       try {
-        const stream = await openEventStream(this.openCode, controller.signal)
+        const stream = await openEventStream(this.harness, controller.signal)
         retry = 0
         this.log?.('push event monitor connected')
 
@@ -151,7 +151,7 @@ export class PushMonitor {
     if (this.interrupted.delete(sessionID)) return
 
     try {
-      const attention = await loadSessionAttention(this.openCode, sessionID)
+      const attention = await loadSessionAttention(this.harness, sessionID)
       if (!attention || this.stopped) return
       await this.notify(attention.kind, sessionID, undefined, attention.session)
     } catch (cause) {
@@ -169,7 +169,7 @@ export class PushMonitor {
     if (!this.claimAlert(sessionID, kind)) return
 
     try {
-      const session = knownSession ?? (await getSession(this.openCode, sessionID))
+      const session = knownSession ?? (await getSession(this.harness, sessionID))
       if (!session || isArchivedSession(session) || isSnoozedSession(session)) return
       if (this.suppressSession?.(session)) return
 
@@ -223,7 +223,7 @@ export class PushMonitor {
     if (this.projectsCache && now - this.projectsCache.at < PROJECT_CACHE_MS) {
       return this.projectsCache.projects
     }
-    const projects = await listProjects(this.openCode)
+    const projects = await listProjects(this.harness)
     this.projectsCache = { at: now, projects }
     return projects
   }

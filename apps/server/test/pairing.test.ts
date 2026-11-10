@@ -10,8 +10,6 @@ const tempDirs: string[] = []
 const ENV_KEYS = [
   'CLARA_CONFIG_DIR',
   'CLARA_DB_PATH',
-  'CLARA_OPENCODE_URL',
-  'CLARA_OPENCODE_PASSWORD',
   'CLARA_LOCAL_HOST',
   'CLARA_LOCAL_PORT',
   'CLARA_RELAY_URL',
@@ -33,8 +31,7 @@ function tempDir(): string {
 
 function baseConfig(overrides: Partial<ServerConfig> = {}): ServerConfig {
   return {
-    opencode: { url: 'http://127.0.0.1:4096' },
-    local: { host: '127.0.0.1', port: 8788 },
+    local: { host: '127.0.0.1', bindHost: '127.0.0.1', port: 8788 },
     psk: generatePsk(),
     pairingBaseUrl: 'https://clara.example',
     configDir: '/tmp/clara-pairing',
@@ -42,9 +39,8 @@ function baseConfig(overrides: Partial<ServerConfig> = {}): ServerConfig {
     dataDir: '/tmp/clara-pairing',
     dbPath: '/tmp/clara-pairing/clara.db',
     sources: {
-      opencodeUrl: 'default',
-      opencodePassword: 'none',
       localHost: 'default',
+      localBindHost: 'default',
       localPort: 'default',
       relayUrl: 'none',
       relayRoom: 'none',
@@ -73,6 +69,14 @@ afterEach(() => {
 })
 
 describe('createPairingPayload', () => {
+  it('pairs with the advertised host, not the container bind address', async () => {
+    const payload = await createPairingPayload(
+      baseConfig({ local: { host: '127.0.0.1', bindHost: '0.0.0.0', port: 8788 } })
+    )
+
+    expect(payload.wsUrl).toBe('ws://127.0.0.1:8788/ws')
+  })
+
   it('uses the local listener when no relay is configured', async () => {
     const payload = await createPairingPayload(baseConfig())
 

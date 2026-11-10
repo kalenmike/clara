@@ -10,12 +10,11 @@ export type RelayConfig = {
   clientToken: string
 }
 
-export type ConfigSource = 'env' | 'file' | 'service' | 'default' | 'generated' | 'none'
+export type ConfigSource = 'env' | 'file' | 'default' | 'generated' | 'none'
 
 export type ServerConfigSources = {
-  opencodeUrl: ConfigSource
-  opencodePassword: ConfigSource
   localHost: ConfigSource
+  localBindHost: ConfigSource
   localPort: ConfigSource
   relayUrl: ConfigSource
   relayRoom: ConfigSource
@@ -26,12 +25,11 @@ export type ServerConfigSources = {
 }
 
 export type ServerConfig = {
-  opencode: {
-    url: string
-    password?: string
-  }
   local: {
+    /** Advertised or paired host. */
     host: string
+    /** Actual listener address; may be 0.0.0.0 in a container. */
+    bindHost: string
     port: number
   }
   relay?: RelayConfig
@@ -45,10 +43,8 @@ export type ServerConfig = {
 }
 
 type ConfigFile = {
-  opencode?: {
-    url?: string
-    password?: string
-  }
+  /** Legacy OpenCode credentials are removed on the next config write. */
+  opencode?: unknown
   local?: {
     host?: string
     port?: number
@@ -63,7 +59,6 @@ type ConfigFile = {
   pairingBaseUrl?: string
 }
 
-const DEFAULT_OPENCODE_URL = 'http://127.0.0.1:4096'
 const DEFAULT_LOCAL_HOST = '127.0.0.1'
 const DEFAULT_LOCAL_PORT = 8788
 const DEFAULT_PAIRING_BASE_URL = 'https://clara.kalenmichael.com'
@@ -73,27 +68,6 @@ export function loadConfig(options: { rotate?: boolean; local?: boolean } = {}):
   const dataDir = resolveDataDir()
   const configPath = join(configDir, 'server.json')
   const file = readConfig(configPath)
-  const service = readOpenCodeService()
-
-  const opencodeUrlSource: ConfigSource =
-    process.env.CLARA_OPENCODE_URL !== undefined
-      ? 'env'
-      : file.opencode?.url !== undefined
-        ? 'file'
-        : service?.url !== undefined
-          ? 'service'
-          : 'default'
-  const opencodeUrl =
-    process.env.CLARA_OPENCODE_URL ?? file.opencode?.url ?? service?.url ?? DEFAULT_OPENCODE_URL
-  const opencodePassword =
-    process.env.CLARA_OPENCODE_PASSWORD ?? file.opencode?.password ?? service?.password
-  const opencodePasswordSource: ConfigSource = opencodePassword
-    ? process.env.CLARA_OPENCODE_PASSWORD !== undefined
-      ? 'env'
-      : file.opencode?.password !== undefined
-        ? 'file'
-        : 'service'
-    : 'none'
 
   const localHostSource: ConfigSource =
     process.env.CLARA_LOCAL_HOST !== undefined
@@ -102,6 +76,9 @@ export function loadConfig(options: { rotate?: boolean; local?: boolean } = {}):
         ? 'file'
         : 'default'
   const localHost = process.env.CLARA_LOCAL_HOST ?? file.local?.host ?? DEFAULT_LOCAL_HOST
+  const configuredBind = process.env.CLARA_LOCAL_BIND_HOST?.trim()
+  const localBindHost = configuredBind || localHost
+  const localBindHostSource: ConfigSource = configuredBind ? 'env' : localHostSource
   const localPortSource: ConfigSource =
     process.env.CLARA_LOCAL_PORT !== undefined
       ? 'env'
@@ -193,11 +170,7 @@ export function loadConfig(options: { rotate?: boolean; local?: boolean } = {}):
   ).replace(/\/+$/, '')
 
   const config: ServerConfig = {
-    opencode: {
-      url: opencodeUrl.replace(/\/+$/, ''),
-      password: opencodePassword || undefined,
-    },
-    local: { host: localHost, port: localPort },
+    local: { host: localHost, bindHost: localBindHost, port: localPort },
     relay,
     psk,
     pairingBaseUrl,
@@ -206,9 +179,8 @@ export function loadConfig(options: { rotate?: boolean; local?: boolean } = {}):
     dataDir,
     dbPath: resolveDatabasePath(dataDir),
     sources: {
-      opencodeUrl: opencodeUrlSource,
-      opencodePassword: opencodePasswordSource,
       localHost: localHostSource,
+      localBindHost: localBindHostSource,
       localPort: localPortSource,
       relayUrl: relay ? relayUrlSource : 'none',
       relayRoom: relay ? relayRoomSource : 'none',
@@ -232,27 +204,6 @@ function readConfig(path: string): ConfigFile {
   }
 }
 
-type LocalService = {
-  url?: string
-  password?: string
-}
-
-function readOpenCodeService(): LocalService | undefined {
-  const stateHome = process.env.XDG_STATE_HOME ?? join(homedir(), '.local', 'state')
-  const path = join(stateHome, 'opencode', 'service.json')
-  try {
-    if (!existsSync(path)) return undefined
-    const parsed = JSON.parse(readFileSync(path, 'utf8')) as LocalService
-    if (typeof parsed.url !== 'string') return undefined
-    return {
-      url: parsed.url,
-      password: typeof parsed.password === 'string' ? parsed.password : undefined,
-    }
-  } catch {
-    return undefined
-  }
-}
-
 function persistConfig(
   path: string,
   previous: ConfigFile,
@@ -264,24 +215,28 @@ function persistConfig(
   const localChanged =
     previous.local?.host !== config.local.host || previous.local?.port !== config.local.port
   const pairingChanged = previous.pairingBaseUrl !== config.pairingBaseUrl
-  if (!relayChanged && !pskChanged && !localChanged && !pairingChanged) return
+  const legacyCleared = previous.opencode !== undefined
+  if (!relayChanged && !pskChanged && !localChanged && !pairingChanged && !legacyCleared) return
 
+  // Rebuild the file without legacy OpenCode credentials. Harness connections
+  // now live in the database, encrypted separately.
   const next: ConfigFile = {
-    ...previous,
-    local: config.local,
+    local: { host: config.local.host, port: config.local.port },
     psk: config.psk,
     pairingBaseUrl: config.pairingBaseUrl,
   }
   if (config.relay) {
-    next.relay = {
-      ...previous.relay,
-      url: config.relay.url,
-      room: config.relay.room,
-    }
+    next.relay = { url: config.relay.url, room: config.relay.room }
   }
 
   mkdirSync(dirname(path), { recursive: true, mode: 0o700 })
   writeFileSync(path, `${JSON.stringify(next, null, 2)}\n`, { mode: 0o600 })
+}
+
+export function loadAdminPaths(): { configDir: string; dataDir: string; dbPath: string } {
+  const configDir = resolveConfigDir()
+  const dataDir = resolveDataDir()
+  return { configDir, dataDir, dbPath: resolveDatabasePath(dataDir) }
 }
 
 function resolveConfigDir(): string {

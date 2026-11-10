@@ -2,10 +2,11 @@ import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
-import type { PanelSnapshot } from '@clara/shared-types'
+import type { PanelAuthInfo, PanelSnapshot } from '@clara/shared-types'
 import type { Agent, AgentSessionInfo } from '../src/agent.ts'
 import type { ServerConfig } from '../src/config.ts'
-import type { OpenCodeClient, OpenCodeProbe } from '../src/opencode.ts'
+import type { HarnessManager } from '../src/harness/manager.ts'
+import type { HarnessConnection, HarnessProbe } from '../src/harness/types.ts'
 import type { PushService } from '../src/push/service.ts'
 import type { RelayClient, RelaySnapshot } from '../src/relay-client.ts'
 import { PanelLog } from '../src/panel/log.ts'
@@ -13,6 +14,7 @@ import { PanelRuntime, type PanelRuntimeOptions } from '../src/panel/runtime.ts'
 import { TrafficMeter } from '../src/traffic.ts'
 
 const tempDirs: string[] = []
+const AUTH: PanelAuthInfo = { username: 'admin', role: 'superadmin' }
 
 function tempDir(): string {
   const dir = mkdtempSync(join(tmpdir(), 'clara-runtime-'))
@@ -26,11 +28,7 @@ afterEach(() => {
 
 function config(dir: string): ServerConfig {
   return {
-    opencode: {
-      url: 'http://user:secret@127.0.0.1:4096',
-      password: 'sentinel-password',
-    },
-    local: { host: '127.0.0.1', port: 8788 },
+    local: { host: '127.0.0.1', bindHost: '127.0.0.1', port: 8788 },
     relay: {
       url: 'wss://relay.example',
       room: 'room-123',
@@ -44,9 +42,8 @@ function config(dir: string): ServerConfig {
     dataDir: dir,
     dbPath: join(dir, 'clara.db'),
     sources: {
-      opencodeUrl: 'env',
-      opencodePassword: 'env',
       localHost: 'default',
+      localBindHost: 'default',
       localPort: 'default',
       relayUrl: 'file',
       relayRoom: 'file',
@@ -70,31 +67,63 @@ function pushService(): PushService {
   return { count: 2, failing: 1, publicKey: 'public-key' } as unknown as PushService
 }
 
+function harnessConnection(): HarnessConnection {
+  const now = Date.now()
+  return {
+    id: 'harness-1',
+    kind: 'opencode',
+    label: 'Test OpenCode',
+    baseUrl: 'http://127.0.0.1:4096',
+    authType: 'basic',
+    username: 'opencode',
+    options: {},
+    isActive: true,
+    lastTestAt: now,
+    lastTestOk: true,
+    createdAt: now,
+    updatedAt: now,
+    secretConfigured: true,
+  }
+}
+
+function fakeHarness(options: {
+  probe?: HarnessProbe
+  probeCalls?: { value: number }
+}): HarnessManager {
+  const connection = harnessConnection()
+  return {
+    configured: true,
+    generation: 1,
+    active: connection,
+    lastError: undefined,
+    list: () => [connection],
+    probe: async () => {
+      if (options.probeCalls) options.probeCalls.value += 1
+      return (
+        options.probe ?? {
+          ok: true,
+          version: '2.1.1',
+          latencyMs: 4,
+          code: 'ok',
+        }
+      )
+    },
+    redactionValues: async () => ['sentinel-password'],
+  } as unknown as HarnessManager
+}
+
 function createRuntime(
   dir: string,
   options: {
-    probe?: OpenCodeProbe
+    probe?: HarnessProbe
     probeCalls?: { value: number }
     relay?: RelaySnapshot
     traffic?: TrafficMeter
-    ledgerPath?: () => string | undefined
   } = {}
 ): PanelRuntime {
   const runtimeOptions: PanelRuntimeOptions = {
     config: config(dir),
-    openCode: {
-      probe: async () => {
-        if (options.probeCalls) options.probeCalls.value += 1
-        return (
-          options.probe ?? {
-            ok: true,
-            version: '2.1.1',
-            latencyMs: 4,
-            code: 'ok',
-          }
-        )
-      },
-    } as unknown as OpenCodeClient,
+    harness: fakeHarness(options),
     localAgent: agent([
       {
         sid: 'local-sid',
@@ -133,11 +162,11 @@ function createRuntime(
     ),
     localConnections: () => 1,
     ...(options.traffic ? { traffic: options.traffic } : {}),
-    ...(options.ledgerPath ? { ledgerPath: options.ledgerPath } : {}),
     push: pushService(),
     pushError: 'push disabled for sentinel-password',
     fingerprint: 'fingerprint-123',
     startedAt: Date.now() - 60_000,
+    secretKey: { path: join(dir, 'secrets.key'), source: 'generated' },
     log: new PanelLog(),
   }
   return new PanelRuntime(runtimeOptions)
@@ -148,6 +177,7 @@ describe('PanelRuntime', () => {
     const dir = tempDir()
     writeFileSync(join(dir, 'server.json'), '{}', { mode: 0o600 })
     writeFileSync(join(dir, 'subscriptions.json'), '{}', { mode: 0o600 })
+    writeFileSync(join(dir, 'secrets.key'), 'secret', { mode: 0o600 })
     mkdirSync(join(dir, 'nested'), { recursive: true })
 
     const runtime = createRuntime(dir, {
@@ -158,7 +188,7 @@ describe('PanelRuntime', () => {
         message: 'auth failed for sentinel-password',
       },
     })
-    const snapshot = await runtime.snapshot()
+    const snapshot = await runtime.snapshot(AUTH)
     const serialized = JSON.stringify(snapshot)
 
     expect(serialized).not.toContain('sentinel-password')
@@ -167,15 +197,24 @@ describe('PanelRuntime', () => {
     expect(serialized).not.toContain('sentinel-psk')
     expect(serialized).not.toContain('user:secret')
 
+    expect(snapshot.auth).toEqual(AUTH)
     expect(snapshot.opencode.url).toBe('http://127.0.0.1:4096')
     expect(snapshot.opencode.passwordConfigured).toBe(true)
     expect(snapshot.opencode.error).toContain('[redacted]')
     expect(snapshot.push.error).toContain('[redacted]')
     expect(snapshot.agent.fingerprint).toBe('fingerprint-123')
+    expect(snapshot.harness.configured).toBe(true)
+    expect(snapshot.harnesses).toHaveLength(1)
     expect(snapshot.local.connections).toBe(1)
     expect(snapshot.relay.status).toBe('online')
     expect(snapshot.clients.map((client) => client.transport)).toEqual(['local', 'relay'])
-    expect(snapshot.storage.map((entry) => entry.key)).toEqual(['config', 'subscriptions', 'vapid'])
+    expect(snapshot.storage.map((entry) => entry.key)).toEqual([
+      'config',
+      'subscriptions',
+      'vapid',
+      'setup-token',
+      'secret-key',
+    ])
     expect(snapshot.storage[0]?.status).toBe('ok')
   })
 
@@ -190,19 +229,19 @@ describe('PanelRuntime', () => {
         lastError: 'relay rejected sentinel-agent-token',
       },
     })
-    const snapshot = await runtime.snapshot()
+    const snapshot = await runtime.snapshot(AUTH)
     expect(snapshot.relay.lastError).toContain('[redacted]')
     expect(snapshot.relay.lastError).not.toContain('sentinel-agent-token')
   })
 
-  it('caches OpenCode probes between polls', async () => {
+  it('caches harness probes between polls', async () => {
     const dir = tempDir()
     writeFileSync(join(dir, 'server.json'), '{}', { mode: 0o600 })
     const probeCalls = { value: 0 }
     const runtime = createRuntime(dir, { probeCalls })
 
-    await runtime.snapshot()
-    await runtime.snapshot()
+    await runtime.snapshot(AUTH)
+    await runtime.snapshot(AUTH)
     expect(probeCalls.value).toBe(1)
   })
 
@@ -210,7 +249,7 @@ describe('PanelRuntime', () => {
     const dir = tempDir()
     writeFileSync(join(dir, 'server.json'), '{"secret":"do-not-show"}', { mode: 0o644 })
     const runtime = createRuntime(dir)
-    const snapshot = await runtime.snapshot()
+    const snapshot = await runtime.snapshot(AUTH)
     const configEntry = snapshot.storage.find((entry) => entry.key === 'config')
 
     expect(configEntry?.status).toBe('warn')
@@ -221,7 +260,7 @@ describe('PanelRuntime', () => {
   it('reports a missing required config without failing the snapshot', async () => {
     const dir = tempDir()
     const runtime = createRuntime(dir)
-    const snapshot: PanelSnapshot = await runtime.snapshot()
+    const snapshot: PanelSnapshot = await runtime.snapshot(AUTH)
     const configEntry = snapshot.storage.find((entry) => entry.key === 'config')
 
     expect(configEntry?.exists).toBe(false)
@@ -238,7 +277,7 @@ describe('PanelRuntime', () => {
     traffic.recordError('refused')
 
     const runtime = createRuntime(dir, { traffic })
-    const snapshot = await runtime.snapshot()
+    const snapshot = await runtime.snapshot(AUTH)
 
     expect(snapshot.traffic.enabled).toBe(true)
     expect(snapshot.traffic.totals).toMatchObject({ bytesIn: 1_000, bytesOut: 2_000, requests: 1 })
@@ -253,7 +292,7 @@ describe('PanelRuntime', () => {
     const dir = tempDir()
     writeFileSync(join(dir, 'server.json'), '{}', { mode: 0o600 })
     const runtime = createRuntime(dir, { traffic: new TrafficMeter({ enabled: false }) })
-    const snapshot = await runtime.snapshot()
+    const snapshot = await runtime.snapshot(AUTH)
 
     expect(snapshot.traffic.enabled).toBe(false)
     expect(snapshot.traffic.series).toEqual([])

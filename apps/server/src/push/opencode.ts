@@ -1,10 +1,10 @@
 import type { FormInfo, Project, SessionInfo, SessionMessageInfo } from '@opencode/client'
-import type { OpenCodeClient } from '../opencode.ts'
+import type { HarnessRequest } from '../harness/types.ts'
 
 const REQUEST_TIMEOUT_MS = 5_000
 
 export async function getSession(
-  client: OpenCodeClient,
+  client: HarnessRequest,
   sessionID: string
 ): Promise<SessionInfo | null> {
   try {
@@ -15,7 +15,7 @@ export async function getSession(
 }
 
 export async function listRecentMessages(
-  client: OpenCodeClient,
+  client: HarnessRequest,
   sessionID: string,
   type: 'user' | 'assistant'
 ): Promise<SessionMessageInfo[]> {
@@ -27,7 +27,7 @@ export async function listRecentMessages(
   )
 }
 
-export async function listForms(client: OpenCodeClient, sessionID: string): Promise<FormInfo[]> {
+export async function listForms(client: HarnessRequest, sessionID: string): Promise<FormInfo[]> {
   try {
     return await getData<FormInfo[]>(client, `/api/session/${encodeURIComponent(sessionID)}/form`)
   } catch {
@@ -35,7 +35,7 @@ export async function listForms(client: OpenCodeClient, sessionID: string): Prom
   }
 }
 
-export async function listProjects(client: OpenCodeClient): Promise<Project[]> {
+export async function listProjects(client: HarnessRequest): Promise<Project[]> {
   try {
     return await getData<Project[]>(client, '/api/project')
   } catch {
@@ -44,7 +44,7 @@ export async function listProjects(client: OpenCodeClient): Promise<Project[]> {
 }
 
 export async function openEventStream(
-  client: OpenCodeClient,
+  client: HarnessRequest,
   signal: AbortSignal
 ): Promise<ReadableStream<Uint8Array>> {
   const response = await client.request(
@@ -70,7 +70,7 @@ export async function openEventStream(
   return response.body
 }
 
-async function getData<T>(client: OpenCodeClient, path: string, search?: string): Promise<T> {
+async function getData<T>(client: HarnessRequest, path: string, search?: string): Promise<T> {
   const response = await client.request(
     {
       type: 'http.request',

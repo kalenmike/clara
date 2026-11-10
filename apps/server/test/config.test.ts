@@ -10,9 +10,8 @@ const ENV_KEYS = [
   'CLARA_CONFIG_DIR',
   'CLARA_DATA_DIR',
   'CLARA_DB_PATH',
-  'CLARA_OPENCODE_URL',
-  'CLARA_OPENCODE_PASSWORD',
   'CLARA_LOCAL_HOST',
+  'CLARA_LOCAL_BIND_HOST',
   'CLARA_LOCAL_PORT',
   'CLARA_RELAY_URL',
   'CLARA_RELAY_ROOM',
@@ -62,12 +61,10 @@ describe('loadConfig sources', () => {
 
     const config = loadConfig()
 
-    expect(config.opencode.url).toBe('http://127.0.0.1:4096')
-    expect(config.local).toEqual({ host: '127.0.0.1', port: 8788 })
+    expect(config.local).toEqual({ host: '127.0.0.1', bindHost: '127.0.0.1', port: 8788 })
     expect(config.relay).toBeUndefined()
-    expect(config.sources.opencodeUrl).toBe('default')
-    expect(config.sources.opencodePassword).toBe('none')
     expect(config.sources.localHost).toBe('default')
+    expect(config.sources.localBindHost).toBe('default')
     expect(config.sources.localPort).toBe('default')
     expect(config.sources.relayUrl).toBe('none')
     expect(config.sources.pairingBaseUrl).toBe('default')
@@ -120,7 +117,6 @@ describe('loadConfig sources', () => {
     writeFileSync(
       join(dir, 'server.json'),
       JSON.stringify({
-        opencode: { url: 'http://from-file:4096', password: 'file-password' },
         local: { host: '0.0.0.0', port: 9000 },
         relay: { url: 'https://relay.example', room: 'file-room' },
         psk,
@@ -132,22 +128,18 @@ describe('loadConfig sources', () => {
     process.env.CLARA_CONFIG_DIR = dir
     process.env.CLARA_DATA_DIR = dir
     process.env.XDG_STATE_HOME = tempDir()
-    process.env.CLARA_OPENCODE_URL = 'http://from-env:4096'
     process.env.CLARA_RELAY_ROOM = 'env-room'
     process.env.CLARA_AGENT_TOKEN = 'agent-token'
     process.env.CLARA_CLIENT_TOKEN = 'client-token'
 
     const config = loadConfig()
 
-    expect(config.opencode.url).toBe('http://from-env:4096')
-    expect(config.opencode.password).toBe('file-password')
-    expect(config.local).toEqual({ host: '0.0.0.0', port: 9000 })
+    expect(config.local).toEqual({ host: '0.0.0.0', bindHost: '0.0.0.0', port: 9000 })
     expect(config.relay?.url).toBe('wss://relay.example')
     expect(config.relay?.room).toBe('env-room')
     expect(config.sources).toMatchObject({
-      opencodeUrl: 'env',
-      opencodePassword: 'file',
       localHost: 'file',
+      localBindHost: 'file',
       localPort: 'file',
       relayUrl: 'file',
       relayRoom: 'env',
@@ -156,6 +148,19 @@ describe('loadConfig sources', () => {
       psk: 'file',
       pairingBaseUrl: 'file',
     })
+  })
+
+  it('separates the advertised local host from the listener address', () => {
+    const dir = tempDir()
+    process.env.CLARA_CONFIG_DIR = dir
+    process.env.CLARA_DATA_DIR = dir
+    process.env.CLARA_LOCAL_HOST = '127.0.0.1'
+    process.env.CLARA_LOCAL_BIND_HOST = '0.0.0.0'
+
+    const config = loadConfig()
+
+    expect(config.local).toEqual({ host: '127.0.0.1', bindHost: '0.0.0.0', port: 8788 })
+    expect(config.sources.localBindHost).toBe('env')
   })
 
   it('records a generated relay room when the file only has the relay URL', () => {

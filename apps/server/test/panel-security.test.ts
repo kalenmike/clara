@@ -77,4 +77,19 @@ describe('panel request guards', () => {
     )
     expect(crossSite.ok).toBe(false)
   })
+
+  it('allows a bridge address only with the explicit remote opt-in', () => {
+    const request = {
+      headers: { host: `127.0.0.1:${PORT}`, origin: `http://127.0.0.1:${PORT}` },
+      socket: { remoteAddress: '172.18.0.1' },
+    }
+    expect(checkPanelRequest(request, PORT).ok).toBe(false)
+    expect(checkPanelRequest(request, PORT, { allowRemote: true })).toEqual({ ok: true })
+
+    expect(
+      checkPanelRequest({ ...request, headers: { host: `evil.example:${PORT}` } }, PORT, {
+        allowRemote: true,
+      }).ok
+    ).toBe(false)
+  })
 })

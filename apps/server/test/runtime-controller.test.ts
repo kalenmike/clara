@@ -4,8 +4,10 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { AgentInfo } from '@clara/shared-types'
+import { generateSecretKey, loadSecretKey } from '@clara/crypto'
 import type { ServerConfig } from '../src/config.ts'
-import { OpenCodeClient } from '../src/opencode.ts'
+import { HarnessManager } from '../src/harness/manager.ts'
+import { HarnessStore } from '../src/harness/store.ts'
 import { AgentStoppedError, RuntimeController } from '../src/runtime/controller.ts'
 import { closeDatabase, openDatabase } from '../src/store/database.ts'
 import { SettingsStore } from '../src/store/settings.ts'
@@ -46,8 +48,7 @@ function tempDir(): string {
 function config(port: number): ServerConfig {
   const dir = tempDir()
   return {
-    opencode: { url: 'http://127.0.0.1:4096' },
-    local: { host: '127.0.0.1', port },
+    local: { host: '127.0.0.1', bindHost: '127.0.0.1', port },
     psk: 'test-psk',
     pairingBaseUrl: 'https://clara.example',
     configDir: dir,
@@ -55,9 +56,8 @@ function config(port: number): ServerConfig {
     dataDir: dir,
     dbPath: join(dir, 'clara.db'),
     sources: {
-      opencodeUrl: 'default',
-      opencodePassword: 'none',
       localHost: 'default',
+      localBindHost: 'default',
       localPort: 'default',
       relayUrl: 'none',
       relayRoom: 'none',
@@ -84,10 +84,22 @@ async function createController(
   const db = openDatabase(serverConfig.dbPath)
   const settings = new SettingsStore(db)
   const controllerInfo: AgentInfo = { ...info }
-  const openCode = new OpenCodeClient(options.openCodeUrl ?? 'http://127.0.0.1:4096')
+  const harnessStore = new HarnessStore({
+    db,
+    key: await loadSecretKey(generateSecretKey()),
+    keyVersion: 1,
+  })
+  await harnessStore.save({
+    kind: 'opencode',
+    label: 'Test OpenCode',
+    baseUrl: options.openCodeUrl ?? 'http://127.0.0.1:4096',
+    authType: 'none',
+  })
+  const harness = new HarnessManager(harnessStore)
+  await harness.load()
   const controller = new RuntimeController({
     config: serverConfig,
-    openCode,
+    harness,
     info: controllerInfo,
     settings,
     log: () => undefined,

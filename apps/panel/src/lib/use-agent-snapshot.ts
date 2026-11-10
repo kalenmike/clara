@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { PANEL_API_VERSION, type PanelSnapshot } from '@clara/shared-types'
+import { PanelApiError } from './panel-api.ts'
 
 const POLL_MS = 5_000
 
@@ -12,12 +13,21 @@ export type SnapshotState = {
   now?: number
 }
 
-export function useAgentSnapshot(): SnapshotState & { refresh: () => void } {
+export type UseAgentSnapshotOptions = {
+  enabled: boolean
+  onUnauthorized: () => void
+}
+
+export function useAgentSnapshot({
+  enabled,
+  onUnauthorized,
+}: UseAgentSnapshotOptions): SnapshotState & { refresh: () => void } {
   const [state, setState] = useState<SnapshotState>({ loading: true, refreshing: false })
   const inFlight = useRef<AbortController | null>(null)
   const mounted = useRef(true)
 
   const load = useCallback(async () => {
+    if (!enabled) return
     inFlight.current?.abort()
     const controller = new AbortController()
     inFlight.current = controller
@@ -31,9 +41,14 @@ export function useAgentSnapshot(): SnapshotState & { refresh: () => void } {
     try {
       const response = await fetch('/panel/api/v1/status', {
         headers: { accept: 'application/json' },
+        credentials: 'same-origin',
         cache: 'no-store',
         signal: controller.signal,
       })
+      if (response.status === 401) {
+        onUnauthorized()
+        return
+      }
       if (!response.ok) {
         throw new Error(await errorMessage(response))
       }
@@ -54,6 +69,10 @@ export function useAgentSnapshot(): SnapshotState & { refresh: () => void } {
       })
     } catch (cause) {
       if (controller.signal.aborted || !mounted.current) return
+      if (cause instanceof PanelApiError && cause.status === 401) {
+        onUnauthorized()
+        return
+      }
       setState((previous) => ({
         ...previous,
         loading: false,
@@ -63,10 +82,17 @@ export function useAgentSnapshot(): SnapshotState & { refresh: () => void } {
     } finally {
       if (inFlight.current === controller) inFlight.current = null
     }
-  }, [])
+  }, [enabled, onUnauthorized])
 
   useEffect(() => {
     mounted.current = true
+    if (!enabled) {
+      setState({ loading: true, refreshing: false })
+      return () => {
+        mounted.current = false
+        inFlight.current?.abort()
+      }
+    }
     void load()
 
     const timer = window.setInterval(() => {
@@ -83,7 +109,7 @@ export function useAgentSnapshot(): SnapshotState & { refresh: () => void } {
       document.removeEventListener('visibilitychange', onVisibility)
       inFlight.current?.abort()
     }
-  }, [load])
+  }, [enabled, load])
 
   return {
     ...state,

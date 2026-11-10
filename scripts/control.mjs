@@ -12,7 +12,7 @@ const POLL_INTERVAL_MS = 250
 const root = join(dirname(fileURLToPath(import.meta.url)), '..')
 const port = readPort(process.env.CLARA_PANEL_PORT)
 const url = `http://127.0.0.1:${port}/`
-const statusUrl = `${url}panel/api/v1/status`
+const healthUrl = `${url}health`
 
 if (process.env.CLARA_PANEL_DISABLED === '1') {
   fail('The panel is disabled by CLARA_PANEL_DISABLED=1. Unset it and try again.')
@@ -61,13 +61,18 @@ async function waitForPanel(agent) {
 
 async function isPanelUp() {
   try {
-    const response = await fetch(statusUrl, {
+    const response = await fetch(healthUrl, {
       cache: 'no-store',
       signal: AbortSignal.timeout(1500),
     })
     if (!response.ok) return false
     const body = await response.json()
-    return typeof body === 'object' && body !== null && typeof body.apiVersion === 'number'
+    return (
+      typeof body === 'object' &&
+      body !== null &&
+      body.ok === true &&
+      body.service === 'clara-server'
+    )
   } catch {
     return false
   }
