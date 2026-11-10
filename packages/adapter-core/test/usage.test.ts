@@ -72,5 +72,3 @@ test('ignores an empty message id', () => {
   assert.equal(tokenDelta(seen, '', { input: 50 }), 0)
   assert.equal(seen.size, 0)
 })
-
-

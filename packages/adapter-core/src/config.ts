@@ -15,18 +15,12 @@ export function claraDataDir(env: NodeJS.ProcessEnv = process.env): string {
 }
 
 /** Resolve the orchestrator URL and bearer token from the environment. */
-export function orchestrationServiceConfig(
-  env: NodeJS.ProcessEnv = process.env
-): ServiceConfig {
-  const url = (env.CLARA_ORCHESTRATION_URL?.trim() || 'http://127.0.0.1:8789').replace(
-    /\/$/,
-    ''
-  )
+export function orchestrationServiceConfig(env: NodeJS.ProcessEnv = process.env): ServiceConfig {
+  const url = (env.CLARA_ORCHESTRATION_URL?.trim() || 'http://127.0.0.1:8789').replace(/\/$/, '')
   const configured = env.CLARA_ORCHESTRATION_TOKEN?.trim()
   if (configured) return { url, token: configured }
   const path =
-    env.CLARA_ORCHESTRATION_TOKEN_FILE?.trim() ||
-    join(claraDataDir(env), 'orchestrator.token')
+    env.CLARA_ORCHESTRATION_TOKEN_FILE?.trim() || join(claraDataDir(env), 'orchestrator.token')
   const token = existsSync(path) ? readFileSync(path, 'utf8').trim() : ''
   return { url, token }
 }

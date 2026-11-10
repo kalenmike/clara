@@ -93,7 +93,12 @@ function mcp(args) {
 }
 
 function adapter(args) {
-  return runNode(join(root, 'scripts/install-clara-adapter.mjs'), args)
+  return runTypeScript(
+    join(root, 'packages/adapter/src/cli.ts'),
+    join(root, 'packages/adapter/dist/cli.js'),
+    args,
+    'The Clara adapter installer'
+  )
 }
 
 function rebuild(args) {
@@ -223,10 +228,15 @@ const clara = {
     },
     {
       name: 'adapter',
-      summary: 'Install the OpenCode strict enforcement adapter',
-      usage: '<install|uninstall|status> [opencode]',
+      summary: 'Install harness adapters, the MCP bridge, and the shared runner',
+      usage: '<install|uninstall|status|runner> [--opencode] [--mcp] [--runner]',
       passthroughHelp: true,
-      examples: ['pnpm clara adapter install opencode', 'pnpm clara adapter status'],
+      examples: [
+        'pnpm clara adapter install --opencode',
+        'pnpm clara adapter install --opencode --mcp',
+        'pnpm clara adapter install --runner --mcp',
+        'pnpm clara adapter status',
+      ],
       run: adapter,
     },
     {

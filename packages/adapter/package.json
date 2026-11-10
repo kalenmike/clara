@@ -1,0 +1,29 @@
+{
+  "name": "@clara/adapter",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "description": "Install Clara harness adapters, the MCP bridge, and the shared runner.",
+  "bin": {
+    "clara-adapter": "./dist/cli.js"
+  },
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "build": "tsup src/cli.ts --format esm --dts --clean",
+    "typecheck": "tsc -p tsconfig.json",
+    "test": "node --experimental-strip-types --no-warnings --test test/*.test.ts"
+  },
+  "dependencies": {
+    "@clara/adapter-core": "workspace:*",
+    "@clara/mcp": "workspace:*",
+    "@clara/opencode-policy-plugin": "workspace:*",
+    "@clara/runner": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/node": "^24.19.2",
+    "tsup": "^9.0.0",
+    "typescript": "~6.0.3"
+  }
+}

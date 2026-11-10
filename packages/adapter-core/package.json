@@ -11,9 +11,6 @@
     "typecheck": "tsc -p tsconfig.json",
     "test": "node --experimental-strip-types --no-warnings --test test/*.test.ts"
   },
-  "dependencies": {
-    "@clara/runner": "workspace:*"
-  },
   "devDependencies": {
     "@types/node": "^24.19.2",
     "typescript": "~6.0.3"
