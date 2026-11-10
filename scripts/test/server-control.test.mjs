@@ -12,14 +12,14 @@ test('explicit flags win over detection', () => {
   )
   assert.deepEqual(
     resolveServerTarget({ local: true, health: 'container', dockerState: { running: true } }),
-    { target: 'local', reason: '--host' }
+    { target: 'local', reason: '--local' }
   )
 })
 
 test('passing both explicit flags is ambiguous', () => {
   const result = resolveServerTarget({ docker: true, local: true })
   assert.equal(result.target, 'ambiguous')
-  assert.match(result.reason, /--docker and --host\/--local/)
+  assert.match(result.reason, /--docker and --local/)
 })
 
 test('the panel health mode selects the target', () => {

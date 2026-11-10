@@ -6,9 +6,9 @@
 //   pnpm clara server restart [--local|--docker] [--build]
 //   pnpm clara server status
 //   pnpm clara server panel
-//   pnpm clara server setup-token [--docker|--host|--local]
-//   pnpm clara server admin reset [--docker|--host|--local]
-//   pnpm clara server pair [--no-relay] [--docker|--host|--local]
+//   pnpm clara server setup-token [--docker|--local]
+//   pnpm clara server admin reset [--docker|--local]
+//   pnpm clara server pair [--no-relay] [--docker|--local]
 //   pnpm clara server logs [--local|--docker]
 
 import { existsSync } from 'node:fs'
@@ -31,7 +31,7 @@ import { collectStatus, renderJSON, renderStatus, statusExitCode } from './lib/s
 const args = process.argv.slice(2)
 const command = args[0] ?? 'status'
 const docker = args.includes('--docker')
-const local = args.includes('--host') || args.includes('--local')
+const local = args.includes('--local')
 const build = args.includes('--build')
 const json = args.includes('--json')
 
@@ -231,7 +231,7 @@ async function printStatus() {
 async function admin() {
   const action = args[1]
   if (action !== 'reset' && action !== 'setup-token') {
-    console.error('Usage: pnpm clara server admin reset|setup-token [--docker|--host|--local]')
+    console.error('Usage: pnpm clara server admin reset|setup-token [--docker|--local]')
     process.exitCode = 2
     return
   }
@@ -239,9 +239,7 @@ async function admin() {
 }
 
 async function pair() {
-  const forwarded = args
-    .slice(1)
-    .filter((arg) => arg !== '--docker' && arg !== '--host' && arg !== '--local')
+  const forwarded = args.slice(1).filter((arg) => arg !== '--docker' && arg !== '--local')
   await runServerProcessFor(['pair', ...forwarded])
 }
 
@@ -274,9 +272,7 @@ async function chooseTarget() {
   const result = await detectServerTarget({ docker, local })
   if (result.target !== 'ambiguous') return result.target
   console.error(`Cannot choose where to run the command: ${result.reason}.`)
-  console.error(
-    'Pass --docker for the clara-server container, or --local/--host for a local install.'
-  )
+  console.error('Pass --docker for the clara-server container, or --local for a local install.')
   return undefined
 }
 
@@ -293,7 +289,7 @@ function printHelp() {
   console.log(`Manage the Clara home agent
 
 Usage:
-  pnpm clara server <command> [--local|--docker|--host] [options]
+  pnpm clara server <command> [--local|--docker] [options]
 
 Commands:
   start [--build]              Start the container, or the local agent with --local
@@ -308,6 +304,6 @@ Commands:
 
 Docker is the default. Pass --local to run the built agent as a detached local
 process for start, stop, restart, and logs. For setup-token, admin, and pair,
---local and --host select the host install and --docker selects the container.
-Pair with --no-relay to emit a local-only code even when a relay is configured.`)
+--local selects the host install and --docker selects the container. Pair with
+--no-relay to emit a local-only code and print the local web app link.`)
 }

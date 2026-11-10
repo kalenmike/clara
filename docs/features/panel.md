@@ -197,7 +197,7 @@ monitoring on or off, and gates or paces client settings sync.
   route.
 - **A local install and the Docker stack both have state** — the command refuses
   to guess and exits after printing the reason. Pass `--docker` for the
-  `clara-server` container or `--host` for the local install.
+  `clara-server` container or `--local` for the local install.
 - **The session expires** — the next poll returns `401`, the dashboard is
   replaced by the sign-in screen, and no stale data is shown.
 - **The panel is reached through the Docker bridge** — `CLARA_PANEL_ALLOW_REMOTE`
@@ -355,8 +355,8 @@ monitoring on or off, and gates or paces client settings sync.
   separate service
 - Docker (default): `pnpm clara server start|stop|restart|status|setup-token|pair|admin|logs`;
   `setup-token`, `admin`, and `pair` target the running deployment
-  automatically, and `--docker`/`--host`/`--local` force the container or the
-  host install. Pass `--local` to `start`, `stop`, `restart`, or `logs` to use
+  automatically, and `--docker`/`--local` force the container or the host
+  install. Pass `--local` to `start`, `stop`, `restart`, or `logs` to use
   the detached local agent instead. `pair --no-relay` emits a local-only code.
   The rebuild snapshot records the home agent as `container` or `local` and
   recreates a container with stop/start instead of signalling a PID. See

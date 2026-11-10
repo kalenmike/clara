@@ -54,10 +54,10 @@ With OpenCode 2.1.x running, a local checkout needs:
 ```bash
 pnpm install
 pnpm clara start --local --build
-pnpm clara server setup-token --host
+pnpm clara server setup-token --local
 pnpm clara server panel
 # In the panel: choose the superadmin password and save the OpenCode URL/password.
-pnpm clara pair --no-relay
+pnpm clara pair --local --no-relay
 # Open http://127.0.0.1:8080 and pair.
 ```
 
@@ -65,9 +65,9 @@ On a fresh install, `setup-token` prints the one-time token. Skip it if the
 panel already has an admin.
 
 For Docker, use `pnpm clara start --build` and
-`pnpm clara server setup-token --docker`. `pair --no-relay` is for the same
-machine; use `pnpm clara pair` without `--no-relay` for a relay pairing on a
-phone or another device.
+`pnpm clara server setup-token --docker`. Add `--no-relay` for a same-machine
+code; use `pnpm clara pair` without `--no-relay` for a relay pairing on a phone
+or another device.
 
 For orchestration only, install the harness adapter after the stack is up:
 
@@ -255,7 +255,8 @@ Pages headers and cache rules are mirrored in `docker/web.nginx.conf`.
 
 Pairing mode comes from the agent, not the web image. `pnpm clara server pair
 --docker` prints a relay code when the agent has a relay configured and a local
-code otherwise; add `--no-relay` to force a local code. The relay code already
+code otherwise; add `--no-relay` to force a local code and print the local web
+app link. The relay code already
 carries its `wss://…/room/<id>` URL, so `VITE_CLARA_WS_URL` is only needed when
 the browser must use a different relay endpoint than the agent:
 
@@ -263,9 +264,10 @@ the browser must use a different relay endpoint than the agent:
 VITE_CLARA_WS_URL=wss://relay.example pnpm clara web start --docker --build
 ```
 
-The default Web URL is `http://127.0.0.1:8080`, so a local code prints a link
-to this container. Set **Web URL** in the agent panel for Pages or a remote
-deployment; `CLARA_PAIRING_BASE_URL` still overrides the panel for automation.
+The default Web URL is `http://127.0.0.1:8080`. Set **Web URL** in the agent
+panel for Pages or a remote deployment; `CLARA_PAIRING_BASE_URL` still overrides
+the panel for automation. A `--no-relay` code prints the local web app link even
+when the configured Web URL is remote.
 
 Local pairing works from `http://127.0.0.1:8080` or an SSH tunnel. An HTTPS page
 cannot open a `ws://` socket, so phones and remote browsers still need the relay.
@@ -303,7 +305,8 @@ build-time endpoint is needed. Scan the QR or paste the code on the connect
 screen. Local mode still uses E2EE; it does not fall back to plaintext.
 
 Add `--no-relay` (`pnpm clara pair --no-relay`) to force a local-only
-code even when the agent has a relay configured. The local listener runs
+code and print the local web app link even when the agent has a relay
+configured. The local listener runs
 alongside the relay client, so this exercises the WebSocket transport — including
 the shell policy — without sending traffic through Cloudflare. For the dev app,
 set **Web URL** to `http://localhost:5173` in the agent panel (or set
