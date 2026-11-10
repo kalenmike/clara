@@ -126,10 +126,7 @@ export function AgentCard({
         <KeyValue label="Config" mono title={masked ? undefined : agent.configPath}>
           {masked ? PEEK_MASK : agent.configPath}
         </KeyValue>
-        <KeyValue label="Pairing key" mono title={masked ? undefined : agent.fingerprint}>
-          {agent.fingerprint ? (masked ? PEEK_MASK : agent.fingerprint) : 'fingerprint unavailable'}
-        </KeyValue>
-        <KeyValue label="PSK">{agent.pskConfigured ? 'Configured' : 'Not configured'}</KeyValue>
+        <KeyValue label="Paired devices">{agent.pairedDevices}</KeyValue>
       </CardBody>
     </CollapsibleCard>
   )
@@ -286,7 +283,7 @@ export function LocalCard({
         <KeyValue label="E2EE sessions">{sessions}</KeyValue>
         {local.error ? <Notice>{redact(local.error)}</Notice> : null}
         <p className="pt-2 text-xs text-neutral-500 dark:text-neutral-400">
-          Sessions are authenticated with the pairing key. The panel never sees or displays that
+          Sessions are authenticated with a per-device key. The panel never sees or displays that
           key.
         </p>
       </CardBody>

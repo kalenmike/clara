@@ -1,43 +1,40 @@
 import { getCrypto, utf8 } from './codec.ts'
-import { fingerprintPsk, parsePsk } from './psk.ts'
+import { importSessionKey } from './keys.ts'
 
 export type SessionKeys = {
   /** Browser client to home agent. */
   c2s: CryptoKey
   /** Home agent to browser client. */
   s2c: CryptoKey
-  fingerprint: string
 }
 
 export type SessionHandshake = {
-  psk: string
+  /** Raw device key or a non-extractable HKDF key held by the browser. */
+  key: string | CryptoKey
   sid: string
   clientNonce: string
   agentNonce: string
 }
 
 /**
- * Derives independent keys for each direction from the pre-shared key and the
+ * Derives independent keys for each direction from the device key and the
  * fresh connection nonces. A replayed handshake cannot produce the same keys
  * because the client nonce is generated per connection.
  */
 export async function deriveSessionKeys(handshake: SessionHandshake): Promise<SessionKeys> {
-  const { psk, sid, clientNonce, agentNonce } = handshake
-  const base = await getCrypto().subtle.importKey('raw', parsePsk(psk), 'HKDF', false, [
-    'deriveKey',
-  ])
+  const { key, sid, clientNonce, agentNonce } = handshake
+  const base = typeof key === 'string' ? await importSessionKey(key) : key
   const salt = await getCrypto().subtle.digest(
     'SHA-256',
-    utf8(`clara/v1|${sid}|${clientNonce}|${agentNonce}`)
+    utf8(`clara/v2|${sid}|${clientNonce}|${agentNonce}`)
   )
 
-  const [c2s, s2c, fingerprint] = await Promise.all([
-    derive(base, salt, 'clara/v1/c2s'),
-    derive(base, salt, 'clara/v1/s2c'),
-    fingerprintPsk(psk),
+  const [c2s, s2c] = await Promise.all([
+    derive(base, salt, 'clara/v2/c2s'),
+    derive(base, salt, 'clara/v2/s2c'),
   ])
 
-  return { c2s, s2c, fingerprint }
+  return { c2s, s2c }
 }
 
 async function derive(base: CryptoKey, salt: BufferSource, info: string): Promise<CryptoKey> {

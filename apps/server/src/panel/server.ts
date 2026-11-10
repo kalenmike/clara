@@ -28,6 +28,7 @@ const SYNC_PATH = '/panel/api/v1/sync'
 const ORCHESTRATION_PATH = '/panel/api/v1/orchestration'
 const CONFIG_PATH = '/panel/api/v1/config'
 const HARNESSES_PREFIX = '/panel/api/v1/harnesses'
+const DEVICES_PREFIX = '/panel/api/v1/devices'
 const HEALTH_PATH = '/health'
 const ASSETS_PREFIX = '/assets/'
 const PANEL_HEADER = 'x-clara-panel'
@@ -217,6 +218,11 @@ async function handleRequest(
 
     if (pathname === HARNESSES_PREFIX || pathname.startsWith(`${HARNESSES_PREFIX}/`)) {
       await handleHarness(request, response, context, method, pathname)
+      return
+    }
+
+    if (pathname === DEVICES_PREFIX || pathname.startsWith(`${DEVICES_PREFIX}/`)) {
+      await handleDevices(request, response, context, method, pathname)
       return
     }
 
@@ -564,6 +570,50 @@ async function handleHarness(
       error: { code: 'harness_failed', message: 'Could not apply the harness change' },
     })
   }
+}
+
+async function handleDevices(
+  request: IncomingMessage,
+  response: ServerResponse,
+  context: RequestContext,
+  method: string,
+  pathname: string
+): Promise<void> {
+  const controls = context.controls
+  if (!controls) {
+    sendJson(response, method, 503, {
+      error: { code: 'controls_unavailable', message: 'Agent controls are not available' },
+    })
+    return
+  }
+
+  const id = pathname.startsWith(`${DEVICES_PREFIX}/`)
+    ? decodeURIComponent(pathname.slice(DEVICES_PREFIX.length + 1))
+    : ''
+  if (!id || id.includes('/')) {
+    sendJson(response, method, 404, {
+      error: { code: 'not_found', message: 'Unknown device endpoint' },
+    })
+    return
+  }
+
+  if (method !== 'DELETE') {
+    response.setHeader('allow', 'DELETE')
+    sendJson(response, method, 405, {
+      error: { code: 'method_not_allowed', message: 'Use DELETE to revoke a device' },
+    })
+    return
+  }
+
+  if (!requireMutationHeader(request, response, method, true)) return
+  const device = controls.revokeDevice(id)
+  if (!device) {
+    sendJson(response, method, 404, {
+      error: { code: 'not_found', message: 'That device no longer exists' },
+    })
+    return
+  }
+  sendJson(response, method, 200, { id: device.id })
 }
 
 async function handleMutation(

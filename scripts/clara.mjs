@@ -268,10 +268,11 @@ const clara = {
       name: 'pair',
       group: 'Setup',
       summary: 'Print a pairing code for a device',
-      usage: '[--local] [--rotate] [--no-qr] [--no-panel] [--docker|--host]',
+      usage: '[--local] [--no-qr] [--no-panel] [--revoke-all] [--revoke <id>] [--docker|--host]',
       options: [
         { flags: '--local', description: 'Force a local-only pairing code' },
-        { flags: '--rotate', description: 'Rotate the pairing key and clear push subscriptions' },
+        { flags: '--revoke-all', description: 'Revoke every device and clear push subscriptions' },
+        { flags: '--revoke <id>', description: 'Revoke one device by id' },
         { flags: '--no-qr', description: 'Print the code without the QR block' },
         { flags: '--no-panel', description: 'Do not start the panel listener while pairing' },
         { flags: '--docker', description: 'Read the code from the server container' },

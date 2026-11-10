@@ -11,6 +11,7 @@ import { HarnessStore } from '../src/harness/store.ts'
 import type { PushService } from '../src/push/service.ts'
 import { AgentStoppedError, RuntimeController } from '../src/runtime/controller.ts'
 import { closeDatabase, openDatabase } from '../src/store/database.ts'
+import { DeviceStore } from '../src/store/devices.ts'
 import { SettingsStore } from '../src/store/settings.ts'
 import type { PanelOrchestrationControl } from '@clara/shared-types'
 
@@ -52,7 +53,6 @@ function config(port: number): ServerConfig {
   const dir = tempDir()
   return {
     local: { host: '127.0.0.1', bindHost: '127.0.0.1', port },
-    psk: 'test-psk',
     pairingBaseUrl: 'https://clara.example',
     configDir: dir,
     configPath: join(dir, 'server.json'),
@@ -66,13 +66,12 @@ function config(port: number): ServerConfig {
       relayRoom: 'none',
       agentToken: 'none',
       clientToken: 'none',
-      psk: 'env',
       pairingBaseUrl: 'default',
     },
   }
 }
 
-const info: AgentInfo = { version: 'test', protocol: 1 }
+const info: AgentInfo = { version: 'test', protocol: 2 }
 
 async function createController(
   port = 0,
@@ -88,9 +87,11 @@ async function createController(
   const db = openDatabase(serverConfig.dbPath)
   const settings = new SettingsStore(db)
   const controllerInfo: AgentInfo = { ...info }
+  const secretKey = await loadSecretKey(generateSecretKey())
+  const devices = new DeviceStore({ db, key: secretKey, keyVersion: 1 })
   const harnessStore = new HarnessStore({
     db,
-    key: await loadSecretKey(generateSecretKey()),
+    key: secretKey,
     keyVersion: 1,
   })
   await harnessStore.save({
@@ -106,6 +107,7 @@ async function createController(
     harness,
     info: controllerInfo,
     settings,
+    devices,
     ...(options.push ? { push: options.push } : {}),
     log: () => undefined,
   })

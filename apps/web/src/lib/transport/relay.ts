@@ -3,6 +3,9 @@ import {
   base64UrlToBytes,
   bytesToBase64Url,
   deriveSessionKeys,
+  fingerprintKey,
+  generateKey,
+  importSessionKey,
   open,
   randomBytes,
   seal,
@@ -14,11 +17,13 @@ import {
   RELAY_AUTH_PREFIX,
   RELAY_ROLE_PREFIX,
   RELAY_SUBPROTOCOL,
+  isErrorFrame,
   isHelloFrame,
   isSealedFrame,
   type AgentInfo,
   type ClaraAction,
   type ClaraState,
+  type HelloFrame,
   type SyncCheckAction,
   type SyncErrorCode,
   type SyncPullAction,
@@ -42,11 +47,23 @@ const SYNC_TIMEOUT_MS = 30_000
  */
 export const MAX_IN_FLIGHT_REQUESTS = 20
 
+export type RelayCredential =
+  | { kind: 'device'; deviceId: string; key: CryptoKey }
+  | { kind: 'enroll'; enrollId: string; enrollToken: string; expiresAt: number }
+
 export type RelayTransportConfig = {
   wsUrl: string
   clientToken: string
-  psk: string
+  credential: RelayCredential
+}
+
+/** A device credential returned after a successful enrollment. */
+export type EnrolledDevice = {
+  kind: 'device'
+  deviceId: string
+  key: CryptoKey
   fingerprint: string
+  label: string
 }
 
 export type RelayTransportState = 'idle' | 'connecting' | 'open' | 'reconnecting' | 'closed'
@@ -79,6 +96,7 @@ export type RelayTransport = {
   addChannel: (channel: RelayChannel) => () => void
   requestSync: (action: SyncRequestAction) => Promise<SyncResponse>
   sendAction: (action: ClaraAction) => Promise<void>
+  enroll: (label: string) => Promise<EnrolledDevice>
   status: () => RelayTransportStatus
 }
 
@@ -110,6 +128,18 @@ type PendingSync = {
   timer: number
 }
 
+type EnrolledSummary = {
+  deviceId: string
+  fingerprint: string
+  label: string
+}
+
+type PendingEnrollment = {
+  resolve: (device: EnrolledSummary) => void
+  reject: (cause: unknown) => void
+  timer: number
+}
+
 export function createRelayTransport(config: RelayTransportConfig): RelayTransport {
   return new RelayFetchTransport(config)
 }
@@ -137,6 +167,8 @@ class RelayFetchTransport implements RelayTransport {
   private handshake: Promise<void> | null = null
   private handshakeResolve: (() => void) | null = null
   private handshakeReject: ((cause: unknown) => void) | null = null
+  private enrollment: PendingEnrollment | null = null
+  private fatal: string | null = null
   private handshakeTimer: number | null = null
   private reconnectTimer: number | null = null
   private heartbeatTimer: number | null = null
@@ -158,6 +190,7 @@ class RelayFetchTransport implements RelayTransport {
     this.failQueued(new Error('Relay transport closed'))
     this.failAll(new Error('Relay transport closed'))
     this.failAllSync(new Error('Relay transport closed'))
+    this.failEnrollment(new Error('Relay transport closed'))
 
     for (const channel of this.channels) channel.close?.(new Error('Relay transport closed'))
     this.channels.clear()
@@ -215,6 +248,47 @@ class RelayFetchTransport implements RelayTransport {
 
   sendAction(action: ClaraAction): Promise<void> {
     return this.send(action)
+  }
+
+  async enroll(label: string): Promise<EnrolledDevice> {
+    if (this.config.credential.kind !== 'enroll') {
+      throw new Error('This transport is not pairing a new device')
+    }
+    await this.ensureReady()
+    if (this.closed) throw new Error('Relay transport closed')
+
+    const deviceId = randomId()
+    const rawKey = generateKey()
+    const fingerprint = await fingerprintKey(rawKey)
+
+    const enrolled = new Promise<EnrolledSummary>((resolve, reject) => {
+      const timer = window.setTimeout(() => {
+        this.enrollment = null
+        reject(new Error('Timed out waiting for the home server to enroll this device'))
+      }, HANDSHAKE_TIMEOUT_MS)
+      this.enrollment = { resolve, reject, timer }
+    })
+
+    try {
+      await this.send({
+        type: 'device.enroll',
+        deviceId,
+        key: rawKey,
+        label,
+      })
+    } catch (cause) {
+      this.failEnrollment(cause)
+    }
+
+    const result = await enrolled
+    const key = await importSessionKey(rawKey)
+    return {
+      kind: 'device',
+      deviceId: result.deviceId,
+      key,
+      fingerprint,
+      label: result.label,
+    }
   }
 
   status(): RelayTransportStatus {
@@ -295,6 +369,10 @@ class RelayFetchTransport implements RelayTransport {
 
   private async ensureReady(): Promise<void> {
     if (this.closed) throw new Error('Relay transport closed')
+    if (this.fatal) throw new Error(this.fatal)
+    if (this.config.credential.kind === 'enroll' && Date.now() > this.config.credential.expiresAt) {
+      throw new Error('This pairing code has expired')
+    }
     if (this.statusValue.state === 'open' && this.keys) return
     if (this.handshake) return this.handshake
 
@@ -342,15 +420,18 @@ class RelayFetchTransport implements RelayTransport {
       this.sendChain = Promise.resolve()
       this.receiveChain = Promise.resolve()
       this.sendSeq = 0
-      socket.send(
-        JSON.stringify({
-          t: 'hello',
-          v: PROTOCOL_VERSION,
-          sid: this.sid,
-          nonce: this.clientNonce,
-          role: 'client',
-        } satisfies WireFrame)
-      )
+      const credential = this.config.credential
+      const hello: HelloFrame = {
+        t: 'hello',
+        v: PROTOCOL_VERSION,
+        sid: this.sid,
+        nonce: this.clientNonce,
+        role: 'client',
+        ...(credential.kind === 'device'
+          ? { deviceId: credential.deviceId }
+          : { enrollId: credential.enrollId }),
+      }
+      socket.send(JSON.stringify(hello satisfies WireFrame))
     })
 
     socket.addEventListener('message', (event) => {
@@ -386,8 +467,13 @@ class RelayFetchTransport implements RelayTransport {
       this.failQueued(new Error(reason))
       this.failAll(new Error(reason))
       this.failAllSync(new Error(reason))
+      this.failEnrollment(new Error(reason))
 
       if (this.closed) return
+      if (this.fatal) {
+        this.setState('closed', this.fatal)
+        return
+      }
       this.setState('reconnecting', reason)
       this.scheduleReconnect()
     })
@@ -414,23 +500,31 @@ class RelayFetchTransport implements RelayTransport {
       return
     }
 
+    if (isErrorFrame(parsed)) {
+      if (parsed.sid !== this.sid) return
+      const cause = new Error(parsed.message)
+      this.fatal = parsed.message
+      this.failEnrollment(cause)
+      this.rejectHandshake(cause)
+      this.socket?.close(4001, parsed.code)
+      return
+    }
+
     if (isHelloFrame(parsed)) {
       if (parsed.role !== 'agent' || parsed.sid !== this.sid || !this.clientNonce) return
       try {
+        const credential = this.config.credential
         const keys = await deriveSessionKeys({
-          psk: this.config.psk,
+          key: credential.kind === 'device' ? credential.key : credential.enrollToken,
           sid: parsed.sid,
           clientNonce: this.clientNonce,
           agentNonce: parsed.nonce,
         })
-        if (keys.fingerprint !== this.config.fingerprint) {
-          throw new Error('The pairing fingerprint does not match this server')
-        }
         this.keys = keys
         this.receive = new ReplayGuard()
       } catch (cause) {
         this.rejectHandshake(cause)
-        this.socket?.close(4001, 'fingerprint mismatch')
+        this.socket?.close(4001, 'handshake failed')
       }
       return
     }
@@ -465,6 +559,20 @@ class RelayFetchTransport implements RelayTransport {
       return
     }
 
+    if (payload.type === 'device.enrolled') {
+      const pending = this.enrollment
+      this.enrollment = null
+      if (pending) {
+        window.clearTimeout(pending.timer)
+        pending.resolve({
+          deviceId: payload.deviceId,
+          fingerprint: payload.fingerprint,
+          label: payload.label,
+        })
+      }
+      return
+    }
+
     if (payload.type === 'ready') {
       this.statusValue = { ...this.statusValue, agent: payload.agent }
       this.retry = 0
@@ -493,6 +601,7 @@ class RelayFetchTransport implements RelayTransport {
   }
 
   private handleState(state: Exclude<ClaraState, { type: 'push.status' }>): void {
+    if (state.type === 'device.enrolled') return
     if (state.type === 'agent.status') {
       if (state.agent) {
         this.statusValue = { ...this.statusValue, agent: state.agent }
@@ -694,6 +803,14 @@ class RelayFetchTransport implements RelayTransport {
     if (!pending) return
     window.clearTimeout(pending.timer)
     this.syncPending.delete(id)
+    pending.reject(cause)
+  }
+
+  private failEnrollment(cause: unknown): void {
+    const pending = this.enrollment
+    if (!pending) return
+    this.enrollment = null
+    window.clearTimeout(pending.timer)
     pending.reject(cause)
   }
 

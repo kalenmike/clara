@@ -85,6 +85,14 @@ export class PushService {
     return { count: this.store.size, removed }
   }
 
+  removeByDevice(deviceId: string): number {
+    const removed = this.store.removeByDevice(deviceId)
+    if (removed > 0) {
+      this.log?.(`push subscriptions removed for a revoked device (${this.store.size} left)`)
+    }
+    return removed
+  }
+
   async test(endpoint?: string): Promise<{ count: number }> {
     const payload: PushNotificationPayload = {
       v: 1,

@@ -10,22 +10,31 @@ import {
   type ReactNode,
 } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
+import type { PairingPayload } from '@clara/shared-types'
 import {
   connectionKey,
+  connectionSummary,
   createClient,
   describeConnectionError,
   resolveRelayWsUrl,
   type ClientControl,
   type ClientHandle,
-  type ConnectionConfig,
   type ConnectionStatus,
+  type ConnectionSummary,
+  type DeviceConnection,
   type OpenCodeClient,
   type ServerInfo,
 } from '@/lib/client'
 import type { RelayTransportStatus } from '@/lib/transport/relay'
 import { chatStore } from '@/features/chat/chat-store'
 import { hasPendingPairingLink, takePairingLink } from '@/lib/pairing'
-import { clearStoredConnection, loadStoredConnection, saveStoredConnection } from '@/lib/storage'
+import {
+  canStoreDeviceKey,
+  clearDevice,
+  loadDevice,
+  saveDevice,
+  type StoredDevice,
+} from '@/lib/device-store'
 
 const PROBE_TIMEOUT_MS = 8_000
 const RECONNECT_TIMEOUT_MS = 5_000
@@ -38,12 +47,12 @@ const BOOT_TIMEOUT_MS = 12_000
 export type ConnectionBootSource = 'pairing-link' | 'stored' | null
 
 type ConnectionContextValue = {
-  config: ConnectionConfig | null
+  config: ConnectionSummary | null
   client: OpenCodeClient | null
   info: ServerInfo | null
   status: ConnectionStatus
   error: string | null
-  attempt: ConnectionConfig | null
+  attempt: ConnectionSummary | null
   /** True until the initial stored/link attempt has settled. */
   booting: boolean
   bootSource: ConnectionBootSource
@@ -53,7 +62,7 @@ type ConnectionContextValue = {
   control: ClientControl | null
   reconnecting: boolean
   reconnectError: string | null
-  connect: (config: ConnectionConfig) => Promise<boolean>
+  connect: (payload: PairingPayload) => Promise<boolean>
   reconnect: () => Promise<boolean>
   disconnect: () => void
 }
@@ -65,23 +74,22 @@ let bootStarted = false
 
 export function ConnectionProvider({ children }: { children: ReactNode }) {
   const queryClient = useQueryClient()
-  const [config, setConfig] = useState<ConnectionConfig | null>(null)
+  const [config, setConfig] = useState<ConnectionSummary | null>(null)
   const [client, setClient] = useState<OpenCodeClient | null>(null)
   const [info, setInfo] = useState<ServerInfo | null>(null)
   const [status, setStatus] = useState<ConnectionStatus>('disconnected')
   const [error, setError] = useState<string | null>(null)
-  const [attempt, setAttempt] = useState<ConnectionConfig | null>(() => loadStoredConnection())
+  const [attempt, setAttempt] = useState<ConnectionSummary | null>(null)
   const [booting, setBooting] = useState(true)
-  const [bootSource, setBootSource] = useState<ConnectionBootSource>(() => {
-    if (hasPendingPairingLink()) return 'pairing-link'
-    return attempt ? 'stored' : null
-  })
+  const [bootSource, setBootSource] = useState<ConnectionBootSource>(() =>
+    hasPendingPairingLink() ? 'pairing-link' : null
+  )
   const [relayStatus, setRelayStatus] = useState<RelayTransportStatus | null>(null)
   const [control, setControl] = useState<ClientControl | null>(null)
   const [generation, setGeneration] = useState(0)
   const [reconnecting, setReconnecting] = useState(false)
   const [reconnectError, setReconnectError] = useState<string | null>(null)
-  const configRef = useRef<ConnectionConfig | null>(null)
+  const configRef = useRef<DeviceConnection | null>(null)
   const handleRef = useRef<ClientHandle | null>(null)
   const unsubscribeRef = useRef<(() => void) | null>(null)
   const booted = useRef(false)
@@ -104,29 +112,39 @@ export function ConnectionProvider({ children }: { children: ReactNode }) {
     unsubscribeRef.current = handle.subscribeStatus(setRelayStatus)
   }, [])
 
-  const connect = useCallback(
-    async (next: ConnectionConfig) => {
+  const connectDevice = useCallback(
+    async (device: StoredDevice): Promise<boolean> => {
+      const next: DeviceConnection = {
+        kind: 'device',
+        wsUrl: resolveRelayWsUrl(device.wsUrl, device.room),
+        room: device.room,
+        clientToken: device.clientToken,
+        deviceId: device.deviceId,
+        key: device.key,
+        fingerprint: device.fingerprint,
+        label: device.label,
+      }
+      const summary = connectionSummary(next)
       setStatus('connecting')
       setError(null)
-      setAttempt(next)
+      setAttempt(summary)
 
       const handle = createClient(next)
       try {
         const nextInfo = await handle.client.server.info({
           signal: AbortSignal.timeout(PROBE_TIMEOUT_MS),
         })
-        if (connectionKey(configRef.current ?? next) !== connectionKey(next)) {
+        if (configRef.current && connectionKey(configRef.current) !== connectionKey(summary)) {
           chatStore.reset()
           queryClient.clear()
         }
         configRef.current = next
         installHandle(handle)
         setClient(handle.client)
-        setConfig(next)
+        setConfig(summary)
         setInfo(nextInfo)
         setStatus('connected')
         setGeneration((value) => value + 1)
-        saveStoredConnection(next)
         return true
       } catch (cause) {
         handle.close()
@@ -142,9 +160,74 @@ export function ConnectionProvider({ children }: { children: ReactNode }) {
     [clearHandle, installHandle, queryClient]
   )
 
+  const connectPairing = useCallback(
+    async (payload: PairingPayload): Promise<boolean> => {
+      const wsUrl = resolveRelayWsUrl(payload.wsUrl, payload.room)
+      setStatus('connecting')
+      setError(null)
+      setAttempt({ wsUrl, room: payload.room, label: 'Clara server' })
+
+      if (Date.now() > payload.expiresAt) {
+        setStatus('error')
+        setError('This pairing code has expired. Generate a new one on the home agent.')
+        return false
+      }
+      if (!(await canStoreDeviceKey())) {
+        setStatus('error')
+        setError(
+          'This browser cannot store a protected device key. Update the browser or use a different one.'
+        )
+        return false
+      }
+
+      const label = deviceLabel()
+      const handle = createClient({
+        kind: 'enroll',
+        wsUrl,
+        room: payload.room,
+        clientToken: payload.clientToken,
+        enrollId: payload.enrollId,
+        enrollToken: payload.enrollToken,
+        expiresAt: payload.expiresAt,
+        label,
+      })
+      try {
+        const enrolled = await handle.enroll(label)
+        const stored: StoredDevice = {
+          deviceId: enrolled.deviceId,
+          label: enrolled.label,
+          wsUrl,
+          room: payload.room,
+          clientToken: payload.clientToken,
+          fingerprint: enrolled.fingerprint,
+          key: enrolled.key,
+          createdAt: Date.now(),
+        }
+        await saveDevice(stored)
+        handle.close()
+        return await connectDevice(stored)
+      } catch (cause) {
+        handle.close()
+        clearHandle()
+        setClient(null)
+        setConfig(null)
+        setInfo(null)
+        setStatus('error')
+        setError(describeConnectionError(cause))
+        return false
+      }
+    },
+    [clearHandle, connectDevice]
+  )
+
+  const connect = useCallback(
+    (payload: PairingPayload) => connectPairing(payload),
+    [connectPairing]
+  )
+
   /**
    * Re-prove an existing connection without leaving the app or losing the
-   * stored credentials. A failure keeps the current client alive because the
+   * stored credential. A failure keeps the current client alive because the
    * stream may still recover on its own.
    */
   const reconnect = useCallback(async () => {
@@ -177,7 +260,7 @@ export function ConnectionProvider({ children }: { children: ReactNode }) {
   }, [installHandle, queryClient])
 
   const disconnect = useCallback(() => {
-    clearStoredConnection()
+    void clearDevice()
     configRef.current = null
     clearHandle()
     chatStore.reset()
@@ -206,23 +289,16 @@ export function ConnectionProvider({ children }: { children: ReactNode }) {
         const pairing = takePairingLink()
         if (pairing) {
           setBootSource('pairing-link')
-          await connect({
-            wsUrl: resolveRelayWsUrl(pairing.wsUrl, pairing.room),
-            room: pairing.room,
-            clientToken: pairing.clientToken,
-            psk: pairing.psk,
-            fingerprint: pairing.fingerprint,
-            label: 'Clara server',
-          })
+          await connectPairing(pairing)
           return
         }
 
-        const stored = loadStoredConnection()
+        const stored = await loadDevice()
         if (stored) {
           setBootSource('stored')
           // Re-resolve the stored endpoint so a deployment switch change applies
           // to devices paired before it was set. Local pairings keep their URL.
-          await connect({ ...stored, wsUrl: resolveRelayWsUrl(stored.wsUrl, stored.room) })
+          await connectDevice({ ...stored, wsUrl: resolveRelayWsUrl(stored.wsUrl, stored.room) })
         }
       } finally {
         window.clearTimeout(timeout)
@@ -281,4 +357,14 @@ export function useConnection() {
   const value = useContext(ConnectionContext)
   if (!value) throw new Error('useConnection must be used inside ConnectionProvider')
   return value
+}
+
+function deviceLabel(): string {
+  const userAgent = typeof navigator !== 'undefined' ? navigator.userAgent : ''
+  if (/iPhone|iPad|iPod/i.test(userAgent)) return 'iOS device'
+  if (/Android/i.test(userAgent)) return 'Android device'
+  if (/Macintosh|Mac OS X/i.test(userAgent)) return 'Mac'
+  if (/Windows/i.test(userAgent)) return 'Windows device'
+  if (/Linux/i.test(userAgent)) return 'Linux device'
+  return 'Clara device'
 }

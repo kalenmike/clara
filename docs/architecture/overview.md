@@ -18,7 +18,7 @@ while Clara is closed.
 | OpenCode     | `@opencode/client` **2.1.1**, pinned to the server minor              |
 | Home agent   | Node 22, `ws`, `node:http`, WebCrypto                                 |
 | Relay        | Cloudflare Worker + `RelayRoom` Durable Object                        |
-| Crypto       | PSK → HKDF-SHA-256 → AES-256-GCM (WebCrypto)                          |
+| Crypto       | Device key → HKDF-SHA-256 → AES-256-GCM (WebCrypto)                   |
 
 ### Version contract
 
@@ -47,7 +47,7 @@ packages/
   shared-types/        Wire frames, actions, states, pairing payloads
   orchestration/       Package loader, runtime, leases, and watchdog
   orchestration-control/ Shared service paths, health, start, and stop helpers
-  crypto/              PSK derivation, AES-GCM envelopes, replay guard
+  crypto/              device-key derivation, AES-GCM envelopes, replay guard
 workers/
   relay/               Worker + RelayRoom Durable Object
 docs/
@@ -82,10 +82,10 @@ See [relay.md](relay.md), [e2ee.md](e2ee.md), and
 
 Clara supports two transports, both through the home agent:
 
-| Mode        | Selected by                        | Auth                          |
-| ----------- | ---------------------------------- | ----------------------------- |
-| Relay       | `VITE_CLARA_WS_URL` + pairing code | E2EE PSK + relay client token |
-| Local agent | Pairing payload URL (`local` room) | E2EE PSK + local WebSocket    |
+| Mode        | Selected by                        | Auth                            |
+| ----------- | ---------------------------------- | ------------------------------- |
+| Relay       | `VITE_CLARA_WS_URL` + pairing code | Device key + relay client token |
+| Local agent | Pairing payload URL (`local` room) | Device key + local WebSocket    |
 
 The connect screen first proves any pairing link or stored device behind a
 branded splash. If none connects, it shows the pairing form. There is no direct
@@ -129,7 +129,7 @@ ConnectionProvider
   and harness configuration, reads one allowlisted runtime snapshot, exposes
   guarded controls for the four external features, the master stop, the shell
   policy, monitoring, the client-sync gate and cadence, and the local
-  orchestration service, and never returns the PSK, harness password, tokens,
+  orchestration service, and never returns device keys, harness password, tokens,
   push endpoints, sync values, or file contents. See
   [panel.md](../features/panel.md) and
   [agent-controls.md](../features/agent-controls.md).
@@ -233,7 +233,7 @@ loop re-subscribes through the transport.
 - The shell policy is a guardrail, not a sandbox. It filters command requests
   relayed by the agent, but a modified web build can still use non-command
   OpenCode APIs through the agent.
-- Never commit `service.json`, passwords, pairing codes, PSKs, relay tokens,
+- Never commit `service.json`, passwords, pairing codes, device keys, relay tokens,
   `secrets.key`, or `admin-setup.txt`.
 - The home agent's config is `~/.config/clara/server.json` (mode `0600`).
   Settings, client sync data, panel users, and harness connections live in
@@ -245,15 +245,17 @@ loop re-subscribes through the transport.
   `clara-server-data` volumes instead and keeps its host control token under
   `~/.local/share/clara/docker`.
 - The relay sees metadata only; all payloads are E2EE. Web Push payloads use
-  Web Push encryption to the browser subscription, not Clara's PSK envelope.
-- The web stores the PSK in `localStorage`; `_headers` ships a CSP but XSS on the
-  Pages origin can still reach browser storage.
-- Relay tokens are defense in depth; the PSK is the real authentication key.
+  Web Push encryption to the browser subscription, not Clara's device envelope.
+- The web stores a non-extractable device key in IndexedDB; no raw connection
+  key is written to `localStorage`. `_headers` ships a CSP, but XSS on the Pages
+  origin can still use the key while the page is open.
+- Relay tokens are defense in depth; the per-device key is the real
+  authentication key.
 - The Worker uses separate agent/client tokens so a paired client cannot
   impersonate the home agent.
 - The agent panel requires a superadmin login and defaults to `127.0.0.1`. It
   checks the socket address when remote access is not explicitly allowed, plus
-  `Host`, `Origin`, and fetch metadata, and never returns the PSK, harness
+  `Host`, `Origin`, and fetch metadata, and never returns device keys, harness
   password, tokens, push endpoints, sync values, or file contents. The first-run
   setup token is written to a host-only file; a lost password is reset by a
   host-only command, never over HTTP. Authentication is not host isolation;

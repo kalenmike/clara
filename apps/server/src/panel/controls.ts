@@ -27,6 +27,7 @@ export type PanelControlService = {
   testHarness: (value: unknown, id?: string) => Promise<PanelHarnessTestResult>
   activateHarness: (id: string) => Promise<PanelHarnessMutationResponse>
   deleteHarness: (id: string) => Promise<PanelHarnessMutationResponse>
+  revokeDevice: (id: string) => { id: string } | undefined
 }
 
 export type PanelControlFailure = {

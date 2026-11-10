@@ -71,6 +71,15 @@ export type SyncPushAction = {
   entries: Array<{ key: string; value: string | null }>
 }
 
+/** Enrolls a new device over the one-time enrollment session. */
+export type DeviceEnrollAction = {
+  type: 'device.enroll'
+  deviceId: string
+  /** Base64url 32-byte device key. */
+  key: string
+  label?: string
+}
+
 /**
  * Actions travel from a browser client to the home agent. `body` is base64url
  * encoded so the payload stays JSON-safe on every runtime.
@@ -90,6 +99,7 @@ export type ClaraAction =
   | { type: 'pong'; at: number }
   | { type: 'ready'; agent: AgentInfo }
   | { type: 'ready.ack'; agent: AgentInfo }
+  | DeviceEnrollAction
   | PushSubscribeAction
   | PushUnsubscribeAction
   | PushTestAction

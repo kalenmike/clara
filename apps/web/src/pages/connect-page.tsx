@@ -6,7 +6,6 @@ import { PairForm } from '@/components/connect/pair-form'
 import { QrScanDialog } from '@/components/connect/qr-scan-dialog'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { useSessionWording } from '@/features/sessions/use-wording'
-import { resolveRelayWsUrl } from '@/lib/client'
 import { isCameraScanningAvailable } from '@/lib/qr-scan'
 import { useConnection } from '@/providers/connection-provider'
 
@@ -27,14 +26,7 @@ export function ConnectPage() {
   const startPairing = async (payload: PairingPayload) => {
     setPairError(null)
     setPairing(payload)
-    await connect({
-      wsUrl: resolveRelayWsUrl(payload.wsUrl, payload.room),
-      room: payload.room,
-      clientToken: payload.clientToken,
-      psk: payload.psk,
-      fingerprint: payload.fingerprint,
-      label: 'Clara server',
-    })
+    await connect(payload)
   }
 
   const submitPair = async (event: FormEvent<HTMLFormElement>) => {

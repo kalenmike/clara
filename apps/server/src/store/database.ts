@@ -5,7 +5,7 @@ import Database from 'better-sqlite3'
 
 export type ClaraDatabase = Database.Database
 
-export const SCHEMA_VERSION = 6
+export const SCHEMA_VERSION = 7
 
 const BUSY_TIMEOUT_MS = 5_000
 const DATABASE_MODE = 0o600
@@ -148,6 +148,45 @@ const MIGRATIONS: Migration[] = [
         user_id TEXT REFERENCES panel_users(id) ON DELETE CASCADE,
         expires_at INTEGER NOT NULL,
         created_at INTEGER NOT NULL
+      );
+    `)
+  },
+  /**
+   * Per-device credentials. Device keys and unused enrollment tokens are
+   * encrypted with the secret key outside the database, the same way harness
+   * passwords are stored.
+   */
+  (db) => {
+    db.exec(`
+      CREATE TABLE devices (
+        id TEXT PRIMARY KEY,
+        label TEXT NOT NULL,
+        fingerprint TEXT NOT NULL,
+        created_at INTEGER NOT NULL,
+        updated_at INTEGER NOT NULL,
+        last_seen_at INTEGER,
+        last_transport TEXT,
+        last_device_class TEXT,
+        revoked_at INTEGER
+      );
+
+      CREATE TABLE device_keys (
+        device_id TEXT PRIMARY KEY REFERENCES devices(id) ON DELETE CASCADE,
+        ciphertext BLOB NOT NULL,
+        nonce BLOB NOT NULL,
+        key_version INTEGER NOT NULL
+      ) WITHOUT ROWID;
+
+      CREATE TABLE pairing_tokens (
+        id TEXT PRIMARY KEY,
+        ciphertext BLOB NOT NULL,
+        nonce BLOB NOT NULL,
+        key_version INTEGER NOT NULL,
+        fingerprint TEXT NOT NULL,
+        created_at INTEGER NOT NULL,
+        expires_at INTEGER NOT NULL,
+        used_at INTEGER,
+        used_device_id TEXT
       );
     `)
   },

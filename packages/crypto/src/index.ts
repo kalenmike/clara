@@ -1,6 +1,6 @@
 export * from './codec.ts'
 export * from './envelope.ts'
-export * from './psk.ts'
+export * from './keys.ts'
 export * from './replay.ts'
 export * from './secret.ts'
 export * from './session.ts'

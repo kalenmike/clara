@@ -6,9 +6,8 @@ Connects Clara to one OpenCode server through the Clara home agent over an
 end-to-end encrypted WebSocket, either through the Cloudflare relay or the local
 listener. There is no direct HTTP mode. Before pairing, the home agent's
 authenticated panel must contain an active OpenCode harness connection; the
-server no longer discovers OpenCode's `service.json`. The connect screen pairs
-new devices by scanning a QR code with the camera or pasting its code, and proves
-the connection before showing data.
+server no longer discovers OpenCode's `service.json`. Each browser enrolls its
+own device key through a one-time code; there is no shared browser key.
 
 ## User flow
 
@@ -20,23 +19,25 @@ the connection before showing data.
 2. Open Clara. A branded splash shows while Clara checks a pairing link in the
    URL fragment or a stored device. A successful attempt opens the last project
    without showing the connect form.
-3. If no connection is confirmed, the connect screen offers the pairing form:
-   **Scan QR code** and a paste field.
+3. If no device is stored, the connect screen offers the pairing form: **Scan QR
+   code** and a paste field.
 4. Scanning opens the rear camera and connects as soon as the QR printed by
    `clara-server pair` is recognized; a `clara1_…` code or `#pair=` link can
    still be pasted. A pairing link opened directly starts on the splash with a
-   connecting message. Clara stores the relay/local endpoint, room, client
-   token, PSK, and fingerprint.
-5. Clara opens the WebSocket, completes the E2EE handshake, verifies the
-   fingerprint, and calls the OpenCode info endpoint through the tunnel.
-6. On success Clara stores the pairing and opens the last project, or the first
-   project the server returns.
-7. On failure the form explains whether the code, key fingerprint, relay,
+   connecting message. Clara stores only non-secret metadata in `localStorage`
+   and the non-extractable device key in IndexedDB.
+5. Clara opens the WebSocket with the one-time enrollment token, completes the
+   enrollment handshake, stores the device key, reconnects with the device id,
+   and calls the OpenCode info endpoint through the tunnel.
+6. On success Clara opens the last project, or the first project the server
+   returns.
+7. On failure the form explains whether the code, expiry, fingerprint, relay,
    authentication, or reachability failed. A failed pairing link returns to the
    pair form with the reason.
-8. **Settings → Reconnect** re-proves the current transport without clearing
-   credentials. The sidebar health control offers the same action.
-9. **Settings → Disconnect** clears the stored device and returns here.
+8. **Settings → Reconnect** re-proves the current transport without clearing the
+   stored device. The sidebar health control offers the same action.
+9. **Settings → Disconnect** forgets the device in this browser and returns here.
+   Revoke it in the panel if the credential should stop working everywhere.
 
 ## Core business rules
 
@@ -47,9 +48,9 @@ the connection before showing data.
    adds basic auth and only proxies `/api/` paths on the configured origin.
 3. `VITE_CLARA_WS_URL` retargets relay-room pairings; a `local` pairing keeps the
    endpoint from its payload. `clara-server pair --local` produces a `local`
-   pairing even when the agent has a relay configured. Pairing supplies the room,
-   client token, and PSK.
-4. A stored device is retried on boot before the pair form renders.
+   pairing even when the agent has a relay configured.
+4. A stored device is retried on boot before the pair form renders. Existing
+   clients from before per-device credentials must re-pair.
 5. The connect screen holds a splash until the boot attempt settles, but a
    12-second watchdog reveals the form if the probe wedges. Normal probe and
    handshake failures settle first and report their own reason.
@@ -63,6 +64,8 @@ the connection before showing data.
 9. The web transport queues HTTP requests above a small in-flight cap. Query
    bursts wait instead of hitting the home agent's per-session ceiling, which is
    64 concurrent requests.
+10. Each device key is revocable on its own. A revoked device is rejected on the
+    next handshake or action.
 
 ## Edge cases
 
@@ -71,16 +74,20 @@ the connection before showing data.
   connection and names the room URL and client token.
 - **Local-only code on HTTPS** — the transport reports that the pairing code is
   local-only instead of a bare socket close.
-- **Fingerprint mismatch** — the E2EE handshake closes with `4001`; re-pair.
+- **Fingerprint mismatch** — the enrollment reports a mismatch; request a fresh
+  code.
+- **Expired or used code** — the agent rejects enrollment; generate a new code.
 - **Agent offline** — the client connects, receives `1013`, and reports that the
   home server is unreachable.
+- **Device revoked** — the agent sends `revoked_device`, the client disconnects,
+  and the panel shows the device as revoked.
 - **Harness not configured** — the agent connects but the OpenCode probe fails
   with `harness_unconfigured`. Open the panel and save an active connection.
 - **Harness reachable from the host but not the container** — `127.0.0.1` inside
   the server container is the Clara server. Use the OpenCode container service
   name or an address reachable from the `clara` network.
-- **Stale stored device** — Clara falls back to the pair form; it does not
-  silently try another server.
+- **Stored device cannot connect** — Clara falls back to the pair form; it does
+  not silently try another server. Revoke the stale entry in the panel.
 - **Pairing link fails** — the connecting splash gives way to the pair form,
   which shows the connection failure reason.
 - **Camera denied, missing, or busy** — the scanner names the reason and keeps
@@ -92,15 +99,15 @@ the connection before showing data.
   the screen cannot hang forever.
 - **Stalled stream** — the transport heartbeat aborts a half-open socket and
   reconnects with backoff.
-- **Manual reconnect fails** — the current client and credentials are kept; the
-  Settings card shows the error and the stream keeps retrying.
+- **Manual reconnect fails** — the current client and device credential are
+  kept; the Settings card shows the error and the stream keeps retrying.
 - **Provider failure** — a run that fails at the model provider is not a
   connection failure. The assistant message shows the error and the stream stays
   live.
 
 ## Out of scope
 
-- Pairing expiration or per-device keys
+- Per-device relay tokens
 - Multiple saved server profiles or switching without disconnecting
 - OAuth or provider credential management
 - A public HTTP proxy shipped with Clara
@@ -111,7 +118,9 @@ the connection before showing data.
   separate dry-run that leaves the connection untouched.
 - The connect screen does not show the server's full URL list after success;
   Settings does.
-- A relay pairing code can be reused until the PSK is rotated.
+- The relay client token is shared by every paired device.
+- A copied browser profile may still be able to use a non-extractable device key
+  depending on the browser; passkey binding is not implemented.
 
 ## Technical appendix
 
@@ -119,23 +128,25 @@ the connection before showing data.
 <summary>Routes, data, and references</summary>
 
 - Route: `/connect`
-- Pairing payload: `{ v, wsUrl, room, clientToken, psk, fingerprint }`
+- Pairing payload: `{ v, wsUrl, room, clientToken, enrollId, enrollToken, fingerprint, expiresAt }`
 - Probe: `GET /api/info` through the WebSocket transport, 8s timeout on connect,
   5s on reconnect
 - Boot gate: `ConnectionProvider` exposes `booting` and `bootSource`; the page
   renders a splash until boot settles, with a 12s watchdog
 - Client factory: `createClient` in `apps/web/src/lib/client.ts`, WebSocket only
+- Device storage: `apps/web/src/lib/device-store.ts` (IndexedDB, non-extractable
+  `CryptoKey`)
 - Pairing scanner: `apps/web/src/features/connect/use-qr-scanner.ts`; decoding
   and camera error copy in `apps/web/src/lib/qr-scan.ts`
 - Relay transport: `apps/web/src/lib/transport/relay.ts` (also serves the local
   listener)
 - Home agent: `apps/server/src/` (`config`, `agent`, `harness`, `local-server`,
-  `relay-client`, `pairing`)
+  `relay-client`, `pairing`, `store/devices`)
 - Harness setup: panel → `harness_connections` in `clara.db`; the active
   OpenCode adapter adds basic auth and proxies `/api/*`
 - Docker stack: `pnpm clara start` starts the orchestrator, server, and web
-  client together; `--no-*` selects a subset and `restart` recreates the
-  selection. Use the scoped commands for one service.
+  client together; `--no-*` selects a subset; `restart` recreates the selection.
+  Use the scoped commands for one service.
 - Server container: `pnpm clara server start --docker`; panel and local
   WebSocket publish on host loopback, harness URLs use the `clara` Docker network.
   The maintenance snapshot records `local` vs `container` and recreates the
@@ -146,7 +157,6 @@ the connection before showing data.
   maintenance snapshot records the web client as `container` or `stopped`.
 - Stream health: `onActivity` tracks every chunk, including the 15s heartbeat;
   the watchdog aborts after 45s of silence
-- Storage key: `clara.connection.local`
 - Related: [architecture overview](../architecture/overview.md),
   [relay](../architecture/relay.md), [E2EE](../architecture/e2ee.md),
   [pairing](pairing.md)

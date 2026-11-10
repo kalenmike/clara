@@ -18,6 +18,7 @@ import { AuthScreen } from './components/auth-screen.tsx'
 import { HarnessCard } from './components/harness-card.tsx'
 import { ClientSyncCard } from './components/client-sync-card.tsx'
 import { ClientsTable } from './components/clients-table.tsx'
+import { DevicesCard } from './components/devices-card.tsx'
 import { EventsCard } from './components/events-list.tsx'
 import { OrchestrationCard } from './components/orchestration-card.tsx'
 import {
@@ -155,6 +156,8 @@ function Panel({ state, session }: { state: SnapshotState; session: SessionContr
             />
 
             <ClientsTable clients={data.clients} now={clock} />
+
+            <DevicesCard devices={data.devices} now={clock} onChanged={refresh} />
 
             <TrafficCard
               traffic={data.traffic}

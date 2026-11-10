@@ -1,7 +1,7 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { homedir } from 'node:os'
 import { dirname, join } from 'node:path'
-import { bytesToBase64Url, generatePsk, parsePsk, randomBytes } from '@clara/crypto'
+import { bytesToBase64Url, randomBytes } from '@clara/crypto'
 
 export type RelayConfig = {
   url: string
@@ -20,7 +20,6 @@ export type ServerConfigSources = {
   relayRoom: ConfigSource
   agentToken: ConfigSource
   clientToken: ConfigSource
-  psk: ConfigSource
   pairingBaseUrl: ConfigSource
 }
 
@@ -33,7 +32,6 @@ export type ServerConfig = {
     port: number
   }
   relay?: RelayConfig
-  psk: string
   pairingBaseUrl: string
   configDir: string
   configPath: string
@@ -43,8 +41,9 @@ export type ServerConfig = {
 }
 
 type ConfigFile = {
-  /** Legacy OpenCode credentials are removed on the next config write. */
+  /** Retired fields are removed on the next config write. */
   opencode?: unknown
+  psk?: unknown
   local?: {
     host?: string
     port?: number
@@ -55,7 +54,6 @@ type ConfigFile = {
     agentToken?: string
     clientToken?: string
   }
-  psk?: string
   pairingBaseUrl?: string
 }
 
@@ -63,7 +61,7 @@ const DEFAULT_LOCAL_HOST = '127.0.0.1'
 const DEFAULT_LOCAL_PORT = 8788
 const DEFAULT_WEB_PORT = 8080
 
-export function loadConfig(options: { rotate?: boolean; local?: boolean } = {}): ServerConfig {
+export function loadConfig(options: { local?: boolean } = {}): ServerConfig {
   const configDir = resolveConfigDir()
   const dataDir = resolveDataDir()
   const configPath = join(configDir, 'server.json')
@@ -143,16 +141,6 @@ export function loadConfig(options: { rotate?: boolean; local?: boolean } = {}):
     )
   }
 
-  const psk = options.rotate ? generatePsk() : (process.env.CLARA_PSK ?? file.psk ?? generatePsk())
-  const pskSource: ConfigSource = options.rotate
-    ? 'generated'
-    : process.env.CLARA_PSK !== undefined
-      ? 'env'
-      : file.psk !== undefined
-        ? 'file'
-        : 'generated'
-  parsePsk(psk)
-
   const envPairingBaseUrl = readEnv('CLARA_PAIRING_BASE_URL')
   const filePairingBaseUrl = nonEmpty(file.pairingBaseUrl)
   const pairingBaseUrlSource: ConfigSource = envPairingBaseUrl
@@ -169,7 +157,6 @@ export function loadConfig(options: { rotate?: boolean; local?: boolean } = {}):
   const config: ServerConfig = {
     local: { host: localHost, bindHost: localBindHost, port: localPort },
     relay,
-    psk,
     pairingBaseUrl,
     configDir,
     configPath,
@@ -183,12 +170,11 @@ export function loadConfig(options: { rotate?: boolean; local?: boolean } = {}):
       relayRoom: relay ? relayRoomSource : 'none',
       agentToken: relay ? agentTokenSource : 'none',
       clientToken: relay ? clientTokenSource : 'none',
-      psk: pskSource,
       pairingBaseUrl: pairingBaseUrlSource,
     },
   }
 
-  persistConfig(configPath, file, config, options.rotate === true)
+  persistConfig(configPath, file, config)
   return config
 }
 
@@ -201,16 +187,10 @@ function readConfig(path: string): ConfigFile {
   }
 }
 
-function persistConfig(
-  path: string,
-  previous: ConfigFile,
-  config: ServerConfig,
-  rotated: boolean
-): void {
+function persistConfig(path: string, previous: ConfigFile, config: ServerConfig): void {
   const relayChanged =
     Boolean(config.relay) &&
     (previous.relay?.url !== config.relay?.url || previous.relay?.room !== config.relay?.room)
-  const pskChanged = rotated || previous.psk !== config.psk
   const localChanged =
     previous.local?.host !== config.local.host || previous.local?.port !== config.local.port
   const storedPairingBaseUrl =
@@ -219,14 +199,14 @@ function persistConfig(
       : nonEmpty(previous.pairingBaseUrl)
   const pairingChanged =
     config.sources.pairingBaseUrl === 'file' && previous.pairingBaseUrl !== config.pairingBaseUrl
-  const legacyCleared = previous.opencode !== undefined
-  if (!relayChanged && !pskChanged && !localChanged && !pairingChanged && !legacyCleared) return
+  // Drop retired fields from older files when the config is rewritten.
+  const retiredCleared = previous.opencode !== undefined || previous.psk !== undefined
+  if (!relayChanged && !localChanged && !pairingChanged && !retiredCleared) return
 
-  // Rebuild the file without legacy OpenCode credentials. Harness connections
-  // now live in the database, encrypted separately.
+  // Rebuild the file without legacy credentials. Harness connections live in
+  // the database; device keys live in the encrypted device store.
   const next: ConfigFile = {
     local: { host: config.local.host, port: config.local.port },
-    psk: config.psk,
   }
   if (storedPairingBaseUrl !== undefined) next.pairingBaseUrl = storedPairingBaseUrl
   if (config.relay) {
@@ -247,6 +227,7 @@ export function savePairingBaseUrl(configPath: string, value: string | undefined
 
   const next: ConfigFile = { ...previous }
   delete next.opencode
+  delete next.psk
   if (nextValue !== undefined) next.pairingBaseUrl = nextValue
   else delete next.pairingBaseUrl
   writeConfigFile(configPath, next)

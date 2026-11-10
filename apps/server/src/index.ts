@@ -1,6 +1,5 @@
 import { join, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { fingerprintPsk } from '@clara/crypto'
 import { PROTOCOL_VERSION } from '@clara/shared-types'
 import { loadAdminPaths, loadConfig } from './config.ts'
 import { HarnessManager } from './harness/manager.ts'
@@ -17,6 +16,7 @@ import { loadVapidDetails } from './push/vapid.ts'
 import { RuntimeController } from './runtime/controller.ts'
 import { ClientStorageStore } from './store/client-storage.ts'
 import { closeDatabase, openDatabase, schemaVersion } from './store/database.ts'
+import { DeviceStore } from './store/devices.ts'
 import { PanelUserStore } from './store/panel-users.ts'
 import { readSecretKey } from './store/secret-key.ts'
 import { SettingsStore } from './store/settings.ts'
@@ -28,7 +28,6 @@ const DEFAULT_PANEL_PORT = 8790
 async function main(): Promise<void> {
   const args = process.argv.slice(2)
   const command = args[0] ?? 'serve'
-  const rotate = args.includes('--rotate')
 
   if (command === 'admin') {
     await runAdmin(args.slice(1))
@@ -37,8 +36,8 @@ async function main(): Promise<void> {
 
   if (command !== 'serve' && command !== 'pair') {
     console.error(`Unknown command: ${command}`)
-    console.error('Usage: clara-server [serve|pair|admin] [--rotate] [--no-panel]')
-    console.error('       clara-server pair [--local] [--no-qr]')
+    console.error('Usage: clara-server [serve|pair|admin] [--no-panel]')
+    console.error('       clara-server pair [--local] [--no-qr] [--revoke-all|--revoke <id>]')
     console.error('       clara-server admin reset|setup-token')
     process.exitCode = 2
     return
@@ -47,24 +46,56 @@ async function main(): Promise<void> {
   // A local-only code is a pairing command option; serving must keep its relay
   // config so the outbound transport still starts.
   const localPairing = command === 'pair' && args.includes('--local')
-  const config = loadConfig({ rotate, local: localPairing })
-
-  if (rotate) {
-    const removed = clearPushSubscriptions(join(config.configDir, 'subscriptions.json'))
-    log(`pairing key rotated; cleared ${removed} push subscription(s)`)
-  }
-
-  if (command === 'pair') {
-    await printPairing(config, !args.includes('--no-qr'), { local: localPairing })
-    return
-  }
+  const config = loadConfig({ local: localPairing })
 
   const database = openDatabase(config.dbPath)
+  const secretKey = await readSecretKey(config.configDir)
+  const devices = new DeviceStore({
+    db: database,
+    key: secretKey.key,
+    keyVersion: secretKey.version,
+  })
+
+  if (command === 'pair') {
+    try {
+      devices.pruneExpiredTokens()
+      const revokeAll = args.includes('--revoke-all')
+      const revokeIndex = args.indexOf('--revoke')
+      if (revokeAll) {
+        const removed = devices.revokeAllDevices()
+        const pushRemoved = clearPushSubscriptions(join(config.configDir, 'subscriptions.json'))
+        console.log(`Revoked ${removed} device(s); cleared ${pushRemoved} push subscription(s).`)
+        console.log('Restart the running agent to apply the revocation immediately.')
+        return
+      }
+      if (revokeIndex >= 0) {
+        const id = args[revokeIndex + 1]
+        if (!id) {
+          console.error('Usage: clara-server pair --revoke <deviceId>')
+          process.exitCode = 2
+          return
+        }
+        const revoked = devices.revokeDevice(id)
+        if (!revoked) {
+          console.error(`No device with id ${id}`)
+          process.exitCode = 1
+          return
+        }
+        console.log(`Revoked ${revoked.label} (${revoked.id}).`)
+        console.log('Restart the running agent to apply the revocation immediately.')
+        return
+      }
+      await printPairing(config, devices, !args.includes('--no-qr'), { local: localPairing })
+      return
+    } finally {
+      closeDatabase(database)
+    }
+  }
+
   const settings = new SettingsStore(database)
   const clientStorage = new ClientStorageStore(database)
   const initial = settings.get()
 
-  const secretKey = await readSecretKey(config.configDir)
   const harnessStore = new HarnessStore({
     db: database,
     key: secretKey.key,
@@ -97,7 +128,6 @@ async function main(): Promise<void> {
       ? undefined
       : await harness.probe(3_000).then((probe) => (probe.ok ? probe.version : undefined))
   const startedAt = Date.now() - Math.round(process.uptime() * 1000)
-  const fingerprint = await fingerprintPsk(config.psk).catch(() => undefined)
 
   let push: PushService | undefined
   let pushError: string | undefined
@@ -134,6 +164,7 @@ async function main(): Promise<void> {
     sync: clientStorage,
     push,
     pushError,
+    devices,
     log,
   })
 
@@ -161,7 +192,8 @@ async function main(): Promise<void> {
       traffic: controller.traffic,
       push,
       pushError,
-      fingerprint,
+      devices: () => controller.devices(),
+      pairedDevices: () => controller.pairedDevices(),
       startedAt,
       controls: () => controller.controls(),
       probeEnabled: () => controller.canProxy(),
@@ -195,7 +227,7 @@ async function main(): Promise<void> {
   log(`pairing config: ${config.configPath}`)
   log('print a pairing code with: clara-server pair')
   if (args.includes('--pair') || args.includes('--qr')) {
-    await printPairing(config, true, { local: localPairing })
+    await printPairing(config, devices, true, { local: localPairing })
   }
 
   let stopping = false

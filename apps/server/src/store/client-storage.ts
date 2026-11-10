@@ -13,10 +13,9 @@ export const MAX_SYNC_KEY_LENGTH = 128
 const NAMESPACE_PATTERN = /^[a-z0-9_-]+$/
 
 /**
- * Keys that carry credentials must never reach the plaintext sync table. The
- * web client stores the pairing payload and PSK under `clara.connection.local`.
+ * Keys that carry credentials must never reach the plaintext sync table.
  */
-const SECRET_KEY_PREFIXES = ['clara.connection.'] as const
+const SECRET_KEY_PREFIXES = [] as const
 const SECRET_KEY_TERMS = [
   'psk',
   'password',

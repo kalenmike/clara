@@ -6,7 +6,7 @@
  * agent on a loopback listener; it never travels through the relay.
  */
 
-export const PANEL_API_VERSION = 9
+export const PANEL_API_VERSION = 10
 
 export type PanelValueSource = 'env' | 'file' | 'database' | 'default' | 'generated' | 'none'
 
@@ -36,11 +36,10 @@ export type PanelAgentInfo = {
   memoryRssBytes: number
   configPath: string
   configDir: string
-  pskConfigured: boolean
+  pairedDevices: number
   stopped: boolean
   /** True when this agent runs in a container. */
   container: boolean
-  fingerprint?: string
 }
 
 export type PanelConfigInfo = {
@@ -183,6 +182,8 @@ export type PanelRelayTransport = {
 export type PanelClientInfo = {
   sid: string
   transport: PanelTransport
+  deviceId?: string
+  deviceLabel?: string
   deviceClass?: PanelDeviceClass
   connectedAt: string
   lastSeenAt: string
@@ -197,6 +198,18 @@ export type PanelClientInfo = {
   bytesOut?: number
   requestsTotal?: number
   holdPhone: boolean
+}
+
+export type PanelDeviceInfo = {
+  id: string
+  label: string
+  fingerprint: string
+  createdAt: string
+  lastSeenAt?: string
+  transport?: PanelTransport
+  deviceClass?: PanelDeviceClass
+  liveSessions: number
+  revokedAt?: string
 }
 
 export type PanelPushInfo = {
@@ -412,6 +425,7 @@ export type PanelSnapshot = {
   local: PanelLocalTransport
   relay: PanelRelayTransport
   clients: PanelClientInfo[]
+  devices: PanelDeviceInfo[]
   push: PanelPushInfo
   controls: PanelControls
   storage: PanelStorageEntry[]
