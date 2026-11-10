@@ -51,7 +51,9 @@ export class LocalTransport {
     if (this.running) return
 
     const wss = new WebSocketServer({ noServer: true, maxPayload: 2 * 1024 * 1024 })
-    const server = createServer((request, response) => {
+    // Cookies are host-scoped, so unrelated apps on 127.0.0.1 can share a jar
+    // larger than Node's 16k default with the WebSocket handshake.
+    const server = createServer({ maxHeaderSize: 64 * 1024 }, (request, response) => {
       const path = new URL(request.url ?? '/', 'http://localhost').pathname
       if (path !== '/health') {
         response.statusCode = 404
