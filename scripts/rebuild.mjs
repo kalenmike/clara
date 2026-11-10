@@ -13,11 +13,15 @@
 import {
   formatAdapters,
   formatBuild,
+  formatInspect,
+  formatRecover,
   formatRestart,
   formatStatus,
   runAdapters,
   runBuild,
   runHealth,
+  runInspect,
+  runRecover,
   runRestart,
   runStatus,
   summarizeHealth,
@@ -32,6 +36,8 @@ const USAGE = [
   '  pnpm clara rebuild adapters [--json] [--root <path>] [--state <path>] [--mcp|--no-mcp]',
   '  pnpm clara rebuild restart [--json] [--dry-run] [--manage-external] [--force] [--skip <service>]',
   '  pnpm clara rebuild health [--json] [--state <path>]',
+  '  pnpm clara rebuild inspect [--json] [--state <path>] [--lines <n>]',
+  '  pnpm clara rebuild recover [--json] [--manage-external] [--force] [--skip <service>]',
   '',
   'Options:',
   '  --root <path>       Build checkout (default: the primary worktree)',
@@ -55,7 +61,9 @@ function main(argv) {
     console.log(USAGE)
     return 0
   }
-  if (!['status', 'build', 'adapters', 'restart', 'health'].includes(command)) {
+  if (
+    !['status', 'build', 'adapters', 'restart', 'health', 'inspect', 'recover'].includes(command)
+  ) {
     console.error(`Unknown rebuild command: ${command}`)
     console.log(USAGE)
     return 2
@@ -93,6 +101,20 @@ async function run(command, options) {
       return result.ok ? 0 : 1
     }
 
+    if (command === 'inspect') {
+      const result = await runInspect(options)
+      if (options.json) console.log(JSON.stringify(result, null, 2))
+      else for (const line of formatInspect(result)) console.log(line)
+      return result.available ? 0 : 1
+    }
+
+    if (command === 'recover') {
+      const result = await runRecover(options)
+      if (options.json) console.log(JSON.stringify(result, null, 2))
+      else for (const line of formatRecover(result)) console.log(line)
+      return result.ok ? 0 : 1
+    }
+
     const report = await runHealth(options)
     if (options.json) console.log(JSON.stringify(report, null, 2))
     else {
@@ -127,12 +149,17 @@ function parseArgs(argv) {
       options.mcp = true
     } else if (arg === '--no-mcp') {
       options.mcp = false
-    } else if (arg === '--root' || arg === '--state' || arg === '--skip') {
+    } else if (arg === '--root' || arg === '--state' || arg === '--skip' || arg === '--lines') {
       const value = argv[++index]
       if (!value) throw new Error(`Missing value for ${arg}`)
       if (arg === '--root') options.root = value
       else if (arg === '--state') options.statePath = value
-      else {
+      else if (arg === '--lines') {
+        const lines = Number(value)
+        if (!Number.isFinite(lines) || lines < 1)
+          throw new Error('--lines must be a positive number')
+        options.lines = lines
+      } else {
         options.skip.push(
           ...value
             .split(',')

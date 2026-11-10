@@ -45,6 +45,7 @@ import {
   evaluateHealth,
   parseWorktreeList,
   primaryWorktree,
+  recoveryPlan,
   restartPlan,
   summarizeHealth,
 } from './plan.mjs'
@@ -415,6 +416,7 @@ export async function runRestart(options = {}) {
   const plan = restartPlan(state, {
     skip: options.skip ?? [],
     manageExternal: options.manageExternal === true,
+    ...(options.only ? { only: options.only } : {}),
   })
   if (options.dryRun) {
     return {
@@ -428,7 +430,7 @@ export async function runRestart(options = {}) {
 
   const previous = readJournal(selectedJournalPath)
   const sameSnapshot = previous?.stateCreatedAt === state.createdAt
-  if (sameSnapshot && previous.status === 'complete' && !options.force) {
+  if (!options.ignoreJournal && sameSnapshot && previous.status === 'complete' && !options.force) {
     return {
       ok: true,
       resumed: true,
@@ -501,6 +503,146 @@ export async function runRestart(options = {}) {
     journal: selectedJournalPath,
     log: logPath(),
   }
+}
+
+/* -------------------------------------------------------------------------- */
+/* inspect                                                                    */
+/* -------------------------------------------------------------------------- */
+
+export async function runInspect(options = {}) {
+  const selectedStatePath = options.statePath ?? statePath()
+  const state = readState(selectedStatePath)
+  if (!state) {
+    return {
+      available: false,
+      reason: `no rebuild snapshot at ${selectedStatePath}`,
+      snapshot: { path: selectedStatePath },
+      log: { path: logPath(), tail: '' },
+    }
+  }
+  const selectedJournalPath = options.journalPath ?? journalPath()
+  const journal = readJournal(selectedJournalPath)
+  const health = await runHealth({ ...options, statePath: selectedStatePath })
+  const plan = restartPlan(state, { skip: options.skip ?? [] })
+  const completed = new Set(journal?.completed ?? [])
+  const pending = plan.services
+    .filter((service) => service.action === 'restart' && !completed.has(service.name))
+    .map((service) => service.name)
+  const created = Date.parse(state.createdAt ?? '')
+  const ageMs = Number.isFinite(created) ? Date.now() - created : null
+  return {
+    available: true,
+    snapshot: {
+      path: selectedStatePath,
+      createdAt: state.createdAt ?? null,
+      ageMs,
+      stale: isSnapshotStale(state),
+      root: state.root ?? null,
+      installRoot: state.installRoot ?? state.root ?? null,
+      git: state.git ?? null,
+      environment: state.environment ?? null,
+    },
+    journal: {
+      path: selectedJournalPath,
+      status: journal?.status ?? null,
+      updatedAt: journal?.updatedAt ?? null,
+      completed: journal?.completed ?? [],
+      errors: journal?.errors ?? [],
+    },
+    plan,
+    pending,
+    health,
+    log: { path: logPath(), tail: readLogTail(options.lines) },
+  }
+}
+
+function readLogTail(lines) {
+  try {
+    return tail(readFileSync(logPath(), 'utf8'), lines ?? 4000)
+  } catch {
+    return ''
+  }
+}
+
+export function formatInspect(result) {
+  if (!result.available) return [result.reason]
+  const lines = [
+    `snapshot   ${result.snapshot.path} (${result.snapshot.stale ? 'stale' : 'fresh'})`,
+    `root       ${result.snapshot.root ?? '-'}`,
+    `journal    ${result.journal.status ?? 'none'}`,
+  ]
+  if (result.pending.length) lines.push(`pending    ${result.pending.join(', ')}`)
+  lines.push(...summarizeHealth(result.health))
+  if (result.log.tail) lines.push(`log tail   ${result.log.path}`)
+  return lines
+}
+
+/* -------------------------------------------------------------------------- */
+/* recover                                                                    */
+/* -------------------------------------------------------------------------- */
+
+export async function runRecover(options = {}) {
+  const selectedStatePath = options.statePath ?? statePath()
+  const selectedJournalPath = options.journalPath ?? journalPath()
+  const state = requireState(selectedStatePath)
+  if (isSnapshotStale(state) && !options.force) {
+    throw new Error(
+      `snapshot ${selectedStatePath} is older than two hours; run \`pnpm clara rebuild status\` again`
+    )
+  }
+
+  const before = await runHealth({ ...options, statePath: selectedStatePath })
+  const plan = recoveryPlan(state, before, {
+    skip: options.skip ?? [],
+    manageExternal: options.manageExternal === true,
+  })
+  if (!plan.only.length) {
+    return {
+      ok: before.ok,
+      unchanged: true,
+      plan,
+      recovered: [],
+      errors: [],
+      health: before,
+      snapshot: selectedStatePath,
+      journal: selectedJournalPath,
+    }
+  }
+
+  const restart = await runRestart({
+    ...options,
+    statePath: selectedStatePath,
+    journalPath: selectedJournalPath,
+    only: plan.only,
+    ignoreJournal: true,
+  })
+  const failed = new Set((restart.errors ?? []).map((error) => error.service))
+  const health = await runHealth({ ...options, statePath: selectedStatePath })
+  return {
+    ok: restart.ok && health.ok,
+    unchanged: false,
+    plan,
+    attempted: plan.only,
+    recovered: plan.only.filter((name) => !failed.has(name)),
+    errors: restart.errors ?? [],
+    health,
+    snapshot: selectedStatePath,
+    journal: selectedJournalPath,
+  }
+}
+
+export function formatRecover(result) {
+  if (result.unchanged) {
+    return [
+      `recovery: nothing to restart (${result.health.ok ? 'healthy' : 'health still failing'})`,
+      ...summarizeHealth(result.health),
+    ]
+  }
+  const lines = [`recovered  ${result.recovered.length ? result.recovered.join(', ') : 'none'}`]
+  for (const error of result.errors) lines.push(`fail       ${error.service}: ${error.message}`)
+  lines.push(...summarizeHealth(result.health))
+  lines.push(`recovery: ${result.ok ? 'ok' : 'failed'}`)
+  return lines
 }
 
 async function restartService(name, state, options) {

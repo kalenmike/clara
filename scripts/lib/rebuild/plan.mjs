@@ -27,8 +27,9 @@ export function primaryWorktree(worktrees) {
   return worktrees.length > 0 ? worktrees[0].path : undefined
 }
 
-export function restartPlan(state, { skip = [], manageExternal = false } = {}) {
+export function restartPlan(state, { skip = [], manageExternal = false, only } = {}) {
   const skipped = new Set(skip)
+  const wanted = only ? new Set(only) : undefined
   const services = []
   const warnings = []
 
@@ -42,6 +43,10 @@ export function restartPlan(state, { skip = [], manageExternal = false } = {}) {
       services.push({ name, action: 'skip', reason: 'not running when captured' })
       continue
     }
+    if (wanted && !wanted.has(name)) {
+      services.push({ name, action: 'skip', reason: 'already healthy' })
+      continue
+    }
     if (name === 'orchestrator' && captured.external && !manageExternal) {
       services.push({ name, action: 'skip', reason: 'managed outside this checkout' })
       warnings.push(
@@ -53,6 +58,30 @@ export function restartPlan(state, { skip = [], manageExternal = false } = {}) {
   }
 
   return { services, warnings }
+}
+
+/**
+ * Restrict a captured restart plan to the services that are expected but not
+ * answering. A curated recovery never restarts a healthy service, and it never
+ * starts one that was stopped when the snapshot was taken.
+ */
+export function recoveryPlan(state, health, options = {}) {
+  const planned = restartPlan(state, options)
+  const unhealthy = new Set(
+    (health?.services ?? [])
+      .filter((service) => service.expected && !service.healthy)
+      .map((service) => service.name)
+  )
+  const services = planned.services.map((service) =>
+    service.action === 'restart' && !unhealthy.has(service.name)
+      ? { ...service, action: 'skip', reason: 'healthy' }
+      : service
+  )
+  return {
+    services,
+    warnings: planned.warnings,
+    only: services.filter((service) => service.action === 'restart').map((service) => service.name),
+  }
 }
 
 function serviceResult(name, expected, observed) {
