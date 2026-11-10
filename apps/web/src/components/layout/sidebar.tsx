@@ -70,6 +70,7 @@ import { useStartSession } from '@/features/sessions/use-start-session'
 import { useSessionWording } from '@/features/sessions/use-wording'
 import { useSidebarWidth } from '@/hooks/use-sidebar-width'
 import { claraBuildLabel, claraBuildTitle, claraVersion } from '@/lib/build-info'
+import { errorMessage } from '@/lib/errors'
 import { isTextEntryTarget } from '@/lib/keyboard'
 import {
   SIDEBAR_WIDTH_MAX,
@@ -316,6 +317,11 @@ export function SidebarContent({
 
   const sessionsLoading = sessionsQuery.isLoading || archivedQuery.isLoading
   const sessionsError = sessionsQuery.isError || archivedQuery.isError
+  const sessionsAvailable =
+    sessionsQuery.data !== undefined || archivedQuery.data !== undefined
+  const sessionsErrorDetail = sessionsError
+    ? errorMessage(sessionsQuery.error ?? archivedQuery.error)
+    : null
   const listPending = sessionsLoading || (mailboxSessions.length > 0 && mailboxesPending)
 
   const projectOrderedIDsRef = useRef(projectOrderedIDs)
@@ -843,7 +849,7 @@ export function SidebarContent({
           </div>
         )}
 
-        {!listPending && sessionsError && (
+        {!listPending && sessionsError && !sessionsAvailable && (
           <div className="p-3 text-sm text-muted-foreground md:text-xs">
             Could not load {lowerPlural}.{' '}
             <button
@@ -855,6 +861,31 @@ export function SidebarContent({
             >
               Retry
             </button>
+            {sessionsErrorDetail && (
+              <span className="mt-1 block break-words text-[10px] text-muted-foreground/70">
+                {sessionsErrorDetail}
+              </span>
+            )}
+          </div>
+        )}
+
+        {!listPending && sessionsError && sessionsAvailable && (
+          <div className="px-3 pb-2 text-[10px] text-muted-foreground md:text-[11px]">
+            Could not refresh {lowerPlural}.{' '}
+            <button
+              className="underline"
+              onClick={() => {
+                void sessionsQuery.refetch()
+                void archivedQuery.refetch()
+              }}
+            >
+              Retry
+            </button>
+            {sessionsErrorDetail && (
+              <span className="mt-0.5 block break-words text-muted-foreground/70">
+                {sessionsErrorDetail}
+              </span>
+            )}
           </div>
         )}
 
@@ -867,7 +898,7 @@ export function SidebarContent({
         )}
 
         {!listPending &&
-          !sessionsError &&
+          (!sessionsError || sessionsAvailable) &&
           sections.map((section) => {
             const open = searching || openSections[section.id]
             return (
