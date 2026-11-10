@@ -22,10 +22,7 @@
       "new_sqlite_classes": ["RelayRoom"],
     },
   ],
-  "routes": [
-    {
-      "pattern": "relay.clara.kalenmichael.com",
-      "custom_domain": true,
-    },
-  ],
+  // Deploy to the workers.dev URL by default. To use your own relay host, add
+  // a custom domain route for your zone:
+  // "routes": [{ "pattern": "relay.example.com", "custom_domain": true }],
 }
