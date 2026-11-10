@@ -55,12 +55,12 @@ pnpm clara serve    # Run the built home agent
 pnpm clara start [--no-server] [--no-web] [--no-orchestrator] [--build] # Start the Docker stack
 pnpm clara stop [--no-server] [--no-web] [--no-orchestrator] # Stop the Docker stack
 pnpm clara restart [--no-server] [--no-web] [--no-orchestrator] [--build] # Restart the Docker stack
-pnpm clara status   # Probe the orchestrator, server, and web client
+pnpm clara status [--no-server] [--no-web] [--no-orchestrator] [--json] # Probe the selected services
 pnpm clara logs server|web|orchestrator # Follow one stack container log
-pnpm clara server start|stop|status|pair|admin [--docker] # Home agent container
-pnpm clara web start|stop|status|logs [--docker] [--build] # Web client container
+pnpm clara server start|stop|status [--json]|pair|admin [--docker] # Home agent container
+pnpm clara web start|stop|status [--json]|logs [--docker] [--build] # Web client container
 pnpm clara pass     # Print the local OpenCode password
-pnpm clara orchestrator start [--docker] [--build]|stop [--docker]|status|serve # Run the orchestration service
+pnpm clara orchestrator start [--docker] [--build]|stop [--docker]|status [--json]|serve # Run the orchestration service
 pnpm clara orchestrator analyze [--json] [--days n] # Analyze run history for failure patterns
 pnpm clara orchestrator inspect [--run n] [--json] # Read one failed run's evidence
 pnpm clara runner   # Run script steps for a workspace (standalone runner)

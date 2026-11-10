@@ -125,6 +125,31 @@ pnpm clara start --build --no-orchestrator
 environment changes. Add `--build` to rebuild first. `stop` is stack-wide; use
 the scoped commands below to control one service.
 
+`status` uses one table for every service, shows the container name and whether
+the endpoint answers, and exits nonzero when any selected service is not
+running. It accepts the same `--no-server`, `--no-web`, and `--no-orchestrator`
+selection as `start`, plus `--json`:
+
+```text
+Clara stack
+
+SERVICE       CONTAINER            STATE                URL
+orchestrator  clara-orchestrator   running (container)  http://127.0.0.1:8789
+server        clara-server         running (container)  http://127.0.0.1:8790
+web           clara-web            running (container)  http://127.0.0.1:8080
+
+Details
+  orchestrator  database: container data mount; pid: none
+  server        panel: running; local: running (http://127.0.0.1:8788); auth: signed out; setup: complete
+  web           kind: static SPA
+```
+
+`pnpm clara status --json` prints `{ "ok": true, "services": [...] }` with the
+same record for each service. The scoped
+`pnpm clara server status --json`, `pnpm clara web status --json`, and
+`pnpm clara orchestrator status --json` commands print one record with the same
+shape.
+
 ### Server container
 
 The home agent can also run on its own:

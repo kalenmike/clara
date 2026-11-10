@@ -77,12 +77,12 @@ pnpm clara serve [--rotate] [--no-panel]
 pnpm clara start [--no-server] [--no-web] [--no-orchestrator] [--build]
 pnpm clara stop [--no-server] [--no-web] [--no-orchestrator]
 pnpm clara restart [--no-server] [--no-web] [--no-orchestrator] [--build]
-pnpm clara status
+pnpm clara status [--no-server] [--no-web] [--no-orchestrator] [--json]
 pnpm clara logs <server|web|orchestrator>
-pnpm clara server <start|stop|status|setup-token|pair|admin|logs> [--docker] [--build]
-pnpm clara web <start|stop|status|logs> [--docker] [--build]
+pnpm clara server <start|stop|status [--json]|setup-token|pair|admin|logs> [--docker] [--build]
+pnpm clara web <start|stop|status [--json]|logs> [--docker] [--build]
 pnpm clara pass
-pnpm clara orchestrator <serve|start|stop|status|token>
+pnpm clara orchestrator <serve|start|stop|status [--json]|token>
 pnpm clara rebuild <status|build|adapters|restart|health>
 pnpm clara lab [serve|check]
 ```
@@ -100,6 +100,10 @@ order. Disable any part with `--no-server`, `--no-web`, or `--no-orchestrator`;
 `pnpm clara server start --docker` and `pnpm clara orchestrator start --docker`
 commands remain available when only one service is wanted; the local
 foreground mode remains `pnpm clara serve`.
+`pnpm clara status` renders one table for the selected services, using the same
+record shape for `server`, `web`, and `orchestrator`. Add `--json` for a
+machine-readable record or `{ "ok": true, "services": [...] }` envelope, and
+select a subset with the same `--no-*` flags as `start`.
 `pnpm clara web start --docker --build` builds and serves the static SPA on
 `127.0.0.1:8080`; `pnpm dev:web` remains the Vite development server. The agent
 panel is the one-time harness setup surface; the server does not read OpenCode's
