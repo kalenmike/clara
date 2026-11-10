@@ -39,11 +39,11 @@ monitoring on or off, and gates or paces client settings sync.
    push, client sync, effective configuration, clients, activity, shell policy,
    and storage. Status chips sit beside each card title, including a storage
    health summary that turns amber for warnings and red for errors. Sensitive
-   values start masked: device ids, config and storage paths, local
-   WebSocket endpoint, relay URL and room, connection session ids, and WebSocket
-   URLs in activity or errors. Choose the eye button beside **Refresh** to
-   reveal them for this tab; the choice survives a reload and a new tab starts
-   masked again. In **Effective configuration**, edit **Web URL** or **VAPID
+   values start masked: device ids and fingerprints, config and storage paths,
+   local WebSocket endpoint, relay URL and room, connection session ids, and
+   WebSocket URLs in activity or errors. Choose the eye button beside
+   **Refresh** to reveal them for this tab; the choice survives a reload and a
+   new tab starts masked again. In **Effective configuration**, edit **Web URL** or **VAPID
    contact** and choose **Save**; **Use default** clears the file value. The
    source tag shows environment, `server.json`/`vapid.json`, or default, and an
    environment value locks the field.
@@ -73,9 +73,10 @@ monitoring on or off, and gates or paces client settings sync.
 10. Review the connected-client table and the storage list. A one-time pairing
     session appears with a **Pairing** badge and no device until enrollment
     finishes; it is excluded from the active count and the local E2EE session
-    count. Status badges call out degraded OpenCode, relay, push, permissions,
-    or missing files. The storage header summarizes the most severe entry and
-    its count.
+    count. Each paired session row shows the device's label, short device id,
+    and fingerprint so devices that share a label stay distinguishable. Status
+    badges call out degraded OpenCode, relay, push, permissions, or missing
+    files. The storage header summarizes the most severe entry and its count.
 11. In **Traffic**, read the last minute's in and out rates, the request and
     error rates, the two sparklines for the last hour, and the totals since the
     window started. The card shows the local-versus-relay split, a peak minute,
@@ -119,8 +120,8 @@ monitoring on or off, and gates or paces client settings sync.
 3. **Reads and writes require a session.** `GET` and `HEAD` serve the snapshot
    and assets after login. `POST` is accepted at the feature, agent, shell,
    monitoring, sync, orchestration, config, harness, and password routes;
-   `DELETE` removes a harness or the session. Unknown mutating methods return
-   `405`.
+   `DELETE` removes a device, a harness, or the session. Unknown mutating
+   methods return `405`.
 4. **Secrets stay out.** The snapshot is built from an explicit allowlist. The
    device keys, enrollment codes, harness password, relay tokens, push
    endpoints, sync values, and file contents are never returned. Device keys and
@@ -129,10 +130,11 @@ monitoring on or off, and gates or paces client settings sync.
    effective config values are included and start masked in the panel.
 5. **Mutations are browser-hard to forge.** Besides authentication, the
    `Host`, `Origin`, and `Sec-Fetch-Site` checks, writes require
-   `content-type: application/json` and `x-clara-panel: 1`, reject unknown
-   fields, and cap the body at 8 KB. The custom header forces a CORS preflight
-   for cross-origin pages, which the server rejects. No CORS headers are sent.
-   Login and setup are rate-limited per source and username.
+   `x-clara-panel: 1`; a write with a JSON body also requires
+   `content-type: application/json`. Mutations reject unknown fields and cap the
+   body at 8 KB. The custom header forces a CORS preflight for cross-origin
+   pages, which the server rejects. No CORS headers are sent. Login and setup
+   are rate-limited per source and username.
 6. **Settings are durable.** Feature choices, the stopped flag, the shell
    policy, the monitoring choice, the orchestration switch, the client-sync
    gate and interval, the panel users, and harness connections live in the
@@ -159,13 +161,13 @@ monitoring on or off, and gates or paces client settings sync.
    one-minute buckets and reset on restart or when monitoring is switched off.
    Nothing is throttled, blocked, or persisted, and the per-client counters are
    hidden while monitoring is off.
-10. **Peek is presentation-only.** The eye button masks device ids, config and
-    storage paths, local WebSocket endpoint, relay URL and room, connection
-    session ids, and WebSocket URLs in activity messages and error notices. It
-    does not redact the JSON snapshot, change any control, or reach the server:
-    the agent's allowlist remains the security boundary. The choice lives in
-    `sessionStorage` for the tab, so a reload keeps it and a new tab starts
-    masked.
+10. **Peek is presentation-only.** The eye button masks device ids and
+    fingerprints, config and storage paths, local WebSocket endpoint, relay URL
+    and room, connection session ids, and WebSocket URLs in activity messages
+    and error notices. It does not redact the JSON snapshot, change any control,
+    or reach the server: the agent's allowlist remains the security boundary.
+    The choice lives in `sessionStorage` for the tab, so a reload keeps it and a
+    new tab starts masked.
 
 ## Edge cases
 
@@ -330,8 +332,8 @@ monitoring on or off, and gates or paces client settings sync.
   - `DELETE /panel/api/v1/harnesses/:id`
   - `DELETE /panel/api/v1/devices/:id`
   - `POST /panel/api/v1/account/password`
-- Required mutation headers: `content-type: application/json`,
-  `x-clara-panel: 1`
+- Required mutation headers: `x-clara-panel: 1`; JSON-body mutations also
+  require `content-type: application/json`
 - Assets: `GET /assets/<hashed file>` and `GET /favicon.svg`
 - Environment:
   - `CLARA_PANEL_PORT` changes the port (default `8790`)
