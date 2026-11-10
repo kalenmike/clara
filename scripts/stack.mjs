@@ -7,6 +7,7 @@
 //   pnpm clara status
 //   pnpm clara logs <server|web|orchestrator>
 
+import { existsSync } from 'node:fs'
 import { ensureNetwork, panelURL } from './lib/server-control.mjs'
 import { webURL } from './lib/web-control.mjs'
 import { run, runNode } from './lib/router.mjs'
@@ -20,6 +21,14 @@ import {
   parseSelection,
   selectedNames,
 } from './lib/stack-control.mjs'
+import {
+  existingVolumes,
+  parseBackupArgs,
+  parseRestoreArgs,
+  runBackup,
+  runRestore,
+  runningContainers,
+} from './lib/stack-backup.mjs'
 
 const command = process.argv[2] ?? 'help'
 const args = process.argv.slice(3)
@@ -50,6 +59,12 @@ switch (command) {
     break
   case 'logs':
     logs()
+    break
+  case 'backup':
+    backup()
+    break
+  case 'restore':
+    restore()
     break
   default:
     console.error(`Unknown stack command: ${command}`)
@@ -103,6 +118,91 @@ function logs() {
   }
   const code = run('docker', ['logs', '-f', CONTAINERS[name]])
   if (code !== 0) process.exitCode = code
+}
+
+function backup() {
+  let options
+  try {
+    options = parseBackupArgs(args)
+  } catch (error) {
+    console.error(`error: ${error instanceof Error ? error.message : String(error)}`)
+    process.exitCode = 2
+    return
+  }
+  if (refuseRunning('back up')) return
+
+  const volumes = existingVolumes()
+  if (!volumes.length) {
+    console.error('error: no Clara volumes found. Start the stack once before backing it up.')
+    process.exitCode = 1
+    return
+  }
+
+  console.log(`writing ${options.output}`)
+  try {
+    const code = runBackup({ output: options.output, volumes })
+    if (code !== 0) {
+      console.error('error: backup failed')
+      process.exitCode = code
+      return
+    }
+  } catch (error) {
+    console.error(`error: ${error instanceof Error ? error.message : String(error)}`)
+    process.exitCode = 1
+    return
+  }
+  console.log(`backup written to ${options.output}`)
+}
+
+function restore() {
+  let options
+  try {
+    options = parseRestoreArgs(args)
+  } catch (error) {
+    console.error(`error: ${error instanceof Error ? error.message : String(error)}`)
+    process.exitCode = 2
+    return
+  }
+  if (!existsSync(options.archive)) {
+    console.error(`error: archive not found: ${options.archive}`)
+    process.exitCode = 1
+    return
+  }
+  if (refuseRunning('restore')) return
+
+  const volumes = existingVolumes()
+  if (volumes.length && !options.force) {
+    console.error(
+      `error: refusing to overwrite ${volumes.join(', ')}. Re-run with --force to replace the volume contents.`
+    )
+    process.exitCode = 1
+    return
+  }
+
+  console.log(`restoring ${options.archive}`)
+  try {
+    const code = runRestore({ archive: options.archive })
+    if (code !== 0) {
+      console.error('error: restore failed')
+      process.exitCode = code
+      return
+    }
+  } catch (error) {
+    console.error(`error: ${error instanceof Error ? error.message : String(error)}`)
+    process.exitCode = 1
+    return
+  }
+  console.log('restore complete; start the stack with `pnpm clara start`')
+}
+
+function refuseRunning(action) {
+  const containers = runningContainers()
+  if (containers.length === 0) return false
+  console.error(
+    `error: cannot ${action} while ${containers.join(', ')} ${containers.length === 1 ? 'is' : 'are'} running. Run \`pnpm clara stop\` first.`
+  )
+  process.exitCode = 1
+  return true
 }
 
 async function startSelection(selection) {
@@ -201,6 +301,8 @@ Usage:
   pnpm clara restart [--no-server] [--no-web] [--no-orchestrator] [--build]
   pnpm clara status [--no-server] [--no-web] [--no-orchestrator] [--json]
   pnpm clara logs <server|web|orchestrator>
+  pnpm clara backup [--output <path>]
+  pnpm clara restore <archive> [--force]
 
 Commands:
   start     Start the selected containers (default: all)
@@ -208,6 +310,8 @@ Commands:
   restart   Stop then start the selected containers
   status    Probe the selected services; use --json for machines
   logs      Follow one container's logs
+  backup    Archive the Docker state volumes; stop the stack first
+  restore   Replace the Docker state volumes from an archive
 
 Use the scoped commands for independent control:
   pnpm clara server start|stop|status
