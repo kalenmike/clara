@@ -8,7 +8,10 @@ that Clara opens in the chat view. The sidebar switcher keeps the seven most
 recently active non-empty projects, while the All projects page shows every
 non-empty project with session counts and server-side rename. A filter on the
 projects header reveals empty projects. The interface calls sessions **Briefs**
-by default, and the noun is configurable in Settings.
+by default, and the noun is configurable in Settings. A shift-click selects a
+range of sessions from an anchor, and Delete or Backspace permanently removes
+the selection after an explicit confirmation; the resting list has no checkbox
+column or bulk toolbar.
 
 ## User flow
 
@@ -81,6 +84,28 @@ by default, and the noun is configurable in Settings.
 15. Opening an archived or snoozed session shows a Reopen button next to Reply.
     Reopening clears the server's archived and snoozed flags as applicable and
     leaves the title untouched.
+16. A normal click opens the session and makes its row the selection anchor.
+    Shift-click another row to select the inclusive rendered range from the
+    anchor to that row without navigating; the range runs in section order
+    (Inbox, Outbox, Drafts, Snoozed, Archived, then Workers) and collapses
+    contribute no rows. Shift+Enter on a focused row extends the selection the
+    same way.
+17. While a selection exists, a compact bar above the list shows the count in
+    the configured session noun, the hint **Press Delete or Backspace to
+    delete**, Clear, and a Delete action. Selected rows use a destructive tint
+    and ring. Clear removes the selection and the anchor.
+18. Delete or Backspace with a non-empty selection and focus outside a
+    text-entry target opens a confirmation dialog, unless another Clara dialog,
+    menu, popover, select, or sheet is already open. Escape, Cancel, the close
+    control, and clicking outside dismiss it without a write. The dialog keeps
+    the count it opened with through its close animation.
+19. Confirming runs one `session.remove` per session, four at a time. Success
+    clears the selection, moves focus to a surviving row, and reports the count;
+    partial failure keeps the failed rows selected, names them in a toast and
+    the selection bar, and focuses the first failed row. Dismissal focuses the
+    row that opened the dialog or the first selected row, never the destructive
+    action. Clear and Delete keep 44px touch targets in the mobile drawer.
+20. The mobile drawer keeps its own selection and clears it when it closes.
 
 ## Core business rules
 
@@ -142,8 +167,19 @@ by default, and the noun is configurable in Settings.
     box opens or closes all of them at once, and both actions are remembered in
     local storage. Search temporarily forces every section open without
     overwriting the saved state.
-12. Deleting a session requires confirmation and permanently removes its
-    messages.
+12. Deleting one session or a shift-click range requires an explicit
+    confirmation and permanently removes those sessions and their messages.
+    Selection is local to the sidebar instance: a normal click clears it and
+    sets the anchor, shift-click or Shift+Enter selects the inclusive rendered
+    range from that anchor, Clear and a project or search change clear it, and a
+    successful list refresh prunes IDs that disappeared. The dialog snapshots
+    the selection when it opens, keeps that snapshot through dismissal so it
+    never flashes a zero count, focuses Cancel, and cannot be dismissed or
+    submitted twice while deletion runs. Focus returns to a row or Clear, never
+    the destructive action. Pruning a vanished selection also clears the failure
+    note. Partial failures continue the batch, keep the failed sessions selected,
+    and name the failures. Deleting the open session returns to its project
+    page.
 13. Monitor Inbox targets the newest Inbox session for the current project by
     update time, independent of the sidebar search. It moves the open view when
     the toggle is turned on, after Done, Send, Build, or saving a draft, or when
@@ -330,6 +366,29 @@ by default, and the noun is configurable in Settings.
 - **Done or Reopen while running** — both are hidden until the run finishes.
 - **Delete on an empty draft** — the session is removed immediately rather than
   archived, and the start view returns.
+- **Shift-click with no anchor** — the clicked session becomes the anchor and the
+  only selected row.
+- **Shift-click across collapsed sections** — rows in a collapsed section are
+  skipped; a selection made before collapsing survives and stays counted until
+  the next shift-click replaces it.
+- **Selected session moves or disappears** — selection is keyed by ID, so it
+  follows a live reorder; a successful refresh prunes sessions that no longer
+  exist and clears the failure note when pruning changes the selection, while a
+  failed refresh keeps the last known selection.
+- **Confirmation with an empty snapshot** — the dialog renders no content and no
+  write starts.
+- **Viewport drops below `md` with a desktop selection** — the hidden desktop
+  sidebar becomes inert; only the mobile drawer's own selection can open the
+  dialog.
+- **Delete or Backspace in search, the composer, or contenteditable text** — the
+  shortcut is ignored, as it is for Ctrl, Meta, or Alt, key auto-repeat, IME
+  composition, an open dialog or menu, or a deletion already running.
+- **Partial bulk delete failure** — successful sessions disappear, failed rows
+  stay selected with their titles in the toast, and retrying acts only on what
+  remains.
+- **Open session deleted in a batch** — Clara closes the dialog, shows the
+  result, and routes to the project page; if that session failed, the chat stays
+  open.
 - **New session** — creates the session and opens the reply composer in the
   last-used size so the first prompt can be typed immediately. An already-open
   composer follows the new session; plain session navigation does not move it.
@@ -338,7 +397,8 @@ by default, and the noun is configurable in Settings.
 
 ## Out of scope
 
-- Bulk actions beyond archive-all and delete-all on the project page
+- Bulk actions other than project archive-all/delete-all and the sidebar's
+  shift-click range deletion
 - Clara-hosted project images, arbitrary avatar colors, or running the workspace
   startup script from Clara
 - Creating, switching, or removing worktrees, or moving sessions between
@@ -432,6 +492,21 @@ metadata, delivery: 'steer' })`
 - Delete empty draft: `client.session.remove({ sessionID })`
 - Local composer draft: `clara.draft.<sessionID>` in `localStorage`
 - Delete: `client.session.remove({ sessionID })`
+- Sidebar selection: `selectRange` and `pruneSelection` in
+  `src/features/sessions/session-selection.ts`; state is local to the sidebar
+  instance and is not persisted
+- Sidebar bulk delete: `deleteSessions`,
+  `invalidateDeletedSessions`, and `useDeleteSessions` in
+  `src/features/sessions/use-delete-sessions.ts`; four writes at a time through
+  `runWithConcurrencySettled` in `src/lib/concurrency.ts`, then one `['sessions']`
+  invalidation plus each successful `['session', id]` query
+- Sidebar components: `sidebar-selection-bar.tsx`, `sidebar-delete-dialog.tsx`,
+  and the selection props on `sidebar-session-row.tsx`; Delete/Backspace is
+  ignored for text-entry targets and open Clara dialogs, menus, popovers,
+  selects, or sheets
+- Focus helper: `resolveDeleteFocusTarget` in
+  `src/features/sessions/delete-focus.ts`; result copy is
+  `describeDeleteOutcome` in `use-delete-sessions.ts`
 - Active map: `client.session.active()`
 - Inbox monitor: `src/features/sessions/inbox-monitor.tsx`,
   `src/components/chat/inbox-monitor-toggle.tsx`, and
