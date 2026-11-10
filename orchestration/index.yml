@@ -41,6 +41,12 @@ router:
   id: classifier
   path: ./routers/classifier.md
   routes:
+    - when: maintenance-recovery
+      criteria: an explicit request to recover or restart the Clara services using the existing rebuild snapshot, without rebuilding or taking a new snapshot.
+      run: std:maintenance/recover
+    - when: maintenance-diagnosis
+      criteria: an explicit request to diagnose why a recent Clara rebuild or service restart failed, and what to do next.
+      run: std:maintenance/diagnose
     - when: rebuild
       criteria: an explicit request to rebuild Clara itself, reinstall its adapters, restart all local Clara services, or verify their health.
       run: std:maintenance

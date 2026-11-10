@@ -858,6 +858,8 @@ describe('runtime', () => {
     expect(router.kind).toBe('router')
     expect(router.workspace).toBe(resolve(workspace))
     expect(router.routes?.map((route) => route.when)).toEqual([
+      'maintenance-recovery',
+      'maintenance-diagnosis',
       'rebuild',
       'content',
       'software-development',
