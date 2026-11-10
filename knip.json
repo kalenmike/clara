@@ -37,6 +37,13 @@
     "packages/runner": {
       "project": ["src/**/*.ts", "test/**/*.ts"]
     },
+    "packages/adapter-core": {
+      "project": ["src/**/*.ts", "test/**/*.ts"]
+    },
+    "packages/adapter": {
+      "project": ["src/**/*.ts", "test/**/*.ts"],
+      "ignoreDependencies": ["@clara/mcp", "@clara/opencode-policy-plugin"]
+    },
     "packages/orchestration-control": {
       "project": ["src/**/*.ts", "test/**/*.ts"]
     },

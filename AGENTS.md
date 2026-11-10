@@ -13,7 +13,9 @@ apps/lab              Loopback pipeline preview and agent probe
 apps/server           Node home agent, local WS + outbound Cloudflare relay
 apps/orchestrator     Loopback orchestration service, REST/SSE/MCP
 apps/mcp              stdio MCP bridge to the orchestration service
-plugins/clara-policy  OpenCode strict enforcement adapter
+plugins/clara-policy  OpenCode strict enforcement binding
+packages/adapter      Harness adapter installer, shared runner, and MCP registration
+packages/adapter-core Harness-neutral adapter client, delivery, prompt, and runner pieces
 packages/shared-types Wire frames, actions, states, pairing payloads
 packages/policy       Step policy, budgets, and violation rules
 packages/orchestration Package loader, runtime, leases, and watchdog
@@ -61,7 +63,7 @@ pnpm clara rebuild  # Snapshot, rebuild, recover services, inspect, and verify h
 pnpm clara lab      # Open Clara Lab to preview pipelines and probe the agent
 pnpm clara lab check # Validate a package target for CI
 pnpm clara mcp install|config|status # Install or inspect the MCP bridge
-pnpm clara adapter install opencode # Install the OpenCode strict adapter
+pnpm clara adapter install --opencode [--mcp] # Install the OpenCode adapter, MCP, and shared runner
 pnpm typecheck      # tsc -b
 pnpm lint           # ESLint
 pnpm format         # Prettier write

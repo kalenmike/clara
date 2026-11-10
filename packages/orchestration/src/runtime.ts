@@ -160,17 +160,38 @@ export function nodeCapabilities(node: CompiledNode): string[] {
 export interface ClaimFilter {
   /** Capabilities the claimant advertises. Undefined means no filtering. */
   capabilities?: string[]
+  /** Limit claims to the leaves this role executes. */
+  role?: 'harness' | 'runner'
+  /**
+   * Harness identity for agent and router work. Script work is deliberately
+   * not harness-scoped so one runner can serve every harness in the workspace.
+   */
+  harness?: string
   /** Runner identity, used to satisfy a step's `requires.runner`. */
   runner?: { id: string; labels: string[] }
 }
 
-function canRun(node: CompiledNode, filter?: ClaimFilter): boolean {
+function canRun(node: CompiledNode, run: RunRow, filter?: ClaimFilter): boolean {
   if (!filter) return true
+  if (filter.role === 'runner' && node.kind !== 'script') return false
+  if (filter.role === 'harness' && node.kind !== 'agent' && node.kind !== 'router') return false
   if (
     filter.capabilities &&
     !nodeCapabilities(node).every((cap) => filter.capabilities?.includes(cap))
   ) {
     return false
+  }
+  if (filter.harness) {
+    // A harness adapter never owns deterministic script work.
+    if (node.kind === 'script') return false
+    // An explicit `requires.adapter` pins the executor even when the run was
+    // started from a different harness; otherwise the origin harness owns it.
+    const required = node.requires?.adapter
+    if (required) {
+      if (required !== filter.harness) return false
+    } else if (run.origin_harness && run.origin_harness !== filter.harness) {
+      return false
+    }
   }
   const required = node.requires?.runner
   if (!required) return true
@@ -283,11 +304,21 @@ export class Runtime {
       enforcement,
     })
     this.advance(Number(run.id))
+    const harness = input.origin?.harness?.trim() || undefined
+    // A caller that states its capabilities is an executor and must stay in its
+    // own lane. A manual caller without a capability filter (Clara Lab, the
+    // generic MCP surface) may claim any ready work order.
+    const scopedHarness = harness && input.capabilities?.length ? harness : undefined
     const work = this.claim(
       Number(run.id),
       8,
       'dispatcher',
-      input.capabilities ? { capabilities: input.capabilities } : undefined
+      input.capabilities || scopedHarness
+        ? {
+            ...(input.capabilities ? { capabilities: input.capabilities } : {}),
+            ...(scopedHarness ? { harness: scopedHarness, role: 'harness' as const } : {}),
+          }
+        : undefined
     )
     return { run: this.store.run(Number(run.id)) as RunRow, work }
   }
@@ -825,7 +856,7 @@ export class Runtime {
       if (row.lease_id && ageMs(row.lease_expires_at) < this.leaseMs) continue
       const node = findNode(root, row.path)
       if (!node) continue
-      if (!canRun(node, filter)) continue
+      if (!canRun(node, run, filter)) continue
       const token = randomUUID()
       const expires = new Date(Date.now() + this.leaseMs).toISOString()
       const attempt = Number(row.attempt) + 1

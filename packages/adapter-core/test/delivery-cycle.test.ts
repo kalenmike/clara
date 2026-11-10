@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { createDeliveryCycle } from './delivery-cycle.ts'
-import type { DeliveryAlert, DeliveryRun, DeliveryState } from './delivery.ts'
+import { createDeliveryCycle } from '../src/delivery-cycle.ts'
+import type { DeliveryAlert, DeliveryRun, DeliveryState } from '../src/delivery.ts'
 
 const run = (overrides: Partial<DeliveryRun> = {}): DeliveryRun => ({
   id: 21,

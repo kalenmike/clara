@@ -29,6 +29,12 @@
       "path": "./packages/runner"
     },
     {
+      "path": "./packages/adapter-core"
+    },
+    {
+      "path": "./packages/adapter"
+    },
+    {
       "path": "./packages/orchestration-control"
     },
     {

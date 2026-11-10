@@ -14,9 +14,13 @@ human-facing Clara agent.
 1. Start the service from the agent panel's **Orchestration** switch, with
    `pnpm clara orchestration start`, or let the MCP bridge start it on first
    use.
-2. Install the OpenCode strict adapter with
-   `pnpm clara adapter install opencode`. The adapter installs the `clara`
-   agent and removes the old adapter-generated `/pipeline` command.
+2. Install the harness adapter and the shared runner with
+   `pnpm clara adapter install --opencode`. The command links the plugin,
+   installs the `clara` agent, disables the plugin's embedded runner, writes the
+   shared runner config, and installs a user service where the platform
+   supports one. Add `--mcp` to register the MCP bridge with the selected
+   harness, or `--no-service` to run the runner in the foreground. Multiple
+   harness flags are additive; on one host and workspace they share one runner.
 3. Before handing a package to an agent, run `pnpm clara lab` to choose the host
    files, read the workspace the service reports, preview the compiled target,
    inspect each rendered prompt and policy, and compare it with a pinned run.
@@ -341,32 +345,46 @@ adapter.
 
 There are two hosts:
 
-- **Embedded.** The OpenCode adapter imports `@clara/runner` and starts one by
-  default. It registers as `role: runner` with the `script` capability, so a
-  normal `pnpm clara adapter install opencode` is enough.
-- **Standalone.** `pnpm clara runner [--workspace <path>] [--label <name>]`
-  runs the same library on another machine, a build host, a CI box, or the
-  service host. Future Claude or other adapters import the same package.
+- **Shared standalone (default).** `pnpm clara adapter install --opencode`
+  writes `~/.config/clara/runner.json` and installs a user service on Linux or
+  macOS. One runner serves every harness in the workspace. Use
+  `clara-adapter runner` when a service manager is unavailable.
+- **Embedded (fallback).** The OpenCode adapter can still import
+  `@clara/runner` inside its own process when `runner.enabled` is not `false`.
+  The installer disables it so a shared runner is the only one for the
+  workspace. Embedded remains useful for containers without a supervisor and
+  for a legacy install that has not been migrated.
 
-Claims are capability-filtered. Model executors advertise `agent`; runners
-advertise `script`. `POST /v1/runs/:id/next` and `clara_next` accept
-`capabilities`, and a standalone runner uses `POST /v1/work/next` to
-claim script work across the active runs of its workspace without enumerating
-run ids. A step that sets `requires.runner: build-host` is only released to a
-runner with that id or label. If a ready script step has no capable runner for
+Claims are capability-filtered. Agent and router work is additionally scoped to
+the harness that owns the run, or to the adapter pinned by
+`requires.adapter`. Script work is deliberately shared: any runner with the
+`script` capability can claim it in that workspace, so one runner serves every
+harness. `POST /v1/runs/:id/next` and `clara_next` accept `capabilities` and
+`harness`, and a standalone runner uses `POST /v1/work/next` to claim script
+work across the active runs of its workspace without enumerating run ids. A
+step that sets `requires.runner: build-host` is only released to a runner with
+that id or label. If a ready script step has no capable runner for
 `CLARA_RUNNER_WAIT_MS` (default 60 s), the watchdog opens one `no_runner` alert.
 
-The adapter writes `~/.config/opencode/clara-policy.json`:
+The adapter writes `runner.enabled: false` to
+`~/.config/opencode/clara-policy.json` when a shared runner is installed, so the
+plugin does not start a second runner. The shared runner reads
+`~/.config/clara/runner.json`:
 
 ```json
-{ "runner": { "enabled": true, "concurrency": 2 } }
+{
+  "url": "http://127.0.0.1:8789",
+  "workspace": "/path/to/project",
+  "concurrency": 2,
+  "labels": []
+}
 ```
 
 `CLARA_RUNNER_ENABLED`, `CLARA_RUNNER_CONCURRENCY`, `CLARA_RUNNER_LABELS`, and
-`CLARA_RUNNER_ID` override it. A script that restarts its own host must run on a
-standalone runner; the embedded runner dies with OpenCode. The maintenance
-CLI keeps its restart journal, so a retry resumes instead of repeating a
-rebuild.
+`CLARA_RUNNER_ID` override the adapter config. A script that restarts its own
+host is safe on the shared runner because it does not live inside the harness
+process. The maintenance CLI keeps its restart journal, so a retry resumes
+instead of repeating a rebuild.
 
 ## Step and run invariants
 
@@ -672,15 +690,16 @@ they can run while the adapter or setup is degraded. See
 - A script exceeds `timeout_seconds`: the runner terminates the process group
   and fails the step. The attempt records the timeout, not a model stall.
 - A ready script step has no runner: it stays ready and the watchdog opens one
-  `no_runner` alert after `CLARA_RUNNER_WAIT_MS`. Register the embedded or a
-  standalone runner; the step is not failed.
+  `no_runner` alert after `CLARA_RUNNER_WAIT_MS`. Start the shared runner
+  service or `clara-adapter runner`; the step is not failed.
 - A strict pipeline mixes agents and scripts: the harness adapter and the runner
   are checked separately, and both must be live.
 - A script writes more than `max_output_bytes`: the result keeps a truncated
   tail and the streamed `step.output` events stay bounded.
-- A script restarts its own host: the embedded runner dies with the harness. Run
-  that step with a standalone runner on the service host, or rely on the
-  command's journal on the next attempt.
+- A script restarts its own host: a shared runner is unaffected. If the
+  workspace still uses the embedded fallback, run that step with
+  `clara-adapter runner` on the service host or rely on the command's journal on
+  the next attempt.
 - The origin session is archived, missing, or no longer uses the Clara agent:
   the result stays in the inbox and the adapter does not prompt that session.
 - The package tree changes mid-run: the pinned snapshot still applies.
@@ -774,9 +793,10 @@ they can run while the adapter or setup is degraded. See
 - Service: `apps/orchestrator`, loopback REST, SSE, and `/mcp`.
 - MCP bridge: `apps/mcp`, stdio, talks to the service over loopback HTTP.
 - Engine: `packages/orchestration`; policy: `packages/policy`; shared MCP tools:
-  `packages/mcp-server`; script runner: `packages/runner`; OpenCode adapter:
-  `plugins/clara-policy`; developer preview and probe: `packages/devtools` and
-  `apps/lab`.
+  `packages/mcp-server`; script runner: `packages/runner`; adapter installer:
+  `packages/adapter`; harness-neutral adapter core: `packages/adapter-core`;
+  OpenCode binding: `plugins/clara-policy`; developer preview and probe:
+  `packages/devtools` and `apps/lab`.
 - Standard packages: `lib/std/software`, `lib/std/content`,
   `lib/std/research`, `lib/std/diagnostics`, and `lib/std/maintenance`. The
   research pipeline scopes the question, gathers external sources, verifies
@@ -797,7 +817,7 @@ they can run while the adapter or setup is degraded. See
 - Commands:
   `pnpm clara orchestration start [--docker] [--build]|stop [--docker]|status|serve|token|analyze`,
   `pnpm clara mcp install|uninstall|config|status`,
-  `pnpm clara adapter install opencode|uninstall|status`,
+  `pnpm clara adapter install|uninstall|status|runner [--opencode] [--mcp] [--runner]`,
   `pnpm clara runner [--workspace <path>] [--label <name>] [--once]`,
   `pnpm clara rebuild status|build|adapters|restart|health`,
   `pnpm clara lab [serve|check]`. Running `pnpm clara orchestration` without a

@@ -424,6 +424,40 @@ importers:
         specifier: ^8.22.1
         version: 8.22.1
 
+  packages/adapter:
+    dependencies:
+      '@clara/adapter-core':
+        specifier: workspace:*
+        version: link:../adapter-core
+      '@clara/mcp':
+        specifier: workspace:*
+        version: link:../../apps/mcp
+      '@clara/opencode-policy-plugin':
+        specifier: workspace:*
+        version: link:../../plugins/clara-policy
+      '@clara/runner':
+        specifier: workspace:*
+        version: link:../runner
+    devDependencies:
+      '@types/node':
+        specifier: ^24.19.2
+        version: 24.19.2
+      tsup:
+        specifier: ^9.0.0
+        version: 9.0.0(jiti@2.7.0)(postcss@8.5.32)(tsx@4.23.15)(typescript@6.0.3)(yaml@2.9.1)
+      typescript:
+        specifier: ~6.0.3
+        version: 6.0.3
+
+  packages/adapter-core:
+    devDependencies:
+      '@types/node':
+        specifier: ^24.19.2
+        version: 24.19.2
+      typescript:
+        specifier: ~6.0.3
+        version: 6.0.3
+
   packages/crypto:
     devDependencies:
       typescript:
@@ -540,6 +574,9 @@ importers:
 
   plugins/clara-policy:
     dependencies:
+      '@clara/adapter-core':
+        specifier: workspace:*
+        version: link:../../packages/adapter-core
       '@clara/runner':
         specifier: workspace:*
         version: link:../../packages/runner

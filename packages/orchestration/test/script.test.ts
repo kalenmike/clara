@@ -188,6 +188,69 @@ describe('script steps', () => {
     expect(started.work[0].kind).toBe('script')
   })
 
+  it('shares script work across harness origins with one runner', () => {
+    const { dir, runtime } = fixture({
+      steps: ['      - name: build', '        type: script', '        command: echo ready'],
+    })
+    runtime.start({
+      workspace: dir,
+      prompt: 'opencode work',
+      capabilities: ['agent'],
+      origin: { harness: 'opencode' },
+    })
+    runtime.start({
+      workspace: dir,
+      prompt: 'claude work',
+      capabilities: ['agent'],
+      origin: { harness: 'claudecode' },
+    })
+    const claimed = runtime.claimWork(
+      dir,
+      { capabilities: ['script'], role: 'runner' },
+      2,
+      'runner'
+    )
+    expect(claimed).toHaveLength(2)
+    expect(claimed.every((order) => order.kind === 'script')).toBe(true)
+  })
+
+  it('does not let a runner claim agent work or a harness claim script work', () => {
+    const { dir, runtime } = fixture({
+      steps: ['      - name: review', '        type: agent', '        prompt: review it'],
+    })
+    const started = runtime.start({ workspace: dir, prompt: 'go', capabilities: ['script'] })
+    expect(
+      runtime.next(started.run.id, 1, 'runner', {
+        capabilities: ['agent'],
+        role: 'runner',
+      })
+    ).toEqual([])
+    expect(
+      runtime.next(started.run.id, 1, 'harness', {
+        capabilities: ['agent'],
+        role: 'harness',
+        harness: 'opencode',
+      })
+    ).toHaveLength(1)
+
+    const script = fixture({
+      steps: ['      - name: build', '        type: script', '        command: echo ready'],
+    })
+    const scriptRun = script.runtime.start({
+      workspace: script.dir,
+      prompt: 'go',
+      capabilities: ['agent'],
+      origin: { harness: 'opencode' },
+    })
+    expect(
+      script.runtime.next(scriptRun.run.id, 1, 'harness', {
+        capabilities: ['script'],
+        role: 'harness',
+        harness: 'opencode',
+      })
+    ).toEqual([])
+  })
+
   it('rejects prompt on a script step', () => {
     const { dir, runtime } = fixture({
       steps: [

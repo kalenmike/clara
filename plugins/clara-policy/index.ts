@@ -8,23 +8,33 @@
 // Install it next to the MCP bridge when a workspace uses `enforcement: strict`.
 // The MCP bridge remains the generic surface for other harnesses.
 
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
+import { existsSync, readFileSync } from 'node:fs'
 import { homedir, hostname } from 'node:os'
 import { join, resolve } from 'node:path'
 import { createRunner, type Runner, type ScriptWorkOrder } from '@clara/runner'
-import { createDeliveryCycle } from './delivery-cycle.ts'
-import { applyDeliveryClaim, isTerminalState } from './delivery.ts'
-import type { DeliveryAlert, DeliveryRun, DeliveryState } from './delivery.ts'
-import { capToolResult } from './output.ts'
-import { NAMESPACE, renderWorkPrompt, scopeWorkerTools } from './prompt.ts'
 import {
+  applyDeliveryClaim,
   budgetTokenDelta,
   budgetTokenTotal,
+  capToolResult,
+  claraDataDir,
+  createDeliveryCycle,
+  isTerminalState,
+  NAMESPACE,
+  orchestrationServiceConfig,
+  readDeliveryState,
+  renderWorkPrompt,
+  requestOrchestrator as call,
+  scopeWorkerTools,
+  startStepHeartbeat,
   tokenDelta,
-  tokensFromEvent,
   tokenTotal,
-} from './usage.ts'
-import type { ModelTokens } from './usage.ts'
+  writeDeliveryState,
+  type DeliveryAlert,
+  type DeliveryRun,
+  type ModelTokens,
+} from '@clara/adapter-core'
+import { tokensFromEvent } from './usage-events.ts'
 import { catalogPath, needsExplicitWorkspace, resolveWorkspace } from './workspace.ts'
 
 const CAPABILITIES = [
@@ -37,14 +47,8 @@ const CAPABILITIES = [
   'token_limit',
 ]
 const INTERFACE_AGENT = process.env.CLARA_INTERFACE_AGENT?.trim() || 'clara'
-const DELIVERY_LIMIT = 500
 
 type Any = any
-
-interface ServiceConfig {
-  url: string
-  token: string
-}
 
 interface ActiveWork {
   run_id: number
@@ -74,7 +78,6 @@ interface ActiveWork {
   beatTimer?: NodeJS.Timeout
 }
 
-const STEP_HEARTBEAT_MS = 10_000
 const MISSING_CONTROL_PROMPT =
   'Your answer was not recorded. Call `clara_complete` with the result now, or `clara_fail` with the reason you could not finish. Do not reply with prose only.'
 
@@ -126,49 +129,8 @@ export function settleBinding<T extends SettleBinding>(
   return work
 }
 
-// The step lease is a harness signal, not a model one. A slow turn or a long
-// tool call produces no adapter events, so renew on a timer instead of waiting
-// for the next context or tool hook.
-export function startStepHeartbeat(
-  beat: () => Promise<unknown>,
-  options: { intervalMs?: number; onLost?: (error: Error) => void } = {}
-): NodeJS.Timeout {
-  const timer = setInterval(() => {
-    void beat().catch((error: unknown) => {
-      const code = (error as { code?: string } | undefined)?.code
-      const lost =
-        code === 'lease_invalid' || code === 'step_not_running' || code === 'step_missing'
-      if (!lost) return
-      clearInterval(timer)
-      options.onLost?.(error instanceof Error ? error : new Error(String(error)))
-    })
-  }, options.intervalMs ?? STEP_HEARTBEAT_MS)
-  timer.unref?.()
-  return timer
-}
-
-function dataDir(): string {
-  const configured = process.env.CLARA_DATA_DIR?.trim()
-  if (configured) return configured
-  const xdg = process.env.XDG_DATA_HOME?.trim() || join(homedir(), '.local', 'share')
-  return join(xdg, 'clara')
-}
-
-function serviceConfig(): ServiceConfig {
-  const url = (process.env.CLARA_ORCHESTRATION_URL?.trim() || 'http://127.0.0.1:8789').replace(
-    /\/$/,
-    ''
-  )
-  const configured = process.env.CLARA_ORCHESTRATION_TOKEN?.trim()
-  if (configured) return { url, token: configured }
-  const path =
-    process.env.CLARA_ORCHESTRATION_TOKEN_FILE?.trim() || join(dataDir(), 'orchestrator.token')
-  const token = existsSync(path) ? readFileSync(path, 'utf8').trim() : ''
-  return { url, token }
-}
-
 function deliveryFile(): string {
-  return join(dataDir(), 'policy-delivery.json')
+  return join(claraDataDir(), 'policy-delivery.json')
 }
 
 interface AdapterConfig {
@@ -200,69 +162,6 @@ function runnerEnabled(config: AdapterConfig): boolean {
   if (env === '0' || env === 'false' || env === 'off') return false
   if (env === '1' || env === 'true' || env === 'on') return true
   return config.runner?.enabled !== false
-}
-
-function readDeliveryState(): DeliveryState {
-  const path = deliveryFile()
-  if (!existsSync(path)) return { alerts: new Set(), runs: new Set() }
-  try {
-    const parsed = JSON.parse(readFileSync(path, 'utf8')) as { alerts?: unknown; runs?: unknown }
-    const ids = (value: unknown): Set<number> =>
-      new Set(Array.isArray(value) ? value.map(Number).filter(Number.isFinite) : [])
-    return { alerts: ids(parsed.alerts), runs: ids(parsed.runs) }
-  } catch {
-    return { alerts: new Set(), runs: new Set() }
-  }
-}
-
-function writeDeliveryState(state: DeliveryState): void {
-  try {
-    mkdirSync(dataDir(), { recursive: true, mode: 0o700 })
-    writeFileSync(
-      deliveryFile(),
-      `${JSON.stringify({
-        alerts: [...state.alerts].slice(-DELIVERY_LIMIT),
-        runs: [...state.runs].slice(-DELIVERY_LIMIT),
-      })}\n`,
-      { mode: 0o600 }
-    )
-  } catch {
-    // Delivery state is best effort. A lost file re-sends one open alert.
-  }
-}
-
-async function call<T = unknown>(
-  config: ServiceConfig,
-  method: string,
-  path: string,
-  body?: unknown
-): Promise<T> {
-  const response = await fetch(`${config.url}${path}`, {
-    method,
-    headers: {
-      authorization: `Bearer ${config.token}`,
-      ...(body === undefined ? {} : { 'content-type': 'application/json' }),
-    },
-    ...(body === undefined ? {} : { body: JSON.stringify(body) }),
-  })
-  const text = await response.text()
-  let parsed: unknown = undefined
-  if (text) {
-    try {
-      parsed = JSON.parse(text)
-    } catch {
-      parsed = text
-    }
-  }
-  if (!response.ok) {
-    const error = parsed as { error?: { code?: string; message?: string } } | undefined
-    const failure = new Error(
-      error?.error?.message ?? `Clara orchestrator returned ${response.status}`
-    ) as Error & { code?: string }
-    if (error?.error?.code) failure.code = error.error.code
-    throw failure
-  }
-  return parsed as T
 }
 
 export const CONTROL_TOOL_OPTIONS = { namespace: NAMESPACE, codemode: false }
@@ -316,14 +215,14 @@ export default {
   id: 'clara-policy',
 
   async setup(ctx: Any) {
-    const config = serviceConfig()
+    const config = orchestrationServiceConfig()
     const localConfig = readAdapterConfig()
     let runner: Runner | undefined
     const active = new Map<string, ActiveWork>()
     const seenMessages = new Set<string>()
     const activeRuns = new Set<number>()
     const hadDeliveryState = existsSync(deliveryFile())
-    const delivery = readDeliveryState()
+    const delivery = readDeliveryState(deliveryFile())
     let adapterID: string | undefined
     let configuredWorkspace: string | undefined
     let serviceNeedsWorkspace = false
@@ -809,7 +708,7 @@ export default {
           activeRuns.add(runID)
           adopted += 1
         }
-        if (!hadDeliveryState) writeDeliveryState(delivery)
+        if (!hadDeliveryState) writeDeliveryState(deliveryFile(), delivery)
         if (adopted) console.log(`[clara-policy] adopted ${adopted} active run(s)`)
       } catch (error) {
         console.error(`[clara-policy] run adoption failed: ${(error as Error).message}`)
@@ -887,7 +786,7 @@ export default {
             })
           },
           state: delivery,
-          persist: () => writeDeliveryState(delivery),
+          persist: () => writeDeliveryState(deliveryFile(), delivery),
           interfaceAgent: INTERFACE_AGENT,
           onError: (message) => console.error(`[clara-policy] delivery failed: ${message}`),
         })
@@ -1110,6 +1009,7 @@ export default {
             const work = await call<Any[]>(config, 'POST', `/v1/runs/${runID}/next`, {
               limit: 8,
               capabilities: ['agent'],
+              harness: 'opencode',
             })
             if (work.length) {
               await dispatchWork(work, ctx)
@@ -1424,7 +1324,7 @@ export default {
             // The human already got the cancellation response. Do not queue a
             // second terminal message for the same run.
             delivery.runs.add(Number(input.run_id))
-            writeDeliveryState(delivery)
+            writeDeliveryState(deliveryFile(), delivery)
             return content(response)
           }
         )
