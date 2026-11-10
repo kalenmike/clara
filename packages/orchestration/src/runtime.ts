@@ -17,7 +17,7 @@ import {
 } from '@clara/policy'
 import { analyzeDatabase, type DiagnosticsOptions, type DiagnosticsReport } from './diagnostics.ts'
 import { compileRun, loadCatalog } from './loader.ts'
-import type { CompiledNode, LoadedCatalog } from './types.ts'
+import type { CompiledNode, LoadedCatalog, ScriptSpec } from './types.ts'
 import {
   now,
   type AlertRow,
@@ -39,6 +39,8 @@ export interface StartInput {
   prompt: string
   workspace: string
   target?: string
+  /** Only claim work this caller can execute; omitted means no filtering. */
+  capabilities?: string[]
   origin?: Origin
   parent_run_id?: number
   parent_step_path?: string
@@ -54,7 +56,8 @@ export interface WorkOrder {
   step_path: string
   name: string
   kind: string
-  prompt: string
+  /** Rendered model prompt. Absent on script work orders. */
+  prompt?: string
   workspace: string
   work_token: string
   attempt: number
@@ -63,9 +66,11 @@ export interface WorkOrder {
   provider?: string
   policy?: StepPolicy
   limits?: Limits
-  budget: EffectiveBudget
+  budget?: EffectiveBudget
   enforcement: string
   background: boolean
+  /** Deterministic payload. Present only on a script work order. */
+  script?: ScriptSpec
   routes?: Array<{ when: string; run: string; criteria?: string; description?: string }>
   /** Present on a retry: why the previous attempt ended and what it produced. */
   retry?: { attempt: number; error: string; result: unknown }
@@ -95,6 +100,8 @@ export interface RuntimeOptions {
   leaseMs?: number
   stalledMs?: number
   adapterStaleMs?: number
+  /** How long a ready script step waits for a runner before it alerts. */
+  runnerWaitMs?: number
 }
 
 interface NodeSync {
@@ -126,6 +133,48 @@ function ageMs(iso: string | null): number {
 
 const HANDOFF_LIMIT = 2_000
 
+/** Every executable leaf: agents, routers, and scripts. Containers are skipped. */
+function compiledLeaves(node: CompiledNode, out: CompiledNode[] = []): CompiledNode[] {
+  if (node.kind === 'agent' || node.kind === 'router' || node.kind === 'script') out.push(node)
+  for (const child of node.children ?? []) compiledLeaves(child, out)
+  for (const route of node.routes ?? []) {
+    if (route.target) compiledLeaves(route.target, out)
+  }
+  return out
+}
+
+/** The capabilities an executor must advertise to run this leaf. */
+export function nodeCapabilities(node: CompiledNode): string[] {
+  const kind =
+    node.kind === 'script'
+      ? 'script'
+      : node.kind === 'agent' || node.kind === 'router'
+        ? 'agent'
+        : undefined
+  return [...(kind ? [kind] : []), ...(node.requires?.capabilities ?? [])]
+}
+
+export interface ClaimFilter {
+  /** Capabilities the claimant advertises. Undefined means no filtering. */
+  capabilities?: string[]
+  /** Runner identity, used to satisfy a step's `requires.runner`. */
+  runner?: { id: string; labels: string[] }
+}
+
+function canRun(node: CompiledNode, filter?: ClaimFilter): boolean {
+  if (!filter) return true
+  if (
+    filter.capabilities &&
+    !nodeCapabilities(node).every((cap) => filter.capabilities?.includes(cap))
+  ) {
+    return false
+  }
+  const required = node.requires?.runner
+  if (!required) return true
+  if (!filter.runner) return false
+  return filter.runner.id === required || filter.runner.labels.includes(required)
+}
+
 // Keep a blocked worker's partial result short enough to store and render in
 // the next attempt's prompt without turning a failure into a context bomb.
 function handoffText(result: unknown): string {
@@ -151,6 +200,7 @@ export class Runtime {
   private readonly leaseMs: number
   private readonly stalledMs: number
   private readonly adapterStaleMs: number
+  private readonly runnerWaitMs: number
   private catalogCache = new Map<string, { at: number; catalog: LoadedCatalog }>()
   /**
    * Completed attempts remember their work token for a short window. A worker
@@ -166,6 +216,7 @@ export class Runtime {
     this.leaseMs = options.leaseMs ?? 30 * 60_000
     this.stalledMs = options.stalledMs ?? 5 * 60_000
     this.adapterStaleMs = options.adapterStaleMs ?? 120_000
+    this.runnerWaitMs = options.runnerWaitMs ?? 60_000
   }
 
   configFor(workspace: string): string {
@@ -199,7 +250,7 @@ export class Runtime {
     const target = input.target ?? input.parent_run_id ?? catalog.root.manifest.id
     const compiled = compileRun(catalog, input.target)
     const enforcement = compiled.root.enforcement ?? 'observed'
-    if (enforcement === 'strict') this.assertAdapter(workspace, compiled.root.requires)
+    if (enforcement === 'strict') this.assertAdapter(workspace, compiled.root)
     const rootRunID = input.parent_run_id ?? 0
     let run = this.store.insertRun({
       workspace,
@@ -229,24 +280,53 @@ export class Runtime {
       enforcement,
     })
     this.advance(Number(run.id))
-    const work = this.claim(Number(run.id), 8)
+    const work = this.claim(
+      Number(run.id),
+      8,
+      'dispatcher',
+      input.capabilities ? { capabilities: input.capabilities } : undefined
+    )
     return { run: this.store.run(Number(run.id)) as RunRow, work }
   }
 
-  private assertAdapter(workspace: string, requires: CompiledNode['requires']): void {
-    const capabilities = requires?.capabilities ?? ['tool_policy', 'turn_limit', 'token_limit']
-    const adapter = this.store.adapters(workspace).find(
-      (row) =>
-        ageMs(row.heartbeat_at) <= this.adapterStaleMs &&
-        capabilities.every((capability) => {
-          const parsed = parseJson<string[]>(row.capabilities, [])
-          return parsed.includes(capability)
-        })
-    )
-    if (!adapter) {
+  private assertAdapter(workspace: string, root: CompiledNode): void {
+    const leaves = compiledLeaves(root)
+    const needsAgent = leaves.some((leaf) => leaf.kind === 'agent' || leaf.kind === 'router')
+    const needsScript = leaves.some((leaf) => leaf.kind === 'script')
+    const extra = root.requires?.capabilities ?? []
+    const harness = root.requires?.adapter
+    const live = this.store
+      .adapters(workspace)
+      .filter((row) => ageMs(row.heartbeat_at) <= this.adapterStaleMs)
+    const has = (role: 'harness' | 'runner', capabilities: string[]): boolean =>
+      live.some((row) => {
+        if (row.role !== role) return false
+        if (harness && row.harness !== harness && role === 'harness') return false
+        const parsed = parseJson<string[]>(row.capabilities, [])
+        if (![...capabilities, ...extra].every((capability) => parsed.includes(capability))) {
+          return false
+        }
+        const requiredRunner = root.requires?.runner
+        if (role === 'runner' && requiredRunner) {
+          const labels = parseJson<string[]>(row.labels, [])
+          return row.id === requiredRunner || labels.includes(requiredRunner)
+        }
+        return true
+      })
+    if (needsAgent && !has('harness', ['tool_policy', 'turn_limit', 'token_limit'])) {
       throw new OrchestrationErrorWithCode(
         'enforcement_unavailable',
-        `This pipeline requires strict enforcement; no live ${requires?.adapter ?? 'harness'} adapter with ${capabilities.join(', ')} is registered for ${workspace}.`
+        `This pipeline requires strict enforcement; no live ${
+          harness ?? 'harness'
+        } adapter with tool_policy, turn_limit, token_limit is registered for ${workspace}.`
+      )
+    }
+    if (needsScript && !has('runner', ['script'])) {
+      throw new OrchestrationErrorWithCode(
+        'enforcement_unavailable',
+        `This pipeline requires strict enforcement; no live runner with script${
+          root.requires?.runner ? ` (${root.requires.runner})` : ''
+        } is registered for ${workspace}.`
       )
     }
   }
@@ -319,7 +399,7 @@ export class Runtime {
       const row = ensure(node, parentPath)
 
       if (
-        (node.kind === 'task' || node.kind === 'router') &&
+        (node.kind === 'agent' || node.kind === 'router' || node.kind === 'script') &&
         node.inputs &&
         (row.status === 'pending' || row.status === 'ready')
       ) {
@@ -356,7 +436,7 @@ export class Runtime {
         }
       }
 
-      if (node.kind === 'task') {
+      if (node.kind === 'agent') {
         if (row.status === 'waiting_children') {
           const children = this.store.childRuns(runID, node.path)
           if (!children.length) {
@@ -439,6 +519,12 @@ export class Runtime {
         return readyStep(row, node, schedule)
       }
 
+      if (node.kind === 'script') {
+        if (row.status === 'failed') return { status: 'failed' }
+        if (row.status === 'done' || row.status === 'skipped') return { status: 'done' }
+        return readyStep(row, node, schedule)
+      }
+
       if (node.kind === 'router') {
         if (row.status === 'done') {
           const result = parseJson<{ route?: string }>(row.result, {})
@@ -513,7 +599,9 @@ export class Runtime {
         .filter((step) => step.status === 'failed' && step.error)
       // Prefer the leaf failure over the container summary it produced.
       const failedStep =
-        failedSteps.find((step) => step.type === 'task' || step.type === 'router') ?? failedSteps[0]
+        failedSteps.find(
+          (step) => step.type === 'agent' || step.type === 'router' || step.type === 'script'
+        ) ?? failedSteps[0]
       const error = latest.error ?? failedStep?.error ?? 'pipeline failed'
       this.store.transaction(() => {
         this.store.updateRun(runID, { state: 'failed', finished_at: now(), error })
@@ -583,7 +671,7 @@ export class Runtime {
     return waiting ? 'waiting' : 'ok'
   }
 
-  claim(runID: number, limit = 1, owner = 'dispatcher'): WorkOrder[] {
+  claim(runID: number, limit = 1, owner = 'dispatcher', filter?: ClaimFilter): WorkOrder[] {
     const advanced = this.advance(runID, limit)
     const run = advanced.run
     const root = JSON.parse(run.snapshot) as CompiledNode
@@ -594,6 +682,7 @@ export class Runtime {
       if (row.lease_id && ageMs(row.lease_expires_at) < this.leaseMs) continue
       const node = findNode(root, row.path)
       if (!node) continue
+      if (!canRun(node, filter)) continue
       const token = randomUUID()
       const expires = new Date(Date.now() + this.leaseMs).toISOString()
       const attempt = Number(row.attempt) + 1
@@ -674,21 +763,24 @@ export class Runtime {
           result: parseJson<unknown>(previous.result, null),
         }
       : undefined
+    const script = node.kind === 'script'
     return {
       run_id: Number(run.id),
       step_path: node.path,
       name: node.name,
       kind: node.kind,
-      prompt: node.prompt ?? node.description ?? `Execute ${node.name}`,
+      ...(script
+        ? { ...(node.script ? { script: node.script } : {}) }
+        : { prompt: node.prompt ?? node.description ?? `Execute ${node.name}` }),
       workspace: run.workspace,
       work_token: token,
       attempt: Number(row.attempt),
       max_attempts: Number(row.max_attempts),
-      ...(node.model ? { model: node.model } : {}),
-      ...(node.provider ? { provider: node.provider } : {}),
-      ...(policy ? { policy } : {}),
+      ...(!script && node.model ? { model: node.model } : {}),
+      ...(!script && node.provider ? { provider: node.provider } : {}),
+      ...(!script && policy ? { policy } : {}),
       ...(limits ? { limits } : {}),
-      budget,
+      ...(!script ? { budget } : {}),
       enforcement: node.enforcement ?? run.enforcement,
       background: Boolean(node.background),
       ...(node.kind === 'router' && node.routes
@@ -710,8 +802,24 @@ export class Runtime {
     }
   }
 
-  next(runID: number, limit = 1, owner = 'mcp'): WorkOrder[] {
-    return this.claim(runID, limit, owner)
+  next(runID: number, limit = 1, owner = 'mcp', filter?: ClaimFilter): WorkOrder[] {
+    return this.claim(runID, limit, owner, filter)
+  }
+
+  /**
+   * Claim work across the active runs of one workspace. A standalone runner
+   * uses this instead of enumerating run ids; the filter keeps it from claiming
+   * agent work it cannot execute.
+   */
+  claimWork(workspace: string, filter: ClaimFilter, limit = 1, owner = 'runner'): WorkOrder[] {
+    const target = resolve(workspace)
+    const orders: WorkOrder[] = []
+    for (const run of this.store.activeRuns()) {
+      if (orders.length >= limit) break
+      if (resolve(run.workspace) !== target) continue
+      orders.push(...this.claim(Number(run.id), limit - orders.length, owner, filter))
+    }
+    return orders
   }
 
   private requireRunningStep(
@@ -740,7 +848,8 @@ export class Runtime {
     path: string,
     token: string,
     result: unknown,
-    usage?: Partial<Usage>
+    usage?: Partial<Usage>,
+    exitCode?: number
   ): AdvanceResult {
     const { row } = this.requireRunningStep(runID, path, token)
     const turns = usage?.turns ?? Number(row.turns)
@@ -790,6 +899,7 @@ export class Runtime {
           tokens,
           tool_calls: toolCalls,
           violations,
+          ...(exitCode !== undefined ? { exit_code: exitCode } : {}),
           error: null,
           finished_at: now(),
         })
@@ -826,7 +936,8 @@ export class Runtime {
     path: string,
     token: string,
     error: string,
-    usage?: Partial<Usage>
+    usage?: Partial<Usage>,
+    exitCode?: number
   ): { run: RunRow; retry: boolean; ready: StepRow[] } {
     const { row } = this.requireRunningStep(runID, path, token)
     const attempt = Number(row.attempt)
@@ -845,6 +956,7 @@ export class Runtime {
             ...fields,
             status: 'retry',
             error,
+            ...(exitCode !== undefined ? { exit_code: exitCode } : {}),
             finished_at: now(),
           })
         }
@@ -869,6 +981,7 @@ export class Runtime {
           ...fields,
           status: 'failed',
           error,
+          ...(exitCode !== undefined ? { exit_code: exitCode } : {}),
           finished_at: now(),
         })
       }
@@ -957,7 +1070,7 @@ export class Runtime {
       const childPath = `spawn/${index + 1}`
       const node: CompiledNode = {
         path: childPath,
-        kind: 'task',
+        kind: 'agent',
         name: `${parentNode?.name ?? 'worker'}-${index + 1}`,
         title: `${parentNode?.name ?? 'worker'} worker ${index + 1}`,
         prompt: input.prompt,
@@ -1285,6 +1398,19 @@ export class Runtime {
     return this.store.step(runID, path) as StepRow
   }
 
+  /** Record a bounded chunk of script output on the attempt's event stream. */
+  output(
+    runID: number,
+    path: string,
+    token: string,
+    stream: 'stdout' | 'stderr',
+    chunk: string
+  ): void {
+    const { row } = this.requireRunningStep(runID, path, token)
+    if (!chunk) return
+    this.store.event(runID, 'step.output', { step: path, stream, chunk }, row.current_attempt_id)
+  }
+
   status(runID: number): StatusResult {
     const run = this.store.run(runID)
     if (!run) throw new OrchestrationErrorWithCode('run_missing', `run ${runID} does not exist`)
@@ -1315,17 +1441,67 @@ export class Runtime {
     return this.store.run(runID) as RunRow
   }
 
+  /** Alert once when a ready script step has no capable runner for its workspace. */
+  private checkRunner(run: RunRow, alerts: AlertRow[]): void {
+    const runID = Number(run.id)
+    const waiting = this.store
+      .steps(runID)
+      .filter((step) => step.type === 'script' && step.status === 'ready')
+    if (!waiting.length) return
+    const root = JSON.parse(run.snapshot) as CompiledNode
+    const existing = new Set(
+      this.store
+        .openAlerts(runID)
+        .filter((alert) => alert.kind === 'no_runner')
+        .map((alert) => alert.step_path)
+    )
+    for (const step of waiting) {
+      if (existing.has(step.path)) continue
+      if (ageMs(step.updated_at) < this.runnerWaitMs) continue
+      const node = findNode(root, step.path)
+      if (this.hasRunner(resolve(run.workspace), node?.requires?.runner)) continue
+      const alert = this.store.alert({
+        run_id: runID,
+        step_path: step.path,
+        kind: 'no_runner',
+        title: `No runner for script step: ${step.name}`,
+        body: node?.requires?.runner
+          ? `No live runner labelled "${node.requires.runner}" with the script capability is registered for this workspace.`
+          : 'No live runner with the script capability is registered for this workspace.',
+      })
+      this.store.event(
+        runID,
+        'alert.created',
+        { alert: alert.id, kind: 'no_runner' },
+        step.current_attempt_id
+      )
+      alerts.push(alert)
+    }
+  }
+
+  private hasRunner(workspace: string, required?: string): boolean {
+    return this.store.adapters(workspace).some((row) => {
+      if (row.role !== 'runner') return false
+      if (ageMs(row.heartbeat_at) > this.adapterStaleMs) return false
+      if (!parseJson<string[]>(row.capabilities, []).includes('script')) return false
+      if (!required) return true
+      const labels = parseJson<string[]>(row.labels, [])
+      return row.id === required || labels.includes(required)
+    })
+  }
+
   tick(): { alerts: AlertRow[] } {
     const alerts: AlertRow[] = []
     for (const run of this.store.activeRuns()) {
       const runID = Number(run.id)
       this.advance(runID)
+      this.checkRunner(run, alerts)
       for (const snapshot of this.store.steps(runID)) {
         // Re-read the row: failing one step settles every other live step, so
         // the snapshot taken at loop entry is stale after the first failure.
         const step = this.store.step(runID, snapshot.path)
         if (!step || step.status !== 'running') continue
-        if (step.type !== 'task' && step.type !== 'router') continue
+        if (step.type !== 'agent' && step.type !== 'router' && step.type !== 'script') continue
         const stalled = ageMs(step.heartbeat_at) > this.stalledMs
         const expired = step.lease_expires_at ? ageMs(step.lease_expires_at) >= 0 : false
         if (!stalled && !expired) continue
@@ -1473,7 +1649,8 @@ export class Runtime {
     if (!run) throw new OrchestrationErrorWithCode('run_missing', `run ${runID} does not exist`)
     const step = this.store.step(runID, path)
     if (!step) throw new OrchestrationErrorWithCode('step_missing', `step ${path} does not exist`)
-    return step
+    const node = findNode(JSON.parse(run.snapshot) as CompiledNode, path)
+    return node?.script ? { ...step, script: node.script } : step
   }
 
   /** Attempt history for a run, optionally narrowed to one step. */
@@ -1488,6 +1665,9 @@ export class Runtime {
 
   registerAdapter(input: {
     harness: string
+    role?: 'harness' | 'runner'
+    machine?: string | null
+    labels?: string[]
     workspace: string
     session_id?: string | null
     capabilities: string[]
@@ -1496,6 +1676,9 @@ export class Runtime {
     return this.store.upsertAdapter({
       id: input.id ?? randomUUID(),
       harness: input.harness,
+      role: input.role ?? 'harness',
+      machine: input.machine ?? null,
+      labels: input.labels ?? [],
       session_id: input.session_id ?? null,
       workspace: resolve(input.workspace),
       capabilities: input.capabilities,

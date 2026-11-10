@@ -26,7 +26,7 @@ function adapter(): void {
 
 function budgetRuntime(options: { attempts: number; onExhausted: 'keep' | 'fail' }) {
   const dir = mkdtempSync(join(tmpdir(), 'clara-budget-'))
-  mkdirSync(join(dir, 'orchestration', 'tasks'), { recursive: true })
+  mkdirSync(join(dir, 'orchestration', 'agents'), { recursive: true })
   writeFileSync(
     join(dir, 'orchestration', 'index.yml'),
     [
@@ -40,11 +40,11 @@ function budgetRuntime(options: { attempts: number; onExhausted: 'keep' | 'fail'
       '    enforcement: strict',
       '    steps:',
       '      - name: do_work',
-      '        type: task',
+      '        type: agent',
     ].join('\n')
   )
   writeFileSync(
-    join(dir, 'orchestration', 'tasks', 'do_work.md'),
+    join(dir, 'orchestration', 'agents', 'do_work.md'),
     [
       '---',
       'description: Do work',
@@ -87,13 +87,13 @@ function wiringRuntime() {
       '  work:',
       '    steps:',
       '      - name: first',
-      '        type: task',
+      '        type: agent',
       '        prompt: do it',
       '      - name: zero',
-      '        type: task',
+      '        type: agent',
       '        prompt: do it',
       '      - name: second',
-      '        type: task',
+      '        type: agent',
       '        prompt: do it',
       '        inputs:',
       '          one: first',
@@ -279,7 +279,7 @@ describe('runtime', () => {
   })
 
   it('fails a step and retries it until the attempt limit', () => {
-    const started = runtime.start({ workspace, prompt: 'patch', target: 'std:maintenance/rebuild' })
+    const started = runtime.start({ workspace, prompt: 'patch', target: 'std:content' })
     const work = started.work[0]
     const failed = runtime.fail(started.run.id, work.step_path, work.work_token, 'boom')
     expect(failed.retry).toBe(true)
@@ -288,7 +288,7 @@ describe('runtime', () => {
   })
 
   it('keeps one attempt row per claim while steps stays a single projection row', () => {
-    const started = runtime.start({ workspace, prompt: 'patch', target: 'std:maintenance/rebuild' })
+    const started = runtime.start({ workspace, prompt: 'patch', target: 'std:content' })
     const work = started.work[0]
     runtime.fail(started.run.id, work.step_path, work.work_token, 'boom', {
       turns: 4,
@@ -332,7 +332,7 @@ describe('runtime', () => {
   })
 
   it('links step events to the attempt that produced them', () => {
-    const started = runtime.start({ workspace, prompt: 'patch', target: 'std:maintenance/rebuild' })
+    const started = runtime.start({ workspace, prompt: 'patch', target: 'std:content' })
     const work = started.work[0]
     runtime.fail(started.run.id, work.step_path, work.work_token, 'boom')
     const retry = runtime.next(started.run.id)[0]
@@ -349,7 +349,7 @@ describe('runtime', () => {
   })
 
   it('exposes attempt history for a run and rejects unknown steps', () => {
-    const started = runtime.start({ workspace, prompt: 'patch', target: 'std:maintenance/rebuild' })
+    const started = runtime.start({ workspace, prompt: 'patch', target: 'std:content' })
     const work = started.work[0]
     expect(runtime.attempts(started.run.id)).toHaveLength(1)
     expect(runtime.attempts(started.run.id, work.step_path)).toHaveLength(1)
@@ -372,15 +372,15 @@ describe('runtime', () => {
           '  example:',
           '    steps:',
           '      - name: task_1',
-          '        type: task',
+          '        type: agent',
           '      - name: task_group',
           '        type: group',
           '        steps:',
           '          - name: background_task',
-          '            type: task',
+          '            type: agent',
           '            background: true',
           '          - name: inline_task',
-          '            type: task',
+          '            type: agent',
         ].join('\n')
       )
       const tempRuntime = new Runtime({
@@ -403,7 +403,7 @@ describe('runtime', () => {
   })
 
   it('creates spawned child runs and resumes the parent when they finish', () => {
-    const started = runtime.start({ workspace, prompt: 'patch', target: 'std:maintenance/rebuild' })
+    const started = runtime.start({ workspace, prompt: 'patch', target: 'std:content' })
     const parent = started.work[0]
     const spawned = runtime.spawn(started.run.id, parent.step_path, parent.work_token, {
       count: 2,
@@ -419,11 +419,11 @@ describe('runtime', () => {
     const resumed = runtime.status(started.run.id)
     expect(resumed.run.state).not.toBe('failed')
     const next = runtime.next(started.run.id)[0]
-    expect(next.name).toBe('build')
+    expect(next.name).toBe('draft')
   })
 
   it('closes the parent attempt when a spawned run is cancelled', () => {
-    const started = runtime.start({ workspace, prompt: 'patch', target: 'std:maintenance/rebuild' })
+    const started = runtime.start({ workspace, prompt: 'patch', target: 'std:content' })
     const parent = started.work[0]
     runtime.spawn(started.run.id, parent.step_path, parent.work_token, {
       count: 1,
@@ -437,7 +437,7 @@ describe('runtime', () => {
   })
 
   it('requeues a stalled step on tick and opens an alert', () => {
-    const started = runtime.start({ workspace, prompt: 'patch', target: 'std:maintenance/rebuild' })
+    const started = runtime.start({ workspace, prompt: 'patch', target: 'std:content' })
     const work = started.work[0]
     const row = store.step(started.run.id, work.step_path)
     store.updateStep(Number(row?.id), {
@@ -493,9 +493,9 @@ describe('runtime', () => {
   })
 
   it('fails a group when a later child is already failed', () => {
-    const started = runtime.start({ workspace, prompt: 'patch', target: 'std:maintenance/rebuild' })
+    const started = runtime.start({ workspace, prompt: 'patch', target: 'std:content' })
     const first = started.work[0]
-    const later = store.steps(started.run.id).find((step) => step.name === 'build')
+    const later = store.steps(started.run.id).find((step) => step.name === 'draft')
     expect(later).toBeTruthy()
     if (!later) return
     store.updateStep(Number(later.id), {
@@ -540,7 +540,7 @@ describe('runtime', () => {
   })
 
   it('does not advance healthy running work on a watchdog tick', () => {
-    const started = runtime.start({ workspace, prompt: 'patch', target: 'std:maintenance/rebuild' })
+    const started = runtime.start({ workspace, prompt: 'patch', target: 'std:content' })
     const work = started.work[0]
     const ticked = runtime.tick()
     expect(ticked.alerts).toHaveLength(0)
@@ -548,7 +548,7 @@ describe('runtime', () => {
   })
 
   it('accepts the final usage update after a step completes', () => {
-    const started = runtime.start({ workspace, prompt: 'patch', target: 'std:maintenance/rebuild' })
+    const started = runtime.start({ workspace, prompt: 'patch', target: 'std:content' })
     const work = started.work[0]
     runtime.complete(started.run.id, work.step_path, work.work_token, { ok: true }, { turns: 1 })
     const updated = runtime.usage(started.run.id, work.step_path, work.work_token, {
@@ -562,7 +562,7 @@ describe('runtime', () => {
   })
 
   it('never lets a late usage update lower a completed total', () => {
-    const started = runtime.start({ workspace, prompt: 'patch', target: 'std:maintenance/rebuild' })
+    const started = runtime.start({ workspace, prompt: 'patch', target: 'std:content' })
     const work = started.work[0]
     runtime.complete(started.run.id, work.step_path, work.work_token, { ok: true }, { tokens: 250 })
     const updated = runtime.usage(started.run.id, work.step_path, work.work_token, { tokens: 200 })
@@ -570,7 +570,7 @@ describe('runtime', () => {
   })
 
   it('rejects a late usage update from an old attempt or token', () => {
-    const started = runtime.start({ workspace, prompt: 'patch', target: 'std:maintenance/rebuild' })
+    const started = runtime.start({ workspace, prompt: 'patch', target: 'std:content' })
     const first = started.work[0]
     runtime.fail(started.run.id, first.step_path, first.work_token, 'boom')
     const second = runtime.next(started.run.id)[0]
@@ -584,7 +584,7 @@ describe('runtime', () => {
   })
 
   it('requires the work token to renew a lease', () => {
-    const started = runtime.start({ workspace, prompt: 'patch', target: 'std:maintenance/rebuild' })
+    const started = runtime.start({ workspace, prompt: 'patch', target: 'std:content' })
     const work = started.work[0]
     expect(() => runtime.heartbeat(started.run.id, work.step_path, 'stale-token')).toThrow(
       /work token/
@@ -601,7 +601,7 @@ describe('runtime', () => {
   })
 
   it('rejects renewals from an abandoned attempt after a retry', () => {
-    const started = runtime.start({ workspace, prompt: 'patch', target: 'std:maintenance/rebuild' })
+    const started = runtime.start({ workspace, prompt: 'patch', target: 'std:content' })
     const first = started.work[0]
     const row = store.step(started.run.id, first.step_path)
     store.updateStep(Number(row?.id), {
@@ -632,7 +632,7 @@ describe('runtime', () => {
   })
 
   it('fails a spawned group fast and cancels its siblings', () => {
-    const started = runtime.start({ workspace, prompt: 'patch', target: 'std:maintenance/rebuild' })
+    const started = runtime.start({ workspace, prompt: 'patch', target: 'std:content' })
     const parent = started.work[0]
     const spawned = runtime.spawn(started.run.id, parent.step_path, parent.work_token, {
       count: 2,
@@ -651,13 +651,13 @@ describe('runtime', () => {
   })
 
   it('accepts a completion that exceeded the reported budget without retrying', () => {
-    const started = runtime.start({ workspace, prompt: 'patch', target: 'std:maintenance/rebuild' })
+    const started = runtime.start({ workspace, prompt: 'patch', target: 'std:content' })
     const work = started.work[0]
     const advanced = runtime.complete(started.run.id, work.step_path, work.work_token, 'too much', {
       turns: work.budget.turns + 1,
       tokens: 0,
     })
-    expect(advanced.ready.map((step) => step.name)).toEqual(['build'])
+    expect(advanced.ready.map((step) => step.name)).toEqual(['draft'])
     const row = store.step(started.run.id, work.step_path)
     expect(row?.status).toBe('done')
     expect(row?.error).toBeNull()
@@ -672,11 +672,11 @@ describe('runtime', () => {
           event.type === 'step.completed' && JSON.parse(event.payload).step === work.step_path
       )
     expect(JSON.parse(completed?.payload ?? '{}').over_budget).toBe('turn limit reached')
-    expect(runtime.next(started.run.id)[0].name).toBe('build')
+    expect(runtime.next(started.run.id)[0].name).toBe('draft')
   })
 
   it('resets the live projection and attempt clock when a new attempt starts', () => {
-    const started = runtime.start({ workspace, prompt: 'patch', target: 'std:maintenance/rebuild' })
+    const started = runtime.start({ workspace, prompt: 'patch', target: 'std:content' })
     const work = started.work[0]
     const row = store.step(started.run.id, work.step_path)
     store.updateStep(Number(row?.id), {
@@ -747,7 +747,13 @@ describe('runtime', () => {
       prompt: 'audit the orchestrator setup',
       target: 'std:diagnostics',
     })
-    const work = started.work[0]
+    const evidence = started.work[0]
+    expect(evidence.kind).toBe('script')
+    runtime.complete(started.run.id, evidence.step_path, evidence.work_token, {
+      available: true,
+    })
+    const work = runtime.next(started.run.id)[0]
+    expect(work.name).toBe('pattern_failures')
     const decision = runtime.check(
       started.run.id,
       work.step_path,
@@ -1029,7 +1035,7 @@ describe('runtime', () => {
           '    enforcement: strict',
           '    steps:',
           '      - name: do_work',
-          '        type: task',
+          '        type: agent',
         ].join('\n')
       )
       writeFileSync(
@@ -1093,7 +1099,7 @@ describe('runtime', () => {
   })
 
   it('does not re-emit run.failed or rewrite finished_at for a terminal run', () => {
-    const started = runtime.start({ workspace, prompt: 'patch', target: 'std:maintenance/rebuild' })
+    const started = runtime.start({ workspace, prompt: 'patch', target: 'std:content' })
     let work = started.work[0]
     for (let attempt = 0; attempt < 3; attempt++) {
       runtime.fail(started.run.id, work.step_path, work.work_token, 'boom')
@@ -1121,7 +1127,7 @@ describe('runtime', () => {
   })
 
   it('claims a terminal delivery once across adapter instances', () => {
-    const started = runtime.start({ workspace, prompt: 'patch', target: 'std:maintenance/rebuild' })
+    const started = runtime.start({ workspace, prompt: 'patch', target: 'std:content' })
     expect(runtime.claimDelivery(started.run.id, { terminal: true })).toEqual({
       terminal: false,
       alerts: [],
@@ -1149,7 +1155,7 @@ describe('runtime', () => {
   })
 
   it('claims each delivery alert once and releases only the named ids', () => {
-    const started = runtime.start({ workspace, prompt: 'patch', target: 'std:maintenance/rebuild' })
+    const started = runtime.start({ workspace, prompt: 'patch', target: 'std:content' })
     const first = store.alert({
       run_id: started.run.id,
       step_path: null,
@@ -1182,8 +1188,8 @@ describe('runtime', () => {
   })
 
   it('does not claim an alert that belongs to another run', () => {
-    const one = runtime.start({ workspace, prompt: 'patch', target: 'std:maintenance/rebuild' })
-    const two = runtime.start({ workspace, prompt: 'patch', target: 'std:maintenance/rebuild' })
+    const one = runtime.start({ workspace, prompt: 'patch', target: 'std:content' })
+    const two = runtime.start({ workspace, prompt: 'patch', target: 'std:content' })
     const alert = store.alert({
       run_id: two.run.id,
       step_path: null,
@@ -1214,7 +1220,7 @@ describe('runtime', () => {
       const started = firstRuntime.start({
         workspace,
         prompt: 'patch',
-        target: 'std:maintenance/rebuild',
+        target: 'std:content',
       })
       firstStore.updateRun(started.run.id, {
         state: 'completed',

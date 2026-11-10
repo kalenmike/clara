@@ -4,6 +4,7 @@ import { basename, dirname, extname, isAbsolute, join, relative, resolve } from 
 import type { Limits, PermissionRule, StepPolicy } from '@clara/policy'
 import { parseMarkdownDocument, parseYamlRecord } from './frontmatter.ts'
 import type {
+  AgentDefinition,
   CompiledNode,
   CompiledRoute,
   CompiledRun,
@@ -17,8 +18,10 @@ import type {
   PipelineDefinition,
   RouteDefinition,
   RouterDefinition,
+  ScriptDefinition,
+  ScriptResultMode,
+  ScriptSpec,
   StepDefinition,
-  TaskDefinition,
   WorkspaceOverrides,
 } from './types.ts'
 
@@ -148,7 +151,7 @@ function normalizeOverrides(value: unknown, source: string): WorkspaceOverrides 
       )
     }
     if (!isRecord(raw)) throw new OrchestrationError(source, `${path} must be an object`)
-    assertKnownKeys(raw, ['defaults', 'pipelines', 'tasks'], source, path)
+    assertKnownKeys(raw, ['defaults', 'pipelines', 'agents'], source, path)
     const override: PackageOverrides = {}
     if (raw.defaults !== undefined) {
       if (!isRecord(raw.defaults)) {
@@ -177,17 +180,17 @@ function normalizeOverrides(value: unknown, source: string): WorkspaceOverrides 
         }
       }
     }
-    if (raw.tasks !== undefined) {
-      if (!isRecord(raw.tasks)) {
-        throw new OrchestrationError(source, `${path}.tasks must be an object`)
+    if (raw.agents !== undefined) {
+      if (!isRecord(raw.agents)) {
+        throw new OrchestrationError(source, `${path}.agents must be an object`)
       }
-      override.tasks = {}
-      for (const [name, patch] of Object.entries(raw.tasks)) {
-        const taskPath = `${path}.tasks.${name}`
+      override.agents = {}
+      for (const [name, patch] of Object.entries(raw.agents)) {
+        const agentPath = `${path}.agents.${name}`
         if (!isRecord(patch)) {
-          throw new OrchestrationError(source, `${taskPath} must be an object`)
+          throw new OrchestrationError(source, `${agentPath} must be an object`)
         }
-        override.tasks[name] = normalizeModelSelection(patch, source, taskPath)
+        override.agents[name] = normalizeModelSelection(patch, source, agentPath)
       }
     }
     result[ref] = override
@@ -234,7 +237,8 @@ function normalizeManifest(raw: Record<string, unknown>, source: string): Packag
           defaults: {
             ...(defaultModel ? { model: defaultModel } : {}),
             ...(defaultProvider ? { provider: defaultProvider } : {}),
-            ...(str(defaults.task_dir) ? { task_dir: String(defaults.task_dir) } : {}),
+            ...(str(defaults.agent_dir) ? { agent_dir: String(defaults.agent_dir) } : {}),
+            ...(str(defaults.script_dir) ? { script_dir: String(defaults.script_dir) } : {}),
             ...(str(defaults.enforcement)
               ? {
                   enforcement: String(defaults.enforcement) as NonNullable<
@@ -325,23 +329,129 @@ function normalizeWiring(
   throw new OrchestrationError(source, `${field} must be a list or a mapping`)
 }
 
+function stringRecord(
+  value: unknown,
+  source: string,
+  path: string
+): Record<string, string> | undefined {
+  if (value === undefined) return undefined
+  if (!isRecord(value)) throw new OrchestrationError(source, `${path} must be an object`)
+  const result: Record<string, string> = {}
+  for (const [key, item] of Object.entries(value)) {
+    if (typeof item !== 'string') {
+      throw new OrchestrationError(source, `${path}.${key} must be a string`)
+    }
+    result[key] = item
+  }
+  return result
+}
+
+function stringList(value: unknown, source: string, path: string): string[] | undefined {
+  if (value === undefined) return undefined
+  if (!Array.isArray(value) || value.some((item) => typeof item !== 'string')) {
+    throw new OrchestrationError(source, `${path} must be a list of strings`)
+  }
+  return value as string[]
+}
+
+function numberList(value: unknown, source: string, path: string): number[] | undefined {
+  if (value === undefined) return undefined
+  if (
+    !Array.isArray(value) ||
+    value.some((item) => typeof item !== 'number' || !Number.isFinite(item))
+  ) {
+    throw new OrchestrationError(source, `${path} must be a list of numbers`)
+  }
+  return value as number[]
+}
+
+function positiveNumber(value: unknown, source: string, path: string): number | undefined {
+  if (value === undefined) return undefined
+  if (typeof value !== 'number' || !Number.isFinite(value) || value <= 0) {
+    throw new OrchestrationError(source, `${path} must be a positive number`)
+  }
+  return value
+}
+
+const RESULT_MODES: ScriptResultMode[] = ['auto', 'json', 'text', 'exit', 'tail']
+
+function resultMode(value: unknown, source: string, path: string): ScriptResultMode | undefined {
+  if (value === undefined) return undefined
+  if (typeof value !== 'string' || !RESULT_MODES.includes(value as ScriptResultMode)) {
+    throw new OrchestrationError(source, `${path} must be one of ${RESULT_MODES.join(', ')}`)
+  }
+  return value as ScriptResultMode
+}
+
 function normalizeStep(raw: unknown, source: string, index: number): StepDefinition {
   if (!isRecord(raw)) throw new OrchestrationError(source, `steps[${index}] must be an object`)
   const name = str(raw.name) ?? str(raw.id)
   if (!name) throw new OrchestrationError(source, `steps[${index}].name is required`)
-  const type = (str(raw.type) ?? (raw.steps ? 'group' : 'task')) as StepDefinition['type']
-  if (!['task', 'pipeline', 'router', 'group'].includes(type)) {
+  const type = (str(raw.type) ?? (raw.steps ? 'group' : 'agent')) as StepDefinition['type']
+  if (!['agent', 'script', 'pipeline', 'router', 'group'].includes(type)) {
     throw new OrchestrationError(source, `steps[${index}].type is invalid`)
+  }
+  if (type === 'script') {
+    if (raw.prompt !== undefined) {
+      throw new OrchestrationError(
+        source,
+        `steps[${index}].prompt is not supported on a script step`
+      )
+    }
+    if (raw.model !== undefined || raw.provider !== undefined) {
+      throw new OrchestrationError(
+        source,
+        `steps[${index}].model and provider are not supported on a script step`
+      )
+    }
+    if (raw.script !== undefined && raw.command !== undefined) {
+      throw new OrchestrationError(
+        source,
+        `steps[${index}] must set either script or command, not both`
+      )
+    }
+    if (raw.script === undefined && raw.command === undefined) {
+      throw new OrchestrationError(source, `steps[${index}] script step needs script or command`)
+    }
+  } else if (raw.command !== undefined || raw.script !== undefined) {
+    throw new OrchestrationError(
+      source,
+      `steps[${index}].script and command are only supported on a script step`
+    )
   }
   const inputs = normalizeWiring(raw.inputs, `steps[${index}].inputs`, source)
   const artifacts = normalizeWiring(raw.artifacts, `steps[${index}].artifacts`, source)
+  const env = stringRecord(raw.env, source, `steps[${index}].env`)
+  const passEnv = stringList(raw.pass_env, source, `steps[${index}].pass_env`)
+  const successCodes = numberList(raw.success_codes, source, `steps[${index}].success_codes`)
+  const mode = resultMode(raw.result_mode, source, `steps[${index}].result_mode`)
+  const timeoutSeconds = positiveNumber(
+    raw.timeout_seconds,
+    source,
+    `steps[${index}].timeout_seconds`
+  )
+  const maxOutputBytes = positiveNumber(
+    raw.max_output_bytes,
+    source,
+    `steps[${index}].max_output_bytes`
+  )
   return {
     name,
     type,
     ...(str(raw.title) ? { title: String(raw.title) } : {}),
     ...(str(raw.description) ? { description: String(raw.description) } : {}),
     ...(str(raw.prompt) ? { prompt: String(raw.prompt) } : {}),
-    ...(str(raw.task) ? { task: String(raw.task) } : {}),
+    ...(str(raw.agent) ? { agent: String(raw.agent) } : {}),
+    ...(str(raw.script) ? { script: String(raw.script) } : {}),
+    ...(str(raw.command) ? { command: String(raw.command) } : {}),
+    ...(str(raw.interpreter) ? { interpreter: String(raw.interpreter) } : {}),
+    ...(str(raw.cwd) ? { cwd: String(raw.cwd) } : {}),
+    ...(env ? { env } : {}),
+    ...(passEnv ? { pass_env: passEnv } : {}),
+    ...(timeoutSeconds !== undefined ? { timeout_seconds: timeoutSeconds } : {}),
+    ...(successCodes ? { success_codes: successCodes } : {}),
+    ...(mode ? { result_mode: mode } : {}),
+    ...(maxOutputBytes !== undefined ? { max_output_bytes: maxOutputBytes } : {}),
     ...(str(raw.ref) ? { ref: String(raw.ref) } : {}),
     ...(str(raw.path) ? { path: String(raw.path) } : {}),
     ...(inputs ? { inputs } : {}),
@@ -366,6 +476,7 @@ function normalizeStep(raw: unknown, source: string, index: number): StepDefinit
       ? {
           requires: {
             ...(str(raw.requires.adapter) ? { adapter: String(raw.requires.adapter) } : {}),
+            ...(str(raw.requires.runner) ? { runner: String(raw.requires.runner) } : {}),
             ...(Array.isArray(raw.requires.capabilities)
               ? {
                   capabilities: raw.requires.capabilities.filter(
@@ -449,10 +560,10 @@ function loadRouterFile(path: string): RouterDefinition {
   }
 }
 
-function loadTaskFile(path: string, taskRoot: string): TaskDefinition {
+function loadAgentFile(path: string, agentRoot: string): AgentDefinition {
   const document = parseMarkdownDocument(readFileSync(path, 'utf8'), path)
   const data = document.data
-  const relativePath = relative(taskRoot, path).replace(/\\/g, '/')
+  const relativePath = relative(agentRoot, path).replace(/\\/g, '/')
   const name = str(data.id) ?? relativePath.replace(/\.(md|markdown)$/i, '')
   return {
     name,
@@ -465,7 +576,35 @@ function loadTaskFile(path: string, taskRoot: string): TaskDefinition {
       : {}),
     ...(isRecord(data.policy) ? { policy: data.policy as StepPolicy } : {}),
     ...(isRecord(data.limits) ? { limits: data.limits as Limits } : {}),
-    ...(isRecord(data.retries) ? { retries: data.retries as TaskDefinition['retries'] } : {}),
+    ...(isRecord(data.retries) ? { retries: data.retries as AgentDefinition['retries'] } : {}),
+    source: path,
+  }
+}
+
+function loadScriptFile(path: string, scriptRoot: string): ScriptDefinition {
+  const raw = parseYamlRecord(readFileSync(path, 'utf8'), path)
+  const relativePath = relative(scriptRoot, path).replace(/\\/g, '/')
+  const name = str(raw.name) ?? str(raw.id) ?? relativePath.replace(/\.(ya?ml)$/i, '')
+  const command = str(raw.command)
+  if (!command) throw new OrchestrationError(path, 'script command is required')
+  const env = stringRecord(raw.env, path, 'env')
+  const passEnv = stringList(raw.pass_env, path, 'pass_env')
+  const successCodes = numberList(raw.success_codes, path, 'success_codes')
+  const mode = resultMode(raw.result_mode, path, 'result_mode')
+  const timeoutSeconds = positiveNumber(raw.timeout_seconds, path, 'timeout_seconds')
+  const maxOutputBytes = positiveNumber(raw.max_output_bytes, path, 'max_output_bytes')
+  return {
+    name,
+    ...(str(raw.description) ? { description: String(raw.description) } : {}),
+    command,
+    ...(str(raw.interpreter) ? { interpreter: String(raw.interpreter) } : {}),
+    ...(str(raw.cwd) ? { cwd: String(raw.cwd) } : {}),
+    ...(env ? { env } : {}),
+    ...(passEnv ? { passEnv } : {}),
+    ...(timeoutSeconds !== undefined ? { timeoutSeconds } : {}),
+    ...(successCodes ? { successCodes } : {}),
+    ...(mode ? { resultMode: mode } : {}),
+    ...(maxOutputBytes !== undefined ? { maxOutputBytes } : {}),
     source: path,
   }
 }
@@ -540,7 +679,8 @@ function syntheticPackage(path: string, spec: ImportSpec): LoadedPackage {
     dir: dirname(path),
     pipelines: selected,
     routers: new Map(),
-    tasks: new Map(),
+    agents: new Map(),
+    scripts: new Map(),
     imports: new Map(),
     entry: { pipeline: selected.keys().next().value as string | undefined },
     sources: [path],
@@ -602,19 +742,22 @@ function loadPackageDirectory(
     }
   }
 
-  const tasks = new Map<string, TaskDefinition>()
-  const taskDir = manifest.defaults?.task_dir
-    ? resolve(dir, manifest.defaults.task_dir)
-    : join(dir, 'tasks')
-  for (const file of markdownFiles(taskDir)) {
-    const task = loadTaskFile(file, taskDir)
-    tasks.set(task.name, task)
+  const agents = new Map<string, AgentDefinition>()
+  const agentDir = manifest.defaults?.agent_dir
+    ? resolve(dir, manifest.defaults.agent_dir)
+    : join(dir, 'agents')
+  for (const file of markdownFiles(agentDir)) {
+    const agent = loadAgentFile(file, agentDir)
+    agents.set(agent.name, agent)
   }
-  if (taskDir !== join(dir, 'tasks')) {
-    for (const file of markdownFiles(join(dir, 'tasks'))) {
-      const task = loadTaskFile(file, join(dir, 'tasks'))
-      tasks.set(task.name, task)
-    }
+
+  const scripts = new Map<string, ScriptDefinition>()
+  const scriptDir = manifest.defaults?.script_dir
+    ? resolve(dir, manifest.defaults.script_dir)
+    : join(dir, 'scripts')
+  for (const file of yamlFiles(scriptDir)) {
+    const script = loadScriptFile(file, scriptDir)
+    scripts.set(script.name, script)
   }
 
   const imports = new Map<string, LoadedPackage[]>()
@@ -651,14 +794,16 @@ function loadPackageDirectory(
     dir,
     pipelines,
     routers,
-    tasks,
+    agents,
+    scripts,
     imports,
     entry,
     sources: [
       index,
       ...[...pipelines.values()].flatMap((pipeline) => (pipeline.source ? [pipeline.source] : [])),
       ...[...routers.values()].flatMap((router) => (router.source ? [router.source] : [])),
-      ...[...tasks.values()].flatMap((task) => (task.source ? [task.source] : [])),
+      ...[...agents.values()].flatMap((agent) => (agent.source ? [agent.source] : [])),
+      ...[...scripts.values()].flatMap((script) => (script.source ? [script.source] : [])),
     ],
   }
   stack.delete(key)
@@ -698,15 +843,15 @@ function applyOverrides(root: LoadedPackage, overrides: WorkspaceOverrides, sour
       }
       target.pipelines.set(id, { ...pipeline, ...patch })
     }
-    for (const [name, patch] of Object.entries(override.tasks ?? {})) {
-      const task = target.tasks.get(name)
-      if (!task) {
+    for (const [name, patch] of Object.entries(override.agents ?? {})) {
+      const agent = target.agents.get(name)
+      if (!agent) {
         throw new OrchestrationError(
           source,
-          `overrides.${ref}.tasks.${name}: task not found in ${target.manifest.id}`
+          `overrides.${ref}.agents.${name}: agent not found in ${target.manifest.id}`
         )
       }
-      target.tasks.set(name, { ...task, ...patch })
+      target.agents.set(name, { ...agent, ...patch })
     }
   }
 }
@@ -759,17 +904,17 @@ function importedPackage(
 
 function policyFromStep(
   step: StepDefinition,
-  task?: TaskDefinition,
+  agent?: AgentDefinition,
   inherited?: StepPolicy,
   permissions?: PermissionRule[]
 ): StepPolicy | undefined {
   const base = inherited ?? {}
-  const direct = step.policy ?? task?.policy
+  const direct = step.policy ?? agent?.policy
   const rules = [
     ...(base.rules ?? []),
     ...(direct?.rules ?? []),
     ...(permissions ?? []),
-    ...(task?.permissions ?? []),
+    ...(agent?.permissions ?? []),
     ...(step.permissions ?? []),
   ]
   const merged: StepPolicy = {
@@ -782,29 +927,29 @@ function policyFromStep(
 
 type PromptSource = NonNullable<CompiledNode['promptSource']>
 
-function taskPrompt(
+function agentPrompt(
   pkg: LoadedPackage,
   step: StepDefinition
-): { task?: TaskDefinition; prompt: string; source: PromptSource } {
-  const requested = step.task ?? step.name
-  const task =
-    pkg.tasks.get(requested) ??
-    pkg.tasks.get(requested.replace(/^[^:]+:/, '')) ??
-    pkg.tasks.get(step.name) ??
-    pkg.tasks.get(step.name.replace(/^[^:]+:/, ''))
+): { agent?: AgentDefinition; prompt: string; source: PromptSource } {
+  const requested = step.agent ?? step.name
+  const agent =
+    pkg.agents.get(requested) ??
+    pkg.agents.get(requested.replace(/^[^:]+:/, '')) ??
+    pkg.agents.get(step.name) ??
+    pkg.agents.get(step.name.replace(/^[^:]+:/, ''))
   const prompt =
     step.prompt ??
-    task?.prompt ??
+    agent?.prompt ??
     step.description ??
     `Execute the pipeline step "${step.name}". Use the context provided by the orchestrator and return a concise result.`
   const source: PromptSource = step.prompt
     ? 'step'
-    : task?.prompt
-      ? 'task'
+    : agent?.prompt
+      ? 'agent'
       : step.description
         ? 'description'
         : 'fallback'
-  return { ...(task ? { task } : {}), prompt, source }
+  return { ...(agent ? { agent } : {}), prompt, source }
 }
 
 const STEP_FIELDS = [
@@ -820,7 +965,17 @@ const STEP_FIELDS = [
   'strategy',
   'routes',
   'path',
-  'task',
+  'agent',
+  'script',
+  'command',
+  'interpreter',
+  'cwd',
+  'env',
+  'pass_env',
+  'timeout_seconds',
+  'success_codes',
+  'result_mode',
+  'max_output_bytes',
   'ref',
   'inputs',
   'artifacts',
@@ -880,6 +1035,37 @@ function routerForStep(pkg: LoadedPackage, step: StepDefinition, path: string): 
   }
 }
 
+function scriptSpec(pkg: LoadedPackage, step: StepDefinition, path: string): ScriptSpec {
+  const asset = step.script ? pkg.scripts.get(step.script) : undefined
+  if (step.script && !asset) {
+    throw new OrchestrationError(path, `script not found: ${step.script}`)
+  }
+  const command = asset?.command ?? step.command
+  if (!command) {
+    throw new OrchestrationError(path, `script step ${step.name} did not resolve a command`)
+  }
+  const interpreter = step.interpreter ?? asset?.interpreter
+  const cwd = step.cwd ?? asset?.cwd
+  const env = { ...(asset?.env ?? {}), ...(step.env ?? {}) }
+  const passEnv = step.pass_env ?? asset?.passEnv
+  const timeoutSeconds =
+    step.timeout_seconds ?? asset?.timeoutSeconds ?? step.limits?.wall_clock_seconds
+  const successCodes = step.success_codes ?? asset?.successCodes
+  const resultMode = step.result_mode ?? asset?.resultMode
+  const maxOutputBytes = step.max_output_bytes ?? asset?.maxOutputBytes
+  return {
+    command,
+    ...(interpreter ? { interpreter } : {}),
+    ...(cwd ? { cwd } : {}),
+    ...(Object.keys(env).length ? { env } : {}),
+    ...(passEnv ? { passEnv } : {}),
+    ...(timeoutSeconds !== undefined ? { timeoutSeconds } : {}),
+    ...(successCodes ? { successCodes } : {}),
+    ...(resultMode ? { resultMode } : {}),
+    ...(maxOutputBytes !== undefined ? { maxOutputBytes } : {}),
+  }
+}
+
 function compileStep(
   pkg: LoadedPackage,
   step: StepDefinition,
@@ -893,19 +1079,24 @@ function compileStep(
   fallbackModel?: string,
   fallbackProvider?: string
 ): CompiledNode {
-  const resolvedTask = step.type === 'task' ? taskPrompt(pkg, step) : undefined
+  const resolvedAgent = step.type === 'agent' ? agentPrompt(pkg, step) : undefined
+  const resolvedScript = step.type === 'script' ? scriptSpec(pkg, step, path) : undefined
   const model =
-    step.model ??
-    inheritedModel ??
-    resolvedTask?.task?.model ??
-    pkg.manifest.defaults?.model ??
-    fallbackModel
+    step.type === 'script'
+      ? undefined
+      : (step.model ??
+        inheritedModel ??
+        resolvedAgent?.agent?.model ??
+        pkg.manifest.defaults?.model ??
+        fallbackModel)
   const provider =
-    step.provider ??
-    inheritedProvider ??
-    resolvedTask?.task?.provider ??
-    pkg.manifest.defaults?.provider ??
-    fallbackProvider
+    step.type === 'script'
+      ? undefined
+      : (step.provider ??
+        inheritedProvider ??
+        resolvedAgent?.agent?.provider ??
+        pkg.manifest.defaults?.provider ??
+        fallbackProvider)
   const policy = policyFromStep(step, undefined, inheritedPolicy)
   const limits = step.limits ?? inheritedLimits
   const enforcement = step.enforcement ?? pkg.manifest.defaults?.enforcement
@@ -931,24 +1122,36 @@ function compileStep(
     ...(source ? { source } : {}),
   }
 
-  if (step.type === 'task') {
-    if (!resolvedTask) throw new OrchestrationError(path, `task step ${step.name} did not resolve`)
+  if (step.type === 'agent') {
+    if (!resolvedAgent)
+      throw new OrchestrationError(path, `agent step ${step.name} did not resolve`)
     return {
       ...base,
-      kind: 'task',
-      prompt: resolvedTask.prompt,
-      promptSource: resolvedTask.source,
-      ...(resolvedTask.task ? { task: resolvedTask.task.name } : {}),
-      ...(resolvedTask.task?.source ? { source: resolvedTask.task.source } : {}),
-      ...(policyFromStep(step, resolvedTask.task, inheritedPolicy)
-        ? { policy: policyFromStep(step, resolvedTask.task, inheritedPolicy) }
+      kind: 'agent',
+      prompt: resolvedAgent.prompt,
+      promptSource: resolvedAgent.source,
+      ...(resolvedAgent.agent ? { agent: resolvedAgent.agent.name } : {}),
+      ...(resolvedAgent.agent?.source ? { source: resolvedAgent.agent.source } : {}),
+      ...(policyFromStep(step, resolvedAgent.agent, inheritedPolicy)
+        ? { policy: policyFromStep(step, resolvedAgent.agent, inheritedPolicy) }
         : {}),
-      ...((step.limits ?? resolvedTask.task?.limits ?? inheritedLimits)
-        ? { limits: step.limits ?? resolvedTask.task?.limits ?? inheritedLimits }
+      ...((step.limits ?? resolvedAgent.agent?.limits ?? inheritedLimits)
+        ? { limits: step.limits ?? resolvedAgent.agent?.limits ?? inheritedLimits }
         : {}),
-      ...((step.retries ?? resolvedTask.task?.retries)
-        ? { retries: step.retries ?? resolvedTask.task?.retries }
+      ...((step.retries ?? resolvedAgent.agent?.retries)
+        ? { retries: step.retries ?? resolvedAgent.agent?.retries }
         : {}),
+    }
+  }
+
+  if (step.type === 'script') {
+    if (!resolvedScript)
+      throw new OrchestrationError(path, `script step ${step.name} did not resolve`)
+    return {
+      ...base,
+      kind: 'script',
+      script: resolvedScript,
+      retries: step.retries ?? { auto_attempts: 1 },
     }
   }
 
@@ -1283,6 +1486,7 @@ export function catalogSummary(catalog: LoadedCatalog) {
     entry: pkg.entry,
     pipelines: [...pkg.pipelines.keys()],
     routers: [...pkg.routers.keys()],
-    tasks: [...pkg.tasks.keys()],
+    agents: [...pkg.agents.keys()],
+    scripts: [...pkg.scripts.keys()],
   }))
 }

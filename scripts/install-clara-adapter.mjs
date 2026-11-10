@@ -28,6 +28,7 @@ import {
   readAgentManifest,
   removeAgentFile,
 } from './lib/opencode-agent.mjs'
+import { ensureRunnerConfig, readRunnerConfig, runnerAvailable } from './lib/runner.mjs'
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 const pluginDir = join(root, 'plugins', 'clara-policy')
@@ -38,13 +39,15 @@ const link = join(pluginsDir, 'clara-policy')
 const agentSource = join(pluginDir, 'agents', 'clara.md')
 const agentDestination = join(agentsDir, 'clara.md')
 const agentManifest = join(agentsDir, '.clara-policy-agents.json')
+const runnerConfig = join(configHome, 'opencode', 'clara-policy.json')
 const force = process.argv.includes('--force')
+const noRunner = process.argv.includes('--no-runner')
 const command = process.argv[2] ?? 'install'
 const target = process.argv[3]
 
 if (command === 'help' || command === '--help' || command === '-h') {
   console.log(
-    'Clara OpenCode adapter\n\nUsage: pnpm clara adapter <install|uninstall|status> [opencode]'
+    'Clara OpenCode adapter\n\nUsage: pnpm clara adapter <install|uninstall|status> [opencode] [--no-runner]'
   )
 } else if (command === 'install') install(target)
 else if (command === 'uninstall') uninstall()
@@ -58,11 +61,25 @@ function install(target) {
 
   linkAdapter()
   installAgent()
+  setupRunner()
   removeAdapterCommand()
 
   console.log('')
   console.log('Clara agent: select "clara" in OpenCode.')
+  console.log('Embedded runner: script steps execute on this workspace.')
   console.log('Reload OpenCode with `opencode reload`, or restart the service.')
+}
+
+function setupRunner() {
+  if (!runnerAvailable(pluginDir)) {
+    fail('@clara/runner is not linked; run `pnpm install` and retry the adapter install')
+  }
+  const result = ensureRunnerConfig(runnerConfig, { enabled: !noRunner })
+  console.log(
+    `${result.written ? 'write' : 'ok   '} runner ${
+      result.runner.enabled ? 'enabled' : 'disabled'
+    } (${runnerConfig})`
+  )
 }
 
 function linkAdapter() {
@@ -134,6 +151,10 @@ function status() {
   console.log(`plugin: ${pluginDir}`)
   console.log(`agent: ${agentStatus()}`)
   console.log(`agent path: ${agentDestination}`)
+  const config = readRunnerConfig(runnerConfig)
+  const enabled = config.runner?.enabled !== false
+  console.log(`runner: ${enabled ? 'embedded (script)' : 'disabled'}`)
+  console.log(`runner config: ${runnerConfig}`)
   console.log(
     `/pipeline command: ${
       existsSync(join(configHome, 'opencode', 'commands', 'pipeline.md'))

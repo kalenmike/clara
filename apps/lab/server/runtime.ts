@@ -1,5 +1,10 @@
 import { SERVER_INSTRUCTIONS } from '@clara/mcp-server'
-import { previewPipeline, type AdapterInfo, type PreviewInput } from '@clara/devtools'
+import {
+  previewPipeline,
+  type AdapterInfo,
+  type CompiledNode,
+  type PreviewInput,
+} from '@clara/devtools'
 import { EventRelay } from './orchestrator-events.ts'
 import { McpClient, type ToolResult } from './mcp.ts'
 import {
@@ -71,13 +76,13 @@ interface CompiledLike {
   routes?: Array<{ target?: CompiledLike }>
 }
 
-function pipelineTaskCount(snapshot: string): number | undefined {
+function pipelineStepCount(snapshot: string): number | undefined {
   try {
     const root = JSON.parse(snapshot) as CompiledLike
     if (root.kind !== 'pipeline') return undefined
     let count = 0
     const walk = (node: CompiledLike): void => {
-      if (node.kind === 'task' || node.kind === 'router') count++
+      if (node.kind === 'agent' || node.kind === 'router' || node.kind === 'script') count++
       for (const child of node.children ?? []) walk(child)
       for (const route of node.routes ?? []) {
         if (route.target) walk(route.target)
@@ -299,21 +304,41 @@ export class LabRuntime {
         ...(!preview.compiled && errors[0] ? { error: errors[0].message } : {}),
       }
       if (strict && preview.compiled) {
-        const required = preview.compiled.root.requires?.capabilities ?? [
-          'tool_policy',
-          'turn_limit',
-          'token_limit',
-        ]
+        const leaves: CompiledNode[] = []
+        const collect = (node: CompiledNode): void => {
+          if (node.kind === 'agent' || node.kind === 'router' || node.kind === 'script') {
+            leaves.push(node)
+          }
+          for (const child of node.children ?? []) collect(child)
+          for (const route of node.routes ?? []) {
+            if (route.target) collect(route.target)
+          }
+        }
+        collect(preview.compiled.root)
+        const extra = preview.compiled.root.requires?.capabilities ?? []
         const harness = preview.compiled.root.requires?.adapter
-        const match = this.adapterInfo().find(
-          (adapter) =>
-            (!harness || adapter.harness === harness) &&
-            required.every((capability) => adapter.capabilities.includes(capability))
-        )
+        const needsAgent = leaves.some((leaf) => leaf.kind === 'agent' || leaf.kind === 'router')
+        const needsScript = leaves.some((leaf) => leaf.kind === 'script')
+        const live = this.adapterInfo()
+        const has = (role: 'harness' | 'runner', capabilities: string[]): boolean =>
+          live.some(
+            (adapter) =>
+              (adapter.role ?? 'harness') === role &&
+              (!harness || role !== 'harness' || adapter.harness === harness) &&
+              [...capabilities, ...extra].every((capability) =>
+                adapter.capabilities.includes(capability)
+              )
+          )
+        const agentOK = !needsAgent || has('harness', ['tool_policy', 'turn_limit', 'token_limit'])
+        const scriptOK = !needsScript || has('runner', ['script'])
+        const required = [
+          ...(needsAgent ? ['tool_policy', 'turn_limit', 'token_limit'] : []),
+          ...(needsScript ? ['script'] : []),
+          ...extra,
+        ]
         result.adapter = {
-          required: true,
-          ok: Boolean(match),
-          ...(match ? { id: match.id } : {}),
+          required: required.length > 0,
+          ok: agentOK && scriptOK,
           capabilities: required,
         }
       }
@@ -345,6 +370,9 @@ export class LabRuntime {
     return this.state.adapters.map((adapter) => ({
       id: adapter.id,
       harness: adapter.harness,
+      ...(adapter.role ? { role: adapter.role } : {}),
+      ...(adapter.machine ? { machine: adapter.machine } : {}),
+      ...(adapter.labels ? { labels: capabilities(adapter.labels) } : {}),
       ...(adapter.workspace ? { workspace: adapter.workspace } : {}),
       capabilities: capabilities(adapter.capabilities),
       ...(adapter.heartbeat_at ? { heartbeat_at: adapter.heartbeat_at } : {}),
@@ -365,10 +393,10 @@ export class LabRuntime {
     if (result.isError || !isRecord(result.value) || !isRecord(result.value.run)) return result
     const id = Number(result.value.run.id)
     if (!Number.isInteger(id)) return result
-    const taskCount = await this.pinnedTaskCount(id).catch(() => undefined)
+    const stepCount = await this.pinnedStepCount(id).catch(() => undefined)
     return {
       ...result,
-      value: { ...result.value, ...(taskCount === undefined ? {} : { taskCount }) },
+      value: { ...result.value, ...(stepCount === undefined ? {} : { stepCount }) },
     }
   }
 
@@ -455,9 +483,9 @@ export class LabRuntime {
     return value as T
   }
 
-  private async pinnedTaskCount(runID: number): Promise<number | undefined> {
+  private async pinnedStepCount(runID: number): Promise<number | undefined> {
     const pinned = await this.pinnedSnapshot(runID)
-    return pipelineTaskCount(pinned.snapshot)
+    return pipelineStepCount(pinned.snapshot)
   }
 
   async callTool(

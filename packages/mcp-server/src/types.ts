@@ -19,15 +19,17 @@ export interface ClaraBackend {
     prompt: string
     workspace?: string
     target?: string
+    capabilities?: string[]
     origin?: OriginInput
   }): Promise<unknown>
-  next(runID: number, limit?: number): Promise<unknown>
+  next(runID: number, limit?: number, capabilities?: string[]): Promise<unknown>
   complete(input: {
     run_id: number
     step_path: string
     work_token: string
     result: unknown
     usage?: UsageInput
+    exit_code?: number
   }): Promise<unknown>
   fail(input: {
     run_id: number
@@ -35,6 +37,7 @@ export interface ClaraBackend {
     work_token: string
     error: string
     usage?: UsageInput
+    exit_code?: number
   }): Promise<unknown>
   route(input: {
     run_id: number
@@ -81,6 +84,9 @@ export interface ClaraBackend {
   catalog(workspace?: string): Promise<unknown>
   registerAdapter(input: {
     harness: string
+    role?: 'harness' | 'runner'
+    machine?: string | null
+    labels?: string[]
     workspace: string
     session_id?: string | null
     capabilities: string[]

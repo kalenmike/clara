@@ -72,7 +72,7 @@ describe('orchestrator CLI', () => {
         path: 'orchestration/route-feature/1-create_spec',
         parent_path: null,
         name: 'create_spec',
-        type: 'task',
+        type: 'agent',
         max_attempts: 3,
       })
       store.updateStep(step.id, {

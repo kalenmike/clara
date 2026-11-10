@@ -31,7 +31,8 @@ human-facing Clara agent.
 
    The orchestrator owns the workspace and its configured entry point.
    `clara_start` takes only the request; the model never passes a workspace or
-   a target.
+   a target. Executors pass a `capabilities` filter so a script step is left
+   for a capable runner instead of the agent adapter.
 
    The agent has no read, edit, shell, network, or subagent tools, so it cannot
    do pipeline work itself.
@@ -141,7 +142,7 @@ first.
 
 1. **Packages are data.** The engine has no built-in software pipeline. A
    package is a directory with `index.yml` plus auto-discovered
-   `pipelines/*.yml`, `routers/*.md`, and `tasks/*.md`.
+   `pipelines/*.yml`, `routers/*.md`, `agents/*.md`, and `scripts/*.yml`.
 2. **State is event-driven.** A completion, failure, route, or spawn triggers
    the next transition in one transaction. The watchdog only repairs expired
    leases, silent workers, restart gaps, and deadline breaches, and it feeds
@@ -161,9 +162,10 @@ first.
    configures the workspace, defaulting to the service working directory. Every
    run starts at the `entry` declared by that workspace's
    `orchestration/index.yml`. Model-facing `clara_start` takes only the request;
-   explicit package references such as `std:software/feature` are reserved for
-   the Lab, operator REST calls, and tests. In-flight runs pin the resolved
-   snapshot and hash. Run lists, run status, and every MCP run payload omit the
+   the capability filter is internal to the executor. Explicit package
+   references such as `std:software/feature` are reserved for the Lab, operator
+   REST calls, and tests. In-flight runs pin the resolved snapshot and hash. Run
+   lists, run status, and every MCP run payload omit the
    pinned tree; the full step prompt, policy, limits, result, and lease are read
    only from the Lab's dedicated endpoints.
 7. **The panel controls the local service.** The **Orchestration** switch keeps
@@ -189,7 +191,7 @@ requires the current work token, so an abandoned attempt cannot keep a retried
 step alive. The model never heartbeats itself, and a long turn or tool call does
 not look like a stall.
 
-The watchdog runs every ten seconds. A task or router step whose heartbeat is
+The watchdog runs every ten seconds. An agent, router, or script step whose heartbeat is
 older than `CLARA_ORCHESTRATION_STALLED_MS` (default five minutes) or whose lease
 expired is requeued while attempts remain, or failed with a `stalled` alert. The
 timeout detects a harness that stopped reporting, not model latency. A failure
@@ -199,6 +201,103 @@ settle together.
 A managed worker that loses its lease is stopped immediately. A fallback binding
 of the parent session only detaches, so a retry never interrupts the human's
 conversation.
+
+## Step types
+
+A step declares one of five types:
+
+| Type       | Executor        | Input                         | Output                  | Model |
+| ---------- | --------------- | ----------------------------- | ----------------------- | ----- |
+| `agent`    | harness adapter | rendered prompt and inputs    | text or JSON result     | yes   |
+| `router`   | harness adapter | router prompt and request     | one route key           | yes   |
+| `script`   | runner          | declared command and inputs   | stdout, exit code, JSON | no    |
+| `pipeline` | orchestrator    | referenced or inline children | child results           | no    |
+| `group`    | orchestrator    | inline children               | child results           | no    |
+
+`agent` replaced the old `task` name. A package stores prompts under
+`agents/<name>.md`; the step resolves `agents/<step name>.md` by default, or the
+document named by `agent:`.
+
+A `script` step is deterministic. It is never sent to a model, it has no prompt,
+model, provider, turn budget, or token budget, and it completes from its exit
+code:
+
+```yaml
+steps:
+  - name: build
+    type: script
+    command: pnpm build --json
+    timeout_seconds: 900
+    result_mode: json
+    success_codes: [0]
+```
+
+A step may instead name a reusable script asset under the package's `scripts/`:
+
+```yaml
+steps:
+  - name: build
+    type: script
+    script: build
+```
+
+```yaml
+# scripts/build.yml
+description: Build the workspace
+command: pnpm build --json
+timeout_seconds: 900
+result_mode: json
+```
+
+`script` and `command` are mutually exclusive. `prompt`, `model`, and `provider`
+are load errors on a script step. `inputs` are materialised as files and exposed
+as `CLARA_INPUT_<LABEL>`, `CLARA_INPUTS`, `CLARA_ARTIFACTS`, and
+`CLARA_REQUEST`. The runner inherits a small base environment plus `passEnv` and
+the step's `env`.
+
+`result_mode` is `auto` (default), `json`, `text`, `exit`, or `tail`. In `auto`
+mode, valid JSON on stdout becomes the step result; otherwise the result is
+`{ exit_code, stdout, stderr }`. In `json` mode, unparseable stdout fails the
+step instead of storing a parse error as a result. A nonzero exit fails the step unless it is in
+`success_codes`. Script output is capped by `max_output_bytes` (default 64 KiB)
+and streamed as `step.output` events. Script retries default to one attempt, so
+a side effect is not replayed accidentally.
+
+## Runners
+
+The orchestrator never spawns a process. `script` steps are executed by a
+runner, which claims work, renews the lease, streams output, and reports the
+result. The runner is a role on the same work-order protocol as an agent
+adapter.
+
+There are two hosts:
+
+- **Embedded.** The OpenCode adapter imports `@clara/runner` and starts one by
+  default. It registers as `role: runner` with the `script` capability, so a
+  normal `pnpm clara adapter install opencode` is enough.
+- **Standalone.** `pnpm clara runner [--workspace <path>] [--label <name>]`
+  runs the same library on another machine, a build host, a CI box, or the
+  service host. Future Claude or other adapters import the same package.
+
+Claims are capability-filtered. Model executors advertise `agent`; runners
+advertise `script`. `POST /v1/runs/:id/next` and `clara_next` accept
+`capabilities`, and a standalone runner uses `POST /v1/work/next` to
+claim script work across the active runs of its workspace without enumerating
+run ids. A step that sets `requires.runner: build-host` is only released to a
+runner with that id or label. If a ready script step has no capable runner for
+`CLARA_RUNNER_WAIT_MS` (default 60 s), the watchdog opens one `no_runner` alert.
+
+The adapter writes `~/.config/opencode/clara-policy.json`:
+
+```json
+{ "runner": { "enabled": true, "concurrency": 2 } }
+```
+
+`CLARA_RUNNER_ENABLED`, `CLARA_RUNNER_CONCURRENCY`, `CLARA_RUNNER_LABELS`, and
+`CLARA_RUNNER_ID` override it. A script that restarts its own host must run on a
+standalone runner; the embedded runner dies with OpenCode. The maintenance
+CLI keeps its restart journal, so a retry resumes instead of repeating a
+rebuild.
 
 ## Step and run invariants
 
@@ -289,7 +388,7 @@ overrides:
     pipelines:
       research:
         default_model: gpt-5
-    tasks:
+    agents:
       draft_report:
         model: gpt-5
 ```
@@ -300,7 +399,7 @@ the most specific value to the least:
 
 1. step `model` / `provider`
 2. pipeline `default_model` / `default_provider`
-3. task frontmatter `model` / `provider`
+3. agent frontmatter `model` / `provider`
 4. package manifest `defaults.model` / `defaults.provider`
 5. workspace `defaults`
 
@@ -308,8 +407,8 @@ A step may override only one half; the other is inherited independently.
 
 `overrides` replaces only the keys it names for an imported package, keyed by
 its import ref (`std:software`). It accepts `defaults` (`model` / `provider`),
-`pipelines.<id>` (`default_model` / `default_provider`), and `tasks.<name>`
-(`model` / `provider`). Unknown packages, pipelines, tasks, and keys fail at
+`pipelines.<id>` (`default_model` / `default_provider`), and `agents.<name>`
+(`model` / `provider`). Unknown packages, pipelines, agents, and keys fail at
 load time. Standard packages never need editing: the override is applied before
 compilation, so the lab preview, pinned snapshot, and hash all reflect the
 effective values.
@@ -330,9 +429,9 @@ the run:
 ```yaml
 steps:
   - name: create_spec
-    type: task
+    type: agent
   - name: code_review
-    type: task
+    type: agent
     inputs:
       spec: create_spec
       tests: write_tests
@@ -351,19 +450,23 @@ the label and the target are the same (`inputs: [create_spec]`,
 - Inputs must point to an earlier sibling in the same pipeline or group.
   Unknown, forward, self, and `background: true` references fail at compile
   time with the available names.
-- A declared input is rendered in full. Nothing else is pushed: an undeclared
-  result does not appear in the work order and cannot be read by the worker. A
-  step with no `inputs` receives no earlier result, only its artifacts and the
-  request reference.
-- Artifacts are paths, not contents. The worker reads them with its own tools;
-  the preview flags a literal path that does not exist.
+- A declared input is rendered in full to an agent. An agent sees `# Inputs` in
+  its prompt. A script receives the same results as JSON files in
+  `CLARA_INPUT_<LABEL>` with an index at `CLARA_INPUTS`. Nothing else is
+  pushed: an undeclared result does not appear in the work order and cannot be
+  read by the executor. A step with no `inputs` receives no earlier result, only
+  its artifacts and the request reference.
+- Artifacts are paths, not contents. An agent reads them with its own tools; a
+  script reads them from the workspace or `CLARA_ARTIFACTS`. The preview flags a
+  literal path that does not exist.
 - A step waits until its declared inputs have results. If one can never produce
   a result, the step fails with `input_unavailable` instead of starting without
   it.
 
 ## Worker prompt
 
-The adapter turns a work order into one model prompt:
+The adapter turns an `agent` or `router` work order into one model prompt. A
+script work order has no prompt; the runner executes `script.command` directly.
 
 1. the pinned step prompt from the package; a router prompt already contains the
    rendered route list, so the adapter never appends it again,
@@ -384,7 +487,7 @@ attempt, or budget. Those are orchestrator state. The adapter binds the run id,
 step path, and work token to the managed session and supplies them to the control
 tools, so a worker only sends the route key, the result, or the failure reason.
 
-The worker is expected to finish through a Clara control tool. If a managed task
+The worker is expected to finish through a Clara control tool. If a managed agent
 session goes idle without one, the adapter sends a single corrective turn. If it
 still does not call a control tool, the adapter records the final assistant text
 as an inferred completion (`{ summary, inferred: true }`) instead of discarding
@@ -398,7 +501,7 @@ releases it without sending a corrective turn. A fallback binding of the human's
 session detaches at once and is never interrupted.
 
 The adapter also scopes the tool list for each model call. A router sees only
-`clara_route` and `clara_fail`; a task keeps its repository tools and sees only
+`clara_route` and `clara_fail`; an agent keeps its repository tools and sees only
 `clara_complete`, `clara_fail`, and `clara_spawn` from the Clara namespace. The
 route parameter is an enum of the work order's route keys, so routing is a
 structured choice instead of a free string. The orchestrator still validates the
@@ -422,9 +525,9 @@ three strict lifecycles. Feature work runs spec, plan, tests, build, an
 independent verification gate, review, and docs. Bug work runs reproduction, a
 failing regression test, the smallest fix, verification, review, and docs.
 Documentation-only work runs assessment, in-place updates, link and index
-verification, and review. Every task step resolves to a Markdown task under
-`lib/std/software/tasks`; the loader test fails when a pipeline names a missing
-task. Bug tasks opt into `on_exhausted: fail`, carry a token `growth_rate` so a
+verification, and review. Every agent step resolves to a Markdown agent under
+`lib/std/software/agents`; the loader test fails when a pipeline names a missing
+agent. Bug agents opt into `on_exhausted: fail`, carry a token `growth_rate` so a
 retry has more room than the attempt it replaces, and limit automated attempts
 (one retry for most steps, two for the fix) so a failing lifecycle stops with
 an alert instead of spending a larger budget on the same investigation.
@@ -443,8 +546,8 @@ The `std:diagnostics` package audits the orchestrator itself. Its `diagnose`
 pipeline collects a deterministic report from run history, patterns the
 failures, audits the package and watchdog setup, ranks issues, proposes fixes,
 and returns the reviewed Markdown report. It uses `observed` enforcement so a
-missing or stale adapter does not block the diagnosis, and its tasks never edit
-files or mutate the database. Run it from Clara with a request such as "audit
+missing or stale adapter does not block the diagnosis. Evidence collection is a
+script; the interpretation agents never edit files or mutate the database. Run it from Clara with a request such as "audit
 the orchestrator setup"; the configured router selects it. In the Lab, an
 operator can start it directly with `target: std:diagnostics`. See
 [diagnostics.md](diagnostics.md).
@@ -456,8 +559,8 @@ Its `rebuild` pipeline snapshots the running services and adapters, runs
 `pnpm install --frozen-lockfile` and `pnpm build`, installs the OpenCode
 adapter, restarts only the services that were running, and verifies every health
 endpoint. The deterministic mechanics live in `pnpm clara rebuild
-status|build|adapters|restart|health`; each pipeline task allows only that one
-command. The orchestrator restarts last, the command waits for `/health` before
+status|build|adapters|restart|health`; every pipeline step is a script that runs
+exactly that one command, so no model turn is involved. The orchestrator restarts last, the command waits for `/health` before
 the worker reports completion, and a restart journal makes a watchdog retry
 resume instead of repeating the rebuild. An orchestrator reached through a
 non-loopback URL is treated as external and verified but not restarted unless
@@ -470,7 +573,7 @@ enforcement so it can run while the adapter or setup is degraded. See
 - A strict run starts with no adapter: it is refused with
   `enforcement_unavailable`, never downgraded silently.
 - A router selects an unknown route: the step is rejected and the run fails.
-- A worker answers in text without calling a Clara control tool: a task gets one
+- A worker answers in text without calling a Clara control tool: an agent gets one
   corrective turn, then completes from its final text with `inferred: true`; a
   router still fails with `missing control call`.
 - A worker disappears: its lease expires, the watchdog marks it retried or
@@ -483,6 +586,20 @@ enforcement so it can run while the adapter or setup is degraded. See
   `run_terminal` instead of recording work under a terminal run.
 - A spawned batch succeeds: the parent step records the child results and the
   pipeline continues without a second model turn.
+- A script exits nonzero: the step fails with the exit code and output tail
+  unless the code is in `success_codes`. Scripts retry once by default.
+- A script exceeds `timeout_seconds`: the runner terminates the process group
+  and fails the step. The attempt records the timeout, not a model stall.
+- A ready script step has no runner: it stays ready and the watchdog opens one
+  `no_runner` alert after `CLARA_RUNNER_WAIT_MS`. Register the embedded or a
+  standalone runner; the step is not failed.
+- A strict pipeline mixes agents and scripts: the harness adapter and the runner
+  are checked separately, and both must be live.
+- A script writes more than `max_output_bytes`: the result keeps a truncated
+  tail and the streamed `step.output` events stay bounded.
+- A script restarts its own host: the embedded runner dies with the harness. Run
+  that step with a standalone runner on the service host, or rely on the
+  command's journal on the next attempt.
 - The origin session is archived, missing, or no longer uses the Clara agent:
   the result stays in the inbox and the adapter does not prompt that session.
 - The package tree changes mid-run: the pinned snapshot still applies.
@@ -527,7 +644,8 @@ enforcement so it can run while the adapter or setup is degraded. See
 
 ## Out of scope
 
-- The service calling a model, creating a session, or spawning a process.
+- The orchestrator calling a model, creating a session, or spawning a process.
+  Runners execute scripts; the service only owns state.
 - MCP-only strict enforcement without a harness adapter or sandbox.
 - A visual pipeline editor; YAML and Markdown are the authoring surface.
 - Remote access to the orchestrator; it binds loopback only.
@@ -536,7 +654,16 @@ enforcement so it can run while the adapter or setup is degraded. See
 ## Known gaps
 
 - The OpenCode adapter is the first strict adapter. Other harnesses can use the
-  generic MCP surface in observed mode or implement the adapter protocol.
+  generic MCP surface in observed mode or implement the adapter protocol. The
+  script runner is shared in `@clara/runner`; a new adapter imports it rather
+  than reimplementing execution.
+- A standalone runner is a separate process. It is not supervised by the
+  orchestrator; use the service manager or container of your choice.
+- Script execution is POSIX-first. The Windows path uses `cmd /d /s /c` and
+  `taskkill`, but the standard packages target the host that runs the CLI.
+- A script that needs dynamic request arguments must read `CLARA_REQUEST` in a
+  wrapper command. The runner does not interpolate request text into the
+  command.
 - Token limits depend on harness-reported usage. The OpenCode adapter reports
   model token usage from assistant-message events; another harness must report
   it through `clara_usage`. Turn, tool-call, wall-clock, and attempt limits are
@@ -566,16 +693,18 @@ enforcement so it can run while the adapter or setup is degraded. See
 - Service: `apps/orchestrator`, loopback REST, SSE, and `/mcp`.
 - MCP bridge: `apps/mcp`, stdio, talks to the service over loopback HTTP.
 - Engine: `packages/orchestration`; policy: `packages/policy`; shared MCP tools:
-  `packages/mcp-server`; OpenCode adapter: `plugins/clara-policy`; developer
-  preview and probe: `packages/devtools` and `apps/lab`.
+  `packages/mcp-server`; script runner: `packages/runner`; OpenCode adapter:
+  `plugins/clara-policy`; developer preview and probe: `packages/devtools` and
+  `apps/lab`.
 - Standard packages: `lib/std/software`, `lib/std/content`,
   `lib/std/research`, `lib/std/diagnostics`, and `lib/std/maintenance`. The
   research pipeline scopes the question, gathers external sources, verifies
   every material claim against independent dated sources, and returns a concise
   linked Markdown report. The diagnostics pipeline analyzes the orchestrator
   database and setup, then returns ranked issues with proposed fixes. The
-  maintenance pipeline rebuilds Clara, reinstalls its adapters, restarts the
-  captured services, and verifies health. See [maintenance.md](maintenance.md).
+  maintenance pipeline is entirely deterministic scripts that rebuild Clara,
+  reinstall its adapters, restart the captured services, and verify health. See
+  [maintenance.md](maintenance.md).
 - Primary config: `orchestration/index.yml`.
 - Data: `${CLARA_DATA_DIR:-~/.local/share/clara}/orchestration.db`,
   `orchestrator.token`, and `policy-delivery.json` (adapter delivery cursor).
@@ -587,6 +716,7 @@ enforcement so it can run while the adapter or setup is degraded. See
   `pnpm clara orchestration start [--docker] [--build]|stop [--docker]|status|serve|token|analyze`,
   `pnpm clara mcp install|uninstall|config|status`,
   `pnpm clara adapter install opencode|uninstall|status`,
+  `pnpm clara runner [--workspace <path>] [--label <name>] [--once]`,
   `pnpm clara rebuild status|build|adapters|restart|health`,
   `pnpm clara lab [serve|check]`. Running `pnpm clara orchestration` without a
   subcommand prints help instead of starting the service.
@@ -610,14 +740,19 @@ path] [--url url]` and `GET /v1/diagnostics?days=30`. The analyzer is
 - MCP tools: `clara_start`, `clara_next`, `clara_complete`, `clara_fail`,
   `clara_route`, `clara_spawn`, `clara_status`, `clara_attempts`, `clara_inbox`,
   `clara_cancel`, `clara_tick`, `clara_check`, `clara_usage`, `clara_heartbeat`,
-  `clara_catalog`, and the adapter administration tools.
-- Package assets: `pipelines/*.yml`, `routers/*.md`, `tasks/*.md`; `index.yml`
+  `clara_catalog`, and the adapter administration tools. `clara_next` accepts
+  `capabilities`; `clara_complete` and `clara_fail` accept `exit_code`.
+- Package assets: `pipelines/*.yml`, `routers/*.md`, `agents/*.md`, and
+  `scripts/*.yml`; `index.yml`
   declares the entry, imports, defaults, and can override discovered assets.
-  Defaults accept `provider`, `model`, `task_dir`, and `enforcement`; pipelines
-  accept `default_provider` / `default_model`; steps and tasks accept
+  Defaults accept `provider`, `model`, `agent_dir`, `script_dir`, and
+  `enforcement`; pipelines accept `default_provider` / `default_model`; steps and
+  agents accept
   `provider` / `model`. The workspace config also accepts `overrides`, keyed by
-  import ref, with `defaults`, `pipelines.<id>`, and `tasks.<name>` model and
-  provider patches. Router routes accept `when`, `run`, and optional
+  import ref, with `defaults`, `pipelines.<id>`, and `agents.<name>` model and
+  provider patches. Script steps accept `script` or `command`, `interpreter`,
+  `cwd`, `env`, `pass_env`, `timeout_seconds`, `success_codes`, `result_mode`,
+  and `max_output_bytes`. Router routes accept `when`, `run`, and optional
   `criteria`.
 - References: `std:software` (package entry), `std:software/feature`,
   `std:software/bug`, and `std:software/docs` (named pipelines), `std:research`

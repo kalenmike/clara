@@ -4,22 +4,22 @@ description: Standard feature development lifecycle
 enforcement: strict
 steps:
   - name: create_spec
-    type: task
+    type: agent
   - name: plan_implementation
-    type: task
+    type: agent
     inputs:
       spec: create_spec
     artifacts:
       spec: spec.md
   - name: write_tests
-    type: task
+    type: agent
     inputs:
       spec: create_spec
       plan: plan_implementation
     artifacts:
       spec: spec.md
   - name: build_feature
-    type: task
+    type: agent
     inputs:
       spec: create_spec
       plan: plan_implementation
@@ -27,14 +27,14 @@ steps:
     artifacts:
       spec: spec.md
   - name: verify_implementation
-    type: task
+    type: agent
     inputs:
       spec: create_spec
       build: build_feature
     artifacts:
       spec: spec.md
   - name: code_review
-    type: task
+    type: agent
     inputs:
       spec: create_spec
       tests: write_tests
@@ -43,7 +43,7 @@ steps:
     artifacts:
       spec: spec.md
   - name: update_docs
-    type: task
+    type: agent
     inputs:
       spec: create_spec
       review: code_review

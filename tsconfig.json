@@ -26,6 +26,9 @@
       "path": "./packages/orchestration"
     },
     {
+      "path": "./packages/runner"
+    },
+    {
       "path": "./packages/orchestration-control"
     },
     {

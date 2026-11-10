@@ -62,7 +62,7 @@ function seedStep(store: Store, run: RunRow, input: SeedStepInput) {
     path: input.path,
     parent_path: null,
     name: input.name,
-    type: input.type ?? 'task',
+    type: input.type ?? 'agent',
     max_attempts: input.maxAttempts ?? 3,
   })
   store.updateStep(step.id, {
@@ -243,6 +243,21 @@ describe('orchestration diagnostics', () => {
     })
     const report = analyzeDatabase(store.db, { now: NOW })
     expect(report.anomalies.map((entry) => entry.code)).toContain('missing_model_provider')
+  })
+
+  it('does not require a model for a script step', () => {
+    const store = new Store(':memory:')
+    const run = seedRun(store, { state: 'completed', error: null })
+    seedStep(store, run, {
+      path: 'orchestration/1-build',
+      name: 'build',
+      type: 'script',
+      status: 'done',
+      model: null,
+      provider: null,
+    })
+    const report = analyzeDatabase(store.db, { now: NOW })
+    expect(report.anomalies.map((entry) => entry.code)).not.toContain('missing_model_provider')
   })
 
   it('flags strict runs without a registered adapter', () => {

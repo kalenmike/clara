@@ -206,9 +206,56 @@ export function createOrchestratorServer(options: OrchestratorServerOptions): Or
         json(res, 200, await backend.step(Number(stepDetailMatch[1]), decode(stepDetailMatch[2])))
         return
       }
+      if (url.pathname === '/v1/work/next' && req.method === 'POST') {
+        const input = await body(req)
+        const capabilities = Array.isArray(input.capabilities)
+          ? input.capabilities.filter((item): item is string => typeof item === 'string')
+          : []
+        const runner =
+          input.runner && typeof input.runner === 'object'
+            ? {
+                id: String((input.runner as Record<string, unknown>).id ?? ''),
+                labels: Array.isArray((input.runner as Record<string, unknown>).labels)
+                  ? ((input.runner as Record<string, unknown>).labels as unknown[]).filter(
+                      (item): item is string => typeof item === 'string'
+                    )
+                  : [],
+              }
+            : undefined
+        json(
+          res,
+          200,
+          await backend.workNext({
+            ...(typeof input.workspace === 'string' ? { workspace: input.workspace } : {}),
+            capabilities,
+            ...(runner?.id ? { runner } : {}),
+            limit: number(input.limit, 1),
+          })
+        )
+        return
+      }
       if (url.pathname.match(/^\/v1\/runs\/\d+\/next$/) && req.method === 'POST') {
         const input = await body(req)
-        json(res, 200, await backend.next(runID(url), number(input.limit, 1)))
+        const capabilities = Array.isArray(input.capabilities)
+          ? input.capabilities.filter((item): item is string => typeof item === 'string')
+          : undefined
+        json(res, 200, await backend.next(runID(url), number(input.limit, 1), capabilities))
+        return
+      }
+      const outputMatch = url.pathname.match(/^\/v1\/runs\/(\d+)\/steps\/(.+)\/output$/)
+      if (outputMatch && req.method === 'POST') {
+        const input = await body(req)
+        json(
+          res,
+          200,
+          await backend.output({
+            run_id: Number(outputMatch[1]),
+            step_path: decode(outputMatch[2]),
+            work_token: typeof input.work_token === 'string' ? input.work_token : '',
+            stream: input.stream === 'stderr' ? 'stderr' : 'stdout',
+            chunk: typeof input.chunk === 'string' ? input.chunk : '',
+          })
+        )
         return
       }
       if (url.pathname.match(/^\/v1\/runs\/\d+\/cancel$/) && req.method === 'POST') {

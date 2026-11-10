@@ -119,7 +119,7 @@ async function check(options: Options): Promise<void> {
       console.log(`hash:      ${result.compiled.hash}`)
       if (result.stats) {
         console.log(
-          `steps:     ${result.stats.nodes} nodes, ${result.stats.tasks} tasks, ${result.stats.routers} routers, ${result.stats.routes} routes`
+          `steps:     ${result.stats.nodes} nodes, ${result.stats.agents} agents, ${result.stats.scripts} scripts, ${result.stats.routers} routers, ${result.stats.routes} routes`
         )
       }
     }

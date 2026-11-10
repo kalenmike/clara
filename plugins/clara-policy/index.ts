@@ -9,8 +9,9 @@
 // The MCP bridge remains the generic surface for other harnesses.
 
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
-import { homedir } from 'node:os'
+import { homedir, hostname } from 'node:os'
 import { join, resolve } from 'node:path'
+import { createRunner, type Runner, type ScriptWorkOrder } from '@clara/runner'
 import { createDeliveryCycle } from './delivery-cycle.ts'
 import { applyDeliveryClaim, isTerminalState } from './delivery.ts'
 import type { DeliveryAlert, DeliveryRun, DeliveryState } from './delivery.ts'
@@ -26,7 +27,15 @@ import {
 import type { ModelTokens } from './usage.ts'
 import { catalogPath, needsExplicitWorkspace, resolveWorkspace } from './workspace.ts'
 
-const CAPABILITIES = ['tool_policy', 'path_policy', 'shell_policy', 'turn_limit', 'token_limit']
+const CAPABILITIES = [
+  'agent',
+  'script',
+  'tool_policy',
+  'path_policy',
+  'shell_policy',
+  'turn_limit',
+  'token_limit',
+]
 const INTERFACE_AGENT = process.env.CLARA_INTERFACE_AGENT?.trim() || 'clara'
 const DELIVERY_LIMIT = 500
 
@@ -162,6 +171,37 @@ function deliveryFile(): string {
   return join(dataDir(), 'policy-delivery.json')
 }
 
+interface AdapterConfig {
+  runner?: {
+    enabled?: boolean
+    concurrency?: number
+    labels?: string[]
+  }
+}
+
+function adapterConfigPath(): string {
+  const configHome = process.env.XDG_CONFIG_HOME?.trim() || join(homedir(), '.config')
+  return join(configHome, 'opencode', 'clara-policy.json')
+}
+
+function readAdapterConfig(): AdapterConfig {
+  const path = adapterConfigPath()
+  if (!existsSync(path)) return {}
+  try {
+    const parsed = JSON.parse(readFileSync(path, 'utf8')) as AdapterConfig
+    return parsed && typeof parsed === 'object' ? parsed : {}
+  } catch {
+    return {}
+  }
+}
+
+function runnerEnabled(config: AdapterConfig): boolean {
+  const env = process.env.CLARA_RUNNER_ENABLED?.trim().toLowerCase()
+  if (env === '0' || env === 'false' || env === 'off') return false
+  if (env === '1' || env === 'true' || env === 'on') return true
+  return config.runner?.enabled !== false
+}
+
 function readDeliveryState(): DeliveryState {
   const path = deliveryFile()
   if (!existsSync(path)) return { alerts: new Set(), runs: new Set() }
@@ -277,6 +317,8 @@ export default {
 
   async setup(ctx: Any) {
     const config = serviceConfig()
+    const localConfig = readAdapterConfig()
+    let runner: Runner | undefined
     const active = new Map<string, ActiveWork>()
     const seenMessages = new Set<string>()
     const activeRuns = new Set<number>()
@@ -504,6 +546,8 @@ export default {
         }
         const registered = await call<{ id: string }>(config, 'POST', '/v1/adapters/register', {
           harness: 'opencode',
+          role: 'harness',
+          machine: hostname(),
           workspace,
           capabilities: CAPABILITIES,
         })
@@ -512,6 +556,37 @@ export default {
       } catch (error) {
         console.error(`[clara-policy] adapter registration failed: ${(error as Error).message}`)
       }
+    }
+
+    const startRunner = async (): Promise<void> => {
+      if (runner || !runnerEnabled(localConfig)) return
+      const workspace = currentWorkspace()
+      const configured = Number(
+        process.env.CLARA_RUNNER_CONCURRENCY ?? localConfig.runner?.concurrency ?? 2
+      )
+      const labels =
+        localConfig.runner?.labels ??
+        (process.env.CLARA_RUNNER_LABELS ?? '')
+          .split(',')
+          .map((label) => label.trim())
+          .filter(Boolean)
+      runner = createRunner({
+        url: config.url,
+        token: config.token,
+        workspace,
+        id:
+          process.env.CLARA_RUNNER_ID?.trim() ||
+          `clara-runner-opencode-${hostname()}-${process.pid}`,
+        labels,
+        concurrency: Number.isFinite(configured) && configured > 0 ? configured : 2,
+        capabilities: ['script'],
+        logger: {
+          log: (message) => console.log(message),
+          warn: (message) => console.warn(message),
+          error: (message) => console.error(message),
+        },
+      })
+      await runner.start()
     }
 
     const bind = (session: string | undefined, work: Any, managed: boolean): void => {
@@ -539,7 +614,7 @@ export default {
         session,
         workspace: String(work.workspace ?? currentWorkspace()),
         enforcement: String(work.enforcement ?? 'observed'),
-        kind: String(work.kind ?? 'task'),
+        kind: String(work.kind ?? 'agent'),
         routes: Array.isArray(work.routes)
           ? work.routes.flatMap((route: Any) =>
               typeof route?.when === 'string' && route.when ? [{ when: route.when }] : []
@@ -690,6 +765,19 @@ export default {
     const dispatchWork = async (work: Any[], context: Any): Promise<unknown[]> => {
       const dispatched: unknown[] = []
       for (const order of work) {
+        if (order.kind === 'script') {
+          if (!runner) {
+            dispatched.push(order)
+            continue
+          }
+          await runner.execute(order as ScriptWorkOrder)
+          dispatched.push({
+            run_id: order.run_id,
+            step_path: order.step_path,
+            runner: 'managed',
+          })
+          continue
+        }
         if (await dispatch(order, context)) {
           dispatched.push({ run_id: order.run_id, step_path: order.step_path, session: 'managed' })
         } else {
@@ -851,6 +939,7 @@ export default {
     }
 
     await register()
+    await startRunner()
     await adoptRuns()
     void deliverRuns()
     const heartbeat = setInterval(() => {
@@ -1018,7 +1107,10 @@ export default {
       void (async () => {
         for (const runID of activeRuns) {
           try {
-            const work = await call<Any[]>(config, 'POST', `/v1/runs/${runID}/next`, { limit: 8 })
+            const work = await call<Any[]>(config, 'POST', `/v1/runs/${runID}/next`, {
+              limit: 8,
+              capabilities: ['agent'],
+            })
             if (work.length) {
               await dispatchWork(work, ctx)
               continue
@@ -1063,6 +1155,7 @@ export default {
             }
             const started = await call<Any>(config, 'POST', '/v1/runs', {
               prompt: input.prompt,
+              capabilities: ['agent'],
               ...(serviceNeedsWorkspace && configuredWorkspace
                 ? { workspace: configuredWorkspace }
                 : {}),
@@ -1101,6 +1194,7 @@ export default {
             activeRuns.add(Number(input.run_id))
             const work = await call<Any[]>(config, 'POST', `/v1/runs/${input.run_id}/next`, {
               limit: input.limit ?? 1,
+              capabilities: ['agent'],
             })
             return content(await dispatchWork(work, context))
           }

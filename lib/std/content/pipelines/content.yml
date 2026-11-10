@@ -3,18 +3,18 @@ name: Content request
 description: Brief, draft, edit, deliver.
 steps:
   - name: brief
-    type: task
+    type: agent
   - name: draft
-    type: task
+    type: agent
     inputs:
       brief: brief
   - name: edit
-    type: task
+    type: agent
     inputs:
       brief: brief
       draft: draft
   - name: deliver
-    type: task
+    type: agent
     inputs:
       brief: brief
       draft: draft

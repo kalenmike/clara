@@ -1,7 +1,23 @@
 import type { EnforcementMode, Limits, PermissionRule, StepPolicy } from '@clara/policy'
 
-export type StepType = 'task' | 'pipeline' | 'router' | 'group'
+export type StepType = 'agent' | 'script' | 'pipeline' | 'router' | 'group'
 export type RouterStrategy = 'llm_classify' | 'fixed'
+export type ScriptResultMode = 'auto' | 'json' | 'text' | 'exit' | 'tail'
+
+/** The deterministic payload of a script step. */
+export interface ScriptSpec {
+  command: string
+  interpreter?: string
+  /** Workspace-relative working directory. Defaults to the run workspace. */
+  cwd?: string
+  env?: Record<string, string>
+  /** Runner environment variables to forward to the process. */
+  passEnv?: string[]
+  timeoutSeconds?: number
+  successCodes?: number[]
+  resultMode?: ScriptResultMode
+  maxOutputBytes?: number
+}
 
 export interface RouteDefinition {
   when: string
@@ -26,6 +42,8 @@ export interface NotificationPolicy {
 
 export interface Requirement {
   adapter?: string
+  /** Named runner (id or label) required by a script step. */
+  runner?: string
   capabilities?: string[]
 }
 
@@ -35,7 +53,20 @@ export interface StepDefinition {
   title?: string
   description?: string
   prompt?: string
-  task?: string
+  /** Agent document selected by an agent step. Defaults to the step name. */
+  agent?: string
+  /** Named script document selected by a script step. */
+  script?: string
+  /** Inline command for a script step. Mutually exclusive with `script`. */
+  command?: string
+  interpreter?: string
+  cwd?: string
+  env?: Record<string, string>
+  pass_env?: string[]
+  timeout_seconds?: number
+  success_codes?: number[]
+  result_mode?: ScriptResultMode
+  max_output_bytes?: number
   ref?: string
   path?: string
   /** label -> earlier sibling step name, resolved to a compiled path. */
@@ -89,7 +120,7 @@ export interface RouterDefinition {
   source?: string
 }
 
-export interface TaskDefinition {
+export interface AgentDefinition {
   name: string
   description?: string
   prompt: string
@@ -99,6 +130,22 @@ export interface TaskDefinition {
   policy?: StepPolicy
   limits?: Limits
   retries?: RetryPolicy
+  source?: string
+}
+
+/** A reusable deterministic command, discovered from a package's `scripts/`. */
+export interface ScriptDefinition {
+  name: string
+  description?: string
+  command: string
+  interpreter?: string
+  cwd?: string
+  env?: Record<string, string>
+  passEnv?: string[]
+  timeoutSeconds?: number
+  successCodes?: number[]
+  resultMode?: ScriptResultMode
+  maxOutputBytes?: number
   source?: string
 }
 
@@ -119,8 +166,8 @@ export interface PackageOverrides {
   defaults?: ModelSelection
   /** Replaces pipeline-level defaults by pipeline id. */
   pipelines?: Record<string, { default_model?: string; default_provider?: string }>
-  /** Replaces task frontmatter by task name. */
-  tasks?: Record<string, ModelSelection>
+  /** Replaces agent frontmatter by agent name. */
+  agents?: Record<string, ModelSelection>
 }
 
 /** Workspace-level overrides keyed by an import ref such as `std:software`. */
@@ -143,7 +190,8 @@ export interface PackageManifest {
   defaults?: {
     model?: string
     provider?: string
-    task_dir?: string
+    agent_dir?: string
+    script_dir?: string
     enforcement?: EnforcementMode
     notification?: NotificationPolicy
   }
@@ -162,7 +210,8 @@ export interface LoadedPackage {
   dir: string
   pipelines: Map<string, PipelineDefinition>
   routers: Map<string, RouterDefinition>
-  tasks: Map<string, TaskDefinition>
+  agents: Map<string, AgentDefinition>
+  scripts: Map<string, ScriptDefinition>
   imports: Map<string, LoadedPackage[]>
   entry: PackageEntry
   sources: string[]
@@ -190,10 +239,12 @@ export interface CompiledNode {
   title: string
   description?: string
   prompt?: string
-  /** Where a task prompt came from, so previews can flag generated fallbacks. */
-  promptSource?: 'step' | 'task' | 'description' | 'fallback' | 'router'
-  /** Matched task file, when the step resolved through a task document. */
-  task?: string
+  /** Where an agent prompt came from, so previews can flag generated fallbacks. */
+  promptSource?: 'step' | 'agent' | 'description' | 'fallback' | 'router'
+  /** Matched agent document, when the step resolved through an agent file. */
+  agent?: string
+  /** Deterministic payload for a script step. */
+  script?: ScriptSpec
   model?: string
   provider?: string
   policy?: StepPolicy

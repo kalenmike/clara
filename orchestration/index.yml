@@ -17,7 +17,7 @@ defaults:
 #     pipelines:
 #       feature:
 #         default_model: 'deepseek-v4.1-flash'
-#     tasks:
+#     agents:
 #       code_review:
 #         model: 'deepseek-v4.1-flash'
 
@@ -66,8 +66,10 @@ router:
 #     description: 'A quick and easy pipeline without imports'
 #     steps:
 #       - name: step_one
-#         type: task
+#         type: agent
 #       - name: step_two
-#         type: task
+#         type: script
+#         command: echo '{"ok":true}'
+#         result_mode: json
 #         inputs:
 #           patch: step_one

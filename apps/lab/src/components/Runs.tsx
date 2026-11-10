@@ -31,7 +31,7 @@ function currentStep(steps: StepSummary[] | undefined): StepSummary | undefined 
   return (
     steps?.find((step) => step.status === 'running') ??
     steps?.find((step) => step.status === 'waiting') ??
-    steps?.find((step) => step.type === 'task' || step.type === 'router')
+    steps?.find((step) => step.type === 'agent' || step.type === 'router' || step.type === 'script')
   )
 }
 
@@ -85,9 +85,12 @@ export function Runs({
           ? current
           : (value.steps.find(
               (step) =>
-                step.status === 'running' && (step.type === 'task' || step.type === 'router')
+                step.status === 'running' &&
+                (step.type === 'agent' || step.type === 'router' || step.type === 'script')
             )?.path ??
-            value.steps.find((step) => step.type === 'task' || step.type === 'router')?.path ??
+            value.steps.find(
+              (step) => step.type === 'agent' || step.type === 'router' || step.type === 'script'
+            )?.path ??
             value.steps.find((step) => step.status === 'running')?.path ??
             value.steps[0]?.path)
       )
@@ -393,9 +396,9 @@ export function Runs({
                 </div>
                 <div className="run-head-actions">
                   <div className="chips">
-                    {selectedStatus.taskCount ? (
+                    {selectedStatus.stepCount ? (
                       <span className="chip">
-                        {doneStepCount(selectedStatus.steps)}/{selectedStatus.taskCount} steps
+                        {doneStepCount(selectedStatus.steps)}/{selectedStatus.stepCount} steps
                       </span>
                     ) : null}
                     <span className="chip">{selectedRun.pipeline_ref}</span>
@@ -571,7 +574,7 @@ export function Runs({
 function doneStepCount(steps: StepSummary[]): number {
   return steps.filter(
     (step) =>
-      (step.type === 'task' || step.type === 'router') &&
+      (step.type === 'agent' || step.type === 'router' || step.type === 'script') &&
       (step.status === 'done' || step.status === 'skipped')
   ).length
 }

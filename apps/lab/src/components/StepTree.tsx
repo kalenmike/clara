@@ -4,7 +4,8 @@ import { ago, formatTokens, modelLabel, statusTone } from '../lib/format'
 import { Badge } from './Badge'
 
 function kindTone(kind: string): 'ok' | 'bad' | 'live' | 'idle' | 'warn' {
-  if (kind === 'task') return 'live'
+  if (kind === 'agent') return 'live'
+  if (kind === 'script') return 'ok'
   if (kind === 'router') return 'warn'
   if (kind === 'pipeline') return 'ok'
   return 'idle'

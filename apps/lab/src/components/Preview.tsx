@@ -298,10 +298,16 @@ export function Preview({
                         <span className="muted">{pkg.routers.map((r) => r.id).join(', ')}</span>
                       </div>
                     ) : null}
-                    {pkg.tasks.length ? (
+                    {pkg.agents.length ? (
                       <div className="package-group">
-                        <span className="group-label">tasks</span>
-                        <span className="muted">{pkg.tasks.map((t) => t.name).join(', ')}</span>
+                        <span className="group-label">agents</span>
+                        <span className="muted">{pkg.agents.map((t) => t.name).join(', ')}</span>
+                      </div>
+                    ) : null}
+                    {pkg.scripts.length ? (
+                      <div className="package-group">
+                        <span className="group-label">scripts</span>
+                        <span className="muted">{pkg.scripts.map((t) => t.name).join(', ')}</span>
                       </div>
                     ) : null}
                   </details>
@@ -322,7 +328,8 @@ export function Preview({
             {result?.stats ? (
               <div className="stats">
                 <span>{result.stats.nodes} nodes</span>
-                <span>{result.stats.tasks} tasks</span>
+                <span>{result.stats.agents} agents</span>
+                <span>{result.stats.scripts} scripts</span>
                 <span>{result.stats.routers} routers</span>
                 <span>{result.stats.routes} routes</span>
                 <span>{result.stats.groups} groups</span>

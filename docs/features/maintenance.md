@@ -31,13 +31,14 @@ Clara back to the setup it had before the rebuild.
 
 1. **The snapshot is the contract.** `status` writes it, `restart` and `health`
    read it. A service that was stopped when captured stays stopped.
-2. **The model runs one command per step.** Every task allows only its own
-   `pnpm clara rebuild …` shell prefix, so the rebuild mechanics stay in a
-   deterministic CLI instead of model improvisation.
-3. **The orchestrator restarts last.** The worker shell runs in OpenCode, not in
-   the orchestrator, so a short restart does not kill the run. The command waits
-   for `/health` before the worker reports completion, and an interrupted
-   restart resumes from its journal instead of restarting twice.
+2. **Every step is a script.** Each step runs exactly one
+   `pnpm clara rebuild …` command. There is no model, prompt, turn budget, or
+   token budget, so the rebuild mechanics stay in the deterministic CLI.
+3. **The orchestrator restarts last.** The runner executes on the workspace
+   host. The default OpenCode adapter embeds one, so restarting the orchestrator
+   does not kill the run. The command waits for `/health` before the runner
+   reports completion, and an interrupted restart resumes from its journal
+   instead of restarting twice.
 4. **External orchestrators are verified, not restarted.** An orchestrator
    reached through a non-loopback URL, such as a development container’s
    `http://orchestrator:8789`, is treated as managed outside the checkout. Pass
@@ -52,6 +53,10 @@ Clara back to the setup it had before the rebuild.
 
 ## Edge cases
 
+- **No runner is live:** a script step stays ready and the watchdog opens a
+  `no_runner` alert. Start the embedded adapter runner or `pnpm clara runner`.
+- **A script times out:** the runner terminates the process group and fails the
+  step with the exit code and output tail.
 - **The orchestrator is stopped:** capture records it as stopped, the restart
   step leaves it stopped, and health does not expect it.
 - **The orchestrator runs in a container:** a loopback container is restarted

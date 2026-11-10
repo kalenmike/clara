@@ -4,22 +4,22 @@ description: Assess, update, verify, and review documentation
 enforcement: strict
 steps:
   - name: assess_docs
-    type: task
+    type: agent
   - name: update_docs
-    type: task
+    type: agent
     inputs:
       assessment: assess_docs
     artifacts:
       docs: docs/README.md
   - name: verify_docs
-    type: task
+    type: agent
     inputs:
       assessment: assess_docs
       update: update_docs
     artifacts:
       docs: docs/README.md
   - name: docs_review
-    type: task
+    type: agent
     inputs:
       assessment: assess_docs
       update: update_docs
