@@ -110,19 +110,11 @@ export function loadConfig(options: { rotate?: boolean; local?: boolean } = {}):
   const envAgentToken = readEnv('CLARA_AGENT_TOKEN')
   const fileAgentToken = nonEmpty(file.relay?.agentToken)
   const agentToken = envAgentToken ?? fileAgentToken
-  const agentTokenSource: ConfigSource = envAgentToken
-    ? 'env'
-    : fileAgentToken
-      ? 'file'
-      : 'none'
+  const agentTokenSource: ConfigSource = envAgentToken ? 'env' : fileAgentToken ? 'file' : 'none'
   const envClientToken = readEnv('CLARA_CLIENT_TOKEN')
   const fileClientToken = nonEmpty(file.relay?.clientToken)
   const clientToken = envClientToken ?? fileClientToken
-  const clientTokenSource: ConfigSource = envClientToken
-    ? 'env'
-    : fileClientToken
-      ? 'file'
-      : 'none'
+  const clientTokenSource: ConfigSource = envClientToken ? 'env' : fileClientToken ? 'file' : 'none'
 
   // A local-only pairing command skips the relay entirely: it neither needs the
   // tokens nor emits a relay room, and the local listener runs independently of
