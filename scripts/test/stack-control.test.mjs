@@ -11,16 +11,21 @@ test('selects all services by default', () => {
     web: true,
     orchestrator: true,
     build: false,
+    json: false,
   })
 })
 
-test('handles multiple exclusions and build', () => {
-  assert.deepEqual(parseSelection(['--no-web', '--no-orchestrator', '--build']), {
-    server: true,
-    web: false,
-    orchestrator: false,
-    build: true,
-  })
+test('handles multiple exclusions, build, and json', () => {
+  assert.deepEqual(
+    parseSelection(['--no-web', '--no-orchestrator', '--build', '--json'], { json: true }),
+    {
+      server: true,
+      web: false,
+      orchestrator: false,
+      build: true,
+      json: true,
+    }
+  )
 })
 
 test('can exclude every service', () => {
@@ -28,9 +33,10 @@ test('can exclude every service', () => {
   assert.deepEqual(selectedNames(selection), [])
 })
 
-test('rejects unknown options and build where it is not allowed', () => {
+test('rejects unknown options and flags that are not allowed', () => {
   assert.throws(() => parseSelection(['--no-wb']), /unknown option: --no-wb/)
   assert.throws(() => parseSelection(['--build'], { build: false }), /unknown option: --build/)
+  assert.throws(() => parseSelection(['--json']), /unknown option: --json/)
 })
 
 test('keeps start order and reverses it for stop', () => {

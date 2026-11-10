@@ -6,15 +6,23 @@
 //   pnpm clara web status
 //   pnpm clara web logs --docker
 
-import { compose, webRunningInCompose, webURL, waitForWeb } from './lib/web-control.mjs'
-import { ensureNetwork, probe } from './lib/server-control.mjs'
+import { compose, webURL, waitForWeb } from './lib/web-control.mjs'
+import { ensureNetwork } from './lib/server-control.mjs'
+import { collectStatus, renderJSON, renderStatus, statusExitCode } from './lib/status.mjs'
 
 const args = process.argv.slice(2)
 const command = args[0] ?? 'status'
 const docker = args.includes('--docker')
 const build = args.includes('--build')
+const json = args.includes('--json')
 
-if (command === '--help' || command === '-h' || command === 'help') {
+if (
+  command === '--help' ||
+  command === '-h' ||
+  command === 'help' ||
+  args.includes('--help') ||
+  args.includes('-h')
+) {
   printHelp()
   process.exit(0)
 }
@@ -78,16 +86,10 @@ async function stop() {
 }
 
 async function printStatus() {
-  const result = await probe(`${webURL()}/healthz`)
-  const running = result.ok && result.body?.service === 'clara-web'
-  if (running) {
-    console.log(`web: running (${webURL()})`)
-  } else {
-    console.log('web: stopped')
-    if (webRunningInCompose()) console.log('web: the compose service is up but /healthz failed')
-  }
-  if (result.error) console.log(`web error: ${result.error}`)
-  process.exitCode = running ? 0 : 1
+  const [record] = await collectStatus(['web'])
+  if (json) renderJSON([record])
+  else renderStatus([record], { title: 'Clara web' })
+  process.exitCode = statusExitCode([record])
 }
 
 function logs() {
@@ -109,7 +111,7 @@ Usage:
 Commands:
   start --docker [--build]   Start the static container
   stop --docker              Stop and remove the container
-  status                     Probe the /healthz endpoint
+  status [--json]            Probe the /healthz endpoint
   logs --docker              Follow container logs
 
 Local development stays unchanged: pnpm dev:web runs the Vite dev server.`)
