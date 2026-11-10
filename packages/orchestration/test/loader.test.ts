@@ -732,7 +732,7 @@ describe('package loader', () => {
     ])
     const collect = diagnostics.root.children?.find((step) => step.name === 'collect_evidence')
     expect(collect?.kind).toBe('script')
-    expect(collect?.script?.command).toContain('pnpm clara orchestration analyze')
+    expect(collect?.script?.command).toContain('pnpm clara orchestrator analyze')
     const audit = diagnostics.root.children?.find((step) => step.name === 'audit_setup')
     expect(audit?.limits?.turns).toEqual({
       initial: 100,

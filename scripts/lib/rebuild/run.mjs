@@ -921,8 +921,8 @@ async function restartOrchestrator(state, options) {
     const url = new URL(orchestrator.url)
     env.CLARA_ORCHESTRATION_HOST = url.hostname
     env.CLARA_ORCHESTRATION_PORT = url.port || '8789'
-    await runCli(['orchestration', 'stop'], { cwd: root, env, progress: options.progress })
-    const start = await runCli(['orchestration', 'start'], {
+    await runCli(['orchestrator', 'stop'], { cwd: root, env, progress: options.progress })
+    const start = await runCli(['orchestrator', 'start'], {
       cwd: root,
       env,
       progress: options.progress,
@@ -933,12 +933,12 @@ async function restartOrchestrator(state, options) {
     env.CLARA_WORKSPACE = orchestrator.workspace ?? root
     const token = readToken(process.env)
     if (token) env.CLARA_ORCHESTRATION_TOKEN = token
-    await runCli(['orchestration', 'stop', '--docker'], {
+    await runCli(['orchestrator', 'stop', '--docker'], {
       cwd: root,
       env,
       progress: options.progress,
     })
-    const start = await runCli(['orchestration', 'start', '--docker', '--build'], {
+    const start = await runCli(['orchestrator', 'start', '--docker', '--build'], {
       cwd: root,
       env,
       progress: options.progress,
