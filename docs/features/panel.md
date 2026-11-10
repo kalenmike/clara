@@ -9,7 +9,8 @@ traffic meter without exposing secrets. Sensitive values start masked behind a
 header peek control so the panel can be screenshared safely. It is also the
 one-time setup surface for the coding-agent connection: the superadmin signs in,
 chooses a password, and saves the OpenCode base URL and credentials. The same
-surface switches external connections on and off, starts and stops the local
+surface edits the Web URL used by pairing links and the VAPID contact used by
+Web Push, switches external connections on and off, starts and stops the local
 orchestration service, stops the agent without stopping the process, decides
 which shell commands a Clara client may relay to OpenCode, turns traffic
 monitoring on or off, and gates or paces client settings sync.
@@ -38,7 +39,10 @@ monitoring on or off, and gates or paces client settings sync.
    WebSocket endpoint, relay URL and room, client session ids, and WebSocket
    URLs in activity or errors. Choose the eye button beside **Refresh** to
    reveal them for this tab; the choice survives a reload and a new tab starts
-   masked again.
+   masked again. In **Effective configuration**, edit **Web URL** or **VAPID
+   contact** and choose **Save**; **Use default** clears the file value. The
+   source tag shows environment, `server.json`/`vapid.json`, or default, and an
+   environment value locks the field.
 5. Click a card header to expand or collapse its contents. Cards with a feature
    switch can only be expanded while that feature is enabled; open the header
    again to collapse it.
@@ -107,8 +111,9 @@ monitoring on or off, and gates or paces client settings sync.
    There is no network password-reset endpoint.
 3. **Reads and writes require a session.** `GET` and `HEAD` serve the snapshot
    and assets after login. `POST` is accepted at the feature, agent, shell,
-   monitoring, sync, orchestration, harness, and password routes; `DELETE`
-   removes a harness or the session. Unknown mutating methods return `405`.
+   monitoring, sync, orchestration, config, harness, and password routes;
+   `DELETE` removes a harness or the session. Unknown mutating methods return
+   `405`.
 4. **Secrets stay out.** The snapshot is built from an explicit allowlist. The
    PSK, pairing code, harness password, relay tokens, push endpoints, sync
    values, and file contents are never returned. Harness credentials are
@@ -126,6 +131,9 @@ monitoring on or off, and gates or paces client settings sync.
    gate and interval, the panel users, and harness connections live in the
    agent's SQLite database and are loaded before any transport starts. The panel
    can fail without stopping the agent; a busy panel port only loses the panel.
+   The Web URL lives in `server.json` and the VAPID contact in `vapid.json`; the
+   panel writes both, the environment overrides either, and the VAPID contact is
+   applied to the live push service.
 7. **The shell policy is read per request.** The agent consults it before
    forwarding a command request, so Apply takes effect on the next command
    without a restart. `off` refuses them all. `allowlist` with an empty filter
@@ -245,7 +253,8 @@ monitoring on or off, and gates or paces client settings sync.
 
 - Non-superadmin panel users and roles; the schema reserves a role column
 - Remote access to the panel through the relay
-- Editing relay URLs, rooms, tokens, PSK, or `server.json` from the panel
+- Editing relay URLs, rooms, tokens, PSK, or other `server.json` fields from the
+  panel; the Web URL and VAPID contact are the exceptions
 - Multiple simultaneously active harnesses; the panel stores one active backend
 - Kicking clients or revoking a device
 - A sandbox for command execution, or an allowlist of every proxied API route
@@ -289,11 +298,13 @@ monitoring on or off, and gates or paces client settings sync.
 - Health: `GET /health` (unauthenticated, no secrets)
 - Session: `GET|POST|DELETE /panel/api/v1/session`
 - Setup: `POST /panel/api/v1/setup` with `{ "token": "...", "username": "...", "password": "..." }`
-- Read API: `GET /panel/api/v1/status` (API version `8`, authenticated)
+- Read API: `GET /panel/api/v1/status` (API version `9`, authenticated)
 - Mutations:
   - `POST /panel/api/v1/features` with `{ "feature": "...", "enabled": true }`
   - `POST /panel/api/v1/agent` with `{ "stopped": true }`
   - `POST /panel/api/v1/orchestration` with `{ "enabled": true }`
+  - `POST /panel/api/v1/config` with `{ "pairingBaseUrl": "https://..." }` or
+    `{ "vapidSubject": "mailto:..." }`; send `null` to restore the default
   - `POST /panel/api/v1/shell` with `{ "mode": "off" | "allowlist", "commands": ["git log"] }`
   - `POST /panel/api/v1/monitoring` with `{ "enabled": false }`
   - `POST /panel/api/v1/sync` with `{ "enabled": true, "intervalMs": 30000 }`
@@ -311,6 +322,9 @@ monitoring on or off, and gates or paces client settings sync.
   - `CLARA_PANEL_SECURE_COOKIE=1` for a loopback-preserving HTTPS proxy
   - `CLARA_PANEL_DISABLED=1` disables the panel
   - `CLARA_PANEL_DIR` overrides the built asset directory
+  - `CLARA_PAIRING_BASE_URL` overrides the panel Web URL
+  - `CLARA_VAPID_SUBJECT` overrides the panel VAPID contact
+  - `CLARA_WEB_PORT` sets the default Web URL port (default `8080`)
   - `CLARA_DB_PATH` moves the database (default `<data dir>/clara.db`)
   - `CLARA_SECRET_KEY` or `CLARA_SECRET_KEY_FILE` encrypts harness secrets; otherwise
     `secrets.key` is generated in the config directory

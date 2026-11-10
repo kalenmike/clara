@@ -26,6 +26,7 @@ import type { HarnessManager } from '../harness/manager.ts'
 import type { HarnessProbe } from '../harness/types.ts'
 import { harnessList, harnessState } from './harness.ts'
 import type { PushService } from '../push/service.ts'
+import { readVapidSubject } from '../push/vapid.ts'
 import type { RelayClient } from '../relay-client.ts'
 import type { ClientStorageStats } from '../store/client-storage.ts'
 import { emptyTraffic, type TrafficMeter } from '../traffic.ts'
@@ -112,7 +113,7 @@ export class PanelRuntime implements PanelDataSource {
         ...(this.options.fingerprint ? { fingerprint: this.options.fingerprint } : {}),
       },
       auth,
-      config: this.configSnapshot(),
+      config: panelConfigInfo(config),
       opencode: this.openCodeSnapshot(probe, now, controlFor(controls, 'opencode')),
       harness,
       harnesses: this.harnessList(),
@@ -143,27 +144,6 @@ export class PanelRuntime implements PanelDataSource {
       storage: this.storageEntries(),
       events: this.events(),
       traffic,
-    }
-  }
-
-  private configSnapshot(): PanelConfigInfo {
-    const { config } = this.options
-    const sources = config.sources
-    return {
-      localHost: { value: config.local.host, source: sources.localHost },
-      localPort: { value: config.local.port, source: sources.localPort },
-      relayUrl: {
-        value: config.relay?.url ?? null,
-        source: sources.relayUrl,
-      },
-      relayRoom: {
-        value: config.relay?.room ?? null,
-        source: sources.relayRoom,
-      },
-      pairingBaseUrl: {
-        value: config.pairingBaseUrl,
-        source: sources.pairingBaseUrl,
-      },
     }
   }
 
@@ -395,6 +375,28 @@ export class PanelRuntime implements PanelDataSource {
     let text = value
     for (const secret of secrets) text = text.split(secret).join('[redacted]')
     return clip(text, MAX_ERROR_LENGTH)
+  }
+}
+
+/** Build the allowlisted configuration section shared by the snapshot and mutations. */
+export function panelConfigInfo(config: ServerConfig): PanelConfigInfo {
+  const sources = config.sources
+  return {
+    localHost: { value: config.local.host, source: sources.localHost },
+    localPort: { value: config.local.port, source: sources.localPort },
+    relayUrl: {
+      value: config.relay?.url ?? null,
+      source: sources.relayUrl,
+    },
+    relayRoom: {
+      value: config.relay?.room ?? null,
+      source: sources.relayRoom,
+    },
+    pairingBaseUrl: {
+      value: config.pairingBaseUrl,
+      source: sources.pairingBaseUrl,
+    },
+    vapidSubject: readVapidSubject(config.configDir),
   }
 }
 

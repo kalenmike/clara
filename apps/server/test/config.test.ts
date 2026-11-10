@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { generatePsk } from '@clara/crypto'
-import { loadConfig } from '../src/config.ts'
+import { loadConfig, savePairingBaseUrl } from '../src/config.ts'
 
 const tempDirs: string[] = []
 const ENV_KEYS = [
@@ -19,6 +19,7 @@ const ENV_KEYS = [
   'CLARA_CLIENT_TOKEN',
   'CLARA_PSK',
   'CLARA_PAIRING_BASE_URL',
+  'CLARA_WEB_PORT',
   'XDG_CONFIG_HOME',
   'XDG_DATA_HOME',
   'XDG_STATE_HOME',
@@ -265,5 +266,128 @@ describe('loadConfig sources', () => {
 
     expect(config.sources.psk).toBe('generated')
     expect(config.psk).toHaveLength(43)
+  })
+
+  it('uses CLARA_WEB_PORT for the default web URL', () => {
+    const dir = tempDir()
+    process.env.CLARA_CONFIG_DIR = dir
+    process.env.CLARA_DATA_DIR = dir
+    process.env.XDG_STATE_HOME = tempDir()
+    process.env.CLARA_WEB_PORT = '9090'
+
+    const config = loadConfig()
+
+    expect(config.pairingBaseUrl).toBe('http://127.0.0.1:9090')
+    expect(config.sources.pairingBaseUrl).toBe('default')
+  })
+
+  it('falls back to port 8080 for an invalid CLARA_WEB_PORT', () => {
+    const dir = tempDir()
+    process.env.CLARA_CONFIG_DIR = dir
+    process.env.CLARA_DATA_DIR = dir
+    process.env.XDG_STATE_HOME = tempDir()
+    process.env.CLARA_WEB_PORT = 'not-a-port'
+
+    expect(loadConfig().pairingBaseUrl).toBe('http://127.0.0.1:8080')
+  })
+
+  it('does not write the default web URL to server.json', () => {
+    const dir = tempDir()
+    process.env.CLARA_CONFIG_DIR = dir
+    process.env.CLARA_DATA_DIR = dir
+    process.env.XDG_STATE_HOME = tempDir()
+
+    loadConfig()
+    const saved = JSON.parse(readFileSync(join(dir, 'server.json'), 'utf8'))
+
+    expect(saved.pairingBaseUrl).toBeUndefined()
+  })
+
+  it('treats an empty pairing base environment value as unset', () => {
+    const dir = tempDir()
+    writeFileSync(
+      join(dir, 'server.json'),
+      JSON.stringify({ pairingBaseUrl: 'https://file.example' }),
+      { mode: 0o600 }
+    )
+    process.env.CLARA_CONFIG_DIR = dir
+    process.env.CLARA_DATA_DIR = dir
+    process.env.XDG_STATE_HOME = tempDir()
+    process.env.CLARA_PAIRING_BASE_URL = ''
+
+    const config = loadConfig()
+
+    expect(config.pairingBaseUrl).toBe('https://file.example')
+    expect(config.sources.pairingBaseUrl).toBe('file')
+  })
+
+  it('lets CLARA_PAIRING_BASE_URL win over server.json', () => {
+    const dir = tempDir()
+    writeFileSync(
+      join(dir, 'server.json'),
+      JSON.stringify({ pairingBaseUrl: 'https://file.example' }),
+      { mode: 0o600 }
+    )
+    process.env.CLARA_CONFIG_DIR = dir
+    process.env.CLARA_DATA_DIR = dir
+    process.env.XDG_STATE_HOME = tempDir()
+    process.env.CLARA_PAIRING_BASE_URL = 'https://env.example/'
+
+    const config = loadConfig()
+
+    expect(config.pairingBaseUrl).toBe('https://env.example')
+    expect(config.sources.pairingBaseUrl).toBe('env')
+  })
+
+  it('rejects an invalid pairing base URL', () => {
+    const dir = tempDir()
+    process.env.CLARA_CONFIG_DIR = dir
+    process.env.CLARA_DATA_DIR = dir
+    process.env.XDG_STATE_HOME = tempDir()
+    process.env.CLARA_PAIRING_BASE_URL = 'ftp://example.com'
+
+    expect(() => loadConfig()).toThrow(/Invalid pairing Web URL/)
+  })
+})
+
+describe('savePairingBaseUrl', () => {
+  it('writes the value and preserves other fields', () => {
+    const dir = tempDir()
+    const path = join(dir, 'server.json')
+    const psk = generatePsk()
+    writeFileSync(
+      path,
+      JSON.stringify({
+        local: { host: '0.0.0.0', port: 9000 },
+        psk,
+        relay: { url: 'wss://relay.example', room: 'room-1' },
+        opencode: { url: 'http://old' },
+      }),
+      { mode: 0o600 }
+    )
+
+    savePairingBaseUrl(path, 'https://clara.example/')
+    const saved = JSON.parse(readFileSync(path, 'utf8'))
+
+    expect(saved.pairingBaseUrl).toBe('https://clara.example')
+    expect(saved.local).toEqual({ host: '0.0.0.0', port: 9000 })
+    expect(saved.psk).toBe(psk)
+    expect(saved.relay).toEqual({ url: 'wss://relay.example', room: 'room-1' })
+    expect(saved.opencode).toBeUndefined()
+  })
+
+  it('removes the value when cleared', () => {
+    const dir = tempDir()
+    const path = join(dir, 'server.json')
+    writeFileSync(
+      path,
+      JSON.stringify({ pairingBaseUrl: 'https://clara.example', psk: generatePsk() }),
+      { mode: 0o600 }
+    )
+
+    savePairingBaseUrl(path, undefined)
+    const saved = JSON.parse(readFileSync(path, 'utf8'))
+
+    expect(saved.pairingBaseUrl).toBeUndefined()
   })
 })

@@ -5,6 +5,9 @@ import { join } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
 import {
   PANEL_API_VERSION,
+  type PanelConfigInfo,
+  type PanelConfigMutationResponse,
+  type PanelConfigUpdate,
   type PanelControls,
   type PanelMutationResponse,
   type PanelSnapshot,
@@ -56,6 +59,7 @@ function snapshot(): PanelSnapshot {
       relayUrl: { value: null, source: 'none' },
       relayRoom: { value: null, source: 'none' },
       pairingBaseUrl: { value: 'https://clara.example', source: 'default' },
+      vapidSubject: { value: 'https://clara.local', source: 'default' },
     },
     opencode: {
       url: 'http://127.0.0.1:4096',
@@ -177,12 +181,14 @@ function source(): PanelDataSource {
 
 type FakeControls = PanelControlService & {
   state: PanelControls
+  config: PanelConfigInfo
   features: Array<{ feature: string; enabled: boolean }>
   stops: boolean[]
   shells: ShellPolicy[]
   monitorings: boolean[]
   syncs: Array<{ enabled: boolean; intervalMs: number }>
   orchestration: boolean[]
+  configs: PanelConfigUpdate[]
 }
 
 function fakeControls(initial: Partial<PanelControls> = {}): FakeControls {
@@ -205,20 +211,31 @@ function fakeControls(initial: Partial<PanelControls> = {}): FakeControls {
     },
     ...initial,
   }
+  const config: PanelConfigInfo = {
+    localHost: { value: '127.0.0.1', source: 'default' },
+    localPort: { value: 8788, source: 'default' },
+    relayUrl: { value: null, source: 'none' },
+    relayRoom: { value: null, source: 'none' },
+    pairingBaseUrl: { value: 'https://clara.example', source: 'default' },
+    vapidSubject: { value: 'https://clara.local', source: 'default' },
+  }
   const features: Array<{ feature: string; enabled: boolean }> = []
   const stops: boolean[] = []
   const shells: ShellPolicy[] = []
   const monitorings: boolean[] = []
   const syncs: Array<{ enabled: boolean; intervalMs: number }> = []
   const orchestration: boolean[] = []
+  const configs: PanelConfigUpdate[] = []
   return {
     state,
+    config,
     features,
     stops,
     shells,
     monitorings,
     syncs,
     orchestration,
+    configs,
     controls: () => state,
     setFeature: async (feature, enabled) => {
       if (state.stopped) {
@@ -257,6 +274,24 @@ function fakeControls(initial: Partial<PanelControls> = {}): FakeControls {
       orchestration.push(enabled)
       state.orchestration = { ...state.orchestration, desired: enabled, effective: enabled }
       return state
+    },
+    updateConfig: async (update) => {
+      configs.push(update)
+      if ('pairingBaseUrl' in update) {
+        const value = update.pairingBaseUrl
+        config.pairingBaseUrl = {
+          value: value ?? 'http://127.0.0.1:8080',
+          source: value ? 'file' : 'default',
+        }
+      }
+      if ('vapidSubject' in update) {
+        const value = update.vapidSubject
+        config.vapidSubject = {
+          value: value ?? 'https://clara.local',
+          source: value ? 'file' : 'default',
+        }
+      }
+      return config
     },
     saveHarness: async () => ({ harnesses: [], harness: { configured: false } }),
     testHarness: async () => ({
@@ -662,6 +697,69 @@ describe('panel server', () => {
     expect((await post(server, 'orchestration', { enabled: 'yes' })).status).toBe(400)
     expect((await post(server, 'orchestration', { enabled: true, extra: true })).status).toBe(400)
     expect(controls.orchestration).toEqual([true])
+  })
+
+  it('updates the file-backed config values', async () => {
+    const controls = fakeControls()
+    const server = await start(undefined, controls)
+
+    const web = await post(server, 'config', { pairingBaseUrl: 'https://clara.example' })
+    expect(web.status).toBe(200)
+    expect(((await web.json()) as PanelConfigMutationResponse).config.pairingBaseUrl).toEqual({
+      value: 'https://clara.example',
+      source: 'file',
+    })
+
+    const vapid = await post(server, 'config', { vapidSubject: 'mailto:ops@example.com' })
+    expect(vapid.status).toBe(200)
+    expect(((await vapid.json()) as PanelConfigMutationResponse).config.vapidSubject).toEqual({
+      value: 'mailto:ops@example.com',
+      source: 'file',
+    })
+    expect(controls.configs).toEqual([
+      { pairingBaseUrl: 'https://clara.example' },
+      { vapidSubject: 'mailto:ops@example.com' },
+    ])
+  })
+
+  it('clears file-backed config values with null', async () => {
+    const controls = fakeControls()
+    const server = await start(undefined, controls)
+
+    const response = await post(server, 'config', { pairingBaseUrl: null, vapidSubject: null })
+    expect(response.status).toBe(200)
+    const body = (await response.json()) as PanelConfigMutationResponse
+    expect(body.config.pairingBaseUrl).toEqual({
+      value: 'http://127.0.0.1:8080',
+      source: 'default',
+    })
+    expect(body.config.vapidSubject).toEqual({
+      value: 'https://clara.local',
+      source: 'default',
+    })
+  })
+
+  it('rejects malformed config mutations', async () => {
+    const controls = fakeControls()
+    const server = await start(undefined, controls)
+
+    expect((await post(server, 'config', {})).status).toBe(400)
+    expect((await post(server, 'config', { pairingBaseUrl: 1 })).status).toBe(400)
+    expect((await post(server, 'config', { vapidSubject: 1 })).status).toBe(400)
+    expect((await post(server, 'config', { extra: true })).status).toBe(400)
+    expect(controls.configs).toEqual([])
+  })
+
+  it('maps an environment override to a conflict', async () => {
+    const controls = fakeControls()
+    controls.updateConfig = async () => {
+      throw Object.assign(new Error('locked'), { status: 409, code: 'env_override' })
+    }
+    const server = await start(undefined, controls)
+
+    const response = await post(server, 'config', { pairingBaseUrl: 'https://clara.example' })
+    expect(response.status).toBe(409)
+    expect(((await response.json()) as { error: { code: string } }).error.code).toBe('env_override')
   })
 })
 

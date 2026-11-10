@@ -170,6 +170,21 @@ describe('PushService', () => {
     expect(store.list()[0]?.lastSuccessAt).toBeTypeOf('number')
   })
 
+  it('updates the VAPID subject for the live service', () => {
+    const store = new PushSubscriptionStore(join(tempDir(), 'subscriptions.json'))
+    const keys = webpush.generateVAPIDKeys()
+    const service = new PushService({
+      ...keys,
+      subject: 'https://old.example',
+      store,
+      send: async () => ({ statusCode: 201 }),
+    })
+
+    service.setSubject('mailto:ops@example.com')
+
+    expect(service.subject).toBe('mailto:ops@example.com')
+  })
+
   it('holds mobile devices while a desktop client is active', async () => {
     const store = new PushSubscriptionStore(join(tempDir(), 'subscriptions.json'))
     const desktop = { ...subscription(), endpoint: 'https://web.push.apple.com/desktop' }

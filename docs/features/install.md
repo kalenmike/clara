@@ -37,12 +37,12 @@ cache for a year, and the CSP, referrer, permissions, and nosniff headers match.
 `pnpm clara rebuild` captures the container and recreates it with a fresh build.
 
 Local pairing works from `http://127.0.0.1:8080` or an SSH tunnel. The default
-pairing base is `http://127.0.0.1:8080`, so local codes print a link to this
+Web URL is `http://127.0.0.1:8080`, so local codes print a link to this
 container. A remote HTTPS page cannot open a `ws://` socket, so remote browsers
-need a relay pairing. Set `CLARA_PAIRING_BASE_URL` to your own web URL for a
-remote deployment, and set `VITE_CLARA_WS_URL` in `docker/.env` only when the
-browser must use a different relay endpoint than the agent, then rebuild with
-`--build`.
+need a relay pairing. Set **Web URL** in the agent panel for a remote deployment
+(`CLARA_PAIRING_BASE_URL` overrides it), and set `VITE_CLARA_WS_URL` in
+`docker/.env` only when the browser must use a different relay endpoint than the
+agent, then rebuild with `--build`.
 
 Browsers share cookies across every port on the same host, so other local apps
 can make the `127.0.0.1` cookie jar much larger than nginx's default header

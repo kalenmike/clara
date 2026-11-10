@@ -5,6 +5,7 @@ import type { Server } from 'node:http'
 import {
   isSyncIntervalMs,
   type PanelAuthInfo,
+  type PanelConfigUpdate,
   type PanelFeatureName,
   type PanelMutationResponse,
 } from '@clara/shared-types'
@@ -25,6 +26,7 @@ const SHELL_PATH = '/panel/api/v1/shell'
 const MONITORING_PATH = '/panel/api/v1/monitoring'
 const SYNC_PATH = '/panel/api/v1/sync'
 const ORCHESTRATION_PATH = '/panel/api/v1/orchestration'
+const CONFIG_PATH = '/panel/api/v1/config'
 const HARNESSES_PREFIX = '/panel/api/v1/harnesses'
 const HEALTH_PATH = '/health'
 const ASSETS_PREFIX = '/assets/'
@@ -593,7 +595,9 @@ async function handleMutation(
               ? 'sync'
               : pathname === ORCHESTRATION_PATH
                 ? 'orchestration'
-                : undefined
+                : pathname === CONFIG_PATH
+                  ? 'config'
+                  : undefined
   if (!kind) {
     sendJson(response, method, 404, {
       error: { code: 'not_found', message: 'Unknown panel endpoint' },
@@ -668,6 +672,32 @@ async function handleMutation(
         return invalidField(response, method, 'enabled')
       }
       updated = await controls.setOrchestration(body.value.enabled)
+    } else if (kind === 'config') {
+      const unknown = unknownFields(body.value, ['pairingBaseUrl', 'vapidSubject'])
+      if (unknown) return invalidField(response, method, unknown)
+
+      const update: PanelConfigUpdate = {}
+      if ('pairingBaseUrl' in body.value) {
+        const value = body.value.pairingBaseUrl
+        if (value !== null && typeof value !== 'string') {
+          return invalidField(response, method, 'pairingBaseUrl')
+        }
+        update.pairingBaseUrl = value
+      }
+      if ('vapidSubject' in body.value) {
+        const value = body.value.vapidSubject
+        if (value !== null && typeof value !== 'string') {
+          return invalidField(response, method, 'vapidSubject')
+        }
+        update.vapidSubject = value
+      }
+      if (Object.keys(update).length === 0) {
+        return invalidField(response, method, 'pairingBaseUrl or vapidSubject')
+      }
+
+      const config = await controls.updateConfig(update)
+      sendJson(response, method, 200, { config })
+      return
     } else {
       const unknown = unknownFields(body.value, ['enabled', 'intervalMs'])
       if (unknown) return invalidField(response, method, unknown)

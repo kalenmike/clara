@@ -7,7 +7,7 @@ import {
   encodePairingCode,
   type PairingPayload,
 } from '@clara/shared-types'
-import type { ServerConfig } from './config.ts'
+import { localWebPort, type ServerConfig } from './config.ts'
 
 export type PairingOptions = {
   /**
@@ -33,8 +33,6 @@ export async function createPairingPayload(config: ServerConfig): Promise<Pairin
   }
 }
 
-const DEFAULT_LOCAL_WEB_PORT = 8080
-
 /**
  * Local codes can only be used by a browser on the agent's host. Print them
  * against the local web app instead of a remote deployment URL, unless the
@@ -44,7 +42,7 @@ export function pairingLinkBase(
   payload: Pick<PairingPayload, 'room'>,
   pairingBaseUrl: string,
   localHost: string,
-  localWebPort = DEFAULT_LOCAL_WEB_PORT
+  webPort = localWebPort()
 ): string {
   if (payload.room !== 'local' || isLoopbackUrl(pairingBaseUrl)) return pairingBaseUrl
   const host = localHost.startsWith('[')
@@ -52,7 +50,7 @@ export function pairingLinkBase(
     : localHost.includes(':')
       ? `[${localHost}]`
       : localHost
-  return `http://${host}:${localWebPort}`
+  return `http://${host}:${webPort}`
 }
 
 export async function printPairing(

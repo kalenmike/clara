@@ -1,5 +1,5 @@
 import { createServer, type Server } from 'node:http'
-import { mkdtempSync, rmSync } from 'node:fs'
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -8,6 +8,7 @@ import { generateSecretKey, loadSecretKey } from '@clara/crypto'
 import type { ServerConfig } from '../src/config.ts'
 import { HarnessManager } from '../src/harness/manager.ts'
 import { HarnessStore } from '../src/harness/store.ts'
+import type { PushService } from '../src/push/service.ts'
 import { AgentStoppedError, RuntimeController } from '../src/runtime/controller.ts'
 import { closeDatabase, openDatabase } from '../src/store/database.ts'
 import { SettingsStore } from '../src/store/settings.ts'
@@ -38,6 +39,8 @@ function stoppedControl(desired = false, error?: string): PanelOrchestrationCont
 const tempDirs: string[] = []
 const controllers: RuntimeController[] = []
 const servers: Server[] = []
+const ENV_KEYS = ['CLARA_PAIRING_BASE_URL', 'CLARA_VAPID_SUBJECT'] as const
+let savedEnv: Record<string, string | undefined> = {}
 
 function tempDir(): string {
   const dir = mkdtempSync(join(tmpdir(), 'clara-controller-'))
@@ -73,11 +76,12 @@ const info: AgentInfo = { version: 'test', protocol: 1 }
 
 async function createController(
   port = 0,
-  options: { openCodeUrl?: string } = {}
+  options: { openCodeUrl?: string; push?: PushService } = {}
 ): Promise<{
   controller: RuntimeController
   settings: SettingsStore
   info: AgentInfo
+  serverConfig: ServerConfig
   close: () => Promise<void>
 }> {
   const serverConfig = config(port)
@@ -102,6 +106,7 @@ async function createController(
     harness,
     info: controllerInfo,
     settings,
+    ...(options.push ? { push: options.push } : {}),
     log: () => undefined,
   })
   controllers.push(controller)
@@ -109,6 +114,7 @@ async function createController(
     controller,
     settings,
     info: controllerInfo,
+    serverConfig,
     close: async () => {
       await controller.close()
       closeDatabase(db)
@@ -117,6 +123,9 @@ async function createController(
 }
 
 beforeEach(() => {
+  savedEnv = {}
+  for (const key of ENV_KEYS) savedEnv[key] = process.env[key]
+  for (const key of ENV_KEYS) delete process.env[key]
   orchestration.read.mockImplementation(async (desired: boolean, error?: string) =>
     stoppedControl(desired, error)
   )
@@ -125,6 +134,11 @@ beforeEach(() => {
 })
 
 afterEach(async () => {
+  for (const key of ENV_KEYS) {
+    const value = savedEnv[key]
+    if (value === undefined) delete process.env[key]
+    else process.env[key] = value
+  }
   for (const controller of controllers.splice(0)) await controller.close()
   for (const server of servers.splice(0)) {
     await new Promise<void>((resolve) => server.close(() => resolve()))
@@ -350,6 +364,194 @@ describe('RuntimeController', () => {
       expect(controls.stopped).toBe(true)
       expect(controls.features.every((entry) => entry.effective === false)).toBe(true)
       expect(controller.canProxy()).toBe(false)
+    } finally {
+      await close()
+    }
+  })
+
+  it('persists a panel web URL and updates the running config', async () => {
+    const { controller, serverConfig, close } = await createController()
+    try {
+      const updated = await controller.updateConfig({ pairingBaseUrl: 'https://clara.example/' })
+      expect(updated.pairingBaseUrl).toEqual({
+        value: 'https://clara.example',
+        source: 'file',
+      })
+      const saved = JSON.parse(readFileSync(serverConfig.configPath, 'utf8'))
+      expect(saved.pairingBaseUrl).toBe('https://clara.example')
+
+      const cleared = await controller.updateConfig({ pairingBaseUrl: null })
+      expect(cleared.pairingBaseUrl).toEqual({
+        value: 'http://127.0.0.1:8080',
+        source: 'default',
+      })
+      const after = JSON.parse(readFileSync(serverConfig.configPath, 'utf8'))
+      expect(after.pairingBaseUrl).toBeUndefined()
+    } finally {
+      await close()
+    }
+  })
+
+  it('rejects an invalid panel web URL', async () => {
+    const { controller, close } = await createController()
+    try {
+      await expect(
+        controller.updateConfig({ pairingBaseUrl: 'ftp://example.com' })
+      ).rejects.toMatchObject({
+        status: 400,
+        code: 'invalid_pairing_base_url',
+      })
+    } finally {
+      await close()
+    }
+  })
+
+  it('refuses to edit a web URL locked by the environment', async () => {
+    const { controller, serverConfig, close } = await createController()
+    serverConfig.sources.pairingBaseUrl = 'env'
+    try {
+      await expect(
+        controller.updateConfig({ pairingBaseUrl: 'https://panel.example' })
+      ).rejects.toMatchObject({
+        status: 409,
+        code: 'env_override',
+      })
+    } finally {
+      await close()
+    }
+  })
+
+  it('persists a panel VAPID contact and applies it to push', async () => {
+    const push = { setSubject: vi.fn() } as unknown as PushService
+    const { controller, serverConfig, close } = await createController(0, { push })
+    try {
+      const updated = await controller.updateConfig({ vapidSubject: 'mailto:ops@example.com' })
+      expect(updated.vapidSubject).toEqual({
+        value: 'mailto:ops@example.com',
+        source: 'file',
+      })
+      expect(push.setSubject).toHaveBeenCalledWith('mailto:ops@example.com')
+      const saved = JSON.parse(readFileSync(join(serverConfig.configDir, 'vapid.json'), 'utf8'))
+      expect(saved.subject).toBe('mailto:ops@example.com')
+
+      const cleared = await controller.updateConfig({ vapidSubject: null })
+      expect(cleared.vapidSubject).toEqual({
+        value: 'https://clara.local',
+        source: 'default',
+      })
+      expect(push.setSubject).toHaveBeenLastCalledWith('https://clara.local')
+    } finally {
+      await close()
+    }
+  })
+
+  it('follows a custom HTTPS web URL with the default VAPID contact', async () => {
+    const push = { setSubject: vi.fn() } as unknown as PushService
+    const { controller, close } = await createController(0, { push })
+    try {
+      const updated = await controller.updateConfig({
+        pairingBaseUrl: 'https://clara.example',
+      })
+      expect(updated.pairingBaseUrl).toEqual({
+        value: 'https://clara.example',
+        source: 'file',
+      })
+      expect(updated.vapidSubject).toEqual({
+        value: 'https://clara.example',
+        source: 'file',
+      })
+      expect(push.setSubject).toHaveBeenCalledWith('https://clara.example')
+    } finally {
+      await close()
+    }
+  })
+
+  it('follows a custom HTTPS web URL when vapid.json still holds the default', async () => {
+    const push = { setSubject: vi.fn() } as unknown as PushService
+    const { controller, serverConfig, close } = await createController(0, { push })
+    try {
+      writeFileSync(
+        join(serverConfig.configDir, 'vapid.json'),
+        JSON.stringify({ subject: 'https://clara.local' }),
+        { mode: 0o600 }
+      )
+
+      const updated = await controller.updateConfig({
+        pairingBaseUrl: 'https://clara.example',
+      })
+      expect(updated.vapidSubject).toEqual({
+        value: 'https://clara.example',
+        source: 'file',
+      })
+      expect(push.setSubject).toHaveBeenCalledWith('https://clara.example')
+    } finally {
+      await close()
+    }
+  })
+
+  it('leaves the default VAPID contact alone for an HTTP web URL', async () => {
+    const push = { setSubject: vi.fn() } as unknown as PushService
+    const { controller, close } = await createController(0, { push })
+    try {
+      const updated = await controller.updateConfig({
+        pairingBaseUrl: 'http://127.0.0.1:9090',
+      })
+      expect(updated.pairingBaseUrl).toEqual({
+        value: 'http://127.0.0.1:9090',
+        source: 'file',
+      })
+      expect(updated.vapidSubject).toEqual({
+        value: 'https://clara.local',
+        source: 'default',
+      })
+      expect(push.setSubject).not.toHaveBeenCalled()
+    } finally {
+      await close()
+    }
+  })
+
+  it('does not overwrite a custom VAPID contact when the web URL changes', async () => {
+    const push = { setSubject: vi.fn() } as unknown as PushService
+    const { controller, close } = await createController(0, { push })
+    try {
+      await controller.updateConfig({ vapidSubject: 'mailto:ops@example.com' })
+      const updated = await controller.updateConfig({
+        pairingBaseUrl: 'https://clara.example',
+      })
+      expect(updated.vapidSubject).toEqual({
+        value: 'mailto:ops@example.com',
+        source: 'file',
+      })
+      expect(push.setSubject).toHaveBeenLastCalledWith('mailto:ops@example.com')
+    } finally {
+      await close()
+    }
+  })
+
+  it('refuses to edit a VAPID contact locked by the environment', async () => {
+    process.env.CLARA_VAPID_SUBJECT = 'https://env.example'
+    const { controller, close } = await createController()
+    try {
+      await expect(
+        controller.updateConfig({ vapidSubject: 'mailto:ops@example.com' })
+      ).rejects.toMatchObject({
+        status: 409,
+        code: 'env_override',
+      })
+    } finally {
+      await close()
+    }
+  })
+
+  it('rejects an invalid VAPID contact', async () => {
+    const { controller, close } = await createController()
+    try {
+      await expect(
+        controller.updateConfig({ vapidSubject: 'http://example.com' })
+      ).rejects.toMatchObject({
+        status: 400,
+        code: 'invalid_vapid_subject',
+      })
     } finally {
       await close()
     }

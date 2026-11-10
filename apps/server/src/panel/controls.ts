@@ -1,4 +1,6 @@
 import type {
+  PanelConfigInfo,
+  PanelConfigUpdate,
   PanelControls,
   PanelFeatureName,
   PanelHarnessMutationResponse,
@@ -20,6 +22,7 @@ export type PanelControlService = {
   setMonitoring: (enabled: boolean) => Promise<PanelControls>
   setSync: (update: PanelSyncUpdate) => Promise<PanelControls>
   setOrchestration: (enabled: boolean) => Promise<PanelControls>
+  updateConfig: (update: PanelConfigUpdate) => Promise<PanelConfigInfo>
   saveHarness: (value: unknown, id?: string) => Promise<PanelHarnessMutationResponse>
   testHarness: (value: unknown, id?: string) => Promise<PanelHarnessTestResult>
   activateHarness: (id: string) => Promise<PanelHarnessMutationResponse>

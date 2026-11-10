@@ -2,6 +2,15 @@ import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from '
 import { dirname, join } from 'node:path'
 import webpush from 'web-push'
 
+export const DEFAULT_VAPID_SUBJECT = 'https://clara.local'
+
+export type VapidSubjectSource = 'env' | 'file' | 'default'
+
+export type VapidSubjectInfo = {
+  value: string
+  source: VapidSubjectSource
+}
+
 export type VapidDetails = {
   publicKey: string
   privateKey: string
@@ -18,13 +27,20 @@ type VapidFile = {
  * VAPID identifies this home agent to every browser push service. Keep the
  * private key with the rest of the agent config; rotating it invalidates every
  * existing subscription.
+ *
+ * The subject is deliberately independent of the pairing Web URL: the pairing
+ * link may be a plain-HTTP loopback address, while Web Push requires an HTTPS
+ * URL or a mailto: address.
  */
-export function loadVapidDetails(configDir: string, defaultSubject: string): VapidDetails {
+export function loadVapidDetails(
+  configDir: string,
+  defaultSubject = DEFAULT_VAPID_SUBJECT
+): VapidDetails {
   const path = join(configDir, 'vapid.json')
   const previous = readVapidFile(path)
-  const envPublic = process.env.CLARA_VAPID_PUBLIC_KEY?.trim()
-  const envPrivate = process.env.CLARA_VAPID_PRIVATE_KEY?.trim()
-  const envSubject = process.env.CLARA_VAPID_SUBJECT?.trim()
+  const envPublic = readEnv('CLARA_VAPID_PUBLIC_KEY')
+  const envPrivate = readEnv('CLARA_VAPID_PRIVATE_KEY')
+  const envSubject = readEnv('CLARA_VAPID_SUBJECT')
 
   if (envPublic !== undefined && envPrivate === undefined) {
     throw new Error('Set both CLARA_VAPID_PUBLIC_KEY and CLARA_VAPID_PRIVATE_KEY, or neither')
@@ -42,14 +58,101 @@ export function loadVapidDetails(configDir: string, defaultSubject: string): Vap
     privateKey = generated.privateKey
   }
 
-  const subject = normalizeSubject(envSubject || previous?.subject || defaultSubject)
-  validateSubject(subject)
+  const storedSubject = validStoredSubject(previous?.subject)
+  const subject = normalizeVapidSubject(envSubject ?? storedSubject ?? defaultSubject)
+  validateVapidSubject(subject)
 
   const details: VapidDetails = { publicKey, privateKey, subject }
   if (!envPublic || !envPrivate) {
-    persistVapid(path, details, previous)
+    persistVapid(path, details, previous, storedSubject)
   }
   return details
+}
+
+/**
+ * Read the effective VAPID contact without generating or rewriting keys. The
+ * panel uses this to show the value and where it came from.
+ */
+export function readVapidSubject(
+  configDir: string,
+  defaultSubject = DEFAULT_VAPID_SUBJECT
+): VapidSubjectInfo {
+  const envSubject = readEnv('CLARA_VAPID_SUBJECT')
+  if (envSubject !== undefined) return { value: normalizeVapidSubject(envSubject), source: 'env' }
+
+  let previous: VapidFile | undefined
+  try {
+    previous = readVapidFile(join(configDir, 'vapid.json'))
+  } catch {
+    previous = undefined
+  }
+  const storedSubject = validStoredSubject(previous?.subject)
+  if (storedSubject !== undefined) {
+    return { value: normalizeVapidSubject(storedSubject), source: 'file' }
+  }
+  return { value: defaultSubject, source: 'default' }
+}
+
+/** Persist a panel-edited VAPID contact while keeping the stored key pair. */
+export function saveVapidSubject(configDir: string, value: string | undefined): void {
+  const path = join(configDir, 'vapid.json')
+  const previous = readVapidFile(path) ?? {}
+  const normalized = value?.trim()
+  const next: VapidFile = { ...previous }
+
+  if (normalized) {
+    validateVapidSubject(normalized)
+    next.subject = normalized
+  } else {
+    delete next.subject
+  }
+
+  if (
+    previous.publicKey === next.publicKey &&
+    previous.privateKey === next.privateKey &&
+    previous.subject === next.subject
+  ) {
+    return
+  }
+  writeVapidFile(path, next)
+}
+
+export function normalizeVapidSubject(value: string): string {
+  return value.trim()
+}
+
+export function validateVapidSubject(value: string): void {
+  const subject = value.trim()
+  if (!subject) throw new Error('The VAPID contact is required')
+
+  if (subject.startsWith('mailto:')) {
+    if (subject.length <= 'mailto:'.length) throw new Error('The VAPID contact email is empty')
+    return
+  }
+
+  let url: URL
+  try {
+    url = new URL(subject)
+  } catch {
+    throw new Error('The VAPID contact must be an HTTPS URL or a mailto: address')
+  }
+  if (url.protocol !== 'https:') {
+    throw new Error('The VAPID contact must be an HTTPS URL or a mailto: address')
+  }
+}
+
+export function isValidVapidSubject(value: string): boolean {
+  try {
+    validateVapidSubject(value)
+    return true
+  } catch {
+    return false
+  }
+}
+
+function validStoredSubject(value: string | undefined): string | undefined {
+  if (!value) return undefined
+  return isValidVapidSubject(value) ? value : undefined
 }
 
 function readVapidFile(path: string): VapidFile | undefined {
@@ -68,41 +171,37 @@ function readVapidFile(path: string): VapidFile | undefined {
   }
 }
 
-function persistVapid(path: string, details: VapidDetails, previous: VapidFile | undefined): void {
+function persistVapid(
+  path: string,
+  details: VapidDetails,
+  previous: VapidFile | undefined,
+  storedSubject: string | undefined
+): void {
+  const next: VapidFile = {
+    publicKey: details.publicKey,
+    privateKey: details.privateKey,
+    ...(storedSubject ? { subject: storedSubject } : {}),
+  }
   if (
-    previous?.publicKey === details.publicKey &&
-    previous?.privateKey === details.privateKey &&
-    previous?.subject === details.subject
+    previous?.publicKey === next.publicKey &&
+    previous?.privateKey === next.privateKey &&
+    previous?.subject === next.subject
   ) {
     return
   }
+  writeVapidFile(path, next)
+}
 
+function writeVapidFile(path: string, details: VapidFile): void {
   mkdirSync(dirname(path), { recursive: true, mode: 0o700 })
   const temp = `${path}.tmp`
   writeFileSync(temp, `${JSON.stringify(details, null, 2)}\n`, { mode: 0o600 })
   renameSync(temp, path)
 }
 
-function normalizeSubject(value: string): string {
-  const trimmed = value.trim()
-  return trimmed || 'https://clara.local'
-}
-
-function validateSubject(value: string): void {
-  if (value.startsWith('mailto:')) {
-    if (value.length <= 'mailto:'.length) throw new Error('The VAPID subject email is empty')
-    return
-  }
-
-  let url: URL
-  try {
-    url = new URL(value)
-  } catch {
-    throw new Error('The VAPID subject must be an HTTPS URL or a mailto: address')
-  }
-  if (url.protocol !== 'https:') {
-    throw new Error('The VAPID subject must be an HTTPS URL or a mailto: address')
-  }
+function readEnv(name: string): string | undefined {
+  const value = process.env[name]?.trim()
+  return value ? value : undefined
 }
 
 function errorMessage(cause: unknown): string {

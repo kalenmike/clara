@@ -144,7 +144,7 @@ function Panel({ state, session }: { state: SnapshotState; session: SessionContr
                 onChanged={refresh}
                 now={clock}
               />
-              <ConfigCard config={data.config} />
+              <ConfigCard config={data.config} onChanged={refresh} />
             </div>
 
             <HarnessCard
