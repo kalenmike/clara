@@ -50,13 +50,13 @@ pnpm dev:server     # Home agent only
 pnpm dev:relay      # Local wrangler dev for the Worker/DO
 pnpm build          # Build every workspace package
 pnpm clara pair     # Print a pairing code
-pnpm clara control  # Serve the built panel and open it in a browser
+pnpm clara server panel  # Open the agent panel in a browser
 pnpm clara start [--local|--docker] [--no-server] [--no-web] [--no-orchestrator] [--build] # Start the stack
 pnpm clara stop [--local|--docker] [--no-server] [--no-web] [--no-orchestrator] # Stop the stack
 pnpm clara restart [--local|--docker] [--no-server] [--no-web] [--no-orchestrator] [--build] # Restart the stack
 pnpm clara status [--no-server] [--no-web] [--no-orchestrator] [--json] # Probe the selected services
 pnpm clara logs server|web|orchestrator [--local|--docker] # Follow one service log
-pnpm clara server start|stop|restart|status [--json]|pair|admin|logs [--local|--docker] [--build] # Home agent
+pnpm clara server start|stop|restart|status [--json]|panel|pair|admin|logs [--local|--docker] [--build] # Home agent
 pnpm clara web start|stop|restart|status [--json]|logs [--local|--docker] [--build] # Web client
 pnpm clara orchestrator start|stop|restart [--local|--docker] [--build]|status [--json]|serve # Run the orchestration service
 pnpm clara orchestrator analyze [--json] [--days n] # Analyze run history for failure patterns

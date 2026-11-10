@@ -221,11 +221,12 @@ clara`. A manually started agent is restarted from the captured root with its
   `0600`). Restart journal: `rebuild/restart.json`. Log: `rebuild/rebuild.log`.
   The snapshot is host control state for both local and Docker stacks; it is not
   part of the Docker volumes. Use `pnpm clara backup` for the volumes.
-- Deployment state: the snapshot's `deployment` block records
-  `control.mode`, `orchestrator.mode`, `lab.mode`, and `web.mode` as `local`,
-  `container`, or `stopped`, plus `orchestrator.external`. `control.container`
-  and `web.container` are the boolean forms. Older snapshots without the block
-  fall back to `control.mode` or the running server compose service.
+- Deployment state: the snapshot's `deployment` block records `server.mode`,
+  `orchestrator.mode`, `lab.mode`, and `web.mode` as `local`, `container`, or
+  `stopped`, plus `orchestrator.external`. `server.container` and
+  `web.container` are the boolean forms. Older snapshots without the block fall
+  back to `server.mode` or the running server compose service; snapshots that
+  still use the old `control` key are migrated when read.
 - Capture: `GET <orchestrator>/health`, `GET <orchestrator>/v1/config`, Lab
   `GET /api/health`, panel `GET /health`, local `GET /health`, and web
   `GET /healthz`. The detailed panel status API requires a session, so the
