@@ -17,13 +17,6 @@ export interface ModelTokens {
   total?: number
 }
 
-export interface TokenEvent {
-  sessionID: string
-  messageID: string
-  usage: ModelTokens
-  final: boolean
-}
-
 function count(value: unknown): number {
   return typeof value === 'number' && Number.isFinite(value) ? Math.max(0, Math.floor(value)) : 0
 }
@@ -78,43 +71,4 @@ export function budgetTokenDelta(
   usage: ModelTokens | undefined
 ): number {
   return delta(seen, messageID, budgetTokenTotal(usage))
-}
-
-type EventLike = {
-  type?: unknown
-  data?: unknown
-  properties?: unknown
-}
-
-/**
- * Read model usage from the two OpenCode event shapes the adapter receives.
- * `session.step.*` is the v2 step event; `message.updated` is the assistant
- * message event. Both identify the assistant message, so the high-water mark in
- * `tokenDelta` can deduplicate them.
- */
-export function tokensFromEvent(event: EventLike | undefined): TokenEvent | undefined {
-  const type = String(event?.type ?? '')
-  if (type === 'session.step.ended' || type === 'session.step.failed') {
-    const data = (event?.data ?? event?.properties) as
-      { sessionID?: unknown; assistantMessageID?: unknown; tokens?: ModelTokens } | undefined
-    const sessionID = String(data?.sessionID ?? '')
-    const messageID = String(data?.assistantMessageID ?? '')
-    if (!sessionID || !messageID || !data?.tokens) return undefined
-    return { sessionID, messageID, usage: data.tokens, final: true }
-  }
-  if (type !== 'message.updated' && type !== 'message.part.updated') return undefined
-  const info = (event?.properties as { info?: unknown } | undefined)?.info as
-    | { role?: unknown; id?: unknown; tokens?: ModelTokens; time?: { completed?: unknown } }
-    | undefined
-  if (info?.role !== 'assistant' || typeof info.id !== 'string' || !info.tokens) return undefined
-  const sessionID = String(
-    (event?.properties as { sessionID?: unknown } | undefined)?.sessionID ?? ''
-  )
-  if (!sessionID) return undefined
-  return {
-    sessionID,
-    messageID: info.id,
-    usage: info.tokens,
-    final: Boolean(info.time?.completed),
-  }
 }

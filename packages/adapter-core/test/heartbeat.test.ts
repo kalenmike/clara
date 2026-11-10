@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import test, { mock } from 'node:test'
-import { startStepHeartbeat } from './index.ts'
+import { startStepHeartbeat } from '../src/index.ts'
 
 const flush = (): Promise<void> => new Promise((resolve) => setImmediate(resolve))
 

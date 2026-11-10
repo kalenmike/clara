@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { capToolResult, TOOL_OUTPUT_LIMIT, truncateToolOutput } from './output.ts'
+import { capToolResult, TOOL_OUTPUT_LIMIT, truncateToolOutput } from '../src/output.ts'
 
 test('leaves a short tool result unchanged', () => {
   const text = 'src/runtime.ts:42: budget check'

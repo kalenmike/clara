@@ -8,10 +8,11 @@
     ".": "./index.ts"
   },
   "dependencies": {
+    "@clara/adapter-core": "workspace:*",
     "@clara/runner": "workspace:*"
   },
   "scripts": {
     "typecheck": "tsc -p tsconfig.json",
-    "test": "node --experimental-strip-types --no-warnings --test completion.test.ts delivery-cycle.test.ts delivery.test.ts heartbeat.test.ts output.test.ts prompt.test.ts tools.test.ts usage.test.ts workspace.test.ts"
+    "test": "node --experimental-strip-types --no-warnings --test completion.test.ts tools.test.ts usage-events.test.ts workspace.test.ts"
   }
 }

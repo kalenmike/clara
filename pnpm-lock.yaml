@@ -424,6 +424,19 @@ importers:
         specifier: ^8.22.1
         version: 8.22.1
 
+  packages/adapter-core:
+    dependencies:
+      '@clara/runner':
+        specifier: workspace:*
+        version: link:../runner
+    devDependencies:
+      '@types/node':
+        specifier: ^24.19.2
+        version: 24.19.2
+      typescript:
+        specifier: ~6.0.3
+        version: 6.0.3
+
   packages/crypto:
     devDependencies:
       typescript:
@@ -540,6 +553,9 @@ importers:
 
   plugins/clara-policy:
     dependencies:
+      '@clara/adapter-core':
+        specifier: workspace:*
+        version: link:../../packages/adapter-core
       '@clara/runner':
         specifier: workspace:*
         version: link:../../packages/runner

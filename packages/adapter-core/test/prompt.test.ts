@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { renderWorkPrompt, scopeWorkerTools, toolName } from './prompt.ts'
+import { renderWorkPrompt, scopeWorkerTools, toolName } from '../src/prompt.ts'
 
 const routerWork = {
   step_path: '1-classifier',

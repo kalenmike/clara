@@ -6,7 +6,7 @@ import {
   reserveDelivery,
   type DeliveryAlert,
   type DeliveryRun,
-} from './delivery.ts'
+} from '../src/delivery.ts'
 
 const run = (overrides: Partial<DeliveryRun> = {}): DeliveryRun => ({
   id: 12,
