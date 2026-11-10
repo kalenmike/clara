@@ -192,8 +192,18 @@ describe('script steps', () => {
     const { dir, runtime } = fixture({
       steps: ['      - name: build', '        type: script', '        command: echo ready'],
     })
-    runtime.start({ workspace: dir, prompt: 'opencode work', origin: { harness: 'opencode' } })
-    runtime.start({ workspace: dir, prompt: 'claude work', origin: { harness: 'claudecode' } })
+    runtime.start({
+      workspace: dir,
+      prompt: 'opencode work',
+      capabilities: ['agent'],
+      origin: { harness: 'opencode' },
+    })
+    runtime.start({
+      workspace: dir,
+      prompt: 'claude work',
+      capabilities: ['agent'],
+      origin: { harness: 'claudecode' },
+    })
     const claimed = runtime.claimWork(
       dir,
       { capabilities: ['script'], role: 'runner' },

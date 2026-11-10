@@ -44,12 +44,7 @@ export class RuntimeBackend implements ClaraBackend {
     return { ...result, run: runSummary(result.run) }
   }
 
-  async next(
-    runID: number,
-    limit?: number,
-    capabilities?: string[],
-    harness?: string
-  ) {
+  async next(runID: number, limit?: number, capabilities?: string[], harness?: string) {
     return this.runtime.next(runID, limit ?? 1, 'mcp', {
       ...(capabilities ? { capabilities } : {}),
       ...(harness ? { harness, role: 'harness' } : {}),

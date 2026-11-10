@@ -305,14 +305,18 @@ export class Runtime {
     })
     this.advance(Number(run.id))
     const harness = input.origin?.harness?.trim() || undefined
+    // A caller that states its capabilities is an executor and must stay in its
+    // own lane. A manual caller without a capability filter (Clara Lab, the
+    // generic MCP surface) may claim any ready work order.
+    const scopedHarness = harness && input.capabilities?.length ? harness : undefined
     const work = this.claim(
       Number(run.id),
       8,
       'dispatcher',
-      input.capabilities || harness
+      input.capabilities || scopedHarness
         ? {
             ...(input.capabilities ? { capabilities: input.capabilities } : {}),
-            ...(harness ? { harness, role: 'harness' as const } : {}),
+            ...(scopedHarness ? { harness: scopedHarness, role: 'harness' as const } : {}),
           }
         : undefined
     )

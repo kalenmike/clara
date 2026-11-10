@@ -243,12 +243,7 @@ export function createOrchestratorServer(options: OrchestratorServerOptions): Or
         json(
           res,
           200,
-          await backend.next(
-            runID(url),
-            number(input.limit, 1),
-            capabilities,
-            harness || undefined
-          )
+          await backend.next(runID(url), number(input.limit, 1), capabilities, harness || undefined)
         )
         return
       }
