@@ -1,9 +1,13 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
+import { TimeoutError } from './async'
 import {
+  CAMERA_PREVIEW_MESSAGE,
+  CAMERA_TIMEOUT_MESSAGE,
   CAMERA_UNAVAILABLE_MESSAGE,
   SCAN_FAILED_MESSAGE,
   describeCameraError,
   isCameraScanningAvailable,
+  isFrameReady,
   loadQrDecoder,
 } from './qr-scan'
 
@@ -31,6 +35,20 @@ describe('describeCameraError', () => {
   it('falls back to the scanner message for unknown failures', () => {
     expect(describeCameraError(new Error('boom'))).toBe(SCAN_FAILED_MESSAGE)
     expect(describeCameraError('nope')).toBe(SCAN_FAILED_MESSAGE)
+  })
+
+  it('names the stage that timed out', () => {
+    expect(describeCameraError(new TimeoutError('camera'))).toBe(CAMERA_TIMEOUT_MESSAGE)
+    expect(describeCameraError(new TimeoutError('preview'))).toBe(CAMERA_PREVIEW_MESSAGE)
+    expect(describeCameraError(new TimeoutError('decoder'))).toBe(SCAN_FAILED_MESSAGE)
+  })
+})
+
+describe('isFrameReady', () => {
+  it('requires real frame dimensions and current data', () => {
+    expect(isFrameReady({ videoWidth: 640, readyState: 4 })).toBe(true)
+    expect(isFrameReady({ videoWidth: 640, readyState: 1 })).toBe(false)
+    expect(isFrameReady({ videoWidth: 0, readyState: 4 })).toBe(false)
   })
 })
 
