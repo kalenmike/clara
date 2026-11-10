@@ -28,15 +28,28 @@ export function envPath(repoRoot = root) {
 }
 
 export function parseSelection(args, { build = true, json = false } = {}) {
-  const selection = { server: true, web: true, orchestrator: true, build: false, json: false }
+  const selection = {
+    server: true,
+    web: true,
+    orchestrator: true,
+    build: false,
+    json: false,
+    mode: 'docker',
+  }
+  let local = false
+  let docker = false
   for (const arg of args) {
     if (arg === '--no-server') selection.server = false
     else if (arg === '--no-web') selection.web = false
     else if (arg === '--no-orchestrator') selection.orchestrator = false
     else if (arg === '--build' && build) selection.build = true
     else if (arg === '--json' && json) selection.json = true
+    else if (arg === '--local') local = true
+    else if (arg === '--docker') docker = true
     else throw new Error(`unknown option: ${arg}`)
   }
+  if (local && docker) throw new Error('--local and --docker cannot be combined')
+  selection.mode = local ? 'local' : 'docker'
   return selection
 }
 

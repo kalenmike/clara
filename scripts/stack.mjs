@@ -10,7 +10,8 @@
 import { existsSync } from 'node:fs'
 import { ensureNetwork, panelURL } from './lib/server-control.mjs'
 import { webURL } from './lib/web-control.mjs'
-import { run, runNode } from './lib/router.mjs'
+import { followLog, parseMode } from './lib/local-runtime.mjs'
+import { root, runNode, runPnpm } from './lib/router.mjs'
 import { collectStatus, renderJSON, renderStatus, statusExitCode } from './lib/status.mjs'
 import {
   CONTAINERS,
@@ -58,7 +59,7 @@ switch (command) {
     await status()
     break
   case 'logs':
-    logs()
+    await logs()
     break
   case 'backup':
     backup()
@@ -109,14 +110,19 @@ async function status() {
   process.exitCode = statusExitCode(records)
 }
 
-function logs() {
+async function logs() {
   const name = args.find((arg) => !arg.startsWith('-'))
   if (!name || !CONTAINERS[name]) {
-    console.error('Usage: pnpm clara logs <server|web|orchestrator>')
+    console.error('Usage: pnpm clara logs <server|web|orchestrator> [--local|--docker]')
     process.exitCode = 2
     return
   }
-  const code = run('docker', ['logs', '-f', CONTAINERS[name]])
+  const mode = parseMode(args)
+  if (mode === 'local' && name === 'orchestrator') {
+    await followLog('orchestrator')
+    return
+  }
+  const code = runNode(SCRIPTS[name], ['logs', mode === 'local' ? '--local' : '--docker'])
   if (code !== 0) process.exitCode = code
 }
 
@@ -206,11 +212,20 @@ function refuseRunning(action) {
 }
 
 async function startSelection(selection) {
-  if (ensureNetwork() !== 0) {
+  if (selection.mode === 'local' && selection.build) {
+    console.log('\n==> building the local checkout')
+    const code = runPnpm(['build'], { cwd: root })
+    if (code !== 0) {
+      console.error('error: the local build failed; nothing was started.')
+      process.exitCode = code
+      return
+    }
+  }
+  if (selection.mode === 'docker' && ensureNetwork() !== 0) {
     process.exitCode = 1
     return
   }
-  if (selection.orchestrator) {
+  if (selection.mode === 'docker' && selection.orchestrator) {
     try {
       ensureOrchestratorEnv()
     } catch (error) {
@@ -219,12 +234,17 @@ async function startSelection(selection) {
       return
     }
   }
+  const modeArgs = selection.mode === 'local' ? ['--local'] : ['--docker']
   for (const name of selectedNames(selection)) {
-    console.log(`\n==> starting ${name}`)
-    const code = runPrimitive(name, ['start', '--docker', ...(selection.build ? ['--build'] : [])])
+    console.log(`\n==> starting ${name} (${selection.mode})`)
+    const code = runPrimitive(name, [
+      'start',
+      ...modeArgs,
+      ...(selection.mode === 'docker' && selection.build ? ['--build'] : []),
+    ])
     if (code !== 0) {
       console.error(
-        `\n${name} did not start. The stack is partially started; run \`pnpm clara stop\` to clean up.`
+        `\n${name} did not start. The stack is partially started; run \`pnpm clara stop ${modeArgs[0]}\` to clean up.`
       )
       process.exitCode = code
       return
@@ -234,10 +254,11 @@ async function startSelection(selection) {
 }
 
 async function stopSelection(selection) {
+  const modeArgs = selection.mode === 'local' ? ['--local'] : ['--docker']
   let failed = false
   for (const name of selectedNames(selection, [...SERVICES].reverse())) {
-    console.log(`\n==> stopping ${name}`)
-    if (runPrimitive(name, ['stop', '--docker']) !== 0) failed = true
+    console.log(`\n==> stopping ${name} (${selection.mode})`)
+    if (runPrimitive(name, ['stop', ...modeArgs]) !== 0) failed = true
   }
   return failed ? 1 : 0
 }
@@ -264,15 +285,16 @@ function runPrimitive(name, primitiveArgs) {
 }
 
 function printSummary(selection) {
-  console.log('\nClara stack')
+  console.log(`\nClara stack (${selection.mode})`)
   if (selection.server) console.log(`  panel:        ${panelURL()}/`)
   if (selection.web) console.log(`  web:          ${webURL()}/`)
   if (selection.orchestrator) console.log(`  orchestrator: ${orchestratorURL()}/`)
 
   if (selection.server) {
+    const flag = selection.mode === 'local' ? '--local' : '--docker'
     console.log('')
-    console.log('First run: open the panel and use `pnpm clara server setup-token --docker`.')
-    console.log('Pair a device with `pnpm clara server pair --docker`.')
+    console.log(`First run: open the panel and use \`pnpm clara server setup-token ${flag}\`.`)
+    console.log(`Pair a device with \`pnpm clara server pair ${flag}\`.`)
   }
   if (!selection.web) {
     console.log('')
@@ -293,28 +315,32 @@ function printSummary(selection) {
 }
 
 function printHelp() {
-  console.log(`Manage the Clara Docker stack
+  console.log(`Manage the Clara stack
 
 Usage:
-  pnpm clara start [--no-server] [--no-web] [--no-orchestrator] [--build]
-  pnpm clara stop [--no-server] [--no-web] [--no-orchestrator]
-  pnpm clara restart [--no-server] [--no-web] [--no-orchestrator] [--build]
+  pnpm clara start [--local|--docker] [--no-server] [--no-web] [--no-orchestrator] [--build]
+  pnpm clara stop [--local|--docker] [--no-server] [--no-web] [--no-orchestrator]
+  pnpm clara restart [--local|--docker] [--no-server] [--no-web] [--no-orchestrator] [--build]
   pnpm clara status [--no-server] [--no-web] [--no-orchestrator] [--json]
-  pnpm clara logs <server|web|orchestrator>
+  pnpm clara logs <server|web|orchestrator> [--local|--docker]
   pnpm clara backup [--output <path>]
   pnpm clara restore <archive> [--force]
 
 Commands:
-  start     Start the selected containers (default: all)
-  stop      Stop the selected containers (default: all)
-  restart   Stop then start the selected containers
+  start     Start the selected services (Docker by default)
+  stop      Stop the selected services
+  restart   Stop then start the selected services
   status    Probe the selected services; use --json for machines
-  logs      Follow one container's logs
+  logs      Follow one service's logs
   backup    Archive the Docker state volumes; stop the stack first
   restore   Replace the Docker state volumes from an archive
 
+Pass --local to run the selected services as detached local processes, or
+--docker for the explicit default. --build rebuilds before starting in either
+mode.
+
 Use the scoped commands for independent control:
-  pnpm clara server start|stop|status
-  pnpm clara web start|stop|status|logs
-  pnpm clara orchestrator start|stop|status`)
+  pnpm clara server start|stop|restart|status
+  pnpm clara web start|stop|restart|status|logs
+  pnpm clara orchestrator start|stop|restart|status`)
 }

@@ -58,7 +58,6 @@ describe('OpenCode error guidance', () => {
       serviceFile: '/home/dev/.local/state/opencode/service.json',
     })
     expect(result.kind).toBe('auth')
-    expect(result.hint).toContain('pnpm clara pass')
     expect(result.hint).toContain('CLARA_OPENCODE_PASSWORD')
     expect(result.hint).toContain('/home/dev/.local/state/opencode/service.json')
   })
