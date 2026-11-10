@@ -156,7 +156,9 @@ pasting its code, and proves the connection before showing data.
 - Harness setup: panel → `harness_connections` in `clara.db`; the active
   OpenCode adapter adds basic auth and proxies `/api/*`
 - Server container: `pnpm clara server start --docker`; panel and local
-  WebSocket publish on host loopback, harness URLs use the `clara` Docker network
+  WebSocket publish on host loopback, harness URLs use the `clara` Docker network.
+  The maintenance snapshot records `local` vs `container` and recreates the
+  container with stop/start; see [maintenance.md](maintenance.md).
 - Stream health: `onActivity` tracks every chunk, including the 15s heartbeat;
   the watchdog aborts after 45s of silence
 - Storage keys: `clara.connection.local`, `clara.connection.session`

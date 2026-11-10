@@ -320,7 +320,10 @@ monitoring on or off, and gates or paces client settings sync.
 - Open the built panel: `pnpm clara control` starts the agent when the panel is
   not already answering, opens `http://127.0.0.1:${CLARA_PANEL_PORT:-8790}/`,
   and stays attached to the agent it started
-- Docker: `pnpm clara server start|stop|status|setup-token|pair|admin --docker`
+- Docker: `pnpm clara server start|stop|status|setup-token|pair|admin --docker`;
+  the rebuild snapshot records the home agent as `container` or `local` and
+  recreates a container with stop/start instead of signalling a PID. See
+  [maintenance.md](maintenance.md).
 - Dev UI: `pnpm dev:panel` (Vite on `5174`, proxying `/panel/api` to `8790`; the
   proxy rewrites `Host` and `Origin`, and the browser carries the session cookie)
 - Snapshot sections: agent, auth, config, harness, harnesses, local transport,
