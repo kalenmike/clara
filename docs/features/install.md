@@ -3,7 +3,8 @@
 ## Summary
 
 Clara installs as a PWA on desktop and iPhone and keeps itself current without
-asking anyone to delete and re-add the home-screen icon.
+asking anyone to delete and re-add the home-screen icon. The same app can be
+served from a local container instead of Cloudflare Pages.
 
 ## User flow
 
@@ -19,6 +20,25 @@ asking anyone to delete and re-add the home-screen icon.
 6. Settings → App shows the running version and build, reports whether an
    update is ready, and offers **Clear cached app data**.
 7. Offline, a navigation falls back to the cached app shell instead of failing.
+
+### Self-hosted container
+
+Cloudflare Pages is optional. To serve the SPA from the checkout:
+
+```bash
+docker network create clara      # once, or reuse the server stack
+pnpm clara web start --docker --build
+```
+
+Open <http://127.0.0.1:8080>. The image builds the same bundle as
+`pnpm --filter @clara/web build`, and `docker/web.nginx.conf` mirrors
+`apps/web/public/_headers`: the worker and app shell revalidate, hashed assets
+cache for a year, and the CSP, referrer, permissions, and nosniff headers match.
+`pnpm clara rebuild` captures the container and recreates it with a fresh build.
+
+Local pairing works from `http://127.0.0.1:8080` or an SSH tunnel. A remote HTTPS
+page cannot open a `ws://` socket, so set `VITE_CLARA_WS_URL` in `docker/.env`
+and rebuild with `--build` for relay pairings.
 
 ## Core business rules
 

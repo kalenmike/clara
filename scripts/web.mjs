@@ -1,0 +1,116 @@
+#!/usr/bin/env node
+// Docker controls for the Clara web client.
+//
+//   pnpm clara web start --docker [--build]
+//   pnpm clara web stop --docker
+//   pnpm clara web status
+//   pnpm clara web logs --docker
+
+import { compose, webRunningInCompose, webURL, waitForWeb } from './lib/web-control.mjs'
+import { ensureNetwork, probe } from './lib/server-control.mjs'
+
+const args = process.argv.slice(2)
+const command = args[0] ?? 'status'
+const docker = args.includes('--docker')
+const build = args.includes('--build')
+
+if (command === '--help' || command === '-h' || command === 'help') {
+  printHelp()
+  process.exit(0)
+}
+
+switch (command) {
+  case 'start':
+    await start()
+    break
+  case 'stop':
+    await stop()
+    break
+  case 'status':
+    await printStatus()
+    break
+  case 'logs':
+    logs()
+    break
+  default:
+    console.error(`Unknown web command: ${command}`)
+    printHelp()
+    process.exitCode = 2
+}
+
+async function start() {
+  if (!docker) {
+    console.error('Use `pnpm dev:web` for the Vite dev server, or `--docker` for the container.')
+    process.exitCode = 1
+    return
+  }
+  if (ensureNetwork() !== 0) {
+    process.exitCode = 1
+    return
+  }
+  const code = compose(['up', '-d', ...(build ? ['--build'] : []), 'web'])
+  if (code !== 0) {
+    process.exitCode = code
+    return
+  }
+  const health = await waitForWeb(90_000)
+  if (!health) {
+    console.error(`The web container did not become healthy at ${webURL()}/healthz`)
+    console.error('Check `pnpm clara web logs --docker`.')
+    process.exitCode = 1
+    return
+  }
+  console.log(`web: ${webURL()}/`)
+  console.log('Pair with `pnpm clara server pair` for a local code, or rebuild with')
+  console.log('VITE_CLARA_WS_URL=wss://… for relay pairings.')
+  console.log('An HTTPS page cannot open a ws:// socket; remote clients need the relay.')
+}
+
+async function stop() {
+  if (!docker) {
+    console.error('Use `pnpm dev:web` to run the Vite dev server, and Ctrl-C to stop it.')
+    process.exitCode = 1
+    return
+  }
+  const code = compose(['down'])
+  if (code !== 0) process.exitCode = code
+  else console.log('web container stopped')
+}
+
+async function printStatus() {
+  const result = await probe(`${webURL()}/healthz`)
+  const running = result.ok && result.body?.service === 'clara-web'
+  if (running) {
+    console.log(`web: running (${webURL()})`)
+  } else {
+    console.log('web: stopped')
+    if (webRunningInCompose()) console.log('web: the compose service is up but /healthz failed')
+  }
+  if (result.error) console.log(`web error: ${result.error}`)
+  process.exitCode = running ? 0 : 1
+}
+
+function logs() {
+  if (!docker) {
+    console.error('Use `pnpm dev:web` to see local Vite logs.')
+    process.exitCode = 1
+    return
+  }
+  const code = compose(['logs', '-f', 'web'])
+  if (code !== 0) process.exitCode = code
+}
+
+function printHelp() {
+  console.log(`Manage the Clara web client container
+
+Usage:
+  pnpm clara web <command> [--docker]
+
+Commands:
+  start --docker [--build]   Start the static container
+  stop --docker              Stop and remove the container
+  status                     Probe the /healthz endpoint
+  logs --docker              Follow container logs
+
+Local development stays unchanged: pnpm dev:web runs the Vite dev server.`)
+}

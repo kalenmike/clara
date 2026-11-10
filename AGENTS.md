@@ -7,7 +7,7 @@ WebSocket. This file is the contract for every AI agent working in this repo.
 ## Workspace
 
 ```text
-apps/web              React/Vite SPA (Cloudflare Pages)
+apps/web              React/Vite SPA (Cloudflare Pages or the web container)
 apps/panel            Authenticated home-agent dashboard and setup surface
 apps/lab              Loopback pipeline preview and agent probe
 apps/server           Node home agent, local WS + outbound Cloudflare relay
@@ -51,6 +51,7 @@ pnpm clara pair     # Print a pairing code
 pnpm clara control  # Serve the built panel and open it in a browser
 pnpm clara serve    # Run the built home agent
 pnpm clara server start|stop|status|pair|admin [--docker] # Home agent container
+pnpm clara web start|stop|status|logs [--docker] [--build] # Web client container
 pnpm clara pass     # Print the local OpenCode password
 pnpm clara orchestration start [--docker] [--build]|stop [--docker]|status|serve # Run the orchestration service
 pnpm clara orchestration analyze [--json] [--days n] # Analyze run history for failure patterns

@@ -38,7 +38,7 @@ browser-safe, so Clara uses the browser client from the same family.
 
 ```text
 apps/
-  web/                 React SPA, deployed to Cloudflare Pages
+  web/                 React SPA, deployed to Cloudflare Pages or the web container
   panel/               Loopback dashboard and admin controls served by the home agent
   server/              Node home agent, outbound relay client, local WS listener
   orchestrator/        Loopback orchestration service and CLI
@@ -69,7 +69,7 @@ Clara home agent ──outbound WSS──▶ Worker ──▶ RelayRoom DO ◀�
 Local mode: web ──WSS──▶ home agent ──▶ active harness (OpenCode now)
 Panel: browser ──HTTP 127.0.0.1:8790──▶ home agent (auth + setup + controls)
 Harness: panel ──▶ SQLite harness_connections (encrypted secret) ──▶ harness client
-Docker: home agent, orchestrator, and OpenCode on the `clara` bridge network
+Docker: web client, home agent, orchestrator, and OpenCode on the `clara` bridge network
 ```
 
 The relay forwards opaque frames. It does not parse, store, or replay payloads.

@@ -3,7 +3,7 @@
 // Keeping these functions independent of the filesystem and process table
 // makes the restart order and the health verdict easy to test.
 
-export const SERVICE_ORDER = ['lab', 'control', 'orchestrator']
+export const SERVICE_ORDER = ['web', 'lab', 'control', 'orchestrator']
 
 export function parseWorktreeList(output) {
   const worktrees = []
@@ -31,7 +31,7 @@ export function primaryWorktree(worktrees) {
  * The deployment form captured at status time. `compose` says whether the
  * home-agent container is running even when its panel is unreachable.
  */
-export function deploymentModes({ orchestrator, lab, control, compose = {} } = {}) {
+export function deploymentModes({ orchestrator, lab, control, web, compose = {} } = {}) {
   const orchestratorMode =
     orchestrator?.mode === 'container' ? 'container' : orchestrator?.expected ? 'local' : 'stopped'
   const controlMode =
@@ -41,6 +41,12 @@ export function deploymentModes({ orchestrator, lab, control, compose = {} } = {
         ? 'local'
         : 'stopped'
   const labMode = lab?.expected ? 'host' : 'stopped'
+  const webMode =
+    web?.mode === 'container' || compose.web === true
+      ? 'container'
+      : web?.expected
+        ? 'local'
+        : 'stopped'
   return {
     orchestrator: {
       mode: orchestratorMode,
@@ -49,6 +55,7 @@ export function deploymentModes({ orchestrator, lab, control, compose = {} } = {
     },
     control: { mode: controlMode, container: controlMode === 'container' },
     lab: { mode: labMode },
+    web: { mode: webMode, container: webMode === 'container' },
   }
 }
 
@@ -76,6 +83,13 @@ export function restartPlan(state, { skip = [], manageExternal = false, only } =
     }
     if (!captured?.expected) {
       services.push({ name, action: 'skip', reason: 'not running when captured', mode })
+      continue
+    }
+    if (name === 'web' && mode !== 'container') {
+      services.push({ name, action: 'skip', reason: 'served outside this checkout', mode })
+      warnings.push(
+        `web at ${captured.url ?? 'the configured port'} is not a container; restart it where it is served`
+      )
       continue
     }
     if (wanted && !wanted.has(name)) {
@@ -222,6 +236,23 @@ export function evaluateHealth(state, observed, { adapter, now = new Date() } = 
     control.warnings.push('OpenCode became unreachable during the rebuild')
   }
   services.push(control)
+
+  const web = serviceResult('web', state?.web?.expected, observed?.web)
+  const capturedWebMode = state?.deployment?.web?.mode ?? state?.web?.mode
+  const observedWebMode = observed?.web?.mode
+  if (
+    state?.web?.expected &&
+    observed?.web?.healthy &&
+    capturedWebMode &&
+    observedWebMode &&
+    capturedWebMode !== observedWebMode
+  ) {
+    web.warnings.push(`mode changed from ${capturedWebMode} to ${observedWebMode}`)
+  }
+  if (state?.web?.expected && capturedWebMode === 'local') {
+    web.warnings.push('web is served outside this checkout')
+  }
+  services.push(web)
 
   const opencodeAdapter = {
     linked: adapter?.opencode?.linked === true,

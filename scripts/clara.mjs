@@ -23,6 +23,10 @@ function server(args) {
   return runNode(join(root, 'scripts/server.mjs'), args)
 }
 
+function web(args) {
+  return runNode(join(root, 'scripts/web.mjs'), args)
+}
+
 function serve(args) {
   const entry = join(root, 'apps/server/dist/index.js')
   if (!existsSync(entry)) fail('The home agent is not built. Run `pnpm build` first.')
@@ -162,6 +166,19 @@ const clara = {
         'pnpm clara server logs --docker',
       ],
       run: server,
+    },
+    {
+      name: 'web',
+      summary: 'Start, stop, inspect, or follow the web client container',
+      usage: '<start|stop|status|logs> [--docker] [--build]',
+      passthroughHelp: true,
+      examples: [
+        'pnpm clara web start --docker --build',
+        'pnpm clara web status',
+        'pnpm clara web logs --docker',
+        'pnpm clara web stop --docker',
+      ],
+      run: web,
     },
     {
       name: 'pass',
