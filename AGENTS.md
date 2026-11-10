@@ -22,7 +22,7 @@ packages/orchestration Package loader, runtime, leases, and watchdog
 packages/runner       Shared script runner for harness adapters
 packages/devtools     Pipeline preview, diagnostics, and snapshot diff SDK
 packages/mcp-server   Shared MCP tools and resources
-packages/crypto       PSK derivation, AES-GCM envelopes, replay guard
+packages/crypto       device-key derivation, AES-GCM envelopes, replay guard
 workers/relay         Cloudflare Worker + RelayRoom Durable Object
 lib/std               Standard orchestration packages (software, content, research, diagnostics, maintenance)
 ```
@@ -134,7 +134,7 @@ transport, Worker, Durable Object, or crypto.
   Keep OpenCode domain types sourced from `@opencode/client`.
 - The Worker/DO must not parse or persist encrypted payloads.
 - Never store credentials outside `sessionStorage`/`localStorage` (the latter
-  only when the user opts in). Never commit pairing codes, PSKs, tokens, or
+  only when the user opts in). Never commit pairing codes, device keys, tokens, or
   `.env`/`.dev.vars`.
 - Keep files focused; split a component once it carries more than one concern.
 - Commit incrementally with Conventional Commits; see [Commits](#commits).
@@ -217,7 +217,7 @@ docs(sessions): document archived session filters
 | Developer commands and worktrees   | [docs/development.md](docs/development.md)                       |
 | Workspace, modes, auth, streaming  | [docs/architecture/overview.md](docs/architecture/overview.md)   |
 | Relay Worker, DO, remote access    | [docs/architecture/relay.md](docs/architecture/relay.md)         |
-| E2EE, PSK, envelopes, rotation     | [docs/architecture/e2ee.md](docs/architecture/e2ee.md)           |
+| E2EE, device keys, envelopes       | [docs/architecture/e2ee.md](docs/architecture/e2ee.md)           |
 | What ships and what does not       | [docs/features/capabilities.md](docs/features/capabilities.md)   |
 | Orchestration service and control  | [docs/features/orchestration.md](docs/features/orchestration.md) |
 | Orchestrator diagnosis and fixes   | [docs/features/diagnostics.md](docs/features/diagnostics.md)     |

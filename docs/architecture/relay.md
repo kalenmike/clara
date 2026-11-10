@@ -24,7 +24,7 @@ Clara home agent ──outbound WSS──▶ Worker ──▶ RelayRoom DO ◀�
 | `RelayRoom` DO  | `workers/relay`         | One agent socket + N client sockets; frame forwarding only    |
 | Web transport   | `apps/web`              | Fetch-over-WebSocket shim, E2EE, reconnect, heartbeat         |
 | Shared protocol | `packages/shared-types` | Frame/action/state types and pairing payloads                 |
-| Crypto          | `packages/crypto`       | PSK derivation, AES-GCM seal/open, replay guard               |
+| Crypto          | `packages/crypto`       | device-key derivation, AES-GCM seal/open, replay guard        |
 
 ## Example domain layout
 
@@ -44,8 +44,10 @@ not a secret, but it is unguessable.
   against the new process.
 - Client frames go only to the agent. Agent frames are broadcast to every
   client. There is no per-client routing state in the DO.
-- Each client uses its own `sid` and per-session keys. Foreign frames fail to
-  decrypt and are dropped; the relay does not need to understand them.
+- Each client uses its own `sid` and per-session keys. The hello also carries a
+  stable `deviceId`, so the relay can correlate connections from one device
+  even though the `sid` is fresh. Foreign frames fail to decrypt and are
+  dropped; the relay does not need to understand them.
 - When the agent disconnects, clients close with `1012` and reconnect with
   jittered backoff.
 - When no agent is present, a client frame closes that client with `1013`.
@@ -75,7 +77,7 @@ pnpm exec wrangler secret put CLARA_CLIENT_TOKEN
 
 The client token is embedded in the pairing payload. It prevents unpaired
 traffic from reaching the agent, but it is not the encryption key. An attacker
-with the client token and no PSK can open sockets and cause noise; they cannot
+with the client token and no device key can open sockets and cause noise; they cannot
 read or forge E2EE frames. Rotate both tokens if either leaks.
 
 ## Deployment
@@ -98,16 +100,16 @@ read or forge E2EE frames. Rotate both tokens if either leaks.
 
 ## Failure behavior
 
-| Failure                 | Result                                                                     |
-| ----------------------- | -------------------------------------------------------------------------- |
-| Relay unreachable       | Agent retries with exponential backoff (1s–30s, jittered).                 |
-| Agent offline           | Clients connect, then close with `1013`; the connect screen shows failure. |
-| Agent restarts          | DO closes clients with `1012`; both sides re-handshake.                    |
-| Wrong token             | Worker returns `401` before upgrading.                                     |
-| Wrong PSK / fingerprint | Transport closes with `4001`; UI reports a key mismatch.                   |
-| Version mismatch        | Handshake is rejected; update web and agent together.                      |
-| Slow client             | DO closes above the buffered-output threshold.                             |
-| Many clients            | Egress scales with client count because agent frames are broadcast.        |
+| Failure                   | Result                                                                     |
+| ------------------------- | -------------------------------------------------------------------------- |
+| Relay unreachable         | Agent retries with exponential backoff (1s–30s, jittered).                 |
+| Agent offline             | Clients connect, then close with `1013`; the connect screen shows failure. |
+| Agent restarts            | DO closes clients with `1012`; both sides re-handshake.                    |
+| Wrong token               | Worker returns `401` before upgrading.                                     |
+| Unknown or revoked device | Agent sends an `error` frame; the client reports and stops reconnecting.   |
+| Version mismatch          | Handshake is rejected; update web and agent together.                      |
+| Slow client               | DO closes above the buffered-output threshold.                             |
+| Many clients              | Egress scales with client count because agent frames are broadcast.        |
 
 ## Related
 

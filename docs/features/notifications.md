@@ -191,8 +191,9 @@ start an agent run and move on, so they do not have to watch the sidebar.
   metadata suppresses the session alert.
 - **External OpenCode notifier** — the TUI notifier is a separate plugin and
   does not read the Clara orchestration flag.
-- **Pairing rotated** — `pair --rotate` clears every stored push subscription, so
-  a lost device stops receiving notifications.
+- **Device revoked** — revoking a device in the panel removes its stored push
+  subscriptions, so a lost device stops receiving notifications. `pair
+--revoke-all` does the same for every device.
 - **Push notification tapped while Clara is open** — the existing window is
   focused and navigated to the session.
 - **Push payload** — it carries the session title and reason, so the lock screen
@@ -206,7 +207,8 @@ start an agent run and move on, so they do not have to watch the sidebar.
   push subscription through client settings sync.
 - Cross-tab de-duplication beyond the visible-window rule.
 - A manual "send to phone" override, a per-device push list, or manual device
-  roles; holding is automatic and keyed on the desktop idle window.
+  roles; holding is automatic and keyed on the desktop idle window. Device
+  revocation does remove that device's subscriptions.
 - Notifications for retries, queued prompt delivery, or background tasks.
 - Grouping or a notification history inside Clara. Session snoozing is separate
   and lives in the sidebar; individual notifications cannot be snoozed.
@@ -231,8 +233,9 @@ start an agent run and move on, so they do not have to watch the sidebar.
   colors and typography cannot follow the selected palette.
 - Losing or rotating `vapid.json` invalidates existing push subscriptions until
   each device subscribes again.
-- There is no per-device push list or revoke control; `pair --rotate` clears all
-  stored subscriptions.
+- There is no separate per-device push list. Subscriptions are tagged with the
+  device id and removed when that device is revoked or when `pair --revoke-all`
+  runs.
 
 ## Technical appendix
 

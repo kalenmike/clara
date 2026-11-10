@@ -89,7 +89,7 @@ pnpm clara mcp install|config|status
 pnpm clara runner
 
 # Setup
-pnpm clara pair [--local] [--rotate] [--no-qr] [--no-panel] [--docker|--host]
+pnpm clara pair [--local] [--no-qr] [--no-panel] [--revoke-all] [--revoke <id>] [--docker|--host]
 
 # Tools
 pnpm clara lab [serve|check]

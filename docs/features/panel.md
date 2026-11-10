@@ -32,14 +32,15 @@ monitoring on or off, and gates or paces client settings sync.
    type, username, and password. Use **Test** before saving when possible. In a
    container, the URL must be reachable from the `clara` network, for example
    `http://opencode:4096`; `127.0.0.1` means the Clara server itself.
-4. The **Agent**, **Effective configuration**, **Connected clients**, and
+4. The **Agent**, **Effective configuration**, **Connected clients**, **Paired
+   devices**, and
    **Recent activity** cards start expanded. Every other card starts collapsed.
    Review the headers for the agent process, OpenCode, local transport, relay,
    push, client sync, effective configuration, clients, activity, shell policy,
    and storage. Status chips sit beside each card title, including a storage
    health summary that turns amber for warnings and red for errors. Sensitive
-   values start masked: the pairing key, config and storage paths, local
-   WebSocket endpoint, relay URL and room, client session ids, and WebSocket
+   values start masked: device ids, config and storage paths, local
+   WebSocket endpoint, relay URL and room, connection session ids, and WebSocket
    URLs in activity or errors. Choose the eye button beside **Refresh** to
    reveal them for this tab; the choice survives a reload and a new tab starts
    masked again. In **Effective configuration**, edit **Web URL** or **VAPID
@@ -118,11 +119,11 @@ monitoring on or off, and gates or paces client settings sync.
    `DELETE` removes a harness or the session. Unknown mutating methods return
    `405`.
 4. **Secrets stay out.** The snapshot is built from an explicit allowlist. The
-   PSK, pairing code, harness password, relay tokens, push endpoints, sync
-   values, and file contents are never returned. Harness credentials are
-   encrypted at rest in SQLite with a key outside the database. The PSK
-   fingerprint, secret-configured flags, room id, and effective config values
-   are included and start masked in the panel.
+   device keys, enrollment codes, harness password, relay tokens, push
+   endpoints, sync values, and file contents are never returned. Device keys and
+   unused enrollment tokens are encrypted at rest in SQLite with a key outside
+   the database. Device fingerprints, secret-configured flags, room id, and
+   effective config values are included and start masked in the panel.
 5. **Mutations are browser-hard to forge.** Besides authentication, the
    `Host`, `Origin`, and `Sec-Fetch-Site` checks, writes require
    `content-type: application/json` and `x-clara-panel: 1`, reject unknown
@@ -155,8 +156,8 @@ monitoring on or off, and gates or paces client settings sync.
    one-minute buckets and reset on restart or when monitoring is switched off.
    Nothing is throttled, blocked, or persisted, and the per-client counters are
    hidden while monitoring is off.
-10. **Peek is presentation-only.** The eye button masks the pairing fingerprint,
-    config and storage paths, local WebSocket endpoint, relay URL and room, client
+10. **Peek is presentation-only.** The eye button masks device ids, config and
+    storage paths, local WebSocket endpoint, relay URL and room, connection
     session ids, and WebSocket URLs in activity messages and error notices. It
     does not redact the JSON snapshot, change any control, or reach the server:
     the agent's allowlist remains the security boundary. The choice lives in
@@ -263,10 +264,10 @@ monitoring on or off, and gates or paces client settings sync.
 
 - Non-superadmin panel users and roles; the schema reserves a role column
 - Remote access to the panel through the relay
-- Editing relay URLs, rooms, tokens, PSK, or other `server.json` fields from the
+- Editing relay URLs, rooms, tokens, or other `server.json` fields from the
   panel; the Web URL and VAPID contact are the exceptions
 - Multiple simultaneously active harnesses; the panel stores one active backend
-- Kicking clients or revoking a device
+- Per-device relay tokens; the relay client token remains shared
 - A sandbox for command execution, or an allowlist of every proxied API route
 - Per-command arguments, wildcards, or regular expressions in the allowlist
 - Rate limiting, blocking, or alerts driven by the traffic meter
@@ -283,8 +284,8 @@ monitoring on or off, and gates or paces client settings sync.
 - Sessions are in memory, so restarting the agent signs everyone out.
 - The superadmin password is hashed; harness passwords are reversible and must
   be encrypted at rest with a backed-up key.
-- There is no per-device identity; the panel shows one entry per live E2EE
-  session.
+- Device identity is logical, not hardware-bound. The panel shows one row per
+  stored device and one row per live connection; multiple tabs share a device.
 - Traffic is measured at the agent, so connections the relay rejects before they
   reach it, and Cloudflare-level bandwidth, are visible only in Cloudflare
   analytics.
@@ -308,7 +309,7 @@ monitoring on or off, and gates or paces client settings sync.
 - Health: `GET /health` (unauthenticated, no secrets)
 - Session: `GET|POST|DELETE /panel/api/v1/session`
 - Setup: `POST /panel/api/v1/setup` with `{ "token": "...", "username": "...", "password": "..." }`
-- Read API: `GET /panel/api/v1/status` (API version `9`, authenticated)
+- Read API: `GET /panel/api/v1/status` (API version `10`, authenticated)
 - Mutations:
   - `POST /panel/api/v1/features` with `{ "feature": "...", "enabled": true }`
   - `POST /panel/api/v1/agent` with `{ "stopped": true }`
@@ -321,6 +322,7 @@ monitoring on or off, and gates or paces client settings sync.
   - `POST /panel/api/v1/harnesses` and `POST /panel/api/v1/harnesses/:id`
   - `POST /panel/api/v1/harnesses/:id/test|activate`
   - `DELETE /panel/api/v1/harnesses/:id`
+  - `DELETE /panel/api/v1/devices/:id`
   - `POST /panel/api/v1/account/password`
 - Required mutation headers: `content-type: application/json`,
   `x-clara-panel: 1`
@@ -354,7 +356,7 @@ monitoring on or off, and gates or paces client settings sync.
   signalling a PID. See [maintenance.md](maintenance.md).
 - Dev UI: `pnpm dev:panel` (Vite on `5174`, proxying `/panel/api` to `8790`; the
   proxy rewrites `Host` and `Origin`, and the browser carries the session cookie)
-- Snapshot sections: agent, auth, config, harness, harnesses, local transport,
+- Snapshot sections: agent, auth, config, harness, harnesses, devices, local transport,
   relay, clients, push, controls (feature switches, shell, monitoring, sync,
   orchestration), storage, events, traffic
 - Shell policy: `apps/server/src/shell-policy.ts` (matching, validation, and the

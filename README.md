@@ -27,7 +27,7 @@ packages/adapter-core Harness-neutral adapter client, delivery, prompt, and runn
 packages/shared-types Wire frames, actions, states, pairing payloads
 packages/orchestration Package loader, runtime, leases, and watchdog
 packages/runner       Shared script runner for harness adapters
-packages/crypto       PSK derivation, AES-GCM envelopes, replay guard
+packages/crypto       device-key derivation, AES-GCM envelopes, replay guard
 workers/relay         Cloudflare Worker + RelayRoom Durable Object
 ```
 
@@ -92,7 +92,7 @@ local transport, relay, or push, start and stop the local orchestration service,
 and stop every external connection while the process, panel, and database stay
 alive. Settings and harness connections are stored at `CLARA_DB_PATH` or
 `~/.local/share/clara/clara.db` (mode `0600`); harness passwords are encrypted
-with `secrets.key`. The panel never returns the PSK, harness password, relay
+with `secrets.key`. The panel never returns device keys, harness password, relay
 tokens, push endpoints, sync values, or file contents. See
 [docs/features/panel.md](docs/features/panel.md) and
 [docs/features/agent-controls.md](docs/features/agent-controls.md).
@@ -345,9 +345,8 @@ subscriptions at `~/.config/clara/subscriptions.json`.
   `brave://settings/privacy`; Brave has no push service of its own, so
   subscribing fails until that setting is on and the browser is relaunched.
 - The agent must be able to reach the browser vendor's push service over HTTPS.
-- `pnpm clara pair --rotate` clears all stored push
-  subscriptions as well as rotating the pairing key; restart the running home
-  agent afterward.
+- Revoking a device in the panel clears that device's stored push
+  subscriptions. `pnpm clara pair --revoke-all` clears all of them.
 - `CLARA_VAPID_SUBJECT` overrides the VAPID contact subject. The default is
   `https://clara.local`; the agent panel can edit the contact stored in
   `vapid.json`.
@@ -399,8 +398,9 @@ is no UI for it. See [docs/features/sync.md](docs/features/sync.md).
 
 - Cloudflare sees ciphertext and routing metadata only.
 - The browser never receives the OpenCode password in relay mode.
-- The PSK is delivered in a URL fragment, stored in browser storage, and kept
-  at `~/.config/clara/server.json` (mode `0600`) on the agent.
+- A pairing link carries a one-time enrollment token, never a long-lived key.
+  The browser stores its per-device key as a non-extractable `CryptoKey` in
+  IndexedDB. The agent stores device keys encrypted with `secrets.key`.
 - Web Push subscriptions live at `~/.config/clara/subscriptions.json`; VAPID
   keys live at `~/.config/clara/vapid.json`. Both use mode `0600`.
 - Agent settings, client sync data, and harness connections live in
@@ -411,15 +411,16 @@ is no UI for it. See [docs/features/sync.md](docs/features/sync.md).
 - The agent panel requires a superadmin login. It listens on `127.0.0.1:8790`
   by default, guards every request with Host/Origin/fetch-metadata checks, and
   keeps the setup token in `admin-setup.txt` (mode `0600`) until the first login.
-  It never returns the PSK, harness password, relay tokens, push endpoints, sync
-  values, or file contents. It is not exposed through the relay or Pages.
+  It never returns device keys, harness password, relay tokens, push endpoints,
+  sync values, or file contents. It is not exposed through the relay or Pages.
 - A lost panel password is reset with `pnpm clara server admin reset` (add
   `--docker` in a container). That command writes a new one-time setup token.
   There is deliberately no network password-reset endpoint.
 - Never commit `.env`, `.dev.vars`, `service.json`, push subscriptions, VAPID
-  keys, pairing codes, tokens, the PSK, `secrets.key`, or `admin-setup.txt`.
-- Rotate with `pnpm clara pair --rotate`; this also clears
-  every stored push subscription.
+  keys, pairing codes, tokens, device keys, `secrets.key`, or `admin-setup.txt`.
+- Revoke a lost device with `pnpm clara pair --revoke <deviceId>` or from the
+  panel. `pnpm clara pair --revoke-all` revokes every device and clears all
+  stored push subscriptions.
 
 See [docs/architecture/e2ee.md](docs/architecture/e2ee.md).
 
