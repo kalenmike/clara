@@ -25,7 +25,8 @@ monitoring on or off, and gates or paces client settings sync.
    from `admin-setup.txt` in the config directory, or run
    `pnpm clara server setup-token` (it targets the running deployment
    automatically), then choose the superadmin password. Later visits show the
-   sign-in form.
+   sign-in form. After a host reset, the sign-in form shows a reset link while
+   the token is valid.
 3. After signing in, add the OpenCode harness connection: label, base URL, auth
    type, username, and password. Use **Test** before saving when possible. In a
    container, the URL must be reachable from the `clara` network, for example
@@ -184,8 +185,11 @@ monitoring on or off, and gates or paces client settings sync.
   token.
 - **The superadmin password is lost** — run `pnpm clara server admin reset`. It
   targets the running deployment automatically and prints which one it chose,
-  writes a new one-time token, and revokes every panel session. There is no HTTP
-  reset route.
+  writes a new one-time token, and revokes every panel session. While that token
+  is valid, the sign-in screen shows **Lost your password? Use a reset token**;
+  the form takes the token and a new password and keeps the existing username.
+  The link disappears when the token is used or expires. There is no HTTP reset
+  route.
 - **A local install and the Docker stack both have state** — the command refuses
   to guess and exits after printing the reason. Pass `--docker` for the
   `clara-server` container or `--host` for the local install.
