@@ -17,7 +17,7 @@ The maintenance package keeps three pipelines:
 
 All three use `observed` enforcement so they can run while the adapter or setup
 is degraded. The deterministic mechanics still live in `pnpm clara rebuild …`
-and `pnpm clara orchestration inspect`.
+and `pnpm clara orchestrator inspect`.
 
 ## User flow
 
@@ -212,7 +212,7 @@ clara`. A manually started agent is restarted from the captured root with its
   with `--json`, `--root <path>`, `--state <path>`, `--dry-run`,
   `--manage-external`, `--force`, `--skip <service>`, `--lines <n>`, and
   `--mcp` / `--no-mcp`.
-- Run evidence: `pnpm clara orchestration inspect [--run <id> | --request
+- Run evidence: `pnpm clara orchestrator inspect [--run <id> | --request
 <path> | --request-env] [--json]`. `--request-env` reads `CLARA_REQUEST` in a
   script step. Without a run id it selects the latest failed root run for the
   workspace.

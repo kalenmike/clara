@@ -19,10 +19,10 @@ and the rebuild snapshot instead of aggregating history. See
    the request to `std:diagnostics`.
 2. A caller can also start the package directly from the Lab with
    `target: std:diagnostics`, or run the analyzer without a pipeline with
-   `pnpm clara orchestration analyze`. The Clara agent always starts at the
+   `pnpm clara orchestrator analyze`. The Clara agent always starts at the
    configured entry, whose router selects diagnostics.
 3. `collect_evidence` runs
-   `pnpm clara orchestration analyze --json --days 30`. The analyzer prefers a
+   `pnpm clara orchestrator analyze --json --days 30`. The analyzer prefers a
    reachable orchestrator service and otherwise opens the local database
    read-only.
 4. `pattern_failures` groups consistently failing pipelines and steps, repeated
@@ -124,7 +124,7 @@ and the rebuild snapshot instead of aggregating history. See
 propose_fixes → review_report`.
 - Analyzer: `packages/orchestration/src/diagnostics.ts`;
   `analyzeDatabase(db, options)` and `analyzeDatabaseFile(path, options)`.
-- CLI: `pnpm clara orchestration analyze [--json] [--days n] [--db path]
+- CLI: `pnpm clara orchestrator analyze [--json] [--days n] [--db path]
 [--url url]`. Default window is 30 days; `--days 0` is all history.
 - Service: `GET /v1/diagnostics?days=30`, bearer-protected, returns the same
   report as the CLI.

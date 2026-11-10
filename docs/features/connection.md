@@ -130,6 +130,9 @@ the connection before showing data.
   `relay-client`, `pairing`)
 - Harness setup: panel → `harness_connections` in `clara.db`; the active
   OpenCode adapter adds basic auth and proxies `/api/*`
+- Docker stack: `pnpm clara start` starts the orchestrator, server, and web
+  client together; `--no-*` selects a subset and `restart` recreates the
+  selection. Use the scoped commands for one service.
 - Server container: `pnpm clara server start --docker`; panel and local
   WebSocket publish on host loopback, harness URLs use the `clara` Docker network.
   The maintenance snapshot records `local` vs `container` and recreates the
