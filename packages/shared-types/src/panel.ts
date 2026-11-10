@@ -67,7 +67,8 @@ export type PanelAuthInfo = {
 }
 
 export type PanelAuthStatus =
-  { authenticated: false; setupRequired: boolean } | { authenticated: true; user: PanelAuthInfo }
+  | { authenticated: false; setupRequired: boolean; resetPending: boolean }
+  | { authenticated: true; user: PanelAuthInfo }
 
 export type PanelLoginUpdate = {
   username: string

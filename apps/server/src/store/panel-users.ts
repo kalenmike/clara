@@ -130,6 +130,13 @@ export class PanelUserStore {
     write()
   }
 
+  hasUnexpiredSetupToken(now: number): boolean {
+    const row = this.db
+      .prepare('SELECT 1 AS present FROM panel_setup_tokens WHERE expires_at > ? LIMIT 1')
+      .get(now) as { present: number } | undefined
+    return row !== undefined
+  }
+
   findSetupToken(tokenHash: string): PanelSetupToken | undefined {
     const row = this.db
       .prepare('SELECT * FROM panel_setup_tokens WHERE token_hash = ?')

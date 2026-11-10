@@ -37,7 +37,8 @@ export type PanelAuthUser = {
 }
 
 export type PanelAuthStatus =
-  { authenticated: false; setupRequired: boolean } | { authenticated: true; user: PanelAuthUser }
+  | { authenticated: false; setupRequired: boolean; resetPending: boolean }
+  | { authenticated: true; user: PanelAuthUser }
 
 export type PanelLoginResult = {
   token: string
@@ -110,7 +111,14 @@ export class PanelAuth {
   status(token: string | undefined): PanelAuthStatus {
     const session = this.session(token)
     if (session) return { authenticated: true, user: session }
-    return { authenticated: false, setupRequired: this.users.count() === 0 }
+    const configured = this.users.count() > 0
+    return {
+      authenticated: false,
+      setupRequired: !configured,
+      // A host reset issues a token for the existing admin. Report it so the
+      // panel can offer the reset form instead of leaving the token unusable.
+      resetPending: configured && this.users.hasUnexpiredSetupToken(this.now()),
+    }
   }
 
   /**

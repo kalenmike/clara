@@ -31,7 +31,11 @@ describe('panel auth', () => {
     expect(readSetupToken(dir)).toBeTruthy()
     const mode = statSync(join(dir, 'admin-setup.txt')).mode & 0o777
     expect(mode).toBe(0o600)
-    expect(auth.status(undefined)).toEqual({ authenticated: false, setupRequired: true })
+    expect(auth.status(undefined)).toEqual({
+      authenticated: false,
+      setupRequired: true,
+      resetPending: false,
+    })
   })
 
   it('requires the setup token and a strong password before creating the admin', async () => {
@@ -91,9 +95,39 @@ describe('panel auth', () => {
     const reset = auth.resetForHost()
     expect(auth.session(login.token)).toBeUndefined()
     expect(reset.token).toBeTruthy()
+    expect(auth.status(undefined)).toEqual({
+      authenticated: false,
+      setupRequired: false,
+      resetPending: true,
+    })
 
-    const next = await auth.setup(reset.token, 'admin', 'another-long-password')
+    // The reset form omits the username because the token is bound to the
+    // existing account; the empty value must not create a second user.
+    const next = await auth.setup(reset.token, '', 'another-long-password')
     expect(auth.session(next.token)).toBeTruthy()
+    expect(users.count()).toBe(1)
+    expect(auth.status(undefined)).toEqual({
+      authenticated: false,
+      setupRequired: false,
+      resetPending: false,
+    })
+  })
+
+  it('hides a reset once its token expires', async () => {
+    const token = readSetupTokenFromAuth()
+    await auth.setup(token, 'admin', 'a-long-password')
+    auth.resetForHost()
+
+    const later = new PanelAuth({
+      users,
+      configDir: dir,
+      now: () => Date.now() + 25 * 60 * 60_000,
+    })
+    expect(later.status(undefined)).toEqual({
+      authenticated: false,
+      setupRequired: false,
+      resetPending: false,
+    })
   })
 
   it('keeps a host reset token across an agent restart', async () => {
@@ -103,6 +137,7 @@ describe('panel auth', () => {
 
     const restarted = new PanelAuth({ users, configDir: dir })
     expect(restarted.ensureSetupToken()?.path).toBeTruthy()
+    expect(restarted.status(undefined)).toMatchObject({ resetPending: true })
     const next = await restarted.setup(reset.token, 'admin', 'another-long-password')
     expect(restarted.session(next.token)).toBeTruthy()
   })
