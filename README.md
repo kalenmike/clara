@@ -17,7 +17,7 @@ trusted network.
 ## Workspace
 
 ```text
-apps/web              React/Vite SPA, deployed to Cloudflare Pages
+apps/web              React/Vite SPA, deployed to Cloudflare Pages or the web container
 apps/panel            Authenticated dashboard and setup surface served by the home agent
 apps/server           Node home agent, harness proxy, local WS + outbound relay
 apps/orchestrator     Loopback orchestration service, REST/SSE/MCP
@@ -123,6 +123,34 @@ the agent and OpenCode, then move them once:
 mkdir -p ~/.local/share/clara
 mv ~/.config/clara/clara.db* ~/.local/share/clara/
 ```
+
+### Web container
+
+The built SPA can be served locally instead of Cloudflare Pages:
+
+```bash
+docker network create clara      # once, or reuse the server stack
+pnpm clara web start --docker --build
+pnpm clara web status
+```
+
+Open <http://127.0.0.1:8080>. The image builds the same bundle as
+`pnpm --filter @clara/web build` and serves it with nginx on host loopback; the
+Pages headers and cache rules are mirrored in `docker/web.nginx.conf`.
+
+Leave `VITE_CLARA_WS_URL` unset for local pairing codes. For relay pairings, set
+it in `docker/.env` and rebuild:
+
+```bash
+VITE_CLARA_WS_URL=wss://relay.example pnpm clara web start --docker --build
+```
+
+Local pairing works from `http://127.0.0.1:8080` or an SSH tunnel. An HTTPS page
+cannot open a `ws://` socket, so phones and remote browsers still need the relay.
+The container is static and the browser talks to the home agent directly; it
+does not proxy API or WebSocket traffic. See
+[docs/features/install.md](docs/features/install.md) and
+[docs/features/connection.md](docs/features/connection.md).
 
 ### Local WebSocket mode
 

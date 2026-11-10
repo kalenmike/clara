@@ -4,10 +4,11 @@
 
 The maintenance package keeps three pipelines:
 
-- `rebuild` snapshots the running Clara setup, rebuilds the checkout, reinstalls
-  the OpenCode adapters, restarts exactly the services that were running, and
-  verifies their health. It retries restart and health once and has a bounded
-  recovery branch that restarts only the unhealthy captured services.
+- `rebuild` snapshots the running Clara setup, including the web client
+  container, rebuilds the checkout, reinstalls the OpenCode adapters, restarts
+  exactly the services that were running, and verifies their health. It retries
+  restart and health once and has a bounded recovery branch that restarts only
+  the unhealthy captured services.
 - `recover` restores services from the **current** snapshot without rebuilding or
   capturing a new one. It is the right command after a failed restart, when
   re-capturing would record dead services as stopped.
@@ -27,18 +28,19 @@ and `pnpm clara orchestration inspect`.
    `std:maintenance/diagnose` directly.
 2. `rebuild` captures the live setup: the primary checkout, git revision, Node
    and pnpm versions, the adapter and MCP entries, every running orchestrator,
-   Lab, and home agent, and each service's deployment form (`local`, `container`,
-   or `stopped`; an orchestrator also carries an `external` flag). It writes the
-   snapshot used by the later steps.
+   Lab, home agent, and web container, and each service's deployment form
+   (`local`, `container`, or `stopped`; an orchestrator also carries an
+   `external` flag). It writes the snapshot used by the later steps.
 3. The build step runs `pnpm install --frozen-lockfile` and `pnpm build` in the
    captured build checkout.
 4. The adapter step links the OpenCode adapter, installs the Clara agent file,
    and refreshes the MCP entry when it was already configured.
 5. The restart step brings back only the services captured as running, in the
-   captured form. It restarts the Lab and the home agent first and the
-   orchestrator last, waiting for each health endpoint before moving on. A
+   captured form. It restarts the web container, Lab, and home agent first and
+   the orchestrator last, waiting for each health endpoint before moving on. A
    containerized home agent is stopped and recreated with compose instead of
-   being signalled by PID.
+   being signalled by PID; the web container is recreated with a fresh image
+   build.
 6. The verify step probes every captured service and adapter, compares the
    workspace and deployment mode with the snapshot, and reports warnings or
    failures.
@@ -59,10 +61,10 @@ and `pnpm clara orchestration inspect`.
 1. **The snapshot is the contract.** `status` writes it, `restart`, `recover`,
    and `health` read it. A service that was stopped when captured stays stopped.
 2. **Deployment form is saved.** The snapshot records `local`, `container`, or
-   `stopped` for the home agent, orchestrator, and Lab, plus an `external` flag
-   for an orchestrator managed outside the checkout. A containerized home agent
-   is recreated with compose, and a captured local agent is never restarted by
-   signalling a container PID.
+   `stopped` for the home agent, orchestrator, Lab, and web client, plus an
+   `external` flag for an orchestrator managed outside the checkout. A
+   containerized home agent or web client is recreated with compose, and a
+   captured local agent is never restarted by signalling a container PID.
 3. **Recovery uses the same snapshot.** Re-running `status` after a partial
    restart would mark dead services as stopped, so recovery never recaptures.
    A new `rebuild` is the only thing that takes a new snapshot.
@@ -84,8 +86,9 @@ and `pnpm clara orchestration inspect`.
    up the files on its next start.
 8. **Health is endpoint-based.** The pipeline checks the orchestrator
    `/health` and `/v1/config`, the Lab `/api/health`, the home-agent panel and
-   local `/health`, and the adapter files. A healthy endpoint with the wrong
-   workspace or deployment mode is reported as a warning.
+   local `/health`, the web client `/healthz`, and the adapter files. A healthy
+   endpoint with the wrong workspace or deployment mode is reported as a
+   warning.
 9. **Recovered failures do not page Clara.** A failed attempt is recorded, but
    the failure alert is deferred until recovery is exhausted. A successful
    recovery emits `step.recovered`; only a failed recovery creates an alert.
@@ -116,6 +119,16 @@ and `pnpm clara orchestration inspect`.
 - **The server container is stopped when captured:** capture records the home
   agent as stopped and the restart leaves it stopped. It does not start a service
   that was down before the rebuild.
+- **The web client runs in a container:** restart stops and recreates it with
+  `pnpm clara web stop --docker` and `pnpm clara web start --docker --build`,
+  then waits for `/healthz`. The fresh build reuses `VITE_CLARA_WS_URL` from
+  `docker/.env`, so keep the relay endpoint there when the app was built for
+  relay pairings.
+- **The web client is served outside compose:** a healthy `/healthz` without a
+  running compose service is captured as `local` and skipped with a warning;
+  the pipeline cannot rebuild a static server it does not manage.
+- **The web container is stopped when captured:** capture records it as stopped
+  and the restart leaves it stopped, like the other services.
 - **The home agent is systemd-managed:** restart uses `systemctl --user restart
 clara`. A manually started agent is restarted from the captured root with its
   process environment when readable; otherwise the step warns instead of
@@ -150,7 +163,7 @@ clara`. A manually started agent is restarted from the captured root with its
 
 ## Out of scope
 
-- Deploying the web app or relay Worker.
+- Deploying the relay Worker or the web client to Cloudflare Pages.
 - Updating dependencies, changing the lockfile, or migrating the database.
 - Restarting OpenCode or reloading its plugins mid-run.
 - Starting services that were stopped when the pipeline started.
@@ -169,6 +182,12 @@ clara`. A manually started agent is restarted from the captured root with its
 - The home-agent container form is saved from the panel health `mode` or a
   running compose service. A stopped container is recorded as `stopped`, not as
   a container that should be restarted.
+- The web container form is saved from its `/healthz` response and a running
+  compose service. A web client served by another static server is captured as
+  `local` and is not restarted by the pipeline.
+- A rebuilt web image takes `VITE_CLARA_WS_URL` from `docker/.env` (or the
+  environment). If the value is missing, the new image falls back to local
+  pairing codes even when the previous image used the relay.
 - A Lab started with `pnpm dev:lab` is restarted as the built Lab server, not
   with its Vite development process.
 - A containerized OpenCode needs host access to `pnpm`, git, docker or systemd,
@@ -200,29 +219,35 @@ clara`. A manually started agent is restarted from the captured root with its
 - Snapshot: `${CLARA_DATA_DIR:-~/.local/share/clara}/rebuild/setup.json` (mode
   `0600`). Restart journal: `rebuild/restart.json`. Log: `rebuild/rebuild.log`.
 - Deployment state: the snapshot's `deployment` block records
-  `control.mode`, `orchestrator.mode`, and `lab.mode` as `local`, `container`,
-  or `stopped`, plus `orchestrator.external`. `control.container` is the boolean
-  form. Older snapshots without the block fall back to `control.mode` or a
-  running `docker compose -f docker/server.compose.yml ps -q server`.
+  `control.mode`, `orchestrator.mode`, `lab.mode`, and `web.mode` as `local`,
+  `container`, or `stopped`, plus `orchestrator.external`. `control.container`
+  and `web.container` are the boolean forms. Older snapshots without the block
+  fall back to `control.mode` or the running server compose service.
 - Capture: `GET <orchestrator>/health`, `GET <orchestrator>/v1/config`, Lab
-  `GET /api/health`, panel `GET /health`, local `GET /health`. The detailed panel
-  status API requires a session, so the rebuild uses the minimal health route.
-  The panel health `mode` is the primary source for the home-agent deployment
-  form; a running compose service is the fallback when the panel is down.
-- Restart order: Lab, home agent, orchestrator. The orchestrator is last and
-  the command waits for its health endpoint. A containerized home agent is
-  stopped and recreated with compose rather than signalled by PID; local
-  restarts use systemd when active, then the captured PID.
+  `GET /api/health`, panel `GET /health`, local `GET /health`, and web
+  `GET /healthz`. The detailed panel status API requires a session, so the
+  rebuild uses the minimal health route. The panel health `mode` is the primary
+  source for the home-agent deployment form; a running compose service is the
+  fallback when the panel is down. The web form uses the running web compose
+  service as its container signal.
+- Restart order: web, Lab, home agent, orchestrator. The orchestrator is last
+  and the command waits for its health endpoint. A containerized home agent is
+  stopped and recreated with compose rather than signalled by PID; the web
+  client is recreated with a fresh image build; local restarts use systemd when
+  active, then the captured PID.
 - Recovery: `recover` probes health, selects only `expected && !healthy`
   services, restarts them in the same order, and re-runs health. It never
   restarts a healthy service or starts one that was stopped at capture.
 - Adapter install: `pnpm clara adapter install opencode`; MCP refresh:
   `pnpm clara mcp install --no-start`.
 - Default ports: orchestrator `8789`, panel `8790`, local agent `8788`, Lab
-  `8791`. `CLARA_LAB_PORT`, `CLARA_PANEL_PORT`, `CLARA_LOCAL_PORT`, and
-  `CLARA_ORCHESTRATION_URL` override discovery. The home agent container uses
-  `pnpm clara server status|start --docker`.
+  `8791`, web `8080`. `CLARA_LAB_PORT`, `CLARA_PANEL_PORT`,
+  `CLARA_LOCAL_PORT`, `CLARA_WEB_PORT`, and `CLARA_ORCHESTRATION_URL` override
+  discovery. The home agent container uses
+  `pnpm clara server status|start --docker`; the web container uses
+  `pnpm clara web status|start --docker`.
 - Tests: `scripts/test/rebuild.test.mjs`,
+  `scripts/test/web-control.test.mjs`,
   `packages/orchestration/test/loader.test.ts`,
   `packages/orchestration/test/evidence.test.ts`, and
   `packages/devtools/test/preview.test.ts`.

@@ -75,6 +75,7 @@ pnpm clara pair [--local] [--rotate] [--no-qr] [--no-panel]
 pnpm clara control
 pnpm clara serve [--rotate] [--no-panel]
 pnpm clara server <start|stop|status|setup-token|pair|admin|logs> [--docker] [--build]
+pnpm clara web <start|stop|status|logs> [--docker] [--build]
 pnpm clara pass
 pnpm clara orchestration <serve|start|stop|status|token>
 pnpm clara rebuild <status|build|adapters|restart|health>
@@ -87,8 +88,10 @@ for one command.
 `pnpm clara pair` runs the server source directly and does not need a build.
 `pnpm clara control` and `pnpm clara serve` use the built agent, so run
 `pnpm build` first. `pnpm clara server start --docker` builds and starts the
-container; the local foreground mode remains `pnpm clara serve`. The agent panel
-is the one-time harness setup surface; the server does not read OpenCode's
+container; the local foreground mode remains `pnpm clara serve`.
+`pnpm clara web start --docker --build` builds and serves the static SPA on
+`127.0.0.1:8080`; `pnpm dev:web` remains the Vite development server. The agent
+panel is the one-time harness setup surface; the server does not read OpenCode's
 `service.json`. `pnpm clara pass` still reads the OpenCode development password
 from `${XDG_STATE_HOME:-~/.local/state}/opencode/service.json` for local
 tooling.

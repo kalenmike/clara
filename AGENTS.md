@@ -7,7 +7,7 @@ WebSocket. This file is the contract for every AI agent working in this repo.
 ## Workspace
 
 ```text
-apps/web              React/Vite SPA (Cloudflare Pages)
+apps/web              React/Vite SPA (Cloudflare Pages or the web container)
 apps/panel            Authenticated home-agent dashboard and setup surface
 apps/lab              Loopback pipeline preview and agent probe
 apps/server           Node home agent, local WS + outbound Cloudflare relay

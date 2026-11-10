@@ -134,6 +134,10 @@ the connection before showing data.
   WebSocket publish on host loopback, harness URLs use the `clara` Docker network.
   The maintenance snapshot records `local` vs `container` and recreates the
   container with stop/start; see [maintenance.md](maintenance.md).
+- Web container: `pnpm clara web start --docker --build` serves the SPA on
+  `127.0.0.1:8080`. Local pairing works from that loopback origin; a remote
+  HTTPS page still needs the relay because pairing carries a `ws://` URL. The
+  maintenance snapshot records the web client as `container` or `stopped`.
 - Stream health: `onActivity` tracks every chunk, including the 15s heartbeat;
   the watchdog aborts after 45s of silence
 - Storage key: `clara.connection.local`
