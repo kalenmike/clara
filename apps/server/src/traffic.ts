@@ -327,6 +327,7 @@ function zeroErrors(): ErrorCounters {
     orphan: 0,
     dropped: 0,
     refused: 0,
+    limited: 0,
     upstream: 0,
     expired: 0,
   }

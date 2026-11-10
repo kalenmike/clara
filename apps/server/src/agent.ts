@@ -35,7 +35,7 @@ import { DEFAULT_SHELL_POLICY, evaluateShellRequest, type ShellDecision } from '
 import type { ClientStorageStore, SyncCheckResult, SyncResult } from './store/client-storage.ts'
 import type { TrafficMeter } from './traffic.ts'
 
-const MAX_REQUESTS_PER_SESSION = 32
+const MAX_REQUESTS_PER_SESSION = 64
 const MAX_PAYLOAD_BYTES = 10 * 1024 * 1024
 const CHUNK_BYTES = 32 * 1024
 const SESSION_IDLE_MS = 90_000
@@ -711,6 +711,12 @@ export class Agent {
     }
 
     if (session.requests.size >= MAX_REQUESTS_PER_SESSION) {
+      this.options.traffic?.recordError('limited')
+      this.options.log?.(`request limit reached (${MAX_REQUESTS_PER_SESSION})`, {
+        sid: session.sid,
+        method: action.method,
+        path: action.path,
+      })
       this.enqueue(session, {
         type: 'http.error',
         id: action.id,

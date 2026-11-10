@@ -64,6 +64,14 @@ async function startFakeOpenCode(): Promise<FakeOpenCode> {
       }, 5)
       return
     }
+    if (request.url === '/api/hold') {
+      const timer = setTimeout(() => {
+        response.statusCode = 204
+        response.end()
+      }, 10_000)
+      request.on('close', () => clearTimeout(timer))
+      return
+    }
     if (request.url === '/api/echo' && request.method === 'POST') {
       const chunks: Buffer[] = []
       request.on('data', (chunk: Buffer) => chunks.push(chunk))
@@ -268,6 +276,36 @@ describe('agent', () => {
         .join('')
       expect(JSON.parse(body)).toMatchObject({ version: '9.9.9' })
     } finally {
+      await fake.close()
+    }
+  })
+
+  it('limits concurrent requests and records the refusal', async () => {
+    const fake = await startFakeOpenCode()
+    const traffic = new TrafficMeter()
+    const { agent, client, frames } = await connect(fake, undefined, undefined, undefined, traffic)
+    try {
+      await waitFor(() => (frames.length >= 2 ? true : undefined))
+      await send(client, agent, { type: 'ready.ack', agent: { version: 'web', protocol: 1 } })
+      for (let index = 0; index < 70; index += 1) {
+        await send(client, agent, {
+          type: 'http.request',
+          id: `hold-${index}`,
+          method: 'GET',
+          path: '/api/hold',
+        })
+      }
+
+      const states = await waitFor(async () => {
+        const parsed = await readStates(client, frames)
+        return parsed.some((state) => state.type === 'http.error') ? parsed : undefined
+      })
+      expect(
+        states.some((state) => state.type === 'http.error' && state.code === 'too_many_requests')
+      ).toBe(true)
+      expect(traffic.snapshot().errors.limited).toBeGreaterThan(0)
+    } finally {
+      agent.reset()
       await fake.close()
     }
   })
