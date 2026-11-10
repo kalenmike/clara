@@ -21,3 +21,11 @@ export function authFormMode(
 export function canResetWithToken(status: PanelAuthStatus | undefined): boolean {
   return status?.authenticated === false && !status.setupRequired && status.resetPending
 }
+
+/**
+ * Sign-in needs the username, first-run setup picks one, and a reset token is
+ * already bound to the existing account.
+ */
+export function showsUsernameField(mode: AuthFormMode): boolean {
+  return mode !== 'reset'
+}

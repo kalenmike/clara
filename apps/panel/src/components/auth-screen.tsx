@@ -1,6 +1,6 @@
 import { useState, type FormEvent } from 'react'
 import { CircleAlert, KeyRound, LoaderCircle, LogIn, ShieldCheck } from 'lucide-react'
-import { authFormMode, canResetWithToken } from '../lib/auth-form.ts'
+import { authFormMode, canResetWithToken, showsUsernameField } from '../lib/auth-form.ts'
 import type { SessionController } from '../lib/use-session.ts'
 
 export function AuthScreen({ session }: { session: SessionController }) {
@@ -97,7 +97,7 @@ export function AuthScreen({ session }: { session: SessionController }) {
             </label>
           ) : null}
 
-          {setup ? (
+          {showsUsernameField(mode) ? (
             <label className="block text-xs font-medium text-neutral-600 dark:text-neutral-300">
               Username
               <input
