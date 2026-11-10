@@ -128,6 +128,11 @@ external `clara` network, and reaches the orchestrator at
    `clara` network. The orchestrator URL is set with
    `CLARA_ORCHESTRATION_HOST=orchestrator` and port `8789`.
 
+   `pnpm clara server ... --docker` loads `docker/.env` when the file exists.
+   If the agent uses the relay, set `CLARA_RELAY_ROOM` to a fixed value: pairing
+   codes are scoped to the room, and a changed room makes clients connect to an
+   empty room (`home server offline`) until they pair again.
+
 The compose service sets `CLARA_ORCHESTRATION_WORKSPACE=/workspace/clara`, which
 is the path the service reports to Clara Lab. Change it only if you move the
 workspace mount. The orchestrator image bakes `lib/std` at
