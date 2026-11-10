@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Bell, Cpu, Power, Radio, Server, Settings2 } from 'lucide-react'
 import type {
   PanelAgentInfo,
@@ -453,11 +453,17 @@ export function PushCard({
   )
 }
 
-export function ConfigCard({ config }: { config: PanelConfigInfo }) {
+export function ConfigCard({
+  config,
+  onChanged,
+}: {
+  config: PanelConfigInfo
+  onChanged: () => void
+}) {
   return (
     <CollapsibleCard
       title="Effective configuration"
-      description="Where each value came from, without showing secrets"
+      description="Where each value came from. The Web URL and VAPID contact can be edited here."
       icon={<Settings2 className="size-4" aria-hidden="true" />}
       defaultExpanded
     >
@@ -490,10 +496,39 @@ export function ConfigCard({ config }: { config: PanelConfigInfo }) {
           mono={Boolean(config.relayRoom.value)}
           sensitive
         />
-        <ConfigRow
-          label="Pairing base URL"
+        <ConfigEditorRow
+          id="config-web-url"
+          label="Web URL"
+          field="pairingBaseUrl"
           value={config.pairingBaseUrl.value}
           source={config.pairingBaseUrl.source}
+          sourceText={sourceLabel(config.pairingBaseUrl.source)}
+          hint="Pairing links open this URL."
+          savedHint="Saved in server.json."
+          defaultHint="Using the local default."
+          envHint="Set by CLARA_PAIRING_BASE_URL. Remove it and restart the agent to edit here."
+          placeholder="http://127.0.0.1:8080"
+          mono
+          onChanged={onChanged}
+        />
+        <ConfigEditorRow
+          id="config-vapid-subject"
+          label="VAPID contact"
+          field="vapidSubject"
+          value={config.vapidSubject.value}
+          source={config.vapidSubject.source}
+          sourceText={
+            config.vapidSubject.source === 'file'
+              ? 'vapid.json'
+              : sourceLabel(config.vapidSubject.source)
+          }
+          hint="Web Push contact: an HTTPS URL or a mailto: address."
+          savedHint="Saved in vapid.json."
+          defaultHint="Using https://clara.local."
+          envHint="Set by CLARA_VAPID_SUBJECT. Remove it and restart the agent to edit here."
+          placeholder="https://clara.local"
+          mono
+          onChanged={onChanged}
         />
       </CardBody>
     </CollapsibleCard>
@@ -527,6 +562,120 @@ function ConfigRow({
         </span>
         <SourceTag source={sourceLabel(source)} />
       </span>
+    </div>
+  )
+}
+
+function ConfigEditorRow({
+  id,
+  label,
+  field,
+  value,
+  source,
+  sourceText,
+  hint,
+  savedHint,
+  defaultHint,
+  envHint,
+  placeholder,
+  mono = false,
+  onChanged,
+}: {
+  id: string
+  label: string
+  field: 'pairingBaseUrl' | 'vapidSubject'
+  value: string
+  source: PanelValueSource
+  sourceText: string
+  hint: string
+  savedHint: string
+  defaultHint: string
+  envHint: string
+  placeholder: string
+  mono?: boolean
+  onChanged: () => void
+}) {
+  const { redact } = usePeek()
+  const [draft, setDraft] = useState(value)
+  const [dirty, setDirty] = useState(false)
+  const [pending, setPending] = useState(false)
+  const [error, setError] = useState<string>()
+  const locked = source === 'env'
+  const disabled = locked || pending
+
+  // Keep a local draft so the five-second poll cannot overwrite typing.
+  useEffect(() => {
+    if (!dirty) setDraft(value)
+  }, [value, dirty])
+
+  const submit = async (next: string | null) => {
+    setPending(true)
+    setError(undefined)
+    try {
+      await postPanel('/panel/api/v1/config', { [field]: next })
+      setDirty(false)
+      onChanged()
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : String(cause))
+    } finally {
+      setPending(false)
+    }
+  }
+
+  const save = () => {
+    const next = draft.trim()
+    void submit(next ? next : null)
+  }
+
+  const clear = () => {
+    setDraft('')
+    setDirty(true)
+    void submit(null)
+  }
+
+  return (
+    <div className="border-b border-neutral-100 py-2 last:border-0 dark:border-neutral-800/60">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <label htmlFor={id} className="text-sm font-medium text-neutral-900 dark:text-neutral-100">
+          {label}
+        </label>
+        <SourceTag source={sourceText} />
+      </div>
+      <div className="mt-1.5 flex flex-wrap items-center gap-2">
+        <input
+          id={id}
+          type="text"
+          inputMode="url"
+          value={locked ? value : draft}
+          placeholder={placeholder}
+          disabled={disabled}
+          onChange={(event) => {
+            setDraft(event.target.value)
+            setDirty(true)
+          }}
+          className={`min-w-0 flex-1 rounded-lg border border-neutral-200 bg-white px-2.5 py-1.5 text-xs text-neutral-900 shadow-sm outline-none transition focus:border-neutral-400 disabled:cursor-not-allowed disabled:bg-neutral-50 disabled:text-neutral-500 dark:border-neutral-800 dark:bg-neutral-950 dark:text-neutral-100 dark:focus:border-neutral-600 dark:disabled:bg-neutral-900 ${mono ? 'font-mono' : ''}`}
+        />
+        <button
+          type="button"
+          onClick={save}
+          disabled={disabled || !dirty}
+          className="inline-flex items-center rounded-md border border-neutral-200 px-2 py-1 text-[11px] font-medium transition hover:bg-neutral-100 disabled:cursor-not-allowed disabled:opacity-50 dark:border-neutral-700 dark:hover:bg-neutral-800"
+        >
+          Save
+        </button>
+        <button
+          type="button"
+          onClick={clear}
+          disabled={disabled || source === 'default'}
+          className="inline-flex items-center rounded-md border border-neutral-200 px-2 py-1 text-[11px] font-medium transition hover:bg-neutral-100 disabled:cursor-not-allowed disabled:opacity-50 dark:border-neutral-700 dark:hover:bg-neutral-800"
+        >
+          Use default
+        </button>
+      </div>
+      <p className="mt-1 text-[11px] text-neutral-500 dark:text-neutral-400">
+        {locked ? envHint : source === 'file' ? `${hint} ${savedHint}` : `${hint} ${defaultHint}`}
+      </p>
+      {error ? <Notice tone="danger">{redact(error)}</Notice> : null}
     </div>
   )
 }
