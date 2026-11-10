@@ -1,5 +1,5 @@
 import { Users } from 'lucide-react'
-import type { PanelClientInfo } from '@clara/shared-types'
+import type { PanelClientInfo, PanelDeviceInfo } from '@clara/shared-types'
 import {
   formatBytes,
   formatDuration,
@@ -11,16 +11,32 @@ import { PEEK_MASK } from '../lib/peek.ts'
 import { usePeek } from '../lib/peek-context.tsx'
 import { Badge, CardBody, CollapsibleCard, EmptyState } from './primitives.tsx'
 
-export function ClientsTable({ clients, now }: { clients: PanelClientInfo[]; now: number }) {
+export function ClientsTable({
+  clients,
+  devices,
+  now,
+}: {
+  clients: PanelClientInfo[]
+  devices: PanelDeviceInfo[]
+  now: number
+}) {
+  const { masked } = usePeek()
   const withTraffic = clients.some((client) => client.bytesIn !== undefined)
   const pairing = clients.filter((client) => client.kind === 'enroll').length
   const active = clients.length - pairing
-  const { masked } = usePeek()
+  const deviceById = new Map(devices.map((device) => [device.id, device]))
+  const deviceFor = (client: PanelClientInfo) =>
+    client.deviceId ? deviceById.get(client.deviceId) : undefined
+  const fingerprintFor = (client: PanelClientInfo) => {
+    const fingerprint = deviceFor(client)?.fingerprint
+    if (!fingerprint) return '—'
+    return masked ? PEEK_MASK : fingerprint
+  }
 
   return (
     <CollapsibleCard
       title="Connected clients"
-      description="Live end-to-end encrypted sessions"
+      description="Live end-to-end encrypted sessions linked to paired devices"
       icon={<Users className="size-4" aria-hidden="true" />}
       action={
         <span className="inline-flex items-center gap-1">
@@ -35,7 +51,7 @@ export function ClientsTable({ clients, now }: { clients: PanelClientInfo[]; now
           <EmptyState>No paired clients are connected right now.</EmptyState>
         ) : (
           <div className="-mx-1 overflow-x-auto">
-            <table className="w-full min-w-[1020px] border-collapse text-left text-xs">
+            <table className="w-full min-w-[1120px] border-collapse text-left text-xs">
               <thead>
                 <tr className="text-[10px] uppercase tracking-wide text-neutral-500 dark:text-neutral-400">
                   <th scope="col" className="px-1 py-2 font-medium">
@@ -46,6 +62,9 @@ export function ClientsTable({ clients, now }: { clients: PanelClientInfo[]; now
                   </th>
                   <th scope="col" className="px-1 py-2 font-medium">
                     Paired device
+                  </th>
+                  <th scope="col" className="px-1 py-2 font-medium">
+                    Fingerprint
                   </th>
                   <th scope="col" className="px-1 py-2 font-medium">
                     Device class
@@ -104,7 +123,29 @@ export function ClientsTable({ clients, now }: { clients: PanelClientInfo[]; now
                             : (client.deviceId ?? 'Not enrolled')
                       }
                     >
-                      {pairedDevice(client, masked)}
+                      {client.kind === 'enroll' ? (
+                        <Badge tone="warning">Pairing</Badge>
+                      ) : (
+                        <>
+                          <div className="font-medium">
+                            {client.deviceLabel ??
+                              (client.deviceId ? 'Unknown device' : 'Unpaired client')}
+                          </div>
+                          <div className="font-mono text-[10px] text-neutral-500 dark:text-neutral-400">
+                            {client.deviceId
+                              ? masked
+                                ? PEEK_MASK
+                                : shortId(client.deviceId)
+                              : '—'}
+                          </div>
+                        </>
+                      )}
+                    </td>
+                    <td
+                      className="px-1 py-2 font-mono"
+                      title={masked ? undefined : deviceFor(client)?.fingerprint}
+                    >
+                      {fingerprintFor(client)}
                     </td>
                     <td className="px-1 py-2 capitalize">
                       {client.kind === 'enroll' ? '—' : (client.deviceClass ?? 'Unknown')}
@@ -149,17 +190,11 @@ export function ClientsTable({ clients, now }: { clients: PanelClientInfo[]; now
         )}
         <p className="pt-2 text-xs text-neutral-500 dark:text-neutral-400">
           Session IDs are random per connection. A pairing session closes once enrollment completes;
-          it carries no device until then. Paired devices keep a stable identity without revealing
-          their device key. Traffic counters are omitted while monitoring is off.
+          it carries no device until then. For paired devices, compare the short device id or
+          fingerprint with Paired devices when labels match; the fingerprint identifies the key
+          without revealing it. Traffic counters are omitted while monitoring is off.
         </p>
       </CardBody>
     </CollapsibleCard>
   )
-}
-
-function pairedDevice(client: PanelClientInfo, masked: boolean) {
-  if (client.kind === 'enroll') return <Badge tone="warning">Pairing</Badge>
-  if (client.deviceLabel) return client.deviceLabel
-  if (client.deviceId) return masked ? PEEK_MASK : shortId(client.deviceId)
-  return '—'
 }

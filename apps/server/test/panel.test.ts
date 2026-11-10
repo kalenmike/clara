@@ -528,6 +528,32 @@ describe('panel server', () => {
     expect(response.status).toBe(415)
   })
 
+  it('revokes a paired device without a JSON body', async () => {
+    const revoked: string[] = []
+    const controls = {
+      ...fakeControls(),
+      revokeDevice: (id: string) => {
+        revoked.push(id)
+        return { id }
+      },
+    }
+    const server = await start(undefined, controls)
+
+    const response = await get(server, 'panel/api/v1/devices/device-0000000000001', {
+      method: 'DELETE',
+      headers: { 'x-clara-panel': '1' },
+    })
+    expect(response.status).toBe(200)
+    expect(await response.json()).toEqual({ id: 'device-0000000000001' })
+    expect(revoked).toEqual(['device-0000000000001'])
+
+    const forbidden = await get(server, 'panel/api/v1/devices/device-0000000000001', {
+      method: 'DELETE',
+    })
+    expect(forbidden.status).toBe(403)
+    expect(revoked).toEqual(['device-0000000000001'])
+  })
+
   it('rejects an oversized mutation body', async () => {
     const server = await start(undefined, fakeControls())
     const response = await post(server, 'features', {
