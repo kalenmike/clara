@@ -21,6 +21,7 @@ import {
   parseSsListeners,
   positiveInt,
   probeControl,
+  probeWeb,
 } from '../lib/rebuild/probe.mjs'
 import { isSnapshotStale, readState, tail, writeState } from '../lib/rebuild/state.mjs'
 
@@ -65,6 +66,14 @@ function state(overrides = {}) {
       panel: { healthy: true, pid: 120 },
       local: { healthy: true },
     },
+    web: {
+      expected: true,
+      healthy: true,
+      state: 'running',
+      mode: 'container',
+      url: 'http://127.0.0.1:8080',
+      port: 8080,
+    },
     adapters: adapter,
     ...overrides,
   }
@@ -96,6 +105,14 @@ function observed(overrides = {}) {
       panel: { healthy: true },
       local: { healthy: true },
     },
+    web: {
+      expected: true,
+      healthy: true,
+      state: 'running',
+      mode: 'container',
+      url: 'http://127.0.0.1:8080',
+      port: 8080,
+    },
     ...overrides,
   }
 }
@@ -121,6 +138,7 @@ test('restart plan restores only captured services, in order', () => {
   assert.deepEqual(
     plan.services.map((service) => [service.name, service.action]),
     [
+      ['web', 'restart'],
       ['lab', 'restart'],
       ['control', 'restart'],
       ['orchestrator', 'restart'],
@@ -131,6 +149,7 @@ test('restart plan restores only captured services, in order', () => {
 test('restart plan leaves stopped services alone', () => {
   const plan = restartPlan(
     state({
+      web: { expected: false, healthy: false, state: 'stopped' },
       lab: { expected: false, healthy: false, state: 'stopped' },
       control: { expected: false, healthy: false, state: 'stopped' },
       orchestrator: { expected: false, healthy: false, state: 'unreachable' },
@@ -139,6 +158,7 @@ test('restart plan leaves stopped services alone', () => {
   assert.deepEqual(
     plan.services.map((service) => [service.name, service.action]),
     [
+      ['web', 'skip'],
       ['lab', 'skip'],
       ['control', 'skip'],
       ['orchestrator', 'skip'],
@@ -151,30 +171,36 @@ test('deployment modes save local, container, external, and stopped forms', () =
     orchestrator: { expected: true, mode: 'local' },
     lab: { expected: true },
     control: { expected: true, mode: 'local' },
+    web: { expected: true },
   })
   assert.deepEqual(local, {
     orchestrator: { mode: 'local', container: false, external: false },
     control: { mode: 'local', container: false },
     lab: { mode: 'host' },
+    web: { mode: 'local', container: false },
   })
 
   const container = deploymentModes({
     orchestrator: { expected: true, mode: 'container' },
     lab: { expected: false },
     control: { expected: true, panel: { container: true } },
+    web: { expected: true, mode: 'container' },
   })
   assert.equal(container.orchestrator.mode, 'container')
   assert.equal(container.control.mode, 'container')
   assert.equal(container.control.container, true)
   assert.equal(container.lab.mode, 'stopped')
+  assert.equal(container.web.mode, 'container')
 
   const compose = deploymentModes({
     orchestrator: { expected: false },
     lab: { expected: false },
     control: { expected: true, local: { healthy: true } },
-    compose: { control: true },
+    web: { expected: false },
+    compose: { control: true, web: true },
   })
   assert.equal(compose.control.mode, 'container')
+  assert.equal(compose.web.mode, 'container')
 
   const external = deploymentModes({
     orchestrator: { expected: true, mode: 'container', external: true },
@@ -184,6 +210,7 @@ test('deployment modes save local, container, external, and stopped forms', () =
   assert.equal(external.orchestrator.mode, 'container')
   assert.equal(external.orchestrator.external, true)
   assert.equal(external.control.mode, 'stopped')
+  assert.equal(external.web.mode, 'stopped')
 })
 
 test('probe control reads container mode from the panel health endpoint', async () => {
@@ -211,6 +238,70 @@ test('probe control reads container mode from the panel health endpoint', async 
   } finally {
     await new Promise((resolve) => server.close(resolve))
   }
+})
+
+test('restart plan skips a web client served outside the container', () => {
+  const plan = restartPlan(
+    state({
+      web: {
+        expected: true,
+        healthy: true,
+        state: 'running',
+        mode: 'local',
+        url: 'http://127.0.0.1:8080',
+        port: 8080,
+      },
+    })
+  )
+  const web = plan.services.find((service) => service.name === 'web')
+  assert.equal(web?.action, 'skip')
+  assert.equal(web?.mode, 'local')
+  assert.ok(plan.warnings.some((warning) => warning.includes('not a container')))
+})
+
+test('probe web reads the healthz contract', async () => {
+  const server = createServer((request, response) => {
+    if (request.url === '/healthz') {
+      response.setHeader('content-type', 'application/json')
+      response.end(JSON.stringify({ ok: true, service: 'clara-web' }))
+      return
+    }
+    response.statusCode = 404
+    response.end('{}')
+  })
+  await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve))
+  const address = server.address()
+  const port = typeof address === 'object' && address ? address.port : 0
+  try {
+    const probe = await probeWeb({ port, timeoutMs: 500, container: true })
+    assert.equal(probe.expected, true)
+    assert.equal(probe.healthy, true)
+    assert.equal(probe.mode, 'container')
+    assert.equal(probe.url, `http://127.0.0.1:${port}`)
+  } finally {
+    await new Promise((resolve) => server.close(resolve))
+  }
+})
+
+test('health warns when the web client changes deployment mode', () => {
+  const report = evaluateHealth(
+    state(),
+    observed({
+      web: {
+        expected: true,
+        healthy: true,
+        state: 'running',
+        mode: 'local',
+        url: 'http://127.0.0.1:8080',
+        port: 8080,
+      },
+    }),
+    { adapter }
+  )
+  assert.equal(report.ok, true)
+  assert.ok(
+    report.warnings.some((warning) => warning.includes('mode changed from container to local'))
+  )
 })
 
 test('restart plan records the captured deployment mode', () => {
@@ -263,6 +354,7 @@ test('health warns when the home agent changes deployment mode', () => {
 test('recovery plan restarts only expected unhealthy services', () => {
   const health = {
     services: [
+      { name: 'web', expected: true, healthy: true },
       { name: 'lab', expected: true, healthy: false },
       { name: 'control', expected: true, healthy: true },
       { name: 'orchestrator', expected: true, healthy: true },
@@ -273,6 +365,7 @@ test('recovery plan restarts only expected unhealthy services', () => {
   assert.deepEqual(
     plan.services.map((service) => [service.name, service.action]),
     [
+      ['web', 'skip'],
       ['lab', 'restart'],
       ['control', 'skip'],
       ['orchestrator', 'skip'],
@@ -297,6 +390,7 @@ test('restart plan honours an explicit only list', () => {
   assert.deepEqual(
     plan.services.map((service) => [service.name, service.action]),
     [
+      ['web', 'skip'],
       ['lab', 'skip'],
       ['control', 'restart'],
       ['orchestrator', 'skip'],
@@ -314,17 +408,17 @@ test('restart plan skips an external orchestrator unless forced', () => {
     external: true,
   }
   const skipped = restartPlan(state({ orchestrator: external }))
-  assert.equal(skipped.services[2].action, 'skip')
+  assert.equal(skipped.services[3].action, 'skip')
   assert.ok(skipped.warnings[0].includes('external'))
 
   const forced = restartPlan(state({ orchestrator: external }), { manageExternal: true })
-  assert.equal(forced.services[2].action, 'restart')
+  assert.equal(forced.services[3].action, 'restart')
 })
 
 test('restart plan honors --skip', () => {
   const plan = restartPlan(state(), { skip: ['lab'] })
-  assert.equal(plan.services[0].action, 'skip')
-  assert.equal(plan.services[1].action, 'restart')
+  assert.equal(plan.services[1].action, 'skip')
+  assert.equal(plan.services[2].action, 'restart')
 })
 
 test('health passes when every captured service and adapter is present', () => {

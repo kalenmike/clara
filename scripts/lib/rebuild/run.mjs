@@ -35,11 +35,13 @@ import {
   probeLab,
   probeLabPort,
   probeOrchestrator,
+  probeWeb,
   processMatches,
   readProcessEnv,
   readToken,
   waitForExit,
   waitForProbe,
+  webPort,
 } from './probe.mjs'
 import {
   deploymentModes,
@@ -51,6 +53,7 @@ import {
   summarizeHealth,
 } from './plan.mjs'
 import { serverRunningInCompose } from '../server-control.mjs'
+import { webRunningInCompose } from '../web-control.mjs'
 
 const PNPM = process.platform === 'win32' ? 'pnpm.cmd' : 'pnpm'
 const DEFAULT_PROGRESS = (text) => process.stderr.write(text)
@@ -202,10 +205,12 @@ function requireState(path) {
 export async function runStatus(options = {}) {
   const repo = resolveRepository({ root: options.root })
   const root = repo.root
-  const [orchestrator, lab, control] = await Promise.all([
+  const webCompose = webRunningInCompose(root)
+  const [orchestrator, lab, control, web] = await Promise.all([
     probeOrchestrator({ url: options.orchestratorURL ?? orchestratorURL() }),
     probeLab({ ports: labPorts() }),
     probeControl({ panelPort: panelPort(), localPort: localPort() }),
+    probeWeb({ port: webPort(), container: webCompose }),
   ])
 
   const state = {
@@ -228,17 +233,20 @@ export async function runStatus(options = {}) {
       labPort: labPorts()[0] ?? null,
       panelPort: panelPort(),
       localPort: localPort(),
+      webPort: webPort(),
     },
     orchestrator,
     lab,
     control,
+    web: { ...web, expected: web.expected || webCompose },
     adapters: adapterSnapshot(root),
   }
   const deployment = deploymentModes({
     orchestrator,
     lab,
     control,
-    compose: { control: serverRunningInCompose(root) },
+    web,
+    compose: { control: serverRunningInCompose(root), web: webCompose },
   })
   state.deployment = deployment
   state.orchestrator = { ...orchestrator, mode: deployment.orchestrator.mode }
@@ -248,6 +256,12 @@ export async function runStatus(options = {}) {
     container: deployment.control.container,
   }
   state.lab = { ...lab, mode: deployment.lab.mode }
+  state.web = {
+    ...web,
+    expected: web.expected || webCompose,
+    mode: deployment.web.mode,
+    container: deployment.web.container,
+  }
 
   writeState(state, options.statePath)
   return state
@@ -265,6 +279,7 @@ export function formatStatus(state) {
     `orchestrator: ${describeService(state.orchestrator)}`,
     `lab:          ${describeService(state.lab)}`,
     `control:      ${describeService(state.control)}`,
+    `web:          ${describeService(state.web)}`,
     `adapter:      ${state.adapters.opencode.linked ? 'linked' : 'missing'} ${
       state.adapters.opencode.target ?? ''
     }`.trimEnd(),
@@ -565,8 +580,10 @@ export async function runInspect(options = {}) {
         orchestrator: state.orchestrator,
         lab: state.lab,
         control: state.control,
+        web: state.web,
         compose: {
           control: serverRunningInCompose(state.installRoot ?? state.root),
+          web: webRunningInCompose(state.installRoot ?? state.root),
         },
       }),
     journal: {
@@ -600,7 +617,7 @@ export function formatInspect(result) {
       result.deployment?.orchestrator?.mode ?? 'unknown'
     }${result.deployment?.orchestrator?.external ? ' external' : ''}, lab ${
       result.deployment?.lab?.mode ?? 'unknown'
-    }`,
+    }, web ${result.deployment?.web?.mode ?? 'unknown'}`,
     `journal    ${result.journal.status ?? 'none'}`,
   ]
   if (result.pending.length) lines.push(`pending    ${result.pending.join(', ')}`)
@@ -678,10 +695,43 @@ export function formatRecover(result) {
 }
 
 async function restartService(name, state, options) {
+  if (name === 'web') return restartWeb(state, options)
   if (name === 'lab') return restartLab(state, options)
   if (name === 'control') return restartControl(state, options)
   if (name === 'orchestrator') return restartOrchestrator(state, options)
   throw new Error(`unknown service: ${name}`)
+}
+
+async function restartWeb(state, options) {
+  const web = state.web
+  const root = state.installRoot ?? state.root
+  logCommand('stopping web through docker compose')
+  const stop = await runCli(['web', 'stop', '--docker'], {
+    cwd: root,
+    progress: options.progress ?? DEFAULT_PROGRESS,
+    log: (text) => appendLog(process.env, text),
+  })
+  if (!stop.ok) {
+    throw new Error(`web container stop failed (exit ${stop.code ?? 'unknown'})`)
+  }
+  logCommand('starting web through docker compose')
+  const start = await runCli(['web', 'start', '--docker', '--build'], {
+    cwd: root,
+    progress: options.progress ?? DEFAULT_PROGRESS,
+    log: (text) => appendLog(process.env, text),
+  })
+  if (!start.ok) {
+    throw new Error(`web container start failed (exit ${start.code ?? 'unknown'})`)
+  }
+  const port = web.port ?? webPort()
+  const result = await waitForProbe(
+    () => probeWeb({ port, container: true }),
+    (probe) => probe.expected && probe.healthy,
+    { timeoutMs: 300000 }
+  )
+  if (!result.ok) {
+    throw new Error(`web did not become healthy at ${web.url ?? `http://127.0.0.1:${port}`}`)
+  }
 }
 
 async function restartLab(state, options) {
@@ -947,7 +997,8 @@ export function formatRestart(result) {
 
 export async function runHealth(options = {}) {
   const state = requireState(options.statePath)
-  const [orchestrator, lab, control] = await Promise.all([
+  const webContainer = webRunningInCompose(state.installRoot ?? state.root)
+  const [orchestrator, lab, control, web] = await Promise.all([
     state.orchestrator?.expected
       ? probeOrchestrator({ url: state.orchestrator?.url || orchestratorURL() })
       : { expected: false, healthy: false, state: 'stopped' },
@@ -960,9 +1011,12 @@ export async function runHealth(options = {}) {
           localPort: state.control?.localPort ?? localPort(),
         })
       : { expected: false, healthy: false, state: 'stopped' },
+    state.web?.expected
+      ? probeWeb({ port: state.web?.port ?? webPort(), container: webContainer })
+      : { expected: false, healthy: false, state: 'stopped' },
   ])
   const adapter = adapterSnapshot(state.installRoot ?? state.root)
-  const report = evaluateHealth(state, { orchestrator, lab, control }, { adapter })
+  const report = evaluateHealth(state, { orchestrator, lab, control, web }, { adapter })
   report.snapshot = options.statePath ?? statePath()
   return report
 }

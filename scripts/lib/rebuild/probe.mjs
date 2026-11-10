@@ -191,6 +191,35 @@ export function localPort(env = process.env) {
   return positiveInt(env.CLARA_LOCAL_PORT, 8788)
 }
 
+export function webPort(env = process.env) {
+  return positiveInt(env.CLARA_WEB_PORT, 8080)
+}
+
+export async function probeWeb({ port = webPort(), timeoutMs = 1500, container = false } = {}) {
+  const url = `http://127.0.0.1:${port}`
+  const health = await fetchJson(`${url}/healthz`, { timeoutMs })
+  const mode = container ? 'container' : 'local'
+  if (!health.ok || !health.body || health.body.service !== 'clara-web') {
+    return {
+      expected: false,
+      healthy: false,
+      state: health.status === 0 ? 'stopped' : 'foreign',
+      url,
+      port,
+      mode,
+      ...(health.error ? { error: health.error } : {}),
+    }
+  }
+  return {
+    expected: true,
+    healthy: true,
+    state: 'running',
+    url,
+    port,
+    mode,
+  }
+}
+
 export async function probeControl({
   panelPort: panel = panelPort(),
   localPort: local = localPort(),
