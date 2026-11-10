@@ -9,6 +9,7 @@ import {
   evaluateHealth,
   parseWorktreeList,
   primaryWorktree,
+  recoveryPlan,
   restartPlan,
 } from '../lib/rebuild/plan.mjs'
 import {
@@ -137,6 +138,50 @@ test('restart plan leaves stopped services alone', () => {
     [
       ['lab', 'skip'],
       ['control', 'skip'],
+      ['orchestrator', 'skip'],
+    ]
+  )
+})
+
+test('recovery plan restarts only expected unhealthy services', () => {
+  const health = {
+    services: [
+      { name: 'lab', expected: true, healthy: false },
+      { name: 'control', expected: true, healthy: true },
+      { name: 'orchestrator', expected: true, healthy: true },
+    ],
+  }
+  const plan = recoveryPlan(state(), health)
+  assert.deepEqual(plan.only, ['lab'])
+  assert.deepEqual(
+    plan.services.map((service) => [service.name, service.action]),
+    [
+      ['lab', 'restart'],
+      ['control', 'skip'],
+      ['orchestrator', 'skip'],
+    ]
+  )
+})
+
+test('recovery plan ignores services stopped when captured', () => {
+  const health = {
+    services: [{ name: 'orchestrator', expected: false, healthy: false }],
+  }
+  const plan = recoveryPlan(
+    state({ orchestrator: { expected: false, healthy: false, state: 'stopped' } }),
+    health
+  )
+  assert.deepEqual(plan.only, [])
+  assert.ok(plan.services.every((service) => service.action === 'skip'))
+})
+
+test('restart plan honours an explicit only list', () => {
+  const plan = restartPlan(state(), { only: ['control'] })
+  assert.deepEqual(
+    plan.services.map((service) => [service.name, service.action]),
+    [
+      ['lab', 'skip'],
+      ['control', 'restart'],
       ['orchestrator', 'skip'],
     ]
   )

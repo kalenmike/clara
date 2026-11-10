@@ -42,6 +42,78 @@ describe('pipeline preview', () => {
     expect(result.diagnostics.filter((entry) => entry.severity === 'error')).toEqual([])
   })
 
+  it('compiles an on_failure recovery branch', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'clara-preview-recovery-'))
+    try {
+      mkdirSync(join(dir, 'orchestration'), { recursive: true })
+      writeFileSync(
+        join(dir, 'orchestration', 'index.yml'),
+        [
+          'id: temp',
+          'name: Temp',
+          'version: 1',
+          'entry:',
+          '  pipeline: main',
+          'pipelines:',
+          '  main:',
+          '    steps:',
+          '      - name: primary',
+          '        type: script',
+          '        command: pnpm test --json',
+          '        on_failure:',
+          '          max_cycles: 1',
+          '          steps:',
+          '            - name: fix',
+          '              type: script',
+          '              command: pnpm fix --json',
+        ].join('\n')
+      )
+      const result = previewPipeline({ workspace: dir, target: 'main' })
+      expect(result.diagnostics.filter((entry) => entry.severity === 'error')).toEqual([])
+      const primary = result.compiled?.root.children?.[0]
+      expect(primary?.onFailure?.children[0].name).toBe('fix')
+      expect(primary?.onFailure?.children[0].path).toBe(`${primary?.path}/on_failure/1-fix`)
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('reports a nested on_failure as an error', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'clara-preview-recovery-bad-'))
+    try {
+      mkdirSync(join(dir, 'orchestration'), { recursive: true })
+      writeFileSync(
+        join(dir, 'orchestration', 'index.yml'),
+        [
+          'id: temp',
+          'name: Temp',
+          'version: 1',
+          'entry:',
+          '  pipeline: main',
+          'pipelines:',
+          '  main:',
+          '    steps:',
+          '      - name: primary',
+          '        type: script',
+          '        command: pnpm test --json',
+          '        on_failure:',
+          '          steps:',
+          '            - name: fix',
+          '              type: agent',
+          '              on_failure:',
+          '                steps:',
+          '                  - name: again',
+          '                    type: script',
+          '                    command: pnpm fix --json',
+        ].join('\n')
+      )
+      const result = previewPipeline({ workspace: dir, target: 'main' })
+      expect(result.diagnostics.some((entry) => entry.code === 'compile_failed')).toBe(true)
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
+
   it('compiles a named pipeline with rendered prompts and sources', () => {
     const result = previewPipeline({ workspace: root, target: 'std:software/feature' })
     expect(result.selected?.ref).toBe('std:software/feature')

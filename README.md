@@ -221,9 +221,9 @@ or the relay.
 | `pnpm clara control`       | Serve the built panel and open it in a browser              |
 | `pnpm clara serve`         | Run the built home agent                                    |
 | `pnpm clara pass`          | Print the local OpenCode server password                    |
-| `pnpm clara orchestration` | Start, stop, or inspect the orchestration service           |
+| `pnpm clara orchestration` | Start, stop, analyze, or inspect the orchestration service  |
 | `pnpm clara runner`        | Run script steps for a workspace                            |
-| `pnpm clara rebuild`       | Rebuild Clara, restart the captured services, verify health |
+| `pnpm clara rebuild`       | Rebuild Clara, recover services, inspect, and verify health |
 | `pnpm test`                | Run crypto, protocol, server, web, and Worker tests         |
 | `pnpm check`               | Typecheck + lint + format + Knip + tests                    |
 | `pnpm commitlint`          | Lint the last commit message                                |

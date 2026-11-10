@@ -75,6 +75,12 @@ export interface WorkOrder {
     prompt: string
     inputs: StepInput[]
     artifacts: StepArtifact[]
+    failure?: {
+      step: string
+      attempt: number
+      error?: string
+      result?: unknown
+    }
   }
 }
 
@@ -223,6 +229,9 @@ export interface StepRow {
   background: number
   result: string | null
   error: string | null
+  recovery_cycles: number
+  recovered: number
+  recovered_by: string | null
   lease_id: string | null
   lease_owner: string | null
   lease_expires_at: string | null

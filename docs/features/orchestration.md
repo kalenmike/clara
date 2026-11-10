@@ -263,6 +263,43 @@ step instead of storing a parse error as a result. A nonzero exit fails the step
 and streamed as `step.output` events. Script retries default to one attempt, so
 a side effect is not replayed accidentally.
 
+### Failure recovery
+
+Any agent, script, or router leaf step may declare `on_failure`. The branch runs
+after the step exhausts `retries.auto_attempts`:
+
+```yaml
+steps:
+  - name: verify_health
+    type: script
+    command: pnpm clara rebuild health --json
+    result_mode: json
+    retries:
+      auto_attempts: 2
+    on_failure:
+      max_cycles: 1 # default 1, cap 3
+      retry: true # retry the step after recovery
+      steps:
+        - name: recover_services
+          type: script
+          command: pnpm clara rebuild recover --json
+          result_mode: json
+```
+
+- The failed step moves to `recovering` and its recovery children run in
+  declaration order at `<step>/on_failure/<n>-<name>`.
+- Recovery steps receive the failed attempt as context: agents see a
+  `# Failure being recovered` section, scripts get `CLARA_FAILURE` and
+  `failure.json`. They cannot reference the failed step through `inputs`.
+- `retry: true` returns the step to `ready` with one extra attempt allowed.
+  `retry: false` marks it `done` from the recovery result and continues.
+- A failed recovery fails the step and the run with both errors. A recovered
+  failure emits `step.recovering` and `step.recovered` instead of a failure
+  alert; only an exhausted recovery creates an alert.
+- `on_failure` is a leaf feature. Nested recovery branches are load errors.
+- A success after recovery sets `steps.recovered = 1`; `run.completed` carries
+  a `recoveries` summary.
+
 ## Runners
 
 The orchestrator never spawns a process. `script` steps are executed by a
@@ -554,18 +591,23 @@ operator can start it directly with `target: std:diagnostics`. See
 
 ## Maintenance pipeline
 
-The `std:maintenance` package rebuilds Clara and restores the setup it captured.
-Its `rebuild` pipeline snapshots the running services and adapters, runs
-`pnpm install --frozen-lockfile` and `pnpm build`, installs the OpenCode
-adapter, restarts only the services that were running, and verifies every health
-endpoint. The deterministic mechanics live in `pnpm clara rebuild
-status|build|adapters|restart|health`; every pipeline step is a script that runs
-exactly that one command, so no model turn is involved. The orchestrator restarts last, the command waits for `/health` before
-the worker reports completion, and a restart journal makes a watchdog retry
-resume instead of repeating the rebuild. An orchestrator reached through a
-non-loopback URL is treated as external and verified but not restarted unless
-the operator passes `--manage-external`. The pipeline uses `observed`
-enforcement so it can run while the adapter or setup is degraded. See
+The `std:maintenance` package has three pipelines. `rebuild` snapshots the
+running services and adapters, runs `pnpm install --frozen-lockfile` and
+`pnpm build`, installs the OpenCode adapter, restarts only the services that
+were running, and verifies every health endpoint. `recover` restores services
+from the current snapshot without rebuilding or recapturing. `diagnose` collects
+a failed run and the snapshot, classifies the failure with two read-only agents,
+and returns safe next actions. The deterministic mechanics live in
+`pnpm clara rebuild status|build|adapters|restart|health|inspect|recover` and
+`pnpm clara orchestration inspect`; the rebuild and recover steps are scripts,
+so no model turn is involved. The orchestrator restarts last, the command waits
+for `/health` before the worker reports completion, and a restart journal makes
+a retry resume instead of repeating the rebuild. Restart and health retry once
+and then run a bounded `on_failure` branch that restarts only the expected
+services that are not answering. An orchestrator reached through a non-loopback
+URL is treated as external and verified but not restarted unless the operator
+passes `--manage-external`. All three pipelines use `observed` enforcement so
+they can run while the adapter or setup is degraded. See
 [maintenance.md](maintenance.md).
 
 ## Edge cases
@@ -587,7 +629,14 @@ enforcement so it can run while the adapter or setup is degraded. See
 - A spawned batch succeeds: the parent step records the child results and the
   pipeline continues without a second model turn.
 - A script exits nonzero: the step fails with the exit code and output tail
-  unless the code is in `success_codes`. Scripts retry once by default.
+  unless the code is in `success_codes`. Scripts default to one attempt.
+- A step with `on_failure` exhausts its retries: the recovery branch runs. A
+  successful recovery retries the step once or completes it from the recovery
+  result; a failed recovery fails the step and the run with both errors.
+- A recovered failure succeeds: it emits `step.recovered` and appears in the
+  `run.completed` `recoveries` summary, but it does not create a failure alert.
+- A recovery branch is still running when the run is cancelled: the failed step
+  and its recovery children are cancelled with the rest of the run.
 - A script exceeds `timeout_seconds`: the runner terminates the process group
   and fails the step. The attempt records the timeout, not a model stall.
 - A ready script step has no runner: it stays ready and the watchdog opens one
@@ -752,13 +801,17 @@ path] [--url url]` and `GET /v1/diagnostics?days=30`. The analyzer is
   import ref, with `defaults`, `pipelines.<id>`, and `agents.<name>` model and
   provider patches. Script steps accept `script` or `command`, `interpreter`,
   `cwd`, `env`, `pass_env`, `timeout_seconds`, `success_codes`, `result_mode`,
-  and `max_output_bytes`. Router routes accept `when`, `run`, and optional
-  `criteria`.
+  and `max_output_bytes`. Agent, script, and router steps accept `on_failure`
+  with `max_cycles` (1..3), `retry`, and its own `steps`. Router routes accept
+  `when`, `run`, and optional `criteria`.
 - References: `std:software` (package entry), `std:software/feature`,
   `std:software/bug`, and `std:software/docs` (named pipelines), `std:research`
   (research brief), `std:diagnostics` (self-diagnosis), `std:maintenance`
-  (rebuild and restart), bare names (same package). These are for the Lab and
-  operator tooling; model-facing `clara_start` always uses the configured entry.
+  (rebuild), `std:maintenance/recover`, `std:maintenance/diagnose`, bare names
+  (same package). These are for the Lab and operator tooling; model-facing
+  `clara_start` always uses the configured entry. An import may set `select` to
+  load only named pipelines; if it removes the package entry, the first selected
+  pipeline becomes the entry.
 - Run responses: `GET /v1/runs`, `GET /v1/runs/:id`, and all MCP run payloads
   return summaries without `snapshot`, and status steps omit prompts, policy,
   limits, and lease tokens while keeping results. `GET /v1/runs/:id/snapshot` returns

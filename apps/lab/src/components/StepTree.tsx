@@ -39,7 +39,9 @@ function CompiledRow({
   onSelect: (node: CompiledNode) => void
 }) {
   const [open, setOpen] = useState(depth < 2)
-  const hasChildren = Boolean(node.children?.length || node.routes?.length)
+  const hasChildren = Boolean(
+    node.children?.length || node.onFailure?.children.length || node.routes?.length
+  )
 
   return (
     <div>
@@ -70,6 +72,8 @@ function CompiledRow({
             </span>
           ) : null}
           {node.background ? <span className="chip">background</span> : null}
+          {node.onFailure ? <span className="chip chip-warn">on failure</span> : null}
+          {node.recoveryFor ? <span className="chip chip-warn">recovery</span> : null}
           {node.promptSource === 'fallback' ? <Badge tone="warn">generated prompt</Badge> : null}
           <span className="tree-path">{node.path}</span>
         </button>
@@ -77,6 +81,15 @@ function CompiledRow({
       {open ? (
         <>
           {node.children?.map((child) => (
+            <CompiledRow
+              key={child.path}
+              node={child}
+              depth={depth + 1}
+              selected={selected}
+              onSelect={onSelect}
+            />
+          ))}
+          {node.onFailure?.children.map((child) => (
             <CompiledRow
               key={child.path}
               node={child}

@@ -2,19 +2,33 @@
 
 ## Summary
 
-The rebuild pipeline snapshots the running Clara setup, rebuilds the checkout,
-reinstalls the OpenCode adapters, restarts exactly the services that were
-running, and verifies their health. It is the standard way to bring a rebuilt
-Clara back to the setup it had before the rebuild.
+The maintenance package keeps three pipelines:
+
+- `rebuild` snapshots the running Clara setup, rebuilds the checkout, reinstalls
+  the OpenCode adapters, restarts exactly the services that were running, and
+  verifies their health. It retries restart and health once and has a bounded
+  recovery branch that restarts only the unhealthy captured services.
+- `recover` restores services from the **current** snapshot without rebuilding or
+  capturing a new one. It is the right command after a failed restart, when
+  re-capturing would record dead services as stopped.
+- `diagnose` collects a failed run and the snapshot, classifies the failure with
+  two read-only agents, and returns safe next actions. It never repairs.
+
+All three use `observed` enforcement so they can run while the adapter or setup
+is degraded. The deterministic mechanics still live in `pnpm clara rebuild …`
+and `pnpm clara orchestration inspect`.
 
 ## User flow
 
-1. Ask Clara to “rebuild Clara”, “restart all Clara services”, or “verify the
-   Clara services after a rebuild”. Clara’s primary router selects `rebuild`.
-   In Clara Lab, choose `std:maintenance/rebuild` and start it directly.
-2. The run captures the live setup: the primary checkout, git revision, Node and
-   pnpm versions, the adapter and MCP entries, and every running orchestrator,
-   Lab, and home agent. It writes the snapshot used by the later steps.
+1. Ask Clara to “rebuild Clara”, “restart all Clara services”, “recover the
+   Clara services”, or “diagnose why the rebuild failed”. Clara’s primary
+   router selects `rebuild`, `recover`, or `diagnose`. In Clara Lab, choose
+   `std:maintenance/rebuild`, `std:maintenance/recover`, or
+   `std:maintenance/diagnose` directly.
+2. `rebuild` captures the live setup: the primary checkout, git revision, Node
+   and pnpm versions, the adapter and MCP entries, and every running
+   orchestrator, Lab, and home agent. It writes the snapshot used by the later
+   steps.
 3. The build step runs `pnpm install --frozen-lockfile` and `pnpm build` in the
    captured build checkout.
 4. The adapter step links the OpenCode adapter, installs the Clara agent file,
@@ -24,32 +38,48 @@ Clara back to the setup it had before the rebuild.
    for each health endpoint before moving on.
 6. The verify step probes every captured service and adapter, compares the
    workspace and mode with the snapshot, and reports warnings or failures.
-7. Clara reports the health JSON. A failure stops the run with the failing
-   service, endpoint, and log path.
+7. If restart or health fails after its retry, the recovery branch runs
+   `pnpm clara rebuild recover`. That restarts only the expected services whose
+   health probe failed, waits for them, and then the failed step is retried once.
+   A recovery never re-captures the snapshot.
+8. `recover` runs the same inspection and targeted restart without a build. It
+   refuses a stale snapshot, leaves external or stopped services alone, and ends
+   with a hard health gate.
+9. `diagnose` reads the failed run’s steps, attempts, exit codes, alerts, and the
+   snapshot health/journal/log tail, then returns a classification and one safe
+   next action. A build or test failure is routed to a software bug run, not to
+   maintenance recovery.
 
 ## Core business rules
 
-1. **The snapshot is the contract.** `status` writes it, `restart` and `health`
-   read it. A service that was stopped when captured stays stopped.
-2. **Every step is a script.** Each step runs exactly one
-   `pnpm clara rebuild …` command. There is no model, prompt, turn budget, or
-   token budget, so the rebuild mechanics stay in the deterministic CLI.
-3. **The orchestrator restarts last.** The runner executes on the workspace
+1. **The snapshot is the contract.** `status` writes it, `restart`, `recover`,
+   and `health` read it. A service that was stopped when captured stays stopped.
+2. **Recovery uses the same snapshot.** Re-running `status` after a partial
+   restart would mark dead services as stopped, so recovery never recaptures.
+   A new `rebuild` is the only thing that takes a new snapshot.
+3. **Every automatic step is a script.** Restart and health retry once and have
+   a deterministic recovery branch. There is no model, prompt, turn budget, or
+   token budget in `rebuild` or `recover`; the two agents live only in
+   `diagnose`, read-only, after the run has already failed.
+4. **The orchestrator restarts last.** The runner executes on the workspace
    host. The default OpenCode adapter embeds one, so restarting the orchestrator
    does not kill the run. The command waits for `/health` before the runner
    reports completion, and an interrupted restart resumes from its journal
    instead of restarting twice.
-4. **External orchestrators are verified, not restarted.** An orchestrator
+5. **External orchestrators are verified, not restarted.** An orchestrator
    reached through a non-loopback URL, such as a development container’s
    `http://orchestrator:8789`, is treated as managed outside the checkout. Pass
    `--manage-external` to opt in.
-5. **Adapters are installed, not hot-reloaded.** The adapter link and agent file
+6. **Adapters are installed, not hot-reloaded.** The adapter link and agent file
    are updated during the rebuild. OpenCode is never restarted mid-run; it picks
    up the files on its next start.
-6. **Health is endpoint-based.** The pipeline checks the orchestrator
+7. **Health is endpoint-based.** The pipeline checks the orchestrator
    `/health` and `/v1/config`, the Lab `/api/health`, the home-agent panel and
    local `/health`, and the adapter files. A healthy endpoint with the wrong
    workspace or mode is reported.
+8. **Recovered failures do not page Clara.** A failed attempt is recorded, but
+   the failure alert is deferred until recovery is exhausted. A successful
+   recovery emits `step.recovered`; only a failed recovery creates an alert.
 
 ## Edge cases
 
@@ -73,9 +103,16 @@ clara`. A manually started agent is restarted from the captured root with its
   `lsof`, `ss`, or `fuser`. If no pid is available, the step asks for one manual
   restart rather than guessing.
 - **A build or install fails:** the step fails with the command, exit code, and
-  output tail. No service is restarted.
-- **The snapshot is stale:** `restart` refuses a snapshot older than two hours.
-  Re-run `status` or pass `--force`.
+  output tail. No service is restarted. Recovery is diagnosis-only.
+- **Restart or health fails once:** the step retries. The restart journal makes
+  the retry a resume, not a second rebuild.
+- **Restart or health still fails:** the recovery branch runs
+  `pnpm clara rebuild recover`, which restarts only the expected services that
+  are not answering. The failed step is retried once. If recovery or the retry
+  fails, the run fails with the original and recovery errors and one alert.
+- **The snapshot is stale:** `restart`, `recover`, and `health` refuse a
+  snapshot older than two hours. Re-run `status` or pass `--force` to
+  `restart`/`recover`.
 - **The restart is interrupted:** the journal records completed services. A
   retry skips them and finishes the rest.
 - **The orchestrator takes longer than the stall threshold:** the watchdog may
@@ -86,6 +123,9 @@ clara`. A manually started agent is restarted from the captured root with its
   with the checkout, pnpm, and the service manager available.
 - **The Lab is healthy but disconnected:** health reports the lost orchestrator
   connection as a warning; it does not restart or reconfigure the Lab.
+- **`diagnose` has no snapshot:** `rebuild inspect` accepts exit 1, so the run
+  still reports the failed step and asks the agent to avoid snapshot-based
+  recovery.
 
 ## Out of scope
 
@@ -94,6 +134,8 @@ clara`. A manually started agent is restarted from the captured root with its
 - Restarting OpenCode or reloading its plugins mid-run.
 - Starting services that were stopped when the pipeline started.
 - Repairing a misconfigured Lab or home agent instead of replicating it.
+- Applying arbitrary repairs from a model. `diagnose` is read-only; `recover`
+  only restarts captured, expected, unhealthy services.
 - Remote orchestration or a non-Clara workspace.
 
 ## Known gaps
@@ -108,29 +150,43 @@ clara`. A manually started agent is restarted from the captured root with its
   OpenCode would kill the worker running the pipeline.
 - The Lab-driven restart remains a developer caveat; the pipeline cannot tell
   whether the Lab is its own dispatcher.
+- Automatic recovery is limited to restart and health. A build, install, or
+  adapter failure stops the run and needs `diagnose` plus a human decision.
+- `diagnose` selects the latest failed root run unless the request names a run
+  id; it does not search across multiple failures.
 
 ## Technical appendix
 
 <details>
 <summary>Commands, state, endpoints, and references</summary>
 
-- Pipeline: `std:maintenance/rebuild`, package `lib/std/maintenance`.
-- CLI: `pnpm clara rebuild status|build|adapters|restart|health` with `--json`,
-  `--root <path>`, `--state <path>`, `--dry-run`, `--manage-external`, `--force`,
-  `--skip <service>`, and `--mcp` / `--no-mcp`.
+- Pipeline: `std:maintenance/rebuild`, `std:maintenance/recover`, and
+  `std:maintenance/diagnose`; package `lib/std/maintenance`.
+- CLI: `pnpm clara rebuild status|build|adapters|restart|health|inspect|recover`
+  with `--json`, `--root <path>`, `--state <path>`, `--dry-run`,
+  `--manage-external`, `--force`, `--skip <service>`, `--lines <n>`, and
+  `--mcp` / `--no-mcp`.
+- Run evidence: `pnpm clara orchestration inspect [--run <id> | --request
+<path> | --request-env] [--json]`. `--request-env` reads `CLARA_REQUEST` in a
+  script step. Without a run id it selects the latest failed root run for the
+  workspace.
 - Snapshot: `${CLARA_DATA_DIR:-~/.local/share/clara}/rebuild/setup.json` (mode
   `0600`). Restart journal: `rebuild/restart.json`. Log: `rebuild/rebuild.log`.
 - Capture: `GET <orchestrator>/health`, `GET <orchestrator>/v1/config`, Lab
   `GET /api/health`, panel `GET /panel/api/v1/status`, local `GET /health`.
 - Restart order: Lab, home agent, orchestrator. The orchestrator is last and
   the command waits for its health endpoint.
+- Recovery: `recover` probes health, selects only `expected && !healthy`
+  services, restarts them in the same order, and re-runs health. It never
+  restarts a healthy service or starts one that was stopped at capture.
 - Adapter install: `pnpm clara adapter install opencode`; MCP refresh:
   `pnpm clara mcp install --no-start`.
 - Default ports: orchestrator `8789`, panel `8790`, local agent `8788`, Lab
   `8791`. `CLARA_LAB_PORT`, `CLARA_PANEL_PORT`, `CLARA_LOCAL_PORT`, and
   `CLARA_ORCHESTRATION_URL` override discovery.
 - Tests: `scripts/test/rebuild.test.mjs`,
-  `packages/orchestration/test/loader.test.ts`, and
+  `packages/orchestration/test/loader.test.ts`,
+  `packages/orchestration/test/evidence.test.ts`, and
   `packages/devtools/test/preview.test.ts`.
 - See [orchestration.md](orchestration.md) for the engine and
   [capabilities.md](capabilities.md) for shipped scope.

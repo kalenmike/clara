@@ -53,8 +53,9 @@ pnpm clara serve    # Run the built home agent
 pnpm clara pass     # Print the local OpenCode password
 pnpm clara orchestration start [--docker] [--build]|stop [--docker]|status|serve # Run the orchestration service
 pnpm clara orchestration analyze [--json] [--days n] # Analyze run history for failure patterns
+pnpm clara orchestration inspect [--run n] [--json] # Read one failed run's evidence
 pnpm clara runner   # Run script steps for a workspace (standalone runner)
-pnpm clara rebuild  # Snapshot, rebuild, reinstall adapters, restart services, verify health
+pnpm clara rebuild  # Snapshot, rebuild, recover services, inspect, and verify health
 pnpm clara lab      # Open Clara Lab to preview pipelines and probe the agent
 pnpm clara lab check # Validate a package target for CI
 pnpm clara mcp install|config|status # Install or inspect the MCP bridge

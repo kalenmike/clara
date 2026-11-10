@@ -145,13 +145,14 @@ const clara = {
     {
       name: 'orchestration',
       summary: 'Run the local orchestration service',
-      usage: '<serve|start [--docker] [--build]|stop [--docker]|status|analyze|token>',
+      usage: '<serve|start [--docker] [--build]|stop [--docker]|status|analyze|inspect|token>',
       passthroughHelp: true,
       examples: [
         'pnpm clara orchestration start',
         'pnpm clara orchestration start --docker',
         'pnpm clara orchestration status',
         'pnpm clara orchestration analyze',
+        'pnpm clara orchestration inspect --json',
         'pnpm clara orchestration stop --docker',
         'pnpm clara orchestration serve',
       ],
@@ -200,13 +201,15 @@ const clara = {
     {
       name: 'rebuild',
       summary: 'Rebuild Clara, reinstall adapters, restart services, and verify health',
-      usage: '<status|build|adapters|restart|health> [options]',
+      usage: '<status|build|adapters|restart|health|inspect|recover> [options]',
       passthroughHelp: true,
       examples: [
         'pnpm clara rebuild status --json',
         'pnpm clara rebuild build --json',
         'pnpm clara rebuild restart --dry-run',
         'pnpm clara rebuild health --json',
+        'pnpm clara rebuild inspect --json',
+        'pnpm clara rebuild recover --json',
       ],
       run: rebuild,
     },

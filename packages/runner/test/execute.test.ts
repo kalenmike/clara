@@ -97,6 +97,24 @@ describe('executeScript', () => {
     expect(calls.completed[0]?.result).toContain('"title": "Spec"')
   })
 
+  it('materializes the failure context for a recovery script', async () => {
+    const calls = recorder()
+    const base = order({
+      command: `${JSON.stringify(process.execPath)} -e "process.stdout.write(require('fs').readFileSync(process.env.CLARA_FAILURE,'utf8'))"`,
+      resultMode: 'text',
+    })
+    const outcome = await executeScript(calls.transport, {
+      ...base,
+      context: {
+        ...base.context,
+        failure: { step: '2-build', attempt: 2, error: 'build failed', result: { ok: false } },
+      },
+    })
+    expect(outcome.ok).toBe(true)
+    expect(calls.completed[0]?.result).toContain('"error": "build failed"')
+    expect(calls.completed[0]?.result).toContain('"attempt": 2')
+  })
+
   it('fails with the exit code on a nonzero command', async () => {
     const calls = recorder()
     const outcome = await executeScript(calls.transport, order({ command: 'exit 2' }))

@@ -30,6 +30,21 @@ export interface RetryPolicy {
   auto_attempts?: number
 }
 
+/** A bounded recovery branch that runs after a step exhausts its retries. */
+export interface OnFailureDefinition {
+  /** Recovery cycles allowed for this step. Defaults to 1. */
+  max_cycles?: number
+  /** Retry the failed step after a successful recovery. Defaults to true. */
+  retry?: boolean
+  steps: StepDefinition[]
+}
+
+export interface CompiledRecovery {
+  maxCycles: number
+  retry: boolean
+  children: CompiledNode[]
+}
+
 export interface NotificationPolicy {
   start?: boolean
   stage?: boolean
@@ -85,6 +100,7 @@ export interface StepDefinition {
   policy?: StepPolicy
   limits?: Limits
   retries?: RetryPolicy
+  on_failure?: OnFailureDefinition
   enforcement?: EnforcementMode
   requires?: Requirement
   source?: string
@@ -262,6 +278,10 @@ export interface CompiledNode {
   strategy?: RouterStrategy
   children?: CompiledNode[]
   routes?: CompiledRoute[]
+  /** Recovery branch for a leaf step. Absent on containers and recovery steps. */
+  onFailure?: CompiledRecovery
+  /** Set on a recovery step: the path of the step whose failure it handles. */
+  recoveryFor?: string
   source?: string
   /** Package that owns this node's definition. */
   packageId?: string

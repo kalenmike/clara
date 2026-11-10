@@ -75,6 +75,120 @@ describe('package loader', () => {
     expect(first?.source).toContain('/agents/create_spec.md')
   })
 
+  it('compiles a bounded on_failure recovery branch', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'clara-recovery-'))
+    try {
+      writeFileSync(
+        join(dir, 'index.yml'),
+        [
+          'id: temp',
+          'name: Temp',
+          'version: 1',
+          'entry: main',
+          'pipelines:',
+          '  main:',
+          '    steps:',
+          '      - name: primary',
+          '        type: script',
+          '        command: pnpm test --json',
+          '        on_failure:',
+          '          max_cycles: 2',
+          '          retry: false',
+          '          steps:',
+          '            - name: fix',
+          '              type: script',
+          '              command: pnpm fix --json',
+        ].join('\n')
+      )
+      const catalog = loadCatalog(join(dir, 'index.yml'))
+      const run = compileRun(catalog, 'main')
+      const primary = run.root.children?.[0]
+      expect(primary?.onFailure?.maxCycles).toBe(2)
+      expect(primary?.onFailure?.retry).toBe(false)
+      expect(primary?.onFailure?.children.map((child) => child.name)).toEqual(['fix'])
+      expect(primary?.onFailure?.children[0].path).toBe(`${primary?.path}/on_failure/1-fix`)
+      expect(primary?.onFailure?.children[0].recoveryFor).toBe(primary?.path)
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('rejects invalid on_failure declarations', () => {
+    const cases = [
+      ['max_cycles: 4', /between 1 and 3/],
+      ['max_cycles: 1\n          steps: []', /at least one step/],
+    ]
+    for (const [body, message] of cases) {
+      const dir = mkdtempSync(join(tmpdir(), 'clara-recovery-bad-'))
+      try {
+        writeFileSync(
+          join(dir, 'index.yml'),
+          [
+            'id: temp',
+            'name: Temp',
+            'version: 1',
+            'entry: main',
+            'pipelines:',
+            '  main:',
+            '    steps:',
+            '      - name: primary',
+            '        type: script',
+            '        command: pnpm test --json',
+            '        on_failure:',
+            `          ${body}`,
+          ].join('\n')
+        )
+        expect(() => compileRun(loadCatalog(join(dir, 'index.yml')), 'main')).toThrow(message)
+      } finally {
+        rmSync(dir, { recursive: true, force: true })
+      }
+    }
+  })
+
+  it('falls back the package entry when select filters it', () => {
+    const pkg = mkdtempSync(join(tmpdir(), 'clara-select-pkg-'))
+    const root = mkdtempSync(join(tmpdir(), 'clara-select-root-'))
+    try {
+      writeFileSync(
+        join(pkg, 'index.yml'),
+        [
+          'id: temp',
+          'name: Temp',
+          'version: 1',
+          'entry: keep',
+          'pipelines:',
+          '  keep:',
+          '    steps:',
+          '      - name: keep_step',
+          '        type: script',
+          '        command: echo keep',
+          '  other:',
+          '    steps:',
+          '      - name: other_step',
+          '        type: script',
+          '        command: echo other',
+        ].join('\n')
+      )
+      writeFileSync(
+        join(root, 'index.yml'),
+        [
+          'id: root',
+          'name: Root',
+          'version: 1',
+          'imports:',
+          '  temp:',
+          '    - path: ' + pkg,
+          '      select: [other]',
+        ].join('\n')
+      )
+      const run = compileRun(loadCatalog(join(root, 'index.yml')), 'temp:temp')
+      expect(run.root.children?.map((child) => child.name)).toEqual(['other_step'])
+    } finally {
+      rmSync(pkg, { recursive: true, force: true })
+      rmSync(root, { recursive: true, force: true })
+    }
+  })
+
   it('treats the root package id as its entry', () => {
     const catalog = loadCatalog(config)
     const entry = compileRun(catalog)
@@ -831,6 +945,37 @@ describe('package loader', () => {
     expect(build?.script?.command).toContain('pnpm clara rebuild build --json')
     const restart = maintenance.root.children?.find((step) => step.name === 'restart_services')
     expect(restart?.script?.timeoutSeconds).toBe(900)
+    expect(restart?.retries?.auto_attempts).toBe(2)
+    expect(restart?.onFailure?.retry).toBe(true)
+    expect(restart?.onFailure?.children.map((step) => step.name)).toEqual(['recover_services'])
+    expect(restart?.onFailure?.children[0].script?.command).toContain('pnpm clara rebuild recover')
+    const health = maintenance.root.children?.find((step) => step.name === 'verify_health')
+    expect(health?.onFailure?.maxCycles).toBe(1)
+  })
+
+  it('compiles the maintenance recover and diagnose pipelines', () => {
+    const catalog = loadCatalog(config)
+    const recover = compileRun(catalog, 'std:maintenance/recover')
+    expect(recover.root.children?.map((step) => step.name)).toEqual([
+      'inspect_setup',
+      'recover_services',
+      'verify_health',
+    ])
+    expect(recover.root.children?.every((step) => step.kind === 'script')).toBe(true)
+
+    const diagnose = compileRun(catalog, 'std:maintenance/diagnose')
+    expect(diagnose.root.children?.map((step) => step.name)).toEqual([
+      'collect_run',
+      'collect_setup',
+      'classify_failure',
+      'review_diagnosis',
+    ])
+    expect(
+      diagnose.root.children?.find((step) => step.name === 'collect_setup')?.script?.successCodes
+    ).toEqual([0, 1])
+    expect(diagnose.root.children?.find((step) => step.name === 'classify_failure')?.kind).toBe(
+      'agent'
+    )
   })
 
   it('routes explicit rebuild requests from the primary classifier', () => {

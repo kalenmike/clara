@@ -56,6 +56,13 @@ export interface WorkArtifact {
   exists?: boolean
 }
 
+export interface WorkFailure {
+  step: string
+  attempt: number
+  error?: string
+  result?: unknown
+}
+
 /** The script subset of an orchestrator work order. */
 export interface ScriptWorkOrder {
   run_id: number
@@ -73,6 +80,7 @@ export interface ScriptWorkOrder {
     prompt: string
     inputs: WorkInput[]
     artifacts: WorkArtifact[]
+    failure?: WorkFailure
   }
 }
 

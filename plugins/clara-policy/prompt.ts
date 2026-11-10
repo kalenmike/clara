@@ -27,6 +27,13 @@ export interface PromptArtifact {
   exists?: boolean
 }
 
+export interface PromptFailure {
+  step?: string
+  attempt?: number
+  error?: string
+  result?: unknown
+}
+
 export interface PromptWork {
   step_path?: string
   kind?: string
@@ -42,6 +49,7 @@ export interface PromptWork {
     prompt?: string
     inputs?: PromptInput[]
     artifacts?: PromptArtifact[]
+    failure?: PromptFailure
   }
 }
 
@@ -81,6 +89,9 @@ export function renderWorkPrompt(work: PromptWork): string {
       `# Artifacts\n\nRead these from the workspace when you need them.\n\n${artifacts}`
     )
   }
+
+  const failure = renderFailure(work.context?.failure)
+  if (failure) sections.push(`# Failure being recovered\n\n${failure}`)
 
   const previous = renderPreviousAttempt(work.retry)
   if (previous) sections.push(`# Previous attempt\n\n${previous}`)
@@ -136,6 +147,26 @@ function renderPreviousAttempt(retry: PromptWork['retry']): string {
   if (error) lines.push(error)
   if (result) lines.push(`What it produced:\n\n${clip(result, 4_000)}`)
   lines.push('Build on this. Do not repeat the same investigation unless it is wrong.')
+  return lines.join('\n\n')
+}
+
+function renderFailure(failure: PromptFailure | undefined): string {
+  if (!failure || typeof failure !== 'object') return ''
+  const step = typeof failure.step === 'string' ? failure.step : ''
+  const attempt = typeof failure.attempt === 'number' ? failure.attempt : 1
+  const error = typeof failure.error === 'string' ? failure.error.trim() : ''
+  const result = renderResult(failure.result)
+  if (!step && !error && !result) return ''
+  const lines = [
+    step
+      ? `${step} failed on attempt ${attempt}; this step is its recovery branch.`
+      : `The step failed on attempt ${attempt}; this step is its recovery branch.`,
+  ]
+  if (error) lines.push(error)
+  if (result) lines.push(`What it produced:\n\n${clip(result, 4_000)}`)
+  lines.push(
+    'Work only on recovery. Do not re-plan the pipeline, and do not repeat the failed work unless the recovery requires it.'
+  )
   return lines.join('\n\n')
 }
 
