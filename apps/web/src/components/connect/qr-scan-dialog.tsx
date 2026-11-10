@@ -10,6 +10,13 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import { useQrScanner } from '@/features/connect/use-qr-scanner'
+import type { QrScanStage } from '@/lib/qr-scan'
+
+const STARTING_LABEL: Record<QrScanStage, string> = {
+  camera: 'Requesting camera access…',
+  preview: 'Starting the camera preview…',
+  decoder: 'Preparing the scanner…',
+}
 
 export function QrScanDialog({
   open,
@@ -24,7 +31,10 @@ export function QrScanDialog({
   scanError: string | null
   onScanRetry: () => void
 }) {
-  const { videoRef, status, error, retry } = useQrScanner({ active: open, onDetected })
+  const { videoRef, status, stage, error, retry, attempt } = useQrScanner({
+    active: open,
+    onDetected,
+  })
 
   const retryScan = () => {
     onScanRetry()
@@ -47,6 +57,7 @@ export function QrScanDialog({
 
         <div className="relative aspect-[4/3] w-full overflow-hidden bg-black">
           <video
+            key={attempt}
             ref={videoRef}
             aria-hidden
             className="size-full object-cover"
@@ -63,7 +74,7 @@ export function QrScanDialog({
             <div className="absolute inset-0 grid place-items-center bg-black/40">
               <span className="flex items-center gap-2 text-xs text-white">
                 <Loader2 className="size-4 animate-spin" />
-                Starting camera…
+                {STARTING_LABEL[stage ?? 'camera']}
               </span>
             </div>
           )}
@@ -89,7 +100,7 @@ export function QrScanDialog({
             <p className="text-center text-xs text-muted-foreground">
               {status === 'scanning'
                 ? 'Looking for a Clara pairing code…'
-                : 'Allow camera access to start scanning.'}
+                : 'Allow the camera prompt if iPhone asks.'}
             </p>
           )}
         </div>

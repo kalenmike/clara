@@ -1,4 +1,5 @@
 import type { PushSubscriptionPayload } from '@clara/shared-types'
+import { withTimeout } from '@/lib/async'
 
 const REGISTRATION_TIMEOUT_MS = 5_000
 let activeCache: Promise<boolean> | null = null
@@ -172,20 +173,4 @@ function hasApplicationServerKey(
   const bytes = new Uint8Array(current)
   if (bytes.byteLength !== expected.byteLength) return false
   return bytes.every((value, index) => value === expected[index])
-}
-
-function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
-  return new Promise<T>((resolve, reject) => {
-    const timer = window.setTimeout(() => reject(new Error('Timed out waiting for Clara')), ms)
-    promise.then(
-      (value) => {
-        window.clearTimeout(timer)
-        resolve(value)
-      },
-      (cause) => {
-        window.clearTimeout(timer)
-        reject(cause)
-      }
-    )
-  })
 }
