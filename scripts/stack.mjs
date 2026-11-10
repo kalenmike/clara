@@ -10,6 +10,7 @@
 import { ensureNetwork, panelURL } from './lib/server-control.mjs'
 import { webURL } from './lib/web-control.mjs'
 import { run, runNode } from './lib/router.mjs'
+import { collectStatus, renderJSON, renderStatus, statusExitCode } from './lib/status.mjs'
 import {
   CONTAINERS,
   SCRIPTS,
@@ -57,14 +58,14 @@ switch (command) {
 }
 
 async function start() {
-  const selection = parseOrExit(true)
+  const selection = parseOrExit({ build: true })
   if (!selection) return
   if (!hasSelection(selection)) return
   await startSelection(selection)
 }
 
 async function stop() {
-  const selection = parseOrExit(false)
+  const selection = parseOrExit({ build: false })
   if (!selection) return
   if (!hasSelection(selection)) return
   const code = await stopSelection(selection)
@@ -72,7 +73,7 @@ async function stop() {
 }
 
 async function restart() {
-  const selection = parseOrExit(true)
+  const selection = parseOrExit({ build: true })
   if (!selection) return
   if (!hasSelection(selection)) return
   const stopCode = await stopSelection(selection)
@@ -84,11 +85,13 @@ async function restart() {
 }
 
 async function status() {
-  for (const name of SERVICES) {
-    console.log(`\n==> ${name}`)
-    runPrimitive(name, ['status'])
-  }
-  process.exitCode = 0
+  const selection = parseOrExit({ build: false, json: true })
+  if (!selection) return
+  if (!hasSelection(selection)) return
+  const records = await collectStatus(selectedNames(selection))
+  if (selection.json) renderJSON(records, { stack: true })
+  else renderStatus(records, { title: 'Clara stack' })
+  process.exitCode = statusExitCode(records)
 }
 
 function logs() {
@@ -146,9 +149,9 @@ function hasSelection(selection) {
   return false
 }
 
-function parseOrExit(allowBuild) {
+function parseOrExit(options) {
   try {
-    return parseSelection(args, { build: allowBuild })
+    return parseSelection(args, options)
   } catch (error) {
     console.error(`error: ${error instanceof Error ? error.message : String(error)}`)
     process.exitCode = 2
@@ -196,14 +199,14 @@ Usage:
   pnpm clara start [--no-server] [--no-web] [--no-orchestrator] [--build]
   pnpm clara stop [--no-server] [--no-web] [--no-orchestrator]
   pnpm clara restart [--no-server] [--no-web] [--no-orchestrator] [--build]
-  pnpm clara status
+  pnpm clara status [--no-server] [--no-web] [--no-orchestrator] [--json]
   pnpm clara logs <server|web|orchestrator>
 
 Commands:
   start     Start the selected containers (default: all)
   stop      Stop the selected containers (default: all)
   restart   Stop then start the selected containers
-  status    Probe the orchestrator, server, and web client
+  status    Probe the selected services; use --json for machines
   logs      Follow one container's logs
 
 Use the scoped commands for independent control:

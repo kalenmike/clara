@@ -13,21 +13,27 @@ import { existsSync } from 'node:fs'
 import {
   compose,
   ensureNetwork,
-  localURL,
   panelURL,
   runLocalServerProcess,
   runServerProcess,
   SERVER_ENTRY,
-  status,
   waitForPanel,
 } from './lib/server-control.mjs'
+import { collectStatus, renderJSON, renderStatus, statusExitCode } from './lib/status.mjs'
 
 const args = process.argv.slice(2)
 const command = args[0] ?? 'status'
 const docker = args.includes('--docker')
 const build = args.includes('--build')
+const json = args.includes('--json')
 
-if (command === '--help' || command === '-h' || command === 'help') {
+if (
+  command === '--help' ||
+  command === '-h' ||
+  command === 'help' ||
+  args.includes('--help') ||
+  args.includes('-h')
+) {
   printHelp()
   process.exit(0)
 }
@@ -100,17 +106,10 @@ async function stop() {
 }
 
 async function printStatus() {
-  const result = await status()
-  console.log(`panel: ${result.panel.ok ? `running (${panelURL()})` : 'stopped'}`)
-  console.log(`local: ${result.local.ok ? `running (${localURL()})` : 'stopped'}`)
-  if (result.panel.ok && result.panel.body?.mode) console.log(`mode: ${result.panel.body.mode}`)
-  if (result.session?.ok && result.session.body) {
-    const body = result.session.body
-    console.log(`auth: ${body.authenticated ? `signed in as ${body.user.username}` : 'signed out'}`)
-    if (!body.authenticated) console.log(`setup: ${body.setupRequired ? 'required' : 'complete'}`)
-  }
-  if (result.panel.error) console.log(`panel error: ${result.panel.error}`)
-  process.exitCode = result.panel.ok || result.local.ok ? 0 : 1
+  const [record] = await collectStatus(['server'])
+  if (json) renderJSON([record])
+  else renderStatus([record], { title: 'Clara server' })
+  process.exitCode = statusExitCode([record])
 }
 
 async function admin() {
@@ -161,7 +160,7 @@ Usage:
 Commands:
   start [--docker] [--build]   Start the container (local: use pnpm clara serve)
   stop --docker                Stop and remove the container
-  status                       Probe the panel and local listener
+  status [--json]              Probe the panel and local listener
   setup-token --docker         Print the one-time panel setup token
   admin reset --docker         Reset the panel superadmin password
   pair --docker                Print a pairing code from the agent

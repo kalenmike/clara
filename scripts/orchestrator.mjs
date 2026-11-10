@@ -8,12 +8,20 @@
 import { existsSync } from 'node:fs'
 import { join } from 'node:path'
 import { root, runNode } from './lib/router.mjs'
+import { collectStatus, renderJSON, renderStatus, statusExitCode } from './lib/status.mjs'
 
 const source = join(root, 'apps', 'orchestrator', 'src', 'index.ts')
 const built = join(root, 'apps', 'orchestrator', 'dist', 'index.js')
 const args = process.argv.slice(2)
+const command = args[0] ?? 'help'
+const help = args.includes('--help') || args.includes('-h')
 
-if (existsSync(source)) {
+if (command === 'status' && !help) {
+  const [record] = await collectStatus(['orchestrator'])
+  if (args.includes('--json')) renderJSON([record])
+  else renderStatus([record], { title: 'Clara orchestrator' })
+  process.exitCode = statusExitCode([record])
+} else if (existsSync(source)) {
   process.exitCode = runNode(source, args, {
     nodeArgs: ['--experimental-strip-types', '--no-warnings'],
   })

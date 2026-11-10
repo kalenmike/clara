@@ -188,7 +188,9 @@ const clara = {
     },
     {
       name: 'status',
-      summary: 'Probe the orchestrator, server, and web client',
+      summary: 'Probe the selected services; use --json for machines',
+      usage: '[--no-server] [--no-web] [--no-orchestrator] [--json]',
+      examples: ['pnpm clara status', 'pnpm clara status --json', 'pnpm clara status --no-web'],
       run: (args) => stack('status', args),
     },
     {
@@ -202,11 +204,12 @@ const clara = {
     {
       name: 'server',
       summary: 'Start, stop, inspect, or pair the home agent container',
-      usage: '<start|stop|status|setup-token|admin|pair|logs> [--docker] [--build]',
+      usage: '<start|stop|status [--json]|setup-token|admin|pair|logs> [--docker] [--build]',
       passthroughHelp: true,
       examples: [
         'pnpm clara server start --docker',
         'pnpm clara server status',
+        'pnpm clara server status --json',
         'pnpm clara server setup-token --docker',
         'pnpm clara server admin reset --docker',
         'pnpm clara server pair --docker',
@@ -217,11 +220,12 @@ const clara = {
     {
       name: 'web',
       summary: 'Start, stop, inspect, or follow the web client container',
-      usage: '<start|stop|status|logs> [--docker] [--build]',
+      usage: '<start|stop|status [--json]|logs> [--docker] [--build]',
       passthroughHelp: true,
       examples: [
         'pnpm clara web start --docker --build',
         'pnpm clara web status',
+        'pnpm clara web status --json',
         'pnpm clara web logs --docker',
         'pnpm clara web stop --docker',
       ],
@@ -235,12 +239,14 @@ const clara = {
     {
       name: 'orchestrator',
       summary: 'Run the local orchestration service',
-      usage: '<serve|start [--docker] [--build]|stop [--docker]|status|analyze|inspect|token>',
+      usage:
+        '<serve|start [--docker] [--build]|stop [--docker]|status [--json]|analyze|inspect|token>',
       passthroughHelp: true,
       examples: [
         'pnpm clara orchestrator start',
         'pnpm clara orchestrator start --docker',
         'pnpm clara orchestrator status',
+        'pnpm clara orchestrator status --json',
         'pnpm clara orchestrator analyze',
         'pnpm clara orchestrator inspect --json',
         'pnpm clara orchestrator stop --docker',

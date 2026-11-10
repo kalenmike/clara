@@ -24,13 +24,14 @@ export function envPath(repoRoot = root) {
   return join(repoRoot, 'docker', '.env')
 }
 
-export function parseSelection(args, { build = true } = {}) {
-  const selection = { server: true, web: true, orchestrator: true, build: false }
+export function parseSelection(args, { build = true, json = false } = {}) {
+  const selection = { server: true, web: true, orchestrator: true, build: false, json: false }
   for (const arg of args) {
     if (arg === '--no-server') selection.server = false
     else if (arg === '--no-web') selection.web = false
     else if (arg === '--no-orchestrator') selection.orchestrator = false
     else if (arg === '--build' && build) selection.build = true
+    else if (arg === '--json' && json) selection.json = true
     else throw new Error(`unknown option: ${arg}`)
   }
   return selection
