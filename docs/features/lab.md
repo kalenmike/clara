@@ -154,10 +154,9 @@ writing custom pipelines, not for end users.
   the models row says model existence is unchecked, and Sessions explains how to
   reconnect.
 - OpenCode requires authentication: Settings shows whether a password was
-  found, where the lab looked, and the exact recovery steps. Run
-  `pnpm clara pass`, set `CLARA_OPENCODE_PASSWORD`, or add `url` and `password`
-  to the service file, then press **Reconnect OpenCode**. The password stays in
-  the lab server.
+  found, where the lab looked, and the exact recovery steps. Set
+  `CLARA_OPENCODE_PASSWORD`, or add `url` and `password` to the service file,
+  then press **Reconnect OpenCode**. The password stays in the lab server.
 - The OpenCode config changes while the lab is running: **Reconnect OpenCode**
   re-reads the environment and service file, restarts the event stream, and
   refreshes the session list without restarting the lab.

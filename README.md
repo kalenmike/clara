@@ -62,7 +62,7 @@ connection saved in the authenticated panel.
 
 First run:
 
-1. Start the agent (`pnpm dev` or `pnpm clara serve`).
+1. Start the agent (`pnpm dev` or `pnpm clara server start --local`).
 2. Open the panel at <http://127.0.0.1:8790>.
 3. Read the one-time setup token from `~/.config/clara/admin-setup.txt` or run
    `pnpm clara server setup-token` (add `--docker` for the container).
@@ -84,7 +84,7 @@ pnpm dev:panel   # http://localhost:5174
 ```
 
 In a production build, the panel ships inside the agent and is available at
-<http://127.0.0.1:8790> after `pnpm build` and `pnpm clara serve`. Run
+<http://127.0.0.1:8790> after `pnpm build` and `pnpm clara server start --local`. Run
 `pnpm clara control` to open it: the command starts the built agent when it is
 not already serving the panel, opens the URL in a browser, and stays attached
 so the agent logs remain visible. The panel never travels through the relay.
@@ -136,9 +136,9 @@ Docker state lives in named volumes, never in the local install directories:
 Only the workspace is a host bind. Set `CLARA_SERVER_CONFIG_DIR`,
 `CLARA_SERVER_DATA_DIR`, or `CLARA_ORCHESTRATOR_DATA_DIR` in `docker/.env` to an
 absolute host path when you want to bind one of those states instead. Local
-installs (`pnpm clara serve`, `pnpm dev`, and `pnpm clara orchestrator start`
-without `--docker`) keep using `~/.config/clara` and `~/.local/share/clara`;
-they never read `docker/.env` or the Docker volumes. See
+installs (`pnpm clara start --local`, `pnpm dev`, and
+`pnpm clara orchestrator start --local`) keep using `~/.config/clara` and
+`~/.local/share/clara`; they never read `docker/.env` or the Docker volumes. See
 [docs/development.md](docs/development.md#local-and-docker-state) for the full
 state map and the one-time migration.
 
@@ -181,10 +181,12 @@ shape.
 
 ### Server container
 
-The home agent can also run on its own:
+The home agent can also run on its own. Docker is the default; `--local` runs
+the built agent as a detached local process:
 
 ```bash
-pnpm clara server start --docker --build
+pnpm clara server start --build
+pnpm clara server start --local --build
 pnpm clara server status
 pnpm clara server setup-token --docker
 pnpm clara server pair --docker
@@ -363,38 +365,36 @@ is no UI for it. See [docs/features/sync.md](docs/features/sync.md).
 
 ## Scripts
 
-| Command                   | Purpose                                                     |
-| ------------------------- | ----------------------------------------------------------- |
-| `pnpm task session start` | Create a task worktree under `../clara-worktrees`           |
-| `pnpm task session list`  | List task worktrees                                         |
-| `pnpm task session close` | Check, merge, and remove a task worktree                    |
-| `pnpm dev`                | Web dev server and home agent                               |
-| `pnpm dev:web`            | Web only                                                    |
-| `pnpm dev:panel`          | Agent panel dev server                                      |
-| `pnpm dev:server`         | Home agent only                                             |
-| `pnpm dev:relay`          | Local `wrangler dev` for the Worker/DO                      |
-| `pnpm build`              | Build every workspace package                               |
-| `pnpm clara pair`         | Print a pairing code                                        |
-| `pnpm clara control`      | Serve the built panel and open it in a browser              |
-| `pnpm clara serve`        | Run the built home agent                                    |
-| `pnpm clara start`        | Start the Docker stack (orchestrator, server, web)          |
-| `pnpm clara stop`         | Stop the Docker stack                                       |
-| `pnpm clara restart`      | Restart the Docker stack                                    |
-| `pnpm clara status`       | Probe the orchestrator, server, and web client              |
-| `pnpm clara logs`         | Follow one stack container log                              |
-| `pnpm clara server`       | Start, stop, inspect, pair, or reset the server container   |
-| `pnpm clara web`          | Start, stop, inspect, or follow the web client container    |
-| `pnpm clara pass`         | Print the local OpenCode server password                    |
-| `pnpm clara orchestrator` | Start, stop, analyze, or inspect the orchestration service  |
-| `pnpm clara runner`       | Run script steps for a workspace                            |
-| `pnpm clara rebuild`      | Rebuild Clara, recover services, inspect, and verify health |
-| `pnpm test`               | Run crypto, protocol, server, web, and Worker tests         |
-| `pnpm check`              | Typecheck + lint + format + Knip + tests                    |
-| `pnpm commitlint`         | Lint the last commit message                                |
-| `pnpm deploy:web`         | Build and deploy the Pages project                          |
-| `pnpm deploy:relay`       | Deploy the Worker and DO migration                          |
-| `pnpm format`             | Prettier write                                              |
-| `pnpm format:check`       | Prettier check                                              |
+| Command                   | Purpose                                                      |
+| ------------------------- | ------------------------------------------------------------ |
+| `pnpm task session start` | Create a task worktree under `../clara-worktrees`            |
+| `pnpm task session list`  | List task worktrees                                          |
+| `pnpm task session close` | Check, merge, and remove a task worktree                     |
+| `pnpm dev`                | Web dev server and home agent                                |
+| `pnpm dev:web`            | Web only                                                     |
+| `pnpm dev:panel`          | Agent panel dev server                                       |
+| `pnpm dev:server`         | Home agent only                                              |
+| `pnpm dev:relay`          | Local `wrangler dev` for the Worker/DO                       |
+| `pnpm build`              | Build every workspace package                                |
+| `pnpm clara pair`         | Print a pairing code                                         |
+| `pnpm clara control`      | Serve the built panel and open it in a browser               |
+| `pnpm clara start`        | Start the stack (Docker by default; `--local` for processes) |
+| `pnpm clara stop`         | Stop the stack                                               |
+| `pnpm clara restart`      | Restart the stack                                            |
+| `pnpm clara status`       | Probe the orchestrator, server, and web client               |
+| `pnpm clara logs`         | Follow one service log                                       |
+| `pnpm clara server`       | Start, stop, inspect, pair, or reset the home agent          |
+| `pnpm clara web`          | Start, stop, inspect, or follow the web client               |
+| `pnpm clara orchestrator` | Start, stop, analyze, or inspect the orchestration service   |
+| `pnpm clara runner`       | Run script steps for a workspace                             |
+| `pnpm clara rebuild`      | Rebuild Clara, recover services, inspect, and verify health  |
+| `pnpm test`               | Run crypto, protocol, server, web, and Worker tests          |
+| `pnpm check`              | Typecheck + lint + format + Knip + tests                     |
+| `pnpm commitlint`         | Lint the last commit message                                 |
+| `pnpm deploy:web`         | Build and deploy the Pages project                           |
+| `pnpm deploy:relay`       | Deploy the Worker and DO migration                           |
+| `pnpm format`             | Prettier write                                               |
+| `pnpm format:check`       | Prettier check                                               |
 
 ## Security
 

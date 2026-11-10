@@ -20,7 +20,7 @@ monitoring on or off, and gates or paces client settings sync.
 1. Run `pnpm clara control` after `pnpm build`. If the agent is not already
    serving the panel, the command starts it and waits for the listener. The log
    prints `panel at http://127.0.0.1:8790/`. For a container, start it with
-   `pnpm clara server start --docker`.
+   `pnpm clara server start`.
 2. The command opens the panel. First run shows setup: read the one-time token
    from `admin-setup.txt` in the config directory, or run
    `pnpm clara server setup-token` (it targets the running deployment
@@ -343,12 +343,13 @@ monitoring on or off, and gates or paces client settings sync.
 - Open the built panel: `pnpm clara control` starts the agent when the panel is
   not already answering, opens `http://127.0.0.1:${CLARA_PANEL_PORT:-8790}/`,
   and stays attached to the agent it started
-- Docker: `pnpm clara server start|stop|status|setup-token|pair|admin`;
+- Docker (default): `pnpm clara server start|stop|restart|status|setup-token|pair|admin|logs`;
   `setup-token`, `admin`, and `pair` target the running deployment
   automatically, and `--docker`/`--host` force the container or a local
-  install. The rebuild snapshot records the home agent as `container` or
-  `local` and recreates a container with stop/start instead of signalling a
-  PID. See [maintenance.md](maintenance.md).
+  install. Pass `--local` to `start`, `stop`, `restart`, or `logs` to use the
+  detached local agent instead. The rebuild snapshot records the home agent as
+  `container` or `local` and recreates a container with stop/start instead of
+  signalling a PID. See [maintenance.md](maintenance.md).
 - Dev UI: `pnpm dev:panel` (Vite on `5174`, proxying `/panel/api` to `8790`; the
   proxy rewrites `Host` and `Origin`, and the browser carries the session cookie)
 - Snapshot sections: agent, auth, config, harness, harnesses, local transport,

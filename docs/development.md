@@ -71,22 +71,30 @@ correctly.
 ## Developer commands
 
 ```bash
-pnpm clara pair [--local] [--rotate] [--no-qr] [--no-panel] [--docker|--host]
-pnpm clara control
-pnpm clara serve [--rotate] [--no-panel]
-pnpm clara start [--no-server] [--no-web] [--no-orchestrator] [--build]
-pnpm clara stop [--no-server] [--no-web] [--no-orchestrator]
-pnpm clara restart [--no-server] [--no-web] [--no-orchestrator] [--build]
+# Stack
+pnpm clara start [--local|--docker] [--no-server] [--no-web] [--no-orchestrator] [--build]
+pnpm clara stop [--local|--docker] [--no-server] [--no-web] [--no-orchestrator]
+pnpm clara restart [--local|--docker] [--no-server] [--no-web] [--no-orchestrator] [--build]
 pnpm clara status [--no-server] [--no-web] [--no-orchestrator] [--json]
-pnpm clara logs <server|web|orchestrator>
+pnpm clara logs <server|web|orchestrator> [--local|--docker]
 pnpm clara backup [--output <path>]
 pnpm clara restore <archive> [--force]
-pnpm clara server <start|stop|status [--json]|setup-token|pair|admin|logs> [--docker|--host] [--build]
-pnpm clara web <start|stop|status [--json]|logs> [--docker] [--build]
-pnpm clara pass
-pnpm clara orchestrator <serve|start|stop|status [--json]|token>
-pnpm clara rebuild <status|build|adapters|restart|health>
+
+# Services
+pnpm clara server <start|stop|restart|status [--json]|setup-token|pair|admin|logs> [--local|--docker] [--host] [--build]
+pnpm clara web <start|stop|restart|status [--json]|logs> [--local|--docker] [--build]
+pnpm clara orchestrator <serve|start|stop|restart|status [--json]|logs|token> [--local|--docker] [--build]
+pnpm clara adapter install --opencode [--mcp]
+pnpm clara mcp install|config|status
+pnpm clara runner
+
+# Setup
+pnpm clara pair [--local] [--rotate] [--no-qr] [--no-panel] [--docker|--host]
+pnpm clara control
+
+# Tools
 pnpm clara lab [serve|check]
+pnpm clara rebuild <status|build|adapters|restart|health|inspect|recover> [--docker|--local|--all]
 ```
 
 Run `pnpm clara --help` for the command list and `pnpm clara <command> --help`
@@ -95,30 +103,37 @@ for one command.
 `pnpm clara pair` runs the server source directly for a local target and does
 not need a build. It probes the running deployment first; `--host` forces the
 host install and `--docker` the container.
-`pnpm clara control` and `pnpm clara serve` use the built agent, so run
-`pnpm build` first. `pnpm clara start` is the combined Docker command: it
-creates the `clara` network, bootstraps `docker/.env` and the orchestrator token
-on first run, then starts the selected services in orchestrator, server, web
-order. Disable any part with `--no-server`, `--no-web`, or `--no-orchestrator`;
-`restart` stops and recreates the selection. The scoped
-`pnpm clara server start --docker` and `pnpm clara orchestrator start --docker`
-commands remain available when only one service is wanted; the local
-foreground mode remains `pnpm clara serve`.
+`pnpm clara control` uses the built agent, so run `pnpm build` first.
+`pnpm clara start` starts Docker by default: it creates the `clara` network,
+bootstraps `docker/.env` and the orchestrator token on first run, then starts
+the selected services in orchestrator, server, web order. Pass `--local` to run
+the same selection as detached local processes instead; `--docker` is the
+explicit default. Disable any part with `--no-server`, `--no-web`, or
+`--no-orchestrator`; `restart` stops and restarts the selection. `--build`
+rebuilds the checkout before starting in either mode.
+Local processes keep a PID and log under `~/.local/share/clara`, so
+`pnpm clara stop --local`, `restart --local`, and `logs ... --local` work the
+same way as the Docker stack. `pnpm clara server start --local` replaces the
+old `pnpm clara serve` foreground command; local web serves the built
+`apps/web/dist` on `CLARA_WEB_PORT`. The scoped
+`pnpm clara server start` and `pnpm clara orchestrator start` commands remain
+available when only one service is wanted.
 `pnpm clara status` renders one table for the selected services, using the same
 record shape for `server`, `web`, and `orchestrator`. Add `--json` for a
 machine-readable record or `{ "ok": true, "services": [...] }` envelope, and
 select a subset with the same `--no-*` flags as `start`.
-`pnpm clara web start --docker --build` builds and serves the static SPA on
+`pnpm clara web start --build` builds and serves the static SPA on
 `127.0.0.1:8080`; `pnpm dev:web` remains the Vite development server. The agent
 panel is the one-time harness setup surface; the server does not read OpenCode's
-`service.json`. `pnpm clara pass` still reads the OpenCode development password
-from `${XDG_STATE_HOME:-~/.local/state}/opencode/service.json` for local
-tooling.
+`service.json`. Local tooling such as Clara Lab reads the development password
+from `${XDG_STATE_HOME:-~/.local/state}/opencode/service.json` or
+`CLARA_OPENCODE_PASSWORD`.
 `pnpm clara rebuild` snapshots the running services, rebuilds the primary
 checkout, installs the adapters, restarts only the captured services, and
-verifies their health. The standard `std:maintenance/rebuild` pipeline drives
-the same commands one step at a time; see
-[features/maintenance.md](features/maintenance.md).
+verifies their health. It manages Docker services by default; pass `--local`
+for local services or `--all` for a mixed setup. The standard
+`std:maintenance/rebuild` pipeline drives the same commands one step at a time;
+see [features/maintenance.md](features/maintenance.md).
 
 Use these commands instead of calling the workspace scripts directly so that
 agents and developers share one command surface.
