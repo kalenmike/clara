@@ -93,7 +93,9 @@ async function collectOrchestratorStatus() {
     details: {
       database:
         resolved.mode === 'container'
-          ? 'container data mount'
+          ? process.env.CLARA_ORCHESTRATOR_DATA_DIR?.trim()
+            ? 'host bind from CLARA_ORCHESTRATOR_DATA_DIR'
+            : 'Docker volume clara-orchestrator-data'
           : resolved.mode === 'local'
             ? 'local data directory'
             : 'unknown',

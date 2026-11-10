@@ -212,7 +212,12 @@ export function formatStatus(report: StatusReport): string[] {
   }
 
   if (report.state === 'container') {
-    lines.push('database: managed by the container (host mount from CLARA_DATA_DIR)')
+    const bind = process.env.CLARA_ORCHESTRATOR_DATA_DIR?.trim()
+    lines.push(
+      bind
+        ? 'database: managed by the container (host bind from CLARA_ORCHESTRATOR_DATA_DIR)'
+        : 'database: managed by the container (Docker volume clara-orchestrator-data)'
+    )
     lines.push('stop: pnpm clara orchestrator stop --docker')
   } else if (report.state === 'external') {
     lines.push('database: unknown (not this data directory)')
@@ -264,13 +269,12 @@ export function composeArgs(action: ComposeAction, build = false): string[] {
 
 /**
  * Compose interpolates the whole file, including `${VAR:?}` guards, even for
- * `down`. Down never reads the token, data directory, or workspace, so fill the
- * required values with inert placeholders when they are not exported. `up`
- * keeps the real environment so a missing token still fails fast.
+ * `down`. Down never reads the token or workspace, so fill the required values
+ * with inert placeholders when they are not exported. `up` keeps the real
+ * environment so a missing token still fails fast.
  */
 const DOWN_ENV_FALLBACKS = {
   CLARA_ORCHESTRATION_TOKEN: 'unused-by-compose-down',
-  CLARA_DATA_DIR: 'unused-by-compose-down',
   CLARA_WORKSPACE: 'unused-by-compose-down',
 } as const
 

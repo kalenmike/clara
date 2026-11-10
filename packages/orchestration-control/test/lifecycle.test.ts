@@ -79,6 +79,7 @@ beforeEach(() => {
     CLARA_ORCHESTRATION_HOST: process.env.CLARA_ORCHESTRATION_HOST,
     CLARA_ORCHESTRATION_PORT: process.env.CLARA_ORCHESTRATION_PORT,
     CLARA_ORCHESTRATION_CONTAINER: process.env.CLARA_ORCHESTRATION_CONTAINER,
+    CLARA_ORCHESTRATOR_DATA_DIR: process.env.CLARA_ORCHESTRATOR_DATA_DIR,
   }
   dataDir = mkdtempSync(join(tmpdir(), 'clara-orchestrator-'))
   setEnv('CLARA_DATA_DIR', dataDir)
@@ -118,7 +119,28 @@ describe('orchestrator lifecycle', () => {
       const lines = formatStatus(report)
       expect(lines).toContain('service: running (docker container)')
       expect(lines).toContain('pid: none (managed by the container)')
+      expect(lines).toContain(
+        'database: managed by the container (Docker volume clara-orchestrator-data)'
+      )
       expect(lines).toContain('stop: pnpm clara orchestrator stop --docker')
+    } finally {
+      await service.close()
+    }
+  })
+
+  it('reports a bound data directory for a container', async () => {
+    const service = await fakeService({
+      ok: true,
+      service: 'clara-orchestrator',
+      mode: 'container',
+    })
+    setEnv('CLARA_ORCHESTRATION_PORT', String(service.port))
+    setEnv('CLARA_ORCHESTRATOR_DATA_DIR', '/srv/clara-orchestrator')
+    try {
+      const lines = formatStatus(await collectStatus())
+      expect(lines).toContain(
+        'database: managed by the container (host bind from CLARA_ORCHESTRATOR_DATA_DIR)'
+      )
     } finally {
       await service.close()
     }
@@ -402,9 +424,8 @@ describe('docker start', () => {
     const down = composeEnv('down', { PATH: '/bin' })
     expect(down.PATH).toBe('/bin')
     expect(down.CLARA_ORCHESTRATION_TOKEN).toBeTruthy()
-    expect(down.CLARA_DATA_DIR).toBeTruthy()
     expect(down.CLARA_WORKSPACE).toBeTruthy()
-    expect(composeEnv('down', { CLARA_DATA_DIR: '' }).CLARA_DATA_DIR).toBeTruthy()
+    expect(down.CLARA_DATA_DIR).toBeUndefined()
 
     expect(composeEnv('up', { PATH: '/bin' })).toEqual({ PATH: '/bin' })
   })
@@ -413,12 +434,10 @@ describe('docker start', () => {
     expect(
       composeEnv('down', {
         CLARA_ORCHESTRATION_TOKEN: 'token',
-        CLARA_DATA_DIR: '/data',
         CLARA_WORKSPACE: '/workspace',
       })
     ).toEqual({
       CLARA_ORCHESTRATION_TOKEN: 'token',
-      CLARA_DATA_DIR: '/data',
       CLARA_WORKSPACE: '/workspace',
     })
   })

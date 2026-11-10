@@ -218,6 +218,8 @@ clara`. A manually started agent is restarted from the captured root with its
   workspace.
 - Snapshot: `${CLARA_DATA_DIR:-~/.local/share/clara}/rebuild/setup.json` (mode
   `0600`). Restart journal: `rebuild/restart.json`. Log: `rebuild/rebuild.log`.
+  The snapshot is host control state for both local and Docker stacks; it is not
+  part of the Docker volumes. Use `pnpm clara backup` for the volumes.
 - Deployment state: the snapshot's `deployment` block records
   `control.mode`, `orchestrator.mode`, `lab.mode`, and `web.mode` as `local`,
   `container`, or `stopped`, plus `orchestrator.external`. `control.container`

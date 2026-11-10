@@ -202,6 +202,25 @@ const clara = {
       run: (args) => stack('logs', args),
     },
     {
+      name: 'backup',
+      summary: 'Archive the Docker state volumes',
+      usage: '[--output <path>]',
+      passthroughHelp: true,
+      examples: ['pnpm clara backup', 'pnpm clara backup --output ~/clara-backup.tar.gz'],
+      run: (args) => stack('backup', args),
+    },
+    {
+      name: 'restore',
+      summary: 'Replace the Docker state volumes from a backup',
+      usage: '<archive> [--force]',
+      passthroughHelp: true,
+      examples: [
+        'pnpm clara restore clara-backup.tar.gz',
+        'pnpm clara restore clara-backup.tar.gz --force',
+      ],
+      run: (args) => stack('restore', args),
+    },
+    {
       name: 'server',
       summary: 'Start, stop, inspect, or pair the home agent container',
       usage: '<start|stop|status [--json]|setup-token|admin|pair|logs> [--docker] [--build]',

@@ -1,3 +1,4 @@
+import { spawnSync } from 'node:child_process'
 import { randomBytes } from 'node:crypto'
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { homedir } from 'node:os'
@@ -13,6 +14,8 @@ export const CONTAINERS = {
   server: 'clara-server',
   web: 'clara-web',
 }
+
+export const VOLUMES = ['clara-server-config', 'clara-server-data', 'clara-orchestrator-data']
 
 export const SCRIPTS = {
   orchestrator: join(root, 'scripts', 'orchestrator.mjs'),
@@ -45,11 +48,20 @@ export function dataHome() {
   return process.env.XDG_DATA_HOME?.trim() || join(homedir(), '.local', 'share')
 }
 
+/** Docker-only host state. Local installs never read or write this directory. */
+export function dockerStateDir(env = process.env) {
+  const configured = env.CLARA_DOCKER_STATE_DIR?.trim()
+  return configured ? resolve(expandHome(configured)) : join(dataHome(), 'clara', 'docker')
+}
+
+export function dockerTokenPath(env = process.env) {
+  return join(dockerStateDir(env), 'orchestrator.token')
+}
+
 export function defaultEnv(repoRoot = root) {
   return {
     CLARA_ORCHESTRATION_TOKEN: randomBytes(32).toString('hex'),
     CLARA_WORKSPACE: resolve(repoRoot),
-    CLARA_DATA_DIR: join(dataHome(), 'clara', 'orchestrator'),
   }
 }
 
@@ -92,9 +104,37 @@ function expandHome(value) {
   return value
 }
 
+function readText(path) {
+  try {
+    return readFileSync(path, 'utf8').trim()
+  } catch {
+    return ''
+  }
+}
+
+/** The orchestrator token from the Docker stack, independent of local state. */
+export function readDockerToken(repoRoot = root, env = process.env) {
+  const path = envPath(repoRoot)
+  if (existsSync(path)) {
+    const token = parseEnvFile(path).CLARA_ORCHESTRATION_TOKEN?.trim()
+    if (token) return token
+  }
+  return readText(dockerTokenPath(env))
+}
+
+export function orchestratorContainerRunning() {
+  const result = spawnSync(
+    'docker',
+    ['inspect', '--format', '{{.State.Running}}', CONTAINERS.orchestrator],
+    { encoding: 'utf8', timeout: 3_000 }
+  )
+  if (result.error || result.status !== 0) return false
+  return result.stdout.trim() === 'true'
+}
+
 /**
- * Ensure the orchestrator's compose variables exist and that host tooling can
- * read the same bearer token from the data directory.
+ * Ensure the orchestrator's compose variables exist, validate host paths, and
+ * keep the Docker control token in the Docker-only state directory.
  */
 export function ensureOrchestratorEnv(repoRoot = root) {
   const path = envPath(repoRoot)
@@ -107,7 +147,7 @@ export function ensureOrchestratorEnv(repoRoot = root) {
     console.log(`created ${path}`)
   }
 
-  const missing = ['CLARA_ORCHESTRATION_TOKEN', 'CLARA_DATA_DIR', 'CLARA_WORKSPACE'].filter(
+  const missing = ['CLARA_ORCHESTRATION_TOKEN', 'CLARA_WORKSPACE'].filter(
     (key) => !values[key]?.trim()
   )
   if (missing.length) {
@@ -129,19 +169,29 @@ export function ensureOrchestratorEnv(repoRoot = root) {
     throw new Error(`CLARA_WORKSPACE does not exist: ${workspace}`)
   }
 
-  const dataDir = expandHome(values.CLARA_DATA_DIR)
-  if (!isAbsolute(dataDir)) {
-    throw new Error(`CLARA_DATA_DIR must be an absolute path: ${dataDir}`)
+  for (const key of [
+    'CLARA_SERVER_CONFIG_DIR',
+    'CLARA_SERVER_DATA_DIR',
+    'CLARA_ORCHESTRATOR_DATA_DIR',
+  ]) {
+    const value = values[key]?.trim()
+    if (!value) continue
+    const expanded = expandHome(value)
+    if (!isAbsolute(expanded)) {
+      throw new Error(`${key} must be an absolute path when set: ${expanded}`)
+    }
   }
-  mkdirSync(dataDir, { recursive: true, mode: 0o700 })
-  const tokenPath = join(dataDir, 'orchestrator.token')
-  const previous = existsSync(tokenPath) ? readFileSync(tokenPath, 'utf8').trim() : ''
+
+  const stateDir = dockerStateDir()
+  mkdirSync(stateDir, { recursive: true, mode: 0o700 })
+  const tokenPath = dockerTokenPath()
+  const previous = readText(tokenPath)
   if (previous !== values.CLARA_ORCHESTRATION_TOKEN) {
     writeFileSync(tokenPath, `${values.CLARA_ORCHESTRATION_TOKEN}\n`, { mode: 0o600 })
     console.log(`wrote ${tokenPath}`)
   }
 
-  return { path, tokenPath, workspace, dataDir }
+  return { path, tokenPath, workspace, stateDir }
 }
 
 export function orchestratorURL(env = process.env) {

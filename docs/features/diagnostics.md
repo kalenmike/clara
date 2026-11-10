@@ -135,7 +135,10 @@ propose_fixes → review_report`.
   `duplicate_alerts`, `no_completions`, `missing_model_provider`,
   `stale_adapter`, `adapter_missing`, `watchdog_churn`, `stale_active_runs`, and
   `runs_without_steps`.
-- Data: `${CLARA_DATA_DIR:-~/.local/share/clara}/orchestration.db`.
+- Data: local installs use
+  `${CLARA_DATA_DIR:-~/.local/share/clara}/orchestration.db`; the Docker stack
+  keeps it in the `clara-orchestrator-data` volume. When the service is running,
+  `analyze` and `inspect` use the authenticated HTTP API instead of the file.
 - Tests: `packages/orchestration/test/diagnostics.test.ts` and
   `apps/orchestrator/test/cli.test.ts`.
 - See [orchestration.md](orchestration.md) for packages, runs, and adapters.

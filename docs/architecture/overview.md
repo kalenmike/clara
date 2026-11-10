@@ -240,7 +240,10 @@ loop re-subscribes through the transport.
   `~/.local/share/clara/clara.db` (mode `0600`). Harness passwords are encrypted
   with `secrets.key` (mode `0600`) or `CLARA_SECRET_KEY`, so the database alone
   does not expose them. `vapid.json`, `subscriptions.json`, and the temporary
-  `admin-setup.txt` remain in `~/.config/clara` with the same mode.
+  `admin-setup.txt` remain in `~/.config/clara` with the same mode. These are
+  the local install paths. The Docker stack uses the `clara-server-config` and
+  `clara-server-data` volumes instead and keeps its host control token under
+  `~/.local/share/clara/docker`.
 - The relay sees metadata only; all payloads are E2EE. Web Push payloads use
   Web Push encryption to the browser subscription, not Clara's PSK envelope.
 - The web stores the PSK in `localStorage`; `_headers` ships a CSP but XSS on the

@@ -102,8 +102,10 @@ orchestrator container is named `clara-orchestrator`.
 
 1. Copy `docker/.env.example` and set:
    - `CLARA_ORCHESTRATION_TOKEN` to a long random token,
-   - `CLARA_WORKSPACE` to the absolute path of the repository or workspace,
-   - `CLARA_DATA_DIR` to the host directory that stores the database and token.
+   - `CLARA_WORKSPACE` to the absolute path of the repository or workspace.
+     The database and token default to the `clara-orchestrator-data` volume. Set
+     `CLARA_ORCHESTRATOR_DATA_DIR` to an absolute host path only when you want a
+     bind mount instead.
 2. Start the service:
 
    ```sh
@@ -160,22 +162,33 @@ workspace mount. The orchestrator image bakes `lib/std` at
 `CLARA_STD_DIR` to its `lib/std`. Compose publishes the port on host loopback
 only (`127.0.0.1:8789:8789`) so host tools such as
 `pnpm clara orchestrator status` and Clara Lab can reach the container. The
-database and token live under the host `CLARA_DATA_DIR` mount.
+database and container token live in the `clara-orchestrator-data` volume.
+`pnpm clara start` writes a host copy of the token to
+`~/.local/share/clara/docker/orchestrator.token` for Lab, the MCP bridge, and
+`pnpm clara rebuild`. That Docker control directory is separate from the local
+install token at `~/.local/share/clara/orchestrator.token`.
 
 The container writes no host PID file. `pnpm clara orchestrator status` reports
 `running (docker container)`, and `pnpm clara orchestrator stop` does not
 signal anything; stop the container with
 `pnpm clara orchestrator stop --docker`. Stopping does not require the
-`CLARA_ORCHESTRATION_TOKEN`, `CLARA_DATA_DIR`, or `CLARA_WORKSPACE` variables:
-compose still parses them for `down`, so the command supplies inert values when
-they are not exported. It also runs `docker compose down` when the container is
-unhealthy or already stopped, so a crashed container can be cleaned up.
+`CLARA_ORCHESTRATION_TOKEN` or `CLARA_WORKSPACE` variables: compose still parses
+them for `down`, so the command supplies inert values when they are not
+exported. It also runs `docker compose down` when the container is unhealthy or
+already stopped, so a crashed container can be cleaned up.
 
 Start it from the host with `pnpm clara orchestrator start --docker`. That runs
 `docker compose -f docker/orchestrator.compose.yml up -d orchestrator` and waits for
 `/health` to report a container. Add `--build` to rebuild the image first. If a
 local instance is already running, the command refuses and asks you to stop it
 first.
+
+Archive the Docker state with `pnpm clara stop` followed by
+`pnpm clara backup`; restore with `pnpm clara restore <archive> --force` while
+the stack is stopped. These commands only touch the named volumes, never a local
+install's host directories. See
+[development.md](../development.md#local-and-docker-state) for the state map and
+the one-time migration.
 
 ## Core business rules
 
@@ -810,8 +823,10 @@ they can run while the adapter or setup is degraded. See
   reinstall its adapters, restart the captured services, and verify health. See
   [maintenance.md](maintenance.md).
 - Primary config: `orchestration/index.yml`.
-- Data: `${CLARA_DATA_DIR:-~/.local/share/clara}/orchestration.db`,
+- Data: local installs use
+  `${CLARA_DATA_DIR:-~/.local/share/clara}/orchestration.db`,
   `orchestrator.token`, and `policy-delivery.json` (adapter delivery cursor).
+  The Docker stack keeps them in the `clara-orchestrator-data` volume.
 - Workspace: `GET /v1/config` reports the service workspace from
   `CLARA_ORCHESTRATION_WORKSPACE` (default: the service's working directory),
   plus `CLARA_STD_DIR` and `CLARA_ORCHESTRATION_CONFIG` when set.

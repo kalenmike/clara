@@ -79,6 +79,8 @@ pnpm clara stop [--no-server] [--no-web] [--no-orchestrator]
 pnpm clara restart [--no-server] [--no-web] [--no-orchestrator] [--build]
 pnpm clara status [--no-server] [--no-web] [--no-orchestrator] [--json]
 pnpm clara logs <server|web|orchestrator>
+pnpm clara backup [--output <path>]
+pnpm clara restore <archive> [--force]
 pnpm clara server <start|stop|status [--json]|setup-token|pair|admin|logs> [--docker] [--build]
 pnpm clara web <start|stop|status [--json]|logs> [--docker] [--build]
 pnpm clara pass
@@ -118,6 +120,77 @@ the same commands one step at a time; see
 
 Use these commands instead of calling the workspace scripts directly so that
 agents and developers share one command surface.
+
+## Local and Docker state
+
+Docker is optional. A local install keeps using the host directories; the
+Docker stack uses volumes and a Docker-only control directory. Neither mode
+reads the other's service state.
+
+| State                 | Local install                             | Docker stack                                     |
+| --------------------- | ----------------------------------------- | ------------------------------------------------ |
+| Server config         | `~/.config/clara`                         | volume `clara-server-config`                     |
+| Server database       | `~/.local/share/clara/clara.db`           | volume `clara-server-data`                       |
+| Orchestrator database | `~/.local/share/clara/orchestration.db`   | volume `clara-orchestrator-data`                 |
+| Orchestrator token    | `~/.local/share/clara/orchestrator.token` | `~/.local/share/clara/docker/orchestrator.token` |
+| Compose input         | none                                      | `docker/.env`                                    |
+| Workspace             | host path                                 | bind mount at `/workspace/clara`                 |
+
+`CLARA_DOCKER_STATE_DIR` moves the Docker control directory. The workspace and
+the rebuild snapshot under `~/.local/share/clara/rebuild` are the only shared
+host paths. Back up Docker volumes with `pnpm clara backup`; back up a local
+install by archiving its two host directories.
+
+### One-time migration to Docker volumes
+
+Existing Docker installs that still bind `~/.config/clara` and
+`~/.local/share/clara` need one manual copy. Stop the stack first.
+
+```bash
+pnpm clara stop
+tar -czf ~/clara-local-state-backup.tar.gz \
+  ~/.config/clara \
+  ~/.local/share/clara/clara.db* \
+  ~/.local/share/clara/orchestrator \
+  docker/.env
+docker volume create clara-server-config clara-server-data clara-orchestrator-data
+docker run --rm \
+  -v clara-server-config:/to/config \
+  -v clara-server-data:/to/data \
+  -v clara-orchestrator-data:/to/orchestrator \
+  -v "$HOME/.config/clara:/from/config:ro" \
+  -v "$HOME/.local/share/clara:/from/data:ro" \
+  node:22-bookworm-slim \
+  sh -c '
+    if [ -d /from/config ]; then cp -a /from/config/. /to/config/; fi &&
+    find /from/data -maxdepth 1 -name "clara.db*" -exec cp -a {} /to/data/ \; &&
+    if [ -d /from/data/orchestrator ]; then cp -a /from/data/orchestrator/. /to/orchestrator/; fi &&
+    chown -R 1000:1000 /to
+  '
+```
+
+Remove `CLARA_DATA_DIR` from `docker/.env`, then start and verify the panel,
+harness connection, and pairing:
+
+```bash
+pnpm clara start
+pnpm clara status
+```
+
+Keep the archive until the stack is healthy. Move the old directories aside
+instead of deleting them; keep `~/.local/share/clara/rebuild` and the local
+`orchestrator.token` if a local install is still used:
+
+```bash
+mkdir -p ~/.local/share/clara-pre-volumes
+mv ~/.config/clara ~/.config/clara-pre-volumes
+mv ~/.local/share/clara/clara.db* ~/.local/share/clara-pre-volumes/
+mv ~/.local/share/clara/orchestrator ~/.local/share/clara-pre-volumes/
+```
+
+The Docker stack writes its control token to
+`~/.local/share/clara/docker/orchestrator.token`, so a local install can keep
+using `~/.local/share/clara/orchestrator.token` unchanged.
 
 ## Pipeline development
 
