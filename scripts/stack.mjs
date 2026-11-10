@@ -298,9 +298,7 @@ function printSummary(selection) {
       `First run: use \`pnpm clara server setup-token ${target}\` for the one-time token.`
     )
     console.log(`Pair a device with \`pnpm clara server pair ${target}\`.`)
-    if (selection.mode === 'local') {
-      console.log('Add `--no-relay` to that pair command for a local-only code.')
-    }
+    console.log('Add `--no-relay` to that pair command for a local-only code and local link.')
   }
   if (!selection.web) {
     console.log('')

@@ -41,23 +41,24 @@ export async function createPairingPayload(
 }
 
 /**
- * Local codes can only be used by a browser on the agent's host. Print them
- * against the local web app instead of a remote deployment URL, unless the
+ * The link a pairing code opens. By default it uses the configured Web URL,
+ * even for a local code. `--no-relay` switches to the local web app so the
+ * link and the agent's ws:// listener stay on the same machine, unless the
  * configured base is already loopback (for example the Vite dev server).
  */
 export function pairingLinkBase(
-  payload: Pick<PairingPayload, 'room'>,
   pairingBaseUrl: string,
   localHost: string,
-  webPort = localWebPort()
+  options: { noRelay?: boolean; webPort?: number } = {}
 ): string {
-  if (payload.room !== 'local' || isLoopbackUrl(pairingBaseUrl)) return pairingBaseUrl
+  if (!options.noRelay) return pairingBaseUrl
+  if (isLoopbackUrl(pairingBaseUrl)) return pairingBaseUrl
   const host = localHost.startsWith('[')
     ? localHost
     : localHost.includes(':')
       ? `[${localHost}]`
       : localHost
-  return `http://${host}:${webPort}`
+  return `http://${host}:${options.webPort ?? localWebPort()}`
 }
 
 export async function printPairing(
@@ -68,7 +69,7 @@ export async function printPairing(
 ): Promise<PairingPayload> {
   const payload = await createPairingPayload(config, devices)
   const url = buildPairingUrl(
-    pairingLinkBase(payload, config.pairingBaseUrl, config.local.host),
+    pairingLinkBase(config.pairingBaseUrl, config.local.host, { noRelay: options.noRelay }),
     payload
   )
   const code = `${PAIRING_CODE_PREFIX}${encodePairingCode(payload)}`
@@ -87,6 +88,9 @@ export async function printPairing(
         ? '  Relay:       bypassed by --no-relay; this code only works on the local machine.'
         : '  Relay:       not configured; this code only works on the local machine.'
     )
+    if (!options.noRelay && !isLoopbackUrl(config.pairingBaseUrl)) {
+      console.log('               Use --no-relay to open the local web app instead.')
+    }
   }
   console.log('')
   if (withQr) qrcode.generate(url, { small: true })

@@ -120,33 +120,31 @@ describe('createPairingPayload', () => {
 })
 
 describe('pairingLinkBase', () => {
-  it('uses the configured base for relay payloads', () => {
-    expect(pairingLinkBase({ room: 'room-1' }, 'https://clara.example', '127.0.0.1')).toBe(
-      'https://clara.example'
-    )
+  it('uses the configured base by default', () => {
+    expect(pairingLinkBase('https://clara.example', '127.0.0.1')).toBe('https://clara.example')
   })
 
-  it('keeps a loopback configured base for local payloads', () => {
-    expect(pairingLinkBase({ room: 'local' }, 'http://localhost:5173', '127.0.0.1')).toBe(
+  it('keeps a loopback configured base for --no-relay', () => {
+    expect(pairingLinkBase('http://localhost:5173', '127.0.0.1', { noRelay: true })).toBe(
       'http://localhost:5173'
     )
   })
 
-  it('prints the local web app for local payloads when the base is remote', () => {
-    expect(pairingLinkBase({ room: 'local' }, 'https://clara.example', '127.0.0.1')).toBe(
+  it('prints the local web app for --no-relay when the base is remote', () => {
+    expect(pairingLinkBase('https://clara.example', '127.0.0.1', { noRelay: true })).toBe(
       'http://127.0.0.1:8080'
     )
   })
 
   it('formats an IPv6 local host', () => {
-    expect(pairingLinkBase({ room: 'local' }, 'https://clara.example', '::1')).toBe(
+    expect(pairingLinkBase('https://clara.example', '::1', { noRelay: true })).toBe(
       'http://[::1]:8080'
     )
   })
 
   it('uses CLARA_WEB_PORT for the local fallback', () => {
     process.env.CLARA_WEB_PORT = '9090'
-    expect(pairingLinkBase({ room: 'local' }, 'https://clara.example', '127.0.0.1')).toBe(
+    expect(pairingLinkBase('https://clara.example', '127.0.0.1', { noRelay: true })).toBe(
       'http://127.0.0.1:9090'
     )
   })
@@ -182,7 +180,21 @@ describe('pair command configuration', () => {
     expect(logs.join('\n')).toContain('https://saved.example/#pair=')
   })
 
-  it('names --no-relay in the local-only guidance', async () => {
+  it('keeps the configured Web URL for a local code without --no-relay', async () => {
+    const logs: string[] = []
+    const spy = vi.spyOn(console, 'log').mockImplementation((...args: unknown[]) => {
+      logs.push(args.map(String).join(' '))
+    })
+    try {
+      await printPairing(baseConfig(), fakeDevices(), false)
+    } finally {
+      spy.mockRestore()
+    }
+
+    expect(logs.join('\n')).toContain('https://clara.example/#pair=')
+  })
+
+  it('uses the local web app and names --no-relay', async () => {
     const logs: string[] = []
     const spy = vi.spyOn(console, 'log').mockImplementation((...args: unknown[]) => {
       logs.push(args.map(String).join(' '))
@@ -193,6 +205,7 @@ describe('pair command configuration', () => {
       spy.mockRestore()
     }
 
+    expect(logs.join('\n')).toContain('http://127.0.0.1:8080/#pair=')
     expect(logs.join('\n')).toContain('bypassed by --no-relay')
   })
 })
