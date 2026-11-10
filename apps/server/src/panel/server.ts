@@ -79,7 +79,9 @@ export async function startPanelServer(options: PanelServerOptions): Promise<Pan
   let port = options.port
   const host = options.host ?? '127.0.0.1'
 
-  const server = createServer((request, response) => {
+  // Cookies are host-scoped, so unrelated apps on 127.0.0.1 can share a jar
+  // larger than Node's 16k default.
+  const server = createServer({ maxHeaderSize: 64 * 1024 }, (request, response) => {
     void handleRequest(request, response, {
       source: options.source,
       controls: options.controls,

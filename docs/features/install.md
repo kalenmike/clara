@@ -40,6 +40,13 @@ Local pairing works from `http://127.0.0.1:8080` or an SSH tunnel. A remote HTTP
 page cannot open a `ws://` socket, so set `VITE_CLARA_WS_URL` in `docker/.env`
 and rebuild with `--build` for relay pairings.
 
+Browsers share cookies across every port on the same host, so other local apps
+can make the `127.0.0.1` cookie jar much larger than nginx's default header
+buffer. The container raises that limit, and the home agent raises Node's, so
+the page and the local WebSocket handshake tolerate a large jar. If a browser
+still rejects it, open `http://localhost:8080` instead; it uses a separate
+cookie jar.
+
 ## Core business rules
 
 1. App documents come from the network first and fall back to the cached shell
