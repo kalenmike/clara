@@ -14,7 +14,7 @@ camera or pastes the same code, and Clara stores the device credential locally.
    prints a QR code, a web link, a `clara1_…` code, and an enrollment
    fingerprint. Local codes print the panel Web URL (default
    `http://127.0.0.1:8080/#pair=…`); relay codes print the same Web URL. Add
-   `--local` to force a local-only code even when the agent has a relay
+   `--no-relay` to force a local-only code even when the agent has a relay
    configured.
 3. Open Clara on the device. **Pair this device** offers **Scan QR code** and a
    paste field. Tapping Scan opens the rear camera and connects as soon as a
@@ -60,7 +60,7 @@ camera or pastes the same code, and Clara stores the device credential locally.
    even when the configured Web URL is remote.
 6. A local pairing code is local-only: the web client never rewrites it to the
    relay, and an HTTPS page cannot open its `ws://` socket. `clara-server pair
---local` forces such a code even when the agent has a relay configured; the
+--no-relay` forces such a code even when the agent has a relay configured; the
    local listener runs alongside the relay client.
 7. The device key is stored as a non-extractable `CryptoKey` in IndexedDB. Raw
    key bytes are never written to `localStorage`.
@@ -118,9 +118,9 @@ camera or pastes the same code, and Clara stores the device credential locally.
   works on the same machine, and an HTTPS page reports that the code is
   local-only. `clara-server pair` warns when the pairing link is remote while the
   agent has no relay. Configure the relay for phones.
-- **Local code with a relay configured** — `clara-server pair --local` emits room
-  `local` and the listener URL without needing relay tokens; the web keeps that
-  endpoint, so the code still works on this machine only.
+- **Local code with a relay configured** — `clara-server pair --no-relay` emits
+  room `local` and the listener URL without needing relay tokens; the web keeps
+  that endpoint, so the code still works on this machine only.
 - **Deployment switch changed** — a relay pairing is re-resolved against
   `VITE_CLARA_WS_URL` on boot, so existing devices follow the new endpoint; a
   `local` pairing keeps its own URL.
@@ -151,7 +151,7 @@ camera or pastes the same code, and Clara stores the device credential locally.
 <details>
 <summary>Routes, data, and references</summary>
 
-- Pair command: `node apps/server/dist/index.js pair [--local] [--no-qr] [--revoke-all] [--revoke <id>]`
+- Pair command: `node apps/server/dist/index.js pair [--no-relay] [--no-qr] [--revoke-all] [--revoke <id>]`
 - Pairing URL: `<webUrl>/#pair=<base64url(JSON)>`
 - Payload: `{ v, wsUrl, room, clientToken, enrollId, enrollToken, fingerprint, expiresAt }`
 - Scanner: `getUserMedia` is requested first, with `jsqr` loaded in parallel on
