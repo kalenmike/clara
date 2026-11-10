@@ -330,7 +330,6 @@ monitoring on or off, and gates or paces client settings sync.
   - `CLARA_PANEL_ALLOW_REMOTE=1` permits a container bridge source; auth remains required
   - `CLARA_PANEL_SECURE_COOKIE=1` for a loopback-preserving HTTPS proxy
   - `CLARA_PANEL_DISABLED=1` disables the panel
-  - `CLARA_PANEL_DIR` overrides the built asset directory
   - `CLARA_PAIRING_BASE_URL` overrides the panel Web URL
   - `CLARA_VAPID_SUBJECT` overrides the panel VAPID contact
   - `CLARA_WEB_PORT` sets the default Web URL port (default `8080`)
