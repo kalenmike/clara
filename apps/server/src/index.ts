@@ -173,8 +173,7 @@ async function main(): Promise<void> {
       },
       log: panelLog,
     })
-    const assetsDir =
-      process.env.CLARA_PANEL_DIR ?? join(dirname(fileURLToPath(import.meta.url)), 'panel')
+    const assetsDir = join(dirname(fileURLToPath(import.meta.url)), 'panel')
     try {
       panel = await startPanelServer({
         source: runtime,
