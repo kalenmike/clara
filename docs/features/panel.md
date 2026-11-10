@@ -2,25 +2,33 @@
 
 ## Summary
 
-A loopback-only control panel served by the Clara home agent. It shows the
-agent's live state, transports, connected clients, OpenCode probe, push health,
-configuration sources, database health, storage files, and a live traffic meter
-without exposing secrets. Sensitive values start masked behind a header peek
-control so the panel can be screenshared safely. It also lets the person at the
-machine switch external connections on and off, start and stop the local
-orchestration service, stop the agent without stopping the process, decide which
-shell commands a Clara client may relay to OpenCode, turn traffic monitoring on
-or off, and gate or pace client settings sync.
+An authenticated control panel served by the Clara home agent. It shows the
+agent's live state, transports, connected clients, active harness probe, push
+health, configuration sources, database health, storage files, and a live
+traffic meter without exposing secrets. Sensitive values start masked behind a
+header peek control so the panel can be screenshared safely. It is also the
+one-time setup surface for the coding-agent connection: the superadmin signs in,
+chooses a password, and saves the OpenCode base URL and credentials. The same
+surface switches external connections on and off, starts and stops the local
+orchestration service, stops the agent without stopping the process, decides
+which shell commands a Clara client may relay to OpenCode, turns traffic
+monitoring on or off, and gates or paces client settings sync.
 
 ## User flow
 
 1. Run `pnpm clara control` after `pnpm build`. If the agent is not already
    serving the panel, the command starts it and waits for the listener. The log
-   prints `panel at http://127.0.0.1:8790/`.
-2. The command opens that URL in a browser on the same machine. The panel
-   connects to the agent's loopback API. If the agent was already running, for
-   example under a service manager, the command only opens the URL.
-3. The **Agent**, **Effective configuration**, **Connected clients**, and
+   prints `panel at http://127.0.0.1:8790/`. For a container, start it with
+   `pnpm clara server start --docker`.
+2. The command opens the panel. First run shows setup: read the one-time token
+   from `admin-setup.txt` in the config directory, or run
+   `pnpm clara server setup-token` (add `--docker`), then choose the superadmin
+   password. Later visits show the sign-in form.
+3. After signing in, add the OpenCode harness connection: label, base URL, auth
+   type, username, and password. Use **Test** before saving when possible. In a
+   container, the URL must be reachable from the `clara` network, for example
+   `http://opencode:4096`; `127.0.0.1` means the Clara server itself.
+4. The **Agent**, **Effective configuration**, **Connected clients**, and
    **Recent activity** cards start expanded. Every other card starts collapsed.
    Review the headers for the agent process, OpenCode, local transport, relay,
    push, client sync, effective configuration, clients, activity, shell policy,
@@ -31,49 +39,49 @@ or off, and gate or pace client settings sync.
    URLs in activity or errors. Choose the eye button beside **Refresh** to
    reveal them for this tab; the choice survives a reload and a new tab starts
    masked again.
-4. Click a card header to expand or collapse its contents. Cards with a feature
+5. Click a card header to expand or collapse its contents. Cards with a feature
    switch can only be expanded while that feature is enabled; open the header
    again to collapse it.
-5. Toggle OpenCode, local transport, relay, or push from the switch at the top
+6. Toggle OpenCode, local transport, relay, or push from the switch at the top
    right of its card. The choice is saved immediately. An enabled switch is
    green while the agent runs and red while it is stopped; a disabled switch
    keeps its neutral track in both cases. Turning a feature off hides its
    details; turning it on makes the header expandable.
-6. In **Shell commands**, use the switch at the top right to enable or block all
+7. In **Shell commands**, use the switch at the top right to enable or block all
    command requests. Enabling makes the header expandable; open it to edit
    **Filter commands**, optionally turn on **Allow Git history**, then choose
    **Apply** at the bottom right. **Discard** sits to its left. The switch stays
    amber until Apply succeeds, then turns green. Turning it off blocks every
    command immediately. Empty filters mean every command is allowed, and the
    card warns about it.
-7. To take every external connection offline, choose **Stop agent** at the top
+8. To take every external connection offline, choose **Stop agent** at the top
    right of the Agent card and confirm. The page keeps polling; the banner
    explains that the panel is still available.
-8. Choose **Start agent** to restore the saved choices. Feature switches are
+9. Choose **Start agent** to restore the saved choices. Feature switches are
    disabled until the agent is started again and show red while they are
    stopped, so the stopped state is readable from the switch colors alone. The
    shell policy stays editable because it only applies while connections are
    up.
-9. Review the connected-client table and the storage list. Status badges call
-   out degraded OpenCode, relay, push, permissions, or missing files. The
-   storage header summarizes the most severe entry and its count.
-10. In **Traffic**, read the last minute's in and out rates, the request and
+10. Review the connected-client table and the storage list. Status badges call
+    out degraded OpenCode, relay, push, permissions, or missing files. The
+    storage header summarizes the most severe entry and its count.
+11. In **Traffic**, read the last minute's in and out rates, the request and
     error rates, the two sparklines for the last hour, and the totals since the
     window started. The card shows the local-versus-relay split, a peak minute,
     and the error breakdown. An amber **Spike** badge means the last complete
     minute was at least three times the previous half hour and above a floor; it
     is a hint, not a verdict.
-11. Use the switch at the top left of **Traffic** to stop recording. The card
+12. Use the switch at the top left of **Traffic** to stop recording. The card
     collapses to its header, the counters are discarded, and the client table
     drops its traffic columns. Turning it back on starts a fresh window with a
     one-minute warm-up. The switch stays usable while the agent is stopped.
-12. In **Client sync**, turn settings sync on or off for every paired client, and
+13. In **Client sync**, turn settings sync on or off for every paired client, and
     choose the interval at which those clients check for changes. Turning it off
     hides the web Sync tab and rejects sync requests; the stored namespace and
     each device's category choices remain. The interval defaults to 30 seconds.
-13. Leave the page open. It refreshes every five seconds while visible and
+14. Leave the page open. It refreshes every five seconds while visible and
     pauses when the tab is hidden. Use **Refresh** for an immediate check.
-14. Use **Orchestration** to start or stop the local orchestration service.
+15. Use **Orchestration** to start or stop the local orchestration service.
     Turning it on starts a detached local instance when nothing is answering and
     waits for `/health`; turning it off stops only the local instance started
     from this data directory. A Docker or external instance is detected and
@@ -83,63 +91,96 @@ or off, and gate or pace client settings sync.
 
 ## Core business rules
 
-1. **Loopback only.** The panel listens on `127.0.0.1` independently of
-   `CLARA_LOCAL_HOST`, so exposing the local WebSocket on a LAN does not expose
-   the panel. It is never served through the relay or the Pages deployment.
-2. **Reads are open to loopback; writes are narrow.** `GET` and `HEAD` serve the
-   snapshot and assets. `POST` is accepted only at
-   `/panel/api/v1/features`, `/panel/api/v1/agent`, `/panel/api/v1/shell`,
-   `/panel/api/v1/monitoring`, `/panel/api/v1/sync`, and
-   `/panel/api/v1/orchestration`; every other mutating method returns `405`.
-3. **Secrets stay out.** The snapshot is built from an explicit allowlist. The
-   PSK, pairing code, OpenCode password, relay tokens, push endpoints, sync
-   values, and file contents are never returned. The PSK fingerprint, token
-   presence, room id, and effective config values are included in the snapshot
-   and start masked in the panel.
-4. **Mutations are browser-hard to forge.** Besides the loopback, `Host`,
-   `Origin`, and `Sec-Fetch-Site` checks, writes require
+1. **Authenticated, and loopback by default.** The panel listens on
+   `127.0.0.1:8790` by default. A container binds `0.0.0.0` inside its own
+   network and publishes only on host loopback. Every API request except
+   `/health`, the session endpoints, setup, and static assets requires a
+   superadmin session. `CLARA_PANEL_BIND_HOST` and `CLARA_PANEL_ALLOW_REMOTE` are
+   explicit exposure controls. The `Host`/`Origin` guard still expects a
+   loopback origin, so remote access uses an SSH tunnel rather than direct LAN
+   access. It is never served through the relay or Pages.
+2. **First run is a one-time token, not a default password.** With no admin,
+   the server writes `admin-setup.txt` (mode `0600`) in the config directory.
+   The setup form exchanges that token for a username and a scrypt-hashed
+   password. A lost password is reset only by the host-side
+   `clara-server admin reset`, which writes a fresh token and revokes sessions.
+   There is no network password-reset endpoint.
+3. **Reads and writes require a session.** `GET` and `HEAD` serve the snapshot
+   and assets after login. `POST` is accepted at the feature, agent, shell,
+   monitoring, sync, orchestration, harness, and password routes; `DELETE`
+   removes a harness or the session. Unknown mutating methods return `405`.
+4. **Secrets stay out.** The snapshot is built from an explicit allowlist. The
+   PSK, pairing code, harness password, relay tokens, push endpoints, sync
+   values, and file contents are never returned. Harness credentials are
+   encrypted at rest in SQLite with a key outside the database. The PSK
+   fingerprint, secret-configured flags, room id, and effective config values
+   are included and start masked in the panel.
+5. **Mutations are browser-hard to forge.** Besides authentication, the
+   `Host`, `Origin`, and `Sec-Fetch-Site` checks, writes require
    `content-type: application/json` and `x-clara-panel: 1`, reject unknown
    fields, and cap the body at 8 KB. The custom header forces a CORS preflight
    for cross-origin pages, which the server rejects. No CORS headers are sent.
-5. **Settings are durable.** Feature choices, the stopped flag, the shell
-   policy, the monitoring choice, the orchestration switch, and the client-sync
-   gate and interval live in the agent's SQLite database and are loaded before
-   any transport starts. The panel can fail without stopping the agent; a busy
-   panel port only loses the panel.
-6. **The shell policy is read per request.** The agent consults it before
+   Login and setup are rate-limited per source and username.
+6. **Settings are durable.** Feature choices, the stopped flag, the shell
+   policy, the monitoring choice, the orchestration switch, the client-sync
+   gate and interval, the panel users, and harness connections live in the
+   agent's SQLite database and are loaded before any transport starts. The panel
+   can fail without stopping the agent; a busy panel port only loses the panel.
+7. **The shell policy is read per request.** The agent consults it before
    forwarding a command request, so Apply takes effect on the next command
    without a restart. `off` refuses them all. `allowlist` with an empty filter
    list allows every command, but still requires a location and refuses a
    working directory outside it. A non-empty list admits a request only when a
    saved entry is a literal argv prefix of it. Entries cannot contain shell
    syntax, and interpreters such as `sh`, `env`, or `python` cannot be saved.
-7. **This is a guardrail, not a sandbox.** The policy governs command requests
+8. **This is a guardrail, not a sandbox.** The policy governs command requests
    relayed by this agent. It does not restrict the rest of the OpenCode API: file
    writes, prompts that let an agent run tools, and plugin RPC can still affect
    the host. Direct connections bypass the agent entirely. See [git](git.md) for
    the full caveat.
-8. **Traffic monitoring is advisory and in memory.** The meter counts frame
+9. **Traffic monitoring is advisory and in memory.** The meter counts frame
    sizes, decrypted request actions, and the failures the agent already detects;
    it never reads or stores payloads. Counters live in a sixty-minute ring of
    one-minute buckets and reset on restart or when monitoring is switched off.
    Nothing is throttled, blocked, or persisted, and the per-client counters are
    hidden while monitoring is off.
-9. **Peek is presentation-only.** The eye button masks the pairing fingerprint,
-   config and storage paths, local WebSocket endpoint, relay URL and room, client
-   session ids, and WebSocket URLs in activity messages and error notices. It
-   does not redact the JSON snapshot, change any control, or reach the server:
-   the agent's allowlist remains the security boundary. The choice lives in
-   `sessionStorage` for the tab, so a reload keeps it and a new tab starts
-   masked.
+10. **Peek is presentation-only.** The eye button masks the pairing fingerprint,
+    config and storage paths, local WebSocket endpoint, relay URL and room, client
+    session ids, and WebSocket URLs in activity messages and error notices. It
+    does not redact the JSON snapshot, change any control, or reach the server:
+    the agent's allowlist remains the security boundary. The choice lives in
+    `sessionStorage` for the tab, so a reload keeps it and a new tab starts
+    masked.
 
 ## Edge cases
 
-- **OpenCode is down or rejects the password** — the OpenCode card shows
+- **No harness is configured** — the harness card starts open with the setup
+  form. `/api/*` requests through the agent return `503 harness_unconfigured`
+  until a connection is saved and activated. The web app should be configured
+  after this step.
+- **The harness is down or rejects the password** — the harness card shows
   unreachable, timed out, or auth rejected, with the last check time. The agent
   keeps running.
-- **OpenCode is turned off** — the card says disabled, the probe is not run, and
-  proxied requests fail with a disabled error. Local and relay clients stay
+- **The harness is turned off** — the card says disabled, the probe is not run,
+  and proxied requests fail with a disabled error. Local and relay clients stay
   connected.
+- **The harness secret key is lost** — the connection stays listed but is
+  marked unconfigured. Re-enter the password; the rest of the agent keeps
+  running.
+- **The setup token is missing** — the panel explains how to run
+  `pnpm clara server setup-token` or `clara-server admin reset`. It does not
+  fall back to a default password.
+- **The setup token is wrong or expired** — setup returns a generic invalid-token
+  error and keeps the form available. Run the host reset command to issue a new
+  token.
+- **The superadmin password is lost** — run `pnpm clara server admin reset`
+  (add `--docker` in a container). It writes a new one-time token and revokes
+  every panel session. There is no HTTP reset route.
+- **The session expires** — the next poll returns `401`, the dashboard is
+  replaced by the sign-in screen, and no stale data is shown.
+- **The panel is reached through the Docker bridge** — `CLARA_PANEL_ALLOW_REMOTE`
+  skips only the socket-address check; authentication, `Host`, `Origin`, and
+  fetch-metadata checks still apply. Keep the published port on host loopback.
 - **Local transport is off** — the card says off and the listener closes its
   clients with a clear reason. Turning it on starts a fresh listener.
 - **Relay is not configured** — the relay card explains local-only mode and the
@@ -194,16 +235,18 @@ or off, and gate or pace client settings sync.
   when any entry failed, otherwise a warning badge for read-only files, broad
   permissions, or missing required files. The tooltip counts each state.
 - **Config permissions are broad** — storage warns when the database,
-  `server.json`, subscriptions, or VAPID keys are readable by other users.
+  `server.json`, `secrets.key`, `admin-setup.txt`, subscriptions, or VAPID keys
+  are readable by other users.
 - **The panel was not built** — the page returns a short instruction to run
   `pnpm build`; the JSON API still works.
 - **Panel port is busy** — the agent logs `panel unavailable` and continues.
 
 ## Out of scope
 
-- Authentication or multi-user accounts for the panel
+- Non-superadmin panel users and roles; the schema reserves a role column
 - Remote access to the panel through the relay
-- Editing connection URLs, ports, rooms, tokens, or `server.json` from the panel
+- Editing relay URLs, rooms, tokens, PSK, or `server.json` from the panel
+- Multiple simultaneously active harnesses; the panel stores one active backend
 - Kicking clients or revoking a device
 - A sandbox for command execution, or an allowlist of every proxied API route
 - Per-command arguments, wildcards, or regular expressions in the allowlist
@@ -215,8 +258,12 @@ or off, and gate or pace client settings sync.
 
 ## Known gaps
 
-- Loopback is not user isolation. Any process on the machine, and any browser
-  extension with loopback access, can read and change the panel.
+- Authentication is not host isolation. A process with the panel cookie, the
+  database, or `secrets.key` can still act as the agent; keep the config and
+  data directories private.
+- Sessions are in memory, so restarting the agent signs everyone out.
+- The superadmin password is hashed; harness passwords are reversible and must
+  be encrypted at rest with a backed-up key.
 - There is no per-device identity; the panel shows one entry per live E2EE
   session.
 - Traffic is measured at the agent, so connections the relay rejects before they
@@ -236,9 +283,13 @@ or off, and gate or pace client settings sync.
 <details>
 <summary>Routes, data, and references</summary>
 
-- Panel listener: `127.0.0.1:8790` by default
+- Panel listener: `127.0.0.1:8790` by default; `CLARA_PANEL_BIND_HOST=0.0.0.0`
+  inside the container with host-loopback publishing
 - Page: `GET /`
-- Read API: `GET /panel/api/v1/status` (API version `7`)
+- Health: `GET /health` (unauthenticated, no secrets)
+- Session: `GET|POST|DELETE /panel/api/v1/session`
+- Setup: `POST /panel/api/v1/setup` with `{ "token": "...", "username": "...", "password": "..." }`
+- Read API: `GET /panel/api/v1/status` (API version `8`, authenticated)
 - Mutations:
   - `POST /panel/api/v1/features` with `{ "feature": "...", "enabled": true }`
   - `POST /panel/api/v1/agent` with `{ "stopped": true }`
@@ -246,24 +297,35 @@ or off, and gate or pace client settings sync.
   - `POST /panel/api/v1/shell` with `{ "mode": "off" | "allowlist", "commands": ["git log"] }`
   - `POST /panel/api/v1/monitoring` with `{ "enabled": false }`
   - `POST /panel/api/v1/sync` with `{ "enabled": true, "intervalMs": 30000 }`
+  - `POST /panel/api/v1/harnesses` and `POST /panel/api/v1/harnesses/:id`
+  - `POST /panel/api/v1/harnesses/:id/test|activate`
+  - `DELETE /panel/api/v1/harnesses/:id`
+  - `POST /panel/api/v1/account/password`
 - Required mutation headers: `content-type: application/json`,
   `x-clara-panel: 1`
 - Assets: `GET /assets/<hashed file>` and `GET /favicon.svg`
 - Environment:
   - `CLARA_PANEL_PORT` changes the port (default `8790`)
+  - `CLARA_PANEL_BIND_HOST` changes the listener (default `127.0.0.1`)
+  - `CLARA_PANEL_ALLOW_REMOTE=1` permits a container bridge source; auth remains required
+  - `CLARA_PANEL_SECURE_COOKIE=1` for a loopback-preserving HTTPS proxy
   - `CLARA_PANEL_DISABLED=1` disables the panel
   - `CLARA_PANEL_DIR` overrides the built asset directory
   - `CLARA_DB_PATH` moves the database (default `<data dir>/clara.db`)
-- CLI: `clara-server serve --no-panel`
+  - `CLARA_SECRET_KEY` or `CLARA_SECRET_KEY_FILE` encrypts harness secrets; otherwise
+    `secrets.key` is generated in the config directory
+  - `CLARA_ADMIN_SETUP_TOKEN` or `CLARA_ADMIN_SETUP_TOKEN_FILE` supplies the first-run token
+- CLI: `clara-server serve --no-panel`, `clara-server admin reset|setup-token`
 - Built assets: `apps/server/dist/panel`, copied from `apps/panel/dist`
 - Open the built panel: `pnpm clara control` starts the agent when the panel is
   not already answering, opens `http://127.0.0.1:${CLARA_PANEL_PORT:-8790}/`,
   and stays attached to the agent it started
+- Docker: `pnpm clara server start|stop|status|setup-token|pair|admin --docker`
 - Dev UI: `pnpm dev:panel` (Vite on `5174`, proxying `/panel/api` to `8790`; the
-  proxy rewrites `Host` and `Origin` so guarded mutations pass)
-- Snapshot sections: agent, config, OpenCode, local transport, relay, clients,
-  push, controls (feature switches, shell, monitoring, sync, orchestration),
-  storage, events, traffic
+  proxy rewrites `Host` and `Origin`, and the browser carries the session cookie)
+- Snapshot sections: agent, auth, config, harness, harnesses, local transport,
+  relay, clients, push, controls (feature switches, shell, monitoring, sync,
+  orchestration), storage, events, traffic
 - Shell policy: `apps/server/src/shell-policy.ts` (matching, validation, and the
   `403` decision), `apps/server/src/agent.ts` (enforcement), and the
   `ShellPolicyCard` in `apps/panel/src/components/shell-policy-card.tsx`
@@ -283,12 +345,17 @@ or off, and gate or pace client settings sync.
 - Policy storage: `shell.mode` and `shell.commands` in the settings table,
   added by database migration `2`; `monitoring.enabled`, added by migration `3`;
   `sync.enabled` and `sync.intervalMs`, added by migration `4`;
-  `orchestration.enabled`, added by migration `5`
+  `orchestration.enabled`, added by migration `5`; panel users, setup tokens,
+  harness connections, and harness secrets added by migration `6`
 - Database health: path, existence, mode, bytes, schema version, client-sync
   counts and bytes (never values)
-- Guards: loopback remote address, `Host`, `Origin`, `Sec-Fetch-Site`,
-  `GET`/`HEAD` reads, six guarded `POST` routes, path allowlist, CSP,
-  `no-store`, no CORS
+- Auth: scrypt password hashes, hashed session tokens in memory, per-source and
+  per-username login limits, session-version revocation, one-time setup tokens
+- Harness secrets: AES-256-GCM with a per-secret nonce and AAD bound to the
+  connection and field; the key lives outside SQLite
+- Guards: authenticated session for `/panel/api/*`, optional bridge source
+  allowance, `Host`, `Origin`, `Sec-Fetch-Site`, guarded JSON mutations, path
+  allowlist, CSP, `no-store`, no CORS
 - Related: [agent-controls.md](agent-controls.md), [git.md](git.md),
   [sync.md](sync.md), [overview.md](../architecture/overview.md),
   [pairing.md](pairing.md), [connection.md](connection.md),

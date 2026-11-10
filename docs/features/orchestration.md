@@ -87,8 +87,11 @@ hidden automation.
 
 ## Container deployment
 
-The orchestrator can run as a container on the same Docker network as OpenCode.
-That is the preferred setup when the agent itself is containerized.
+The orchestrator can run as a container on the same Docker network as OpenCode
+and the home agent. That is the preferred setup when the agent itself is
+containerized. The home agent uses `docker/server.compose.yml`, joins the same
+external `clara` network, and reaches the orchestrator at
+`http://orchestrator:8789`.
 
 1. Copy `docker/.env.example` and set:
    - `CLARA_ORCHESTRATION_TOKEN` to a long random token,
@@ -113,6 +116,17 @@ That is the preferred setup when the agent itself is containerized.
    ```text
    -v /absolute/path/to/clara:/workspace/clara
    ```
+
+5. Start the home-agent container on the same network:
+
+   ```sh
+   pnpm clara server start --docker --build
+   pnpm clara server setup-token --docker
+   ```
+
+   In its panel, use `http://opencode:4096` when OpenCode is a container on the
+   `clara` network. The orchestrator URL is set with
+   `CLARA_ORCHESTRATION_HOST=orchestrator` and port `8789`.
 
 The compose service sets `CLARA_ORCHESTRATION_WORKSPACE=/workspace/clara`, which
 is the path the service reports to Clara Lab. Change it only if you move the
@@ -760,7 +774,8 @@ they can run while the adapter or setup is degraded. See
 - Workspace: `GET /v1/config` reports the service workspace from
   `CLARA_ORCHESTRATION_WORKSPACE` (default: the service's working directory),
   plus `CLARA_STD_DIR` and `CLARA_ORCHESTRATION_CONFIG` when set.
-- Container: `docker compose -f docker/compose.yml up -d --build orchestrator`.
+- Container: `docker compose -f docker/compose.yml up -d --build orchestrator`;
+  the home agent uses `docker/server.compose.yml` on the same `clara` network.
 - Commands:
   `pnpm clara orchestration start [--docker] [--build]|stop [--docker]|status|serve|token|analyze`,
   `pnpm clara mcp install|uninstall|config|status`,
