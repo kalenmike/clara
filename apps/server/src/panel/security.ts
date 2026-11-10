@@ -2,6 +2,14 @@ const LOOPBACK_HOSTS = new Set(['127.0.0.1', 'localhost', '::1', '[::1]'])
 
 export type PanelRequestCheck = { ok: true } | { ok: false; status: number; message: string }
 
+export type PanelRequestOptions = {
+  /**
+   * A container publish maps host requests to the bridge gateway. Authentication
+   * is what makes that safe; Host, Origin, and fetch metadata still apply.
+   */
+  allowRemote?: boolean
+}
+
 /**
  * Reject anything that is not a loopback browser on the panel's own origin.
  * Loopback alone is not enough: a page on another origin can still make the
@@ -12,9 +20,10 @@ export function checkPanelRequest(
     headers: { host?: string; origin?: string; 'sec-fetch-site'?: string | string[] }
     socket: { remoteAddress?: string }
   },
-  port: number
+  port: number,
+  options: PanelRequestOptions = {}
 ): PanelRequestCheck {
-  if (!isLoopbackAddress(request.socket.remoteAddress)) {
+  if (!options.allowRemote && !isLoopbackAddress(request.socket.remoteAddress)) {
     return { ok: false, status: 403, message: 'The agent panel is only available on loopback' }
   }
   if (!isAllowedHost(request.headers.host, port)) {

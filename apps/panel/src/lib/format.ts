@@ -59,8 +59,8 @@ export function sourceLabel(source: PanelValueSource): string {
       return 'environment'
     case 'file':
       return 'server.json'
-    case 'service':
-      return 'service.json'
+    case 'database':
+      return 'database'
     case 'generated':
       return 'generated'
     case 'none':

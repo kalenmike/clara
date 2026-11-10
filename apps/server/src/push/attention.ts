@@ -6,7 +6,7 @@ import {
   type SessionMailboxSignals,
 } from '@clara/shared-types'
 import type { SessionInfo } from '@opencode/client'
-import type { OpenCodeClient } from '../opencode.ts'
+import type { HarnessRequest } from '../harness/types.ts'
 import { getSession, listForms, listRecentMessages } from './opencode.ts'
 
 export type SessionAttention = {
@@ -27,7 +27,7 @@ export function isSnoozedSession(session: SessionInfo): boolean {
  * on why a session needs the person.
  */
 export async function loadSessionSignals(
-  client: OpenCodeClient,
+  client: HarnessRequest,
   sessionID: string
 ): Promise<SessionMailboxSignals> {
   const [users, assistants, forms] = await Promise.all([
@@ -57,7 +57,7 @@ export async function loadSessionSignals(
 }
 
 export async function loadSessionAttention(
-  client: OpenCodeClient,
+  client: HarnessRequest,
   sessionID: string
 ): Promise<SessionAttention | null> {
   const session = await getSession(client, sessionID)

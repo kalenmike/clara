@@ -2,18 +2,23 @@ import { join, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { fingerprintPsk } from '@clara/crypto'
 import { PROTOCOL_VERSION } from '@clara/shared-types'
-import { loadConfig } from './config.ts'
-import { OpenCodeClient } from './opencode.ts'
-import { printPairing } from './pairing.ts'
+import { loadAdminPaths, loadConfig } from './config.ts'
+import { HarnessManager } from './harness/manager.ts'
+import { HarnessStore } from './harness/store.ts'
+import { PanelAuth } from './panel/auth.ts'
 import { PanelLog } from './panel/log.ts'
 import { PanelRuntime } from './panel/runtime.ts'
 import { startPanelServer, type PanelServer } from './panel/server.ts'
+import { readSetupToken, readSetupTokenFromEnv } from './panel/setup-token.ts'
+import { printPairing } from './pairing.ts'
 import { PushService } from './push/service.ts'
 import { clearPushSubscriptions, PushSubscriptionStore } from './push/store.ts'
 import { loadVapidDetails } from './push/vapid.ts'
 import { RuntimeController } from './runtime/controller.ts'
 import { ClientStorageStore } from './store/client-storage.ts'
 import { closeDatabase, openDatabase, schemaVersion } from './store/database.ts'
+import { PanelUserStore } from './store/panel-users.ts'
+import { readSecretKey } from './store/secret-key.ts'
 import { SettingsStore } from './store/settings.ts'
 import { SERVER_VERSION } from './version.ts'
 
@@ -25,10 +30,16 @@ async function main(): Promise<void> {
   const command = args[0] ?? 'serve'
   const rotate = args.includes('--rotate')
 
+  if (command === 'admin') {
+    await runAdmin(args.slice(1))
+    return
+  }
+
   if (command !== 'serve' && command !== 'pair') {
     console.error(`Unknown command: ${command}`)
-    console.error('Usage: clara-server [serve|pair] [--rotate] [--no-panel]')
+    console.error('Usage: clara-server [serve|pair|admin] [--rotate] [--no-panel]')
     console.error('       clara-server pair [--local] [--no-qr]')
+    console.error('       clara-server admin reset|setup-token')
     process.exitCode = 2
     return
   }
@@ -53,9 +64,38 @@ async function main(): Promise<void> {
   const clientStorage = new ClientStorageStore(database)
   const initial = settings.get()
 
-  const openCode = new OpenCodeClient(config.opencode.url, config.opencode.password)
+  const secretKey = await readSecretKey(config.configDir)
+  const harnessStore = new HarnessStore({
+    db: database,
+    key: secretKey.key,
+    keyVersion: secretKey.version,
+  })
+  const harness = new HarnessManager(harnessStore)
+  await harness.load()
+
+  const panelEnabled = !args.includes('--no-panel') && process.env.CLARA_PANEL_DISABLED !== '1'
+  const auth = new PanelAuth({
+    users: new PanelUserStore(database),
+    configDir: config.configDir,
+    secureCookie: readBooleanEnv('CLARA_PANEL_SECURE_COOKIE'),
+  })
+  if (panelEnabled) {
+    try {
+      const setup = auth.ensureSetupToken()
+      if (setup?.fromEnv) log('panel setup token provided by the environment')
+      else if (setup?.path) {
+        log(`panel setup required; read the one-time token at ${setup.path}`)
+        log('print it with: clara-server admin setup-token')
+      }
+    } catch (cause) {
+      log('panel setup token unavailable; run `clara-server admin reset`', cause)
+    }
+  }
+
   const opencodeVersion =
-    initial.stopped || !initial.features.opencode ? undefined : await openCode.probeVersion()
+    initial.stopped || !initial.features.opencode || !harness.configured
+      ? undefined
+      : await harness.probe(3_000).then((probe) => (probe.ok ? probe.version : undefined))
   const startedAt = Date.now() - Math.round(process.uptime() * 1000)
   const fingerprint = await fingerprintPsk(config.psk).catch(() => undefined)
 
@@ -88,7 +128,7 @@ async function main(): Promise<void> {
 
   const controller = new RuntimeController({
     config,
-    openCode,
+    harness,
     info,
     settings,
     sync: clientStorage,
@@ -100,16 +140,20 @@ async function main(): Promise<void> {
   await controller.start()
 
   if (!initial.stopped) {
-    if (opencodeVersion) log(`OpenCode ${opencodeVersion} at ${config.opencode.url}`)
-    else if (initial.features.opencode) log(`OpenCode is not answering at ${config.opencode.url}`)
+    if (!harness.configured) {
+      log('no harness connection is configured; open the panel to set one up')
+    } else if (opencodeVersion) {
+      log(`harness ${harness.active?.label ?? 'OpenCode'} answered with ${opencodeVersion}`)
+    } else if (initial.features.opencode) {
+      log('the configured harness is not answering')
+    }
   }
 
   let panel: PanelServer | undefined
-  const panelEnabled = !args.includes('--no-panel') && process.env.CLARA_PANEL_DISABLED !== '1'
   if (panelEnabled) {
     const runtime = new PanelRuntime({
       config,
-      openCode,
+      harness,
       localAgent: controller.agent,
       relayAgent: controller.relay,
       relayClient: controller.relayTransport,
@@ -121,6 +165,7 @@ async function main(): Promise<void> {
       startedAt,
       controls: () => controller.controls(),
       probeEnabled: () => controller.canProxy(),
+      secretKey: { ...(secretKey.path ? { path: secretKey.path } : {}), source: secretKey.source },
       database: {
         path: config.dbPath,
         schemaVersion: schemaVersion(database),
@@ -134,6 +179,9 @@ async function main(): Promise<void> {
       panel = await startPanelServer({
         source: runtime,
         controls: controller,
+        auth,
+        host: process.env.CLARA_PANEL_BIND_HOST?.trim() || '127.0.0.1',
+        allowRemote: readBooleanEnv('CLARA_PANEL_ALLOW_REMOTE'),
         port: parsePanelPort(process.env.CLARA_PANEL_PORT),
         assetsDir,
         log,
@@ -167,6 +215,40 @@ async function main(): Promise<void> {
   process.on('unhandledRejection', (cause) => log('unhandled rejection', cause))
 }
 
+async function runAdmin(args: string[]): Promise<void> {
+  const action = args[0]
+  const paths = loadAdminPaths()
+  if (action === 'setup-token') {
+    const token = readSetupTokenFromEnv() ?? readSetupToken(paths.configDir)
+    if (!token) {
+      console.error('No setup token is available. Run `clara-server admin reset` first.')
+      process.exitCode = 1
+      return
+    }
+    console.log(token)
+    return
+  }
+
+  if (action !== 'reset') {
+    console.error('Usage: clara-server admin reset|setup-token')
+    process.exitCode = 2
+    return
+  }
+
+  const database = openDatabase(paths.dbPath)
+  try {
+    const auth = new PanelAuth({
+      users: new PanelUserStore(database),
+      configDir: paths.configDir,
+    })
+    const result = auth.resetForHost()
+    console.log(`setup token written to ${result.path}`)
+    console.log(result.token)
+  } finally {
+    closeDatabase(database)
+  }
+}
+
 function log(message: string, detail?: unknown): void {
   panelLog.add(message, detail)
   if (detail !== undefined) {
@@ -183,6 +265,11 @@ function parsePanelPort(value: string | undefined): number {
     throw new Error(`Invalid panel port: ${value}`)
   }
   return port
+}
+
+function readBooleanEnv(name: string): boolean {
+  const value = process.env[name]?.trim().toLowerCase()
+  return value === '1' || value === 'true' || value === 'yes'
 }
 
 void main().catch((cause) => {

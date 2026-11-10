@@ -95,6 +95,10 @@ and `pnpm clara orchestration inspect`.
 - **The run was started from Clara Lab:** restarting the Lab kills the debug
   dispatcher. The normal Clara agent path is safe; the operator can pass
   `--skip lab` when driving the pipeline from the Lab.
+- **The home agent runs in a container:** restart uses
+  `pnpm clara server start --docker --build` and waits for the panel `/health`
+  endpoint. The container is detected from its health `mode`; no host PID is
+  signalled.
 - **The home agent is systemd-managed:** restart uses `systemctl --user restart
 clara`. A manually started agent is restarted from the captured root with its
   process environment when readable; otherwise the step warns instead of
@@ -142,6 +146,8 @@ clara`. A manually started agent is restarted from the captured root with its
 
 - A manually started home agent can lose environment-only credentials when the
   process environment is not readable; systemd-managed agents do not.
+- A containerized home agent is rebuilt from its Dockerfile, not from the host
+  `apps/server/dist`; the restart step runs `server start --docker --build`.
 - A Lab started with `pnpm dev:lab` is restarted as the built Lab server, not
   with its Vite development process.
 - A containerized OpenCode needs host access to `pnpm`, git, docker or systemd,
@@ -173,9 +179,11 @@ clara`. A manually started agent is restarted from the captured root with its
 - Snapshot: `${CLARA_DATA_DIR:-~/.local/share/clara}/rebuild/setup.json` (mode
   `0600`). Restart journal: `rebuild/restart.json`. Log: `rebuild/rebuild.log`.
 - Capture: `GET <orchestrator>/health`, `GET <orchestrator>/v1/config`, Lab
-  `GET /api/health`, panel `GET /panel/api/v1/status`, local `GET /health`.
+  `GET /api/health`, panel `GET /health`, local `GET /health`. The detailed panel
+  status API requires a session, so the rebuild uses the minimal health route.
 - Restart order: Lab, home agent, orchestrator. The orchestrator is last and
-  the command waits for its health endpoint.
+  the command waits for its health endpoint. A containerized home agent is
+  recreated with compose rather than signalled by PID.
 - Recovery: `recover` probes health, selects only `expected && !healthy`
   services, restarts them in the same order, and re-runs health. It never
   restarts a healthy service or starts one that was stopped at capture.
@@ -183,7 +191,8 @@ clara`. A manually started agent is restarted from the captured root with its
   `pnpm clara mcp install --no-start`.
 - Default ports: orchestrator `8789`, panel `8790`, local agent `8788`, Lab
   `8791`. `CLARA_LAB_PORT`, `CLARA_PANEL_PORT`, `CLARA_LOCAL_PORT`, and
-  `CLARA_ORCHESTRATION_URL` override discovery.
+  `CLARA_ORCHESTRATION_URL` override discovery. The home agent container uses
+  `pnpm clara server status|start --docker`.
 - Tests: `scripts/test/rebuild.test.mjs`,
   `packages/orchestration/test/loader.test.ts`,
   `packages/orchestration/test/evidence.test.ts`, and

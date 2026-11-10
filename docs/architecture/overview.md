@@ -66,9 +66,11 @@ Clara home agent ──outbound WSS──▶ Worker ──▶ RelayRoom DO ◀�
       │
       └── Web Push (VAPID) ──▶ Apple / browser push service ──▶ service worker
 
-Local mode: web ──WSS──▶ home agent ──▶ OpenCode
+Local mode: web ──WSS──▶ home agent ──▶ active harness (OpenCode now)
 Direct mode: web ──HTTP/SSE──▶ OpenCode (legacy / operator-managed)
-Panel: browser ──HTTP 127.0.0.1:8790──▶ home agent (status + controls)
+Panel: browser ──HTTP 127.0.0.1:8790──▶ home agent (auth + setup + controls)
+Harness: panel ──▶ SQLite harness_connections (encrypted secret) ──▶ harness client
+Docker: home agent, orchestrator, and OpenCode on the `clara` bridge network
 ```
 
 The relay forwards opaque frames. It does not parse, store, or replay payloads.
@@ -136,16 +138,21 @@ ConnectionProvider
 - The home agent also reads OpenCode's `/api/event` stream for push and stores
   Web Push subscriptions at `~/.config/clara/subscriptions.json`. VAPID keys
   live in `~/.config/clara/vapid.json`.
-- The home agent serves `apps/panel` on a second loopback listener (default
-  `127.0.0.1:8790`). It reads one allowlisted runtime snapshot, exposes guarded
-  controls for the four external features, the master stop, the shell policy,
-  monitoring, the client-sync gate and cadence, and the local orchestration
-  service, and never exposes the PSK, secrets, sync values, or file contents. See
+- The home agent serves `apps/panel` on a second listener (default
+  `127.0.0.1:8790`). It requires a superadmin session, provides first-run setup
+  and harness configuration, reads one allowlisted runtime snapshot, exposes
+  guarded controls for the four external features, the master stop, the shell
+  policy, monitoring, the client-sync gate and cadence, and the local
+  orchestration service, and never returns the PSK, harness password, tokens,
+  push endpoints, sync values, or file contents. See
   [panel.md](../features/panel.md) and
   [agent-controls.md](../features/agent-controls.md).
+- Harness connections live in SQLite; exactly one is active. `HarnessManager`
+  builds the matching client on load and after a panel save, so the agent proxy
+  hot-swaps without a restart. OpenCode is the first adapter.
 - Feature choices, the stopped flag, shell policy, monitoring, the
-  orchestration switch, and the client-sync gate and interval live in a
-  `better-sqlite3` database at
+  orchestration switch, the client-sync gate and interval, panel users, and
+  harness connections live in a `better-sqlite3` database at
   `CLARA_DB_PATH` or `<data dir>/clara.db`. Desired state is persisted first;
   effective state also requires the transport to start. The same database holds
   the non-secret client sync namespace, described in
@@ -240,11 +247,14 @@ re-subscribes through the transport.
 - The shell policy is a guardrail, not a sandbox. It filters command requests
   relayed by the agent, but a modified web build can still use non-command
   OpenCode APIs, and direct mode has no Clara-enforced policy at all.
-- Never commit `service.json`, passwords, pairing codes, PSKs, or relay tokens.
+- Never commit `service.json`, passwords, pairing codes, PSKs, relay tokens,
+  `secrets.key`, or `admin-setup.txt`.
 - The home agent's config is `~/.config/clara/server.json` (mode `0600`).
-  Settings and non-secret client sync data live in
-  `~/.local/share/clara/clara.db` (mode `0600`). `vapid.json` and
-  `subscriptions.json` remain in `~/.config/clara` with the same mode.
+  Settings, client sync data, panel users, and harness connections live in
+  `~/.local/share/clara/clara.db` (mode `0600`). Harness passwords are encrypted
+  with `secrets.key` (mode `0600`) or `CLARA_SECRET_KEY`, so the database alone
+  does not expose them. `vapid.json`, `subscriptions.json`, and the temporary
+  `admin-setup.txt` remain in `~/.config/clara` with the same mode.
 - The relay sees metadata only; all payloads are E2EE. Web Push payloads use
   Web Push encryption to the browser subscription, not Clara's PSK envelope.
 - The web stores the PSK in `localStorage`; `_headers` ships a CSP but XSS on the
@@ -252,11 +262,13 @@ re-subscribes through the transport.
 - Relay tokens are defense in depth; the PSK is the real authentication key.
 - The Worker uses separate agent/client tokens so a paired client cannot
   impersonate the home agent.
-- The agent panel is loopback-only and independent of `CLARA_LOCAL_HOST`. It
-  checks the socket address, `Host`, `Origin`, and fetch metadata, allows
-  `GET`/`HEAD` reads plus two guarded `POST` control routes, and never returns
-  the PSK, password, tokens, push endpoints, sync values, or file contents.
-  Loopback is not user isolation; the panel assumes a single-user machine.
+- The agent panel requires a superadmin login and defaults to `127.0.0.1`. It
+  checks the socket address when remote access is not explicitly allowed, plus
+  `Host`, `Origin`, and fetch metadata, and never returns the PSK, harness
+  password, tokens, push endpoints, sync values, or file contents. The first-run
+  setup token is written to a host-only file; a lost password is reset by a
+  host-only command, never over HTTP. Authentication is not host isolation;
+  keep the database and `secrets.key` private.
 
 ## Related
 

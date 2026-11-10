@@ -11,11 +11,17 @@ import {
   type ShellPolicy,
 } from '@clara/shared-types'
 import type { PanelControlService } from '../src/panel/controls.ts'
+import { PanelAuth } from '../src/panel/auth.ts'
+import { hashPassword } from '../src/panel/password.ts'
 import type { PanelDataSource } from '../src/panel/runtime.ts'
 import { startPanelServer, type PanelServer } from '../src/panel/server.ts'
+import { closeDatabase, openDatabase, type ClaraDatabase } from '../src/store/database.ts'
+import { PanelUserStore } from '../src/store/panel-users.ts'
 
 const tempDirs: string[] = []
 const servers: PanelServer[] = []
+const databases: ClaraDatabase[] = []
+const cookies = new WeakMap<PanelServer, string>()
 
 function tempDir(): string {
   const dir = mkdtempSync(join(tmpdir(), 'clara-panel-'))
@@ -41,10 +47,10 @@ function snapshot(): PanelSnapshot {
       configDir: '/tmp/config',
       pskConfigured: true,
       stopped: false,
+      container: false,
     },
+    auth: { username: 'admin', role: 'superadmin' },
     config: {
-      opencodeUrl: { value: 'http://127.0.0.1:4096', source: 'default' },
-      opencodePassword: { value: false, source: 'none' },
       localHost: { value: '127.0.0.1', source: 'default' },
       localPort: { value: 8788, source: 'default' },
       relayUrl: { value: null, source: 'none' },
@@ -57,11 +63,27 @@ function snapshot(): PanelSnapshot {
       reachable: true,
       desired: true,
       effective: true,
+      configured: true,
       version: '2.1.1',
       latencyMs: 1,
       checkedAt: new Date(0).toISOString(),
       code: 'ok',
     },
+    harness: { configured: true, activeId: 'harness-1' },
+    harnesses: [
+      {
+        id: 'harness-1',
+        kind: 'opencode',
+        label: 'Test OpenCode',
+        baseUrl: 'http://127.0.0.1:4096',
+        authType: 'none',
+        options: {},
+        isActive: true,
+        secretConfigured: false,
+        createdAt: new Date(0).toISOString(),
+        updatedAt: new Date(0).toISOString(),
+      },
+    ],
     local: {
       host: '127.0.0.1',
       port: 8788,
@@ -236,13 +258,50 @@ function fakeControls(initial: Partial<PanelControls> = {}): FakeControls {
       state.orchestration = { ...state.orchestration, desired: enabled, effective: enabled }
       return state
     },
+    saveHarness: async () => ({ harnesses: [], harness: { configured: false } }),
+    testHarness: async () => ({
+      ok: true,
+      code: 'ok',
+      latencyMs: 1,
+      checkedAt: new Date(0).toISOString(),
+    }),
+    activateHarness: async () => ({ harnesses: [], harness: { configured: false } }),
+    deleteHarness: async () => ({ harnesses: [], harness: { configured: false } }),
   }
 }
 
 async function start(assetsDir?: string, controls?: PanelControlService): Promise<PanelServer> {
-  const server = await startPanelServer({ source: source(), controls, port: 0, assetsDir })
+  const dir = tempDir()
+  const db = openDatabase(join(dir, 'clara.db'))
+  const users = new PanelUserStore(db)
+  users.create('admin', await hashPassword('test-password'))
+  const auth = new PanelAuth({ users, configDir: dir })
+  const login = await auth.login('admin', 'test-password', 'test')
+  const server = await startPanelServer({
+    source: source(),
+    controls,
+    auth,
+    port: 0,
+    assetsDir,
+  })
   servers.push(server)
+  databases.push(db)
+  cookies.set(server, `clara_panel_session=${login.token}`)
   return server
+}
+
+function get(server: PanelServer, path: string, init: RequestInit = {}): Promise<Response> {
+  return fetch(`${server.url}${path}`, {
+    ...init,
+    headers: {
+      ...(init.headers as Record<string, string> | undefined),
+      cookie: cookies.get(server) ?? '',
+    },
+  })
+}
+
+function fetchPanel(server: PanelServer, path: string, init: RequestInit = {}): Promise<Response> {
+  return get(server, path, init)
 }
 
 function post(
@@ -257,6 +316,7 @@ function post(
       'content-type': 'application/json',
       'x-clara-panel': '1',
       ...headers,
+      ...(cookies.get(server) ? { cookie: cookies.get(server) as string } : {}),
     },
     body: JSON.stringify(body),
   })
@@ -264,13 +324,61 @@ function post(
 
 afterEach(async () => {
   for (const server of servers.splice(0)) await server.close()
+  for (const db of databases.splice(0)) closeDatabase(db)
   for (const dir of tempDirs.splice(0)) rmSync(dir, { recursive: true, force: true })
 })
 
 describe('panel server', () => {
+  it('keeps health open and requires a session for the status API', async () => {
+    const server = await start()
+
+    const health = await fetch(`${server.url}health`)
+    expect(health.status).toBe(200)
+    expect(await health.json()).toMatchObject({ ok: true, service: 'clara-server' })
+
+    const anonymous = await fetch(`${server.url}panel/api/v1/status`)
+    expect(anonymous.status).toBe(401)
+
+    const session = await fetch(`${server.url}panel/api/v1/session`)
+    expect(session.status).toBe(200)
+    expect(await session.json()).toMatchObject({ authenticated: false, setupRequired: false })
+
+    const login = await fetch(`${server.url}panel/api/v1/session`, {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        'x-clara-panel': '1',
+      },
+      body: JSON.stringify({ username: 'admin', password: 'test-password' }),
+    })
+    expect(login.status).toBe(200)
+    expect(login.headers.get('set-cookie')).toContain('clara_panel_session=')
+  })
+
+  it('routes harness mutations through the panel control service', async () => {
+    const controls = fakeControls()
+    const server = await start(undefined, controls)
+
+    const saved = await post(server, 'harnesses', {
+      kind: 'opencode',
+      label: 'OpenCode',
+      baseUrl: 'http://opencode:4096',
+      authType: 'none',
+    })
+    expect(saved.status).toBe(200)
+
+    const tested = await post(server, 'harnesses/harness-1/test', {
+      kind: 'opencode',
+      label: 'OpenCode',
+      baseUrl: 'http://opencode:4096',
+      authType: 'none',
+    })
+    expect(tested.status).toBe(200)
+  })
+
   it('serves the read-only status snapshot', async () => {
     const server = await start()
-    const response = await fetch(`${server.url}panel/api/v1/status`)
+    const response = await get(server, 'panel/api/v1/status')
     expect(response.status).toBe(200)
     expect(response.headers.get('cache-control')).toBe('no-store')
     expect(response.headers.get('access-control-allow-origin')).toBeNull()
@@ -281,11 +389,11 @@ describe('panel server', () => {
 
   it('allows HEAD and rejects every mutating method', async () => {
     const server = await start()
-    const head = await fetch(`${server.url}panel/api/v1/status`, { method: 'HEAD' })
+    const head = await get(server, 'panel/api/v1/status', { method: 'HEAD' })
     expect(head.status).toBe(200)
     expect(await head.text()).toBe('')
 
-    const post = await fetch(`${server.url}panel/api/v1/status`, { method: 'POST' })
+    const post = await get(server, 'panel/api/v1/status', { method: 'POST' })
     expect(post.status).toBe(405)
     expect(post.headers.get('allow')).toBe('GET, HEAD')
   })
@@ -354,14 +462,14 @@ describe('panel server', () => {
 
   it('returns JSON for unknown API paths', async () => {
     const server = await start()
-    const response = await fetch(`${server.url}panel/api/v1/unknown`)
+    const response = await get(server, 'panel/api/v1/unknown')
     expect(response.status).toBe(404)
     expect(response.headers.get('content-type')).toContain('application/json')
   })
 
   it('rejects mutations without the panel header', async () => {
     const server = await start(undefined, fakeControls())
-    const response = await fetch(`${server.url}panel/api/v1/features`, {
+    const response = await fetchPanel(server, 'panel/api/v1/features', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ feature: 'relay', enabled: false }),

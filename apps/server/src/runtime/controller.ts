@@ -2,6 +2,8 @@ import type {
   AgentInfo,
   PanelControls,
   PanelFeatureControl,
+  PanelHarnessMutationResponse,
+  PanelHarnessTestResult,
   PanelOrchestrationControl,
   PanelSyncUpdate,
   ShellPolicy,
@@ -10,8 +12,11 @@ import { baseURL } from '@clara/orchestration-control'
 import type { WebSocket } from 'ws'
 import { Agent } from '../agent.ts'
 import type { ServerConfig } from '../config.ts'
+import type { HarnessManager } from '../harness/manager.ts'
+import { HarnessValidationError } from '../harness/types.ts'
 import { broadcast, LocalTransport } from '../local-server.ts'
-import type { OpenCodeClient } from '../opencode.ts'
+import { PanelControlError } from '../panel/controls.ts'
+import { harnessList, harnessState, toPanelHarnessTest } from '../panel/harness.ts'
 import { PushMonitor } from '../push/monitor.ts'
 import type { PushService } from '../push/service.ts'
 import { RelayClient, type RelayStatus } from '../relay-client.ts'
@@ -26,7 +31,7 @@ import {
 
 export type ControllerOptions = {
   config: ServerConfig
-  openCode: OpenCodeClient
+  harness: HarnessManager
   info: AgentInfo
   settings: SettingsStore
   sync?: ClientStorageStore
@@ -64,6 +69,7 @@ export class RuntimeController {
   }
   private orchestrationError: string | undefined
   private orchestrationTimer?: NodeJS.Timeout
+  private harnessUnsubscribe?: () => void
 
   constructor(options: ControllerOptions) {
     this.options = options
@@ -75,7 +81,7 @@ export class RuntimeController {
     options.info.orchestration = false
 
     this.localAgent = new Agent({
-      openCode: options.openCode,
+      harness: options.harness,
       psk: config.psk,
       info: options.info,
       send: (frame) => broadcast(this.localSockets, frame),
@@ -97,7 +103,7 @@ export class RuntimeController {
 
     if (config.relay) {
       this.relayAgent = new Agent({
-        openCode: options.openCode,
+        harness: options.harness,
         psk: config.psk,
         info: options.info,
         send: (frame) => this.relayClient?.send(frame),
@@ -127,7 +133,7 @@ export class RuntimeController {
     }
 
     this.localTransport = new LocalTransport({
-      host: config.local.host,
+      host: config.local.bindHost,
       port: config.local.port,
       agent: this.localAgent,
       sockets: this.localSockets,
@@ -136,7 +142,7 @@ export class RuntimeController {
 
     if (options.push) {
       this.pushMonitor = new PushMonitor({
-        openCode: options.openCode,
+        harness: options.harness,
         push: options.push,
         isDeskActive: () =>
           this.localAgent.deskHoldActive() || (this.relayAgent?.deskHoldActive() ?? false),
@@ -145,6 +151,8 @@ export class RuntimeController {
         log: options.log,
       })
     }
+
+    this.harnessUnsubscribe = options.harness.subscribe(() => this.onHarnessChanged())
   }
 
   get agent(): Agent {
@@ -182,7 +190,7 @@ export class RuntimeController {
 
   canProxy(): boolean {
     if (this.options.settings.getStopped()) return false
-    return this.options.settings.getFeature('opencode')
+    return this.options.settings.getFeature('opencode') && this.options.harness.configured
   }
 
   canPush(): boolean {
@@ -341,6 +349,25 @@ export class RuntimeController {
     return this.controls()
   }
 
+  async saveHarness(value: unknown, id?: string): Promise<PanelHarnessMutationResponse> {
+    await harnessCall(() => this.options.harness.save(value, id))
+    return this.harnessMutation()
+  }
+
+  async testHarness(value: unknown, id?: string): Promise<PanelHarnessTestResult> {
+    return toPanelHarnessTest(await harnessCall(() => this.options.harness.test(value, id)))
+  }
+
+  async activateHarness(id: string): Promise<PanelHarnessMutationResponse> {
+    await harnessCall(async () => this.options.harness.activate(id))
+    return this.harnessMutation()
+  }
+
+  async deleteHarness(id: string): Promise<PanelHarnessMutationResponse> {
+    await harnessCall(async () => this.options.harness.remove(id))
+    return this.harnessMutation()
+  }
+
   async setStopped(stopped: boolean): Promise<PanelControls> {
     if (this.options.settings.getStopped() === stopped) return this.controls()
     this.options.settings.setStopped(stopped)
@@ -364,6 +391,8 @@ export class RuntimeController {
   async close(): Promise<void> {
     if (this.orchestrationTimer) clearInterval(this.orchestrationTimer)
     this.orchestrationTimer = undefined
+    this.harnessUnsubscribe?.()
+    this.harnessUnsubscribe = undefined
     await this.stopLocal('agent shutting down')
     this.relayClient?.close()
     this.stopPushMonitor()
@@ -410,8 +439,9 @@ export class RuntimeController {
       case 'local':
         if (enabled) {
           await this.localTransport.start()
+          const host = this.options.config.local.bindHost
           this.options.log(
-            `local WebSocket listening on ws://${this.options.config.local.host}:${this.options.config.local.port}/ws`
+            `local WebSocket listening on ws://${formatHost(host)}:${this.options.config.local.port}/ws`
           )
         } else {
           await this.stopLocal('local transport disabled by an admin setting')
@@ -441,6 +471,7 @@ export class RuntimeController {
       !settings.stopped &&
       settings.features.push &&
       settings.features.opencode &&
+      this.options.harness.configured &&
       Boolean(this.options.push)
     if (!shouldRun) {
       this.stopPushMonitor()
@@ -502,6 +533,33 @@ export class RuntimeController {
     return Boolean(relay?.url && relay.agentToken && relay.clientToken)
   }
 
+  private harnessMutation(): PanelHarnessMutationResponse {
+    return {
+      harnesses: harnessList(this.options.harness),
+      harness: harnessState(this.options.harness),
+    }
+  }
+
+  private async onHarnessChanged(): Promise<void> {
+    this.localAgent.reset()
+    this.relayAgent?.reset()
+    this.stopPushMonitor()
+    await this.refreshHarnessInfo()
+    this.syncPushMonitor()
+    this.options.log(
+      this.options.harness.configured
+        ? `harness connection is active: ${this.options.harness.active?.label ?? 'OpenCode'}`
+        : 'no harness connection is configured'
+    )
+  }
+
+  private async refreshHarnessInfo(): Promise<void> {
+    const probe = await this.options.harness.probe(3_000)
+    this.options.info.opencodeVersion = probe.ok ? probe.version : undefined
+    this.localAgent.broadcastAgentInfo()
+    this.relayAgent?.broadcastAgentInfo()
+  }
+
   private logRelayStatus(status: RelayStatus): void {
     if (status === 'offline' || status === 'online' || status === 'connecting') {
       const url = this.options.config.relay?.url
@@ -522,4 +580,19 @@ export class AgentStoppedError extends Error {
 
 function errorMessage(cause: unknown): string {
   return cause instanceof Error ? cause.message : String(cause)
+}
+
+function formatHost(host: string): string {
+  return host.includes(':') && !host.startsWith('[') ? `[${host}]` : host
+}
+
+async function harnessCall<T>(operation: () => Promise<T>): Promise<T> {
+  try {
+    return await operation()
+  } catch (cause) {
+    if (cause instanceof HarnessValidationError) {
+      throw new PanelControlError(400, cause.code, cause.message)
+    }
+    throw cause
+  }
 }

@@ -8,7 +8,7 @@ WebSocket. This file is the contract for every AI agent working in this repo.
 
 ```text
 apps/web              React/Vite SPA (Cloudflare Pages)
-apps/panel            Read-only loopback agent dashboard
+apps/panel            Authenticated home-agent dashboard and setup surface
 apps/lab              Loopback pipeline preview and agent probe
 apps/server           Node home agent, local WS + outbound Cloudflare relay
 apps/orchestrator     Loopback orchestration service, REST/SSE/MCP
@@ -50,6 +50,7 @@ pnpm build          # Build every workspace package
 pnpm clara pair     # Print a pairing code
 pnpm clara control  # Serve the built panel and open it in a browser
 pnpm clara serve    # Run the built home agent
+pnpm clara server start|stop|status|pair|admin [--docker] # Home agent container
 pnpm clara pass     # Print the local OpenCode password
 pnpm clara orchestration start [--docker] [--build]|stop [--docker]|status|serve # Run the orchestration service
 pnpm clara orchestration analyze [--json] [--days n] # Analyze run history for failure patterns
@@ -100,8 +101,10 @@ create a task worktree outside `../clara-worktrees` (override with
 - In direct mode the browser sends HTTP basic auth with the `opencode` user.
   In relay/local mode the home agent adds basic auth; the browser never receives
   the password.
-- The agent reads `${XDG_STATE_HOME:-~/.local/state}/opencode/service.json` when
-  `CLARA_OPENCODE_URL` / `CLARA_OPENCODE_PASSWORD` are unset.
+- Harness connections are configured in the authenticated agent panel and
+  stored in the home agent's SQLite database. The server does not read OpenCode's
+  `service.json`, and it does not read a fixed OpenCode URL or password from the
+  environment.
 - Session lists are scoped by `directory`, not `project`. Sessions can report
   `projectID: "global"`; always build links from the selected project ID.
 - The Vite dev server still proxies `/oc` for direct mode.

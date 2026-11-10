@@ -4,21 +4,29 @@ import { extname, join, resolve, sep } from 'node:path'
 import type { Server } from 'node:http'
 import {
   isSyncIntervalMs,
+  type PanelAuthInfo,
   type PanelFeatureName,
   type PanelMutationResponse,
 } from '@clara/shared-types'
+import { SERVER_VERSION } from '../version.ts'
+import { PanelAuth, PanelAuthError, type PanelAuthUser } from './auth.ts'
 import { readControlFailure, type PanelControlService } from './controls.ts'
 import { checkPanelRequest } from './security.ts'
 import type { PanelDataSource } from './runtime.ts'
 import { parseShellPolicy } from '../shell-policy.ts'
 
 const API_PATH = '/panel/api/v1/status'
+const SESSION_PATH = '/panel/api/v1/session'
+const SETUP_PATH = '/panel/api/v1/setup'
+const PASSWORD_PATH = '/panel/api/v1/account/password'
 const FEATURES_PATH = '/panel/api/v1/features'
 const AGENT_PATH = '/panel/api/v1/agent'
 const SHELL_PATH = '/panel/api/v1/shell'
 const MONITORING_PATH = '/panel/api/v1/monitoring'
 const SYNC_PATH = '/panel/api/v1/sync'
 const ORCHESTRATION_PATH = '/panel/api/v1/orchestration'
+const HARNESSES_PREFIX = '/panel/api/v1/harnesses'
+const HEALTH_PATH = '/health'
 const ASSETS_PREFIX = '/assets/'
 const PANEL_HEADER = 'x-clara-panel'
 const MAX_BODY_BYTES = 8 * 1024
@@ -51,7 +59,10 @@ const SECURITY_HEADERS: Record<string, string> = {
 export type PanelServerOptions = {
   source: PanelDataSource
   controls?: PanelControlService
+  auth: PanelAuth
   port: number
+  host?: string
+  allowRemote?: boolean
   assetsDir?: string
   log?: (message: string, detail?: unknown) => void
 }
@@ -66,12 +77,15 @@ export async function startPanelServer(options: PanelServerOptions): Promise<Pan
   const assetsRoot = resolveAssetsRoot(options.assetsDir)
   const indexHtml = readIndexHtml(assetsRoot)
   let port = options.port
+  const host = options.host ?? '127.0.0.1'
 
   const server = createServer((request, response) => {
     void handleRequest(request, response, {
       source: options.source,
       controls: options.controls,
+      auth: options.auth,
       port,
+      allowRemote: options.allowRemote === true,
       assetsRoot,
       indexHtml,
       log: options.log,
@@ -87,7 +101,7 @@ export async function startPanelServer(options: PanelServerOptions): Promise<Pan
     })
   })
 
-  await listen(server, options.port)
+  await listen(server, host, options.port)
   const address = server.address()
   if (!address || typeof address === 'string') {
     await closeServer(server)
@@ -95,8 +109,9 @@ export async function startPanelServer(options: PanelServerOptions): Promise<Pan
   }
   port = address.port
 
+  const advertisedHost = isUnspecifiedHost(host) ? '127.0.0.1' : host
   return {
-    url: `http://127.0.0.1:${port}/`,
+    url: `http://${formatHost(advertisedHost)}:${port}/`,
     port,
     close: () => closeServer(server),
   }
@@ -105,7 +120,9 @@ export async function startPanelServer(options: PanelServerOptions): Promise<Pan
 type RequestContext = {
   source: PanelDataSource
   controls?: PanelControlService
+  auth: PanelAuth
   port: number
+  allowRemote: boolean
   assetsRoot: string | undefined
   indexHtml: Buffer | undefined
   log?: (message: string, detail?: unknown) => void
@@ -120,7 +137,7 @@ async function handleRequest(
     response.setHeader(name, value)
   }
 
-  const check = checkPanelRequest(request, context.port)
+  const check = checkPanelRequest(request, context.port, { allowRemote: context.allowRemote })
   if (!check.ok) {
     sendJson(response, request.method, check.status, {
       error: { code: 'forbidden', message: check.message },
@@ -140,8 +157,81 @@ async function handleRequest(
     return
   }
 
-  if (method === 'POST') {
-    await handleMutation(request, response, context, pathname)
+  if (pathname === HEALTH_PATH && (method === 'GET' || method === 'HEAD')) {
+    sendJson(response, method, 200, {
+      ok: true,
+      service: 'clara-server',
+      version: SERVER_VERSION,
+      mode: isContainerized() ? 'container' : 'local',
+    })
+    return
+  }
+
+  if (pathname === SESSION_PATH) {
+    await handleSession(request, response, context, method)
+    return
+  }
+
+  if (pathname === SETUP_PATH) {
+    await handleSetup(request, response, context, method)
+    return
+  }
+
+  if (pathname.startsWith('/panel/api/')) {
+    const user = context.auth.session(PanelAuth.readCookie(request.headers.cookie))
+    if (!user) {
+      sendJson(response, method, 401, {
+        error: { code: 'unauthorized', message: 'Sign in to the agent panel' },
+      })
+      return
+    }
+
+    if (pathname === API_PATH) {
+      if (method !== 'GET' && method !== 'HEAD') {
+        response.setHeader('allow', 'GET, HEAD')
+        sendJson(response, method, 405, {
+          error: { code: 'method_not_allowed', message: 'The status endpoint is read-only' },
+        })
+        return
+      }
+      try {
+        const snapshot = await context.source.snapshot(authInfo(user))
+        sendJson(response, method, 200, snapshot)
+      } catch (cause) {
+        context.log?.('could not build the panel snapshot', cause)
+        sendJson(response, method, 500, {
+          error: { code: 'snapshot_failed', message: 'Could not read the agent status' },
+        })
+      }
+      return
+    }
+
+    if (pathname === PASSWORD_PATH) {
+      await handlePassword(request, response, context, method, user)
+      return
+    }
+
+    if (pathname === HARNESSES_PREFIX || pathname.startsWith(`${HARNESSES_PREFIX}/`)) {
+      await handleHarness(request, response, context, method, pathname)
+      return
+    }
+
+    if (method === 'POST') {
+      await handleMutation(request, response, context, pathname)
+      return
+    }
+
+    if (method !== 'GET' && method !== 'HEAD') {
+      response.setHeader('allow', 'GET, HEAD')
+      sendJson(response, method, 405, {
+        error: { code: 'method_not_allowed', message: 'Unknown panel endpoint' },
+      })
+      return
+    }
+
+    sendJson(response, method, 404, {
+      error: { code: 'not_found', message: 'Unknown panel endpoint' },
+    })
     return
   }
 
@@ -149,26 +239,6 @@ async function handleRequest(
     response.setHeader('allow', 'GET, HEAD')
     sendJson(response, method, 405, {
       error: { code: 'method_not_allowed', message: 'The agent panel is read-only' },
-    })
-    return
-  }
-
-  if (pathname === API_PATH) {
-    try {
-      const snapshot = await context.source.snapshot()
-      sendJson(response, method, 200, snapshot)
-    } catch (cause) {
-      context.log?.('could not build the panel snapshot', cause)
-      sendJson(response, method, 500, {
-        error: { code: 'snapshot_failed', message: 'Could not read the agent status' },
-      })
-    }
-    return
-  }
-
-  if (pathname.startsWith('/panel/api/')) {
-    sendJson(response, method, 404, {
-      error: { code: 'not_found', message: 'Unknown panel endpoint' },
     })
     return
   }
@@ -224,6 +294,274 @@ async function handleRequest(
   }
 }
 
+async function handleSession(
+  request: IncomingMessage,
+  response: ServerResponse,
+  context: RequestContext,
+  method: string
+): Promise<void> {
+  if (method === 'GET' || method === 'HEAD') {
+    const status = context.auth.status(PanelAuth.readCookie(request.headers.cookie))
+    sendJson(response, method, 200, status)
+    return
+  }
+
+  if (method === 'DELETE') {
+    const user = context.auth.session(PanelAuth.readCookie(request.headers.cookie))
+    if (!user) {
+      sendJson(response, method, 401, {
+        error: { code: 'unauthorized', message: 'Sign in to the agent panel' },
+      })
+      return
+    }
+    if (!requireMutationHeader(request, response, method)) return
+    context.auth.logout(PanelAuth.readCookie(request.headers.cookie))
+    sendJson(
+      response,
+      method,
+      200,
+      { ok: true },
+      { 'set-cookie': context.auth.clearCookieHeader() }
+    )
+    return
+  }
+
+  if (method !== 'POST') {
+    response.setHeader('allow', 'GET, HEAD, POST, DELETE')
+    sendJson(response, method, 405, {
+      error: { code: 'method_not_allowed', message: 'Unsupported session method' },
+    })
+    return
+  }
+
+  if (!requireMutationHeader(request, response, method, true)) return
+  const body = await readJsonBody(request)
+  if (!body.ok) {
+    sendJson(response, method, body.status, { error: { code: body.code, message: body.message } })
+    return
+  }
+  if (!isRecord(body.value)) {
+    sendJson(response, method, 400, {
+      error: { code: 'invalid_body', message: 'The request body must be a JSON object' },
+    })
+    return
+  }
+  const unknown = unknownFields(body.value, ['username', 'password'])
+  if (unknown) return invalidField(response, method, unknown)
+  const username = body.value.username
+  const password = body.value.password
+  if (typeof username !== 'string' || typeof password !== 'string') {
+    return invalidField(response, method, 'username or password')
+  }
+
+  try {
+    const result = await context.auth.login(username, password, requestSource(request))
+    sendJson(
+      response,
+      method,
+      200,
+      { user: result.user },
+      { 'set-cookie': context.auth.cookieHeader(result.token, result.maxAgeSeconds) }
+    )
+  } catch (cause) {
+    sendAuthFailure(response, method, cause)
+  }
+}
+
+async function handleSetup(
+  request: IncomingMessage,
+  response: ServerResponse,
+  context: RequestContext,
+  method: string
+): Promise<void> {
+  if (method !== 'POST') {
+    response.setHeader('allow', 'POST')
+    sendJson(response, method, 405, {
+      error: { code: 'method_not_allowed', message: 'Use POST to set up the panel' },
+    })
+    return
+  }
+  if (!requireMutationHeader(request, response, method, true)) return
+  const body = await readJsonBody(request)
+  if (!body.ok) {
+    sendJson(response, method, body.status, { error: { code: body.code, message: body.message } })
+    return
+  }
+  if (!isRecord(body.value)) {
+    sendJson(response, method, 400, {
+      error: { code: 'invalid_body', message: 'The request body must be a JSON object' },
+    })
+    return
+  }
+  const unknown = unknownFields(body.value, ['token', 'username', 'password'])
+  if (unknown) return invalidField(response, method, unknown)
+  const token = body.value.token
+  const username = body.value.username
+  const password = body.value.password
+  if (typeof token !== 'string') return invalidField(response, method, 'token')
+  if (typeof username !== 'string') return invalidField(response, method, 'username')
+  if (typeof password !== 'string') return invalidField(response, method, 'password')
+
+  try {
+    const result = await context.auth.setup(token, username, password)
+    sendJson(
+      response,
+      method,
+      200,
+      { user: result.user },
+      { 'set-cookie': context.auth.cookieHeader(result.token, result.maxAgeSeconds) }
+    )
+  } catch (cause) {
+    sendAuthFailure(response, method, cause)
+  }
+}
+
+async function handlePassword(
+  request: IncomingMessage,
+  response: ServerResponse,
+  context: RequestContext,
+  method: string,
+  user: PanelAuthUser
+): Promise<void> {
+  if (method !== 'POST') {
+    response.setHeader('allow', 'POST')
+    sendJson(response, method, 405, {
+      error: { code: 'method_not_allowed', message: 'Use POST to change the password' },
+    })
+    return
+  }
+  if (!requireMutationHeader(request, response, method, true)) return
+  const body = await readJsonBody(request)
+  if (!body.ok) {
+    sendJson(response, method, body.status, { error: { code: body.code, message: body.message } })
+    return
+  }
+  if (!isRecord(body.value)) {
+    sendJson(response, method, 400, {
+      error: { code: 'invalid_body', message: 'The request body must be a JSON object' },
+    })
+    return
+  }
+  const unknown = unknownFields(body.value, ['currentPassword', 'newPassword'])
+  if (unknown) return invalidField(response, method, unknown)
+  const currentPassword = body.value.currentPassword
+  const newPassword = body.value.newPassword
+  if (typeof currentPassword !== 'string') return invalidField(response, method, 'currentPassword')
+  if (typeof newPassword !== 'string') return invalidField(response, method, 'newPassword')
+
+  try {
+    const result = await context.auth.changePassword(user.id, currentPassword, newPassword)
+    sendJson(
+      response,
+      method,
+      200,
+      { user: result.user },
+      { 'set-cookie': context.auth.cookieHeader(result.token, result.maxAgeSeconds) }
+    )
+  } catch (cause) {
+    sendAuthFailure(response, method, cause)
+  }
+}
+
+async function handleHarness(
+  request: IncomingMessage,
+  response: ServerResponse,
+  context: RequestContext,
+  method: string,
+  pathname: string
+): Promise<void> {
+  const controls = context.controls
+  if (!controls) {
+    sendJson(response, method, 503, {
+      error: { code: 'controls_unavailable', message: 'Agent controls are not available' },
+    })
+    return
+  }
+  if (!requireMutationHeader(request, response, method, method === 'POST')) return
+
+  const rest = pathname.slice(HARNESSES_PREFIX.length)
+  const parts = rest.split('/').filter(Boolean).map(decodeSegment)
+  if (parts.some((part) => part === undefined)) {
+    sendJson(response, method, 400, {
+      error: { code: 'bad_request', message: 'Invalid harness id' },
+    })
+    return
+  }
+  const [id, action] = parts as string[]
+
+  try {
+    if (method === 'POST' && !id) {
+      const body = await readJsonBody(request)
+      if (!body.ok) return sendBodyFailure(response, method, body)
+      if (!isRecord(body.value)) {
+        return sendJson(response, method, 400, {
+          error: { code: 'invalid_body', message: 'The request body must be a JSON object' },
+        })
+      }
+      const unknown = harnessUnknownField(body.value)
+      if (unknown) return invalidField(response, method, unknown)
+      const result = await controls.saveHarness(body.value)
+      sendJson(response, method, 200, result)
+      return
+    }
+
+    if (method === 'POST' && id && !action) {
+      const body = await readJsonBody(request)
+      if (!body.ok) return sendBodyFailure(response, method, body)
+      if (!isRecord(body.value)) {
+        return sendJson(response, method, 400, {
+          error: { code: 'invalid_body', message: 'The request body must be a JSON object' },
+        })
+      }
+      const unknown = harnessUnknownField(body.value)
+      if (unknown) return invalidField(response, method, unknown)
+      const result = await controls.saveHarness(body.value, id)
+      sendJson(response, method, 200, result)
+      return
+    }
+
+    if (method === 'POST' && id && action === 'test') {
+      const body = await readJsonBody(request)
+      if (!body.ok) return sendBodyFailure(response, method, body)
+      if (!isRecord(body.value)) {
+        return sendJson(response, method, 400, {
+          error: { code: 'invalid_body', message: 'The request body must be a JSON object' },
+        })
+      }
+      const unknown = harnessUnknownField(body.value)
+      if (unknown) return invalidField(response, method, unknown)
+      sendJson(response, method, 200, await controls.testHarness(body.value, id))
+      return
+    }
+
+    if (method === 'POST' && id && action === 'activate') {
+      sendJson(response, method, 200, await controls.activateHarness(id))
+      return
+    }
+
+    if (method === 'DELETE' && id && !action) {
+      sendJson(response, method, 200, await controls.deleteHarness(id))
+      return
+    }
+
+    sendJson(response, method, 404, {
+      error: { code: 'not_found', message: 'Unknown harness endpoint' },
+    })
+  } catch (cause) {
+    const failure = readControlFailure(cause)
+    if (failure) {
+      sendJson(response, method, failure.status, {
+        error: { code: failure.code, message: failure.message },
+      })
+      return
+    }
+    context.log?.('harness control failed', cause)
+    sendJson(response, method, 500, {
+      error: { code: 'harness_failed', message: 'Could not apply the harness change' },
+    })
+  }
+}
+
 async function handleMutation(
   request: IncomingMessage,
   response: ServerResponse,
@@ -269,28 +607,11 @@ async function handleMutation(
     return
   }
 
-  if (request.headers[PANEL_HEADER] !== '1') {
-    sendJson(response, method, 403, {
-      error: {
-        code: 'missing_panel_header',
-        message: `Mutations require the ${PANEL_HEADER}: 1 request header`,
-      },
-    })
-    return
-  }
-
-  if (!isJsonContentType(request.headers['content-type'])) {
-    sendJson(response, method, 415, {
-      error: { code: 'unsupported_media_type', message: 'Use content-type: application/json' },
-    })
-    return
-  }
+  if (!requireMutationHeader(request, response, method, true)) return
 
   const body = await readJsonBody(request)
   if (!body.ok) {
-    sendJson(response, method, body.status, {
-      error: { code: body.code, message: body.message },
-    })
+    sendJson(response, method, body.status, { error: { code: body.code, message: body.message } })
     return
   }
   if (!isRecord(body.value)) {
@@ -377,10 +698,80 @@ async function handleMutation(
   }
 }
 
+function requireMutationHeader(
+  request: IncomingMessage,
+  response: ServerResponse,
+  method: string,
+  requireJson = false
+): boolean {
+  if (request.headers[PANEL_HEADER] !== '1') {
+    sendJson(response, method, 403, {
+      error: {
+        code: 'missing_panel_header',
+        message: `Mutations require the ${PANEL_HEADER}: 1 request header`,
+      },
+    })
+    return false
+  }
+  if (requireJson && !isJsonContentType(request.headers['content-type'])) {
+    sendJson(response, method, 415, {
+      error: { code: 'unsupported_media_type', message: 'Use content-type: application/json' },
+    })
+    return false
+  }
+  return true
+}
+
+function sendAuthFailure(response: ServerResponse, method: string, cause: unknown): void {
+  if (cause instanceof PanelAuthError) {
+    sendJson(
+      response,
+      method,
+      cause.status,
+      { error: { code: cause.code, message: cause.message } },
+      cause.retryAfter ? { 'retry-after': String(cause.retryAfter) } : undefined
+    )
+    return
+  }
+  sendJson(response, method, 500, {
+    error: { code: 'auth_failed', message: 'Could not complete the sign-in request' },
+  })
+}
+
+function authInfo(user: PanelAuthUser): PanelAuthInfo {
+  return { username: user.username, role: user.role }
+}
+
+function requestSource(request: IncomingMessage): string {
+  return request.socket.remoteAddress ?? 'unknown'
+}
+
 function invalidField(response: ServerResponse, method: string, field: string): void {
   sendJson(response, method, 400, {
     error: { code: 'invalid_body', message: `Invalid or unknown field: ${field}` },
   })
+}
+
+function sendBodyFailure(
+  response: ServerResponse,
+  method: string,
+  body: Extract<Awaited<ReturnType<typeof readJsonBody>>, { ok: false }>
+): void {
+  sendJson(response, method, body.status, {
+    error: { code: body.code, message: body.message },
+  })
+}
+
+function harnessUnknownField(body: Record<string, unknown>): string | undefined {
+  return unknownFields(body, [
+    'kind',
+    'label',
+    'baseUrl',
+    'authType',
+    'username',
+    'password',
+    'options',
+  ])
 }
 
 function unknownFields(body: Record<string, unknown>, allowed: string[]): string | undefined {
@@ -436,6 +827,15 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
 
+function decodeSegment(value: string): string | undefined {
+  try {
+    const decoded = decodeURIComponent(value)
+    return decoded && decoded.length <= 128 && !decoded.includes('/') ? decoded : undefined
+  } catch {
+    return undefined
+  }
+}
+
 function resolveAssetsRoot(assetsDir: string | undefined): string | undefined {
   if (!assetsDir) return undefined
   try {
@@ -479,13 +879,15 @@ function sendJson(
   response: ServerResponse,
   method: string | undefined,
   status: number,
-  body: unknown
+  body: unknown,
+  headers?: Record<string, string>
 ): void {
   const text = JSON.stringify(body)
   response.statusCode = status
   response.setHeader('content-type', 'application/json; charset=utf-8')
   response.setHeader('cache-control', 'no-store')
   response.setHeader('content-length', Buffer.byteLength(text))
+  for (const [name, value] of Object.entries(headers ?? {})) response.setHeader(name, value)
   response.end(method === 'HEAD' ? undefined : text)
 }
 
@@ -514,7 +916,7 @@ function sendBuffer(
   response.end(method === 'HEAD' ? undefined : body)
 }
 
-function listen(server: Server, port: number): Promise<void> {
+function listen(server: Server, host: string, port: number): Promise<void> {
   return new Promise((resolvePromise, reject) => {
     const onError = (cause: Error) => {
       server.off('listening', onListening)
@@ -526,7 +928,7 @@ function listen(server: Server, port: number): Promise<void> {
     }
     server.once('error', onError)
     server.once('listening', onListening)
-    server.listen(port, '127.0.0.1')
+    server.listen(port, host)
   })
 }
 
@@ -535,4 +937,17 @@ function closeServer(server: Server): Promise<void> {
     server.close(() => resolvePromise())
     server.closeAllConnections()
   })
+}
+
+function formatHost(host: string): string {
+  return host.includes(':') && !host.startsWith('[') ? `[${host}]` : host
+}
+
+function isUnspecifiedHost(host: string): boolean {
+  return host === '0.0.0.0' || host === '::' || host === '[::]'
+}
+
+function isContainerized(): boolean {
+  const value = process.env.CLARA_SERVER_CONTAINER?.trim().toLowerCase()
+  return value === '1' || value === 'true' || value === 'yes'
 }

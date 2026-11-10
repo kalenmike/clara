@@ -27,7 +27,9 @@ import {
   type SyncPushAction,
   type WireFrame,
 } from '@clara/shared-types'
-import { OpenCodeClient, responseHeaders, type HttpRequestAction } from './opencode.ts'
+import type { HarnessManager } from './harness/manager.ts'
+import { HarnessUnconfiguredError } from './harness/types.ts'
+import { responseHeaders, type HttpRequestAction } from './opencode.ts'
 import type { PushService } from './push/service.ts'
 import { DEFAULT_SHELL_POLICY, evaluateShellRequest, type ShellDecision } from './shell-policy.ts'
 import type { ClientStorageStore, SyncCheckResult, SyncResult } from './store/client-storage.ts'
@@ -92,7 +94,7 @@ export type AgentPolicy = {
 }
 
 export type AgentOptions = {
-  openCode: OpenCodeClient
+  harness: HarnessManager
   psk: string
   info: AgentInfo
   send: (frame: WireFrame) => void
@@ -684,6 +686,18 @@ export class Agent {
     if (typeof action.id !== 'string' || action.id.length === 0 || action.id.length > 128) return
     if (session.requests.has(action.id)) return
 
+    if (!this.options.harness.configured) {
+      this.respondJsonError(
+        session,
+        action.id,
+        503,
+        'Service Unavailable',
+        'harness_unconfigured',
+        'No harness connection is configured. Set one up in the agent panel.'
+      )
+      return
+    }
+
     const decision = evaluateShellRequest(
       this.options.policy?.shellPolicy?.() ?? DEFAULT_SHELL_POLICY,
       action
@@ -722,12 +736,30 @@ export class Agent {
     id: string,
     decision: Exclude<ShellDecision, { allowed: true }>
   ): void {
-    const body = utf8(JSON.stringify({ error: { code: decision.code, message: decision.message } }))
+    this.respondJsonError(
+      session,
+      id,
+      decision.status,
+      decision.status === 403 ? 'Forbidden' : 'Bad Request',
+      decision.code,
+      decision.message
+    )
+  }
+
+  private respondJsonError(
+    session: Session,
+    id: string,
+    status: number,
+    statusText: string,
+    code: string,
+    message: string
+  ): void {
+    const body = utf8(JSON.stringify({ error: { code, message } }))
     this.enqueue(session, {
       type: 'http.response',
       id,
-      status: decision.status,
-      statusText: decision.status === 403 ? 'Forbidden' : 'Bad Request',
+      status,
+      statusText,
       headers: { 'content-type': 'application/json' },
     })
     this.enqueue(session, { type: 'http.chunk', id, data: bytesToBase64Url(body) })
@@ -740,7 +772,7 @@ export class Agent {
     controller: AbortController
   ): Promise<void> {
     try {
-      const response = await this.options.openCode.request(action, controller.signal)
+      const response = await this.options.harness.request(action, controller.signal)
       this.enqueue(session, {
         type: 'http.response',
         id: action.id,
@@ -770,14 +802,25 @@ export class Agent {
 
       this.enqueue(session, { type: 'http.end', id: action.id })
     } catch (cause) {
-      const aborted = controller.signal.aborted
-      if (!aborted) this.options.traffic?.recordError('upstream')
-      this.enqueue(session, {
-        type: 'http.error',
-        id: action.id,
-        code: aborted ? 'aborted' : 'upstream_error',
-        message: aborted ? 'Request aborted' : errorMessage(cause),
-      })
+      if (!(cause instanceof HarnessUnconfiguredError)) {
+        const aborted = controller.signal.aborted
+        if (!aborted) this.options.traffic?.recordError('upstream')
+        this.enqueue(session, {
+          type: 'http.error',
+          id: action.id,
+          code: aborted ? 'aborted' : 'upstream_error',
+          message: aborted ? 'Request aborted' : errorMessage(cause),
+        })
+      } else {
+        this.respondJsonError(
+          session,
+          action.id,
+          503,
+          'Service Unavailable',
+          cause.code,
+          cause.message
+        )
+      }
     } finally {
       session.requests.delete(action.id)
     }

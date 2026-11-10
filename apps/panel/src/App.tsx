@@ -1,10 +1,21 @@
 import { useMemo } from 'react'
-import { CircleAlert, Eye, EyeOff, LoaderCircle, RefreshCw, ShieldCheck } from 'lucide-react'
+import {
+  CircleAlert,
+  Eye,
+  EyeOff,
+  LoaderCircle,
+  LogOut,
+  RefreshCw,
+  ShieldCheck,
+} from 'lucide-react'
 import { PANEL_API_VERSION } from '@clara/shared-types'
 import { formatTimestamp } from './lib/format.ts'
 import { collectSecrets } from './lib/peek.ts'
 import { PeekProvider, usePeek } from './lib/peek-context.tsx'
 import { useAgentSnapshot } from './lib/use-agent-snapshot.ts'
+import { useSession, type SessionController } from './lib/use-session.ts'
+import { AuthScreen } from './components/auth-screen.tsx'
+import { HarnessCard } from './components/harness-card.tsx'
 import { ClientSyncCard } from './components/client-sync-card.tsx'
 import { ClientsTable } from './components/clients-table.tsx'
 import { EventsCard } from './components/events-list.tsx'
@@ -25,17 +36,25 @@ import { TrafficCard } from './components/traffic-card.tsx'
 type SnapshotState = ReturnType<typeof useAgentSnapshot>
 
 export function App() {
-  const state = useAgentSnapshot()
+  const session = useSession()
+  const authenticated = session.status?.authenticated === true
+  const state = useAgentSnapshot({
+    enabled: authenticated,
+    onUnauthorized: session.invalidate,
+  })
   const secrets = useMemo(() => collectSecrets(state.data), [state.data])
+
+  if (session.loading && session.status === undefined) return <SessionLoading />
+  if (!authenticated) return <AuthScreen session={session} />
 
   return (
     <PeekProvider secrets={secrets}>
-      <Panel state={state} />
+      <Panel state={state} session={session} />
     </PeekProvider>
   )
 }
 
-function Panel({ state }: { state: SnapshotState }) {
+function Panel({ state, session }: { state: SnapshotState; session: SessionController }) {
   const { data, error, loading, refreshing, updatedAt, now, refresh } = state
   const { redact } = usePeek()
   const clock = now ?? updatedAt ?? 0
@@ -75,6 +94,14 @@ function Panel({ state }: { state: SnapshotState }) {
               </span>
             ) : null}
             <PeekButton />
+            <button
+              type="button"
+              onClick={() => void session.logout()}
+              className="inline-flex items-center gap-1.5 rounded-lg border border-neutral-200 bg-white px-2.5 py-1.5 text-xs font-medium text-neutral-700 shadow-sm transition hover:bg-neutral-100 dark:border-neutral-800 dark:bg-neutral-900 dark:text-neutral-200 dark:hover:bg-neutral-800"
+            >
+              <LogOut className="size-3.5" aria-hidden="true" />
+              Sign out
+            </button>
             <button
               type="button"
               onClick={refresh}
@@ -119,6 +146,13 @@ function Panel({ state }: { state: SnapshotState }) {
               />
               <ConfigCard config={data.config} />
             </div>
+
+            <HarnessCard
+              harness={data.harness}
+              harnesses={data.harnesses}
+              onChanged={refresh}
+              now={clock}
+            />
 
             <ClientsTable clients={data.clients} now={clock} />
 
@@ -172,7 +206,7 @@ function Panel({ state }: { state: SnapshotState }) {
         <footer className="mt-6 flex flex-wrap items-center justify-between gap-2 border-t border-neutral-200 pt-3 text-[11px] text-neutral-500 dark:border-neutral-800 dark:text-neutral-400">
           <span className="inline-flex items-center gap-1.5">
             <ShieldCheck className="size-3.5" aria-hidden="true" />
-            Loopback only · shared settings · secrets are never shown
+            Signed in as {data?.auth.username ?? 'admin'} · secrets are never shown
           </span>
           <span>
             API v{data?.apiVersion ?? PANEL_API_VERSION} · generated{' '}
@@ -209,6 +243,18 @@ function PeekButton() {
         <EyeOff className="size-3.5" aria-hidden="true" />
       )}
     </button>
+  )
+}
+
+function SessionLoading() {
+  return (
+    <div
+      className="flex min-h-screen items-center justify-center bg-neutral-50 dark:bg-neutral-950"
+      aria-busy="true"
+      aria-label="Checking panel session"
+    >
+      <LoaderCircle className="size-6 animate-spin text-neutral-400" aria-hidden="true" />
+    </div>
   )
 }
 

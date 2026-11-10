@@ -1,17 +1,11 @@
 import { base64UrlToBytes } from '@clara/crypto'
 import type { ClaraAction } from '@clara/shared-types'
+import type { HarnessClient, HarnessProbe } from './harness/types.ts'
 import { SERVER_VERSION } from './version.ts'
 
 export type HttpRequestAction = Extract<ClaraAction, { type: 'http.request' }>
 
-export type OpenCodeProbe = {
-  ok: boolean
-  version?: string
-  status?: number
-  latencyMs: number
-  code: 'ok' | 'timeout' | 'auth' | 'http' | 'unreachable' | 'disabled'
-  message?: string
-}
+export type OpenCodeProbe = HarnessProbe
 
 const MAX_BODY_BYTES = 10 * 1024 * 1024
 const HOP_BY_HOP = new Set([
@@ -28,7 +22,8 @@ const HOP_BY_HOP = new Set([
   'upgrade',
 ])
 
-export class OpenCodeClient {
+export class OpenCodeClient implements HarnessClient {
+  readonly kind = 'opencode' as const
   private readonly baseUrl: URL
   private readonly password?: string
 

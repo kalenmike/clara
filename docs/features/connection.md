@@ -3,36 +3,43 @@
 ## Summary
 
 Connects Clara to one OpenCode server, either through the Clara home agent over
-an end-to-end encrypted WebSocket or directly over HTTP. The connect screen also
-pairs new devices by scanning a QR code with the camera or pasting its code, and
-proves the connection before showing data.
+an end-to-end encrypted WebSocket or directly over HTTP. Before pairing, the
+home agent's authenticated panel must contain an active OpenCode harness
+connection; the server no longer discovers OpenCode's `service.json`. The
+connect screen pairs new devices by scanning a QR code with the camera or
+pasting its code, and proves the connection before showing data.
 
 ## User flow
 
-1. Open Clara. A branded splash shows while Clara checks a pairing link in the
+1. Start the home agent and open its panel. Complete the one-time setup token,
+   sign in, and save the OpenCode base URL and password in **Harness
+   connections**. In a container, use the OpenCode service name
+   (`http://opencode:4096`) or another address reachable from the `clara`
+   network.
+2. Open Clara. A branded splash shows while Clara checks a pairing link in the
    URL fragment, a stored device, or a local service. A successful attempt opens
    the last project without showing the connect forms.
-2. If no connection is confirmed, the connect screen offers two controls:
+3. If no connection is confirmed, the connect screen offers two controls:
    **Pair this device** and **Connect directly**. Choosing one swaps the form;
    only the active form is shown.
-3. **Pair this device** offers **Scan QR code** and a paste field. Scanning
+4. **Pair this device** offers **Scan QR code** and a paste field. Scanning
    opens the rear camera and connects as soon as the QR printed by
    `clara-server pair` is recognized; a `clara1_…` code or `#pair=` link can
    still be pasted. A pairing link opened directly starts on the splash with a
    connecting message. Clara stores the relay/local endpoint, room, client
    token, PSK, and fingerprint.
-4. Clara opens the WebSocket, completes the E2EE handshake, verifies the
+5. Clara opens the WebSocket, completes the E2EE handshake, verifies the
    fingerprint, and calls the OpenCode info endpoint through the tunnel.
-5. On success Clara stores the pairing and opens the last project, or the first
+6. On success Clara stores the pairing and opens the last project, or the first
    project the server returns.
-6. On failure the active form explains whether the code, key fingerprint, relay,
+7. On failure the active form explains whether the code, key fingerprint, relay,
    authentication, reachability, or CORS failed. A failed pairing link returns
    to the pair form with the reason.
-7. The local-service card sits below the active form when a service is detected.
-8. **Settings → Reconnect** re-proves the current transport without clearing
+8. The local-service card sits below the active form when a service is detected.
+9. **Settings → Reconnect** re-proves the current transport without clearing
    credentials. The sidebar health control offers the same action.
-9. **Settings → Disconnect** clears the stored device and returns here.
-10. Direct mode keeps the URL/password form for an operator-managed OpenCode
+10. **Settings → Disconnect** clears the stored device and returns here.
+11. Direct mode keeps the URL/password form for an operator-managed OpenCode
     server or a local dev proxy.
 
 ## Core business rules
@@ -55,10 +62,15 @@ proves the connection before showing data.
    modes preserves the typed values; it does not start a connection.
 8. The event stream is healthy only while chunks keep arriving. The agent sends
    a heartbeat every 15 seconds; 45 seconds of silence is treated as dead.
-9. The local proxy only finds a server registered in `service.json` by
-   `opencode service start`. A foreground `opencode serve` must be connected
-   manually with its URL, password, and a CORS entry for Clara's origin.
-10. Push notifications need the home agent's E2EE transport; direct HTTP mode
+9. The Vite dev proxy still finds a server registered in `service.json` by
+   `opencode service start`. That is a direct-mode development convenience, not
+   the home agent's harness setup. A foreground `opencode serve` must be
+   connected manually with its URL, password, and a CORS entry for Clara's
+   origin.
+10. The home agent resolves its active harness connection from SQLite. If none
+    is configured, the tunnel can connect but `/api/info` returns `503` with
+    `harness_unconfigured`; configure it in the panel first.
+11. Push notifications need the home agent's E2EE transport; direct HTTP mode
     has no control channel and leaves push unavailable.
 
 ## Edge cases
@@ -73,6 +85,11 @@ proves the connection before showing data.
 - **Fingerprint mismatch** — the E2EE handshake closes with `4001`; re-pair.
 - **Agent offline** — the client connects, receives `1013`, and reports that the
   home server is unreachable.
+- **Harness not configured** — the agent connects but the OpenCode probe fails
+  with `harness_unconfigured`. Open the panel and save an active connection.
+- **Harness reachable from the host but not the container** — `127.0.0.1` inside
+  the server container is the Clara server. Use the OpenCode container service
+  name or an address reachable from the `clara` network.
 - **Server down or wrong port** — direct mode explains that the URL, CORS, or
   process may be wrong.
 - **502 from the local proxy** — `service.json` points at a stopped or restarted
@@ -134,8 +151,12 @@ proves the connection before showing data.
 - Pairing scanner: `apps/web/src/features/connect/use-qr-scanner.ts`; decoding
   and camera error copy in `apps/web/src/lib/qr-scan.ts`
 - Relay transport: `apps/web/src/lib/transport/relay.ts`
-- Home agent: `apps/server/src/` (`config`, `agent`, `local-server`,
+- Home agent: `apps/server/src/` (`config`, `agent`, `harness`, `local-server`,
   `relay-client`, `pairing`)
+- Harness setup: panel → `harness_connections` in `clara.db`; the active
+  OpenCode adapter adds basic auth and proxies `/api/*`
+- Server container: `pnpm clara server start --docker`; panel and local
+  WebSocket publish on host loopback, harness URLs use the `clara` Docker network
 - Stream health: `onActivity` tracks every chunk, including the 15s heartbeat;
   the watchdog aborts after 45s of silence
 - Storage keys: `clara.connection.local`, `clara.connection.session`

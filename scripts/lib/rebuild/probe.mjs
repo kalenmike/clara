@@ -196,29 +196,28 @@ export async function probeControl({
   localPort: local = localPort(),
   timeoutMs = 1500,
 } = {}) {
-  const panelURL = `http://127.0.0.1:${panel}/panel/api/v1/status`
+  const panelURL = `http://127.0.0.1:${panel}/health`
   const panelHealth = await fetchJson(panelURL, { timeoutMs })
   let panelInfo
-  if (panelHealth.ok && panelHealth.body && typeof panelHealth.body.apiVersion === 'number') {
+  if (
+    panelHealth.ok &&
+    panelHealth.body &&
+    panelHealth.body.ok === true &&
+    panelHealth.body.service === 'clara-server'
+  ) {
     const body = panelHealth.body
     panelInfo = {
       healthy: true,
       url: panelURL,
-      apiVersion: body.apiVersion,
-      pid: numberOrNull(body.agent?.pid),
-      version: stringOrUndefined(body.agent?.version),
-      stopped: body.agent?.stopped === true,
-      localPort: numberOrNull(body.config?.localPort?.value),
-      localActive: body.local?.active === true,
-      opencodeReachable: body.opencode?.reachable === true,
-      opencodeURL: stringOrUndefined(body.opencode?.url),
+      version: stringOrUndefined(body.version),
+      mode: body.mode === 'container' ? 'container' : 'local',
+      container: body.mode === 'container',
     }
   }
 
-  const effectiveLocalPort = panelInfo?.localPort ?? local
+  const effectiveLocalPort = local
   const localURL = `http://127.0.0.1:${effectiveLocalPort}/health`
-  const localHealth =
-    panelInfo?.localActive === false ? undefined : await fetchJson(localURL, { timeoutMs })
+  const localHealth = await fetchJson(localURL, { timeoutMs })
   let localInfo
   if (localHealth?.ok && localHealth.body && localHealth.body.ok === true) {
     localInfo = {
@@ -232,7 +231,9 @@ export async function probeControl({
 
   const expected = Boolean(panelInfo || localInfo)
   const pid =
-    panelInfo?.pid ?? findListenerPid(effectiveLocalPort) ?? findListenerPid(panel) ?? null
+    panelInfo?.container === true
+      ? null
+      : (findListenerPid(effectiveLocalPort) ?? findListenerPid(panel) ?? null)
   return {
     expected,
     healthy: expected,
@@ -242,7 +243,8 @@ export async function probeControl({
     pid,
     panelPort: panel,
     localPort: effectiveLocalPort,
-    systemd: systemdUnitActive('clara'),
+    ...(panelInfo?.mode ? { mode: panelInfo.mode } : {}),
+    systemd: panelInfo?.container === true ? false : systemdUnitActive('clara'),
   }
 }
 

@@ -17,8 +17,8 @@ Cloudflare relay, or connect directly on a trusted network.
 
 ```text
 apps/web              React/Vite SPA, deployed to Cloudflare Pages
-apps/panel            Loopback dashboard and admin controls served by the home agent
-apps/server           Node home agent, local WS + outbound relay
+apps/panel            Authenticated dashboard and setup surface served by the home agent
+apps/server           Node home agent, harness proxy, local WS + outbound relay
 apps/orchestrator     Loopback orchestration service, REST/SSE/MCP
 apps/mcp              stdio MCP bridge to the orchestration service
 plugins/clara-policy  OpenCode strict enforcement adapter
@@ -54,15 +54,26 @@ pnpm dev                    # web on :5173 and the home agent on :8788
 ```
 
 Open <http://localhost:5173>. The connect screen accepts a pairing code or a
-direct OpenCode URL/password. The home agent reads the OpenCode password from:
+direct OpenCode URL/password. The home agent does **not** read OpenCode's
+`service.json`; it reads the harness connection saved in the authenticated
+panel.
 
-```text
-${XDG_STATE_HOME:-~/.local/state}/opencode/service.json
-```
+First run:
+
+1. Start the agent (`pnpm dev` or `pnpm clara serve`).
+2. Open the panel at <http://127.0.0.1:8790>.
+3. Read the one-time setup token from `~/.config/clara/admin-setup.txt` or run
+   `pnpm clara server setup-token` (add `--docker` for the container).
+4. Choose the superadmin password, then add the OpenCode base URL and password.
+   Inside a container, use `http://opencode:4096` or another name reachable from
+   the `clara` network, not `127.0.0.1`.
+
+The harness is saved in SQLite with its secret encrypted at rest. The web client
+does not need to change.
 
 ### Agent panel
 
-The home agent serves a loopback dashboard and control surface on its own
+The home agent serves an authenticated dashboard and setup surface on its own
 listener. In development, run the API and the panel separately:
 
 ```bash
@@ -74,15 +85,35 @@ In a production build, the panel ships inside the agent and is available at
 <http://127.0.0.1:8790> after `pnpm build` and `pnpm clara serve`. Run
 `pnpm clara control` to open it: the command starts the built agent when it is
 not already serving the panel, opens the URL in a browser, and stays attached
-so the agent logs remain visible. It is loopback-only and never routed through
-the relay. From it you can disable the
-OpenCode connection, local transport, relay, or push, start and stop the local
-orchestration service, and stop every external connection while the process,
-panel, and database stay alive. Settings are
-stored at `CLARA_DB_PATH` or `~/.local/share/clara/clara.db` (mode `0600`). The panel
-shows no PSK, OpenCode password, relay tokens, push endpoints, sync values, or
-file contents. See [docs/features/panel.md](docs/features/panel.md) and
+so the agent logs remain visible. The panel never travels through the relay.
+From it you can configure the OpenCode harness, disable the harness connection,
+local transport, relay, or push, start and stop the local orchestration service,
+and stop every external connection while the process, panel, and database stay
+alive. Settings and harness connections are stored at `CLARA_DB_PATH` or
+`~/.local/share/clara/clara.db` (mode `0600`); harness passwords are encrypted
+with `secrets.key`. The panel never returns the PSK, harness password, relay
+tokens, push endpoints, sync values, or file contents. See
+[docs/features/panel.md](docs/features/panel.md) and
 [docs/features/agent-controls.md](docs/features/agent-controls.md).
+
+### Server container
+
+Docker is optional. The local foreground mode above stays the default.
+
+```bash
+docker network create clara      # once, or reuse the orchestrator stack
+pnpm clara server start --docker --build
+pnpm clara server status
+pnpm clara server setup-token --docker
+pnpm clara server pair --docker
+```
+
+The server joins the same `clara` network as the orchestrator and OpenCode. Its
+panel and local WebSocket are published on host loopback only. Use an SSH tunnel
+for remote panel access; the panel's `Host`/`Origin` guard still expects a
+loopback origin. Do not publish plain HTTP on the LAN. See
+[docs/features/connection.md](docs/features/connection.md) and
+[docs/features/panel.md](docs/features/panel.md).
 
 Existing installs that keep their databases under `~/.config/clara` should stop
 the agent and OpenCode, then move them once:
@@ -220,6 +251,7 @@ or the relay.
 | `pnpm clara pair`          | Print a pairing code                                        |
 | `pnpm clara control`       | Serve the built panel and open it in a browser              |
 | `pnpm clara serve`         | Run the built home agent                                    |
+| `pnpm clara server`        | Start, stop, inspect, pair, or reset the server container   |
 | `pnpm clara pass`          | Print the local OpenCode server password                    |
 | `pnpm clara orchestration` | Start, stop, analyze, or inspect the orchestration service  |
 | `pnpm clara runner`        | Run script steps for a workspace                            |
@@ -240,16 +272,21 @@ or the relay.
   at `~/.config/clara/server.json` (mode `0600`) on the agent.
 - Web Push subscriptions live at `~/.config/clara/subscriptions.json`; VAPID
   keys live at `~/.config/clara/vapid.json`. Both use mode `0600`.
-- Agent settings and non-secret client sync data live in
-  `~/.local/share/clara/clara.db` (mode `0600`). Credentials, push endpoints, and
-  sync secrets are never written there.
-- The agent panel listens only on `127.0.0.1:8790`, guards reads with
-  Host/Origin/fetch-metadata checks, and accepts only two JSON control routes
-  with a custom header and an 8 KB body limit. It never returns the PSK,
-  OpenCode password, relay tokens, push endpoints, sync values, or file
-  contents. It is not exposed through the relay or Pages.
+- Agent settings, client sync data, and harness connections live in
+  `~/.local/share/clara/clara.db` (mode `0600`). Harness passwords are encrypted
+  with `secrets.key` (mode `0600`) or `CLARA_SECRET_KEY`; the database alone does
+  not expose them. Push endpoints and sync secrets remain in their existing
+  files.
+- The agent panel requires a superadmin login. It listens on `127.0.0.1:8790`
+  by default, guards every request with Host/Origin/fetch-metadata checks, and
+  keeps the setup token in `admin-setup.txt` (mode `0600`) until the first login.
+  It never returns the PSK, harness password, relay tokens, push endpoints, sync
+  values, or file contents. It is not exposed through the relay or Pages.
+- A lost panel password is reset with `pnpm clara server admin reset` (add
+  `--docker` in a container). That command writes a new one-time setup token.
+  There is deliberately no network password-reset endpoint.
 - Never commit `.env`, `.dev.vars`, `service.json`, push subscriptions, VAPID
-  keys, pairing codes, tokens, or the PSK.
+  keys, pairing codes, tokens, the PSK, `secrets.key`, or `admin-setup.txt`.
 - Rotate with `pnpm clara pair --rotate`; this also clears
   every stored push subscription.
 

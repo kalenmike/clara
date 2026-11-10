@@ -6,9 +6,9 @@
  * agent on a loopback listener; it never travels through the relay.
  */
 
-export const PANEL_API_VERSION = 7
+export const PANEL_API_VERSION = 8
 
-export type PanelValueSource = 'env' | 'file' | 'service' | 'default' | 'generated' | 'none'
+export type PanelValueSource = 'env' | 'file' | 'database' | 'default' | 'generated' | 'none'
 
 export type PanelValue<T> = {
   value: T
@@ -38,17 +38,93 @@ export type PanelAgentInfo = {
   configDir: string
   pskConfigured: boolean
   stopped: boolean
+  /** True when this agent runs in a container. */
+  container: boolean
   fingerprint?: string
 }
 
 export type PanelConfigInfo = {
-  opencodeUrl: PanelValue<string>
-  opencodePassword: PanelValue<boolean>
   localHost: PanelValue<string>
   localPort: PanelValue<number>
   relayUrl: PanelValue<string | null>
   relayRoom: PanelValue<string | null>
   pairingBaseUrl: PanelValue<string>
+}
+
+export type PanelAuthInfo = {
+  username: string
+  role: 'superadmin'
+}
+
+export type PanelAuthStatus =
+  { authenticated: false; setupRequired: boolean } | { authenticated: true; user: PanelAuthInfo }
+
+export type PanelLoginUpdate = {
+  username: string
+  password: string
+}
+
+export type PanelSetupUpdate = {
+  token: string
+  username: string
+  password: string
+}
+
+export type PanelPasswordUpdate = {
+  currentPassword: string
+  newPassword: string
+}
+
+export type PanelHarnessKind = 'opencode'
+export type PanelHarnessAuthType = 'none' | 'basic'
+
+export type PanelHarness = {
+  id: string
+  kind: PanelHarnessKind
+  label: string
+  baseUrl: string
+  authType: PanelHarnessAuthType
+  username?: string
+  options: Record<string, unknown>
+  isActive: boolean
+  secretConfigured: boolean
+  lastTestAt?: string
+  lastTestOk?: boolean
+  lastTestError?: string
+  createdAt: string
+  updatedAt: string
+}
+
+export type PanelHarnessState = {
+  configured: boolean
+  activeId?: string
+  error?: string
+}
+
+export type PanelHarnessUpdate = {
+  kind: PanelHarnessKind
+  label: string
+  baseUrl: string
+  authType: PanelHarnessAuthType
+  username?: string
+  /** Empty or absent while editing keeps the stored secret. */
+  password?: string
+  options?: Record<string, unknown>
+}
+
+export type PanelHarnessTestResult = {
+  ok: boolean
+  code: string
+  message?: string
+  version?: string
+  status?: number
+  latencyMs: number
+  checkedAt: string
+}
+
+export type PanelHarnessMutationResponse = {
+  harnesses: PanelHarness[]
+  harness: PanelHarnessState
 }
 
 export type PanelOpenCodeInfo = {
@@ -57,10 +133,12 @@ export type PanelOpenCodeInfo = {
   reachable: boolean
   desired: boolean
   effective: boolean
+  configured: boolean
   version?: string
   latencyMs?: number
   checkedAt: string
-  code: 'ok' | 'timeout' | 'auth' | 'http' | 'unreachable' | 'disabled'
+  code:
+    'ok' | 'timeout' | 'auth' | 'http' | 'unreachable' | 'disabled' | 'unconfigured' | 'unsupported'
   error?: string
 }
 
@@ -120,7 +198,8 @@ export type PanelPushInfo = {
   error?: string
 }
 
-export type PanelStorageKey = 'config' | 'subscriptions' | 'vapid' | 'database'
+export type PanelStorageKey =
+  'config' | 'subscriptions' | 'vapid' | 'database' | 'setup-token' | 'secret-key'
 
 export type PanelSyncStats = {
   namespaces: number
@@ -314,8 +393,11 @@ export type PanelSnapshot = {
   apiVersion: number
   generatedAt: string
   agent: PanelAgentInfo
+  auth: PanelAuthInfo
   config: PanelConfigInfo
   opencode: PanelOpenCodeInfo
+  harness: PanelHarnessState
+  harnesses: PanelHarness[]
   local: PanelLocalTransport
   relay: PanelRelayTransport
   clients: PanelClientInfo[]

@@ -8,6 +8,7 @@ import type {
   PanelOpenCodeInfo,
   PanelPushInfo,
   PanelRelayTransport,
+  PanelValueSource,
 } from '@clara/shared-types'
 import { findFeature, useFeatureControl } from '../lib/feature-control.ts'
 import {
@@ -116,7 +117,7 @@ export function AgentCard({
           {formatRelative(agent.startedAt, now)}
         </KeyValue>
         <KeyValue label="Process" mono>
-          {agent.pid} · {agent.node}
+          {agent.container ? `container · pid ${agent.pid}` : `${agent.pid} · ${agent.node}`}
         </KeyValue>
         <KeyValue label="Platform" mono>
           {agent.platform}/{agent.arch}
@@ -149,35 +150,40 @@ export function OpenCodeCard({
   const control = useFeatureControl(feature, controls.stopped, onChanged)
   const { redact } = usePeek()
   const disabled = opencode.code === 'disabled'
+  const unconfigured = opencode.code === 'unconfigured'
   const tone: Tone = disabled
     ? 'neutral'
-    : opencode.reachable
-      ? 'success'
-      : opencode.code === 'auth'
-        ? 'warning'
-        : 'danger'
-  const status = disabled
-    ? 'Disabled'
-    : opencode.reachable
-      ? 'Reachable'
-      : opencode.code === 'auth'
-        ? 'Auth rejected'
-        : opencode.code === 'timeout'
-          ? 'Timed out'
-          : 'Unreachable'
+    : unconfigured
+      ? 'warning'
+      : opencode.reachable
+        ? 'success'
+        : opencode.code === 'auth'
+          ? 'warning'
+          : 'danger'
+  const status = unconfigured
+    ? 'Not configured'
+    : disabled
+      ? 'Disabled'
+      : opencode.reachable
+        ? 'Reachable'
+        : opencode.code === 'auth'
+          ? 'Auth rejected'
+          : opencode.code === 'timeout'
+            ? 'Timed out'
+            : 'Unreachable'
 
   return (
     <CollapsibleCard
-      title="OpenCode"
-      description="The upstream server this agent proxies"
+      title="Harness"
+      description="The active coding-agent connection this agent proxies"
       icon={<Cpu className="size-4" aria-hidden="true" />}
       action={<Badge tone={tone}>{status}</Badge>}
-      expandable={feature.desired}
+      expandable={feature.desired && opencode.configured}
       control={
         <Toggle
           checked={feature.desired}
           onChange={control.toggle}
-          label={`OpenCode connection: ${feature.desired ? 'on' : 'off'}`}
+          label={`Harness connection: ${feature.desired ? 'on' : 'off'}`}
           state={control.pending ? 'pending' : feature.desired ? 'on' : 'off'}
           disabled={control.disabled}
           stopped={controls.stopped}
@@ -195,22 +201,27 @@ export function OpenCodeCard({
       <CardBody>
         <KeyValue label="URL">
           <span className="inline-flex flex-wrap items-center justify-end gap-2">
-            <span className="font-mono text-xs">{opencode.url}</span>
-            <CopyButton value={opencode.url} label="Copy URL" />
+            <span className="font-mono text-xs">{opencode.url || 'Not configured'}</span>
+            {opencode.url ? <CopyButton value={opencode.url} label="Copy URL" /> : null}
           </span>
         </KeyValue>
         <KeyValue label="Desired">{opencode.desired ? 'On' : 'Off'}</KeyValue>
         <KeyValue label="Effective">{opencode.effective ? 'On' : 'Off'}</KeyValue>
         <KeyValue label="Version">{opencode.version ?? 'Unknown'}</KeyValue>
         <KeyValue label="Latency">{opencode.latencyMs ?? '—'} ms</KeyValue>
-        <KeyValue label="Password">
+        <KeyValue label="Secret">
           {opencode.passwordConfigured ? 'Configured' : 'Not configured'}
         </KeyValue>
         <KeyValue label="Checked" title={formatTimestamp(opencode.checkedAt)}>
           {formatRelative(opencode.checkedAt, now)}
         </KeyValue>
-        {opencode.error && !disabled ? (
+        {opencode.error && !disabled && !unconfigured ? (
           <Notice tone="danger">{redact(opencode.error)}</Notice>
+        ) : null}
+        {unconfigured ? (
+          <p className="pt-2 text-xs text-neutral-500 dark:text-neutral-400">
+            Add an OpenCode connection in the Harness connections card.
+          </p>
         ) : null}
       </CardBody>
     </CollapsibleCard>
@@ -452,16 +463,6 @@ export function ConfigCard({ config }: { config: PanelConfigInfo }) {
     >
       <CardBody>
         <ConfigRow
-          label="OpenCode URL"
-          value={config.opencodeUrl.value}
-          source={config.opencodeUrl.source}
-        />
-        <ConfigRow
-          label="OpenCode password"
-          value={config.opencodePassword.value ? 'Configured' : 'Not set'}
-          source={config.opencodePassword.source}
-        />
-        <ConfigRow
           label="Local host"
           value={config.localHost.value}
           source={config.localHost.source}
@@ -508,7 +509,7 @@ function ConfigRow({
 }: {
   label: string
   value: string
-  source: PanelConfigInfo['opencodeUrl']['source']
+  source: PanelValueSource
   mono?: boolean
   sensitive?: boolean
 }) {

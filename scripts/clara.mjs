@@ -10,7 +10,17 @@ import { join } from 'node:path'
 import { fail, main, root, runNode, runPnpm } from './lib/router.mjs'
 
 function pair(args) {
+  if (args.includes('--docker')) {
+    return runNode(join(root, 'scripts/server.mjs'), [
+      'pair',
+      ...args.filter((arg) => arg !== '--docker'),
+    ])
+  }
   return runPnpm(['--filter', '@clara/server', 'exec', 'tsx', 'src/index.ts', 'pair', ...args])
+}
+
+function server(args) {
+  return runNode(join(root, 'scripts/server.mjs'), args)
 }
 
 function serve(args) {
@@ -109,12 +119,13 @@ const clara = {
     {
       name: 'pair',
       summary: 'Print a pairing code for a device',
-      usage: '[--local] [--rotate] [--no-qr] [--no-panel]',
+      usage: '[--local] [--rotate] [--no-qr] [--no-panel] [--docker]',
       options: [
         { flags: '--local', description: 'Force a local-only pairing code' },
         { flags: '--rotate', description: 'Rotate the pairing key and clear push subscriptions' },
         { flags: '--no-qr', description: 'Print the code without the QR block' },
         { flags: '--no-panel', description: 'Do not start the panel listener while pairing' },
+        { flags: '--docker', description: 'Print the code from the server container' },
       ],
       run: pair,
     },
@@ -136,6 +147,21 @@ const clara = {
         { flags: '--no-panel', description: 'Do not start the panel listener' },
       ],
       run: serve,
+    },
+    {
+      name: 'server',
+      summary: 'Start, stop, inspect, or pair the home agent container',
+      usage: '<start|stop|status|setup-token|admin|pair|logs> [--docker] [--build]',
+      passthroughHelp: true,
+      examples: [
+        'pnpm clara server start --docker',
+        'pnpm clara server status',
+        'pnpm clara server setup-token --docker',
+        'pnpm clara server admin reset --docker',
+        'pnpm clara server pair --docker',
+        'pnpm clara server logs --docker',
+      ],
+      run: server,
     },
     {
       name: 'pass',

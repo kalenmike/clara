@@ -4,12 +4,15 @@ import {
   DEFAULT_SYNC_INTERVAL_MS,
   PANEL_API_VERSION,
   PROTOCOL_VERSION,
+  type PanelAuthInfo,
   type PanelClientInfo,
   type PanelConfigInfo,
   type PanelControls,
   type PanelEvent,
   type PanelFeatureControl,
   type PanelFeatureName,
+  type PanelHarness,
+  type PanelHarnessState,
   type PanelOpenCodeInfo,
   type PanelRelayTransport,
   type PanelSnapshot,
@@ -19,7 +22,9 @@ import {
 import { DEFAULT_SHELL_POLICY } from '../shell-policy.ts'
 import type { Agent } from '../agent.ts'
 import type { ServerConfig } from '../config.ts'
-import type { OpenCodeClient, OpenCodeProbe } from '../opencode.ts'
+import type { HarnessManager } from '../harness/manager.ts'
+import type { HarnessProbe } from '../harness/types.ts'
+import { harnessList, harnessState } from './harness.ts'
 import type { PushService } from '../push/service.ts'
 import type { RelayClient } from '../relay-client.ts'
 import type { ClientStorageStats } from '../store/client-storage.ts'
@@ -38,7 +43,7 @@ export type PanelDatabaseSource = {
 
 export type PanelRuntimeOptions = {
   config: ServerConfig
-  openCode: OpenCodeClient
+  harness: HarnessManager
   localAgent: Agent
   relayAgent?: Agent
   relayClient?: RelayClient
@@ -50,12 +55,13 @@ export type PanelRuntimeOptions = {
   startedAt: number
   controls?: () => PanelControls
   probeEnabled?: () => boolean
+  secretKey?: { path?: string; source: string }
   database?: PanelDatabaseSource
   log: PanelLog
 }
 
 export type PanelDataSource = {
-  snapshot: () => Promise<PanelSnapshot>
+  snapshot: (auth: PanelAuthInfo) => Promise<PanelSnapshot>
 }
 
 /**
@@ -65,15 +71,17 @@ export type PanelDataSource = {
  */
 export class PanelRuntime implements PanelDataSource {
   private readonly options: PanelRuntimeOptions
-  private probeCache: { at: number; result: OpenCodeProbe } | undefined
-  private probeInFlight: Promise<OpenCodeProbe> | undefined
+  private probeCache: { at: number; generation: number; result: HarnessProbe } | undefined
+  private probeInFlight: Promise<HarnessProbe> | undefined
+  private harnessSecrets: string[] = []
 
   constructor(options: PanelRuntimeOptions) {
     this.options = options
   }
 
-  async snapshot(): Promise<PanelSnapshot> {
+  async snapshot(auth: PanelAuthInfo): Promise<PanelSnapshot> {
     const now = Date.now()
+    this.harnessSecrets = await this.options.harness.redactionValues()
     const controls = this.controlsSnapshot()
     const probe = await this.getProbe(controls)
     const traffic = this.trafficSnapshot()
@@ -81,6 +89,7 @@ export class PanelRuntime implements PanelDataSource {
     const local = controlFor(controls, 'local')
     const relay = controlFor(controls, 'relay')
     const push = controlFor(controls, 'push')
+    const harness = this.harnessState()
 
     return {
       apiVersion: PANEL_API_VERSION,
@@ -99,10 +108,14 @@ export class PanelRuntime implements PanelDataSource {
         configDir: config.configDir,
         pskConfigured: Boolean(config.psk),
         stopped: controls.stopped,
+        container: isContainerized(),
         ...(this.options.fingerprint ? { fingerprint: this.options.fingerprint } : {}),
       },
+      auth,
       config: this.configSnapshot(),
       opencode: this.openCodeSnapshot(probe, now, controlFor(controls, 'opencode')),
+      harness,
+      harnesses: this.harnessList(),
       local: {
         host: config.local.host,
         port: config.local.port,
@@ -137,14 +150,6 @@ export class PanelRuntime implements PanelDataSource {
     const { config } = this.options
     const sources = config.sources
     return {
-      opencodeUrl: {
-        value: displayUrl(config.opencode.url),
-        source: sources.opencodeUrl,
-      },
-      opencodePassword: {
-        value: Boolean(config.opencode.password),
-        source: sources.opencodePassword,
-      },
       localHost: { value: config.local.host, source: sources.localHost },
       localPort: { value: config.local.port, source: sources.localPort },
       relayUrl: {
@@ -163,24 +168,34 @@ export class PanelRuntime implements PanelDataSource {
   }
 
   private openCodeSnapshot(
-    probe: OpenCodeProbe,
+    probe: HarnessProbe,
     now: number,
     control: PanelFeatureControl
   ): PanelOpenCodeInfo {
+    const active = this.options.harness.active
+    const error = control.error ?? this.options.harness.lastError ?? probe.message
     return {
-      url: displayUrl(this.options.config.opencode.url),
-      passwordConfigured: Boolean(this.options.config.opencode.password),
+      url: displayUrl(active?.baseUrl ?? ''),
+      passwordConfigured: active?.secretConfigured === true,
       reachable: probe.ok,
       desired: control.desired,
       effective: control.effective,
+      configured: this.options.harness.configured,
       ...(probe.version ? { version: probe.version } : {}),
       latencyMs: probe.latencyMs,
       checkedAt: new Date(this.probeCache?.at ?? now).toISOString(),
       code: probe.code,
-      ...((control.error ?? probe.message)
-        ? { error: this.redact(control.error ?? probe.message ?? '') }
-        : {}),
+      ...(error ? { error: this.redact(error) } : {}),
     }
+  }
+
+  private harnessState(): PanelHarnessState {
+    const state = harnessState(this.options.harness)
+    return state.error ? { ...state, error: this.redact(state.error) } : state
+  }
+
+  private harnessList(): PanelHarness[] {
+    return harnessList(this.options.harness)
   }
 
   private relaySnapshot(stopped: boolean, control: PanelFeatureControl): PanelRelayTransport {
@@ -241,25 +256,38 @@ export class PanelRuntime implements PanelDataSource {
     return this.options.log.list()
   }
 
-  private async getProbe(controls: PanelControls): Promise<OpenCodeProbe> {
+  private async getProbe(controls: PanelControls): Promise<HarnessProbe> {
+    if (!this.options.harness.configured) {
+      return {
+        ok: false,
+        latencyMs: 0,
+        code: 'unconfigured',
+        message: this.options.harness.lastError ?? 'No harness connection is configured',
+      }
+    }
     if (!controlFor(controls, 'opencode').effective || this.options.probeEnabled?.() === false) {
       return {
         ok: false,
         latencyMs: 0,
         code: 'disabled',
-        message: 'OpenCode access is disabled by an admin setting',
+        message: 'Harness access is disabled by an admin setting',
       }
     }
 
     const now = Date.now()
-    if (this.probeCache && now - this.probeCache.at < PROBE_TTL_MS) {
+    const generation = this.options.harness.generation
+    if (
+      this.probeCache &&
+      this.probeCache.generation === generation &&
+      now - this.probeCache.at < PROBE_TTL_MS
+    ) {
       return this.probeCache.result
     }
     if (!this.probeInFlight) {
-      this.probeInFlight = this.options.openCode
+      this.probeInFlight = this.options.harness
         .probe()
         .then((result) => {
-          this.probeCache = { at: Date.now(), result }
+          this.probeCache = { at: Date.now(), generation, result }
           return result
         })
         .finally(() => {
@@ -277,7 +305,12 @@ export class PanelRuntime implements PanelDataSource {
     return {
       stopped: false,
       features: [
-        { name: 'opencode', configured: true, desired: true, effective: true },
+        {
+          name: 'opencode',
+          configured: this.options.harness.configured,
+          desired: true,
+          effective: this.options.harness.configured,
+        },
         { name: 'local', configured: true, desired: true, effective: true },
         { name: 'relay', configured: relayConfigured, desired: true, effective: relayConfigured },
         {
@@ -310,7 +343,28 @@ export class PanelRuntime implements PanelDataSource {
         false
       ),
       describeStorage('vapid', 'VAPID keys', join(config.configDir, 'vapid.json'), false),
+      describeStorage(
+        'setup-token',
+        'Panel setup token',
+        join(config.configDir, 'admin-setup.txt'),
+        false
+      ),
     ]
+    if (this.options.secretKey?.path) {
+      entries.push(
+        describeStorage('secret-key', 'Harness secret key', this.options.secretKey.path, true)
+      )
+    } else {
+      entries.push({
+        key: 'secret-key',
+        label: 'Harness secret key',
+        path: this.options.secretKey?.source ?? 'environment',
+        exists: true,
+        writable: false,
+        status: 'ok',
+        detail: 'Provided by the environment',
+      })
+    }
     if (this.options.database) {
       const database = this.options.database
       const entry = describeStorage('database', 'Agent database', database.path, true)
@@ -332,16 +386,21 @@ export class PanelRuntime implements PanelDataSource {
 
   private redact(value: string): string {
     const secrets = [
-      this.options.config.opencode.password,
       this.options.config.psk,
       this.options.config.relay?.agentToken,
       this.options.config.relay?.clientToken,
+      ...this.harnessSecrets,
     ].filter((secret): secret is string => Boolean(secret))
 
     let text = value
     for (const secret of secrets) text = text.split(secret).join('[redacted]')
     return clip(text, MAX_ERROR_LENGTH)
   }
+}
+
+function isContainerized(): boolean {
+  const value = process.env.CLARA_SERVER_CONTAINER?.trim().toLowerCase()
+  return value === '1' || value === 'true' || value === 'yes'
 }
 
 function toClient(
@@ -454,6 +513,7 @@ function isMissing(cause: unknown): boolean {
 }
 
 function displayUrl(value: string): string {
+  if (!value) return ''
   try {
     const url = new URL(value)
     url.username = ''

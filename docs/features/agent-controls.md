@@ -3,14 +3,14 @@
 ## Summary
 
 The home agent can be stopped, and its external connections switched on or
-off, from the loopback panel without editing files or restarting the service.
+off, from the authenticated panel without editing files or restarting the service.
 The process, panel, and database stay available so the agent can always be
 started again. The panel also starts and stops the local orchestration service
 and owns the global gate and check cadence for client settings sync.
 
 ## User flow
 
-1. Open the panel at `http://127.0.0.1:8790/` on the machine running the agent.
+1. Open the panel at `http://127.0.0.1:8790/` on the machine running the agent and sign in with the superadmin account.
 2. The **Agent**, **Effective configuration**, **Connected clients**, and
    **Recent activity** cards start expanded; every other card starts collapsed.
    Click a card header to expand or collapse it.
@@ -99,12 +99,13 @@ and owns the global gate and check cadence for client settings sync.
 
 ## Known gaps
 
-- Loopback is not a user boundary. Any process or browser extension on the
-  machine can read and now also change the controls.
+- Authentication is not host isolation. Any process with the panel cookie or
+  the database and secret key can still change the controls.
 - A relay that is enabled but unreachable keeps retrying; the switch reads
   effective while the relay card shows reconnecting or offline.
-- The panel has no authentication by design, so it must never be exposed beyond
-  loopback.
+- The panel is authenticated, but its `Host`/`Origin` guard still expects a
+  loopback origin. Use an SSH tunnel for remote access; direct LAN access is not
+  enabled in this phase.
 
 ## Technical appendix
 
@@ -117,11 +118,13 @@ and owns the global gate and check cadence for client settings sync.
   separate shell policy, `monitoring.enabled`, `sync.enabled` plus
   `sync.intervalMs` for client settings sync, and `orchestration.enabled` for
   the local service
-- Read API: `GET /panel/api/v1/status`
+- Read API: `GET /panel/api/v1/status` (authenticated)
+- Session: `GET|POST|DELETE /panel/api/v1/session`; setup: `POST /panel/api/v1/setup`
+- Harness: `POST /panel/api/v1/harnesses` and `POST /panel/api/v1/harnesses/:id/test|activate`
 - Mutations: `POST /panel/api/v1/features`, `POST /panel/api/v1/agent`,
   `POST /panel/api/v1/shell`, `POST /panel/api/v1/monitoring`,
   `POST /panel/api/v1/sync`, and `POST /panel/api/v1/orchestration`
-- Mutation guards: loopback, `Host`, `Origin`, `Sec-Fetch-Site`,
+- Mutation guards: session, optional bridge source opt-in, `Host`, `Origin`, `Sec-Fetch-Site`,
   `content-type: application/json`, `x-clara-panel: 1`, 8 KB body limit,
   no unknown fields, no CORS headers
 - Related: [panel.md](panel.md), [overview.md](../architecture/overview.md),
