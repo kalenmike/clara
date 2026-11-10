@@ -47,7 +47,42 @@ Run `start` and `close` from the primary checkout. `start` creates branch
 runs the checks and build, merges into the primary `HEAD`, then removes the
 worktree and branch. See [docs/development.md](docs/development.md).
 
-## Quick start
+## Fast setup
+
+With OpenCode 2.1.x running, a local checkout needs:
+
+```bash
+pnpm install
+pnpm clara start --local --build
+pnpm clara server setup-token --host
+pnpm clara server panel
+# In the panel: choose the superadmin password and save the OpenCode URL/password.
+pnpm clara pair --local
+# Open http://127.0.0.1:8080 and pair.
+```
+
+On a fresh install, `setup-token` prints the one-time token. Skip it if the
+panel already has an admin.
+
+For Docker, use `pnpm clara start --build` and
+`pnpm clara server setup-token --docker`. `pair --local` is for the same
+machine; use `pnpm clara pair` without `--local` for a relay pairing on a phone
+or another device.
+
+For orchestration only, install the harness adapter after the stack is up:
+
+```bash
+pnpm clara adapter install --opencode
+```
+
+Only the OpenCode adapter is installable today.
+
+The home agent does **not** read OpenCode's `service.json`; it reads the harness
+connection saved in the authenticated panel. The harness is saved in SQLite with
+its secret encrypted at rest. See [First run](#first-run) for the token file
+and container networking details.
+
+## Development quick start
 
 ```bash
 pnpm install
@@ -56,11 +91,9 @@ pnpm dev                    # web on :5173 and the home agent on :8788
 pnpm clara pair             # print a pairing code for the connect screen
 ```
 
-Open <http://localhost:5173> and pair with the code from `pnpm clara pair`. The
-home agent does **not** read OpenCode's `service.json`; it reads the harness
-connection saved in the authenticated panel.
+Open <http://localhost:5173> and pair with the code from `pnpm clara pair`.
 
-First run:
+### First run
 
 1. Start the agent (`pnpm dev` or `pnpm clara server start --local`).
 2. Open the panel at <http://127.0.0.1:8790>, or run `pnpm clara server panel`.
@@ -69,9 +102,6 @@ First run:
 4. Choose the superadmin password, then add the OpenCode base URL and password.
    Inside a container, use `http://opencode:4096` or another name reachable from
    the `clara` network, not `127.0.0.1`.
-
-The harness is saved in SQLite with its secret encrypted at rest. The web client
-does not need to change.
 
 ### Agent panel
 

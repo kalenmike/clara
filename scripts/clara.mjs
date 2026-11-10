@@ -94,11 +94,11 @@ const clara = {
   name: 'clara',
   summary: 'Clara developer tools',
   examples: [
-    'pnpm clara start',
-    'pnpm clara start --local',
-    'pnpm clara server start --local',
+    'pnpm clara start --local --build',
+    'pnpm clara server setup-token --host',
     'pnpm clara server panel',
     'pnpm clara pair --local',
+    'pnpm clara adapter install --opencode',
     'pnpm clara lab',
   ],
   commands: [
