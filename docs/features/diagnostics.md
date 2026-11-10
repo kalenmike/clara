@@ -25,7 +25,7 @@ whether the watchdog and budgets are configured correctly.
 4. `pattern_failures` groups consistently failing pipelines and steps, repeated
    error signatures, retry exhaustion, stalls, budget failures, and alert
    anomalies such as event storms.
-5. `audit_setup` reads the orchestration YAML, routers, and task documents and
+5. `audit_setup` reads the orchestration YAML, routers, agents, and scripts and
    compares them with the evidence.
 6. `rank_issues` merges related findings and assigns severity and confidence.
    `propose_fixes` gives the smallest concrete change, verification, and risk.
@@ -48,7 +48,8 @@ whether the watchdog and budgets are configured correctly.
    change.
 5. **It must run on a broken setup.** The package uses `observed` enforcement,
    so a missing or stale strict adapter does not prevent the diagnosis. The
-   tasks themselves are read-only by prompt and permissions.
+   interpretation agents are read-only by prompt and permissions; evidence
+   collection is a script.
 6. **The default window is 30 days.** `--days 0` analyzes all history. A request
    that names a window overrides the default.
 7. **The report is bounded.** The analyzer caps signatures, step groups, sample

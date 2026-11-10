@@ -41,12 +41,24 @@ export interface StepArtifact {
   exists?: boolean
 }
 
+export interface ScriptSpec {
+  command: string
+  interpreter?: string
+  cwd?: string
+  env?: Record<string, string>
+  passEnv?: string[]
+  timeoutSeconds?: number
+  successCodes?: number[]
+  resultMode?: 'auto' | 'json' | 'text' | 'exit' | 'tail'
+  maxOutputBytes?: number
+}
+
 export interface WorkOrder {
   run_id: number
   step_path: string
   name: string
   kind: string
-  prompt: string
+  prompt?: string
   work_token: string
   attempt: number
   max_attempts: number
@@ -54,9 +66,10 @@ export interface WorkOrder {
   provider?: string
   policy?: Record<string, unknown>
   limits?: Record<string, unknown>
-  budget: Record<string, number>
+  budget?: Record<string, number>
   enforcement: string
   background: boolean
+  script?: ScriptSpec
   routes?: Array<{ when: string; run: string; criteria?: string; description?: string }>
   context: {
     prompt: string
@@ -252,7 +265,7 @@ export interface StatusResult {
   steps: StepSummary[]
   alerts: AlertRow[]
   children: RunRow[]
-  taskCount?: number
+  stepCount?: number
 }
 
 export interface ToolEnvelope<T = unknown> {

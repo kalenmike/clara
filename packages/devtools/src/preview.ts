@@ -28,7 +28,17 @@ const SOURCE_FIELDS = [
   'kind',
   'prompt',
   'promptSource',
-  'task',
+  'agent',
+  'script',
+  'command',
+  'interpreter',
+  'cwd',
+  'env',
+  'passEnv',
+  'timeoutSeconds',
+  'successCodes',
+  'resultMode',
+  'maxOutputBytes',
   'model',
   'provider',
   'enforcement',
@@ -159,10 +169,15 @@ export function describePackages(catalog: LoadedCatalog): PackageEntryInfo[] {
         ...(router.description ? { description: router.description } : {}),
         ...(router.source ? { source: router.source } : {}),
       })),
-      tasks: [...pkg.tasks.values()].map((task) => ({
-        name: task.name,
-        ...(task.description ? { description: task.description } : {}),
-        ...(task.source ? { source: task.source } : {}),
+      agents: [...pkg.agents.values()].map((agent) => ({
+        name: agent.name,
+        ...(agent.description ? { description: agent.description } : {}),
+        ...(agent.source ? { source: agent.source } : {}),
+      })),
+      scripts: [...pkg.scripts.values()].map((script) => ({
+        name: script.name,
+        ...(script.description ? { description: script.description } : {}),
+        ...(script.source ? { source: script.source } : {}),
       })),
     }
   })
@@ -172,7 +187,8 @@ function sourceKind(path: string, configPath: string): SourceKind {
   if (resolve(path) === resolve(configPath)) return 'config'
   if (/[/\\]pipelines[/\\]/.test(path)) return 'pipeline'
   if (/[/\\]routers[/\\]/.test(path)) return 'router'
-  if (/[/\\]tasks[/\\]/.test(path)) return 'task'
+  if (/[/\\]agents[/\\]/.test(path)) return 'agent'
+  if (/[/\\]scripts[/\\]/.test(path)) return 'script'
   if (/index\.ya?ml$/.test(path)) return 'package'
   return 'other'
 }
@@ -200,7 +216,8 @@ export function collectSources(catalog: LoadedCatalog, compiled?: CompiledRun): 
 export function statsFor(root: CompiledNode): PreviewStats {
   const stats: PreviewStats = {
     nodes: 0,
-    tasks: 0,
+    agents: 0,
+    scripts: 0,
     routers: 0,
     groups: 0,
     pipelines: 0,
@@ -208,7 +225,8 @@ export function statsFor(root: CompiledNode): PreviewStats {
   }
   const walk = (node: CompiledNode): void => {
     stats.nodes++
-    if (node.kind === 'task') stats.tasks++
+    if (node.kind === 'agent') stats.agents++
+    if (node.kind === 'script') stats.scripts++
     if (node.kind === 'router') stats.routers++
     if (node.kind === 'group') stats.groups++
     if (node.kind === 'pipeline') stats.pipelines++
@@ -259,7 +277,7 @@ export function diagnoseCompiled(
 
     const model = node.model?.trim()
     const provider = node.provider?.trim()
-    const leaf = node.kind === 'task' || node.kind === 'router'
+    const leaf = node.kind === 'agent' || node.kind === 'router'
     if (leaf) {
       if (model && !provider) {
         diagnostics.push({
@@ -312,12 +330,12 @@ export function diagnoseCompiled(
       }
     }
 
-    if (node.kind === 'task') {
+    if (node.kind === 'agent') {
       if (node.promptSource === 'fallback') {
         diagnostics.push({
           severity: 'warning',
-          code: 'task_prompt_fallback',
-          message: `Step "${node.name}" has no matching task file and no prompt; a generated prompt will be used.`,
+          code: 'agent_prompt_fallback',
+          message: `Step "${node.name}" has no matching agent file and no prompt; a generated prompt will be used.`,
           stepPath: node.path,
           ...(node.source ? { path: node.source } : {}),
         })
@@ -345,6 +363,33 @@ export function diagnoseCompiled(
           message: `Step "${node.name}" declares no inputs, so it receives no earlier step result. Add inputs if it needs one; otherwise confirm it only needs its artifacts and the request.`,
           stepPath: node.path,
           ...(node.source ? { path: node.source } : {}),
+        })
+      }
+    }
+
+    if (node.kind === 'script') {
+      if (node.background && parentKind !== 'pipeline' && parentKind !== 'group') {
+        diagnostics.push({
+          severity: 'warning',
+          code: 'background_ignored',
+          message: `Step "${node.name}" is marked background but only a pipeline or group honors it.`,
+          stepPath: node.path,
+        })
+      }
+      if (!node.script?.command?.trim()) {
+        diagnostics.push({
+          severity: 'error',
+          code: 'script_command_missing',
+          message: `Script step "${node.name}" has no command.`,
+          stepPath: node.path,
+        })
+      }
+      if (node.script && node.script.timeoutSeconds === undefined) {
+        diagnostics.push({
+          severity: 'info',
+          code: 'script_timeout_unset',
+          message: `Script step "${node.name}" has no timeout; the runner uses its default.`,
+          stepPath: node.path,
         })
       }
     }
@@ -428,21 +473,46 @@ export function diagnoseCompiled(
   walk(root)
 
   if (root.enforcement === 'strict') {
-    const required = root.requires?.capabilities ?? ['tool_policy', 'turn_limit', 'token_limit']
+    const leaves: CompiledNode[] = []
+    const collect = (node: CompiledNode): void => {
+      if (node.kind === 'agent' || node.kind === 'router' || node.kind === 'script')
+        leaves.push(node)
+      for (const child of node.children ?? []) collect(child)
+      for (const route of node.routes ?? []) {
+        if (route.target) collect(route.target)
+      }
+    }
+    collect(root)
+    const needsAgent = leaves.some((leaf) => leaf.kind === 'agent' || leaf.kind === 'router')
+    const needsScript = leaves.some((leaf) => leaf.kind === 'script')
+    const extra = root.requires?.capabilities ?? []
     const harness = root.requires?.adapter
-    const available =
-      adapters?.some(
+    const live = adapters ?? []
+    const has = (role: 'harness' | 'runner', capabilities: string[]): boolean =>
+      live.some(
         (adapter) =>
-          (!harness || adapter.harness === harness) &&
-          required.every((capability) => adapter.capabilities.includes(capability))
-      ) ?? false
-    if (adapters && !available) {
+          (adapter.role ?? 'harness') === role &&
+          (!harness || role !== 'harness' || adapter.harness === harness) &&
+          [...capabilities, ...extra].every((capability) =>
+            adapter.capabilities.includes(capability)
+          )
+      )
+    if (needsAgent && !has('harness', ['tool_policy', 'turn_limit', 'token_limit'])) {
       diagnostics.push({
         severity: 'warning',
         code: 'enforcement_unavailable',
         message: `This target is strict and needs a live ${
           harness ?? 'harness'
-        } adapter with ${required.join(', ')}. Register the lab adapter before starting it.`,
+        } adapter with tool_policy, turn_limit, token_limit. Register the lab adapter before starting it.`,
+      })
+    }
+    if (needsScript && !has('runner', ['script'])) {
+      diagnostics.push({
+        severity: 'warning',
+        code: 'runner_unavailable',
+        message: `This target is strict and contains script steps; it needs a live runner with the script capability${
+          root.requires?.runner ? ` (${root.requires.runner})` : ''
+        }.`,
       })
     }
   }
@@ -476,11 +546,11 @@ export function diagnoseCatalog(catalog: LoadedCatalog, target?: string): Diagno
   }
 
   for (const pkg of catalog.packages) {
-    if (!pkg.pipelines.size && !pkg.routers.size && !pkg.tasks.size) {
+    if (!pkg.pipelines.size && !pkg.routers.size && !pkg.agents.size && !pkg.scripts.size) {
       diagnostics.push({
         severity: 'info',
         code: 'empty_package',
-        message: `Package "${pkg.manifest.id}" has no pipelines, routers, or tasks.`,
+        message: `Package "${pkg.manifest.id}" has no pipelines, routers, agents, or scripts.`,
         path: pkg.manifest.source,
       })
     }

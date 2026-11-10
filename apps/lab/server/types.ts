@@ -148,7 +148,7 @@ export interface StatusResult {
   steps: StepSummary[]
   alerts: AlertRow[]
   children: RunRow[]
-  taskCount?: number
+  stepCount?: number
 }
 
 export interface OrcEvent {
@@ -162,6 +162,9 @@ export interface OrcEvent {
 export interface AdapterRow {
   id: string
   harness: string
+  role?: string
+  machine?: string | null
+  labels?: string
   session_id: string | null
   workspace: string
   capabilities: string

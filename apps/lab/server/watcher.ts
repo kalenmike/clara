@@ -2,8 +2,8 @@ import { watch, watchFile, unwatchFile, type FSWatcher } from 'node:fs'
 
 /**
  * Polls the known source files and watches the package directories so adding a
- * new task or pipeline also refreshes the preview. The source set is small
- * (one config, package indexes, pipelines, routers, and tasks).
+ * new agent, script, or pipeline also refreshes the preview. The source set is
+ * small (one config, package indexes, pipelines, routers, agents, and scripts).
  */
 export class SourceWatcher {
   private paths: string[] = []

@@ -4,27 +4,30 @@ description: Collect deterministic evidence, find failure patterns, audit setup,
 enforcement: observed
 steps:
   - name: collect_evidence
-    type: task
+    type: script
+    command: pnpm clara orchestration analyze --json --days 30
+    result_mode: json
+    timeout_seconds: 300
   - name: pattern_failures
-    type: task
+    type: agent
     inputs:
       evidence: collect_evidence
   - name: audit_setup
-    type: task
+    type: agent
     inputs:
       evidence: collect_evidence
   - name: rank_issues
-    type: task
+    type: agent
     inputs:
       patterns: pattern_failures
       audit: audit_setup
   - name: propose_fixes
-    type: task
+    type: agent
     inputs:
       ranked: rank_issues
       patterns: pattern_failures
   - name: review_report
-    type: task
+    type: agent
     inputs:
       fixes: propose_fixes
       ranked: rank_issues

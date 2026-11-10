@@ -35,7 +35,7 @@ test('renders the root request and the compiled router prompt once', () => {
 test('renders declared inputs with labels and full bodies', () => {
   const prompt = renderWorkPrompt({
     step_path: '4-review',
-    kind: 'task',
+    kind: 'agent',
     prompt: '# Task: Review',
     context: {
       prompt: 'Add a dark mode toggle.',
@@ -62,7 +62,7 @@ test('renders a declared input in full', () => {
   const body = 'z'.repeat(20_000)
   const prompt = renderWorkPrompt({
     step_path: '2-next',
-    kind: 'task',
+    kind: 'agent',
     prompt: '# Task: Next',
     context: {
       prompt: 'do it',
@@ -76,7 +76,7 @@ test('renders a declared input in full', () => {
 test('demotes the root request to background scope', () => {
   const prompt = renderWorkPrompt({
     step_path: '2-draft',
-    kind: 'task',
+    kind: 'agent',
     prompt: '# Task: Draft',
     context: { prompt: 'Write a launch post.' },
   })
@@ -90,7 +90,7 @@ test('demotes the root request to background scope', () => {
 test('omits the root request when the step opts out', () => {
   const prompt = renderWorkPrompt({
     step_path: '4-deliver',
-    kind: 'task',
+    kind: 'agent',
     prompt: '# Task: Deliver',
     request: false,
     context: { prompt: 'Write a launch post.' },
@@ -102,7 +102,7 @@ test('omits the root request when the step opts out', () => {
 test('renders artifact paths and marks missing files', () => {
   const prompt = renderWorkPrompt({
     step_path: '4-review',
-    kind: 'task',
+    kind: 'agent',
     prompt: '# Task: Review',
     context: {
       prompt: 'Add a toggle.',
@@ -120,7 +120,7 @@ test('renders artifact paths and marks missing files', () => {
 test('renders the previous attempt so a retry does not repeat the work', () => {
   const prompt = renderWorkPrompt({
     step_path: '3-fix',
-    kind: 'task',
+    kind: 'agent',
     prompt: '# Task: Fix',
     retry: {
       attempt: 1,
@@ -140,7 +140,7 @@ test('renders the previous attempt so a retry does not repeat the work', () => {
 test('omits the previous attempt on a first attempt', () => {
   const prompt = renderWorkPrompt({
     step_path: '1-fix',
-    kind: 'task',
+    kind: 'agent',
     prompt: '# Task: Fix',
     context: { prompt: 'Fix it.' },
   })
@@ -184,7 +184,7 @@ test('scopes a task to its control tools but keeps repository tools', () => {
     [toolName('fail')]: {},
     [toolName('spawn')]: {},
   }
-  scopeWorkerTools(tools, { kind: 'task', managed: true })
+  scopeWorkerTools(tools, { kind: 'agent', managed: true })
   assert.deepEqual(
     Object.keys(tools).sort(),
     [
@@ -217,6 +217,6 @@ test('never deletes the Code Mode gateway when scoping a router', () => {
 
 test('does not scope a fallback parent binding', () => {
   const tools: Record<string, unknown> = { read: {}, [toolName('status')]: {} }
-  scopeWorkerTools(tools, { kind: 'task', managed: false })
+  scopeWorkerTools(tools, { kind: 'agent', managed: false })
   assert.deepEqual(Object.keys(tools).sort(), ['read', toolName('status')].sort())
 })

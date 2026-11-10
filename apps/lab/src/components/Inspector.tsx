@@ -23,7 +23,17 @@ export function Inspector({ node, root }: { node?: CompiledNode; root?: Compiled
       <div className="inspector-head">
         <div>
           <div className="inspector-title">
-            <Badge tone={node.kind === 'task' ? 'live' : node.kind === 'router' ? 'warn' : 'ok'}>
+            <Badge
+              tone={
+                node.kind === 'agent'
+                  ? 'live'
+                  : node.kind === 'script'
+                    ? 'ok'
+                    : node.kind === 'router'
+                      ? 'warn'
+                      : 'ok'
+              }
+            >
               {node.kind}
             </Badge>
             <h3>{node.title}</h3>
@@ -58,16 +68,29 @@ export function Inspector({ node, root }: { node?: CompiledNode; root?: Compiled
       </div>
 
       {tab === 'prompt' ? (
-        <div className="inspector-body">
-          <div className="row-between">
-            <span className="muted">
-              prompt source: {node.promptSource ?? 'inherited'} · model:{' '}
-              {modelLabel(node.model, node.provider)}
-            </span>
-            <CopyButton value={node.prompt ?? ''} label="Copy prompt" />
+        node.kind === 'script' ? (
+          <div className="inspector-body">
+            <div className="row-between">
+              <span className="muted">
+                script · timeout {node.script?.timeoutSeconds ?? 'default'}s ·{' '}
+                {node.script?.resultMode ?? 'auto'} result
+              </span>
+              <CopyButton value={node.script?.command ?? ''} label="Copy command" />
+            </div>
+            <pre className="prompt">{node.script?.command ?? '(no command)'}</pre>
           </div>
-          <pre className="prompt">{node.prompt ?? '(no prompt)'}</pre>
-        </div>
+        ) : (
+          <div className="inspector-body">
+            <div className="row-between">
+              <span className="muted">
+                prompt source: {node.promptSource ?? 'inherited'} · model:{' '}
+                {modelLabel(node.model, node.provider)}
+              </span>
+              <CopyButton value={node.prompt ?? ''} label="Copy prompt" />
+            </div>
+            <pre className="prompt">{node.prompt ?? '(no prompt)'}</pre>
+          </div>
+        )
       ) : null}
 
       {tab === 'inputs' ? <InspectorInputs node={node} root={root} /> : null}

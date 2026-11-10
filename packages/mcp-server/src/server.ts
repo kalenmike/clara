@@ -44,12 +44,18 @@ MCP is the generic work-order surface. Calling clara_start does not dispatch a
 background worker: it returns a work order that you must execute yourself.
 
 To run a pipeline manually:
-1. Call clara_start with the user's prompt.
-2. Read the returned work order. Its prompt is the step instruction,
-   context.prompt is the root request as background scope, context.inputs
-   holds the results of the steps it declares, and context.artifacts lists
-   workspace files to read. Do the work with your own tools.
-3. Call clara_complete with the run_id, step_path, work_token, and result.
+1. Call clara_start with the user's prompt. Pass capabilities: ["agent"] to
+   leave deterministic script steps for a runner.
+2. Read the returned work order. An agent order's prompt is the step
+   instruction, context.prompt is the root request as background scope,
+   context.inputs holds the results of the steps it declares, and
+   context.artifacts lists workspace files to read. Do the work with your own
+   tools.
+   A script order has kind "script" and no prompt. Its script.command,
+   script.cwd, and script.env are the deterministic command to run; its inputs
+   are available as CLARA_INPUT_* files.
+3. Call clara_complete with the run_id, step_path, work_token, and result. Add
+   exit_code for a script step.
 4. If the work order is a router, call clara_route with one of the supplied routes.
 5. If you are blocked, call clara_fail.
 6. If the step needs dynamic workers, call clara_spawn.
@@ -74,6 +80,10 @@ export function createClaraServer(backend: ClaraBackend, version = '0.1.0'): Mcp
         'Start the configured Clara entry point. Returns the first work order, its lease token, prompt, budget, and context.',
       inputSchema: {
         prompt: z.string().min(1).describe('The initial human or agent request'),
+        capabilities: z
+          .array(z.string())
+          .optional()
+          .describe('Only claim work this caller can run, for example ["agent"].'),
         origin: originSchema.describe('Who submitted the request'),
       },
     },
@@ -88,9 +98,13 @@ export function createClaraServer(backend: ClaraBackend, version = '0.1.0'): Mcp
       inputSchema: {
         run_id: z.number().int().positive(),
         limit: z.number().int().min(1).max(32).optional(),
+        capabilities: z
+          .array(z.string())
+          .optional()
+          .describe('Only claim work this executor can run, for example ["agent"].'),
       },
     },
-    async (args) => text(await backend.next(args.run_id, args.limit))
+    async (args) => text(await backend.next(args.run_id, args.limit, args.capabilities))
   )
 
   server.registerTool(
@@ -104,6 +118,7 @@ export function createClaraServer(backend: ClaraBackend, version = '0.1.0'): Mcp
         work_token: z.string().min(1),
         result: z.unknown().describe('The step result: text, JSON object, artifacts, or evidence'),
         usage: usageSchema,
+        exit_code: z.number().int().optional().describe('Process exit code for a script step'),
       },
     },
     async (args) => text(await backend.complete(args))
@@ -120,6 +135,7 @@ export function createClaraServer(backend: ClaraBackend, version = '0.1.0'): Mcp
         work_token: z.string().min(1),
         error: z.string().min(1),
         usage: usageSchema,
+        exit_code: z.number().int().optional().describe('Process exit code for a script step'),
       },
     },
     async (args) => text(await backend.fail(args))
@@ -283,7 +299,7 @@ export function createClaraServer(backend: ClaraBackend, version = '0.1.0'): Mcp
     'clara_catalog',
     {
       description:
-        'Read the resolved package, pipeline, router, and task catalog for the configured workspace.',
+        'Read the resolved package, pipeline, router, agent, and script catalog for the configured workspace.',
       inputSchema: {},
     },
     async () => text(await backend.catalog())
@@ -295,6 +311,9 @@ export function createClaraServer(backend: ClaraBackend, version = '0.1.0'): Mcp
       description: 'Register a strict-enforcement adapter for a workspace.',
       inputSchema: {
         harness: z.string().min(1),
+        role: z.enum(['harness', 'runner']).optional(),
+        machine: z.string().nullable().optional(),
+        labels: z.array(z.string()).optional(),
         workspace: z.string().min(1),
         session_id: z.string().nullable().optional(),
         capabilities: z.array(z.string()).min(1),

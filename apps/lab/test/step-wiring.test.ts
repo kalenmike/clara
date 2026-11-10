@@ -10,14 +10,14 @@ function snapshot(): string {
     children: [
       {
         path: '/collect',
-        kind: 'task',
+        kind: 'agent',
         title: 'Collect',
         inputs: { source: '/source' },
         artifacts: { report: 'reports/out.md' },
       },
       {
         path: '/source',
-        kind: 'task',
+        kind: 'agent',
         title: 'Source',
       },
     ],
@@ -31,7 +31,7 @@ function step(path: string, overrides: Partial<StepSummary> = {}): StepSummary {
     path,
     parent_path: null,
     name: path,
-    type: 'task',
+    type: 'agent',
     status: 'done',
     attempt: 1,
     max_attempts: 1,

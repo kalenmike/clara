@@ -4,24 +4,37 @@ description: Snapshot the running setup, rebuild, install adapters, restart the 
 enforcement: observed
 steps:
   - name: capture_setup
-    type: task
+    type: script
+    command: pnpm clara rebuild status --json
+    result_mode: json
+    timeout_seconds: 300
   - name: build
-    type: task
+    type: script
+    script: build
     inputs:
       setup: capture_setup
   - name: install_adapters
-    type: task
+    type: script
+    command: pnpm clara rebuild adapters --json
+    result_mode: json
+    timeout_seconds: 300
     inputs:
       setup: capture_setup
       build: build
   - name: restart_services
-    type: task
+    type: script
+    command: pnpm clara rebuild restart --json
+    result_mode: json
+    timeout_seconds: 900
     inputs:
       setup: capture_setup
       build: build
       adapters: install_adapters
   - name: verify_health
-    type: task
+    type: script
+    command: pnpm clara rebuild health --json
+    result_mode: json
+    timeout_seconds: 300
     inputs:
       setup: capture_setup
       restart: restart_services

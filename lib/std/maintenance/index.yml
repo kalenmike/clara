@@ -7,7 +7,7 @@ entry:
   pipeline: rebuild
 
 defaults:
-  task_dir: ./tasks
-  # The rebuild must run while the adapter or setup is degraded. Tasks stay
-  # narrow: each one allows only its own `pnpm clara rebuild` command.
+  script_dir: ./scripts
+  # The rebuild must run while the adapter or setup is degraded. Every step is
+  # a declared deterministic command, so no model turn can improvise.
   enforcement: observed

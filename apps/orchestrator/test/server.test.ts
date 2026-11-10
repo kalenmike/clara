@@ -202,15 +202,15 @@ describe('orchestrator HTTP service', () => {
     expect(pinned.hash).toBe(String(status.run.hash))
     expect(JSON.parse(pinned.snapshot)).toMatchObject({ kind: 'pipeline' })
 
-    const taskStep = status.steps.find((step) => step.type === 'task') ?? status.steps[0]
-    const stepPath = String(taskStep.path)
+    const scriptStep = status.steps.find((step) => step.type === 'script') ?? status.steps[0]
+    const stepPath = String(scriptStep.path)
     const detail = (await (
       await fetch(`${base}/v1/runs/${runID}/steps/${encodeURIComponent(stepPath)}`, {
         headers: auth(),
       })
     ).json()) as Record<string, unknown>
     expect(detail.path).toBe(stepPath)
-    expect(typeof detail.prompt).toBe('string')
+    expect(typeof (detail.script as { command?: string } | undefined)?.command).toBe('string')
     expect('lease_id' in detail).toBe(true)
   })
 
@@ -247,7 +247,7 @@ describe('orchestrator HTTP service', () => {
     const started = await fetch(`${base}/v1/runs`, {
       method: 'POST',
       headers: auth({ 'content-type': 'application/json' }),
-      body: JSON.stringify({ workspace, prompt: 'patch it', target: 'std:maintenance/rebuild' }),
+      body: JSON.stringify({ workspace, prompt: 'patch it', target: 'std:content' }),
     })
     const body = (await started.json()) as {
       run: { id: number }

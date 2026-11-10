@@ -276,8 +276,8 @@ function selectPipeline(
   return best?.route ?? run.pipeline_ref
 }
 
-function isTaskLike(step: StepScanRow): boolean {
-  return step.type === 'task' || step.type === 'router'
+function usesModel(step: StepScanRow): boolean {
+  return step.type === 'agent' || step.type === 'router'
 }
 
 function incidentTime(step: StepScanRow): string {
@@ -840,7 +840,7 @@ export function analyzeDatabase(
   }
 
   const missingModels = stepRows.filter(
-    (step) => isTaskLike(step) && (!step.model || !step.provider)
+    (step) => usesModel(step) && (!step.model || !step.provider)
   )
   if (missingModels.length) {
     const names = [...new Set(missingModels.map((step) => step.name))]

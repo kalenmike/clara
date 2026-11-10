@@ -17,6 +17,7 @@ plugins/clara-policy  OpenCode strict enforcement adapter
 packages/shared-types Wire frames, actions, states, pairing payloads
 packages/policy       Step policy, budgets, and violation rules
 packages/orchestration Package loader, runtime, leases, and watchdog
+packages/runner       Shared script runner for harness adapters
 packages/devtools     Pipeline preview, diagnostics, and snapshot diff SDK
 packages/mcp-server   Shared MCP tools and resources
 packages/crypto       PSK derivation, AES-GCM envelopes, replay guard
@@ -52,6 +53,7 @@ pnpm clara serve    # Run the built home agent
 pnpm clara pass     # Print the local OpenCode password
 pnpm clara orchestration start [--docker] [--build]|stop [--docker]|status|serve # Run the orchestration service
 pnpm clara orchestration analyze [--json] [--days n] # Analyze run history for failure patterns
+pnpm clara runner   # Run script steps for a workspace (standalone runner)
 pnpm clara rebuild  # Snapshot, rebuild, reinstall adapters, restart services, verify health
 pnpm clara lab      # Open Clara Lab to preview pipelines and probe the agent
 pnpm clara lab check # Validate a package target for CI

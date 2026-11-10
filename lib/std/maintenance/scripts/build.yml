@@ -1,0 +1,4 @@
+description: Install locked dependencies and build every Clara package
+command: pnpm clara rebuild build --json
+timeout_seconds: 1800
+result_mode: json

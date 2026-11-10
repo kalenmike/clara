@@ -123,7 +123,7 @@ describe('lab server', () => {
           '  bad:',
           '    steps:',
           '      - name: bad_model',
-          '        type: task',
+          '        type: agent',
           '        prompt: do it',
           '        provider: opencode-go',
           '        model: not-a-model',
@@ -199,19 +199,22 @@ describe('lab server', () => {
         value: {
           run: { hash: string }
           steps: Array<Record<string, unknown>>
-          taskCount?: number
+          stepCount?: number
         }
       }
     ).value
     expect(statusValue.steps.length).toBeGreaterThan(1)
     expect(statusValue.steps.every((step) => !('prompt' in step))).toBe(true)
-    expect(statusValue.taskCount).toBeGreaterThan(0)
+    expect(statusValue.stepCount).toBeGreaterThan(0)
 
-    const taskStep = statusValue.steps.find((step) => step.type === 'task') ?? statusValue.steps[0]
-    const stepPath = String(taskStep.path)
+    const scriptStep =
+      statusValue.steps.find((step) => step.type === 'script') ?? statusValue.steps[0]
+    const stepPath = String(scriptStep.path)
     const detail = await get(`/api/runs/${runID}/steps/${encodeURIComponent(stepPath)}`)
     expect((detail.value as { path: string }).path).toBe(stepPath)
-    expect(typeof (detail.value as { prompt: string }).prompt).toBe('string')
+    expect(typeof (detail.value as { script?: { command?: string } }).script?.command).toBe(
+      'string'
+    )
   })
 
   it('compares a pinned run with the current files', async () => {

@@ -68,11 +68,11 @@ describe('package loader', () => {
     expect(feature.root.declared).toEqual(expect.arrayContaining(['enforcement']))
     const first = feature.root.children?.[0]
     expect(first?.packageId).toBe('software')
-    expect(first?.task).toBe('create_spec')
-    expect(first?.promptSource).toBe('task')
+    expect(first?.agent).toBe('create_spec')
+    expect(first?.promptSource).toBe('agent')
     expect(first?.provider).toBe(defaults?.provider)
     expect(first?.model).toBe(defaults?.model)
-    expect(first?.source).toContain('/tasks/create_spec.md')
+    expect(first?.source).toContain('/agents/create_spec.md')
   })
 
   it('treats the root package id as its entry', () => {
@@ -102,21 +102,21 @@ describe('package loader', () => {
           '    default_model: pipeline-model',
           '    steps:',
           '      - name: inherit',
-          '        type: task',
+          '        type: agent',
           '        prompt: do it',
           '      - name: override',
-          '        type: task',
+          '        type: agent',
           '        prompt: do it',
           '        provider: step-provider',
           '        model: step-model',
           '      - name: model_only',
-          '        type: task',
+          '        type: agent',
           '        prompt: do it',
           '        model: step-model-only',
           '  manifest:',
           '    steps:',
           '      - name: inherit',
-          '        type: task',
+          '        type: agent',
           '        prompt: do it',
         ].join('\n')
       )
@@ -154,7 +154,7 @@ describe('package loader', () => {
         expect(pipeline.default_model).toBeUndefined()
         expect(pipeline.default_provider).toBeUndefined()
       }
-      for (const task of pkg.tasks.values()) {
+      for (const task of pkg.agents.values()) {
         expect(task.model).toBeUndefined()
         expect(task.provider).toBeUndefined()
       }
@@ -194,11 +194,11 @@ describe('package loader', () => {
     }
   })
 
-  it('resolves step, pipeline, task, package, and workspace model order', () => {
+  it('resolves step, pipeline, agent, package, and workspace model order', () => {
     const dir = mkdtempSync(join(tmpdir(), 'clara-precedence-'))
     try {
       const pkg = join(dir, 'pkg')
-      mkdirSync(join(pkg, 'tasks'), { recursive: true })
+      mkdirSync(join(pkg, 'agents'), { recursive: true })
       writeFileSync(
         join(pkg, 'index.yml'),
         [
@@ -212,32 +212,32 @@ describe('package loader', () => {
           '  main:',
           '    steps:',
           '      - name: plain',
-          '        type: task',
+          '        type: agent',
           '        prompt: do it',
           '      - name: custom',
-          '        type: task',
-          '        task: thing',
+          '        type: agent',
+          '        agent: thing',
           '  with_default:',
           '    default_model: pipeline-model',
           '    default_provider: pipeline-provider',
           '    steps:',
           '      - name: plain',
-          '        type: task',
+          '        type: agent',
           '        prompt: do it',
           '      - name: custom',
-          '        type: task',
-          '        task: thing',
+          '        type: agent',
+          '        agent: thing',
           '  explicit:',
           '    steps:',
           '      - name: explicit',
-          '        type: task',
+          '        type: agent',
           '        prompt: do it',
           '        model: step-model',
           '        provider: step-provider',
         ].join('\n')
       )
       writeFileSync(
-        join(pkg, 'tasks', 'thing.md'),
+        join(pkg, 'agents', 'thing.md'),
         ['---', 'model: task-model', 'provider: task-provider', '---', 'Do the thing.'].join('\n')
       )
       writeFileSync(
@@ -298,7 +298,7 @@ describe('package loader', () => {
           '      feature:',
           '        default_model: feature-model',
           '        default_provider: feature-provider',
-          '    tasks:',
+          '    agents:',
           '      identify_bug:',
           '        model: task-model',
           '        provider: task-provider',
@@ -355,8 +355,8 @@ describe('package loader', () => {
       write(['  std:software:', '    pipelines:', '      missing:', '        default_model: m'])
       expect(() => loadCatalog(dir)).toThrow(/pipeline not found/)
 
-      write(['  std:software:', '    tasks:', '      missing:', '        model: m'])
-      expect(() => loadCatalog(dir)).toThrow(/task not found/)
+      write(['  std:software:', '    agents:', '      missing:', '        model: m'])
+      expect(() => loadCatalog(dir)).toThrow(/agent not found/)
 
       write(['  std:software:', '    defaults:', '      provder: m'])
       expect(() => loadCatalog(dir)).toThrow(/provder is not supported/)
@@ -419,17 +419,17 @@ describe('package loader', () => {
     ])
   })
 
-  it('resolves a task for every task step in the software package', () => {
+  it('resolves an agent for every agent step in the software package', () => {
     const catalog = loadCatalog(config)
     const software = catalog.packages.find((pkg) => pkg.manifest.id === 'software')
     expect(software).toBeDefined()
     for (const pipeline of software!.pipelines.values()) {
       for (const step of pipeline.steps) {
-        if (step.type !== 'task') continue
-        const task = software!.tasks.get(step.task ?? step.name)
-        expect(task, `${pipeline.id}/${step.name} has no task`).toBeDefined()
+        if (step.type !== 'agent') continue
+        const agent = software!.agents.get(step.agent ?? step.name)
+        expect(agent, `${pipeline.id}/${step.name} has no agent`).toBeDefined()
         expect(
-          task?.prompt.trim().length,
+          agent?.prompt.trim().length,
           `${pipeline.id}/${step.name} has an empty prompt`
         ).toBeGreaterThan(0)
       }
@@ -474,7 +474,7 @@ describe('package loader', () => {
           '  one:',
           '    steps:',
           '      - name: do_it',
-          '        type: task',
+          '        type: agent',
         ].join('\n')
       )
       writeFileSync(join(dir, 'routers', 'classifier.md'), '# Temp router\n\nPick one.')
@@ -508,22 +508,22 @@ describe('package loader', () => {
           '  example:',
           '    steps:',
           '      - name: task_1',
-          '        type: task',
+          '        type: agent',
           '      - name: task_group',
           '        type: group',
           '        steps:',
           '          - name: background_task',
-          '            type: task',
+          '            type: agent',
           '            background: true',
           '          - name: inline_task',
-          '            type: task',
+          '            type: agent',
           '      - name: task_router',
           '        type: router',
           '        path: ./routers/example.md',
           '  feature:',
           '    steps:',
           '      - name: do_feature',
-          '        type: task',
+          '        type: agent',
         ].join('\n')
       )
       writeFileSync(
@@ -617,8 +617,8 @@ describe('package loader', () => {
       'review_report',
     ])
     const collect = diagnostics.root.children?.find((step) => step.name === 'collect_evidence')
-    expect(collect?.prompt).toContain('pnpm clara orchestration analyze')
-    expect(collect?.promptSource).toBe('task')
+    expect(collect?.kind).toBe('script')
+    expect(collect?.script?.command).toContain('pnpm clara orchestration analyze')
     const audit = diagnostics.root.children?.find((step) => step.name === 'audit_setup')
     expect(audit?.limits?.turns).toEqual({
       initial: 100,
@@ -639,10 +639,10 @@ describe('package loader', () => {
   it('resolves list and mapping inputs to compiled step paths', () => {
     const dir = pipelinePackage([
       '      - name: first',
-      '        type: task',
+      '        type: agent',
       '        prompt: do it',
       '      - name: second',
-      '        type: task',
+      '        type: agent',
       '        prompt: do it',
       '        inputs:',
       '          one: first',
@@ -650,7 +650,7 @@ describe('package loader', () => {
       '          spec: spec.md',
       '        request: false',
       '      - name: third',
-      '        type: task',
+      '        type: agent',
       '        prompt: do it',
       '        inputs:',
       '          - first',
@@ -694,10 +694,10 @@ describe('package loader', () => {
           '  branch:',
           '    steps:',
           '      - name: first',
-          '        type: task',
+          '        type: agent',
           '        prompt: do it',
           '      - name: second',
-          '        type: task',
+          '        type: agent',
           '        prompt: do it',
           '        inputs:',
           '          one: first',
@@ -716,10 +716,10 @@ describe('package loader', () => {
   it('rejects an unknown input with the available step names', () => {
     const dir = pipelinePackage([
       '      - name: first',
-      '        type: task',
+      '        type: agent',
       '        prompt: do it',
       '      - name: second',
-      '        type: task',
+      '        type: agent',
       '        prompt: do it',
       '        inputs:',
       '          missing: create_spec',
@@ -736,12 +736,12 @@ describe('package loader', () => {
   it('rejects forward and self references', () => {
     const forward = pipelinePackage([
       '      - name: first',
-      '        type: task',
+      '        type: agent',
       '        prompt: do it',
       '        inputs:',
       '          later: second',
       '      - name: second',
-      '        type: task',
+      '        type: agent',
       '        prompt: do it',
     ])
     try {
@@ -752,7 +752,7 @@ describe('package loader', () => {
 
     const self = pipelinePackage([
       '      - name: first',
-      '        type: task',
+      '        type: agent',
       '        prompt: do it',
       '        inputs:',
       '          self: first',
@@ -767,11 +767,11 @@ describe('package loader', () => {
   it('rejects a background input', () => {
     const dir = pipelinePackage([
       '      - name: first',
-      '        type: task',
+      '        type: agent',
       '        prompt: do it',
       '        background: true',
       '      - name: second',
-      '        type: task',
+      '        type: agent',
       '        prompt: do it',
       '        inputs:',
       '          bg: first',
@@ -786,10 +786,10 @@ describe('package loader', () => {
   it('rejects duplicate step names and escaping artifacts', () => {
     const duplicate = pipelinePackage([
       '      - name: first',
-      '        type: task',
+      '        type: agent',
       '        prompt: do it',
       '      - name: first',
-      '        type: task',
+      '        type: agent',
       '        prompt: do it',
     ])
     try {
@@ -800,7 +800,7 @@ describe('package loader', () => {
 
     const escape = pipelinePackage([
       '      - name: first',
-      '        type: task',
+      '        type: agent',
       '        prompt: do it',
       '        artifacts:',
       '          - ../secret.md',
@@ -812,7 +812,7 @@ describe('package loader', () => {
     }
   })
 
-  it('loads the maintenance package', () => {
+  it('loads the maintenance package as deterministic scripts', () => {
     const catalog = loadCatalog(config)
     const maintenance = compileRun(catalog, 'std:maintenance')
     expect(maintenance.root.kind).toBe('pipeline')
@@ -824,11 +824,13 @@ describe('package loader', () => {
       'verify_health',
     ])
     expect(maintenance.root.enforcement).toBe('observed')
-    expect(maintenance.root.children?.every((step) => step.promptSource === 'task')).toBe(true)
+    expect(maintenance.root.children?.every((step) => step.kind === 'script')).toBe(true)
     const capture = maintenance.root.children?.find((step) => step.name === 'capture_setup')
-    expect(capture?.prompt).toContain('pnpm clara rebuild status --json')
+    expect(capture?.script?.command).toContain('pnpm clara rebuild status --json')
+    const build = maintenance.root.children?.find((step) => step.name === 'build')
+    expect(build?.script?.command).toContain('pnpm clara rebuild build --json')
     const restart = maintenance.root.children?.find((step) => step.name === 'restart_services')
-    expect(restart?.limits?.wall_clock_seconds).toBe(900)
+    expect(restart?.script?.timeoutSeconds).toBe(900)
   })
 
   it('routes explicit rebuild requests from the primary classifier', () => {

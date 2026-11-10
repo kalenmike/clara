@@ -33,7 +33,7 @@ writing custom pipelines, not for end users.
    workspace. Start a run there; the lab selects it and claims the first work
    order.
 6. Step through the run in the Debug dock. It shows one clear current-step card:
-   the exact task, a result box, and a single primary action. Type the result
+   the exact step, a result box, and a single primary action. Type the result
    and press **Complete and continue** (or **Choose route** for a router). The
    next step is claimed automatically unless **Pause after each step** is on.
 7. Use the dock header to switch between recent debug runs, **Pull next**,
@@ -93,12 +93,12 @@ writing custom pipelines, not for end users.
    registers `clara-lab` once and retries. The adapter is for orchestration
    testing, not real enforcement.
 9. **Files are edited outside the browser.** The lab is a viewer and a probe; it
-   never writes YAML, Markdown, or task prompts. The preview watches the source
+   never writes YAML, Markdown, or agent prompts. The preview watches the source
    files and reloads.
 10. **Pinned data is Lab-only.** The orchestrator returns run summaries to MCP
     and REST callers without the pinned tree or full step rows. The lab reads
     `GET /v1/runs/:id/snapshot` and `GET /v1/runs/:id/steps/:path` directly with
-    the orchestrator token. The browser sees only the derived task count and the
+    the orchestrator token. The browser sees only the derived step count and the
     step detail it asks for.
 11. **Models are validated against OpenCode.** The lab reads the running
     OpenCode model catalog and reports `model_provider_missing`,
@@ -205,7 +205,7 @@ writing custom pipelines, not for end users.
 - A file changes during a run: the pinned snapshot stays authoritative and the
   comparison view shows the difference.
 - The selected target is the package entry: it is a router; the run starts with a
-  route choice instead of a task.
+  route choice instead of an agent step.
 - Several work orders are claimed at once: the first is marked **current**, the
   rest remain available below it.
 

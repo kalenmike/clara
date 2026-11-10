@@ -28,6 +28,7 @@ export function WorkOrderCard({
 }) {
   const order = record.order
   const isRouter = order.kind === 'router' && Boolean(order.routes?.length)
+  const isScript = order.kind === 'script'
   const [result, setResult] = useState('')
   const [error, setError] = useState('')
   const [turns, setTurns] = useState('')
@@ -36,7 +37,7 @@ export function WorkOrderCard({
   const [violations, setViolations] = useState('')
   const [route, setRoute] = useState(order.routes?.[0]?.when ?? '')
   const [spawnCount, setSpawnCount] = useState('2')
-  const [spawnPrompt, setSpawnPrompt] = useState(order.prompt)
+  const [spawnPrompt, setSpawnPrompt] = useState(order.prompt ?? '')
   const [policyAction, setPolicyAction] = useState('write')
   const [policyTool, setPolicyTool] = useState('edit')
   const [policyResources, setPolicyResources] = useState('src/')
@@ -247,13 +248,18 @@ export function WorkOrderCard({
       <div className="work-grid">
         <div>
           <div className="row-between">
-            <h4>{isRouter ? 'Choose a route' : 'Task'}</h4>
+            <h4>{isRouter ? 'Choose a route' : isScript ? 'Script' : 'Agent'}</h4>
             <span className="muted">
-              budget {String(order.budget.turns ?? '?')} turns ·{' '}
-              {String(order.budget.tokens ?? '?')} tokens
+              {isScript
+                ? (order.script?.command ?? '')
+                : `budget ${String(order.budget?.turns ?? '?')} turns · ${String(
+                    order.budget?.tokens ?? '?'
+                  )} tokens`}
             </span>
           </div>
-          <pre className="prompt">{order.prompt}</pre>
+          <pre className="prompt">
+            {isScript ? (order.script?.command ?? '') : (order.prompt ?? '')}
+          </pre>
           <details className="panel step-panel">
             <summary>
               <span>Inputs and artifacts</span>

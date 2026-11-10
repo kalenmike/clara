@@ -51,15 +51,15 @@ describe('pipeline preview', () => {
     expect(names).toContain('write_tests')
     expect(names).toContain('code_review')
     expect(names).toContain('update_docs')
-    expect(result.stats?.tasks).toBe(names.length)
+    expect(result.stats?.agents).toBe(names.length)
     expect(result.stats?.nodes).toBe(names.length + 1)
     expect(result.compiled?.hash).toMatch(/^sha256:[a-f0-9]{64}$/)
     expect(result.diagnostics.filter((entry) => entry.severity === 'error')).toEqual([])
     const first = result.compiled?.root.children?.[0]
-    expect(first?.promptSource).toBe('task')
-    expect(first?.task).toBe('create_spec')
-    expect(first?.source).toContain('/tasks/create_spec.md')
-    expect(result.sources.some((source) => source.kind === 'task')).toBe(true)
+    expect(first?.promptSource).toBe('agent')
+    expect(first?.agent).toBe('create_spec')
+    expect(first?.source).toContain('/agents/create_spec.md')
+    expect(result.sources.some((source) => source.kind === 'agent')).toBe(true)
     expect(result.sources.some((source) => source.kind === 'config')).toBe(true)
   })
 
@@ -98,7 +98,7 @@ describe('pipeline preview', () => {
           'pipelines:',
           '  main:',
           '    steps:',
-          '      - name: missing_task',
+          '      - name: missing_agent',
           '      - name: choose',
           '        type: router',
           '        routes:',
@@ -107,12 +107,12 @@ describe('pipeline preview', () => {
           '  other:',
           '    steps:',
           '      - name: do_it',
-          '        task: not_there',
+          '        agent: not_there',
         ].join('\n')
       )
       const result = previewPipeline({ workspace: dir })
       const codes = result.diagnostics.map((entry) => entry.code)
-      expect(codes).toContain('task_prompt_fallback')
+      expect(codes).toContain('agent_prompt_fallback')
       expect(codes).toContain('route_without_criteria')
       const main = result.compiled?.root
       expect(main?.children?.[0].promptSource).toBe('fallback')
@@ -137,33 +137,33 @@ describe('pipeline preview', () => {
           '  main:',
           '    steps:',
           '      - name: missing_provider',
-          '        type: task',
+          '        type: agent',
           '        prompt: do it',
           '        model: lonely-model',
           '      - name: provider_only',
-          '        type: task',
+          '        type: agent',
           '        prompt: do it',
           '        provider: p',
           '      - name: unset',
-          '        type: task',
+          '        type: agent',
           '        prompt: do it',
           '      - name: known',
-          '        type: task',
+          '        type: agent',
           '        prompt: do it',
           '        provider: p',
           '        model: m',
           '      - name: disabled',
-          '        type: task',
+          '        type: agent',
           '        prompt: do it',
           '        provider: p',
           '        model: off',
           '      - name: unknown',
-          '        type: task',
+          '        type: agent',
           '        prompt: do it',
           '        provider: p',
           '        model: nope',
           '      - name: wrong_provider',
-          '        type: task',
+          '        type: agent',
           '        prompt: do it',
           '        provider: q',
           '        model: m',
@@ -209,13 +209,13 @@ describe('pipeline preview', () => {
           '  main:',
           '    steps:',
           '      - name: first',
-          '        type: task',
+          '        type: agent',
           '        prompt: do it',
           '      - name: second',
-          '        type: task',
+          '        type: agent',
           '        prompt: do it',
           '      - name: third',
-          '        type: task',
+          '        type: agent',
           '        prompt: do it',
           '        inputs:',
           '          one: first',
@@ -248,7 +248,7 @@ describe('pipeline preview', () => {
           dir: root,
           pipelines: new Map(),
           routers: new Map(),
-          tasks: new Map(),
+          agents: new Map(),
           imports: new Map(),
           entry: {},
           sources: [config],

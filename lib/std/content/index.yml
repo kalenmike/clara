@@ -7,5 +7,5 @@ entry:
   pipeline: content
 
 defaults:
-  task_dir: ./tasks
+  agent_dir: ./agents
   enforcement: observed

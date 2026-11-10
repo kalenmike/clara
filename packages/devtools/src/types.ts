@@ -5,6 +5,9 @@ export type { CompiledNode, CompiledRoute } from '@clara/orchestration/types'
 export interface AdapterInfo {
   id: string
   harness: string
+  role?: string
+  machine?: string | null
+  labels?: string[]
   workspace?: string
   capabilities: string[]
   heartbeat_at?: string
@@ -69,10 +72,11 @@ export interface PackageEntryInfo {
   defaults?: Record<string, unknown>
   pipelines: Array<{ id: string; name: string; description?: string; source?: string }>
   routers: Array<{ id: string; description?: string; source?: string }>
-  tasks: Array<{ name: string; description?: string; source?: string }>
+  agents: Array<{ name: string; description?: string; source?: string }>
+  scripts: Array<{ name: string; description?: string; source?: string }>
 }
 
-export type SourceKind = 'config' | 'package' | 'pipeline' | 'router' | 'task' | 'other'
+export type SourceKind = 'config' | 'package' | 'pipeline' | 'router' | 'agent' | 'script' | 'other'
 
 export interface SourceRef {
   path: string
@@ -92,7 +96,8 @@ export interface CompiledPreview {
 
 export interface PreviewStats {
   nodes: number
-  tasks: number
+  agents: number
+  scripts: number
   routers: number
   groups: number
   pipelines: number
@@ -146,5 +151,6 @@ export interface RouteDescriptor {
 
 export interface RequirementInfo extends Requirement {
   adapter?: string
+  runner?: string
   capabilities?: string[]
 }

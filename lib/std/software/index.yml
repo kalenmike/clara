@@ -7,7 +7,7 @@ entry:
   router: classifier
 
 defaults:
-  task_dir: ./tasks
+  agent_dir: ./agents
   enforcement: strict
 
 router:

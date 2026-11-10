@@ -283,7 +283,8 @@ export async function startLabServer(options: LabServerOptions): Promise<LabServ
           pkg.dir,
           join(pkg.dir, 'pipelines'),
           join(pkg.dir, 'routers'),
-          join(pkg.dir, 'tasks'),
+          join(pkg.dir, 'agents'),
+          join(pkg.dir, 'scripts'),
         ]) ?? []),
       ]
       context.watcher.watch(

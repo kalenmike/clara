@@ -86,6 +86,15 @@ function rebuild(args) {
   return runNode(join(root, 'scripts/rebuild.mjs'), args)
 }
 
+function runner(args) {
+  return runTypeScript(
+    join(root, 'packages/runner/src/cli.ts'),
+    join(root, 'packages/runner/dist/cli.js'),
+    args,
+    'The Clara runner'
+  )
+}
+
 const clara = {
   name: 'clara',
   summary: 'Clara developer tools',
@@ -175,6 +184,18 @@ const clara = {
       passthroughHelp: true,
       examples: ['pnpm clara adapter install opencode', 'pnpm clara adapter status'],
       run: adapter,
+    },
+    {
+      name: 'runner',
+      summary: 'Run script steps for a workspace',
+      usage: '[--workspace <path>] [--label <name>] [--concurrency <n>] [--once]',
+      passthroughHelp: true,
+      examples: [
+        'pnpm clara runner',
+        'pnpm clara runner --workspace . --label build-host',
+        'pnpm clara runner --once',
+      ],
+      run: runner,
     },
     {
       name: 'rebuild',

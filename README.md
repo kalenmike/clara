@@ -24,6 +24,7 @@ apps/mcp              stdio MCP bridge to the orchestration service
 plugins/clara-policy  OpenCode strict enforcement adapter
 packages/shared-types Wire frames, actions, states, pairing payloads
 packages/orchestration Package loader, runtime, leases, and watchdog
+packages/runner       Shared script runner for harness adapters
 packages/crypto       PSK derivation, AES-GCM envelopes, replay guard
 workers/relay         Cloudflare Worker + RelayRoom Durable Object
 ```
@@ -221,6 +222,7 @@ or the relay.
 | `pnpm clara serve`         | Run the built home agent                                    |
 | `pnpm clara pass`          | Print the local OpenCode server password                    |
 | `pnpm clara orchestration` | Start, stop, or inspect the orchestration service           |
+| `pnpm clara runner`        | Run script steps for a workspace                            |
 | `pnpm clara rebuild`       | Rebuild Clara, restart the captured services, verify health |
 | `pnpm test`                | Run crypto, protocol, server, web, and Worker tests         |
 | `pnpm check`               | Typecheck + lint + format + Knip + tests                    |

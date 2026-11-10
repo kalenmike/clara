@@ -38,6 +38,7 @@ export class HttpBackend implements ClaraBackend {
     prompt: string
     workspace?: string
     target?: string
+    capabilities?: string[]
     origin?: {
       session_id?: string | null
       harness?: string | null
@@ -48,8 +49,11 @@ export class HttpBackend implements ClaraBackend {
     return this.request('POST', '/v1/runs', input)
   }
 
-  async next(runID: number, limit?: number) {
-    return this.request('POST', `/v1/runs/${runID}/next`, { limit: limit ?? 1 })
+  async next(runID: number, limit?: number, capabilities?: string[]) {
+    return this.request('POST', `/v1/runs/${runID}/next`, {
+      limit: limit ?? 1,
+      ...(capabilities ? { capabilities } : {}),
+    })
   }
 
   async complete(input: {
@@ -58,6 +62,7 @@ export class HttpBackend implements ClaraBackend {
     work_token: string
     result: unknown
     usage?: UsageInput
+    exit_code?: number
   }) {
     return this.request(
       'POST',
@@ -72,6 +77,7 @@ export class HttpBackend implements ClaraBackend {
     work_token: string
     error: string
     usage?: UsageInput
+    exit_code?: number
   }) {
     return this.request(
       'POST',
@@ -180,6 +186,9 @@ export class HttpBackend implements ClaraBackend {
 
   async registerAdapter(input: {
     harness: string
+    role?: 'harness' | 'runner'
+    machine?: string | null
+    labels?: string[]
     workspace: string
     session_id?: string | null
     capabilities: string[]

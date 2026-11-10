@@ -32,6 +32,7 @@ export class RuntimeBackend implements ClaraBackend {
     prompt: string
     workspace?: string
     target?: string
+    capabilities?: string[]
     origin?: {
       session_id?: string | null
       harness?: string | null
@@ -43,8 +44,38 @@ export class RuntimeBackend implements ClaraBackend {
     return { ...result, run: runSummary(result.run) }
   }
 
-  async next(runID: number, limit?: number) {
-    return this.runtime.next(runID, limit ?? 1, 'mcp')
+  async next(runID: number, limit?: number, capabilities?: string[]) {
+    return this.runtime.next(runID, limit ?? 1, 'mcp', {
+      ...(capabilities ? { capabilities } : {}),
+    })
+  }
+
+  async workNext(input: {
+    workspace?: string
+    capabilities: string[]
+    runner?: { id: string; labels: string[] }
+    limit?: number
+  }) {
+    return this.runtime.claimWork(
+      this.workspace(input.workspace),
+      {
+        capabilities: input.capabilities,
+        ...(input.runner ? { runner: input.runner } : {}),
+      },
+      input.limit ?? 1,
+      'runner'
+    )
+  }
+
+  async output(input: {
+    run_id: number
+    step_path: string
+    work_token: string
+    stream: 'stdout' | 'stderr'
+    chunk: string
+  }) {
+    this.runtime.output(input.run_id, input.step_path, input.work_token, input.stream, input.chunk)
+    return { ok: true }
   }
 
   async complete(input: {
@@ -53,13 +84,15 @@ export class RuntimeBackend implements ClaraBackend {
     work_token: string
     result: unknown
     usage?: UsageInput
+    exit_code?: number
   }) {
     const result = this.runtime.complete(
       input.run_id,
       input.step_path,
       input.work_token,
       input.result,
-      input.usage
+      input.usage,
+      input.exit_code
     )
     return { ...result, run: runSummary(result.run) }
   }
@@ -70,13 +103,15 @@ export class RuntimeBackend implements ClaraBackend {
     work_token: string
     error: string
     usage?: UsageInput
+    exit_code?: number
   }) {
     const result = this.runtime.fail(
       input.run_id,
       input.step_path,
       input.work_token,
       input.error,
-      input.usage
+      input.usage,
+      input.exit_code
     )
     return { ...result, run: runSummary(result.run) }
   }
@@ -207,6 +242,9 @@ export class RuntimeBackend implements ClaraBackend {
 
   async registerAdapter(input: {
     harness: string
+    role?: 'harness' | 'runner'
+    machine?: string | null
+    labels?: string[]
     workspace: string
     session_id?: string | null
     capabilities: string[]

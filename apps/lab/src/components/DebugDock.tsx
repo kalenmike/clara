@@ -144,16 +144,20 @@ export function DebugDock({
     (record) => !selectedID || record.order.run_id === selectedID
   )
   const heartbeat = stream.snapshot?.heartbeat ?? true
-  const taskSteps =
-    selectedStatus?.steps.filter((entry) => entry.type === 'task' || entry.type === 'router') ?? []
-  const doneSteps = taskSteps.filter(
+  const stepRows =
+    selectedStatus?.steps.filter(
+      (entry) => entry.type === 'agent' || entry.type === 'router' || entry.type === 'script'
+    ) ?? []
+  const doneSteps = stepRows.filter(
     (entry) => entry.status === 'done' || entry.status === 'skipped'
   ).length
-  const totalSteps = selectedStatus?.taskCount
+  const totalSteps = selectedStatus?.stepCount
   const currentStep =
     selectedStatus?.steps.find((entry) => entry.status === 'running') ??
     selectedStatus?.steps.find((entry) => entry.status === 'waiting') ??
-    selectedStatus?.steps.find((entry) => entry.type === 'task' || entry.type === 'router')
+    selectedStatus?.steps.find(
+      (entry) => entry.type === 'agent' || entry.type === 'router' || entry.type === 'script'
+    )
   const currentActive = selected ? isActiveRun(selected) : false
   const friendly = error ? friendlyError(error, 'start') : null
 

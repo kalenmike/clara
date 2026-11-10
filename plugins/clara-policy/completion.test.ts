@@ -4,13 +4,13 @@ import { planMissingControl, settleBinding } from './index.ts'
 import type { SettleBinding } from './index.ts'
 
 test('asks once for a control call before inferring a result', () => {
-  assert.equal(planMissingControl({ kind: 'task', corrected: false }), 'correct')
-  assert.equal(planMissingControl({ kind: 'task', corrected: true }), 'fail')
+  assert.equal(planMissingControl({ kind: 'agent', corrected: false }), 'correct')
+  assert.equal(planMissingControl({ kind: 'agent', corrected: true }), 'fail')
   assert.equal(
-    planMissingControl({ kind: 'task', corrected: true, lastText: 'auth refactored' }),
+    planMissingControl({ kind: 'agent', corrected: true, lastText: 'auth refactored' }),
     'complete'
   )
-  assert.equal(planMissingControl({ kind: 'task', corrected: true, lastText: '   ' }), 'fail')
+  assert.equal(planMissingControl({ kind: 'agent', corrected: true, lastText: '   ' }), 'fail')
 })
 
 test('never infers a router decision from prose', () => {
@@ -19,10 +19,10 @@ test('never infers a router decision from prose', () => {
 })
 
 test('a settled binding is never asked for another control call', () => {
-  assert.equal(planMissingControl({ kind: 'task', closed: true }), 'ignore')
+  assert.equal(planMissingControl({ kind: 'agent', closed: true }), 'ignore')
   assert.equal(planMissingControl({ kind: 'router', closed: true }), 'ignore')
   assert.equal(
-    planMissingControl({ kind: 'task', closed: true, corrected: true, lastText: 'done' }),
+    planMissingControl({ kind: 'agent', closed: true, corrected: true, lastText: 'done' }),
     'ignore'
   )
 })

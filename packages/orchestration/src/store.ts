@@ -1,6 +1,7 @@
 import { mkdirSync } from 'node:fs'
 import { dirname } from 'node:path'
 import Database from 'better-sqlite3'
+import type { ScriptSpec } from './types.ts'
 
 export type Row = Record<string, unknown>
 
@@ -39,6 +40,8 @@ export interface StepRow extends Row {
   attempt: number
   max_attempts: number
   prompt: string | null
+  /** Present only on a script step detail read; the command lives in the snapshot. */
+  script?: ScriptSpec
   model: string | null
   provider: string | null
   policy: string | null
@@ -77,6 +80,7 @@ export interface StepAttemptRow extends Row {
   tool_calls: number
   violations: number
   budget_exhausted: number
+  exit_code: number | null
   error: string | null
   result: string | null
   model: string | null
@@ -97,7 +101,7 @@ export type RunSummary = Omit<RunRow, 'snapshot'>
  */
 export type StepSummary = Omit<
   StepRow,
-  'prompt' | 'policy' | 'limits' | 'lease_id' | 'lease_owner' | 'lease_expires_at'
+  'prompt' | 'script' | 'policy' | 'limits' | 'lease_id' | 'lease_owner' | 'lease_expires_at'
 >
 
 export function runSummary(run: RunRow): RunSummary {
@@ -108,6 +112,7 @@ export function runSummary(run: RunRow): RunSummary {
 export function stepSummary(step: StepRow): StepSummary {
   const {
     prompt: _prompt,
+    script: _script,
     policy: _policy,
     limits: _limits,
     lease_id: _leaseId,
@@ -142,6 +147,9 @@ export interface EventRow extends Row {
 export interface AdapterRow extends Row {
   id: string
   harness: string
+  role: string
+  machine: string | null
+  labels: string
   session_id: string | null
   workspace: string
   capabilities: string
@@ -282,6 +290,9 @@ export class Store {
       CREATE TABLE IF NOT EXISTS adapters (
         id TEXT PRIMARY KEY,
         harness TEXT NOT NULL,
+        role TEXT NOT NULL DEFAULT 'harness',
+        machine TEXT,
+        labels TEXT NOT NULL DEFAULT '[]',
         session_id TEXT,
         workspace TEXT NOT NULL,
         capabilities TEXT NOT NULL,
@@ -304,6 +315,10 @@ export class Store {
     this.ensureColumn('steps', 'current_attempt_id', 'INTEGER')
     this.ensureColumn('events', 'attempt_id', 'INTEGER')
     this.ensureColumn('step_attempts', 'budget_exhausted', 'INTEGER NOT NULL DEFAULT 0')
+    this.ensureColumn('step_attempts', 'exit_code', 'INTEGER')
+    this.ensureColumn('adapters', 'role', "TEXT NOT NULL DEFAULT 'harness'")
+    this.ensureColumn('adapters', 'machine', 'TEXT')
+    this.ensureColumn('adapters', 'labels', "TEXT NOT NULL DEFAULT '[]'")
   }
 
   /** Run a callback in one SQLite transaction (savepoints when nested). */
@@ -665,6 +680,9 @@ export class Store {
   upsertAdapter(input: {
     id: string
     harness: string
+    role?: string
+    machine?: string | null
+    labels?: string[]
     session_id: string | null
     workspace: string
     capabilities: string[]
@@ -672,10 +690,13 @@ export class Store {
     const at = now()
     this.db
       .prepare(
-        `INSERT INTO adapters (id, harness, session_id, workspace, capabilities, heartbeat_at, created_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?)
+        `INSERT INTO adapters (id, harness, role, machine, labels, session_id, workspace, capabilities, heartbeat_at, created_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
          ON CONFLICT(id) DO UPDATE SET
            harness = excluded.harness,
+           role = excluded.role,
+           machine = excluded.machine,
+           labels = excluded.labels,
            session_id = excluded.session_id,
            workspace = excluded.workspace,
            capabilities = excluded.capabilities,
@@ -684,6 +705,9 @@ export class Store {
       .run(
         input.id,
         input.harness,
+        input.role ?? 'harness',
+        input.machine ?? null,
+        JSON.stringify(input.labels ?? []),
         input.session_id,
         input.workspace,
         JSON.stringify(input.capabilities),

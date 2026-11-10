@@ -7,7 +7,8 @@ entry:
   pipeline: diagnose
 
 defaults:
-  task_dir: ./tasks
+  agent_dir: ./agents
   # Diagnostics must run when the setup is already broken, including when the
-  # strict adapter is missing or stale. The tasks stay read-only by prompt.
+  # strict adapter is missing or stale. Evidence collection is a script; the
+  # interpretation agents stay read-only by prompt.
   enforcement: observed

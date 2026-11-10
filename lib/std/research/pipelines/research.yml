@@ -4,28 +4,28 @@ description: Scope, search externally, verify against independent sources, and d
 enforcement: observed
 steps:
   - name: scope_research
-    type: task
+    type: agent
   - name: gather_sources
-    type: task
+    type: agent
     inputs:
       scope: scope_research
   - name: verify_sources
-    type: task
+    type: agent
     inputs:
       scope: scope_research
       sources: gather_sources
   - name: draft_report
-    type: task
+    type: agent
     inputs:
       scope: scope_research
       sources: gather_sources
       verified: verify_sources
   - name: review_report
-    type: task
+    type: agent
     inputs:
       draft: draft_report
       verified: verify_sources
   - name: deliver_report
-    type: task
+    type: agent
     inputs:
       review: review_report
