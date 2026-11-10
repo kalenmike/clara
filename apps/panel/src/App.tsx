@@ -171,7 +171,11 @@ function Panel({ state, session }: { state: SnapshotState; session: SessionContr
             <div className="grid items-start gap-4 md:grid-cols-2">
               <LocalCard
                 local={data.local}
-                sessions={data.clients.filter((client) => client.transport === 'local').length}
+                sessions={
+                  data.clients.filter(
+                    (client) => client.transport === 'local' && client.kind === 'device'
+                  ).length
+                }
                 controls={data.controls}
                 onChanged={refresh}
               />

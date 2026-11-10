@@ -21,6 +21,9 @@ export type PanelDeviceClass = 'desktop' | 'mobile'
 
 export type PanelTransport = 'local' | 'relay'
 
+/** `enroll` is a one-time pairing session that has no device yet. */
+export type PanelClientKind = 'device' | 'enroll'
+
 export type PanelRelayStatus =
   'disabled' | 'stopped' | 'connecting' | 'online' | 'reconnecting' | 'offline'
 
@@ -182,6 +185,7 @@ export type PanelRelayTransport = {
 export type PanelClientInfo = {
   sid: string
   transport: PanelTransport
+  kind: PanelClientKind
   deviceId?: string
   deviceLabel?: string
   deviceClass?: PanelDeviceClass

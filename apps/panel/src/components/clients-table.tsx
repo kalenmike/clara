@@ -13,6 +13,8 @@ import { Badge, CardBody, CollapsibleCard, EmptyState } from './primitives.tsx'
 
 export function ClientsTable({ clients, now }: { clients: PanelClientInfo[]; now: number }) {
   const withTraffic = clients.some((client) => client.bytesIn !== undefined)
+  const pairing = clients.filter((client) => client.kind === 'enroll').length
+  const active = clients.length - pairing
   const { masked } = usePeek()
 
   return (
@@ -20,7 +22,12 @@ export function ClientsTable({ clients, now }: { clients: PanelClientInfo[]; now
       title="Connected clients"
       description="Live end-to-end encrypted sessions"
       icon={<Users className="size-4" aria-hidden="true" />}
-      action={<Badge tone={clients.length > 0 ? 'info' : 'neutral'}>{clients.length} active</Badge>}
+      action={
+        <span className="inline-flex items-center gap-1">
+          <Badge tone={active > 0 ? 'info' : 'neutral'}>{active} active</Badge>
+          {pairing > 0 ? <Badge tone="warning">{pairing} pairing</Badge> : null}
+        </span>
+      }
       defaultExpanded
     >
       <CardBody>
@@ -89,12 +96,19 @@ export function ClientsTable({ clients, now }: { clients: PanelClientInfo[]; now
                     </td>
                     <td
                       className="px-1 py-2"
-                      title={masked ? undefined : (client.deviceId ?? 'Not enrolled')}
+                      title={
+                        client.kind === 'enroll'
+                          ? 'Pairing session'
+                          : masked
+                            ? undefined
+                            : (client.deviceId ?? 'Not enrolled')
+                      }
                     >
-                      {client.deviceLabel ??
-                        (client.deviceId ? (masked ? PEEK_MASK : shortId(client.deviceId)) : '—')}
+                      {pairedDevice(client, masked)}
                     </td>
-                    <td className="px-1 py-2 capitalize">{client.deviceClass ?? 'Unknown'}</td>
+                    <td className="px-1 py-2 capitalize">
+                      {client.kind === 'enroll' ? '—' : (client.deviceClass ?? 'Unknown')}
+                    </td>
                     <td
                       className="px-1 py-2 text-neutral-600 dark:text-neutral-300"
                       title={formatTimestamp(client.connectedAt)}
@@ -134,10 +148,18 @@ export function ClientsTable({ clients, now }: { clients: PanelClientInfo[]; now
           </div>
         )}
         <p className="pt-2 text-xs text-neutral-500 dark:text-neutral-400">
-          Session IDs are random per connection. Paired devices keep a stable identity without
-          revealing their device key. Traffic counters are omitted while monitoring is off.
+          Session IDs are random per connection. A pairing session closes once enrollment completes;
+          it carries no device until then. Paired devices keep a stable identity without revealing
+          their device key. Traffic counters are omitted while monitoring is off.
         </p>
       </CardBody>
     </CollapsibleCard>
   )
+}
+
+function pairedDevice(client: PanelClientInfo, masked: boolean) {
+  if (client.kind === 'enroll') return <Badge tone="warning">Pairing</Badge>
+  if (client.deviceLabel) return client.deviceLabel
+  if (client.deviceId) return masked ? PEEK_MASK : shortId(client.deviceId)
+  return '—'
 }

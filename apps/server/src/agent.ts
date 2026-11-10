@@ -474,22 +474,46 @@ export class Agent {
         fingerprint: device.fingerprint,
         label: device.label,
       })
+      // The enrollment session exists only to deliver this response. Retire it
+      // once the frame is flushed so the panel never reports it as a live client.
+      this.closeAfterSend(session)
     } catch (cause) {
       if (cause instanceof DeviceStoreError) {
         this.sendError(session.sid, toDeviceErrorCode(cause.code), cause.message)
+        this.closeSession(session)
         return
       }
       this.options.traffic?.recordError('handshake')
       this.options.log?.('could not enroll a device', cause)
       this.sendError(session.sid, 'invalid_device', 'Could not enroll this device')
+      this.closeSession(session)
     }
   }
 
   private rejectSession(session: Session, code: DeviceErrorCode, message: string): void {
     this.sendError(session.sid, code, message)
-    this.abortSession(session)
+    this.closeSession(session)
+  }
+
+  /**
+   * Drop one live session, aborting its in-flight requests and recording the
+   * close exactly once. The identity check keeps a late callback from deleting
+   * a newer session that reused the same sid.
+   */
+  private closeSession(session: Session): void {
+    if (this.sessions.get(session.sid) !== session) return
     this.sessions.delete(session.sid)
+    this.abortSession(session)
     this.options.traffic?.recordSessionClosed()
+  }
+
+  /**
+   * Finish a session after its queued frames have been sealed and sent. Used by
+   * enrollment, which only exists to deliver the `device.enrolled` response.
+   */
+  private closeAfterSend(session: Session): void {
+    const pending = session.sendChain
+    void pending.then(() => this.closeSession(session))
   }
 
   private sendError(sid: string, code: DeviceErrorCode, message: string): void {
@@ -505,11 +529,8 @@ export class Agent {
 
   /** Drop every live session for one device, used after the panel revokes it. */
   abortDevice(deviceId: string): void {
-    for (const [sid, session] of this.sessions) {
-      if (session.deviceId !== deviceId) continue
-      this.abortSession(session)
-      this.sessions.delete(sid)
-      this.options.traffic?.recordSessionClosed()
+    for (const session of this.sessions.values()) {
+      if (session.deviceId === deviceId) this.closeSession(session)
     }
   }
 
@@ -1017,12 +1038,10 @@ export class Agent {
 
   private sweep(): void {
     const now = Date.now()
-    for (const [sid, session] of this.sessions) {
+    for (const session of this.sessions.values()) {
       if (now - session.lastSeen <= SESSION_IDLE_MS) continue
-      this.abortSession(session)
-      this.sessions.delete(sid)
+      this.closeSession(session)
       this.options.traffic?.recordError('expired')
-      this.options.traffic?.recordSessionClosed()
     }
   }
 }
