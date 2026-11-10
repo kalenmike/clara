@@ -139,9 +139,10 @@ external `clara` network, and reaches the orchestrator at
    pnpm clara web start --docker --build
    ```
 
-   Open `http://127.0.0.1:8080`. Leaving `VITE_CLARA_WS_URL` unset keeps local
-   pairing codes working; set it in `docker/.env` and rebuild for relay
-   pairings. The web container is static and does not proxy OpenCode traffic.
+   Open `http://127.0.0.1:8080`. The pairing code decides local vs relay; set
+   `VITE_CLARA_WS_URL` in `docker/.env` and rebuild only when the browser must
+   use a different relay endpoint than the agent. The web container is static
+   and does not proxy OpenCode traffic.
 
 The compose service sets `CLARA_ORCHESTRATION_WORKSPACE=/workspace/clara`, which
 is the path the service reports to Clara Lab. Change it only if you move the

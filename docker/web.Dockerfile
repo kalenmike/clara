@@ -5,8 +5,9 @@
 #
 #   docker build -f docker/web.Dockerfile -t clara-web .
 #
-# VITE_CLARA_WS_URL is baked into the bundle at build time. Leave it unset for
-# local pairing codes, or set it to the relay endpoint for relay pairings.
+# VITE_CLARA_WS_URL is baked into the bundle at build time. Leave it unset to
+# use the relay URL carried by each pairing code; set it only to retarget relay
+# rooms to a different relay endpoint.
 #
 #   docker build -f docker/web.Dockerfile \
 #     --build-arg VITE_CLARA_WS_URL=wss://relay.example -t clara-web .
