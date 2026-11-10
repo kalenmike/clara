@@ -8,15 +8,24 @@ import { existsSync, readFileSync } from 'node:fs'
 import { homedir } from 'node:os'
 import { join } from 'node:path'
 import { fail, main, root, runNode, runPnpm } from './lib/router.mjs'
+import { detectServerTarget } from './lib/server-control.mjs'
 
-function pair(args) {
-  if (args.includes('--docker')) {
-    return runNode(join(root, 'scripts/server.mjs'), [
-      'pair',
-      ...args.filter((arg) => arg !== '--docker'),
-    ])
+async function pair(args) {
+  const result = await detectServerTarget({
+    docker: args.includes('--docker'),
+    local: args.includes('--host'),
+  })
+  if (result.target === 'ambiguous') {
+    console.error(`Cannot choose where to read the pairing code: ${result.reason}.`)
+    console.error('Pass --docker for the clara-server container, or --host for a local install.')
+    process.exitCode = 1
+    return
   }
-  return runPnpm(['--filter', '@clara/server', 'exec', 'tsx', 'src/index.ts', 'pair', ...args])
+  const forwarded = args.filter((arg) => arg !== '--docker' && arg !== '--host')
+  if (result.target === 'container') {
+    return runNode(join(root, 'scripts/server.mjs'), ['pair', '--docker', ...forwarded])
+  }
+  return runPnpm(['--filter', '@clara/server', 'exec', 'tsx', 'src/index.ts', 'pair', ...forwarded])
 }
 
 function server(args) {
@@ -128,13 +137,14 @@ const clara = {
     {
       name: 'pair',
       summary: 'Print a pairing code for a device',
-      usage: '[--local] [--rotate] [--no-qr] [--no-panel] [--docker]',
+      usage: '[--local] [--rotate] [--no-qr] [--no-panel] [--docker|--host]',
       options: [
         { flags: '--local', description: 'Force a local-only pairing code' },
         { flags: '--rotate', description: 'Rotate the pairing key and clear push subscriptions' },
         { flags: '--no-qr', description: 'Print the code without the QR block' },
         { flags: '--no-panel', description: 'Do not start the panel listener while pairing' },
-        { flags: '--docker', description: 'Print the code from the server container' },
+        { flags: '--docker', description: 'Read the code from the server container' },
+        { flags: '--host', description: 'Read the code from a local install' },
       ],
       run: pair,
     },
@@ -223,15 +233,15 @@ const clara = {
     {
       name: 'server',
       summary: 'Start, stop, inspect, or pair the home agent container',
-      usage: '<start|stop|status [--json]|setup-token|admin|pair|logs> [--docker] [--build]',
+      usage: '<start|stop|status [--json]|setup-token|admin|pair|logs> [--docker|--host] [--build]',
       passthroughHelp: true,
       examples: [
         'pnpm clara server start --docker',
         'pnpm clara server status',
         'pnpm clara server status --json',
-        'pnpm clara server setup-token --docker',
-        'pnpm clara server admin reset --docker',
-        'pnpm clara server pair --docker',
+        'pnpm clara server setup-token',
+        'pnpm clara server admin reset',
+        'pnpm clara server pair',
         'pnpm clara server logs --docker',
       ],
       run: server,

@@ -23,8 +23,9 @@ monitoring on or off, and gates or paces client settings sync.
    `pnpm clara server start --docker`.
 2. The command opens the panel. First run shows setup: read the one-time token
    from `admin-setup.txt` in the config directory, or run
-   `pnpm clara server setup-token` (add `--docker`), then choose the superadmin
-   password. Later visits show the sign-in form.
+   `pnpm clara server setup-token` (it targets the running deployment
+   automatically), then choose the superadmin password. Later visits show the
+   sign-in form.
 3. After signing in, add the OpenCode harness connection: label, base URL, auth
    type, username, and password. Use **Test** before saving when possible. In a
    container, the URL must be reachable from the `clara` network, for example
@@ -181,9 +182,13 @@ monitoring on or off, and gates or paces client settings sync.
 - **The setup token is wrong or expired** — setup returns a generic invalid-token
   error and keeps the form available. Run the host reset command to issue a new
   token.
-- **The superadmin password is lost** — run `pnpm clara server admin reset`
-  (add `--docker` in a container). It writes a new one-time token and revokes
-  every panel session. There is no HTTP reset route.
+- **The superadmin password is lost** — run `pnpm clara server admin reset`. It
+  targets the running deployment automatically and prints which one it chose,
+  writes a new one-time token, and revokes every panel session. There is no HTTP
+  reset route.
+- **A local install and the Docker stack both have state** — the command refuses
+  to guess and exits after printing the reason. Pass `--docker` for the
+  `clara-server` container or `--host` for the local install.
 - **The session expires** — the next poll returns `401`, the dashboard is
   replaced by the sign-in screen, and no stale data is shown.
 - **The panel is reached through the Docker bridge** — `CLARA_PANEL_ALLOW_REMOTE`
@@ -334,10 +339,12 @@ monitoring on or off, and gates or paces client settings sync.
 - Open the built panel: `pnpm clara control` starts the agent when the panel is
   not already answering, opens `http://127.0.0.1:${CLARA_PANEL_PORT:-8790}/`,
   and stays attached to the agent it started
-- Docker: `pnpm clara server start|stop|status|setup-token|pair|admin --docker`;
-  the rebuild snapshot records the home agent as `container` or `local` and
-  recreates a container with stop/start instead of signalling a PID. See
-  [maintenance.md](maintenance.md).
+- Docker: `pnpm clara server start|stop|status|setup-token|pair|admin`;
+  `setup-token`, `admin`, and `pair` target the running deployment
+  automatically, and `--docker`/`--host` force the container or a local
+  install. The rebuild snapshot records the home agent as `container` or
+  `local` and recreates a container with stop/start instead of signalling a
+  PID. See [maintenance.md](maintenance.md).
 - Dev UI: `pnpm dev:panel` (Vite on `5174`, proxying `/panel/api` to `8790`; the
   proxy rewrites `Host` and `Origin`, and the browser carries the session cookie)
 - Snapshot sections: agent, auth, config, harness, harnesses, local transport,
