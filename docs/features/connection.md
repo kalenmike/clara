@@ -60,6 +60,9 @@ the connection before showing data.
    `harness_unconfigured`; configure it in the panel first.
 8. Push notifications need the home agent's E2EE transport; the control channel
    also carries push subscriptions.
+9. The web transport queues HTTP requests above a small in-flight cap. Query
+   bursts wait instead of hitting the home agent's per-session ceiling, which is
+   64 concurrent requests.
 
 ## Edge cases
 

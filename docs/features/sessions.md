@@ -240,6 +240,10 @@ column or bulk toolbar.
     Clara lists archived projects and probes each canonical directory with
     `location.get`. Projects whose directory is back return to the active list;
     directories that are still missing stay archived and hidden.
+22. Mailbox lookups run within a shared request budget instead of launching
+    three requests per session at once. A failed background refresh keeps the
+    last list visible with a compact refresh notice; the full retry state appears
+    only when no list is cached.
 
 ## Edge cases
 
@@ -329,8 +333,9 @@ column or bulk toolbar.
   the VCS-backed record, so selecting either duplicate shows the same sessions.
 - **Session creation fails** — the button returns to its normal state and no
   navigation happens.
-- **Session request fails** — the list shows a retry link instead of an empty
-  state.
+- **Session refresh fails** — the last list stays visible with a compact refresh
+  notice and the error reason. The full retry state is used only when nothing is
+  cached.
 - **Message lookup fails** — an idle session falls back to Inbox instead of
   disappearing; a running session stays in Outbox.
 - **Saving a draft** — the session stays in Drafts because the message is queued

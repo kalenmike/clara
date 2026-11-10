@@ -57,6 +57,7 @@ function useInvalidateProjectSessions(projectID: string) {
     void queryClient.invalidateQueries({ queryKey: ['sessions'] })
     void queryClient.invalidateQueries({ queryKey: queryKeys.projects })
     void queryClient.invalidateQueries({ queryKey: queryKeys.projectStats(projectID) })
+    void queryClient.invalidateQueries({ queryKey: queryKeys.projectPresence(projectID) })
   }
 }
 

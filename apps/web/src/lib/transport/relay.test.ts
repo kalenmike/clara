@@ -13,13 +13,19 @@ import {
   type SessionKeys,
 } from '@clara/crypto'
 import { PROTOCOL_VERSION, type ClaraAction, type ClaraState } from '@clara/shared-types'
-import { createRelayTransport, type RelayTransport } from './relay.ts'
+import { createRelayTransport, MAX_IN_FLIGHT_REQUESTS, type RelayTransport } from './relay.ts'
 
 let server: Server
 let wss: WebSocketServer
 let transport: RelayTransport
 let psk: string
 let fingerprint: string
+let heldRequests: Array<{ release: () => void }> = []
+let heldReceived = 0
+
+function releaseHeld(): void {
+  heldRequests.shift()?.release()
+}
 
 beforeAll(async () => {
   Object.defineProperty(globalThis, 'window', { configurable: true, value: globalThis })
@@ -65,6 +71,47 @@ describe('relay fetch transport', () => {
     })
     expect(response.headers.get('content-type')).toBe('text/event-stream')
     await expect(response.text()).resolves.toContain('data: hello')
+  })
+
+  it('queues requests above the in-flight cap', async () => {
+    heldRequests = []
+    heldReceived = 0
+    const total = MAX_IN_FLIGHT_REQUESTS + 3
+    const pending = Array.from({ length: total }, () =>
+      transport.fetch('http://clara.relay/api/hold', { signal: AbortSignal.timeout(5_000) })
+    )
+
+    await waitFor(() => heldReceived === MAX_IN_FLIGHT_REQUESTS)
+    expect(heldReceived).toBe(MAX_IN_FLIGHT_REQUESTS)
+
+    for (let released = 0; released < total; released += 1) {
+      await waitFor(() => heldRequests.length > 0)
+      releaseHeld()
+    }
+
+    const responses = await Promise.all(pending)
+    expect(responses.every((response) => response.status === 200)).toBe(true)
+  })
+
+  it('rejects a queued request when it aborts', async () => {
+    heldRequests = []
+    heldReceived = 0
+    const held = Array.from({ length: MAX_IN_FLIGHT_REQUESTS }, () =>
+      transport.fetch('http://clara.relay/api/hold', { signal: AbortSignal.timeout(5_000) })
+    )
+    await waitFor(() => heldReceived === MAX_IN_FLIGHT_REQUESTS)
+
+    const controller = new AbortController()
+    const queued = transport.fetch('http://clara.relay/api/hold', {
+      signal: controller.signal,
+    })
+    controller.abort()
+
+    await expect(queued).rejects.toMatchObject({ name: 'AbortError' })
+
+    while (heldRequests.length > 0) releaseHeld()
+    await Promise.all(held)
+    expect(heldReceived).toBe(MAX_IN_FLIGHT_REQUESTS)
   })
 
   it('checks, pulls, and receives conflict snapshots', async () => {
@@ -219,6 +266,31 @@ function attachFakeAgent(socket: WebSocket, psk: string): void {
     }
 
     if (payload.type !== 'http.request') return
+
+    if (payload.path === '/api/hold') {
+      heldReceived += 1
+      await new Promise<void>((resolve) => {
+        heldRequests.push({
+          release: () => {
+            resolve()
+            send({
+              type: 'http.response',
+              id: payload.id,
+              status: 200,
+              statusText: 'OK',
+              headers: { 'content-type': 'application/json' },
+            })
+            send({
+              type: 'http.chunk',
+              id: payload.id,
+              data: bytesToBase64Url(utf8('{}')),
+            })
+            send({ type: 'http.end', id: payload.id })
+          },
+        })
+      })
+      return
+    }
 
     if (payload.path === '/api/event') {
       send({

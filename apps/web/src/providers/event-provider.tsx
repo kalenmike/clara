@@ -273,6 +273,23 @@ function handleInvalidation(
     case 'session.moved':
       if (event.type === 'session.deleted' && sessionID) chatStore.forget(sessionID)
       void queryClient.invalidateQueries({ queryKey: ['sessions'] })
+      if (event.type === 'session.created') {
+        void queryClient.invalidateQueries({
+          queryKey: queryKeys.projectPresence(event.data.projectID),
+        })
+        void queryClient.invalidateQueries({
+          queryKey: queryKeys.projectStats(event.data.projectID),
+        })
+      } else if (event.type === 'session.deleted') {
+        void queryClient.invalidateQueries({ queryKey: ['project-presence'] })
+        void queryClient.invalidateQueries({ queryKey: ['project-stats'] })
+      } else if (
+        event.type === 'session.archived' ||
+        event.type === 'session.unarchived' ||
+        event.type === 'session.forked'
+      ) {
+        void queryClient.invalidateQueries({ queryKey: ['project-stats'] })
+      }
       if (sessionID) {
         void queryClient.invalidateQueries({ queryKey: queryKeys.session(sessionID) })
         if (event.type === 'session.forked') {

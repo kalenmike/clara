@@ -35,6 +35,13 @@ const STALL_MS = 45_000
 const MAX_RECONNECT_MS = 15_000
 const SYNC_TIMEOUT_MS = 30_000
 
+/**
+ * The agent accepts a bounded number of requests per session. Keep the web
+ * below that ceiling so a feature burst (mailbox signals, project presence,
+ * reconnect invalidations) queues instead of failing with too_many_requests.
+ */
+export const MAX_IN_FLIGHT_REQUESTS = 20
+
 export type RelayTransportConfig = {
   wsUrl: string
   clientToken: string
@@ -89,6 +96,12 @@ type PendingResponse = {
   bodyless: boolean
   timer: number
   cleanup: () => void
+  release: () => void
+}
+
+type QueuedRequest = {
+  grant: () => void
+  reject: (cause: unknown) => void
 }
 
 type PendingSync = {
@@ -110,6 +123,8 @@ class RelayFetchTransport implements RelayTransport {
   private readonly listeners = new Set<(status: RelayTransportStatus) => void>()
   private readonly pushListeners = new Set<(state: PushStatusState) => void>()
   private readonly channels = new Set<RelayChannel>()
+  private readonly queue: QueuedRequest[] = []
+  private inFlight = 0
   private socket: WebSocket | null = null
   private keys: SessionKeys | null = null
   private sid: string | null = null
@@ -140,6 +155,7 @@ class RelayFetchTransport implements RelayTransport {
     this.closed = true
     this.clearTimers()
     this.rejectHandshake(new Error('Relay transport closed'))
+    this.failQueued(new Error('Relay transport closed'))
     this.failAll(new Error('Relay transport closed'))
     this.failAllSync(new Error('Relay transport closed'))
 
@@ -218,11 +234,18 @@ class RelayFetchTransport implements RelayTransport {
     await this.ensureReady()
     if (this.closed) throw new Error('Relay transport closed')
 
-    const id = randomId()
     const body =
       request.method === 'GET' || request.method === 'HEAD'
         ? undefined
         : await request.arrayBuffer()
+
+    const release = await this.acquire(signal)
+    if (this.closed) {
+      release()
+      throw new Error('Relay transport closed')
+    }
+
+    const id = randomId()
 
     const response = new Promise<Response>((resolve, reject) => {
       const timer = window.setTimeout(() => {
@@ -244,6 +267,7 @@ class RelayFetchTransport implements RelayTransport {
         bodyless: false,
         timer,
         cleanup: () => signal.removeEventListener('abort', onAbort),
+        release,
       })
     })
 
@@ -359,6 +383,7 @@ class RelayFetchTransport implements RelayTransport {
       this.handshakeTimer = null
       const reason = describeClose(event, this.config.wsUrl, wasOpen)
       this.rejectHandshake(new Error(reason))
+      this.failQueued(new Error(reason))
       this.failAll(new Error(reason))
       this.failAllSync(new Error(reason))
 
@@ -508,6 +533,7 @@ class RelayFetchTransport implements RelayTransport {
             this.pending.delete(state.id)
             window.clearTimeout(pending.timer)
             pending.cleanup()
+            pending.release()
             void this.send({ type: 'http.abort', id: state.id }).catch(() => {})
           },
         })
@@ -595,6 +621,7 @@ class RelayFetchTransport implements RelayTransport {
     this.pending.delete(id)
     window.clearTimeout(pending.timer)
     pending.cleanup()
+    pending.release()
     if (pending.controller) {
       try {
         pending.controller.close()
@@ -616,10 +643,50 @@ class RelayFetchTransport implements RelayTransport {
     this.pending.delete(id)
     window.clearTimeout(pending.timer)
     pending.cleanup()
+    pending.release()
   }
 
   private failAll(cause: unknown): void {
     for (const id of [...this.pending.keys()]) this.failPending(id, cause)
+  }
+
+  private acquire(signal: AbortSignal): Promise<() => void> {
+    if (this.closed) return Promise.reject(new Error('Relay transport closed'))
+    if (signal.aborted) return Promise.reject(abortError())
+    if (this.inFlight < MAX_IN_FLIGHT_REQUESTS) {
+      this.inFlight += 1
+      return Promise.resolve(() => this.releaseSlot())
+    }
+
+    return new Promise((resolve, reject) => {
+      const entry: QueuedRequest = {
+        grant: () => {
+          signal.removeEventListener('abort', onAbort)
+          this.inFlight += 1
+          resolve(() => this.releaseSlot())
+        },
+        reject: (cause) => {
+          signal.removeEventListener('abort', onAbort)
+          reject(cause)
+        },
+      }
+      const onAbort = () => {
+        const index = this.queue.indexOf(entry)
+        if (index >= 0) this.queue.splice(index, 1)
+        reject(abortError())
+      }
+      signal.addEventListener('abort', onAbort, { once: true })
+      this.queue.push(entry)
+    })
+  }
+
+  private releaseSlot(): void {
+    this.inFlight = Math.max(0, this.inFlight - 1)
+    this.queue.shift()?.grant()
+  }
+
+  private failQueued(cause: unknown): void {
+    for (const entry of this.queue.splice(0)) entry.reject(cause)
   }
 
   private failSyncPending(id: string, cause: unknown): void {

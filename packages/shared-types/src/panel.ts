@@ -335,7 +335,7 @@ export type PanelMutationResponse = {
  * observed, never for a payload it decrypted and kept.
  */
 export type PanelTrafficErrorKey =
-  'handshake' | 'crypto' | 'orphan' | 'dropped' | 'refused' | 'upstream' | 'expired'
+  'handshake' | 'crypto' | 'orphan' | 'dropped' | 'refused' | 'limited' | 'upstream' | 'expired'
 
 export type PanelTrafficTotals = {
   bytesIn: number
