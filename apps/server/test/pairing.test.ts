@@ -1,10 +1,10 @@
-import { mkdtempSync, rmSync } from 'node:fs'
+import { mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { generatePsk } from '@clara/crypto'
 import { loadConfig, type ServerConfig } from '../src/config.ts'
-import { createPairingPayload, pairingLinkBase } from '../src/pairing.ts'
+import { createPairingPayload, pairingLinkBase, printPairing } from '../src/pairing.ts'
 
 const tempDirs: string[] = []
 const ENV_KEYS = [
@@ -18,6 +18,7 @@ const ENV_KEYS = [
   'CLARA_CLIENT_TOKEN',
   'CLARA_PSK',
   'CLARA_PAIRING_BASE_URL',
+  'CLARA_WEB_PORT',
   'XDG_STATE_HOME',
 ] as const
 
@@ -130,6 +131,45 @@ describe('pairingLinkBase', () => {
     expect(pairingLinkBase({ room: 'local' }, 'https://clara.example', '::1')).toBe(
       'http://[::1]:8080'
     )
+  })
+
+  it('uses CLARA_WEB_PORT for the local fallback', () => {
+    process.env.CLARA_WEB_PORT = '9090'
+    expect(pairingLinkBase({ room: 'local' }, 'https://clara.example', '127.0.0.1')).toBe(
+      'http://127.0.0.1:9090'
+    )
+  })
+})
+
+describe('pair command configuration', () => {
+  it('reads the panel web URL from server.json', async () => {
+    const dir = tempDir()
+    writeFileSync(
+      join(dir, 'server.json'),
+      JSON.stringify({
+        psk: generatePsk(),
+        pairingBaseUrl: 'https://saved.example',
+        relay: { url: 'wss://relay.example', room: 'room-1' },
+      }),
+      { mode: 0o600 }
+    )
+    process.env.CLARA_CONFIG_DIR = dir
+    process.env.XDG_STATE_HOME = tempDir()
+    process.env.CLARA_AGENT_TOKEN = 'agent-token'
+    process.env.CLARA_CLIENT_TOKEN = 'client-token'
+
+    const config = loadConfig()
+    const logs: string[] = []
+    const spy = vi.spyOn(console, 'log').mockImplementation((...args: unknown[]) => {
+      logs.push(args.map(String).join(' '))
+    })
+    try {
+      await printPairing(config, false)
+    } finally {
+      spy.mockRestore()
+    }
+
+    expect(logs.join('\n')).toContain('https://saved.example/#pair=')
   })
 })
 

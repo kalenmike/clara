@@ -6,7 +6,7 @@
  * agent on a loopback listener; it never travels through the relay.
  */
 
-export const PANEL_API_VERSION = 8
+export const PANEL_API_VERSION = 9
 
 export type PanelValueSource = 'env' | 'file' | 'database' | 'default' | 'generated' | 'none'
 
@@ -49,6 +49,16 @@ export type PanelConfigInfo = {
   relayUrl: PanelValue<string | null>
   relayRoom: PanelValue<string | null>
   pairingBaseUrl: PanelValue<string>
+  vapidSubject: PanelValue<string>
+}
+
+export type PanelConfigUpdate = {
+  pairingBaseUrl?: string | null
+  vapidSubject?: string | null
+}
+
+export type PanelConfigMutationResponse = {
+  config: PanelConfigInfo
 }
 
 export type PanelAuthInfo = {

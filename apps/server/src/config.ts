@@ -61,7 +61,7 @@ type ConfigFile = {
 
 const DEFAULT_LOCAL_HOST = '127.0.0.1'
 const DEFAULT_LOCAL_PORT = 8788
-const DEFAULT_PAIRING_BASE_URL = 'http://127.0.0.1:8080'
+const DEFAULT_WEB_PORT = 8080
 
 export function loadConfig(options: { rotate?: boolean; local?: boolean } = {}): ServerConfig {
   const configDir = resolveConfigDir()
@@ -153,17 +153,18 @@ export function loadConfig(options: { rotate?: boolean; local?: boolean } = {}):
         : 'generated'
   parsePsk(psk)
 
-  const pairingBaseUrlSource: ConfigSource =
-    process.env.CLARA_PAIRING_BASE_URL !== undefined
-      ? 'env'
-      : file.pairingBaseUrl !== undefined
-        ? 'file'
-        : 'default'
-  const pairingBaseUrl = (
-    process.env.CLARA_PAIRING_BASE_URL ??
-    file.pairingBaseUrl ??
-    DEFAULT_PAIRING_BASE_URL
-  ).replace(/\/+$/, '')
+  const envPairingBaseUrl = readEnv('CLARA_PAIRING_BASE_URL')
+  const filePairingBaseUrl = nonEmpty(file.pairingBaseUrl)
+  const pairingBaseUrlSource: ConfigSource = envPairingBaseUrl
+    ? 'env'
+    : filePairingBaseUrl
+      ? 'file'
+      : 'default'
+  const pairingBaseUrl = envPairingBaseUrl
+    ? configuredPairingBaseUrl(envPairingBaseUrl, 'env', configPath)
+    : filePairingBaseUrl
+      ? configuredPairingBaseUrl(filePairingBaseUrl, 'file', configPath)
+      : defaultPairingBaseUrl()
 
   const config: ServerConfig = {
     local: { host: localHost, bindHost: localBindHost, port: localPort },
@@ -212,7 +213,12 @@ function persistConfig(
   const pskChanged = rotated || previous.psk !== config.psk
   const localChanged =
     previous.local?.host !== config.local.host || previous.local?.port !== config.local.port
-  const pairingChanged = previous.pairingBaseUrl !== config.pairingBaseUrl
+  const storedPairingBaseUrl =
+    config.sources.pairingBaseUrl === 'file'
+      ? config.pairingBaseUrl
+      : nonEmpty(previous.pairingBaseUrl)
+  const pairingChanged =
+    config.sources.pairingBaseUrl === 'file' && previous.pairingBaseUrl !== config.pairingBaseUrl
   const legacyCleared = previous.opencode !== undefined
   if (!relayChanged && !pskChanged && !localChanged && !pairingChanged && !legacyCleared) return
 
@@ -221,14 +227,78 @@ function persistConfig(
   const next: ConfigFile = {
     local: { host: config.local.host, port: config.local.port },
     psk: config.psk,
-    pairingBaseUrl: config.pairingBaseUrl,
   }
+  if (storedPairingBaseUrl !== undefined) next.pairingBaseUrl = storedPairingBaseUrl
   if (config.relay) {
     next.relay = { url: config.relay.url, room: config.relay.room }
   }
 
+  writeConfigFile(path, next)
+}
+
+/**
+ * Persist a panel-edited Web URL. Clearing the value removes the key so the
+ * next load falls back to the local default again.
+ */
+export function savePairingBaseUrl(configPath: string, value: string | undefined): void {
+  const previous = readConfig(configPath)
+  const nextValue = value?.trim() ? normalizePairingBaseUrl(value) : undefined
+  if (previous.pairingBaseUrl === nextValue && previous.opencode === undefined) return
+
+  const next: ConfigFile = { ...previous }
+  delete next.opencode
+  if (nextValue !== undefined) next.pairingBaseUrl = nextValue
+  else delete next.pairingBaseUrl
+  writeConfigFile(configPath, next)
+}
+
+export function localWebPort(env: NodeJS.ProcessEnv = process.env): number {
+  const parsed = Number.parseInt(env.CLARA_WEB_PORT?.trim() ?? '', 10)
+  return Number.isInteger(parsed) && parsed > 0 && parsed <= 65_535 ? parsed : DEFAULT_WEB_PORT
+}
+
+export function defaultPairingBaseUrl(env: NodeJS.ProcessEnv = process.env): string {
+  return `http://127.0.0.1:${localWebPort(env)}`
+}
+
+export function normalizePairingBaseUrl(value: string): string {
+  const trimmed = value.trim()
+  if (!trimmed) throw new Error('The web URL is required')
+
+  let url: URL
+  try {
+    url = new URL(trimmed)
+  } catch {
+    throw new Error('The web URL must be a valid HTTP(S) URL')
+  }
+  if (url.protocol !== 'http:' && url.protocol !== 'https:') {
+    throw new Error('The web URL must start with http:// or https://')
+  }
+  if (url.username || url.password) {
+    throw new Error('The web URL must not contain credentials')
+  }
+  if (url.search || url.hash) {
+    throw new Error('The web URL must not contain a query or fragment')
+  }
+  return url.toString().replace(/\/+$/, '')
+}
+
+function configuredPairingBaseUrl(
+  value: string,
+  source: 'env' | 'file',
+  configPath: string
+): string {
+  try {
+    return normalizePairingBaseUrl(value)
+  } catch (cause) {
+    const label = source === 'env' ? 'CLARA_PAIRING_BASE_URL' : configPath
+    throw new Error(`Invalid pairing Web URL in ${label}: ${errorMessage(cause)}`, { cause })
+  }
+}
+
+function writeConfigFile(path: string, file: ConfigFile): void {
   mkdirSync(dirname(path), { recursive: true, mode: 0o700 })
-  writeFileSync(path, `${JSON.stringify(next, null, 2)}\n`, { mode: 0o600 })
+  writeFileSync(path, `${JSON.stringify(file, null, 2)}\n`, { mode: 0o600 })
 }
 
 export function loadAdminPaths(): { configDir: string; dataDir: string; dbPath: string } {

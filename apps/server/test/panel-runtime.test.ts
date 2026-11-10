@@ -205,6 +205,10 @@ describe('PanelRuntime', () => {
     expect(snapshot.agent.fingerprint).toBe('fingerprint-123')
     expect(snapshot.harness.configured).toBe(true)
     expect(snapshot.harnesses).toHaveLength(1)
+    expect(snapshot.config.vapidSubject).toEqual({
+      value: 'https://clara.local',
+      source: 'default',
+    })
     expect(snapshot.local.connections).toBe(1)
     expect(snapshot.relay.status).toBe('online')
     expect(snapshot.clients.map((client) => client.transport)).toEqual(['local', 'relay'])

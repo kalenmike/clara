@@ -1,5 +1,7 @@
 import type {
   AgentInfo,
+  PanelConfigInfo,
+  PanelConfigUpdate,
   PanelControls,
   PanelFeatureControl,
   PanelHarnessMutationResponse,
@@ -11,14 +13,28 @@ import type {
 import { baseURL } from '@clara/orchestration-control'
 import type { WebSocket } from 'ws'
 import { Agent } from '../agent.ts'
-import type { ServerConfig } from '../config.ts'
+import {
+  defaultPairingBaseUrl,
+  normalizePairingBaseUrl,
+  savePairingBaseUrl,
+  type ServerConfig,
+} from '../config.ts'
 import type { HarnessManager } from '../harness/manager.ts'
 import { HarnessValidationError } from '../harness/types.ts'
 import { broadcast, LocalTransport } from '../local-server.ts'
 import { PanelControlError } from '../panel/controls.ts'
 import { harnessList, harnessState, toPanelHarnessTest } from '../panel/harness.ts'
+import { panelConfigInfo } from '../panel/runtime.ts'
 import { PushMonitor } from '../push/monitor.ts'
 import type { PushService } from '../push/service.ts'
+import {
+  DEFAULT_VAPID_SUBJECT,
+  isValidVapidSubject,
+  normalizeVapidSubject,
+  readVapidSubject,
+  saveVapidSubject,
+  validateVapidSubject,
+} from '../push/vapid.ts'
 import { RelayClient, type RelayStatus } from '../relay-client.ts'
 import type { ClientStorageStore } from '../store/client-storage.ts'
 import { FEATURE_NAMES, type FeatureName, type SettingsStore } from '../store/settings.ts'
@@ -347,6 +363,82 @@ export class RuntimeController {
       this.options.log(`client settings sync check interval set to ${update.intervalMs}ms`)
     }
     return this.controls()
+  }
+
+  /**
+   * Update the file-backed panel values. The Web URL lives in server.json and
+   * the VAPID contact lives in vapid.json, so this is the one config mutation
+   * that is not stored in SQLite.
+   */
+  async updateConfig(update: PanelConfigUpdate): Promise<PanelConfigInfo> {
+    const { config } = this.options
+    const pairingProvided = Object.prototype.hasOwnProperty.call(update, 'pairingBaseUrl')
+    const vapidProvided = Object.prototype.hasOwnProperty.call(update, 'vapidSubject')
+
+    let pairingBaseUrl: string | undefined
+    if (pairingProvided) {
+      if (config.sources.pairingBaseUrl === 'env') {
+        throw new PanelControlError(
+          409,
+          'env_override',
+          'CLARA_PAIRING_BASE_URL is set. Remove it and restart the agent to edit the Web URL here.'
+        )
+      }
+      const value = update.pairingBaseUrl
+      if (value !== null && value !== undefined && value.trim()) {
+        try {
+          pairingBaseUrl = normalizePairingBaseUrl(value)
+        } catch (cause) {
+          throw new PanelControlError(400, 'invalid_pairing_base_url', errorMessage(cause))
+        }
+      }
+    }
+
+    let vapidSubject: string | undefined
+    const currentVapidSubject = readVapidSubject(config.configDir)
+    if (vapidProvided) {
+      if (currentVapidSubject.source === 'env') {
+        throw new PanelControlError(
+          409,
+          'env_override',
+          'CLARA_VAPID_SUBJECT is set. Remove it and restart the agent to edit the VAPID contact here.'
+        )
+      }
+      const value = update.vapidSubject
+      if (value !== null && value !== undefined && value.trim()) {
+        try {
+          validateVapidSubject(value)
+          vapidSubject = normalizeVapidSubject(value)
+        } catch (cause) {
+          throw new PanelControlError(400, 'invalid_vapid_subject', errorMessage(cause))
+        }
+      }
+    }
+
+    // Adopting the first custom HTTPS Web URL also adopts it as the VAPID
+    // contact while the contact is still the local default. An explicit panel
+    // value or CLARA_VAPID_SUBJECT is never overwritten.
+    const followWebUrl =
+      pairingProvided &&
+      !vapidProvided &&
+      pairingBaseUrl !== undefined &&
+      currentVapidSubject.source !== 'env' &&
+      currentVapidSubject.value === DEFAULT_VAPID_SUBJECT &&
+      isValidVapidSubject(pairingBaseUrl)
+    const nextVapidSubject = followWebUrl ? pairingBaseUrl : vapidSubject
+    const writeVapidSubject = vapidProvided || followWebUrl
+
+    if (pairingProvided) {
+      savePairingBaseUrl(config.configPath, pairingBaseUrl)
+      config.pairingBaseUrl = pairingBaseUrl ?? defaultPairingBaseUrl()
+      config.sources.pairingBaseUrl = pairingBaseUrl ? 'file' : 'default'
+    }
+    if (writeVapidSubject) {
+      saveVapidSubject(config.configDir, nextVapidSubject)
+      this.options.push?.setSubject(nextVapidSubject ?? DEFAULT_VAPID_SUBJECT)
+    }
+
+    return panelConfigInfo(config)
   }
 
   async saveHarness(value: unknown, id?: string): Promise<PanelHarnessMutationResponse> {
