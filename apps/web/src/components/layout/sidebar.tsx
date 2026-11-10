@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useLocation, useNavigate, useParams } from 'react-router'
 import {
   ChevronDown,
@@ -30,6 +30,8 @@ import { Input } from '@/components/ui/input'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Skeleton } from '@/components/ui/skeleton'
 import { ProjectAvatar } from '@/components/projects/project-avatar'
+import { SidebarDeleteDialog } from '@/components/layout/sidebar-delete-dialog'
+import { SidebarSelectionBar } from '@/components/layout/sidebar-selection-bar'
 import { SidebarSessionRow } from '@/components/layout/sidebar-session-row'
 import { usePendingPermissions } from '@/features/chat/use-permissions'
 import { resolveAttentionKind } from '@/features/notifications/attention'
@@ -43,10 +45,21 @@ import { useProjectSessionPresence } from '@/features/projects/use-project-prese
 import { useShowEmptyProjects } from '@/features/projects/use-show-empty-projects'
 import { canonicalProject, canonicalProjects, useProjects } from '@/features/projects/use-projects'
 import { useSessionPolicy } from '@/features/notifications/session-policy'
+import { resolveDeleteFocusTarget } from '@/features/sessions/delete-focus'
 import { isArchivedSession } from '@/features/sessions/session-archive'
 import { groupSessionsByMailbox } from '@/features/sessions/session-sections'
+import {
+  pruneSelection,
+  selectRange,
+  type SelectionState,
+} from '@/features/sessions/session-selection'
 import { isSnoozedSession } from '@/features/sessions/session-snooze'
 import { isSessionUnread } from '@/features/sessions/session-unread'
+import {
+  describeDeleteOutcome,
+  useDeleteSessions,
+  type DeleteOutcomeCopy,
+} from '@/features/sessions/use-delete-sessions'
 import { useSessionMailboxSignals } from '@/features/sessions/use-session-mailbox'
 import {
   useActiveSessions,
@@ -57,6 +70,7 @@ import { useStartSession } from '@/features/sessions/use-start-session'
 import { useSessionWording } from '@/features/sessions/use-wording'
 import { useSidebarWidth } from '@/hooks/use-sidebar-width'
 import { claraBuildLabel, claraBuildTitle, claraVersion } from '@/lib/build-info'
+import { isTextEntryTarget } from '@/lib/keyboard'
 import {
   SIDEBAR_WIDTH_MAX,
   SIDEBAR_WIDTH_MIN,
@@ -84,7 +98,7 @@ export function Sidebar() {
       className="relative hidden shrink-0 flex-col border-r bg-sidebar text-sidebar-foreground md:flex"
       style={{ width }}
     >
-      <SidebarContent />
+      <SidebarContent scope="sidebar" />
       <div
         {...handleProps}
         role="separator"
@@ -112,7 +126,13 @@ export function Sidebar() {
   )
 }
 
-export function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
+export function SidebarContent({
+  onNavigate,
+  scope = 'sidebar',
+}: {
+  onNavigate?: () => void
+  scope?: 'sidebar' | 'drawer'
+}) {
   const navigate = useNavigate()
   const location = useLocation()
   const params = useParams<{ projectId: string; sessionId?: string }>()
@@ -127,6 +147,26 @@ export function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
   const { showEmpty } = useShowEmptyProjects()
   const [search, setSearch] = useState('')
   const [openSections, setOpenSections] = useState(readSidebarSections)
+  const [selection, setSelection] = useState<SelectionState>({
+    anchorID: null,
+    selectedIDs: new Set(),
+  })
+  const [failureNote, setFailureNote] = useState<string | null>(null)
+  const [dialogOpen, setDialogOpen] = useState(false)
+  const [snapshot, setSnapshot] = useState<SessionInfo[]>([])
+  const clearButtonRef = useRef<HTMLButtonElement>(null)
+  const searchInputRef = useRef<HTMLInputElement>(null)
+  const rowRefs = useRef(new Map<string, HTMLAnchorElement>())
+  const focusBeforeDialogRef = useRef<HTMLElement | null>(null)
+  const beforeOrderRef = useRef<string[]>([])
+  const pendingOutcomeRef = useRef<DeleteOutcomeCopy | null>(null)
+  const pendingNavigationRef = useRef<string | null>(null)
+  const focusIntentRef = useRef<{
+    kind: 'dismiss' | 'success' | 'failure'
+    deleted?: ReadonlySet<string>
+    failed?: ReadonlySet<string>
+  }>({ kind: 'dismiss' })
+  const remove = useDeleteSessions()
   const searching = search.trim().length > 0
 
   const projectOptions = useMemo(() => canonicalProjects(projects), [projects])
@@ -228,6 +268,44 @@ export function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
     [claraEnabled, sections, workerSection]
   )
 
+  const renderedIDs = useMemo(() => {
+    const ids: string[] = []
+    for (const section of sections) {
+      if (searching || openSections[section.id]) {
+        for (const session of section.sessions) ids.push(session.id)
+      }
+    }
+    if (claraEnabled && (searching || openSections.workers)) {
+      for (const session of workerSection.sessions) ids.push(session.id)
+    }
+    return ids
+  }, [claraEnabled, openSections, searching, sections, workerSection])
+
+  const projectOrderedIDs = useMemo(
+    () => allSections.flatMap((section) => section.sessions.map((session) => session.id)),
+    [allSections]
+  )
+
+  const sessionByID = useMemo(
+    () => new Map(allSessions.map((session) => [session.id, session])),
+    [allSessions]
+  )
+
+  const selectedSessions = useMemo(
+    () =>
+      projectOrderedIDs.flatMap((id) => {
+        const session = sessionByID.get(id)
+        return session && selection.selectedIDs.has(id) ? [session] : []
+      }),
+    [projectOrderedIDs, selection.selectedIDs, sessionByID]
+  )
+
+  const renderedIDsRef = useRef(renderedIDs)
+  renderedIDsRef.current = renderedIDs
+
+  const selectionRef = useRef(selection)
+  selectionRef.current = selection
+
   const latest = sessions.find((session) => !isAutomation?.(session))
   const { startSession: newSession, pending: createPending } = useStartSession({
     projectID: selectedProject?.id,
@@ -239,6 +317,249 @@ export function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
   const sessionsLoading = sessionsQuery.isLoading || archivedQuery.isLoading
   const sessionsError = sessionsQuery.isError || archivedQuery.isError
   const listPending = sessionsLoading || (mailboxSessions.length > 0 && mailboxesPending)
+
+  const projectOrderedIDsRef = useRef(projectOrderedIDs)
+  projectOrderedIDsRef.current = projectOrderedIDs
+
+  const select = useCallback((id: string) => {
+    setSelection({ anchorID: id, selectedIDs: new Set() })
+    setFailureNote(null)
+  }, [])
+
+  const extendTo = useCallback(
+    (id: string) => {
+      setSelection((current) => selectRange(renderedIDs, current.anchorID, id))
+      setFailureNote(null)
+    },
+    [renderedIDs]
+  )
+
+  const clear = useCallback(() => {
+    setSelection({ anchorID: null, selectedIDs: new Set() })
+    setFailureNote(null)
+  }, [])
+
+  const openConfirm = useCallback(() => {
+    if (selectedSessions.length === 0) {
+      toast.message(`Select ${lowerPlural} to delete.`)
+      return
+    }
+
+    focusIntentRef.current = { kind: 'dismiss' }
+    beforeOrderRef.current = projectOrderedIDsRef.current
+    pendingOutcomeRef.current = null
+    pendingNavigationRef.current = null
+    const active = document.activeElement
+    focusBeforeDialogRef.current = active instanceof HTMLElement ? active : null
+    setSnapshot([...selectedSessions])
+    setDialogOpen(true)
+  }, [lowerPlural, selectedSessions])
+
+  const closeDialog = useCallback(() => {
+    setDialogOpen(false)
+  }, [])
+
+  const confirmDelete = useCallback(() => {
+    const targets = snapshot
+    if (targets.length === 0 || remove.isPending) return
+
+    remove.mutate(targets, {
+      onSuccess: (result) => {
+        const outcome = describeDeleteOutcome(result, { lowerSingular, lowerPlural })
+        const failedIDs = new Set(result.failed.map((item) => item.session.id))
+
+        if (!outcome) {
+          focusIntentRef.current = { kind: 'dismiss' }
+          setDialogOpen(false)
+          return
+        }
+
+        pendingOutcomeRef.current = outcome
+
+        if (outcome.tone === 'success') {
+          focusIntentRef.current = { kind: 'success', deleted: new Set(result.deleted) }
+          setSelection({ anchorID: null, selectedIDs: new Set() })
+          setFailureNote(null)
+        } else {
+          const firstFailed =
+            projectOrderedIDs.find((id) => failedIDs.has(id)) ??
+            result.failed[0]?.session.id ??
+            null
+          const failedNoun = result.failed.length === 1 ? lowerSingular : lowerPlural
+          const pronoun =
+            result.failed.length === 1 ? 'It is still selected.' : 'They are still selected.'
+
+          focusIntentRef.current = { kind: 'failure', failed: failedIDs }
+          setSelection({ anchorID: firstFailed, selectedIDs: failedIDs })
+          setFailureNote(`Could not delete ${result.failed.length} ${failedNoun}. ${pronoun}`)
+        }
+
+        const projectID = selectedProject?.id ?? targets[0]?.projectID
+        if (params.sessionId && projectID && result.deleted.includes(params.sessionId)) {
+          pendingNavigationRef.current = `/p/${projectID}`
+        }
+
+        setDialogOpen(false)
+      },
+      onError: () => {
+        focusIntentRef.current = { kind: 'dismiss' }
+        pendingOutcomeRef.current = {
+          tone: 'error',
+          title: `Could not delete ${targets.length} ${
+            targets.length === 1 ? lowerSingular : lowerPlural
+          }`,
+        }
+        pendingNavigationRef.current = null
+        setDialogOpen(false)
+      },
+    })
+  }, [
+    lowerPlural,
+    lowerSingular,
+    params.sessionId,
+    projectOrderedIDs,
+    remove,
+    selectedProject?.id,
+    snapshot,
+  ])
+
+  const handleCloseAutoFocus = useCallback(
+    (event: Event) => {
+      event.preventDefault()
+      const intent = focusIntentRef.current
+      const outcome = pendingOutcomeRef.current
+      const navigation = pendingNavigationRef.current
+      pendingOutcomeRef.current = null
+      pendingNavigationRef.current = null
+
+      requestAnimationFrame(() => {
+        if (outcome?.tone === 'success') {
+          toast.success(outcome.title)
+        } else if (outcome?.description) {
+          toast.error(outcome.title, { description: outcome.description })
+        } else if (outcome) {
+          toast.error(outcome.title)
+        }
+
+        if (navigation) navigate(navigation)
+
+        if (intent.kind === 'success') {
+          const target = resolveDeleteFocusTarget(
+            beforeOrderRef.current,
+            renderedIDsRef.current,
+            intent.deleted ?? new Set<string>()
+          )
+          const row = target ? rowRefs.current.get(target) : undefined
+          if (row) {
+            row.focus()
+            return
+          }
+          searchInputRef.current?.focus()
+          return
+        }
+
+        if (intent.kind === 'failure') {
+          const failed = intent.failed ?? new Set<string>()
+          for (const id of projectOrderedIDsRef.current) {
+            if (!failed.has(id)) continue
+            const row = rowRefs.current.get(id)
+            if (row) {
+              row.focus()
+              return
+            }
+          }
+          if (clearButtonRef.current) {
+            clearButtonRef.current.focus()
+            return
+          }
+          searchInputRef.current?.focus()
+          return
+        }
+
+        const previous = focusBeforeDialogRef.current
+        if (
+          previous?.isConnected &&
+          previous instanceof HTMLElement &&
+          previous.dataset.sidebarSessionId
+        ) {
+          previous.focus()
+          return
+        }
+
+        for (const id of projectOrderedIDsRef.current) {
+          if (!selectionRef.current.selectedIDs.has(id)) continue
+          const row = rowRefs.current.get(id)
+          if (row) {
+            row.focus()
+            return
+          }
+        }
+
+        if (clearButtonRef.current) {
+          clearButtonRef.current.focus()
+          return
+        }
+        searchInputRef.current?.focus()
+      })
+    },
+    [navigate]
+  )
+
+  useEffect(() => {
+    setSelection({ anchorID: null, selectedIDs: new Set() })
+    setFailureNote(null)
+    setDialogOpen(false)
+  }, [params.projectId])
+
+  useEffect(() => {
+    setSelection({ anchorID: null, selectedIDs: new Set() })
+    setFailureNote(null)
+  }, [search])
+
+  const sessionsSucceeded = sessionsQuery.isSuccess
+  const archivedSucceeded = archivedQuery.isSuccess
+
+  useEffect(() => {
+    if (!sessionsSucceeded || !archivedSucceeded) return
+    const availableIDs = new Set(allSessions.map((session) => session.id))
+    const current = selectionRef.current
+    const next = pruneSelection(current, availableIDs)
+    if (next === current) return
+    setSelection(next)
+    setFailureNote(null)
+  }, [allSessions, archivedSucceeded, sessionsSucceeded])
+
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (selection.selectedIDs.size === 0) return
+      if (event.key !== 'Delete' && event.key !== 'Backspace') return
+      if (event.ctrlKey || event.metaKey || event.altKey) return
+      if (event.repeat) return
+      if (event.isComposing || event.keyCode === 229) return
+      if (isTextEntryTarget(event.target)) return
+      if (dialogOpen || remove.isPending) return
+
+      const wide = window.matchMedia('(min-width: 768px)').matches
+      if (scope === 'sidebar' && !wide) return
+
+      const sheetOpen = Boolean(document.querySelector('[data-slot="sheet-content"]'))
+      if (scope === 'drawer' ? !sheetOpen : sheetOpen) return
+
+      if (
+        document.querySelector(
+          '[data-slot="dialog-content"], [data-slot="dropdown-menu-content"], [data-slot="select-content"], [data-slot="popover-content"]'
+        )
+      ) {
+        return
+      }
+
+      event.preventDefault()
+      openConfirm()
+    }
+
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [dialogOpen, openConfirm, remove.isPending, scope, selection.selectedIDs.size])
 
   const selectProject = (projectID: string) => {
     saveLastProject(projectID)
@@ -298,13 +619,20 @@ export function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
           session={session}
           projectID={selectedProject?.id ?? session.projectID}
           selected={session.id === params.sessionId}
+          bulkSelected={selection.selectedIDs.has(session.id)}
           active={Boolean(activeQuery.data?.[session.id])}
           snoozed={section.id === 'snoozed'}
           blocked={attention === 'question'}
           error={section.id === 'inbox' && attention === 'error'}
           planReady={section.id === 'inbox' && attention === 'plan'}
           unread={section.id === 'inbox' && isSessionUnread(session)}
+          onSelect={() => select(session.id)}
+          onExtend={() => extendTo(session.id)}
           onNavigate={onNavigate}
+          linkRef={(element) => {
+            if (element) rowRefs.current.set(session.id, element)
+            else rowRefs.current.delete(session.id)
+          }}
         />
       )
     })
@@ -461,6 +789,7 @@ export function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
         <div className="relative min-w-0 flex-1">
           <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground md:left-2.5 md:size-3.5" />
           <Input
+            ref={searchInputRef}
             value={search}
             onChange={(event) => setSearch(event.target.value)}
             placeholder={`Search ${lowerPlural}`}
@@ -496,6 +825,14 @@ export function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
           </span>
         </Button>
       </div>
+
+      <SidebarSelectionBar
+        selectedSessions={selectedSessions}
+        failureNote={failureNote}
+        onClear={clear}
+        onDelete={openConfirm}
+        clearRef={clearButtonRef}
+      />
 
       <ScrollArea className="min-h-0 flex-1 px-2.5 md:px-2">
         {listPending && (
@@ -597,6 +934,18 @@ export function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
           </span>
         </div>
       </div>
+
+      <SidebarDeleteDialog
+        open={dialogOpen}
+        sessions={snapshot}
+        deleting={remove.isPending}
+        onOpenChange={(open) => {
+          if (!open) closeDialog()
+        }}
+        onCancel={closeDialog}
+        onConfirm={confirmDelete}
+        onCloseAutoFocus={handleCloseAutoFocus}
+      />
     </>
   )
 }

@@ -56,7 +56,7 @@ export function AppShell() {
                   <SheetDescription className="sr-only">
                     Projects and {lowerPlural}
                   </SheetDescription>
-                  <SidebarContent onNavigate={() => setMobileOpen(false)} />
+                  <SidebarContent onNavigate={() => setMobileOpen(false)} scope="drawer" />
                 </SheetContent>
               </Sheet>
 
