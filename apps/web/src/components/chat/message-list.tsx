@@ -1,14 +1,18 @@
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { useVirtualizer } from '@tanstack/react-virtual'
-import { ArrowDown } from 'lucide-react'
+import { ArrowDown, ArrowUp } from 'lucide-react'
 import type { SessionMessageInfo } from '@opencode/client'
 import { Button } from '@/components/ui/button'
 import { HiddenActivityRow } from '@/components/chat/hidden-activity-row'
 import { MessageItem } from '@/components/chat/message-item'
 import { SystemEventRow } from '@/components/chat/system-event-row'
+import { stepMessageIndex, type MessageStepDirection } from '@/features/chat/message-navigation'
 import { canForwardMessage } from '@/features/sessions/forward'
 import type { TimelineItem } from '@/features/chat/timeline'
 import { cn } from '@/lib/utils'
+
+/** A second press inside this window turns a step into an edge jump. */
+const STEP_TAP_WINDOW = 250
 
 export function MessageList({
   sessionID,
@@ -50,6 +54,7 @@ export function MessageList({
   const parentRef = useRef<HTMLDivElement>(null)
   const [atBottom, setAtBottom] = useState(true)
   const [showJump, setShowJump] = useState(false)
+  const [showUp, setShowUp] = useState(false)
   const [opened, setOpened] = useState(false)
   const [selectingID, setSelectingID] = useState<string | null>(null)
   const userScrolled = useRef(false)
@@ -60,6 +65,9 @@ export function MessageList({
   const anchorSettling = useRef(false)
   const anchorFrame = useRef<number | null>(null)
   const handledScrollRequest = useRef(scrollToEndRequest)
+  const stepTimer = useRef<number | null>(null)
+  const stepDirection = useRef<MessageStepDirection | null>(null)
+  const stepAction = useRef<(direction: MessageStepDirection) => void>(() => {})
 
   const lastMessageIndex = useMemo(() => {
     for (let index = items.length - 1; index >= 0; index -= 1) {
@@ -68,10 +76,17 @@ export function MessageList({
     return -1
   }, [items])
 
+  const clearStepTimer = useCallback(() => {
+    if (stepTimer.current !== null) window.clearTimeout(stepTimer.current)
+    stepTimer.current = null
+    stepDirection.current = null
+  }, [])
+
   // Selection belongs to one reply at a time and never survives a session change.
   useEffect(() => {
     setSelectingID(null)
-  }, [sessionID])
+    clearStepTimer()
+  }, [sessionID, clearStepTimer])
 
   const virtualizer = useVirtualizer({
     count: items.length,
@@ -94,12 +109,88 @@ export function MessageList({
     virtualizer.scrollToIndex(items.length - 1, { align: 'end' })
     setAtBottom(true)
     setShowJump(false)
+    const element = parentRef.current
+    setShowUp(element ? element.scrollHeight > element.clientHeight + 1 : false)
     userScrolled.current = false
   }
 
   const scrollToBottom = () => {
     cancelAnchor()
     scrollToEnd()
+  }
+
+  /** Move to the oldest loaded row; the top edge keeps loading older pages. */
+  const scrollToTop = () => {
+    cancelAnchor()
+    skipAutoScroll.current = false
+    userScrolled.current = true
+    setOpened(true)
+    setAtBottom(false)
+    setShowJump(true)
+    setShowUp(false)
+    virtualizer.scrollToOffset(0)
+  }
+
+  /** Index of the row crossing the top edge of the viewport. */
+  const firstVisibleIndex = () => {
+    const element = parentRef.current
+    if (!element) return -1
+    const first = virtualizer.getVirtualItems().find((item) => item.end > element.scrollTop + 1)
+    return first?.index ?? -1
+  }
+
+  const scrollToItemStart = (index: number) => {
+    if (index < 0 || index >= items.length) return
+    cancelAnchor()
+    skipAutoScroll.current = false
+    userScrolled.current = true
+    setOpened(true)
+    setAtBottom(false)
+    setShowJump(true)
+    setShowUp(index > 0)
+    virtualizer.scrollToIndex(index, { align: 'start' })
+  }
+
+  /** Step to the next or previous message, or to the edge when none remains. */
+  const scrollToMessageStep = (direction: MessageStepDirection) => {
+    const current = firstVisibleIndex()
+    if (current === -1) {
+      if (direction === 'down') scrollToBottom()
+      else scrollToTop()
+      return
+    }
+
+    const target = stepMessageIndex(items, current, direction)
+    if (target === null) {
+      if (direction === 'down') scrollToBottom()
+      else scrollToTop()
+      return
+    }
+    scrollToItemStart(target)
+  }
+
+  // Keep the delayed single step pointed at the newest timeline and measurements.
+  stepAction.current = scrollToMessageStep
+
+  /**
+   * A single press steps one message after the double-tap window; a second
+   * press on the same arrow jumps to the bottom or top immediately.
+   */
+  const handleStepPress = (direction: MessageStepDirection) => {
+    if (stepDirection.current === direction && stepTimer.current !== null) {
+      clearStepTimer()
+      if (direction === 'down') scrollToBottom()
+      else scrollToTop()
+      return
+    }
+
+    clearStepTimer()
+    stepDirection.current = direction
+    stepTimer.current = window.setTimeout(() => {
+      stepTimer.current = null
+      stepDirection.current = null
+      stepAction.current(direction)
+    }, STEP_TAP_WINDOW)
   }
 
   /** Stop chasing the opening position and hand control back to the person. */
@@ -155,6 +246,7 @@ export function MessageList({
       const bottom = element.scrollHeight - element.scrollTop - element.clientHeight < 80
       setAtBottom(bottom)
       setShowJump(!bottom)
+      setShowUp(element.scrollTop > 0)
       setOpened(true)
       if (element.scrollTop < 240) requestOlder()
     }
@@ -186,6 +278,7 @@ export function MessageList({
       skipAutoScroll.current = false
       setOpened(false)
       setShowJump(false)
+      setShowUp(false)
     }
     // Measure after the virtualizer has attached its scroll element, which its
     // own layout effect does after ours. Deferring also keeps StrictMode's
@@ -239,8 +332,9 @@ export function MessageList({
   useEffect(
     () => () => {
       if (anchorFrame.current !== null) cancelAnimationFrame(anchorFrame.current)
+      clearStepTimer()
     },
-    []
+    [clearStepTimer]
   )
 
   const onScroll = () => {
@@ -250,6 +344,7 @@ export function MessageList({
     const bottom = element.scrollHeight - element.scrollTop - element.clientHeight < 80
     setAtBottom(bottom)
     setShowJump(!bottom && (userScrolled.current || opened))
+    setShowUp(element.scrollTop > 0)
   }
 
   return (
@@ -265,10 +360,12 @@ export function MessageList({
         onScroll={onScroll}
         onWheel={() => {
           userScrolled.current = true
+          clearStepTimer()
           releaseAnchor()
         }}
         onTouchMove={() => {
           userScrolled.current = true
+          clearStepTimer()
           releaseAnchor()
         }}
         className="h-full overflow-y-auto pb-28"
@@ -332,19 +429,40 @@ export function MessageList({
         </div>
       </div>
 
-      <Button
-        type="button"
-        size="icon"
-        variant="secondary"
-        onClick={scrollToBottom}
-        className={cn(
-          'absolute bottom-4 left-1/2 size-8 -translate-x-1/2 rounded-full shadow-md transition-opacity md:bottom-16 max-md:size-11',
-          showJump ? 'opacity-100' : 'pointer-events-none opacity-0'
-        )}
-      >
-        <ArrowDown className="size-4 max-md:size-5" />
-        <span className="sr-only">Scroll to bottom</span>
-      </Button>
+      <div className="absolute bottom-4 left-4 z-20 flex flex-col items-center gap-2 md:bottom-16 max-md:left-5">
+        <Button
+          type="button"
+          size="icon"
+          variant="secondary"
+          onClick={() => handleStepPress('up')}
+          disabled={!showUp}
+          aria-hidden={!showUp}
+          title="Previous message (double-tap for the top)"
+          className={cn(
+            'size-8 touch-manipulation rounded-full shadow-md transition-opacity max-md:size-11',
+            showUp ? 'opacity-100' : 'pointer-events-none opacity-0'
+          )}
+        >
+          <ArrowUp className="size-4 max-md:size-5" />
+          <span className="sr-only">Scroll to previous message; double-tap for the top</span>
+        </Button>
+        <Button
+          type="button"
+          size="icon"
+          variant="secondary"
+          onClick={() => handleStepPress('down')}
+          disabled={!showJump}
+          aria-hidden={!showJump}
+          title="Next message (double-tap for the bottom)"
+          className={cn(
+            'size-8 touch-manipulation rounded-full shadow-md transition-opacity max-md:size-11',
+            showJump ? 'opacity-100' : 'pointer-events-none opacity-0'
+          )}
+        >
+          <ArrowDown className="size-4 max-md:size-5" />
+          <span className="sr-only">Scroll to next message; double-tap for the bottom</span>
+        </Button>
+      </div>
     </div>
   )
 }
