@@ -28,7 +28,7 @@ export function ClientsTable({ clients, now }: { clients: PanelClientInfo[]; now
           <EmptyState>No paired clients are connected right now.</EmptyState>
         ) : (
           <div className="-mx-1 overflow-x-auto">
-            <table className="w-full min-w-[880px] border-collapse text-left text-xs">
+            <table className="w-full min-w-[1020px] border-collapse text-left text-xs">
               <thead>
                 <tr className="text-[10px] uppercase tracking-wide text-neutral-500 dark:text-neutral-400">
                   <th scope="col" className="px-1 py-2 font-medium">
@@ -38,7 +38,10 @@ export function ClientsTable({ clients, now }: { clients: PanelClientInfo[]; now
                     Session
                   </th>
                   <th scope="col" className="px-1 py-2 font-medium">
-                    Device
+                    Paired device
+                  </th>
+                  <th scope="col" className="px-1 py-2 font-medium">
+                    Device class
                   </th>
                   <th scope="col" className="px-1 py-2 font-medium">
                     Connected
@@ -84,6 +87,13 @@ export function ClientsTable({ clients, now }: { clients: PanelClientInfo[]; now
                     <td className="px-1 py-2 font-mono" title={masked ? undefined : client.sid}>
                       {masked ? PEEK_MASK : shortId(client.sid)}
                     </td>
+                    <td
+                      className="px-1 py-2"
+                      title={masked ? undefined : (client.deviceId ?? 'Not enrolled')}
+                    >
+                      {client.deviceLabel ??
+                        (client.deviceId ? (masked ? PEEK_MASK : shortId(client.deviceId)) : '—')}
+                    </td>
                     <td className="px-1 py-2 capitalize">{client.deviceClass ?? 'Unknown'}</td>
                     <td
                       className="px-1 py-2 text-neutral-600 dark:text-neutral-300"
@@ -124,8 +134,8 @@ export function ClientsTable({ clients, now }: { clients: PanelClientInfo[]; now
           </div>
         )}
         <p className="pt-2 text-xs text-neutral-500 dark:text-neutral-400">
-          Session IDs are random per connection and do not reveal the pairing key. Traffic counters
-          are omitted while monitoring is off.
+          Session IDs are random per connection. Paired devices keep a stable identity without
+          revealing their device key. Traffic counters are omitted while monitoring is off.
         </p>
       </CardBody>
     </CollapsibleCard>

@@ -2,7 +2,6 @@ import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
-import { generatePsk } from '@clara/crypto'
 import { loadConfig, savePairingBaseUrl } from '../src/config.ts'
 
 const tempDirs: string[] = []
@@ -17,7 +16,6 @@ const ENV_KEYS = [
   'CLARA_RELAY_ROOM',
   'CLARA_AGENT_TOKEN',
   'CLARA_CLIENT_TOKEN',
-  'CLARA_PSK',
   'CLARA_PAIRING_BASE_URL',
   'CLARA_WEB_PORT',
   'XDG_CONFIG_HOME',
@@ -70,7 +68,6 @@ describe('loadConfig sources', () => {
     expect(config.sources.relayUrl).toBe('none')
     expect(config.sources.pairingBaseUrl).toBe('default')
     expect(config.pairingBaseUrl).toBe('http://127.0.0.1:8080')
-    expect(config.sources.psk).toBe('generated')
     expect(config.dataDir).toBe(join(dataHome, 'clara'))
     expect(config.dbPath).toBe(join(dataHome, 'clara', 'clara.db'))
   })
@@ -115,13 +112,11 @@ describe('loadConfig sources', () => {
 
   it('tracks file values and environment overrides independently', () => {
     const dir = tempDir()
-    const psk = generatePsk()
     writeFileSync(
       join(dir, 'server.json'),
       JSON.stringify({
         local: { host: '0.0.0.0', port: 9000 },
         relay: { url: 'https://relay.example', room: 'file-room' },
-        psk,
         pairingBaseUrl: 'https://pair.example',
       }),
       { mode: 0o600 }
@@ -147,7 +142,6 @@ describe('loadConfig sources', () => {
       relayRoom: 'env',
       agentToken: 'env',
       clientToken: 'env',
-      psk: 'file',
       pairingBaseUrl: 'file',
     })
   })
@@ -256,18 +250,6 @@ describe('loadConfig sources', () => {
     expect(saved.relay).toEqual({ url: 'wss://new.example', room: 'file-room' })
   })
 
-  it('marks a rotated pairing key as generated', () => {
-    const dir = tempDir()
-    process.env.CLARA_CONFIG_DIR = dir
-    process.env.CLARA_DATA_DIR = dir
-    process.env.XDG_STATE_HOME = tempDir()
-
-    const config = loadConfig({ rotate: true })
-
-    expect(config.sources.psk).toBe('generated')
-    expect(config.psk).toHaveLength(43)
-  })
-
   it('uses CLARA_WEB_PORT for the default web URL', () => {
     const dir = tempDir()
     process.env.CLARA_CONFIG_DIR = dir
@@ -354,12 +336,11 @@ describe('savePairingBaseUrl', () => {
   it('writes the value and preserves other fields', () => {
     const dir = tempDir()
     const path = join(dir, 'server.json')
-    const psk = generatePsk()
     writeFileSync(
       path,
       JSON.stringify({
         local: { host: '0.0.0.0', port: 9000 },
-        psk,
+        psk: 'retired',
         relay: { url: 'wss://relay.example', room: 'room-1' },
         opencode: { url: 'http://old' },
       }),
@@ -371,7 +352,7 @@ describe('savePairingBaseUrl', () => {
 
     expect(saved.pairingBaseUrl).toBe('https://clara.example')
     expect(saved.local).toEqual({ host: '0.0.0.0', port: 9000 })
-    expect(saved.psk).toBe(psk)
+    expect(saved.psk).toBeUndefined()
     expect(saved.relay).toEqual({ url: 'wss://relay.example', room: 'room-1' })
     expect(saved.opencode).toBeUndefined()
   })
@@ -381,7 +362,7 @@ describe('savePairingBaseUrl', () => {
     const path = join(dir, 'server.json')
     writeFileSync(
       path,
-      JSON.stringify({ pairingBaseUrl: 'https://clara.example', psk: generatePsk() }),
+      JSON.stringify({ pairingBaseUrl: 'https://clara.example', psk: 'retired' }),
       { mode: 0o600 }
     )
 

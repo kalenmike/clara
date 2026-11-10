@@ -37,6 +37,7 @@ import {
 } from '../push/vapid.ts'
 import { RelayClient, type RelayStatus } from '../relay-client.ts'
 import type { ClientStorageStore } from '../store/client-storage.ts'
+import type { DeviceInfo, DeviceStore } from '../store/devices.ts'
 import { FEATURE_NAMES, type FeatureName, type SettingsStore } from '../store/settings.ts'
 import { TrafficMeter } from '../traffic.ts'
 import {
@@ -53,7 +54,7 @@ export type ControllerOptions = {
   sync?: ClientStorageStore
   push?: PushService
   pushError?: string
-  fingerprint?: string
+  devices: DeviceStore
   log: (message: string, detail?: unknown) => void
 }
 
@@ -98,7 +99,7 @@ export class RuntimeController {
 
     this.localAgent = new Agent({
       harness: options.harness,
-      psk: config.psk,
+      devices: options.devices,
       info: options.info,
       send: (frame) => broadcast(this.localSockets, frame),
       push: options.push,
@@ -120,7 +121,7 @@ export class RuntimeController {
     if (config.relay) {
       this.relayAgent = new Agent({
         harness: options.harness,
-        psk: config.psk,
+        devices: options.devices,
         info: options.info,
         send: (frame) => this.relayClient?.send(frame),
         push: options.push,
@@ -202,6 +203,25 @@ export class RuntimeController {
   connectedClients(): number {
     const now = Date.now()
     return this.localAgent.getSnapshot(now).length + (this.relayAgent?.getSnapshot(now).length ?? 0)
+  }
+
+  devices(): DeviceInfo[] {
+    return this.options.devices.listDevices()
+  }
+
+  pairedDevices(): number {
+    return this.options.devices.countActive()
+  }
+
+  /** Revoke one device, drop its live sessions, and clear its push routes. */
+  revokeDevice(id: string): DeviceInfo | undefined {
+    const device = this.options.devices.revokeDevice(id)
+    if (!device) return undefined
+    this.localAgent.abortDevice(id)
+    this.relayAgent?.abortDevice(id)
+    this.options.push?.removeByDevice(id)
+    this.options.log(`device revoked (${id})`)
+    return device
   }
 
   canProxy(): boolean {

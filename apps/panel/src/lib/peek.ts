@@ -61,7 +61,6 @@ export function collectSecrets(snapshot: PanelSnapshot | undefined): string[] {
   if (!snapshot) return []
 
   const values: Array<string | undefined> = [
-    snapshot.agent.fingerprint,
     snapshot.agent.configPath,
     snapshot.agent.configDir,
     snapshot.config.relayUrl.value ?? undefined,
@@ -74,6 +73,7 @@ export function collectSecrets(snapshot: PanelSnapshot | undefined): string[] {
     snapshot.relay.room,
     ...snapshot.storage.map((entry) => entry.path),
     ...snapshot.clients.map((client) => client.sid),
+    ...snapshot.devices.map((device) => device.id),
   ]
 
   return values.filter((value): value is string => Boolean(value))

@@ -1,5 +1,4 @@
 import qrcode from 'qrcode-terminal'
-import { fingerprintPsk } from '@clara/crypto'
 import {
   PAIRING_CODE_PREFIX,
   PROTOCOL_VERSION,
@@ -8,6 +7,7 @@ import {
   type PairingPayload,
 } from '@clara/shared-types'
 import { localWebPort, type ServerConfig } from './config.ts'
+import type { DeviceStore } from './store/devices.ts'
 
 export type PairingOptions = {
   /**
@@ -17,19 +17,25 @@ export type PairingOptions = {
   local?: boolean
 }
 
-export async function createPairingPayload(config: ServerConfig): Promise<PairingPayload> {
+export async function createPairingPayload(
+  config: ServerConfig,
+  devices: DeviceStore
+): Promise<PairingPayload> {
   const relay = config.relay
   const wsUrl = relay
     ? relayWsUrl(relay.url, relay.room)
     : `ws://${config.local.host}:${config.local.port}/ws`
+  const token = await devices.createPairingToken()
 
   return {
     v: PROTOCOL_VERSION,
     wsUrl,
     room: relay?.room ?? 'local',
     clientToken: relay?.clientToken ?? 'local',
-    psk: config.psk,
-    fingerprint: await fingerprintPsk(config.psk),
+    enrollId: token.id,
+    enrollToken: token.token,
+    fingerprint: token.fingerprint,
+    expiresAt: token.expiresAt,
   }
 }
 
@@ -55,15 +61,17 @@ export function pairingLinkBase(
 
 export async function printPairing(
   config: ServerConfig,
+  devices: DeviceStore,
   withQr = true,
   options: PairingOptions = {}
 ): Promise<PairingPayload> {
-  const payload = await createPairingPayload(config)
+  const payload = await createPairingPayload(config, devices)
   const url = buildPairingUrl(
     pairingLinkBase(payload, config.pairingBaseUrl, config.local.host),
     payload
   )
   const code = `${PAIRING_CODE_PREFIX}${encodePairingCode(payload)}`
+  const minutes = Math.max(1, Math.round((payload.expiresAt - Date.now()) / 60_000))
 
   console.log('')
   console.log('Clara pairing')
@@ -71,6 +79,7 @@ export async function printPairing(
   console.log(`  Code:        ${code}`)
   console.log(`  Room:        ${payload.room}`)
   console.log(`  Fingerprint: ${payload.fingerprint}`)
+  console.log(`  Expires:     in ${minutes} minute(s), one device`)
   if (!config.relay) {
     console.log(
       options.local

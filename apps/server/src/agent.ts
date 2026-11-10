@@ -17,6 +17,9 @@ import {
   type ClaraAction,
   type ClaraState,
   type DeviceClass,
+  type DeviceEnrollAction,
+  type DeviceErrorCode,
+  type HelloFrame,
   type PanelTransport,
   type PushSubscribeAction,
   type PushTestAction,
@@ -33,6 +36,8 @@ import { responseHeaders, type HttpRequestAction } from './opencode.ts'
 import type { PushService } from './push/service.ts'
 import { DEFAULT_SHELL_POLICY, evaluateShellRequest, type ShellDecision } from './shell-policy.ts'
 import type { ClientStorageStore, SyncCheckResult, SyncResult } from './store/client-storage.ts'
+import type { DeviceRegistry } from './store/devices.ts'
+import { DeviceStoreError } from './store/devices.ts'
 import type { TrafficMeter } from './traffic.ts'
 
 const MAX_REQUESTS_PER_SESSION = 64
@@ -48,8 +53,14 @@ type SessionPresence = {
   holdPhone: boolean
 }
 
+type SessionKind = 'device' | 'enroll'
+
 type Session = {
   sid: string
+  kind: SessionKind
+  deviceId?: string
+  deviceLabel?: string
+  enrollId?: string
   keys: SessionKeys
   sendSeq: number
   receive: ReplayGuard
@@ -66,6 +77,9 @@ type Session = {
 
 export type AgentSessionInfo = {
   sid: string
+  kind: SessionKind
+  deviceId?: string
+  deviceLabel?: string
   connectedAt: number
   lastSeen: number
   requests: number
@@ -95,7 +109,7 @@ export type AgentPolicy = {
 
 export type AgentOptions = {
   harness: HarnessManager
-  psk: string
+  devices: DeviceRegistry
   info: AgentInfo
   send: (frame: WireFrame) => void
   push?: PushService
@@ -151,7 +165,7 @@ export class Agent {
     this.options.traffic?.recordInbound(bytes, this.transport)
 
     if (isHelloFrame(frame)) {
-      void this.handleHello(frame.sid, frame.nonce, frame.role)
+      void this.handleHello(frame)
       return
     }
     if (isSealedFrame(frame)) {
@@ -195,6 +209,9 @@ export class Agent {
       const presenceActive = presence !== undefined && now - presence.at <= PRESENCE_TTL_MS
       sessions.push({
         sid: session.sid,
+        kind: session.kind,
+        ...(session.deviceId ? { deviceId: session.deviceId } : {}),
+        ...(session.deviceLabel ? { deviceLabel: session.deviceLabel } : {}),
         connectedAt: session.connectedAt,
         lastSeen: session.lastSeen,
         requests: session.requests.size,
@@ -232,11 +249,8 @@ export class Agent {
     return false
   }
 
-  private async handleHello(
-    sid: string,
-    clientNonce: string,
-    role: 'agent' | 'client'
-  ): Promise<void> {
+  private async handleHello(frame: HelloFrame): Promise<void> {
+    const { sid, nonce: clientNonce, role } = frame
     if (role !== 'client' || !sid || !clientNonce) return
 
     const existing = this.sessions.get(sid)
@@ -245,11 +259,41 @@ export class Agent {
       this.options.traffic?.recordSessionClosed()
     }
 
+    let kind: SessionKind
+    let baseKey: string
+    let deviceId: string | undefined
+    let deviceLabel: string | undefined
+    let enrollId: string | undefined
+
+    if (frame.enrollId) {
+      const token = await this.options.devices.findPairingToken(frame.enrollId)
+      if (!token) {
+        this.sendError(sid, 'enrollment_invalid', 'The pairing code is invalid or expired')
+        return
+      }
+      kind = 'enroll'
+      enrollId = token.id
+      baseKey = token.token
+    } else if (frame.deviceId) {
+      const device = await this.options.devices.findActiveDevice(frame.deviceId)
+      if (!device) {
+        this.sendError(sid, 'unknown_device', 'This device is not enrolled')
+        return
+      }
+      kind = 'device'
+      deviceId = device.id
+      deviceLabel = device.label
+      baseKey = device.key
+    } else {
+      this.sendError(sid, 'invalid_device', 'A device id or enrollment code is required')
+      return
+    }
+
     const agentNonce = bytesToBase64Url(randomBytes(16))
     let keys: SessionKeys
     try {
       keys = await deriveSessionKeys({
-        psk: this.options.psk,
+        key: baseKey,
         sid,
         clientNonce,
         agentNonce,
@@ -262,6 +306,10 @@ export class Agent {
 
     const session: Session = {
       sid,
+      kind,
+      ...(deviceId ? { deviceId } : {}),
+      ...(deviceLabel ? { deviceLabel } : {}),
+      ...(enrollId ? { enrollId } : {}),
       keys,
       sendSeq: 0,
       receive: new ReplayGuard(),
@@ -275,6 +323,8 @@ export class Agent {
     }
     this.sessions.set(sid, session)
     this.options.traffic?.recordSessionOpened()
+
+    if (deviceId) this.options.devices.touchDevice(deviceId, { transport: this.transport })
 
     this.transmit(undefined, {
       t: 'hello',
@@ -339,7 +389,33 @@ export class Agent {
   }
 
   private handlePayload(session: Session, payload: ClaraAction | ClaraState): void {
+    if (session.kind === 'enroll') {
+      switch (payload.type) {
+        case 'ready.ack':
+        case 'pong':
+          return
+        case 'ping':
+          this.recordPresence(session, payload.presence)
+          this.enqueue(session, { type: 'pong', at: payload.at })
+          return
+        case 'device.enroll':
+          void this.handleDeviceEnroll(session, payload)
+          return
+        default:
+          this.rejectSession(session, 'not_allowed', 'Enrollment sessions cannot issue requests')
+          return
+      }
+    }
+
+    if (session.deviceId && !this.options.devices.isActive(session.deviceId)) {
+      this.rejectSession(session, 'revoked_device', 'This device has been revoked')
+      return
+    }
+
     switch (payload.type) {
+      case 'device.enroll':
+        this.rejectSession(session, 'not_allowed', 'This device is already enrolled')
+        return
       case 'ready.ack':
         return
       case 'ping':
@@ -377,6 +453,66 @@ export class Agent {
     }
   }
 
+  private async handleDeviceEnroll(session: Session, action: DeviceEnrollAction): Promise<void> {
+    if (!session.enrollId) {
+      this.rejectSession(session, 'not_allowed', 'This session cannot enroll a device')
+      return
+    }
+
+    try {
+      const device = await this.options.devices.enrollDevice({
+        pairingTokenId: session.enrollId,
+        deviceId: action.deviceId,
+        key: action.key,
+        label: action.label ?? 'Unnamed device',
+        transport: this.transport,
+        ...(session.presence?.deviceClass ? { deviceClass: session.presence.deviceClass } : {}),
+      })
+      this.enqueue(session, {
+        type: 'device.enrolled',
+        deviceId: device.id,
+        fingerprint: device.fingerprint,
+        label: device.label,
+      })
+    } catch (cause) {
+      if (cause instanceof DeviceStoreError) {
+        this.sendError(session.sid, toDeviceErrorCode(cause.code), cause.message)
+        return
+      }
+      this.options.traffic?.recordError('handshake')
+      this.options.log?.('could not enroll a device', cause)
+      this.sendError(session.sid, 'invalid_device', 'Could not enroll this device')
+    }
+  }
+
+  private rejectSession(session: Session, code: DeviceErrorCode, message: string): void {
+    this.sendError(session.sid, code, message)
+    this.abortSession(session)
+    this.sessions.delete(session.sid)
+    this.options.traffic?.recordSessionClosed()
+  }
+
+  private sendError(sid: string, code: DeviceErrorCode, message: string): void {
+    this.options.traffic?.recordError('handshake')
+    this.transmit(undefined, {
+      t: 'error',
+      v: PROTOCOL_VERSION,
+      sid,
+      code,
+      message,
+    })
+  }
+
+  /** Drop every live session for one device, used after the panel revokes it. */
+  abortDevice(deviceId: string): void {
+    for (const [sid, session] of this.sessions) {
+      if (session.deviceId !== deviceId) continue
+      this.abortSession(session)
+      this.sessions.delete(sid)
+      this.options.traffic?.recordSessionClosed()
+    }
+  }
+
   private recordPresence(session: Session, value: unknown): void {
     if (!value || typeof value !== 'object') return
     const record = value as Record<string, unknown>
@@ -386,6 +522,12 @@ export class Agent {
       at: Date.now(),
       deviceClass,
       holdPhone: record.holdPhone === true,
+    }
+    if (session.deviceId) {
+      this.options.devices.touchDevice(session.deviceId, {
+        transport: this.transport,
+        deviceClass,
+      })
     }
   }
 
@@ -417,6 +559,7 @@ export class Agent {
       const result = push.subscribe(action.subscription, {
         userAgent: action.userAgent,
         deviceClass: action.deviceClass,
+        ...(session.deviceId ? { deviceId: session.deviceId } : {}),
       })
       this.enqueue(session, {
         type: 'push.status',
@@ -890,6 +1033,20 @@ function splitChunks(value: Uint8Array<ArrayBufferLike>): Uint8Array<ArrayBuffer
     chunks.push(new Uint8Array(value.slice(offset, offset + CHUNK_BYTES)))
   }
   return chunks
+}
+
+function toDeviceErrorCode(code: string): DeviceErrorCode {
+  switch (code) {
+    case 'revoked_device':
+    case 'enrollment_expired':
+    case 'enrollment_used':
+    case 'enrollment_invalid':
+    case 'device_limit':
+    case 'not_allowed':
+      return code
+    default:
+      return 'invalid_device'
+  }
 }
 
 function isClaraPayload(value: unknown): value is ClaraAction | ClaraState {

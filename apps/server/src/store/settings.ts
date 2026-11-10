@@ -69,7 +69,7 @@ const SETTING_KEYS = new Set<string>([
 /**
  * Booleans, one mode string, one command array, and one interval are the only
  * values in this table. Harness credentials live in the separate encrypted
- * harness tables; PSKs, relay tokens, and push endpoints keep their existing
+ * harness tables; device keys, relay tokens, and push endpoints keep their existing
  * file or environment storage.
  */
 export class SettingsStore {

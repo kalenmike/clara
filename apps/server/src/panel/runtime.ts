@@ -8,6 +8,7 @@ import {
   type PanelClientInfo,
   type PanelConfigInfo,
   type PanelControls,
+  type PanelDeviceInfo,
   type PanelEvent,
   type PanelFeatureControl,
   type PanelFeatureName,
@@ -29,6 +30,7 @@ import type { PushService } from '../push/service.ts'
 import { readVapidSubject } from '../push/vapid.ts'
 import type { RelayClient } from '../relay-client.ts'
 import type { ClientStorageStats } from '../store/client-storage.ts'
+import type { DeviceInfo } from '../store/devices.ts'
 import { emptyTraffic, type TrafficMeter } from '../traffic.ts'
 import { SERVER_VERSION } from '../version.ts'
 import type { PanelLog } from './log.ts'
@@ -52,7 +54,8 @@ export type PanelRuntimeOptions = {
   traffic?: TrafficMeter
   push?: PushService
   pushError?: string
-  fingerprint?: string
+  devices: () => DeviceInfo[]
+  pairedDevices: () => number
   startedAt: number
   controls?: () => PanelControls
   probeEnabled?: () => boolean
@@ -107,10 +110,9 @@ export class PanelRuntime implements PanelDataSource {
         memoryRssBytes: process.memoryUsage().rss,
         configPath: config.configPath,
         configDir: config.configDir,
-        pskConfigured: Boolean(config.psk),
+        pairedDevices: this.options.pairedDevices(),
         stopped: controls.stopped,
         container: isContainerized(),
-        ...(this.options.fingerprint ? { fingerprint: this.options.fingerprint } : {}),
       },
       auth,
       config: panelConfigInfo(config),
@@ -129,6 +131,7 @@ export class PanelRuntime implements PanelDataSource {
       },
       relay: this.relaySnapshot(controls.stopped, relay),
       clients: this.clientsSnapshot(now, traffic.enabled),
+      devices: this.devicesSnapshot(),
       push: {
         enabled: push.effective,
         desired: push.desired,
@@ -226,6 +229,17 @@ export class PanelRuntime implements PanelDataSource {
       clients.push(toClient(session, 'relay', now, includeTraffic))
     }
     return clients.sort((left, right) => left.connectedAt.localeCompare(right.connectedAt))
+  }
+
+  private devicesSnapshot(): PanelDeviceInfo[] {
+    const live = new Map<string, number>()
+    for (const session of this.options.localAgent.getSnapshot()) {
+      if (session.deviceId) live.set(session.deviceId, (live.get(session.deviceId) ?? 0) + 1)
+    }
+    for (const session of this.options.relayAgent?.getSnapshot() ?? []) {
+      if (session.deviceId) live.set(session.deviceId, (live.get(session.deviceId) ?? 0) + 1)
+    }
+    return this.options.devices().map((device) => toDevice(device, live.get(device.id) ?? 0))
   }
 
   private trafficSnapshot(): PanelTraffic {
@@ -366,7 +380,6 @@ export class PanelRuntime implements PanelDataSource {
 
   private redact(value: string): string {
     const secrets = [
-      this.options.config.psk,
       this.options.config.relay?.agentToken,
       this.options.config.relay?.clientToken,
       ...this.harnessSecrets,
@@ -414,6 +427,8 @@ function toClient(
   return {
     sid: session.sid,
     transport,
+    ...(session.deviceId ? { deviceId: session.deviceId } : {}),
+    ...(session.deviceLabel ? { deviceLabel: session.deviceLabel } : {}),
     ...(session.deviceClass ? { deviceClass: session.deviceClass } : {}),
     connectedAt: new Date(session.connectedAt).toISOString(),
     lastSeenAt: new Date(session.lastSeen).toISOString(),
@@ -427,6 +442,24 @@ function toClient(
         }
       : {}),
     holdPhone: session.holdPhone,
+  }
+}
+
+function toDevice(device: DeviceInfo, liveSessions: number): PanelDeviceInfo {
+  return {
+    id: device.id,
+    label: device.label,
+    fingerprint: device.fingerprint,
+    createdAt: new Date(device.createdAt).toISOString(),
+    ...(device.lastSeenAt !== undefined
+      ? { lastSeenAt: new Date(device.lastSeenAt).toISOString() }
+      : {}),
+    ...(device.lastTransport ? { transport: device.lastTransport } : {}),
+    ...(device.lastDeviceClass ? { deviceClass: device.lastDeviceClass } : {}),
+    liveSessions,
+    ...(device.revokedAt !== undefined
+      ? { revokedAt: new Date(device.revokedAt).toISOString() }
+      : {}),
   }
 }
 

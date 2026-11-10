@@ -6,7 +6,7 @@ import { afterEach, describe, expect, it } from 'vitest'
 import {
   bytesToBase64Url,
   deriveSessionKeys,
-  generatePsk,
+  generateKey,
   open,
   randomBytes,
   seal,
@@ -30,6 +30,7 @@ import {
   MAX_SYNC_VALUE_BYTES,
 } from '../src/store/client-storage.ts'
 import { closeDatabase, openDatabase, type ClaraDatabase } from '../src/store/database.ts'
+import type { DeviceRegistry } from '../src/store/devices.ts'
 import { TrafficMeter } from '../src/traffic.ts'
 
 function fakeHarness(url: string, configured = true): HarnessManager {
@@ -109,6 +110,23 @@ const agents: Agent[] = []
 const tempDirs: string[] = []
 const databases: ClaraDatabase[] = []
 
+const DEVICE_ID = 'test-device-000000'
+
+function testDevices(key: string, deviceId = DEVICE_ID): DeviceRegistry {
+  return {
+    findPairingToken: async () => undefined,
+    findActiveDevice: async (id) =>
+      id === deviceId
+        ? { id, key, label: 'Test device', fingerprint: 'test-fingerprint' }
+        : undefined,
+    isActive: (id) => id === deviceId,
+    enrollDevice: async () => {
+      throw new Error('Enrollment is not used in this test')
+    },
+    touchDevice: () => {},
+  }
+}
+
 async function connect(
   fake: FakeOpenCode,
   push?: PushService,
@@ -121,13 +139,13 @@ async function connect(
   client: Client
   frames: WireFrame[]
 }> {
-  const psk = generatePsk()
+  const key = generateKey()
   const sid = 'test-session'
   const clientNonce = bytesToBase64Url(randomBytes(16))
   const frames: WireFrame[] = []
   const agent = new Agent({
     harness: fakeHarness(fake.url, configured),
-    psk,
+    devices: testDevices(key),
     info: { version: 'test', protocol: PROTOCOL_VERSION },
     send: (frame) => frames.push(frame),
     push,
@@ -138,13 +156,20 @@ async function connect(
   agents.push(agent)
 
   agent.handleMessage(
-    JSON.stringify({ t: 'hello', v: PROTOCOL_VERSION, sid, nonce: clientNonce, role: 'client' })
+    JSON.stringify({
+      t: 'hello',
+      v: PROTOCOL_VERSION,
+      sid,
+      nonce: clientNonce,
+      role: 'client',
+      deviceId: DEVICE_ID,
+    })
   )
 
   const hello = await waitFor(() => frames.find((frame) => frame.t === 'hello'))
   if (hello.t !== 'hello') throw new Error('No hello frame')
   const keys = await deriveSessionKeys({
-    psk,
+    key,
     sid,
     clientNonce,
     agentNonce: hello.nonce,
@@ -518,13 +543,13 @@ describe('agent', () => {
   it('rejects proxying and push when the runtime policy disables them', async () => {
     const fake = await startFakeOpenCode()
     try {
-      const psk = generatePsk()
+      const key = generateKey()
       const sid = 'policy-session'
       const clientNonce = bytesToBase64Url(randomBytes(16))
       const frames: WireFrame[] = []
       const agent = new Agent({
         harness: fakeHarness(fake.url),
-        psk,
+        devices: testDevices(key),
         info: { version: 'test', protocol: PROTOCOL_VERSION },
         send: (frame) => frames.push(frame),
         policy: { canProxy: () => false, canPush: () => false },
@@ -537,12 +562,13 @@ describe('agent', () => {
           sid,
           nonce: clientNonce,
           role: 'client',
+          deviceId: DEVICE_ID,
         })
       )
       const hello = await waitFor(() => frames.find((frame) => frame.t === 'hello'))
       if (hello.t !== 'hello') throw new Error('No hello frame')
       const keys = await deriveSessionKeys({
-        psk,
+        key,
         sid,
         clientNonce,
         agentNonce: hello.nonce,
@@ -723,7 +749,7 @@ describe('agent client sync', () => {
       await send(client, agent, {
         type: 'sync.push',
         id: 'secret',
-        entries: [{ key: 'clara.connection.local', value: '{}' }],
+        entries: [{ key: 'clara.device.credential', value: '{}' }],
       })
       const secret = await waitForState(client, frames, 'sync.error')
       expect(secret).toMatchObject({ type: 'sync.error', id: 'secret', code: 'invalid' })
@@ -962,6 +988,144 @@ describe('agent client sync', () => {
       expect(traffic.snapshot().totals.requests).toBe(0)
       const [session] = agent.getSnapshot()
       expect(session).toMatchObject({ bytesIn: 0, bytesOut: 0, requestsTotal: 0 })
+    } finally {
+      await fake.close()
+    }
+  })
+
+  it('enrolls a device over a one-time token and rejects it after revocation', async () => {
+    const fake = await startFakeOpenCode()
+    const token = {
+      id: 'enroll-1',
+      token: generateKey(),
+      fingerprint: 'enroll-fingerprint',
+      expiresAt: Date.now() + 60_000,
+    }
+    let active: { id: string; key: string; label: string; fingerprint: string } | undefined
+    const devices: DeviceRegistry = {
+      findPairingToken: async (id) => (id === token.id ? token : undefined),
+      findActiveDevice: async (id) => (active?.id === id ? active : undefined),
+      isActive: (id) => active?.id === id,
+      enrollDevice: async (input) => {
+        active = {
+          id: input.deviceId,
+          key: input.key,
+          label: input.label,
+          fingerprint: 'device-fingerprint',
+        }
+        return {
+          id: input.deviceId,
+          label: input.label,
+          fingerprint: 'device-fingerprint',
+          createdAt: Date.now(),
+          updatedAt: Date.now(),
+          lastSeenAt: Date.now(),
+        }
+      },
+      touchDevice: () => {},
+    }
+    const frames: WireFrame[] = []
+    const agent = new Agent({
+      harness: fakeHarness(fake.url),
+      devices,
+      info: { version: 'test', protocol: PROTOCOL_VERSION },
+      send: (frame) => frames.push(frame),
+    })
+    agents.push(agent)
+
+    try {
+      const enrollSid = 'enroll-session'
+      const enrollNonce = bytesToBase64Url(randomBytes(16))
+      agent.handleMessage(
+        JSON.stringify({
+          t: 'hello',
+          v: PROTOCOL_VERSION,
+          sid: enrollSid,
+          nonce: enrollNonce,
+          role: 'client',
+          enrollId: token.id,
+        })
+      )
+      const enrollHello = await waitFor(() => frames.find((frame) => frame.t === 'hello'))
+      if (enrollHello.t !== 'hello') throw new Error('No enrollment hello')
+      const enrollClient: Client = {
+        sid: enrollSid,
+        keys: await deriveSessionKeys({
+          key: token.token,
+          sid: enrollSid,
+          clientNonce: enrollNonce,
+          agentNonce: enrollHello.nonce,
+        }),
+        sendSeq: 0,
+        receiveSeq: 0,
+      }
+      const deviceId = 'device-enrolled-0001'
+      const enrollmentKey = generateKey()
+      await send(enrollClient, agent, {
+        type: 'device.enroll',
+        deviceId,
+        key: enrollmentKey,
+        label: 'Desk',
+      })
+      const enrolled = await waitFor(async () => {
+        const states = await readStates(enrollClient, frames)
+        return states.find((state) => state.type === 'device.enrolled')
+      })
+      expect(enrolled).toMatchObject({ deviceId, label: 'Desk' })
+      expect(active?.id).toBe(deviceId)
+      expect(active?.key).toBe(enrollmentKey)
+
+      const deviceSid = 'device-session'
+      const deviceNonce = bytesToBase64Url(randomBytes(16))
+      const helloCount = frames.filter((frame) => frame.t === 'hello').length
+      agent.handleMessage(
+        JSON.stringify({
+          t: 'hello',
+          v: PROTOCOL_VERSION,
+          sid: deviceSid,
+          nonce: deviceNonce,
+          role: 'client',
+          deviceId,
+        })
+      )
+      const deviceHello = await waitFor(
+        () => frames.filter((frame) => frame.t === 'hello')[helloCount]
+      )
+      if (deviceHello.t !== 'hello') throw new Error('No device hello')
+      const deviceClient: Client = {
+        sid: deviceSid,
+        keys: await deriveSessionKeys({
+          key: active?.key ?? '',
+          sid: deviceSid,
+          clientNonce: deviceNonce,
+          agentNonce: deviceHello.nonce,
+        }),
+        sendSeq: 0,
+        receiveSeq: 0,
+      }
+      await send(deviceClient, agent, { type: 'ready.ack', agent: { version: 'web', protocol: 2 } })
+      await send(deviceClient, agent, {
+        type: 'http.request',
+        id: 'device-request',
+        method: 'GET',
+        path: '/api/info',
+      })
+      await waitFor(async () => {
+        const states = await readStates(deviceClient, frames)
+        return states.some((state) => state.type === 'http.end') ? states : undefined
+      })
+
+      active = undefined
+      frames.length = 0
+      await send(deviceClient, agent, {
+        type: 'http.request',
+        id: 'revoked-request',
+        method: 'GET',
+        path: '/api/info',
+      })
+      const error = await waitFor(() => frames.find((frame) => frame.t === 'error'))
+      expect(error).toMatchObject({ code: 'revoked_device' })
+      expect(agent.getSnapshot().some((session) => session.sid === deviceSid)).toBe(false)
     } finally {
       await fake.close()
     }

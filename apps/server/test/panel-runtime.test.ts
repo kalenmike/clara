@@ -9,6 +9,7 @@ import type { HarnessManager } from '../src/harness/manager.ts'
 import type { HarnessConnection, HarnessProbe } from '../src/harness/types.ts'
 import type { PushService } from '../src/push/service.ts'
 import type { RelayClient, RelaySnapshot } from '../src/relay-client.ts'
+import type { DeviceInfo } from '../src/store/devices.ts'
 import { PanelLog } from '../src/panel/log.ts'
 import { PanelRuntime, type PanelRuntimeOptions } from '../src/panel/runtime.ts'
 import { TrafficMeter } from '../src/traffic.ts'
@@ -35,7 +36,6 @@ function config(dir: string): ServerConfig {
       agentToken: 'sentinel-agent-token',
       clientToken: 'sentinel-client-token',
     },
-    psk: 'sentinel-psk',
     pairingBaseUrl: 'https://clara.example',
     configDir: dir,
     configPath: join(dir, 'server.json'),
@@ -49,7 +49,6 @@ function config(dir: string): ServerConfig {
       relayRoom: 'file',
       agentToken: 'env',
       clientToken: 'env',
-      psk: 'file',
       pairingBaseUrl: 'default',
     },
   }
@@ -65,6 +64,32 @@ function relayClient(snapshot: RelaySnapshot): RelayClient {
 
 function pushService(): PushService {
   return { count: 2, failing: 1, publicKey: 'public-key' } as unknown as PushService
+}
+
+function devices(): DeviceInfo[] {
+  const now = Date.now()
+  return [
+    {
+      id: 'device-local',
+      label: 'Desk',
+      fingerprint: 'device-fingerprint-1',
+      createdAt: now - 60_000,
+      updatedAt: now - 1_000,
+      lastSeenAt: now - 1_000,
+      lastTransport: 'local',
+      lastDeviceClass: 'desktop',
+    },
+    {
+      id: 'device-remote',
+      label: 'Phone',
+      fingerprint: 'device-fingerprint-2',
+      createdAt: now - 30_000,
+      updatedAt: now - 500,
+      lastSeenAt: now - 500,
+      lastTransport: 'relay',
+      lastDeviceClass: 'mobile',
+    },
+  ]
 }
 
 function harnessConnection(): HarnessConnection {
@@ -127,6 +152,9 @@ function createRuntime(
     localAgent: agent([
       {
         sid: 'local-sid',
+        kind: 'device',
+        deviceId: 'device-local',
+        deviceLabel: 'Desk',
         connectedAt: Date.now() - 5_000,
         lastSeen: Date.now() - 1_000,
         requests: 2,
@@ -141,6 +169,9 @@ function createRuntime(
     relayAgent: agent([
       {
         sid: 'relay-sid',
+        kind: 'device',
+        deviceId: 'device-remote',
+        deviceLabel: 'Phone',
         connectedAt: Date.now() - 3_000,
         lastSeen: Date.now() - 500,
         requests: 0,
@@ -164,7 +195,8 @@ function createRuntime(
     ...(options.traffic ? { traffic: options.traffic } : {}),
     push: pushService(),
     pushError: 'push disabled for sentinel-password',
-    fingerprint: 'fingerprint-123',
+    devices: () => devices(),
+    pairedDevices: () => devices().filter((device) => !device.revokedAt).length,
     startedAt: Date.now() - 60_000,
     secretKey: { path: join(dir, 'secrets.key'), source: 'generated' },
     log: new PanelLog(),
@@ -194,7 +226,6 @@ describe('PanelRuntime', () => {
     expect(serialized).not.toContain('sentinel-password')
     expect(serialized).not.toContain('sentinel-agent-token')
     expect(serialized).not.toContain('sentinel-client-token')
-    expect(serialized).not.toContain('sentinel-psk')
     expect(serialized).not.toContain('user:secret')
 
     expect(snapshot.auth).toEqual(AUTH)
@@ -202,7 +233,8 @@ describe('PanelRuntime', () => {
     expect(snapshot.opencode.passwordConfigured).toBe(true)
     expect(snapshot.opencode.error).toContain('[redacted]')
     expect(snapshot.push.error).toContain('[redacted]')
-    expect(snapshot.agent.fingerprint).toBe('fingerprint-123')
+    expect(snapshot.agent.pairedDevices).toBe(2)
+    expect(snapshot.devices).toHaveLength(2)
     expect(snapshot.harness.configured).toBe(true)
     expect(snapshot.harnesses).toHaveLength(1)
     expect(snapshot.config.vapidSubject).toEqual({

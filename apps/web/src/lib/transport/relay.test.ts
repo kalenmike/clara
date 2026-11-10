@@ -4,8 +4,8 @@ import { WebSocketServer, type WebSocket } from 'ws'
 import {
   bytesToBase64Url,
   deriveSessionKeys,
-  fingerprintPsk,
-  generatePsk,
+  generateKey,
+  importSessionKey,
   open,
   randomBytes,
   seal,
@@ -18,8 +18,7 @@ import { createRelayTransport, MAX_IN_FLIGHT_REQUESTS, type RelayTransport } fro
 let server: Server
 let wss: WebSocketServer
 let transport: RelayTransport
-let psk: string
-let fingerprint: string
+let deviceKey: string
 let heldRequests: Array<{ release: () => void }> = []
 let heldReceived = 0
 
@@ -29,15 +28,14 @@ function releaseHeld(): void {
 
 beforeAll(async () => {
   Object.defineProperty(globalThis, 'window', { configurable: true, value: globalThis })
-  psk = generatePsk()
-  fingerprint = await fingerprintPsk(psk)
+  deviceKey = generateKey()
 
   server = createServer()
   wss = new WebSocketServer({
     server,
     handleProtocols: (protocols) => protocols.values().next().value ?? false,
   })
-  wss.on('connection', (socket) => attachFakeAgent(socket, psk))
+  wss.on('connection', (socket) => attachFakeAgent(socket, deviceKey))
   await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve))
   const address = server.address()
   if (!address || typeof address === 'string') throw new Error('No test server address')
@@ -45,8 +43,11 @@ beforeAll(async () => {
   transport = createRelayTransport({
     wsUrl: `ws://127.0.0.1:${address.port}/ws`,
     clientToken: 'test-client',
-    psk,
-    fingerprint,
+    credential: {
+      kind: 'device',
+      deviceId: 'device-test',
+      key: await importSessionKey(deviceKey),
+    },
   })
 })
 
@@ -161,7 +162,7 @@ async function waitFor(check: () => boolean, timeoutMs = 2_000): Promise<void> {
   }
 }
 
-function attachFakeAgent(socket: WebSocket, psk: string): void {
+function attachFakeAgent(socket: WebSocket, key: string): void {
   let keys: SessionKeys | null = null
   let sid = ''
   let sendSeq = 0
@@ -200,7 +201,7 @@ function attachFakeAgent(socket: WebSocket, psk: string): void {
       sid = String(frame.sid)
       const agentNonce = bytesToBase64Url(randomBytes(16))
       keys = await deriveSessionKeys({
-        psk,
+        key,
         sid,
         clientNonce: String(frame.nonce),
         agentNonce,

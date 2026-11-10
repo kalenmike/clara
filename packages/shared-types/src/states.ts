@@ -62,6 +62,12 @@ export type ClaraState =
       revision?: number
       entries?: SyncEntry[]
     }
+  | {
+      type: 'device.enrolled'
+      deviceId: string
+      fingerprint: string
+      label: string
+    }
 
 export type ClaraStateType = ClaraState['type']
 

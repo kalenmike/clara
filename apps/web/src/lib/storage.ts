@@ -1,44 +1,4 @@
-import type { ConnectionConfig } from '@/lib/client'
 import { notifySettingChanged } from '@/lib/setting-events'
-
-const LOCAL_KEY = 'clara.connection.local'
-
-type StoredConnection = ConnectionConfig
-
-function parse(raw: string | null): StoredConnection | null {
-  if (!raw) return null
-  try {
-    const value = JSON.parse(raw) as Record<string, unknown>
-    const wsUrl = typeof value.wsUrl === 'string' ? value.wsUrl : ''
-    const room = typeof value.room === 'string' ? value.room : ''
-    const clientToken = typeof value.clientToken === 'string' ? value.clientToken : ''
-    const psk = typeof value.psk === 'string' ? value.psk : ''
-    const fingerprint = typeof value.fingerprint === 'string' ? value.fingerprint : ''
-    if (!wsUrl || !room || !clientToken || !psk || !fingerprint) return null
-    return {
-      wsUrl,
-      room,
-      clientToken,
-      psk,
-      fingerprint,
-      label: typeof value.label === 'string' ? value.label : undefined,
-    }
-  } catch {
-    return null
-  }
-}
-
-export function loadStoredConnection(): StoredConnection | null {
-  return parse(window.localStorage.getItem(LOCAL_KEY))
-}
-
-export function saveStoredConnection(config: ConnectionConfig): void {
-  window.localStorage.setItem(LOCAL_KEY, JSON.stringify(config))
-}
-
-export function clearStoredConnection(): void {
-  window.localStorage.removeItem(LOCAL_KEY)
-}
 
 export const LAST_PROJECT_KEY = 'clara.lastProject'
 

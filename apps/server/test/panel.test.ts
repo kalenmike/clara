@@ -38,7 +38,7 @@ function snapshot(): PanelSnapshot {
     generatedAt: new Date(0).toISOString(),
     agent: {
       version: '0.1.0',
-      protocol: 1,
+      protocol: 2,
       startedAt: new Date(0).toISOString(),
       uptimeMs: 1,
       pid: 1,
@@ -48,7 +48,7 @@ function snapshot(): PanelSnapshot {
       memoryRssBytes: 1,
       configPath: '/tmp/config/server.json',
       configDir: '/tmp/config',
-      pskConfigured: true,
+      pairedDevices: 0,
       stopped: false,
       container: false,
     },
@@ -106,6 +106,7 @@ function snapshot(): PanelSnapshot {
       clientTokenConfigured: false,
     },
     clients: [],
+    devices: [],
     push: {
       enabled: false,
       desired: false,
@@ -303,6 +304,7 @@ function fakeControls(initial: Partial<PanelControls> = {}): FakeControls {
     }),
     activateHarness: async () => ({ harnesses: [], harness: { configured: false } }),
     deleteHarness: async () => ({ harnesses: [], harness: { configured: false } }),
+    revokeDevice: () => undefined,
   }
 }
 

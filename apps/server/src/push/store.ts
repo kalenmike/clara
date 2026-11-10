@@ -11,6 +11,7 @@ const FILE_VERSION = 1
 export type StoredPushSubscription = PushSubscriptionPayload & {
   createdAt: number
   updatedAt: number
+  deviceId?: string
   userAgent?: string
   deviceClass?: DeviceClass
   lastSuccessAt?: number
@@ -23,6 +24,7 @@ type StoreFile = {
 }
 
 export type SubscriptionMeta = {
+  deviceId?: string
   userAgent?: string
   deviceClass?: DeviceClass
 }
@@ -74,6 +76,9 @@ export class PushSubscriptionStore {
       ...normalized,
       createdAt: previous?.createdAt ?? now,
       updatedAt: now,
+      ...((meta.deviceId ?? previous?.deviceId)
+        ? { deviceId: meta.deviceId ?? previous?.deviceId }
+        : {}),
       ...(userAgent ? { userAgent } : {}),
       ...(deviceClass ? { deviceClass } : {}),
       ...(previous?.lastSuccessAt ? { lastSuccessAt: previous.lastSuccessAt } : {}),
@@ -93,6 +98,15 @@ export class PushSubscriptionStore {
     this.entries = next
     this.persist()
     return true
+  }
+
+  removeByDevice(deviceId: string): number {
+    const next = this.entries.filter((entry) => entry.deviceId !== deviceId)
+    const removed = this.entries.length - next.length
+    if (removed === 0) return 0
+    this.entries = next
+    this.persist()
+    return removed
   }
 
   markSuccess(endpoint: string): void {
@@ -145,10 +159,15 @@ export class PushSubscriptionStore {
         const userAgent = normalizeUserAgent(record.userAgent)
         const deviceClass = normalizeDeviceClass(record.deviceClass) ?? classifyUserAgent(userAgent)
         const lastSuccessAt = readTimestamp(record.lastSuccessAt)
+        const deviceId =
+          typeof record.deviceId === 'string' && record.deviceId.trim()
+            ? record.deviceId.trim()
+            : undefined
         entries.push({
           ...subscription,
           createdAt: readTimestamp(record.createdAt),
           updatedAt: readTimestamp(record.updatedAt),
+          ...(deviceId ? { deviceId } : {}),
           ...(userAgent ? { userAgent } : {}),
           ...(deviceClass ? { deviceClass } : {}),
           ...(lastSuccessAt ? { lastSuccessAt } : {}),
@@ -172,7 +191,7 @@ export class PushSubscriptionStore {
   }
 }
 
-/** Remove every stored subscription, for example after rotating the pairing key. */
+/** Remove every stored subscription, for example after revoking every device. */
 export function clearPushSubscriptions(path: string): number {
   if (!existsSync(path)) return 0
   let count = 0

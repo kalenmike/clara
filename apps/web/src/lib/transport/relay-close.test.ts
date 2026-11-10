@@ -1,5 +1,6 @@
 import { createServer, type Server } from 'node:http'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { generateKey } from '@clara/crypto'
 import { createRelayTransport, type RelayTransport } from './relay.ts'
 
 let server: Server
@@ -32,8 +33,12 @@ describe('relay transport close reasons', () => {
     transport = createRelayTransport({
       wsUrl: `ws://127.0.0.1:${address.port}/ws`,
       clientToken: 'test-client',
-      psk: 'unused',
-      fingerprint: 'unused',
+      credential: {
+        kind: 'enroll',
+        enrollId: 'unused',
+        enrollToken: generateKey(),
+        expiresAt: Date.now() + 60_000,
+      },
     })
 
     await expect(
@@ -57,8 +62,12 @@ describe('relay transport close reasons', () => {
     transport = createRelayTransport({
       wsUrl: `ws://127.0.0.1:${address.port}/ws`,
       clientToken: 'local',
-      psk: 'unused',
-      fingerprint: 'unused',
+      credential: {
+        kind: 'enroll',
+        enrollId: 'unused',
+        enrollToken: generateKey(),
+        expiresAt: Date.now() + 60_000,
+      },
     })
 
     await expect(

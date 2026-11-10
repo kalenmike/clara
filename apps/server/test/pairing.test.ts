@@ -2,9 +2,10 @@ import { mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { generatePsk } from '@clara/crypto'
+import { generateKey } from '@clara/crypto'
 import { loadConfig, type ServerConfig } from '../src/config.ts'
 import { createPairingPayload, pairingLinkBase, printPairing } from '../src/pairing.ts'
+import type { DeviceStore } from '../src/store/devices.ts'
 
 const tempDirs: string[] = []
 const ENV_KEYS = [
@@ -16,7 +17,6 @@ const ENV_KEYS = [
   'CLARA_RELAY_ROOM',
   'CLARA_AGENT_TOKEN',
   'CLARA_CLIENT_TOKEN',
-  'CLARA_PSK',
   'CLARA_PAIRING_BASE_URL',
   'CLARA_WEB_PORT',
   'XDG_STATE_HOME',
@@ -30,10 +30,20 @@ function tempDir(): string {
   return dir
 }
 
+function fakeDevices(): DeviceStore {
+  return {
+    createPairingToken: async () => ({
+      id: 'enroll-id',
+      token: generateKey(),
+      fingerprint: 'fingerprint',
+      expiresAt: Date.now() + 600_000,
+    }),
+  } as DeviceStore
+}
+
 function baseConfig(overrides: Partial<ServerConfig> = {}): ServerConfig {
   return {
     local: { host: '127.0.0.1', bindHost: '127.0.0.1', port: 8788 },
-    psk: generatePsk(),
     pairingBaseUrl: 'https://clara.example',
     configDir: '/tmp/clara-pairing',
     configPath: '/tmp/clara-pairing/server.json',
@@ -47,7 +57,6 @@ function baseConfig(overrides: Partial<ServerConfig> = {}): ServerConfig {
       relayRoom: 'none',
       agentToken: 'none',
       clientToken: 'none',
-      psk: 'generated',
       pairingBaseUrl: 'default',
     },
     ...overrides,
@@ -72,14 +81,15 @@ afterEach(() => {
 describe('createPairingPayload', () => {
   it('pairs with the advertised host, not the container bind address', async () => {
     const payload = await createPairingPayload(
-      baseConfig({ local: { host: '127.0.0.1', bindHost: '0.0.0.0', port: 8788 } })
+      baseConfig({ local: { host: '127.0.0.1', bindHost: '0.0.0.0', port: 8788 } }),
+      fakeDevices()
     )
 
     expect(payload.wsUrl).toBe('ws://127.0.0.1:8788/ws')
   })
 
   it('uses the local listener when no relay is configured', async () => {
-    const payload = await createPairingPayload(baseConfig())
+    const payload = await createPairingPayload(baseConfig(), fakeDevices())
 
     expect(payload).toMatchObject({
       wsUrl: 'ws://127.0.0.1:8788/ws',
@@ -97,7 +107,8 @@ describe('createPairingPayload', () => {
           agentToken: 'agent',
           clientToken: 'client',
         },
-      })
+      }),
+      fakeDevices()
     )
 
     expect(payload).toMatchObject({
@@ -147,7 +158,6 @@ describe('pair command configuration', () => {
     writeFileSync(
       join(dir, 'server.json'),
       JSON.stringify({
-        psk: generatePsk(),
         pairingBaseUrl: 'https://saved.example',
         relay: { url: 'wss://relay.example', room: 'room-1' },
       }),
@@ -164,7 +174,7 @@ describe('pair command configuration', () => {
       logs.push(args.map(String).join(' '))
     })
     try {
-      await printPairing(config, false)
+      await printPairing(config, fakeDevices(), false)
     } finally {
       spy.mockRestore()
     }
@@ -187,12 +197,12 @@ describe('loadConfig local pairing', () => {
     expect(config.relay).toBeUndefined()
     expect(config.sources.relayUrl).toBe('none')
 
-    const payload = await createPairingPayload(config)
+    const payload = await createPairingPayload(config, fakeDevices())
     expect(payload).toMatchObject({
       wsUrl: 'ws://127.0.0.1:8788/ws',
       room: 'local',
       clientToken: 'local',
-      psk: config.psk,
+      enrollId: 'enroll-id',
     })
   })
 })

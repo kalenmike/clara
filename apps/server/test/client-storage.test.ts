@@ -98,8 +98,8 @@ describe('ClientStorageStore', () => {
     ).toMatchObject({ ok: false, code: 'invalid' })
 
     for (const key of [
-      'clara.connection.local',
-      'Clara.Connection.Session',
+      'clara.device.credential',
+      'Clara.Device.Credential',
       'my.psk.value',
       'user.password',
       'clara.oauth-token',
