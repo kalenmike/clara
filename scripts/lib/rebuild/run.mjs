@@ -2,7 +2,7 @@
 //
 // `status` captures the live setup, `build` and `adapters` do the rebuild, and
 // `restart`/`health` restore and verify the captured set. The restart is
-// deliberately ordered lab -> control -> orchestrator so the orchestrator that
+// deliberately ordered lab -> server -> orchestrator so the orchestrator that
 // owns the running pipeline is the last thing to go down.
 
 import { spawn, spawnSync } from 'node:child_process'
@@ -31,7 +31,7 @@ import {
   localPort,
   orchestratorURL,
   panelPort,
-  probeControl,
+  probeServer,
   probeLab,
   probeLabPort,
   probeOrchestrator,
@@ -206,10 +206,10 @@ export async function runStatus(options = {}) {
   const repo = resolveRepository({ root: options.root })
   const root = repo.root
   const webCompose = webRunningInCompose(root)
-  const [orchestrator, lab, control, web] = await Promise.all([
+  const [orchestrator, lab, server, web] = await Promise.all([
     probeOrchestrator({ url: options.orchestratorURL ?? orchestratorURL() }),
     probeLab({ ports: labPorts() }),
-    probeControl({ panelPort: panelPort(), localPort: localPort() }),
+    probeServer({ panelPort: panelPort(), localPort: localPort() }),
     probeWeb({ port: webPort(), container: webCompose }),
   ])
 
@@ -237,23 +237,23 @@ export async function runStatus(options = {}) {
     },
     orchestrator,
     lab,
-    control,
+    server,
     web: { ...web, expected: web.expected || webCompose },
     adapters: adapterSnapshot(root),
   }
   const deployment = deploymentModes({
     orchestrator,
     lab,
-    control,
+    server,
     web,
-    compose: { control: serverRunningInCompose(root), web: webCompose },
+    compose: { server: serverRunningInCompose(root), web: webCompose },
   })
   state.deployment = deployment
   state.orchestrator = { ...orchestrator, mode: deployment.orchestrator.mode }
-  state.control = {
-    ...control,
-    mode: deployment.control.mode,
-    container: deployment.control.container,
+  state.server = {
+    ...server,
+    mode: deployment.server.mode,
+    container: deployment.server.container,
   }
   state.lab = { ...lab, mode: deployment.lab.mode }
   state.web = {
@@ -278,7 +278,7 @@ export function formatStatus(state) {
     `git:          ${git}`,
     `orchestrator: ${describeService(state.orchestrator)}`,
     `lab:          ${describeService(state.lab)}`,
-    `control:      ${describeService(state.control)}`,
+    `server:       ${describeService(state.server)}`,
     `web:          ${describeService(state.web)}`,
     `adapter:      ${state.adapters.opencode.linked ? 'linked' : 'missing'} ${
       state.adapters.opencode.target ?? ''
@@ -580,10 +580,10 @@ export async function runInspect(options = {}) {
       deploymentModes({
         orchestrator: state.orchestrator,
         lab: state.lab,
-        control: state.control,
+        server: state.server,
         web: state.web,
         compose: {
-          control: serverRunningInCompose(state.installRoot ?? state.root),
+          server: serverRunningInCompose(state.installRoot ?? state.root),
           web: webRunningInCompose(state.installRoot ?? state.root),
         },
       }),
@@ -614,7 +614,7 @@ export function formatInspect(result) {
   const lines = [
     `snapshot   ${result.snapshot.path} (${result.snapshot.stale ? 'stale' : 'fresh'})`,
     `root       ${result.snapshot.root ?? '-'}`,
-    `modes      control ${result.deployment?.control?.mode ?? 'unknown'}, orchestrator ${
+    `modes      server ${result.deployment?.server?.mode ?? 'unknown'}, orchestrator ${
       result.deployment?.orchestrator?.mode ?? 'unknown'
     }${result.deployment?.orchestrator?.external ? ' external' : ''}, lab ${
       result.deployment?.lab?.mode ?? 'unknown'
@@ -699,7 +699,7 @@ export function formatRecover(result) {
 async function restartService(name, state, options) {
   if (name === 'web') return restartWeb(state, options)
   if (name === 'lab') return restartLab(state, options)
-  if (name === 'control') return restartControl(state, options)
+  if (name === 'server') return restartServer(state, options)
   if (name === 'orchestrator') return restartOrchestrator(state, options)
   throw new Error(`unknown service: ${name}`)
 }
@@ -832,19 +832,19 @@ async function restartLab(state, options) {
   if (!result.ok) throw new Error(`lab did not become healthy at ${lab.url}`)
 }
 
-async function restartControl(state, options) {
-  const control = state.control
+async function restartServer(state, options) {
+  const server = state.server
   const buildRoot = state.installRoot ?? state.root
-  let mode = state.deployment?.control?.mode ?? control.mode
+  let mode = state.deployment?.server?.mode ?? server.mode
   if (!mode || mode === 'stopped') {
     mode = serverRunningInCompose(buildRoot) ? 'container' : 'local'
   }
   if (mode === 'container') {
-    await restartControlContainer(buildRoot, control, options)
+    await restartServerContainer(buildRoot, server, options)
     return
   }
-  if (control.systemd === true) {
-    logCommand('restarting control through systemctl --user restart clara')
+  if (server.systemd === true) {
+    logCommand('restarting server through systemctl --user restart clara')
     const result = await runStreaming('systemctl', ['--user', 'restart', 'clara'], {
       progress: options.progress ?? DEFAULT_PROGRESS,
       log: (text) => appendLog(process.env, text),
@@ -852,13 +852,13 @@ async function restartControl(state, options) {
     if (!result.ok) {
       throw new Error(`systemctl --user restart clara failed (exit ${result.code ?? 'unknown'})`)
     }
-    await waitForControl(control)
+    await waitForServer(server)
     return
   }
 
-  const current = await probeControl({
-    panelPort: control.panelPort,
-    localPort: control.localPort,
+  const current = await probeServer({
+    panelPort: server.panelPort,
+    localPort: server.localPort,
   })
   if (current.mode === 'container') {
     if (!options.force) {
@@ -866,12 +866,12 @@ async function restartControl(state, options) {
         'the snapshot captured a local home agent but it is running in a container; stop the container or re-capture with `pnpm clara rebuild status`'
       )
     }
-    await restartControlContainer(buildRoot, control, options)
+    await restartServerContainer(buildRoot, server, options)
     return
   }
   const pid = current.expected
     ? (current.pid ?? findListenerPid(current.panelPort) ?? findListenerPid(current.localPort))
-    : control.pid
+    : server.pid
   if (pid && canSignal(pid) && processMatches(pid, ['apps/server', 'clara-server']) !== false) {
     const env = readProcessEnv(pid) ?? { ...process.env }
     process.kill(pid, 'SIGTERM')
@@ -879,17 +879,17 @@ async function restartControl(state, options) {
       process.kill(pid, 'SIGKILL')
       await waitForExit(pid, 3000)
     }
-    return startControl(state, control, env)
+    return startServer(state, server, env)
   }
   if (current.expected) {
-    throw new Error('control agent did not expose a restartable pid; restart it manually')
+    throw new Error('the home agent did not expose a restartable pid; restart it manually')
   }
 
-  return startControl(state, control, { ...process.env })
+  return startServer(state, server, { ...process.env })
 }
 
-async function restartControlContainer(buildRoot, control, options) {
-  logCommand('stopping control through docker compose')
+async function restartServerContainer(buildRoot, server, options) {
+  logCommand('stopping server through docker compose')
   const stop = await runCli(['server', 'stop', '--docker'], {
     cwd: buildRoot,
     progress: options.progress ?? DEFAULT_PROGRESS,
@@ -898,7 +898,7 @@ async function restartControlContainer(buildRoot, control, options) {
   if (!stop.ok) {
     throw new Error(`server container stop failed (exit ${stop.code ?? 'unknown'})`)
   }
-  logCommand('starting control through docker compose')
+  logCommand('starting server through docker compose')
   const start = await runCli(['server', 'start', '--docker', '--build'], {
     cwd: buildRoot,
     progress: options.progress ?? DEFAULT_PROGRESS,
@@ -907,26 +907,26 @@ async function restartControlContainer(buildRoot, control, options) {
   if (!start.ok) {
     throw new Error(`server container start failed (exit ${start.code ?? 'unknown'})`)
   }
-  await waitForControl(control)
+  await waitForServer(server)
 }
 
-async function startControl(state, control, env) {
+async function startServer(state, server, env) {
   const root = state.installRoot ?? state.root
   const entry = join(root, 'apps', 'server', 'dist', 'index.js')
   if (!existsSync(entry)) throw new Error(`agent entry not found at ${entry}`)
   const args = [entry]
-  if (!control.panel) args.push('--no-panel')
+  if (!server.panel) args.push('--no-panel')
 
-  logCommand(`starting control from ${root}`)
+  logCommand(`starting server from ${root}`)
   spawnDetached(process.execPath, args, { cwd: root, env, logFile: logPath() })
-  await waitForControl(control)
+  await waitForServer(server)
 }
 
-async function waitForControl(control) {
-  const expectedPanel = Boolean(control.panel)
-  const expectedLocal = Boolean(control.local)
+async function waitForServer(server) {
+  const expectedPanel = Boolean(server.panel)
+  const expectedLocal = Boolean(server.local)
   const result = await waitForProbe(
-    () => probeControl({ panelPort: control.panelPort, localPort: control.localPort }),
+    () => probeServer({ panelPort: server.panelPort, localPort: server.localPort }),
     (probe) =>
       probe.expected &&
       probe.healthy &&
@@ -934,7 +934,7 @@ async function waitForControl(control) {
       (!expectedLocal || Boolean(probe.local)),
     { timeoutMs: 30000 }
   )
-  if (!result.ok) throw new Error('control agent did not become healthy')
+  if (!result.ok) throw new Error('the home agent did not become healthy')
 }
 
 async function restartOrchestrator(state, options) {
@@ -1032,17 +1032,17 @@ export function formatRestart(result) {
 export async function runHealth(options = {}) {
   const state = requireState(options.statePath)
   const webContainer = webRunningInCompose(state.installRoot ?? state.root)
-  const [orchestrator, lab, control, web] = await Promise.all([
+  const [orchestrator, lab, server, web] = await Promise.all([
     state.orchestrator?.expected
       ? probeOrchestrator({ url: state.orchestrator?.url || orchestratorURL() })
       : { expected: false, healthy: false, state: 'stopped' },
     state.lab?.expected
       ? probeLab({ ports: state.lab?.port ? [state.lab.port] : labPorts() })
       : { expected: false, healthy: false, state: 'stopped' },
-    state.control?.expected
-      ? probeControl({
-          panelPort: state.control?.panelPort ?? panelPort(),
-          localPort: state.control?.localPort ?? localPort(),
+    state.server?.expected
+      ? probeServer({
+          panelPort: state.server?.panelPort ?? panelPort(),
+          localPort: state.server?.localPort ?? localPort(),
         })
       : { expected: false, healthy: false, state: 'stopped' },
     state.web?.expected
@@ -1052,7 +1052,7 @@ export async function runHealth(options = {}) {
   const adapter = adapterSnapshot(state.installRoot ?? state.root)
   const report = evaluateHealth(
     state,
-    { orchestrator, lab, control, web },
+    { orchestrator, lab, server, web },
     { adapter, mode: options.mode ?? 'all' }
   )
   report.snapshot = options.statePath ?? statePath()

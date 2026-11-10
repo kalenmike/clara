@@ -58,10 +58,24 @@ export function writeJson(path, value) {
   }
 }
 
+/** Rename the pre-`server` snapshot key so older snapshots keep working. */
+export function migrateState(state) {
+  if (!state || typeof state !== 'object') return state
+  if (state.server === undefined && state.control !== undefined) state.server = state.control
+  delete state.control
+  if (state.deployment && typeof state.deployment === 'object') {
+    if (state.deployment.server === undefined && state.deployment.control !== undefined) {
+      state.deployment.server = state.deployment.control
+    }
+    delete state.deployment.control
+  }
+  return state
+}
+
 export function readState(path = statePath()) {
   const state = readJson(path)
   if (!state || typeof state !== 'object' || state.schema !== STATE_SCHEMA) return undefined
-  return state
+  return migrateState(state)
 }
 
 export function writeState(state, path = statePath()) {
