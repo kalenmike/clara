@@ -102,7 +102,7 @@ async function main(): Promise<void> {
   let push: PushService | undefined
   let pushError: string | undefined
   try {
-    const vapid = loadVapidDetails(config.configDir, config.pairingBaseUrl)
+    const vapid = loadVapidDetails(config.configDir)
     const store = new PushSubscriptionStore(join(config.configDir, 'subscriptions.json'), log)
     push = new PushService({
       publicKey: vapid.publicKey,

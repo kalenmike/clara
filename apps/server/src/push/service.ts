@@ -32,16 +32,30 @@ export type PushNotifyOptions = {
 
 export class PushService {
   readonly publicKey: string
+  private readonly privateKey: string
   private readonly store: PushSubscriptionStore
   private readonly log?: (message: string, detail?: unknown) => void
   private readonly send: Sender
+  private currentSubject: string
 
   constructor(options: PushServiceOptions) {
     this.publicKey = options.publicKey
+    this.privateKey = options.privateKey
     this.store = options.store
     this.log = options.log
     this.send = options.send ?? defaultSender
+    this.currentSubject = options.subject
     webpush.setVapidDetails(options.subject, options.publicKey, options.privateKey)
+  }
+
+  get subject(): string {
+    return this.currentSubject
+  }
+
+  /** Apply a panel-edited VAPID contact without restarting the agent. */
+  setSubject(subject: string): void {
+    webpush.setVapidDetails(subject, this.publicKey, this.privateKey)
+    this.currentSubject = subject
   }
 
   get count(): number {
