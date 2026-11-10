@@ -13,11 +13,7 @@ import {
   type SessionKeys,
 } from '@clara/crypto'
 import { PROTOCOL_VERSION, type ClaraAction, type ClaraState } from '@clara/shared-types'
-import {
-  createRelayTransport,
-  MAX_IN_FLIGHT_REQUESTS,
-  type RelayTransport,
-} from './relay.ts'
+import { createRelayTransport, MAX_IN_FLIGHT_REQUESTS, type RelayTransport } from './relay.ts'
 
 let server: Server
 let wss: WebSocketServer

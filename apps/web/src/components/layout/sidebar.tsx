@@ -317,8 +317,7 @@ export function SidebarContent({
 
   const sessionsLoading = sessionsQuery.isLoading || archivedQuery.isLoading
   const sessionsError = sessionsQuery.isError || archivedQuery.isError
-  const sessionsAvailable =
-    sessionsQuery.data !== undefined || archivedQuery.data !== undefined
+  const sessionsAvailable = sessionsQuery.data !== undefined || archivedQuery.data !== undefined
   const sessionsErrorDetail = sessionsError
     ? errorMessage(sessionsQuery.error ?? archivedQuery.error)
     : null

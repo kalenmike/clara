@@ -659,13 +659,7 @@ class RelayFetchTransport implements RelayTransport {
     }
 
     return new Promise((resolve, reject) => {
-      let entry: QueuedRequest
-      const onAbort = () => {
-        const index = this.queue.indexOf(entry)
-        if (index >= 0) this.queue.splice(index, 1)
-        reject(abortError())
-      }
-      entry = {
+      const entry: QueuedRequest = {
         grant: () => {
           signal.removeEventListener('abort', onAbort)
           this.inFlight += 1
@@ -675,6 +669,11 @@ class RelayFetchTransport implements RelayTransport {
           signal.removeEventListener('abort', onAbort)
           reject(cause)
         },
+      }
+      const onAbort = () => {
+        const index = this.queue.indexOf(entry)
+        if (index >= 0) this.queue.splice(index, 1)
+        reject(abortError())
       }
       signal.addEventListener('abort', onAbort, { once: true })
       this.queue.push(entry)
