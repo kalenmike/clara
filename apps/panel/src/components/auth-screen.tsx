@@ -1,9 +1,15 @@
 import { useState, type FormEvent } from 'react'
 import { CircleAlert, KeyRound, LoaderCircle, LogIn, ShieldCheck } from 'lucide-react'
+import { authFormMode, canResetWithToken } from '../lib/auth-form.ts'
 import type { SessionController } from '../lib/use-session.ts'
 
 export function AuthScreen({ session }: { session: SessionController }) {
-  const setup = session.status?.authenticated === false && session.status.setupRequired
+  const [resetOpen, setResetOpen] = useState(false)
+  const mode = authFormMode(session.status, resetOpen)
+  const setup = mode === 'setup'
+  const reset = mode === 'reset'
+  const credential = setup || reset
+  const offerReset = canResetWithToken(session.status)
   const [username, setUsername] = useState(setup ? 'admin' : '')
   const [password, setPassword] = useState('')
   const [confirm, setConfirm] = useState('')
@@ -11,16 +17,32 @@ export function AuthScreen({ session }: { session: SessionController }) {
   const [pending, setPending] = useState(false)
   const [error, setError] = useState<string>()
 
+  const openReset = () => {
+    setResetOpen(true)
+    setPassword('')
+    setConfirm('')
+    setToken('')
+    setError(undefined)
+  }
+
+  const closeReset = () => {
+    setResetOpen(false)
+    setPassword('')
+    setConfirm('')
+    setToken('')
+    setError(undefined)
+  }
+
   const submit = async (event: FormEvent) => {
     event.preventDefault()
     setError(undefined)
-    if (setup && password !== confirm) {
+    if (credential && password !== confirm) {
       setError('The passwords do not match')
       return
     }
     setPending(true)
     try {
-      if (setup) await session.setup(token, username, password)
+      if (credential) await session.setup(token, setup ? username : '', password)
       else await session.login(username, password)
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : String(cause))
@@ -28,6 +50,24 @@ export function AuthScreen({ session }: { session: SessionController }) {
       setPending(false)
     }
   }
+
+  const heading = setup
+    ? 'Set up the agent panel'
+    : reset
+      ? 'Reset the agent panel password'
+      : 'Sign in to the agent panel'
+  const description = setup
+    ? 'Read the one-time setup token from the host, then choose the superadmin password.'
+    : reset
+      ? 'Enter the reset token from the host, then choose a new password for the superadmin account.'
+      : 'This panel controls the home agent and its harness connections.'
+  const submitLabel = pending
+    ? 'Working…'
+    : setup
+      ? 'Set up panel'
+      : reset
+        ? 'Reset password'
+        : 'Sign in'
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-neutral-50 px-4 dark:bg-neutral-950">
@@ -37,21 +77,15 @@ export function AuthScreen({ session }: { session: SessionController }) {
             <ShieldCheck className="size-5" aria-hidden="true" />
           </div>
           <div>
-            <h1 className="text-lg font-semibold tracking-tight">
-              {setup ? 'Set up the agent panel' : 'Sign in to the agent panel'}
-            </h1>
-            <p className="mt-1 text-xs text-neutral-500 dark:text-neutral-400">
-              {setup
-                ? 'Read the one-time setup token from the host, then choose the superadmin password.'
-                : 'This panel controls the home agent and its harness connections.'}
-            </p>
+            <h1 className="text-lg font-semibold tracking-tight">{heading}</h1>
+            <p className="mt-1 text-xs text-neutral-500 dark:text-neutral-400">{description}</p>
           </div>
         </div>
 
         <form className="space-y-3" onSubmit={(event) => void submit(event)}>
-          {setup ? (
+          {credential ? (
             <label className="block text-xs font-medium text-neutral-600 dark:text-neutral-300">
-              Setup token
+              {reset ? 'Reset token' : 'Setup token'}
               <input
                 type="password"
                 autoComplete="one-time-code"
@@ -63,32 +97,34 @@ export function AuthScreen({ session }: { session: SessionController }) {
             </label>
           ) : null}
 
-          <label className="block text-xs font-medium text-neutral-600 dark:text-neutral-300">
-            Username
-            <input
-              type="text"
-              autoComplete="username"
-              value={username}
-              onChange={(event) => setUsername(event.target.value)}
-              className="mt-1 w-full rounded-lg border border-neutral-200 bg-white px-3 py-2 text-sm outline-none focus:border-neutral-500 dark:border-neutral-700 dark:bg-neutral-950"
-              required
-            />
-          </label>
+          {setup ? (
+            <label className="block text-xs font-medium text-neutral-600 dark:text-neutral-300">
+              Username
+              <input
+                type="text"
+                autoComplete="username"
+                value={username}
+                onChange={(event) => setUsername(event.target.value)}
+                className="mt-1 w-full rounded-lg border border-neutral-200 bg-white px-3 py-2 text-sm outline-none focus:border-neutral-500 dark:border-neutral-700 dark:bg-neutral-950"
+                required
+              />
+            </label>
+          ) : null}
 
           <label className="block text-xs font-medium text-neutral-600 dark:text-neutral-300">
-            {setup ? 'New password' : 'Password'}
+            {credential ? 'New password' : 'Password'}
             <input
               type="password"
-              autoComplete={setup ? 'new-password' : 'current-password'}
+              autoComplete={credential ? 'new-password' : 'current-password'}
               value={password}
               onChange={(event) => setPassword(event.target.value)}
               className="mt-1 w-full rounded-lg border border-neutral-200 bg-white px-3 py-2 text-sm outline-none focus:border-neutral-500 dark:border-neutral-700 dark:bg-neutral-950"
-              minLength={setup ? 12 : undefined}
+              minLength={credential ? 12 : undefined}
               required
             />
           </label>
 
-          {setup ? (
+          {credential ? (
             <label className="block text-xs font-medium text-neutral-600 dark:text-neutral-300">
               Confirm password
               <input
@@ -103,14 +139,13 @@ export function AuthScreen({ session }: { session: SessionController }) {
             </label>
           ) : null}
 
-          {setup ? (
+          {credential ? (
             <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800 dark:border-amber-900 dark:bg-amber-950/60 dark:text-amber-300">
               <KeyRound className="mr-1 inline size-3.5" aria-hidden="true" />
               The token is in <span className="font-mono">admin-setup.txt</span> in the agent config
               directory. Print it with{' '}
               <span className="font-mono">pnpm clara server setup-token</span>, or run{' '}
-              <span className="font-mono">pnpm clara server admin reset</span> if it is missing. Add{' '}
-              <span className="font-mono">--docker</span> for the container.
+              <span className="font-mono">pnpm clara server admin reset</span> to issue a new one.
             </div>
           ) : null}
 
@@ -128,13 +163,31 @@ export function AuthScreen({ session }: { session: SessionController }) {
           >
             {pending ? (
               <LoaderCircle className="size-4 animate-spin" aria-hidden="true" />
-            ) : setup ? (
+            ) : credential ? (
               <ShieldCheck className="size-4" aria-hidden="true" />
             ) : (
               <LogIn className="size-4" aria-hidden="true" />
             )}
-            {pending ? 'Working…' : setup ? 'Set up panel' : 'Sign in'}
+            {submitLabel}
           </button>
+
+          {reset ? (
+            <button
+              type="button"
+              onClick={closeReset}
+              className="w-full text-center text-xs font-medium text-neutral-500 underline-offset-4 hover:underline dark:text-neutral-400"
+            >
+              Back to sign in
+            </button>
+          ) : offerReset ? (
+            <button
+              type="button"
+              onClick={openReset}
+              className="w-full text-center text-xs font-medium text-neutral-500 underline-offset-4 hover:underline dark:text-neutral-400"
+            >
+              Lost your password? Use a reset token.
+            </button>
+          ) : null}
         </form>
       </main>
     </div>

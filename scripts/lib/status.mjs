@@ -138,7 +138,11 @@ async function collectServerStatus() {
   }
   if (session?.ok && session.body) {
     const body = session.body
-    details.admin = body.setupRequired ? 'setup required' : 'configured'
+    details.admin = body.setupRequired
+      ? 'setup required'
+      : body.resetPending
+        ? 'reset pending'
+        : 'configured'
     if (body.authenticated) details.session = `signed in as ${body.user.username}`
   } else {
     details.admin = 'unknown'

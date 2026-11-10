@@ -53,7 +53,10 @@ export function useSession() {
     try {
       await deletePanel('/panel/api/v1/session')
     } finally {
-      setState({ status: { authenticated: false, setupRequired: false }, loading: false })
+      setState({
+        status: { authenticated: false, setupRequired: false, resetPending: false },
+        loading: false,
+      })
     }
   }, [])
 
@@ -67,8 +70,14 @@ export function useSession() {
   }, [])
 
   const invalidate = useCallback(() => {
-    setState({ status: { authenticated: false, setupRequired: false }, loading: false })
-  }, [])
+    setState({
+      status: { authenticated: false, setupRequired: false, resetPending: false },
+      loading: false,
+    })
+    // A host reset revokes the session and issues a token. Re-read the status so
+    // the sign-in screen can offer the reset form without a manual reload.
+    void refresh()
+  }, [refresh])
 
   return { ...state, refresh, login, setup, logout, changePassword, invalidate }
 }
