@@ -1,0 +1,29 @@
+id: recover
+name: Recover Clara services
+description: Restore the services captured by the last snapshot without rebuilding or taking a new snapshot.
+enforcement: observed
+steps:
+  - name: inspect_setup
+    type: script
+    command: pnpm clara rebuild inspect --json
+    result_mode: json
+    timeout_seconds: 120
+  - name: recover_services
+    type: script
+    command: pnpm clara rebuild recover --json
+    result_mode: json
+    timeout_seconds: 900
+    retries:
+      auto_attempts: 2
+    inputs:
+      setup: inspect_setup
+  - name: verify_health
+    type: script
+    command: pnpm clara rebuild health --json
+    result_mode: json
+    timeout_seconds: 300
+    retries:
+      auto_attempts: 2
+    inputs:
+      setup: inspect_setup
+      recovered: recover_services

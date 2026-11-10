@@ -1,0 +1,29 @@
+id: diagnose
+name: Diagnose a failed maintenance run
+description: Collect a failed run and the rebuild snapshot, classify the cause, and return safe next actions.
+enforcement: observed
+steps:
+  - name: collect_run
+    type: script
+    command: pnpm clara orchestration inspect --request-env --json
+    result_mode: json
+    timeout_seconds: 120
+  - name: collect_setup
+    type: script
+    command: pnpm clara rebuild inspect --json
+    result_mode: json
+    success_codes: [0, 1]
+    timeout_seconds: 120
+    inputs:
+      run: collect_run
+  - name: classify_failure
+    type: agent
+    inputs:
+      run: collect_run
+      setup: collect_setup
+  - name: review_diagnosis
+    type: agent
+    inputs:
+      run: collect_run
+      setup: collect_setup
+      diagnosis: classify_failure

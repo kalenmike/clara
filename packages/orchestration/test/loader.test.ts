@@ -945,6 +945,37 @@ describe('package loader', () => {
     expect(build?.script?.command).toContain('pnpm clara rebuild build --json')
     const restart = maintenance.root.children?.find((step) => step.name === 'restart_services')
     expect(restart?.script?.timeoutSeconds).toBe(900)
+    expect(restart?.retries?.auto_attempts).toBe(2)
+    expect(restart?.onFailure?.retry).toBe(true)
+    expect(restart?.onFailure?.children.map((step) => step.name)).toEqual(['recover_services'])
+    expect(restart?.onFailure?.children[0].script?.command).toContain('pnpm clara rebuild recover')
+    const health = maintenance.root.children?.find((step) => step.name === 'verify_health')
+    expect(health?.onFailure?.maxCycles).toBe(1)
+  })
+
+  it('compiles the maintenance recover and diagnose pipelines', () => {
+    const catalog = loadCatalog(config)
+    const recover = compileRun(catalog, 'std:maintenance/recover')
+    expect(recover.root.children?.map((step) => step.name)).toEqual([
+      'inspect_setup',
+      'recover_services',
+      'verify_health',
+    ])
+    expect(recover.root.children?.every((step) => step.kind === 'script')).toBe(true)
+
+    const diagnose = compileRun(catalog, 'std:maintenance/diagnose')
+    expect(diagnose.root.children?.map((step) => step.name)).toEqual([
+      'collect_run',
+      'collect_setup',
+      'classify_failure',
+      'review_diagnosis',
+    ])
+    expect(
+      diagnose.root.children?.find((step) => step.name === 'collect_setup')?.script?.successCodes
+    ).toEqual([0, 1])
+    expect(diagnose.root.children?.find((step) => step.name === 'classify_failure')?.kind).toBe(
+      'agent'
+    )
   })
 
   it('routes explicit rebuild requests from the primary classifier', () => {

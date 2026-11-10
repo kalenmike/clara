@@ -1,13 +1,15 @@
 id: maintenance
 name: Clara maintenance
 version: 1
-description: Rebuild Clara, reinstall its adapters, restart the captured services, and verify health.
+description: Rebuild Clara, restore captured services, and diagnose failed maintenance runs.
 
 entry:
   pipeline: rebuild
 
 defaults:
   script_dir: ./scripts
-  # The rebuild must run while the adapter or setup is degraded. Every step is
-  # a declared deterministic command, so no model turn can improvise.
+  # The rebuild must run while the adapter or setup is degraded. Every rebuild,
+  # recover, and evidence-collection step is a declared deterministic command,
+  # so no model turn can improvise. The diagnose pipeline uses read-only agents
+  # to explain a failure; it never repairs anything.
   enforcement: observed

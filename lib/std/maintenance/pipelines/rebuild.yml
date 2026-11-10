@@ -18,6 +18,8 @@ steps:
     command: pnpm clara rebuild adapters --json
     result_mode: json
     timeout_seconds: 300
+    retries:
+      auto_attempts: 2
     inputs:
       setup: capture_setup
       build: build
@@ -26,6 +28,17 @@ steps:
     command: pnpm clara rebuild restart --json
     result_mode: json
     timeout_seconds: 900
+    retries:
+      auto_attempts: 2
+    on_failure:
+      max_cycles: 1
+      retry: true
+      steps:
+        - name: recover_services
+          type: script
+          command: pnpm clara rebuild recover --json
+          result_mode: json
+          timeout_seconds: 900
     inputs:
       setup: capture_setup
       build: build
@@ -35,6 +48,17 @@ steps:
     command: pnpm clara rebuild health --json
     result_mode: json
     timeout_seconds: 300
+    retries:
+      auto_attempts: 2
+    on_failure:
+      max_cycles: 1
+      retry: true
+      steps:
+        - name: recover_services
+          type: script
+          command: pnpm clara rebuild recover --json
+          result_mode: json
+          timeout_seconds: 900
     inputs:
       setup: capture_setup
       restart: restart_services
