@@ -1,4 +1,4 @@
-import { mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
@@ -181,6 +181,77 @@ describe('loadConfig sources', () => {
     expect(config.relay?.room).toBeTruthy()
     expect(config.sources.relayUrl).toBe('file')
     expect(config.sources.relayRoom).toBe('generated')
+  })
+
+  it('treats empty relay environment values as unset', () => {
+    const dir = tempDir()
+    writeFileSync(
+      join(dir, 'server.json'),
+      JSON.stringify({ relay: { url: 'wss://relay.example', room: 'file-room' } }),
+      { mode: 0o600 }
+    )
+    process.env.CLARA_CONFIG_DIR = dir
+    process.env.CLARA_DATA_DIR = dir
+    process.env.XDG_STATE_HOME = tempDir()
+    // This is what docker/server.compose.yml passes when a value is optional.
+    process.env.CLARA_RELAY_URL = ''
+    process.env.CLARA_RELAY_ROOM = ''
+    process.env.CLARA_AGENT_TOKEN = 'agent-token'
+    process.env.CLARA_CLIENT_TOKEN = 'client-token'
+
+    const first = loadConfig()
+    const second = loadConfig()
+
+    expect(first.relay?.url).toBe('wss://relay.example')
+    expect(first.relay?.room).toBe('file-room')
+    expect(second.relay?.room).toBe('file-room')
+    expect(first.sources).toMatchObject({
+      relayUrl: 'file',
+      relayRoom: 'file',
+      agentToken: 'env',
+      clientToken: 'env',
+    })
+  })
+
+  it('generates and persists one relay room when only the URL is set', () => {
+    const dir = tempDir()
+    process.env.CLARA_CONFIG_DIR = dir
+    process.env.CLARA_DATA_DIR = dir
+    process.env.XDG_STATE_HOME = tempDir()
+    process.env.CLARA_RELAY_URL = 'https://relay.example'
+    process.env.CLARA_RELAY_ROOM = ''
+    process.env.CLARA_AGENT_TOKEN = 'agent-token'
+    process.env.CLARA_CLIENT_TOKEN = 'client-token'
+
+    const first = loadConfig()
+    const second = loadConfig()
+
+    expect(first.relay?.room).toBeTruthy()
+    expect(first.sources.relayRoom).toBe('generated')
+    expect(second.relay?.room).toBe(first.relay?.room)
+    expect(second.sources.relayRoom).toBe('file')
+  })
+
+  it('persists a relay URL override without changing the room', () => {
+    const dir = tempDir()
+    writeFileSync(
+      join(dir, 'server.json'),
+      JSON.stringify({ relay: { url: 'wss://old.example', room: 'file-room' } }),
+      { mode: 0o600 }
+    )
+    process.env.CLARA_CONFIG_DIR = dir
+    process.env.CLARA_DATA_DIR = dir
+    process.env.XDG_STATE_HOME = tempDir()
+    process.env.CLARA_RELAY_URL = 'https://new.example'
+    process.env.CLARA_AGENT_TOKEN = 'agent-token'
+    process.env.CLARA_CLIENT_TOKEN = 'client-token'
+
+    const config = loadConfig()
+    const saved = JSON.parse(readFileSync(join(dir, 'server.json'), 'utf8'))
+
+    expect(config.relay?.url).toBe('wss://new.example')
+    expect(config.relay?.room).toBe('file-room')
+    expect(saved.relay).toEqual({ url: 'wss://new.example', room: 'file-room' })
   })
 
   it('marks a rotated pairing key as generated', () => {
