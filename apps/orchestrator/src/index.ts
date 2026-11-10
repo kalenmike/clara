@@ -114,7 +114,7 @@ async function startDocker(build: boolean): Promise<void> {
   if (result.kind === 'local-running') {
     const pid = result.pid === null ? '' : ` (pid ${result.pid})`
     console.log(`a local orchestrator is running at ${baseURL()}${pid}`)
-    console.log('stop it with `pnpm clara orchestration stop` before starting the container')
+    console.log('stop it with `pnpm clara orchestrator stop` before starting the container')
     process.exitCode = 1
     return
   }
@@ -136,7 +136,7 @@ async function startDocker(build: boolean): Promise<void> {
     return
   }
   console.error(`the docker container did not become healthy at ${baseURL()}`)
-  console.error('check `docker compose -f docker/compose.yml logs orchestrator`')
+  console.error('check `docker compose -f docker/orchestrator.compose.yml logs orchestrator`')
   process.exitCode = 1
 }
 
@@ -158,7 +158,7 @@ async function start(args: string[]): Promise<void> {
   if (result.kind === 'already-running') {
     if (result.mode === 'container') {
       console.log(`already running in a container at ${baseURL()}`)
-      console.log('stop it with `pnpm clara orchestration stop --docker`')
+      console.log('stop it with `pnpm clara orchestrator stop --docker`')
       return
     }
     const pid = readPidState()
@@ -201,7 +201,7 @@ async function stop(args: string[]): Promise<void> {
   }
   if (result.kind === 'container') {
     console.log(`the orchestrator is running in a Docker container at ${baseURL()}`)
-    console.log('stop it with `pnpm clara orchestration stop --docker`')
+    console.log('stop it with `pnpm clara orchestrator stop --docker`')
     process.exitCode = 1
     return
   }
@@ -224,7 +224,7 @@ async function stop(args: string[]): Promise<void> {
       `the orchestrator is running at ${baseURL()} but was not started from this data directory`
     )
     console.log(
-      'stop it where it was started, or use `pnpm clara orchestration stop --docker` for the compose service'
+      'stop it where it was started, or use `pnpm clara orchestrator stop --docker` for the compose service'
     )
     process.exitCode = 1
     return

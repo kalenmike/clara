@@ -12,7 +12,7 @@ human-facing Clara agent.
 ## User flow
 
 1. Start the service from the agent panel's **Orchestration** switch, with
-   `pnpm clara orchestration start`, or let the MCP bridge start it on first
+   `pnpm clara orchestrator start`, or let the MCP bridge start it on first
    use.
 2. Install the harness adapter and the shared runner with
    `pnpm clara adapter install --opencode`. The command links the plugin,
@@ -93,9 +93,12 @@ hidden automation.
 
 The orchestrator can run as a container on the same Docker network as OpenCode
 and the home agent. That is the preferred setup when the agent itself is
-containerized. The home agent uses `docker/server.compose.yml`, joins the same
-external `clara` network, and reaches the orchestrator at
-`http://orchestrator:8789`.
+containerized. `pnpm clara start` brings up the orchestrator, home agent, and
+web client together; the steps below cover the orchestrator-only path.
+
+The home agent uses `docker/server.compose.yml`, joins the same external `clara`
+network, and reaches the orchestrator at `http://orchestrator:8789`. The
+orchestrator container is named `clara-orchestrator`.
 
 1. Copy `docker/.env.example` and set:
    - `CLARA_ORCHESTRATION_TOKEN` to a long random token,
@@ -104,7 +107,7 @@ external `clara` network, and reaches the orchestrator at
 2. Start the service:
 
    ```sh
-   docker compose -f docker/compose.yml up -d --build orchestrator
+   docker compose -f docker/orchestrator.compose.yml up -d --build orchestrator
    ```
 
 3. Join the OpenCode container to the `clara` network and set:
@@ -156,20 +159,20 @@ workspace mount. The orchestrator image bakes `lib/std` at
 `/opt/clara/lib/std`. A workspace that vendors its own standard library can set
 `CLARA_STD_DIR` to its `lib/std`. Compose publishes the port on host loopback
 only (`127.0.0.1:8789:8789`) so host tools such as
-`pnpm clara orchestration status` and Clara Lab can reach the container. The
+`pnpm clara orchestrator status` and Clara Lab can reach the container. The
 database and token live under the host `CLARA_DATA_DIR` mount.
 
-The container writes no host PID file. `pnpm clara orchestration status` reports
-`running (docker container)`, and `pnpm clara orchestration stop` does not
+The container writes no host PID file. `pnpm clara orchestrator status` reports
+`running (docker container)`, and `pnpm clara orchestrator stop` does not
 signal anything; stop the container with
-`pnpm clara orchestration stop --docker`. Stopping does not require the
+`pnpm clara orchestrator stop --docker`. Stopping does not require the
 `CLARA_ORCHESTRATION_TOKEN`, `CLARA_DATA_DIR`, or `CLARA_WORKSPACE` variables:
 compose still parses them for `down`, so the command supplies inert values when
 they are not exported. It also runs `docker compose down` when the container is
 unhealthy or already stopped, so a crashed container can be cleaned up.
 
-Start it from the host with `pnpm clara orchestration start --docker`. That runs
-`docker compose -f docker/compose.yml up -d orchestrator` and waits for
+Start it from the host with `pnpm clara orchestrator start --docker`. That runs
+`docker compose -f docker/orchestrator.compose.yml up -d orchestrator` and waits for
 `/health` to report a container. Add `--build` to rebuild the image first. If a
 local instance is already running, the command refuses and asks you to stop it
 first.
@@ -649,7 +652,7 @@ from the current snapshot without rebuilding or recapturing. `diagnose` collects
 a failed run and the snapshot, classifies the failure with two read-only agents,
 and returns safe next actions. The deterministic mechanics live in
 `pnpm clara rebuild status|build|adapters|restart|health|inspect|recover` and
-`pnpm clara orchestration inspect`; the rebuild and recover steps are scripts,
+`pnpm clara orchestrator inspect`; the rebuild and recover steps are scripts,
 so no model turn is involved. The orchestrator restarts last, the command waits
 for `/health` before the worker reports completion, and a restart journal makes
 a retry resume instead of repeating the rebuild. Restart and health retry once
@@ -812,17 +815,17 @@ they can run while the adapter or setup is degraded. See
 - Workspace: `GET /v1/config` reports the service workspace from
   `CLARA_ORCHESTRATION_WORKSPACE` (default: the service's working directory),
   plus `CLARA_STD_DIR` and `CLARA_ORCHESTRATION_CONFIG` when set.
-- Container: `docker compose -f docker/compose.yml up -d --build orchestrator`;
+- Container: `docker compose -f docker/orchestrator.compose.yml up -d --build orchestrator`;
   the home agent uses `docker/server.compose.yml` on the same `clara` network.
 - Commands:
-  `pnpm clara orchestration start [--docker] [--build]|stop [--docker]|status|serve|token|analyze`,
+  `pnpm clara orchestrator start [--docker] [--build]|stop [--docker]|status|serve|token|analyze`,
   `pnpm clara mcp install|uninstall|config|status`,
   `pnpm clara adapter install|uninstall|status|runner [--opencode] [--mcp] [--runner]`,
   `pnpm clara runner [--workspace <path>] [--label <name>] [--once]`,
   `pnpm clara rebuild status|build|adapters|restart|health`,
-  `pnpm clara lab [serve|check]`. Running `pnpm clara orchestration` without a
+  `pnpm clara lab [serve|check]`. Running `pnpm clara orchestrator` without a
   subcommand prints help instead of starting the service.
-- Diagnostics: `pnpm clara orchestration analyze [--json] [--days n] [--db
+- Diagnostics: `pnpm clara orchestrator analyze [--json] [--days n] [--db
 path] [--url url]` and `GET /v1/diagnostics?days=30`. The analyzer is
   `packages/orchestration/src/diagnostics.ts`; see
   [diagnostics.md](diagnostics.md).

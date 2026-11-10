@@ -74,10 +74,15 @@ correctly.
 pnpm clara pair [--local] [--rotate] [--no-qr] [--no-panel]
 pnpm clara control
 pnpm clara serve [--rotate] [--no-panel]
+pnpm clara start [--no-server] [--no-web] [--no-orchestrator] [--build]
+pnpm clara stop [--no-server] [--no-web] [--no-orchestrator]
+pnpm clara restart [--no-server] [--no-web] [--no-orchestrator] [--build]
+pnpm clara status
+pnpm clara logs <server|web|orchestrator>
 pnpm clara server <start|stop|status|setup-token|pair|admin|logs> [--docker] [--build]
 pnpm clara web <start|stop|status|logs> [--docker] [--build]
 pnpm clara pass
-pnpm clara orchestration <serve|start|stop|status|token>
+pnpm clara orchestrator <serve|start|stop|status|token>
 pnpm clara rebuild <status|build|adapters|restart|health>
 pnpm clara lab [serve|check]
 ```
@@ -87,8 +92,14 @@ for one command.
 
 `pnpm clara pair` runs the server source directly and does not need a build.
 `pnpm clara control` and `pnpm clara serve` use the built agent, so run
-`pnpm build` first. `pnpm clara server start --docker` builds and starts the
-container; the local foreground mode remains `pnpm clara serve`.
+`pnpm build` first. `pnpm clara start` is the combined Docker command: it
+creates the `clara` network, bootstraps `docker/.env` and the orchestrator token
+on first run, then starts the selected services in orchestrator, server, web
+order. Disable any part with `--no-server`, `--no-web`, or `--no-orchestrator`;
+`restart` stops and recreates the selection. The scoped
+`pnpm clara server start --docker` and `pnpm clara orchestrator start --docker`
+commands remain available when only one service is wanted; the local
+foreground mode remains `pnpm clara serve`.
 `pnpm clara web start --docker --build` builds and serves the static SPA on
 `127.0.0.1:8080`; `pnpm dev:web` remains the Vite development server. The agent
 panel is the one-time harness setup surface; the server does not read OpenCode's

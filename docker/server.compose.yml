@@ -11,6 +11,7 @@ name: clara-server
 
 services:
   server:
+    container_name: clara-server
     build:
       context: ..
       dockerfile: docker/server.Dockerfile

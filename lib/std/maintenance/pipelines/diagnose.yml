@@ -5,7 +5,7 @@ enforcement: observed
 steps:
   - name: collect_run
     type: script
-    command: pnpm clara orchestration inspect --request-env --json
+    command: pnpm clara orchestrator inspect --request-env --json
     result_mode: json
     timeout_seconds: 120
   - name: collect_setup

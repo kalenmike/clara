@@ -5,7 +5,7 @@ enforcement: observed
 steps:
   - name: collect_evidence
     type: script
-    command: pnpm clara orchestration analyze --json --days 30
+    command: pnpm clara orchestrator analyze --json --days 30
     result_mode: json
     timeout_seconds: 300
   - name: pattern_failures

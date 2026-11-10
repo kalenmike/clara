@@ -70,13 +70,12 @@ function runTypeScript(source, built, args, label) {
   fail(`${label} is not built and its source is missing. Run \`pnpm build\` first.`)
 }
 
-function orchestration(args) {
-  return runTypeScript(
-    join(root, 'apps/orchestrator/src/index.ts'),
-    join(root, 'apps/orchestrator/dist/index.js'),
-    args,
-    'The orchestration service'
-  )
+function orchestrator(args) {
+  return runNode(join(root, 'scripts/orchestrator.mjs'), args)
+}
+
+function stack(command, args) {
+  return runNode(join(root, 'scripts/stack.mjs'), [command, ...args])
 }
 
 function lab(args) {
@@ -118,9 +117,10 @@ const clara = {
   name: 'clara',
   summary: 'Clara developer tools',
   examples: [
+    'pnpm clara start',
     'pnpm clara pair --local',
     'pnpm clara control',
-    'pnpm clara orchestration start',
+    'pnpm clara orchestrator start',
     'pnpm clara lab',
     'pnpm clara mcp install',
   ],
@@ -158,6 +158,48 @@ const clara = {
       run: serve,
     },
     {
+      name: 'start',
+      summary: 'Start the Docker stack (orchestrator, server, and web)',
+      usage: '[--no-server] [--no-web] [--no-orchestrator] [--build]',
+      passthroughHelp: true,
+      examples: [
+        'pnpm clara start',
+        'pnpm clara start --build',
+        'pnpm clara start --no-web',
+        'pnpm clara start --no-server --no-web',
+      ],
+      run: (args) => stack('start', args),
+    },
+    {
+      name: 'stop',
+      summary: 'Stop the Docker stack',
+      usage: '[--no-server] [--no-web] [--no-orchestrator]',
+      passthroughHelp: true,
+      examples: ['pnpm clara stop', 'pnpm clara stop --no-web'],
+      run: (args) => stack('stop', args),
+    },
+    {
+      name: 'restart',
+      summary: 'Restart the Docker stack',
+      usage: '[--no-server] [--no-web] [--no-orchestrator] [--build]',
+      passthroughHelp: true,
+      examples: ['pnpm clara restart', 'pnpm clara restart --build'],
+      run: (args) => stack('restart', args),
+    },
+    {
+      name: 'status',
+      summary: 'Probe the orchestrator, server, and web client',
+      run: (args) => stack('status', args),
+    },
+    {
+      name: 'logs',
+      summary: 'Follow one stack container log',
+      usage: '<server|web|orchestrator>',
+      passthroughHelp: true,
+      examples: ['pnpm clara logs server', 'pnpm clara logs orchestrator'],
+      run: (args) => stack('logs', args),
+    },
+    {
       name: 'server',
       summary: 'Start, stop, inspect, or pair the home agent container',
       usage: '<start|stop|status|setup-token|admin|pair|logs> [--docker] [--build]',
@@ -191,20 +233,20 @@ const clara = {
       run: pass,
     },
     {
-      name: 'orchestration',
+      name: 'orchestrator',
       summary: 'Run the local orchestration service',
       usage: '<serve|start [--docker] [--build]|stop [--docker]|status|analyze|inspect|token>',
       passthroughHelp: true,
       examples: [
-        'pnpm clara orchestration start',
-        'pnpm clara orchestration start --docker',
-        'pnpm clara orchestration status',
-        'pnpm clara orchestration analyze',
-        'pnpm clara orchestration inspect --json',
-        'pnpm clara orchestration stop --docker',
-        'pnpm clara orchestration serve',
+        'pnpm clara orchestrator start',
+        'pnpm clara orchestrator start --docker',
+        'pnpm clara orchestrator status',
+        'pnpm clara orchestrator analyze',
+        'pnpm clara orchestrator inspect --json',
+        'pnpm clara orchestrator stop --docker',
+        'pnpm clara orchestrator serve',
       ],
-      run: orchestration,
+      run: orchestrator,
     },
     {
       name: 'lab',

@@ -118,7 +118,7 @@ describe('orchestrator lifecycle', () => {
       const lines = formatStatus(report)
       expect(lines).toContain('service: running (docker container)')
       expect(lines).toContain('pid: none (managed by the container)')
-      expect(lines).toContain('stop: pnpm clara orchestration stop --docker')
+      expect(lines).toContain('stop: pnpm clara orchestrator stop --docker')
     } finally {
       await service.close()
     }
@@ -373,11 +373,16 @@ describe('local start', () => {
 
 describe('docker start', () => {
   it('builds the compose command with and without a rebuild', () => {
-    expect(composeArgs('down')).toEqual(['compose', '-f', 'docker/compose.yml', 'down'])
+    expect(composeArgs('down')).toEqual([
+      'compose',
+      '-f',
+      'docker/orchestrator.compose.yml',
+      'down',
+    ])
     expect(composeArgs('up')).toEqual([
       'compose',
       '-f',
-      'docker/compose.yml',
+      'docker/orchestrator.compose.yml',
       'up',
       '-d',
       'orchestrator',
@@ -385,7 +390,7 @@ describe('docker start', () => {
     expect(composeArgs('up', true)).toEqual([
       'compose',
       '-f',
-      'docker/compose.yml',
+      'docker/orchestrator.compose.yml',
       'up',
       '-d',
       '--build',
