@@ -119,9 +119,9 @@ monitoring on or off, and gates or paces client settings sync.
    There is no network password-reset endpoint.
 3. **Reads and writes require a session.** `GET` and `HEAD` serve the snapshot
    and assets after login. `POST` is accepted at the feature, agent, shell,
-   monitoring, sync, orchestration, config, harness, and password routes;
-   `DELETE` removes a device, a harness, or the session. Unknown mutating
-   methods return `405`.
+   monitoring, sync, orchestration, config, harness, password, and device-purge
+   routes; `DELETE` revokes a device and removes a harness or the session.
+   Unknown mutating methods return `405`.
 4. **Secrets stay out.** The snapshot is built from an explicit allowlist. The
    device keys, enrollment codes, harness password, relay tokens, push
    endpoints, sync values, and file contents are never returned. Device keys and
@@ -330,7 +330,8 @@ monitoring on or off, and gates or paces client settings sync.
   - `POST /panel/api/v1/harnesses` and `POST /panel/api/v1/harnesses/:id`
   - `POST /panel/api/v1/harnesses/:id/test|activate`
   - `DELETE /panel/api/v1/harnesses/:id`
-  - `DELETE /panel/api/v1/devices/:id`
+  - `DELETE /panel/api/v1/devices/:id` revokes the device
+  - `POST /panel/api/v1/devices/:id/purge` deletes a revoked device record
   - `POST /panel/api/v1/account/password`
 - Required mutation headers: `x-clara-panel: 1`; JSON-body mutations also
   require `content-type: application/json`

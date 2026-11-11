@@ -587,13 +587,59 @@ async function handleDevices(
     return
   }
 
-  const id = pathname.startsWith(`${DEVICES_PREFIX}/`)
-    ? decodeURIComponent(pathname.slice(DEVICES_PREFIX.length + 1))
+  const rest = pathname.startsWith(`${DEVICES_PREFIX}/`)
+    ? pathname.slice(DEVICES_PREFIX.length + 1)
     : ''
-  if (!id || id.includes('/')) {
+  const parts = rest.split('/')
+  let id: string
+  let action: string | undefined
+  try {
+    id = parts[0] ? decodeURIComponent(parts[0]) : ''
+    action = parts[1] ? decodeURIComponent(parts[1]) : undefined
+  } catch {
+    sendJson(response, method, 400, {
+      error: { code: 'bad_request', message: 'Invalid device path' },
+    })
+    return
+  }
+  if (!id || id.includes('/') || parts.length > 2 || (action && action !== 'purge')) {
     sendJson(response, method, 404, {
       error: { code: 'not_found', message: 'Unknown device endpoint' },
     })
+    return
+  }
+
+  if (action === 'purge') {
+    if (method !== 'POST') {
+      response.setHeader('allow', 'POST')
+      sendJson(response, method, 405, {
+        error: { code: 'method_not_allowed', message: 'Use POST to purge a revoked device' },
+      })
+      return
+    }
+    if (!requireMutationHeader(request, response, method)) return
+    try {
+      const device = controls.purgeDevice(id)
+      if (!device) {
+        sendJson(response, method, 404, {
+          error: { code: 'not_found', message: 'That device no longer exists' },
+        })
+        return
+      }
+      sendJson(response, method, 200, { id: device.id })
+    } catch (cause) {
+      const failure = readControlFailure(cause)
+      if (failure) {
+        sendJson(response, method, failure.status, {
+          error: { code: failure.code, message: failure.message },
+        })
+        return
+      }
+      context.log?.('device purge failed', cause)
+      sendJson(response, method, 500, {
+        error: { code: 'device_purge_failed', message: 'Could not delete the device record' },
+      })
+    }
     return
   }
 

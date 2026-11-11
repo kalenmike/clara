@@ -37,7 +37,7 @@ import {
 } from '../push/vapid.ts'
 import { RelayClient, type RelayStatus } from '../relay-client.ts'
 import type { ClientStorageStore } from '../store/client-storage.ts'
-import type { DeviceInfo, DeviceStore } from '../store/devices.ts'
+import { DeviceStoreError, type DeviceInfo, type DeviceStore } from '../store/devices.ts'
 import { FEATURE_NAMES, type FeatureName, type SettingsStore } from '../store/settings.ts'
 import { TrafficMeter } from '../traffic.ts'
 import {
@@ -221,6 +221,25 @@ export class RuntimeController {
     this.relayAgent?.abortDevice(id)
     this.options.push?.removeByDevice(id)
     this.options.log(`device revoked (${id})`)
+    return device
+  }
+
+  /** Delete a revoked device record and any push routes still tied to it. */
+  purgeDevice(id: string): DeviceInfo | undefined {
+    let device: DeviceInfo | undefined
+    try {
+      device = this.options.devices.purgeDevice(id)
+    } catch (cause) {
+      if (cause instanceof DeviceStoreError) {
+        throw new PanelControlError(409, cause.code, cause.message)
+      }
+      throw cause
+    }
+    if (!device) return undefined
+    this.localAgent.abortDevice(id)
+    this.relayAgent?.abortDevice(id)
+    this.options.push?.removeByDevice(id)
+    this.options.log(`device record deleted (${id})`)
     return device
   }
 

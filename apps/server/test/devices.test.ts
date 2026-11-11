@@ -139,6 +139,51 @@ describe('DeviceStore', () => {
     ).toBeDefined()
   })
 
+  it('purges a revoked device without touching another', async () => {
+    const store = await createStore()
+    const first = await store.createPairingToken()
+    const second = await store.createPairingToken()
+
+    await store.enrollDevice({
+      pairingTokenId: first.id,
+      deviceId: 'device-0000000000001',
+      key: generateKey(),
+      label: 'Desk',
+    })
+    await store.enrollDevice({
+      pairingTokenId: second.id,
+      deviceId: 'device-0000000000002',
+      key: generateKey(),
+      label: 'Phone',
+    })
+
+    store.revokeDevice('device-0000000000001')
+    expect(store.purgeDevice('device-0000000000001')).toMatchObject({
+      id: 'device-0000000000001',
+      label: 'Desk',
+    })
+    expect(store.listDevices().map((device) => device.id)).toEqual(['device-0000000000002'])
+    expect(store.isActive('device-0000000000002')).toBe(true)
+    expect(store.countActive()).toBe(1)
+    expect(store.purgeDevice('device-0000000000001')).toBeUndefined()
+  })
+
+  it('refuses to purge an active device', async () => {
+    const store = await createStore()
+    const token = await store.createPairingToken()
+    await store.enrollDevice({
+      pairingTokenId: token.id,
+      deviceId: 'device-0000000000001',
+      key: generateKey(),
+      label: 'Desk',
+    })
+
+    expect(() => store.purgeDevice('device-0000000000001')).toThrow(
+      'Revoke this device before deleting it'
+    )
+    expect(store.isActive('device-0000000000001')).toBe(true)
+  })
+
   it('revokes every device', async () => {
     const store = await createStore()
     for (const id of ['device-0000000000001', 'device-0000000000002']) {

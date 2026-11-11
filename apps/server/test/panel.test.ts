@@ -13,7 +13,7 @@ import {
   type PanelSnapshot,
   type ShellPolicy,
 } from '@clara/shared-types'
-import type { PanelControlService } from '../src/panel/controls.ts'
+import { PanelControlError, type PanelControlService } from '../src/panel/controls.ts'
 import { PanelAuth } from '../src/panel/auth.ts'
 import { hashPassword } from '../src/panel/password.ts'
 import type { PanelDataSource } from '../src/panel/runtime.ts'
@@ -305,6 +305,7 @@ function fakeControls(initial: Partial<PanelControls> = {}): FakeControls {
     activateHarness: async () => ({ harnesses: [], harness: { configured: false } }),
     deleteHarness: async () => ({ harnesses: [], harness: { configured: false } }),
     revokeDevice: () => undefined,
+    purgeDevice: () => undefined,
   }
 }
 
@@ -552,6 +553,51 @@ describe('panel server', () => {
     })
     expect(forbidden.status).toBe(403)
     expect(revoked).toEqual(['device-0000000000001'])
+  })
+
+  it('purges a revoked device record', async () => {
+    const purged: string[] = []
+    const controls = {
+      ...fakeControls(),
+      purgeDevice: (id: string) => {
+        purged.push(id)
+        return { id }
+      },
+    }
+    const server = await start(undefined, controls)
+
+    const response = await fetchPanel(server, 'panel/api/v1/devices/device-0000000000001/purge', {
+      method: 'POST',
+      headers: { 'x-clara-panel': '1' },
+    })
+    expect(response.status).toBe(200)
+    expect(await response.json()).toEqual({ id: 'device-0000000000001' })
+    expect(purged).toEqual(['device-0000000000001'])
+
+    const forbidden = await fetchPanel(server, 'panel/api/v1/devices/device-0000000000001/purge', {
+      method: 'POST',
+    })
+    expect(forbidden.status).toBe(403)
+    expect(purged).toEqual(['device-0000000000001'])
+  })
+
+  it('rejects purging an active device', async () => {
+    const controls = {
+      ...fakeControls(),
+      purgeDevice: () => {
+        throw new PanelControlError(409, 'device_active', 'Revoke this device before deleting it')
+      },
+    }
+    const server = await start(undefined, controls)
+
+    const response = await fetchPanel(server, 'panel/api/v1/devices/device-0000000000001/purge', {
+      method: 'POST',
+      headers: { 'x-clara-panel': '1' },
+    })
+    expect(response.status).toBe(409)
+    expect(await response.json()).toEqual({
+      error: { code: 'device_active', message: 'Revoke this device before deleting it' },
+    })
   })
 
   it('rejects an oversized mutation body', async () => {

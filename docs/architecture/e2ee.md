@@ -131,6 +131,8 @@ service cannot read the payload, but it sees the endpoint and delivery metadata.
 - The panel revokes one device, deletes its encrypted key, aborts its live
   sessions, and removes its push subscriptions.
 - A revoked device cannot complete a new handshake.
+- A revoked record can be deleted permanently from the panel. The key is already
+  gone, so the device is rejected as unknown instead of revoked.
 - Revoking one device never rotates another device or the server.
 
 ## Limitations
