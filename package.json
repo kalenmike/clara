@@ -19,14 +19,18 @@
     "test": "pnpm test:scripts && pnpm -r --if-present test",
     "test:scripts": "node --test scripts/test/*.test.mjs",
     "knip": "knip",
-    "check": "pnpm typecheck && pnpm lint && pnpm format:check && pnpm knip && pnpm test",
+    "check": "pnpm typecheck && pnpm lint && pnpm format:check && pnpm knip && pnpm docs:check && pnpm test",
     "commitlint": "commitlint --last",
     "prepare": "husky",
     "deploy:web": "pnpm --filter @clara/web run deploy",
     "deploy:relay": "pnpm --filter @clara/relay run deploy",
     "clara": "node scripts/clara.mjs",
     "task": "node scripts/task.mjs",
-    "docs": "vitepress dev docs"
+    "docs": "node scripts/clara.mjs docs",
+    "docs:build": "pnpm --filter @clara/docs build",
+    "docs:preview": "pnpm --filter @clara/docs preview",
+    "docs:check": "node scripts/docs-check.mjs",
+    "docs:typecheck": "pnpm --filter @clara/docs typecheck"
   },
   "devDependencies": {
     "@commitlint/cli": "^21.2.4",
@@ -42,9 +46,7 @@
     "knip": "^6.44.0",
     "prettier": "^3.9.10",
     "typescript": "~6.0.3",
-    "typescript-eslint": "^8.72.1",
-    "vitepress": "2.0.0-alpha.21",
-    "vitepress-sidebar": "^1.41.0"
+    "typescript-eslint": "^8.72.1"
   },
   "packageManager": "pnpm@11.1.1",
   "engines": {

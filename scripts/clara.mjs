@@ -81,6 +81,10 @@ function rebuild(args) {
   return runNode(join(root, 'scripts/rebuild.mjs'), args)
 }
 
+function docs(args) {
+  return runNode(join(root, 'scripts/docs.mjs'), args)
+}
+
 function runner(args) {
   return runTypeScript(
     join(root, 'packages/runner/src/cli.ts'),
@@ -296,6 +300,21 @@ const clara = {
         'pnpm clara lab check --json',
       ],
       run: lab,
+    },
+    {
+      name: 'docs',
+      group: 'Tools',
+      summary: 'Run, build, or check the documentation site',
+      usage:
+        '[dev|build|preview|check|typecheck] [--port <n>] [--host <host>] [--no-open] [--json]',
+      passthroughHelp: true,
+      examples: [
+        'pnpm clara docs',
+        'pnpm clara docs --port 5180 --no-open',
+        'pnpm clara docs build',
+        'pnpm clara docs check --json',
+      ],
+      run: docs,
     },
     {
       name: 'rebuild',

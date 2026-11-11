@@ -232,7 +232,7 @@ saved shell policy allows the request:
 The policy lives in `clara.db`, is read on every request, and is changed from the
 loopback panel. It applies only to command requests; other OpenCode APIs are
 outside it. It is a guardrail, not a sandbox: see
-[git.md](features/git.md#not-a-sandbox).
+[git.md](../features/git.md#not-a-sandbox).
 
 ## Streaming model
 

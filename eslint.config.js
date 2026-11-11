@@ -13,6 +13,8 @@ export default defineConfig([
     '**/node_modules/**',
     '**/.wrangler/**',
     'apps/web/src/components/ui/**',
+    'apps/docs/.docusaurus/**',
+    'apps/docs/build/**',
   ]),
   {
     files: ['**/*.{ts,tsx}'],
@@ -41,6 +43,13 @@ export default defineConfig([
       'react-hooks/set-state-in-effect': 'off',
       'react-hooks/refs': 'off',
       'react-hooks/static-components': 'off',
+    },
+  },
+  {
+    files: ['apps/docs/src/**/*.{ts,tsx}'],
+    extends: [reactHooks.configs.flat.recommended, reactRefresh.configs.vite],
+    languageOptions: {
+      globals: globals.browser,
     },
   },
   {
