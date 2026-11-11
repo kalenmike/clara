@@ -48,11 +48,11 @@ export function StatusBar({
       <div className="panel-status-group">
         <StatusItem
           tone={data.controls.stopped ? 'warn' : 'ok'}
-          label={data.controls.stopped ? 'Agent stopped' : 'Agent running'}
+          label={data.controls.stopped ? 'Connections off' : 'Connections on'}
           title={
             data.controls.stopped
-              ? 'External connections are off. Open Overview to start the agent.'
-              : 'The home agent is running.'
+              ? 'External connections are off. Open Overview to go online.'
+              : 'External connections are on.'
           }
           onClick={() => onSelect('overview')}
         />

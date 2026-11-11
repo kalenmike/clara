@@ -52,15 +52,15 @@ export function AuthScreen({ session }: { session: SessionController }) {
   }
 
   const heading = setup
-    ? 'Set up the agent panel'
+    ? 'Set up the hub panel'
     : reset
-      ? 'Reset the agent panel password'
-      : 'Sign in to the agent panel'
+      ? 'Reset the hub panel password'
+      : 'Sign in to the hub panel'
   const description = setup
     ? 'Read the one-time setup token from the host, then choose the superadmin password.'
     : reset
       ? 'Enter the reset token from the host, then choose a new password for the superadmin account.'
-      : 'This panel controls the home agent and its harness connections.'
+      : 'This panel controls the hub service and its harness connections.'
   const submitLabel = pending
     ? 'Working…'
     : setup
@@ -142,7 +142,7 @@ export function AuthScreen({ session }: { session: SessionController }) {
           {credential ? (
             <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800 dark:border-amber-900 dark:bg-amber-950/60 dark:text-amber-300">
               <KeyRound className="mr-1 inline size-3.5" aria-hidden="true" />
-              The token is in <span className="font-mono">admin-setup.txt</span> in the agent config
+              The token is in <span className="font-mono">admin-setup.txt</span> in the hub config
               directory. Print it with{' '}
               <span className="font-mono">pnpm clara server setup-token</span>, or run{' '}
               <span className="font-mono">pnpm clara server admin reset</span> to issue a new one.

@@ -91,7 +91,7 @@ export function OrchestrationCard({
     >
       <CardBody>
         <p className="text-xs text-neutral-500 dark:text-neutral-400">
-          When on, the home agent keeps a local orchestration service running at{' '}
+          When on, the hub service keeps a local orchestration service running at{' '}
           <code className="break-all rounded bg-neutral-100 px-1 py-0.5 dark:bg-neutral-900">
             {orchestration.url}
           </code>

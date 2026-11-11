@@ -105,7 +105,7 @@ export function relayHealth(relay: PanelRelayTransport): HealthItem {
     ? relay.room
       ? `Room ${relay.room}`
       : (relay.url ?? 'Configured')
-    : 'Local-only agent'
+    : 'Local-only hub'
 
   switch (relay.status) {
     case 'online':
@@ -172,7 +172,7 @@ export function orchestrationHealth(orchestration: PanelOrchestrationControl): H
     return { ...base, tone: 'bad', status: label, detail }
   }
   if (orchestration.state === 'stopped') {
-    return { ...base, tone: 'idle', status: 'Stopped', detail: 'Not running from this agent' }
+    return { ...base, tone: 'idle', status: 'Stopped', detail: 'Not running from this hub' }
   }
   return { ...base, tone: 'warn', status: label, detail }
 }

@@ -13,7 +13,7 @@ import {
 } from './primitives.tsx'
 
 /**
- * Settings sync is global to the agent: one gate hides the web Sync tab on every
+ * Settings sync is global to the hub: one gate hides the web Sync tab on every
  * paired client, and one cadence controls how often those clients check for
  * changes. Local edits still push immediately.
  */

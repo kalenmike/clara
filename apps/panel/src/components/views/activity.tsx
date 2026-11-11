@@ -21,7 +21,7 @@ export function ActivityView({ snapshot, now }: { snapshot: PanelSnapshot; now: 
       id="activity"
       kicker="Log"
       title="Activity"
-      description="In-memory events and the files the agent reads or writes."
+      description="In-memory events and the files the hub service reads or writes."
       actions={
         <>
           <Badge tone="neutral">{snapshot.events.length} events</Badge>

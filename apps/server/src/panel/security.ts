@@ -24,7 +24,7 @@ export function checkPanelRequest(
   options: PanelRequestOptions = {}
 ): PanelRequestCheck {
   if (!options.allowRemote && !isLoopbackAddress(request.socket.remoteAddress)) {
-    return { ok: false, status: 403, message: 'The agent panel is only available on loopback' }
+    return { ok: false, status: 403, message: 'The hub panel is only available on loopback' }
   }
   if (!isAllowedHost(request.headers.host, port)) {
     return { ok: false, status: 403, message: 'The request Host is not the local panel' }

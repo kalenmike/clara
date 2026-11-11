@@ -15,9 +15,9 @@ export function HarnessView({
   return (
     <View
       id="harness"
-      kicker="Coding agent"
+      kicker="OpenCode"
       title="Harness"
-      description="The OpenCode server this agent proxies to every paired client."
+      description="The OpenCode server this hub proxies to every paired client."
     >
       <div className="grid items-start gap-3 xl:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)]">
         <HarnessCard

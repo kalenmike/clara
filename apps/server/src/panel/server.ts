@@ -99,7 +99,7 @@ export async function startPanelServer(options: PanelServerOptions): Promise<Pan
       options.log?.('panel request failed', cause)
       if (!response.headersSent) {
         sendJson(response, request.method, 500, {
-          error: { code: 'internal', message: 'The agent panel could not complete the request' },
+          error: { code: 'internal', message: 'The hub panel could not complete the request' },
         })
       } else {
         response.end()
@@ -187,7 +187,7 @@ async function handleRequest(
     const user = context.auth.session(PanelAuth.readCookie(request.headers.cookie))
     if (!user) {
       sendJson(response, method, 401, {
-        error: { code: 'unauthorized', message: 'Sign in to the agent panel' },
+        error: { code: 'unauthorized', message: 'Sign in to the hub panel' },
       })
       return
     }
@@ -206,7 +206,7 @@ async function handleRequest(
       } catch (cause) {
         context.log?.('could not build the panel snapshot', cause)
         sendJson(response, method, 500, {
-          error: { code: 'snapshot_failed', message: 'Could not read the agent status' },
+          error: { code: 'snapshot_failed', message: 'Could not read the hub status' },
         })
       }
       return
@@ -249,7 +249,7 @@ async function handleRequest(
   if (method !== 'GET' && method !== 'HEAD') {
     response.setHeader('allow', 'GET, HEAD')
     sendJson(response, method, 405, {
-      error: { code: 'method_not_allowed', message: 'The agent panel is read-only' },
+      error: { code: 'method_not_allowed', message: 'The hub panel is read-only' },
     })
     return
   }
@@ -261,7 +261,7 @@ async function handleRequest(
         method,
         503,
         'text/plain; charset=utf-8',
-        'The Clara agent panel is not built. Run `pnpm build` in the repository, then restart the agent.\n'
+        'The Clara hub panel is not built. Run `pnpm build` in the repository, then restart the hub service.\n'
       )
       return
     }
@@ -321,7 +321,7 @@ async function handleSession(
     const user = context.auth.session(PanelAuth.readCookie(request.headers.cookie))
     if (!user) {
       sendJson(response, method, 401, {
-        error: { code: 'unauthorized', message: 'Sign in to the agent panel' },
+        error: { code: 'unauthorized', message: 'Sign in to the hub panel' },
       })
       return
     }
@@ -484,7 +484,7 @@ async function handleHarness(
   const controls = context.controls
   if (!controls) {
     sendJson(response, method, 503, {
-      error: { code: 'controls_unavailable', message: 'Agent controls are not available' },
+      error: { code: 'controls_unavailable', message: 'Hub controls are not available' },
     })
     return
   }
@@ -583,7 +583,7 @@ async function handleDevices(
   const controls = context.controls
   if (!controls) {
     sendJson(response, method, 503, {
-      error: { code: 'controls_unavailable', message: 'Agent controls are not available' },
+      error: { code: 'controls_unavailable', message: 'Hub controls are not available' },
     })
     return
   }
@@ -751,7 +751,7 @@ async function handleMutation(
   const controls = context.controls
   if (!controls) {
     sendJson(response, method, 503, {
-      error: { code: 'controls_unavailable', message: 'Agent controls are not available' },
+      error: { code: 'controls_unavailable', message: 'Hub controls are not available' },
     })
     return
   }
@@ -868,7 +868,7 @@ async function handleMutation(
     }
     context.log?.('panel mutation failed', cause)
     sendJson(response, method, 500, {
-      error: { code: 'mutation_failed', message: 'Could not apply the agent change' },
+      error: { code: 'mutation_failed', message: 'Could not apply the hub change' },
     })
   }
 }

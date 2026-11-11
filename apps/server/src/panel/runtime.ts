@@ -69,8 +69,8 @@ export type PanelDataSource = {
 }
 
 /**
- * Joins the live pieces of the home agent into one read-only snapshot. Nothing
- * here mutates the agent, and the snapshot is built from an explicit allowlist
+ * Joins the live pieces of the hub service into one read-only snapshot. Nothing
+ * here mutates the hub service, and the snapshot is built from an explicit allowlist
  * so secrets cannot leak by serializing the config object.
  */
 export class PanelRuntime implements PanelDataSource {
@@ -491,7 +491,7 @@ function describeStorage(
 
     if (!writable) {
       status = 'warn'
-      details.push('Not writable by the agent')
+      details.push('Not writable by the hub service')
     }
     if (process.platform !== 'win32' && (stat.mode & 0o077) !== 0) {
       status = 'warn'

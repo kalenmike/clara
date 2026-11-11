@@ -113,7 +113,7 @@ export function Toggle({
   label: string
   state?: ToggleState
   disabled?: boolean
-  /** Redden an enabled switch while the agent is stopped. */
+  /** Redden an enabled switch while connections are off. */
   stopped?: boolean
   title?: string
 }) {

@@ -142,7 +142,7 @@ describe('relayHealth', () => {
     expect(relayHealth(relay({ status: 'disabled', desired: false })).tone).toBe('idle')
   })
 
-  it('calls out a local-only agent', () => {
+  it('calls out a local-only hub', () => {
     expect(relayHealth(relay({ status: 'disabled', configured: false })).status).toBe(
       'Not configured'
     )

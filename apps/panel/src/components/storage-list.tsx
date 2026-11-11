@@ -27,7 +27,7 @@ export function StorageCard({
   return (
     <CollapsibleCard
       title="Storage"
-      description="Files the agent reads and writes, never their contents"
+      description="Files the hub service reads and writes, never their contents"
       icon={<HardDrive className="size-4" aria-hidden="true" />}
       defaultExpanded={defaultExpanded}
       action={

@@ -16,8 +16,8 @@ const PRESET = 'git log'
 
 /**
  * The panel is the only place the shell policy can change. It stays editable
- * while the agent is stopped: the policy has no effect until connections
- * return, and admins often want it set before starting the agent.
+ * while connections are off: the policy has no effect until connections
+ * return, and admins often want it set before starting connections.
  *
  * Turning the toggle on prepares a draft; only Apply saves it. Turning it off
  * saves `off` immediately, because the card collapses and no action row is
@@ -153,7 +153,7 @@ export function ShellPolicyCard({
   return (
     <CollapsibleCard
       title="Shell commands"
-      description="Command requests the web client may send through this agent to OpenCode"
+      description="Command requests the web client may send through this hub to OpenCode"
       icon={<TerminalSquare className="size-4" aria-hidden="true" />}
       action={badge}
       defaultExpanded={defaultExpanded}
@@ -173,8 +173,8 @@ export function ShellPolicyCard({
           <p className="text-xs text-neutral-500 dark:text-neutral-400">
             {savedOn
               ? shell.blocked === 0
-                ? 'No requests refused since the agent started.'
-                : `${shell.blocked} request${shell.blocked === 1 ? '' : 's'} refused since the agent started.`
+                ? 'No requests refused since the hub service started.'
+                : `${shell.blocked} request${shell.blocked === 1 ? '' : 's'} refused since the hub service started.`
               : 'Applying enables shell commands for the web client.'}
           </p>
         </div>
@@ -237,8 +237,8 @@ export function ShellPolicyCard({
         <p className="flex items-start gap-1.5 rounded-md bg-neutral-50 px-2.5 py-2 text-[11px] text-neutral-600 dark:bg-neutral-900/60 dark:text-neutral-400">
           <ShieldOff className="mt-0.5 size-3.5 shrink-0" aria-hidden="true" />
           <span>
-            This is a guardrail, not a sandbox. It governs command requests relayed by this agent,
-            not what OpenCode or a modified client can do with the rest of the API.
+            This is a guardrail, not a sandbox. It governs command requests relayed by this hub, not
+            what OpenCode or a modified client can do with the rest of the API.
           </span>
         </p>
 
