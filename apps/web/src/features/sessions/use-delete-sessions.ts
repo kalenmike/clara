@@ -1,6 +1,6 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import type { QueryClient } from '@tanstack/react-query'
-import type { SessionInfo } from '@opencode/client'
+import type { ClaraSession } from '@clara/api-contract'
 import type { ClaraClient } from '@/lib/client'
 import { runWithConcurrencySettled } from '@/lib/concurrency'
 import { queryKeys } from '@/lib/query-keys'
@@ -8,7 +8,7 @@ import { useConnection } from '@/providers/connection-provider'
 
 export type DeleteSessionsResult = {
   deleted: string[]
-  failed: Array<{ session: SessionInfo; error: unknown }>
+  failed: Array<{ session: ClaraSession; error: unknown }>
 }
 
 export const SESSION_DELETE_CONCURRENCY = 4
@@ -16,7 +16,7 @@ export const SESSION_DELETE_CONCURRENCY = 4
 /** Delete sessions with four concurrent writes and keep per-session results. */
 export async function deleteSessions(
   client: ClaraClient,
-  sessions: readonly SessionInfo[]
+  sessions: readonly ClaraSession[]
 ): Promise<DeleteSessionsResult> {
   const settled = await runWithConcurrencySettled(sessions, SESSION_DELETE_CONCURRENCY, (session) =>
     client.session.remove({ sessionID: session.id })
@@ -101,7 +101,7 @@ export function useDeleteSessions() {
   const queryClient = useQueryClient()
 
   return useMutation({
-    mutationFn: async (sessions: readonly SessionInfo[]) => {
+    mutationFn: async (sessions: readonly ClaraSession[]) => {
       const result = await deleteSessions(client!, sessions)
       await invalidateDeletedSessions(queryClient, result)
       return result

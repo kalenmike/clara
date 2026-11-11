@@ -1,33 +1,34 @@
 import type {
-  AgentListOutput,
-  CommandListOutput,
-  FileFindOutput,
-  FormInfo,
-  LocationPublicInfo,
-  ModelListOutput,
-  PermissionRequestListOutput,
-  Project,
-  ProviderListOutput,
-  ReferenceListOutput,
-  ServerInfo,
-  SessionActive,
-  SessionInboxCompaction,
-  SessionInboxInfo,
-  SessionInboxSynthetic,
-  SessionInboxUser,
-  SessionInfo,
-  SessionInterruptResponse,
-  SessionMessageInfo,
-  SessionMessagesResponse,
-  SessionsResponse,
-  SkillListOutput,
-  VcsBaseOutput,
-  VcsDiffOutput,
-  VcsGetOutput,
-  VcsStatusOutput,
-  WorktreeList,
-} from '@opencode/client'
-import type { ApiInfo, GitCommit } from '@clara/api-contract'
+  ApiInfo,
+  ClaraAgentListOutput,
+  ClaraCommandListOutput,
+  ClaraFileFindOutput,
+  ClaraForm,
+  ClaraLocation,
+  ClaraModelListOutput,
+  ClaraPermissionRequestListOutput,
+  ClaraProject,
+  ClaraProviderListOutput,
+  ClaraReferenceListOutput,
+  ClaraServerInfo,
+  ClaraSession,
+  ClaraSessionActiveOutput,
+  ClaraSessionInboxCompaction,
+  ClaraSessionInboxInfo,
+  ClaraSessionInboxSynthetic,
+  ClaraSessionInboxUser,
+  ClaraSessionInterruptResponse,
+  ClaraSessionMessage,
+  ClaraSessionMessagesResponse,
+  ClaraSessionsResponse,
+  ClaraSkillListOutput,
+  ClaraVcsBaseOutput,
+  ClaraVcsDiffOutput,
+  ClaraVcsGetOutput,
+  ClaraVcsStatusOutput,
+  ClaraWorktree,
+  GitCommit,
+} from '@clara/api-contract'
 import { ClaraApiError } from './errors.ts'
 import { queryString } from './query.ts'
 import { subscribeEvents } from './sse.ts'
@@ -70,20 +71,20 @@ export function createClaraClient(options: ClaraClientOptions): ClaraClient {
   return {
     server: {
       info: (requestOptions) =>
-        request<ServerInfo>('GET', '/v1/harness/info', { options: requestOptions }),
+        request<ClaraServerInfo>('GET', '/v1/harness/info', { options: requestOptions }),
       status: (requestOptions) => request<ApiInfo>('GET', '/v1/info', { options: requestOptions }),
       openapi: (requestOptions) =>
         request<Record<string, unknown>>('GET', '/openapi.json', { options: requestOptions }),
     },
     project: {
       list: (input, requestOptions) =>
-        request<Project[]>('GET', '/v1/projects', {
+        request<ClaraProject[]>('GET', '/v1/projects', {
           query: { archived: input?.archived },
           options: requestOptions,
         }),
       update: (input, requestOptions) => {
         const { projectID, ...body } = input
-        return request<Project>('PATCH', `/v1/projects/${encodeURIComponent(projectID)}`, {
+        return request<ClaraProject>('PATCH', `/v1/projects/${encodeURIComponent(projectID)}`, {
           body,
           options: requestOptions,
         })
@@ -91,14 +92,14 @@ export function createClaraClient(options: ClaraClientOptions): ClaraClient {
     },
     location: {
       get: (input, requestOptions) =>
-        request<LocationPublicInfo>('GET', '/v1/locations', {
+        request<ClaraLocation>('GET', '/v1/locations', {
           query: { directory: input?.location?.directory },
           options: requestOptions,
         }),
     },
     session: {
       list: (input, requestOptions) =>
-        request<SessionsResponse>('GET', '/v1/sessions', {
+        request<ClaraSessionsResponse>('GET', '/v1/sessions', {
           query: {
             limit: input?.limit,
             order: input?.order,
@@ -113,11 +114,11 @@ export function createClaraClient(options: ClaraClientOptions): ClaraClient {
           options: requestOptions,
         }),
       get: (input, requestOptions) =>
-        request<SessionInfo>('GET', `/v1/sessions/${encodeURIComponent(input.sessionID)}`, {
+        request<ClaraSession>('GET', `/v1/sessions/${encodeURIComponent(input.sessionID)}`, {
           options: requestOptions,
         }),
       create: (input, requestOptions) =>
-        request<SessionInfo>('POST', '/v1/sessions', {
+        request<ClaraSession>('POST', '/v1/sessions', {
           body: input ?? {},
           options: requestOptions,
         }),
@@ -134,7 +135,7 @@ export function createClaraClient(options: ClaraClientOptions): ClaraClient {
         }),
       fork: (input, requestOptions) => {
         const { sessionID, ...body } = input
-        return request<SessionInfo>('POST', `/v1/sessions/${encodeURIComponent(sessionID)}/fork`, {
+        return request<ClaraSession>('POST', `/v1/sessions/${encodeURIComponent(sessionID)}/fork`, {
           body,
           options: requestOptions,
         })
@@ -155,7 +156,7 @@ export function createClaraClient(options: ClaraClientOptions): ClaraClient {
       },
       prompt: (input, requestOptions) => {
         const { sessionID, ...body } = input
-        return request<SessionInboxUser>(
+        return request<ClaraSessionInboxUser>(
           'POST',
           `/v1/sessions/${encodeURIComponent(sessionID)}/prompt`,
           { body, options: requestOptions }
@@ -163,7 +164,7 @@ export function createClaraClient(options: ClaraClientOptions): ClaraClient {
       },
       synthetic: (input, requestOptions) => {
         const { sessionID, ...body } = input
-        return request<SessionInboxSynthetic>(
+        return request<ClaraSessionInboxSynthetic>(
           'POST',
           `/v1/sessions/${encodeURIComponent(sessionID)}/synthetic`,
           { body, options: requestOptions }
@@ -178,7 +179,7 @@ export function createClaraClient(options: ClaraClientOptions): ClaraClient {
       },
       interrupt: (input, requestOptions) => {
         const { sessionID, ...body } = input
-        return request<SessionInterruptResponse>(
+        return request<ClaraSessionInterruptResponse>(
           'POST',
           `/v1/sessions/${encodeURIComponent(sessionID)}/interrupt`,
           { body, options: requestOptions }
@@ -186,7 +187,7 @@ export function createClaraClient(options: ClaraClientOptions): ClaraClient {
       },
       compact: (input, requestOptions) => {
         const { sessionID, ...body } = input
-        return request<SessionInboxCompaction>(
+        return request<ClaraSessionInboxCompaction>(
           'POST',
           `/v1/sessions/${encodeURIComponent(sessionID)}/compact`,
           { body, options: requestOptions }
@@ -207,18 +208,18 @@ export function createClaraClient(options: ClaraClientOptions): ClaraClient {
         })
       },
       context: (input, requestOptions) =>
-        request<SessionMessageInfo[]>(
+        request<ClaraSessionMessage[]>(
           'GET',
           `/v1/sessions/${encodeURIComponent(input.sessionID)}/context`,
           { options: requestOptions }
         ),
       active: (requestOptions) =>
-        request<Record<string, SessionActive>>('GET', '/v1/sessions/active', {
+        request<ClaraSessionActiveOutput>('GET', '/v1/sessions/active', {
           options: requestOptions,
         }),
       form: {
         list: (input, requestOptions) =>
-          request<FormInfo[]>('GET', `/v1/sessions/${encodeURIComponent(input.sessionID)}/forms`, {
+          request<ClaraForm[]>('GET', `/v1/sessions/${encodeURIComponent(input.sessionID)}/forms`, {
             options: requestOptions,
           }),
         reply: (input, requestOptions) => {
@@ -240,7 +241,7 @@ export function createClaraClient(options: ClaraClientOptions): ClaraClient {
       },
       inbox: {
         list: (input, requestOptions) =>
-          request<SessionInboxInfo[]>(
+          request<ClaraSessionInboxInfo[]>(
             'GET',
             `/v1/sessions/${encodeURIComponent(input.sessionID)}/inbox`,
             { options: requestOptions }
@@ -256,7 +257,7 @@ export function createClaraClient(options: ClaraClientOptions): ClaraClient {
     message: {
       list: (input, requestOptions) => {
         const { sessionID, ...query } = input
-        return request<SessionMessagesResponse>(
+        return request<ClaraSessionMessagesResponse>(
           'GET',
           `/v1/sessions/${encodeURIComponent(sessionID)}/messages`,
           {
@@ -274,7 +275,7 @@ export function createClaraClient(options: ClaraClientOptions): ClaraClient {
     permission: {
       request: {
         list: (input, requestOptions) =>
-          request<PermissionRequestListOutput>('GET', '/v1/permissions', {
+          request<ClaraPermissionRequestListOutput>('GET', '/v1/permissions', {
             query: { directory: input?.location?.directory },
             options: requestOptions,
           }),
@@ -290,37 +291,37 @@ export function createClaraClient(options: ClaraClientOptions): ClaraClient {
     },
     agent: {
       list: (_input, requestOptions) =>
-        request<AgentListOutput>('GET', '/v1/agents', { options: requestOptions }),
+        request<ClaraAgentListOutput>('GET', '/v1/agents', { options: requestOptions }),
     },
     model: {
       list: (_input, requestOptions) =>
-        request<ModelListOutput>('GET', '/v1/models', { options: requestOptions }),
+        request<ClaraModelListOutput>('GET', '/v1/models', { options: requestOptions }),
     },
     provider: {
       list: (_input, requestOptions) =>
-        request<ProviderListOutput>('GET', '/v1/providers', { options: requestOptions }),
+        request<ClaraProviderListOutput>('GET', '/v1/providers', { options: requestOptions }),
     },
     command: {
       list: (_input, requestOptions) =>
-        request<CommandListOutput>('GET', '/v1/commands', { options: requestOptions }),
+        request<ClaraCommandListOutput>('GET', '/v1/commands', { options: requestOptions }),
     },
     skill: {
       list: (input, requestOptions) =>
-        request<SkillListOutput>('GET', '/v1/skills', {
+        request<ClaraSkillListOutput>('GET', '/v1/skills', {
           query: { directory: input?.location?.directory },
           options: requestOptions,
         }),
     },
     reference: {
       list: (input, requestOptions) =>
-        request<ReferenceListOutput>('GET', '/v1/references', {
+        request<ClaraReferenceListOutput>('GET', '/v1/references', {
           query: { directory: input?.location?.directory },
           options: requestOptions,
         }),
     },
     file: {
       find: (input, requestOptions) =>
-        request<FileFindOutput>('GET', '/v1/files/find', {
+        request<ClaraFileFindOutput>('GET', '/v1/files/find', {
           query: {
             directory: input.location?.directory,
             query: input.query,
@@ -332,22 +333,22 @@ export function createClaraClient(options: ClaraClientOptions): ClaraClient {
     },
     vcs: {
       get: (input, requestOptions) =>
-        request<VcsGetOutput>('GET', '/v1/vcs', {
+        request<ClaraVcsGetOutput>('GET', '/v1/vcs', {
           query: { directory: input?.location?.directory },
           options: requestOptions,
         }),
       base: (input, requestOptions) =>
-        request<VcsBaseOutput>('GET', '/v1/vcs/base', {
+        request<ClaraVcsBaseOutput>('GET', '/v1/vcs/base', {
           query: { directory: input?.location?.directory },
           options: requestOptions,
         }),
       status: (input, requestOptions) =>
-        request<VcsStatusOutput>('GET', '/v1/vcs/status', {
+        request<ClaraVcsStatusOutput>('GET', '/v1/vcs/status', {
           query: { directory: input?.location?.directory },
           options: requestOptions,
         }),
       diff: (input, requestOptions) =>
-        request<VcsDiffOutput>('GET', '/v1/vcs/diff', {
+        request<ClaraVcsDiffOutput>('GET', '/v1/vcs/diff', {
           query: {
             directory: input.location?.directory,
             mode: input.mode,
@@ -359,7 +360,7 @@ export function createClaraClient(options: ClaraClientOptions): ClaraClient {
     },
     worktree: {
       list: (input, requestOptions) =>
-        request<WorktreeList>('GET', '/v1/worktrees', {
+        request<ClaraWorktree[]>('GET', '/v1/worktrees', {
           query: { project: input?.projectID },
           options: requestOptions,
         }),

@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest'
-import type { ModelCost, ModelInfo, SessionMessageInfo, TokenUsageInfo } from '@opencode/client'
+import type {
+  ClaraModelCost,
+  ClaraModel,
+  ClaraSessionMessage,
+  ClaraTokenUsage,
+} from '@clara/api-contract'
 import {
   estimateSessionCost,
   estimateStepCost,
@@ -12,13 +17,13 @@ import {
   tokensContextTokens,
 } from './estimate'
 
-const BASE: ModelCost = {
+const BASE: ClaraModelCost = {
   input: 3,
   output: 15,
   cache: { read: 0.3, write: 3.75 },
 }
 
-const TIERED: ModelCost[] = [
+const TIERED: ClaraModelCost[] = [
   { input: 1, output: 2, cache: { read: 0.1, write: 0.2 } },
   {
     input: 2,
@@ -34,7 +39,7 @@ const TIERED: ModelCost[] = [
   },
 ]
 
-function model(cost: ModelCost[], overrides: Partial<ModelInfo> = {}): ModelInfo {
+function model(cost: ClaraModelCost[], overrides: Partial<ClaraModel> = {}): ClaraModel {
   return {
     id: 'provider/model',
     modelID: 'model',
@@ -51,7 +56,7 @@ function model(cost: ModelCost[], overrides: Partial<ModelInfo> = {}): ModelInfo
   }
 }
 
-function tokens(overrides: Partial<TokenUsageInfo> = {}): TokenUsageInfo {
+function tokens(overrides: Partial<ClaraTokenUsage> = {}): ClaraTokenUsage {
   return {
     input: 0,
     output: 0,
@@ -61,7 +66,7 @@ function tokens(overrides: Partial<TokenUsageInfo> = {}): TokenUsageInfo {
   }
 }
 
-function assistant(id: string, usage: TokenUsageInfo | undefined): SessionMessageInfo {
+function assistant(id: string, usage: ClaraTokenUsage | undefined): ClaraSessionMessage {
   return {
     id,
     type: 'assistant',

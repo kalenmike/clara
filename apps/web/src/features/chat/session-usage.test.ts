@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest'
-import type { TokenUsageInfo } from '@opencode/client'
+import type { ClaraTokenUsage } from '@clara/api-contract'
 import { formatSessionUsage } from './session-usage'
 
-function tokens(overrides: Partial<TokenUsageInfo> = {}): TokenUsageInfo {
+function tokens(overrides: Partial<ClaraTokenUsage> = {}): ClaraTokenUsage {
   return {
     input: 32_000,
     output: 10_100,

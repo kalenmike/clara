@@ -1,5 +1,5 @@
 import { isFinishedPlanReply } from '@clara/shared-types'
-import type { SessionMessageAssistant, SessionMessageInfo } from '@opencode/client'
+import type { ClaraSessionMessageAssistant, ClaraSessionMessage } from '@clara/api-contract'
 
 export { isFinishedPlanReply }
 
@@ -9,10 +9,10 @@ export { isFinishedPlanReply }
  * assistant message decides whether the plan is actually waiting.
  */
 export function findPlanReadyReply(
-  messages: SessionMessageInfo[],
+  messages: ClaraSessionMessage[],
   sessionAgent: string | undefined,
   busy: boolean
-): SessionMessageAssistant | undefined {
+): ClaraSessionMessageAssistant | undefined {
   if (busy || sessionAgent !== 'plan') return undefined
 
   for (let index = messages.length - 1; index >= 0; index -= 1) {

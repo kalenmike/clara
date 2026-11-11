@@ -1,5 +1,5 @@
 import { QueryClient } from '@tanstack/react-query'
-import type { Project, SessionInfo } from '@opencode/client'
+import type { ClaraProject, ClaraSession } from '@clara/api-contract'
 import { describe, expect, it, vi } from 'vitest'
 import type { ClaraClient } from '@/lib/client'
 import { queryKeys } from '@/lib/query-keys'
@@ -26,18 +26,18 @@ function missingDirectory(directory = '/gone'): unknown {
 
 function recoveryContext() {
   const queryClient = new QueryClient()
-  queryClient.setQueryData<SessionInfo>(queryKeys.session('ses_1'), {
+  queryClient.setQueryData<ClaraSession>(queryKeys.session('ses_1'), {
     id: 'ses_1',
     projectID: 'proj_1',
     location: { directory: '/gone' },
-  } as SessionInfo)
-  queryClient.setQueryData<Project[]>(queryKeys.projects, [
+  } as ClaraSession)
+  queryClient.setQueryData<ClaraProject[]>(queryKeys.projects, [
     {
       id: 'proj_1',
       canonical: '/base',
       time: { created: 0, updated: 0, active: 0 },
       sandboxes: [],
-    } as Project,
+    } as ClaraProject,
   ])
 
   const move = vi.fn().mockResolvedValue(undefined)

@@ -11,10 +11,10 @@ import {
   Zap,
 } from 'lucide-react'
 import type {
-  SessionMessageAssistant,
-  SessionMessageInfo,
-  SessionMessageShell,
-} from '@opencode/client'
+  ClaraSessionMessageAssistant,
+  ClaraSessionMessage,
+  ClaraSessionMessageShell,
+} from '@clara/api-contract'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { Badge } from '@/components/ui/badge'
@@ -52,7 +52,7 @@ export function MessageItem({
   actions,
   onToggle,
 }: {
-  message: SessionMessageInfo
+  message: ClaraSessionMessage
   streaming: boolean
   showInternal: boolean
   usageSummary?: UsageSummary
@@ -222,7 +222,7 @@ function UserMessage({
   actions,
   onToggle,
 }: {
-  message: Extract<SessionMessageInfo, { type: 'user' }>
+  message: Extract<ClaraSessionMessage, { type: 'user' }>
   collapsed: boolean
   actions?: MessageItemActions
   onToggle?: () => void
@@ -269,7 +269,7 @@ function AssistantMessage({
   actions,
   onToggle,
 }: {
-  message: SessionMessageAssistant
+  message: ClaraSessionMessageAssistant
   streaming: boolean
   showInternal: boolean
   usageSummary?: UsageSummary
@@ -408,7 +408,7 @@ function ReasoningPart({ text }: { text: string }) {
   )
 }
 
-function userPreview(message: Extract<SessionMessageInfo, { type: 'user' }>): string {
+function userPreview(message: Extract<ClaraSessionMessage, { type: 'user' }>): string {
   const text = firstLine(message.text)
   if (text) return text
   const files = message.files?.length ?? 0
@@ -416,7 +416,7 @@ function userPreview(message: Extract<SessionMessageInfo, { type: 'user' }>): st
   return ''
 }
 
-function assistantPreview(message: SessionMessageAssistant, showInternal: boolean): string {
+function assistantPreview(message: ClaraSessionMessageAssistant, showInternal: boolean): string {
   let reasoning = ''
   for (const part of message.content) {
     if (part.type === 'text') {
@@ -439,7 +439,7 @@ function firstLine(text: string): string {
 }
 
 /** The part index used by the inspector: text parts only, in render order. */
-function textPartIndex(message: SessionMessageAssistant, index: number): number {
+function textPartIndex(message: ClaraSessionMessageAssistant, index: number): number {
   let count = 0
   for (let position = 0; position < index; position += 1) {
     if (message.content[position]?.type === 'text') count += 1
@@ -463,7 +463,7 @@ function ShellMessage({
   collapsed,
   onToggle,
 }: {
-  message: SessionMessageShell
+  message: ClaraSessionMessageShell
   collapsed: boolean
   onToggle?: () => void
 }) {

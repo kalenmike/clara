@@ -11,8 +11,7 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@clara/api-contract": "workspace:*",
-    "@opencode/client": "2.1.1"
+    "@clara/api-contract": "workspace:*"
   },
   "devDependencies": {
     "@types/node": "^24.19.2",

@@ -1,4 +1,4 @@
-import type { JsonValue, SessionMessageInfo } from '@opencode/client'
+import type { ClaraJsonValue, ClaraSessionMessage } from '@clara/api-contract'
 
 export type PlanTodoStatus = 'pending' | 'in_progress' | 'completed' | 'cancelled'
 
@@ -21,7 +21,7 @@ const STATUSES = new Set<PlanTodoStatus>(['pending', 'in_progress', 'completed',
  * so the branch starts with its own checklist.
  */
 export function findPlanTodos(
-  messages: SessionMessageInfo[],
+  messages: ClaraSessionMessage[],
   options: { forkedAt?: number } = {}
 ): PlanTodo[] | undefined {
   for (let index = messages.length - 1; index >= 0; index -= 1) {
@@ -42,7 +42,7 @@ export function findPlanTodos(
   return undefined
 }
 
-function parseTodos(value: JsonValue | undefined): PlanTodo[] | undefined {
+function parseTodos(value: ClaraJsonValue | undefined): PlanTodo[] | undefined {
   if (!Array.isArray(value)) return undefined
 
   const todos: PlanTodo[] = []

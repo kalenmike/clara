@@ -1,4 +1,4 @@
-import type { SessionMessageAssistant } from '@opencode/client'
+import type { ClaraSessionMessageAssistant } from '@clara/api-contract'
 import { formatCost, formatCount, formatTokens } from '@/lib/format'
 
 /**
@@ -20,11 +20,11 @@ export type UsageSummary = {
 
 export type SummarizeOptions = {
   /** Resolve a step's cost from model prices. Omit to use the reported cost. */
-  estimateCost?: (step: SessionMessageAssistant) => number | undefined
+  estimateCost?: (step: ClaraSessionMessageAssistant) => number | undefined
 }
 
 export function summarizeSteps(
-  steps: SessionMessageAssistant[],
+  steps: ClaraSessionMessageAssistant[],
   options: SummarizeOptions = {}
 ): UsageSummary {
   let chars = 0

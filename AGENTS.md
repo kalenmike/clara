@@ -19,7 +19,7 @@ plugins/clara-policy  OpenCode strict enforcement binding
 packages/adapter      Harness adapter installer, shared runner, and MCP registration
 packages/adapter-core Harness-neutral adapter client, delivery, prompt, and runner pieces
 packages/shared-types Wire frames, actions, states, pairing payloads
-packages/api-contract Hub API schemas and generated OpenAPI components
+packages/api-contract Hub API DTOs, zod schemas, and OpenAPI components
 packages/api-client   Fetch-based hub API SDK
 packages/api-mcp      Read-only hub API MCP tools
 packages/policy       Step policy, budgets, and violation rules
@@ -38,7 +38,7 @@ lib/std               Standard orchestration packages (software, content, resear
 - Vite 8, TypeScript 6, React 19, React Router 8
 - Tailwind CSS 4 + shadcn/ui (`radix-nova` preset)
 - TanStack Query 5 + a small external chat store
-- `@opencode/client@2.1.1` — pinned to the targeted OpenCode server version
+- `@opencode/client@2.1.1` — pinned to the targeted OpenCode server version; used only by the hub service and Clara Lab
 - `ws`, WebCrypto, Cloudflare Workers/Durable Objects, Wrangler
 
 ## Commands
@@ -75,7 +75,7 @@ pnpm clara docs build # Build the documentation site
 pnpm clara docs check # Check guide and internal doc indexes and links
 pnpm clara mcp install|config|status # Install or inspect the MCP bridge
 pnpm clara mcp install --api        # Add the read-only hub API MCP
-pnpm --filter @clara/api-contract generate:schemas # Regenerate OpenAPI components
+pnpm check:boundaries # Fail if @opencode/client escapes apps/server and apps/lab
 pnpm clara adapter install --opencode [--mcp] # Install the OpenCode adapter, MCP, and shared runner
 pnpm typecheck      # tsc -b
 pnpm lint           # ESLint
@@ -111,9 +111,12 @@ create a task worktree outside `../clara-worktrees` (override with
 ## OpenCode server contract
 
 - Clara targets OpenCode 2.1.x and the v2 HTTP API under `/api`.
-- The SDK package is `@opencode/client`, version-matched to the server. Do not
-  swap it for `@opencode-ai/sdk` (v1 API) or import `@opencode/sdk` into the
-  browser (embedded Node server).
+- The harness SDK is `@opencode/client`, version-matched to the server and used
+  only inside `apps/server` and `apps/lab`. Do not swap it for `@opencode-ai/sdk`
+  (v1 API) or import `@opencode/sdk` into the browser (embedded Node server).
+- The hub API contract in `packages/api-contract` owns the Clara DTOs and
+  OpenAPI components. The web, `@clara/api-client`, and `@clara/api-contract`
+  must not import or depend on `@opencode/client`.
 - The browser connects only through the hub over the local or relay
   WebSocket, and only to the hub API under `/v1` through `@clara/api-client`.
   The hub service adds OpenCode basic auth; the browser never receives the
@@ -147,7 +150,8 @@ transport, Worker, Durable Object, or crypto.
 - Keep server state in TanStack Query and live stream state in `chatStore`.
   Invalidate queries from `EventProvider` instead of polling.
 - Use `packages/shared-types` for wire types and `packages/crypto` for E2EE.
-  Keep OpenCode domain types sourced from `@opencode/client`.
+  Use Clara DTOs from `packages/api-contract` outside the hub service and lab;
+  keep OpenCode domain types inside `apps/server` and `apps/lab`.
 - The Worker/DO must not parse or persist encrypted payloads.
 - Never store credentials outside `sessionStorage`/`localStorage` (the latter
   only when the user opts in). Never commit pairing codes, device keys, tokens, or

@@ -1,5 +1,5 @@
 import { assistantHasFailed } from '@clara/shared-types'
-import type { SessionMessageAssistant, SessionMessageInfo } from '@opencode/client'
+import type { ClaraSessionMessageAssistant, ClaraSessionMessage } from '@clara/api-contract'
 import { isQuestionTool } from '@/features/chat/questions'
 import { isClaraSynthetic } from '@/features/chat/system-events'
 
@@ -10,9 +10,9 @@ export { assistantHasFailed }
  * not part of the conversation. They are hidden unless the reader opts in.
  */
 export function getVisibleMessages(
-  messages: SessionMessageInfo[],
+  messages: ClaraSessionMessage[],
   showInternal: boolean
-): SessionMessageInfo[] {
+): ClaraSessionMessage[] {
   return messages.filter((message) => {
     switch (message.type) {
       case 'system':
@@ -47,7 +47,7 @@ export function getVisibleMessages(
  * Reasoning and tool-only steps still describe work in progress, so they do not
  * take the newest-message slot away from the prompt that started the run.
  */
-export function assistantHasReply(message: SessionMessageAssistant): boolean {
+export function assistantHasReply(message: ClaraSessionMessageAssistant): boolean {
   return (
     assistantHasFailed(message) ||
     message.content.some((part) => part.type === 'text' && part.text.trim().length > 0)
@@ -56,7 +56,7 @@ export function assistantHasReply(message: SessionMessageAssistant): boolean {
 
 /** Whether an assistant message has anything that is shown at this detail level. */
 export function assistantHasContent(
-  message: SessionMessageAssistant,
+  message: ClaraSessionMessageAssistant,
   showInternal: boolean
 ): boolean {
   return message.content.some((part) => {

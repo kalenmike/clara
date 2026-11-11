@@ -1,6 +1,10 @@
-import type { SessionInboxUser, SessionMessageInfo, SessionMessageUser } from '@opencode/client'
+import type {
+  ClaraSessionInboxUser,
+  ClaraSessionMessage,
+  ClaraSessionMessageUser,
+} from '@clara/api-contract'
 
-export function inboxDraftToMessage(item: SessionInboxUser): SessionMessageUser {
+export function inboxDraftToMessage(item: ClaraSessionInboxUser): ClaraSessionMessageUser {
   return {
     id: item.id,
     metadata: item.payload.metadata,
@@ -15,10 +19,10 @@ export function inboxDraftToMessage(item: SessionInboxUser): SessionMessageUser 
 
 /** Combine the live transcript with queued inbox drafts without duplicating IDs. */
 export function mergeSessionMessages(
-  snapshotMessages: SessionMessageInfo[],
-  historyMessages: SessionMessageInfo[],
-  pendingDrafts: SessionInboxUser[]
-): SessionMessageInfo[] {
+  snapshotMessages: ClaraSessionMessage[],
+  historyMessages: ClaraSessionMessage[],
+  pendingDrafts: ClaraSessionInboxUser[]
+): ClaraSessionMessage[] {
   const base = snapshotMessages.length > 0 ? snapshotMessages : historyMessages
   if (pendingDrafts.length === 0) return base
 

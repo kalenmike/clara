@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import type { SessionMessageInfo } from '@opencode/client'
+import type { ClaraSessionMessage } from '@clara/api-contract'
 import {
   Circle,
   CircleCheck,
@@ -42,7 +42,7 @@ export function SessionPlan({
 }: {
   sessionID: string
   todos: PlanTodo[] | undefined
-  messages: SessionMessageInfo[]
+  messages: ClaraSessionMessage[]
   draft: boolean
   busy: boolean
 }) {

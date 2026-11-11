@@ -1,6 +1,6 @@
 import { useMemo } from 'react'
 import { BarChart3, Coins, MessagesSquare, Timer } from 'lucide-react'
-import type { SessionInfo } from '@opencode/client'
+import type { ClaraSession } from '@clara/api-contract'
 import { Badge } from '@/components/ui/badge'
 import { Separator } from '@/components/ui/separator'
 import { useModels } from '@/features/catalog/use-catalog'
@@ -23,7 +23,7 @@ export function SessionInfoPanel({
   session,
   snapshot,
 }: {
-  session: SessionInfo | undefined
+  session: ClaraSession | undefined
   snapshot: ChatSnapshot
 }) {
   const contextQuery = useSessionContext(session?.id ?? '', Boolean(session))

@@ -1,4 +1,4 @@
-import type { FormField } from '@opencode/client'
+import type { ClaraFormField } from '@clara/api-contract'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Input } from '@/components/ui/input'
 import {
@@ -24,7 +24,7 @@ export function FormFields({
   onChange,
   disabled,
 }: {
-  fields: readonly FormField[]
+  fields: readonly ClaraFormField[]
   answers: Record<string, FormAnswerValue>
   onChange: (key: string, value: FormAnswerValue) => void
   disabled?: boolean
@@ -50,7 +50,7 @@ function Field({
   onChange,
   disabled,
 }: {
-  field: FormField
+  field: ClaraFormField
   value: FormAnswerValue | undefined
   onChange: (value: FormAnswerValue) => void
   disabled?: boolean

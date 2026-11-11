@@ -1,4 +1,4 @@
-import type { AgentInfo } from '@opencode/client'
+import type { ClaraAgent } from '@clara/api-contract'
 import { notifySettingChanged } from '@/lib/setting-events'
 
 export type DefaultAgentMode = 'last' | 'fixed'
@@ -9,7 +9,7 @@ export type DefaultAgentSettings = {
   agent: string | null
 }
 
-export type AgentOption = Pick<AgentInfo, 'id' | 'hidden' | 'mode'>
+export type AgentOption = Pick<ClaraAgent, 'id' | 'hidden' | 'mode'>
 
 export const AGENT_DEFAULT_KEY = 'clara.defaultAgent'
 export const LAST_AGENT_KEY = 'clara.lastAgent'

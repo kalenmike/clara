@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { ChevronRight, Cpu } from 'lucide-react'
-import type { ModelInfo } from '@opencode/client'
+import type { ClaraModel } from '@clara/api-contract'
 import { Badge } from '@/components/ui/badge'
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
 import { Switch } from '@/components/ui/switch'
@@ -18,7 +18,7 @@ export function ModelProviderRow({
 }: {
   providerID: string
   providerName: string
-  models: ModelInfo[]
+  models: ClaraModel[]
   providerHidden: boolean
   isModelHidden: (providerID: string, modelID: string) => boolean
   onProviderHiddenChange: (providerID: string, hidden: boolean) => void

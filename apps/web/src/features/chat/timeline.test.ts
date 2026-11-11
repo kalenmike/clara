@@ -1,23 +1,23 @@
 import { describe, expect, it } from 'vitest'
 import type {
-  SessionMessageAssistant,
-  SessionMessageAssistantTool,
-  SessionMessageInfo,
-  SessionMessageSynthetic,
-  SessionMessageUser,
-} from '@opencode/client'
+  ClaraSessionMessageAssistant,
+  ClaraSessionMessageAssistantTool,
+  ClaraSessionMessage,
+  ClaraSessionMessageSynthetic,
+  ClaraSessionMessageUser,
+} from '@clara/api-contract'
 import { buildTimeline } from './timeline'
 
-function user(text: string, created = 1): SessionMessageUser {
+function user(text: string, created = 1): ClaraSessionMessageUser {
   return { id: `user-${created}`, type: 'user', time: { created }, text }
 }
 
 function synthetic(
   description: string | undefined,
-  metadata: SessionMessageSynthetic['metadata'],
+  metadata: ClaraSessionMessageSynthetic['metadata'],
   created = 2,
   text = 'model text'
-): SessionMessageSynthetic {
+): ClaraSessionMessageSynthetic {
   return {
     id: `synthetic-${created}`,
     type: 'synthetic',
@@ -29,9 +29,9 @@ function synthetic(
 }
 
 function assistant(
-  content: SessionMessageAssistant['content'],
+  content: ClaraSessionMessageAssistant['content'],
   created = 3
-): SessionMessageAssistant {
+): ClaraSessionMessageAssistant {
   return {
     id: `assistant-${created}`,
     type: 'assistant',
@@ -43,11 +43,11 @@ function assistant(
 }
 
 function priced(
-  message: SessionMessageAssistant,
+  message: ClaraSessionMessageAssistant,
   input: number,
   output: number,
   cost = 0
-): SessionMessageAssistant {
+): ClaraSessionMessageAssistant {
   return {
     ...message,
     tokens: { input, output, reasoning: 0, cache: { read: 0, write: 0 } },
@@ -55,7 +55,7 @@ function priced(
   }
 }
 
-function toolPart(id: string): SessionMessageAssistantTool {
+function toolPart(id: string): ClaraSessionMessageAssistantTool {
   return {
     type: 'tool',
     id,
@@ -73,7 +73,7 @@ function toolPart(id: string): SessionMessageAssistantTool {
 function questionTool(
   answers: string[][] | undefined,
   status: 'completed' | 'error' = 'completed'
-): SessionMessageAssistantTool {
+): ClaraSessionMessageAssistantTool {
   const input = {
     questions: [
       { header: 'Runtime', question: 'Which runtime?' },
@@ -102,7 +102,7 @@ function questionTool(
   }
 }
 
-function timeline(messages: SessionMessageInfo[], showInternal = false, streaming = false) {
+function timeline(messages: ClaraSessionMessage[], showInternal = false, streaming = false) {
   return buildTimeline(messages, { showInternal, streaming })
 }
 
@@ -215,7 +215,7 @@ describe('buildTimeline', () => {
   })
 
   it('does not emit an answer event while the question is running', () => {
-    const running: SessionMessageAssistantTool = {
+    const running: ClaraSessionMessageAssistantTool = {
       ...questionTool(undefined),
       state: {
         status: 'running',

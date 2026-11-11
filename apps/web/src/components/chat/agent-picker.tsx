@@ -1,5 +1,5 @@
 import { Bot, Check } from 'lucide-react'
-import type { SessionInfo } from '@opencode/client'
+import type { ClaraSession } from '@clara/api-contract'
 import { Button } from '@/components/ui/button'
 import {
   DropdownMenu,
@@ -17,7 +17,7 @@ export function AgentPicker({
   open,
   onOpenChange,
 }: {
-  session: SessionInfo | undefined
+  session: ClaraSession | undefined
   open: boolean
   onOpenChange: (open: boolean) => void
 }) {

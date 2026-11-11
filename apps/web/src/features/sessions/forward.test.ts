@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import type { SessionMessageAssistant, SessionMessageUser } from '@opencode/client'
+import type { ClaraSessionMessageAssistant, ClaraSessionMessageUser } from '@clara/api-contract'
 import {
   canForwardMessage,
   forwardFiles,
@@ -12,16 +12,16 @@ function user(
   id: string,
   text: string,
   created = 1,
-  files?: SessionMessageUser['files']
-): SessionMessageUser {
+  files?: ClaraSessionMessageUser['files']
+): ClaraSessionMessageUser {
   return { id, type: 'user', time: { created }, text, files }
 }
 
 function assistant(
   id: string,
-  content: SessionMessageAssistant['content'],
+  content: ClaraSessionMessageAssistant['content'],
   created = 2
-): SessionMessageAssistant {
+): ClaraSessionMessageAssistant {
   return {
     id,
     type: 'assistant',

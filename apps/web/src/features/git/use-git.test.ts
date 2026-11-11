@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import type { SessionMessageInfo } from '@opencode/client'
+import type { ClaraSessionMessage } from '@clara/api-contract'
 import {
   lastSessionActivity,
   parseConventionalHeader,
@@ -8,11 +8,11 @@ import {
 } from './use-git'
 
 describe('lastSessionActivity', () => {
-  function user(created: number): SessionMessageInfo {
+  function user(created: number): ClaraSessionMessage {
     return { id: `user-${created}`, time: { created }, type: 'user', text: 'hi' }
   }
 
-  function assistant(created: number, completed?: number): SessionMessageInfo {
+  function assistant(created: number, completed?: number): ClaraSessionMessage {
     return {
       id: `assistant-${created}`,
       time: { created, ...(completed !== undefined ? { completed } : {}) },

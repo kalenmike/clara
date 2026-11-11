@@ -1,9 +1,9 @@
 import { describe, expect, it, vi } from 'vitest'
-import type { Project } from '@opencode/client'
+import type { ClaraProject } from '@clara/api-contract'
 import type { ClaraClient } from '@/lib/client'
 import { reconcileArchivedProjects } from './reconcile-projects'
 
-function project(id: string, archived?: number): Project {
+function project(id: string, archived?: number): ClaraProject {
   return {
     id,
     canonical: `/work/${id}`,

@@ -1,16 +1,16 @@
 import { describe, expect, it } from 'vitest'
 import type {
-  SessionMessageAssistant,
-  SessionMessageInfo,
-  SessionMessageUser,
-} from '@opencode/client'
+  ClaraSessionMessageAssistant,
+  ClaraSessionMessage,
+  ClaraSessionMessageUser,
+} from '@clara/api-contract'
 import { planMessageFork } from './fork'
 
-function user(id: string, text: string, created = 1): SessionMessageUser {
+function user(id: string, text: string, created = 1): ClaraSessionMessageUser {
   return { id, type: 'user', time: { created }, text }
 }
 
-function assistant(id: string, created = 2): SessionMessageAssistant {
+function assistant(id: string, created = 2): ClaraSessionMessageAssistant {
   return {
     id,
     type: 'assistant',
@@ -25,7 +25,7 @@ describe('planMessageFork', () => {
   const first = user('user-1', 'first', 1)
   const reply = assistant('assistant-2', 2)
   const second = user('user-3', 'second', 3)
-  const messages: SessionMessageInfo[] = [first, reply, second]
+  const messages: ClaraSessionMessage[] = [first, reply, second]
 
   it('forks through a middle message using the next sibling as the boundary', () => {
     expect(planMessageFork(messages, 'assistant-2')).toEqual({ before: 'user-3' })

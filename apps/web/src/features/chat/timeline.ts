@@ -1,4 +1,4 @@
-import type { SessionMessageAssistant, SessionMessageInfo } from '@opencode/client'
+import type { ClaraSessionMessageAssistant, ClaraSessionMessage } from '@clara/api-contract'
 import { resolveDisplayCost, type DisplayCost } from '@/features/cost/estimate'
 import { isQuestionTool, questionEvent } from '@/features/chat/questions'
 import {
@@ -14,7 +14,7 @@ export type TimelineItem =
   | {
       type: 'message'
       key: string
-      message: SessionMessageInfo
+      message: ClaraSessionMessage
       usageSummary?: UsageSummary
       displayCost?: DisplayCost
     }
@@ -25,7 +25,7 @@ export type TimelineOptions = {
   showInternal: boolean
   streaming: boolean
   /** Resolve estimated cost from model prices. Omit to use reported cost. */
-  estimateCost?: (step: SessionMessageAssistant) => number | undefined
+  estimateCost?: (step: ClaraSessionMessageAssistant) => number | undefined
 }
 
 /**
@@ -38,7 +38,7 @@ export type TimelineOptions = {
  * spent. A trailing batch with no reply keeps a thinking row.
  */
 export function buildTimeline(
-  messages: SessionMessageInfo[],
+  messages: ClaraSessionMessage[],
   options: TimelineOptions
 ): TimelineItem[] {
   const visible = getVisibleMessages(messages, options.showInternal)
@@ -47,7 +47,7 @@ export function buildTimeline(
     .reverse()
     .find((message) => message.type === 'assistant')?.id
   const items: TimelineItem[] = []
-  let hidden: SessionMessageAssistant[] = []
+  let hidden: ClaraSessionMessageAssistant[] = []
 
   const takeHidden = () => {
     const steps = hidden
@@ -55,7 +55,7 @@ export function buildTimeline(
     return steps
   }
 
-  const displayCostFor = (message: SessionMessageAssistant): DisplayCost | undefined => {
+  const displayCostFor = (message: ClaraSessionMessageAssistant): DisplayCost | undefined => {
     if (!options.estimateCost) return undefined
     return resolveDisplayCost(message.cost, options.estimateCost(message), 'estimated')
   }
@@ -76,7 +76,7 @@ export function buildTimeline(
     )
   }
 
-  const summaryFor = (message: SessionMessageAssistant): UsageSummary | undefined => {
+  const summaryFor = (message: ClaraSessionMessageAssistant): UsageSummary | undefined => {
     if (options.showInternal) return undefined
     const hasInternals = message.content.some(
       (part) => part.type === 'tool' || (part.type === 'reasoning' && part.text.trim().length > 0)
@@ -124,7 +124,7 @@ export function buildTimeline(
       return
     }
 
-    const withoutQuestions: SessionMessageAssistant = {
+    const withoutQuestions: ClaraSessionMessageAssistant = {
       ...message,
       content: message.content.filter((part) => !isQuestionTool(part)),
     }

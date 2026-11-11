@@ -1,5 +1,5 @@
 import { useCallback, useMemo, type ReactNode } from 'react'
-import type { SessionInfo } from '@opencode/client'
+import type { ClaraSession } from '@clara/api-contract'
 import { SessionPolicyProvider } from '@/features/notifications/session-policy'
 import { isAutomationSession } from '@/features/sessions/session-automation'
 import { useConnection } from '@/providers/connection-provider'
@@ -13,7 +13,7 @@ export function OrchestrationProvider({ children }: { children: ReactNode }) {
   const orchestration = relayStatus?.agent?.orchestration === true
 
   const suppressSession = useCallback(
-    (session: SessionInfo) => orchestration && isAutomationSession(session),
+    (session: ClaraSession) => orchestration && isAutomationSession(session),
     [orchestration]
   )
   const isAutomation = useMemo(

@@ -1,30 +1,38 @@
-import { describeRoute, validator } from 'hono-openapi'
+import { describeRoute, resolver, validator } from 'hono-openapi'
 import type { Hono } from 'hono'
 import { z } from 'zod'
-import type {
-  FormInfo,
-  PermissionRequestListOutput,
-  SessionActiveOutput,
-  SessionInboxCompaction,
-  SessionInboxInfo,
-  SessionInboxSynthetic,
-  SessionInboxUser,
-  SessionInfo,
-  SessionInterruptResponse,
-  SessionMessageInfo,
-  SessionMessagesResponse,
-  SessionsResponse,
-} from '@opencode/client'
-import type { ApiDependencies, ApiVariables } from '../context.ts'
-import { forwardResult, query } from '../harness.ts'
 import {
-  arrayOf,
-  emptyResponse,
-  jsonResponse,
-  ref,
-  responses,
-  statusResponses,
-} from '../schemas.ts'
+  claraFormSchema,
+  claraPermissionRequestListOutputSchema,
+  claraSessionActiveOutputSchema,
+  claraSessionInboxCompactionSchema,
+  claraSessionInboxInfoSchema,
+  claraSessionInboxSyntheticSchema,
+  claraSessionInboxUserSchema,
+  claraSessionInterruptResponseSchema,
+  claraSessionMessageSchema,
+  claraSessionMessagesResponseSchema,
+  claraSessionSchema,
+  claraSessionsResponseSchema,
+} from '@clara/api-contract'
+import type { ApiDependencies, ApiVariables } from '../context.ts'
+import {
+  forwardDto,
+  parseClaraForms,
+  parseClaraPermissionRequests,
+  parseClaraSession,
+  parseClaraSessionActive,
+  parseClaraSessionInbox,
+  parseClaraSessionInboxCompaction,
+  parseClaraSessionInboxSynthetic,
+  parseClaraSessionInboxUser,
+  parseClaraSessionInterrupt,
+  parseClaraSessionMessages,
+  parseClaraSessionMessagesResponse,
+  parseClaraSessions,
+} from '../dto.ts'
+import { forwardResult, query } from '../harness.ts'
+import { emptyResponse, jsonResponse, responses, statusResponses } from '../schemas.ts'
 import { optionalBooleanQuery, optionalPositiveIntQuery } from '../query.ts'
 
 const sessionParam = z.object({ sessionID: z.string().min(1) })
@@ -153,7 +161,7 @@ export function registerSessionRoutes(
       tags: ['sessions'],
       operationId: 'listSessions',
       summary: 'List sessions',
-      responses: responses(jsonResponse(ref('SessionsResponse'), 'Sessions')),
+      responses: responses(jsonResponse(resolver(claraSessionsResponseSchema), 'Sessions')),
     }),
     validator(
       'query',
@@ -171,14 +179,15 @@ export function registerSessionRoutes(
     ),
     async (c) => {
       const params = c.req.valid('query')
-      const result = await forwardResult<SessionsResponse>(
+      const result = await forwardDto(
         deps,
         {
           method: 'GET',
           path: '/api/session',
           search: query(params),
         },
-        c.req.raw.signal
+        c.req.raw.signal,
+        parseClaraSessions
       )
       return c.json(result)
     }
@@ -190,12 +199,12 @@ export function registerSessionRoutes(
       tags: ['sessions'],
       operationId: 'createSession',
       summary: 'Create a session',
-      responses: responses(jsonResponse(ref('SessionInfo'), 'Created session')),
+      responses: responses(jsonResponse(resolver(claraSessionSchema), 'Created session')),
     }),
     validator('json', createBody),
     async (c) => {
       const body = c.req.valid('json')
-      const session = await forwardResult<SessionInfo>(
+      const session = await forwardDto(
         deps,
         {
           method: 'POST',
@@ -204,6 +213,7 @@ export function registerSessionRoutes(
           body: JSON.stringify(body),
         },
         c.req.raw.signal,
+        parseClaraSession,
         true
       )
       return c.json(session)
@@ -216,13 +226,16 @@ export function registerSessionRoutes(
       tags: ['sessions'],
       operationId: 'listActiveSessions',
       summary: 'List active session state',
-      responses: responses(jsonResponse(ref('SessionActiveOutput'), 'Active sessions')),
+      responses: responses(
+        jsonResponse(resolver(claraSessionActiveOutputSchema), 'Active sessions')
+      ),
     }),
     async (c) => {
-      const result = await forwardResult<SessionActiveOutput>(
+      const result = await forwardDto(
         deps,
         { method: 'GET', path: '/api/session/active' },
         c.req.raw.signal,
+        parseClaraSessionActive,
         true
       )
       return c.json(result)
@@ -235,18 +248,19 @@ export function registerSessionRoutes(
       tags: ['sessions'],
       operationId: 'getSession',
       summary: 'Read one session',
-      responses: responses(jsonResponse(ref('SessionInfo'), 'Session')),
+      responses: responses(jsonResponse(resolver(claraSessionSchema), 'Session')),
     }),
     validator('param', sessionParam),
     async (c) => {
       const { sessionID } = c.req.valid('param')
-      const session = await forwardResult<SessionInfo>(
+      const session = await forwardDto(
         deps,
         {
           method: 'GET',
           path: `/api/session/${encodeURIComponent(sessionID)}`,
         },
         c.req.raw.signal,
+        parseClaraSession,
         true
       )
       return c.json(session)
@@ -308,13 +322,13 @@ export function registerSessionRoutes(
       tags: ['sessions'],
       operationId: 'forkSession',
       summary: 'Fork a session',
-      responses: responses(jsonResponse(ref('SessionInfo'), 'Forked session')),
+      responses: responses(jsonResponse(resolver(claraSessionSchema), 'Forked session')),
     }),
     validator('param', sessionParam),
     validator('json', forkBody),
     async (c) => {
       const { sessionID } = c.req.valid('param')
-      const session = await forwardResult<SessionInfo>(
+      const session = await forwardDto(
         deps,
         {
           method: 'POST',
@@ -323,6 +337,7 @@ export function registerSessionRoutes(
           body: JSON.stringify(c.req.valid('json')),
         },
         c.req.raw.signal,
+        parseClaraSession,
         true
       )
       return c.json(session)
@@ -387,13 +402,13 @@ export function registerSessionRoutes(
       tags: ['sessions'],
       operationId: 'promptSession',
       summary: 'Send a prompt to a session',
-      responses: responses(jsonResponse(ref('SessionInboxUser'), 'Queued prompt')),
+      responses: responses(jsonResponse(resolver(claraSessionInboxUserSchema), 'Queued prompt')),
     }),
     validator('param', sessionParam),
     validator('json', promptBody),
     async (c) => {
       const { sessionID } = c.req.valid('param')
-      const result = await forwardResult<SessionInboxUser>(
+      const result = await forwardDto(
         deps,
         {
           method: 'POST',
@@ -402,6 +417,7 @@ export function registerSessionRoutes(
           body: JSON.stringify(c.req.valid('json')),
         },
         c.req.raw.signal,
+        parseClaraSessionInboxUser,
         true
       )
       return c.json(result)
@@ -414,13 +430,15 @@ export function registerSessionRoutes(
       tags: ['sessions'],
       operationId: 'syntheticSession',
       summary: 'Send a synthetic prompt to a session',
-      responses: responses(jsonResponse(ref('SessionInboxSynthetic'), 'Queued synthetic prompt')),
+      responses: responses(
+        jsonResponse(resolver(claraSessionInboxSyntheticSchema), 'Queued synthetic prompt')
+      ),
     }),
     validator('param', sessionParam),
     validator('json', syntheticBody),
     async (c) => {
       const { sessionID } = c.req.valid('param')
-      const result = await forwardResult<SessionInboxSynthetic>(
+      const result = await forwardDto(
         deps,
         {
           method: 'POST',
@@ -429,6 +447,7 @@ export function registerSessionRoutes(
           body: JSON.stringify(c.req.valid('json')),
         },
         c.req.raw.signal,
+        parseClaraSessionInboxSynthetic,
         true
       )
       return c.json(result)
@@ -467,13 +486,15 @@ export function registerSessionRoutes(
       tags: ['sessions'],
       operationId: 'interruptSession',
       summary: 'Interrupt a running session',
-      responses: responses(jsonResponse(ref('SessionInterruptResponse'), 'Interrupt result')),
+      responses: responses(
+        jsonResponse(resolver(claraSessionInterruptResponseSchema), 'Interrupt result')
+      ),
     }),
     validator('param', sessionParam),
     validator('json', interruptBody),
     async (c) => {
       const { sessionID } = c.req.valid('param')
-      const result = await forwardResult<SessionInterruptResponse>(
+      const result = await forwardDto(
         deps,
         {
           method: 'POST',
@@ -482,6 +503,7 @@ export function registerSessionRoutes(
           body: JSON.stringify(c.req.valid('json')),
         },
         c.req.raw.signal,
+        parseClaraSessionInterrupt,
         true
       )
       return c.json(result)
@@ -494,13 +516,15 @@ export function registerSessionRoutes(
       tags: ['sessions'],
       operationId: 'compactSession',
       summary: 'Compact a session',
-      responses: responses(jsonResponse(ref('SessionInboxCompaction'), 'Queued compaction')),
+      responses: responses(
+        jsonResponse(resolver(claraSessionInboxCompactionSchema), 'Queued compaction')
+      ),
     }),
     validator('param', sessionParam),
     validator('json', compactBody),
     async (c) => {
       const { sessionID } = c.req.valid('param')
-      const result = await forwardResult<SessionInboxCompaction>(
+      const result = await forwardDto(
         deps,
         {
           method: 'POST',
@@ -509,6 +533,7 @@ export function registerSessionRoutes(
           body: JSON.stringify(c.req.valid('json')),
         },
         c.req.raw.signal,
+        parseClaraSessionInboxCompaction,
         true
       )
       return c.json(result)
@@ -573,18 +598,21 @@ export function registerSessionRoutes(
       tags: ['sessions'],
       operationId: 'getSessionContext',
       summary: 'Read session context messages',
-      responses: responses(jsonResponse(arrayOf(ref('SessionMessageInfo')), 'Context messages')),
+      responses: responses(
+        jsonResponse(resolver(z.array(claraSessionMessageSchema)), 'Context messages')
+      ),
     }),
     validator('param', sessionParam),
     async (c) => {
       const { sessionID } = c.req.valid('param')
-      const result = await forwardResult<SessionMessageInfo[]>(
+      const result = await forwardDto(
         deps,
         {
           method: 'GET',
           path: `/api/session/${encodeURIComponent(sessionID)}/context`,
         },
         c.req.raw.signal,
+        parseClaraSessionMessages,
         true
       )
       return c.json(result)
@@ -597,7 +625,7 @@ export function registerSessionRoutes(
       tags: ['messages'],
       operationId: 'listMessages',
       summary: 'List session messages',
-      responses: responses(jsonResponse(ref('SessionMessagesResponse'), 'Messages')),
+      responses: responses(jsonResponse(resolver(claraSessionMessagesResponseSchema), 'Messages')),
     }),
     validator('param', sessionParam),
     validator(
@@ -612,14 +640,15 @@ export function registerSessionRoutes(
     async (c) => {
       const { sessionID } = c.req.valid('param')
       const params = c.req.valid('query')
-      const result = await forwardResult<SessionMessagesResponse>(
+      const result = await forwardDto(
         deps,
         {
           method: 'GET',
           path: `/api/session/${encodeURIComponent(sessionID)}/message`,
           search: query(params),
         },
-        c.req.raw.signal
+        c.req.raw.signal,
+        parseClaraSessionMessagesResponse
       )
       return c.json(result)
     }
@@ -631,18 +660,19 @@ export function registerSessionRoutes(
       tags: ['forms'],
       operationId: 'listForms',
       summary: 'List pending session forms',
-      responses: responses(jsonResponse(arrayOf(ref('FormInfo')), 'Pending forms')),
+      responses: responses(jsonResponse(resolver(z.array(claraFormSchema)), 'Pending forms')),
     }),
     validator('param', sessionParam),
     async (c) => {
       const { sessionID } = c.req.valid('param')
-      const result = await forwardResult<FormInfo[]>(
+      const result = await forwardDto(
         deps,
         {
           method: 'GET',
           path: `/api/session/${encodeURIComponent(sessionID)}/form`,
         },
         c.req.raw.signal,
+        parseClaraForms,
         true
       )
       return c.json(result)
@@ -707,18 +737,21 @@ export function registerSessionRoutes(
       tags: ['inbox'],
       operationId: 'listInbox',
       summary: 'List a session inbox',
-      responses: responses(jsonResponse(arrayOf(ref('SessionInboxInfo')), 'Inbox items')),
+      responses: responses(
+        jsonResponse(resolver(z.array(claraSessionInboxInfoSchema)), 'Inbox items')
+      ),
     }),
     validator('param', sessionParam),
     async (c) => {
       const { sessionID } = c.req.valid('param')
-      const result = await forwardResult<SessionInboxInfo[]>(
+      const result = await forwardDto(
         deps,
         {
           method: 'GET',
           path: `/api/session/${encodeURIComponent(sessionID)}/inbox`,
         },
         c.req.raw.signal,
+        parseClaraSessionInbox,
         true
       )
       return c.json(result)
@@ -754,19 +787,22 @@ export function registerSessionRoutes(
       tags: ['permissions'],
       operationId: 'listPermissions',
       summary: 'List pending permission requests',
-      responses: responses(jsonResponse(ref('PermissionRequestListOutput'), 'Permission requests')),
+      responses: responses(
+        jsonResponse(resolver(claraPermissionRequestListOutputSchema), 'Permission requests')
+      ),
     }),
     validator('query', z.object({ directory: z.string().optional() })),
     async (c) => {
       const { directory } = c.req.valid('query')
-      const result = await forwardResult<PermissionRequestListOutput>(
+      const result = await forwardDto(
         deps,
         {
           method: 'GET',
           path: '/api/permission/request',
           search: query({ location: { directory } }),
         },
-        c.req.raw.signal
+        c.req.raw.signal,
+        parseClaraPermissionRequests
       )
       return c.json(result)
     }

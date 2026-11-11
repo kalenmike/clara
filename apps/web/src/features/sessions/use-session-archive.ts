@@ -1,5 +1,5 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query'
-import type { SessionInfo } from '@opencode/client'
+import type { ClaraSession } from '@clara/api-contract'
 import { queryKeys } from '@/lib/query-keys'
 import { useConnection } from '@/providers/connection-provider'
 
@@ -9,7 +9,7 @@ export function useDoneSession() {
   const queryClient = useQueryClient()
 
   return useMutation({
-    mutationFn: ({ session, empty }: { session: SessionInfo; empty: boolean }) =>
+    mutationFn: ({ session, empty }: { session: ClaraSession; empty: boolean }) =>
       empty
         ? client!.session.remove({ sessionID: session.id })
         : client!.session.update({ sessionID: session.id, archived: true }),

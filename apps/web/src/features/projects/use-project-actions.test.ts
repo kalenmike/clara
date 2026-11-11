@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import type { SessionInfo } from '@opencode/client'
+import type { ClaraSession } from '@clara/api-contract'
 import type { ClaraClient } from '@/lib/client'
 import { runWithConcurrency } from '@/lib/concurrency'
 import {
@@ -8,11 +8,11 @@ import {
   sessionsToArchive,
 } from './use-project-actions'
 
-function session(id: string, archived?: number): SessionInfo {
+function session(id: string, archived?: number): ClaraSession {
   return {
     id,
     time: { created: 0, updated: 0, ...(archived === undefined ? {} : { archived }) },
-  } as SessionInfo
+  } as ClaraSession
 }
 
 describe('sessionsToArchive', () => {
@@ -29,7 +29,7 @@ describe('sessionsToArchive', () => {
 
 describe('listAllProjectSessions', () => {
   it('follows every page and drops duplicate records', async () => {
-    const pages: Record<string, SessionInfo[]> = {
+    const pages: Record<string, ClaraSession[]> = {
       first: [session('a'), session('b')],
       second: [session('b'), session('c')],
     }

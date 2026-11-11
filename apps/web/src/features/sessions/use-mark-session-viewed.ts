@@ -1,5 +1,5 @@
 import { useEffect } from 'react'
-import type { SessionInfo } from '@opencode/client'
+import type { ClaraSession } from '@clara/api-contract'
 import { isSessionUnread } from '@/features/sessions/session-unread'
 import { useConnection } from '@/providers/connection-provider'
 
@@ -14,7 +14,7 @@ function isViewing(): boolean {
  * The server ignores stale and duplicate reports, so focus and visibility
  * changes can safely retry.
  */
-export function useMarkSessionViewed(session: SessionInfo | undefined): void {
+export function useMarkSessionViewed(session: ClaraSession | undefined): void {
   const { client } = useConnection()
   const sessionID = session?.id
   const idle = session?.time.idle

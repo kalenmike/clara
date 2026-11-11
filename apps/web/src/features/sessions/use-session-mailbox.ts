@@ -1,5 +1,5 @@
 import { useQueries } from '@tanstack/react-query'
-import type { SessionInfo } from '@opencode/client'
+import type { ClaraSession } from '@clara/api-contract'
 import { loadSessionMailboxSignals } from '@/features/sessions/session-mailbox-signals'
 import { queryKeys } from '@/lib/query-keys'
 import { useConnection } from '@/providers/connection-provider'
@@ -13,7 +13,7 @@ import { useConnection } from '@/providers/connection-provider'
  * permissions come from their own queries, so a form lookup failure still
  * leaves the message signals intact.
  */
-export function useSessionMailboxSignals(sessions: SessionInfo[]) {
+export function useSessionMailboxSignals(sessions: ClaraSession[]) {
   const { client } = useConnection()
 
   return useQueries({

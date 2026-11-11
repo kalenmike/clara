@@ -1,5 +1,5 @@
 import type { Ref } from 'react'
-import type { SessionInfo } from '@opencode/client'
+import type { ClaraSession } from '@clara/api-contract'
 import { Button } from '@/components/ui/button'
 import { useSessionWording } from '@/features/sessions/use-wording'
 
@@ -10,7 +10,7 @@ export function SidebarSelectionBar({
   onDelete,
   clearRef,
 }: {
-  selectedSessions: readonly SessionInfo[]
+  selectedSessions: readonly ClaraSession[]
   failureNote: string | null
   onClear: () => void
   onDelete: () => void

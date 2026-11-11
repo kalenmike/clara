@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import type { SessionInfo } from '@opencode/client'
+import type { ClaraSession } from '@clara/api-contract'
 import type { ChatSnapshot } from '@/features/chat/chat-store'
 import { formatSessionUsage } from '@/features/chat/session-usage'
 import { useSessionCost } from '@/features/cost/use-session-cost'
@@ -17,7 +17,7 @@ export function SessionStatsBar({
   session,
   snapshot,
 }: {
-  session: SessionInfo
+  session: ClaraSession
   snapshot: ChatSnapshot
 }) {
   const cost = useSessionCost(session, snapshot)

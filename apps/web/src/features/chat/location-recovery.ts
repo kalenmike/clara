@@ -1,5 +1,5 @@
 import type { QueryClient } from '@tanstack/react-query'
-import type { Project, SessionInfo } from '@opencode/client'
+import type { ClaraProject, ClaraSession } from '@clara/api-contract'
 import { toast } from 'sonner'
 import { canonicalProject } from '@/features/projects/use-projects'
 import { describeConnectionError, type ClaraClient } from '@/lib/client'
@@ -108,10 +108,10 @@ async function resolveBaseDirectory(
   queryClient: QueryClient,
   sessionID: string
 ): Promise<string | null> {
-  const cachedSession = queryClient.getQueryData<SessionInfo>(queryKeys.session(sessionID))
+  const cachedSession = queryClient.getQueryData<ClaraSession>(queryKeys.session(sessionID))
   const session = cachedSession ?? (await client.session.get({ sessionID }))
 
-  let projects = queryClient.getQueryData<Project[]>(queryKeys.projects)
+  let projects = queryClient.getQueryData<ClaraProject[]>(queryKeys.projects)
   if (!projects || projects.length === 0) {
     projects = await client.project.list()
     queryClient.setQueryData(queryKeys.projects, projects)

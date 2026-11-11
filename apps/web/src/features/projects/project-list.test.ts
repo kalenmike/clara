@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import type { Project } from '@opencode/client'
+import type { ClaraProject } from '@clara/api-contract'
 import {
   filterVisibleProjects,
   projectLabel,
@@ -14,10 +14,10 @@ function makeProject(input: {
   active: number
   updated?: number
   name?: string
-}): Project {
+}): ClaraProject {
   return {
-    id: input.id as Project['id'],
-    canonical: input.canonical as Project['canonical'],
+    id: input.id as ClaraProject['id'],
+    canonical: input.canonical as ClaraProject['canonical'],
     name: input.name,
     time: {
       created: input.active,

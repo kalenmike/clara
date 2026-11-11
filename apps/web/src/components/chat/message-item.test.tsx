@@ -1,9 +1,9 @@
 import { renderToStaticMarkup } from 'react-dom/server'
 import { describe, expect, it } from 'vitest'
-import type { SessionMessageUser } from '@opencode/client'
+import type { ClaraSessionMessageUser } from '@clara/api-contract'
 import { MessageItem } from '@/components/chat/message-item'
 
-function userMessage(text: string): SessionMessageUser {
+function userMessage(text: string): ClaraSessionMessageUser {
   return { id: 'user-1', type: 'user', time: { created: 1 }, text }
 }
 

@@ -1,9 +1,9 @@
-import type { SessionMessageInfo } from '@opencode/client'
+import type { ClaraSessionMessage } from '@clara/api-contract'
 
 export type MessageFork = { before?: string }
 
 /** Only conversational messages are meaningful fork points. */
-export function isForkableMessage(message: SessionMessageInfo): boolean {
+export function isForkableMessage(message: ClaraSessionMessage): boolean {
   return message.type === 'user' || message.type === 'assistant'
 }
 
@@ -13,7 +13,7 @@ export function isForkableMessage(message: SessionMessageInfo): boolean {
  * no next sibling, which makes a full-history fork the inclusive fallback.
  */
 export function planMessageFork(
-  messages: SessionMessageInfo[],
+  messages: ClaraSessionMessage[],
   messageID: string
 ): MessageFork | null {
   const index = messages.findIndex((message) => message.id === messageID)

@@ -1,4 +1,4 @@
-import type { FormField, FormInfo } from '@opencode/client'
+import type { ClaraFormField, ClaraForm } from '@clara/api-contract'
 import type { FormAnswerValue } from '@/features/chat/use-forms'
 
 /**
@@ -36,12 +36,12 @@ export function composerSecondaryAction(input: {
 }
 
 /** A pending question form and the plan-ready handoff both wait on the person. */
-export function composerRequestCount(forms: readonly FormInfo[], planReady: boolean): number {
+export function composerRequestCount(forms: readonly ClaraForm[], planReady: boolean): number {
   return forms.length + (planReady ? 1 : 0)
 }
 
 export function defaultComposerSelection(
-  forms: readonly FormInfo[],
+  forms: readonly ClaraForm[],
   planReady: boolean
 ): ComposerRequestSelection {
   const first = forms[0]
@@ -56,7 +56,7 @@ export function defaultComposerSelection(
  * message-only until the person selects a request again.
  */
 export function resolveComposerSelection(
-  forms: readonly FormInfo[],
+  forms: readonly ClaraForm[],
   planReady: boolean,
   current: ComposerRequestSelection
 ): ComposerRequestSelection {
@@ -67,7 +67,9 @@ export function resolveComposerSelection(
 }
 
 /** Answers seeded from a form's visible fields and their defaults. */
-export function initialFormAnswers(fields: readonly FormField[]): Record<string, FormAnswerValue> {
+export function initialFormAnswers(
+  fields: readonly ClaraFormField[]
+): Record<string, FormAnswerValue> {
   const answers: Record<string, FormAnswerValue> = {}
   for (const field of fields) {
     if ('hidden' in field && field.hidden) continue

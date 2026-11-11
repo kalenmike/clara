@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { Brain, ChevronRight, ShieldAlert, ShieldCheck, ShieldX } from 'lucide-react'
-import type { PermissionRequest, SessionMessageInfo } from '@opencode/client'
+import type { ClaraPermissionRequest, ClaraSessionMessage } from '@clara/api-contract'
 import { RequestCard } from '@/components/chat/request-card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -17,7 +17,7 @@ export function PermissionPanel({
 }: {
   sessionID: string
   directory: string | undefined
-  messages: SessionMessageInfo[]
+  messages: ClaraSessionMessage[]
 }) {
   const permissionsQuery = usePendingPermissions(directory)
   const reply = useReplyPermission()
@@ -93,8 +93,8 @@ function PermissionThinking({
   request,
   messages,
 }: {
-  request: PermissionRequest
-  messages: SessionMessageInfo[]
+  request: ClaraPermissionRequest
+  messages: ClaraSessionMessage[]
 }) {
   const [open, setOpen] = useState(false)
   const thinking = findPermissionThinking(messages, request)

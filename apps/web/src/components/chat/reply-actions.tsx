@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { ArchiveRestore, Loader2, SquarePen, Trash2 } from 'lucide-react'
 import { toast } from 'sonner'
-import type { SessionInfo } from '@opencode/client'
+import type { ClaraSession } from '@clara/api-contract'
 import { Button } from '@/components/ui/button'
 import { DoneButton } from '@/components/chat/done-button'
 import { useComposer } from '@/features/chat/composer-provider'
@@ -27,7 +27,7 @@ export function ReplyActions({
   onDone,
   worker,
 }: {
-  session: SessionInfo
+  session: ClaraSession
   sessionID: string
   projectID: string | undefined
   busy: boolean

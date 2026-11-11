@@ -10,7 +10,7 @@ import {
   Terminal,
   Wrench,
 } from 'lucide-react'
-import type { SessionMessageAssistantTool, ToolContent } from '@opencode/client'
+import type { ClaraSessionMessageAssistantTool, ClaraToolContent } from '@clara/api-contract'
 import { Badge } from '@/components/ui/badge'
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
 import { formatDuration } from '@/lib/format'
@@ -37,7 +37,7 @@ function toolIcon(name: string) {
   }
 }
 
-function renderContent(content: ToolContent[] | undefined) {
+function renderContent(content: ClaraToolContent[] | undefined) {
   if (!content?.length) return null
   return (
     <div className="space-y-2">
@@ -65,7 +65,7 @@ function renderContent(content: ToolContent[] | undefined) {
   )
 }
 
-export function ToolCard({ tool }: { tool: SessionMessageAssistantTool }) {
+export function ToolCard({ tool }: { tool: ClaraSessionMessageAssistantTool }) {
   const [open, setOpen] = useState(tool.state.status === 'error')
   const Icon = toolIcon(tool.name)
   const status = tool.state.status
@@ -135,7 +135,7 @@ export function ToolCard({ tool }: { tool: SessionMessageAssistantTool }) {
   )
 }
 
-function StatusBadge({ status }: { status: SessionMessageAssistantTool['state']['status'] }) {
+function StatusBadge({ status }: { status: ClaraSessionMessageAssistantTool['state']['status'] }) {
   if (status === 'completed') {
     return (
       <Badge variant="secondary" className="gap-1 text-[10px] text-emerald-500">

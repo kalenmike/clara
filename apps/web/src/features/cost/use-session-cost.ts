@@ -1,4 +1,4 @@
-import type { SessionInfo } from '@opencode/client'
+import type { ClaraSession } from '@clara/api-contract'
 import { useModels } from '@/features/catalog/use-catalog'
 import type { ChatSnapshot } from '@/features/chat/chat-store'
 import {
@@ -18,7 +18,7 @@ type SessionCostSnapshot = Pick<ChatSnapshot, 'cost' | 'tokens' | 'messages'>
  * not price the whole session as one huge request.
  */
 export function useSessionCost(
-  session: SessionInfo | undefined,
+  session: ClaraSession | undefined,
   snapshot: SessionCostSnapshot
 ): DisplayCost {
   const { source } = useCostDisplay()

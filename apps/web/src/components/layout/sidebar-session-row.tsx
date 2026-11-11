@@ -1,7 +1,7 @@
 import type { KeyboardEvent, MouseEvent, Ref } from 'react'
 import { Link } from 'react-router'
 import { AlarmClock, CircleDot } from 'lucide-react'
-import type { SessionInfo } from '@opencode/client'
+import type { ClaraSession } from '@clara/api-contract'
 import { useSessionWording } from '@/features/sessions/use-wording'
 import { formatRelativeTime } from '@/lib/format'
 import { cn } from '@/lib/utils'
@@ -22,7 +22,7 @@ export function SidebarSessionRow({
   onNavigate,
   linkRef,
 }: {
-  session: SessionInfo
+  session: ClaraSession
   projectID: string
   selected: boolean
   bulkSelected: boolean

@@ -1,4 +1,4 @@
-import type { SessionInfo } from '@opencode/client'
+import type { ClaraSession } from '@clara/api-contract'
 
 /**
  * Enough to count every session in normal projects while keeping a single
@@ -14,7 +14,7 @@ export type ProjectStats = {
 }
 
 export function summarizeProjectSessions(
-  sessions: ReadonlyArray<Pick<SessionInfo, 'time'>>,
+  sessions: ReadonlyArray<Pick<ClaraSession, 'time'>>,
   limit = PROJECT_STATS_LIMIT
 ): ProjectStats {
   let archived = 0

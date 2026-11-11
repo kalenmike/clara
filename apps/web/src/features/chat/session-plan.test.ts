@@ -1,11 +1,11 @@
 import { describe, expect, it } from 'vitest'
-import type { JsonValue, SessionMessageAssistant } from '@opencode/client'
+import type { ClaraJsonValue, ClaraSessionMessageAssistant } from '@clara/api-contract'
 import { findPlanTodos } from './session-plan'
 
 function assistant(
-  content: SessionMessageAssistant['content'],
+  content: ClaraSessionMessageAssistant['content'],
   created = 1
-): SessionMessageAssistant {
+): ClaraSessionMessageAssistant {
   return {
     id: 'message',
     type: 'assistant',
@@ -17,9 +17,9 @@ function assistant(
 }
 
 function todoCall(
-  todos: JsonValue[],
+  todos: ClaraJsonValue[],
   status: 'completed' | 'running' = 'completed'
-): SessionMessageAssistant['content'][number] {
+): ClaraSessionMessageAssistant['content'][number] {
   return {
     type: 'tool',
     id: 'todo',

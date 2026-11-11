@@ -1,6 +1,6 @@
 import { useMemo } from 'react'
 import { BarChart3, GitBranch, SquareTerminal, X } from 'lucide-react'
-import type { SessionInfo, SessionMessageInfo } from '@opencode/client'
+import type { ClaraSession, ClaraSessionMessage } from '@clara/api-contract'
 import { PairTerminal } from '@/components/chat/pair-terminal'
 import { GitPanel } from '@/components/layout/git-panel'
 import { SessionInfoPanel } from '@/components/layout/session-info-panel'
@@ -27,9 +27,9 @@ export function SidePanel({
   resizable = true,
   className,
 }: {
-  session: SessionInfo | undefined
+  session: ClaraSession | undefined
   snapshot: ChatSnapshot
-  messages: SessionMessageInfo[]
+  messages: ClaraSessionMessage[]
   directory: string | undefined
   projectID: string | undefined
   canonical: string | undefined

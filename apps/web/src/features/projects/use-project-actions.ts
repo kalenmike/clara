@@ -1,5 +1,5 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query'
-import type { SessionInfo } from '@opencode/client'
+import type { ClaraSession } from '@clara/api-contract'
 import type { ClaraClient } from '@/lib/client'
 import { isArchivedSession } from '@/features/sessions/session-archive'
 import { runWithConcurrency } from '@/lib/concurrency'
@@ -19,8 +19,8 @@ export const PROJECT_ACTION_CONCURRENCY = 4
 export async function listAllProjectSessions(
   client: ClaraClient,
   projectID: string
-): Promise<SessionInfo[]> {
-  const sessions: SessionInfo[] = []
+): Promise<ClaraSession[]> {
+  const sessions: ClaraSession[] = []
   const seen = new Set<string>()
   const cursors = new Set<string>()
   let cursor: string | undefined
@@ -47,7 +47,7 @@ export async function listAllProjectSessions(
 }
 
 /** Sessions that still need an archive write. */
-export function sessionsToArchive(sessions: readonly SessionInfo[]): SessionInfo[] {
+export function sessionsToArchive(sessions: readonly ClaraSession[]): ClaraSession[] {
   return sessions.filter((session) => !isArchivedSession(session))
 }
 

@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { FolderGit2 } from 'lucide-react'
-import type { Project } from '@opencode/client'
+import type { ClaraProject } from '@clara/api-contract'
 import {
   projectAvatarSource,
   projectInitial,
@@ -27,7 +27,7 @@ const COLOR_CLASSES: Record<ProjectAvatarColor, string> = {
   lime: 'bg-lime-100 text-lime-800 dark:bg-lime-950/70 dark:text-lime-200',
 }
 
-function withOverrideRemoved(project: Project): Project {
+function withOverrideRemoved(project: ClaraProject): ClaraProject {
   return { ...project, icon: { ...project.icon, override: '' } }
 }
 
@@ -35,7 +35,7 @@ function withOverrideRemoved(project: Project): Project {
  * Pick the first renderable source. If a custom image fails to load, try the
  * color or discovered favicon behind it before falling back to the folder.
  */
-function resolveSource(project: Project, failed: ReadonlySet<string>): ProjectAvatarSource {
+function resolveSource(project: ClaraProject, failed: ReadonlySet<string>): ProjectAvatarSource {
   const candidates = [
     projectAvatarSource(project),
     projectAvatarSource(withOverrideRemoved(project)),
@@ -57,7 +57,7 @@ export function ProjectAvatar({
   size = 'md',
   className,
 }: {
-  project: Project
+  project: ClaraProject
   size?: ProjectAvatarSize
   className?: string
 }) {

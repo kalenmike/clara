@@ -1,11 +1,11 @@
 import type {
-  PermissionRequest,
-  SessionMessageAssistant,
-  SessionMessageAssistantReasoning,
-  SessionMessageInfo,
-} from '@opencode/client'
+  ClaraPermissionRequest,
+  ClaraSessionMessageAssistant,
+  ClaraSessionMessageAssistantReasoning,
+  ClaraSessionMessage,
+} from '@clara/api-contract'
 
-export type PermissionThinkingRequest = Pick<PermissionRequest, 'source'>
+export type PermissionThinkingRequest = Pick<ClaraPermissionRequest, 'source'>
 
 /**
  * The reasoning that led to a pending permission request. The server's source
@@ -14,13 +14,13 @@ export type PermissionThinkingRequest = Pick<PermissionRequest, 'source'>
  * no longer loaded, fall back to the newest assistant step.
  */
 export function findPermissionThinking(
-  messages: SessionMessageInfo[],
+  messages: ClaraSessionMessage[],
   request: PermissionThinkingRequest
 ): string {
   const source = request.source
   if (source?.type === 'tool') {
     const message = messages.find(
-      (item): item is SessionMessageAssistant =>
+      (item): item is ClaraSessionMessageAssistant =>
         item.type === 'assistant' && item.id === source.messageID
     )
     if (message) return reasoningBeforeTool(message, source.id)
@@ -30,21 +30,23 @@ export function findPermissionThinking(
   return newest ? joinReasoning(newest.content) : ''
 }
 
-function reasoningBeforeTool(message: SessionMessageAssistant, toolID: string): string {
+function reasoningBeforeTool(message: ClaraSessionMessageAssistant, toolID: string): string {
   const toolIndex = message.content.findIndex((part) => part.type === 'tool' && part.id === toolID)
   const parts = toolIndex === -1 ? message.content : message.content.slice(0, toolIndex)
   return joinReasoning(parts)
 }
 
-function joinReasoning(content: SessionMessageAssistant['content']): string {
+function joinReasoning(content: ClaraSessionMessageAssistant['content']): string {
   return content
-    .filter((part): part is SessionMessageAssistantReasoning => part.type === 'reasoning')
+    .filter((part): part is ClaraSessionMessageAssistantReasoning => part.type === 'reasoning')
     .map((part) => part.text.trim())
     .filter((text) => text.length > 0)
     .join('\n\n')
 }
 
-function newestAssistant(messages: SessionMessageInfo[]): SessionMessageAssistant | undefined {
+function newestAssistant(
+  messages: ClaraSessionMessage[]
+): ClaraSessionMessageAssistant | undefined {
   for (let index = messages.length - 1; index >= 0; index -= 1) {
     const message = messages[index]
     if (message.type === 'assistant') return message

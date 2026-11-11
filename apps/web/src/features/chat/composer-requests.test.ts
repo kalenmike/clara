@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import type { FormField, FormInfo } from '@opencode/client'
+import type { ClaraFormField, ClaraForm } from '@clara/api-contract'
 import {
   composerCanSend,
   composerRequestCount,
@@ -10,12 +10,12 @@ import {
   type ComposerRequestSelection,
 } from './composer-requests'
 
-function form(id: string): FormInfo {
+function form(id: string): ClaraForm {
   return {
     id,
     sessionID: 'session-1',
     title: `Question ${id}`,
-    fields: [] as unknown as FormInfo['fields'],
+    fields: [] as unknown as ClaraForm['fields'],
   }
 }
 
@@ -121,7 +121,7 @@ describe('initialFormAnswers', () => {
         options: [{ value: 'eu', label: 'Europe' }],
       },
       { key: 'secret', type: 'string', hidden: true, default: 'hidden' },
-    ] as FormField[]
+    ] as ClaraFormField[]
 
     expect(initialFormAnswers(fields)).toEqual({
       name: 'checkout',

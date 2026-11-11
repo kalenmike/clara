@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import type { JsonValue, SessionMessageInfo } from '@opencode/client'
+import type { ClaraJsonValue, ClaraSessionMessage } from '@clara/api-contract'
 import { toast } from 'sonner'
 export type PromptFile = {
   uri: string
@@ -18,7 +18,7 @@ import { useConnection } from '@/providers/connection-provider'
 const MESSAGE_PAGE_SIZE = 100
 
 type SessionMessagesPage = {
-  messages: SessionMessageInfo[]
+  messages: ClaraSessionMessage[]
   nextCursor: string | null
 }
 
@@ -161,7 +161,7 @@ export function useSendSynthetic(sessionID: string) {
     mutationFn: async (input: {
       text: string
       description?: string
-      metadata?: Record<string, JsonValue>
+      metadata?: Record<string, ClaraJsonValue>
       delivery?: 'steer' | 'queue'
       resume?: boolean
     }) => {

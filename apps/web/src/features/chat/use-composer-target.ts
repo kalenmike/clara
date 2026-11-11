@@ -1,5 +1,5 @@
 import { useMemo } from 'react'
-import type { SessionInboxUser } from '@opencode/client'
+import type { ClaraSessionInboxUser } from '@clara/api-contract'
 import { composerMenuMode, type ComposerMenuMode } from '@/features/chat/composer-menu'
 import { findPlanReadyReply } from '@/features/chat/plan-ready'
 import { mergeSessionMessages } from '@/features/chat/session-messages'
@@ -19,7 +19,8 @@ export function useComposerTarget(sessionID: string) {
   const session = sessionQuery.data
 
   const pendingDrafts = useMemo(
-    () => (inboxQuery.data ?? []).filter((item): item is SessionInboxUser => item.type === 'user'),
+    () =>
+      (inboxQuery.data ?? []).filter((item): item is ClaraSessionInboxUser => item.type === 'user'),
     [inboxQuery.data]
   )
 

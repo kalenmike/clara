@@ -1,4 +1,4 @@
-import type { V2Event } from '@opencode/client'
+import type { ClaraEvent } from '@clara/api-contract'
 import type { RequestOptions } from './types.ts'
 import { ClaraApiError } from './errors.ts'
 
@@ -6,7 +6,7 @@ export async function* subscribeEvents(
   fetch: typeof globalThis.fetch,
   baseUrl: string,
   options: RequestOptions = {}
-): AsyncIterable<V2Event> {
+): AsyncIterable<ClaraEvent> {
   const response = await fetch(new URL('/v1/events', baseUrl), {
     method: 'GET',
     headers: {
@@ -52,7 +52,7 @@ function nextBoundary(value: string): { index: number; length: number } | null {
   return { index: lf, length: 2 }
 }
 
-function parseEvent(chunk: string): V2Event | undefined {
+function parseEvent(chunk: string): ClaraEvent | undefined {
   const data: string[] = []
   for (const raw of chunk.split(/\r?\n/)) {
     const line = raw.trimEnd()
@@ -63,7 +63,7 @@ function parseEvent(chunk: string): V2Event | undefined {
   const text = data.join('\n')
   if (!text) return undefined
   try {
-    return JSON.parse(text) as V2Event
+    return JSON.parse(text) as ClaraEvent
   } catch {
     return undefined
   }

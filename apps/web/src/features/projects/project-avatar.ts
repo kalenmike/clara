@@ -1,4 +1,4 @@
-import type { Project } from '@opencode/client'
+import type { ClaraProject } from '@clara/api-contract'
 import { projectLabel } from '@/features/projects/project-list'
 
 /** The palette keys OpenCode accepts for a generated project avatar. */
@@ -38,7 +38,7 @@ function imageSource(value: string | undefined): string | null {
  * color, then the favicon the server discovered in the project. A color
  * intentionally hides the discovered favicon until the color is cleared.
  */
-export function projectAvatarSource(project: Project): ProjectAvatarSource {
+export function projectAvatarSource(project: ClaraProject): ProjectAvatarSource {
   const override = imageSource(project.icon?.override)
   if (override) return { kind: 'image', src: override }
 
@@ -53,7 +53,7 @@ export function projectAvatarSource(project: Project): ProjectAvatarSource {
 }
 
 /** The first character of the project label, used by color avatars. */
-export function projectInitial(project: Project): string {
+export function projectInitial(project: ClaraProject): string {
   const label = projectLabel(project)
   return Array.from(label)[0]?.toUpperCase() ?? '?'
 }

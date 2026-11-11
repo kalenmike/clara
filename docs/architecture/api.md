@@ -31,8 +31,9 @@ no generic `/api/*` proxy.
 | Worktrees   | `GET /v1/worktrees`, `POST /v1/worktrees/refresh`                                                                                                                                                                                                                                  |
 | Clara       | `GET /v1/git/log`, `GET /v1/events`                                                                                                                                                                                                                                                |
 
-`GET /v1/events` forwards the harness SSE stream. The event payloads are the
-OpenCode `V2Event` union from `@opencode/client`.
+`GET /v1/events` forwards the harness SSE stream unchanged. The wire payloads
+are typed as the Clara `ClaraEvent` union from `@clara/api-contract`, which
+mirrors the OpenCode event shapes the web handles.
 
 `GET /v1/git/log` is the only host command Clara runs. The hub builds a fixed
 `git log` command from validated timestamps and the session directory; there is
@@ -62,22 +63,20 @@ read-only MCP uses that header for every call.
 - `GET /openapi.json` returns the OpenAPI 3.1 document.
 - `GET /docs` serves Swagger UI.
 - Request params, queries, and bodies are zod-validated.
-- Response schemas are generated from the pinned `@opencode/client` types by
-  `ts-json-schema-generator`, so the document matches the targeted OpenCode
-  version.
+- Response schemas are Clara-owned zod schemas in `@clara/api-contract`,
+  registered directly with `hono-openapi`'s resolver. There is no generated
+  schema file or regeneration step.
 
-Regenerate the components after bumping `@opencode/client`:
-
-```bash
-pnpm --filter @clara/api-contract generate:schemas
-```
+`@opencode/client` is an implementation detail of `apps/server` and `apps/lab`.
+The web, `@clara/api-client`, and `@clara/api-contract` use the Clara DTOs and
+must not import it.
 
 ## Client SDK
 
 `@clara/api-client` is a fetch-based SDK for the hub API. It mirrors the
-OpenCode client method names and return types, so the web migration is mostly a
-client swap. Pass the E2EE transport's `fetch` in the browser, or global `fetch`
-with a bearer header in Node and MCP tools.
+OpenCode client method names but returns Clara DTOs from `@clara/api-contract`.
+Pass the E2EE transport's `fetch` in the browser, or global `fetch` with a
+bearer header in Node and MCP tools.
 
 ```ts
 const client = createClaraClient({ fetch: transport.fetch })
@@ -85,7 +84,7 @@ const client = createClaraClient({ fetch: transport.fetch })
 const projects = await client.project.list()
 const session = await client.session.get({ sessionID })
 for await (const event of client.event.subscribe()) {
-  // handle a V2Event
+  // handle a ClaraEvent
 }
 ```
 

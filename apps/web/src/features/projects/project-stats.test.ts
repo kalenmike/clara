@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest'
-import type { SessionInfo } from '@opencode/client'
+import type { ClaraSession } from '@clara/api-contract'
 import { summarizeProjectSessions } from './project-stats'
 
-function session(archived?: number): Pick<SessionInfo, 'time'> {
+function session(archived?: number): Pick<ClaraSession, 'time'> {
   return { time: { created: 0, updated: 0, archived } }
 }
 

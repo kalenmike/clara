@@ -1,4 +1,4 @@
-import type { ModelInfo } from '@opencode/client'
+import type { ClaraModel } from '@clara/api-contract'
 import { Badge } from '@/components/ui/badge'
 import { formatTokens } from '@/lib/format'
 import { formatPricePerMillion, isFreeModel } from '@/features/models/visibility'
@@ -8,11 +8,11 @@ type ReasoningCapability = {
   effort?: string[]
 }
 
-type CapabilitiesWithReasoning = ModelInfo['capabilities'] & {
+type CapabilitiesWithReasoning = ClaraModel['capabilities'] & {
   reasoning?: ReasoningCapability
 }
 
-export function ModelDetails({ model }: { model: ModelInfo }) {
+export function ModelDetails({ model }: { model: ClaraModel }) {
   const capabilities = model.capabilities as CapabilitiesWithReasoning
   const reasoning = capabilities.reasoning
   const free = isFreeModel(model)

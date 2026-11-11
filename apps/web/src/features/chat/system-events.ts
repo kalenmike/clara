@@ -1,4 +1,4 @@
-import type { JsonValue, SessionMessageSynthetic } from '@opencode/client'
+import type { ClaraJsonValue, ClaraSessionMessageSynthetic } from '@clara/api-contract'
 
 /** Synthetic inputs Clara writes for one-click actions. */
 export type ClaraEventKind = 'plan-request' | 'plan-update' | 'build-start' | 'draft-start'
@@ -29,16 +29,16 @@ const CLARA_LABELS: Record<ClaraEventKind, string> = {
  * Metadata written on Clara's synthetic inputs. The server persists this with
  * the message but never sends it to the model.
  */
-export function claraEventMetadata(kind: ClaraEventKind): Record<string, JsonValue> {
+export function claraEventMetadata(kind: ClaraEventKind): Record<string, ClaraJsonValue> {
   return { clara: { kind } }
 }
 
 /** Whether a synthetic message was written by one of Clara's own actions. */
-export function isClaraSynthetic(message: SessionMessageSynthetic): boolean {
+export function isClaraSynthetic(message: ClaraSessionMessageSynthetic): boolean {
   return readClaraEvent(message) !== null
 }
 
-export function readClaraEvent(message: SessionMessageSynthetic): SystemEvent | null {
+export function readClaraEvent(message: ClaraSessionMessageSynthetic): SystemEvent | null {
   const clara = readRecord(message.metadata?.clara)
   const kind = clara?.kind
   if (!isClaraKind(kind)) return null
@@ -58,7 +58,7 @@ export function readClaraEvent(message: SessionMessageSynthetic): SystemEvent | 
  * They are not part of the conversation, but the reader can still inspect them
  * through a collapsed system row instead of the raw tagged text.
  */
-export function readSystemReminder(message: SessionMessageSynthetic): SystemEvent | null {
+export function readSystemReminder(message: ClaraSessionMessageSynthetic): SystemEvent | null {
   const detail = systemReminderDetail(message.text)
   if (!detail) return null
 
@@ -71,7 +71,7 @@ export function readSystemReminder(message: SessionMessageSynthetic): SystemEven
   }
 }
 
-export function isSystemReminder(message: SessionMessageSynthetic): boolean {
+export function isSystemReminder(message: ClaraSessionMessageSynthetic): boolean {
   return systemReminderDetail(message.text) !== null
 }
 
@@ -83,7 +83,7 @@ function systemReminderDetail(text: string): string | null {
   return parts.length > 0 ? parts.join('\n\n') : null
 }
 
-function isClaraKind(kind: JsonValue | undefined): kind is ClaraEventKind {
+function isClaraKind(kind: ClaraJsonValue | undefined): kind is ClaraEventKind {
   return (
     kind === 'plan-request' ||
     kind === 'plan-update' ||
@@ -92,7 +92,9 @@ function isClaraKind(kind: JsonValue | undefined): kind is ClaraEventKind {
   )
 }
 
-export function readRecord(value: JsonValue | undefined): Record<string, JsonValue> | undefined {
+export function readRecord(
+  value: ClaraJsonValue | undefined
+): Record<string, ClaraJsonValue> | undefined {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return undefined
   return value
 }

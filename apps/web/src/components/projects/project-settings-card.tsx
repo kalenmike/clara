@@ -1,7 +1,7 @@
 import { useEffect, useId, useRef, useState, type FormEvent } from 'react'
 import { Check, ImagePlus, Loader2, Settings2, Trash2 } from 'lucide-react'
 import { toast } from 'sonner'
-import type { Project } from '@opencode/client'
+import type { ClaraProject } from '@clara/api-contract'
 import { ProjectAvatar } from '@/components/projects/project-avatar'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -27,7 +27,7 @@ const COLOR_SWATCHES: Record<ProjectAvatarColor, string> = {
 
 type BusyAction = 'icon' | 'color' | 'command' | null
 
-export function ProjectSettingsCard({ project }: { project: Project }) {
+export function ProjectSettingsCard({ project }: { project: ClaraProject }) {
   const update = useUpdateProject(project.id)
   const fileInput = useRef<HTMLInputElement>(null)
   const commandID = useId()
@@ -53,7 +53,7 @@ export function ProjectSettingsCard({ project }: { project: Project }) {
     setCommand(savedCommand)
   }, [project.id, savedCommand])
 
-  const avatarProject: Project = {
+  const avatarProject: ClaraProject = {
     ...project,
     icon: { ...project.icon, override, color },
   }

@@ -110,7 +110,7 @@ async function startFakeOpenCode(): Promise<FakeOpenCode> {
   const server = createServer((request, response) => {
     if (request.url === '/api/info') {
       response.setHeader('content-type', 'application/json')
-      response.end(JSON.stringify({ version: '9.9.9', pid: 42, urls: [] }))
+      response.end(JSON.stringify({ version: '9.9.9', pid: 42, urls: [], paths: { tmp: '/tmp' } }))
       return
     }
     if (request.url === '/api/stream') {

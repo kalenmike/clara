@@ -32,26 +32,30 @@ compatibility names, not prose.
 
 ## Stack
 
-| Layer        | Choice                                                                |
-| ------------ | --------------------------------------------------------------------- |
-| Workspace    | pnpm 11 workspaces                                                    |
-| Build        | Vite 8, TypeScript 6                                                  |
-| Web          | React 19, React Router 8, Tailwind CSS 4, shadcn/ui (radix-nova)      |
-| Server state | TanStack Query 5                                                      |
-| Stream state | A small external store (`chatStore`) read with `useSyncExternalStore` |
-| OpenCode     | `@opencode/client` **2.1.1**, pinned to the server minor              |
-| Hub service  | Node 22, `ws`, `node:http`, WebCrypto                                 |
-| Relay        | Cloudflare Worker + `RelayRoom` Durable Object                        |
-| Crypto       | Device key → HKDF-SHA-256 → AES-256-GCM (WebCrypto)                   |
+| Layer        | Choice                                                                 |
+| ------------ | ---------------------------------------------------------------------- |
+| Workspace    | pnpm 11 workspaces                                                     |
+| Build        | Vite 8, TypeScript 6                                                   |
+| Web          | React 19, React Router 8, Tailwind CSS 4, shadcn/ui (radix-nova)       |
+| Server state | TanStack Query 5                                                       |
+| Stream state | A small external store (`chatStore`) read with `useSyncExternalStore`  |
+| OpenCode     | `@opencode/client` **2.1.1**, server and lab only, pinned to the minor |
+| Hub service  | Node 22, `ws`, `node:http`, WebCrypto                                  |
+| Relay        | Cloudflare Worker + `RelayRoom` Durable Object                         |
+| Crypto       | Device key → HKDF-SHA-256 → AES-256-GCM (WebCrypto)                    |
 
 ### Version contract
 
-The API is generated per OpenCode release. Clara pins `@opencode/client` to the
-same version as the server it targets (2.1.1). Before bumping either side:
+Clara pins `@opencode/client` to the OpenCode server version it targets (2.1.1)
+inside `apps/server` and `apps/lab`. The `/v1` DTOs and OpenAPI components are
+Clara-owned in `@clara/api-contract`; the web and SDK never import the harness
+client. Before bumping either side:
 
 1. Check the server's `/openapi.json` for endpoint or payload changes.
-2. Update the client package to the same version.
-3. Run `pnpm check` and re-test connect, stream, send, and switch flows through
+2. Update the harness client in the hub service and lab to the same version.
+3. Update the Clara schemas and server mapping when the upstream payloads
+   changed.
+4. Run `pnpm check` and re-test connect, stream, send, and switch flows through
    both the local WebSocket and relay transports.
 
 `@opencode-ai/sdk` is not used: that package targets the v1 API and does not
@@ -70,7 +74,7 @@ apps/
   api-mcp/             stdio read-only MCP bridge to the hub API
 packages/
   shared-types/        Wire frames, actions, states, pairing payloads
-  api-contract/        Hub API schemas and generated OpenAPI components
+  api-contract/        Clara-owned hub API DTOs, zod schemas, and OpenAPI components
   api-client/          Fetch-based hub API SDK
   api-mcp/             Read-only hub API MCP tools
   orchestration/       Package loader, runtime, leases, and watchdog
@@ -144,6 +148,8 @@ ConnectionProvider
                  └─ query invalidations: durable events and list changes
 ```
 
+- The SDK returns Clara DTOs from `@clara/api-contract`; OpenCode types stay in
+  the hub service and lab.
 - The relay transport is a `fetch`-compatible shim over one WebSocket. It maps
   HTTP requests to encrypted action frames, streams responses back through a
   `ReadableStream`, and supports abort, binary bodies, and SSE.

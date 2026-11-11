@@ -87,7 +87,7 @@ pnpm clara orchestrator <serve|start|stop|restart|status [--json]|logs|token> [-
 pnpm clara adapter install --opencode [--mcp]
 pnpm clara mcp install|config|status
 pnpm clara mcp install --api
-pnpm --filter @clara/api-contract generate:schemas
+pnpm check:boundaries
 pnpm clara runner
 
 # Setup
@@ -108,11 +108,10 @@ Swagger UI is at `/docs` and the OpenAPI document is at `/openapi.json`. The
 loopback API requires the bearer token in the hub config directory
 (`api.token`); the WebSocket transport authenticates with the paired device.
 
-Regenerate the OpenAPI response components whenever `@opencode/client` changes:
-
-```bash
-pnpm --filter @clara/api-contract generate:schemas
-```
+Response DTOs and OpenAPI components live in `packages/api-contract` as zod
+schemas. The hub registers them directly with `hono-openapi`; there is no
+generation step. `@opencode/client` stays inside `apps/server` and `apps/lab`,
+and `pnpm check:boundaries` enforces that split.
 
 Install the read-only API MCP for live frontend testing:
 
