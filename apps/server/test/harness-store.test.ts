@@ -67,6 +67,26 @@ describe('harness store', () => {
     expect(raw.key_ciphertext.toString('utf8')).not.toContain(key)
   })
 
+  it('opens the pairing token before enrollment and closes it after', async () => {
+    const pairing = await store.createPairing({ kind: 'opencode', label: 'OpenCode' })
+    expect(await store.pairingToken(pairing.id)).toBe(pairing.token)
+
+    await store.enroll({
+      pairId: pairing.id,
+      pairToken: pairing.token,
+      harnessId: 'harness-a',
+      kind: 'opencode',
+      label: 'OpenCode',
+      adapterId: 'adapter-a',
+      key: generateKey(),
+      adapterVersion: '0.1.0',
+      protocolVersion: 1,
+      capabilities: {},
+      transport: 'local',
+    })
+    expect(await store.pairingToken(pairing.id)).toBeUndefined()
+  })
+
   it('reuses the same connection when the stable identity pairs again', async () => {
     const first = await enroll({ harnessId: 'same', adapterId: 'one' })
     const second = await enroll({ harnessId: 'same', adapterId: 'two' })
