@@ -1,18 +1,24 @@
 import type { QueryClient } from '@tanstack/react-query'
-import {
-  isLocationNotFoundError,
-  type LocationNotFoundError,
-  type Project,
-  type SessionInfo,
-} from '@opencode/client'
+import type { Project, SessionInfo } from '@opencode/client'
 import { toast } from 'sonner'
 import { canonicalProject } from '@/features/projects/use-projects'
 import { describeConnectionError, type ClaraClient } from '@/lib/client'
 import { queryKeys } from '@/lib/query-keys'
 
+type LocationNotFoundError = {
+  readonly _tag: 'LocationNotFoundError'
+  readonly location: { readonly directory: string }
+  readonly message: string
+}
+
 /** The server uses this error when a session's directory no longer exists. */
 export function isMissingDirectoryError(error: unknown): error is LocationNotFoundError {
-  return isLocationNotFoundError(error)
+  return (
+    typeof error === 'object' &&
+    error !== null &&
+    '_tag' in error &&
+    (error as { _tag?: unknown })._tag === 'LocationNotFoundError'
+  )
 }
 
 /** A missing directory that has already been reported to the person. */
