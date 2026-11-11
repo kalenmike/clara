@@ -91,8 +91,12 @@ monitoring on or off, and gates or paces client settings sync.
 14. In **Clients**, review the connected-client table and paired devices. A
     one-time pairing session appears with a **Pairing** badge and no device until
     enrollment finishes; it is excluded from the active count and the local E2EE
-    session count. Each paired session row shows the device's label, short device
-    id, and fingerprint so devices that share a label stay distinguishable.
+    session count. Each paired session row shows the device's display name, short
+    device id, and fingerprint so devices that share a label stay distinguishable.
+    An active device's **Edit** action sets an alias of up to 64 characters; the
+    enrolled label stays visible as secondary text, and clearing the alias restores
+    the enrolled name. Connected clients resolve the same alias from the paired
+    device list, so a rename applies on the next snapshot without reconnecting.
     Status badges call out degraded OpenCode, relay, push, permissions, or
     missing files.
 15. In **Traffic**, read the last minute's in and out rates, the request and
@@ -137,8 +141,8 @@ monitoring on or off, and gates or paces client settings sync.
 3. **Reads and writes require a session.** `GET` and `HEAD` serve the snapshot
    and assets after login. `POST` is accepted at the feature, agent, shell,
    monitoring, sync, orchestration, config, harness, password, and device-purge
-   routes; `DELETE` revokes a device and removes a harness or the session.
-   Unknown mutating methods return `405`.
+   routes; `PATCH` changes a device alias; `DELETE` revokes a device and removes a
+   harness or the session. Unknown mutating methods return `405`.
 4. **Secrets stay out.** The snapshot is built from an explicit allowlist. The
    device keys, enrollment codes, harness password, relay tokens, push
    endpoints, sync values, and file contents are never returned. Device keys and
@@ -348,6 +352,8 @@ monitoring on or off, and gates or paces client settings sync.
   - `POST /panel/api/v1/harnesses/:id/test|activate`
   - `DELETE /panel/api/v1/harnesses/:id`
   - `DELETE /panel/api/v1/devices/:id` revokes the device
+  - `PATCH /panel/api/v1/devices/:id` with `{ "alias": "Desk MacBook" }` renames
+    it; send `{ "alias": null }` to restore the enrolled label
   - `POST /panel/api/v1/devices/:id/purge` deletes a revoked device record
   - `POST /panel/api/v1/account/password`
 - Required mutation headers: `x-clara-panel: 1`; JSON-body mutations also
@@ -406,7 +412,8 @@ monitoring on or off, and gates or paces client settings sync.
   added by database migration `2`; `monitoring.enabled`, added by migration `3`;
   `sync.enabled` and `sync.intervalMs`, added by migration `4`;
   `orchestration.enabled`, added by migration `5`; panel users, setup tokens,
-  harness connections, and harness secrets added by migration `6`
+  harness connections, and harness secrets added by migration `6`; device records
+  added by migration `7`; the optional device alias column added by migration `8`
 - Database health: path, existence, mode, bytes, schema version, client-sync
   counts and bytes (never values)
 - Auth: scrypt password hashes, hashed session tokens in memory, per-source and
