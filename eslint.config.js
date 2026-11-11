@@ -29,6 +29,22 @@ export default defineConfig([
         'error',
         { argsIgnorePattern: '^_', varsIgnorePattern: '^_' },
       ],
+      'max-lines': [
+        'warn',
+        {
+          max: 300,
+          skipBlankLines: true,
+          skipComments: true,
+        },
+      ],
+      'max-lines-per-function': [
+        'warn',
+        {
+          max: 75,
+          skipBlankLines: true,
+          skipComments: true,
+        },
+      ],
     },
   },
   {
