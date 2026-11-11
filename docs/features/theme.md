@@ -30,7 +30,7 @@ taste without giving up automatic appearance changes.
    existing users see no change until they choose another theme.
 3. The color theme is stored locally in `clara.colorTheme`; the mode remains
    stored under `clara.theme` by `next-themes`. Neither is sent to the OpenCode
-   server. When **Theme** sync is enabled on this device, the Clara home agent
+   server. When **Theme** sync is enabled on this device, the Clara hub
    stores both keys and its values win on a pull; see [sync](sync.md).
 4. The selected palette is applied as `data-theme` on the document root, while
    the mode is applied as the existing `.dark` class. Theme tokens are CSS

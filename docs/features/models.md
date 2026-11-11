@@ -66,7 +66,7 @@ prices, and variants so people can decide what to keep.
   **OpenCode**, even when the server prefixes its name with the host name.
 - **Hidden model on an old session** — history, session cards, and token usage
   stay intact; only the composer's attached model and picker change.
-- **Visibility sync conflict** — the whole group is replaced by the agent's
+- **Visibility sync conflict** — the whole group is replaced by the hub's
   snapshot. Individual toggles are never merged across devices.
 - **Server-disabled model** — it is omitted from the settings list and cannot be
   selected in the composer.

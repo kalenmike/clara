@@ -2,16 +2,16 @@
 
 ## Summary
 
-Connects Clara to one OpenCode server through the Clara home agent over an
+Connects Clara to one OpenCode server through the Clara hub over an
 end-to-end encrypted WebSocket, either through the Cloudflare relay or the local
-listener. There is no direct HTTP mode. Before pairing, the home agent's
+listener. There is no direct HTTP mode. Before pairing, the hub's
 authenticated panel must contain an active OpenCode harness connection; the
-server no longer discovers OpenCode's `service.json`. Each browser enrolls its
+hub no longer discovers OpenCode's `service.json`. Each browser enrolls its
 own device key through a one-time code; there is no shared browser key.
 
 ## User flow
 
-1. Start the home agent and open its panel. Complete the one-time setup token,
+1. Start the hub and open its panel. Complete the one-time setup token,
    sign in, and save the OpenCode base URL and password in **Harness
    connections**. In a container, use the OpenCode service name
    (`http://opencode:4096`) or another address reachable from the `clara`
@@ -41,28 +41,28 @@ own device key through a one-time code; there is no shared browser key.
 
 ## Core business rules
 
-1. Clara talks to one home agent/server at a time. Connecting again replaces the
+1. Clara talks to one hub at a time. Connecting again replaces the
    client, clears cached queries when the target changes, and restarts the
    stream.
-2. The transport never sends the OpenCode password to the browser. The agent
+2. The transport never sends the OpenCode password to the browser. The hub
    adds basic auth and only proxies `/api/` paths on the configured origin.
 3. `VITE_CLARA_WS_URL` retargets relay-room pairings; a `local` pairing keeps the
    endpoint from its payload. `clara-server pair --no-relay` produces a `local`
-   pairing even when the agent has a relay configured.
+   pairing even when the hub has a relay configured.
 4. A stored device is retried on boot before the pair form renders. Existing
    clients from before per-device credentials must re-pair.
 5. The connect screen holds a splash until the boot attempt settles, but a
    12-second watchdog reveals the form if the probe wedges. Normal probe and
    handshake failures settle first and report their own reason.
-6. The event stream is healthy only while chunks keep arriving. The agent sends
+6. The event stream is healthy only while chunks keep arriving. The hub sends
    a heartbeat every 15 seconds; 45 seconds of silence is treated as dead.
-7. The home agent resolves its active harness connection from SQLite. If none is
+7. The hub resolves its active harness connection from SQLite. If none is
    configured, the tunnel can connect but `/api/info` returns `503` with
    `harness_unconfigured`; configure it in the panel first.
-8. Push notifications need the home agent's E2EE transport; the control channel
+8. Push notifications need the hub's E2EE transport; the control channel
    also carries push subscriptions.
 9. The web transport queues HTTP requests above a small in-flight cap. Query
-   bursts wait instead of hitting the home agent's per-session ceiling, which is
+   bursts wait instead of hitting the hub's per-session ceiling, which is
    64 concurrent requests.
 10. Each device key is revocable on its own. A revoked device is rejected on the
     next handshake or action.
@@ -76,18 +76,18 @@ own device key through a one-time code; there is no shared browser key.
   local-only instead of a bare socket close.
 - **Fingerprint mismatch** — the enrollment reports a mismatch; request a fresh
   code.
-- **Expired or used code** — the agent rejects enrollment; generate a new code.
-- **Agent offline** — the client connects, receives `1013`, and reports that the
-  home server is unreachable.
-- **Device revoked** — the agent sends `revoked_device`, the client disconnects,
+- **Expired or used code** — the hub rejects enrollment; generate a new code.
+- **Hub offline** — the client connects, receives `1013`, and reports that the
+  hub is unreachable.
+- **Device revoked** — the hub sends `revoked_device`, the client disconnects,
   and the panel shows the device as revoked until its record is deleted.
-- **Harness not configured** — the agent connects but the OpenCode probe fails
+- **Harness not configured** — the hub connects but the OpenCode probe fails
   with `harness_unconfigured`. Open the panel and save an active connection.
 - **Harness reachable from the host but not the container** — `127.0.0.1` inside
-  the server container is the Clara server. Use the OpenCode container service
+  the hub container is the hub service. Use the OpenCode container service
   name or an address reachable from the `clara` network.
 - **Stored device cannot connect** — Clara falls back to the pair form; it does
-  not silently try another server. Revoke the stale entry in the panel.
+  not silently try another hub. Revoke the stale entry in the panel.
 - **Pairing link fails** — the connecting splash gives way to the pair form,
   which shows the connection failure reason.
 - **Camera denied, missing, or busy** — the scanner names the reason and keeps
@@ -140,7 +140,7 @@ own device key through a one-time code; there is no shared browser key.
   and camera error copy in `apps/web/src/lib/qr-scan.ts`
 - Relay transport: `apps/web/src/lib/transport/relay.ts` (also serves the local
   listener)
-- Home agent: `apps/server/src/` (`config`, `agent`, `harness`, `local-server`,
+- Hub: `apps/server/src/` (`config`, `agent`, `harness`, `local-server`,
   `relay-client`, `pairing`, `store/devices`)
 - Harness setup: panel → `harness_connections` in `clara.db`; the active
   OpenCode adapter adds basic auth and proxies `/api/*`

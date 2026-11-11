@@ -2,7 +2,7 @@
 
 A secure web client for [OpenCode](https://opencode.ai) sessions: projects,
 sessions, streaming chat, agents, models, slash commands, `@` mentions, and live
-usage. Clara reaches a home OpenCode server through an end-to-end encrypted
+usage. Clara reaches an OpenCode server through an end-to-end encrypted
 WebSocket, either through the Cloudflare relay or over a local connection on a
 trusted network.
 
@@ -17,8 +17,8 @@ trusted network.
 
 ```text
 apps/web              React/Vite SPA, deployed to Cloudflare Pages or the web container
-apps/panel            Authenticated dashboard and setup surface served by the home agent
-apps/server           Node home agent, harness proxy, local WS + outbound relay
+apps/panel            Authenticated hub panel and setup surface served by the hub service
+apps/server           Node hub service, harness proxy, local WS + outbound relay
 apps/orchestrator     Loopback orchestration service, REST/SSE/MCP
 apps/mcp              stdio MCP bridge to the orchestration service
 plugins/clara-policy  OpenCode strict enforcement binding
@@ -77,7 +77,7 @@ pnpm clara adapter install --opencode
 
 Only the OpenCode adapter is installable today.
 
-The home agent does **not** read OpenCode's `service.json`; it reads the harness
+The hub does **not** read OpenCode's `service.json`; it reads the harness
 connection saved in the authenticated panel. The harness is saved in SQLite with
 its secret encrypted at rest. See [First run](#first-run) for the token file
 and container networking details.
@@ -87,7 +87,7 @@ and container networking details.
 ```bash
 pnpm install
 opencode service start      # or: opencode serve
-pnpm dev                    # web on :5173 and the home agent on :8788
+pnpm dev                    # web on :5173 and the hub service on :8788
 pnpm clara pair             # print a pairing code for the connect screen
 ```
 
@@ -95,7 +95,7 @@ Open <http://localhost:5173> and pair with the code from `pnpm clara pair`.
 
 ### First run
 
-1. Start the agent (`pnpm dev` or `pnpm clara server start --local`).
+1. Start the hub (`pnpm dev` or `pnpm clara server start --local`).
 2. Open the panel at <http://127.0.0.1:8790>, or run `pnpm clara server panel`.
 3. Read the one-time setup token from `~/.config/clara/admin-setup.txt` or run
    `pnpm clara server setup-token` (add `--docker` for the container).
@@ -103,9 +103,9 @@ Open <http://localhost:5173> and pair with the code from `pnpm clara pair`.
    Inside a container, use `http://opencode:4096` or another name reachable from
    the `clara` network, not `127.0.0.1`.
 
-### Agent panel
+### Hub panel
 
-The home agent serves an authenticated dashboard and setup surface on its own
+The hub service serves an authenticated dashboard and setup surface on its own
 listener. In development, run the API and the panel separately:
 
 ```bash
@@ -113,7 +113,7 @@ pnpm dev:server
 pnpm dev:panel   # http://localhost:5174
 ```
 
-In a production build, the panel ships inside the agent and is available at
+In a production build, the panel ships inside the hub service and is available at
 <http://127.0.0.1:8790> after `pnpm build` and `pnpm clara server start --local`.
 Run `pnpm clara server panel` to open it in a browser; the command only opens a
 panel that is already being served. The panel never travels through the relay.
@@ -125,7 +125,7 @@ alive. Settings and harness connections are stored at `CLARA_DB_PATH` or
 with `secrets.key`. The panel never returns device keys, harness password, relay
 tokens, push endpoints, sync values, or file contents. See
 [docs/features/panel.md](docs/features/panel.md) and
-[docs/features/agent-controls.md](docs/features/agent-controls.md).
+[docs/features/hub-controls.md](docs/features/hub-controls.md).
 
 ### Docker stack
 
@@ -138,7 +138,7 @@ pnpm clara restart
 pnpm clara stop
 ```
 
-`start` brings up the orchestrator, the home agent (with its panel), and the web
+`start` brings up the orchestrator, the hub (with its panel), and the web
 client, creates the `clara` network, and writes `docker/.env` with a random
 orchestration token on first run. The containers are named `clara-orchestrator`,
 `clara-server`, and `clara-web`. Disable any part with `--no-orchestrator`,
@@ -209,10 +209,10 @@ same record for each service. The scoped
 shape. For the server record, `url` is the local listener and `details.panel`
 holds the panel URL.
 
-### Server container
+### Hub container
 
-The home agent can also run on its own. Docker is the default; `--local` runs
-the built agent as a detached local process:
+The hub can also run on its own. Docker is the default; `--local` runs
+the built hub service as a detached local process:
 
 ```bash
 pnpm clara server start --build
@@ -222,7 +222,7 @@ pnpm clara server setup-token --docker
 pnpm clara server pair --docker
 ```
 
-The server joins the same `clara` network as the orchestrator and OpenCode. Its
+The hub service joins the same `clara` network as the orchestrator and OpenCode. Its
 panel and local WebSocket are published on host loopback only. Use an SSH tunnel
 for remote panel access; the panel's `Host`/`Origin` guard still expects a
 loopback origin. Do not publish plain HTTP on the LAN. See
@@ -230,7 +230,7 @@ loopback origin. Do not publish plain HTTP on the LAN. See
 [docs/features/panel.md](docs/features/panel.md).
 
 Local installs that keep their databases under `~/.config/clara` should stop
-the agent and OpenCode, then move them once. Docker installs do not use these
+the hub and OpenCode, then move them once. Docker installs do not use these
 directories; use the volume migration guide instead.
 
 ```bash
@@ -253,32 +253,32 @@ Open <http://127.0.0.1:8080>. The image builds the same bundle as
 `pnpm --filter @clara/web build` and serves it with nginx on host loopback; the
 Pages headers and cache rules are mirrored in `docker/web.nginx.conf`.
 
-Pairing mode comes from the agent, not the web image. `pnpm clara server pair
---docker` prints a relay code when the agent has a relay configured and a local
+Pairing mode comes from the hub, not the web image. `pnpm clara server pair
+--docker` prints a relay code when the hub has a relay configured and a local
 code otherwise; add `--no-relay` to force a local code and print the local web
 app link. The relay code already
 carries its `wss://…/room/<id>` URL, so `VITE_CLARA_WS_URL` is only needed when
-the browser must use a different relay endpoint than the agent:
+the browser must use a different relay endpoint than the hub:
 
 ```bash
 VITE_CLARA_WS_URL=wss://relay.example pnpm clara web start --docker --build
 ```
 
-The default Web URL is `http://127.0.0.1:8080`. Set **Web URL** in the agent
+The default Web URL is `http://127.0.0.1:8080`. Set **Web URL** in the hub
 panel for Pages or a remote deployment; `CLARA_PAIRING_BASE_URL` still overrides
 the panel for automation. A `--no-relay` code prints the local web app link even
 when the configured Web URL is remote.
 
 Local pairing works from `http://127.0.0.1:8080` or an SSH tunnel. An HTTPS page
 cannot open a `ws://` socket, so phones and remote browsers still need the relay.
-The container is static and the browser talks to the home agent directly; it
+The container is static and the browser talks to the hub directly; it
 does not proxy API or WebSocket traffic. See
 [docs/features/install.md](docs/features/install.md) and
 [docs/features/connection.md](docs/features/connection.md).
 
 ### Orchestrator container
 
-The orchestrator also runs without the home agent or web client:
+The orchestrator also runs without the hub or web client:
 
 ```bash
 pnpm clara orchestrator start --docker --build
@@ -294,22 +294,22 @@ web client is not required. See
 
 ### Local WebSocket mode
 
-Pair with the local agent directly:
+Pair with the local hub directly:
 
 ```bash
 pnpm clara pair
 ```
 
-The pairing payload carries the agent's own `ws://127.0.0.1:8788/ws` URL, so no
+The pairing payload carries the hub's own `ws://127.0.0.1:8788/ws` URL, so no
 build-time endpoint is needed. Scan the QR or paste the code on the connect
 screen. Local mode still uses E2EE; it does not fall back to plaintext.
 
 Add `--no-relay` (`pnpm clara pair --no-relay`) to force a local-only
-code and print the local web app link even when the agent has a relay
+code and print the local web app link even when the hub has a relay
 configured. The local listener runs
 alongside the relay client, so this exercises the WebSocket transport — including
 the shell policy — without sending traffic through Cloudflare. For the dev app,
-set **Web URL** to `http://localhost:5173` in the agent panel (or set
+set **Web URL** to `http://localhost:5173` in the hub panel (or set
 `CLARA_PAIRING_BASE_URL=http://localhost:5173` when pairing) so the printed link
 opens Vite directly.
 
@@ -339,9 +339,9 @@ cannot open a `ws://` socket. For phones, configure the relay instead.
 
 3. Deploy `apps/web/dist` to your Pages project and attach your own domain.
 
-4. Configure the home agent. The systemd unit reads
+4. Configure the hub. The systemd unit reads
    `~/.config/clara/server.env` (`KEY=value`, mode `0600`) and restarts with it;
-   a hand-started agent needs the same variables exported:
+   a hand-started hub service needs the same variables exported:
 
    ```bash
    CLARA_RELAY_URL=wss://relay.example
@@ -350,17 +350,17 @@ cannot open a `ws://` socket. For phones, configure the relay instead.
    CLARA_CLIENT_TOKEN=<must match the Worker secret>
    ```
 
-   Use your own relay URL. Open the agent panel and set **Web URL** to
+   Use your own relay URL. Open the hub panel and set **Web URL** to
    `https://your-clara.example` for a Pages deployment; `CLARA_PAIRING_BASE_URL`
    overrides the panel if you prefer environment configuration.
 
-5. Restart the agent and check `relay connecting` / `relay online` in its log.
+5. Restart the hub service and check `relay connecting` / `relay online` in its log.
    `pnpm clara pair` must then print a random `Room:` and a `/room/<id>` link;
    a `Room: local` code is local-only and cannot work through the relay.
 
    The relay URL and room are persisted in `~/.config/clara/server.json`, but the
    two tokens are environment-only and never written there. Missing tokens stop
-   the agent at startup with an error naming the missing variable.
+   the hub service at startup with an error naming the missing variable.
 
 `VITE_CLARA_WS_URL` is the relay deployment switch: it retargets relay-room
 pairings and is ignored for `local` pairing codes. When unset, the pairing
@@ -369,8 +369,8 @@ payload's URL is used. See
 
 ## Push notifications
 
-When Clara is connected through the home agent, **Settings → Notifications** can
-enable Web Push. The agent generates a VAPID key pair on first run and stores
+When Clara is connected through the hub, **Settings → Notifications** can
+enable Web Push. The hub generates a VAPID key pair on first run and stores
 subscriptions at `~/.config/clara/subscriptions.json`.
 
 - On iPhone and iPad, add Clara to the Home Screen from Safari and open it from
@@ -378,19 +378,19 @@ subscriptions at `~/.config/clara/subscriptions.json`.
 - Brave on desktop needs **Use Google services for push messaging** enabled at
   `brave://settings/privacy`; Brave has no push service of its own, so
   subscribing fails until that setting is on and the browser is relaunched.
-- The agent must be able to reach the browser vendor's push service over HTTPS.
+- The hub must be able to reach the browser vendor's push service over HTTPS.
 - Revoking a device in the panel clears that device's stored push
   subscriptions. `pnpm clara pair --revoke-all` clears all of them.
 - `CLARA_VAPID_SUBJECT` overrides the VAPID contact subject. The default is
-  `https://clara.local`; the agent panel can edit the contact stored in
+  `https://clara.local`; the hub panel can edit the contact stored in
   `vapid.json`.
-- Test push from a production build with the home agent URL
+- Test push from a production build with the hub URL
   (`VITE_CLARA_WS_URL=ws://127.0.0.1:8788 pnpm build && pnpm preview`) or the
   deployed PWA; the Vite dev server does not enable the service worker.
 
 ## Client settings sync
 
-The agent can store non-secret browser preferences for paired devices, with
+The hub can store non-secret browser preferences for paired devices, with
 per-namespace revisions, deletes, and size limits over the E2EE session. The
 storage and protocol exist; the web client does not sync settings yet and there
 is no UI for it. See [docs/features/sync.md](docs/features/sync.md).
@@ -402,20 +402,20 @@ is no UI for it. See [docs/features/sync.md](docs/features/sync.md).
 | `pnpm task session start` | Create a task worktree under `../clara-worktrees`            |
 | `pnpm task session list`  | List task worktrees                                          |
 | `pnpm task session close` | Check, merge, and remove a task worktree                     |
-| `pnpm dev`                | Web dev server and home agent                                |
+| `pnpm dev`                | Web dev server and hub service                               |
 | `pnpm dev:web`            | Web only                                                     |
-| `pnpm dev:panel`          | Agent panel dev server                                       |
-| `pnpm dev:server`         | Home agent only                                              |
+| `pnpm dev:panel`          | Hub panel dev server                                         |
+| `pnpm dev:server`         | Hub service only                                             |
 | `pnpm dev:relay`          | Local `wrangler dev` for the Worker/DO                       |
 | `pnpm build`              | Build every workspace package                                |
 | `pnpm clara pair`         | Print a pairing code                                         |
-| `pnpm clara server panel` | Open the agent panel in a browser                            |
+| `pnpm clara server panel` | Open the hub panel in a browser                              |
 | `pnpm clara start`        | Start the stack (Docker by default; `--local` for processes) |
 | `pnpm clara stop`         | Stop the stack                                               |
 | `pnpm clara restart`      | Restart the stack                                            |
-| `pnpm clara status`       | Probe the orchestrator, server, and web client               |
+| `pnpm clara status`       | Probe the orchestrator, hub service, and web client          |
 | `pnpm clara logs`         | Follow one service log                                       |
-| `pnpm clara server`       | Start, stop, inspect, pair, or reset the home agent          |
+| `pnpm clara server`       | Start, stop, inspect, pair, or reset the hub                 |
 | `pnpm clara web`          | Start, stop, inspect, or follow the web client               |
 | `pnpm clara orchestrator` | Start, stop, analyze, or inspect the orchestration service   |
 | `pnpm clara runner`       | Run script steps for a workspace                             |
@@ -434,15 +434,15 @@ is no UI for it. See [docs/features/sync.md](docs/features/sync.md).
 - The browser never receives the OpenCode password in relay mode.
 - A pairing link carries a one-time enrollment token, never a long-lived key.
   The browser stores its per-device key as a non-extractable `CryptoKey` in
-  IndexedDB. The agent stores device keys encrypted with `secrets.key`.
+  IndexedDB. The hub stores device keys encrypted with `secrets.key`.
 - Web Push subscriptions live at `~/.config/clara/subscriptions.json`; VAPID
   keys live at `~/.config/clara/vapid.json`. Both use mode `0600`.
-- Agent settings, client sync data, and harness connections live in
+- Hub settings, client sync data, and harness connections live in
   `~/.local/share/clara/clara.db` (mode `0600`). Harness passwords are encrypted
   with `secrets.key` (mode `0600`) or `CLARA_SECRET_KEY`; the database alone does
   not expose them. Push endpoints and sync secrets remain in their existing
   files.
-- The agent panel requires a superadmin login. It listens on `127.0.0.1:8790`
+- The hub panel requires a superadmin login. It listens on `127.0.0.1:8790`
   by default, guards every request with Host/Origin/fetch-metadata checks, and
   keeps the setup token in `admin-setup.txt` (mode `0600`) until the first login.
   It never returns device keys, harness password, relay tokens, push endpoints,

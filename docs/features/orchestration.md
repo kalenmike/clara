@@ -11,7 +11,7 @@ human-facing Clara agent.
 
 ## User flow
 
-1. Start the service from the agent panel's **Orchestration** switch, with
+1. Start the service from the hub panel's **Orchestration** switch, with
    `pnpm clara orchestrator start`, or let the MCP bridge start it on first
    use.
 2. Install the harness adapter and the shared runner with
@@ -92,11 +92,11 @@ hidden automation.
 ## Container deployment
 
 The orchestrator can run as a container on the same Docker network as OpenCode
-and the home agent. That is the preferred setup when the agent itself is
-containerized. `pnpm clara start` brings up the orchestrator, home agent, and
+and the hub. That is the preferred setup when the hub itself is
+containerized. `pnpm clara start` brings up the orchestrator, hub, and
 web client together; the steps below cover the orchestrator-only path.
 
-The home agent uses `docker/server.compose.yml`, joins the same external `clara`
+The hub uses `docker/server.compose.yml`, joins the same external `clara`
 network, and reaches the orchestrator at `http://orchestrator:8789`. The
 orchestrator container is named `clara-orchestrator`.
 
@@ -126,7 +126,7 @@ orchestrator container is named `clara-orchestrator`.
    -v /absolute/path/to/clara:/workspace/clara
    ```
 
-5. Start the home-agent container on the same network:
+5. Start the hub container on the same network:
 
    ```sh
    pnpm clara server start --docker --build
@@ -138,9 +138,9 @@ orchestrator container is named `clara-orchestrator`.
    `CLARA_ORCHESTRATION_HOST=orchestrator` and port `8789`.
 
    `pnpm clara server ... --docker` loads `docker/.env` when the file exists.
-   If the agent uses the relay, set `CLARA_RELAY_ROOM` to a fixed value: pairing
+   If the hub uses the relay, set `CLARA_RELAY_ROOM` to a fixed value: pairing
    codes are scoped to the room, and a changed room makes clients connect to an
-   empty room (`home server offline`) until they pair again.
+   empty room (`hub offline`) until they pair again.
 
 6. Optionally serve the web client from the same Docker host:
 
@@ -149,10 +149,10 @@ orchestrator container is named `clara-orchestrator`.
    ```
 
    Open `http://127.0.0.1:8080`. The pairing code decides local vs relay; the
-   panel Web URL defaults to this container. Set **Web URL** in the agent panel
+   panel Web URL defaults to this container. Set **Web URL** in the hub panel
    for a remote deployment (`CLARA_PAIRING_BASE_URL` overrides it), and set
    `VITE_CLARA_WS_URL` in `docker/.env` and rebuild only when the browser must
-   use a different relay endpoint than the agent. The web container is static
+   use a different relay endpoint than the hub. The web container is static
    and does not proxy OpenCode traffic.
 
 The compose service sets `CLARA_ORCHESTRATION_WORKSPACE=/workspace/clara`, which
@@ -221,7 +221,7 @@ the one-time migration.
    pinned tree; the full step prompt, policy, limits, result, and lease are read
    only from the Lab's dedicated endpoints.
 7. **The panel controls the local service.** The **Orchestration** switch keeps
-   `orchestration.enabled` in the home agent database and starts or stops a
+   `orchestration.enabled` in the hub database and starts or stops a
    local instance. A service started from the CLI, MCP bridge, or Docker is
    detected but left under its own management. Clients receive the effective
    health state as `orchestration` and use it for the Workers grouping.
@@ -831,7 +831,7 @@ they can run while the adapter or setup is degraded. See
   `CLARA_ORCHESTRATION_WORKSPACE` (default: the service's working directory),
   plus `CLARA_STD_DIR` and `CLARA_ORCHESTRATION_CONFIG` when set.
 - Container: `docker compose -f docker/orchestrator.compose.yml up -d --build orchestrator`;
-  the home agent uses `docker/server.compose.yml` on the same `clara` network.
+  the hub uses `docker/server.compose.yml` on the same `clara` network.
 - Commands:
   `pnpm clara orchestrator start [--docker] [--build]|stop [--docker]|status|serve|token|analyze`,
   `pnpm clara mcp install|uninstall|config|status`,

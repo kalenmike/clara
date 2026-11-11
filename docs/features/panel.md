@@ -1,25 +1,24 @@
-# Agent panel
+# Hub panel
 
 ## Summary
 
-An authenticated control panel served by the Clara home agent. It uses the
+An authenticated control panel served by the hub service. It uses the
 Clara Lab workbench layout: a title bar, an activity rail with tabbed views, and
-a status bar. It shows the
-agent's live state, transports, connected clients, active harness probe, push
-health, configuration sources, database health, storage files, and a live
-traffic meter without exposing secrets. Sensitive values start masked behind a
-header peek control so the panel can be screenshared safely. It is also the
-one-time setup surface for the coding-agent connection: the superadmin signs in,
-chooses a password, and saves the OpenCode base URL and credentials. The same
-surface edits the Web URL used by pairing links and the VAPID contact used by
-Web Push, switches external connections on and off, starts and stops the local
-orchestration service, stops the agent without stopping the process, decides
+a status bar. It shows the hub's live state, transports, connected clients,
+active harness probe, push health, configuration sources, database health,
+storage files, and a live traffic meter without exposing secrets. Sensitive
+values start masked behind a header peek control so the panel can be screenshared
+safely. It is also the one-time setup surface for the harness connection: the
+superadmin signs in, chooses a password, and saves the OpenCode base URL and
+credentials. The same surface edits the Web URL used by pairing links and the
+VAPID contact used by Web Push, switches external connections on and off without
+stopping the process, starts and stops the local orchestration service, decides
 which shell commands a Clara client may relay to OpenCode, turns traffic
 monitoring on or off, and gates or paces client settings sync.
 
 ## User flow
 
-1. Start the agent after `pnpm build` with `pnpm clara server start --local`, or
+1. Start the hub after `pnpm build` with `pnpm clara server start --local`, or
    `pnpm clara server start` for the container, then run
    `pnpm clara server panel`. The open command only opens a panel that is
    already being served; the start command prints the panel URL
@@ -33,8 +32,8 @@ monitoring on or off, and gates or paces client settings sync.
 3. After signing in, add the OpenCode harness connection: label, base URL, auth
    type, username, and password. Use **Test** before saving when possible. In a
    container, the URL must be reachable from the `clara` network, for example
-   `http://opencode:4096`; `127.0.0.1` means the Clara server itself.
-4. The panel opens on **Overview** with the Agent and Orchestration cards, a
+   `http://opencode:4096`; `127.0.0.1` means the hub service itself.
+4. The panel opens on **Overview** with the Hub and Orchestration cards, a
    health strip for Harness, Local, Relay, Push, and Orchestration, the five most
    recent events, and a storage summary. A **Needs attention** banner names every
    degraded surface; health tiles jump to their tab. Status chips sit beside each
@@ -50,19 +49,19 @@ monitoring on or off, and gates or paces client settings sync.
    reload. Cards open by default inside their view; click a header to collapse
    it. Cards with a feature switch can only be expanded while that feature is
    enabled.
-6. The title bar shows the agent config path, the connection badge, the last
+6. The title bar shows the hub config path, the connection badge, the last
    update, version, the peek control, **Refresh**, and **Sign out**. The status
-   bar along the bottom summarizes the agent, harness, local, relay, push,
+   bar along the bottom summarizes the hub, harness, local, relay, push,
    orchestration, and client state; each item opens the matching view.
 7. In **Harness**, add the OpenCode connection: label, base URL, auth type,
    username, and password. Use **Test** before saving when possible, then
    **Activate** it. In a container, the URL must be reachable from the `clara`
-   network, for example `http://opencode:4096`; `127.0.0.1` means the Clara
-   server itself. The adjacent card shows the active harness URL, version,
+   network, for example `http://opencode:4096`; `127.0.0.1` means the hub
+   service itself. The adjacent card shows the active harness URL, version,
    latency, secret state, and its on/off switch.
 8. In **Connections**, toggle local transport, relay, or push from the switch at
    the top right of its card. The choice is saved immediately. An enabled switch
-   is green while the agent runs and red while it is stopped; a disabled switch
+   is green while external connections are on and red while they are off; a disabled switch
    keeps its neutral track in both cases. Turning a feature off hides its
    details; turning it on makes the header expandable.
 9. In **Settings**, edit **Web URL** or **VAPID contact** and choose **Save**;
@@ -80,12 +79,12 @@ monitoring on or off, and gates or paces client settings sync.
     choose the interval at which those clients check for changes. Turning it off
     hides the web Sync tab and rejects sync requests; the stored namespace and
     each device's category choices remain. The interval defaults to 30 seconds.
-12. To take every external connection offline, choose **Stop agent** at the top
-    right of the Agent card on Overview and confirm. The page keeps polling; the
+12. To take every external connection offline, choose **Go offline** at the top
+    right of the Hub card on Overview and confirm. The page keeps polling; the
     banner explains that the panel is still available.
-13. Choose **Start agent** to restore the saved choices. Feature switches are
-    disabled until the agent is started again and show red while they are
-    stopped, so the stopped state is readable from the switch colors alone. The
+13. Choose **Go online** to restore the saved choices. Feature switches are
+    disabled until connections are back online and show red while they are
+    stopped, so the offline state is readable from the switch colors alone. The
     shell policy stays editable because it only applies while connections are
     up.
 14. In **Clients**, review the connected-client table and paired devices. A
@@ -108,7 +107,7 @@ monitoring on or off, and gates or paces client settings sync.
 16. Use the switch at the top left of **Traffic** to stop recording. The card
     collapses to its header, the counters are discarded, and the client table
     drops its traffic columns. Turning it back on starts a fresh window with a
-    one-minute warm-up. The switch stays usable while the agent is stopped.
+    one-minute warm-up. The switch stays usable while external connections are off.
 17. In **Activity**, read the in-memory events and the storage list. The storage
     header summarizes the most severe entry and its count, and the overview links
     here for the full list.
@@ -139,7 +138,7 @@ monitoring on or off, and gates or paces client settings sync.
    `clara-server admin reset`, which writes a fresh token and revokes sessions.
    There is no network password-reset endpoint.
 3. **Reads and writes require a session.** `GET` and `HEAD` serve the snapshot
-   and assets after login. `POST` is accepted at the feature, agent, shell,
+   and assets after login. `POST` is accepted at the feature, master-stop, shell,
    monitoring, sync, orchestration, config, harness, password, and device-purge
    routes; `PATCH` changes a device alias; `DELETE` revokes a device and removes a
    harness or the session. Unknown mutating methods return `405`.
@@ -159,12 +158,12 @@ monitoring on or off, and gates or paces client settings sync.
 6. **Settings are durable.** Feature choices, the stopped flag, the shell
    policy, the monitoring choice, the orchestration switch, the client-sync
    gate and interval, the panel users, and harness connections live in the
-   agent's SQLite database and are loaded before any transport starts. The panel
-   can fail without stopping the agent; a busy panel port only loses the panel.
+   hub's SQLite database and are loaded before any transport starts. The panel
+   can fail without stopping the hub service; a busy panel port only loses the panel.
    The Web URL lives in `server.json` and the VAPID contact in `vapid.json`; the
    panel writes both, the environment overrides either, and the VAPID contact is
    applied to the live push service.
-7. **The shell policy is read per request.** The agent consults it before
+7. **The shell policy is read per request.** The hub service consults it before
    forwarding a command request, so Apply takes effect on the next command
    without a restart. `off` refuses them all. `allowlist` with an empty filter
    list allows every command, but still requires a location and refuses a
@@ -172,12 +171,12 @@ monitoring on or off, and gates or paces client settings sync.
    saved entry is a literal argv prefix of it. Entries cannot contain shell
    syntax, and interpreters such as `sh`, `env`, or `python` cannot be saved.
 8. **This is a guardrail, not a sandbox.** The policy governs command requests
-   relayed by this agent. It does not restrict the rest of the OpenCode API: file
-   writes, prompts that let an agent run tools, and plugin RPC can still affect
+   relayed by this hub. It does not restrict the rest of the OpenCode API: file
+   writes, prompts that let an LLM agent run tools, and plugin RPC can still affect
    the host. See [git](git.md) for
    the full caveat.
 9. **Traffic monitoring is advisory and in memory.** The meter counts frame
-   sizes, decrypted request actions, and the failures the agent already detects;
+   sizes, decrypted request actions, and the failures the hub already detects;
    it never reads or stores payloads. Counters live in a sixty-minute ring of
    one-minute buckets and reset on restart or when monitoring is switched off.
    Nothing is throttled, blocked, or persisted, and the per-client counters are
@@ -186,24 +185,24 @@ monitoring on or off, and gates or paces client settings sync.
     fingerprints, config and storage paths, local WebSocket endpoint, relay URL
     and room, connection session ids, and WebSocket URLs in activity messages
     and error notices. It does not redact the JSON snapshot, change any control,
-    or reach the server: the agent's allowlist remains the security boundary.
+    or reach the hub service: its allowlist remains the security boundary.
     The choice lives in `sessionStorage` for the tab, so a reload keeps it and a
     new tab starts masked.
 
 ## Edge cases
 
 - **No harness is configured** — the harness card starts open with the setup
-  form. `/api/*` requests through the agent return `503 harness_unconfigured`
+  form. `/api/*` requests through the hub return `503 harness_unconfigured`
   until a connection is saved and activated. The web app should be configured
   after this step.
 - **The harness is down or rejects the password** — the harness card shows
-  unreachable, timed out, or auth rejected, with the last check time. The agent
+  unreachable, timed out, or auth rejected, with the last check time. The hub
   keeps running.
 - **The harness is turned off** — the card says disabled, the probe is not run,
   and proxied requests fail with a disabled error. Local and relay clients stay
   connected.
 - **The harness secret key is lost** — the connection stays listed but is
-  marked unconfigured. Re-enter the password; the rest of the agent keeps
+  marked unconfigured. Re-enter the password; the rest of the hub keeps
   running.
 - **The setup token is missing** — the panel explains how to run
   `pnpm clara server setup-token` or `clara-server admin reset`. It does not
@@ -238,9 +237,9 @@ monitoring on or off, and gates or paces client settings sync.
 - **Client sync is off** — the web Sync tab disappears, sync actions return
   `disabled`, and the stored namespace and per-device category choices are kept
   for the next enable.
-- **Sync interval changes** — connected clients receive the new cadence in an
-  agent-info update and reschedule their next check without reconnecting.
-- **The agent is stopped** — a banner says external connections are off, every
+- **Sync interval changes** — connected clients receive the new cadence in a
+  hub status update and reschedule their next check without reconnecting.
+- **Connections are off** — a banner says external connections are off, every
   transport card shows a stopped state, and feature switches are disabled. An
   enabled feature switch turns red and a disabled one keeps its neutral track.
   The shell, Traffic, and Client sync switches keep their usual colors. The
@@ -248,24 +247,24 @@ monitoring on or off, and gates or paces client settings sync.
 - **The filter list is empty** — every command is allowed once Apply saves the
   enabled policy, and the card shows a warning. The location requirement and the
   working-directory check still apply.
-- **A command is refused** — the agent returns `403` to the client and increments
+- **A command is refused** — the hub returns `403` to the client and increments
   the refusal counter on the shell card. The command is never logged; only the
   method, path, and policy code are.
 - **A shell entry is invalid** — Apply reports the error and keeps the saved
   policy unchanged; the textarea keeps the draft so it can be fixed.
 - **The policy is off** — Clara's Git tab shows that commit history is disabled
   and does not retry.
-- **Orchestration changes** — the home agent probes `/health` before and after
+- **Orchestration changes** — the hub probes `/health` before and after
   the action, then broadcasts the new `orchestration` flag so connected clients
   add or remove the Workers treatment without a reload. A failed local start
   keeps the error on the card. A Docker or external instance cannot be stopped
   from the panel.
 - **A feature fails to start** — the saved choice remains, the card shows the
-  error, and the rest of the agent keeps running.
+  error, and the rest of the hub keeps running.
 - **No clients** — the client table shows an empty state.
 - **A pairing session is listed** — the row carries a **Pairing** badge instead
   of a device. It is the one-time enrollment connection, not a failed client,
-  and the agent retires it as soon as the device-enrolled response is sent.
+  and the hub retires it as soon as the device-enrolled response is sent.
 - **The panel is screenshared** — sensitive values load masked and the eye
   button reveals them for the tab. Masked values lose their full-value tooltips
   and copy buttons, and the same scrubber covers activity messages and error
@@ -287,7 +286,7 @@ monitoring on or off, and gates or paces client settings sync.
   are readable by other users.
 - **The panel was not built** — the page returns a short instruction to run
   `pnpm build`; the JSON API still works.
-- **Panel port is busy** — the agent logs `panel unavailable` and continues.
+- **Panel port is busy** — the hub service logs `panel unavailable` and continues.
 
 ## Out of scope
 
@@ -308,18 +307,18 @@ monitoring on or off, and gates or paces client settings sync.
 ## Known gaps
 
 - Authentication is not host isolation. A process with the panel cookie, the
-  database, or `secrets.key` can still act as the agent; keep the config and
+  database, or `secrets.key` can still act as the hub; keep the config and
   data directories private.
-- Sessions are in memory, so restarting the agent signs everyone out.
+- Sessions are in memory, so restarting the hub service signs everyone out.
 - The superadmin password is hashed; harness passwords are reversible and must
   be encrypted at rest with a backed-up key.
 - Device identity is logical, not hardware-bound. The panel shows one row per
   stored device and one row per live connection; multiple tabs share a device.
-- Traffic is measured at the agent, so connections the relay rejects before they
+- Traffic is measured at the hub, so connections the relay rejects before they
   reach it, and Cloudflare-level bandwidth, are visible only in Cloudflare
   analytics.
 - The traffic window and the activity list are in memory and reset when the
-  agent restarts.
+  hub service restarts.
 - A session that spans a monitoring toggle shows only the traffic recorded while
   monitoring was on.
 - The OpenCode probe is cached for five seconds, so the card can briefly lag a
@@ -341,7 +340,7 @@ monitoring on or off, and gates or paces client settings sync.
 - Read API: `GET /panel/api/v1/status` (API version `10`, authenticated)
 - Mutations:
   - `POST /panel/api/v1/features` with `{ "feature": "...", "enabled": true }`
-  - `POST /panel/api/v1/agent` with `{ "stopped": true }`
+  - `POST /panel/api/v1/agent` with `{ "stopped": true }` (external connections off)
   - `POST /panel/api/v1/orchestration` with `{ "enabled": true }`
   - `POST /panel/api/v1/config` with `{ "pairingBaseUrl": "https://..." }` or
     `{ "vapidSubject": "mailto:..." }`; send `null` to restore the default
@@ -375,21 +374,21 @@ monitoring on or off, and gates or paces client settings sync.
 - CLI: `clara-server serve --no-panel`, `clara-server admin reset|setup-token`
 - Built assets: `apps/server/dist/panel`, copied from `apps/panel/dist`
 - Open the built panel: `pnpm clara server panel` opens
-  `http://127.0.0.1:${CLARA_PANEL_PORT:-8790}/` in a browser when the agent is
-  already serving it; start the agent with `pnpm clara server start --local`
-  (or `--docker`) first. The panel is a surface of the home agent, not a
+  `http://127.0.0.1:${CLARA_PANEL_PORT:-8790}/` in a browser when the hub service is
+  already serving it; start the hub with `pnpm clara server start --local`
+  (or `--docker`) first. The panel is a surface of the hub, not a
   separate service
 - Docker (default): `pnpm clara server start|stop|restart|status|setup-token|pair|admin|logs`;
   `setup-token`, `admin`, and `pair` target the running deployment
   automatically, and `--docker`/`--local` force the container or the host
   install. Pass `--local` to `start`, `stop`, `restart`, or `logs` to use
-  the detached local agent instead. `pair --no-relay` emits a local-only code.
-  The rebuild snapshot records the home agent as `container` or `local` and
+  the detached local hub instead. `pair --no-relay` emits a local-only code.
+  The rebuild snapshot records the hub as `container` or `local` and
   recreates a container with stop/start instead of signalling a PID. See
   [maintenance.md](maintenance.md).
 - Dev UI: `pnpm dev:panel` (Vite on `5174`, proxying `/panel/api` to `8790`; the
   proxy rewrites `Host` and `Origin`, and the browser carries the session cookie)
-- Snapshot sections: agent, auth, config, harness, harnesses, devices, local transport,
+- Snapshot sections: hub, auth, config, harness, harnesses, devices, local transport,
   relay, clients, push, controls (feature switches, shell, monitoring, sync,
   orchestration), storage, events, traffic
 - Shell policy: `apps/server/src/shell-policy.ts` (matching, validation, and the
@@ -423,7 +422,7 @@ monitoring on or off, and gates or paces client settings sync.
 - Guards: authenticated session for `/panel/api/*`, optional bridge source
   allowance, `Host`, `Origin`, `Sec-Fetch-Site`, guarded JSON mutations, path
   allowlist, CSP, `no-store`, no CORS
-- Related: [agent-controls.md](agent-controls.md), [git.md](git.md),
+- Related: [hub-controls.md](hub-controls.md), [git.md](git.md),
   [sync.md](sync.md), [overview.md](../architecture/overview.md),
   [pairing.md](pairing.md), [connection.md](connection.md),
   [notifications.md](notifications.md)

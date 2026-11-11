@@ -3,26 +3,26 @@
 ## Summary
 
 Paired devices can share a small set of non-secret preferences through the Clara
-home agent. Each device chooses which categories it syncs from **Settings →
-Sync**; the agent stores the values over the end-to-end encrypted session and
-wins when a device disagrees. The agent panel controls whether sync is available
+hub. Each device chooses which categories it syncs from **Settings →
+Sync**; the hub stores the values over the end-to-end encrypted session and
+wins when a device disagrees. The hub panel controls whether sync is available
 at all and how often clients check for changes.
 
 ## User flow
 
-1. Pair Clara with a home agent over the relay or its local WebSocket. Direct
-   HTTP mode has no sync because there is no Clara agent to store the values.
+1. Pair Clara with a hub over the relay or its local WebSocket. Direct
+   HTTP mode has no sync because there is no Clara hub to store the values.
 2. Open **Settings** and choose the **Sync** tab.
 3. Turn on the categories this device should share: **Theme**, **Preferences**,
    **Models**, **Notifications**, **Project**, or **Inbox monitor**.
-4. The first time a category is turned on, Clara pulls the agent's copy. A value
-   the agent already has wins; a key it lacks is filled from this device.
+4. The first time a category is turned on, Clara pulls the hub's copy. A value
+   the hub already has wins; a key it lacks is filled from this device.
 5. Change a synced setting normally. Clara updates local storage immediately and
-   pushes the changed key to the agent shortly after.
+   pushes the changed key to the hub shortly after.
 6. Leave Clara open. Every 30 seconds by default, each device asks only for the
    namespace revision. It pulls the full snapshot only when that revision moved,
-   then applies the agent's values.
-7. In the home agent panel, an admin can change the check interval or turn
+   then applies the hub's values.
+7. In the hub panel, an admin can change the check interval or turn
    settings sync off entirely. Turning it off hides the Sync tab on every
    client and rejects sync requests.
 8. The Sync card shows the current cadence, the last successful sync, any error,
@@ -37,10 +37,10 @@ at all and how often clients check for changes.
    categories, the last applied revision, and unsynced keys on this client. It is
    never uploaded, so two devices can sync different categories.
 3. **First enable adopts the server.** A category pulls before it turns on. For
-   every key in that category, an existing server value is applied; if the agent
+   every key in that category, an existing server value is applied; if the hub
    has no value, the local value is pushed. A failed pull leaves the category off.
-4. **Server values win.** A pull applies the agent's values for enabled
-   categories. A push conflict applies the value the agent already has and drops
+4. **Hub values win.** A pull applies the hub's values for enabled
+   categories. A push conflict applies the value the hub already has and drops
    the losing local batch. Disabling a category stops applying and pushing but
    leaves the stored namespace intact.
 5. **Check first, pull only when needed.** Local changes are pushed after a short
@@ -48,9 +48,9 @@ at all and how often clients check for changes.
    namespace revision; the full `sync.pull` happens only when the revision moved.
    Reconnects, visibility resume, and **Sync now** follow the same rule.
 6. **The panel owns the gate and cadence.** `sync.enabled` hides the feature on
-   every client and makes the agent reject sync actions with `disabled`.
+   every client and makes the hub reject sync actions with `disabled`.
    `sync.intervalMs` is the client check cadence and defaults to 30 seconds. The
-   agent broadcasts both values to connected clients as updated agent info.
+   hub broadcasts both values to connected clients as updated hub status.
 7. **Notifications sync the preference, not the device.** Only sounds, UI sounds,
    volume, per-state sound switches, and the desk idle window sync. Browser
    permission, the desktop switch, and this device's push subscription stay
@@ -65,13 +65,13 @@ at all and how often clients check for changes.
 
 ## Edge cases
 
-- **Not connected** — the Sync tab stays visible but disabled until the home
-  agent transport is open.
-- **Admin disables sync** — connected clients update from the agent's broadcast,
+- **Not connected** — the Sync tab stays visible but disabled until the hub
+  transport is open.
+- **Admin disables sync** — connected clients update from the hub's broadcast,
   the tab disappears, and the engine stops. The stored namespace and each
   device's category choices remain.
 - **Admin changes the cadence** — connected clients reschedule their next check;
-  new pairings receive the value in the initial agent info.
+  new pairings receive the value in the initial hub status.
 - **Unknown revision** — a client with no remembered revision pulls once to
   establish its cache before relying on revision checks.
 - **Page reload** — the saved revision avoids an unnecessary full pull. Any keys
@@ -83,13 +83,13 @@ at all and how often clients check for changes.
   is pushed so the namespace can heal.
 - **Model visibility conflict** — a pull replaces the entire hidden model group;
   individual toggles from the losing device are not merged.
-- **Missing or extra keys in a category** — a key the agent lacks is filled from
+- **Missing or extra keys in a category** — a key the hub lacks is filled from
   the first enabled device. Keys for categories this device did not enable are
   ignored.
 - **Namespace limits** — the existing limits still apply: 100 entries per push,
   64 KB per value, 500 live entries, and 1 MB per namespace.
-- **The agent is stopped** — no client can reach it. Sync resumes from the saved
-  revision when the agent starts again.
+- **Connections are off** — no client can reach the hub. Sync resumes from the saved
+  revision when connections return.
 
 ## Out of scope
 
@@ -98,7 +98,7 @@ at all and how often clients check for changes.
 - Syncing credentials, pairing payloads, drafts, or message content
 - Deleting server entries from the web UI
 - Syncing browser notification permission or a device's push subscription
-- Per-client cadence overrides; the agent panel setting is global
+- Per-client cadence overrides; the hub panel setting is global
 
 ## Technical appendix
 
@@ -133,6 +133,6 @@ at all and how often clients check for changes.
 
 Related: [settings.md](settings.md), [models.md](models.md), [theme.md](theme.md),
 [notifications.md](notifications.md), [panel.md](panel.md),
-[agent-controls.md](agent-controls.md), [e2ee.md](../architecture/e2ee.md).
+[hub-controls.md](hub-controls.md), [e2ee.md](../architecture/e2ee.md).
 
 </details>
