@@ -137,9 +137,7 @@ session's own directory. The browser never reads its own filesystem.
 
 The browser has no generic shell endpoint. Git history is the only host command
 Clara runs, and the hub constructs it from validated timestamps and the session
-directory. The legacy `/api` proxy and its shell policy remain only for older
-clients until the final cleanup; the web client uses the typed `/v1` API and
-never calls them.
+directory. The web client uses the typed `/v1` API and never sends a command.
 
 ## Out of scope
 
@@ -200,7 +198,7 @@ never calls them.
 - Project ID: the canonical project record for the route, passed from the chat
   page so worktree lookups use the record that owns them
 - Git log endpoint: `apps/server/src/api/git.ts` builds the command and parses
-  the output; the legacy shell policy is only used by the retired proxy path
+  the output
 - Live updates: `filesystem.changed` for changes, `vcs.branch.updated` and
   session idle/execution events for history, `worktree.updated` and
   `worktree.resolved` for worktrees

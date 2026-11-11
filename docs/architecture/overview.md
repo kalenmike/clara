@@ -129,8 +129,8 @@ described in [pairing.md](../features/pairing.md).
 The OpenCode password never reaches the browser. The hub adds basic auth,
 strips client-supplied authorization/hop-by-hop headers, and only reaches
 `/api/` paths on the configured origin from server-side API handlers. The web
-client uses `@clara/api-client` against `/v1`; the legacy proxy remains only for
-older clients until the final cleanup.
+client uses `@clara/api-client` against `/v1`; the browser has no generic
+OpenCode proxy.
 
 ## Runtime shape
 
@@ -163,18 +163,18 @@ ConnectionProvider
 - The hub service serves `apps/panel` on a second listener (default
   `127.0.0.1:8790`). It requires a superadmin session, provides first-run setup
   and harness configuration, reads one allowlisted runtime snapshot, exposes
-  guarded controls for the four external features, the Go offline control, the shell
-  policy, monitoring, the client-sync gate and cadence, and the local
-  orchestration service, and never returns device keys, harness password, tokens,
+  guarded controls for the four external features, the Go offline control,
+  monitoring, the client-sync gate and cadence, and the local orchestration
+  service, and never returns device keys, harness password, tokens,
   push endpoints, sync values, or file contents. See
   [panel.md](../features/panel.md) and
   [hub-controls.md](../features/hub-controls.md).
 - Harness connections live in SQLite; exactly one is active. `HarnessManager`
   builds the matching client on load and after a panel save, so the hub proxy
   hot-swaps without a restart. OpenCode is the first adapter.
-- Feature choices, the stopped flag, shell policy, monitoring, the
-  orchestration switch, the client-sync gate and interval, panel users, and
-  harness connections live in a `better-sqlite3` database at
+- Feature choices, the stopped flag, monitoring, the orchestration switch, the
+  client-sync gate and interval, panel users, and harness connections live in a
+  `better-sqlite3` database at
   `CLARA_DB_PATH` or `<data dir>/clara.db`. Desired state is persisted first;
   effective state also requires the transport to start. The same database holds
   the non-secret client sync namespace, described in
@@ -225,26 +225,11 @@ directory from the session record. Moving a session to a worktree changes only
 
 ## Host command policy
 
-The web client normally only reads OpenCode state. The one exception is Git
-history: the Git tab asks the hub to run `git log -n 10` with a
-machine-readable `--format` through OpenCode's shell API.
-
-The hub service inspects every proxied request before forwarding it. Command-capable
-routes — `/api/shell`, `/api/session/:id/shell`, `/api/pty`,
-`/api/experimental/persistent-pty`, and
-`/api/experimental/session/:id/terminal` — are refused with `403` unless the
-saved shell policy allows the request:
-
-- `off` blocks every command request and every `/api/shell` read.
-- `allowlist` admits a request only when a saved entry is a literal argv prefix.
-  Shell syntax is refused rather than parsed, and interpreters such as `sh`,
-  `env`, or `python` cannot be saved. The working directory must stay inside the
-  request's location.
-
-The policy lives in `clara.db`, is read on every request, and is changed from the
-loopback panel. It applies only to command requests; other OpenCode APIs are
-outside it. It is a guardrail, not a sandbox: see
-[git.md](../features/git.md#not-a-sandbox).
+The browser has no generic shell path. Git history is the only host command
+Clara runs: the hub's `/v1/git/log` endpoint builds a fixed `git log -n 10` with
+a machine-readable `--format` from validated timestamps and the session
+directory, runs it through OpenCode's shell API, and returns parsed commits. See
+[git.md](../features/git.md).
 
 ## Streaming model
 
@@ -266,9 +251,8 @@ loop re-subscribes through the transport.
 
 ## Security notes
 
-- The shell policy is a guardrail, not a sandbox. It filters command requests
-  relayed by the hub, but a modified web build can still use non-command
-  OpenCode APIs through the hub.
+- The hub only exposes the typed `/v1` API. The browser has no generic OpenCode
+  proxy or shell path; the one host command is the fixed Git history endpoint.
 - Never commit `service.json`, passwords, pairing codes, device keys, relay tokens,
   `secrets.key`, or `admin-setup.txt`.
 - The hub's config is `~/.config/clara/server.json` (mode `0600`).

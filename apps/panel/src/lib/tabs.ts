@@ -90,7 +90,7 @@ export const PANEL_TABS: PanelTabMeta[] = [
     icon: Settings,
     kicker: 'Control',
     title: 'Settings',
-    description: 'Effective configuration, client sync, and the shell guardrail.',
+    description: 'Effective configuration and client sync.',
     primary: false,
   },
 ]

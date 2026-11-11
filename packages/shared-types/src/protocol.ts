@@ -1,5 +1,5 @@
 /** Wire protocol version. Bump when a frame shape changes. */
-export const PROTOCOL_VERSION = 2
+export const PROTOCOL_VERSION = 3
 
 export type DeviceErrorCode =
   | 'unknown_device'

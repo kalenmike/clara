@@ -12,9 +12,8 @@ peek control so the panel can be screenshared safely. It is also the one-time
 setup surface for the harness connection: the superadmin signs in, chooses a
 password, and saves the OpenCode base URL and credentials. The same surface edits the Web URL used by pairing links and the
 VAPID contact used by Web Push, switches external connections on and off without
-stopping the process, starts and stops the local orchestration service, decides
-which shell commands a Clara client may relay to OpenCode, turns traffic
-monitoring on or off, and gates or paces client settings sync.
+stopping the process, starts and stops the local orchestration service, turns
+traffic monitoring on or off, and gates or paces client settings sync.
 
 ## User flow
 
@@ -84,9 +83,7 @@ monitoring on or off, and gates or paces client settings sync.
     banner explains that the panel is still available.
 13. Choose **Go online** to restore the saved choices. Feature switches are
     disabled until connections are back online and show red while they are
-    stopped, so the offline state is readable from the switch colors alone. The
-    shell policy stays editable because it only applies while connections are
-    up.
+    stopped, so the offline state is readable from the switch colors alone.
 14. In **Clients**, review the connected-client table and paired devices. A
     one-time pairing session appears with a **Pairing** badge and no device until
     enrollment finishes; it is excluded from the active count and the local E2EE
@@ -138,7 +135,7 @@ monitoring on or off, and gates or paces client settings sync.
    `clara-server admin reset`, which writes a fresh token and revokes sessions.
    There is no network password-reset endpoint.
 3. **Reads and writes require a session.** `GET` and `HEAD` serve the snapshot
-   and assets after login. `POST` is accepted at the feature, master-stop, shell,
+   and assets after login. `POST` is accepted at the feature, master-stop,
    monitoring, sync, orchestration, config, harness, password, and device-purge
    routes; `PATCH` changes a device alias; `DELETE` revokes a device and removes a
    harness or the session. Unknown mutating methods return `405`.
@@ -155,45 +152,33 @@ monitoring on or off, and gates or paces client settings sync.
    body at 8 KB. The custom header forces a CORS preflight for cross-origin
    pages, which the server rejects. No CORS headers are sent. Login and setup
    are rate-limited per source and username.
-6. **Settings are durable.** Feature choices, the stopped flag, the shell
-   policy, the monitoring choice, the orchestration switch, the client-sync
-   gate and interval, the panel users, and harness connections live in the
+6. **Settings are durable.** Feature choices, the stopped flag, the monitoring
+   choice, the orchestration switch, the client-sync gate and interval, the
+   panel users, and harness connections live in the
    hub's SQLite database and are loaded before any transport starts. The panel
    can fail without stopping the hub service; a busy panel port only loses the panel.
    The Web URL lives in `server.json` and the VAPID contact in `vapid.json`; the
    panel writes both, the environment overrides either, and the VAPID contact is
    applied to the live push service.
-7. **The shell policy is read per request.** The hub service consults it before
-   forwarding a command request, so Apply takes effect on the next command
-   without a restart. `off` refuses them all. `allowlist` with an empty filter
-   list allows every command, but still requires a location and refuses a
-   working directory outside it. A non-empty list admits a request only when a
-   saved entry is a literal argv prefix of it. Entries cannot contain shell
-   syntax, and interpreters such as `sh`, `env`, or `python` cannot be saved.
-8. **This is a guardrail, not a sandbox.** The policy governs command requests
-   relayed by this hub. It does not restrict the rest of the OpenCode API: file
-   writes, prompts that let an LLM agent run tools, and plugin RPC can still affect
-   the host. See [git](git.md) for
-   the full caveat.
-9. **Traffic monitoring is advisory and in memory.** The meter counts frame
+7. **Traffic monitoring is advisory and in memory.** The meter counts frame
    sizes, decrypted request actions, and the failures the hub already detects;
    it never reads or stores payloads. Counters live in a sixty-minute ring of
    one-minute buckets and reset on restart or when monitoring is switched off.
    Nothing is throttled, blocked, or persisted, and the per-client counters are
    hidden while monitoring is off.
-10. **Peek is presentation-only.** The eye button masks device ids and
-    fingerprints, config and storage paths, local WebSocket endpoint, harness
-    URL, relay URL and room, connection session ids, and WebSocket URLs in
-    activity messages and error notices. The Home health tiles and status bar
-    tooltips use the same scrubber. It does not redact the JSON snapshot, change
-    any control, or reach the hub service: its allowlist remains the security
-    boundary. The choice lives in `sessionStorage` for the tab, so a reload
-    keeps it and a new tab starts masked.
+8. **Peek is presentation-only.** The eye button masks device ids and
+   fingerprints, config and storage paths, local WebSocket endpoint, harness
+   URL, relay URL and room, connection session ids, and WebSocket URLs in
+   activity messages and error notices. The Home health tiles and status bar
+   tooltips use the same scrubber. It does not redact the JSON snapshot, change
+   any control, or reach the hub service: its allowlist remains the security
+   boundary. The choice lives in `sessionStorage` for the tab, so a reload
+   keeps it and a new tab starts masked.
 
 ## Edge cases
 
 - **No harness is configured** — the harness card starts open with the setup
-  form. `/api/*` requests through the hub return `503 harness_unconfigured`
+  form. `/v1` requests through the hub return `503 harness_unconfigured`
   until a connection is saved and activated. The web app should be configured
   after this step.
 - **The harness is down or rejects the password** — the harness card shows
@@ -243,18 +228,7 @@ monitoring on or off, and gates or paces client settings sync.
 - **Connections are off** — a banner says external connections are off, every
   transport card shows a stopped state, and feature switches are disabled. An
   enabled feature switch turns red and a disabled one keeps its neutral track.
-  The shell, Traffic, and Client sync switches keep their usual colors. The
-  shell toggle and draft stay editable.
-- **The filter list is empty** — every command is allowed once Apply saves the
-  enabled policy, and the card shows a warning. The location requirement and the
-  working-directory check still apply.
-- **A command is refused** — the hub returns `403` to the client and increments
-  the refusal counter on the shell card. The command is never logged; only the
-  method, path, and policy code are.
-- **A shell entry is invalid** — Apply reports the error and keeps the saved
-  policy unchanged; the textarea keeps the draft so it can be fixed.
-- **The policy is off** — Clara's Git tab shows that commit history is disabled
-  and does not retry.
+  The Traffic and Client sync switches keep their usual colors.
 - **Orchestration changes** — the hub probes `/health` before and after
   the action, then broadcasts the new `orchestration` flag so connected clients
   add or remove the Workers treatment without a reload. A failed local start
@@ -345,7 +319,6 @@ monitoring on or off, and gates or paces client settings sync.
   - `POST /panel/api/v1/orchestration` with `{ "enabled": true }`
   - `POST /panel/api/v1/config` with `{ "pairingBaseUrl": "https://..." }` or
     `{ "vapidSubject": "mailto:..." }`; send `null` to restore the default
-  - `POST /panel/api/v1/shell` with `{ "mode": "off" | "allowlist", "commands": ["git log"] }`
   - `POST /panel/api/v1/monitoring` with `{ "enabled": false }`
   - `POST /panel/api/v1/sync` with `{ "enabled": true, "intervalMs": 30000 }`
   - `POST /panel/api/v1/harnesses` and `POST /panel/api/v1/harnesses/:id`
@@ -390,11 +363,8 @@ monitoring on or off, and gates or paces client settings sync.
 - Dev UI: `pnpm dev:panel` (Vite on `5174`, proxying `/panel/api` to `8790`; the
   proxy rewrites `Host` and `Origin`, and the browser carries the session cookie)
 - Snapshot sections: hub, auth, config, harness, harnesses, devices, local transport,
-  relay, clients, push, controls (feature switches, shell, monitoring, sync,
+  relay, clients, push, controls (feature switches, monitoring, sync,
   orchestration), storage, events, traffic
-- Shell policy: `apps/server/src/shell-policy.ts` (matching, validation, and the
-  `403` decision), `apps/server/src/agent.ts` (enforcement), and the
-  `ShellPolicyCard` in `apps/panel/src/components/shell-policy-card.tsx`
 - Traffic meter: `apps/server/src/traffic.ts` (sixty one-minute buckets, rates,
   spike detection), fed by `apps/server/src/agent.ts` and read by
   `PanelRuntime`; rendered by the `TrafficCard` in
@@ -408,8 +378,7 @@ monitoring on or off, and gates or paces client settings sync.
   `apps/panel/src/lib/peek-context.tsx` (tab state), and the header button in
   `apps/panel/src/App.tsx`; the choice is stored under `clara.panel.peek` in
   `sessionStorage`
-- Policy storage: `shell.mode` and `shell.commands` in the settings table,
-  added by database migration `2`; `monitoring.enabled`, added by migration `3`;
+- Policy storage: `monitoring.enabled`, added by migration `3`;
   `sync.enabled` and `sync.intervalMs`, added by migration `4`;
   `orchestration.enabled`, added by migration `5`; panel users, setup tokens,
   harness connections, and harness secrets added by migration `6`; device records

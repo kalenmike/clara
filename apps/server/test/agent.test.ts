@@ -20,6 +20,7 @@ import {
   type WireFrame,
 } from '@clara/shared-types'
 import { Agent, type AgentPolicy } from '../src/agent.ts'
+import { createApiApp } from '../src/api/app.ts'
 import type { ApiApp } from '../src/api/context.ts'
 import type { HarnessManager } from '../src/harness/manager.ts'
 import { HarnessUnconfiguredError } from '../src/harness/types.ts'
@@ -43,6 +44,61 @@ function fakeHarness(url: string, configured = true): HarnessManager {
       return client.request(action, signal)
     },
   } as unknown as HarnessManager
+}
+
+function fakeApi(
+  fake: FakeOpenCode,
+  configured = true,
+  canAccess: () => boolean = () => true
+): ApiApp {
+  return createApiApp(
+    {
+      harness: fakeHarness(fake.url, configured),
+      info: { version: 'test', protocol: PROTOCOL_VERSION },
+      startedAt: Date.now(),
+      canAccess,
+      sessionCount: () => 0,
+      log: () => undefined,
+    },
+    { token: 'test-token' }
+  )
+}
+
+function heldApi(): ApiApp {
+  return {
+    fetch: async (request) => {
+      const stream = new ReadableStream<Uint8Array>({
+        start(controller) {
+          request.signal.addEventListener('abort', () => {
+            try {
+              controller.error(new DOMException('Aborted', 'AbortError'))
+            } catch {
+              // The stream may already be closed.
+            }
+          })
+        },
+      })
+      return new Response(stream, { status: 200 })
+    },
+    openapi: async () => ({}),
+  }
+}
+
+function streamApi(chunks: string[]): ApiApp {
+  const encoder = new TextEncoder()
+  return {
+    fetch: async () =>
+      new Response(
+        new ReadableStream<Uint8Array>({
+          start(controller) {
+            for (const chunk of chunks) controller.enqueue(encoder.encode(chunk))
+            controller.close()
+          },
+        }),
+        { status: 200, headers: { 'content-type': 'text/event-stream' } }
+      ),
+    openapi: async () => ({}),
+  }
 }
 
 type FakeOpenCode = {
@@ -146,13 +202,12 @@ async function connect(
   const clientNonce = bytesToBase64Url(randomBytes(16))
   const frames: WireFrame[] = []
   const agent = new Agent({
-    harness: fakeHarness(fake.url, configured),
+    api: api ?? fakeApi(fake, configured),
     devices: testDevices(key),
     info: { version: 'test', protocol: PROTOCOL_VERSION },
     send: (frame) => frames.push(frame),
     push,
     sync,
-    ...(api ? { api } : {}),
     ...(policy ? { policy } : {}),
     ...(traffic ? { traffic } : {}),
   })
@@ -255,7 +310,7 @@ describe('agent', () => {
         type: 'http.request',
         id: 'unconfigured',
         method: 'GET',
-        path: '/api/info',
+        path: '/v1/harness/info',
       })
 
       const states = await waitFor(async () => {
@@ -332,7 +387,7 @@ describe('agent', () => {
         type: 'http.request',
         id: 'request-1',
         method: 'GET',
-        path: '/api/info',
+        path: '/v1/harness/info',
       })
 
       const states = await waitFor(async () => {
@@ -357,7 +412,15 @@ describe('agent', () => {
   it('limits concurrent requests and records the refusal', async () => {
     const fake = await startFakeOpenCode()
     const traffic = new TrafficMeter()
-    const { agent, client, frames } = await connect(fake, undefined, undefined, undefined, traffic)
+    const { agent, client, frames } = await connect(
+      fake,
+      undefined,
+      undefined,
+      undefined,
+      traffic,
+      true,
+      heldApi()
+    )
     try {
       await waitFor(() => (frames.length >= 2 ? true : undefined))
       await send(client, agent, { type: 'ready.ack', agent: { version: 'web', protocol: 1 } })
@@ -366,7 +429,7 @@ describe('agent', () => {
           type: 'http.request',
           id: `hold-${index}`,
           method: 'GET',
-          path: '/api/hold',
+          path: '/v1/events',
         })
       }
 
@@ -384,95 +447,25 @@ describe('agent', () => {
     }
   })
 
-  it('refuses a command request when the shell policy is off', async () => {
-    const fake = await startFakeOpenCode()
-    try {
-      let denied = 0
-      const { agent, client, frames } = await connect(fake, undefined, undefined, {
-        shellPolicy: () => ({ mode: 'off', commands: [] }),
-        onShellDenied: () => {
-          denied += 1
-        },
-      })
-      await waitFor(() => (frames.length >= 2 ? true : undefined))
-      await send(client, agent, { type: 'ready.ack', agent: { version: 'web', protocol: 1 } })
-      await send(client, agent, {
-        type: 'http.request',
-        id: 'shell-off',
-        method: 'POST',
-        path: '/api/shell',
-        search: '?location%5Bdirectory%5D=%2Ftmp',
-        body: bytesToBase64Url(utf8(JSON.stringify({ command: 'git log' }))),
-      })
-
-      const states = await waitFor(async () => {
-        const parsed = await readStates(client, frames)
-        return parsed.some((state) => state.type === 'http.end') ? parsed : undefined
-      })
-
-      const response = states.find((state) => state.type === 'http.response')
-      expect(response && response.type === 'http.response' ? response.status : undefined).toBe(403)
-      const body = states
-        .filter((state) => state.type === 'http.chunk')
-        .map((state) => (state.type === 'http.chunk' ? state.data : ''))
-        .map((data) => Buffer.from(data, 'base64url').toString('utf8'))
-        .join('')
-      expect(JSON.parse(body)).toMatchObject({ error: { code: 'shell_disabled' } })
-      expect(denied).toBe(1)
-    } finally {
-      await fake.close()
-    }
-  })
-
-  it('forwards an allowlisted command to OpenCode', async () => {
-    const fake = await startFakeOpenCode()
-    try {
-      let denied = 0
-      const { agent, client, frames } = await connect(fake, undefined, undefined, {
-        shellPolicy: () => ({ mode: 'allowlist', commands: ['git log'] }),
-        onShellDenied: () => {
-          denied += 1
-        },
-      })
-      await waitFor(() => (frames.length >= 2 ? true : undefined))
-      await send(client, agent, { type: 'ready.ack', agent: { version: 'web', protocol: 1 } })
-      await send(client, agent, {
-        type: 'http.request',
-        id: 'shell-allowed',
-        method: 'POST',
-        path: '/api/shell',
-        search: '?location%5Bdirectory%5D=%2Ftmp',
-        body: bytesToBase64Url(
-          utf8(JSON.stringify({ command: 'git log --oneline -n 10', cwd: '/tmp' }))
-        ),
-      })
-
-      const states = await waitFor(async () => {
-        const parsed = await readStates(client, frames)
-        return parsed.some((state) => state.type === 'http.end') ? parsed : undefined
-      })
-
-      // The fake OpenCode server has no /api/shell route, so a 404 proves the
-      // request reached it instead of being refused by the policy.
-      const response = states.find((state) => state.type === 'http.response')
-      expect(response && response.type === 'http.response' ? response.status : undefined).toBe(404)
-      expect(denied).toBe(0)
-    } finally {
-      await fake.close()
-    }
-  })
-
   it('streams a long-lived response', async () => {
     const fake = await startFakeOpenCode()
     try {
-      const { agent, client, frames } = await connect(fake)
+      const { agent, client, frames } = await connect(
+        fake,
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        true,
+        streamApi(['data: one\n\n', 'data: two\n\n'])
+      )
       await waitFor(() => (frames.length >= 2 ? true : undefined))
       await send(client, agent, { type: 'ready.ack', agent: { version: 'web', protocol: 1 } })
       await send(client, agent, {
         type: 'http.request',
         id: 'stream-1',
         method: 'GET',
-        path: '/api/stream',
+        path: '/v1/events',
       })
 
       const states = await waitFor(async () => {
@@ -566,7 +559,7 @@ describe('agent', () => {
     }
   })
 
-  it('rejects paths outside the OpenCode API', async () => {
+  it('rejects paths outside the hub API', async () => {
     const fake = await startFakeOpenCode()
     try {
       const { agent, client, frames } = await connect(fake)
@@ -581,9 +574,16 @@ describe('agent', () => {
 
       const states = await waitFor(async () => {
         const parsed = await readStates(client, frames)
-        return parsed.some((state) => state.type === 'http.error') ? parsed : undefined
+        return parsed.some((state) => state.type === 'http.end') ? parsed : undefined
       })
-      expect(states.some((state) => state.type === 'http.error')).toBe(true)
+      const response = states.find((state) => state.type === 'http.response')
+      expect(response && response.type === 'http.response' ? response.status : undefined).toBe(404)
+      const body = states
+        .filter((state) => state.type === 'http.chunk')
+        .map((state) => (state.type === 'http.chunk' ? state.data : ''))
+        .map((data) => Buffer.from(data, 'base64url').toString('utf8'))
+        .join('')
+      expect(JSON.parse(body)).toMatchObject({ error: { code: 'not_found' } })
     } finally {
       await fake.close()
     }
@@ -597,11 +597,11 @@ describe('agent', () => {
       const clientNonce = bytesToBase64Url(randomBytes(16))
       const frames: WireFrame[] = []
       const agent = new Agent({
-        harness: fakeHarness(fake.url),
+        api: fakeApi(fake, true, () => false),
         devices: testDevices(key),
         info: { version: 'test', protocol: PROTOCOL_VERSION },
         send: (frame) => frames.push(frame),
-        policy: { canProxy: () => false, canPush: () => false },
+        policy: { canPush: () => false },
       })
       agents.push(agent)
       agent.handleMessage(
@@ -629,18 +629,20 @@ describe('agent', () => {
         type: 'http.request',
         id: 'disabled-1',
         method: 'GET',
-        path: '/api/info',
+        path: '/v1/harness/info',
       })
       const states = await waitFor(async () => {
         const parsed = await readStates(client, frames)
-        return parsed.some((state) => state.type === 'http.error') ? parsed : undefined
+        return parsed.some((state) => state.type === 'http.end') ? parsed : undefined
       })
-      expect(states).toContainEqual({
-        type: 'http.error',
-        id: 'disabled-1',
-        code: 'disabled',
-        message: 'OpenCode access is disabled by an admin setting',
-      })
+      const response = states.find((state) => state.type === 'http.response')
+      expect(response && response.type === 'http.response' ? response.status : undefined).toBe(403)
+      const body = states
+        .filter((state) => state.type === 'http.chunk')
+        .map((state) => (state.type === 'http.chunk' ? state.data : ''))
+        .map((data) => Buffer.from(data, 'base64url').toString('utf8'))
+        .join('')
+      expect(JSON.parse(body)).toMatchObject({ error: { code: 'disabled' } })
 
       await send(client, agent, {
         type: 'push.test',
@@ -985,7 +987,7 @@ describe('agent client sync', () => {
         type: 'http.request',
         id: 'request-metered',
         method: 'GET',
-        path: '/api/info',
+        path: '/v1/harness/info',
       })
       await waitFor(async () => {
         const states = await readStates(client, frames)
@@ -1026,7 +1028,7 @@ describe('agent client sync', () => {
         type: 'http.request',
         id: 'request-unmetered',
         method: 'GET',
-        path: '/api/info',
+        path: '/v1/harness/info',
       })
       await waitFor(async () => {
         const states = await readStates(client, frames)
@@ -1075,7 +1077,7 @@ describe('agent client sync', () => {
     }
     const frames: WireFrame[] = []
     const agent = new Agent({
-      harness: fakeHarness(fake.url),
+      api: fakeApi(fake),
       devices,
       info: { version: 'test', protocol: PROTOCOL_VERSION },
       send: (frame) => frames.push(frame),
@@ -1163,7 +1165,7 @@ describe('agent client sync', () => {
         type: 'http.request',
         id: 'device-request',
         method: 'GET',
-        path: '/api/info',
+        path: '/v1/harness/info',
       })
       await waitFor(async () => {
         const states = await readStates(deviceClient, frames)
@@ -1176,7 +1178,7 @@ describe('agent client sync', () => {
         type: 'http.request',
         id: 'revoked-request',
         method: 'GET',
-        path: '/api/info',
+        path: '/v1/harness/info',
       })
       const error = await waitFor(() => frames.find((frame) => frame.t === 'error'))
       expect(error).toMatchObject({ code: 'revoked_device' })

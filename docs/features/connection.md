@@ -143,7 +143,7 @@ own device key through a one-time code; there is no shared browser key.
 - Hub: `apps/server/src/` (`config`, `agent`, `harness`, `local-server`,
   `relay-client`, `pairing`, `store/devices`)
 - Harness setup: panel → `harness_connections` in `clara.db`; the active
-  OpenCode adapter adds basic auth and proxies `/api/*`
+  OpenCode adapter adds basic auth behind the hub's `/v1` API
 - Docker stack: `pnpm clara start` starts the orchestrator, server, and web
   client together; `--no-*` selects a subset; `restart` recreates the selection.
   Use the scoped commands for one service.

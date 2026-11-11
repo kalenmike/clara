@@ -1,11 +1,5 @@
-import {
-  MAX_SYNC_INTERVAL_MS,
-  MIN_SYNC_INTERVAL_MS,
-  isSyncIntervalMs,
-  type ShellPolicy,
-} from '@clara/shared-types'
+import { MAX_SYNC_INTERVAL_MS, MIN_SYNC_INTERVAL_MS, isSyncIntervalMs } from '@clara/shared-types'
 import type Database from 'better-sqlite3'
-import { readStoredShellPolicy } from '../shell-policy.ts'
 import type { ClaraDatabase } from './database.ts'
 
 export const FEATURE_SETTINGS = {
@@ -16,8 +10,6 @@ export const FEATURE_SETTINGS = {
 } as const
 
 export const AGENT_STOPPED_SETTING = 'agent.stopped'
-export const SHELL_MODE_SETTING = 'shell.mode'
-export const SHELL_COMMANDS_SETTING = 'shell.commands'
 export const MONITORING_SETTING = 'monitoring.enabled'
 export const SYNC_ENABLED_SETTING = 'sync.enabled'
 export const SYNC_INTERVAL_SETTING = 'sync.intervalMs'
@@ -28,8 +20,6 @@ export type FeatureName = keyof typeof FEATURE_SETTINGS
 export type SettingKey =
   | (typeof FEATURE_SETTINGS)[FeatureName]
   | typeof AGENT_STOPPED_SETTING
-  | typeof SHELL_MODE_SETTING
-  | typeof SHELL_COMMANDS_SETTING
   | typeof MONITORING_SETTING
   | typeof SYNC_ENABLED_SETTING
   | typeof SYNC_INTERVAL_SETTING
@@ -45,7 +35,6 @@ export type SyncSettings = {
 export type AgentSettings = {
   features: FeatureSettings
   stopped: boolean
-  shell: ShellPolicy
   /** The panel traffic meter records nothing while this is false. */
   monitoring: boolean
   sync: SyncSettings
@@ -58,8 +47,6 @@ export const FEATURE_NAMES = Object.keys(FEATURE_SETTINGS) as FeatureName[]
 const SETTING_KEYS = new Set<string>([
   ...Object.values(FEATURE_SETTINGS),
   AGENT_STOPPED_SETTING,
-  SHELL_MODE_SETTING,
-  SHELL_COMMANDS_SETTING,
   MONITORING_SETTING,
   SYNC_ENABLED_SETTING,
   SYNC_INTERVAL_SETTING,
@@ -67,10 +54,10 @@ const SETTING_KEYS = new Set<string>([
 ])
 
 /**
- * Booleans, one mode string, one command array, and one interval are the only
- * values in this table. Harness credentials live in the separate encrypted
- * harness tables; device keys, relay tokens, and push endpoints keep their existing
- * file or environment storage.
+ * Booleans and one interval are the only values in this table. Harness
+ * credentials live in the separate encrypted harness tables; device keys,
+ * relay tokens, and push endpoints keep their existing file or environment
+ * storage.
  */
 export class SettingsStore {
   private readonly db: ClaraDatabase
@@ -94,7 +81,6 @@ export class SettingsStore {
     return {
       features,
       stopped: this.readBoolean(AGENT_STOPPED_SETTING),
-      shell: this.getShellPolicy(),
       monitoring: this.readBoolean(MONITORING_SETTING),
       sync: this.getSync(),
       orchestration: this.readBoolean(ORCHESTRATION_SETTING),
@@ -107,13 +93,6 @@ export class SettingsStore {
 
   getStopped(): boolean {
     return this.readBoolean(AGENT_STOPPED_SETTING)
-  }
-
-  getShellPolicy(): ShellPolicy {
-    return readStoredShellPolicy(
-      this.readValue(SHELL_MODE_SETTING),
-      this.readValue(SHELL_COMMANDS_SETTING)
-    )
   }
 
   getMonitoring(): boolean {
@@ -149,12 +128,6 @@ export class SettingsStore {
   setStopped(stopped: boolean): AgentSettings {
     assertBoolean(stopped, AGENT_STOPPED_SETTING)
     this.writeValue(AGENT_STOPPED_SETTING, stopped)
-    return this.get()
-  }
-
-  setShellPolicy(policy: ShellPolicy): AgentSettings {
-    this.writeValue(SHELL_MODE_SETTING, policy.mode)
-    this.writeValue(SHELL_COMMANDS_SETTING, policy.commands)
     return this.get()
   }
 

@@ -20,7 +20,6 @@ import {
   type PanelStorageEntry,
   type PanelTraffic,
 } from '@clara/shared-types'
-import { DEFAULT_SHELL_POLICY } from '../shell-policy.ts'
 import type { Agent } from '../agent.ts'
 import type { ServerConfig } from '../config.ts'
 import type { HarnessManager } from '../harness/manager.ts'
@@ -314,7 +313,6 @@ export class PanelRuntime implements PanelDataSource {
           effective: Boolean(this.options.push),
         },
       ],
-      shell: { ...DEFAULT_SHELL_POLICY, blocked: 0 },
       monitoring: { enabled: this.options.traffic?.enabled ?? false },
       sync: { enabled: true, intervalMs: DEFAULT_SYNC_INTERVAL_MS },
       orchestration: {

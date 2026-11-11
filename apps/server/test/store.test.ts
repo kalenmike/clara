@@ -34,7 +34,6 @@ describe('SQLite settings store', () => {
       expect(settings.get()).toEqual({
         features: { opencode: true, local: true, relay: true, push: true },
         stopped: false,
-        shell: { mode: 'off', commands: [] },
         monitoring: true,
         sync: { enabled: true, intervalMs: 30_000 },
         orchestration: false,
@@ -55,7 +54,6 @@ describe('SQLite settings store', () => {
     settings.setFeature('relay', false)
     settings.setFeature('push', false)
     settings.setStopped(true)
-    settings.setShellPolicy({ mode: 'allowlist', commands: ['git log'] })
     settings.setMonitoring(false)
     closeDatabase(first)
 
@@ -70,7 +68,6 @@ describe('SQLite settings store', () => {
           push: false,
         },
         stopped: true,
-        shell: { mode: 'allowlist', commands: ['git log'] },
         monitoring: false,
         sync: { enabled: true, intervalMs: 30_000 },
         orchestration: false,
@@ -80,7 +77,7 @@ describe('SQLite settings store', () => {
     }
   })
 
-  it('adds the shell policy and monitoring to a database created before them', () => {
+  it('adds later settings to a database created before them', () => {
     const path = join(tempDir(), 'clara.db')
     const legacy = new Database(path)
     legacy.exec(
@@ -102,7 +99,6 @@ describe('SQLite settings store', () => {
       expect(new SettingsStore(db).get()).toEqual({
         features: { opencode: false, local: true, relay: true, push: true },
         stopped: false,
-        shell: { mode: 'off', commands: [] },
         monitoring: true,
         sync: { enabled: true, intervalMs: 30_000 },
         orchestration: false,
