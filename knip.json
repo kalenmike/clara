@@ -13,7 +13,7 @@
       "project": ["src/**/*.{ts,tsx,css}"]
     },
     "apps/docs": {
-      "entry": ["src/pages/**/*.tsx", "src/theme/**/*.tsx"],
+      "entry": ["src/clientModules/**/*.ts", "src/pages/**/*.tsx", "src/theme/**/*.tsx"],
       "project": ["*.ts", "src/**/*.{ts,tsx}"],
       "ignoreDependencies": [
         "@easyops-cn/docusaurus-search-local",
