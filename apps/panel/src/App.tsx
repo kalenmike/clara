@@ -1,38 +1,24 @@
 import { useMemo } from 'react'
-import {
-  CircleAlert,
-  Eye,
-  EyeOff,
-  LoaderCircle,
-  LogOut,
-  RefreshCw,
-  ShieldCheck,
-} from 'lucide-react'
-import { PANEL_API_VERSION } from '@clara/shared-types'
-import { formatTimestamp } from './lib/format.ts'
+import { CircleAlert, LoaderCircle } from 'lucide-react'
+import type { PanelSnapshot } from '@clara/shared-types'
 import { collectSecrets } from './lib/peek.ts'
 import { PeekProvider, usePeek } from './lib/peek-context.tsx'
 import { useAgentSnapshot } from './lib/use-agent-snapshot.ts'
 import { useSession, type SessionController } from './lib/use-session.ts'
+import { usePanelTab } from './lib/use-panel-tab.ts'
+import { buildHealth, needsAttention, storageHealth, type HealthTone } from './lib/health.ts'
+import type { PanelTab } from './lib/tabs.ts'
 import { AuthScreen } from './components/auth-screen.tsx'
-import { HarnessCard } from './components/harness-card.tsx'
-import { ClientSyncCard } from './components/client-sync-card.tsx'
-import { ClientsTable } from './components/clients-table.tsx'
-import { DevicesCard } from './components/devices-card.tsx'
-import { EventsCard } from './components/events-list.tsx'
-import { OrchestrationCard } from './components/orchestration-card.tsx'
-import {
-  AgentCard,
-  ConfigCard,
-  LocalCard,
-  OpenCodeCard,
-  PushCard,
-  RelayCard,
-} from './components/overview-cards.tsx'
-import { Badge } from './components/primitives.tsx'
-import { StorageCard } from './components/storage-list.tsx'
-import { ShellPolicyCard } from './components/shell-policy-card.tsx'
-import { TrafficCard } from './components/traffic-card.tsx'
+import { ActivityView } from './components/views/activity.tsx'
+import { ClientsView } from './components/views/clients.tsx'
+import { ConnectionsView } from './components/views/connections.tsx'
+import { HarnessView } from './components/views/harness.tsx'
+import { OverviewView } from './components/views/overview.tsx'
+import { SettingsView } from './components/views/settings.tsx'
+import { TrafficView } from './components/views/traffic.tsx'
+import { Rail, type RailBadge } from './components/shell/rail.tsx'
+import { StatusBar } from './components/shell/status-bar.tsx'
+import { TitleBar } from './components/shell/title-bar.tsx'
 
 type SnapshotState = ReturnType<typeof useAgentSnapshot>
 
@@ -59,208 +45,136 @@ function Panel({ state, session }: { state: SnapshotState; session: SessionContr
   const { data, error, loading, refreshing, updatedAt, now, refresh } = state
   const { redact } = usePeek()
   const clock = now ?? updatedAt ?? 0
+  const [tab, setTab] = usePanelTab()
+  const badges = useMemo(() => (data ? buildBadges(data) : {}), [data])
 
   return (
-    <div className="min-h-screen bg-neutral-50 dark:bg-neutral-950">
-      <main className="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
-        <header className="mb-5 flex flex-wrap items-start justify-between gap-3">
-          <div className="flex items-start gap-3">
-            <div className="relative flex size-10 items-center justify-center rounded-xl bg-neutral-950 text-sm font-semibold text-white shadow-sm dark:bg-white dark:text-neutral-950">
-              C
-              <span
-                className="absolute -right-0.5 -top-0.5 size-2.5 rounded-full border-2 border-neutral-50 bg-emerald-500 dark:border-neutral-950"
-                aria-hidden="true"
-              />
-            </div>
-            <div>
-              <h1 className="text-lg font-semibold tracking-tight">Clara agent panel</h1>
-              <p className="text-xs text-neutral-500 dark:text-neutral-400">
-                Inspect the home agent and control its external connections.
-              </p>
-            </div>
-          </div>
+    <div className="panel-shell">
+      <TitleBar
+        data={data}
+        error={error}
+        updatedAt={updatedAt}
+        now={clock}
+        refreshing={refreshing}
+        onRefresh={refresh}
+        onLogout={() => void session.logout()}
+      />
 
-          <div className="flex flex-wrap items-center gap-2">
-            <Badge
-              tone={error && data ? 'warning' : data ? 'success' : error ? 'danger' : 'neutral'}
-            >
-              {error && data ? 'Stale' : data ? 'Connected' : error ? 'Offline' : 'Connecting'}
-            </Badge>
-            {updatedAt ? (
-              <span
-                className="text-[11px] text-neutral-500 dark:text-neutral-400"
-                title={formatTimestamp(new Date(updatedAt).toISOString())}
-              >
-                Updated {formatTimestamp(new Date(updatedAt).toISOString())}
-              </span>
-            ) : null}
-            <PeekButton />
-            <button
-              type="button"
-              onClick={() => void session.logout()}
-              className="inline-flex items-center gap-1.5 rounded-lg border border-neutral-200 bg-white px-2.5 py-1.5 text-xs font-medium text-neutral-700 shadow-sm transition hover:bg-neutral-100 dark:border-neutral-800 dark:bg-neutral-900 dark:text-neutral-200 dark:hover:bg-neutral-800"
-            >
-              <LogOut className="size-3.5" aria-hidden="true" />
-              Sign out
-            </button>
-            <button
-              type="button"
-              onClick={refresh}
-              disabled={refreshing}
-              className="inline-flex items-center gap-1.5 rounded-lg border border-neutral-200 bg-white px-2.5 py-1.5 text-xs font-medium text-neutral-700 shadow-sm transition hover:bg-neutral-100 disabled:cursor-not-allowed disabled:opacity-60 dark:border-neutral-800 dark:bg-neutral-900 dark:text-neutral-200 dark:hover:bg-neutral-800"
-            >
-              <RefreshCw
-                className={`size-3.5 ${refreshing ? 'animate-spin' : ''}`}
-                aria-hidden="true"
-              />
-              Refresh
-            </button>
-          </div>
-        </header>
+      <Rail active={tab} onSelect={setTab} badges={badges} />
 
+      <main className="panel-workbench">
         {error && data ? (
-          <div className="mb-4 flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800 dark:border-amber-900 dark:bg-amber-950/60 dark:text-amber-300">
+          <div className="panel-banner warn" role="status">
             <CircleAlert className="mt-0.5 size-3.5 shrink-0" aria-hidden="true" />
             <span>Showing the last snapshot. {redact(error)}</span>
+          </div>
+        ) : null}
+
+        {data?.controls.stopped ? (
+          <div className="panel-banner warn" role="status">
+            <CircleAlert className="mt-0.5 size-3.5 shrink-0" aria-hidden="true" />
+            <span>
+              External connections are off. Open{' '}
+              <button type="button" className="panel-link" onClick={() => setTab('overview')}>
+                Overview
+              </button>{' '}
+              to start the agent.
+            </span>
           </div>
         ) : null}
 
         {loading && !data ? (
           <LoadingState />
         ) : data ? (
-          <div className="space-y-4">
-            {data.controls.stopped ? (
-              <div className="flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800 dark:border-amber-900 dark:bg-amber-950/60 dark:text-amber-300">
-                <CircleAlert className="mt-0.5 size-3.5 shrink-0" aria-hidden="true" />
-                <span>
-                  External connections are off. The panel stays available to start the agent.
-                </span>
-              </div>
-            ) : null}
-
-            <div className="grid items-start gap-4 md:grid-cols-2">
-              <AgentCard
-                agent={data.agent}
-                controls={data.controls}
-                onChanged={refresh}
-                now={clock}
-              />
-              <ConfigCard config={data.config} onChanged={refresh} />
+          <>
+            <div className="panel-view-slot" hidden={tab !== 'overview'}>
+              <OverviewView snapshot={data} now={clock} onChanged={refresh} onSelect={setTab} />
             </div>
-
-            <HarnessCard
-              harness={data.harness}
-              harnesses={data.harnesses}
-              onChanged={refresh}
-              now={clock}
-            />
-
-            <ClientsTable clients={data.clients} now={clock} />
-
-            <DevicesCard devices={data.devices} now={clock} onChanged={refresh} />
-
-            <TrafficCard
-              traffic={data.traffic}
-              monitoring={data.controls.monitoring}
-              onChanged={refresh}
-              now={clock}
-            />
-
-            <EventsCard events={data.events} now={clock} />
-
-            <div className="grid items-start gap-4 md:grid-cols-2">
-              <LocalCard
-                local={data.local}
-                sessions={
-                  data.clients.filter(
-                    (client) => client.transport === 'local' && client.kind === 'device'
-                  ).length
-                }
-                controls={data.controls}
-                onChanged={refresh}
-              />
-              <RelayCard
-                relay={data.relay}
-                controls={data.controls}
-                onChanged={refresh}
-                now={clock}
-              />
+            <div className="panel-view-slot" hidden={tab !== 'harness'}>
+              <HarnessView snapshot={data} now={clock} onChanged={refresh} />
             </div>
-
-            <div className="grid items-start gap-4 md:grid-cols-2">
-              <OpenCodeCard
-                opencode={data.opencode}
-                controls={data.controls}
-                onChanged={refresh}
-                now={clock}
-              />
-              <ShellPolicyCard shell={data.controls.shell} onChanged={refresh} />
+            <div className="panel-view-slot" hidden={tab !== 'connections'}>
+              <ConnectionsView snapshot={data} now={clock} onChanged={refresh} />
             </div>
-
-            <div className="grid items-start gap-4 md:grid-cols-2">
-              <PushCard push={data.push} controls={data.controls} onChanged={refresh} />
-              <ClientSyncCard sync={data.controls.sync} onChanged={refresh} />
+            <div className="panel-view-slot" hidden={tab !== 'clients'}>
+              <ClientsView snapshot={data} now={clock} onChanged={refresh} />
             </div>
-
-            <OrchestrationCard orchestration={data.controls.orchestration} onChanged={refresh} />
-
-            <StorageCard storage={data.storage} now={clock} />
-          </div>
+            <div className="panel-view-slot" hidden={tab !== 'traffic'}>
+              <TrafficView snapshot={data} now={clock} onChanged={refresh} />
+            </div>
+            <div className="panel-view-slot" hidden={tab !== 'activity'}>
+              <ActivityView snapshot={data} now={clock} />
+            </div>
+            <div className="panel-view-slot" hidden={tab !== 'settings'}>
+              <SettingsView snapshot={data} onChanged={refresh} />
+            </div>
+          </>
         ) : (
           <ErrorState error={error ? redact(error) : undefined} onRetry={refresh} />
         )}
-
-        <footer className="mt-6 flex flex-wrap items-center justify-between gap-2 border-t border-neutral-200 pt-3 text-[11px] text-neutral-500 dark:border-neutral-800 dark:text-neutral-400">
-          <span className="inline-flex items-center gap-1.5">
-            <ShieldCheck className="size-3.5" aria-hidden="true" />
-            Signed in as {data?.auth.username ?? 'admin'} · secrets are never shown
-          </span>
-          <span>
-            API v{data?.apiVersion ?? PANEL_API_VERSION} · generated{' '}
-            {data ? formatTimestamp(data.generatedAt) : '—'}
-          </span>
-        </footer>
       </main>
+
+      <StatusBar data={data} now={clock} onSelect={setTab} />
     </div>
   )
 }
 
-/**
- * Hides the values most likely to identify the machine or its remote access
- * while the screen is shared. The state lasts for the tab, so a refresh keeps
- * the current choice and a new tab starts masked again.
- */
-function PeekButton() {
-  const { masked, toggle } = usePeek()
-  const label = masked ? 'Reveal sensitive data' : 'Hide sensitive data'
+function buildBadges(snapshot: PanelSnapshot): Partial<Record<PanelTab, RailBadge>> {
+  const health = buildHealth(snapshot)
+  const [harness, local, relay, push] = health
+  const traffic = snapshot.traffic.spike.length > 0
+  const storage = storageHealth(snapshot.storage)
+  const eventWarnings = snapshot.events.filter((event) => event.level !== 'info').length
+  const activeClients = snapshot.clients.filter((client) => client.kind !== 'enroll').length
+  const attention = health.filter(needsAttention)
 
-  return (
-    <button
-      type="button"
-      role="switch"
-      aria-checked={masked}
-      aria-label="Hide sensitive data"
-      title={label}
-      onClick={toggle}
-      className="inline-flex items-center justify-center rounded-lg border border-neutral-200 bg-white p-2 text-neutral-700 shadow-sm transition hover:bg-neutral-100 dark:border-neutral-800 dark:bg-neutral-900 dark:text-neutral-200 dark:hover:bg-neutral-800"
-    >
-      {masked ? (
-        <Eye className="size-3.5" aria-hidden="true" />
-      ) : (
-        <EyeOff className="size-3.5" aria-hidden="true" />
-      )}
-    </button>
-  )
+  const badges: Partial<Record<PanelTab, RailBadge>> = {}
+
+  if (attention.length > 0) {
+    badges.overview = {
+      tone: attention.some((item) => item.tone === 'bad') ? 'bad' : 'warn',
+    }
+  }
+  if (snapshot.harnesses.length > 0 || harness.tone === 'warn' || harness.tone === 'bad') {
+    badges.harness = {
+      ...(snapshot.harnesses.length > 0 ? { count: snapshot.harnesses.length } : {}),
+      tone: railTone(harness.tone),
+    }
+  }
+
+  const connectionTone = worstTone(local.tone, relay.tone, push.tone)
+  if (connectionTone) badges.connections = { tone: connectionTone }
+
+  if (activeClients > 0) badges.clients = { count: activeClients }
+  if (traffic) badges.traffic = { tone: 'warn' }
+  if (snapshot.events.length > 0 || eventWarnings > 0) {
+    badges.activity = {
+      ...(snapshot.events.length > 0 ? { count: snapshot.events.length } : {}),
+      tone: eventWarnings > 0 || storage.tone === 'warn' ? 'warn' : undefined,
+    }
+  }
+
+  return badges
+}
+
+function railTone(tone: HealthTone): RailBadge['tone'] {
+  return tone === 'bad' ? 'bad' : tone === 'warn' ? 'warn' : undefined
+}
+
+function worstTone(...tones: HealthTone[]): RailBadge['tone'] {
+  if (tones.includes('bad')) return 'bad'
+  if (tones.includes('warn')) return 'warn'
+  return undefined
 }
 
 function SessionLoading() {
   return (
-    <div
-      className="flex min-h-screen items-center justify-center bg-neutral-50 dark:bg-neutral-950"
-      aria-busy="true"
-      aria-label="Checking panel session"
-    >
-      <LoaderCircle className="size-6 animate-spin text-neutral-400" aria-hidden="true" />
+    <div className="panel-boot" aria-busy="true" aria-label="Checking panel session">
+      <div className="panel-boot-mark" aria-hidden="true">
+        C
+      </div>
+      <LoaderCircle className="size-5 animate-spin text-neutral-400" aria-hidden="true" />
+      <p>Clara agent panel</p>
     </div>
   )
 }
@@ -268,15 +182,12 @@ function SessionLoading() {
 function LoadingState() {
   return (
     <div
-      className="grid gap-4 md:grid-cols-2 xl:grid-cols-3"
+      className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3"
       aria-busy="true"
       aria-label="Loading agent status"
     >
       {Array.from({ length: 6 }, (_, index) => (
-        <div
-          key={index}
-          className="h-64 animate-pulse rounded-xl border border-neutral-200 bg-white dark:border-neutral-800 dark:bg-neutral-900"
-        />
+        <div key={index} className="panel-card h-40 animate-pulse" />
       ))}
     </div>
   )
@@ -284,21 +195,15 @@ function LoadingState() {
 
 function ErrorState({ error, onRetry }: { error?: string; onRetry: () => void }) {
   return (
-    <div className="mx-auto max-w-lg rounded-xl border border-red-200 bg-white p-6 text-center shadow-sm dark:border-red-900 dark:bg-neutral-900">
+    <div className="panel-card mx-auto mt-10 w-full max-w-lg p-6 text-center">
       <CircleAlert className="mx-auto size-6 text-red-500" aria-hidden="true" />
       <h2 className="mt-3 text-sm font-semibold">Could not read the agent status</h2>
-      <p className="mt-1 text-xs text-neutral-500 dark:text-neutral-400">
-        {error ?? 'The panel API did not answer.'}
-      </p>
-      <button
-        type="button"
-        onClick={onRetry}
-        className="mt-4 inline-flex items-center gap-1.5 rounded-lg bg-neutral-950 px-3 py-1.5 text-xs font-medium text-white transition hover:bg-neutral-800 dark:bg-white dark:text-neutral-950 dark:hover:bg-neutral-200"
-      >
+      <p className="panel-muted mt-1 text-xs">{error ?? 'The panel API did not answer.'}</p>
+      <button type="button" onClick={onRetry} className="panel-button mt-4">
         <LoaderCircle className="size-3.5" aria-hidden="true" />
         Try again
       </button>
-      <p className="mt-3 text-[11px] text-neutral-500 dark:text-neutral-400">
+      <p className="panel-muted mt-3 text-[11px]">
         Make sure the agent is running and the panel is enabled on its loopback port.
       </p>
     </div>

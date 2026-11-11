@@ -4,18 +4,35 @@ import { formatBytes, formatRelative, formatTimestamp, healthLabel } from '../li
 import { PEEK_MASK } from '../lib/peek.ts'
 import { usePeek } from '../lib/peek-context.tsx'
 import { Badge, CardBody, CollapsibleCard, type Tone } from './primitives.tsx'
+import { storageHealth, type HealthTone } from '../lib/health.ts'
 
-export function StorageCard({ storage, now }: { storage: PanelStorageEntry[]; now: number }) {
-  const summary = summarizeStorage(storage)
+const SUMMARY_TONE: Record<HealthTone, Tone> = {
+  ok: 'success',
+  warn: 'warning',
+  bad: 'danger',
+  idle: 'neutral',
+}
+
+export function StorageCard({
+  storage,
+  now,
+  defaultExpanded = false,
+}: {
+  storage: PanelStorageEntry[]
+  now: number
+  defaultExpanded?: boolean
+}) {
+  const summary = storageHealth(storage)
   const { masked, redact } = usePeek()
   return (
     <CollapsibleCard
       title="Storage"
       description="Files the agent reads and writes, never their contents"
       icon={<HardDrive className="size-4" aria-hidden="true" />}
+      defaultExpanded={defaultExpanded}
       action={
         <span title={summary.title}>
-          <Badge tone={summary.tone}>{summary.label}</Badge>
+          <Badge tone={SUMMARY_TONE[summary.tone]}>{summary.label}</Badge>
         </span>
       }
     >
@@ -69,30 +86,6 @@ export function StorageCard({ storage, now }: { storage: PanelStorageEntry[]; no
       </CardBody>
     </CollapsibleCard>
   )
-}
-
-function summarizeStorage(storage: PanelStorageEntry[]): {
-  tone: Tone
-  label: string
-  title: string
-} {
-  const errors = storage.filter((entry) => entry.status === 'error').length
-  const warnings = storage.filter(
-    (entry) => entry.status === 'warn' || entry.status === 'missing'
-  ).length
-  const ok = storage.length - errors - warnings
-
-  const title = storage.length
-    ? `${ok} OK · ${warnings} warning${warnings === 1 ? '' : 's'} · ${errors} error${errors === 1 ? '' : 's'}`
-    : 'No storage entries reported'
-
-  if (errors > 0) {
-    return { tone: 'danger', label: `${errors} error${errors === 1 ? '' : 's'}`, title }
-  }
-  if (warnings > 0) {
-    return { tone: 'warning', label: `${warnings} warning${warnings === 1 ? '' : 's'}`, title }
-  }
-  return { tone: 'success', label: 'OK', title }
 }
 
 function toneFor(status: PanelStorageEntry['status']): Tone {
