@@ -31,6 +31,7 @@ COPY packages/crypto/package.json packages/crypto/package.json
 COPY packages/shared-types/package.json packages/shared-types/package.json
 COPY packages/orchestration-control/package.json packages/orchestration-control/package.json
 COPY packages/api-contract/package.json packages/api-contract/package.json
+COPY packages/harness-protocol/package.json packages/harness-protocol/package.json
 RUN pnpm install --frozen-lockfile --filter @clara/server... --filter @clara/panel...
 
 COPY apps/server apps/server
@@ -39,6 +40,7 @@ COPY packages/crypto packages/crypto
 COPY packages/shared-types packages/shared-types
 COPY packages/orchestration-control packages/orchestration-control
 COPY packages/api-contract packages/api-contract
+COPY packages/harness-protocol packages/harness-protocol
 RUN pnpm --filter @clara/server build
 RUN pnpm --filter @clara/server deploy /out --prod --legacy
 

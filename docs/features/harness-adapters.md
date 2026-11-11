@@ -9,8 +9,9 @@ installing it installs both the hub-facing daemon and the orchestration binding.
 
 ## User flow
 
-1. Open the hub panel → **Harness adapters** → choose **OpenCode** → **Add
-   harness**.
+1. Open the hub panel → **Harness adapters** → choose **OpenCode** and the
+   adapter location: **Docker network** (default), **This machine**, or
+   **Cloudflare relay** → **Add harness**.
 2. Copy the pairing code or the matching command.
 3. On the machine that runs OpenCode, run
    `pnpm clara adapter install --opencode --pair <code>`.
@@ -27,16 +28,19 @@ installing it installs both the hub-facing daemon and the orchestration binding.
 1. The adapter connects out; the hub does not connect to an adapter port.
    Local and relay are transport choices in the pairing code, not separate
    architectures.
-2. Adapter pairing uses the same one-time code, fingerprint, expiry, E2EE
+2. The panel chooses the pairing transport: Docker network for an adapter
+   container, loopback for an adapter on the hub host, or the relay for a
+   remote adapter. The default is Docker.
+3. Adapter pairing uses the same one-time code, fingerprint, expiry, E2EE
    handshake, replay guard, and revocation model as browser pairing.
-3. The adapter keeps a stable harness identity. Reinstall, re-pair, and
+4. The adapter keeps a stable harness identity. Reinstall, re-pair, and
    connection deletion keep Clara session/project metadata; **Forget** purges
    it explicitly.
-4. The hub owns Clara metadata. Adapters return harness-native data and never
+5. The hub owns Clara metadata. Adapters return harness-native data and never
    store snooze, archive, view, or project settings.
-5. A harness version bump changes only that adapter. The hub and web branch on
+6. A harness version bump changes only that adapter. The hub and web branch on
    capability flags, not harness kind.
-6. `adapter install --opencode` installs the daemon and the orchestration
+7. `adapter install --opencode` installs the daemon and the orchestration
    binding by default; `--no-daemon` and `--no-orchestration` split them.
 
 ## Edge cases

@@ -5,6 +5,7 @@ import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { AgentInfo } from '@clara/shared-types'
 import { generateKey, generateSecretKey, loadSecretKey } from '@clara/crypto'
+import { decodeHarnessPairingCode } from '@clara/shared-types'
 import type { ServerConfig } from '../src/config.ts'
 import { HarnessManager } from '../src/harness/manager.ts'
 import { HarnessMetadataStore } from '../src/harness/metadata.ts'
@@ -542,4 +543,26 @@ describe('RuntimeController', () => {
       await close()
     }
   })
+})
+
+it('harness pairing defaults to the docker network and can choose loopback', async () => {
+  const { controller, close } = await createController(8788)
+  try {
+    const docker = await controller.createHarnessPairing({
+      kind: 'opencode',
+      label: 'OpenCode',
+    })
+    expect(docker.pairing.transport).toBe('docker')
+    expect(decodeHarnessPairingCode(docker.pairing.code)?.wsUrl).toBe('ws://server:8788/ws')
+
+    const local = await controller.createHarnessPairing({
+      kind: 'opencode',
+      label: 'OpenCode',
+      transport: 'local',
+    })
+    expect(local.pairing.transport).toBe('local')
+    expect(decodeHarnessPairingCode(local.pairing.code)?.wsUrl).toBe('ws://127.0.0.1:8788/ws')
+  } finally {
+    await close()
+  }
 })

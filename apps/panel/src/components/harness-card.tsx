@@ -19,11 +19,13 @@ const KINDS = [{ kind: 'opencode', label: 'OpenCode' }]
 export function HarnessCard({
   harness,
   harnesses,
+  relayConfigured,
   onChanged,
   now,
 }: {
   harness: PanelHarnessState
   harnesses: PanelHarness[]
+  relayConfigured: boolean
   onChanged: () => void
   now: number
 }) {
@@ -33,6 +35,7 @@ export function HarnessCard({
   const [error, setError] = useState<string>()
   const [test, setTest] = useState<PanelHarnessTestResult>()
   const [kind, setKind] = useState(KINDS[0].kind)
+  const [transport, setTransport] = useState<'local' | 'docker' | 'relay'>('docker')
 
   const add = async () => {
     setPending('pair')
@@ -41,7 +44,11 @@ export function HarnessCard({
     try {
       const result = await postPanel<PanelHarnessPairingMutationResponse>(
         '/panel/api/v1/harnesses/pairings',
-        { kind, label: KINDS.find((item) => item.kind === kind)?.label ?? kind }
+        {
+          kind,
+          label: KINDS.find((item) => item.kind === kind)?.label ?? kind,
+          transport,
+        }
       )
       setPairing(result.pairing)
       onChanged()
@@ -274,7 +281,7 @@ export function HarnessCard({
               {command}
             </pre>
             <p className="font-mono text-[10px] text-neutral-500 dark:text-neutral-400">
-              fingerprint {pairing.fingerprint} · {pairing.wsUrl}
+              fingerprint {pairing.fingerprint} · {pairing.transport} · {pairing.wsUrl}
             </p>
           </div>
         ) : (
@@ -292,6 +299,29 @@ export function HarnessCard({
                   </option>
                 ))}
               </select>
+            </label>
+            <label className="text-[11px] font-medium text-neutral-600 dark:text-neutral-300">
+              Adapter location
+              <select
+                value={transport}
+                onChange={(event) =>
+                  setTransport(event.target.value as 'local' | 'docker' | 'relay')
+                }
+                className="mt-1 block rounded-md border border-neutral-200 bg-white px-2 py-1.5 text-xs dark:border-neutral-700 dark:bg-neutral-950"
+              >
+                <option value="docker">Docker network (default)</option>
+                <option value="local">This machine (loopback)</option>
+                <option value="relay" disabled={!relayConfigured}>
+                  Cloudflare relay
+                </option>
+              </select>
+              <span className="mt-1 block text-[10px] font-normal text-neutral-500 dark:text-neutral-400">
+                {transport === 'docker'
+                  ? 'Adapter runs in a container on the clara network (ws://server:8788/ws).'
+                  : transport === 'local'
+                    ? 'Adapter runs on the hub host (ws://127.0.0.1:8788/ws).'
+                    : 'Adapter connects through the configured Cloudflare relay.'}
+              </span>
             </label>
             <button
               type="button"
