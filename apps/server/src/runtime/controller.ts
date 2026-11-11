@@ -8,7 +8,6 @@ import type {
   PanelHarnessTestResult,
   PanelOrchestrationControl,
   PanelSyncUpdate,
-  ShellPolicy,
 } from '@clara/shared-types'
 import { baseURL } from '@clara/orchestration-control'
 import type { WebSocket } from 'ws'
@@ -81,8 +80,6 @@ export class RuntimeController {
   private pushMonitorRunning = false
   private readonly errors = new Map<FeatureName, string>()
   private readonly trafficMeter: TrafficMeter
-  /** Command requests refused since this process started. */
-  private shellDenied = 0
   private orchestration: PanelOrchestrationControl = {
     desired: false,
     effective: false,
@@ -115,7 +112,6 @@ export class RuntimeController {
     )
 
     this.localAgent = new Agent({
-      harness: options.harness,
       api: this.api,
       devices: options.devices,
       info: options.info,
@@ -125,20 +121,14 @@ export class RuntimeController {
       traffic: this.trafficMeter,
       transport: 'local',
       policy: {
-        canProxy: () => this.canProxy(),
         canPush: () => this.canPush(),
         canSync: () => this.canSync(),
-        shellPolicy: () => this.shellPolicy(),
-        onShellDenied: () => {
-          this.shellDenied += 1
-        },
       },
       log: options.log,
     })
 
     if (config.relay) {
       this.relayAgent = new Agent({
-        harness: options.harness,
         api: this.api,
         devices: options.devices,
         info: options.info,
@@ -148,13 +138,8 @@ export class RuntimeController {
         traffic: this.trafficMeter,
         transport: 'relay',
         policy: {
-          canProxy: () => this.canProxy(),
           canPush: () => this.canPush(),
           canSync: () => this.canSync(),
-          shellPolicy: () => this.shellPolicy(),
-          onShellDenied: () => {
-            this.shellDenied += 1
-          },
         },
         log: options.log,
       })
@@ -289,11 +274,6 @@ export class RuntimeController {
     return this.options.settings.getSyncEnabled()
   }
 
-  /** Read per request so a panel change applies to the next command. */
-  shellPolicy(): ShellPolicy {
-    return this.options.settings.getShellPolicy()
-  }
-
   controls(): PanelControls {
     const settings = this.options.settings.get()
     const stopped = settings.stopped
@@ -312,7 +292,6 @@ export class RuntimeController {
     return {
       stopped,
       features,
-      shell: { ...settings.shell, blocked: this.shellDenied },
       monitoring: { enabled: settings.monitoring },
       sync: { ...settings.sync },
       orchestration: this.orchestration,
@@ -360,18 +339,6 @@ export class RuntimeController {
       this.errors.set(feature, message)
       this.options.log(`could not ${enabled ? 'enable' : 'disable'} ${feature}`, cause)
     }
-    return this.controls()
-  }
-
-  async setShellPolicy(policy: ShellPolicy): Promise<PanelControls> {
-    this.options.settings.setShellPolicy(policy)
-    this.options.log(
-      policy.mode === 'off'
-        ? 'shell commands blocked by an admin setting'
-        : policy.commands.length === 0
-          ? 'shell commands enabled with no filters'
-          : `shell filter updated (${policy.commands.length} command(s))`
-    )
     return this.controls()
   }
 

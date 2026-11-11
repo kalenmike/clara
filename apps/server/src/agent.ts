@@ -25,18 +25,14 @@ import {
   type PushSubscribeAction,
   type PushTestAction,
   type PushUnsubscribeAction,
-  type ShellPolicy,
   type SyncCheckAction,
   type SyncPullAction,
   type SyncPushAction,
   type WireFrame,
 } from '@clara/shared-types'
 import type { ApiApp } from './api/context.ts'
-import type { HarnessManager } from './harness/manager.ts'
-import { HarnessUnconfiguredError } from './harness/types.ts'
 import { responseHeaders, type HttpRequestAction } from './opencode.ts'
 import type { PushService } from './push/service.ts'
-import { DEFAULT_SHELL_POLICY, evaluateShellRequest, type ShellDecision } from './shell-policy.ts'
 import type { ClientStorageStore, SyncCheckResult, SyncResult } from './store/client-storage.ts'
 import type { DeviceRegistry } from './store/devices.ts'
 import { DeviceStoreError } from './store/devices.ts'
@@ -94,25 +90,15 @@ export type AgentSessionInfo = {
 }
 
 export type AgentPolicy = {
-  /** Gate OpenCode proxying without duplicating runtime state in the hub service. */
-  canProxy?: () => boolean
   /** Gate push actions while keeping stored subscriptions intact. */
   canPush?: () => boolean
   /** Gate client settings sync without deleting the stored namespace. */
   canSync?: () => boolean
-  /**
-   * The current command policy, read on every request so a panel change takes
-   * effect without a restart. When absent, command requests are blocked.
-   */
-  shellPolicy?: () => ShellPolicy
-  /** Record a refused command request for the panel counter. */
-  onShellDenied?: () => void
 }
 
 export type AgentOptions = {
-  harness: HarnessManager
-  /** The Clara API, used for /v1 requests while the legacy proxy is retired. */
-  api?: ApiApp
+  /** The Clara API. Every browser request is routed through it. */
+  api: ApiApp
   devices: DeviceRegistry
   info: AgentInfo
   send: (frame: WireFrame) => void
@@ -842,39 +828,18 @@ export class Agent {
   }
 
   private startRequest(session: Session, action: HttpRequestAction): void {
-    if (this.options.policy?.canProxy && !this.options.policy.canProxy()) {
-      this.enqueue(session, {
-        type: 'http.error',
-        id: action.id,
-        code: 'disabled',
-        message: 'OpenCode access is disabled by an admin setting',
-      })
-      return
-    }
     if (typeof action.id !== 'string' || action.id.length === 0 || action.id.length > 128) return
     if (session.requests.has(action.id)) return
 
-    if (!this.options.harness.configured) {
+    if (!action.path.startsWith('/v1/')) {
       this.respondJsonError(
         session,
         action.id,
-        503,
-        'Service Unavailable',
-        'harness_unconfigured',
-        'No harness connection is configured. Set one up in the hub panel.'
+        404,
+        'Not Found',
+        'not_found',
+        'Unknown API endpoint'
       )
-      return
-    }
-
-    const decision = evaluateShellRequest(
-      this.options.policy?.shellPolicy?.() ?? DEFAULT_SHELL_POLICY,
-      action
-    )
-    if (!decision.allowed) {
-      this.options.traffic?.recordError('refused')
-      this.options.policy?.onShellDenied?.()
-      this.options.log?.(`refused ${action.method} ${action.path}`, decision.code)
-      this.respondRefused(session, action.id, decision)
       return
     }
 
@@ -899,25 +864,6 @@ export class Agent {
     this.options.traffic?.recordRequest(this.transport)
     if (this.monitoring) session.requestsTotal += 1
     void this.runRequest(session, action, controller)
-  }
-
-  /**
-   * A refused command returns a real HTTP response instead of `http.error`, so
-   * the client can tell a policy denial from a transport failure.
-   */
-  private respondRefused(
-    session: Session,
-    id: string,
-    decision: Exclude<ShellDecision, { allowed: true }>
-  ): void {
-    this.respondJsonError(
-      session,
-      id,
-      decision.status,
-      decision.status === 403 ? 'Forbidden' : 'Bad Request',
-      decision.code,
-      decision.message
-    )
   }
 
   private respondJsonError(
@@ -946,10 +892,7 @@ export class Agent {
     controller: AbortController
   ): Promise<void> {
     try {
-      const response =
-        this.options.api && action.path.startsWith('/v1/')
-          ? await this.options.api.fetch(toRequest(action, controller.signal))
-          : await this.options.harness.request(action, controller.signal)
+      const response = await this.options.api.fetch(toRequest(action, controller.signal))
       this.enqueue(session, {
         type: 'http.response',
         id: action.id,
@@ -979,25 +922,14 @@ export class Agent {
 
       this.enqueue(session, { type: 'http.end', id: action.id })
     } catch (cause) {
-      if (!(cause instanceof HarnessUnconfiguredError)) {
-        const aborted = controller.signal.aborted
-        if (!aborted) this.options.traffic?.recordError('upstream')
-        this.enqueue(session, {
-          type: 'http.error',
-          id: action.id,
-          code: aborted ? 'aborted' : 'upstream_error',
-          message: aborted ? 'Request aborted' : errorMessage(cause),
-        })
-      } else {
-        this.respondJsonError(
-          session,
-          action.id,
-          503,
-          'Service Unavailable',
-          cause.code,
-          cause.message
-        )
-      }
+      const aborted = controller.signal.aborted
+      if (!aborted) this.options.traffic?.recordError('upstream')
+      this.enqueue(session, {
+        type: 'http.error',
+        id: action.id,
+        code: aborted ? 'aborted' : 'upstream_error',
+        message: aborted ? 'Request aborted' : errorMessage(cause),
+      })
     } finally {
       session.requests.delete(action.id)
     }
