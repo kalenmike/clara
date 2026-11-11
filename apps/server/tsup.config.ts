@@ -8,5 +8,5 @@ export default defineConfig({
   outDir: 'dist',
   clean: true,
   sourcemap: true,
-  noExternal: ['@clara/crypto', '@clara/orchestration-control', '@clara/shared-types'],
+  noExternal: [/^@clara\//],
 })

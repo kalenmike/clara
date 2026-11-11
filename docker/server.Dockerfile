@@ -30,6 +30,7 @@ COPY apps/panel/package.json apps/panel/package.json
 COPY packages/crypto/package.json packages/crypto/package.json
 COPY packages/shared-types/package.json packages/shared-types/package.json
 COPY packages/orchestration-control/package.json packages/orchestration-control/package.json
+COPY packages/api-contract/package.json packages/api-contract/package.json
 RUN pnpm install --frozen-lockfile --filter @clara/server... --filter @clara/panel...
 
 COPY apps/server apps/server
@@ -37,6 +38,7 @@ COPY apps/panel apps/panel
 COPY packages/crypto packages/crypto
 COPY packages/shared-types packages/shared-types
 COPY packages/orchestration-control packages/orchestration-control
+COPY packages/api-contract packages/api-contract
 RUN pnpm --filter @clara/server build
 RUN pnpm --filter @clara/server deploy /out --prod --legacy
 
