@@ -11,9 +11,8 @@ MCP / local tools
   └─ loopback HTTP + bearer token ──▶ /v1 API
 ```
 
-The browser never calls OpenCode directly. The old `/api/*` proxy is being
-retired in phases; during the migration the hub routes `/v1/*` to the API and
-keeps `/api/*` on the legacy path.
+The browser never calls OpenCode directly. The hub only exposes `/v1`; there is
+no generic `/api/*` proxy.
 
 ## API surface
 

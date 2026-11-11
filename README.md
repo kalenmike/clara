@@ -328,8 +328,8 @@ screen. Local mode still uses E2EE; it does not fall back to plaintext.
 Add `--no-relay` (`pnpm clara pair --no-relay`) to force a local-only
 code and print the local web app link even when the hub has a relay
 configured. The local listener runs
-alongside the relay client, so this exercises the WebSocket transport — including
-the shell policy — without sending traffic through Cloudflare. For the dev app,
+alongside the relay client, so this exercises the WebSocket transport without
+sending traffic through Cloudflare. For the dev app,
 set **Web URL** to `http://localhost:5173` in the hub panel (or set
 `CLARA_PAIRING_BASE_URL=http://localhost:5173` when pairing) so the printed link
 opens Vite directly.

@@ -30,9 +30,9 @@ for client settings sync.
    shows the offline banner.
 8. While connections are off, feature switches are disabled. Choose **Go
    online** in the same place to restore every saved on/off choice,
-   including features that were off before the stop. The shell policy,
-   monitoring, client-sync, and orchestration controls stay editable because
-   they do not start a Clara transport.
+   including features that were off before the stop. Monitoring, client-sync,
+   and orchestration controls stay editable because they do not start a Clara
+   transport.
 9. Use **Orchestration** to start or stop the local service. Container and
    external instances are detected and left alone.
 10. Restart the process at any time; the saved choices and the stopped
@@ -58,9 +58,8 @@ for client settings sync.
 6. **Cards are accordions.** Hub, effective configuration, connected clients,
    and recent activity start expanded; every other card starts collapsed. Each
    opens from its header. A disabled feature hides its details and cannot be
-   opened; the header keeps the switch and status chip. The shell card is
-   expandable while its switch is on, and the switch stays amber until Apply
-   saves the draft. The client-sync card keeps its interval select editable even
+   opened; the header keeps the switch and status chip. The client-sync card
+   keeps its interval select editable even
    while the global sync gate is off, so the cadence can be prepared before sync
    is enabled.
 
@@ -71,8 +70,8 @@ for client settings sync.
   transport stays off.
 - **Feature change while stopped** — the panel disables the feature switches,
   the API returns `409`, and enabled cards remain readable; the saved choices
-  cannot drift while connections are off. The separate shell policy, monitoring,
-  and client-sync controls stay editable.
+  cannot drift while connections are off. Monitoring and client-sync controls
+  stay editable.
 - **Local port busy** — the saved local setting stays on, the listener reports
   `effective: false`, and retrying after the port is free starts a fresh
   listener.
@@ -94,8 +93,7 @@ for client settings sync.
 - Kicking clients or revoking a device
 - Historical metrics or a persisted audit trail
 - Remote access to the panel through the relay or Pages
-- Sandboxing command execution; see [panel](panel.md) for the separate shell
-  policy and its limits
+- Sandboxing command execution
 
 ## Known gaps
 
@@ -115,15 +113,14 @@ for client settings sync.
 - Settings file: `CLARA_DB_PATH` or `<CLARA_DATA_DIR>/clara.db` (mode `0600`)
 - Settings keys: `features.opencode`, `features.local`, `features.relay`,
   `features.push`, `agent.stopped` (the historical key for stopped
-  connections), `shell.mode` and `shell.commands` for the separate shell policy,
-  `monitoring.enabled`, `sync.enabled` plus `sync.intervalMs` for client settings
-  sync, and `orchestration.enabled` for the local service
+  connections), `monitoring.enabled`, `sync.enabled` plus `sync.intervalMs` for
+  client settings sync, and `orchestration.enabled` for the local service
 - Read API: `GET /panel/api/v1/status` (authenticated)
 - Session: `GET|POST|DELETE /panel/api/v1/session`; setup: `POST /panel/api/v1/setup`
 - Harness: `POST /panel/api/v1/harnesses` and `POST /panel/api/v1/harnesses/:id/test|activate`
 - Mutations: `POST /panel/api/v1/features`, `POST /panel/api/v1/agent` (the
-  historical master-stop route), `POST /panel/api/v1/shell`,
-  `POST /panel/api/v1/monitoring`, `POST /panel/api/v1/sync`, and
+  historical master-stop route), `POST /panel/api/v1/monitoring`,
+  `POST /panel/api/v1/sync`, and
   `POST /panel/api/v1/orchestration`
 - Mutation guards: session, optional bridge source opt-in, `Host`, `Origin`, `Sec-Fetch-Site`,
   `content-type: application/json`, `x-clara-panel: 1`, 8 KB body limit,
