@@ -1,6 +1,6 @@
 import type { Project } from '@opencode/client'
 import { runWithConcurrency } from '@/lib/concurrency'
-import type { OpenCodeClient } from '@/lib/client'
+import type { ClaraClient } from '@/lib/client'
 
 /** Keep a large archive list from flooding the server with directory probes. */
 export const PROJECT_RECONCILIATION_CONCURRENCY = 3
@@ -23,7 +23,7 @@ function isArchivedProject(project: Project): boolean {
  * mounted, while missing directories reject with 404 and stay archived.
  */
 export async function reconcileArchivedProjects(
-  client: OpenCodeClient
+  client: ClaraClient
 ): Promise<ProjectReconciliation> {
   const projects = await client.project.list(
     { archived: true },

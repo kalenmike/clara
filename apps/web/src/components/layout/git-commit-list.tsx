@@ -1,7 +1,7 @@
 import { AlertCircle, GitCommitHorizontal } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
-import { shellFailure, useGitCommits, type CommitWindow } from '@/features/git/use-git'
+import { gitHistoryFailure, useGitCommits, type CommitWindow } from '@/features/git/use-git'
 import { errorMessage } from '@/lib/errors'
 import { GitCommitRow } from './git-commit-row'
 import { GitPanelMessage } from './git-panel-parts'
@@ -51,7 +51,7 @@ export function GitCommitList({
 }
 
 function CommitError({ query }: { query: ReturnType<typeof useGitCommits> }) {
-  const failure = shellFailure(query.error)
+  const failure = gitHistoryFailure(query.error)
   const retry = (
     <Button
       variant="outline"
@@ -63,20 +63,20 @@ function CommitError({ query }: { query: ReturnType<typeof useGitCommits> }) {
     </Button>
   )
 
-  if (failure === 'blocked') {
+  if (failure === 'disabled') {
     return (
       <GitPanelMessage
         title="Commit history is disabled"
-        description="An admin blocked shell commands on the Clara hub. Enable it in the hub panel under Shell commands."
+        description="An admin disabled OpenCode access on the Clara hub. Enable it in the hub panel."
       />
     )
   }
 
-  if (failure === 'unsupported') {
+  if (failure === 'unconfigured') {
     return (
       <GitPanelMessage
         title="Commit history is unavailable"
-        description="This OpenCode server does not expose shell jobs, so Clara cannot read the log."
+        description="No OpenCode harness is configured. Set one up in the hub panel."
       />
     )
   }

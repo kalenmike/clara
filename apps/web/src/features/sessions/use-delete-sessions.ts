@@ -1,7 +1,7 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import type { QueryClient } from '@tanstack/react-query'
 import type { SessionInfo } from '@opencode/client'
-import type { OpenCodeClient } from '@/lib/client'
+import type { ClaraClient } from '@/lib/client'
 import { runWithConcurrencySettled } from '@/lib/concurrency'
 import { queryKeys } from '@/lib/query-keys'
 import { useConnection } from '@/providers/connection-provider'
@@ -15,7 +15,7 @@ export const SESSION_DELETE_CONCURRENCY = 4
 
 /** Delete sessions with four concurrent writes and keep per-session results. */
 export async function deleteSessions(
-  client: OpenCodeClient,
+  client: ClaraClient,
   sessions: readonly SessionInfo[]
 ): Promise<DeleteSessionsResult> {
   const settled = await runWithConcurrencySettled(sessions, SESSION_DELETE_CONCURRENCY, (session) =>

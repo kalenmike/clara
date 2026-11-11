@@ -1,6 +1,6 @@
 import type { QueryClient } from '@tanstack/react-query'
 import type { Project, SessionInfo } from '@opencode/client'
-import type { OpenCodeClient } from '@/lib/client'
+import type { ClaraClient } from '@/lib/client'
 import { queryKeys } from '@/lib/query-keys'
 import { canonicalProjects } from '@/features/projects/use-projects'
 import { isArchivedSession } from '@/features/sessions/session-archive'
@@ -19,7 +19,7 @@ export type SessionAttention = {
  * the trigger; this decides which of the four Inbox states the session is in.
  */
 export async function loadSessionAttention(
-  client: OpenCodeClient,
+  client: ClaraClient,
   queryClient: QueryClient,
   sessionID: string
 ): Promise<SessionAttention | null> {
@@ -46,7 +46,7 @@ function projectIDFromList(projects: Project[], session: SessionInfo): string | 
 }
 
 export async function resolveProjectID(
-  client: OpenCodeClient,
+  client: ClaraClient,
   queryClient: QueryClient,
   session: SessionInfo
 ): Promise<string | null> {

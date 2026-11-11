@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
 import type { QueryClient } from '@tanstack/react-query'
 import type { SessionInfo } from '@opencode/client'
-import type { OpenCodeClient } from '@/lib/client'
+import type { ClaraClient } from '@/lib/client'
 import { queryKeys } from '@/lib/query-keys'
 import { unsnoozeSessionOnEngage } from './unsnooze'
 
@@ -12,7 +12,7 @@ function harness(metadata: SessionInfo['metadata']) {
       get: vi.fn(() => Promise.resolve(session)),
       update: vi.fn(() => Promise.resolve(session)),
     },
-  } as unknown as OpenCodeClient
+  } as unknown as ClaraClient
   const queryClient = {
     getQueryData: vi.fn(() => session),
     setQueryData: vi.fn(),

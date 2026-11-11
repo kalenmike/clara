@@ -22,7 +22,7 @@ import {
   type ConnectionStatus,
   type ConnectionSummary,
   type DeviceConnection,
-  type OpenCodeClient,
+  type ClaraClient,
   type ServerInfo,
 } from '@/lib/client'
 import type { RelayTransportStatus } from '@/lib/transport/relay'
@@ -48,7 +48,7 @@ export type ConnectionBootSource = 'pairing-link' | 'stored' | null
 
 type ConnectionContextValue = {
   config: ConnectionSummary | null
-  client: OpenCodeClient | null
+  client: ClaraClient | null
   info: ServerInfo | null
   status: ConnectionStatus
   error: string | null
@@ -75,7 +75,7 @@ let bootStarted = false
 export function ConnectionProvider({ children }: { children: ReactNode }) {
   const queryClient = useQueryClient()
   const [config, setConfig] = useState<ConnectionSummary | null>(null)
-  const [client, setClient] = useState<OpenCodeClient | null>(null)
+  const [client, setClient] = useState<ClaraClient | null>(null)
   const [info, setInfo] = useState<ServerInfo | null>(null)
   const [status, setStatus] = useState<ConnectionStatus>('disconnected')
   const [error, setError] = useState<string | null>(null)

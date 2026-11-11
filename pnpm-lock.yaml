@@ -394,6 +394,9 @@ importers:
 
   apps/web:
     dependencies:
+      '@clara/api-client':
+        specifier: workspace:*
+        version: link:../../packages/api-client
       '@clara/crypto':
         specifier: workspace:*
         version: link:../../packages/crypto

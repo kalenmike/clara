@@ -1,115 +1,11 @@
 import { describe, expect, it } from 'vitest'
 import type { SessionMessageInfo } from '@opencode/client'
 import {
-  gitLogCommand,
   lastSessionActivity,
   parseConventionalHeader,
-  parseGitLog,
   resolveWorktrees,
   splitCommitBody,
 } from './use-git'
-
-const FIELD = '\x1f'
-const RECORD = '\x1e'
-
-function record(fields: string[]): string {
-  return `${fields.join(FIELD)}${RECORD}`
-}
-
-describe('parseGitLog', () => {
-  it('reads full records and multiline bodies', () => {
-    const body = 'Record the new way to open the panel.\n\nIt also notes the proxy.'
-    expect(
-      parseGitLog(
-        [
-          record([
-            'abc1234',
-            'Ada Lovelace',
-            'ada@example.com',
-            '2026-11-01T17:29:23+01:00',
-            'feat(web): add commits',
-            body,
-          ]),
-          record([
-            'def5678',
-            'Grace Hopper',
-            'grace@example.com',
-            '2026-10-31T09:00:00Z',
-            'fix: edge case',
-            '',
-          ]),
-        ].join('\n')
-      )
-    ).toEqual([
-      {
-        hash: 'abc1234',
-        authorName: 'Ada Lovelace',
-        authorEmail: 'ada@example.com',
-        authoredAt: '2026-11-01T17:29:23+01:00',
-        subject: 'feat(web): add commits',
-        body,
-      },
-      {
-        hash: 'def5678',
-        authorName: 'Grace Hopper',
-        authorEmail: 'grace@example.com',
-        authoredAt: '2026-10-31T09:00:00Z',
-        subject: 'fix: edge case',
-        body: '',
-      },
-    ])
-  })
-
-  it('keeps quotes, hashes, and spacing inside the subject', () => {
-    const [commit] = parseGitLog(
-      record([
-        'abc1234',
-        'Ada',
-        'ada@example.com',
-        '2026-11-01T17:29:23+01:00',
-        'fix: "quoted" #hash  double space',
-        '',
-      ])
-    )
-    expect(commit?.subject).toBe('fix: "quoted" #hash  double space')
-  })
-
-  it('handles CRLF between records', () => {
-    const value = `${record(['abc1234', 'Ada', 'ada@example.com', '2026-11-01T17:29:23Z', 'fix: one', ''])}\r\n${record(['def5678', 'Grace', 'grace@example.com', '2026-10-31T09:00:00Z', 'fix: two', ''])}`
-    expect(parseGitLog(value).map((commit) => commit.hash)).toEqual(['abc1234', 'def5678'])
-  })
-
-  it('ignores noise and empty output', () => {
-    expect(parseGitLog('')).toEqual([])
-    expect(parseGitLog('fatal: not a git repository')).toEqual([])
-    expect(parseGitLog('not-a-hash value')).toEqual([])
-  })
-})
-
-describe('gitLogCommand', () => {
-  it('scopes the log to the session window and caps it at ten', () => {
-    const command = gitLogCommand({
-      since: Date.parse('2026-11-08T10:00:00Z'),
-      until: Date.parse('2026-11-08T10:30:00Z'),
-    })
-
-    expect(command).toContain('--since=2026-11-08T10:00:00.000Z')
-    expect(command).toContain('--until=2026-11-08T10:30:00.000Z')
-    expect(command).toContain('-n 10')
-    expect(command).toMatch(/--format=%H%x1f%an%x1f%ae%x1f%aI%x1f%s%x1f%b%x1e$/)
-  })
-
-  it('leaves the upper bound open while a turn is running', () => {
-    const command = gitLogCommand({ since: Date.parse('2026-11-08T10:00:00Z') })
-
-    expect(command).toContain('--since=2026-11-08T10:00:00.000Z')
-    expect(command).not.toContain('--until=')
-  })
-
-  it('rejects an invalid session start', () => {
-    expect(() => gitLogCommand({ since: Number.NaN })).toThrow()
-  })
-})
 
 describe('lastSessionActivity', () => {
   function user(created: number): SessionMessageInfo {

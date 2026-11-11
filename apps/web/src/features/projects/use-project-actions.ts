@@ -1,6 +1,6 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import type { SessionInfo } from '@opencode/client'
-import type { OpenCodeClient } from '@/lib/client'
+import type { ClaraClient } from '@/lib/client'
 import { isArchivedSession } from '@/features/sessions/session-archive'
 import { runWithConcurrency } from '@/lib/concurrency'
 import { queryKeys } from '@/lib/query-keys'
@@ -17,7 +17,7 @@ export const PROJECT_ACTION_CONCURRENCY = 4
  * a cursor when more sessions exist, so totals are not limited by one page.
  */
 export async function listAllProjectSessions(
-  client: OpenCodeClient,
+  client: ClaraClient,
   projectID: string
 ): Promise<SessionInfo[]> {
   const sessions: SessionInfo[] = []

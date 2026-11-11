@@ -1,7 +1,7 @@
 import { QueryClient } from '@tanstack/react-query'
 import type { Project, SessionInfo } from '@opencode/client'
 import { describe, expect, it, vi } from 'vitest'
-import type { OpenCodeClient } from '@/lib/client'
+import type { ClaraClient } from '@/lib/client'
 import { queryKeys } from '@/lib/query-keys'
 import {
   isMissingDirectoryError,
@@ -43,7 +43,7 @@ function recoveryContext() {
   const move = vi.fn().mockResolvedValue(undefined)
   const client = {
     session: { move },
-  } as unknown as OpenCodeClient
+  } as unknown as ClaraClient
 
   return { client, queryClient, move }
 }
