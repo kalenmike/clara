@@ -153,7 +153,7 @@ export function OpenCodeCard({
 }) {
   const feature = findFeature(controls, 'opencode')
   const control = useFeatureControl(feature, controls.stopped, onChanged)
-  const { redact } = usePeek()
+  const { masked, redact } = usePeek()
   const disabled = opencode.code === 'disabled'
   const unconfigured = opencode.code === 'unconfigured'
   const tone: Tone = disabled
@@ -207,8 +207,10 @@ export function OpenCodeCard({
       <CardBody>
         <KeyValue label="URL">
           <span className="inline-flex flex-wrap items-center justify-end gap-2">
-            <span className="font-mono text-xs">{opencode.url || 'Not configured'}</span>
-            {opencode.url ? <CopyButton value={opencode.url} label="Copy URL" /> : null}
+            <span className="font-mono text-xs">
+              {opencode.url ? (masked ? PEEK_MASK : opencode.url) : 'Not configured'}
+            </span>
+            {opencode.url && !masked ? <CopyButton value={opencode.url} label="Copy URL" /> : null}
           </span>
         </KeyValue>
         <KeyValue label="Desired">{opencode.desired ? 'On' : 'Off'}</KeyValue>

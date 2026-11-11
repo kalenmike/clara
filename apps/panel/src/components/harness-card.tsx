@@ -8,6 +8,7 @@ import type {
 } from '@clara/shared-types'
 import { deletePanel, postPanel } from '../lib/panel-api.ts'
 import { formatRelative, formatTimestamp } from '../lib/format.ts'
+import { PEEK_MASK } from '../lib/peek.ts'
 import { usePeek } from '../lib/peek-context.tsx'
 import { Badge, CardBody, CollapsibleCard, Notice } from './primitives.tsx'
 
@@ -38,7 +39,7 @@ export function HarnessCard({
   onChanged: () => void
   now: number
 }) {
-  const { redact } = usePeek()
+  const { masked, redact } = usePeek()
   const [editing, setEditing] = useState<string | 'new' | undefined>(
     harnesses.length === 0 ? 'new' : undefined
   )
@@ -170,7 +171,7 @@ export function HarnessCard({
           <Notice tone={test.ok ? 'warning' : 'danger'}>
             {test.ok
               ? `Connection ok${test.version ? ` · ${test.version}` : ''} · ${test.latencyMs} ms`
-              : `${test.message ?? test.code}${test.status ? ` (${test.status})` : ''}`}
+              : redact(`${test.message ?? test.code}${test.status ? ` (${test.status})` : ''}`)}
           </Notice>
         ) : null}
 
@@ -195,7 +196,7 @@ export function HarnessCard({
                       ) : null}
                     </div>
                     <p className="truncate font-mono text-[11px] text-neutral-500 dark:text-neutral-400">
-                      {connection.baseUrl} · {connection.authType}
+                      {masked ? PEEK_MASK : connection.baseUrl} · {connection.authType}
                       {connection.username ? ` · ${connection.username}` : ''}
                     </p>
                   </div>
@@ -243,7 +244,7 @@ export function HarnessCard({
                   <p className="mt-1 text-[11px] text-neutral-500 dark:text-neutral-400">
                     Last test {formatRelative(connection.lastTestAt, now)} ·{' '}
                     <span title={formatTimestamp(connection.lastTestAt)}>
-                      {connection.lastTestOk ? 'ok' : (connection.lastTestError ?? 'failed')}
+                      {connection.lastTestOk ? 'ok' : redact(connection.lastTestError ?? 'failed')}
                     </span>
                   </p>
                 ) : null}
