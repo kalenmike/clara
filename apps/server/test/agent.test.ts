@@ -846,7 +846,7 @@ describe('agent client sync', () => {
     }
   })
 
-  it('broadcasts the current agent info to connected clients', async () => {
+  it('broadcasts the current hub info to connected clients', async () => {
     const fake = await startFakeOpenCode()
     try {
       const { agent, client, frames } = await connect(fake)

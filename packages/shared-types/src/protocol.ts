@@ -11,7 +11,7 @@ export type DeviceErrorCode =
   | 'invalid_device'
   | 'not_allowed'
 
-/** WebSocket subprotocol offered by both clients and the home agent. */
+/** WebSocket subprotocol offered by both clients and the hub. */
 export const RELAY_SUBPROTOCOL = 'clara.v1'
 
 export const RELAY_AUTH_PREFIX = 'clara.auth.'
@@ -24,7 +24,7 @@ export type AgentInfo = {
   protocol: number
   opencodeVersion?: string
   room?: string
-  /** Present when the home agent can send Web Push notifications. */
+  /** Present when the hub can send Web Push notifications. */
   pushPublicKey?: string
   /** False when an admin disabled client settings sync. Absent means enabled. */
   syncEnabled?: boolean

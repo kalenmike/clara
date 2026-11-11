@@ -6,7 +6,7 @@ export const PAIRING_CODE_PREFIX = 'clara1_'
 /**
  * A pairing link carries a one-time enrollment capability, not a long-lived
  * key. The enrollment token is used as the session key for the enrollment
- * handshake and is consumed by the agent after one device enrolls.
+ * handshake and is consumed by the hub after one device enrolls.
  */
 export type PairingPayload = {
   v: typeof PROTOCOL_VERSION

@@ -66,7 +66,7 @@ export default defineConfig([
   {
     files: ['apps/server/**/*.ts'],
     rules: {
-      // The home agent is a CLI; startup and pairing output belongs on stdout.
+      // The hub service is a CLI; startup and pairing output belongs on stdout.
       'no-console': 'off',
     },
   },

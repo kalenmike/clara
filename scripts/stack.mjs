@@ -308,9 +308,7 @@ function printSummary(selection) {
   }
   if (!selection.server) {
     console.log('')
-    console.log(
-      'note: the web client needs a home agent; it will not connect until one is available.'
-    )
+    console.log('note: the web client needs a hub; it will not connect until one is available.')
   }
   if (!selection.orchestrator) {
     console.log('')

@@ -43,7 +43,7 @@ export async function createPairingPayload(
 /**
  * The link a pairing code opens. By default it uses the configured Web URL,
  * even for a local code. `--no-relay` switches to the local web app so the
- * link and the agent's ws:// listener stay on the same machine, unless the
+ * link and the hub's ws:// listener stay on the same machine, unless the
  * configured base is already loopback (for example the Vite dev server).
  */
 export function pairingLinkBase(

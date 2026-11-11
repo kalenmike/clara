@@ -24,8 +24,8 @@ type VapidFile = {
 }
 
 /**
- * VAPID identifies this home agent to every browser push service. Keep the
- * private key with the rest of the agent config; rotating it invalidates every
+ * VAPID identifies this hub to every browser push service. Keep the
+ * private key with the rest of the hub config; rotating it invalidates every
  * existing subscription.
  *
  * The subject is deliberately independent of the pairing Web URL: the pairing

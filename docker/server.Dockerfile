@@ -1,6 +1,6 @@
 # syntax=docker/dockerfile:1.7
 
-# Build the home agent, its panel, and only its runtime dependencies.
+# Build the hub service, its panel, and only its runtime dependencies.
 # Build context: repository root.
 #
 #   docker build -f docker/server.Dockerfile -t clara-server .

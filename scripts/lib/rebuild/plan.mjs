@@ -29,7 +29,7 @@ export function primaryWorktree(worktrees) {
 
 /**
  * The deployment form captured at status time. `compose` says whether the
- * home-agent container is running even when its panel is unreachable.
+ * hub container is running even when its panel is unreachable.
  */
 export function deploymentModes({ orchestrator, lab, server, web, compose = {} } = {}) {
   const orchestratorMode =

@@ -41,7 +41,7 @@ export type TrafficMeterOptions = {
 /**
  * Bounded, in-memory traffic counters for the panel. Nothing is persisted and
  * no payload is inspected: the meter only sees frame sizes, request counts, and
- * the outcome of frames the agent already had to reject.
+ * the outcome of frames the hub already had to reject.
  *
  * The enabled flag is cached rather than read from the database on every frame;
  * the controller calls `setEnabled` when the panel switch changes.
@@ -132,7 +132,7 @@ export class TrafficMeter {
     const currentMinute = Math.floor(now / TRAFFIC_BUCKET_MS)
     this.prune(currentMinute)
     // Materialise the current minute so the chart always ends at "now", even
-    // when the agent has been idle since the last poll.
+    // when the hub has been idle since the last poll.
     this.bucket()
     const complete = this.buckets.filter((bucket) => bucket.minute < currentMinute)
     const previous = complete.find((bucket) => bucket.minute === currentMinute - 1)

@@ -65,7 +65,7 @@ async function main(): Promise<void> {
         const removed = devices.revokeAllDevices()
         const pushRemoved = clearPushSubscriptions(join(config.configDir, 'subscriptions.json'))
         console.log(`Revoked ${removed} device(s); cleared ${pushRemoved} push subscription(s).`)
-        console.log('Restart the running agent to apply the revocation immediately.')
+        console.log('Restart the running hub service to apply the revocation immediately.')
         return
       }
       if (revokeIndex >= 0) {
@@ -82,7 +82,7 @@ async function main(): Promise<void> {
           return
         }
         console.log(`Revoked ${revoked.label} (${revoked.id}).`)
-        console.log('Restart the running agent to apply the revocation immediately.')
+        console.log('Restart the running hub service to apply the revocation immediately.')
         return
       }
       await printPairing(config, devices, !args.includes('--no-qr'), { noRelay })

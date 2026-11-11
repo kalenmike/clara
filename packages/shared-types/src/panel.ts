@@ -1,5 +1,5 @@
 /**
- * Read-only DTOs for the home agent's loopback panel.
+ * Read-only DTOs for the hub's loopback panel.
  *
  * These types are deliberately separate from the relay wire frames in
  * `frames.ts`, `actions.ts`, and `states.ts`. The panel is served by the home
@@ -41,7 +41,7 @@ export type PanelAgentInfo = {
   configDir: string
   pairedDevices: number
   stopped: boolean
-  /** True when this agent runs in a container. */
+  /** True when this hub service runs in a container. */
   container: boolean
 }
 
@@ -288,7 +288,7 @@ export type ShellPolicy = {
 }
 
 export type PanelShellControl = ShellPolicy & {
-  /** Command requests the agent refused since it started. */
+  /** Command requests the hub refused since it started. */
   blocked: number
 }
 
@@ -315,7 +315,7 @@ export type PanelOrchestrationState =
   'local' | 'container' | 'external' | 'stopped' | 'unresponsive' | 'foreign'
 
 export type PanelOrchestrationControl = {
-  /** Whether this home agent should keep a local service running. */
+  /** Whether this hub should keep a local service running. */
   desired: boolean
   /** True while the orchestrator health endpoint answers. */
   effective: boolean
@@ -354,7 +354,7 @@ export type PanelMutationResponse = {
 }
 
 /**
- * Error counters for the traffic meter. They are named for what the agent
+ * Error counters for the traffic meter. They are named for what the hub
  * observed, never for a payload it decrypted and kept.
  */
 export type PanelTrafficErrorKey =

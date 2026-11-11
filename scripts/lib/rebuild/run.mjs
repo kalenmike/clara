@@ -863,7 +863,7 @@ async function restartServer(state, options) {
   if (current.mode === 'container') {
     if (!options.force) {
       throw new Error(
-        'the snapshot captured a local home agent but it is running in a container; stop the container or re-capture with `pnpm clara rebuild status`'
+        'the snapshot captured a local hub but it is running in a container; stop the container or re-capture with `pnpm clara rebuild status`'
       )
     }
     await restartServerContainer(buildRoot, server, options)
@@ -882,7 +882,7 @@ async function restartServer(state, options) {
     return startServer(state, server, env)
   }
   if (current.expected) {
-    throw new Error('the home agent did not expose a restartable pid; restart it manually')
+    throw new Error('the hub did not expose a restartable pid; restart it manually')
   }
 
   return startServer(state, server, { ...process.env })
@@ -934,7 +934,7 @@ async function waitForServer(server) {
       (!expectedLocal || Boolean(probe.local)),
     { timeoutMs: 30000 }
   )
-  if (!result.ok) throw new Error('the home agent did not become healthy')
+  if (!result.ok) throw new Error('the hub did not become healthy')
 }
 
 async function restartOrchestrator(state, options) {

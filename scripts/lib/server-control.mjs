@@ -93,7 +93,7 @@ export function runLocalServerProcess(args) {
   return run(process.execPath, [SERVER_ENTRY, ...args], { cwd: root })
 }
 
-/** The home agent container by name, without throwing when Docker is missing. */
+/** The hub container by name, without throwing when Docker is missing. */
 export function serverContainerState() {
   const result = spawnSync(
     'docker',

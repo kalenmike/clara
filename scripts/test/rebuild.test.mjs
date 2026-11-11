@@ -357,7 +357,7 @@ test('restart plan records the captured deployment mode', () => {
   assert.equal(plan.services.find((service) => service.name === 'lab')?.mode, 'host')
 })
 
-test('health warns when the home agent changes deployment mode', () => {
+test('health warns when the hub changes deployment mode', () => {
   const report = evaluateHealth(
     state({
       server: {
