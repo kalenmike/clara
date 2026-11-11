@@ -1,6 +1,7 @@
 import { PANEL_API_VERSION, type PanelSnapshot } from '@clara/shared-types'
 import { formatRelative, formatTimestamp } from '../../lib/format.ts'
 import { buildHealth, type HealthTone } from '../../lib/health.ts'
+import { usePeek } from '../../lib/peek-context.tsx'
 import type { PanelTab } from '../../lib/tabs.ts'
 
 const TONE_CLASS: Record<HealthTone, string> = {
@@ -19,6 +20,8 @@ export function StatusBar({
   now: number
   onSelect: (tab: PanelTab) => void
 }) {
+  const { redact } = usePeek()
+
   if (!data) {
     return (
       <footer className="panel-statusbar">
@@ -59,19 +62,19 @@ export function StatusBar({
         <StatusItem
           tone={harness.tone}
           label={`Harness · ${harness.status}`}
-          title={harness.detail}
+          title={redact(harness.detail)}
           onClick={() => onSelect('harness')}
         />
         <StatusItem
           tone={local.tone}
           label={`Local · ${data.local.connections}`}
-          title={local.detail}
+          title={redact(local.detail)}
           onClick={() => onSelect('connections')}
         />
         <StatusItem
           tone={relay.tone}
           label={`Relay · ${relay.status}`}
-          title={relay.detail}
+          title={redact(relay.detail)}
           onClick={() => onSelect('connections')}
         />
         <StatusItem
@@ -81,13 +84,13 @@ export function StatusBar({
               ? `Push · ${data.push.failing} failing`
               : `Push · ${data.push.subscriptions}`
           }
-          title={push.detail}
+          title={redact(push.detail)}
           onClick={() => onSelect('connections')}
         />
         <StatusItem
           tone={orchestration.tone}
           label={`Orchestration · ${orchestration.status}`}
-          title={orchestration.detail}
+          title={redact(orchestration.detail)}
           onClick={() => onSelect('overview')}
         />
         <StatusItem

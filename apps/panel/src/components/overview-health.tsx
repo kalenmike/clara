@@ -10,6 +10,7 @@ import {
 } from 'lucide-react'
 import type { HealthItem } from '../lib/health.ts'
 import type { PanelTab } from '../lib/tabs.ts'
+import { usePeek } from '../lib/peek-context.tsx'
 
 const ICONS: Record<HealthItem['key'], LucideIcon> = {
   harness: Cable,
@@ -26,16 +27,19 @@ export function HealthTiles({
   items: HealthItem[]
   onSelect: (tab: PanelTab) => void
 }) {
+  const { redact } = usePeek()
+
   return (
     <div className="panel-health-grid">
       {items.map((item) => {
         const Icon = ICONS[item.key]
+        const detail = redact(item.detail)
         return (
           <button
             key={item.key}
             type="button"
             className={`panel-health-tile tone-${item.tone}`}
-            title={`${item.label}: ${item.detail}`}
+            title={`${item.label}: ${detail}`}
             onClick={() => onSelect(item.tab)}
           >
             <span className="panel-health-icon">
@@ -44,7 +48,7 @@ export function HealthTiles({
             <span className="panel-health-copy">
               <span className="panel-health-label">{item.label}</span>
               <span className="panel-health-status">{item.status}</span>
-              <span className="panel-health-detail">{item.detail}</span>
+              <span className="panel-health-detail">{detail}</span>
             </span>
             <ChevronRight className="panel-health-chevron size-3.5" aria-hidden="true" />
           </button>

@@ -7,10 +7,10 @@ Clara Lab workbench layout: a title bar, an activity rail with tabbed views, and
 a status bar. It shows the hub's live state, transports, connected clients,
 active harness probe, push health, configuration sources, database health,
 storage files, and a live traffic meter without exposing secrets. Sensitive
-values start masked behind a header peek control so the panel can be screenshared
-safely. It is also the one-time setup surface for the harness connection: the
-superadmin signs in, chooses a password, and saves the OpenCode base URL and
-credentials. The same surface edits the Web URL used by pairing links and the
+values, including the harness URL and relay room, start masked behind a header
+peek control so the panel can be screenshared safely. It is also the one-time
+setup surface for the harness connection: the superadmin signs in, chooses a
+password, and saves the OpenCode base URL and credentials. The same surface edits the Web URL used by pairing links and the
 VAPID contact used by Web Push, switches external connections on and off without
 stopping the process, starts and stops the local orchestration service, turns
 traffic monitoring on or off, and gates or paces client settings sync.
@@ -38,8 +38,8 @@ traffic monitoring on or off, and gates or paces client settings sync.
    degraded surface; health tiles jump to their tab. Status chips sit beside each
    card title, including a storage health summary that turns amber for warnings
    and red for errors. Sensitive values start masked: device ids and fingerprints,
-   config and storage paths, local WebSocket endpoint, relay URL and room,
-   connection session ids, and WebSocket URLs in activity or errors.
+   config and storage paths, local WebSocket endpoint, harness URL, relay URL and
+   room, connection session ids, and WebSocket URLs in activity or errors.
 5. Move between views from the activity rail: **Home** (Overview), **Harness**,
    **Network** (Connections), **Clients**, **Traffic**, and **Activity**, with
    **Settings** pinned at the bottom. The rail shows live client and event counts
@@ -56,8 +56,8 @@ traffic monitoring on or off, and gates or paces client settings sync.
    username, and password. Use **Test** before saving when possible, then
    **Activate** it. In a container, the URL must be reachable from the `clara`
    network, for example `http://opencode:4096`; `127.0.0.1` means the hub
-   service itself. The adjacent card shows the active harness URL, version,
-   latency, secret state, and its on/off switch.
+   service itself. The adjacent card shows the active harness URL (masked until
+   revealed), version, latency, secret state, and its on/off switch.
 8. In **Connections**, toggle local transport, relay, or push from the switch at
    the top right of its card. The choice is saved immediately. An enabled switch
    is green while external connections are on and red while they are off; a disabled switch
@@ -167,12 +167,13 @@ traffic monitoring on or off, and gates or paces client settings sync.
    Nothing is throttled, blocked, or persisted, and the per-client counters are
    hidden while monitoring is off.
 8. **Peek is presentation-only.** The eye button masks device ids and
-   fingerprints, config and storage paths, local WebSocket endpoint, relay URL
-   and room, connection session ids, and WebSocket URLs in activity messages
-   and error notices. It does not redact the JSON snapshot, change any control,
-   or reach the hub service: its allowlist remains the security boundary.
-   The choice lives in `sessionStorage` for the tab, so a reload keeps it and a
-   new tab starts masked.
+   fingerprints, config and storage paths, local WebSocket endpoint, harness
+   URL, relay URL and room, connection session ids, and WebSocket URLs in
+   activity messages and error notices. The Home health tiles and status bar
+   tooltips use the same scrubber. It does not redact the JSON snapshot, change
+   any control, or reach the hub service: its allowlist remains the security
+   boundary. The choice lives in `sessionStorage` for the tab, so a reload
+   keeps it and a new tab starts masked.
 
 ## Edge cases
 
@@ -241,8 +242,8 @@ traffic monitoring on or off, and gates or paces client settings sync.
   and the hub retires it as soon as the device-enrolled response is sent.
 - **The panel is screenshared** — sensitive values load masked and the eye
   button reveals them for the tab. Masked values lose their full-value tooltips
-  and copy buttons, and the same scrubber covers activity messages and error
-  notices.
+  and copy buttons, and the same scrubber covers activity messages, error
+  notices, Home health tiles, and status bar tooltips.
 - **Monitoring is off** — the Traffic card collapses to its header and switch,
   the client table drops its traffic columns, and no counter moves. Turning it
   on starts a new window.
