@@ -1,5 +1,12 @@
 import { describe, expect, it } from 'vitest'
-import { maskText, PEEK_MASK, readPeekPreference, writePeekPreference } from './peek.ts'
+import type { PanelSnapshot } from '@clara/shared-types'
+import {
+  collectSecrets,
+  maskText,
+  PEEK_MASK,
+  readPeekPreference,
+  writePeekPreference,
+} from './peek.ts'
 
 describe('maskText', () => {
   it('masks WebSocket URLs and keeps the surrounding text and trailing punctuation', () => {
@@ -47,6 +54,49 @@ describe('maskText', () => {
   })
 })
 
+describe('collectSecrets', () => {
+  it('collects the harness URL, its public hostname, and saved harness URLs', () => {
+    const secrets = collectSecrets(
+      snapshot({
+        opencode: { url: 'http://opencode.internal:4096' },
+        harnesses: [{ baseUrl: 'https://harness.example:8443' }],
+      })
+    )
+
+    expect(secrets).toContain('http://opencode.internal:4096')
+    expect(secrets).toContain('opencode.internal')
+    expect(secrets).toContain('https://harness.example:8443')
+    expect(secrets).toContain('harness.example')
+  })
+
+  it('masks a harness URL and the relay room in free text', () => {
+    const secrets = collectSecrets(
+      snapshot({
+        opencode: { url: 'http://opencode.internal:4096' },
+        harnesses: [{ baseUrl: 'http://opencode.internal:4096' }],
+      })
+    )
+
+    expect(maskText('harness http://opencode.internal:4096 failed', secrets)).toBe(
+      `harness ${PEEK_MASK} failed`
+    )
+    expect(maskText('Room room-abc', secrets)).toBe(`Room ${PEEK_MASK}`)
+  })
+
+  it('keeps loopback harness hostnames out of the secret list', () => {
+    const secrets = collectSecrets(
+      snapshot({
+        opencode: { url: 'http://127.0.0.1:4096' },
+        harnesses: [{ baseUrl: 'http://localhost:4096' }],
+      })
+    )
+
+    expect(secrets).toContain('http://127.0.0.1:4096')
+    expect(secrets).not.toContain('127.0.0.1')
+    expect(secrets).not.toContain('localhost')
+  })
+})
+
 describe('peek preference', () => {
   it('defaults to masked without a stored choice', () => {
     expect(readPeekPreference(undefined)).toBe('masked')
@@ -87,4 +137,25 @@ function fakeStorage(initial: Record<string, string> = {}) {
       values.set(key, value)
     },
   }
+}
+
+function snapshot(patch: Partial<Record<string, unknown>> = {}): PanelSnapshot {
+  return {
+    agent: {
+      configPath: '/home/me/.config/clara/server.json',
+      configDir: '/home/me/.config/clara',
+    },
+    config: {
+      relayUrl: { value: 'wss://relay.example.com' },
+      relayRoom: { value: 'room-abc' },
+    },
+    local: { host: '127.0.0.1', port: 8788, url: 'ws://127.0.0.1:8788' },
+    opencode: { url: 'http://127.0.0.1:4096' },
+    harnesses: [],
+    relay: { url: 'wss://relay.example.com', room: 'room-abc' },
+    storage: [],
+    clients: [],
+    devices: [],
+    ...patch,
+  } as unknown as PanelSnapshot
 }

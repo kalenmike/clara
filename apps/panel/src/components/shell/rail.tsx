@@ -19,9 +19,6 @@ export function Rail({
 
   return (
     <nav className="panel-rail" aria-label="Panel views">
-      <div className="panel-rail-brand" aria-hidden="true">
-        C
-      </div>
       <div className="panel-rail-items">
         {primary.map((item) => (
           <RailItem
