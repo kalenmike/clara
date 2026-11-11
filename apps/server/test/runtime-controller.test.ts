@@ -4,9 +4,10 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { AgentInfo } from '@clara/shared-types'
-import { generateSecretKey, loadSecretKey } from '@clara/crypto'
+import { generateKey, generateSecretKey, loadSecretKey } from '@clara/crypto'
 import type { ServerConfig } from '../src/config.ts'
 import { HarnessManager } from '../src/harness/manager.ts'
+import { HarnessMetadataStore } from '../src/harness/metadata.ts'
 import { HarnessStore } from '../src/harness/store.ts'
 import type { PushService } from '../src/push/service.ts'
 import { AgentStoppedError, RuntimeController } from '../src/runtime/controller.ts'
@@ -94,13 +95,22 @@ async function createController(
     key: secretKey,
     keyVersion: 1,
   })
-  await harnessStore.save({
+  const pairing = await harnessStore.createPairing({ kind: 'opencode', label: 'Test OpenCode' })
+  await harnessStore.enroll({
+    pairId: pairing.id,
+    pairToken: pairing.token,
+    harnessId: 'harness-a',
     kind: 'opencode',
     label: 'Test OpenCode',
-    baseUrl: options.openCodeUrl ?? 'http://127.0.0.1:4096',
-    authType: 'none',
+    adapterId: 'adapter-a',
+    key: generateKey(),
+    adapterVersion: '0.1.0',
+    protocolVersion: 1,
+    capabilities: {},
+    transport: 'local',
   })
-  const harness = new HarnessManager(harnessStore)
+  void options.openCodeUrl
+  const harness = new HarnessManager(harnessStore, new HarnessMetadataStore(db))
   await harness.load()
   const controller = new RuntimeController({
     config: serverConfig,

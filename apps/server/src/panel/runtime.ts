@@ -118,6 +118,7 @@ export class PanelRuntime implements PanelDataSource {
       opencode: this.openCodeSnapshot(probe, now, controlFor(controls, 'opencode')),
       harness,
       harnesses: this.harnessList(),
+      harnessPairings: [],
       local: {
         host: config.local.host,
         port: config.local.port,
@@ -157,8 +158,8 @@ export class PanelRuntime implements PanelDataSource {
     const active = this.options.harness.active
     const error = control.error ?? this.options.harness.lastError ?? probe.message
     return {
-      url: displayUrl(active?.baseUrl ?? ''),
-      passwordConfigured: active?.secretConfigured === true,
+      url: active ? `${active.kind} adapter (${active.transport})` : '',
+      passwordConfigured: active?.credentialConfigured === true,
       reachable: probe.ok,
       desired: control.desired,
       effective: control.effective,
@@ -545,18 +546,6 @@ function isMissing(cause: unknown): boolean {
   return (
     typeof cause === 'object' && cause !== null && (cause as { code?: unknown }).code === 'ENOENT'
   )
-}
-
-function displayUrl(value: string): string {
-  if (!value) return ''
-  try {
-    const url = new URL(value)
-    url.username = ''
-    url.password = ''
-    return url.toString().replace(/\/$/, '')
-  } catch {
-    return '[invalid URL]'
-  }
 }
 
 function formatHost(host: string): string {

@@ -82,7 +82,7 @@ export function createApiApp(deps: ApiDependencies, options: ApiAppOptions): Api
               description: 'Agents, models, providers, commands, skills, and references',
             },
             { name: 'git', description: 'Git history' },
-            { name: 'events', description: 'Live OpenCode events' },
+            { name: 'events', description: 'Live harness events' },
           ],
           components: {
             securitySchemes: {

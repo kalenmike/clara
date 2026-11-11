@@ -1,4 +1,5 @@
 export * from './actions.ts'
+export * from './adapter.ts'
 export * from './frames.ts'
 export * from './pairing.ts'
 export * from './panel.ts'

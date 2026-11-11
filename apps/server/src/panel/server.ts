@@ -499,7 +499,7 @@ async function handleHarness(
   const [id, action] = parts as string[]
 
   try {
-    if (method === 'POST' && !id) {
+    if (method === 'POST' && id === 'pairings' && !action) {
       const body = await readJsonBody(request)
       if (!body.ok) return sendBodyFailure(response, method, body)
       if (!isRecord(body.value)) {
@@ -507,44 +507,28 @@ async function handleHarness(
           error: { code: 'invalid_body', message: 'The request body must be a JSON object' },
         })
       }
-      const unknown = harnessUnknownField(body.value)
-      if (unknown) return invalidField(response, method, unknown)
-      const result = await controls.saveHarness(body.value)
-      sendJson(response, method, 200, result)
+      sendJson(response, method, 200, await controls.createHarnessPairing(body.value))
       return
     }
 
-    if (method === 'POST' && id && !action) {
-      const body = await readJsonBody(request)
-      if (!body.ok) return sendBodyFailure(response, method, body)
-      if (!isRecord(body.value)) {
-        return sendJson(response, method, 400, {
-          error: { code: 'invalid_body', message: 'The request body must be a JSON object' },
-        })
-      }
-      const unknown = harnessUnknownField(body.value)
-      if (unknown) return invalidField(response, method, unknown)
-      const result = await controls.saveHarness(body.value, id)
-      sendJson(response, method, 200, result)
+    if (method === 'DELETE' && id === 'pairings' && action) {
+      await controls.cancelHarnessPairing(action)
+      sendJson(response, method, 200, { ok: true })
       return
     }
 
     if (method === 'POST' && id && action === 'test') {
-      const body = await readJsonBody(request)
-      if (!body.ok) return sendBodyFailure(response, method, body)
-      if (!isRecord(body.value)) {
-        return sendJson(response, method, 400, {
-          error: { code: 'invalid_body', message: 'The request body must be a JSON object' },
-        })
-      }
-      const unknown = harnessUnknownField(body.value)
-      if (unknown) return invalidField(response, method, unknown)
-      sendJson(response, method, 200, await controls.testHarness(body.value, id))
+      sendJson(response, method, 200, await controls.testHarness(id))
       return
     }
 
     if (method === 'POST' && id && action === 'activate') {
       sendJson(response, method, 200, await controls.activateHarness(id))
+      return
+    }
+
+    if (method === 'POST' && id && action === 'forget') {
+      sendJson(response, method, 200, await controls.forgetHarness(id))
       return
     }
 
@@ -920,18 +904,6 @@ function sendBodyFailure(
   sendJson(response, method, body.status, {
     error: { code: body.code, message: body.message },
   })
-}
-
-function harnessUnknownField(body: Record<string, unknown>): string | undefined {
-  return unknownFields(body, [
-    'kind',
-    'label',
-    'baseUrl',
-    'authType',
-    'username',
-    'password',
-    'options',
-  ])
 }
 
 function unknownFields(body: Record<string, unknown>, allowed: string[]): string | undefined {

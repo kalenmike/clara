@@ -13,6 +13,10 @@ export type HelloFrame = {
   role: RelayRole
   deviceId?: string
   enrollId?: string
+  /** True for a harness adapter session rather than a browser device. */
+  adapter?: boolean
+  /** Long-lived adapter credential id. */
+  adapterId?: string
 }
 
 export type SealedFrame = {
@@ -57,7 +61,9 @@ export function isHelloFrame(value: unknown): value is HelloFrame {
     value.nonce.length > 0 &&
     (value.role === 'agent' || value.role === 'client') &&
     optionalString(value.deviceId) &&
-    optionalString(value.enrollId)
+    optionalString(value.enrollId) &&
+    optionalString(value.adapterId) &&
+    (value.adapter === undefined || typeof value.adapter === 'boolean')
   )
 }
 

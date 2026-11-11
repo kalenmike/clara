@@ -1,34 +1,27 @@
-import type { HttpRequestAction } from '../opencode.ts'
+import type { HttpMethod } from '@clara/shared-types'
 
-export type HarnessKind = 'opencode'
-export type HarnessAuthType = 'none' | 'basic'
+export type HarnessKind = string
+export type HarnessTransport = 'local' | 'relay'
 
 export type HarnessConnection = {
   id: string
+  harnessId: string
   kind: HarnessKind
   label: string
-  baseUrl: string
-  authType: HarnessAuthType
-  username?: string
-  options: Record<string, unknown>
+  transport: HarnessTransport
+  online: boolean
+  adapterVersion?: string
+  protocolVersion?: number
+  harnessVersion?: string
+  capabilities: Record<string, unknown>
   isActive: boolean
+  credentialConfigured: boolean
   lastTestAt?: number
   lastTestOk?: boolean
   lastTestError?: string
+  lastSeenAt?: number
   createdAt: number
   updatedAt: number
-  secretConfigured: boolean
-}
-
-export type HarnessCandidate = {
-  kind: HarnessKind
-  label: string
-  baseUrl: string
-  authType: HarnessAuthType
-  username?: string
-  /** Absent or empty on an edit means "keep the existing secret". */
-  password?: string
-  options?: Record<string, unknown>
 }
 
 export type HarnessProbe = {
@@ -37,12 +30,28 @@ export type HarnessProbe = {
   status?: number
   latencyMs: number
   code:
-    'ok' | 'timeout' | 'auth' | 'http' | 'unreachable' | 'disabled' | 'unconfigured' | 'unsupported'
+    | 'ok'
+    | 'timeout'
+    | 'auth'
+    | 'http'
+    | 'unreachable'
+    | 'disabled'
+    | 'unconfigured'
+    | 'offline'
+    | 'unsupported'
   message?: string
 }
 
+export type HarnessRequestInput = {
+  method: HttpMethod
+  path: string
+  search?: string
+  headers?: Record<string, string>
+  body?: string
+}
+
 export type HarnessRequest = {
-  request(action: HttpRequestAction, signal: AbortSignal): Promise<Response>
+  request(input: HarnessRequestInput, signal: AbortSignal): Promise<Response>
 }
 
 export type HarnessClient = HarnessRequest & {
@@ -60,6 +69,15 @@ export class HarnessUnconfiguredError extends Error {
   }
 }
 
+export class HarnessOfflineError extends Error {
+  readonly code = 'harness_offline'
+
+  constructor(message = 'The active harness adapter is offline') {
+    super(message)
+    this.name = 'HarnessOfflineError'
+  }
+}
+
 export class HarnessValidationError extends Error {
   readonly code: string
 
@@ -68,4 +86,25 @@ export class HarnessValidationError extends Error {
     this.name = 'HarnessValidationError'
     this.code = code
   }
+}
+
+export type AdapterCredential = {
+  adapterId: string
+  harnessId: string
+  label: string
+  key: string
+  fingerprint: string
+  createdAt: number
+  revokedAt?: number
+}
+
+export type HarnessPairing = {
+  id: string
+  kind: string
+  label: string
+  token: string
+  fingerprint: string
+  replacesConnectionId?: string
+  createdAt: number
+  expiresAt: number
 }

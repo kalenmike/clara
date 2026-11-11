@@ -15,23 +15,27 @@ function fakeHarness(): HarnessManager {
     configured: true,
     generation: 3,
     active: {
+      id: 'h1',
+      harnessId: 'harness-a',
       kind: 'opencode',
       label: 'Test OpenCode',
-      id: 'h1',
-      baseUrl: 'http://127.0.0.1:4096',
-      authType: 'none',
-      options: {},
+      transport: 'local',
+      online: true,
+      capabilities: {},
       isActive: true,
+      credentialConfigured: true,
       createdAt: 1,
       updatedAt: 1,
-      secretConfigured: false,
     },
     lastError: undefined,
+    harnessId: 'harness-a',
+    overlayProjectList: (projects: unknown[]) => projects,
+    overlaySessionList: (value: { data: unknown[]; cursor: unknown }) => value,
     request: async (action: { path: string }) => {
-      if (action.path === '/api/info') {
+      if (action.path === '/harness/info' || action.path === '/api/info') {
         return json({ version: '9.9.9', pid: 42, urls: [], paths: { tmp: '/tmp' } })
       }
-      if (action.path === '/api/project') {
+      if (action.path === '/projects' || action.path === '/api/project') {
         return json([
           {
             id: 'p1',
@@ -42,8 +46,10 @@ function fakeHarness(): HarnessManager {
           },
         ])
       }
-      if (action.path === '/api/session') return json({ data: [], cursor: {} })
-      if (action.path === '/api/session/active') return json({})
+      if (action.path === '/sessions' || action.path === '/api/session')
+        return json({ data: [], cursor: {} })
+      if (action.path === '/sessions/active' || action.path === '/api/session/active')
+        return json({})
       return json({ error: { code: 'not_found', message: 'not found' } }, 404)
     },
   } as unknown as HarnessManager

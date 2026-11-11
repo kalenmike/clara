@@ -24,7 +24,6 @@ import { createApiApp } from '../src/api/app.ts'
 import type { ApiApp } from '../src/api/context.ts'
 import type { HarnessManager } from '../src/harness/manager.ts'
 import { HarnessUnconfiguredError } from '../src/harness/types.ts'
-import { OpenCodeClient, type HttpRequestAction } from '../src/opencode.ts'
 import type { PushService } from '../src/push/service.ts'
 import {
   ClientStorageStore,
@@ -36,12 +35,28 @@ import type { DeviceRegistry } from '../src/store/devices.ts'
 import { TrafficMeter } from '../src/traffic.ts'
 
 function fakeHarness(url: string, configured = true): HarnessManager {
-  const client = new OpenCodeClient(url)
   return {
     configured,
-    request: (action: HttpRequestAction, signal: AbortSignal) => {
+    request: (
+      input: { method: string; path: string; search?: string; body?: string },
+      signal: AbortSignal
+    ) => {
       if (!configured) return Promise.reject(new HarnessUnconfiguredError())
-      return client.request(action, signal)
+      const path =
+        input.path === '/harness/info'
+          ? '/api/info'
+          : input.path === '/projects'
+            ? '/api/project'
+            : input.path === '/sessions'
+              ? '/api/session'
+              : input.path === '/events'
+                ? '/api/stream'
+                : `/api${input.path}`
+      return fetch(`${url}${path}${input.search ?? ''}`, {
+        method: input.method,
+        ...(input.body ? { body: input.body } : {}),
+        signal,
+      })
     },
   } as unknown as HarnessManager
 }

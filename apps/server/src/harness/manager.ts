@@ -1,30 +1,37 @@
-import type { HttpRequestAction } from '../opencode.ts'
-import { OpenCodeClient } from '../opencode.ts'
-import type { HarnessStore } from './store.ts'
-import { HarnessUnconfiguredError, type HarnessConnection, type HarnessProbe } from './types.ts'
-import { validateHarnessInput } from './validation.ts'
+import type { ClaraProject, ClaraSession } from '@clara/api-contract'
+import { HarnessClient } from '@clara/harness-protocol'
+import type { AdapterEnrollAction, PanelTransport } from '@clara/shared-types'
+import type { HarnessMetadataStore } from './metadata.ts'
+import type { EnrollAdapterInput, EnrollAdapterResult, HarnessStore } from './store.ts'
+import {
+  HarnessOfflineError,
+  HarnessUnconfiguredError,
+  type HarnessConnection,
+  type HarnessPairing,
+  type HarnessProbe,
+  type HarnessRequestInput,
+  type HarnessTransport,
+} from './types.ts'
 
 export type HarnessChangeListener = () => void | Promise<void>
 
-/**
- * Owns the one active harness connection. Everything that used to receive a
- * fixed OpenCodeClient now resolves the current client here, so saving a
- * connection can swap the backend without restarting the process.
- */
+type Fetch = (request: Request) => Promise<Response>
+
 export class HarnessManager {
   private readonly store: HarnessStore
+  readonly metadata: HarnessMetadataStore
   private readonly listeners = new Set<HarnessChangeListener>()
-  private client?: OpenCodeClient
-  private connection?: HarnessConnection
+  private readonly live = new Map<string, Fetch>()
   private error?: string
   private generationValue = 0
 
-  constructor(store: HarnessStore) {
+  constructor(store: HarnessStore, metadata: HarnessMetadataStore) {
     this.store = store
+    this.metadata = metadata
   }
 
   get configured(): boolean {
-    return this.client !== undefined
+    return this.store.active() !== undefined
   }
 
   get generation(): number {
@@ -32,7 +39,7 @@ export class HarnessManager {
   }
 
   get active(): HarnessConnection | undefined {
-    return this.connection
+    return this.store.active()
   }
 
   get lastError(): string | undefined {
@@ -44,11 +51,16 @@ export class HarnessManager {
   }
 
   async load(): Promise<void> {
-    await this.applyActive()
+    this.bump()
   }
 
   async probe(timeoutMs = 2_000): Promise<HarnessProbe> {
-    if (!this.client) {
+    return this.probeConnection(this.active?.id, timeoutMs)
+  }
+
+  async probeConnection(id: string | undefined, timeoutMs = 2_000): Promise<HarnessProbe> {
+    const active = id ? this.store.get(id) : this.active
+    if (!active) {
       return {
         ok: false,
         latencyMs: 0,
@@ -56,48 +68,157 @@ export class HarnessManager {
         message: 'No harness connection is configured',
       }
     }
-    return this.client.probe(timeoutMs)
+    const fetch = this.live.get(active.harnessId)
+    if (!fetch) {
+      return {
+        ok: false,
+        latencyMs: 0,
+        code: 'offline',
+        message: 'The harness adapter is offline',
+      }
+    }
+
+    const started = Date.now()
+    try {
+      const response = await fetch(
+        new Request('http://adapter/harness/v1/info', {
+          signal: AbortSignal.timeout(timeoutMs),
+        })
+      )
+      const latencyMs = Date.now() - started
+      if (!response.ok) {
+        return {
+          ok: false,
+          status: response.status,
+          latencyMs,
+          code: 'http',
+          message: `The adapter responded with ${response.status}`,
+        }
+      }
+      const info = (await response.json()) as {
+        harness?: { version?: unknown }
+        adapter?: { version?: unknown }
+      }
+      return {
+        ok: true,
+        latencyMs,
+        code: 'ok',
+        ...(typeof info.harness?.version === 'string' ? { version: info.harness.version } : {}),
+      }
+    } catch (cause) {
+      return {
+        ok: false,
+        latencyMs: Date.now() - started,
+        code: cause instanceof Error && cause.name === 'TimeoutError' ? 'timeout' : 'unreachable',
+        message: cause instanceof Error ? cause.message : String(cause),
+      }
+    }
   }
 
-  async request(action: HttpRequestAction, signal: AbortSignal): Promise<Response> {
-    if (!this.client) throw new HarnessUnconfiguredError()
-    return this.client.request(action, signal)
+  async request(input: HarnessRequestInput, signal: AbortSignal): Promise<Response> {
+    const active = this.active
+    if (!active) throw new HarnessUnconfiguredError()
+    const fetch = this.live.get(active.harnessId)
+    if (!fetch) throw new HarnessOfflineError()
+    return new HarnessClient({ fetch, baseUrl: 'http://adapter' }).request({
+      ...input,
+      signal,
+    })
   }
 
-  async reload(timeoutMs = 5_000): Promise<void> {
-    if (!this.client?.reload) return
-    await this.client.reload(timeoutMs)
-  }
-
-  async save(value: unknown, id?: string): Promise<HarnessConnection> {
-    const connection = await this.store.save(value, id)
-    if (connection.isActive) await this.applyActive()
-    await this.notify()
-    return connection
+  async reload(): Promise<void> {
+    // The adapter owns its upstream lifecycle. A new adapter session reconnects
+    // automatically; there is nothing to reload here.
   }
 
   async activate(id: string): Promise<HarnessConnection> {
     const connection = this.store.setActive(id)
-    await this.applyActive()
+    this.bump()
     await this.notify()
     return connection
   }
 
   async remove(id: string): Promise<void> {
-    const wasActive = this.connection?.id === id
     this.store.remove(id)
-    if (wasActive) await this.applyActive()
+    this.bump()
     await this.notify()
   }
 
-  async test(value: unknown, id?: string): Promise<HarnessProbe> {
-    const hasSecret = id ? this.store.hasSecret(id) : false
-    const candidate = validateHarnessInput(value, { hasSecret })
-    const password = candidate.password ?? (id ? await this.store.secret(id) : undefined)
-    const client = buildClient(candidate.kind, candidate.baseUrl, password)
-    const result = await client.probe()
-    if (id) this.store.recordTest(id, result.ok, result.ok ? undefined : result.message)
+  async forget(id: string): Promise<void> {
+    this.store.forget(id)
+    this.bump()
+    await this.notify()
+  }
+
+  async createPairing(input: {
+    kind: string
+    label: string
+    replacesConnectionId?: string
+  }): Promise<HarnessPairing> {
+    return this.store.createPairing(input)
+  }
+
+  listPairings(): HarnessPairing[] {
+    return this.store.listPairings()
+  }
+
+  async pairingToken(id: string): Promise<string | undefined> {
+    return this.store.pairingToken(id)
+  }
+
+  cancelPairing(id: string): void {
+    this.store.cancelPairing(id)
+  }
+
+  async enroll(input: EnrollAdapterInput): Promise<EnrollAdapterResult> {
+    const result = await this.store.enroll(input)
+    this.bump()
+    await this.notify()
     return result
+  }
+
+  async enrollAdapter(
+    action: AdapterEnrollAction,
+    pairToken: string,
+    transport: PanelTransport
+  ): Promise<EnrollAdapterResult> {
+    return this.enroll({
+      pairId: action.id ?? '',
+      pairToken,
+      harnessId: action.harnessId,
+      kind: action.kind,
+      label: action.label,
+      adapterId: action.credentialId,
+      key: action.key,
+      adapterVersion: action.adapterVersion,
+      protocolVersion: action.protocolVersion,
+      ...(action.harnessVersion ? { harnessVersion: action.harnessVersion } : {}),
+      capabilities: action.capabilities,
+      transport: transport === 'relay' ? 'relay' : 'local',
+    })
+  }
+
+  credential(adapterId: string) {
+    return this.store.credential(adapterId)
+  }
+
+  async setLive(harnessId: string, fetch: Fetch, transport: HarnessTransport): Promise<void> {
+    void transport
+    this.live.set(harnessId, fetch)
+    this.store.setOnline(harnessId, true)
+    this.bump()
+    await this.notify()
+  }
+
+  async clearLive(harnessId: string): Promise<void> {
+    this.live.delete(harnessId)
+    this.store.setOnline(harnessId, false)
+    this.bump()
+    await this.notify()
+  }
+
+  recordTest(id: string, ok: boolean, error?: string): void {
+    this.store.recordTest(id, ok, error)
   }
 
   async redactionValues(): Promise<string[]> {
@@ -109,32 +230,62 @@ export class HarnessManager {
     return () => this.listeners.delete(listener)
   }
 
-  private async applyActive(): Promise<void> {
-    this.generationValue += 1
-    this.error = undefined
-    let active: Awaited<ReturnType<HarnessStore['activeSecret']>>
-    try {
-      active = await this.store.activeSecret()
-    } catch (cause) {
-      this.client = undefined
-      this.connection = undefined
-      this.error = errorMessage(cause)
-      return
-    }
-    if (!active) {
-      this.client = undefined
-      this.connection = undefined
-      return
-    }
+  get harnessId(): string | undefined {
+    return this.active?.harnessId
+  }
 
-    try {
-      this.client = buildClient(active.connection.kind, active.connection.baseUrl, active.password)
-      this.connection = active.connection
-    } catch (cause) {
-      this.client = undefined
-      this.connection = active.connection
-      this.error = errorMessage(cause)
+  overlayProject(harnessId: string, project: ClaraProject): ClaraProject {
+    return this.metadata.overlayProject(harnessId, project)
+  }
+
+  overlayProjectList(projects: ClaraProject[]): ClaraProject[] {
+    const harnessId = this.harnessId
+    return harnessId
+      ? projects.map((project) => this.metadata.overlayProject(harnessId, project))
+      : projects
+  }
+
+  overlaySession(harnessId: string, session: ClaraSession): ClaraSession {
+    return this.metadata.overlaySession(harnessId, session)
+  }
+
+  overlaySessionList(value: { data: ClaraSession[]; cursor: unknown }): {
+    data: ClaraSession[]
+    cursor: unknown
+  } {
+    const harnessId = this.harnessId
+    return harnessId
+      ? {
+          ...value,
+          data: value.data.map((session) => this.metadata.overlaySession(harnessId, session)),
+        }
+      : value
+  }
+
+  harnessProjectId(projectId: string): string | undefined {
+    const harnessId = this.harnessId
+    return harnessId ? this.metadata.harnessProjectId(harnessId, projectId) : undefined
+  }
+
+  updateProject(
+    projectId: string,
+    patch: { name?: string; icon?: unknown; commands?: unknown; startupScript?: string }
+  ): ClaraProject | undefined {
+    const state = this.metadata.updateProject(projectId, patch)
+    if (!state) return undefined
+    return {
+      id: state.id,
+      canonical: state.canonical,
+      sandboxes: [],
+      time: { created: Date.now(), updated: Date.now(), active: Date.now() },
+      ...(state.name ? { name: state.name } : {}),
+      ...(state.icon ? { icon: state.icon } : {}),
+      ...(state.commands ? { commands: state.commands } : {}),
     }
+  }
+
+  private bump(): void {
+    this.generationValue += 1
   }
 
   private async notify(): Promise<void> {
@@ -146,19 +297,4 @@ export class HarnessManager {
       }
     }
   }
-}
-
-function buildClient(
-  kind: HarnessConnection['kind'],
-  baseUrl: string,
-  password: string | undefined
-): OpenCodeClient {
-  switch (kind) {
-    case 'opencode':
-      return new OpenCodeClient(baseUrl, password)
-  }
-}
-
-function errorMessage(cause: unknown): string {
-  return cause instanceof Error ? cause.message : String(cause)
 }

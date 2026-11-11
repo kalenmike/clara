@@ -74,16 +74,19 @@ function snapshot(): PanelSnapshot {
       code: 'ok',
     },
     harness: { configured: true, activeId: 'harness-1' },
+    harnessPairings: [],
     harnesses: [
       {
         id: 'harness-1',
+        harnessId: 'harness-a',
         kind: 'opencode',
         label: 'Test OpenCode',
-        baseUrl: 'http://127.0.0.1:4096',
-        authType: 'none',
+        transport: 'local',
+        online: true,
+        capabilities: {},
         options: {},
         isActive: true,
-        secretConfigured: false,
+        credentialConfigured: true,
         createdAt: new Date(0).toISOString(),
         updatedAt: new Date(0).toISOString(),
       },
@@ -285,7 +288,20 @@ function fakeControls(initial: Partial<PanelControls> = {}): FakeControls {
       }
       return config
     },
-    saveHarness: async () => ({ harnesses: [], harness: { configured: false } }),
+    createHarnessPairing: async () => ({
+      pairing: {
+        id: 'pair',
+        kind: 'opencode',
+        label: 'OpenCode',
+        code: 'clara-harness1_test',
+        wsUrl: 'ws://127.0.0.1:8788/ws',
+        room: 'local',
+        fingerprint: 'fp',
+        expiresAt: new Date(0).toISOString(),
+        createdAt: new Date(0).toISOString(),
+      },
+    }),
+    cancelHarnessPairing: async () => undefined,
     testHarness: async () => ({
       ok: true,
       code: 'ok',
@@ -294,6 +310,7 @@ function fakeControls(initial: Partial<PanelControls> = {}): FakeControls {
     }),
     activateHarness: async () => ({ harnesses: [], harness: { configured: false } }),
     deleteHarness: async () => ({ harnesses: [], harness: { configured: false } }),
+    forgetHarness: async () => ({ harnesses: [], harness: { configured: false } }),
     revokeDevice: () => undefined,
     setDeviceAlias: () => undefined,
     purgeDevice: () => undefined,
@@ -389,20 +406,13 @@ describe('panel server', () => {
     const controls = fakeControls()
     const server = await start(undefined, controls)
 
-    const saved = await post(server, 'harnesses', {
+    const pairing = await post(server, 'harnesses/pairings', {
       kind: 'opencode',
       label: 'OpenCode',
-      baseUrl: 'http://opencode:4096',
-      authType: 'none',
     })
-    expect(saved.status).toBe(200)
+    expect(pairing.status).toBe(200)
 
-    const tested = await post(server, 'harnesses/harness-1/test', {
-      kind: 'opencode',
-      label: 'OpenCode',
-      baseUrl: 'http://opencode:4096',
-      authType: 'none',
-    })
+    const tested = await post(server, 'harnesses/harness-1/test', {})
     expect(tested.status).toBe(200)
   })
 

@@ -39,7 +39,7 @@ function parser<T>(schema: z.ZodType<T>, label: string) {
       throw new ApiRequestError(
         502,
         'upstream_invalid',
-        `OpenCode returned an invalid ${label}`,
+        `The harness returned an invalid ${label}`,
         result.error.issues
       )
     }

@@ -1,8 +1,8 @@
-import type { Project, SessionInfo, V2Event } from '@opencode/client'
+import type { ClaraEvent, ClaraProject, ClaraSession } from '@clara/api-contract'
 import type { AttentionKind } from '@clara/shared-types'
 import type { HarnessManager } from '../harness/manager.ts'
 import { isArchivedSession, isSnoozedSession, loadSessionAttention } from './attention.ts'
-import { getSession, listProjects, openEventStream } from './opencode.ts'
+import { getSession, listProjects, openEventStream } from './harness.ts'
 import { buildPushPayload } from './payload.ts'
 import type { PushService } from './service.ts'
 import { parseSse } from './sse.ts'
@@ -20,12 +20,12 @@ export type PushMonitorOptions = {
   /** True while a desktop client is visible and recently used. */
   isDeskActive?: () => boolean
   /** True when this session should not produce a generic session alert. */
-  suppressSession?: (session: SessionInfo) => boolean
+  suppressSession?: (session: ClaraSession) => boolean
   log?: (message: string, detail?: unknown) => void
 }
 
 /**
- * Watches OpenCode while no Clara client is guaranteed to be connected. The
+ * Watches the harness while no Clara client is guaranteed to be connected. The
  * browser does its own notification work when it is open; this monitor exists
  * for the closed-app and suspended-tab cases.
  */
@@ -33,12 +33,12 @@ export class PushMonitor {
   private readonly harness: HarnessManager
   private readonly push: PushService
   private readonly isDeskActive?: () => boolean
-  private readonly suppressSession?: (session: SessionInfo) => boolean
+  private readonly suppressSession?: (session: ClaraSession) => boolean
   private readonly log?: (message: string, detail?: unknown) => void
   private readonly timers = new Map<string, NodeJS.Timeout>()
   private readonly interrupted = new Set<string>()
   private readonly lastAlert = new Map<string, { kind: AttentionKind; at: number }>()
-  private projectsCache: { at: number; projects: Project[] } | undefined
+  private projectsCache: { at: number; projects: ClaraProject[] } | undefined
   private controller: AbortController | null = null
   private stopped = true
 
@@ -86,7 +86,7 @@ export class PushMonitor {
           lastActivity = Date.now()
         })) {
           lastActivity = Date.now()
-          this.handleEvent(event as V2Event)
+          this.handleEvent(event as ClaraEvent)
         }
       } catch (cause) {
         if (!this.stopped) this.log?.('push event monitor disconnected', cause)
@@ -101,7 +101,7 @@ export class PushMonitor {
     }
   }
 
-  private handleEvent(event: V2Event): void {
+  private handleEvent(event: ClaraEvent): void {
     switch (event.type) {
       case 'permission.asked':
         void this.notify('question', event.data.sessionID, event.data.message ?? event.data.action)
@@ -153,7 +153,12 @@ export class PushMonitor {
     try {
       const attention = await loadSessionAttention(this.harness, sessionID)
       if (!attention || this.stopped) return
-      await this.notify(attention.kind, sessionID, undefined, attention.session)
+      await this.notify(
+        attention.kind,
+        sessionID,
+        undefined,
+        this.overlaySession(attention.session)
+      )
     } catch (cause) {
       this.log?.('push attention check failed', cause)
     }
@@ -163,13 +168,14 @@ export class PushMonitor {
     kind: AttentionKind,
     sessionID: string,
     detail?: string,
-    knownSession?: SessionInfo
+    knownSession?: ClaraSession
   ): Promise<void> {
     if (this.stopped || this.push.count === 0) return
     if (!this.claimAlert(sessionID, kind)) return
 
     try {
-      const session = knownSession ?? (await getSession(this.harness, sessionID))
+      const loaded = knownSession ?? (await getSession(this.harness, sessionID))
+      const session = loaded ? this.overlaySession(loaded) : null
       if (!session || isArchivedSession(session) || isSnoozedSession(session)) return
       if (this.suppressSession?.(session)) return
 
@@ -205,7 +211,7 @@ export class PushMonitor {
     return true
   }
 
-  private async resolveSessionUrl(session: SessionInfo): Promise<string> {
+  private async resolveSessionUrl(session: ClaraSession): Promise<string> {
     const route = (projectID: string) =>
       `/p/${encodeURIComponent(projectID)}/s/${encodeURIComponent(session.id)}`
 
@@ -218,12 +224,20 @@ export class PushMonitor {
     return project ? route(project.id) : '/'
   }
 
-  private async projects(): Promise<Project[]> {
+  private overlaySession(session: ClaraSession): ClaraSession {
+    const harnessId = this.harness.active?.harnessId
+    return harnessId ? this.harness.overlaySession(harnessId, session) : session
+  }
+
+  private async projects(): Promise<ClaraProject[]> {
     const now = Date.now()
     if (this.projectsCache && now - this.projectsCache.at < PROJECT_CACHE_MS) {
       return this.projectsCache.projects
     }
-    const projects = await listProjects(this.harness)
+    const harnessId = this.harness.active?.harnessId
+    const projects = (await listProjects(this.harness)).map((project) =>
+      harnessId ? this.harness.overlayProject(harnessId, project) : project
+    )
     this.projectsCache = { at: now, projects }
     return projects
   }

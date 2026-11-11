@@ -5,7 +5,7 @@ import Database from 'better-sqlite3'
 
 export type ClaraDatabase = Database.Database
 
-export const SCHEMA_VERSION = 8
+export const SCHEMA_VERSION = 9
 
 const BUSY_TIMEOUT_MS = 5_000
 const DATABASE_MODE = 0o600
@@ -196,6 +196,117 @@ const MIGRATIONS: Migration[] = [
    */
   (db) => {
     db.exec('ALTER TABLE devices ADD COLUMN alias TEXT')
+  },
+  /**
+   * Harness adapters own the harness connection. Connections are keyed by a
+   * stable adapter identity so uninstall/install and re-pairing keep sessions
+   * and Clara metadata attached.
+   */
+  (db) => {
+    db.exec(`
+      CREATE TABLE harness_identities (
+        harness_id TEXT PRIMARY KEY,
+        kind TEXT NOT NULL,
+        first_seen_at INTEGER NOT NULL,
+        last_seen_at INTEGER NOT NULL,
+        retired_at INTEGER
+      );
+
+      CREATE TABLE adapter_credentials (
+        adapter_id TEXT PRIMARY KEY,
+        harness_id TEXT NOT NULL REFERENCES harness_identities(harness_id) ON DELETE CASCADE,
+        key_ciphertext BLOB NOT NULL,
+        key_nonce BLOB NOT NULL,
+        key_version INTEGER NOT NULL,
+        fingerprint TEXT NOT NULL,
+        created_at INTEGER NOT NULL,
+        revoked_at INTEGER
+      );
+
+      CREATE TABLE harness_pairings (
+        id TEXT PRIMARY KEY,
+        kind TEXT NOT NULL,
+        label TEXT NOT NULL,
+        token_ciphertext BLOB NOT NULL,
+        token_nonce BLOB NOT NULL,
+        key_version INTEGER NOT NULL,
+        fingerprint TEXT NOT NULL,
+        replaces_connection_id TEXT,
+        created_at INTEGER NOT NULL,
+        expires_at INTEGER NOT NULL,
+        used_at INTEGER,
+        used_harness_id TEXT
+      );
+
+      CREATE TABLE clara_projects (
+        id TEXT PRIMARY KEY,
+        canonical TEXT NOT NULL UNIQUE,
+        name TEXT,
+        icon_json TEXT,
+        commands_json TEXT,
+        startup_script TEXT,
+        created_at INTEGER NOT NULL,
+        updated_at INTEGER NOT NULL
+      );
+
+      CREATE TABLE harness_project_links (
+        harness_id TEXT NOT NULL REFERENCES harness_identities(harness_id) ON DELETE CASCADE,
+        harness_project_id TEXT NOT NULL,
+        project_id TEXT NOT NULL REFERENCES clara_projects(id) ON DELETE CASCADE,
+        last_seen_at INTEGER NOT NULL,
+        PRIMARY KEY (harness_id, harness_project_id)
+      );
+
+      CREATE TABLE clara_sessions (
+        harness_id TEXT NOT NULL REFERENCES harness_identities(harness_id) ON DELETE CASCADE,
+        session_id TEXT NOT NULL,
+        project_id TEXT NOT NULL,
+        title_override TEXT,
+        archived_at INTEGER,
+        snoozed_at INTEGER,
+        viewed_at INTEGER,
+        metadata_json TEXT NOT NULL DEFAULT '{}',
+        first_seen_at INTEGER NOT NULL,
+        last_seen_at INTEGER NOT NULL,
+        PRIMARY KEY (harness_id, session_id)
+      );
+
+      ALTER TABLE harness_connections ADD COLUMN harness_id TEXT;
+      ALTER TABLE harness_connections ADD COLUMN credential_id TEXT;
+      ALTER TABLE harness_connections ADD COLUMN transport TEXT;
+      ALTER TABLE harness_connections ADD COLUMN adapter_version TEXT;
+      ALTER TABLE harness_connections ADD COLUMN protocol_version INTEGER;
+      ALTER TABLE harness_connections ADD COLUMN harness_version TEXT;
+      ALTER TABLE harness_connections ADD COLUMN capabilities_json TEXT;
+      ALTER TABLE harness_connections ADD COLUMN online INTEGER NOT NULL DEFAULT 0;
+      ALTER TABLE harness_connections ADD COLUMN last_seen_at INTEGER;
+
+      CREATE UNIQUE INDEX harness_connections_identity
+        ON harness_connections(harness_id)
+        WHERE harness_id IS NOT NULL;
+    `)
+
+    const legacy = db
+      .prepare('SELECT id, kind, label, created_at, updated_at FROM harness_connections')
+      .all() as Array<{
+      id: string
+      kind: string
+      label: string
+      created_at: number
+      updated_at: number
+    }>
+    const insertIdentity = db.prepare(
+      `INSERT INTO harness_identities (harness_id, kind, first_seen_at, last_seen_at)
+       VALUES (?, ?, ?, ?)`
+    )
+    const updateConnection = db.prepare(
+      `UPDATE harness_connections SET harness_id = ?, transport = 'local' WHERE id = ?`
+    )
+    for (const row of legacy) {
+      const harnessId = `legacy-${row.id}`
+      insertIdentity.run(harnessId, row.kind, row.created_at, row.updated_at)
+      updateConnection.run(harnessId, row.id)
+    }
   },
 ]
 

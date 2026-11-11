@@ -3,6 +3,7 @@ import { fileURLToPath } from 'node:url'
 import { PROTOCOL_VERSION } from '@clara/shared-types'
 import { loadAdminPaths, loadConfig } from './config.ts'
 import { HarnessManager } from './harness/manager.ts'
+import { HarnessMetadataStore } from './harness/metadata.ts'
 import { HarnessStore } from './harness/store.ts'
 import { PanelAuth } from './panel/auth.ts'
 import { PanelLog } from './panel/log.ts'
@@ -102,7 +103,8 @@ async function main(): Promise<void> {
     key: secretKey.key,
     keyVersion: secretKey.version,
   })
-  const harness = new HarnessManager(harnessStore)
+  const harnessMetadata = new HarnessMetadataStore(database)
+  const harness = new HarnessManager(harnessStore, harnessMetadata)
   await harness.load()
 
   const panelEnabled = !args.includes('--no-panel') && process.env.CLARA_PANEL_DISABLED !== '1'
@@ -192,7 +194,7 @@ async function main(): Promise<void> {
     if (!harness.configured) {
       log('no harness connection is configured; open the panel to set one up')
     } else if (opencodeVersion) {
-      log(`harness ${harness.active?.label ?? 'OpenCode'} answered with ${opencodeVersion}`)
+      log(`harness ${harness.active?.label ?? 'harness'} answered with ${opencodeVersion}`)
     } else if (initial.features.opencode) {
       log('the configured harness is not answering')
     }

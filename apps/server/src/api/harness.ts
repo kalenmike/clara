@@ -1,8 +1,9 @@
-import { randomUUID } from 'node:crypto'
-import { bytesToBase64Url } from '@clara/crypto'
 import type { HttpMethod } from '@clara/shared-types'
-import type { HttpRequestAction } from '../opencode.ts'
-import { HarnessUnconfiguredError } from '../harness/types.ts'
+import {
+  HarnessOfflineError,
+  HarnessUnconfiguredError,
+  type HarnessRequestInput,
+} from '../harness/types.ts'
 import { ApiRequestError, type ApiDependencies } from './context.ts'
 
 export type ForwardRequest = {
@@ -19,31 +20,31 @@ export async function forward(
   signal: AbortSignal
 ): Promise<Response> {
   if (!deps.canAccess()) {
-    throw new ApiRequestError(403, 'disabled', 'OpenCode access is disabled by an admin setting')
+    throw new ApiRequestError(403, 'disabled', 'Harness access is disabled by an admin setting')
   }
   if (!deps.harness.configured) {
     throw new ApiRequestError(
       503,
       'harness_unconfigured',
-      'No harness connection is configured. Set one up in the hub panel.'
+      'No harness adapter is configured. Add one in the hub panel.'
     )
   }
 
-  const body = request.body === undefined ? undefined : bytesToBase64Url(Buffer.from(request.body))
-  const action: HttpRequestAction = {
-    type: 'http.request',
-    id: randomUUID(),
+  const input: HarnessRequestInput = {
     method: request.method,
     path: request.path,
     ...(request.search ? { search: request.search } : {}),
     ...(request.headers ? { headers: request.headers } : {}),
-    ...(body ? { body } : {}),
+    ...(request.body === undefined ? {} : { body: request.body }),
   }
 
   try {
-    return await deps.harness.request(action, signal)
+    return await deps.harness.request(input, signal)
   } catch (cause) {
     if (cause instanceof HarnessUnconfiguredError) {
+      throw new ApiRequestError(503, cause.code, cause.message)
+    }
+    if (cause instanceof HarnessOfflineError) {
       throw new ApiRequestError(503, cause.code, cause.message)
     }
     throw new ApiRequestError(
@@ -85,7 +86,7 @@ export async function readJson<T>(response: Response): Promise<T> {
   try {
     return JSON.parse(text) as T
   } catch {
-    throw new ApiRequestError(502, 'upstream_invalid', 'OpenCode returned invalid JSON')
+    throw new ApiRequestError(502, 'upstream_invalid', 'The adapter returned invalid JSON')
   }
 }
 
@@ -129,12 +130,16 @@ export async function upstreamError(response: Response): Promise<ApiRequestError
     return new ApiRequestError(
       502,
       'harness_auth',
-      message || 'OpenCode rejected the harness credentials'
+      message || 'The harness adapter rejected the credentials'
     )
   }
 
   const status = response.status >= 500 ? 502 : response.status
-  return new ApiRequestError(status, code, message || `OpenCode responded with ${response.status}`)
+  return new ApiRequestError(
+    status,
+    code,
+    message || `The harness adapter responded with ${response.status}`
+  )
 }
 
 export function query(params: Record<string, unknown>): string {

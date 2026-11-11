@@ -1,11 +1,21 @@
-import { base64UrlToBytes } from '@clara/crypto'
-import type { ClaraAction } from '@clara/shared-types'
-import type { HarnessClient, HarnessProbe } from './harness/types.ts'
-import { SERVER_VERSION } from './version.ts'
+import type { HttpMethod } from '@clara/shared-types'
 
-export type HttpRequestAction = Extract<ClaraAction, { type: 'http.request' }>
+export type OpenCodeRequest = {
+  method: HttpMethod
+  path: string
+  search?: string
+  headers?: Record<string, string>
+  body?: string
+}
 
-export type OpenCodeProbe = HarnessProbe
+export type OpenCodeProbe = {
+  ok: boolean
+  version?: string
+  status?: number
+  latencyMs: number
+  code: 'ok' | 'timeout' | 'auth' | 'http' | 'unreachable'
+  message?: string
+}
 
 const MAX_BODY_BYTES = 10 * 1024 * 1024
 const HOP_BY_HOP = new Set([
@@ -22,17 +32,18 @@ const HOP_BY_HOP = new Set([
   'upgrade',
 ])
 
-export class OpenCodeClient implements HarnessClient {
-  readonly kind = 'opencode' as const
+export class OpenCodeClient {
   private readonly baseUrl: URL
+  private readonly username: string
   private readonly password?: string
 
-  constructor(url: string, password?: string) {
+  constructor(url: string, password?: string, username = 'opencode') {
     this.baseUrl = new URL(url.replace(/\/+$/, ''))
     this.password = password
+    this.username = username
   }
 
-  async request(action: HttpRequestAction, signal: AbortSignal): Promise<Response> {
+  async request(action: OpenCodeRequest, signal: AbortSignal): Promise<Response> {
     const target = new URL(`${action.path}${action.search ?? ''}`, this.baseUrl)
     if (target.origin !== this.baseUrl.origin) {
       throw new Error('Refusing to proxy a request to a different origin')
@@ -44,18 +55,19 @@ export class OpenCodeClient implements HarnessClient {
     const headers = new Headers(action.headers)
     for (const name of HOP_BY_HOP) headers.delete(name)
     headers.set('accept-encoding', 'identity')
-    headers.set('user-agent', `clara-server/${SERVER_VERSION}`)
+    headers.set('user-agent', 'clara-opencode-adapter/0.1.0')
     if (this.password) {
       headers.set(
         'authorization',
-        `Basic ${Buffer.from(`opencode:${this.password}`).toString('base64')}`
+        `Basic ${Buffer.from(`${this.username}:${this.password}`).toString('base64')}`
       )
     }
 
-    let body: Uint8Array<ArrayBuffer> | undefined
+    let body: string | undefined
     if (action.body) {
-      body = base64UrlToBytes(action.body)
-      if (body.byteLength > MAX_BODY_BYTES) throw new Error('Request body is too large')
+      if (Buffer.byteLength(action.body) > MAX_BODY_BYTES)
+        throw new Error('Request body is too large')
+      body = action.body
     }
 
     return fetch(target, {
@@ -67,11 +79,19 @@ export class OpenCodeClient implements HarnessClient {
     })
   }
 
+  async reload(timeoutMs = 5_000): Promise<void> {
+    const response = await this.request(
+      { method: 'POST', path: '/api/location/reload' },
+      AbortSignal.timeout(timeoutMs)
+    )
+    if (!response.ok) throw new Error(`OpenCode reload failed (${response.status})`)
+  }
+
   async probe(timeoutMs = 2_000): Promise<OpenCodeProbe> {
     const started = Date.now()
     try {
       const response = await this.request(
-        { type: 'http.request', id: 'probe', method: 'GET', path: '/api/info' },
+        { method: 'GET', path: '/api/info' },
         AbortSignal.timeout(timeoutMs)
       )
       const latencyMs = Date.now() - started
@@ -113,23 +133,6 @@ export class OpenCodeClient implements HarnessClient {
         message: timeout ? `OpenCode did not answer within ${timeoutMs}ms` : errorMessage(cause),
       }
     }
-  }
-
-  async probeVersion(): Promise<string | undefined> {
-    const result = await this.probe(3_000)
-    return result.ok ? result.version : undefined
-  }
-
-  /**
-   * Rebuild every loaded location so agent files written by the hub are
-   * picked up immediately. Running sessions continue at the next step.
-   */
-  async reload(timeoutMs = 5_000): Promise<void> {
-    const response = await this.request(
-      { type: 'http.request', id: 'location-reload', method: 'POST', path: '/api/location/reload' },
-      AbortSignal.timeout(timeoutMs)
-    )
-    if (!response.ok) throw new Error(`OpenCode reload failed (${response.status})`)
   }
 }
 

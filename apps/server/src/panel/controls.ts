@@ -4,6 +4,7 @@ import type {
   PanelControls,
   PanelFeatureName,
   PanelHarnessMutationResponse,
+  PanelHarnessPairingMutationResponse,
   PanelHarnessTestResult,
   PanelSyncUpdate,
 } from '@clara/shared-types'
@@ -21,10 +22,12 @@ export type PanelControlService = {
   setSync: (update: PanelSyncUpdate) => Promise<PanelControls>
   setOrchestration: (enabled: boolean) => Promise<PanelControls>
   updateConfig: (update: PanelConfigUpdate) => Promise<PanelConfigInfo>
-  saveHarness: (value: unknown, id?: string) => Promise<PanelHarnessMutationResponse>
-  testHarness: (value: unknown, id?: string) => Promise<PanelHarnessTestResult>
+  createHarnessPairing: (value: unknown) => Promise<PanelHarnessPairingMutationResponse>
+  cancelHarnessPairing: (id: string) => Promise<void>
+  testHarness: (id: string) => Promise<PanelHarnessTestResult>
   activateHarness: (id: string) => Promise<PanelHarnessMutationResponse>
   deleteHarness: (id: string) => Promise<PanelHarnessMutationResponse>
+  forgetHarness: (id: string) => Promise<PanelHarnessMutationResponse>
   revokeDevice: (id: string) => { id: string } | undefined
   setDeviceAlias: (
     id: string,

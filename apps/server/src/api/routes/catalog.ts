@@ -31,13 +31,13 @@ export function registerCatalogRoutes(
     describeRoute({
       tags: ['catalog'],
       operationId: 'listAgents',
-      summary: 'List OpenCode agents',
+      summary: 'List agents',
       responses: responses(jsonResponse(resolver(claraAgentListOutputSchema), 'Agents')),
     }),
     async (c) => {
       const result = await forwardDto(
         deps,
-        { method: 'GET', path: '/api/agent' },
+        { method: 'GET', path: '/agents' },
         c.req.raw.signal,
         parseClaraAgentList
       )
@@ -50,13 +50,13 @@ export function registerCatalogRoutes(
     describeRoute({
       tags: ['catalog'],
       operationId: 'listModels',
-      summary: 'List OpenCode models',
+      summary: 'List models',
       responses: responses(jsonResponse(resolver(claraModelListOutputSchema), 'Models')),
     }),
     async (c) => {
       const result = await forwardDto(
         deps,
-        { method: 'GET', path: '/api/model' },
+        { method: 'GET', path: '/models' },
         c.req.raw.signal,
         parseClaraModelList
       )
@@ -69,13 +69,13 @@ export function registerCatalogRoutes(
     describeRoute({
       tags: ['catalog'],
       operationId: 'listProviders',
-      summary: 'List OpenCode providers',
+      summary: 'List providers',
       responses: responses(jsonResponse(resolver(claraProviderListOutputSchema), 'Providers')),
     }),
     async (c) => {
       const result = await forwardDto(
         deps,
-        { method: 'GET', path: '/api/provider' },
+        { method: 'GET', path: '/providers' },
         c.req.raw.signal,
         parseClaraProviderList
       )
@@ -88,13 +88,13 @@ export function registerCatalogRoutes(
     describeRoute({
       tags: ['catalog'],
       operationId: 'listCommands',
-      summary: 'List OpenCode commands',
+      summary: 'List commands',
       responses: responses(jsonResponse(resolver(claraCommandListOutputSchema), 'Commands')),
     }),
     async (c) => {
       const result = await forwardDto(
         deps,
-        { method: 'GET', path: '/api/command' },
+        { method: 'GET', path: '/commands' },
         c.req.raw.signal,
         parseClaraCommandList
       )
@@ -117,7 +117,7 @@ export function registerCatalogRoutes(
         deps,
         {
           method: 'GET',
-          path: '/api/skill',
+          path: '/skills',
           search: query({ location: { directory } }),
         },
         c.req.raw.signal,
@@ -142,7 +142,7 @@ export function registerCatalogRoutes(
         deps,
         {
           method: 'GET',
-          path: '/api/reference',
+          path: '/references',
           search: query({ location: { directory } }),
         },
         c.req.raw.signal,

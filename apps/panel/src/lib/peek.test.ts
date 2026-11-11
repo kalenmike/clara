@@ -55,25 +55,31 @@ describe('maskText', () => {
 })
 
 describe('collectSecrets', () => {
-  it('collects the harness URL, its public hostname, and saved harness URLs', () => {
+  it('collects the harness identity and pending pairing material', () => {
     const secrets = collectSecrets(
       snapshot({
         opencode: { url: 'http://opencode.internal:4096' },
-        harnesses: [{ baseUrl: 'https://harness.example:8443' }],
+        harnesses: [{ harnessId: 'harness-identity-1234567890' }],
+        harnessPairings: [
+          {
+            code: 'clara-harness1_secret-code',
+            wsUrl: 'wss://relay.example/room/secret-room',
+          },
+        ],
       })
     )
 
     expect(secrets).toContain('http://opencode.internal:4096')
     expect(secrets).toContain('opencode.internal')
-    expect(secrets).toContain('https://harness.example:8443')
-    expect(secrets).toContain('harness.example')
+    expect(secrets).toContain('harness-identity-1234567890')
+    expect(secrets).toContain('clara-harness1_secret-code')
   })
 
   it('masks a harness URL and the relay room in free text', () => {
     const secrets = collectSecrets(
       snapshot({
         opencode: { url: 'http://opencode.internal:4096' },
-        harnesses: [{ baseUrl: 'http://opencode.internal:4096' }],
+        harnesses: [{ harnessId: 'http://opencode.internal:4096' }],
       })
     )
 
@@ -87,7 +93,7 @@ describe('collectSecrets', () => {
     const secrets = collectSecrets(
       snapshot({
         opencode: { url: 'http://127.0.0.1:4096' },
-        harnesses: [{ baseUrl: 'http://localhost:4096' }],
+        harnesses: [{ harnessId: 'harness-identity-1234567890' }],
       })
     )
 

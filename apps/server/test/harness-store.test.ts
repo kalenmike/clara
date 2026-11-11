@@ -2,7 +2,7 @@ import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
-import { generateSecretKey, loadSecretKey } from '@clara/crypto'
+import { generateKey, generateSecretKey, loadSecretKey } from '@clara/crypto'
 import { HarnessStore } from '../src/harness/store.ts'
 import { HarnessValidationError } from '../src/harness/types.ts'
 import { closeDatabase, openDatabase, type ClaraDatabase } from '../src/store/database.ts'
@@ -26,101 +26,81 @@ afterEach(() => {
   rmSync(dir, { recursive: true, force: true })
 })
 
-describe('harness store', () => {
-  it('creates the first connection as active and encrypts its password', async () => {
-    const connection = await store.save({
-      kind: 'opencode',
-      label: 'Local OpenCode',
-      baseUrl: 'http://127.0.0.1:4096',
-      authType: 'basic',
-      password: 'secret-password',
-    })
+async function enroll(input: {
+  harnessId?: string
+  adapterId?: string
+  key?: string
+  kind?: string
+  label?: string
+}) {
+  const pairing = await store.createPairing({
+    kind: input.kind ?? 'opencode',
+    label: input.label ?? 'OpenCode',
+  })
+  return store.enroll({
+    pairId: pairing.id,
+    pairToken: pairing.token,
+    harnessId: input.harnessId ?? 'harness-a',
+    kind: input.kind ?? 'opencode',
+    label: input.label ?? 'OpenCode',
+    adapterId: input.adapterId ?? 'adapter-a',
+    key: input.key ?? generateKey(),
+    adapterVersion: '0.1.0',
+    protocolVersion: 1,
+    capabilities: { sessions: true },
+    transport: 'local',
+  })
+}
 
-    expect(connection.isActive).toBe(true)
-    expect(connection.secretConfigured).toBe(true)
-    expect(store.active()?.id).toBe(connection.id)
-    expect((await store.activeSecret())?.password).toBe('secret-password')
+describe('harness store', () => {
+  it('creates the first adapter connection as active and stores its credential', async () => {
+    const key = generateKey()
+    const result = await enroll({ key })
+    expect(result.connection.isActive).toBe(true)
+    expect(result.connection.credentialConfigured).toBe(true)
+    expect(store.active()?.id).toBe(result.connection.id)
+    expect((await store.credential('adapter-a'))?.key).toBe(key)
 
     const raw = db
-      .prepare('SELECT ciphertext FROM harness_secrets WHERE connection_id = ?')
-      .get(connection.id) as { ciphertext: Buffer }
-    expect(raw.ciphertext.toString('utf8')).not.toContain('secret-password')
+      .prepare('SELECT key_ciphertext FROM adapter_credentials WHERE adapter_id = ?')
+      .get('adapter-a') as { key_ciphertext: Buffer }
+    expect(raw.key_ciphertext.toString('utf8')).not.toContain(key)
   })
 
-  it('keeps an existing secret when a password is omitted on edit', async () => {
-    const connection = await store.save({
+  it('reuses the same connection when the stable identity pairs again', async () => {
+    const first = await enroll({ harnessId: 'same', adapterId: 'one' })
+    const second = await enroll({ harnessId: 'same', adapterId: 'two' })
+    expect(second.reconnected).toBe(true)
+    expect(second.connection.id).toBe(first.connection.id)
+    expect(store.list()).toHaveLength(1)
+  })
+
+  it('keeps identity and metadata when a connection is removed', async () => {
+    const first = await enroll({ harnessId: 'same' })
+    store.remove(first.connection.id)
+    expect(store.active()).toBeUndefined()
+
+    const second = await enroll({ harnessId: 'same', adapterId: 'new-adapter' })
+    expect(second.connection.id).not.toBe(first.connection.id)
+    expect(store.list()).toHaveLength(1)
+  })
+
+  it('rejects an expired or reused pairing code', async () => {
+    const pairing = await store.createPairing({ kind: 'opencode', label: 'OpenCode' })
+    const input = {
+      pairId: pairing.id,
+      pairToken: pairing.token,
+      harnessId: 'harness-a',
       kind: 'opencode',
       label: 'OpenCode',
-      baseUrl: 'http://opencode:4096',
-      authType: 'basic',
-      password: 'first-password',
-    })
-
-    const updated = await store.save(
-      {
-        kind: 'opencode',
-        label: 'Renamed',
-        baseUrl: 'http://opencode:4096',
-        authType: 'basic',
-      },
-      connection.id
-    )
-
-    expect(updated.label).toBe('Renamed')
-    expect(updated.secretConfigured).toBe(true)
-    expect((await store.activeSecret())?.password).toBe('first-password')
-  })
-
-  it('keeps exactly one active connection', async () => {
-    const first = await store.save({
-      kind: 'opencode',
-      label: 'First',
-      baseUrl: 'http://first:4096',
-      authType: 'none',
-    })
-    const second = await store.save({
-      kind: 'opencode',
-      label: 'Second',
-      baseUrl: 'http://second:4096',
-      authType: 'none',
-    })
-
-    expect(first.isActive).toBe(true)
-    expect(second.isActive).toBe(false)
-    store.setActive(second.id)
-    expect(store.active()?.id).toBe(second.id)
-    expect(store.list().filter((connection) => connection.isActive)).toHaveLength(1)
-  })
-
-  it('clears the active connection when it is removed', async () => {
-    const connection = await store.save({
-      kind: 'opencode',
-      label: 'Only',
-      baseUrl: 'http://opencode:4096',
-      authType: 'none',
-    })
-    store.remove(connection.id)
-    expect(store.active()).toBeUndefined()
-    expect(store.list()).toEqual([])
-  })
-
-  it('rejects unsafe URLs and unsupported harnesses', async () => {
-    await expect(
-      store.save({
-        kind: 'opencode',
-        label: 'Bad',
-        baseUrl: 'file:///etc/passwd',
-        authType: 'none',
-      })
-    ).rejects.toBeInstanceOf(HarnessValidationError)
-
-    await expect(
-      store.save({
-        kind: 'opencode',
-        label: 'Bad',
-        baseUrl: 'http://user:pass@opencode:4096',
-        authType: 'none',
-      })
-    ).rejects.toThrow(/credentials/)
+      adapterId: 'adapter-a',
+      key: generateKey(),
+      adapterVersion: '0.1.0',
+      protocolVersion: 1,
+      capabilities: {},
+      transport: 'local' as const,
+    }
+    await store.enroll(input)
+    await expect(store.enroll(input)).rejects.toBeInstanceOf(HarnessValidationError)
   })
 })

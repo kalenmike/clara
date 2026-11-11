@@ -22,7 +22,7 @@ export type PanelDeviceClass = 'desktop' | 'mobile'
 export type PanelTransport = 'local' | 'relay'
 
 /** `enroll` is a one-time pairing session that has no device yet. */
-export type PanelClientKind = 'device' | 'enroll'
+export type PanelClientKind = 'device' | 'enroll' | 'adapter'
 
 export type PanelRelayStatus =
   'disabled' | 'stopped' | 'connecting' | 'online' | 'reconnecting' | 'offline'
@@ -88,25 +88,49 @@ export type PanelPasswordUpdate = {
   newPassword: string
 }
 
-export type PanelHarnessKind = 'opencode'
-export type PanelHarnessAuthType = 'none' | 'basic'
+export type PanelHarnessKind = string
+export type PanelHarnessAuthType = 'none' | 'basic' | 'session'
+export type PanelHarnessTransport = 'local' | 'relay'
 
 export type PanelHarness = {
   id: string
+  harnessId: string
   kind: PanelHarnessKind
   label: string
-  baseUrl: string
-  authType: PanelHarnessAuthType
-  username?: string
+  transport: PanelHarnessTransport
+  online: boolean
+  adapterVersion?: string
+  protocolVersion?: number
+  harnessVersion?: string
+  capabilities?: Record<string, unknown>
   options: Record<string, unknown>
   isActive: boolean
-  secretConfigured: boolean
+  credentialConfigured: boolean
   lastTestAt?: string
   lastTestOk?: boolean
   lastTestError?: string
+  lastSeenAt?: string
   createdAt: string
   updatedAt: string
 }
+
+export type PanelHarnessPairing = {
+  id: string
+  kind: PanelHarnessKind
+  label: string
+  code: string
+  wsUrl: string
+  room: string
+  fingerprint: string
+  expiresAt: string
+  createdAt: string
+}
+
+export type PanelHarnessPairingMutationResponse = {
+  pairing: PanelHarnessPairing
+}
+
+export type PanelHarnessPairingList = PanelHarnessPairing[]
 
 export type PanelHarnessState = {
   configured: boolean
@@ -117,11 +141,6 @@ export type PanelHarnessState = {
 export type PanelHarnessUpdate = {
   kind: PanelHarnessKind
   label: string
-  baseUrl: string
-  authType: PanelHarnessAuthType
-  username?: string
-  /** Empty or absent while editing keeps the stored secret. */
-  password?: string
   options?: Record<string, unknown>
 }
 
@@ -151,7 +170,15 @@ export type PanelOpenCodeInfo = {
   latencyMs?: number
   checkedAt: string
   code:
-    'ok' | 'timeout' | 'auth' | 'http' | 'unreachable' | 'disabled' | 'unconfigured' | 'unsupported'
+    | 'ok'
+    | 'timeout'
+    | 'auth'
+    | 'http'
+    | 'unreachable'
+    | 'offline'
+    | 'disabled'
+    | 'unconfigured'
+    | 'unsupported'
   error?: string
 }
 
@@ -401,6 +428,7 @@ export type PanelTraffic = {
 }
 
 export type PanelSnapshot = {
+  harnessPairings: PanelHarnessPairing[]
   apiVersion: number
   generatedAt: string
   agent: PanelAgentInfo

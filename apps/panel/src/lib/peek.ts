@@ -70,10 +70,8 @@ export function collectSecrets(snapshot: PanelSnapshot | undefined): string[] {
     `${snapshot.local.host}:${snapshot.local.port}`,
     snapshot.opencode.url,
     publicHostnameOf(snapshot.opencode.url),
-    ...snapshot.harnesses.flatMap((harness) => [
-      harness.baseUrl,
-      publicHostnameOf(harness.baseUrl),
-    ]),
+    ...snapshot.harnesses.flatMap((harness) => [harness.harnessId]),
+    ...(snapshot.harnessPairings ?? []).flatMap((pairing) => [pairing.code, pairing.wsUrl]),
     snapshot.relay.url,
     hostnameOf(snapshot.relay.url),
     snapshot.relay.room,

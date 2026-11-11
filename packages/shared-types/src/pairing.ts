@@ -2,6 +2,7 @@ import { PROTOCOL_VERSION } from './protocol.ts'
 
 export const PAIRING_HASH_KEY = 'pair'
 export const PAIRING_CODE_PREFIX = 'clara1_'
+export const HARNESS_PAIRING_CODE_PREFIX = 'clara-harness1_'
 
 /**
  * A pairing link carries a one-time enrollment capability, not a long-lived
@@ -91,6 +92,118 @@ export function validatePairing(value: unknown): PairingPayload | null {
     enrollToken,
     fingerprint,
     expiresAt,
+  }
+}
+
+/**
+ * A one-time code installed into a harness adapter. It carries the same
+ * WebSocket enrollment capability as a browser code, plus the adapter role and
+ * the harness kind.
+ */
+export type HarnessPairingPayload = {
+  v: typeof PROTOCOL_VERSION
+  role: 'adapter'
+  kind: string
+  wsUrl: string
+  /** Additional workspace-side endpoints, for example a compose service name. */
+  altWsUrls?: string[]
+  room: string
+  clientToken: string
+  enrollId: string
+  enrollToken: string
+  fingerprint: string
+  expiresAt: number
+  /** Set while converting a legacy direct connection. */
+  replacesConnectionId?: string
+}
+
+export function encodeHarnessPairingCode(payload: HarnessPairingPayload): string {
+  return bytesToBase64Url(new TextEncoder().encode(JSON.stringify(payload)))
+}
+
+export function decodeHarnessPairingCode(code: string): HarnessPairingPayload | null {
+  try {
+    const raw = code
+      .trim()
+      .replace(new RegExp(`^${HARNESS_PAIRING_CODE_PREFIX}`), '')
+      .replace(new RegExp(`^${PAIRING_CODE_PREFIX}`), '')
+    const text = new TextDecoder().decode(base64UrlToBytes(raw))
+    return validateHarnessPairing(JSON.parse(text))
+  } catch {
+    return null
+  }
+}
+
+export function parseHarnessPairingInput(input: string): HarnessPairingPayload | null {
+  const value = input.trim()
+  if (!value) return null
+  if (value.startsWith(HARNESS_PAIRING_CODE_PREFIX)) return decodeHarnessPairingCode(value)
+  if (value.startsWith(PAIRING_CODE_PREFIX)) return decodeHarnessPairingCode(value)
+  if (value.startsWith('http://') || value.startsWith('https://')) {
+    try {
+      const url = new URL(value)
+      const params = new URLSearchParams(url.hash.replace(/^#/, ''))
+      const code = params.get(PAIRING_HASH_KEY)
+      return code ? decodeHarnessPairingCode(code) : null
+    } catch {
+      return null
+    }
+  }
+  return decodeHarnessPairingCode(value)
+}
+
+export function validateHarnessPairing(value: unknown): HarnessPairingPayload | null {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) return null
+  const record = value as Record<string, unknown>
+  if (record.v !== PROTOCOL_VERSION || record.role !== 'adapter') return null
+
+  const wsUrl = typeof record.wsUrl === 'string' ? record.wsUrl.trim() : ''
+  if (!wsUrl.startsWith('ws://') && !wsUrl.startsWith('wss://')) return null
+
+  const kind = typeof record.kind === 'string' ? record.kind.trim() : ''
+  const room = typeof record.room === 'string' ? record.room.trim() : ''
+  const clientToken = typeof record.clientToken === 'string' ? record.clientToken.trim() : ''
+  const enrollId = typeof record.enrollId === 'string' ? record.enrollId.trim() : ''
+  const enrollToken = typeof record.enrollToken === 'string' ? record.enrollToken.trim() : ''
+  const fingerprint = typeof record.fingerprint === 'string' ? record.fingerprint.trim() : ''
+  const expiresAt =
+    typeof record.expiresAt === 'number' && Number.isSafeInteger(record.expiresAt)
+      ? record.expiresAt
+      : 0
+  if (
+    !kind ||
+    !room ||
+    !clientToken ||
+    !enrollId ||
+    !enrollToken ||
+    !fingerprint ||
+    expiresAt <= 0
+  ) {
+    return null
+  }
+
+  const altWsUrls = Array.isArray(record.altWsUrls)
+    ? record.altWsUrls.filter(
+        (item): item is string =>
+          typeof item === 'string' && (item.startsWith('ws://') || item.startsWith('wss://'))
+      )
+    : undefined
+
+  return {
+    v: PROTOCOL_VERSION,
+    role: 'adapter',
+    kind,
+    wsUrl,
+    ...(altWsUrls && altWsUrls.length ? { altWsUrls } : {}),
+    room,
+    clientToken,
+    enrollId,
+    enrollToken,
+    fingerprint,
+    expiresAt,
+    ...(typeof record.replacesConnectionId === 'string' && record.replacesConnectionId
+      ? { replacesConnectionId: record.replacesConnectionId }
+      : {}),
   }
 }
 

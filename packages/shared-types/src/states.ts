@@ -1,3 +1,4 @@
+import type { AdapterPayload } from './adapter.ts'
 import type { ClaraAction } from './actions.ts'
 import type { AgentInfo } from './protocol.ts'
 
@@ -71,4 +72,4 @@ export type ClaraState =
 
 export type ClaraStateType = ClaraState['type']
 
-export type ClaraPayload = ClaraAction | ClaraState
+export type ClaraPayload = ClaraAction | ClaraState | AdapterPayload

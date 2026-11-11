@@ -1,7 +1,7 @@
 const MAX_EVENT_BYTES = 16 * 1024 * 1024
 
 /**
- * Minimal Server-Sent Events reader for the OpenCode event stream. Mirrors the
+ * Minimal Server-Sent Events reader for the harness event stream. Mirrors the
  * SDK parser: only `data:` lines matter, comments and event names are ignored.
  */
 export async function* parseSse(

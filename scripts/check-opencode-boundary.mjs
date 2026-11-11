@@ -3,7 +3,7 @@ import { join, relative, sep } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 const root = fileURLToPath(new URL('..', import.meta.url))
-const allowed = new Set(['apps/server', 'apps/lab'])
+const allowed = new Set(['apps/adapter-opencode', 'apps/lab'])
 const roots = ['apps', 'packages']
 const skippedDirs = new Set(['node_modules', 'dist', 'build', 'coverage', '.git'])
 const importPattern =
@@ -67,6 +67,26 @@ for (const directory of roots) {
     walk(join(root, directory))
   } catch {
     // A workspace may not exist in every checkout.
+  }
+}
+
+for (const relativePath of [
+  'apps/server/src/api/routes',
+  'apps/server/src/harness',
+  'apps/server/src/push',
+]) {
+  const directory = join(root, relativePath)
+  try {
+    const files = readdirSync(directory)
+    for (const file of files) {
+      if (!file.endsWith('.ts')) continue
+      const source = readFileSync(join(directory, file), 'utf8')
+      if (/['"`]\/api\//.test(source)) {
+        violations.push(`${relativePath}/${file} contains an OpenCode /api/ path`)
+      }
+    }
+  } catch {
+    // The directory may not exist in every checkout.
   }
 }
 

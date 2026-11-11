@@ -13,10 +13,10 @@ export function registerEventRoutes(
     describeRoute({
       tags: ['events'],
       operationId: 'subscribeEvents',
-      summary: 'Stream OpenCode events as server-sent events',
+      summary: 'Stream harness events as server-sent events',
       responses: {
         200: {
-          description: 'OpenCode event stream',
+          description: 'Harness event stream',
           content: {
             'text/event-stream': {
               schema: { type: 'string' },
@@ -35,7 +35,7 @@ export function registerEventRoutes(
         deps,
         {
           method: 'GET',
-          path: '/api/event',
+          path: '/events',
           headers: { accept: 'text/event-stream' },
         },
         c.req.raw.signal

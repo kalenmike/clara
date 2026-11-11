@@ -13,6 +13,7 @@ import {
   claraSessionMessageSchema,
   claraSessionMessagesResponseSchema,
   claraSessionSchema,
+  type ClaraSession,
   claraSessionsResponseSchema,
 } from '@clara/api-contract'
 import type { ApiDependencies, ApiVariables } from '../context.ts'
@@ -179,17 +180,25 @@ export function registerSessionRoutes(
     ),
     async (c) => {
       const params = c.req.valid('query')
+      const mappedProject = params.project
+        ? deps.harness.harnessProjectId(params.project)
+        : undefined
       const result = await forwardDto(
         deps,
         {
           method: 'GET',
-          path: '/api/session',
-          search: query(params),
+          path: '/sessions',
+          search: query({ ...params, ...(mappedProject ? { project: mappedProject } : {}) }),
         },
         c.req.raw.signal,
         parseClaraSessions
       )
-      return c.json(result)
+      const overlaid = deps.harness.overlaySessionList(result)
+      const data =
+        params.archived === undefined
+          ? overlaid.data
+          : overlaid.data.filter((session) => Boolean(session.time.archived) === params.archived)
+      return c.json({ ...overlaid, data })
     }
   )
 
@@ -208,7 +217,7 @@ export function registerSessionRoutes(
         deps,
         {
           method: 'POST',
-          path: '/api/session',
+          path: '/sessions',
           headers: { 'content-type': 'application/json' },
           body: JSON.stringify(body),
         },
@@ -216,7 +225,7 @@ export function registerSessionRoutes(
         parseClaraSession,
         true
       )
-      return c.json(session)
+      return c.json(overlaySession(deps, session))
     }
   )
 
@@ -233,7 +242,7 @@ export function registerSessionRoutes(
     async (c) => {
       const result = await forwardDto(
         deps,
-        { method: 'GET', path: '/api/session/active' },
+        { method: 'GET', path: '/sessions/active' },
         c.req.raw.signal,
         parseClaraSessionActive,
         true
@@ -257,13 +266,13 @@ export function registerSessionRoutes(
         deps,
         {
           method: 'GET',
-          path: `/api/session/${encodeURIComponent(sessionID)}`,
+          path: `/sessions/${encodeURIComponent(sessionID)}`,
         },
         c.req.raw.signal,
         parseClaraSession,
         true
       )
-      return c.json(session)
+      return c.json(overlaySession(deps, session))
     }
   )
 
@@ -279,16 +288,29 @@ export function registerSessionRoutes(
     validator('json', updateBody),
     async (c) => {
       const { sessionID } = c.req.valid('param')
+      const body = c.req.valid('json')
       await forwardResult(
         deps,
         {
           method: 'PATCH',
-          path: `/api/session/${encodeURIComponent(sessionID)}`,
+          path: `/sessions/${encodeURIComponent(sessionID)}`,
           headers: { 'content-type': 'application/json' },
-          body: JSON.stringify(c.req.valid('json')),
+          body: JSON.stringify(body),
         },
         c.req.raw.signal
       )
+      const harnessId = deps.harness.harnessId
+      if (harnessId) {
+        if (typeof body.archived === 'boolean') {
+          deps.harness.metadata.setArchived(harnessId, sessionID, body.archived)
+        }
+        if (body.metadata && typeof body.metadata === 'object') {
+          deps.harness.metadata.setSnoozed(harnessId, sessionID, body.metadata.snoozed === true)
+        }
+        if (typeof body.title === 'string') {
+          deps.harness.metadata.setTitle(harnessId, sessionID, body.title)
+        }
+      }
       return c.body(null, 204)
     }
   )
@@ -308,7 +330,7 @@ export function registerSessionRoutes(
         deps,
         {
           method: 'DELETE',
-          path: `/api/session/${encodeURIComponent(sessionID)}`,
+          path: `/sessions/${encodeURIComponent(sessionID)}`,
         },
         c.req.raw.signal
       )
@@ -332,7 +354,7 @@ export function registerSessionRoutes(
         deps,
         {
           method: 'POST',
-          path: `/api/session/${encodeURIComponent(sessionID)}/fork`,
+          path: `/sessions/${encodeURIComponent(sessionID)}/fork`,
           headers: { 'content-type': 'application/json' },
           body: JSON.stringify(c.req.valid('json')),
         },
@@ -340,7 +362,7 @@ export function registerSessionRoutes(
         parseClaraSession,
         true
       )
-      return c.json(session)
+      return c.json(overlaySession(deps, session))
     }
   )
 
@@ -360,7 +382,7 @@ export function registerSessionRoutes(
         deps,
         {
           method: 'POST',
-          path: `/api/session/${encodeURIComponent(sessionID)}/move`,
+          path: `/sessions/${encodeURIComponent(sessionID)}/move`,
           headers: { 'content-type': 'application/json' },
           body: JSON.stringify(c.req.valid('json')),
         },
@@ -386,12 +408,14 @@ export function registerSessionRoutes(
         deps,
         {
           method: 'POST',
-          path: `/api/session/${encodeURIComponent(sessionID)}/view`,
+          path: `/sessions/${encodeURIComponent(sessionID)}/view`,
           headers: { 'content-type': 'application/json' },
           body: JSON.stringify(c.req.valid('json')),
         },
         c.req.raw.signal
       )
+      const harnessId = deps.harness.harnessId
+      if (harnessId) deps.harness.metadata.setViewed(harnessId, sessionID)
       return c.body(null, 204)
     }
   )
@@ -412,7 +436,7 @@ export function registerSessionRoutes(
         deps,
         {
           method: 'POST',
-          path: `/api/session/${encodeURIComponent(sessionID)}/prompt`,
+          path: `/sessions/${encodeURIComponent(sessionID)}/prompt`,
           headers: { 'content-type': 'application/json' },
           body: JSON.stringify(c.req.valid('json')),
         },
@@ -442,7 +466,7 @@ export function registerSessionRoutes(
         deps,
         {
           method: 'POST',
-          path: `/api/session/${encodeURIComponent(sessionID)}/synthetic`,
+          path: `/sessions/${encodeURIComponent(sessionID)}/synthetic`,
           headers: { 'content-type': 'application/json' },
           body: JSON.stringify(c.req.valid('json')),
         },
@@ -470,7 +494,7 @@ export function registerSessionRoutes(
         deps,
         {
           method: 'POST',
-          path: `/api/session/${encodeURIComponent(sessionID)}/command`,
+          path: `/sessions/${encodeURIComponent(sessionID)}/command`,
           headers: { 'content-type': 'application/json' },
           body: JSON.stringify(c.req.valid('json')),
         },
@@ -498,7 +522,7 @@ export function registerSessionRoutes(
         deps,
         {
           method: 'POST',
-          path: `/api/session/${encodeURIComponent(sessionID)}/interrupt`,
+          path: `/sessions/${encodeURIComponent(sessionID)}/interrupt`,
           headers: { 'content-type': 'application/json' },
           body: JSON.stringify(c.req.valid('json')),
         },
@@ -528,7 +552,7 @@ export function registerSessionRoutes(
         deps,
         {
           method: 'POST',
-          path: `/api/session/${encodeURIComponent(sessionID)}/compact`,
+          path: `/sessions/${encodeURIComponent(sessionID)}/compact`,
           headers: { 'content-type': 'application/json' },
           body: JSON.stringify(c.req.valid('json')),
         },
@@ -556,7 +580,7 @@ export function registerSessionRoutes(
         deps,
         {
           method: 'POST',
-          path: `/api/session/${encodeURIComponent(sessionID)}/agent`,
+          path: `/sessions/${encodeURIComponent(sessionID)}/agent`,
           headers: { 'content-type': 'application/json' },
           body: JSON.stringify(c.req.valid('json')),
         },
@@ -582,7 +606,7 @@ export function registerSessionRoutes(
         deps,
         {
           method: 'POST',
-          path: `/api/session/${encodeURIComponent(sessionID)}/model`,
+          path: `/sessions/${encodeURIComponent(sessionID)}/model`,
           headers: { 'content-type': 'application/json' },
           body: JSON.stringify(c.req.valid('json')),
         },
@@ -609,7 +633,7 @@ export function registerSessionRoutes(
         deps,
         {
           method: 'GET',
-          path: `/api/session/${encodeURIComponent(sessionID)}/context`,
+          path: `/sessions/${encodeURIComponent(sessionID)}/context`,
         },
         c.req.raw.signal,
         parseClaraSessionMessages,
@@ -644,7 +668,7 @@ export function registerSessionRoutes(
         deps,
         {
           method: 'GET',
-          path: `/api/session/${encodeURIComponent(sessionID)}/message`,
+          path: `/sessions/${encodeURIComponent(sessionID)}/messages`,
           search: query(params),
         },
         c.req.raw.signal,
@@ -669,7 +693,7 @@ export function registerSessionRoutes(
         deps,
         {
           method: 'GET',
-          path: `/api/session/${encodeURIComponent(sessionID)}/form`,
+          path: `/sessions/${encodeURIComponent(sessionID)}/forms`,
         },
         c.req.raw.signal,
         parseClaraForms,
@@ -695,7 +719,7 @@ export function registerSessionRoutes(
         deps,
         {
           method: 'POST',
-          path: `/api/session/${encodeURIComponent(sessionID)}/form/${encodeURIComponent(formID)}/reply`,
+          path: `/sessions/${encodeURIComponent(sessionID)}/forms/${encodeURIComponent(formID)}/reply`,
           headers: { 'content-type': 'application/json' },
           body: JSON.stringify(c.req.valid('json')),
         },
@@ -721,7 +745,7 @@ export function registerSessionRoutes(
         deps,
         {
           method: 'DELETE',
-          path: `/api/session/${encodeURIComponent(sessionID)}/form/${encodeURIComponent(formID)}`,
+          path: `/sessions/${encodeURIComponent(sessionID)}/forms/${encodeURIComponent(formID)}`,
           headers: { 'content-type': 'application/json' },
           body: JSON.stringify(c.req.valid('json')),
         },
@@ -748,7 +772,7 @@ export function registerSessionRoutes(
         deps,
         {
           method: 'GET',
-          path: `/api/session/${encodeURIComponent(sessionID)}/inbox`,
+          path: `/sessions/${encodeURIComponent(sessionID)}/inbox`,
         },
         c.req.raw.signal,
         parseClaraSessionInbox,
@@ -773,7 +797,7 @@ export function registerSessionRoutes(
         deps,
         {
           method: 'DELETE',
-          path: `/api/session/${encodeURIComponent(sessionID)}/inbox/${encodeURIComponent(inboxID)}`,
+          path: `/sessions/${encodeURIComponent(sessionID)}/inbox/${encodeURIComponent(inboxID)}`,
         },
         c.req.raw.signal
       )
@@ -798,7 +822,7 @@ export function registerSessionRoutes(
         deps,
         {
           method: 'GET',
-          path: '/api/permission/request',
+          path: '/permissions',
           search: query({ location: { directory } }),
         },
         c.req.raw.signal,
@@ -824,7 +848,7 @@ export function registerSessionRoutes(
         deps,
         {
           method: 'POST',
-          path: `/api/session/${encodeURIComponent(sessionID)}/permission/${encodeURIComponent(requestID)}/reply`,
+          path: `/sessions/${encodeURIComponent(sessionID)}/permissions/${encodeURIComponent(requestID)}/reply`,
           headers: { 'content-type': 'application/json' },
           body: JSON.stringify(c.req.valid('json')),
         },
@@ -833,4 +857,9 @@ export function registerSessionRoutes(
       return c.body(null, 204)
     }
   )
+}
+
+function overlaySession(deps: ApiDependencies, session: ClaraSession): ClaraSession {
+  const harnessId = deps.harness.harnessId
+  return harnessId ? deps.harness.overlaySession(harnessId, session) : session
 }

@@ -1,3 +1,9 @@
+import {
+  HARNESS_PAIRING_CODE_PREFIX,
+  PROTOCOL_VERSION,
+  encodeHarnessPairingCode,
+  type HarnessPairingPayload,
+} from '@clara/shared-types'
 import type {
   AgentInfo,
   PanelConfigInfo,
@@ -5,6 +11,7 @@ import type {
   PanelControls,
   PanelFeatureControl,
   PanelHarnessMutationResponse,
+  PanelHarnessPairingMutationResponse,
   PanelHarnessTestResult,
   PanelOrchestrationControl,
   PanelSyncUpdate,
@@ -25,6 +32,7 @@ import { HarnessValidationError } from '../harness/types.ts'
 import { broadcast, LocalTransport } from '../local-server.ts'
 import { PanelControlError } from '../panel/controls.ts'
 import { harnessList, harnessState, toPanelHarnessTest } from '../panel/harness.ts'
+import { relayWsUrl } from '../pairing.ts'
 import { panelConfigInfo } from '../panel/runtime.ts'
 import { PushMonitor } from '../push/monitor.ts'
 import type { PushService } from '../push/service.ts'
@@ -59,6 +67,24 @@ export type ControllerOptions = {
   startedAt: number
   apiToken: string
   log: (message: string, detail?: unknown) => void
+}
+
+function adapterSessions(harness: HarnessManager) {
+  return {
+    pairingToken: (id: string) => harness.pairingToken(id),
+    credential: (id: string) => harness.credential(id),
+    enroll: (
+      action: Parameters<HarnessManager['enrollAdapter']>[0],
+      pairToken: string,
+      transport: Parameters<HarnessManager['enrollAdapter']>[2]
+    ) => harness.enrollAdapter(action, pairToken, transport),
+    setLive: (
+      harnessId: string,
+      fetch: (request: Request) => Promise<Response>,
+      transport: Parameters<HarnessManager['enrollAdapter']>[2]
+    ) => harness.setLive(harnessId, fetch, transport),
+    clearLive: (harnessId: string) => harness.clearLive(harnessId),
+  }
 }
 
 const FEATURE_ORDER: FeatureName[] = ['opencode', 'local', 'relay', 'push']
@@ -119,6 +145,7 @@ export class RuntimeController {
       push: options.push,
       sync: options.sync,
       traffic: this.trafficMeter,
+      adapters: adapterSessions(options.harness),
       transport: 'local',
       policy: {
         canPush: () => this.canPush(),
@@ -136,6 +163,7 @@ export class RuntimeController {
         push: options.push,
         sync: options.sync,
         traffic: this.trafficMeter,
+        adapters: adapterSessions(options.harness),
         transport: 'relay',
         policy: {
           canPush: () => this.canPush(),
@@ -480,13 +508,72 @@ export class RuntimeController {
     return panelConfigInfo(config)
   }
 
-  async saveHarness(value: unknown, id?: string): Promise<PanelHarnessMutationResponse> {
-    await harnessCall(() => this.options.harness.save(value, id))
-    return this.harnessMutation()
+  async createHarnessPairing(value: unknown): Promise<PanelHarnessPairingMutationResponse> {
+    if (!value || typeof value !== 'object' || Array.isArray(value)) {
+      throw new PanelControlError(400, 'invalid_body', 'Use a JSON object')
+    }
+    const record = value as Record<string, unknown>
+    const kind = typeof record.kind === 'string' ? record.kind.trim() : ''
+    const label = typeof record.label === 'string' ? record.label.trim() : ''
+    if (!kind) throw new PanelControlError(400, 'invalid_kind', 'Choose a harness type')
+    const pairing = await harnessCall(() =>
+      this.options.harness.createPairing({
+        kind,
+        label: label || kind,
+        ...(typeof record.replacesConnectionId === 'string'
+          ? { replacesConnectionId: record.replacesConnectionId }
+          : {}),
+      })
+    )
+    const relay = this.options.config.relay
+    const room = relay?.room ?? 'local'
+    const wsUrl = relay
+      ? relayWsUrl(relay.url, room)
+      : `ws://${this.options.config.local.host}:${this.options.config.local.port}/ws`
+    const altWsUrls =
+      this.options.config.local.host === '127.0.0.1'
+        ? [`ws://server:${this.options.config.local.port}/ws`]
+        : undefined
+    const payload: HarnessPairingPayload = {
+      v: PROTOCOL_VERSION,
+      role: 'adapter' as const,
+      kind,
+      wsUrl,
+      ...(altWsUrls ? { altWsUrls } : {}),
+      room,
+      clientToken: relay?.clientToken ?? 'local',
+      enrollId: pairing.id,
+      enrollToken: pairing.token,
+      fingerprint: pairing.fingerprint,
+      expiresAt: pairing.expiresAt,
+      ...(pairing.replacesConnectionId
+        ? { replacesConnectionId: pairing.replacesConnectionId }
+        : {}),
+    }
+    const code = `${HARNESS_PAIRING_CODE_PREFIX}${encodeHarnessPairingCode(payload)}`
+    return {
+      pairing: {
+        id: pairing.id,
+        kind,
+        label: label || kind,
+        code,
+        wsUrl,
+        room,
+        fingerprint: pairing.fingerprint,
+        expiresAt: new Date(pairing.expiresAt).toISOString(),
+        createdAt: new Date(pairing.createdAt).toISOString(),
+      },
+    }
   }
 
-  async testHarness(value: unknown, id?: string): Promise<PanelHarnessTestResult> {
-    return toPanelHarnessTest(await harnessCall(() => this.options.harness.test(value, id)))
+  async cancelHarnessPairing(id: string): Promise<void> {
+    this.options.harness.cancelPairing(id)
+  }
+
+  async testHarness(id: string): Promise<PanelHarnessTestResult> {
+    const result = await harnessCall(() => this.options.harness.probeConnection(id))
+    this.options.harness.recordTest(id, result.ok, result.ok ? undefined : result.message)
+    return toPanelHarnessTest(result)
   }
 
   async activateHarness(id: string): Promise<PanelHarnessMutationResponse> {
@@ -496,6 +583,11 @@ export class RuntimeController {
 
   async deleteHarness(id: string): Promise<PanelHarnessMutationResponse> {
     await harnessCall(async () => this.options.harness.remove(id))
+    return this.harnessMutation()
+  }
+
+  async forgetHarness(id: string): Promise<PanelHarnessMutationResponse> {
+    await harnessCall(async () => this.options.harness.forget(id))
     return this.harnessMutation()
   }
 
@@ -679,7 +771,7 @@ export class RuntimeController {
     this.syncPushMonitor()
     this.options.log(
       this.options.harness.configured
-        ? `harness connection is active: ${this.options.harness.active?.label ?? 'OpenCode'}`
+        ? `harness connection is active: ${this.options.harness.active?.label ?? 'harness'}`
         : 'no harness connection is configured'
     )
   }

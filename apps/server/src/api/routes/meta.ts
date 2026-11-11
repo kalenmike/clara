@@ -61,15 +61,13 @@ export function registerMetaRoutes(
     describeRoute({
       tags: ['meta'],
       operationId: 'getHarnessInfo',
-      summary: 'Read the active OpenCode server information',
-      responses: responses(
-        jsonResponse(resolver(claraServerInfoSchema), 'OpenCode server information')
-      ),
+      summary: 'Read the active harness information',
+      responses: responses(jsonResponse(resolver(claraServerInfoSchema), 'Harness information')),
     }),
     async (c) => {
       const info = await forwardDto(
         deps,
-        { method: 'GET', path: '/api/info' },
+        { method: 'GET', path: '/harness/info' },
         c.req.raw.signal,
         parseClaraServerInfo
       )

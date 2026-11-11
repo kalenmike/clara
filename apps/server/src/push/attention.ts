@@ -5,20 +5,20 @@ import {
   type AttentionKind,
   type SessionMailboxSignals,
 } from '@clara/shared-types'
-import type { SessionInfo } from '@opencode/client'
+import type { ClaraSession } from '@clara/api-contract'
 import type { HarnessRequest } from '../harness/types.ts'
-import { getSession, listForms, listRecentMessages } from './opencode.ts'
+import { getSession, listForms, listRecentMessages } from './harness.ts'
 
 export type SessionAttention = {
   kind: AttentionKind
-  session: SessionInfo
+  session: ClaraSession
 }
 
-export function isArchivedSession(session: SessionInfo): boolean {
+export function isArchivedSession(session: ClaraSession): boolean {
   return session.time.archived != null
 }
 
-export function isSnoozedSession(session: SessionInfo): boolean {
+export function isSnoozedSession(session: ClaraSession): boolean {
   return session.metadata?.snoozed === true
 }
 

@@ -97,18 +97,18 @@ function harnessConnection(): HarnessConnection {
   const now = Date.now()
   return {
     id: 'harness-1',
+    harnessId: 'harness-a',
     kind: 'opencode',
     label: 'Test OpenCode',
-    baseUrl: 'http://127.0.0.1:4096',
-    authType: 'basic',
-    username: 'opencode',
-    options: {},
+    transport: 'local',
+    online: true,
+    capabilities: {},
     isActive: true,
     lastTestAt: now,
     lastTestOk: true,
     createdAt: now,
     updatedAt: now,
-    secretConfigured: true,
+    credentialConfigured: true,
   }
 }
 
@@ -230,7 +230,7 @@ describe('PanelRuntime', () => {
     expect(serialized).not.toContain('user:secret')
 
     expect(snapshot.auth).toEqual(AUTH)
-    expect(snapshot.opencode.url).toBe('http://127.0.0.1:4096')
+    expect(snapshot.opencode.url).toBe('opencode adapter (local)')
     expect(snapshot.opencode.passwordConfigured).toBe(true)
     expect(snapshot.opencode.error).toContain('[redacted]')
     expect(snapshot.push.error).toContain('[redacted]')

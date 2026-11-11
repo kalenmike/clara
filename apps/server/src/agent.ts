@@ -14,8 +14,12 @@ import {
   isHelloFrame,
   isSealedFrame,
   parseWireFrame,
+  type AdapterAction,
+  type AdapterEnrollAction,
+  type AdapterState,
   type AgentInfo,
   type ClaraAction,
+  type ClaraPayload,
   type ClaraState,
   type DeviceClass,
   type DeviceEnrollAction,
@@ -31,7 +35,8 @@ import {
   type WireFrame,
 } from '@clara/shared-types'
 import type { ApiApp } from './api/context.ts'
-import { responseHeaders, type HttpRequestAction } from './opencode.ts'
+import { responseHeaders, type HttpRequestAction } from './http.ts'
+import { AdapterSessionBridge } from './harness/session.ts'
 import type { PushService } from './push/service.ts'
 import type { ClientStorageStore, SyncCheckResult, SyncResult } from './store/client-storage.ts'
 import type { DeviceRegistry } from './store/devices.ts'
@@ -51,7 +56,7 @@ type SessionPresence = {
   holdPhone: boolean
 }
 
-type SessionKind = 'device' | 'enroll'
+type SessionKind = 'device' | 'enroll' | 'adapter'
 
 type Session = {
   sid: string
@@ -59,6 +64,11 @@ type Session = {
   deviceId?: string
   deviceLabel?: string
   enrollId?: string
+  pairToken?: string
+  adapterId?: string
+  harnessId?: string
+  adapterBridge?: AdapterSessionBridge
+  isAdapter?: boolean
   keys: SessionKeys
   sendSeq: number
   receive: ReplayGuard
@@ -78,6 +88,8 @@ export type AgentSessionInfo = {
   kind: SessionKind
   deviceId?: string
   deviceLabel?: string
+  adapterId?: string
+  harnessId?: string
   connectedAt: number
   lastSeen: number
   requests: number
@@ -87,6 +99,27 @@ export type AgentSessionInfo = {
   deviceClass?: DeviceClass
   presenceAt?: number
   holdPhone: boolean
+}
+
+export type AdapterSessionHandler = {
+  pairingToken: (id: string) => Promise<string | undefined>
+  credential: (
+    adapterId: string
+  ) => Promise<{ adapterId: string; harnessId: string; key: string } | undefined>
+  enroll: (
+    action: AdapterEnrollAction,
+    pairToken: string,
+    transport: PanelTransport
+  ) => Promise<{
+    connection: { id: string; harnessId: string; label: string }
+    reconnected: boolean
+  }>
+  setLive: (
+    harnessId: string,
+    fetch: (request: Request) => Promise<Response>,
+    transport: PanelTransport
+  ) => Promise<void>
+  clearLive: (harnessId: string) => Promise<void>
 }
 
 export type AgentPolicy = {
@@ -107,6 +140,7 @@ export type AgentOptions = {
   policy?: AgentPolicy
   /** Shared traffic counters for the panel; absent in tests. */
   traffic?: TrafficMeter
+  adapters?: AdapterSessionHandler
   /** Which transport this hub service serves, for the per-transport split. */
   transport?: PanelTransport
   log?: (message: string, detail?: unknown) => void
@@ -249,13 +283,37 @@ export class Agent {
       this.options.traffic?.recordSessionClosed()
     }
 
+    const isAdapter = frame.adapter === true
     let kind: SessionKind
     let baseKey: string
     let deviceId: string | undefined
     let deviceLabel: string | undefined
     let enrollId: string | undefined
+    let pairToken: string | undefined
+    let adapterId: string | undefined
+    let harnessId: string | undefined
 
-    if (frame.enrollId) {
+    if (isAdapter && frame.enrollId) {
+      const token = await this.options.adapters?.pairingToken(frame.enrollId)
+      if (!token) {
+        this.sendError(sid, 'enrollment_invalid', 'The pairing code is invalid or expired')
+        return
+      }
+      kind = 'enroll'
+      enrollId = frame.enrollId
+      pairToken = token
+      baseKey = token
+    } else if (isAdapter && frame.adapterId) {
+      const credential = await this.options.adapters?.credential(frame.adapterId)
+      if (!credential) {
+        this.sendError(sid, 'unknown_device', 'This adapter is not enrolled')
+        return
+      }
+      kind = 'adapter'
+      adapterId = credential.adapterId
+      harnessId = credential.harnessId
+      baseKey = credential.key
+    } else if (!isAdapter && frame.enrollId) {
       const token = await this.options.devices.findPairingToken(frame.enrollId)
       if (!token) {
         this.sendError(sid, 'enrollment_invalid', 'The pairing code is invalid or expired')
@@ -264,7 +322,7 @@ export class Agent {
       kind = 'enroll'
       enrollId = token.id
       baseKey = token.token
-    } else if (frame.deviceId) {
+    } else if (!isAdapter && frame.deviceId) {
       const device = await this.options.devices.findActiveDevice(frame.deviceId)
       if (!device) {
         this.sendError(sid, 'unknown_device', 'This device is not enrolled')
@@ -300,6 +358,10 @@ export class Agent {
       ...(deviceId ? { deviceId } : {}),
       ...(deviceLabel ? { deviceLabel } : {}),
       ...(enrollId ? { enrollId } : {}),
+      ...(pairToken ? { pairToken } : {}),
+      ...(adapterId ? { adapterId } : {}),
+      ...(harnessId ? { harnessId } : {}),
+      ...(isAdapter ? { isAdapter: true } : {}),
       keys,
       sendSeq: 0,
       receive: new ReplayGuard(),
@@ -316,6 +378,10 @@ export class Agent {
 
     if (deviceId) this.options.devices.touchDevice(deviceId, { transport: this.transport })
 
+    if (kind === 'adapter' && harnessId) {
+      session.adapterBridge = new AdapterSessionBridge((payload) => this.enqueue(session, payload))
+    }
+
     this.transmit(undefined, {
       t: 'hello',
       v: PROTOCOL_VERSION,
@@ -324,6 +390,13 @@ export class Agent {
       role: 'agent',
     })
     this.enqueue(session, { type: 'ready', agent: this.options.info })
+    if (kind === 'adapter' && harnessId && session.adapterBridge) {
+      await this.options.adapters?.setLive(
+        harnessId,
+        (request) => session.adapterBridge!.fetch(request),
+        this.transport
+      )
+    }
   }
 
   private async handleSealed(
@@ -378,7 +451,31 @@ export class Agent {
     this.handlePayload(session, payload)
   }
 
-  private handlePayload(session: Session, payload: ClaraAction | ClaraState): void {
+  private handlePayload(session: Session, payload: ClaraPayload): void {
+    if (session.kind === 'adapter') {
+      switch (payload.type) {
+        case 'adapter.response':
+        case 'adapter.chunk':
+        case 'adapter.end':
+        case 'adapter.error':
+          session.adapterBridge?.handleState(payload)
+          return
+        case 'ready.ack':
+        case 'pong':
+          return
+        case 'ping':
+          this.enqueue(session, { type: 'pong', at: payload.at })
+          return
+        default:
+          this.rejectSession(
+            session,
+            'not_allowed',
+            'Adapter sessions cannot issue browser actions'
+          )
+          return
+      }
+    }
+
     if (session.kind === 'enroll') {
       switch (payload.type) {
         case 'ready.ack':
@@ -390,6 +487,10 @@ export class Agent {
           return
         case 'device.enroll':
           void this.handleDeviceEnroll(session, payload)
+          return
+        case 'adapter.enroll':
+          if (session.isAdapter) void this.handleAdapterEnroll(session, payload)
+          else this.rejectSession(session, 'not_allowed', 'This is a browser pairing code')
           return
         default:
           this.rejectSession(session, 'not_allowed', 'Enrollment sessions cannot issue requests')
@@ -405,6 +506,9 @@ export class Agent {
     switch (payload.type) {
       case 'device.enroll':
         this.rejectSession(session, 'not_allowed', 'This device is already enrolled')
+        return
+      case 'adapter.enroll':
+        this.rejectSession(session, 'not_allowed', 'This session is already enrolled')
         return
       case 'ready.ack':
         return
@@ -440,6 +544,35 @@ export class Agent {
         return
       default:
         return
+    }
+  }
+
+  private async handleAdapterEnroll(session: Session, action: AdapterEnrollAction): Promise<void> {
+    if (!session.enrollId || !this.options.adapters) {
+      this.rejectSession(session, 'not_allowed', 'This session cannot enroll an adapter')
+      return
+    }
+    try {
+      const result = await this.options.adapters.enroll(
+        action,
+        session.pairToken ?? '',
+        this.transport
+      )
+      this.enqueue(session, {
+        type: 'adapter.enrolled',
+        connectionId: result.connection.id,
+        harnessId: result.connection.harnessId,
+        label: result.connection.label,
+        reconnected: result.reconnected,
+      })
+      this.closeAfterSend(session)
+    } catch (cause) {
+      this.sendError(
+        session.sid,
+        'invalid_device',
+        cause instanceof Error ? cause.message : 'Could not enroll this adapter'
+      )
+      this.closeSession(session)
     }
   }
 
@@ -494,6 +627,9 @@ export class Agent {
     if (this.sessions.get(session.sid) !== session) return
     this.sessions.delete(session.sid)
     this.abortSession(session)
+    if (session.kind === 'adapter' && session.harnessId) {
+      void this.options.adapters?.clearLive(session.harnessId)
+    }
     this.options.traffic?.recordSessionClosed()
   }
 
@@ -935,7 +1071,10 @@ export class Agent {
     }
   }
 
-  private enqueue(session: Session, payload: ClaraAction | ClaraState): void {
+  private enqueue(
+    session: Session,
+    payload: ClaraAction | ClaraState | AdapterAction | AdapterState
+  ): void {
     const text = JSON.stringify(payload)
     const next = session.sendChain
       .then(async () => {
@@ -973,6 +1112,7 @@ export class Agent {
   private abortSession(session: Session): void {
     for (const controller of session.requests.values()) controller.abort()
     session.requests.clear()
+    session.adapterBridge?.abortAll()
   }
 
   private sweep(): void {
@@ -1020,7 +1160,7 @@ function toDeviceErrorCode(code: string): DeviceErrorCode {
   }
 }
 
-function isClaraPayload(value: unknown): value is ClaraAction | ClaraState {
+function isClaraPayload(value: unknown): value is ClaraPayload {
   return (
     typeof value === 'object' &&
     value !== null &&

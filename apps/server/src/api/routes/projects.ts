@@ -11,12 +11,11 @@ import {
   claraVcsStatusOutputSchema,
   claraWorktreeListSchema,
 } from '@clara/api-contract'
-import type { ApiDependencies, ApiVariables } from '../context.ts'
+import { ApiRequestError, type ApiDependencies, type ApiVariables } from '../context.ts'
 import {
   forwardDto,
   parseClaraFiles,
   parseClaraLocation,
-  parseClaraProject,
   parseClaraProjects,
   parseClaraVcs,
   parseClaraVcsBase,
@@ -48,7 +47,7 @@ export function registerProjectRoutes(
     describeRoute({
       tags: ['projects'],
       operationId: 'listProjects',
-      summary: 'List OpenCode projects',
+      summary: 'List projects',
       responses: responses(jsonResponse(resolver(z.array(claraProjectSchema)), 'Projects')),
     }),
     validator('query', z.object({ archived: optionalBooleanQuery })),
@@ -56,11 +55,11 @@ export function registerProjectRoutes(
       const { archived } = c.req.valid('query')
       const projects = await forwardDto(
         deps,
-        { method: 'GET', path: '/api/project', search: query({ archived }) },
+        { method: 'GET', path: '/projects', search: query({ archived }) },
         c.req.raw.signal,
         parseClaraProjects
       )
-      return c.json(projects)
+      return c.json(deps.harness.overlayProjectList(projects))
     }
   )
 
@@ -77,19 +76,22 @@ export function registerProjectRoutes(
     async (c) => {
       const { projectID } = c.req.valid('param')
       const body = c.req.valid('json')
-      const project = await forwardDto(
+      const projects = await forwardDto(
         deps,
-        {
-          method: 'PATCH',
-          path: `/api/project/${encodeURIComponent(projectID)}`,
-          headers: { 'content-type': 'application/json' },
-          body: JSON.stringify(body),
-        },
+        { method: 'GET', path: '/projects' },
         c.req.raw.signal,
-        parseClaraProject,
-        true
+        parseClaraProjects
       )
-      return c.json(project)
+      const current = deps.harness
+        .overlayProjectList(projects)
+        .find((item) => item.id === projectID)
+      if (!current) throw new ApiRequestError(404, 'not_found', 'That project no longer exists')
+      const updated = deps.harness.updateProject(projectID, {
+        ...(typeof body.name === 'string' ? { name: body.name } : {}),
+        ...(body.icon !== undefined ? { icon: body.icon } : {}),
+        ...(body.commands !== undefined ? { commands: body.commands } : {}),
+      })
+      return c.json(updated ?? current)
     }
   )
 
@@ -108,7 +110,7 @@ export function registerProjectRoutes(
         deps,
         {
           method: 'GET',
-          path: '/api/location',
+          path: '/locations',
           search: query({ location: { directory } }),
         },
         c.req.raw.signal,
@@ -141,7 +143,7 @@ export function registerProjectRoutes(
         deps,
         {
           method: 'GET',
-          path: '/api/fs/find',
+          path: '/files/find',
           search: query({ location: { directory }, query: text, type, limit }),
         },
         c.req.raw.signal,
@@ -168,7 +170,7 @@ export function registerProjectRoutes(
         deps,
         {
           method: 'GET',
-          path: '/api/vcs',
+          path: '/vcs',
           search: query({ location: { directory } }),
         },
         c.req.raw.signal,
@@ -193,7 +195,7 @@ export function registerProjectRoutes(
         deps,
         {
           method: 'GET',
-          path: '/api/vcs/base',
+          path: '/vcs/base',
           search: query({ location: { directory } }),
         },
         c.req.raw.signal,
@@ -220,7 +222,7 @@ export function registerProjectRoutes(
         deps,
         {
           method: 'GET',
-          path: '/api/vcs/status',
+          path: '/vcs/status',
           search: query({ location: { directory } }),
         },
         c.req.raw.signal,
@@ -253,7 +255,7 @@ export function registerProjectRoutes(
         deps,
         {
           method: 'POST',
-          path: '/api/vcs/diff',
+          path: '/vcs/diff',
           search: query({ location: { directory }, mode, base, context }),
         },
         c.req.raw.signal,
@@ -274,12 +276,13 @@ export function registerProjectRoutes(
     validator('query', z.object({ project: z.string().min(1).optional() })),
     async (c) => {
       const { project } = c.req.valid('query')
+      const mappedProject = project ? deps.harness.harnessProjectId(project) : undefined
       const result = await forwardDto(
         deps,
         {
           method: 'GET',
-          path: '/api/worktree',
-          search: query({ projectID: project }),
+          path: '/worktrees',
+          search: query({ projectID: mappedProject ?? project }),
         },
         c.req.raw.signal,
         parseClaraWorktrees
@@ -303,7 +306,7 @@ export function registerProjectRoutes(
         deps,
         {
           method: 'POST',
-          path: '/api/worktree/refresh',
+          path: '/worktrees/refresh',
           headers: { 'content-type': 'application/json' },
           body: JSON.stringify(body),
         },

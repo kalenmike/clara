@@ -1,8 +1,10 @@
 import { useState } from 'react'
-import { Cable, Check, CircleAlert, FlaskConical, Plus, Trash2 } from 'lucide-react'
+import { Cable, Check, Copy, FlaskConical, Plus, Trash2 } from 'lucide-react'
 import type {
   PanelHarness,
   PanelHarnessMutationResponse,
+  PanelHarnessPairing,
+  PanelHarnessPairingMutationResponse,
   PanelHarnessState,
   PanelHarnessTestResult,
 } from '@clara/shared-types'
@@ -12,21 +14,7 @@ import { PEEK_MASK } from '../lib/peek.ts'
 import { usePeek } from '../lib/peek-context.tsx'
 import { Badge, CardBody, CollapsibleCard, Notice } from './primitives.tsx'
 
-type FormState = {
-  label: string
-  baseUrl: string
-  authType: 'none' | 'basic'
-  username: string
-  password: string
-}
-
-const NEW_FORM: FormState = {
-  label: 'OpenCode',
-  baseUrl: 'http://opencode:4096',
-  authType: 'basic',
-  username: 'opencode',
-  password: '',
-}
+const KINDS = [{ kind: 'opencode', label: 'OpenCode' }]
 
 export function HarnessCard({
   harness,
@@ -40,58 +28,49 @@ export function HarnessCard({
   now: number
 }) {
   const { masked, redact } = usePeek()
-  const [editing, setEditing] = useState<string | 'new' | undefined>(
-    harnesses.length === 0 ? 'new' : undefined
-  )
-  const [form, setForm] = useState<FormState>(NEW_FORM)
+  const [pairing, setPairing] = useState<PanelHarnessPairing>()
   const [pending, setPending] = useState<string>()
   const [error, setError] = useState<string>()
   const [test, setTest] = useState<PanelHarnessTestResult>()
+  const [kind, setKind] = useState(KINDS[0].kind)
 
-  const beginNew = () => {
-    setForm(NEW_FORM)
-    setEditing('new')
+  const add = async () => {
+    setPending('pair')
     setError(undefined)
     setTest(undefined)
-  }
-
-  const beginEdit = (connection: PanelHarness) => {
-    setForm({
-      label: connection.label,
-      baseUrl: connection.baseUrl,
-      authType: connection.authType,
-      username: connection.username ?? 'opencode',
-      password: '',
-    })
-    setEditing(connection.id)
-    setError(undefined)
-    setTest(undefined)
-  }
-
-  const save = async () => {
-    setPending('save')
-    setError(undefined)
     try {
-      const body = {
-        kind: 'opencode' as const,
-        label: form.label,
-        baseUrl: form.baseUrl,
-        authType: form.authType,
-        ...(form.authType === 'basic' ? { username: form.username } : {}),
-        ...(form.password ? { password: form.password } : {}),
-      }
-      if (editing === 'new') {
-        await postPanel<PanelHarnessMutationResponse>('/panel/api/v1/harnesses', body)
-      } else if (editing) {
-        await postPanel<PanelHarnessMutationResponse>(`/panel/api/v1/harnesses/${editing}`, body)
-      }
-      setEditing(undefined)
-      setForm(NEW_FORM)
+      const result = await postPanel<PanelHarnessPairingMutationResponse>(
+        '/panel/api/v1/harnesses/pairings',
+        { kind, label: KINDS.find((item) => item.kind === kind)?.label ?? kind }
+      )
+      setPairing(result.pairing)
       onChanged()
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : String(cause))
     } finally {
       setPending(undefined)
+    }
+  }
+
+  const cancelPairing = async () => {
+    if (!pairing) return
+    setPending('cancel')
+    try {
+      await deletePanel(`/panel/api/v1/harnesses/pairings/${pairing.id}`)
+      setPairing(undefined)
+      onChanged()
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : String(cause))
+    } finally {
+      setPending(undefined)
+    }
+  }
+
+  const copy = async (value: string) => {
+    try {
+      await navigator.clipboard.writeText(value)
+    } catch {
+      setError('Could not copy to the clipboard')
     }
   }
 
@@ -102,13 +81,7 @@ export function HarnessCard({
     try {
       const result = await postPanel<PanelHarnessTestResult>(
         `/panel/api/v1/harnesses/${connection.id}/test`,
-        {
-          kind: connection.kind,
-          label: connection.label,
-          baseUrl: connection.baseUrl,
-          authType: connection.authType,
-          ...(connection.username ? { username: connection.username } : {}),
-        }
+        {}
       )
       setTest(result)
       onChanged()
@@ -135,13 +108,19 @@ export function HarnessCard({
     }
   }
 
-  const remove = async (connection: PanelHarness) => {
-    if (!window.confirm(`Delete the harness connection "${connection.label}"?`)) return
+  const remove = async (connection: PanelHarness, forget = false) => {
+    const message = forget
+      ? `Forget "${connection.label}" and its Clara session metadata?`
+      : `Delete the "${connection.label}" connection? Its identity and metadata are kept.`
+    if (!window.confirm(message)) return
     setPending(`delete:${connection.id}`)
     setError(undefined)
     try {
-      await deletePanel(`/panel/api/v1/harnesses/${connection.id}`)
-      if (editing === connection.id) setEditing(undefined)
+      if (forget) {
+        await postPanel(`/panel/api/v1/harnesses/${connection.id}/forget`, {})
+      } else {
+        await deletePanel(`/panel/api/v1/harnesses/${connection.id}`)
+      }
       onChanged()
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : String(cause))
@@ -151,11 +130,12 @@ export function HarnessCard({
   }
 
   const disabled = pending !== undefined
+  const command = pairing ? `pnpm clara adapter install --opencode --pair ${pairing.code}` : ''
 
   return (
     <CollapsibleCard
-      title="Harness connections"
-      description="The harness API this hub proxies to paired clients"
+      title="Harness adapters"
+      description="Adapters connect out to the hub like a paired browser"
       icon={<Cable className="size-4" aria-hidden="true" />}
       action={
         <Badge tone={harness.configured ? 'success' : 'warning'}>
@@ -177,7 +157,8 @@ export function HarnessCard({
 
         {harnesses.length === 0 ? (
           <p className="text-xs text-neutral-500 dark:text-neutral-400">
-            No harness is configured yet. Add the OpenCode URL and password to start proxying.
+            No adapter is paired yet. Choose a type, copy the pairing code, and run the install
+            command on the machine that runs the harness.
           </p>
         ) : (
           <div className="space-y-2">
@@ -191,13 +172,14 @@ export function HarnessCard({
                     <div className="flex flex-wrap items-center gap-2 text-sm font-medium">
                       {connection.label}
                       {connection.isActive ? <Badge tone="success">Active</Badge> : null}
-                      {connection.secretConfigured ? (
-                        <Badge tone="neutral">Secret set</Badge>
-                      ) : null}
+                      <Badge tone={connection.online ? 'success' : 'warning'}>
+                        {connection.online ? 'Online' : 'Offline'}
+                      </Badge>
                     </div>
                     <p className="truncate font-mono text-[11px] text-neutral-500 dark:text-neutral-400">
-                      {masked ? PEEK_MASK : connection.baseUrl} · {connection.authType}
-                      {connection.username ? ` · ${connection.username}` : ''}
+                      {connection.kind} · {connection.transport} ·{' '}
+                      {masked ? PEEK_MASK : connection.harnessId.slice(0, 12)}
+                      {connection.harnessVersion ? ` · ${connection.harnessVersion}` : ''}
                     </p>
                   </div>
                   <div className="flex flex-wrap items-center gap-1.5">
@@ -223,20 +205,20 @@ export function HarnessCard({
                     </button>
                     <button
                       type="button"
-                      onClick={() => beginEdit(connection)}
-                      disabled={disabled}
-                      className="rounded-md border border-neutral-200 px-2 py-1 text-[11px] font-medium transition hover:bg-neutral-100 disabled:opacity-50 dark:border-neutral-700 dark:hover:bg-neutral-800"
-                    >
-                      Edit
-                    </button>
-                    <button
-                      type="button"
                       onClick={() => void remove(connection)}
                       disabled={disabled}
                       className="inline-flex items-center gap-1 rounded-md border border-red-200 px-2 py-1 text-[11px] font-medium text-red-700 transition hover:bg-red-50 disabled:opacity-50 dark:border-red-900 dark:text-red-300 dark:hover:bg-red-950/40"
                     >
                       <Trash2 className="size-3" aria-hidden="true" />
                       Delete
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => void remove(connection, true)}
+                      disabled={disabled}
+                      className="rounded-md border border-neutral-200 px-2 py-1 text-[11px] font-medium text-neutral-600 transition hover:bg-neutral-100 disabled:opacity-50 dark:border-neutral-700 dark:text-neutral-300 dark:hover:bg-neutral-800"
+                    >
+                      Forget
                     </button>
                   </div>
                 </div>
@@ -253,106 +235,75 @@ export function HarnessCard({
           </div>
         )}
 
-        {editing === undefined ? (
-          <button
-            type="button"
-            onClick={beginNew}
-            className="inline-flex items-center gap-1.5 rounded-lg border border-neutral-200 px-2.5 py-1.5 text-xs font-medium transition hover:bg-neutral-100 dark:border-neutral-700 dark:hover:bg-neutral-800"
-          >
-            <Plus className="size-3.5" aria-hidden="true" />
-            Add connection
-          </button>
-        ) : (
+        {pairing ? (
           <div className="space-y-2 rounded-lg border border-neutral-200 p-3 dark:border-neutral-800">
             <div className="flex items-center justify-between">
-              <h3 className="text-xs font-semibold">
-                {editing === 'new' ? 'New OpenCode connection' : 'Edit connection'}
-              </h3>
+              <h3 className="text-xs font-semibold">Pair {pairing.label}</h3>
               <button
                 type="button"
-                onClick={() => setEditing(undefined)}
+                onClick={() => void cancelPairing()}
                 className="text-[11px] text-neutral-500 hover:text-neutral-900 dark:hover:text-neutral-100"
               >
                 Cancel
               </button>
             </div>
-            <label className="block text-[11px] font-medium text-neutral-600 dark:text-neutral-300">
-              Label
-              <input
-                value={form.label}
-                onChange={(event) => setForm({ ...form, label: event.target.value })}
-                className="mt-1 w-full rounded-md border border-neutral-200 bg-white px-2 py-1.5 text-xs outline-none focus:border-neutral-500 dark:border-neutral-700 dark:bg-neutral-950"
-              />
-            </label>
-            <label className="block text-[11px] font-medium text-neutral-600 dark:text-neutral-300">
-              Base URL
-              <input
-                value={form.baseUrl}
-                onChange={(event) => setForm({ ...form, baseUrl: event.target.value })}
-                placeholder="http://opencode:4096"
-                className="mt-1 w-full rounded-md border border-neutral-200 bg-white px-2 py-1.5 font-mono text-xs outline-none focus:border-neutral-500 dark:border-neutral-700 dark:bg-neutral-950"
-              />
-              <span className="mt-1 block text-[10px] font-normal text-neutral-500 dark:text-neutral-400">
-                Inside the hub container, 127.0.0.1 is the hub service. Use the OpenCode container
-                service name (for example http://opencode:4096) or host.docker.internal.
-              </span>
-            </label>
-            <div className="grid gap-2 sm:grid-cols-2">
-              <label className="block text-[11px] font-medium text-neutral-600 dark:text-neutral-300">
-                Authentication
-                <select
-                  value={form.authType}
-                  onChange={(event) =>
-                    setForm({ ...form, authType: event.target.value as 'none' | 'basic' })
-                  }
-                  className="mt-1 w-full rounded-md border border-neutral-200 bg-white px-2 py-1.5 text-xs outline-none focus:border-neutral-500 dark:border-neutral-700 dark:bg-neutral-950"
-                >
-                  <option value="basic">Basic auth</option>
-                  <option value="none">No authentication</option>
-                </select>
-              </label>
-              {form.authType === 'basic' ? (
-                <label className="block text-[11px] font-medium text-neutral-600 dark:text-neutral-300">
-                  Username
-                  <input
-                    value={form.username}
-                    onChange={(event) => setForm({ ...form, username: event.target.value })}
-                    className="mt-1 w-full rounded-md border border-neutral-200 bg-white px-2 py-1.5 text-xs outline-none focus:border-neutral-500 dark:border-neutral-700 dark:bg-neutral-950"
-                  />
-                </label>
-              ) : null}
+            <p className="text-[11px] text-neutral-500 dark:text-neutral-400">
+              On the harness machine, install the adapter and paste this code. It expires{' '}
+              {formatRelative(pairing.expiresAt, now)}.
+            </p>
+            <div className="rounded-md bg-neutral-100 p-2 font-mono text-[11px] break-all dark:bg-neutral-900">
+              {pairing.code}
             </div>
-            {form.authType === 'basic' ? (
-              <label className="block text-[11px] font-medium text-neutral-600 dark:text-neutral-300">
-                Password
-                <input
-                  type="password"
-                  value={form.password}
-                  onChange={(event) => setForm({ ...form, password: event.target.value })}
-                  placeholder={editing === 'new' ? 'Required' : 'Leave blank to keep the saved one'}
-                  className="mt-1 w-full rounded-md border border-neutral-200 bg-white px-2 py-1.5 text-xs outline-none focus:border-neutral-500 dark:border-neutral-700 dark:bg-neutral-950"
-                />
-              </label>
-            ) : null}
-            <div className="flex justify-end gap-2">
+            <div className="flex flex-wrap gap-2">
               <button
                 type="button"
-                onClick={() => void save()}
-                disabled={disabled}
-                className="inline-flex items-center gap-1.5 rounded-md bg-neutral-950 px-2.5 py-1.5 text-xs font-semibold text-white transition hover:bg-neutral-800 disabled:opacity-50 dark:bg-white dark:text-neutral-950 dark:hover:bg-neutral-200"
+                onClick={() => void copy(pairing.code)}
+                className="inline-flex items-center gap-1 rounded-md border border-neutral-200 px-2 py-1 text-[11px] font-medium dark:border-neutral-700"
               >
-                {pending === 'save' ? 'Saving…' : 'Save connection'}
+                <Copy className="size-3" aria-hidden="true" /> Copy code
+              </button>
+              <button
+                type="button"
+                onClick={() => void copy(command)}
+                className="inline-flex items-center gap-1 rounded-md border border-neutral-200 px-2 py-1 text-[11px] font-medium dark:border-neutral-700"
+              >
+                <Copy className="size-3" aria-hidden="true" /> Copy command
               </button>
             </div>
+            <pre className="overflow-x-auto rounded-md bg-neutral-950 p-2 text-[11px] text-neutral-100">
+              {command}
+            </pre>
+            <p className="font-mono text-[10px] text-neutral-500 dark:text-neutral-400">
+              fingerprint {pairing.fingerprint} · {pairing.wsUrl}
+            </p>
+          </div>
+        ) : (
+          <div className="flex flex-wrap items-end gap-2 rounded-lg border border-neutral-200 p-3 dark:border-neutral-800">
+            <label className="text-[11px] font-medium text-neutral-600 dark:text-neutral-300">
+              Harness type
+              <select
+                value={kind}
+                onChange={(event) => setKind(event.target.value)}
+                className="mt-1 block rounded-md border border-neutral-200 bg-white px-2 py-1.5 text-xs dark:border-neutral-700 dark:bg-neutral-950"
+              >
+                {KINDS.map((item) => (
+                  <option key={item.kind} value={item.kind}>
+                    {item.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <button
+              type="button"
+              onClick={() => void add()}
+              disabled={disabled}
+              className="inline-flex items-center gap-1.5 rounded-md bg-neutral-950 px-2.5 py-1.5 text-xs font-semibold text-white transition hover:bg-neutral-800 disabled:opacity-50 dark:bg-white dark:text-neutral-950"
+            >
+              <Plus className="size-3.5" aria-hidden="true" />
+              {pending === 'pair' ? 'Preparing…' : 'Add harness'}
+            </button>
           </div>
         )}
-
-        {!harness.configured && harnesses.length > 0 ? (
-          <p className="flex items-center gap-1.5 text-xs text-amber-700 dark:text-amber-300">
-            <CircleAlert className="size-3.5" aria-hidden="true" />
-            Activate one connection before pairing a client.
-          </p>
-        ) : null}
       </CardBody>
     </CollapsibleCard>
   )
