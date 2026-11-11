@@ -10,11 +10,24 @@ export type SessionListQuery = {
   cursor?: string
 }
 
+export type MessageType =
+  | 'compaction'
+  | 'user'
+  | 'synthetic'
+  | 'agent-switched'
+  | 'model-switched'
+  | 'location-switched'
+  | 'system'
+  | 'skill'
+  | 'shell'
+  | 'assistant'
+  | 'idle'
+
 export type MessageListQuery = {
   order?: 'asc' | 'desc'
   limit?: number
   cursor?: string
-  type?: string
+  type?: MessageType
 }
 
 export type FileFindQuery = {

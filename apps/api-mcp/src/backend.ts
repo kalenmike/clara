@@ -1,3 +1,4 @@
+import { createClaraClient, type ClaraClient } from '@clara/api-client'
 import type {
   ClaraApiReadBackend,
   FileFindQuery,
@@ -8,142 +9,129 @@ import type {
 } from '@clara/api-mcp'
 
 export class HttpBackend implements ClaraApiReadBackend {
-  readonly baseURL: string
-  readonly token: string
+  private readonly client: ClaraClient
 
   constructor(baseURL: string, token: string) {
-    this.baseURL = baseURL.replace(/\/$/, '')
-    this.token = token
-  }
-
-  private async get<T>(path: string, params?: Record<string, unknown>): Promise<T> {
-    const url = new URL(`${this.baseURL}${path}`)
-    for (const [key, value] of Object.entries(params ?? {})) {
-      if (value === undefined || value === null) continue
-      if (Array.isArray(value)) {
-        for (const item of value) url.searchParams.append(key, String(item))
-        continue
-      }
-      url.searchParams.append(key, String(value))
-    }
-
-    const response = await fetch(url, {
-      headers: {
-        authorization: `Bearer ${this.token}`,
-        'x-clara-readonly': '1',
+    this.client = createClaraClient({
+      baseUrl: baseURL,
+      fetch: async (input, init) => {
+        const headers = new Headers(init?.headers)
+        headers.set('authorization', `Bearer ${token}`)
+        headers.set('x-clara-readonly', '1')
+        return fetch(input, { ...init, headers })
       },
     })
-    const body = await response.text()
-    let parsed: unknown
-    try {
-      parsed = body ? JSON.parse(body) : undefined
-    } catch {
-      parsed = body
-    }
-    if (!response.ok) {
-      const error = parsed as { error?: { message?: string } } | undefined
-      throw new Error(error?.error?.message ?? `Clara API returned ${response.status}`)
-    }
-    return parsed as T
   }
 
   info() {
-    return this.get('/v1/info')
+    return this.client.server.status()
   }
 
   openapi() {
-    return this.get('/openapi.json')
+    return this.client.server.openapi()
   }
 
   harnessInfo() {
-    return this.get('/v1/harness/info')
+    return this.client.server.info()
   }
 
   projects(input?: { archived?: boolean }) {
-    return this.get('/v1/projects', input)
+    return this.client.project.list(input)
   }
 
   sessions(input?: SessionListQuery) {
-    return this.get('/v1/sessions', input)
+    return this.client.session.list(input)
   }
 
   activeSessions() {
-    return this.get('/v1/sessions/active')
+    return this.client.session.active()
   }
 
   session(sessionID: string) {
-    return this.get(`/v1/sessions/${encodeURIComponent(sessionID)}`)
+    return this.client.session.get({ sessionID })
   }
 
   messages(sessionID: string, input?: MessageListQuery) {
-    return this.get(`/v1/sessions/${encodeURIComponent(sessionID)}/messages`, input)
+    return this.client.message.list({ sessionID, ...input })
   }
 
   permissions(input?: { directory?: string }) {
-    return this.get('/v1/permissions', input)
+    return this.client.permission.request.list({
+      location: { directory: input?.directory },
+    })
   }
 
   forms(sessionID: string) {
-    return this.get(`/v1/sessions/${encodeURIComponent(sessionID)}/forms`)
+    return this.client.session.form.list({ sessionID })
   }
 
   inbox(sessionID: string) {
-    return this.get(`/v1/sessions/${encodeURIComponent(sessionID)}/inbox`)
+    return this.client.session.inbox.list({ sessionID })
   }
 
   agents() {
-    return this.get('/v1/agents')
+    return this.client.agent.list()
   }
 
   models() {
-    return this.get('/v1/models')
+    return this.client.model.list()
   }
 
   providers() {
-    return this.get('/v1/providers')
+    return this.client.provider.list()
   }
 
   commands() {
-    return this.get('/v1/commands')
+    return this.client.command.list()
   }
 
   skills(input?: { directory?: string }) {
-    return this.get('/v1/skills', input)
+    return this.client.skill.list({ location: { directory: input?.directory } })
   }
 
   references(input?: { directory?: string }) {
-    return this.get('/v1/references', input)
+    return this.client.reference.list({ location: { directory: input?.directory } })
   }
 
   location(directory?: string) {
-    return this.get('/v1/locations', { directory })
+    return this.client.location.get({ location: { directory } })
   }
 
   files(input: FileFindQuery) {
-    return this.get('/v1/files/find', input)
+    return this.client.file.find({
+      location: { directory: input.directory },
+      query: input.query,
+      type: input.type,
+      limit: input.limit,
+    })
   }
 
   vcs(directory?: string) {
-    return this.get('/v1/vcs', { directory })
+    return this.client.vcs.get({ location: { directory } })
   }
 
   vcsBase(directory?: string) {
-    return this.get('/v1/vcs/base', { directory })
+    return this.client.vcs.base({ location: { directory } })
   }
 
   vcsStatus(directory?: string) {
-    return this.get('/v1/vcs/status', { directory })
+    return this.client.vcs.status({ location: { directory } })
   }
 
   vcsDiff(input: VcsDiffQuery) {
-    return this.get('/v1/vcs/diff', input)
+    return this.client.vcs.diff({
+      location: { directory: input.directory },
+      mode: input.mode,
+      base: input.base,
+      context: input.context,
+    })
   }
 
   worktrees(input?: { project?: string }) {
-    return this.get('/v1/worktrees', input)
+    return this.client.worktree.list({ projectID: input?.project })
   }
 
   gitLog(input: GitLogQuery) {
-    return this.get('/v1/git/log', input)
+    return this.client.git.log(input)
   }
 }

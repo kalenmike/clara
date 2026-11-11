@@ -14,6 +14,7 @@
     "test": "vitest run --passWithNoTests"
   },
   "dependencies": {
+    "@clara/api-client": "workspace:*",
     "@clara/api-mcp": "workspace:*",
     "@modelcontextprotocol/sdk": "^1.24.3"
   },

@@ -27,6 +27,7 @@ packages/adapter      Harness adapter installer, shared runner, and MCP registra
 packages/adapter-core Harness-neutral adapter client, delivery, prompt, and runner pieces
 packages/shared-types Wire frames, actions, states, pairing payloads
 packages/api-contract Hub API schemas and generated OpenAPI components
+packages/api-client   Fetch-based hub API SDK
 packages/api-mcp      Read-only hub API MCP tools
 packages/orchestration Package loader, runtime, leases, and watchdog
 packages/runner       Shared script runner for harness adapters
