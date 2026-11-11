@@ -45,6 +45,7 @@ Clara works; the guide describes how to use it.
 | Document                                | Read when…                                                      |
 | --------------------------------------- | --------------------------------------------------------------- |
 | [overview.md](architecture/overview.md) | You need the workspace, modes, auth model, or event flow        |
+| [api.md](architecture/api.md)           | You are working on the hub API, OpenAPI, or read-only MCP       |
 | [relay.md](architecture/relay.md)       | You are working on the Worker, Durable Object, or remote access |
 | [e2ee.md](architecture/e2ee.md)         | You are working on pairing, key derivation, or encrypted frames |
 

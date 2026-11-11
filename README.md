@@ -18,13 +18,16 @@ trusted network.
 ```text
 apps/web              React/Vite SPA, deployed to Cloudflare Pages or the web container
 apps/panel            Authenticated hub panel and setup surface served by the hub service
-apps/server           Node hub service, harness proxy, local WS + outbound relay
+apps/server           Node hub service, /v1 API, harness proxy, local WS + outbound relay
 apps/orchestrator     Loopback orchestration service, REST/SSE/MCP
 apps/mcp              stdio MCP bridge to the orchestration service
+apps/api-mcp          stdio read-only MCP bridge to the hub API
 plugins/clara-policy  OpenCode strict enforcement binding
 packages/adapter      Harness adapter installer, shared runner, and MCP registration
 packages/adapter-core Harness-neutral adapter client, delivery, prompt, and runner pieces
 packages/shared-types Wire frames, actions, states, pairing payloads
+packages/api-contract Hub API schemas and generated OpenAPI components
+packages/api-mcp      Read-only hub API MCP tools
 packages/orchestration Package loader, runtime, leases, and watchdog
 packages/runner       Shared script runner for harness adapters
 packages/crypto       device-key derivation, AES-GCM envelopes, replay guard
@@ -126,6 +129,23 @@ with `secrets.key`. The panel never returns device keys, harness password, relay
 tokens, push endpoints, sync values, or file contents. See
 [docs/features/panel.md](docs/features/panel.md) and
 [docs/features/hub-controls.md](docs/features/hub-controls.md).
+
+### Hub API
+
+The hub serves its versioned API on the local listener (default
+<http://127.0.0.1:8788>). Swagger UI is at `/docs` and the OpenAPI document is at
+`/openapi.json`. The browser reaches the same API over the E2EE WebSocket; local
+tools use the bearer token stored in `api.token` in the hub config directory.
+
+Install the read-only API MCP for agents testing frontend code against live
+data:
+
+```bash
+pnpm clara mcp install --api
+```
+
+The MCP reads `CLARA_API_URL` and `CLARA_API_TOKEN_FILE`. See
+[docs/architecture/api.md](docs/architecture/api.md).
 
 ### Docker stack
 

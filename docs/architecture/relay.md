@@ -10,21 +10,21 @@ OpenCode HTTP/SSE
       ▲
       │ basic auth (server-side)
       ▼
-Clara hub ──outbound WSS──▶ Worker ──▶ RelayRoom DO ◀──WSS── browser / PWA
+Clara hub /v1 API ──outbound WSS──▶ Worker ──▶ RelayRoom DO ◀──WSS── browser / PWA
       │                                              │
       └──────────── E2EE payloads ───────────────────┘
 ```
 
 ## Components
 
-| Component       | Location                | Responsibility                                                |
-| --------------- | ----------------------- | ------------------------------------------------------------- |
-| Hub service     | `apps/server`           | OpenCode auth, HTTP/SSE proxy, E2EE sessions, relay reconnect |
-| Relay Worker    | `workers/relay`         | Path routing, subprotocol/token auth, static health endpoint  |
-| `RelayRoom` DO  | `workers/relay`         | One hub socket + N client sockets; frame forwarding only      |
-| Web transport   | `apps/web`              | Fetch-over-WebSocket shim, E2EE, reconnect, heartbeat         |
-| Shared protocol | `packages/shared-types` | Frame/action/state types and pairing payloads                 |
-| Crypto          | `packages/crypto`       | device-key derivation, AES-GCM seal/open, replay guard        |
+| Component       | Location                | Responsibility                                               |
+| --------------- | ----------------------- | ------------------------------------------------------------ |
+| Hub service     | `apps/server`           | Hub `/v1` API, harness auth, E2EE sessions, relay reconnect  |
+| Relay Worker    | `workers/relay`         | Path routing, subprotocol/token auth, static health endpoint |
+| `RelayRoom` DO  | `workers/relay`         | One hub socket + N client sockets; frame forwarding only     |
+| Web transport   | `apps/web`              | Fetch-over-WebSocket shim, E2EE, reconnect, heartbeat        |
+| Shared protocol | `packages/shared-types` | Frame/action/state types and pairing payloads                |
+| Crypto          | `packages/crypto`       | device-key derivation, AES-GCM seal/open, replay guard       |
 
 ## Example domain layout
 

@@ -102,9 +102,10 @@ broadcast frames:
 - `agent.status` also carries the current hub info when an admin changes the
   client-sync gate or cadence, so connected clients update without reconnecting.
 
-The hub refuses paths outside `/api/`, strips hop-by-hop headers, adds OpenCode
-basic auth, and prevents origin changes. The browser never receives the OpenCode
-password in relay mode.
+The hub routes `/v1` requests through the hub API. The API strips hop-by-hop
+headers, adds OpenCode basic auth, and prevents origin changes. During the
+migration the legacy `/api/` proxy still accepts the old paths. The browser
+never receives the OpenCode password in relay mode.
 
 Push subscription management is sealed like every other action. Push delivery
 itself leaves the E2EE channel: `web-push` encrypts the payload to the browser's

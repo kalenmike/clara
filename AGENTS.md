@@ -14,10 +14,13 @@ apps/lab              Loopback pipeline preview and agent probe
 apps/server           Node hub service, local WS + outbound Cloudflare relay
 apps/orchestrator     Loopback orchestration service, REST/SSE/MCP
 apps/mcp              stdio MCP bridge to the orchestration service
+apps/api-mcp          stdio read-only MCP bridge to the hub API
 plugins/clara-policy  OpenCode strict enforcement binding
 packages/adapter      Harness adapter installer, shared runner, and MCP registration
 packages/adapter-core Harness-neutral adapter client, delivery, prompt, and runner pieces
 packages/shared-types Wire frames, actions, states, pairing payloads
+packages/api-contract Hub API schemas and generated OpenAPI components
+packages/api-mcp      Read-only hub API MCP tools
 packages/policy       Step policy, budgets, and violation rules
 packages/orchestration Package loader, runtime, leases, and watchdog
 packages/runner       Shared script runner for harness adapters
@@ -70,6 +73,8 @@ pnpm clara docs     # Run the documentation site on :5176
 pnpm clara docs build # Build the documentation site
 pnpm clara docs check # Check guide and internal doc indexes and links
 pnpm clara mcp install|config|status # Install or inspect the MCP bridge
+pnpm clara mcp install --api        # Add the read-only hub API MCP
+pnpm --filter @clara/api-contract generate:schemas # Regenerate OpenAPI components
 pnpm clara adapter install --opencode [--mcp] # Install the OpenCode adapter, MCP, and shared runner
 pnpm typecheck      # tsc -b
 pnpm lint           # ESLint
@@ -109,8 +114,9 @@ create a task worktree outside `../clara-worktrees` (override with
   swap it for `@opencode-ai/sdk` (v1 API) or import `@opencode/sdk` into the
   browser (embedded Node server).
 - The browser connects only through the hub over the local or relay
-  WebSocket. The hub service adds OpenCode basic auth; the browser never receives
-  the password.
+  WebSocket, and only to the hub API under `/v1`. The hub service adds OpenCode
+  basic auth; the browser never receives the password. The legacy `/api/*`
+  proxy remains only until the web migration is complete.
 - Harness connections are configured in the authenticated hub panel and
   stored in the hub's SQLite database. The hub service does not read OpenCode's
   `service.json`, and it does not read a fixed OpenCode URL or password from the
@@ -120,6 +126,8 @@ create a task worktree outside `../clara-worktrees` (override with
 
 Read [docs/architecture/overview.md](docs/architecture/overview.md) before
 changing connection, auth, streaming, or version pins. Read
+[docs/architecture/api.md](docs/architecture/api.md) before changing the hub
+API, OpenAPI document, or read-only MCP. Read
 [docs/architecture/relay.md](docs/architecture/relay.md) and
 [docs/architecture/e2ee.md](docs/architecture/e2ee.md) before changing the
 transport, Worker, Durable Object, or crypto.

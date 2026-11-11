@@ -64,11 +64,14 @@ browser-safe, so Clara uses the browser client from the same family.
 apps/
   web/                 React SPA, deployed to Cloudflare Pages or the web container
   panel/               Loopback dashboard and admin controls served by the hub service
-  server/              Node hub service, outbound relay client, local WS listener
+  server/              Node hub service, outbound relay client, local WS listener, /v1 API
   orchestrator/        Loopback orchestration service and CLI
-  mcp/                 stdio MCP bridge
+  mcp/                 stdio MCP bridge to the orchestration service
+  api-mcp/             stdio read-only MCP bridge to the hub API
 packages/
   shared-types/        Wire frames, actions, states, pairing payloads
+  api-contract/        Hub API schemas and generated OpenAPI components
+  api-mcp/             Read-only hub API MCP tools
   orchestration/       Package loader, runtime, leases, and watchdog
   orchestration-control/ Shared service paths, health, start, and stop helpers
   crypto/              device-key derivation, AES-GCM envelopes, replay guard
@@ -88,9 +91,11 @@ Clara hub ──outbound WSS──▶ Worker ──▶ RelayRoom DO ◀──WSS
       │                                              │
       └──────────── E2EE payloads ───────────────────┘
       │
+      ├── /v1 API ──▶ active harness (OpenCode now)
       └── Web Push (VAPID) ──▶ Apple / browser push service ──▶ service worker
 
-Local mode: web ──WSS──▶ hub ──▶ active harness (OpenCode now)
+Local mode: web ──WSS──▶ hub /v1 API ──▶ active harness (OpenCode now)
+Local tools: MCP ──HTTP 127.0.0.1:8788──▶ hub /v1 API
 Panel: browser ──HTTP 127.0.0.1:8790──▶ hub (auth + setup + controls)
 Harness: panel ──▶ SQLite harness_connections (encrypted secret) ──▶ harness client
 Docker: web client, hub, orchestrator, and OpenCode on the `clara` bridge network
@@ -99,7 +104,11 @@ Docker: web client, hub, orchestrator, and OpenCode on the `clara` bridge networ
 The relay forwards opaque frames. It does not parse, store, or replay payloads.
 Push subscriptions travel through the E2EE channel, but delivery uses the Web
 Push protocol directly from the hub to the browser vendor's push service.
-See [relay.md](relay.md), [e2ee.md](e2ee.md), and
+
+The hub owns a versioned `/v1` API. The browser reaches it over the same E2EE
+WebSocket; local tools and the read-only MCP reach it over a bearer-token
+loopback listener. OpenAPI is at `/openapi.json` and Swagger UI at `/docs`. See
+[api.md](api.md), [relay.md](relay.md), [e2ee.md](e2ee.md), and
 [notifications.md](../features/notifications.md).
 
 ## Connecting
@@ -117,8 +126,10 @@ HTTP option: every browser connection goes through the hub. Pairing is
 described in [pairing.md](../features/pairing.md).
 
 The OpenCode password never reaches the browser. The hub adds basic auth,
-strips client-supplied authorization/hop-by-hop headers, and only proxies
-`/api/` paths on the configured origin.
+strips client-supplied authorization/hop-by-hop headers, and only reaches
+`/api/` paths on the configured origin from server-side API handlers. During the
+API migration the legacy proxy still accepts `/api/*`; the browser moves to
+`/v1/*` in phase 3.
 
 ## Runtime shape
 
