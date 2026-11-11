@@ -3,7 +3,7 @@ import { existsSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { createServer } from 'node:http'
 import type { AddressInfo } from 'node:net'
 import { tmpdir } from 'node:os'
-import { join } from 'node:path'
+import { isAbsolute, join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { pidPath } from '../src/config.ts'
 import {
@@ -425,6 +425,7 @@ describe('docker start', () => {
     expect(down.PATH).toBe('/bin')
     expect(down.CLARA_ORCHESTRATION_TOKEN).toBeTruthy()
     expect(down.CLARA_WORKSPACE).toBeTruthy()
+    expect(isAbsolute(down.CLARA_WORKSPACE ?? '')).toBe(true)
     expect(down.CLARA_DATA_DIR).toBeUndefined()
 
     expect(composeEnv('up', { PATH: '/bin' })).toEqual({ PATH: '/bin' })

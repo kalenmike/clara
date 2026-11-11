@@ -272,10 +272,15 @@ export function composeArgs(action: ComposeAction, build = false): string[] {
  * `down`. Down never reads the token or workspace, so fill the required values
  * with inert placeholders when they are not exported. `up` keeps the real
  * environment so a missing token still fails fast.
+ *
+ * The workspace placeholder must be an absolute path. Compose treats a short
+ * volume source without a leading slash as a named volume, so a bare token like
+ * `unused-by-compose-down` fails with `refers to undefined volume` before it
+ * can remove the container.
  */
 const DOWN_ENV_FALLBACKS = {
   CLARA_ORCHESTRATION_TOKEN: 'unused-by-compose-down',
-  CLARA_WORKSPACE: 'unused-by-compose-down',
+  CLARA_WORKSPACE: repoRoot(),
 } as const
 
 export function composeEnv(
