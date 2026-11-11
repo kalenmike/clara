@@ -1,8 +1,8 @@
 import { useState } from 'react'
-import { ShieldOff, Smartphone } from 'lucide-react'
+import { ShieldOff, Smartphone, Trash2 } from 'lucide-react'
 import type { PanelDeviceInfo } from '@clara/shared-types'
 import { formatRelative, formatTimestamp, shortId } from '../lib/format.ts'
-import { deletePanel } from '../lib/panel-api.ts'
+import { deletePanel, postPanel } from '../lib/panel-api.ts'
 import { PEEK_MASK } from '../lib/peek.ts'
 import { usePeek } from '../lib/peek-context.tsx'
 import { Badge, CardBody, CollapsibleCard, EmptyState } from './primitives.tsx'
@@ -34,6 +34,19 @@ export function DevicesCard({
     setError(undefined)
     try {
       await deletePanel(`/panel/api/v1/devices/${encodeURIComponent(device.id)}`)
+      onChanged()
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : String(cause))
+    } finally {
+      setPending(null)
+    }
+  }
+
+  const purge = async (device: PanelDeviceInfo) => {
+    setPending(device.id)
+    setError(undefined)
+    try {
+      await postPanel(`/panel/api/v1/devices/${encodeURIComponent(device.id)}/purge`, {})
       onChanged()
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : String(cause))
@@ -119,7 +132,15 @@ export function DevicesCard({
                     </td>
                     <td className="px-1 py-2 text-right">
                       {device.revokedAt ? (
-                        <span className="text-[10px] uppercase tracking-wide">Revoked</span>
+                        <button
+                          type="button"
+                          disabled={pending === device.id}
+                          onClick={() => void purge(device)}
+                          className="inline-flex items-center gap-1 rounded-md border border-red-200 px-2 py-1 text-[10px] font-medium text-red-700 transition hover:bg-red-50 disabled:opacity-60 dark:border-red-900 dark:text-red-300 dark:hover:bg-red-950/50"
+                        >
+                          <Trash2 className="size-3" aria-hidden="true" />
+                          {pending === device.id ? 'Deleting…' : 'Delete'}
+                        </button>
                       ) : (
                         <button
                           type="button"
@@ -144,8 +165,9 @@ export function DevicesCard({
           </p>
         ) : null}
         <p className="pt-2 text-xs text-neutral-500 dark:text-neutral-400">
-          Each device has its own key. Revoking one does not affect the others. Multiple live
-          sessions on one device are usually tabs of the same browser.
+          Each device has its own key. Revoking one does not affect the others. Delete a revoked
+          device to remove its record. Multiple live sessions on one device are usually tabs of the
+          same browser.
         </p>
       </CardBody>
     </CollapsibleCard>
