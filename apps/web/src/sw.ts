@@ -16,8 +16,8 @@ declare let self: ServiceWorkerGlobalScope & {
 }
 
 /**
- * Push and notification-click handlers stay in a hand-written script: the home
- * agent ships the same behavior and the file is easier to read on its own.
+ * Push and notification-click handlers stay in a hand-written script: the hub
+ * ships the same behavior and the file is easier to read on its own.
  */
 self.importScripts('/push-sw.js')
 

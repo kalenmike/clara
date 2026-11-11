@@ -73,7 +73,7 @@ describe('relay transport close reasons', () => {
     await expect(
       transport.fetch('http://clara.relay/api/info', { signal: AbortSignal.timeout(3_000) })
     ).rejects.toThrow(
-      'This pairing code is local-only. Configure the relay on the home agent, then pair again.'
+      'This pairing code is local-only. Configure the relay on the hub, then pair again.'
     )
   })
 })

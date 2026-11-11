@@ -8,7 +8,7 @@ import {
 const PushContext = createContext<PushNotificationsState | null>(null)
 
 /**
- * Keeps the browser subscription reconciled with the home agent for the whole
+ * Keeps the browser subscription reconciled with the hub for the whole
  * connected session, not just while the settings screen is open.
  */
 export function PushProvider({ children }: { children: ReactNode }) {

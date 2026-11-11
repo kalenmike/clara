@@ -1,7 +1,7 @@
 /**
  * Each mailbox lookup fans out to three message/form requests. The sidebar
  * starts one lookup per session, so without a shared ceiling a large project
- * can exceed the home agent's per-session request limit.
+ * can exceed the hub's per-session request limit.
  */
 export const MAILBOX_SIGNAL_CONCURRENCY = 4
 

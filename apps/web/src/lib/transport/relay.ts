@@ -41,7 +41,7 @@ const MAX_RECONNECT_MS = 15_000
 const SYNC_TIMEOUT_MS = 30_000
 
 /**
- * The agent accepts a bounded number of requests per session. Keep the web
+ * The hub accepts a bounded number of requests per session. Keep the web
  * below that ceiling so a feature burst (mailbox signals, project presence,
  * reconnect invalidations) queues instead of failing with too_many_requests.
  */
@@ -960,7 +960,7 @@ function abortError(): DOMException {
  * code into something actionable.
  */
 const LOCAL_ONLY_MESSAGE =
-  'This pairing code is local-only. Configure the relay on the home agent, then pair again.'
+  'This pairing code is local-only. Configure the relay on the hub, then pair again.'
 const REFUSED_MESSAGE = 'The relay refused the connection. Check the room URL and the client token.'
 
 function describeClose(event: CloseEvent, wsUrl: string, wasOpen: boolean): string {

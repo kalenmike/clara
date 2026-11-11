@@ -67,7 +67,7 @@ function CommitError({ query }: { query: ReturnType<typeof useGitCommits> }) {
     return (
       <GitPanelMessage
         title="Commit history is disabled"
-        description="An admin blocked shell commands on the Clara server. Enable it in the agent panel under Shell commands."
+        description="An admin blocked shell commands on the Clara hub. Enable it in the hub panel under Shell commands."
       />
     )
   }

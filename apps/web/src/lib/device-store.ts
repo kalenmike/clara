@@ -61,7 +61,7 @@ export async function clearDevice(): Promise<void> {
 /**
  * Verify that this browser can persist a non-extractable CryptoKey before a
  * pairing code is consumed. If it cannot, the connect screen explains why
- * instead of leaving the user with a device the agent enrolled but the browser
+ * instead of leaving the user with a device the hub enrolled but the browser
  * cannot use.
  */
 export async function canStoreDeviceKey(): Promise<boolean> {

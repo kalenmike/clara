@@ -130,7 +130,7 @@ export function useGitChanges(
 /**
  * Commits from the session's own directory inside its window. The window is
  * enforced by the host command, so no unrelated commits are fetched. The
- * request travels through the home agent, which applies the admin shell policy
+ * request travels through the hub, which applies the admin shell policy
  * before forwarding it to OpenCode.
  */
 export function useGitCommits(
@@ -178,7 +178,7 @@ export function useGitWorktrees(
 export type ShellFailure = 'blocked' | 'unsupported' | 'other'
 
 /**
- * The home agent refuses a command with 403 and older OpenCode servers do not
+ * The hub refuses a command with 403 and older OpenCode servers do not
  * implement the shell routes at all (404). Everything else is a normal error.
  */
 export function shellFailure(error: unknown): ShellFailure {

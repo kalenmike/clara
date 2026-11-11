@@ -1,7 +1,7 @@
 /// <reference types="vite/client" />
 
 interface ImportMetaEnv {
-  /** Optional relay or local agent WebSocket base. Empty uses the pairing payload URL. */
+  /** Optional relay or local hub WebSocket base. Empty uses the pairing payload URL. */
   readonly VITE_CLARA_WS_URL?: string
   /** Injected from package.json by Vite. */
   readonly CLARA_VERSION: string

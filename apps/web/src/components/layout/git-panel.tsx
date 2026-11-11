@@ -72,7 +72,7 @@ export function GitPanel({
 
   /**
    * Commit history runs `git log` on the host, so it only exists while the
-   * request can travel through the home agent and its shell policy.
+   * request can travel through the hub and its shell policy.
    */
   const hostCommands = Boolean(config)
 
@@ -328,7 +328,7 @@ export function GitPanel({
           ) : (
             <GitPanelMessage
               title="Commit history is unavailable"
-              description="Reconnect to the Clara server to load commit history through its shell policy."
+              description="Reconnect to the Clara hub to load commit history through its shell policy."
             />
           )}
         </TabsContent>

@@ -165,11 +165,11 @@ export function ConnectionProvider({ children }: { children: ReactNode }) {
       const wsUrl = resolveRelayWsUrl(payload.wsUrl, payload.room)
       setStatus('connecting')
       setError(null)
-      setAttempt({ wsUrl, room: payload.room, label: 'Clara server' })
+      setAttempt({ wsUrl, room: payload.room, label: 'Clara hub' })
 
       if (Date.now() > payload.expiresAt) {
         setStatus('error')
-        setError('This pairing code has expired. Generate a new one on the home agent.')
+        setError('This pairing code has expired. Generate a new one on the hub.')
         return false
       }
       if (!(await canStoreDeviceKey())) {

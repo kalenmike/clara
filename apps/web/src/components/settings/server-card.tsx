@@ -26,7 +26,7 @@ export function ServerCard({ simplified }: { simplified: boolean }) {
   const retry = async () => {
     const ok = await reconnect()
     if (ok) toast.success('Reconnected to OpenCode')
-    else toast.error('Could not reach the Clara server. Check that the home agent is running.')
+    else toast.error('Could not reach the Clara hub. Check that the hub service is running.')
   }
 
   return (
