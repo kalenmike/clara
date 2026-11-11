@@ -18,6 +18,7 @@ import { ClientStorageStore } from './store/client-storage.ts'
 import { closeDatabase, openDatabase, schemaVersion } from './store/database.ts'
 import { DeviceStore } from './store/devices.ts'
 import { PanelUserStore } from './store/panel-users.ts'
+import { readApiToken } from './api/token.ts'
 import { readSecretKey } from './store/secret-key.ts'
 import { SettingsStore } from './store/settings.ts'
 import { SERVER_VERSION } from './version.ts'
@@ -129,6 +130,16 @@ async function main(): Promise<void> {
       : await harness.probe(3_000).then((probe) => (probe.ok ? probe.version : undefined))
   const startedAt = Date.now() - Math.round(process.uptime() * 1000)
 
+  let apiToken = ''
+  try {
+    const token = readApiToken(config.configDir)
+    apiToken = token.token
+    if (token.source === 'generated') log(`api token generated at ${token.path}`)
+    else if (token.path) log(`api token read from ${token.path}`)
+  } catch (cause) {
+    log('api token unavailable; the loopback API is disabled', cause)
+  }
+
   let push: PushService | undefined
   let pushError: string | undefined
   try {
@@ -165,10 +176,17 @@ async function main(): Promise<void> {
     push,
     pushError,
     devices,
+    startedAt,
+    apiToken,
     log,
   })
 
   await controller.start()
+  if (apiToken) {
+    log(
+      `api at http://${config.local.host === '0.0.0.0' ? '127.0.0.1' : config.local.host}:${config.local.port} (docs /docs)`
+    )
+  }
 
   if (!initial.stopped) {
     if (!harness.configured) {

@@ -86,6 +86,8 @@ pnpm clara web <start|stop|restart|status [--json]|logs> [--local|--docker] [--b
 pnpm clara orchestrator <serve|start|stop|restart|status [--json]|logs|token> [--local|--docker] [--build]
 pnpm clara adapter install --opencode [--mcp]
 pnpm clara mcp install|config|status
+pnpm clara mcp install --api
+pnpm --filter @clara/api-contract generate:schemas
 pnpm clara runner
 
 # Setup
@@ -98,6 +100,29 @@ pnpm clara rebuild <status|build|adapters|restart|health|inspect|recover> [--doc
 
 Run `pnpm clara --help` for the command list and `pnpm clara <command> --help`
 for one command.
+
+## Hub API
+
+The hub serves its API on the local listener (default `http://127.0.0.1:8788`).
+Swagger UI is at `/docs` and the OpenAPI document is at `/openapi.json`. The
+loopback API requires the bearer token in the hub config directory
+(`api.token`); the WebSocket transport authenticates with the paired device.
+
+Regenerate the OpenAPI response components whenever `@opencode/client` changes:
+
+```bash
+pnpm --filter @clara/api-contract generate:schemas
+```
+
+Install the read-only API MCP for live frontend testing:
+
+```bash
+pnpm clara mcp install --api
+```
+
+The bridge reads `CLARA_API_URL` (default `http://127.0.0.1:8788`) and
+`CLARA_API_TOKEN_FILE` (default `<hub config dir>/api.token`). See
+[architecture/api.md](architecture/api.md).
 
 `pnpm clara pair` runs the server source directly for a local target and does
 not need a build. It probes the running deployment first; `--local` forces the

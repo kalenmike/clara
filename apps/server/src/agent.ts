@@ -1,5 +1,6 @@
 import {
   ReplayGuard,
+  base64UrlToBytes,
   bytesToBase64Url,
   deriveSessionKeys,
   open,
@@ -30,6 +31,7 @@ import {
   type SyncPushAction,
   type WireFrame,
 } from '@clara/shared-types'
+import type { ApiApp } from './api/context.ts'
 import type { HarnessManager } from './harness/manager.ts'
 import { HarnessUnconfiguredError } from './harness/types.ts'
 import { responseHeaders, type HttpRequestAction } from './opencode.ts'
@@ -109,6 +111,8 @@ export type AgentPolicy = {
 
 export type AgentOptions = {
   harness: HarnessManager
+  /** The Clara API, used for /v1 requests while the legacy proxy is retired. */
+  api?: ApiApp
   devices: DeviceRegistry
   info: AgentInfo
   send: (frame: WireFrame) => void
@@ -942,7 +946,10 @@ export class Agent {
     controller: AbortController
   ): Promise<void> {
     try {
-      const response = await this.options.harness.request(action, controller.signal)
+      const response =
+        this.options.api && action.path.startsWith('/v1/')
+          ? await this.options.api.fetch(toRequest(action, controller.signal))
+          : await this.options.harness.request(action, controller.signal)
       this.enqueue(session, {
         type: 'http.response',
         id: action.id,
@@ -1044,6 +1051,19 @@ export class Agent {
       this.options.traffic?.recordError('expired')
     }
   }
+}
+
+function toRequest(action: HttpRequestAction, signal: AbortSignal): Request {
+  const url = new URL(`http://clara.local${action.path}${action.search ?? ''}`)
+  const headers = new Headers(action.headers)
+  headers.set('x-clara-agent', '1')
+  const body = action.body ? base64UrlToBytes(action.body) : undefined
+  return new Request(url, {
+    method: action.method,
+    headers,
+    ...(body ? { body } : {}),
+    signal,
+  })
 }
 
 function splitChunks(value: Uint8Array<ArrayBufferLike>): Uint8Array<ArrayBuffer>[] {

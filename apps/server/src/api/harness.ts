@@ -1,0 +1,166 @@
+import { randomUUID } from 'node:crypto'
+import { bytesToBase64Url } from '@clara/crypto'
+import type { HttpMethod } from '@clara/shared-types'
+import type { HttpRequestAction } from '../opencode.ts'
+import { HarnessUnconfiguredError } from '../harness/types.ts'
+import { ApiRequestError, type ApiDependencies } from './context.ts'
+
+export type ForwardRequest = {
+  method: HttpMethod
+  path: string
+  search?: string
+  headers?: Record<string, string>
+  body?: string
+}
+
+export async function forward(
+  deps: ApiDependencies,
+  request: ForwardRequest,
+  signal: AbortSignal
+): Promise<Response> {
+  if (!deps.canAccess()) {
+    throw new ApiRequestError(403, 'disabled', 'OpenCode access is disabled by an admin setting')
+  }
+  if (!deps.harness.configured) {
+    throw new ApiRequestError(
+      503,
+      'harness_unconfigured',
+      'No harness connection is configured. Set one up in the hub panel.'
+    )
+  }
+
+  const body = request.body === undefined ? undefined : bytesToBase64Url(Buffer.from(request.body))
+  const action: HttpRequestAction = {
+    type: 'http.request',
+    id: randomUUID(),
+    method: request.method,
+    path: request.path,
+    ...(request.search ? { search: request.search } : {}),
+    ...(request.headers ? { headers: request.headers } : {}),
+    ...(body ? { body } : {}),
+  }
+
+  try {
+    return await deps.harness.request(action, signal)
+  } catch (cause) {
+    if (cause instanceof HarnessUnconfiguredError) {
+      throw new ApiRequestError(503, cause.code, cause.message)
+    }
+    throw new ApiRequestError(
+      502,
+      'upstream_error',
+      cause instanceof Error ? cause.message : String(cause)
+    )
+  }
+}
+
+export async function forwardJson(
+  deps: ApiDependencies,
+  method: HttpMethod,
+  path: string,
+  body: unknown,
+  signal: AbortSignal,
+  search?: string
+): Promise<Response> {
+  return forward(
+    deps,
+    {
+      method,
+      path,
+      ...(search ? { search } : {}),
+      ...(body === undefined
+        ? {}
+        : {
+            headers: { 'content-type': 'application/json' },
+            body: JSON.stringify(body),
+          }),
+    },
+    signal
+  )
+}
+
+export async function readJson<T>(response: Response): Promise<T> {
+  const text = await response.text()
+  if (!text) return undefined as T
+  try {
+    return JSON.parse(text) as T
+  } catch {
+    throw new ApiRequestError(502, 'upstream_invalid', 'OpenCode returned invalid JSON')
+  }
+}
+
+export async function forwardResult<T>(
+  deps: ApiDependencies,
+  request: ForwardRequest,
+  signal: AbortSignal,
+  unwrapData = false
+): Promise<T> {
+  const response = await forward(deps, request, signal)
+  if (!response.ok) throw await upstreamError(response)
+  if (response.status === 204 || response.status === 205) return undefined as T
+  const value = await readJson<unknown>(response)
+  if (unwrapData && isRecord(value) && 'data' in value) return value.data as T
+  return value as T
+}
+
+export async function upstreamError(response: Response): Promise<ApiRequestError> {
+  const text = await response.text().catch(() => '')
+  let message = text.trim()
+  let code = 'upstream_error'
+
+  if (text) {
+    try {
+      const parsed = JSON.parse(text) as {
+        error?: { code?: unknown; message?: unknown }
+        message?: unknown
+      }
+      if (parsed.error && typeof parsed.error === 'object') {
+        if (typeof parsed.error.code === 'string') code = parsed.error.code
+        if (typeof parsed.error.message === 'string') message = parsed.error.message
+      } else if (typeof parsed.message === 'string') {
+        message = parsed.message
+      }
+    } catch {
+      // Keep the raw text as the message.
+    }
+  }
+
+  if (response.status === 401 || response.status === 403) {
+    return new ApiRequestError(
+      502,
+      'harness_auth',
+      message || 'OpenCode rejected the harness credentials'
+    )
+  }
+
+  const status = response.status >= 500 ? 502 : response.status
+  return new ApiRequestError(status, code, message || `OpenCode responded with ${response.status}`)
+}
+
+export function query(params: Record<string, unknown>): string {
+  const search = new URLSearchParams()
+  for (const [key, value] of Object.entries(params)) {
+    appendQuery(search, key, value)
+  }
+  const text = search.toString()
+  return text ? `?${text}` : ''
+}
+
+function appendQuery(search: URLSearchParams, key: string, value: unknown): void {
+  if (value === undefined || value === null) return
+  if (Array.isArray(value)) {
+    for (const item of value) appendQuery(search, key, item)
+    return
+  }
+  if (typeof value === 'object') {
+    for (const [child, item] of Object.entries(value)) {
+      appendQuery(search, `${key}[${child}]`, item)
+    }
+    return
+  }
+  search.append(key, String(value))
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
+}
