@@ -1,4 +1,8 @@
-import type { ClaraSessionInboxUser, ClaraSessionMessage, ClaraSessionMessageUser } from '@clara/api-contract'
+import type {
+  ClaraSessionInboxUser,
+  ClaraSessionMessage,
+  ClaraSessionMessageUser,
+} from '@clara/api-contract'
 
 export function inboxDraftToMessage(item: ClaraSessionInboxUser): ClaraSessionMessageUser {
   return {

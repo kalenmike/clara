@@ -268,7 +268,10 @@ export type ClaraClient = {
     get: (input?: ClaraLocationInput, options?: RequestOptions) => Promise<ClaraLocation>
   }
   session: {
-    list: (input?: ClaraSessionListInput, options?: RequestOptions) => Promise<ClaraSessionsResponse>
+    list: (
+      input?: ClaraSessionListInput,
+      options?: RequestOptions
+    ) => Promise<ClaraSessionsResponse>
     get: (input: { sessionID: string }, options?: RequestOptions) => Promise<ClaraSession>
     create: (input?: ClaraSessionCreateInput, options?: RequestOptions) => Promise<ClaraSession>
     update: (input: ClaraSessionUpdateInput, options?: RequestOptions) => Promise<void>
@@ -276,7 +279,10 @@ export type ClaraClient = {
     fork: (input: ClaraSessionForkInput, options?: RequestOptions) => Promise<ClaraSession>
     move: (input: ClaraSessionMoveInput, options?: RequestOptions) => Promise<void>
     view: (input: ClaraSessionViewInput, options?: RequestOptions) => Promise<void>
-    prompt: (input: ClaraSessionPromptInput, options?: RequestOptions) => Promise<ClaraSessionInboxUser>
+    prompt: (
+      input: ClaraSessionPromptInput,
+      options?: RequestOptions
+    ) => Promise<ClaraSessionInboxUser>
     synthetic: (
       input: ClaraSessionSyntheticInput,
       options?: RequestOptions
@@ -341,7 +347,10 @@ export type ClaraClient = {
     list: (input?: ClaraLocationInput, options?: RequestOptions) => Promise<ClaraSkillListOutput>
   }
   reference: {
-    list: (input?: ClaraLocationInput, options?: RequestOptions) => Promise<ClaraReferenceListOutput>
+    list: (
+      input?: ClaraLocationInput,
+      options?: RequestOptions
+    ) => Promise<ClaraReferenceListOutput>
   }
   file: {
     find: (input: ClaraFileFindInput, options?: RequestOptions) => Promise<ClaraFileFindOutput>

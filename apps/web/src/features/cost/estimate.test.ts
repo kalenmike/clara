@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest'
-import type { ClaraModelCost, ClaraModel, ClaraSessionMessage, ClaraTokenUsage } from '@clara/api-contract'
+import type {
+  ClaraModelCost,
+  ClaraModel,
+  ClaraSessionMessage,
+  ClaraTokenUsage,
+} from '@clara/api-contract'
 import {
   estimateSessionCost,
   estimateStepCost,

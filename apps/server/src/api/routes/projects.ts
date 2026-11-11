@@ -25,12 +25,7 @@ import {
   parseClaraWorktrees,
 } from '../dto.ts'
 import { forwardResult, query } from '../harness.ts'
-import {
-  emptyResponse,
-  jsonResponse,
-  responses,
-  statusResponses,
-} from '../schemas.ts'
+import { emptyResponse, jsonResponse, responses, statusResponses } from '../schemas.ts'
 import { optionalBooleanQuery, optionalPositiveIntQuery } from '../query.ts'
 
 const directoryQuery = z.object({
@@ -162,7 +157,9 @@ export function registerProjectRoutes(
       tags: ['vcs'],
       operationId: 'getVcs',
       summary: 'Read repository information for a location',
-      responses: responses(jsonResponse(resolver(claraVcsGetOutputSchema), 'Repository information')),
+      responses: responses(
+        jsonResponse(resolver(claraVcsGetOutputSchema), 'Repository information')
+      ),
     }),
     validator('query', directoryQuery),
     async (c) => {
@@ -212,7 +209,9 @@ export function registerProjectRoutes(
       tags: ['vcs'],
       operationId: 'getVcsStatus',
       summary: 'Read working-tree changes for a location',
-      responses: responses(jsonResponse(resolver(claraVcsStatusOutputSchema), 'Working-tree changes')),
+      responses: responses(
+        jsonResponse(resolver(claraVcsStatusOutputSchema), 'Working-tree changes')
+      ),
     }),
     validator('query', directoryQuery),
     async (c) => {

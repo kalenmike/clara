@@ -109,7 +109,8 @@ function ChatPageContent() {
     ? (draftState(sessionId) ?? storedHasLocalDraft)
     : storedHasLocalDraft
   const pendingDrafts = useMemo(
-    () => (inboxQuery.data ?? []).filter((item): item is ClaraSessionInboxUser => item.type === 'user'),
+    () =>
+      (inboxQuery.data ?? []).filter((item): item is ClaraSessionInboxUser => item.type === 'user'),
     [inboxQuery.data]
   )
   const allMessages = useMemo<ClaraSessionMessage[]>(

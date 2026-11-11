@@ -52,22 +52,13 @@ export const parseClaraProjects = parser(z.array(claraProjectSchema), 'project l
 export const parseClaraSession = parser(claraSessionSchema, 'session')
 export const parseClaraSessions = parser(claraSessionsResponseSchema, 'session list')
 export const parseClaraSessionMessage = parser(claraSessionMessageSchema, 'message')
-export const parseClaraSessionMessages = parser(
-  z.array(claraSessionMessageSchema),
-  'message list'
-)
+export const parseClaraSessionMessages = parser(z.array(claraSessionMessageSchema), 'message list')
 export const parseClaraSessionMessagesResponse = parser(
   claraSessionMessagesResponseSchema,
   'message page'
 )
-export const parseClaraSessionActive = parser(
-  claraSessionActiveOutputSchema,
-  'active session map'
-)
-export const parseClaraSessionInboxUser = parser(
-  claraSessionInboxUserSchema,
-  'queued prompt'
-)
+export const parseClaraSessionActive = parser(claraSessionActiveOutputSchema, 'active session map')
+export const parseClaraSessionInboxUser = parser(claraSessionInboxUserSchema, 'queued prompt')
 export const parseClaraSessionInboxSynthetic = parser(
   claraSessionInboxSyntheticSchema,
   'queued synthetic prompt'
@@ -76,10 +67,7 @@ export const parseClaraSessionInboxCompaction = parser(
   claraSessionInboxCompactionSchema,
   'queued compaction'
 )
-export const parseClaraSessionInbox = parser(
-  z.array(claraSessionInboxInfoSchema),
-  'session inbox'
-)
+export const parseClaraSessionInbox = parser(z.array(claraSessionInboxInfoSchema), 'session inbox')
 export const parseClaraSessionInterrupt = parser(
   claraSessionInterruptResponseSchema,
   'interrupt result'

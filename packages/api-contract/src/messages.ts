@@ -220,9 +220,7 @@ export const claraSessionMessageAssistantSchema = passthroughObject({
     end: z.string().optional(),
     files: z.array(z.string()).optional(),
   }).optional(),
-  finish: z
-    .enum(['stop', 'length', 'tool-calls', 'content-filter', 'error', 'unknown'])
-    .optional(),
+  finish: z.enum(['stop', 'length', 'tool-calls', 'content-filter', 'error', 'unknown']).optional(),
   rawFinish: z.string().optional(),
   native: z.record(z.string(), claraJsonValueSchema).optional(),
   cost: z.number().optional(),

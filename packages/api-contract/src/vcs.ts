@@ -40,7 +40,9 @@ export const claraWorktreeSchema = passthroughObject({
   strategy: z.string().optional(),
 }).meta({ id: 'ClaraWorktree' })
 
-export const claraWorktreeListSchema = z.array(claraWorktreeSchema).meta({ id: 'ClaraWorktreeList' })
+export const claraWorktreeListSchema = z
+  .array(claraWorktreeSchema)
+  .meta({ id: 'ClaraWorktreeList' })
 
 export const claraVcsGetOutputSchema = passthroughObject({
   location: claraLocationRefSchema,

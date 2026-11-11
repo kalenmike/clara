@@ -92,7 +92,9 @@ function isClaraKind(kind: ClaraJsonValue | undefined): kind is ClaraEventKind {
   )
 }
 
-export function readRecord(value: ClaraJsonValue | undefined): Record<string, ClaraJsonValue> | undefined {
+export function readRecord(
+  value: ClaraJsonValue | undefined
+): Record<string, ClaraJsonValue> | undefined {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return undefined
   return value
 }

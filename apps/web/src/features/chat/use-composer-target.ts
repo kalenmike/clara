@@ -19,7 +19,8 @@ export function useComposerTarget(sessionID: string) {
   const session = sessionQuery.data
 
   const pendingDrafts = useMemo(
-    () => (inboxQuery.data ?? []).filter((item): item is ClaraSessionInboxUser => item.type === 'user'),
+    () =>
+      (inboxQuery.data ?? []).filter((item): item is ClaraSessionInboxUser => item.type === 'user'),
     [inboxQuery.data]
   )
 

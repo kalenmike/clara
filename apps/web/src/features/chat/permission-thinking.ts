@@ -44,7 +44,9 @@ function joinReasoning(content: ClaraSessionMessageAssistant['content']): string
     .join('\n\n')
 }
 
-function newestAssistant(messages: ClaraSessionMessage[]): ClaraSessionMessageAssistant | undefined {
+function newestAssistant(
+  messages: ClaraSessionMessage[]
+): ClaraSessionMessageAssistant | undefined {
   for (let index = messages.length - 1; index >= 0; index -= 1) {
     const message = messages[index]
     if (message.type === 'assistant') return message

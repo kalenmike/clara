@@ -1,10 +1,6 @@
 import { z } from 'zod'
 import { claraJsonValueSchema } from './json.ts'
-import {
-  claraModelRefSchema,
-  claraTokenUsageSchema,
-  type ClaraTokenUsage,
-} from './models.ts'
+import { claraModelRefSchema, claraTokenUsageSchema, type ClaraTokenUsage } from './models.ts'
 import { claraPermissionRuleSchema } from './permissions.ts'
 import {
   claraPromptAgentAttachmentSchema,

@@ -1,5 +1,8 @@
 import { describe, expect, it } from 'vitest'
-import type { ClaraSessionMessageAssistant, ClaraSessionMessageAssistantTool } from '@clara/api-contract'
+import type {
+  ClaraSessionMessageAssistant,
+  ClaraSessionMessageAssistantTool,
+} from '@clara/api-contract'
 import { formatUsageDetail, formatUsageSummary, hasUsage, summarizeSteps } from './usage-summary'
 
 function step(

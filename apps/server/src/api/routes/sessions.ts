@@ -32,12 +32,7 @@ import {
   parseClaraSessions,
 } from '../dto.ts'
 import { forwardResult, query } from '../harness.ts'
-import {
-  emptyResponse,
-  jsonResponse,
-  responses,
-  statusResponses,
-} from '../schemas.ts'
+import { emptyResponse, jsonResponse, responses, statusResponses } from '../schemas.ts'
 import { optionalBooleanQuery, optionalPositiveIntQuery } from '../query.ts'
 
 const sessionParam = z.object({ sessionID: z.string().min(1) })
@@ -630,9 +625,7 @@ export function registerSessionRoutes(
       tags: ['messages'],
       operationId: 'listMessages',
       summary: 'List session messages',
-      responses: responses(
-        jsonResponse(resolver(claraSessionMessagesResponseSchema), 'Messages')
-      ),
+      responses: responses(jsonResponse(resolver(claraSessionMessagesResponseSchema), 'Messages')),
     }),
     validator('param', sessionParam),
     validator(

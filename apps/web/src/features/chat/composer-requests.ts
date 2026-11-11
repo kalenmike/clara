@@ -67,7 +67,9 @@ export function resolveComposerSelection(
 }
 
 /** Answers seeded from a form's visible fields and their defaults. */
-export function initialFormAnswers(fields: readonly ClaraFormField[]): Record<string, FormAnswerValue> {
+export function initialFormAnswers(
+  fields: readonly ClaraFormField[]
+): Record<string, FormAnswerValue> {
   const answers: Record<string, FormAnswerValue> = {}
   for (const field of fields) {
     if ('hidden' in field && field.hidden) continue
