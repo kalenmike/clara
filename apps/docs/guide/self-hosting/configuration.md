@@ -85,7 +85,9 @@ values.
 | `CLARA_AGENT_TOKEN`                                        | Relay token for the hub side                                 |
 | `CLARA_CLIENT_TOKEN`                                       | Relay token embedded in pairing payloads                     |
 
-The relay variables are covered in [Remote access](relay.md).
+The relay variables are covered in [Remote access](relay.md). In Docker, setting
+`CLARA_RELAY_URL` without both relay tokens is a startup error; `pnpm clara start`
+reports the missing variables before it launches a container.
 
 ## Files worth backing up
 
