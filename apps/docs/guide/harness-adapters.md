@@ -13,7 +13,9 @@ opens a port on the OpenCode machine.
 ## Pair an adapter
 
 1. Sign in to the hub panel.
-2. Open **Harness adapters**, choose **OpenCode**, and select **Add harness**.
+2. Open **Harness adapters**, choose **OpenCode**, choose where the adapter
+   runs (**Docker network** is the default; also **This machine** or **Cloudflare
+   relay**), and select **Add harness**.
 3. Copy the pairing code or the install command.
 4. On the OpenCode machine, run:
 

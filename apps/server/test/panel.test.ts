@@ -293,6 +293,7 @@ function fakeControls(initial: Partial<PanelControls> = {}): FakeControls {
         id: 'pair',
         kind: 'opencode',
         label: 'OpenCode',
+        transport: 'docker',
         code: 'clara-harness1_test',
         wsUrl: 'ws://127.0.0.1:8788/ws',
         room: 'local',

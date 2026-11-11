@@ -91,6 +91,7 @@ export type PanelPasswordUpdate = {
 export type PanelHarnessKind = string
 export type PanelHarnessAuthType = 'none' | 'basic' | 'session'
 export type PanelHarnessTransport = 'local' | 'relay'
+export type PanelHarnessSetupMode = 'local' | 'docker' | 'relay'
 
 export type PanelHarness = {
   id: string
@@ -119,6 +120,7 @@ export type PanelHarnessPairing = {
   kind: PanelHarnessKind
   label: string
   code: string
+  transport: PanelHarnessSetupMode
   wsUrl: string
   room: string
   fingerprint: string

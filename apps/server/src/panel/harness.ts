@@ -1,6 +1,6 @@
 import type { PanelHarness, PanelHarnessState, PanelHarnessTestResult } from '@clara/shared-types'
 import type { HarnessManager } from '../harness/manager.ts'
-import type { HarnessConnection, HarnessPairing, HarnessProbe } from '../harness/types.ts'
+import type { HarnessConnection, HarnessProbe } from '../harness/types.ts'
 
 export function toPanelHarness(connection: HarnessConnection): PanelHarness {
   return {
@@ -31,22 +31,6 @@ export function toPanelHarness(connection: HarnessConnection): PanelHarness {
       : {}),
     createdAt: new Date(connection.createdAt).toISOString(),
     updatedAt: new Date(connection.updatedAt).toISOString(),
-  }
-}
-
-export function toPanelHarnessPairing(
-  pairing: HarnessPairing
-): import('@clara/shared-types').PanelHarnessPairing {
-  return {
-    id: pairing.id,
-    kind: pairing.kind,
-    label: pairing.label,
-    code: '',
-    wsUrl: '',
-    room: '',
-    fingerprint: pairing.fingerprint,
-    expiresAt: new Date(pairing.expiresAt).toISOString(),
-    createdAt: new Date(pairing.createdAt).toISOString(),
   }
 }
 

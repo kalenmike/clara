@@ -525,23 +525,36 @@ export class RuntimeController {
           : {}),
       })
     )
+    const transport =
+      record.transport === 'local' || record.transport === 'relay'
+        ? record.transport
+        : record.transport === 'docker'
+          ? 'docker'
+          : 'docker'
     const relay = this.options.config.relay
-    const room = relay?.room ?? 'local'
-    const wsUrl = relay
-      ? relayWsUrl(relay.url, room)
-      : `ws://${this.options.config.local.host}:${this.options.config.local.port}/ws`
-    const altWsUrls =
-      this.options.config.local.host === '127.0.0.1'
-        ? [`ws://server:${this.options.config.local.port}/ws`]
-        : undefined
+    if (transport === 'relay' && !relay) {
+      throw new PanelControlError(
+        400,
+        'relay_unconfigured',
+        'Configure the relay before creating a relay pairing code'
+      )
+    }
+    const localPort = this.options.config.local.port
+    const room = transport === 'relay' && relay ? relay.room : 'local'
+    const wsUrl =
+      transport === 'relay' && relay
+        ? relayWsUrl(relay.url, room)
+        : transport === 'docker'
+          ? `ws://server:${localPort}/ws`
+          : `ws://${this.options.config.local.host}:${localPort}/ws`
+    const clientToken = transport === 'relay' && relay ? relay.clientToken : 'local'
     const payload: HarnessPairingPayload = {
       v: PROTOCOL_VERSION,
       role: 'adapter' as const,
       kind,
       wsUrl,
-      ...(altWsUrls ? { altWsUrls } : {}),
       room,
-      clientToken: relay?.clientToken ?? 'local',
+      clientToken,
       enrollId: pairing.id,
       enrollToken: pairing.token,
       fingerprint: pairing.fingerprint,
@@ -556,6 +569,7 @@ export class RuntimeController {
         id: pairing.id,
         kind,
         label: label || kind,
+        transport,
         code,
         wsUrl,
         room,

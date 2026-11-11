@@ -23,6 +23,7 @@ export function HarnessView({
         <HarnessCard
           harness={snapshot.harness}
           harnesses={snapshot.harnesses}
+          relayConfigured={snapshot.relay.configured}
           onChanged={onChanged}
           now={now}
         />
