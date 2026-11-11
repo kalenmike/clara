@@ -2,7 +2,6 @@ import { timingSafeEqual } from 'node:crypto'
 import { Hono } from 'hono'
 import { generateSpecs } from 'hono-openapi'
 import { swaggerUI } from '@hono/swagger-ui'
-import type { OpenAPIV3_1 } from 'openapi-types'
 import { SERVER_VERSION } from '../version.ts'
 import { ApiRequestError, type ApiApp, type ApiDependencies, type ApiVariables } from './context.ts'
 import { registerCatalogRoutes } from './routes/catalog.ts'
@@ -11,7 +10,7 @@ import { registerGitRoutes } from './routes/git.ts'
 import { registerMetaRoutes } from './routes/meta.ts'
 import { registerProjectRoutes } from './routes/projects.ts'
 import { registerSessionRoutes } from './routes/sessions.ts'
-import { errorResponse, schemas } from './schemas.ts'
+import { errorResponse } from './schemas.ts'
 
 const AGENT_HEADER = 'x-clara-agent'
 const READONLY_HEADER = 'x-clara-readonly'
@@ -86,7 +85,6 @@ export function createApiApp(deps: ApiDependencies, options: ApiAppOptions): Api
             { name: 'events', description: 'Live OpenCode events' },
           ],
           components: {
-            schemas: schemas as Record<string, OpenAPIV3_1.SchemaObject>,
             securitySchemes: {
               bearerAuth: {
                 type: 'http',

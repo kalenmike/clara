@@ -28,7 +28,9 @@ function fakeHarness(): HarnessManager {
     },
     lastError: undefined,
     request: async (action: { path: string }) => {
-      if (action.path === '/api/info') return json({ version: '9.9.9', pid: 42, urls: [] })
+      if (action.path === '/api/info') {
+        return json({ version: '9.9.9', pid: 42, urls: [], paths: { tmp: '/tmp' } })
+      }
       if (action.path === '/api/project') {
         return json([
           {
@@ -36,6 +38,7 @@ function fakeHarness(): HarnessManager {
             canonical: '/workspace/demo',
             name: 'Demo',
             time: { created: 1, updated: 2, active: 3 },
+            sandboxes: [],
           },
         ])
       }
@@ -46,9 +49,9 @@ function fakeHarness(): HarnessManager {
   } as unknown as HarnessManager
 }
 
-function createTestApi() {
+function createTestApi(harness: HarnessManager = fakeHarness()) {
   const deps: ApiDependencies = {
-    harness: fakeHarness(),
+    harness,
     info: { version: '0.1.0', protocol: 1 },
     startedAt: 1000,
     canAccess: () => true,
@@ -63,7 +66,7 @@ function request(path: string, init: RequestInit = {}): Request {
 }
 
 describe('hub API', () => {
-  it('serves the OpenAPI document with generated components', async () => {
+  it('serves the OpenAPI document with Clara components', async () => {
     const api = createTestApi()
     const response = await api.fetch(request('/openapi.json'))
     expect(response.status).toBe(200)
@@ -73,8 +76,8 @@ describe('hub API', () => {
     }
     expect(document.paths['/v1/projects']).toBeDefined()
     expect(document.paths['/v1/sessions/{sessionID}/messages']).toBeDefined()
-    expect(document.components.schemas.SessionInfo).toBeDefined()
-    expect(document.components.schemas.Project).toBeDefined()
+    expect(document.components.schemas.ClaraSession).toBeDefined()
+    expect(document.components.schemas.ClaraProject).toBeDefined()
   })
 
   it('rejects local HTTP requests without a bearer token', async () => {
@@ -91,6 +94,18 @@ describe('hub API', () => {
     expect(response.status).toBe(200)
     const projects = (await response.json()) as Array<{ id: string }>
     expect(projects[0]?.id).toBe('p1')
+  })
+
+  it('rejects an invalid upstream payload with upstream_invalid', async () => {
+    const harness = fakeHarness()
+    harness.request = async () => json([{ id: 'incomplete-project' }])
+    const api = createTestApi(harness)
+    const response = await api.fetch(
+      request('/v1/projects', { headers: { authorization: 'Bearer secret' } })
+    )
+    expect(response.status).toBe(502)
+    const body = (await response.json()) as { error: { code: string } }
+    expect(body.error.code).toBe('upstream_invalid')
   })
 
   it('accepts the trusted agent header from the WebSocket bridge', async () => {

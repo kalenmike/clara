@@ -1,23 +1,33 @@
-import { describeRoute, validator } from 'hono-openapi'
+import { describeRoute, resolver, validator } from 'hono-openapi'
 import type { Hono } from 'hono'
 import { z } from 'zod'
-import type {
-  FileFindOutput,
-  LocationPublicInfo,
-  Project,
-  VcsBaseOutput,
-  VcsDiffOutput,
-  VcsGetOutput,
-  VcsStatusOutput,
-  WorktreeList,
-} from '@opencode/client'
+import {
+  claraFileFindOutputSchema,
+  claraLocationSchema,
+  claraProjectSchema,
+  claraVcsBaseOutputSchema,
+  claraVcsDiffOutputSchema,
+  claraVcsGetOutputSchema,
+  claraVcsStatusOutputSchema,
+  claraWorktreeListSchema,
+} from '@clara/api-contract'
 import type { ApiDependencies, ApiVariables } from '../context.ts'
+import {
+  forwardDto,
+  parseClaraFiles,
+  parseClaraLocation,
+  parseClaraProject,
+  parseClaraProjects,
+  parseClaraVcs,
+  parseClaraVcsBase,
+  parseClaraVcsDiff,
+  parseClaraVcsStatus,
+  parseClaraWorktrees,
+} from '../dto.ts'
 import { forwardResult, query } from '../harness.ts'
 import {
-  arrayOf,
   emptyResponse,
   jsonResponse,
-  ref,
   responses,
   statusResponses,
 } from '../schemas.ts'
@@ -44,15 +54,16 @@ export function registerProjectRoutes(
       tags: ['projects'],
       operationId: 'listProjects',
       summary: 'List OpenCode projects',
-      responses: responses(jsonResponse(arrayOf(ref('Project')), 'Projects')),
+      responses: responses(jsonResponse(resolver(z.array(claraProjectSchema)), 'Projects')),
     }),
     validator('query', z.object({ archived: optionalBooleanQuery })),
     async (c) => {
       const { archived } = c.req.valid('query')
-      const projects = await forwardResult<Project[]>(
+      const projects = await forwardDto(
         deps,
         { method: 'GET', path: '/api/project', search: query({ archived }) },
-        c.req.raw.signal
+        c.req.raw.signal,
+        parseClaraProjects
       )
       return c.json(projects)
     }
@@ -64,14 +75,14 @@ export function registerProjectRoutes(
       tags: ['projects'],
       operationId: 'updateProject',
       summary: 'Update project metadata',
-      responses: responses(jsonResponse(ref('Project'), 'Updated project')),
+      responses: responses(jsonResponse(resolver(claraProjectSchema), 'Updated project')),
     }),
     validator('param', z.object({ projectID: z.string().min(1) })),
     validator('json', projectUpdateBody),
     async (c) => {
       const { projectID } = c.req.valid('param')
       const body = c.req.valid('json')
-      const project = await forwardResult<Project>(
+      const project = await forwardDto(
         deps,
         {
           method: 'PATCH',
@@ -80,6 +91,7 @@ export function registerProjectRoutes(
           body: JSON.stringify(body),
         },
         c.req.raw.signal,
+        parseClaraProject,
         true
       )
       return c.json(project)
@@ -92,19 +104,20 @@ export function registerProjectRoutes(
       tags: ['projects'],
       operationId: 'getLocation',
       summary: 'Resolve a directory location',
-      responses: responses(jsonResponse(ref('LocationPublicInfo'), 'Resolved location')),
+      responses: responses(jsonResponse(resolver(claraLocationSchema), 'Resolved location')),
     }),
     validator('query', directoryQuery),
     async (c) => {
       const { directory } = c.req.valid('query')
-      const location = await forwardResult<LocationPublicInfo>(
+      const location = await forwardDto(
         deps,
         {
           method: 'GET',
           path: '/api/location',
           search: query({ location: { directory } }),
         },
-        c.req.raw.signal
+        c.req.raw.signal,
+        parseClaraLocation
       )
       return c.json(location)
     }
@@ -116,7 +129,7 @@ export function registerProjectRoutes(
       tags: ['files'],
       operationId: 'findFiles',
       summary: 'Search files and directories in a location',
-      responses: responses(jsonResponse(ref('FileFindOutput'), 'Matching files')),
+      responses: responses(jsonResponse(resolver(claraFileFindOutputSchema), 'Matching files')),
     }),
     validator(
       'query',
@@ -129,14 +142,15 @@ export function registerProjectRoutes(
     ),
     async (c) => {
       const { directory, query: text, type, limit } = c.req.valid('query')
-      const result = await forwardResult<FileFindOutput>(
+      const result = await forwardDto(
         deps,
         {
           method: 'GET',
           path: '/api/fs/find',
           search: query({ location: { directory }, query: text, type, limit }),
         },
-        c.req.raw.signal
+        c.req.raw.signal,
+        parseClaraFiles
       )
       return c.json(result)
     }
@@ -148,19 +162,20 @@ export function registerProjectRoutes(
       tags: ['vcs'],
       operationId: 'getVcs',
       summary: 'Read repository information for a location',
-      responses: responses(jsonResponse(ref('VcsGetOutput'), 'Repository information')),
+      responses: responses(jsonResponse(resolver(claraVcsGetOutputSchema), 'Repository information')),
     }),
     validator('query', directoryQuery),
     async (c) => {
       const { directory } = c.req.valid('query')
-      const result = await forwardResult<VcsGetOutput>(
+      const result = await forwardDto(
         deps,
         {
           method: 'GET',
           path: '/api/vcs',
           search: query({ location: { directory } }),
         },
-        c.req.raw.signal
+        c.req.raw.signal,
+        parseClaraVcs
       )
       return c.json(result)
     }
@@ -172,19 +187,20 @@ export function registerProjectRoutes(
       tags: ['vcs'],
       operationId: 'getVcsBase',
       summary: 'Read the branch base for a location',
-      responses: responses(jsonResponse(ref('VcsBaseOutput'), 'Branch base')),
+      responses: responses(jsonResponse(resolver(claraVcsBaseOutputSchema), 'Branch base')),
     }),
     validator('query', directoryQuery),
     async (c) => {
       const { directory } = c.req.valid('query')
-      const result = await forwardResult<VcsBaseOutput>(
+      const result = await forwardDto(
         deps,
         {
           method: 'GET',
           path: '/api/vcs/base',
           search: query({ location: { directory } }),
         },
-        c.req.raw.signal
+        c.req.raw.signal,
+        parseClaraVcsBase
       )
       return c.json(result)
     }
@@ -196,19 +212,20 @@ export function registerProjectRoutes(
       tags: ['vcs'],
       operationId: 'getVcsStatus',
       summary: 'Read working-tree changes for a location',
-      responses: responses(jsonResponse(ref('VcsStatusOutput'), 'Working-tree changes')),
+      responses: responses(jsonResponse(resolver(claraVcsStatusOutputSchema), 'Working-tree changes')),
     }),
     validator('query', directoryQuery),
     async (c) => {
       const { directory } = c.req.valid('query')
-      const result = await forwardResult<VcsStatusOutput>(
+      const result = await forwardDto(
         deps,
         {
           method: 'GET',
           path: '/api/vcs/status',
           search: query({ location: { directory } }),
         },
-        c.req.raw.signal
+        c.req.raw.signal,
+        parseClaraVcsStatus
       )
       return c.json(result)
     }
@@ -220,7 +237,7 @@ export function registerProjectRoutes(
       tags: ['vcs'],
       operationId: 'getVcsDiff',
       summary: 'Read a diff for a location',
-      responses: responses(jsonResponse(ref('VcsDiffOutput'), 'Diff')),
+      responses: responses(jsonResponse(resolver(claraVcsDiffOutputSchema), 'Diff')),
     }),
     validator(
       'query',
@@ -233,14 +250,15 @@ export function registerProjectRoutes(
     ),
     async (c) => {
       const { directory, mode, base, context } = c.req.valid('query')
-      const result = await forwardResult<VcsDiffOutput>(
+      const result = await forwardDto(
         deps,
         {
           method: 'POST',
           path: '/api/vcs/diff',
           search: query({ location: { directory }, mode, base, context }),
         },
-        c.req.raw.signal
+        c.req.raw.signal,
+        parseClaraVcsDiff
       )
       return c.json(result)
     }
@@ -252,19 +270,20 @@ export function registerProjectRoutes(
       tags: ['worktrees'],
       operationId: 'listWorktrees',
       summary: 'List worktrees for a project',
-      responses: responses(jsonResponse(ref('WorktreeList'), 'Worktrees')),
+      responses: responses(jsonResponse(resolver(claraWorktreeListSchema), 'Worktrees')),
     }),
     validator('query', z.object({ project: z.string().min(1).optional() })),
     async (c) => {
       const { project } = c.req.valid('query')
-      const result = await forwardResult<WorktreeList>(
+      const result = await forwardDto(
         deps,
         {
           method: 'GET',
           path: '/api/worktree',
           search: query({ projectID: project }),
         },
-        c.req.raw.signal
+        c.req.raw.signal,
+        parseClaraWorktrees
       )
       return c.json(result)
     }

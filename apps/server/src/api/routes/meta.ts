@@ -1,12 +1,11 @@
 import { describeRoute, resolver } from 'hono-openapi'
 import type { Hono } from 'hono'
 import { PROTOCOL_VERSION } from '@clara/shared-types'
-import { apiInfoSchema, type ApiInfo } from '@clara/api-contract'
-import type { ServerInfo } from '@opencode/client'
+import { apiInfoSchema, claraServerInfoSchema, type ApiInfo } from '@clara/api-contract'
 import { SERVER_VERSION } from '../../version.ts'
 import type { ApiDependencies, ApiVariables } from '../context.ts'
-import { forwardResult } from '../harness.ts'
-import { jsonResponse, ref, responses } from '../schemas.ts'
+import { forwardDto, parseClaraServerInfo } from '../dto.ts'
+import { jsonResponse, responses } from '../schemas.ts'
 
 export function registerMetaRoutes(
   app: Hono<{ Variables: ApiVariables }>,
@@ -63,13 +62,16 @@ export function registerMetaRoutes(
       tags: ['meta'],
       operationId: 'getHarnessInfo',
       summary: 'Read the active OpenCode server information',
-      responses: responses(jsonResponse(ref('ServerInfo'), 'OpenCode server information')),
+      responses: responses(
+        jsonResponse(resolver(claraServerInfoSchema), 'OpenCode server information')
+      ),
     }),
     async (c) => {
-      const info = await forwardResult<ServerInfo>(
+      const info = await forwardDto(
         deps,
         { method: 'GET', path: '/api/info' },
-        c.req.raw.signal
+        c.req.raw.signal,
+        parseClaraServerInfo
       )
       return c.json(info)
     }

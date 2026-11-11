@@ -1,17 +1,26 @@
-import { describeRoute, validator } from 'hono-openapi'
+import { describeRoute, resolver, validator } from 'hono-openapi'
 import type { Hono } from 'hono'
 import { z } from 'zod'
-import type {
-  AgentListOutput,
-  CommandListOutput,
-  ModelListOutput,
-  ProviderListOutput,
-  ReferenceListOutput,
-  SkillListOutput,
-} from '@opencode/client'
+import {
+  claraAgentListOutputSchema,
+  claraCommandListOutputSchema,
+  claraModelListOutputSchema,
+  claraProviderListOutputSchema,
+  claraReferenceListOutputSchema,
+  claraSkillListOutputSchema,
+} from '@clara/api-contract'
 import type { ApiDependencies, ApiVariables } from '../context.ts'
-import { forwardResult, query } from '../harness.ts'
-import { jsonResponse, ref, responses } from '../schemas.ts'
+import {
+  forwardDto,
+  parseClaraAgentList,
+  parseClaraCommandList,
+  parseClaraModelList,
+  parseClaraProviderList,
+  parseClaraReferenceList,
+  parseClaraSkillList,
+} from '../dto.ts'
+import { query } from '../harness.ts'
+import { jsonResponse, responses } from '../schemas.ts'
 
 export function registerCatalogRoutes(
   app: Hono<{ Variables: ApiVariables }>,
@@ -23,13 +32,14 @@ export function registerCatalogRoutes(
       tags: ['catalog'],
       operationId: 'listAgents',
       summary: 'List OpenCode agents',
-      responses: responses(jsonResponse(ref('AgentListOutput'), 'Agents')),
+      responses: responses(jsonResponse(resolver(claraAgentListOutputSchema), 'Agents')),
     }),
     async (c) => {
-      const result = await forwardResult<AgentListOutput>(
+      const result = await forwardDto(
         deps,
         { method: 'GET', path: '/api/agent' },
-        c.req.raw.signal
+        c.req.raw.signal,
+        parseClaraAgentList
       )
       return c.json(result)
     }
@@ -41,13 +51,14 @@ export function registerCatalogRoutes(
       tags: ['catalog'],
       operationId: 'listModels',
       summary: 'List OpenCode models',
-      responses: responses(jsonResponse(ref('ModelListOutput'), 'Models')),
+      responses: responses(jsonResponse(resolver(claraModelListOutputSchema), 'Models')),
     }),
     async (c) => {
-      const result = await forwardResult<ModelListOutput>(
+      const result = await forwardDto(
         deps,
         { method: 'GET', path: '/api/model' },
-        c.req.raw.signal
+        c.req.raw.signal,
+        parseClaraModelList
       )
       return c.json(result)
     }
@@ -59,13 +70,14 @@ export function registerCatalogRoutes(
       tags: ['catalog'],
       operationId: 'listProviders',
       summary: 'List OpenCode providers',
-      responses: responses(jsonResponse(ref('ProviderListOutput'), 'Providers')),
+      responses: responses(jsonResponse(resolver(claraProviderListOutputSchema), 'Providers')),
     }),
     async (c) => {
-      const result = await forwardResult<ProviderListOutput>(
+      const result = await forwardDto(
         deps,
         { method: 'GET', path: '/api/provider' },
-        c.req.raw.signal
+        c.req.raw.signal,
+        parseClaraProviderList
       )
       return c.json(result)
     }
@@ -77,13 +89,14 @@ export function registerCatalogRoutes(
       tags: ['catalog'],
       operationId: 'listCommands',
       summary: 'List OpenCode commands',
-      responses: responses(jsonResponse(ref('CommandListOutput'), 'Commands')),
+      responses: responses(jsonResponse(resolver(claraCommandListOutputSchema), 'Commands')),
     }),
     async (c) => {
-      const result = await forwardResult<CommandListOutput>(
+      const result = await forwardDto(
         deps,
         { method: 'GET', path: '/api/command' },
-        c.req.raw.signal
+        c.req.raw.signal,
+        parseClaraCommandList
       )
       return c.json(result)
     }
@@ -95,19 +108,20 @@ export function registerCatalogRoutes(
       tags: ['catalog'],
       operationId: 'listSkills',
       summary: 'List skills for a location',
-      responses: responses(jsonResponse(ref('SkillListOutput'), 'Skills')),
+      responses: responses(jsonResponse(resolver(claraSkillListOutputSchema), 'Skills')),
     }),
     validator('query', z.object({ directory: z.string().optional() })),
     async (c) => {
       const { directory } = c.req.valid('query')
-      const result = await forwardResult<SkillListOutput>(
+      const result = await forwardDto(
         deps,
         {
           method: 'GET',
           path: '/api/skill',
           search: query({ location: { directory } }),
         },
-        c.req.raw.signal
+        c.req.raw.signal,
+        parseClaraSkillList
       )
       return c.json(result)
     }
@@ -119,19 +133,20 @@ export function registerCatalogRoutes(
       tags: ['catalog'],
       operationId: 'listReferences',
       summary: 'List references for a location',
-      responses: responses(jsonResponse(ref('ReferenceListOutput'), 'References')),
+      responses: responses(jsonResponse(resolver(claraReferenceListOutputSchema), 'References')),
     }),
     validator('query', z.object({ directory: z.string().optional() })),
     async (c) => {
       const { directory } = c.req.valid('query')
-      const result = await forwardResult<ReferenceListOutput>(
+      const result = await forwardDto(
         deps,
         {
           method: 'GET',
           path: '/api/reference',
           search: query({ location: { directory } }),
         },
-        c.req.raw.signal
+        c.req.raw.signal,
+        parseClaraReferenceList
       )
       return c.json(result)
     }

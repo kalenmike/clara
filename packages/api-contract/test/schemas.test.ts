@@ -1,13 +1,91 @@
 import { describe, expect, it } from 'vitest'
-import { apiErrorSchema, apiInfoSchema, gitCommitSchema, openApiSchemas } from '../src/index.ts'
+import {
+  apiErrorSchema,
+  apiInfoSchema,
+  claraEventSchema,
+  claraFormSchema,
+  claraProjectSchema,
+  claraSessionMessageSchema,
+  claraSessionSchema,
+  claraVcsGetOutputSchema,
+  gitCommitSchema,
+} from '../src/index.ts'
+
+const project = {
+  id: 'p1',
+  canonical: '/workspace/demo',
+  name: 'Demo',
+  time: { created: 1, updated: 2, active: 3 },
+  sandboxes: [],
+}
+
+const session = {
+  id: 's1',
+  projectID: 'p1',
+  cost: 0,
+  tokens: { input: 0, output: 0, reasoning: 0, cache: { read: 0, write: 0 } },
+  time: { created: 1, updated: 2 },
+  location: { directory: '/workspace/demo' },
+}
 
 describe('api contract', () => {
-  it('ships generated OpenAPI components for the pinned client types', () => {
-    expect(openApiSchemas.Project).toBeDefined()
-    expect(openApiSchemas.SessionInfo).toBeDefined()
-    expect(openApiSchemas.SessionMessagesResponse).toBeDefined()
-    expect(openApiSchemas.ServerInfo).toBeDefined()
-    expect(openApiSchemas.VcsGetOutput).toBeDefined()
+  it('validates Clara project and session DTOs', () => {
+    expect(claraProjectSchema.safeParse(project).success).toBe(true)
+    expect(claraSessionSchema.safeParse(session).success).toBe(true)
+  })
+
+  it('accepts every Clara message shape', () => {
+    expect(
+      claraSessionMessageSchema.safeParse({
+        id: 'm1',
+        type: 'assistant',
+        time: { created: 1 },
+        agent: 'build',
+        model: { id: 'model', providerID: 'provider' },
+        content: [{ type: 'text', text: 'hello' }],
+      }).success
+    ).toBe(true)
+  })
+
+  it('validates Clara events', () => {
+    expect(
+      claraEventSchema.safeParse({
+        id: 'e1',
+        created: 1,
+        type: 'session.idle',
+        data: { sessionID: 's1' },
+      }).success
+    ).toBe(true)
+    expect(
+      claraEventSchema.safeParse({
+        id: 'e2',
+        created: 1,
+        type: 'session.status',
+        data: { sessionID: 's1', status: { type: 'busy' } },
+      }).success
+    ).toBe(true)
+  })
+
+  it('validates forms and VCS wrappers', () => {
+    expect(
+      claraFormSchema.safeParse({
+        id: 'f1',
+        sessionID: 's1',
+        title: 'Question',
+        fields: [
+          {
+            key: 'answer',
+            type: 'string',
+          },
+        ],
+      }).success
+    ).toBe(true)
+    expect(
+      claraVcsGetOutputSchema.safeParse({
+        location: { directory: '/workspace/demo' },
+        data: { branch: { current: 'main', default: 'main' } },
+      }).success
+    ).toBe(true)
   })
 
   it('validates hub info', () => {

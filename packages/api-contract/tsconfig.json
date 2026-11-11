@@ -6,5 +6,5 @@
     "types": ["node"],
     "resolveJsonModule": true
   },
-  "include": ["src", "scripts", "test", "schema-entry.ts"]
+  "include": ["src", "test"]
 }
