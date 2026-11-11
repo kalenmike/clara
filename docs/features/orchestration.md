@@ -112,6 +112,10 @@ orchestrator container is named `clara-orchestrator`.
    docker compose -f docker/orchestrator.compose.yml up -d --build orchestrator
    ```
 
+   `pnpm clara orchestrator stop --docker` does not need the token or workspace
+   exported in the shell: `down` fills the required compose variables with
+   absolute placeholders before Compose interpolates the file.
+
 3. Join the OpenCode container to the `clara` network and set:
 
    ```sh

@@ -110,6 +110,20 @@ Workers drawer are absent. The host can start it from the hub panel or with
 `pnpm clara orchestrator start`. See
 [Orchestration](self-hosting/orchestration.md).
 
+## A Docker container keeps restarting
+
+`pnpm clara start` checks the Docker environment before it launches a container
+and prints the recent log lines when a service does not become healthy. If a
+container still keeps restarting:
+
+- Read the printed log tail, or run `pnpm clara logs server`, `pnpm clara logs web`,
+  or `pnpm clara logs orchestrator`.
+- A `CLARA_RELAY_URL` without both `CLARA_AGENT_TOKEN` and `CLARA_CLIENT_TOKEN`
+  stops the hub at startup.
+- `CLARA_SERVER_CONFIG_DIR`, `CLARA_SERVER_DATA_DIR`, and
+  `CLARA_ORCHESTRATOR_DATA_DIR` must be absolute host paths when set.
+- Stopping the stack does not need any of those values exported in your shell.
+
 ## Still stuck
 
 Ask the host for the hub panel status and the service logs. The panel shows

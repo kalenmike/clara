@@ -1,4 +1,4 @@
-import { spawn } from 'node:child_process'
+import { spawn, spawnSync } from 'node:child_process'
 import { closeSync, existsSync, openSync, readFileSync, unlinkSync } from 'node:fs'
 import { setTimeout as delay } from 'node:timers/promises'
 import { fileURLToPath } from 'node:url'
@@ -267,15 +267,43 @@ export function composeArgs(action: ComposeAction, build = false): string[] {
   return args
 }
 
+export function composeLogArgs(tail = 40): string[] {
+  return [
+    'compose',
+    '-f',
+    'docker/orchestrator.compose.yml',
+    'logs',
+    '--tail',
+    String(tail),
+    'orchestrator',
+  ]
+}
+
+/** Recent container output, or an empty string when Docker is unavailable. */
+export function readComposeLogs(tail = 40): string {
+  const result = spawnSync('docker', composeLogArgs(tail), {
+    cwd: repoRoot(),
+    encoding: 'utf8',
+    timeout: 5_000,
+  })
+  if (result.error) return ''
+  return `${result.stdout ?? ''}${result.stderr ?? ''}`.trim()
+}
+
 /**
  * Compose interpolates the whole file, including `${VAR:?}` guards, even for
  * `down`. Down never reads the token or workspace, so fill the required values
  * with inert placeholders when they are not exported. `up` keeps the real
  * environment so a missing token still fails fast.
+ *
+ * The workspace placeholder must be an absolute path. Compose treats a short
+ * volume source without a leading slash as a named volume, so a bare token like
+ * `unused-by-compose-down` fails with `refers to undefined volume` before it
+ * can remove the container.
  */
 const DOWN_ENV_FALLBACKS = {
   CLARA_ORCHESTRATION_TOKEN: 'unused-by-compose-down',
-  CLARA_WORKSPACE: 'unused-by-compose-down',
+  CLARA_WORKSPACE: repoRoot(),
 } as const
 
 export function composeEnv(

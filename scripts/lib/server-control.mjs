@@ -74,6 +74,21 @@ export async function waitForPanel(timeoutMs = 60_000, env = process.env) {
   return undefined
 }
 
+/** The tail of the hub container log, or an empty string when Docker is unavailable. */
+export function serverLogTail(lines = 40) {
+  const result = spawnSync(
+    'docker',
+    composeArgs(['logs', '--tail', String(lines), 'server'], root),
+    {
+      cwd: root,
+      encoding: 'utf8',
+      timeout: 5_000,
+    }
+  )
+  if (result.error) return ''
+  return `${result.stdout ?? ''}${result.stderr ?? ''}`.trim()
+}
+
 export function serverRunningInCompose(repoRoot = root) {
   const result = spawnSync('docker', composeArgs(['ps', '-q', 'server'], repoRoot), {
     cwd: repoRoot,

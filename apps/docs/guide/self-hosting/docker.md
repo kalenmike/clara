@@ -24,7 +24,11 @@ pnpm clara start --build
 ```
 
 The first start creates the `clara` network, bootstraps `docker/.env`, and
-starts the selected services. Then set up the panel:
+starts the selected services. Start checks the effective `docker/.env` and shell
+values first: a relay URL without both relay tokens, or a bind directory that is
+not absolute, stops the command with the variable name instead of leaving a
+container restarting. If a service still does not become healthy, the command
+prints its recent log lines. Then set up the panel:
 
 ```bash
 pnpm clara server setup-token
@@ -73,6 +77,9 @@ pnpm clara stop
 `status` accepts `--json` for scripts. `logs` follows one service. The scoped
 commands `pnpm clara server …`, `pnpm clara web …`, and
 `pnpm clara orchestrator …` work when you want only one service.
+
+`stop` reads `docker/.env` itself. You do not need to export the orchestrator
+token or workspace in your shell before stopping the stack.
 
 ## Data
 

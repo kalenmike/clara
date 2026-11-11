@@ -21,11 +21,13 @@ import {
   runLocalServerProcess,
   runServerProcess,
   SERVER_ENTRY,
+  serverLogTail,
   waitForPanel,
 } from './lib/server-control.mjs'
 import { followLog, logPath, parseMode, startDetached, stopDetached } from './lib/local-runtime.mjs'
 import { openPanel } from './lib/panel.mjs'
 import { root, runPnpm } from './lib/router.mjs'
+import { composeEnvValues, hubEnvErrors, hubEnvWarnings } from './lib/stack-control.mjs'
 import { collectStatus, renderJSON, renderStatus, statusExitCode } from './lib/status.mjs'
 
 const args = process.argv.slice(2)
@@ -82,10 +84,12 @@ switch (command) {
 
 async function start() {
   if (parseMode(args) === 'local') return startLocal()
+  if (!validateDockerEnv()) return
   if (ensureNetwork() !== 0) {
     process.exitCode = 1
     return
   }
+  console.log(`starting the hub container; waiting for ${panelURL()}/health`)
   const code = compose(['up', '-d', ...(build ? ['--build'] : []), 'server'])
   if (code !== 0) {
     process.exitCode = code
@@ -94,6 +98,7 @@ async function start() {
   const health = await waitForPanel(90_000)
   if (!health) {
     console.error(`The server did not become healthy at ${panelURL()}/health`)
+    printServerLogTail()
     console.error('Check `pnpm clara server logs --docker`.')
     process.exitCode = 1
     return
@@ -102,6 +107,26 @@ async function start() {
   console.log('If this is the first run, open the panel and use the one-time setup token:')
   console.log('  pnpm clara server setup-token --docker')
   console.log('The token is also written to admin-setup.txt in the clara-server-config volume.')
+}
+
+function validateDockerEnv() {
+  const values = composeEnvValues()
+  const errors = hubEnvErrors(values)
+  if (errors.length) {
+    for (const error of errors) console.error(`error: ${error}`)
+    process.exitCode = 1
+    return false
+  }
+  for (const warning of hubEnvWarnings(values)) console.warn(`warning: ${warning}`)
+  return true
+}
+
+function printServerLogTail() {
+  const tail = serverLogTail()
+  if (!tail) return
+  console.error('\nRecent hub logs:')
+  for (const line of tail.split('\n')) console.error(`  ${line}`)
+  console.error('')
 }
 
 async function startLocal() {
