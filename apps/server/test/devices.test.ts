@@ -2,6 +2,7 @@ import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
+import { MAX_DEVICE_ALIAS_LENGTH } from '@clara/shared-types'
 import { generateKey, generateSecretKey, loadSecretKey } from '@clara/crypto'
 import { closeDatabase, openDatabase, type ClaraDatabase } from '../src/store/database.ts'
 import { DeviceStore } from '../src/store/devices.ts'
@@ -50,6 +51,39 @@ describe('DeviceStore', () => {
     expect(store.isActive('device-0000000000001')).toBe(true)
     expect(store.countActive()).toBe(1)
     expect(await store.findPairingToken(token.id)).toBeUndefined()
+  })
+
+  it('sets, normalizes, and clears an alias without changing the label', async () => {
+    const store = await createStore()
+    const token = await store.createPairingToken()
+    const id = 'device-0000000000001'
+    const enrolled = await store.enrollDevice({
+      pairingTokenId: token.id,
+      deviceId: id,
+      key: generateKey(),
+      label: 'Desk',
+    })
+    expect(enrolled.alias).toBeUndefined()
+
+    expect(store.setAlias(id, '  Desk\u0000MacBook  ')).toMatchObject({
+      id,
+      label: 'Desk',
+      alias: 'Desk MacBook',
+    })
+    expect(store.listDevices().find((device) => device.id === id)).toMatchObject({
+      label: 'Desk',
+      alias: 'Desk MacBook',
+    })
+
+    const truncated = store.setAlias(id, 'x'.repeat(MAX_DEVICE_ALIAS_LENGTH + 8))
+    expect(truncated?.alias).toHaveLength(MAX_DEVICE_ALIAS_LENGTH)
+
+    expect(store.setAlias(id, '   ')).not.toHaveProperty('alias')
+    expect(store.listDevices().find((device) => device.id === id)).not.toHaveProperty('alias')
+
+    store.setAlias(id, 'Desk MacBook')
+    expect(store.setAlias(id, null)).not.toHaveProperty('alias')
+    expect(store.setAlias('device-0000000000999', 'Unknown')).toBeUndefined()
   })
 
   it('treats a retry from the same device as idempotent', async () => {

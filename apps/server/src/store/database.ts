@@ -5,7 +5,7 @@ import Database from 'better-sqlite3'
 
 export type ClaraDatabase = Database.Database
 
-export const SCHEMA_VERSION = 7
+export const SCHEMA_VERSION = 8
 
 const BUSY_TIMEOUT_MS = 5_000
 const DATABASE_MODE = 0o600
@@ -189,6 +189,13 @@ const MIGRATIONS: Migration[] = [
         used_device_id TEXT
       );
     `)
+  },
+  /**
+   * The enrolled label stays as pairing recorded it; the panel can set an
+   * optional alias that only changes the displayed name.
+   */
+  (db) => {
+    db.exec('ALTER TABLE devices ADD COLUMN alias TEXT')
   },
 ]
 
