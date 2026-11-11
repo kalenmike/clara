@@ -115,9 +115,9 @@ create a task worktree outside `../clara-worktrees` (override with
   swap it for `@opencode-ai/sdk` (v1 API) or import `@opencode/sdk` into the
   browser (embedded Node server).
 - The browser connects only through the hub over the local or relay
-  WebSocket, and only to the hub API under `/v1`. The hub service adds OpenCode
-  basic auth; the browser never receives the password. The legacy `/api/*`
-  proxy remains only until the web migration is complete.
+  WebSocket, and only to the hub API under `/v1` through `@clara/api-client`.
+  The hub service adds OpenCode basic auth; the browser never receives the
+  password. The legacy `/api/*` proxy remains only until the final cleanup.
 - Harness connections are configured in the authenticated hub panel and
   stored in the hub's SQLite database. The hub service does not read OpenCode's
   `service.json`, and it does not read a fixed OpenCode URL or password from the
