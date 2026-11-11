@@ -29,9 +29,11 @@ const STATE_LABELS: Record<PanelOrchestrationState, string> = {
 export function OrchestrationCard({
   orchestration,
   onChanged,
+  defaultExpanded = false,
 }: {
   orchestration: PanelOrchestrationControl
   onChanged: () => void
+  defaultExpanded?: boolean
 }) {
   const [pending, setPending] = useState(false)
   const [error, setError] = useState<string>()
@@ -64,6 +66,7 @@ export function OrchestrationCard({
       title="Orchestration"
       description="Package runs, worker sessions, and result delivery"
       icon={<Workflow className="size-4" aria-hidden="true" />}
+      defaultExpanded={defaultExpanded}
       action={
         <Badge tone={tone}>
           {orchestration.effective ? 'On' : STATE_LABELS[orchestration.state]}

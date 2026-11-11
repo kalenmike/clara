@@ -70,10 +70,10 @@ export function AuthScreen({ session }: { session: SessionController }) {
         : 'Sign in'
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-neutral-50 px-4 dark:bg-neutral-950">
-      <main className="w-full max-w-md rounded-2xl border border-neutral-200 bg-white p-6 shadow-sm dark:border-neutral-800 dark:bg-neutral-900">
+    <div className="flex min-h-screen items-center justify-center bg-[var(--panel-bg)] px-4">
+      <main className="panel-card w-full max-w-md p-6">
         <div className="mb-6 flex items-start gap-3">
-          <div className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-neutral-950 text-white dark:bg-white dark:text-neutral-950">
+          <div className="flex size-10 shrink-0 items-center justify-center rounded-md bg-[var(--panel-accent)] text-white">
             <ShieldCheck className="size-5" aria-hidden="true" />
           </div>
           <div>
@@ -159,7 +159,7 @@ export function AuthScreen({ session }: { session: SessionController }) {
           <button
             type="submit"
             disabled={pending}
-            className="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-neutral-950 px-3 py-2 text-sm font-semibold text-white transition hover:bg-neutral-800 disabled:cursor-not-allowed disabled:opacity-60 dark:bg-white dark:text-neutral-950 dark:hover:bg-neutral-200"
+            className="inline-flex w-full items-center justify-center gap-2 rounded-md bg-[var(--panel-accent)] px-3 py-2 text-sm font-semibold text-white transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-60"
           >
             {pending ? (
               <LoaderCircle className="size-4 animate-spin" aria-hidden="true" />

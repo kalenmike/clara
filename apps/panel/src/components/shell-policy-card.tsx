@@ -26,9 +26,11 @@ const PRESET = 'git log'
 export function ShellPolicyCard({
   shell,
   onChanged,
+  defaultExpanded = false,
 }: {
   shell: PanelShellControl
   onChanged: () => void
+  defaultExpanded?: boolean
 }) {
   const ids = useId()
   const savedOn = shell.mode === 'allowlist'
@@ -154,6 +156,7 @@ export function ShellPolicyCard({
       description="Command requests the web client may send through this agent to OpenCode"
       icon={<TerminalSquare className="size-4" aria-hidden="true" />}
       action={badge}
+      defaultExpanded={defaultExpanded}
       expandable={open}
       control={
         <Toggle
