@@ -161,7 +161,7 @@ export function HarnessCard({
           {harness.configured ? 'Configured' : 'Not configured'}
         </Badge>
       }
-      defaultExpanded={!harness.configured}
+      defaultExpanded
     >
       <CardBody>
         {harness.error ? <Notice tone="danger">{redact(harness.error)}</Notice> : null}

@@ -137,11 +137,13 @@ export function OpenCodeCard({
   controls,
   onChanged,
   now,
+  defaultExpanded = false,
 }: {
   opencode: PanelOpenCodeInfo
   controls: PanelControls
   onChanged: () => void
   now: number
+  defaultExpanded?: boolean
 }) {
   const feature = findFeature(controls, 'opencode')
   const control = useFeatureControl(feature, controls.stopped, onChanged)
@@ -175,6 +177,7 @@ export function OpenCodeCard({
       description="The active coding-agent connection this agent proxies"
       icon={<Cpu className="size-4" aria-hidden="true" />}
       action={<Badge tone={tone}>{status}</Badge>}
+      defaultExpanded={defaultExpanded}
       expandable={feature.desired && opencode.configured}
       control={
         <Toggle
@@ -230,11 +233,13 @@ export function LocalCard({
   sessions,
   controls,
   onChanged,
+  defaultExpanded = false,
 }: {
   local: PanelLocalTransport
   sessions: number
   controls: PanelControls
   onChanged: () => void
+  defaultExpanded?: boolean
 }) {
   const feature = findFeature(controls, 'local')
   const control = useFeatureControl(feature, controls.stopped, onChanged)
@@ -247,6 +252,7 @@ export function LocalCard({
       description="The loopback WebSocket the browser pairs with"
       icon={<Radio className="size-4" aria-hidden="true" />}
       action={<Badge tone={tone}>{status}</Badge>}
+      defaultExpanded={defaultExpanded}
       expandable={feature.desired}
       control={
         <Toggle
@@ -296,11 +302,13 @@ export function RelayCard({
   controls,
   onChanged,
   now,
+  defaultExpanded = false,
 }: {
   relay: PanelRelayTransport
   controls: PanelControls
   onChanged: () => void
   now: number
+  defaultExpanded?: boolean
 }) {
   const feature = findFeature(controls, 'relay')
   const control = useFeatureControl(feature, controls.stopped, onChanged)
@@ -328,6 +336,7 @@ export function RelayCard({
       description="Outbound remote access through Cloudflare"
       icon={<Radio className="size-4" aria-hidden="true" />}
       action={<Badge tone={tone}>{status}</Badge>}
+      defaultExpanded={defaultExpanded}
       expandable={feature.desired}
       control={
         <Toggle
@@ -397,10 +406,12 @@ export function PushCard({
   push,
   controls,
   onChanged,
+  defaultExpanded = false,
 }: {
   push: PanelPushInfo
   controls: PanelControls
   onChanged: () => void
+  defaultExpanded?: boolean
 }) {
   const feature = findFeature(controls, 'push')
   const control = useFeatureControl(feature, controls.stopped, onChanged)
@@ -413,6 +424,7 @@ export function PushCard({
       description="Web Push delivery while Clara is closed"
       icon={<Bell className="size-4" aria-hidden="true" />}
       action={<Badge tone={tone}>{status}</Badge>}
+      defaultExpanded={defaultExpanded}
       expandable={feature.desired}
       control={
         <Toggle

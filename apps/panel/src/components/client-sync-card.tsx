@@ -20,9 +20,11 @@ import {
 export function ClientSyncCard({
   sync,
   onChanged,
+  defaultExpanded = false,
 }: {
   sync: PanelSyncControl
   onChanged: () => void
+  defaultExpanded?: boolean
 }) {
   const [pending, setPending] = useState<'toggle' | 'interval'>()
   const [error, setError] = useState<string>()
@@ -53,6 +55,7 @@ export function ClientSyncCard({
       title="Client sync"
       description="Share non-secret settings between paired clients"
       icon={<RefreshCw className="size-4" aria-hidden="true" />}
+      defaultExpanded={defaultExpanded}
       action={
         <Badge tone={sync.enabled ? 'success' : 'neutral'}>{sync.enabled ? 'On' : 'Off'}</Badge>
       }

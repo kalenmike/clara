@@ -55,8 +55,8 @@ export function CollapsibleCard({
   }, [expandable])
 
   return (
-    <section className="rounded-xl border border-neutral-200 bg-white shadow-sm dark:border-neutral-800 dark:bg-neutral-900">
-      <div className="flex items-start justify-between gap-3 border-b border-neutral-100 px-4 py-3 dark:border-neutral-800">
+    <section className="panel-card">
+      <div className="panel-card-head flex items-start justify-between gap-3">
         <div
           className={`relative flex min-w-0 flex-1 items-start gap-2 ${expandable ? 'cursor-pointer' : ''}`}
         >
@@ -72,7 +72,7 @@ export function CollapsibleCard({
           ) : null}
           <span className="mt-0.5 shrink-0">{icon}</span>
           <div className="min-w-0 flex-1">
-            <h2 className="flex flex-wrap items-center gap-2 text-sm font-semibold text-neutral-900 dark:text-neutral-100">
+            <h2 className="flex flex-wrap items-center gap-2 text-[13px] font-semibold text-[color:var(--panel-text)]">
               {title}
               {action}
               {expandable ? (
@@ -82,9 +82,7 @@ export function CollapsibleCard({
                 />
               ) : null}
             </h2>
-            {description ? (
-              <p className="mt-0.5 text-xs text-neutral-500 dark:text-neutral-400">{description}</p>
-            ) : null}
+            {description ? <p className="panel-muted mt-0.5 text-[11px]">{description}</p> : null}
           </div>
         </div>
         {control ? <div className="relative z-10 shrink-0">{control}</div> : null}
@@ -96,7 +94,7 @@ export function CollapsibleCard({
 }
 
 export function CardBody({ children }: { children: ReactNode }) {
-  return <div className="space-y-1 px-4 py-3">{children}</div>
+  return <div className="space-y-1 px-3 py-2.5">{children}</div>
 }
 
 export type ToggleState = 'off' | 'pending' | 'on'
@@ -161,7 +159,7 @@ export function Notice({
 export function Badge({ children, tone = 'neutral' }: { children: ReactNode; tone?: Tone }) {
   return (
     <span
-      className={`inline-flex items-center gap-1.5 rounded-full border px-2 py-0.5 text-[11px] font-medium ${TONE_CLASSES[tone]}`}
+      className={`inline-flex items-center gap-1.5 rounded-[3px] border px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${TONE_CLASSES[tone]}`}
     >
       <span className={`size-1.5 rounded-full ${DOT_CLASSES[tone]}`} aria-hidden="true" />
       {children}
@@ -181,10 +179,10 @@ export function KeyValue({
   title?: string
 }) {
   return (
-    <div className="flex items-start justify-between gap-4 border-b border-neutral-100 py-1.5 text-sm last:border-0 dark:border-neutral-800/60">
+    <div className="flex items-start justify-between gap-4 border-b border-neutral-100 py-1 text-[12px] last:border-0 dark:border-neutral-800/60">
       <span className="shrink-0 text-neutral-500 dark:text-neutral-400">{label}</span>
       <span
-        className={`min-w-0 break-words text-right text-neutral-900 dark:text-neutral-100 ${mono ? 'font-mono text-xs' : ''}`}
+        className={`min-w-0 break-words text-right text-[color:var(--panel-text)] ${mono ? 'panel-mono text-[11px]' : ''}`}
         title={title}
       >
         {children}
@@ -194,12 +192,12 @@ export function KeyValue({
 }
 
 export function Muted({ children }: { children: ReactNode }) {
-  return <span className="text-neutral-500 dark:text-neutral-400">{children}</span>
+  return <span className="panel-muted">{children}</span>
 }
 
 export function SourceTag({ source }: { source: string }) {
   return (
-    <span className="rounded border border-neutral-200 px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide text-neutral-500 dark:border-neutral-700 dark:text-neutral-400">
+    <span className="rounded-[3px] border border-neutral-200 px-1.5 py-0.5 text-[9px] font-medium uppercase tracking-wide text-neutral-500 dark:border-neutral-700 dark:text-neutral-400">
       {source}
     </span>
   )
@@ -235,9 +233,5 @@ export function CopyButton({ value, label = 'Copy' }: { value: string; label?: s
 }
 
 export function EmptyState({ children }: { children: ReactNode }) {
-  return (
-    <p className="rounded-lg border border-dashed border-neutral-200 px-3 py-4 text-center text-xs text-neutral-500 dark:border-neutral-800 dark:text-neutral-400">
-      {children}
-    </p>
-  )
+  return <p className="panel-empty">{children}</p>
 }

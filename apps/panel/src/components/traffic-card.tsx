@@ -48,11 +48,13 @@ export function TrafficCard({
   monitoring,
   onChanged,
   now,
+  defaultExpanded = false,
 }: {
   traffic: PanelTraffic
   monitoring: PanelMonitoringControl
   onChanged: () => void
   now: number
+  defaultExpanded?: boolean
 }) {
   const [pending, setPending] = useState(false)
   const [error, setError] = useState<string>()
@@ -84,6 +86,7 @@ export function TrafficCard({
       description="Bytes, requests, and errors through the agent"
       icon={<Activity className="size-4" aria-hidden="true" />}
       action={<Badge tone={tone}>{status}</Badge>}
+      defaultExpanded={defaultExpanded}
       expandable={enabled}
       control={
         <Toggle
