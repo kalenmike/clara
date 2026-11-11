@@ -37,7 +37,7 @@ export function useFeatureControl(
     pending,
     error,
     disabled: pending || stopped,
-    title: stopped ? 'Start the agent before changing features' : undefined,
+    title: stopped ? 'Go online before changing features' : undefined,
     toggle,
   }
 }

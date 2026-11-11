@@ -92,7 +92,7 @@ export type AgentSessionInfo = {
 }
 
 export type AgentPolicy = {
-  /** Gate OpenCode proxying without duplicating runtime state in the agent. */
+  /** Gate OpenCode proxying without duplicating runtime state in the hub service. */
   canProxy?: () => boolean
   /** Gate push actions while keeping stored subscriptions intact. */
   canPush?: () => boolean
@@ -117,15 +117,15 @@ export type AgentOptions = {
   policy?: AgentPolicy
   /** Shared traffic counters for the panel; absent in tests. */
   traffic?: TrafficMeter
-  /** Which transport this agent serves, for the per-transport split. */
+  /** Which transport this hub service serves, for the per-transport split. */
   transport?: PanelTransport
   log?: (message: string, detail?: unknown) => void
 }
 
 /**
- * One Agent serves every client attached to a single transport (the local WS
+ * One `Agent` instance serves every client attached to a single transport (the local WS
  * listener or the relay). Sessions are independent and keyed by the client's
- * random sid, so the relay can broadcast every agent frame without routing
+ * random sid, so the relay can broadcast every hub frame without routing
  * state.
  */
 export class Agent {
@@ -171,7 +171,7 @@ export class Agent {
     if (isSealedFrame(frame)) {
       const session = this.sessions.get(frame.sid)
       if (!session) {
-        // A sealed frame for a session this agent does not hold is either a
+        // A sealed frame for a session this instance does not hold is either a
         // stale client or someone probing with a guessed session id.
         this.options.traffic?.recordError('orphan')
         return
@@ -200,7 +200,7 @@ export class Agent {
 
   /**
    * Read-only view of the live E2EE sessions. Keys and replay state stay inside
-   * the agent; only display metadata is exposed to the local panel.
+   * the instance; only display metadata is exposed to the local panel.
    */
   getSnapshot(now = Date.now()): AgentSessionInfo[] {
     const sessions: AgentSessionInfo[] = []
@@ -706,7 +706,7 @@ export class Agent {
         type: 'sync.error',
         id,
         code: 'storage',
-        message: 'Client sync storage is not available on this agent',
+        message: 'Client sync storage is not available on this hub',
       })
       return
     }
@@ -726,7 +726,7 @@ export class Agent {
         type: 'sync.error',
         id,
         code: 'storage',
-        message: 'Client sync storage is not available on this agent',
+        message: 'Client sync storage is not available on this hub',
       })
       return
     }
@@ -747,7 +747,7 @@ export class Agent {
         type: 'sync.error',
         id,
         code: 'storage',
-        message: 'Client sync storage is not available on this agent',
+        message: 'Client sync storage is not available on this hub',
       })
       return
     }
@@ -824,7 +824,7 @@ export class Agent {
     return this.options.policy?.canSync?.() ?? true
   }
 
-  /** Tell every connected client that the agent info changed. */
+  /** Tell every connected client that the hub info changed. */
   broadcastAgentInfo(): void {
     if (this.sessions.size === 0) return
     const payload = { type: 'agent.status' as const, online: true, agent: this.options.info }
@@ -857,7 +857,7 @@ export class Agent {
         503,
         'Service Unavailable',
         'harness_unconfigured',
-        'No harness connection is configured. Set one up in the agent panel.'
+        'No harness connection is configured. Set one up in the hub panel.'
       )
       return
     }
@@ -1018,7 +1018,7 @@ export class Agent {
         })
       })
       .catch((cause) => {
-        this.options.log?.('could not send an agent frame', cause)
+        this.options.log?.('could not send a hub frame', cause)
       })
     session.sendChain = next
   }

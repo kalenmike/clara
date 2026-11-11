@@ -56,7 +56,7 @@ export function AgentCard({
     if (
       next &&
       !window.confirm(
-        'Stop all external connections? The panel stays available so you can start the agent again.'
+        'Take every external connection offline? The panel stays available so you can bring them back.'
       )
     ) {
       return
@@ -75,13 +75,13 @@ export function AgentCard({
 
   return (
     <CollapsibleCard
-      title="Agent"
-      description="The home agent process and its pairing state"
+      title="Hub"
+      description="The hub service and its pairing state"
       icon={<Server className="size-4" aria-hidden="true" />}
       defaultExpanded
       action={
         <Badge tone={agent.stopped ? 'warning' : 'success'}>
-          {agent.stopped ? 'Stopped' : 'Running'}
+          {agent.stopped ? 'Connections off' : 'Connections on'}
         </Badge>
       }
       control={
@@ -94,7 +94,13 @@ export function AgentCard({
           }`}
         >
           <Power className="size-3.5" aria-hidden="true" />
-          {pending ? (stopped ? 'Starting…' : 'Stopping…') : stopped ? 'Start agent' : 'Stop agent'}
+          {pending
+            ? stopped
+              ? 'Going online…'
+              : 'Going offline…'
+            : stopped
+              ? 'Go online'
+              : 'Go offline'}
         </button>
       }
       notice={
@@ -174,7 +180,7 @@ export function OpenCodeCard({
   return (
     <CollapsibleCard
       title="Harness"
-      description="The active coding-agent connection this agent proxies"
+      description="The active harness connection this hub proxies"
       icon={<Cpu className="size-4" aria-hidden="true" />}
       action={<Badge tone={tone}>{status}</Badge>}
       defaultExpanded={defaultExpanded}
@@ -380,7 +386,7 @@ export function RelayCard({
             <KeyValue label="Reconnect attempts">{relay.reconnectAttempts ?? 0}</KeyValue>
             <KeyValue label="Tokens">
               {relay.agentTokenConfigured && relay.clientTokenConfigured
-                ? 'Agent and client configured'
+                ? 'Hub and client configured'
                 : 'Missing a token'}
             </KeyValue>
             {relay.error ? <Notice>{redact(relay.error)}</Notice> : null}
@@ -389,11 +395,11 @@ export function RelayCard({
         ) : (
           <>
             <EmptyState>
-              This agent is local-only. Set <span className="font-mono">CLARA_RELAY_URL</span>, a
+              This hub is local-only. Set <span className="font-mono">CLARA_RELAY_URL</span>, a
               room, and both tokens to enable remote access.
             </EmptyState>
             <p className="pt-2 text-xs text-neutral-500 dark:text-neutral-400">
-              A relay-disabled agent still serves the local WebSocket and this panel.
+              A relay-disabled hub still serves the local WebSocket and this panel.
             </p>
           </>
         )}
@@ -515,7 +521,7 @@ export function ConfigCard({
           hint="Pairing links open this URL."
           savedHint="Saved in server.json."
           defaultHint="Using the local default."
-          envHint="Set by CLARA_PAIRING_BASE_URL. Remove it and restart the agent to edit here."
+          envHint="Set by CLARA_PAIRING_BASE_URL. Remove it and restart the hub service to edit here."
           placeholder="http://127.0.0.1:8080"
           mono
           onChanged={onChanged}
@@ -534,7 +540,7 @@ export function ConfigCard({
           hint="Web Push contact: an HTTPS URL or a mailto: address."
           savedHint="Saved in vapid.json."
           defaultHint="Using https://clara.local."
-          envHint="Set by CLARA_VAPID_SUBJECT. Remove it and restart the agent to edit here."
+          envHint="Set by CLARA_VAPID_SUBJECT. Remove it and restart the hub service to edit here."
           placeholder="https://clara.local"
           mono
           onChanged={onChanged}

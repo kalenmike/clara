@@ -7,7 +7,7 @@ export type PushSubscriptionKeys = {
   auth: string
 }
 
-/** The browser shape stored by the home agent. */
+/** The browser shape stored by the hub. */
 export type PushSubscriptionPayload = {
   endpoint: string
   expirationTime?: number | null
@@ -18,7 +18,7 @@ export type PushSubscriptionPayload = {
 export type DeviceClass = 'desktop' | 'mobile'
 
 /**
- * A browser's self-report, attached to the heartbeat. The home agent uses it to
+ * A browser's self-report, attached to the heartbeat. The hub uses it to
  * hold mobile pushes while a desktop client is visibly in use.
  */
 export type PresenceSnapshot = {
@@ -81,7 +81,7 @@ export type DeviceEnrollAction = {
 }
 
 /**
- * Actions travel from a browser client to the home agent. `body` is base64url
+ * Actions travel from a browser client to the hub. `body` is base64url
  * encoded so the payload stays JSON-safe on every runtime.
  */
 export type ClaraAction =

@@ -28,8 +28,8 @@ export function SyncCard() {
           <Cloud className="size-4" /> Settings sync
         </CardTitle>
         <CardDescription>
-          Choose what this device shares with your other paired devices. The home agent stores the
-          values, and its copy wins when devices disagree.
+          Choose what this device shares with your other paired devices. The hub stores the values,
+          and its copy wins when devices disagree.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
@@ -68,7 +68,7 @@ export function SyncCard() {
               <span>{statusText(status.syncing, status.lastSyncedAt)}</span>
             </div>
             <p className="mt-0.5">
-              Checks every {intervalLabel(intervalMs)}. The cadence is set in the home agent panel.
+              Checks every {intervalLabel(intervalMs)}. The cadence is set in the hub panel.
             </p>
           </div>
           <Button
@@ -91,7 +91,7 @@ export function SyncCard() {
 
         <p className="text-[11px] text-muted-foreground">
           Each device chooses its own categories. Turning a category off stops syncing it here but
-          leaves the value the home agent already stored.
+          leaves the value the hub already stored.
         </p>
       </CardContent>
     </Card>

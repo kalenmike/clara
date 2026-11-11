@@ -16,7 +16,7 @@ export type SyncSnapshot = {
 export type SyncErrorCode = 'invalid' | 'too_large' | 'conflict' | 'disabled' | 'storage'
 
 /**
- * States travel from the home agent to a browser client. Response chunks are
+ * States travel from the hub to a browser client. Response chunks are
  * base64url encoded so a single JSON frame decoder works in every runtime.
  */
 export type ClaraState =

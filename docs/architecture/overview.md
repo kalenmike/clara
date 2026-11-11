@@ -1,10 +1,34 @@
 # Architecture overview
 
-Clara is a browser/PWA client for one running OpenCode server, plus a small home
-agent that can carry the OpenCode HTTP/SSE API over an end-to-end encrypted
-WebSocket. The web app reads projects, sessions, and messages; the agent owns
-OpenCode authentication, the outbound relay connection, and Web Push delivery
-while Clara is closed.
+Clara is a browser/PWA client for one running OpenCode server, plus a hub: a small
+service on your machine that carries the OpenCode HTTP/SSE API over an
+end-to-end encrypted WebSocket. The web app reads projects, sessions, and
+messages; the hub owns OpenCode authentication, the outbound relay connection,
+and Web Push delivery while Clara is closed.
+
+## Vocabulary
+
+The home-side installation is the **hub**. Three names cover it:
+
+| Name        | Meaning                                                                                                                        |
+| ----------- | ------------------------------------------------------------------------------------------------------------------------------ |
+| Hub         | The Clara installation on the machine that runs the harness: one process, one database, one panel, and at most one relay room. |
+| Hub service | The Node process that implements the hub (`apps/server`, `pnpm clara server`, the `clara-server` container).                   |
+| Hub panel   | The authenticated loopback dashboard served by the hub service (`apps/panel`).                                                 |
+
+Other terms:
+
+- **Harness** — the agent runtime the hub proxies. OpenCode is the only one today.
+- **Agent** — an LLM worker, prompt, or agent definition in a harness or
+  orchestration package. It never means the hub.
+- **Client** / **device** — the browser or installed PWA.
+- **Relay** — the Cloudflare Worker and Durable Object that forward encrypted
+  frames.
+
+Wire and configuration names keep the historical `agent` role: the relay
+authenticates the hub as `clara.role.agent` with `CLARA_AGENT_TOKEN`, frames use
+`agent.status` and `ready.agent`, and shared types expose `AgentInfo`. Those are
+compatibility names, not prose.
 
 ## Stack
 
@@ -16,7 +40,7 @@ while Clara is closed.
 | Server state | TanStack Query 5                                                      |
 | Stream state | A small external store (`chatStore`) read with `useSyncExternalStore` |
 | OpenCode     | `@opencode/client` **2.1.1**, pinned to the server minor              |
-| Home agent   | Node 22, `ws`, `node:http`, WebCrypto                                 |
+| Hub service  | Node 22, `ws`, `node:http`, WebCrypto                                 |
 | Relay        | Cloudflare Worker + `RelayRoom` Durable Object                        |
 | Crypto       | Device key → HKDF-SHA-256 → AES-256-GCM (WebCrypto)                   |
 
@@ -39,8 +63,8 @@ browser-safe, so Clara uses the browser client from the same family.
 ```text
 apps/
   web/                 React SPA, deployed to Cloudflare Pages or the web container
-  panel/               Loopback dashboard and admin controls served by the home agent
-  server/              Node home agent, outbound relay client, local WS listener
+  panel/               Loopback dashboard and admin controls served by the hub service
+  server/              Node hub service, outbound relay client, local WS listener
   orchestrator/        Loopback orchestration service and CLI
   mcp/                 stdio MCP bridge
 packages/
@@ -60,39 +84,39 @@ OpenCode HTTP/SSE
       ▲
       │ basic auth, server-side only
       ▼
-Clara home agent ──outbound WSS──▶ Worker ──▶ RelayRoom DO ◀──WSS── web / iPhone PWA
+Clara hub ──outbound WSS──▶ Worker ──▶ RelayRoom DO ◀──WSS── web / iPhone PWA
       │                                              │
       └──────────── E2EE payloads ───────────────────┘
       │
       └── Web Push (VAPID) ──▶ Apple / browser push service ──▶ service worker
 
-Local mode: web ──WSS──▶ home agent ──▶ active harness (OpenCode now)
-Panel: browser ──HTTP 127.0.0.1:8790──▶ home agent (auth + setup + controls)
+Local mode: web ──WSS──▶ hub ──▶ active harness (OpenCode now)
+Panel: browser ──HTTP 127.0.0.1:8790──▶ hub (auth + setup + controls)
 Harness: panel ──▶ SQLite harness_connections (encrypted secret) ──▶ harness client
-Docker: web client, home agent, orchestrator, and OpenCode on the `clara` bridge network
+Docker: web client, hub, orchestrator, and OpenCode on the `clara` bridge network
 ```
 
 The relay forwards opaque frames. It does not parse, store, or replay payloads.
 Push subscriptions travel through the E2EE channel, but delivery uses the Web
-Push protocol directly from the home agent to the browser vendor's push service.
+Push protocol directly from the hub to the browser vendor's push service.
 See [relay.md](relay.md), [e2ee.md](e2ee.md), and
 [notifications.md](../features/notifications.md).
 
 ## Connecting
 
-Clara supports two transports, both through the home agent:
+Clara supports two transports, both through the hub:
 
-| Mode        | Selected by                        | Auth                            |
-| ----------- | ---------------------------------- | ------------------------------- |
-| Relay       | `VITE_CLARA_WS_URL` + pairing code | Device key + relay client token |
-| Local agent | Pairing payload URL (`local` room) | Device key + local WebSocket    |
+| Mode  | Selected by                        | Auth                            |
+| ----- | ---------------------------------- | ------------------------------- |
+| Relay | `VITE_CLARA_WS_URL` + pairing code | Device key + relay client token |
+| Local | Pairing payload URL (`local` room) | Device key + local WebSocket    |
 
 The connect screen first proves any pairing link or stored device behind a
 branded splash. If none connects, it shows the pairing form. There is no direct
-HTTP option: every browser connection goes through the home agent. Pairing is
+HTTP option: every browser connection goes through the hub. Pairing is
 described in [pairing.md](../features/pairing.md).
 
-The OpenCode password never reaches the browser. The home agent adds basic auth,
+The OpenCode password never reaches the browser. The hub adds basic auth,
 strips client-supplied authorization/hop-by-hop headers, and only proxies
 `/api/` paths on the configured origin.
 
@@ -118,23 +142,23 @@ ConnectionProvider
 - **EventProvider** reconnects with jittered exponential backoff, treats 45s
   without a heartbeat as a dead stream, and invalidates cached queries after a
   reconnect. It tolerates unknown event types.
-- The home agent keeps one E2EE session per browser connection. Relay clients
-  are independent; the Durable Object broadcasts agent frames and clients drop
+- The hub keeps one E2EE session per browser connection. Relay clients
+  are independent; the Durable Object broadcasts hub frames and clients drop
   frames for other sessions.
-- The home agent also reads OpenCode's `/api/event` stream for push and stores
+- The hub service also reads OpenCode's `/api/event` stream for push and stores
   Web Push subscriptions at `~/.config/clara/subscriptions.json`. VAPID keys
   live in `~/.config/clara/vapid.json`.
-- The home agent serves `apps/panel` on a second listener (default
+- The hub service serves `apps/panel` on a second listener (default
   `127.0.0.1:8790`). It requires a superadmin session, provides first-run setup
   and harness configuration, reads one allowlisted runtime snapshot, exposes
-  guarded controls for the four external features, the master stop, the shell
+  guarded controls for the four external features, the Go offline control, the shell
   policy, monitoring, the client-sync gate and cadence, and the local
   orchestration service, and never returns device keys, harness password, tokens,
   push endpoints, sync values, or file contents. See
   [panel.md](../features/panel.md) and
-  [agent-controls.md](../features/agent-controls.md).
+  [hub-controls.md](../features/hub-controls.md).
 - Harness connections live in SQLite; exactly one is active. `HarnessManager`
-  builds the matching client on load and after a panel save, so the agent proxy
+  builds the matching client on load and after a panel save, so the hub proxy
   hot-swaps without a restart. OpenCode is the first adapter.
 - Feature choices, the stopped flag, shell policy, monitoring, the
   orchestration switch, the client-sync gate and interval, panel users, and
@@ -190,10 +214,10 @@ directory from the session record. Moving a session to a worktree changes only
 ## Host command policy
 
 The web client normally only reads OpenCode state. The one exception is Git
-history: the Git tab asks the home agent to run `git log -n 10` with a
+history: the Git tab asks the hub to run `git log -n 10` with a
 machine-readable `--format` through OpenCode's shell API.
 
-The agent inspects every proxied request before forwarding it. Command-capable
+The hub service inspects every proxied request before forwarding it. Command-capable
 routes — `/api/shell`, `/api/session/:id/shell`, `/api/pty`,
 `/api/experimental/persistent-pty`, and
 `/api/experimental/session/:id/terminal` — are refused with `403` unless the
@@ -231,11 +255,11 @@ loop re-subscribes through the transport.
 ## Security notes
 
 - The shell policy is a guardrail, not a sandbox. It filters command requests
-  relayed by the agent, but a modified web build can still use non-command
-  OpenCode APIs through the agent.
+  relayed by the hub, but a modified web build can still use non-command
+  OpenCode APIs through the hub.
 - Never commit `service.json`, passwords, pairing codes, device keys, relay tokens,
   `secrets.key`, or `admin-setup.txt`.
-- The home agent's config is `~/.config/clara/server.json` (mode `0600`).
+- The hub's config is `~/.config/clara/server.json` (mode `0600`).
   Settings, client sync data, panel users, and harness connections live in
   `~/.local/share/clara/clara.db` (mode `0600`). Harness passwords are encrypted
   with `secrets.key` (mode `0600`) or `CLARA_SECRET_KEY`, so the database alone
@@ -251,9 +275,9 @@ loop re-subscribes through the transport.
   origin can still use the key while the page is open.
 - Relay tokens are defense in depth; the per-device key is the real
   authentication key.
-- The Worker uses separate agent/client tokens so a paired client cannot
-  impersonate the home agent.
-- The agent panel requires a superadmin login and defaults to `127.0.0.1`. It
+- The Worker uses separate hub/client tokens so a paired client cannot
+  impersonate the hub.
+- The hub panel requires a superadmin login and defaults to `127.0.0.1`. It
   checks the socket address when remote access is not explicitly allowed, plus
   `Host`, `Origin`, and fetch metadata, and never returns device keys, harness
   password, tokens, push endpoints, sync values, or file contents. The first-run

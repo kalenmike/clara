@@ -141,7 +141,7 @@ describe('relay fetch transport', () => {
     })
   })
 
-  it('updates the agent info from an agent.status frame', async () => {
+  it('updates the hub info from an agent.status frame', async () => {
     await transport.fetch('http://clara.relay/api/info', {
       signal: AbortSignal.timeout(3_000),
     })

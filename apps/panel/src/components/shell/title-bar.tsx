@@ -34,13 +34,13 @@ export function TitleBar({
         <span className="panel-titlebar-mark" aria-hidden="true">
           C
         </span>
-        <strong>Clara agent panel</strong>
-        <span className="panel-titlebar-tag">home agent</span>
+        <strong>Clara hub panel</strong>
+        <span className="panel-titlebar-tag">hub</span>
       </div>
 
       <div className="panel-titlebar-path" title={configPath}>
         <Folder className="size-3.5" aria-hidden="true" />
-        <code>{configPath ? (masked ? PEEK_MASK : configPath) : 'Waiting for the agent…'}</code>
+        <code>{configPath ? (masked ? PEEK_MASK : configPath) : 'Waiting for the hub…'}</code>
       </div>
 
       <div className="panel-titlebar-actions">
@@ -70,7 +70,7 @@ export function TitleBar({
           type="button"
           onClick={onRefresh}
           disabled={refreshing}
-          title="Refresh the agent snapshot"
+          title="Refresh the hub snapshot"
           className="panel-button"
         >
           <RefreshCw

@@ -102,10 +102,10 @@ for one command.
 `pnpm clara pair` runs the server source directly for a local target and does
 not need a build. It probes the running deployment first; `--local` forces the
 host install and `--docker` the container. Add `--no-relay` for a local-only
-pairing code and the local web app link even when the agent has a relay
+pairing code and the local web app link even when the hub has a relay
 configured.
 `pnpm clara server panel` opens a panel that is already being served; start the
-agent first with `pnpm clara server start --local` (or `--docker`).
+hub service first with `pnpm clara server start --local` (or `--docker`).
 `pnpm clara start` starts Docker by default: it creates the `clara` network,
 bootstraps `docker/.env` and the orchestrator token on first run, then starts
 the selected services in orchestrator, server, web order. Pass `--local` to run
@@ -126,8 +126,8 @@ local listener URL; Details names the panel URL. Add `--json` for a
 machine-readable record or `{ "ok": true, "services": [...] }` envelope, and
 select a subset with the same `--no-*` flags as `start`.
 `pnpm clara web start --build` builds and serves the static SPA on
-`127.0.0.1:8080`; `pnpm dev:web` remains the Vite development server. The agent
-panel is the one-time harness setup surface; the server does not read OpenCode's
+`127.0.0.1:8080`; `pnpm dev:web` remains the Vite development server. The hub
+panel is the one-time harness setup surface; the hub service does not read OpenCode's
 `service.json`. Local tooling such as Clara Lab reads the development password
 from `${XDG_STATE_HOME:-~/.local/state}/opencode/service.json` or
 `CLARA_OPENCODE_PASSWORD`.

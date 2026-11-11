@@ -154,7 +154,7 @@ export function HarnessCard({
   return (
     <CollapsibleCard
       title="Harness connections"
-      description="The coding-agent API this agent proxies to paired clients"
+      description="The harness API this hub proxies to paired clients"
       icon={<Cable className="size-4" aria-hidden="true" />}
       action={
         <Badge tone={harness.configured ? 'success' : 'warning'}>
@@ -292,8 +292,8 @@ export function HarnessCard({
                 className="mt-1 w-full rounded-md border border-neutral-200 bg-white px-2 py-1.5 font-mono text-xs outline-none focus:border-neutral-500 dark:border-neutral-700 dark:bg-neutral-950"
               />
               <span className="mt-1 block text-[10px] font-normal text-neutral-500 dark:text-neutral-400">
-                Inside the server container, 127.0.0.1 is the Clara server. Use the OpenCode
-                container service name (for example http://opencode:4096) or host.docker.internal.
+                Inside the hub container, 127.0.0.1 is the hub service. Use the OpenCode container
+                service name (for example http://opencode:4096) or host.docker.internal.
               </span>
             </label>
             <div className="grid gap-2 sm:grid-cols-2">

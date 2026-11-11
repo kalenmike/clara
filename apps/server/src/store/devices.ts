@@ -58,7 +58,7 @@ export type EnrollDeviceInput = {
   deviceClass?: DeviceClass
 }
 
-/** The agent only needs this subset; tests can provide an in-memory double. */
+/** The hub only needs this subset; tests can provide an in-memory double. */
 export interface DeviceRegistry {
   findPairingToken(id: string): Promise<PairingToken | undefined>
   findActiveDevice(id: string): Promise<ActiveDevice | undefined>

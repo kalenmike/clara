@@ -34,9 +34,9 @@ const EMPTY_STATUS: SettingsSyncStatus = {
 export type SettingsSyncContextValue = {
   /** The transport can carry sync actions. */
   supported: boolean
-  /** The home agent admin has not disabled sync. */
+  /** The hub admin has not disabled sync. */
   serverEnabled: boolean
-  /** Both the transport and the agent are ready right now. */
+  /** Both the transport and the hub are ready right now. */
   available: boolean
   reason: string | null
   intervalMs: number
@@ -50,7 +50,7 @@ const SettingsSyncContext = createContext<SettingsSyncContextValue | null>(null)
 
 /**
  * Runs client settings sync for the whole connected session. The panel controls
- * both the global gate and the check cadence; this provider follows the agent's
+ * both the global gate and the check cadence; this provider follows the hub's
  * broadcast and hides the feature when the admin turns it off.
  */
 export function SettingsSyncProvider({ children }: { children: ReactNode }) {
@@ -173,10 +173,10 @@ export function SettingsSyncProvider({ children }: { children: ReactNode }) {
 
   const reason = useMemo(() => {
     if (!supported) {
-      return 'Settings sync needs the Clara home agent. Pair with it or connect over its local WebSocket.'
+      return 'Settings sync needs the Clara hub. Pair with it or connect over its local WebSocket.'
     }
-    if (!serverEnabled) return 'Settings sync is disabled by the home agent admin.'
-    if (!config) return 'Connect to a Clara server to sync settings.'
+    if (!serverEnabled) return 'Settings sync is disabled by the hub admin.'
+    if (!config) return 'Connect to a Clara hub to sync settings.'
     if (!online) return 'Connect to the Clara home server to sync settings.'
     return null
   }, [config, online, serverEnabled, supported])

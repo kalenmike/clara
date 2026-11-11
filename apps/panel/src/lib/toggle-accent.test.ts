@@ -22,7 +22,7 @@ const RED = /bg-red-\d{3}/
 const NEUTRAL = /bg-neutral-\d{3}/
 
 describe('feature switch accent rule', () => {
-  it('criterion 1: while the agent is running, the toggle accent rule yields the green enabled accent for an enabled toggle and leaves a disabled toggle on the existing disabled accent', () => {
+  it('criterion 1: while connections are on, the toggle accent rule yields the green enabled accent for an enabled toggle and leaves a disabled toggle on the existing disabled accent', () => {
     const enabledRunning = toggleTrackClasses('on', false)
     expect(enabledRunning).toMatch(GREEN)
     expect(enabledRunning).not.toMatch(RED)
@@ -33,7 +33,7 @@ describe('feature switch accent rule', () => {
     expect(disabledRunning).not.toMatch(RED)
   })
 
-  it('criterion 2: while the agent is stopped, the same toggle accent rule yields the red stopped accent for an enabled toggle and leaves a disabled toggle on the existing disabled accent', () => {
+  it('criterion 2: while connections are off, the same toggle accent rule yields the red stopped accent for an enabled toggle and leaves a disabled toggle on the existing disabled accent', () => {
     const enabledStopped = toggleTrackClasses('on', true)
     expect(enabledStopped).toMatch(RED)
     expect(enabledStopped).not.toMatch(GREEN)

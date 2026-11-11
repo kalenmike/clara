@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// Docker and local controls for the Clara home agent.
+// Docker and local controls for the Clara hub.
 //
 //   pnpm clara server start [--local|--docker] [--build]
 //   pnpm clara server stop [--local|--docker]
@@ -114,7 +114,7 @@ async function startLocal() {
     }
   }
   if (!existsSync(SERVER_ENTRY)) {
-    console.error('The home agent is not built. Run `pnpm build` first.')
+    console.error('The hub service is not built. Run `pnpm build` first.')
     process.exitCode = 1
     return
   }
@@ -123,7 +123,7 @@ async function startLocal() {
   if (current.ok && current.body?.service === 'clara-server') {
     if (current.body.mode === 'container') {
       console.error(
-        'The home agent is running in a container. Stop it before starting a local agent.'
+        'The hub is running in a container. Stop it before starting a local hub service.'
       )
       process.exitCode = 1
       return
@@ -211,9 +211,9 @@ async function panel() {
   if (health.ok) {
     const service =
       typeof health.body?.service === 'string' ? health.body.service : 'another service'
-    console.error(`${panelURL()} answered as ${service}, not the Clara home agent.`)
+    console.error(`${panelURL()} answered as ${service}, not the Clara hub.`)
   } else {
-    console.error(`The home agent is not serving the panel at ${url}.`)
+    console.error(`The hub service is not serving the panel at ${url}.`)
   }
   console.error(
     'Start it with `pnpm clara server start --local` or `pnpm clara server start --docker`.'
@@ -260,7 +260,7 @@ async function runServerProcessFor(serverArgs) {
     return
   }
   if (!existsSync(SERVER_ENTRY)) {
-    console.error('The home agent is not built. Run `pnpm build` first.')
+    console.error('The hub service is not built. Run `pnpm build` first.')
     process.exitCode = 1
     return
   }
@@ -286,17 +286,17 @@ async function logs() {
 }
 
 function printHelp() {
-  console.log(`Manage the Clara home agent
+  console.log(`Manage the Clara hub
 
 Usage:
   pnpm clara server <command> [--local|--docker] [options]
 
 Commands:
-  start [--build]              Start the container, or the local agent with --local
-  stop                         Stop the container, or the local agent with --local
+  start [--build]              Start the container, or the local hub service with --local
+  stop                         Stop the container, or the local hub service with --local
   restart [--build]            Restart the selected mode
   status [--json]              Probe the panel and local listener
-  panel                        Open the agent panel in a browser
+  panel                        Open the hub panel in a browser
   setup-token                  Print the one-time panel setup token
   admin reset                  Reset the panel superadmin password
   pair [--no-relay]            Print a pairing code from the selected deployment

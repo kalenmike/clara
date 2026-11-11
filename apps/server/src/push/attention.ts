@@ -23,7 +23,7 @@ export function isSnoozedSession(session: SessionInfo): boolean {
 }
 
 /**
- * The agent mirrors the web's mailbox signals so a push and the sidebar agree
+ * The hub mirrors the web's mailbox signals so a push and the sidebar agree
  * on why a session needs the person.
  */
 export async function loadSessionSignals(

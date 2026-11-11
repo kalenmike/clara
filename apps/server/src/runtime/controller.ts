@@ -318,7 +318,9 @@ export class RuntimeController {
     this.orchestrationTimer.unref?.()
 
     if (settings.stopped) {
-      this.options.log('agent stopped by an admin setting; only the panel and database are running')
+      this.options.log(
+        'connections stopped by an admin setting; only the panel and database are running'
+      )
       return
     }
     await this.applyDesired()
@@ -355,7 +357,7 @@ export class RuntimeController {
 
   /**
    * Monitoring is a panel concern, not a transport: it stays switchable while
-   * the agent is stopped. Turning it off discards the window so no stale
+   * connections are off. Turning it off discards the window so no stale
    * numbers survive the decision.
    */
   async setMonitoring(enabled: boolean): Promise<PanelControls> {
@@ -431,7 +433,7 @@ export class RuntimeController {
         throw new PanelControlError(
           409,
           'env_override',
-          'CLARA_PAIRING_BASE_URL is set. Remove it and restart the agent to edit the Web URL here.'
+          'CLARA_PAIRING_BASE_URL is set. Remove it and restart the hub service to edit the Web URL here.'
         )
       }
       const value = update.pairingBaseUrl
@@ -451,7 +453,7 @@ export class RuntimeController {
         throw new PanelControlError(
           409,
           'env_override',
-          'CLARA_VAPID_SUBJECT is set. Remove it and restart the agent to edit the VAPID contact here.'
+          'CLARA_VAPID_SUBJECT is set. Remove it and restart the hub service to edit the VAPID contact here.'
         )
       }
       const value = update.vapidSubject
@@ -516,7 +518,7 @@ export class RuntimeController {
 
     if (stopped) {
       this.errors.clear()
-      this.options.log('agent stopped by an admin setting')
+      this.options.log('connections stopped by an admin setting')
       await this.stopLocal()
       this.relayClient?.close()
       this.stopPushMonitor()
@@ -525,7 +527,7 @@ export class RuntimeController {
       return this.controls()
     }
 
-    this.options.log('agent started by an admin setting')
+    this.options.log('connections started by an admin setting')
     await this.applyDesired()
     return this.controls()
   }
@@ -715,7 +717,7 @@ export class AgentStoppedError extends Error {
   readonly status = 409
 
   constructor() {
-    super('The agent is stopped. Start it before changing features.')
+    super('Connections are off. Go online before changing features.')
     this.name = 'AgentStoppedError'
   }
 }

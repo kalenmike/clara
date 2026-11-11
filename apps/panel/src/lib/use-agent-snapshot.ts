@@ -55,7 +55,7 @@ export function useAgentSnapshot({
 
       const data = (await response.json()) as PanelSnapshot
       if (data.apiVersion !== PANEL_API_VERSION) {
-        throw new Error(`The panel UI and agent API versions do not match (${data.apiVersion}).`)
+        throw new Error(`The panel UI and hub API versions do not match (${data.apiVersion}).`)
       }
       if (!mounted.current || controller.signal.aborted) return
 

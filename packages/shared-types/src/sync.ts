@@ -1,9 +1,9 @@
-/** How often a paired client checks the agent for settings changes. */
+/** How often a paired client checks the hub for settings changes. */
 export const DEFAULT_SYNC_INTERVAL_MS = 30_000
 export const MIN_SYNC_INTERVAL_MS = 5_000
 export const MAX_SYNC_INTERVAL_MS = 15 * 60_000
 
-/** Offered by the agent panel for the client check cadence. */
+/** Offered by the hub panel for the client check cadence. */
 export const SYNC_INTERVAL_PRESETS_MS = [
   5_000,
   15_000,

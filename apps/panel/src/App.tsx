@@ -78,7 +78,7 @@ function Panel({ state, session }: { state: SnapshotState; session: SessionContr
               <button type="button" className="panel-link" onClick={() => setTab('overview')}>
                 Overview
               </button>{' '}
-              to start the agent.
+              to go online.
             </span>
           </div>
         ) : null}
@@ -174,7 +174,7 @@ function SessionLoading() {
         C
       </div>
       <LoaderCircle className="size-5 animate-spin text-neutral-400" aria-hidden="true" />
-      <p>Clara agent panel</p>
+      <p>Clara hub panel</p>
     </div>
   )
 }
@@ -184,7 +184,7 @@ function LoadingState() {
     <div
       className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3"
       aria-busy="true"
-      aria-label="Loading agent status"
+      aria-label="Loading hub status"
     >
       {Array.from({ length: 6 }, (_, index) => (
         <div key={index} className="panel-card h-40 animate-pulse" />
@@ -197,14 +197,14 @@ function ErrorState({ error, onRetry }: { error?: string; onRetry: () => void })
   return (
     <div className="panel-card mx-auto mt-10 w-full max-w-lg p-6 text-center">
       <CircleAlert className="mx-auto size-6 text-red-500" aria-hidden="true" />
-      <h2 className="mt-3 text-sm font-semibold">Could not read the agent status</h2>
+      <h2 className="mt-3 text-sm font-semibold">Could not read the hub status</h2>
       <p className="panel-muted mt-1 text-xs">{error ?? 'The panel API did not answer.'}</p>
       <button type="button" onClick={onRetry} className="panel-button mt-4">
         <LoaderCircle className="size-3.5" aria-hidden="true" />
         Try again
       </button>
       <p className="panel-muted mt-3 text-[11px]">
-        Make sure the agent is running and the panel is enabled on its loopback port.
+        Make sure the hub service is running and the panel is enabled on its loopback port.
       </p>
     </div>
   )

@@ -47,9 +47,9 @@ export function OverviewView({
   return (
     <View
       id="overview"
-      kicker="Home agent"
+      kicker="Hub"
       title="Overview"
-      description="Live state of the agent, its harness, and the connections paired clients use."
+      description="Live state of the hub, its harness, and the connections paired clients use."
     >
       <AttentionBanner items={attention} onSelect={onSelect} />
 
@@ -96,7 +96,7 @@ function RecentActivity({
           <h2 id="overview-activity-title" className="text-[13px] font-semibold">
             Recent activity
           </h2>
-          <p className="panel-muted text-[11px]">In-memory events since the agent started</p>
+          <p className="panel-muted text-[11px]">In-memory events since the hub service started</p>
         </div>
         <button type="button" className="panel-link" onClick={onOpen}>
           View all
@@ -158,7 +158,9 @@ function StorageSummary({
         {storage.length === 0 ? (
           <EmptyState>No storage entries have been reported.</EmptyState>
         ) : issues.length === 0 ? (
-          <p className="panel-muted text-xs">Every file the agent reads or writes looks healthy.</p>
+          <p className="panel-muted text-xs">
+            Every file the hub service reads or writes looks healthy.
+          </p>
         ) : (
           <ul className="panel-mini-list">
             {issues.map((entry) => (

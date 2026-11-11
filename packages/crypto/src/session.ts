@@ -2,9 +2,9 @@ import { getCrypto, utf8 } from './codec.ts'
 import { importSessionKey } from './keys.ts'
 
 export type SessionKeys = {
-  /** Browser client to home agent. */
+  /** Browser client to hub. */
   c2s: CryptoKey
-  /** Home agent to browser client. */
+  /** Hub to browser client. */
   s2c: CryptoKey
 }
 

@@ -10,7 +10,7 @@ export function EventsCard({ events, now }: { events: PanelEvent[]; now: number 
   return (
     <CollapsibleCard
       title="Recent activity"
-      description="In-memory events since this agent started"
+      description="In-memory events since this hub service started"
       icon={<ScrollText className="size-4" aria-hidden="true" />}
       action={<Badge tone="neutral">{events.length}</Badge>}
       defaultExpanded

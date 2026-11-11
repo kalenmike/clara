@@ -6,8 +6,8 @@ const REPLACED_CODE = 4002
 const OFFLINE_CODE = 1013
 
 /**
- * A room holds one home-agent socket and any number of client sockets. It does
- * not inspect or persist frames: client frames go to the agent, agent frames
+ * A room holds one hub socket and any number of client sockets. It does
+ * not inspect or persist frames: client frames go to the hub, hub frames
  * are broadcast to every client. Session filtering happens in E2EE clients.
  */
 export class RelayRoom {
@@ -28,12 +28,12 @@ export class RelayRoom {
     }
 
     if (role === 'agent') {
-      // A new home agent owns the room. Drop the old agent and make clients
+      // A new hub owns the room. Drop the old hub and make clients
       // re-handshake immediately against the new process.
       for (const socket of this.state.getWebSockets('agent')) {
-        socket.close(REPLACED_CODE, 'replaced by a new agent')
+        socket.close(REPLACED_CODE, 'replaced by a new hub')
       }
-      this.closeClients(1012, 'home server reconnected')
+      this.closeClients(1012, 'hub reconnected')
     }
 
     const pair = new WebSocketPair()
@@ -62,7 +62,7 @@ export class RelayRoom {
 
     const agents = this.state.getWebSockets('agent')
     if (agents.length === 0) {
-      socket.close(OFFLINE_CODE, 'home server offline')
+      socket.close(OFFLINE_CODE, 'hub offline')
       return
     }
     for (const agent of agents) this.send(agent, message)
@@ -74,13 +74,13 @@ export class RelayRoom {
     // 4002 means a replacement connection already took over; its fetch handler
     // has already closed the clients.
     if (code === REPLACED_CODE) return
-    this.closeClients(1012, reason || 'home server disconnected')
+    this.closeClients(1012, reason || 'hub disconnected')
   }
 
   webSocketError(socket: WebSocket, _error: unknown): void {
     const tags = this.state.getTags(socket)
     socket.close(1011, 'relay error')
-    if (tags.includes('agent')) this.closeClients(1012, 'home server error')
+    if (tags.includes('agent')) this.closeClients(1012, 'hub error')
   }
 
   private send(socket: WebSocket, message: string | ArrayBuffer): void {

@@ -68,10 +68,10 @@ session's own directory. The browser never reads its own filesystem.
    The field and record separators keep multiline bodies intact. Conventional
    headers are split into type, scope, and description for the preview, and
    `Co-authored-by:` trailers are lifted out of the body.
-5. **Commits only work through the home agent.** The request travels over the
-   encrypted session, the agent applies the admin shell policy, and only then is
+5. **Commits only work through the hub.** The request travels over the
+   encrypted session, the hub applies the admin shell policy, and only then is
    it forwarded to OpenCode's shell API.
-6. If the server policy blocks the command, the agent returns `403` and the view
+6. If the hub policy blocks the command, the hub returns `403` and the view
    says commit history is disabled on this server. If the OpenCode version has no
    shell routes, the view says history is unavailable.
 7. **Worktrees are project-wide.** The server returns directories only, so:
@@ -134,8 +134,8 @@ session's own directory. The browser never reads its own filesystem.
 
 ## Not a sandbox
 
-**The shell policy is a guardrail, not a sandbox.** It decides whether the home
-agent forwards a **command request** from a Clara client to OpenCode. It is not a
+**The shell policy is a guardrail, not a sandbox.** It decides whether the hub
+forwards a **command request** from a Clara client to OpenCode. It is not a
 capability boundary for the OpenCode API:
 
 - Any client that reaches OpenCode can still use APIs that are not command
@@ -143,7 +143,7 @@ capability boundary for the OpenCode API:
   prompting an agent, or calling a plugin RPC (`/api/rpc/{rpcID}/{method}`) can
   all have effects on the host.
 - A modified web build can still call non-command OpenCode APIs through the
-  agent, and the agent forwards them.
+  hub, and the hub forwards them.
 - The policy itself is changed from the loopback panel, which has no
   authentication beyond being reachable only from the machine.
 
@@ -166,7 +166,7 @@ hostile client or a compromised origin.
 
 - **No commit-log endpoint exists.** OpenCode 2.1.x and 2.2.x expose
   `vcs.get/base/status/diff/branch` only, so history needs `git log` through the
-  shell API. That is why the feature depends on the home agent and a server
+  shell API. That is why the feature depends on the hub and its shell
   policy.
 - **Session scope is time-based.** OpenCode records no commit IDs for a session,
   so Clara asks git for commits between `session.time.created` and the newest

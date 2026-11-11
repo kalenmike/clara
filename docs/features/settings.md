@@ -25,7 +25,7 @@ detail rows that most people leave alone.
    Reconnect and Disconnect, and the App card shows only the version, update
    state, and cache reset.
 7. Reload Clara or open it later; the same simplify choice is restored. The Sync
-   tab is hidden when the home agent admin disables settings sync, and the
+   tab is hidden when the hub admin disables settings sync, and the
    Shortcuts tab is hidden on touch-first devices.
 
 ## Core business rules
@@ -73,7 +73,7 @@ detail rows that most people leave alone.
   simplified mode.
 - **Touch-first device** — the Shortcuts tab is absent, and the Notifications
   card keeps its existing desktop-only row rules.
-- **Sync disabled by the agent** — the Sync tab disappears and the active section
+- **Sync disabled by the hub** — the Sync tab disappears and the active section
   falls back to Appearance. Re-enabling sync makes it available again.
 - **Older stored values** — a missing or unknown simplify value counts as on;
   no migration is needed.

@@ -24,7 +24,7 @@ export type SealedFrame = {
   ct: string
 }
 
-/** Plaintext handshake failure, broadcast by the agent and filtered by sid. */
+/** Plaintext handshake failure, broadcast by the hub and filtered by sid. */
 export type ErrorFrame = {
   t: 'error'
   v: typeof PROTOCOL_VERSION

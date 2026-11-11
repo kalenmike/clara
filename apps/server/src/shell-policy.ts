@@ -107,7 +107,7 @@ export function evaluateShellRequest(
 
   if (!isCommand) {
     if (policy.mode === 'off' && isShellRead) {
-      return deny('shell_disabled', 'Shell commands are disabled by the Clara server policy')
+      return deny('shell_disabled', 'Shell commands are disabled by the hub policy')
     }
     return { allowed: true }
   }

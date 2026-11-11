@@ -176,7 +176,7 @@ const clara = {
     {
       name: 'server',
       group: 'Services',
-      summary: 'Start, stop, inspect, open the panel, or pair the home agent',
+      summary: 'Start, stop, inspect, open the panel, or pair the hub',
       usage:
         '<start|stop|restart|status [--json]|panel|setup-token|admin|pair|logs> [--local|--docker] [--build]',
       passthroughHelp: true,

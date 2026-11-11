@@ -467,7 +467,7 @@ column or bulk toolbar.
 - Mailbox signals: `client.message.list({ sessionID, order: 'desc', limit: 1, type })`
   for `user` and `assistant`, plus `client.session.form.list({ sessionID })`
 - Automation grouping: `session.metadata.automation === true`; applied only
-  when agent info reports `orchestration === true`. The predicate is checked
+  when hub info reports `orchestration === true`. The predicate is checked
   before archived and snoozed, so workers never enter a mailbox group while the
   service is reachable.
 - Workers section: anchored above the sidebar footer, closed by default. Its

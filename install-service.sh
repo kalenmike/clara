@@ -12,5 +12,5 @@ systemctl --user daemon-reload
 systemctl --user enable --now clara.service
 systemctl --user restart clara.service
 
-echo "Clara home agent installed."
+echo "Clara hub service installed."
 echo "Pair a device with: pnpm clara pair"

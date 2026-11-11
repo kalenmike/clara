@@ -83,7 +83,7 @@ export function TrafficCard({
   return (
     <CollapsibleCard
       title="Traffic"
-      description="Bytes, requests, and errors through the agent"
+      description="Bytes, requests, and errors through the hub"
       icon={<Activity className="size-4" aria-hidden="true" />}
       action={<Badge tone={tone}>{status}</Badge>}
       defaultExpanded={defaultExpanded}
@@ -205,8 +205,8 @@ export function TrafficCard({
               </p>
             )}
             <p className="pt-2 text-xs text-neutral-500 dark:text-neutral-400">
-              Counters reset when the agent restarts or monitoring is switched off. History stays in
-              the systemd journal and Cloudflare analytics.
+              Counters reset when the hub service restarts or monitoring is switched off. History
+              stays in the systemd journal and Cloudflare analytics.
             </p>
           </>
         )}

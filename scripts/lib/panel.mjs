@@ -1,6 +1,6 @@
 import { spawn } from 'node:child_process'
 
-/** Open the agent panel in the platform browser without blocking the CLI. */
+/** Open the hub panel in the platform browser without blocking the CLI. */
 export function openPanel(url) {
   const [command, args] =
     process.platform === 'darwin'

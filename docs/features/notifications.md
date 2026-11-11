@@ -4,7 +4,7 @@
 
 Clara tells the person when a session lands in the Inbox with a system
 notification and a distinct sound for each kind of attention. When the Clara
-home agent is connected, the same alert can arrive as a Web Push notification
+hub is connected, the same alert can arrive as a Web Push notification
 after the last Clara window is closed. Orchestration adds a second source:
 run alerts and finished runs that the adapter delivers into the Clara session
 that started them. The settings card also controls optional
@@ -22,13 +22,13 @@ start an agent run and move on, so they do not have to watch the sidebar.
    chimes. With Settings simplified, the four state rows and volume slider are
    hidden and the primary switch applies to all of them.
 4. They can turn on **Push notifications** on any device when Clara is connected
-   through the home agent, then send a test notification to prove delivery.
+   through the hub, then send a test notification to prove delivery.
 5. On iPhone and iPad, push requires adding Clara to the Home Screen and opening
    it from that icon before turning push on.
 6. A run ends, a question arrives, a plan finishes, or a run fails. Clara plays
    the matching sound and, if the session is not open and focused, shows an
    alert.
-7. If Clara is hidden or closed, the home agent sends the push and the person
+7. If Clara is hidden or closed, the hub sends the push and the person
    taps it. While a desktop client is visible and recently used, mobile pushes
    are held so the desk is alerted once; after the idle window, or when the
    desktop window is hidden, the phone starts receiving alerts again. Clicking
@@ -53,7 +53,7 @@ start an agent run and move on, so they do not have to watch the sidebar.
    resolved after a short debounce from the latest messages and forms.
    Interruptions only suppress the next evaluation, and the same state is not
    announced twice for a session within five seconds.
-3. The home agent runs the same classification while it is running, so push and
+3. The hub service runs the same classification while it runs, so push and
    the open sidebar agree on the state.
 4. A session that is open and whose tab is visible and focused never alerts.
    Archived and snoozed sessions, sessions whose latest message is from the
@@ -63,13 +63,13 @@ start an agent run and move on, so they do not have to watch the sidebar.
    Once they are on, the row offers **Send test**, which raises a one-off system
    notification and reports a refusal, so the person can check delivery before
    trusting an alert.
-6. Push notifications need browser permission and a Clara home agent; they are
-   stored on the agent and sent directly with Web Push. A visible Clara window
+6. Push notifications need browser permission and a Clara hub; they are
+   stored on the hub and sent directly with Web Push. A visible Clara window
    handles its own alert, and a hidden or closed Clara leaves delivery to the
    service worker push so the person is not notified twice. Desktop devices
    always receive push; mobile devices are held while a desktop client is
    present at the desk. The VAPID contact defaults to `https://clara.local`; the
-   agent panel can edit it and `CLARA_VAPID_SUBJECT` overrides it.
+   hub panel can edit it and `CLARA_VAPID_SUBJECT` overrides it.
 7. Settings shows the controls that fit the current device. **Desktop
    notifications** appears only when the primary pointer is fine, such as a
    laptop with a mouse or trackpad. **Push notifications** appears on every
@@ -165,11 +165,11 @@ start an agent run and move on, so they do not have to watch the sidebar.
   unfocused, so it keeps holding until the idle window passes.
 - **Desktop cannot alert** — if desktop notifications are off and the device has
   no push subscription, it never holds the phone.
-- **Old push subscription without a device class** — the agent classifies it from
+- **Old push subscription without a device class** — the hub classifies it from
   the stored user agent; the next subscribe records the class explicitly.
 - **Relay reconnect** — presence is re-sent on the next heartbeat, and a stale
   presence entry expires after one minute.
-- **Push unavailable** — a home agent without push support, a denied permission,
+- **Push unavailable** — a hub without push support, a denied permission,
   or an iPhone that has not installed Clara keeps push off. Settings explains
   which condition applies.
 - **iPhone or iPad** — Clara must be installed from Safari and opened from the
@@ -177,8 +177,8 @@ start an agent run and move on, so they do not have to watch the sidebar.
 - **Push subscription expired** — a `404` or `410` from the push service removes
   the stored subscription. A browser that rotates its subscription is
   reconciled the next time Clara opens.
-- **Home agent stopped or asleep** — events during the gap are not replayed, so
-  a run that finishes while the agent is down does not push later.
+- **Hub stopped or asleep** — events during the gap are not replayed, so
+  a run that finishes while the hub is down does not push later.
 - **Orchestration off** — worker sessions lose the automation treatment and
   keep their ordinary session alerts.
 - **No Clara client connected** — the alert still waits in its origin session;
@@ -222,7 +222,7 @@ start an agent run and move on, so they do not have to watch the sidebar.
   permission and the operating system's Do Not Disturb setting.
 - Sound output depends on a prior user gesture in the tab.
 - Push delivery is best effort. Apple, Google, and Mozilla push services can
-  delay or drop a message, and a home agent that is offline cannot send.
+  delay or drop a message, and a hub that is offline cannot send.
 - Brave on desktop has no push service of its own. Subscribing fails until the
   person enables **Use Google services for push messaging** at
   `brave://settings/privacy` and relaunches Brave. Settings names that setting
@@ -251,7 +251,7 @@ start an agent run and move on, so they do not have to watch the sidebar.
   `client.message.list({ sessionID, order: 'desc', limit: 1, type })` for `user`
   and `assistant`, and `client.session.form.list({ sessionID })`
 - State precedence: `packages/shared-types/src/session-signals.ts`, shared by
-  the web and the home agent
+  the web and the hub
 - Event subscription: `EventProvider` exposes `subscribe`; the
   `NotificationProvider` inside the app shell consumes it
 - Desktop notification: service-worker `showNotification` when available,
@@ -285,7 +285,7 @@ start an agent run and move on, so they do not have to watch the sidebar.
   the settings page and notifications card
 - Push labels: Error, Needs Input, Ready for Review, Brief Complete
 - Push control: sealed `push.subscribe`, `push.unsubscribe`, and `push.test`
-  actions; the agent acknowledges with `push.status`
+  actions; the hub acknowledges with `push.status`
 - Push monitor: `apps/server/src/push/` reads `/api/event`, applies the same
   750 ms evaluation delay and 5 s cooldown, then sends through `web-push`
 - Orchestration delivery: `plugins/clara-policy/delivery.ts` plans alerts and
@@ -294,13 +294,13 @@ start an agent run and move on, so they do not have to watch the sidebar.
 - Alert destination: the root run's origin session when it still uses the
   Clara interface agent.
 - Worker filter: `isClaraWorkerTitle` in
-  `packages/shared-types/src/session-signals.ts`, shared by the home agent and
+  `packages/shared-types/src/session-signals.ts`, shared by the hub and
   the web notification provider
 - Push storage: `${CLARA_CONFIG_DIR:-~/.config/clara}/subscriptions.json` (mode
   `0600`); VAPID keys live in `vapid.json` next to it
 - Push service worker: `apps/web/public/push-sw.js`, loaded by the Clara worker
   (`apps/web/src/sw.ts`) with `importScripts`
-- Push setup: the agent panel's VAPID contact (stored in `vapid.json`) or
+- Push setup: the hub panel's VAPID contact (stored in `vapid.json`) or
   `CLARA_VAPID_SUBJECT` overrides the default subject `https://clara.local`;
   `CLARA_VAPID_PUBLIC_KEY` and `CLARA_VAPID_PRIVATE_KEY` override the stored key
   pair

@@ -85,7 +85,7 @@ export function connectionSummary(config: ConnectionConfig): ConnectionSummary {
  * supplies the relay endpoint and the pairing payload supplies the room. When
  * unset, the pairing payload's own URL is used.
  *
- * A `local` room means the home agent has no relay configured, so the pairing
+ * A `local` room means the hub has no relay configured, so the pairing
  * payload's URL is the only usable endpoint. Rewriting it to a relay base would
  * produce `<relay>/ws`, which the Worker does not route.
  */
@@ -143,7 +143,7 @@ export function describeConnectionError(error: unknown): string {
     return 'Timed out while contacting the server.'
   }
   if (error instanceof TypeError) {
-    return 'Could not reach the Clara server. Check that the home agent is running and its endpoint is reachable.'
+    return 'Could not reach the Clara hub. Check that the hub service is running and its endpoint is reachable.'
   }
   if (error instanceof Error) return error.message
   return 'Unknown connection error.'

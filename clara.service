@@ -1,5 +1,5 @@
 [Unit]
-Description=Clara Home Agent
+Description=Clara hub service
 After=network-online.target
 Wants=network-online.target
 

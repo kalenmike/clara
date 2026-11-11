@@ -137,7 +137,7 @@ export function loadConfig(options: { noRelay?: boolean } = {}): ServerConfig {
     throw new Error(
       `Missing ${missing}. The relay URL is configured in ${configPath}, but tokens are never ` +
         `stored there. Add them to ${join(configDir, 'server.env')} (systemd EnvironmentFile), ` +
-        `export them before starting the agent, or set them under "relay" in ${configPath}.`
+        `export them before starting the hub service, or set them under "relay" in ${configPath}.`
     )
   }
 

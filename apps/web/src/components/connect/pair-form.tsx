@@ -86,7 +86,7 @@ export function PairForm({
 
       <Button type="submit" className="w-full" disabled={connecting}>
         {connecting ? <Loader2 className="size-4 animate-spin" /> : <Link2 className="size-4" />}
-        Pair with Clara server
+        Pair with your hub
       </Button>
     </form>
   )

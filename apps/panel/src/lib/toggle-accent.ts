@@ -11,7 +11,7 @@ const STOPPED_ON_TRACK = 'border-red-600 bg-red-600'
 /**
  * Track classes for a switch.
  *
- * An enabled switch is green while the agent runs and red while it is stopped.
+ * An enabled switch is green while connections are on and red while they are off.
  * The off and pending tracks keep their existing appearance in both cases, and
  * the result depends only on the arguments so the caller's toggle state is
  * never rewritten.

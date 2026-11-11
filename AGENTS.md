@@ -1,16 +1,17 @@
 # AGENTS.md — Clara
 
-Clara is a browser/PWA client for one running OpenCode server, plus a Node home
-agent that carries the OpenCode HTTP/SSE API over an end-to-end encrypted
-WebSocket. This file is the contract for every AI agent working in this repo.
+Clara is a browser/PWA client for one running OpenCode server, plus a hub: a
+small service on your machine that carries the OpenCode HTTP/SSE API over an
+end-to-end encrypted WebSocket. This file is the contract for every AI agent
+working in this repo.
 
 ## Workspace
 
 ```text
 apps/web              React/Vite SPA (Cloudflare Pages or the web container)
-apps/panel            Authenticated home-agent dashboard and setup surface
+apps/panel            Authenticated hub panel and setup surface
 apps/lab              Loopback pipeline preview and agent probe
-apps/server           Node home agent, local WS + outbound Cloudflare relay
+apps/server           Node hub service, local WS + outbound Cloudflare relay
 apps/orchestrator     Loopback orchestration service, REST/SSE/MCP
 apps/mcp              stdio MCP bridge to the orchestration service
 plugins/clara-policy  OpenCode strict enforcement binding
@@ -42,21 +43,21 @@ lib/std               Standard orchestration packages (software, content, resear
 pnpm task session start <name> # Create a worktree under ../clara-worktrees
 pnpm task session list         # List task worktrees
 pnpm task session close <name> # Check, merge, and remove a task worktree
-pnpm dev            # Web on :5173 and the home agent on :8788
+pnpm dev            # Web on :5173 and the hub service on :8788
 pnpm dev:web        # Web only
-pnpm dev:panel      # Agent panel only
+pnpm dev:panel      # Hub panel only
 pnpm dev:lab        # Clara Lab (Vite :5175, lab server :8791)
-pnpm dev:server     # Home agent only
+pnpm dev:server     # Hub service only
 pnpm dev:relay      # Local wrangler dev for the Worker/DO
 pnpm build          # Build every workspace package
 pnpm clara pair     # Print a pairing code
-pnpm clara server panel  # Open the agent panel in a browser
+pnpm clara server panel  # Open the hub panel in a browser
 pnpm clara start [--local|--docker] [--no-server] [--no-web] [--no-orchestrator] [--build] # Start the stack
 pnpm clara stop [--local|--docker] [--no-server] [--no-web] [--no-orchestrator] # Stop the stack
 pnpm clara restart [--local|--docker] [--no-server] [--no-web] [--no-orchestrator] [--build] # Restart the stack
 pnpm clara status [--no-server] [--no-web] [--no-orchestrator] [--json] # Probe the selected services
 pnpm clara logs server|web|orchestrator [--local|--docker] # Follow one service log
-pnpm clara server start|stop|restart|status [--json]|panel|pair|admin|logs [--local|--docker] [--build] # Home agent
+pnpm clara server start|stop|restart|status [--json]|panel|pair|admin|logs [--local|--docker] [--build] # Hub service
 pnpm clara web start|stop|restart|status [--json]|logs [--local|--docker] [--build] # Web client
 pnpm clara orchestrator start|stop|restart [--local|--docker] [--build]|status [--json]|serve # Run the orchestration service
 pnpm clara orchestrator analyze [--json] [--days n] # Analyze run history for failure patterns
@@ -104,11 +105,11 @@ create a task worktree outside `../clara-worktrees` (override with
 - The SDK package is `@opencode/client`, version-matched to the server. Do not
   swap it for `@opencode-ai/sdk` (v1 API) or import `@opencode/sdk` into the
   browser (embedded Node server).
-- The browser connects only through the home agent over the local or relay
-  WebSocket. The home agent adds OpenCode basic auth; the browser never receives
+- The browser connects only through the hub over the local or relay
+  WebSocket. The hub service adds OpenCode basic auth; the browser never receives
   the password.
-- Harness connections are configured in the authenticated agent panel and
-  stored in the home agent's SQLite database. The server does not read OpenCode's
+- Harness connections are configured in the authenticated hub panel and
+  stored in the hub's SQLite database. The hub service does not read OpenCode's
   `service.json`, and it does not read a fixed OpenCode URL or password from the
   environment.
 - Session lists are scoped by `directory`, not `project`. Sessions can report
@@ -122,6 +123,9 @@ transport, Worker, Durable Object, or crypto.
 
 ## Conventions
 
+- Use **hub** for the home-side installation, **hub service** for its process,
+  and **hub panel** for its dashboard. Reserve **agent** for LLM agents. See the
+  [vocabulary](docs/architecture/overview.md#vocabulary).
 - Web components live under `apps/web/src/components`; web hooks under
   `apps/web/src/features`. Server code lives under `apps/server/src`.
 - Use the shadcn components in `apps/web/src/components/ui`; add new ones with
@@ -226,7 +230,7 @@ docs(sessions): document archived session filters
 | Pairing, QR codes, device storage  | [docs/features/pairing.md](docs/features/pairing.md)             |
 | Install, updates, offline caching  | [docs/features/install.md](docs/features/install.md)             |
 | Connection and credentials         | [docs/features/connection.md](docs/features/connection.md)       |
-| Agent panel and local server state | [docs/features/panel.md](docs/features/panel.md)                 |
+| Hub panel and local hub state      | [docs/features/panel.md](docs/features/panel.md)                 |
 | Project/session browser            | [docs/features/sessions.md](docs/features/sessions.md)           |
 | Messages, tools, approvals         | [docs/features/chat.md](docs/features/chat.md)                   |
 | Forking, forwarding                | [docs/features/fork.md](docs/features/fork.md)                   |

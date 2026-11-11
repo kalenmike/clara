@@ -16,7 +16,7 @@ export function TrafficView({
       id="traffic"
       kicker="Meter"
       title="Traffic"
-      description="Bytes, requests, and errors through the agent over the last hour."
+      description="Bytes, requests, and errors through the hub over the last hour."
     >
       <div className="w-full max-w-5xl">
         <TrafficCard

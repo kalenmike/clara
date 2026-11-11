@@ -121,7 +121,7 @@ export class OpenCodeClient implements HarnessClient {
   }
 
   /**
-   * Rebuild every loaded location so agent files written by the home agent are
+   * Rebuild every loaded location so agent files written by the hub are
    * picked up immediately. Running sessions continue at the next step.
    */
   async reload(timeoutMs = 5_000): Promise<void> {

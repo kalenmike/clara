@@ -65,7 +65,7 @@ describe('relay worker', () => {
     expect(response.status).toBe(401)
   })
 
-  it('routes client frames to the agent and broadcasts agent frames', async () => {
+  it('routes client frames to the hub and broadcasts hub frames', async () => {
     const room = 'routing-room'
     const agent = await connect(room, 'agent')
     const first = await connect(room, 'client')

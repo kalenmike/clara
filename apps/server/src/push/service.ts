@@ -52,7 +52,7 @@ export class PushService {
     return this.currentSubject
   }
 
-  /** Apply a panel-edited VAPID contact without restarting the agent. */
+  /** Apply a panel-edited VAPID contact without restarting the hub service. */
   setSubject(subject: string): void {
     webpush.setVapidDetails(subject, this.publicKey, this.privateKey)
     this.currentSubject = subject
