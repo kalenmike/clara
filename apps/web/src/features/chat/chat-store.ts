@@ -1,21 +1,21 @@
 import type {
-  SessionMessageAssistant,
-  SessionMessageAssistantReasoning,
-  SessionMessageAssistantText,
-  SessionMessageAssistantTool,
-  SessionMessageInfo,
-  SessionStatus,
-  TokenUsageInfo,
-  JsonValue,
-  ToolContent,
-  V2Event,
-} from '@opencode/client'
+  ClaraSessionMessageAssistant,
+  ClaraSessionMessageAssistantReasoning,
+  ClaraSessionMessageAssistantText,
+  ClaraSessionMessageAssistantTool,
+  ClaraSessionMessage,
+  ClaraSessionStatus,
+  ClaraTokenUsage,
+  ClaraJsonValue,
+  ClaraToolContent,
+  ClaraEvent,
+} from '@clara/api-contract'
 
 export type ChatSnapshot = {
-  messages: SessionMessageInfo[]
-  status: SessionStatus
+  messages: ClaraSessionMessage[]
+  status: ClaraSessionStatus
   cost: number
-  tokens?: TokenUsageInfo
+  tokens?: ClaraTokenUsage
   revision: number
   /** Bumped only when an older page is merged, so the list can anchor itself. */
   historyRevision: number
@@ -40,14 +40,14 @@ const EMPTY: ChatSnapshot = {
   hasOlder: false,
 }
 
-function isAssistant(message: SessionMessageInfo): message is SessionMessageAssistant {
+function isAssistant(message: ClaraSessionMessage): message is ClaraSessionMessageAssistant {
   return message.type === 'assistant'
 }
 
 function contentAt(
-  message: SessionMessageAssistant,
+  message: ClaraSessionMessageAssistant,
   ordinal: number,
-  create: () => SessionMessageAssistant['content'][number]
+  create: () => ClaraSessionMessageAssistant['content'][number]
 ) {
   while (message.content.length < ordinal) {
     message.content.push({ type: 'text', text: '' })
@@ -59,9 +59,9 @@ function contentAt(
   return part
 }
 
-function findTool(message: SessionMessageAssistant, id: string) {
+function findTool(message: ClaraSessionMessageAssistant, id: string) {
   return message.content.find(
-    (part): part is SessionMessageAssistantTool => part.type === 'tool' && part.id === id
+    (part): part is ClaraSessionMessageAssistantTool => part.type === 'tool' && part.id === id
   )
 }
 
@@ -76,9 +76,9 @@ function cloneSnapshot(snapshot: ChatSnapshot): ChatSnapshot {
 
 /** Merge a page into the transcript without duplicating messages or reordering time. */
 function mergeMessages(
-  existing: SessionMessageInfo[],
-  incoming: SessionMessageInfo[]
-): SessionMessageInfo[] {
+  existing: ClaraSessionMessage[],
+  incoming: ClaraSessionMessage[]
+): ClaraSessionMessage[] {
   if (existing.length === 0) return incoming
   if (incoming.length === 0) return existing
 
@@ -110,7 +110,7 @@ class ChatStore {
     }
   }
 
-  hydrate(sessionID: string, messages: SessionMessageInfo[], cursor: string | null) {
+  hydrate(sessionID: string, messages: ClaraSessionMessage[], cursor: string | null) {
     const previous = this.snapshots.get(sessionID)
     const history = this.histories.get(sessionID)
     const replace = !previous || !history || history.replaceOnHydrate
@@ -138,7 +138,7 @@ class ChatStore {
   /** Add a page that is older than everything already in the snapshot. */
   prependOlder(
     sessionID: string,
-    messages: SessionMessageInfo[],
+    messages: ClaraSessionMessage[],
     cursor: string | null,
     generation: number
   ) {
@@ -212,7 +212,7 @@ class ChatStore {
     for (const sessionID of sessions) this.scheduleNotify(sessionID)
   }
 
-  setUsage(sessionID: string, cost: number, tokens?: TokenUsageInfo) {
+  setUsage(sessionID: string, cost: number, tokens?: ClaraTokenUsage) {
     this.update(sessionID, (snapshot) => ({ ...snapshot, cost, tokens }))
   }
 
@@ -222,7 +222,7 @@ class ChatStore {
    * status event to replay and would otherwise sit at the store's idle default.
    * A live event always wins over a seed.
    */
-  seedStatus(sessionID: string, status: SessionStatus) {
+  seedStatus(sessionID: string, status: ClaraSessionStatus) {
     if (this.statusSynced.has(sessionID)) return
     this.statusSynced.add(sessionID)
     this.update(sessionID, (snapshot) => ({ ...snapshot, status }))
@@ -233,7 +233,7 @@ class ChatStore {
     this.statusSynced.clear()
   }
 
-  dispatch(event: V2Event) {
+  dispatch(event: ClaraEvent) {
     const data = 'data' in event ? (event.data as { sessionID?: string }) : undefined
     const sessionID = data?.sessionID
     if (!sessionID) return
@@ -267,7 +267,7 @@ class ChatStore {
           const part = contentAt(message, event.data.ordinal, () => ({
             type: 'text',
             text: '',
-          })) as SessionMessageAssistantText
+          })) as ClaraSessionMessageAssistantText
           if (event.type === 'session.text.ended') part.text = event.data.text
           else if (event.type === 'session.text.delta') part.text += event.data.delta
         })
@@ -280,7 +280,7 @@ class ChatStore {
           const part = contentAt(message, event.data.ordinal, () => ({
             type: 'reasoning',
             text: '',
-          })) as SessionMessageAssistantReasoning
+          })) as ClaraSessionMessageAssistantReasoning
           if (event.type === 'session.reasoning.ended') part.text = event.data.text
           else if (event.type === 'session.reasoning.delta') part.text += event.data.delta
           if (event.type === 'session.reasoning.started') part.time = { created: event.created }
@@ -326,7 +326,7 @@ class ChatStore {
           message.content.push({
             type: 'tool',
             id: event.data.id,
-            name: event.data.input.tool ?? 'tool',
+            name: typeof event.data.input.tool === 'string' ? event.data.input.tool : 'tool',
             executed: event.data.executed,
             state: { status: 'running', input: event.data.input, metadata: {} },
             time: { created: event.created },
@@ -352,7 +352,7 @@ class ChatStore {
           tool.state = {
             status: 'completed',
             input: tool.state.status === 'running' ? tool.state.input : {},
-            content: event.data.content as [ToolContent, ...ToolContent[]],
+            content: event.data.content as [ClaraToolContent, ...ClaraToolContent[]],
             metadata: event.data.metadata ?? {},
           }
           tool.executed = event.data.executed
@@ -368,7 +368,7 @@ class ChatStore {
             status: 'error',
             input: tool.state.status === 'running' ? tool.state.input : {},
             error: event.data.error,
-            content: event.data.content as [ToolContent, ...ToolContent[]] | undefined,
+            content: event.data.content as [ClaraToolContent, ...ClaraToolContent[]] | undefined,
           }
           tool.executed = event.data.executed
           tool.time = { ...tool.time, completed: event.created }
@@ -448,12 +448,12 @@ class ChatStore {
   private patchMessage(
     sessionID: string,
     messageID: string,
-    patch: (message: SessionMessageAssistant) => void
+    patch: (message: ClaraSessionMessageAssistant) => void
   ) {
     this.update(sessionID, (snapshot) => {
       const index = snapshot.messages.findIndex((message) => message.id === messageID)
       if (index === -1) {
-        const message: SessionMessageAssistant = {
+        const message: ClaraSessionMessageAssistant = {
           id: messageID,
           type: 'assistant',
           time: { created: Date.now() },
@@ -467,7 +467,7 @@ class ChatStore {
 
       const current = snapshot.messages[index]
       if (!isAssistant(current)) return snapshot
-      const next: SessionMessageAssistant = { ...current, content: [...current.content] }
+      const next: ClaraSessionMessageAssistant = { ...current, content: [...current.content] }
       patch(next)
       const messages = [...snapshot.messages]
       messages[index] = next
@@ -497,9 +497,9 @@ class ChatStore {
 
 export const chatStore = new ChatStore()
 
-function parseToolInput(text: string): Record<string, JsonValue> {
+function parseToolInput(text: string): Record<string, ClaraJsonValue> {
   try {
-    return JSON.parse(text) as Record<string, JsonValue>
+    return JSON.parse(text) as Record<string, ClaraJsonValue>
   } catch {
     return { raw: text }
   }

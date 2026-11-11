@@ -1,13 +1,13 @@
 import { describe, expect, it } from 'vitest'
-import type { SessionMessageSynthetic } from '@opencode/client'
+import type { ClaraSessionMessageSynthetic } from '@clara/api-contract'
 import { isSystemReminder, readClaraEvent, readSystemReminder } from './system-events'
 
 function synthetic(
   text: string,
   created = 1,
   description?: string,
-  metadata?: SessionMessageSynthetic['metadata']
-): SessionMessageSynthetic {
+  metadata?: ClaraSessionMessageSynthetic['metadata']
+): ClaraSessionMessageSynthetic {
   return {
     id: `synthetic-${created}`,
     type: 'synthetic',

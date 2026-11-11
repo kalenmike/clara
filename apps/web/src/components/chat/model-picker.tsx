@@ -1,6 +1,6 @@
 import { useMemo } from 'react'
 import { Check, Cpu, SlidersHorizontal } from 'lucide-react'
-import type { ModelInfo, SessionInfo } from '@opencode/client'
+import type { ClaraModel, ClaraSession } from '@clara/api-contract'
 import { Button } from '@/components/ui/button'
 import {
   Command,
@@ -35,7 +35,7 @@ export function ModelPicker({
   open,
   onOpenChange,
 }: {
-  session: SessionInfo | undefined
+  session: ClaraSession | undefined
   open: boolean
   onOpenChange: (open: boolean) => void
 }) {
@@ -125,7 +125,7 @@ export function ModelPicker({
   )
 }
 
-export function VariantPicker({ session }: { session: SessionInfo | undefined }) {
+export function VariantPicker({ session }: { session: ClaraSession | undefined }) {
   const modelsQuery = useModels()
   const { visibility } = useModelVisibility()
   const switchModel = useSwitchModel(session?.id ?? '')
@@ -176,8 +176,8 @@ export function VariantPicker({ session }: { session: SessionInfo | undefined })
   )
 }
 
-function groupModels(models: ModelInfo[]) {
-  const groups = new Map<string, ModelInfo[]>()
+function groupModels(models: ClaraModel[]) {
+  const groups = new Map<string, ClaraModel[]>()
   for (const model of models) {
     const list = groups.get(model.providerID) ?? []
     list.push(model)

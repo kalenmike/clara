@@ -1,5 +1,5 @@
 import type { QueryClient } from '@tanstack/react-query'
-import type { Project, SessionInfo } from '@opencode/client'
+import type { ClaraProject, ClaraSession } from '@clara/api-contract'
 import type { ClaraClient } from '@/lib/client'
 import { queryKeys } from '@/lib/query-keys'
 import { canonicalProjects } from '@/features/projects/use-projects'
@@ -11,7 +11,7 @@ import { resolveAttentionKind, type AttentionKind } from './attention'
 
 export type SessionAttention = {
   kind: AttentionKind
-  session: SessionInfo
+  session: ClaraSession
 }
 
 /**
@@ -36,7 +36,7 @@ export async function loadSessionAttention(
  * route. Prefer the session's project ID, which survives a move to a worktree,
  * then fall back to matching its location against a project directory.
  */
-function projectIDFromList(projects: Project[], session: SessionInfo): string | null {
+function projectIDFromList(projects: ClaraProject[], session: ClaraSession): string | null {
   const direct = projects.find((project) => project.id === session.projectID)
   if (direct) return direct.id
   return (
@@ -48,9 +48,9 @@ function projectIDFromList(projects: Project[], session: SessionInfo): string | 
 export async function resolveProjectID(
   client: ClaraClient,
   queryClient: QueryClient,
-  session: SessionInfo
+  session: ClaraSession
 ): Promise<string | null> {
-  const cached = queryClient.getQueryData<Project[]>(queryKeys.projects)
+  const cached = queryClient.getQueryData<ClaraProject[]>(queryKeys.projects)
   const cachedID = cached ? projectIDFromList(cached, session) : null
   if (cachedID) return cachedID
 

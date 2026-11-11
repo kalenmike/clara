@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest'
-import type { Project } from '@opencode/client'
+import type { ClaraProject } from '@clara/api-contract'
 import { projectAvatarSource, projectInitial } from './project-avatar'
 
-function project(overrides: Partial<Project> = {}): Project {
+function project(overrides: Partial<ClaraProject> = {}): ClaraProject {
   return {
     id: 'project-1',
     canonical: '/home/jet/Projects/clara',

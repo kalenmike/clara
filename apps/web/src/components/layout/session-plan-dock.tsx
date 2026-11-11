@@ -1,5 +1,5 @@
 import { useMemo } from 'react'
-import type { SessionInfo, SessionMessageInfo } from '@opencode/client'
+import type { ClaraSession, ClaraSessionMessage } from '@clara/api-contract'
 import { SessionPlan } from '@/components/layout/session-plan'
 import { findPlanTodos } from '@/features/chat/session-plan'
 import { useSessionContext } from '@/features/chat/use-session-context'
@@ -10,8 +10,8 @@ export function SessionPlanDock({
   draft,
   busy,
 }: {
-  session: SessionInfo | undefined
-  messages: SessionMessageInfo[]
+  session: ClaraSession | undefined
+  messages: ClaraSessionMessage[]
   draft: boolean
   busy: boolean
 }) {

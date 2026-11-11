@@ -1,12 +1,12 @@
 import { describe, expect, it, vi } from 'vitest'
 import type { QueryClient } from '@tanstack/react-query'
-import type { SessionInfo } from '@opencode/client'
+import type { ClaraSession } from '@clara/api-contract'
 import type { ClaraClient } from '@/lib/client'
 import { queryKeys } from '@/lib/query-keys'
 import { unsnoozeSessionOnEngage } from './unsnooze'
 
-function harness(metadata: SessionInfo['metadata']) {
-  const session = { id: 'ses_1', metadata } as SessionInfo
+function harness(metadata: ClaraSession['metadata']) {
+  const session = { id: 'ses_1', metadata } as ClaraSession
   const client = {
     session: {
       get: vi.fn(() => Promise.resolve(session)),

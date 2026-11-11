@@ -1,7 +1,7 @@
 import { useState, type ReactNode } from 'react'
 import { Archive, Loader2, MoreHorizontal, Trash2 } from 'lucide-react'
 import { toast } from 'sonner'
-import type { Project } from '@opencode/client'
+import type { ClaraProject } from '@clara/api-contract'
 import { ProjectAvatar } from '@/components/projects/project-avatar'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -43,7 +43,7 @@ import { cn } from '@/lib/utils'
 
 type ProjectAction = 'archive' | 'delete'
 
-export function ProjectInfoCard({ project }: { project: Project }) {
+export function ProjectInfoCard({ project }: { project: ClaraProject }) {
   const [action, setAction] = useState<ProjectAction | null>(null)
   const statsQuery = useProjectStats(project.id)
   const archive = useArchiveProjectSessions(project.id)
@@ -244,7 +244,7 @@ export function ProjectInfoCard({ project }: { project: Project }) {
   )
 }
 
-function iconDescription(project: Project): string {
+function iconDescription(project: ClaraProject): string {
   const source = projectAvatarSource(project)
   if (source.kind === 'image') {
     return source.src === project.icon?.override?.trim() ? 'Custom image' : 'Discovered favicon'

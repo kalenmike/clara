@@ -1,4 +1,4 @@
-import type { JsonValue, SessionMessageAssistantTool } from '@opencode/client'
+import type { ClaraJsonValue, ClaraSessionMessageAssistantTool } from '@clara/api-contract'
 import type { SystemEvent } from '@/features/chat/system-events'
 import { readRecord } from '@/features/chat/system-events'
 
@@ -10,7 +10,7 @@ type ParsedQuestion = {
 export function isQuestionTool(part: {
   type: string
   name?: string
-}): part is SessionMessageAssistantTool & { name: 'question' } {
+}): part is ClaraSessionMessageAssistantTool & { name: 'question' } {
   return part.type === 'tool' && part.name === 'question'
 }
 
@@ -18,7 +18,7 @@ export function isQuestionTool(part: {
  * Turn a completed question tool into a transcript event. The answers already
  * live in the tool result, so this needs no extra request and no model tokens.
  */
-export function questionEvent(tool: SessionMessageAssistantTool): SystemEvent | null {
+export function questionEvent(tool: ClaraSessionMessageAssistantTool): SystemEvent | null {
   if (tool.name !== 'question') return null
   const state = tool.state
   if (state.status === 'streaming' || state.status === 'running') return null
@@ -46,7 +46,7 @@ export function questionEvent(tool: SessionMessageAssistantTool): SystemEvent | 
   }
 }
 
-function readQuestions(input: Record<string, JsonValue>): ParsedQuestion[] {
+function readQuestions(input: Record<string, ClaraJsonValue>): ParsedQuestion[] {
   const raw = input.questions
   if (!Array.isArray(raw)) return []
 
@@ -61,7 +61,7 @@ function readQuestions(input: Record<string, JsonValue>): ParsedQuestion[] {
   return questions
 }
 
-function readAnswers(metadata: Record<string, JsonValue> | undefined): string[][] {
+function readAnswers(metadata: Record<string, ClaraJsonValue> | undefined): string[][] {
   const raw = metadata?.answers
   if (!Array.isArray(raw)) return []
 

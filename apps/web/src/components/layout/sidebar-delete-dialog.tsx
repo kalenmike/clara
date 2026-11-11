@@ -1,5 +1,5 @@
 import { useRef, type ComponentProps } from 'react'
-import type { SessionInfo } from '@opencode/client'
+import type { ClaraSession } from '@clara/api-contract'
 import { Loader2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import {
@@ -22,7 +22,7 @@ export function SidebarDeleteDialog({
   onCloseAutoFocus,
 }: {
   open: boolean
-  sessions: readonly SessionInfo[]
+  sessions: readonly ClaraSession[]
   deleting: boolean
   onOpenChange: (open: boolean) => void
   onCancel: () => void

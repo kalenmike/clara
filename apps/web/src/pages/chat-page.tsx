@@ -4,10 +4,10 @@ import { useTheme } from 'next-themes'
 import { toast } from 'sonner'
 import { ArrowLeft, Loader2 } from 'lucide-react'
 import type {
-  SessionInboxUser,
-  SessionMessageAssistant,
-  SessionMessageInfo,
-} from '@opencode/client'
+  ClaraSessionInboxUser,
+  ClaraSessionMessageAssistant,
+  ClaraSessionMessage,
+} from '@clara/api-contract'
 import { Button } from '@/components/ui/button'
 import { Sheet, SheetContent, SheetDescription, SheetTitle } from '@/components/ui/sheet'
 import { ChatHeader } from '@/components/chat/chat-header'
@@ -109,10 +109,10 @@ function ChatPageContent() {
     ? (draftState(sessionId) ?? storedHasLocalDraft)
     : storedHasLocalDraft
   const pendingDrafts = useMemo(
-    () => (inboxQuery.data ?? []).filter((item): item is SessionInboxUser => item.type === 'user'),
+    () => (inboxQuery.data ?? []).filter((item): item is ClaraSessionInboxUser => item.type === 'user'),
     [inboxQuery.data]
   )
-  const allMessages = useMemo<SessionMessageInfo[]>(
+  const allMessages = useMemo<ClaraSessionMessage[]>(
     () =>
       mergeSessionMessages(snapshot.messages, messagesQuery.data?.messages ?? [], pendingDrafts),
     [messagesQuery.data?.messages, pendingDrafts, snapshot.messages]
@@ -120,7 +120,7 @@ function ChatPageContent() {
   const modelsQuery = useModels()
   const { source: costSource } = useCostDisplay()
   const estimateMessageCost = useCallback(
-    (step: SessionMessageAssistant) => estimateStepCost(step, modelsQuery.data),
+    (step: ClaraSessionMessageAssistant) => estimateStepCost(step, modelsQuery.data),
     [modelsQuery.data]
   )
   const timeline = useMemo(
@@ -199,19 +199,19 @@ function ChatPageContent() {
     [snapshot.messages]
   )
   const canActOnMessage = useCallback(
-    (message: SessionMessageInfo) => serverMessageIDs.has(message.id),
+    (message: ClaraSessionMessage) => serverMessageIDs.has(message.id),
     [serverMessageIDs]
   )
   const handleForkSession = useCallback(() => forkSession({}), [forkSession])
   const handleForkMessage = useCallback(
-    (message: SessionMessageInfo) => {
+    (message: ClaraSessionMessage) => {
       const boundary = planMessageFork(snapshot.messages, message.id)
       if (boundary) forkSession(boundary)
     },
     [forkSession, snapshot.messages]
   )
   const handleForwardMessage = useCallback(
-    (message: SessionMessageInfo, text?: string) => forwardMessage({ message, text }),
+    (message: ClaraSessionMessage, text?: string) => forwardMessage({ message, text }),
     [forwardMessage]
   )
 

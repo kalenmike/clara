@@ -1,9 +1,9 @@
-import type { Project } from '@opencode/client'
+import type { ClaraProject } from '@clara/api-contract'
 
 export const RECENT_PROJECT_LIMIT = 7
 
 /** The name shown for a project, falling back to the directory basename. */
-export function projectLabel(project: Project): string {
+export function projectLabel(project: ClaraProject): string {
   const name = project.name?.trim()
   if (name) return name
   const segment = project.canonical.split('/').filter(Boolean).pop()
@@ -11,11 +11,11 @@ export function projectLabel(project: Project): string {
 }
 
 /** The server's last-activity timestamp, with stable fallbacks for older records. */
-export function projectRecency(project: Project): number {
+export function projectRecency(project: ClaraProject): number {
   return project.time.active || project.time.updated || project.time.created
 }
 
-function compareProjects(a: Project, b: Project): number {
+function compareProjects(a: ClaraProject, b: ClaraProject): number {
   return (
     projectRecency(b) - projectRecency(a) ||
     b.time.updated - a.time.updated ||
@@ -25,7 +25,7 @@ function compareProjects(a: Project, b: Project): number {
 }
 
 /** Newest activity first. */
-export function sortProjectsByRecency(projects: Project[]): Project[] {
+export function sortProjectsByRecency(projects: ClaraProject[]): ClaraProject[] {
   return [...projects].sort(compareProjects)
 }
 
@@ -35,10 +35,10 @@ export function sortProjectsByRecency(projects: Project[]): Project[] {
  * hide real work.
  */
 export function filterVisibleProjects(
-  projects: Project[],
+  projects: ClaraProject[],
   hasSessions: ReadonlyMap<string, boolean>,
   showEmpty: boolean
-): Project[] {
+): ClaraProject[] {
   if (showEmpty) return projects
   return projects.filter((project) => hasSessions.get(project.id) !== false)
 }
@@ -49,10 +49,10 @@ export function filterVisibleProjects(
  * the list when it falls outside the recent window.
  */
 export function recentProjects(
-  projects: Project[],
+  projects: ClaraProject[],
   selectedID?: string | null,
   limit = RECENT_PROJECT_LIMIT
-): Project[] {
+): ClaraProject[] {
   if (limit <= 0) return []
   const sorted = sortProjectsByRecency(projects)
   const recent = sorted.slice(0, limit)

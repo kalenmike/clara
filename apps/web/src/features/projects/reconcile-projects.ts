@@ -1,4 +1,4 @@
-import type { Project } from '@opencode/client'
+import type { ClaraProject } from '@clara/api-contract'
 import { runWithConcurrency } from '@/lib/concurrency'
 import type { ClaraClient } from '@/lib/client'
 
@@ -12,7 +12,7 @@ export type ProjectReconciliation = {
   restored: string[]
 }
 
-function isArchivedProject(project: Project): boolean {
+function isArchivedProject(project: ClaraProject): boolean {
   return project.time.archived != null
 }
 

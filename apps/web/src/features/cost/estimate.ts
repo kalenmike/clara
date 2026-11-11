@@ -1,10 +1,10 @@
 import type {
-  ModelCost,
-  ModelInfo,
-  SessionMessageAssistant,
-  SessionMessageInfo,
-  TokenUsageInfo,
-} from '@opencode/client'
+  ClaraModelCost,
+  ClaraModel,
+  ClaraSessionMessageAssistant,
+  ClaraSessionMessage,
+  ClaraTokenUsage,
+} from '@clara/api-contract'
 
 export type ModelRefLike = { id: string; providerID: string }
 
@@ -18,15 +18,15 @@ export type DisplayCost = {
 const PER_MILLION_TOKENS = 1_000_000
 
 export function findModel(
-  models: readonly ModelInfo[] | undefined,
+  models: readonly ClaraModel[] | undefined,
   model: ModelRefLike | undefined
-): ModelInfo | undefined {
+): ClaraModel | undefined {
   if (!models || !model) return undefined
   return models.find((item) => item.modelID === model.id && item.providerID === model.providerID)
 }
 
 /** The context size OpenCode uses to choose a pricing tier. */
-export function tokensContextTokens(tokens: TokenUsageInfo | undefined): number | undefined {
+export function tokensContextTokens(tokens: ClaraTokenUsage | undefined): number | undefined {
   if (!tokens) return undefined
   return tokens.input + tokens.cache.read + tokens.cache.write
 }
@@ -37,9 +37,9 @@ export function tokensContextTokens(tokens: TokenUsageInfo | undefined): number 
  * every tier. Entries without a tier are base prices.
  */
 export function selectCostTier(
-  costs: readonly ModelCost[] | undefined,
+  costs: readonly ClaraModelCost[] | undefined,
   contextTokens: number
-): ModelCost | undefined {
+): ClaraModelCost | undefined {
   if (!costs || costs.length === 0) return undefined
 
   const tiered = costs
@@ -60,8 +60,8 @@ export function selectCostTier(
  * does not treat the session total as one huge request.
  */
 export function estimateUsageCost(
-  tokens: TokenUsageInfo | undefined,
-  model: Pick<ModelInfo, 'cost'> | undefined,
+  tokens: ClaraTokenUsage | undefined,
+  model: Pick<ClaraModel, 'cost'> | undefined,
   options: { tierContextTokens?: number } = {}
 ): number | undefined {
   if (!tokens || !model) return undefined
@@ -83,17 +83,17 @@ export function estimateUsageCost(
 
 /** Estimate one assistant step from its own tokens and model. */
 export function estimateStepCost(
-  step: Pick<SessionMessageAssistant, 'tokens' | 'model'>,
-  models: readonly ModelInfo[] | undefined
+  step: Pick<ClaraSessionMessageAssistant, 'tokens' | 'model'>,
+  models: readonly ClaraModel[] | undefined
 ): number | undefined {
   return estimateUsageCost(step.tokens, findModel(models, step.model))
 }
 
 /** Estimate a session from its aggregate tokens and current model. */
 export function estimateSessionCost(
-  tokens: TokenUsageInfo | undefined,
+  tokens: ClaraTokenUsage | undefined,
   model: ModelRefLike | undefined,
-  models: readonly ModelInfo[] | undefined,
+  models: readonly ClaraModel[] | undefined,
   options: { tierContextTokens?: number } = {}
 ): number | undefined {
   return estimateUsageCost(tokens, findModel(models, model), options)
@@ -101,7 +101,7 @@ export function estimateSessionCost(
 
 /** The latest request's context size, used to choose a session price tier. */
 export function latestContextTokens(
-  messages: readonly SessionMessageInfo[] | undefined
+  messages: readonly ClaraSessionMessage[] | undefined
 ): number | undefined {
   if (!messages) return undefined
   for (let index = messages.length - 1; index >= 0; index -= 1) {
@@ -113,7 +113,7 @@ export function latestContextTokens(
 
 /** The model on the newest assistant step, used when the session has no model. */
 export function latestAssistantModel(
-  messages: readonly SessionMessageInfo[] | undefined
+  messages: readonly ClaraSessionMessage[] | undefined
 ): ModelRefLike | undefined {
   if (!messages) return undefined
   for (let index = messages.length - 1; index >= 0; index -= 1) {

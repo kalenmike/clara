@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react'
 import { CircleAlert, Cpu, Eye, EyeOff } from 'lucide-react'
-import type { ModelInfo } from '@opencode/client'
+import type { ClaraModel } from '@clara/api-contract'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { ModelProviderRow } from '@/components/settings/model-provider-row'
@@ -57,7 +57,7 @@ export function ModelsCard() {
         providerDisplayName(provider.id, provider.name),
       ])
     )
-    const grouped = new Map<string, ModelInfo[]>()
+    const grouped = new Map<string, ClaraModel[]>()
     for (const model of filteredModels) {
       const list = grouped.get(model.providerID) ?? []
       list.push(model)

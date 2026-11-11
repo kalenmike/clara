@@ -1,4 +1,4 @@
-import type { FormInfo } from '@opencode/client'
+import type { ClaraForm } from '@clara/api-contract'
 import { ChevronDown, CircleHelp, Sparkles } from 'lucide-react'
 import { FormFields } from '@/components/chat/form-fields'
 import {
@@ -25,7 +25,7 @@ export function ComposerRequestList({
   onSelectionChange,
   onAnswersChange,
 }: {
-  forms: readonly FormInfo[]
+  forms: readonly ClaraForm[]
   planReady: boolean
   selection: ComposerRequestSelection
   answers: ComposerRequestAnswers

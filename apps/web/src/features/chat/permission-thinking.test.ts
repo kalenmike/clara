@@ -1,17 +1,17 @@
 import { describe, expect, it } from 'vitest'
 import type {
-  PermissionRequest,
-  SessionMessageAssistant,
-  SessionMessageAssistantTool,
-  SessionMessageInfo,
-} from '@opencode/client'
+  ClaraPermissionRequest,
+  ClaraSessionMessageAssistant,
+  ClaraSessionMessageAssistantTool,
+  ClaraSessionMessage,
+} from '@clara/api-contract'
 import { findPermissionThinking } from './permission-thinking'
 
 function assistant(
   id: string,
-  content: SessionMessageAssistant['content'],
+  content: ClaraSessionMessageAssistant['content'],
   created = 3
-): SessionMessageAssistant {
+): ClaraSessionMessageAssistant {
   return {
     id,
     type: 'assistant',
@@ -26,7 +26,7 @@ function reasoning(text: string) {
   return { type: 'reasoning' as const, text }
 }
 
-function tool(id: string): SessionMessageAssistantTool {
+function tool(id: string): ClaraSessionMessageAssistantTool {
   return {
     type: 'tool',
     id,
@@ -36,7 +36,7 @@ function tool(id: string): SessionMessageAssistantTool {
   }
 }
 
-function request(source?: PermissionRequest['source']): PermissionRequest {
+function request(source?: ClaraPermissionRequest['source']): ClaraPermissionRequest {
   return {
     id: 'permission-1',
     sessionID: 'session-1',
@@ -46,13 +46,13 @@ function request(source?: PermissionRequest['source']): PermissionRequest {
   }
 }
 
-function source(messageID: string, id: string): PermissionRequest['source'] {
+function source(messageID: string, id: string): ClaraPermissionRequest['source'] {
   return { type: 'tool', messageID, id }
 }
 
 describe('findPermissionThinking', () => {
   it('returns reasoning before the tool that asked for permission', () => {
-    const messages: SessionMessageInfo[] = [
+    const messages: ClaraSessionMessage[] = [
       assistant('assistant-1', [
         reasoning('Check the build output first.'),
         reasoning('The stale directory blocks the rebuild.'),
@@ -67,7 +67,7 @@ describe('findPermissionThinking', () => {
   })
 
   it('ignores reasoning from a different assistant step', () => {
-    const messages: SessionMessageInfo[] = [
+    const messages: ClaraSessionMessage[] = [
       assistant('assistant-old', [reasoning('Old plan.')], 2),
       assistant('assistant-new', [reasoning('New reason.'), tool('tool-1')], 3),
     ]
@@ -78,7 +78,7 @@ describe('findPermissionThinking', () => {
   })
 
   it('falls back to the newest assistant step without a source', () => {
-    const messages: SessionMessageInfo[] = [
+    const messages: ClaraSessionMessage[] = [
       assistant('assistant-old', [reasoning('Old reason.')], 2),
       assistant('assistant-new', [reasoning('Newest reason.')], 3),
     ]
@@ -87,7 +87,7 @@ describe('findPermissionThinking', () => {
   })
 
   it('falls back to the whole step when the tool is not found', () => {
-    const messages: SessionMessageInfo[] = [
+    const messages: ClaraSessionMessage[] = [
       assistant('assistant-1', [reasoning('Reason one.'), reasoning('Reason two.')]),
     ]
 
@@ -97,7 +97,7 @@ describe('findPermissionThinking', () => {
   })
 
   it('returns an empty string when there is no reasoning', () => {
-    const messages: SessionMessageInfo[] = [
+    const messages: ClaraSessionMessage[] = [
       assistant('assistant-1', [{ type: 'text', text: 'Done.' }, reasoning('   ')]),
     ]
 

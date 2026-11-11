@@ -1,5 +1,5 @@
 import type { QueryClient } from '@tanstack/react-query'
-import type { SessionInfo } from '@opencode/client'
+import type { ClaraSession } from '@clara/api-contract'
 import type { ClaraClient } from '@/lib/client'
 import { queryKeys } from '@/lib/query-keys'
 
@@ -8,8 +8,8 @@ export async function getSessionInfo(
   client: ClaraClient,
   queryClient: QueryClient,
   sessionID: string
-): Promise<SessionInfo> {
-  const cached = queryClient.getQueryData<SessionInfo>(queryKeys.session(sessionID))
+): Promise<ClaraSession> {
+  const cached = queryClient.getQueryData<ClaraSession>(queryKeys.session(sessionID))
   if (cached) return cached
 
   const session = await client.session.get({ sessionID })

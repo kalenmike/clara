@@ -1,6 +1,6 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from 'react-router'
-import type { SessionInfo } from '@opencode/client'
+import type { ClaraSession } from '@clara/api-contract'
 import { toast } from 'sonner'
 import type { MessageFork } from '@/features/sessions/fork'
 import { isSnoozedSession, unsnoozeMetadata } from '@/features/sessions/session-snooze'
@@ -9,7 +9,7 @@ import { queryKeys } from '@/lib/query-keys'
 import { useConnection } from '@/providers/connection-provider'
 
 type SessionTarget = {
-  session: SessionInfo | undefined
+  session: ClaraSession | undefined
   projectID: string | undefined
 }
 

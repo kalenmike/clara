@@ -1,14 +1,14 @@
-import type { SessionInfo, SessionMetadata } from '@opencode/client'
+import type { ClaraSession, ClaraSessionMetadata } from '@clara/api-contract'
 
 const SNOOZE_KEY = 'snoozed'
 
 /** A session is snoozed only when the server metadata says so. */
-export function isSnoozedSession(session: SessionInfo): boolean {
+export function isSnoozedSession(session: ClaraSession): boolean {
   return session.metadata?.[SNOOZE_KEY] === true
 }
 
 /** Mark a session snoozed without dropping metadata written by other clients. */
-export function snoozeMetadata(metadata: SessionMetadata | undefined): SessionMetadata {
+export function snoozeMetadata(metadata: ClaraSessionMetadata | undefined): ClaraSessionMetadata {
   return { ...(metadata ?? {}), [SNOOZE_KEY]: true }
 }
 
@@ -17,8 +17,8 @@ export function snoozeMetadata(metadata: SessionMetadata | undefined): SessionMe
  * returning the remaining keys deletes the snoozed entry without touching
  * metadata written by other clients.
  */
-export function unsnoozeMetadata(metadata: SessionMetadata | undefined): SessionMetadata {
-  const next: SessionMetadata = { ...(metadata ?? {}) }
+export function unsnoozeMetadata(metadata: ClaraSessionMetadata | undefined): ClaraSessionMetadata {
+  const next: ClaraSessionMetadata = { ...(metadata ?? {}) }
   delete next[SNOOZE_KEY]
   return next
 }

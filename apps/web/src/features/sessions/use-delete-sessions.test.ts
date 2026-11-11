@@ -1,12 +1,12 @@
 import { QueryClient } from '@tanstack/react-query'
-import type { SessionInfo } from '@opencode/client'
+import type { ClaraSession } from '@clara/api-contract'
 import { describe, expect, it, vi } from 'vitest'
 import type { ClaraClient } from '@/lib/client'
 import { queryKeys } from '@/lib/query-keys'
 import type { DeleteSessionsResult } from './use-delete-sessions'
 
-function session(id: string, title = `Title ${id}`): SessionInfo {
-  return { id, title, time: { created: 1, updated: 1 } } as SessionInfo
+function session(id: string, title = `Title ${id}`): ClaraSession {
+  return { id, title, time: { created: 1, updated: 1 } } as ClaraSession
 }
 
 function clientWith(remove: (input: { sessionID: string }) => Promise<unknown>): ClaraClient {

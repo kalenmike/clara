@@ -1,4 +1,4 @@
-import type { SessionMessageInfo } from '@opencode/client'
+import type { ClaraSessionMessage } from '@clara/api-contract'
 import { readClaraEvent } from './system-events'
 
 /** Stop waiting after this many assistant messages and tool calls. */
@@ -12,7 +12,7 @@ export type PlanRequest = {
 export type PlanRequestProgress = 'waiting' | 'responded' | 'timed-out'
 
 /** The newest plan request Clara wrote to the transcript. */
-export function findLatestPlanRequest(messages: SessionMessageInfo[]): PlanRequest | undefined {
+export function findLatestPlanRequest(messages: ClaraSessionMessage[]): PlanRequest | undefined {
   for (let index = messages.length - 1; index >= 0; index -= 1) {
     const message = messages[index]
     if (message.type !== 'synthetic') continue
@@ -32,7 +32,7 @@ export function findLatestPlanRequest(messages: SessionMessageInfo[]): PlanReque
  * transcript yet falls back to its creation time.
  */
 export function planRequestProgress(
-  messages: SessionMessageInfo[],
+  messages: ClaraSessionMessage[],
   request: PlanRequest
 ): PlanRequestProgress {
   const requestIndex = messages.findIndex((message) => message.id === request.id)

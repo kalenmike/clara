@@ -1,4 +1,4 @@
-import type { TokenUsageInfo } from '@opencode/client'
+import type { ClaraTokenUsage } from '@clara/api-contract'
 import type { DisplayCost } from '@/features/cost/estimate'
 import { formatCost, formatTokens } from '@/lib/format'
 
@@ -8,7 +8,7 @@ import { formatCost, formatTokens } from '@/lib/format'
  * history pages cannot leave it short.
  */
 export function formatSessionUsage(
-  tokens: TokenUsageInfo | undefined,
+  tokens: ClaraTokenUsage | undefined,
   cost: DisplayCost,
   age: string
 ): string {

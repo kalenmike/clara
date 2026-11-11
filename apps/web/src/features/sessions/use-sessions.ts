@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import type { SessionInfo } from '@opencode/client'
+import type { ClaraSession } from '@clara/api-contract'
 import {
   isSnoozedSession,
   snoozeMetadata,
@@ -74,7 +74,7 @@ export function useCreateSession(directory: string) {
         model: input.model,
         location: { directory },
       }),
-    onSuccess: (session: SessionInfo) => {
+    onSuccess: (session: ClaraSession) => {
       void queryClient.invalidateQueries({ queryKey: ['sessions'] })
       queryClient.setQueryData(queryKeys.session(session.id), session)
     },
@@ -109,7 +109,7 @@ export function useSnoozeSession() {
   const { client } = useConnection()
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: ({ session, snoozed }: { session: SessionInfo; snoozed: boolean }) =>
+    mutationFn: ({ session, snoozed }: { session: ClaraSession; snoozed: boolean }) =>
       client!.session.update({
         sessionID: session.id,
         metadata: snoozed ? snoozeMetadata(session.metadata) : unsnoozeMetadata(session.metadata),
@@ -126,7 +126,7 @@ export function useReopenSession() {
   const { client } = useConnection()
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: ({ session }: { session: SessionInfo }) =>
+    mutationFn: ({ session }: { session: ClaraSession }) =>
       client!.session.update({
         sessionID: session.id,
         archived: false,

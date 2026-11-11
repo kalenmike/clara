@@ -1,10 +1,10 @@
 import type {
-  JsonValue,
-  SessionMessageAssistantTool,
-  SessionMessageInfo,
-  SessionMessageShell,
-  ToolContent,
-} from '@opencode/client'
+  ClaraJsonValue,
+  ClaraSessionMessageAssistantTool,
+  ClaraSessionMessage,
+  ClaraSessionMessageShell,
+  ClaraToolContent,
+} from '@clara/api-contract'
 
 const MAX_ENTRIES = 300
 const MAX_OUTPUT_LINES = 400
@@ -48,7 +48,7 @@ export type TerminalLog = {
   truncated: boolean
 }
 
-export function buildTerminalLog(messages: SessionMessageInfo[]): TerminalLog {
+export function buildTerminalLog(messages: ClaraSessionMessage[]): TerminalLog {
   const entries: TerminalEntry[] = []
 
   for (const message of messages) {
@@ -78,7 +78,7 @@ export function buildTerminalLog(messages: SessionMessageInfo[]): TerminalLog {
   }
 }
 
-function shellEntry(message: SessionMessageShell): TerminalEntry {
+function shellEntry(message: ClaraSessionMessageShell): TerminalEntry {
   return {
     kind: 'command',
     id: `shell:${message.id}`,
@@ -91,7 +91,7 @@ function shellEntry(message: SessionMessageShell): TerminalEntry {
   }
 }
 
-function toolEntry(messageID: string, tool: SessionMessageAssistantTool): TerminalEntry {
+function toolEntry(messageID: string, tool: ClaraSessionMessageAssistantTool): TerminalEntry {
   const id = `tool:${messageID}:${tool.id}`
   const status = toolStatus(tool)
 
@@ -146,24 +146,24 @@ function toolEntry(messageID: string, tool: SessionMessageAssistantTool): Termin
   }
 }
 
-function isCommandTool(tool: SessionMessageAssistantTool): boolean {
+function isCommandTool(tool: ClaraSessionMessageAssistantTool): boolean {
   if (SHELL_TOOLS.has(tool.name)) return true
   return tool.state.status !== 'streaming' && typeof tool.state.input.command === 'string'
 }
 
-function commandOf(tool: SessionMessageAssistantTool): string | undefined {
+function commandOf(tool: ClaraSessionMessageAssistantTool): string | undefined {
   if (tool.state.status === 'streaming') return undefined
   const command = tool.state.input.command
   return typeof command === 'string' && command.trim().length > 0 ? command : undefined
 }
 
-function inputString(tool: SessionMessageAssistantTool, key: string): string | undefined {
+function inputString(tool: ClaraSessionMessageAssistantTool, key: string): string | undefined {
   if (tool.state.status === 'streaming') return undefined
   const value = tool.state.input[key]
   return typeof value === 'string' && value.trim().length > 0 ? value : undefined
 }
 
-function toolSummary(tool: SessionMessageAssistantTool): string | undefined {
+function toolSummary(tool: ClaraSessionMessageAssistantTool): string | undefined {
   if (tool.state.status === 'streaming') return undefined
   const input = tool.state.input
   for (const key of ['command', 'path', 'filePath', 'pattern', 'query', 'url', 'description']) {
@@ -176,7 +176,7 @@ function toolSummary(tool: SessionMessageAssistantTool): string | undefined {
   return first
 }
 
-function resultOf(tool: SessionMessageAssistantTool): {
+function resultOf(tool: ClaraSessionMessageAssistantTool): {
   output?: string
   error?: string
   exit?: number
@@ -197,26 +197,26 @@ function resultOf(tool: SessionMessageAssistantTool): {
   }
 }
 
-function contentText(content: ToolContent[] | undefined) {
+function contentText(content: ClaraToolContent[] | undefined) {
   if (!content) return undefined
   const text = content
-    .filter((item): item is Extract<ToolContent, { type: 'text' }> => item.type === 'text')
+    .filter((item): item is Extract<ClaraToolContent, { type: 'text' }> => item.type === 'text')
     .map((item) => item.text)
     .join('\n')
   return text.trim().length > 0 ? text : undefined
 }
 
-function jsonString(metadata: { [key: string]: JsonValue } | undefined, key: string) {
+function jsonString(metadata: { [key: string]: ClaraJsonValue } | undefined, key: string) {
   const value = metadata?.[key]
   return typeof value === 'string' ? value : undefined
 }
 
-function jsonNumber(metadata: { [key: string]: JsonValue } | undefined, key: string) {
+function jsonNumber(metadata: { [key: string]: ClaraJsonValue } | undefined, key: string) {
   const value = metadata?.[key]
   return typeof value === 'number' && Number.isFinite(value) ? value : undefined
 }
 
-function toolStatus(tool: SessionMessageAssistantTool): TerminalStatus {
+function toolStatus(tool: ClaraSessionMessageAssistantTool): TerminalStatus {
   switch (tool.state.status) {
     case 'streaming':
       return 'preparing'
@@ -229,7 +229,7 @@ function toolStatus(tool: SessionMessageAssistantTool): TerminalStatus {
   }
 }
 
-function shellStatus(message: SessionMessageShell): TerminalStatus {
+function shellStatus(message: ClaraSessionMessageShell): TerminalStatus {
   if (message.status === 'running') return 'running'
   if (message.status === 'timeout') return 'timeout'
   if (message.status === 'killed') return 'killed'

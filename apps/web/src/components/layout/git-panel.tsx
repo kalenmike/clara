@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { AlertCircle, GitBranch, GitCommitHorizontal, Loader2, RefreshCw } from 'lucide-react'
 import { useQueryClient } from '@tanstack/react-query'
-import type { VcsFileStatus } from '@opencode/client'
+import type { ClaraVcsFileStatus } from '@clara/api-contract'
 import { GitCommitList } from '@/components/layout/git-commit-list'
 import { GitPanelMessage } from '@/components/layout/git-panel-parts'
 import { GitWorktreeList } from '@/components/layout/git-worktree-list'
@@ -30,13 +30,13 @@ import { formatCount } from '@/lib/format'
 import { cn } from '@/lib/utils'
 import { useConnection } from '@/providers/connection-provider'
 
-const STATUS_COLOR: Record<VcsFileStatus['status'], string> = {
+const STATUS_COLOR: Record<ClaraVcsFileStatus['status'], string> = {
   added: 'text-emerald-600 dark:text-emerald-400',
   modified: 'text-amber-600 dark:text-amber-400',
   deleted: 'text-rose-600 dark:text-rose-400',
 }
 
-const STATUS_LABEL: Record<VcsFileStatus['status'], string> = {
+const STATUS_LABEL: Record<ClaraVcsFileStatus['status'], string> = {
   added: 'A',
   modified: 'M',
   deleted: 'D',
@@ -341,7 +341,7 @@ export function GitPanel({
   )
 }
 
-function FileRow({ file, maxChurn }: { file: VcsFileStatus; maxChurn: number }) {
+function FileRow({ file, maxChurn }: { file: ClaraVcsFileStatus; maxChurn: number }) {
   const slash = file.file.lastIndexOf('/')
   const directory = slash >= 0 ? file.file.slice(0, slash) : ''
   const name = slash >= 0 ? file.file.slice(slash + 1) : file.file

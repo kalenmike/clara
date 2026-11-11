@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import type { Project } from '@opencode/client'
+import type { ClaraProject } from '@clara/api-contract'
 import { queryKeys } from '@/lib/query-keys'
 import { useConnection } from '@/providers/connection-provider'
 
@@ -18,7 +18,7 @@ export function useProjects() {
  * example before and after `git init`. Prefer the VCS-backed record, then the
  * most recently active one.
  */
-function preferredProject(current: Project, candidate: Project): Project {
+function preferredProject(current: ClaraProject, candidate: ClaraProject): ClaraProject {
   if (Boolean(candidate.vcs) !== Boolean(current.vcs)) {
     return candidate.vcs ? candidate : current
   }
@@ -26,8 +26,8 @@ function preferredProject(current: Project, candidate: Project): Project {
 }
 
 /** One project record per canonical directory. */
-export function canonicalProjects(projects: Project[]): Project[] {
-  const byCanonical = new Map<string, Project>()
+export function canonicalProjects(projects: ClaraProject[]): ClaraProject[] {
+  const byCanonical = new Map<string, ClaraProject>()
   for (const project of projects) {
     const current = byCanonical.get(project.canonical)
     byCanonical.set(project.canonical, current ? preferredProject(current, project) : project)
@@ -41,9 +41,9 @@ export function canonicalProjects(projects: Project[]): Project[] {
  * would otherwise hide every session in the directory.
  */
 export function canonicalProject(
-  projects: Project[],
+  projects: ClaraProject[],
   projectID: string | null | undefined
-): Project | null {
+): ClaraProject | null {
   if (!projectID) return null
   const project = projects.find((item) => item.id === projectID)
   if (!project) return null
@@ -52,8 +52,8 @@ export function canonicalProject(
 
 type ProjectUpdatePatch = {
   name?: string
-  icon?: Project['icon']
-  commands?: Project['commands']
+  icon?: ClaraProject['icon']
+  commands?: ClaraProject['commands']
 }
 
 /**
@@ -66,7 +66,7 @@ export function useUpdateProject(projectID: string) {
   return useMutation({
     mutationFn: (patch: ProjectUpdatePatch) => client!.project.update({ projectID, ...patch }),
     onSuccess: (project) => {
-      queryClient.setQueryData<Project[]>(queryKeys.projects, (current) =>
+      queryClient.setQueryData<ClaraProject[]>(queryKeys.projects, (current) =>
         current?.map((item) => (item.id === project.id ? project : item))
       )
       void queryClient.invalidateQueries({ queryKey: queryKeys.projects })

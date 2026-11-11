@@ -1,4 +1,4 @@
-import type { ModelInfo } from '@opencode/client'
+import type { ClaraModel } from '@clara/api-contract'
 import { notifySettingChanged } from '@/lib/setting-events'
 
 export const HIDDEN_MODELS_KEY = 'clara.hiddenModels'
@@ -124,7 +124,7 @@ export function isModelHidden(
 }
 
 export function isModelVisible(
-  model: Pick<ModelInfo, 'providerID' | 'modelID' | 'enabled'>,
+  model: Pick<ClaraModel, 'providerID' | 'modelID' | 'enabled'>,
   visibility: HiddenModels
 ): boolean {
   return model.enabled && !isModelHidden(visibility, model.providerID, model.modelID)
@@ -167,7 +167,7 @@ export function resolveInheritedModel<T extends { id: string; providerID: string
 }
 
 /** A model is free when every cost tier is zero, including cache prices. */
-export function isFreeModel(model: Pick<ModelInfo, 'cost'>): boolean {
+export function isFreeModel(model: Pick<ClaraModel, 'cost'>): boolean {
   const costs = model.cost ?? []
   if (costs.length === 0) return true
   return costs.every(
@@ -179,7 +179,7 @@ export function isFreeModel(model: Pick<ModelInfo, 'cost'>): boolean {
   )
 }
 
-export function filterModelsByPrice<T extends Pick<ModelInfo, 'cost'>>(
+export function filterModelsByPrice<T extends Pick<ClaraModel, 'cost'>>(
   models: T[],
   filter: PriceFilter
 ): T[] {

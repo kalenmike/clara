@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react'
 import { CircleHelp } from 'lucide-react'
-import type { FormInfo } from '@opencode/client'
+import type { ClaraForm } from '@clara/api-contract'
 import { FormFields } from '@/components/chat/form-fields'
 import { RequestCard } from '@/components/chat/request-card'
 import { Button } from '@/components/ui/button'
@@ -26,7 +26,7 @@ export function FormPanel({ sessionID }: { sessionID: string }) {
   )
 }
 
-function FormCard({ sessionID, form }: { sessionID: string; form: FormInfo }) {
+function FormCard({ sessionID, form }: { sessionID: string; form: ClaraForm }) {
   const reply = useReplyForm(sessionID)
   const reject = useRejectForm(sessionID)
   const [answers, setAnswers] = useState(() => initialFormAnswers(form.fields))

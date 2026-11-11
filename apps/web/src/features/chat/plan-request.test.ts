@@ -1,10 +1,10 @@
 import { describe, expect, it } from 'vitest'
 import type {
-  SessionMessageAssistant,
-  SessionMessageAssistantTool,
-  SessionMessageInfo,
-  SessionMessageSynthetic,
-} from '@opencode/client'
+  ClaraSessionMessageAssistant,
+  ClaraSessionMessageAssistantTool,
+  ClaraSessionMessage,
+  ClaraSessionMessageSynthetic,
+} from '@clara/api-contract'
 import { findLatestPlanRequest, planRequestProgress, type PlanRequest } from './plan-request'
 
 function request(created = 1, kind: 'plan-request' | 'plan-update' = 'plan-update') {
@@ -14,13 +14,13 @@ function request(created = 1, kind: 'plan-request' | 'plan-update' = 'plan-updat
     type: 'synthetic',
     text: '',
     metadata: { clara: { kind } },
-  } satisfies SessionMessageSynthetic
+  } satisfies ClaraSessionMessageSynthetic
 }
 
 function assistant(
   created: number,
-  content: SessionMessageAssistant['content'] = []
-): SessionMessageAssistant {
+  content: ClaraSessionMessageAssistant['content'] = []
+): ClaraSessionMessageAssistant {
   return {
     id: `assistant-${created}`,
     type: 'assistant',
@@ -31,7 +31,7 @@ function assistant(
   }
 }
 
-function tool(name: string, created: number, id = name): SessionMessageAssistantTool {
+function tool(name: string, created: number, id = name): ClaraSessionMessageAssistantTool {
   return {
     type: 'tool',
     id,
@@ -52,7 +52,7 @@ describe('findLatestPlanRequest', () => {
         time: { created: 3 },
         text: '',
         metadata: { clara: { kind: 'build-start' } },
-      } satisfies SessionMessageSynthetic,
+      } satisfies ClaraSessionMessageSynthetic,
     ]
 
     expect(findLatestPlanRequest(messages)).toEqual({ id: 'request-2', time: 2 })
@@ -83,7 +83,7 @@ describe('planRequestProgress', () => {
   })
 
   it('times out after five assistant messages', () => {
-    const messages: SessionMessageInfo[] = [request(10)]
+    const messages: ClaraSessionMessage[] = [request(10)]
     for (let index = 1; index <= 5; index += 1) {
       messages.push(assistant(10 + index))
     }

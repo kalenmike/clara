@@ -47,7 +47,7 @@ const eventBaseShape = {
   location: claraLocationRefSchema.optional(),
 }
 
-function event<const T extends string>(type: T, data: z.ZodType) {
+function event<const T extends string, D extends z.ZodType>(type: T, data: D) {
   return passthroughObject({
     ...eventBaseShape,
     type: z.literal(type),

@@ -1,12 +1,12 @@
 import { describe, expect, it } from 'vitest'
-import type { SessionMessageAssistant, SessionMessageAssistantTool } from '@opencode/client'
+import type { ClaraSessionMessageAssistant, ClaraSessionMessageAssistantTool } from '@clara/api-contract'
 import { formatUsageDetail, formatUsageSummary, hasUsage, summarizeSteps } from './usage-summary'
 
 function step(
-  content: SessionMessageAssistant['content'],
-  tokens?: SessionMessageAssistant['tokens'],
+  content: ClaraSessionMessageAssistant['content'],
+  tokens?: ClaraSessionMessageAssistant['tokens'],
   cost?: number
-): SessionMessageAssistant {
+): ClaraSessionMessageAssistant {
   return {
     id: 'assistant-1',
     type: 'assistant',
@@ -19,7 +19,7 @@ function step(
   }
 }
 
-function tool(): SessionMessageAssistantTool {
+function tool(): ClaraSessionMessageAssistantTool {
   return {
     type: 'tool',
     id: 'tool-1',

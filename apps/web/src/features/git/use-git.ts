@@ -1,9 +1,9 @@
 import { useQuery } from '@tanstack/react-query'
 import {
-  type SessionMessageInfo,
-  type VcsFileStatus,
-  type WorktreeDirectory,
-} from '@opencode/client'
+  type ClaraSessionMessage,
+  type ClaraVcsFileStatus,
+  type ClaraWorktree,
+} from '@clara/api-contract'
 import { ClaraApiError } from '@clara/api-client'
 import { queryKeys } from '@/lib/query-keys'
 import { useConnection } from '@/providers/connection-provider'
@@ -31,7 +31,7 @@ export type ConventionalHeader = {
   description: string
 }
 
-export type GitWorktree = WorktreeDirectory & {
+export type GitWorktree = ClaraWorktree & {
   isDefault: boolean
   isCurrent: boolean
 }
@@ -74,7 +74,7 @@ export function useGitChanges(
   const { client } = useConnection()
   return useQuery({
     queryKey: queryKeys.vcsChanges(directory, range, base),
-    queryFn: async (): Promise<VcsFileStatus[]> => {
+    queryFn: async (): Promise<ClaraVcsFileStatus[]> => {
       if (range === 'working') {
         const result = await client!.vcs.status({ location: { directory } })
         return result.data
@@ -167,7 +167,7 @@ const CO_AUTHOR_TRAILER = /^co-authored-by:\s*(.*?)\s*<([^<>]+)>\s*$/i
  * completion time after the commits made during their turn, so it is the upper
  * bound when present. Every other message only has a creation time.
  */
-export function lastSessionActivity(messages: SessionMessageInfo[]): number | undefined {
+export function lastSessionActivity(messages: ClaraSessionMessage[]): number | undefined {
   let latest: number | undefined
   for (const message of messages) {
     const time =
@@ -217,7 +217,7 @@ export function splitCommitBody(body: string): { message: string; coAuthors: Git
  * canonical directory and the current row is the session's own directory.
  */
 export function resolveWorktrees(
-  worktrees: WorktreeDirectory[],
+  worktrees: ClaraWorktree[],
   canonical: string | undefined,
   current: string | undefined
 ): GitWorktree[] {

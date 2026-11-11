@@ -1,9 +1,9 @@
 import { describe, expect, it } from 'vitest'
-import type { SessionInfo } from '@opencode/client'
+import type { ClaraSession } from '@clara/api-contract'
 import { isSnoozedSession, snoozeMetadata, unsnoozeMetadata } from './session-snooze'
 
-function session(metadata?: SessionInfo['metadata']): SessionInfo {
-  return { metadata } as SessionInfo
+function session(metadata?: ClaraSession['metadata']): ClaraSession {
+  return { metadata } as ClaraSession
 }
 
 describe('isSnoozedSession', () => {

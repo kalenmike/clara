@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { ArrowDown, SquareTerminal } from 'lucide-react'
-import type { SessionMessageInfo } from '@opencode/client'
+import type { ClaraSessionMessage } from '@clara/api-contract'
 import type { ChatSnapshot } from '@/features/chat/chat-store'
 import {
   buildTerminalLog,
@@ -22,7 +22,7 @@ export function PairTerminal({
   sessionID: string
   title?: string
   directory?: string
-  messages: SessionMessageInfo[]
+  messages: ClaraSessionMessage[]
   status: ChatSnapshot['status']
 }) {
   const scrollRef = useRef<HTMLDivElement>(null)

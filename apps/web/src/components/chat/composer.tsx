@@ -16,7 +16,7 @@ import {
   Sparkles,
   X,
 } from 'lucide-react'
-import type { SessionInboxUser, SessionInfo } from '@opencode/client'
+import type { ClaraSessionInboxUser, ClaraSession } from '@clara/api-contract'
 import { toast } from 'sonner'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -89,7 +89,7 @@ export function Composer({
   onSent,
   onCycleAgent,
 }: {
-  session: SessionInfo | undefined
+  session: ClaraSession | undefined
   sessionID: string
   directory: string | undefined
   busy: boolean
@@ -516,7 +516,7 @@ export function Composer({
       return
     }
 
-    let sent: SessionInboxUser
+    let sent: ClaraSessionInboxUser
     try {
       sent = await sendPrompt.mutateAsync({ text: value, files, delivery, resume: false })
     } catch (cause) {

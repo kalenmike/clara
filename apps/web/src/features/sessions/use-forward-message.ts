@@ -1,6 +1,6 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from 'react-router'
-import type { SessionInfo, SessionMessageInfo } from '@opencode/client'
+import type { ClaraSession, ClaraSessionMessage } from '@clara/api-contract'
 import { toast } from 'sonner'
 import { useModelVisibility } from '@/features/models/use-model-visibility'
 import { resolveInheritedModel } from '@/features/models/visibility'
@@ -17,12 +17,12 @@ import { saveDraft } from '@/lib/storage'
 import { useConnection } from '@/providers/connection-provider'
 
 type SessionTarget = {
-  session: SessionInfo | undefined
+  session: ClaraSession | undefined
   projectID: string | undefined
 }
 
 type ForwardInput = {
-  message: SessionMessageInfo
+  message: ClaraSessionMessage
   /** A selected slice of the reply. When present it replaces the whole message. */
   text?: string
 }

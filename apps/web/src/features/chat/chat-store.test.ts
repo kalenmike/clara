@@ -1,11 +1,11 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import type { V2Event } from '@opencode/client'
+import type { ClaraEvent } from '@clara/api-contract'
 import { chatStore } from './chat-store'
 
 const SESSION = 'ses_status'
 
-function event(type: string, data: Record<string, unknown>): V2Event {
-  return { id: 'evt', created: 1, type, data } as unknown as V2Event
+function event(type: string, data: Record<string, unknown>): ClaraEvent {
+  return { id: 'evt', created: 1, type, data } as unknown as ClaraEvent
 }
 
 beforeEach(() => {

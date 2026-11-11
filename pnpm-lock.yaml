@@ -397,6 +397,9 @@ importers:
       '@clara/api-client':
         specifier: workspace:*
         version: link:../../packages/api-client
+      '@clara/api-contract':
+        specifier: workspace:*
+        version: link:../../packages/api-contract
       '@clara/crypto':
         specifier: workspace:*
         version: link:../../packages/crypto
@@ -406,9 +409,6 @@ importers:
       '@fontsource-variable/geist':
         specifier: ^5.3.0
         version: 5.3.0
-      '@opencode/client':
-        specifier: 2.1.1
-        version: 2.1.1(effect@4.0.1)
       '@tanstack/react-query':
         specifier: ^5.105.0
         version: 5.105.0(@types/react@19.3.0)(react@19.3.1)
@@ -564,9 +564,6 @@ importers:
       '@clara/api-contract':
         specifier: workspace:*
         version: link:../api-contract
-      '@opencode/client':
-        specifier: 2.1.1
-        version: 2.1.1(effect@4.0.1)
     devDependencies:
       '@types/node':
         specifier: ^24.19.2

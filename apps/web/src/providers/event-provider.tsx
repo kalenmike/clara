@@ -10,7 +10,7 @@ import {
   type ReactNode,
 } from 'react'
 import { useQueryClient, type QueryClient } from '@tanstack/react-query'
-import type { V2Event } from '@opencode/client'
+import type { ClaraEvent } from '@clara/api-contract'
 import { toast } from 'sonner'
 import { saveLastAgent } from '@/features/agents/default-agent'
 import { chatStore } from '@/features/chat/chat-store'
@@ -19,7 +19,7 @@ import { useConnection } from '@/providers/connection-provider'
 
 export type StreamState = 'connecting' | 'live' | 'reconnecting' | 'offline'
 
-type EventListener = (event: V2Event) => void
+type EventListener = (event: ClaraEvent) => void
 
 type EventContextValue = {
   live: boolean
@@ -163,7 +163,7 @@ export function EventProvider({ children }: { children: ReactNode }) {
       setState('reconnecting')
     }
 
-    const handleEvent = (event: V2Event) => {
+    const handleEvent = (event: ClaraEvent) => {
       markAlive()
       setLastEventAt(Date.now())
       for (const listener of listeners.current) {
@@ -252,7 +252,7 @@ function backoff(attempt: number): number {
 }
 
 function handleInvalidation(
-  event: V2Event,
+  event: ClaraEvent,
   queryClient: QueryClient,
   invalidateSoon: (key: string, queryKey: readonly unknown[]) => void
 ) {

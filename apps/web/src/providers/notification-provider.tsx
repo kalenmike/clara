@@ -1,7 +1,7 @@
 import { useEffect, type ReactNode } from 'react'
 import { useNavigate } from 'react-router'
 import { useQueryClient } from '@tanstack/react-query'
-import type { SessionInfo } from '@opencode/client'
+import type { ClaraSession } from '@clara/api-contract'
 import { isArchivedSession } from '@/features/sessions/session-archive'
 import { getSessionInfo } from '@/features/sessions/session-cache'
 import { isSnoozedSession } from '@/features/sessions/session-snooze'
@@ -61,7 +61,7 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
       sessionID: string,
       kind: AttentionKind,
       detail?: string,
-      known?: SessionInfo
+      known?: ClaraSession
     ) => {
       if (disposed) return
       try {

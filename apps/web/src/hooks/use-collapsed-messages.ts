@@ -1,10 +1,10 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import type { SessionMessageInfo } from '@opencode/client'
+import type { ClaraSessionMessage } from '@clara/api-contract'
 import { assistantHasReply } from '@/features/chat/message-visibility'
 
-type CollapsibleMessage = Extract<SessionMessageInfo, { type: 'user' | 'assistant' | 'shell' }>
+type CollapsibleMessage = Extract<ClaraSessionMessage, { type: 'user' | 'assistant' | 'shell' }>
 
-export function isCollapsibleMessage(message: SessionMessageInfo): message is CollapsibleMessage {
+export function isCollapsibleMessage(message: ClaraSessionMessage): message is CollapsibleMessage {
   return message.type === 'user' || message.type === 'assistant' || message.type === 'shell'
 }
 
@@ -22,7 +22,7 @@ function canBeAnchor(message: CollapsibleMessage): boolean {
  * the agent actually replies. When the anchor moves, the previous one collapses
  * again unless the person expanded or collapsed it explicitly.
  */
-export function useCollapsedMessages(sessionID: string, messages: SessionMessageInfo[]) {
+export function useCollapsedMessages(sessionID: string, messages: ClaraSessionMessage[]) {
   const [collapsed, setCollapsed] = useState<Set<string>>(() => new Set())
   const manual = useRef(new Set<string>())
   const autoExpanded = useRef<string | null>(null)

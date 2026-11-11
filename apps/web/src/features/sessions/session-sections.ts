@@ -1,4 +1,4 @@
-import type { SessionInfo } from '@opencode/client'
+import type { ClaraSession } from '@clara/api-contract'
 import { isArchivedSession } from '@/features/sessions/session-archive'
 import {
   resolveSessionMailbox,
@@ -7,28 +7,28 @@ import {
 import { isSnoozedSession } from '@/features/sessions/session-snooze'
 
 export type SessionGroups = {
-  inbox: SessionInfo[]
-  outbox: SessionInfo[]
-  drafts: SessionInfo[]
-  snoozed: SessionInfo[]
-  archived: SessionInfo[]
-  workers: SessionInfo[]
+  inbox: ClaraSession[]
+  outbox: ClaraSession[]
+  drafts: ClaraSession[]
+  snoozed: ClaraSession[]
+  archived: ClaraSession[]
+  workers: ClaraSession[]
 }
 
 /** Split sessions into the sidebar's mailbox sections, newest first. */
 export function groupSessionsByMailbox(
-  sessions: SessionInfo[],
+  sessions: ClaraSession[],
   signals: ReadonlyMap<string, SessionMailboxSignals>,
   running: Readonly<Record<string, unknown>> | undefined,
   awaitingInput: ReadonlySet<string>,
-  isAutomation?: (session: SessionInfo) => boolean
+  isAutomation?: (session: ClaraSession) => boolean
 ): SessionGroups {
-  const inbox: SessionInfo[] = []
-  const outbox: SessionInfo[] = []
-  const drafts: SessionInfo[] = []
-  const snoozed: SessionInfo[] = []
-  const archived: SessionInfo[] = []
-  const workers: SessionInfo[] = []
+  const inbox: ClaraSession[] = []
+  const outbox: ClaraSession[] = []
+  const drafts: ClaraSession[] = []
+  const snoozed: ClaraSession[] = []
+  const archived: ClaraSession[] = []
+  const workers: ClaraSession[] = []
 
   for (const session of sessions) {
     if (isAutomation?.(session)) {
@@ -52,7 +52,7 @@ export function groupSessionsByMailbox(
     else inbox.push(session)
   }
 
-  const byUpdated = (a: SessionInfo, b: SessionInfo) => b.time.updated - a.time.updated
+  const byUpdated = (a: ClaraSession, b: ClaraSession) => b.time.updated - a.time.updated
   inbox.sort(byUpdated)
   outbox.sort(byUpdated)
   drafts.sort(byUpdated)

@@ -1,5 +1,40 @@
-import type { OpenCodeClient, WorktreeList } from '@opencode/client'
-import type { ApiInfo, GitCommit, GitLogQuery } from '@clara/api-contract'
+import type {
+  ApiInfo,
+  ClaraAgentListOutput,
+  ClaraCommandListOutput,
+  ClaraEvent,
+  ClaraFileFindOutput,
+  ClaraForm,
+  ClaraLocation,
+  ClaraModelListOutput,
+  ClaraModelRef,
+  ClaraPermissionRequestListOutput,
+  ClaraPermissionRule,
+  ClaraProject,
+  ClaraProviderListOutput,
+  ClaraReferenceListOutput,
+  ClaraServerInfo,
+  ClaraSession,
+  ClaraSessionActiveOutput,
+  ClaraSessionInboxCompaction,
+  ClaraSessionInboxInfo,
+  ClaraSessionInboxSynthetic,
+  ClaraSessionInboxUser,
+  ClaraSessionInterruptResponse,
+  ClaraSessionMessage,
+  ClaraSessionMessageType,
+  ClaraSessionMessagesResponse,
+  ClaraSessionMetadata,
+  ClaraSessionsResponse,
+  ClaraSkillListOutput,
+  ClaraVcsBaseOutput,
+  ClaraVcsDiffOutput,
+  ClaraVcsGetOutput,
+  ClaraVcsStatusOutput,
+  ClaraWorktree,
+  GitCommit,
+  GitLogQuery,
+} from '@clara/api-contract'
 
 export type RequestOptions = {
   readonly signal?: AbortSignal
@@ -8,62 +43,325 @@ export type RequestOptions = {
   readonly onActivity?: () => void
 }
 
+export type ClaraLocationInput = {
+  readonly location?: {
+    readonly directory?: string
+  }
+}
+
+export type ClaraProjectListInput = {
+  readonly archived?: boolean
+}
+
+export type ClaraProjectUpdateInput = {
+  readonly projectID: string
+  readonly canonical?: string
+  readonly name?: string
+  readonly icon?: Record<string, unknown>
+  readonly commands?: Record<string, unknown>
+}
+
+export type ClaraPromptMentionInput = {
+  readonly start: number
+  readonly end: number
+  readonly text: string
+}
+
+export type ClaraPromptFileInput = {
+  readonly uri: string
+  readonly name?: string
+  readonly description?: string
+  readonly mention?: ClaraPromptMentionInput
+}
+
+export type ClaraPromptAgentInput = {
+  readonly name: string
+  readonly mention?: ClaraPromptMentionInput
+}
+
+export type ClaraPromptSkillInput = {
+  readonly id: string
+  readonly mention?: ClaraPromptMentionInput
+}
+
+export type ClaraSessionListInput = {
+  readonly limit?: number
+  readonly order?: 'asc' | 'desc'
+  readonly search?: string
+  readonly parentID?: string | null
+  readonly archived?: boolean
+  readonly directory?: string
+  readonly project?: string
+  readonly subpath?: string
+  readonly cursor?: string
+}
+
+export type ClaraSessionCreateInput = {
+  readonly id?: string | null
+  readonly parentID?: string | null
+  readonly title?: string | null
+  readonly agent?: string | null
+  readonly model?: ClaraModelRef | null
+  readonly location?: { readonly directory: string } | null
+  readonly metadata?: ClaraSessionMetadata | null
+  readonly permissions?: readonly ClaraPermissionRule[] | null
+}
+
+export type ClaraSessionUpdateInput = {
+  readonly sessionID: string
+  readonly title?: string
+  readonly metadata?: ClaraSessionMetadata
+  readonly permissions?: readonly ClaraPermissionRule[]
+  readonly archived?: boolean
+}
+
+export type ClaraSessionForkInput = {
+  readonly sessionID: string
+  readonly before?: string
+}
+
+export type ClaraSessionMoveInput = {
+  readonly sessionID: string
+  readonly directory: string
+  readonly delivery?: 'steer' | 'queue'
+}
+
+export type ClaraSessionViewInput = {
+  readonly sessionID: string
+  readonly idle: number
+}
+
+export type ClaraSessionPromptInput = {
+  readonly sessionID: string
+  readonly id?: string | null
+  readonly text: string
+  readonly files?: readonly ClaraPromptFileInput[]
+  readonly agents?: readonly ClaraPromptAgentInput[]
+  readonly skills?: readonly ClaraPromptSkillInput[]
+  readonly metadata?: ClaraSessionMetadata
+  readonly delivery?: 'steer' | 'queue' | null
+  readonly resume?: boolean | null
+}
+
+export type ClaraSessionSyntheticInput = {
+  readonly sessionID: string
+  readonly id?: string | null
+  readonly text: string
+  readonly description?: string | null
+  readonly metadata?: ClaraSessionMetadata
+  readonly delivery?: 'steer' | 'queue' | null
+  readonly resume?: boolean | null
+}
+
+export type ClaraSessionCommandInput = {
+  readonly sessionID: string
+  readonly name: string
+  readonly text: string
+  readonly files?: readonly ClaraPromptFileInput[]
+  readonly agents?: readonly ClaraPromptAgentInput[]
+  readonly skills?: readonly ClaraPromptSkillInput[]
+  readonly delivery?: 'steer' | 'queue'
+}
+
+export type ClaraSessionInterruptInput = {
+  readonly sessionID: string
+  readonly resume?: boolean
+}
+
+export type ClaraSessionCompactInput = {
+  readonly sessionID: string
+  readonly id?: string
+  readonly delivery?: 'steer' | 'queue'
+}
+
+export type ClaraSessionSwitchAgentInput = {
+  readonly sessionID: string
+  readonly agent: string
+}
+
+export type ClaraSessionSwitchModelInput = {
+  readonly sessionID: string
+  readonly model: ClaraModelRef
+}
+
+export type ClaraMessageListInput = {
+  readonly sessionID: string
+  readonly limit?: number
+  readonly order?: 'asc' | 'desc'
+  readonly cursor?: string
+  readonly type?: ClaraSessionMessageType
+}
+
+export type ClaraSessionFormListInput = {
+  readonly sessionID: string
+}
+
+export type ClaraSessionFormReplyInput = {
+  readonly sessionID: string
+  readonly formID: string
+  readonly answer: Record<string, string | number | boolean | string[]>
+}
+
+export type ClaraSessionFormCancelInput = {
+  readonly sessionID: string
+  readonly formID: string
+  readonly message?: string
+}
+
+export type ClaraSessionInboxListInput = {
+  readonly sessionID: string
+}
+
+export type ClaraSessionInboxCancelInput = {
+  readonly sessionID: string
+  readonly inboxID: string
+}
+
+export type ClaraPermissionReplyInput = {
+  readonly sessionID: string
+  readonly requestID: string
+  readonly decision: 'once' | 'always' | 'reject'
+  readonly message?: string
+}
+
+export type ClaraFileFindInput = {
+  readonly location?: {
+    readonly directory?: string
+  }
+  readonly query: string
+  readonly type?: 'file' | 'directory'
+  readonly limit?: number
+}
+
+export type ClaraVcsDiffInput = {
+  readonly location?: {
+    readonly directory?: string
+  }
+  readonly mode: 'working' | 'branch' | 'committed'
+  readonly base?: string
+  readonly context?: number
+}
+
+export type ClaraWorktreeListInput = {
+  readonly projectID?: string
+}
+
+export type ClaraWorktreeRefreshInput = {
+  readonly projectID: string
+}
+
 /**
- * The subset of the OpenCode client that Clara implements. Reusing the
- * OpenCode method signatures keeps the web migration mechanical and prevents
- * the SDK from drifting from the harness contract.
+ * The Clara SDK surface. Method names mirror the harness client so call sites
+ * stay mechanical, but every value crossing this boundary is a Clara DTO.
  */
 export type ClaraClient = {
   server: {
-    info: OpenCodeClient['server']['info']
+    info: (options?: RequestOptions) => Promise<ClaraServerInfo>
     status: (options?: RequestOptions) => Promise<ApiInfo>
     openapi: (options?: RequestOptions) => Promise<Record<string, unknown>>
   }
-  project: Pick<OpenCodeClient['project'], 'list' | 'update'>
-  location: Pick<OpenCodeClient['location'], 'get'>
-  session: Pick<
-    OpenCodeClient['session'],
-    | 'list'
-    | 'get'
-    | 'create'
-    | 'update'
-    | 'remove'
-    | 'fork'
-    | 'move'
-    | 'view'
-    | 'prompt'
-    | 'synthetic'
-    | 'command'
-    | 'interrupt'
-    | 'compact'
-    | 'switchAgent'
-    | 'switchModel'
-    | 'context'
-    | 'active'
-  > & {
-    form: Pick<OpenCodeClient['session']['form'], 'list' | 'reply' | 'cancel'>
-    inbox: Pick<OpenCodeClient['session']['inbox'], 'list' | 'cancel'>
+  project: {
+    list: (input?: ClaraProjectListInput, options?: RequestOptions) => Promise<ClaraProject[]>
+    update: (input: ClaraProjectUpdateInput, options?: RequestOptions) => Promise<ClaraProject>
   }
-  message: Pick<OpenCodeClient['message'], 'list'>
-  permission: Pick<OpenCodeClient['permission'], 'reply'> & {
-    request: Pick<OpenCodeClient['permission']['request'], 'list'>
+  location: {
+    get: (input?: ClaraLocationInput, options?: RequestOptions) => Promise<ClaraLocation>
   }
-  agent: Pick<OpenCodeClient['agent'], 'list'>
-  model: Pick<OpenCodeClient['model'], 'list'>
-  provider: Pick<OpenCodeClient['provider'], 'list'>
-  command: Pick<OpenCodeClient['command'], 'list'>
-  skill: Pick<OpenCodeClient['skill'], 'list'>
-  reference: Pick<OpenCodeClient['reference'], 'list'>
-  file: Pick<OpenCodeClient['file'], 'find'>
-  vcs: Pick<OpenCodeClient['vcs'], 'get' | 'base' | 'status' | 'diff'>
+  session: {
+    list: (input?: ClaraSessionListInput, options?: RequestOptions) => Promise<ClaraSessionsResponse>
+    get: (input: { sessionID: string }, options?: RequestOptions) => Promise<ClaraSession>
+    create: (input?: ClaraSessionCreateInput, options?: RequestOptions) => Promise<ClaraSession>
+    update: (input: ClaraSessionUpdateInput, options?: RequestOptions) => Promise<void>
+    remove: (input: { sessionID: string }, options?: RequestOptions) => Promise<void>
+    fork: (input: ClaraSessionForkInput, options?: RequestOptions) => Promise<ClaraSession>
+    move: (input: ClaraSessionMoveInput, options?: RequestOptions) => Promise<void>
+    view: (input: ClaraSessionViewInput, options?: RequestOptions) => Promise<void>
+    prompt: (input: ClaraSessionPromptInput, options?: RequestOptions) => Promise<ClaraSessionInboxUser>
+    synthetic: (
+      input: ClaraSessionSyntheticInput,
+      options?: RequestOptions
+    ) => Promise<ClaraSessionInboxSynthetic>
+    command: (input: ClaraSessionCommandInput, options?: RequestOptions) => Promise<void>
+    interrupt: (
+      input: ClaraSessionInterruptInput,
+      options?: RequestOptions
+    ) => Promise<ClaraSessionInterruptResponse>
+    compact: (
+      input: ClaraSessionCompactInput,
+      options?: RequestOptions
+    ) => Promise<ClaraSessionInboxCompaction>
+    switchAgent: (input: ClaraSessionSwitchAgentInput, options?: RequestOptions) => Promise<void>
+    switchModel: (input: ClaraSessionSwitchModelInput, options?: RequestOptions) => Promise<void>
+    context: (
+      input: { sessionID: string },
+      options?: RequestOptions
+    ) => Promise<ClaraSessionMessage[]>
+    active: (options?: RequestOptions) => Promise<ClaraSessionActiveOutput>
+    form: {
+      list: (input: ClaraSessionFormListInput, options?: RequestOptions) => Promise<ClaraForm[]>
+      reply: (input: ClaraSessionFormReplyInput, options?: RequestOptions) => Promise<void>
+      cancel: (input: ClaraSessionFormCancelInput, options?: RequestOptions) => Promise<void>
+    }
+    inbox: {
+      list: (
+        input: ClaraSessionInboxListInput,
+        options?: RequestOptions
+      ) => Promise<ClaraSessionInboxInfo[]>
+      cancel: (input: ClaraSessionInboxCancelInput, options?: RequestOptions) => Promise<void>
+    }
+  }
+  message: {
+    list: (
+      input: ClaraMessageListInput,
+      options?: RequestOptions
+    ) => Promise<ClaraSessionMessagesResponse>
+  }
+  permission: {
+    reply: (input: ClaraPermissionReplyInput, options?: RequestOptions) => Promise<void>
+    request: {
+      list: (
+        input?: ClaraLocationInput,
+        options?: RequestOptions
+      ) => Promise<ClaraPermissionRequestListOutput>
+    }
+  }
+  agent: {
+    list: (input?: ClaraLocationInput, options?: RequestOptions) => Promise<ClaraAgentListOutput>
+  }
+  model: {
+    list: (input?: ClaraLocationInput, options?: RequestOptions) => Promise<ClaraModelListOutput>
+  }
+  provider: {
+    list: (input?: ClaraLocationInput, options?: RequestOptions) => Promise<ClaraProviderListOutput>
+  }
+  command: {
+    list: (input?: ClaraLocationInput, options?: RequestOptions) => Promise<ClaraCommandListOutput>
+  }
+  skill: {
+    list: (input?: ClaraLocationInput, options?: RequestOptions) => Promise<ClaraSkillListOutput>
+  }
+  reference: {
+    list: (input?: ClaraLocationInput, options?: RequestOptions) => Promise<ClaraReferenceListOutput>
+  }
+  file: {
+    find: (input: ClaraFileFindInput, options?: RequestOptions) => Promise<ClaraFileFindOutput>
+  }
+  vcs: {
+    get: (input?: ClaraLocationInput, options?: RequestOptions) => Promise<ClaraVcsGetOutput>
+    base: (input?: ClaraLocationInput, options?: RequestOptions) => Promise<ClaraVcsBaseOutput>
+    status: (input?: ClaraLocationInput, options?: RequestOptions) => Promise<ClaraVcsStatusOutput>
+    diff: (input: ClaraVcsDiffInput, options?: RequestOptions) => Promise<ClaraVcsDiffOutput>
+  }
   worktree: {
-    list: (input?: { projectID?: string }, options?: RequestOptions) => Promise<WorktreeList>
-    refresh: OpenCodeClient['worktree']['refresh']
+    list: (input?: ClaraWorktreeListInput, options?: RequestOptions) => Promise<ClaraWorktree[]>
+    refresh: (input: ClaraWorktreeRefreshInput, options?: RequestOptions) => Promise<void>
   }
   git: {
     log: (input: GitLogQuery, options?: RequestOptions) => Promise<GitCommit[]>
   }
-  event: Pick<OpenCodeClient['event'], 'subscribe'>
+  event: {
+    subscribe: (options?: RequestOptions) => AsyncIterable<ClaraEvent>
+  }
 }
 
 export type ClaraClientOptions = {

@@ -1,15 +1,15 @@
 import { describe, expect, it } from 'vitest'
-import type { SessionMessageInfo } from '@opencode/client'
+import type { ClaraSessionMessage } from '@clara/api-contract'
 import { isSyntheticMessage } from './message-attribution'
 
-function user(metadata?: SessionMessageInfo['metadata']): SessionMessageInfo {
+function user(metadata?: ClaraSessionMessage['metadata']): ClaraSessionMessage {
   return {
     id: 'msg_1',
     type: 'user',
     time: { created: 1 },
     text: 'handoff',
     metadata,
-  } as SessionMessageInfo
+  } as ClaraSessionMessage
 }
 
 describe('isSyntheticMessage', () => {
@@ -29,7 +29,7 @@ describe('isSyntheticMessage', () => {
         agent: 'build',
         model: { id: 'model', providerID: 'provider' },
         content: [],
-      } as SessionMessageInfo)
+      } as ClaraSessionMessage)
     ).toBe(false)
   })
 })

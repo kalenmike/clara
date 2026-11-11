@@ -23,7 +23,7 @@ export const claraPromptFileAttachmentSchema = passthroughObject({
   data: z.string(),
   mime: z.string(),
   source: claraPromptFileSourceSchema,
-  name: z.string().nullish(),
+  name: z.string().optional(),
   description: z.string().optional(),
   mention: claraPromptMentionSchema.optional(),
 }).meta({ id: 'ClaraPromptFileAttachment' })

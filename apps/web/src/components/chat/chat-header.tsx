@@ -19,7 +19,7 @@ import {
   Trash2,
 } from 'lucide-react'
 import { toast } from 'sonner'
-import type { SessionInfo } from '@opencode/client'
+import type { ClaraSession } from '@clara/api-contract'
 import { useMobileActions } from '@/components/layout/mobile-actions'
 import { Button } from '@/components/ui/button'
 import {
@@ -67,7 +67,7 @@ export function ChatHeader({
   onToggleInternal,
   worker,
 }: {
-  session: SessionInfo | undefined
+  session: ClaraSession | undefined
   snapshot: ChatSnapshot
   infoOpen: boolean
   onToggleInfo: () => void

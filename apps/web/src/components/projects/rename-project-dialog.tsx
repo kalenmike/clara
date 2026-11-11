@@ -1,7 +1,7 @@
 import { useEffect, useState, type FormEvent } from 'react'
 import { Loader2 } from 'lucide-react'
 import { toast } from 'sonner'
-import type { Project } from '@opencode/client'
+import type { ClaraProject } from '@clara/api-contract'
 import { Button } from '@/components/ui/button'
 import {
   Dialog,
@@ -20,7 +20,7 @@ export function RenameProjectDialog({
   open,
   onOpenChange,
 }: {
-  project: Project
+  project: ClaraProject
   open: boolean
   onOpenChange: (open: boolean) => void
 }) {

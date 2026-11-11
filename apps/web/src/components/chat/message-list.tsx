@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { useVirtualizer } from '@tanstack/react-virtual'
 import { ArrowDown, ArrowUp } from 'lucide-react'
-import type { SessionMessageInfo } from '@opencode/client'
+import type { ClaraSessionMessage } from '@clara/api-contract'
 import { Button } from '@/components/ui/button'
 import { HiddenActivityRow } from '@/components/chat/hidden-activity-row'
 import { MessageItem } from '@/components/chat/message-item'
@@ -45,9 +45,9 @@ export function MessageList({
   scrollToEndRequest: number
   onLoadOlder: () => void
   onToggleMessage: (id: string) => void
-  onForkMessage: (message: SessionMessageInfo) => void
-  onForwardMessage: (message: SessionMessageInfo, text?: string) => void
-  canActOnMessage: (message: SessionMessageInfo) => boolean
+  onForkMessage: (message: ClaraSessionMessage) => void
+  onForwardMessage: (message: ClaraSessionMessage, text?: string) => void
+  canActOnMessage: (message: ClaraSessionMessage) => boolean
   canFork: boolean
   actionsDisabled: boolean
 }) {

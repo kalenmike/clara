@@ -14,7 +14,7 @@ import {
   Settings,
   X,
 } from 'lucide-react'
-import type { SessionInfo } from '@opencode/client'
+import type { ClaraSession } from '@clara/api-contract'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
@@ -88,7 +88,7 @@ import { cn } from '@/lib/utils'
 type SidebarSectionView = {
   id: SidebarSection
   label: string
-  sessions: SessionInfo[]
+  sessions: ClaraSession[]
 }
 
 export function Sidebar() {
@@ -154,7 +154,7 @@ export function SidebarContent({
   })
   const [failureNote, setFailureNote] = useState<string | null>(null)
   const [dialogOpen, setDialogOpen] = useState(false)
-  const [snapshot, setSnapshot] = useState<SessionInfo[]>([])
+  const [snapshot, setSnapshot] = useState<ClaraSession[]>([])
   const clearButtonRef = useRef<HTMLButtonElement>(null)
   const searchInputRef = useRef<HTMLInputElement>(null)
   const rowRefs = useRef(new Map<string, HTMLAnchorElement>())
@@ -212,7 +212,7 @@ export function SidebarContent({
   const sessions = useMemo(() => sessionsQuery.data?.data ?? [], [sessionsQuery.data])
   const archivedSessions = useMemo(() => archivedQuery.data?.data ?? [], [archivedQuery.data])
   const allSessions = useMemo(() => {
-    const byID = new Map<string, SessionInfo>()
+    const byID = new Map<string, ClaraSession>()
     for (const session of archivedSessions) byID.set(session.id, session)
     for (const session of sessions) {
       if (!byID.has(session.id)) byID.set(session.id, session)

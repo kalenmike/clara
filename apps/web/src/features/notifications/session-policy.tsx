@@ -1,12 +1,12 @@
 /* eslint-disable react-refresh/only-export-components */
 import { createContext, useContext, useMemo, type ReactNode } from 'react'
-import type { SessionInfo } from '@opencode/client'
+import type { ClaraSession } from '@clara/api-contract'
 
 type SessionPolicy = {
   /** Return true to keep a generic session alert quiet. */
-  suppressSession?: (session: SessionInfo) => boolean
+  suppressSession?: (session: ClaraSession) => boolean
   /** Present only while orchestration is reachable. */
-  isAutomation?: (session: SessionInfo) => boolean
+  isAutomation?: (session: ClaraSession) => boolean
 }
 
 const SessionPolicyContext = createContext<SessionPolicy>({})
@@ -21,8 +21,8 @@ export function SessionPolicyProvider({
   isAutomation,
   children,
 }: {
-  suppressSession?: (session: SessionInfo) => boolean
-  isAutomation?: (session: SessionInfo) => boolean
+  suppressSession?: (session: ClaraSession) => boolean
+  isAutomation?: (session: ClaraSession) => boolean
   children: ReactNode
 }) {
   const value = useMemo(() => ({ suppressSession, isAutomation }), [suppressSession, isAutomation])

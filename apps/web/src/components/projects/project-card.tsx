@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { Link } from 'react-router'
 import { Activity, MoreHorizontal, Pencil } from 'lucide-react'
-import type { Project } from '@opencode/client'
+import type { ClaraProject } from '@clara/api-contract'
 import { RenameProjectDialog } from '@/components/projects/rename-project-dialog'
 import { ProjectAvatar } from '@/components/projects/project-avatar'
 import { Badge } from '@/components/ui/badge'
@@ -19,7 +19,7 @@ import { useProjectStats } from '@/features/projects/use-project-stats'
 import { useSessionWording } from '@/features/sessions/use-wording'
 import { formatCount, formatRelativeTime } from '@/lib/format'
 
-export function ProjectCard({ project }: { project: Project }) {
+export function ProjectCard({ project }: { project: ClaraProject }) {
   const [renameOpen, setRenameOpen] = useState(false)
   const statsQuery = useProjectStats(project.id)
   const { lowerPlural } = useSessionWording()

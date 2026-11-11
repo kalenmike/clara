@@ -1,19 +1,19 @@
 import { describe, expect, it } from 'vitest'
-import type { SessionInfo } from '@opencode/client'
+import type { ClaraSession } from '@clara/api-contract'
 import { isAutomationSession } from './session-automation'
 import { groupSessionsByMailbox } from './session-sections'
 
 function session(
   id: string,
   updated: number,
-  metadata?: SessionInfo['metadata'],
+  metadata?: ClaraSession['metadata'],
   archived?: number
-): SessionInfo {
+): ClaraSession {
   return {
     id,
     metadata,
     time: { created: updated, updated, ...(archived ? { archived } : {}) },
-  } as SessionInfo
+  } as ClaraSession
 }
 
 const signals = new Map()
