@@ -20,6 +20,9 @@
       "path": "./packages/api-contract"
     },
     {
+      "path": "./packages/api-client"
+    },
+    {
       "path": "./packages/api-mcp"
     },
     {

@@ -131,7 +131,22 @@ export function createClaraApiServer(backend: ClaraApiReadBackend, version = '0.
         order: z.enum(['asc', 'desc']).optional(),
         limit: z.number().int().positive().optional(),
         cursor: z.string().optional(),
-        type: z.string().optional().describe('Message type filter, for example user or assistant'),
+        type: z
+          .enum([
+            'compaction',
+            'user',
+            'synthetic',
+            'agent-switched',
+            'model-switched',
+            'location-switched',
+            'system',
+            'skill',
+            'shell',
+            'assistant',
+            'idle',
+          ])
+          .optional()
+          .describe('Message type filter, for example user or assistant'),
       },
     },
     async (args) =>
