@@ -11,11 +11,12 @@ own device key through a one-time code; there is no shared browser key.
 
 ## User flow
 
-1. Start the hub and open its panel. Complete the one-time setup token,
-   sign in, and save the OpenCode base URL and password in **Harness
-   connections**. In a container, use the OpenCode service name
-   (`http://opencode:4096`) or another address reachable from the `clara`
-   network.
+1. Start the hub and open its panel. Complete the one-time setup token and
+   sign in. In **Harness adapters**, choose **OpenCode** and copy the pairing
+   code. On the OpenCode machine, run
+   `pnpm clara adapter install --opencode --pair <code>`; the adapter discovers
+   OpenCode, prompts for its URL/password if needed, enrolls, and installs both
+   the hub-facing adapter and the orchestration binding.
 2. Open Clara. A branded splash shows while Clara checks a pairing link in the
    URL fragment or a stored device. A successful attempt opens the last project
    without showing the connect form.
@@ -56,9 +57,10 @@ own device key through a one-time code; there is no shared browser key.
    handshake failures settle first and report their own reason.
 6. The event stream is healthy only while chunks keep arriving. The hub sends
    a heartbeat every 15 seconds; 45 seconds of silence is treated as dead.
-7. The hub resolves its active harness connection from SQLite. If none is
-   configured, the tunnel can connect but `/api/info` returns `503` with
-   `harness_unconfigured`; configure it in the panel first.
+7. The hub resolves its active adapter from SQLite. If none is paired, the
+   tunnel can connect but `/v1/harness/info` returns `503` with
+   `harness_unconfigured`; if the adapter is paired but offline, it returns
+   `harness_offline`. Pair or start the adapter in the panel first.
 8. Push notifications need the hub's E2EE transport; the control channel
    also carries push subscriptions.
 9. The web transport queues HTTP requests above a small in-flight cap. Query
@@ -141,9 +143,12 @@ own device key through a one-time code; there is no shared browser key.
 - Relay transport: `apps/web/src/lib/transport/relay.ts` (also serves the local
   listener)
 - Hub: `apps/server/src/` (`config`, `agent`, `harness`, `local-server`,
-  `relay-client`, `pairing`, `store/devices`)
-- Harness setup: panel → `harness_connections` in `clara.db`; the active
-  OpenCode adapter adds basic auth behind the hub's `/v1` API
+  `relay-client`, `pairing`, `store/devices`); adapter daemon:
+  `apps/adapter-opencode/`
+- Harness setup: panel pairing → `harness_identities`, `harness_connections`,
+  and `adapter_credentials` in `clara.db`; the adapter connects out over the
+  WebSocket and speaks the Clara Harness Protocol. The hub never sees the
+  OpenCode password.
 - Docker stack: `pnpm clara start` starts the orchestrator, server, and web
   client together; `--no-*` selects a subset; `restart` recreates the selection.
   Use the scoped commands for one service.

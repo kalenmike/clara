@@ -15,7 +15,8 @@ human-facing Clara agent.
    `pnpm clara orchestrator start`, or let the MCP bridge start it on first
    use.
 2. Install the harness adapter and the shared runner with
-   `pnpm clara adapter install --opencode`. The command links the plugin,
+   `pnpm clara adapter install --opencode --pair <code>`. The command installs the
+   hub-facing adapter, links the plugin,
    installs the `clara` agent, disables the plugin's embedded runner, writes the
    shared runner config, and installs a user service where the platform
    supports one. Add `--mcp` to register the MCP bridge with the selected

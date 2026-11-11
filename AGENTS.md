@@ -38,7 +38,7 @@ lib/std               Standard orchestration packages (software, content, resear
 - Vite 8, TypeScript 6, React 19, React Router 8
 - Tailwind CSS 4 + shadcn/ui (`radix-nova` preset)
 - TanStack Query 5 + a small external chat store
-- `@opencode/client@2.1.1` — pinned to the targeted OpenCode server version; used only by the hub service and Clara Lab
+- `@opencode/client@2.1.1` — pinned to the targeted OpenCode server version; used only by the OpenCode adapter and Clara Lab
 - `ws`, WebCrypto, Cloudflare Workers/Durable Objects, Wrangler
 
 ## Commands
@@ -75,8 +75,8 @@ pnpm clara docs build # Build the documentation site
 pnpm clara docs check # Check guide and internal doc indexes and links
 pnpm clara mcp install|config|status # Install or inspect the MCP bridge
 pnpm clara mcp install --api        # Add the read-only hub API MCP
-pnpm check:boundaries # Fail if @opencode/client escapes apps/server and apps/lab
-pnpm clara adapter install --opencode [--mcp] # Install the OpenCode adapter, MCP, and shared runner
+pnpm check:boundaries # Fail if @opencode/client escapes apps/adapter-opencode and apps/lab
+pnpm clara adapter install --opencode --pair <code> [--mcp] # Install the OpenCode adapter, MCP, and shared runner
 pnpm typecheck      # tsc -b
 pnpm lint           # ESLint
 pnpm format         # Prettier write
@@ -112,19 +112,19 @@ create a task worktree outside `../clara-worktrees` (override with
 
 - Clara targets OpenCode 2.1.x and the v2 HTTP API under `/api`.
 - The harness SDK is `@opencode/client`, version-matched to the server and used
-  only inside `apps/server` and `apps/lab`. Do not swap it for `@opencode-ai/sdk`
+  only inside `apps/adapter-opencode` and `apps/lab`. Do not swap it for `@opencode-ai/sdk`
   (v1 API) or import `@opencode/sdk` into the browser (embedded Node server).
 - The hub API contract in `packages/api-contract` owns the Clara DTOs and
   OpenAPI components. The web, `@clara/api-client`, and `@clara/api-contract`
-  must not import or depend on `@opencode/client`.
+  must not import or depend on `@opencode/client`. The hub itself has no harness
+  SDK; adapters connect out over the Clara Harness Protocol.
 - The browser connects only through the hub over the local or relay
   WebSocket, and only to the hub API under `/v1` through `@clara/api-client`.
   The hub service adds OpenCode basic auth; the browser never receives the
   password and has no generic OpenCode proxy.
-- Harness connections are configured in the authenticated hub panel and
-  stored in the hub's SQLite database. The hub service does not read OpenCode's
-  `service.json`, and it does not read a fixed OpenCode URL or password from the
-  environment.
+- Harness adapters are paired from the authenticated hub panel and stored in
+  the hub's SQLite database. The adapter discovers OpenCode on its own machine;
+  the hub never reads OpenCode's `service.json` or stores the OpenCode password.
 - Session lists are scoped by `directory`, not `project`. Sessions can report
   `projectID: "global"`; always build links from the selected project ID.
 

@@ -33,6 +33,7 @@ Someone gave you a Clara URL and a pairing code.
 
 You run OpenCode and want to reach it from your own devices.
 
+- [Harness adapters](harness-adapters.md) — pair the OpenCode adapter with the hub.
 - [Self-hosting overview](self-hosting/index.md) — requirements and architecture.
 - [Docker](self-hosting/docker.md) — the recommended stack.
 - [Local install](self-hosting/local.md) — Node processes on the host.

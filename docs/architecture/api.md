@@ -6,7 +6,7 @@ reach it through a loopback HTTP listener.
 
 ```text
 Browser / PWA
-  └─ E2EE WebSocket ──▶ hub service ──▶ /v1 API ──▶ active harness ──▶ OpenCode
+  └─ E2EE WebSocket ──▶ hub service ──▶ /v1 API ──▶ active adapter ──▶ OpenCode
 MCP / local tools
   └─ loopback HTTP + bearer token ──▶ /v1 API
 ```
@@ -31,9 +31,9 @@ no generic `/api/*` proxy.
 | Worktrees   | `GET /v1/worktrees`, `POST /v1/worktrees/refresh`                                                                                                                                                                                                                                  |
 | Clara       | `GET /v1/git/log`, `GET /v1/events`                                                                                                                                                                                                                                                |
 
-`GET /v1/events` forwards the harness SSE stream unchanged. The wire payloads
-are typed as the Clara `ClaraEvent` union from `@clara/api-contract`, which
-mirrors the OpenCode event shapes the web handles.
+`GET /v1/events` forwards the active adapter's Clara Harness Protocol SSE
+stream. The wire payloads are typed as the Clara `ClaraEvent` union from
+`@clara/api-contract`; adapters translate their harness events into that union.
 
 `GET /v1/git/log` is the only host command Clara runs. The hub builds a fixed
 `git log` command from validated timestamps and the session directory; there is
@@ -67,7 +67,7 @@ read-only MCP uses that header for every call.
   registered directly with `hono-openapi`'s resolver. There is no generated
   schema file or regeneration step.
 
-`@opencode/client` is an implementation detail of `apps/server` and `apps/lab`.
+`@opencode/client` is an implementation detail of `apps/adapter-opencode` and `apps/lab`. The hub has no OpenCode dependency.
 The web, `@clara/api-client`, and `@clara/api-contract` use the Clara DTOs and
 must not import it.
 
@@ -104,7 +104,8 @@ Errors use one envelope:
 ```
 
 Common codes are `unauthorized`, `read_only`, `disabled`, `harness_unconfigured`,
-`harness_auth`, `upstream_error`, `upstream_invalid`, and `not_found`.
+`harness_offline`, `harness_auth`, `upstream_error`, `upstream_invalid`, and
+`not_found`.
 
 ## Read-only MCP
 

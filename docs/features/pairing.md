@@ -7,6 +7,17 @@ OpenCode password to Cloudflare. Each device receives its own revocable key
 through a one-time enrollment link. The phone scans the terminal QR with its
 camera or pastes the same code, and Clara stores the device credential locally.
 
+## Harness adapter pairing
+
+The panel also pairs harness adapters with the same one-time-code and E2EE
+pattern. **Harness adapters → Add harness → OpenCode** produces a
+`clara-harness1_…` code. On the harness machine,
+`pnpm clara adapter install --opencode --pair <code>` discovers OpenCode, enrolls
+the adapter over the local or relay WebSocket, and stores its long-lived
+credential. The adapter reconnects with that credential and never exposes an
+inbound port. Reinstall and re-pair reuse the stable harness identity, so Clara
+session and project metadata stays attached.
+
 ## User flow
 
 1. Start the hub (`clara-server serve` or the systemd unit).
@@ -178,6 +189,9 @@ camera or pastes the same code, and Clara stores the device credential locally.
   immutable; a nullable panel-set `devices.alias` overrides only the displayed
   name.
 - Pairing tokens: `pairing_tokens` in SQLite, encrypted with `secrets.key`
+- Adapter pairing: `harness_pairings`, `harness_identities`, and
+  `adapter_credentials`; adapters use the same E2EE handshake and sealed frames
+  as browser devices
 - Push subscriptions: `~/.config/clara/subscriptions.json`, tagged with the
   device id and removed when that device is revoked
 - Related: [E2EE](../architecture/e2ee.md), [Relay](../architecture/relay.md)

@@ -9,7 +9,7 @@ active harness probe, push health, configuration sources, database health,
 storage files, and a live traffic meter without exposing secrets. Sensitive
 values, including the harness URL and relay room, start masked behind a header
 peek control so the panel can be screenshared safely. It is also the one-time
-setup surface for the harness connection: the superadmin signs in, chooses a
+setup surface for harness adapters: the superadmin signs in, chooses a
 password, and saves the OpenCode base URL and credentials. The same surface edits the Web URL used by pairing links and the
 VAPID contact used by Web Push, switches external connections on and off without
 stopping the process, starts and stops the local orchestration service, turns
@@ -28,8 +28,10 @@ traffic monitoring on or off, and gates or paces client settings sync.
    automatically), then choose the superadmin password. Later visits show the
    sign-in form. After a host reset, the sign-in form shows a reset link while
    the token is valid.
-3. After signing in, add the OpenCode harness connection: label, base URL, auth
-   type, username, and password. Use **Test** before saving when possible. In a
+3. After signing in, open **Harness adapters**, choose **OpenCode**, and copy the
+   pairing code. Run the install command on the OpenCode machine. The adapter
+   joins the panel as online, with its stable identity, versions, and
+   capabilities. Use **Test** before saving when possible. In a
    container, the URL must be reachable from the `clara` network, for example
    `http://opencode:4096`; `127.0.0.1` means the hub service itself.
 4. The panel opens on **Overview** with the Hub and Orchestration cards, a

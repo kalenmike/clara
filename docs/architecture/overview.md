@@ -90,19 +90,19 @@ docs/
 ```text
 OpenCode HTTP/SSE
       ▲
-      │ basic auth, server-side only
+      │ local network, adapter only
       ▼
-Clara hub ──outbound WSS──▶ Worker ──▶ RelayRoom DO ◀──WSS── web / iPhone PWA
-      │                                              │
-      └──────────── E2EE payloads ───────────────────┘
-      │
-      ├── /v1 API ──▶ active harness (OpenCode now)
-      └── Web Push (VAPID) ──▶ Apple / browser push service ──▶ service worker
+adapter-opencode ──outbound WSS──▶ hub ◀──outbound WSS── web / iPhone PWA
+      │                              │
+      └──────── Clara Harness Protocol over E2EE ────────┘
+                                     │
+                                     ├── /v1 API ──▶ active adapter
+                                     └── Web Push (VAPID) ──▶ push service
 
 Local mode: web ──WSS──▶ hub /v1 API ──▶ active harness (OpenCode now)
 Local tools: MCP ──HTTP 127.0.0.1:8788──▶ hub /v1 API
 Panel: browser ──HTTP 127.0.0.1:8790──▶ hub (auth + setup + controls)
-Harness: panel ──▶ SQLite harness_connections (encrypted secret) ──▶ harness client
+Harness: panel ──▶ SQLite harness identity/pairing ──▶ adapter session (E2EE)
 Docker: web client, hub, orchestrator, and OpenCode on the `clara` bridge network
 ```
 
@@ -175,9 +175,13 @@ ConnectionProvider
   push endpoints, sync values, or file contents. See
   [panel.md](../features/panel.md) and
   [hub-controls.md](../features/hub-controls.md).
-- Harness connections live in SQLite; exactly one is active. `HarnessManager`
-  builds the matching client on load and after a panel save, so the hub proxy
-  hot-swaps without a restart. OpenCode is the first adapter.
+- Harness adapters live in SQLite; exactly one is active. Each adapter connects
+  out to the hub over the same local or relay WebSocket as a browser client.
+  `HarnessManager` routes Clara Harness Protocol requests over that E2EE session,
+  so the hub never contacts OpenCode directly and needs no adapter port.
+  OpenCode is the first adapter; its daemon and orchestration binding install
+  together. Session/project metadata is keyed by a stable harness identity, so a
+  reinstall or re-pair reconnects the same sessions.
 - Feature choices, the stopped flag, monitoring, the orchestration switch, the
   client-sync gate and interval, panel users, and harness connections live in a
   `better-sqlite3` database at
