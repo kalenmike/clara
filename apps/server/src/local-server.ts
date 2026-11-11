@@ -1,13 +1,15 @@
 import { createServer, type Server } from 'node:http'
+import { getRequestListener } from '@hono/node-server'
 import { WebSocket, WebSocketServer } from 'ws'
-import { PROTOCOL_VERSION, type WireFrame } from '@clara/shared-types'
+import type { WireFrame } from '@clara/shared-types'
 import type { Agent } from './agent.ts'
-import { SERVER_VERSION } from './version.ts'
+import type { ApiApp } from './api/context.ts'
 
 export type LocalTransportOptions = {
   host: string
   port: number
   agent: Agent
+  api: ApiApp
   /** Shared across restarts so outbound frames keep reaching new clients. */
   sockets: Set<WebSocket>
   log?: (message: string, detail?: unknown) => void
@@ -51,29 +53,17 @@ export class LocalTransport {
     if (this.running) return
 
     const wss = new WebSocketServer({ noServer: true, maxPayload: 2 * 1024 * 1024 })
+    // The WebSocket bridge authenticates with E2EE and marks its own requests.
+    // Strip that marker from local HTTP so a loopback client cannot skip the
+    // bearer token by forging the header.
+    const listener = getRequestListener(async (request) => {
+      const headers = new Headers(request.headers)
+      headers.delete('x-clara-agent')
+      return this.options.api.fetch(new Request(request, { headers }))
+    })
     // Cookies are host-scoped, so unrelated apps on 127.0.0.1 can share a jar
     // larger than Node's 16k default with the WebSocket handshake.
-    const server = createServer({ maxHeaderSize: 64 * 1024 }, (request, response) => {
-      const path = new URL(request.url ?? '/', 'http://localhost').pathname
-      if (path !== '/health') {
-        response.statusCode = 404
-        response.setHeader('content-type', 'application/json')
-        response.end(JSON.stringify({ error: 'not found' }))
-        return
-      }
-
-      response.statusCode = 200
-      response.setHeader('content-type', 'application/json')
-      response.setHeader('cache-control', 'no-store')
-      response.end(
-        JSON.stringify({
-          ok: true,
-          version: SERVER_VERSION,
-          protocol: PROTOCOL_VERSION,
-          sessions: this.options.agent.sessionCount,
-        })
-      )
-    })
+    const server = createServer({ maxHeaderSize: 64 * 1024 }, listener)
 
     server.on('upgrade', (request, socket, head) => {
       const path = new URL(request.url ?? '/', 'http://localhost').pathname

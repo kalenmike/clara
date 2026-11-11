@@ -108,6 +108,8 @@ async function createController(
     info: controllerInfo,
     settings,
     devices,
+    startedAt: Date.now(),
+    apiToken: 'test-token',
     ...(options.push ? { push: options.push } : {}),
     log: () => undefined,
   })

@@ -20,6 +20,7 @@ import {
   type WireFrame,
 } from '@clara/shared-types'
 import { Agent, type AgentPolicy } from '../src/agent.ts'
+import type { ApiApp } from '../src/api/context.ts'
 import type { HarnessManager } from '../src/harness/manager.ts'
 import { HarnessUnconfiguredError } from '../src/harness/types.ts'
 import { OpenCodeClient, type HttpRequestAction } from '../src/opencode.ts'
@@ -133,7 +134,8 @@ async function connect(
   sync?: ClientStorageStore,
   policy?: AgentPolicy,
   traffic?: TrafficMeter,
-  configured = true
+  configured = true,
+  api?: ApiApp
 ): Promise<{
   agent: Agent
   client: Client
@@ -150,6 +152,7 @@ async function connect(
     send: (frame) => frames.push(frame),
     push,
     sync,
+    ...(api ? { api } : {}),
     ...(policy ? { policy } : {}),
     ...(traffic ? { traffic } : {}),
   })
@@ -268,6 +271,52 @@ describe('agent', () => {
         )
         .join('')
       expect(JSON.parse(body)).toMatchObject({ error: { code: 'harness_unconfigured' } })
+    } finally {
+      await fake.close()
+    }
+  })
+
+  it('routes /v1 requests through the Clara API instead of the harness proxy', async () => {
+    const fake = await startFakeOpenCode()
+    try {
+      const api: ApiApp = {
+        fetch: async (request) =>
+          new Response(JSON.stringify({ path: new URL(request.url).pathname }), {
+            headers: { 'content-type': 'application/json' },
+          }),
+        openapi: async () => ({}),
+      }
+      const { agent, client, frames } = await connect(
+        fake,
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        true,
+        api
+      )
+      await waitFor(() => (frames.length >= 2 ? true : undefined))
+      await send(client, agent, { type: 'ready.ack', agent: { version: 'web', protocol: 1 } })
+      await send(client, agent, {
+        type: 'http.request',
+        id: 'api-info',
+        method: 'GET',
+        path: '/v1/info',
+      })
+
+      const states = await waitFor(async () => {
+        const parsed = await readStates(client, frames)
+        return parsed.some((state) => state.type === 'http.end') ? parsed : undefined
+      })
+      const response = states.find((state) => state.type === 'http.response')
+      expect(response && response.type === 'http.response' ? response.status : undefined).toBe(200)
+      const body = states
+        .filter((state) => state.type === 'http.chunk')
+        .map((state) =>
+          Buffer.from(state.type === 'http.chunk' ? state.data : '', 'base64url').toString('utf8')
+        )
+        .join('')
+      expect(JSON.parse(body)).toEqual({ path: '/v1/info' })
     } finally {
       await fake.close()
     }

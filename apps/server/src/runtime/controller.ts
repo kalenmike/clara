@@ -13,6 +13,8 @@ import type {
 import { baseURL } from '@clara/orchestration-control'
 import type { WebSocket } from 'ws'
 import { Agent } from '../agent.ts'
+import { createApiApp } from '../api/app.ts'
+import type { ApiApp } from '../api/context.ts'
 import {
   defaultPairingBaseUrl,
   normalizePairingBaseUrl,
@@ -55,6 +57,8 @@ export type ControllerOptions = {
   push?: PushService
   pushError?: string
   devices: DeviceStore
+  startedAt: number
+  apiToken: string
   log: (message: string, detail?: unknown) => void
 }
 
@@ -68,6 +72,7 @@ const FEATURE_ORDER: FeatureName[] = ['opencode', 'local', 'relay', 'push']
 export class RuntimeController {
   private readonly options: ControllerOptions
   private readonly localSockets = new Set<WebSocket>()
+  private readonly api: ApiApp
   private readonly localAgent: Agent
   private readonly relayAgent?: Agent
   private readonly relayClient?: RelayClient
@@ -97,8 +102,21 @@ export class RuntimeController {
     options.info.syncIntervalMs = sync.intervalMs
     options.info.orchestration = false
 
+    this.api = createApiApp(
+      {
+        harness: options.harness,
+        info: options.info,
+        startedAt: options.startedAt,
+        canAccess: () => this.canProxy(),
+        sessionCount: () => this.localAgent.sessionCount,
+        log: options.log,
+      },
+      { token: options.apiToken }
+    )
+
     this.localAgent = new Agent({
       harness: options.harness,
+      api: this.api,
       devices: options.devices,
       info: options.info,
       send: (frame) => broadcast(this.localSockets, frame),
@@ -121,6 +139,7 @@ export class RuntimeController {
     if (config.relay) {
       this.relayAgent = new Agent({
         harness: options.harness,
+        api: this.api,
         devices: options.devices,
         info: options.info,
         send: (frame) => this.relayClient?.send(frame),
@@ -153,6 +172,7 @@ export class RuntimeController {
       host: config.local.bindHost,
       port: config.local.port,
       agent: this.localAgent,
+      api: this.api,
       sockets: this.localSockets,
       log: options.log,
     })

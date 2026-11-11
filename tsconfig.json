@@ -17,6 +17,15 @@
       "path": "./packages/shared-types"
     },
     {
+      "path": "./packages/api-contract"
+    },
+    {
+      "path": "./packages/api-mcp"
+    },
+    {
+      "path": "./apps/api-mcp"
+    },
+    {
       "path": "./workers/relay"
     },
     {

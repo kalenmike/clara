@@ -2,6 +2,7 @@
 // Install the Clara MCP bridge into OpenCode, or print generic MCP config.
 //
 //   pnpm clara mcp install
+//   pnpm clara mcp install --api
 //   pnpm clara mcp install --no-start
 //   pnpm clara mcp uninstall
 //   pnpm clara mcp config
@@ -21,23 +22,28 @@ import {
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 const mcpEntry = join(root, 'apps', 'mcp', 'dist', 'index.js')
+const apiMcpEntry = join(root, 'apps', 'api-mcp', 'dist', 'index.js')
 const orchestratorEntry = join(root, 'apps', 'orchestrator', 'dist', 'index.js')
 const configHome = process.env.XDG_CONFIG_HOME?.trim() || join(homedir(), '.config')
 const opencodeDir = join(configHome, 'opencode')
 const opencodeConfig = join(opencodeDir, 'opencode.json')
+const claraConfigDir = process.env.CLARA_CONFIG_DIR?.trim() || join(configHome, 'clara')
 const dataHome = process.env.XDG_DATA_HOME?.trim() || join(homedir(), '.local', 'share')
 const dataDir = process.env.CLARA_DATA_DIR?.trim() || join(dataHome, 'clara')
 const tokenFile =
   process.env.CLARA_ORCHESTRATION_TOKEN_FILE?.trim() || join(dataDir, 'orchestrator.token')
 const baseURL = process.env.CLARA_ORCHESTRATION_URL?.trim() || 'http://127.0.0.1:8789'
+const apiBaseURL = process.env.CLARA_API_URL?.trim() || 'http://127.0.0.1:8788'
+const apiTokenFile = process.env.CLARA_API_TOKEN_FILE?.trim() || join(claraConfigDir, 'api.token')
 
 const args = process.argv.slice(2)
 const command = args[0] ?? 'install'
 const noStart = args.includes('--no-start')
+const withApi = args.includes('--api')
 
 if (command === 'help' || command === '--help' || command === '-h') {
   console.log(
-    'Clara MCP bridge\n\nUsage: pnpm clara mcp <install|uninstall|config|status> [--no-start]'
+    'Clara MCP bridge\n\nUsage: pnpm clara mcp <install|uninstall|config|status> [--api] [--no-start]'
   )
 } else if (command === 'install') install()
 else if (command === 'uninstall') uninstall()
@@ -48,6 +54,9 @@ else fail(`unknown command: ${command}`)
 function install() {
   if (!existsSync(mcpEntry)) {
     fail('The MCP bridge is not built. Run `pnpm --filter @clara/mcp build` first.')
+  }
+  if (withApi && !existsSync(apiMcpEntry)) {
+    fail('The API MCP bridge is not built. Run `pnpm --filter @clara/api-mcp-app build` first.')
   }
   mkdirSync(opencodeDir, { recursive: true, mode: 0o700 })
   const config = readConfig()
@@ -60,9 +69,15 @@ function install() {
       CLARA_ORCHESTRATION_URL: baseURL,
     },
   }
+  if (withApi) {
+    mcp['clara-api'] = apiConfig()
+  }
   config.mcp = mcp
   writeConfig(config)
   console.log(`ok   OpenCode MCP entry: ${opencodeConfig}`)
+  if (withApi) {
+    console.log(`ok   read-only hub API MCP: ${apiBaseURL} (token ${apiTokenFile})`)
+  }
   if (adapterInstalled()) {
     console.log('skip /pipeline command: the Clara agent is the entry point')
   } else {
@@ -85,13 +100,16 @@ function uninstall() {
     return
   }
   const config = readConfig()
-  if (isRecord(config.mcp) && 'clara' in config.mcp) {
-    delete config.mcp.clara
+  const mcp = isRecord(config.mcp) ? config.mcp : {}
+  const key = withApi ? 'clara-api' : 'clara'
+  if (key in mcp) {
+    delete mcp[key]
+    config.mcp = mcp
     writeConfig(config)
-    console.log(`removed mcp.clara from ${opencodeConfig}`)
+    console.log(`removed mcp.${key} from ${opencodeConfig}`)
     removeCommandIfUnused(config)
   } else {
-    console.log('mcp.clara was not configured')
+    console.log(`mcp.${key} was not configured`)
   }
 }
 
@@ -106,6 +124,26 @@ function printConfig() {
   const token = readToken()
   console.log('Stdio bridge:')
   console.log(JSON.stringify({ mcpServers: { clara: stdioEntry() } }, null, 2))
+  console.log('')
+  console.log('Read-only hub API MCP:')
+  console.log(
+    JSON.stringify(
+      {
+        mcpServers: {
+          'clara-api': {
+            command: process.execPath,
+            args: [apiMcpEntry],
+            env: {
+              CLARA_API_URL: apiBaseURL,
+              CLARA_API_TOKEN_FILE: apiTokenFile,
+            },
+          },
+        },
+      },
+      null,
+      2
+    )
+  )
   console.log('')
   console.log('HTTP MCP:')
   console.log(
@@ -131,6 +169,8 @@ async function status() {
   console.log(`orchestrator: ${ok ? 'running' : 'stopped'} (${baseURL})`)
   console.log(`OpenCode MCP config: ${existsSync(opencodeConfig) ? opencodeConfig : 'missing'}`)
   console.log(`MCP bridge: ${existsSync(mcpEntry) ? mcpEntry : 'not built'}`)
+  console.log(`API MCP bridge: ${existsSync(apiMcpEntry) ? apiMcpEntry : 'not built'}`)
+  console.log(`Hub API: ${apiBaseURL} (token ${apiTokenFile})`)
   if (adapterInstalled()) {
     console.log('OpenCode entry: Clara agent')
   } else {
@@ -147,6 +187,18 @@ function adapterInstalled() {
 
 function stdioEntry() {
   return { command: process.execPath, args: [mcpEntry] }
+}
+
+function apiConfig() {
+  return {
+    type: 'local',
+    command: [process.execPath, apiMcpEntry],
+    enabled: true,
+    environment: {
+      CLARA_API_URL: apiBaseURL,
+      CLARA_API_TOKEN_FILE: apiTokenFile,
+    },
+  }
 }
 
 function activeTokenFile() {
