@@ -25,6 +25,7 @@ const config: Config = {
     defaultLocale: 'en',
     locales: ['en'],
   },
+  clientModules: ['./src/clientModules/d3Transition.ts'],
   themes: [
     '@docusaurus/theme-mermaid',
     [
