@@ -4,7 +4,8 @@
     "composite": true,
     "types": ["node"],
     "rootDir": "src",
-    "outDir": "dist"
+    "outDir": "dist",
+    "lib": ["ES2023", "DOM"]
   },
   "include": ["src/**/*.ts"]
 }

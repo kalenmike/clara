@@ -368,10 +368,14 @@ export async function runAdapters(options = {}) {
   const progress = options.progress ?? DEFAULT_PROGRESS
   const results = []
 
-  const install = await runCommandStep('adapter', ['clara', 'adapter', 'install', 'opencode'], {
-    root,
-    progress,
-  })
+  const install = await runCommandStep(
+    'adapter',
+    ['clara', 'adapter', 'install', 'opencode', '--no-daemon'],
+    {
+      root,
+      progress,
+    }
+  )
   results.push(install)
 
   const wantsMcp =

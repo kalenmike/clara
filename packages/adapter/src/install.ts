@@ -15,6 +15,8 @@ import { cliEntry, mcpEntryPath } from './package-paths.ts'
 import { runnerConfigPath, writeRunnerConfig } from './runner-config.ts'
 import { installService, removeService, serviceActive } from './service.ts'
 import { installOpenCode, openCodeStatus, uninstallOpenCode } from './harnesses/opencode.ts'
+import { installOpenCodeAdapter, uninstallOpenCodeAdapter } from '@clara/adapter-opencode/install'
+import { adapterConfigPath, readConfig } from '@clara/adapter-opencode/config'
 
 export interface InstallResult {
   manifest: InstallManifest
@@ -46,7 +48,7 @@ function assertSupported(selected: HarnessName[]): void {
   }
 }
 
-export function install(options: Options): InstallResult {
+export async function install(options: Options): Promise<InstallResult> {
   const selected = options.harnesses
   const wantsRunner = options.runner || (selected.length > 0 && !options.noRunner)
   if (!selected.length && !wantsRunner && !options.mcp) {
@@ -87,6 +89,18 @@ export function install(options: Options): InstallResult {
 
   for (const name of selected) {
     if (name !== 'opencode') continue
+    if (!options.noDaemon) {
+      const daemon = await installOpenCodeAdapter({
+        ...(options.pair ? { pair: options.pair } : {}),
+        ...(options.opencodeUrl ? { opencodeUrl: options.opencodeUrl } : {}),
+        ...(options.opencodeUsername ? { opencodeUsername: options.opencodeUsername } : {}),
+        ...(options.opencodePassword ? { opencodePassword: options.opencodePassword } : {}),
+        noService: options.noService,
+        dryRun: options.dryRun,
+      })
+      actions.push(...daemon.actions)
+      warnings.push(...daemon.warnings)
+    }
     const result = installOpenCode({
       force: options.force,
       mcp: mcpHarnesses.includes('opencode'),
@@ -171,6 +185,9 @@ export function uninstall(options: Options): UninstallResult {
       continue
     }
     actions.push(...uninstallOpenCode({ force: options.force, dryRun: options.dryRun }))
+    if (!options.noDaemon && !options.dryRun) {
+      actions.push(...uninstallOpenCodeAdapter({ purge: options.purge }))
+    }
     delete manifest.harnesses[name]
   }
 
@@ -208,6 +225,13 @@ export interface StatusReport {
     active: string
   }
   orchestrator: 'running' | 'stopped'
+  adapter?: {
+    config: string
+    present: boolean
+    harnessId?: string
+    wsUrl?: string
+    opencodeUrl?: string
+  }
 }
 
 export async function status(): Promise<StatusReport> {
@@ -215,6 +239,7 @@ export async function status(): Promise<StatusReport> {
   const harnesses: Record<string, ReturnType<typeof openCodeStatus>> = {}
   if (manifest.harnesses.opencode) harnesses.opencode = openCodeStatus()
   const runnerPath = runnerConfigPath()
+  const adapter = readConfig()
   const orchestrator: 'running' | 'stopped' = await fetch(
     `${manifest.runner?.url ?? process.env.CLARA_ORCHESTRATION_URL ?? 'http://127.0.0.1:8789'}/health`,
     { signal: AbortSignal.timeout(1_500) }
@@ -238,6 +263,13 @@ export async function status(): Promise<StatusReport> {
         }
       : {}),
     orchestrator,
+    adapter: {
+      config: adapterConfigPath(),
+      present: adapter !== undefined,
+      ...(adapter
+        ? { harnessId: adapter.harnessId, wsUrl: adapter.wsUrl, opencodeUrl: adapter.opencode.url }
+        : {}),
+    },
   }
 }
 

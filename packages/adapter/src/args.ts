@@ -13,6 +13,12 @@ export interface Options {
   runner: boolean
   noRunner: boolean
   noService: boolean
+  noDaemon: boolean
+  purge: boolean
+  pair?: string
+  opencodeUrl?: string
+  opencodeUsername?: string
+  opencodePassword?: string
   foreground: boolean
   workspace?: string
   url?: string
@@ -56,6 +62,12 @@ export function parseOptions(argv: string[]): Options {
       runner: { type: 'boolean', default: false },
       'no-runner': { type: 'boolean', default: false },
       'no-service': { type: 'boolean', default: false },
+      'no-daemon': { type: 'boolean', default: false },
+      purge: { type: 'boolean', default: false },
+      pair: { type: 'string' },
+      'opencode-url': { type: 'string' },
+      'opencode-username': { type: 'string' },
+      'opencode-password': { type: 'string' },
       foreground: { type: 'boolean', default: false },
       workspace: { type: 'string' },
       url: { type: 'string' },
@@ -93,6 +105,12 @@ export function parseOptions(argv: string[]): Options {
     runner: values.runner,
     noRunner: values['no-runner'],
     noService: values['no-service'] || values.foreground,
+    noDaemon: values['no-daemon'],
+    purge: values.purge,
+    ...(values.pair ? { pair: values.pair } : {}),
+    ...(values['opencode-url'] ? { opencodeUrl: values['opencode-url'] } : {}),
+    ...(values['opencode-username'] ? { opencodeUsername: values['opencode-username'] } : {}),
+    ...(values['opencode-password'] ? { opencodePassword: values['opencode-password'] } : {}),
     foreground: values.foreground,
     ...(values.workspace ? { workspace: values.workspace } : {}),
     ...(values.url ? { url: values.url } : {}),
@@ -109,7 +127,7 @@ export function helpText(): string {
   return `Clara harness adapter installer
 
 Usage:
-  clara-adapter install [--opencode] [--mcp] [--runner] [options]
+  clara-adapter install [--opencode] [--pair <code>] [--mcp] [--runner] [options]
   clara-adapter uninstall [--opencode] [--runner]
   clara-adapter status [--json]
   clara-adapter runner [--once] [--workspace <path>] [options]
@@ -125,7 +143,12 @@ Features:
   --runner                Install the shared standalone runner (default with a harness)
   --no-runner             Do not install a runner
   --no-service            Write runner config but do not install a user service
+  --no-daemon             Install only the orchestration binding, not the hub adapter
   --foreground            Print the foreground runner command instead of a service
+  --pair <code>           Pair the harness adapter with the hub
+  --opencode-url <url>    OpenCode URL for the adapter
+  --opencode-username <u> OpenCode username (default opencode)
+  --opencode-password <p> OpenCode password for the adapter
 
 Connection:
   --workspace <path>      Workspace for the runner (default: CLARA_ORCHESTRATION_WORKSPACE or cwd)
@@ -135,6 +158,7 @@ Connection:
 
 Other:
   --force                 Replace files this installer did not generate
+  --purge                 Remove the adapter identity and credential on uninstall
   --dry-run               Print the plan without writing anything
   --json                  Machine-readable status output
   -h, --help              Show this help

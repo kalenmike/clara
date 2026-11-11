@@ -39,7 +39,7 @@ async function main(argv: string[]): Promise<void> {
   }
 
   if (options.command === 'install') {
-    const result = install(options)
+    const result = await install(options)
     printResult({ ...result, json: options.json })
     if (result.genericMcp && !options.json) {
       console.log('')
@@ -67,6 +67,16 @@ async function main(argv: string[]): Promise<void> {
         console.log(
           `  ${name}: plugin ${value.plugin}, agent ${value.agent}, config ${value.config ? 'yes' : 'no'}, mcp ${value.mcp ? 'yes' : 'no'}`
         )
+      }
+      if (report.adapter) {
+        console.log(
+          `adapter: ${report.adapter.present ? 'configured' : 'missing'} (${report.adapter.config})`
+        )
+        if (report.adapter.harnessId) console.log(`  harness: ${report.adapter.harnessId}`)
+        if (report.adapter.wsUrl) console.log(`  ws: ${report.adapter.wsUrl}`)
+        if (report.adapter.opencodeUrl) console.log(`  opencode: ${report.adapter.opencodeUrl}`)
+      } else {
+        console.log('adapter: not installed')
       }
       if (report.runner) {
         console.log(
