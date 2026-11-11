@@ -1,6 +1,6 @@
 import type { QueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
-import type { OpenCodeClient } from '@/lib/client'
+import type { ClaraClient } from '@/lib/client'
 import { queryKeys } from '@/lib/query-keys'
 import { isMissingDirectoryError } from '@/features/chat/location-recovery'
 import { getSessionInfo } from '@/features/sessions/session-cache'
@@ -13,7 +13,7 @@ import { readSessionWording } from '@/features/sessions/wording'
  * interaction retries.
  */
 export async function unsnoozeSessionOnEngage(
-  client: OpenCodeClient,
+  client: ClaraClient,
   queryClient: QueryClient,
   sessionID: string
 ): Promise<void> {

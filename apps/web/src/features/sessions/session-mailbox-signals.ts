@@ -1,4 +1,4 @@
-import type { OpenCodeClient } from '@/lib/client'
+import type { ClaraClient } from '@/lib/client'
 import { assistantHasFailed } from '@/features/chat/message-visibility'
 import { isFinishedPlanReply } from '@/features/chat/plan-ready'
 import type { SessionMailboxSignals } from '@/features/sessions/session-mailbox'
@@ -10,7 +10,7 @@ import { withMailboxSignalSlot } from '@/features/sessions/session-mailbox-queue
  * is often an internal `idle` note.
  */
 export async function loadSessionMailboxSignals(
-  client: OpenCodeClient,
+  client: ClaraClient,
   sessionID: string,
   signal?: AbortSignal
 ): Promise<SessionMailboxSignals> {

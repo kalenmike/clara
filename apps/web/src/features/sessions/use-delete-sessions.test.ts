@@ -1,7 +1,7 @@
 import { QueryClient } from '@tanstack/react-query'
 import type { SessionInfo } from '@opencode/client'
 import { describe, expect, it, vi } from 'vitest'
-import type { OpenCodeClient } from '@/lib/client'
+import type { ClaraClient } from '@/lib/client'
 import { queryKeys } from '@/lib/query-keys'
 import type { DeleteSessionsResult } from './use-delete-sessions'
 
@@ -9,8 +9,8 @@ function session(id: string, title = `Title ${id}`): SessionInfo {
   return { id, title, time: { created: 1, updated: 1 } } as SessionInfo
 }
 
-function clientWith(remove: (input: { sessionID: string }) => Promise<unknown>): OpenCodeClient {
-  return { session: { remove } } as unknown as OpenCodeClient
+function clientWith(remove: (input: { sessionID: string }) => Promise<unknown>): ClaraClient {
+  return { session: { remove } } as unknown as ClaraClient
 }
 
 async function deleteModule() {

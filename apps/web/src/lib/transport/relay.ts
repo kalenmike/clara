@@ -298,7 +298,7 @@ class RelayFetchTransport implements RelayTransport {
   private async doFetch(input: RequestInfo | URL, init?: RequestInit): Promise<Response> {
     const request = new Request(input, init)
     const url = new URL(request.url)
-    if (!url.pathname.startsWith('/api/')) {
+    if (!url.pathname.startsWith('/api/') && !url.pathname.startsWith('/v1/')) {
       throw new TypeError(`Relay transport cannot proxy ${url.pathname}`)
     }
 

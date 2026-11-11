@@ -11,6 +11,7 @@
     "deploy": "pnpm build && wrangler pages deploy dist --project-name clara"
   },
   "dependencies": {
+    "@clara/api-client": "workspace:*",
     "@clara/crypto": "workspace:*",
     "@clara/shared-types": "workspace:*",
     "@fontsource-variable/geist": "^5.3.0",

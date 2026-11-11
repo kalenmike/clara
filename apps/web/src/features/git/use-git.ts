@@ -1,11 +1,10 @@
 import { useQuery } from '@tanstack/react-query'
 import {
-  ClientError,
   type SessionMessageInfo,
   type VcsFileStatus,
   type WorktreeDirectory,
 } from '@opencode/client'
-import { type OpenCodeClient } from '@/lib/client'
+import { ClaraApiError } from '@clara/api-client'
 import { queryKeys } from '@/lib/query-keys'
 import { useConnection } from '@/providers/connection-provider'
 
@@ -43,34 +42,6 @@ export type CommitWindow = {
   since: number
   /** The newest activity in the session, omitted while a turn is running. */
   until?: number
-}
-
-/**
- * The one command shape Clara runs on the host. The session window is added as
- * two ISO timestamps; the server policy must allow it. `%x1f` separates fields
- * and `%x1e` separates records so multiline bodies survive; neither byte appears
- * in a normal commit message.
- */
-const GIT_LOG_FORMAT = '%H%x1f%an%x1f%ae%x1f%aI%x1f%s%x1f%b%x1e'
-const COMMIT_COUNT = 10
-const SHELL_TIMEOUT_MS = 10_000
-const SHELL_POLL_MS = 150
-const SHELL_POLL_LIMIT = Math.ceil(SHELL_TIMEOUT_MS / SHELL_POLL_MS) + 2
-
-/**
- * Scope the log to the session window. Both bounds are numbers from session
- * metadata, never user input, and `toISOString` cannot introduce shell syntax.
- */
-export function gitLogCommand(commitWindow: CommitWindow): string {
-  if (!Number.isFinite(commitWindow.since)) {
-    throw new Error('The session start is not a timestamp')
-  }
-  const since = new Date(commitWindow.since).toISOString()
-  const until =
-    commitWindow.until !== undefined && Number.isFinite(commitWindow.until)
-      ? ` --until=${new Date(commitWindow.until).toISOString()}`
-      : ''
-  return `git log --since=${since}${until} -n ${COMMIT_COUNT} --format=${GIT_LOG_FORMAT}`
 }
 
 export function useGitInfo(directory: string | undefined) {
@@ -128,10 +99,9 @@ export function useGitChanges(
 }
 
 /**
- * Commits from the session's own directory inside its window. The window is
- * enforced by the host command, so no unrelated commits are fetched. The
- * request travels through the hub, which applies the admin shell policy
- * before forwarding it to OpenCode.
+ * Commits from the session's own directory inside its window. The hub builds
+ * the fixed `git log` command from the window, so the browser never sends a
+ * shell command.
  */
 export function useGitCommits(
   directory: string | undefined,
@@ -142,10 +112,13 @@ export function useGitCommits(
   return useQuery({
     queryKey: queryKeys.gitCommits(directory, commitWindow?.since, commitWindow?.until),
     queryFn: ({ signal }) => {
-      if (!client) throw new Error('No OpenCode client')
+      if (!client) throw new Error('No Clara client')
       if (!directory) throw new Error('No directory')
       if (!commitWindow) throw new Error('No commit window')
-      return runGitLog(client, directory, commitWindow, signal)
+      return client.git.log(
+        { directory, since: commitWindow.since, until: commitWindow.until },
+        { signal }
+      )
     },
     enabled: Boolean(
       client && directory && enabled && commitWindow && Number.isFinite(commitWindow.since)
@@ -175,65 +148,17 @@ export function useGitWorktrees(
   })
 }
 
-export type ShellFailure = 'blocked' | 'unsupported' | 'other'
+export type GitHistoryFailure = 'disabled' | 'unconfigured' | 'other'
 
-/**
- * The hub refuses a command with 403 and older OpenCode servers do not
- * implement the shell routes at all (404). Everything else is a normal error.
- */
-export function shellFailure(error: unknown): ShellFailure {
-  if (error instanceof ClientError) {
-    const status = (error.cause as { status?: unknown } | undefined)?.status
-    if (status === 403) return 'blocked'
-    if (status === 404) return 'unsupported'
+/** Map API failures to the copy the Git panel should show. */
+export function gitHistoryFailure(error: unknown): GitHistoryFailure {
+  if (error instanceof ClaraApiError) {
+    if (error.code === 'disabled') return 'disabled'
+    if (error.code === 'harness_unconfigured') return 'unconfigured'
   }
   return 'other'
 }
 
-async function runGitLog(
-  client: OpenCodeClient,
-  directory: string,
-  commitWindow: CommitWindow,
-  signal: AbortSignal
-): Promise<GitCommit[]> {
-  const created = await client.shell.create(
-    {
-      location: { directory },
-      command: gitLogCommand(commitWindow),
-      cwd: directory,
-      timeout: SHELL_TIMEOUT_MS,
-    },
-    { signal }
-  )
-  const id = created.data.id
-
-  try {
-    let status = created.data
-    for (let attempt = 0; status.status === 'running' && attempt < SHELL_POLL_LIMIT; attempt += 1) {
-      if (signal.aborted) throw new Error('The commit request was cancelled')
-      await sleep(SHELL_POLL_MS)
-      status = (await client.shell.get({ id, location: { directory } }, { signal })).data
-    }
-    if (status.status === 'running') throw new Error('git log did not finish in time')
-
-    const output = await client.shell.output({ id, location: { directory } }, { signal })
-    const text = output.data.output
-
-    if (status.exit !== 0) {
-      if (/does not have any commits|no commits yet/i.test(text)) return []
-      const message = text.trim().split('\n').at(-1)
-      throw new Error(message || `git log exited with status ${status.exit}`)
-    }
-
-    return parseGitLog(text).slice(0, COMMIT_COUNT)
-  } finally {
-    await client.shell.remove({ id, location: { directory } }).catch(() => {})
-  }
-}
-
-const FIELD_SEPARATOR = '\x1f'
-const RECORD_SEPARATOR = '\x1e'
-const HASH_PATTERN = /^[0-9a-f]{7,40}$/
 const CONVENTIONAL_HEADER = /^([a-z]+)(?:\(([^()]+)\))?(!)?:\s+(.+)$/i
 const CO_AUTHOR_TRAILER = /^co-authored-by:\s*(.*?)\s*<([^<>]+)>\s*$/i
 
@@ -252,31 +177,6 @@ export function lastSessionActivity(messages: SessionMessageInfo[]): number | un
     if (latest === undefined || time > latest) latest = time
   }
   return latest
-}
-
-/** Read one `git log` run in the record format above. */
-export function parseGitLog(value: string): GitCommit[] {
-  const commits: GitCommit[] = []
-  for (const raw of value.split(RECORD_SEPARATOR)) {
-    // Git prints a newline between records, so every record after the first
-    // starts with one.
-    const record = raw.replace(/^\r?\n/, '').trimEnd()
-    if (!record.trim()) continue
-
-    const [hash, authorName, authorEmail, authoredAt, subject, ...body] =
-      record.split(FIELD_SEPARATOR)
-    if (!hash || !HASH_PATTERN.test(hash)) continue
-
-    commits.push({
-      hash,
-      authorName: authorName?.trim() ?? '',
-      authorEmail: authorEmail?.trim() ?? '',
-      authoredAt: authoredAt?.trim() ?? '',
-      subject: subject?.trim() ?? '',
-      body: body.join(FIELD_SEPARATOR).trim(),
-    })
-  }
-  return commits
 }
 
 /** Split `fix(web): subject` into its conventional parts when it has them. */
@@ -351,8 +251,4 @@ export function resolveWorktrees(
 
 function normalizePath(value: string): string {
   return value.replace(/\\/g, '/').replace(/\/+$/, '')
-}
-
-function sleep(ms: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, ms))
 }

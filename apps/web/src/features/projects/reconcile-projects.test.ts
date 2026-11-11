@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 import type { Project } from '@opencode/client'
-import type { OpenCodeClient } from '@/lib/client'
+import type { ClaraClient } from '@/lib/client'
 import { reconcileArchivedProjects } from './reconcile-projects'
 
 function project(id: string, archived?: number): Project {
@@ -23,7 +23,7 @@ describe('reconcileArchivedProjects', () => {
     const client = {
       project: { list: async () => [project('active')] },
       location: { get },
-    } as unknown as OpenCodeClient
+    } as unknown as ClaraClient
 
     const result = await reconcileArchivedProjects(client)
 
@@ -44,7 +44,7 @@ describe('reconcileArchivedProjects', () => {
         list: async () => [project('active'), project('back', 10), project('gone', 20)],
       },
       location: { get },
-    } as unknown as OpenCodeClient
+    } as unknown as ClaraClient
 
     const result = await reconcileArchivedProjects(client)
 
@@ -66,7 +66,7 @@ describe('reconcileArchivedProjects', () => {
     const client = {
       project: { list: async () => [project('first', 10), project('second', 20)] },
       location: { get },
-    } as unknown as OpenCodeClient
+    } as unknown as ClaraClient
 
     const result = await reconcileArchivedProjects(client)
 

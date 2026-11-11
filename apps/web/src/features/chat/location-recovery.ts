@@ -7,7 +7,7 @@ import {
 } from '@opencode/client'
 import { toast } from 'sonner'
 import { canonicalProject } from '@/features/projects/use-projects'
-import { describeConnectionError, type OpenCodeClient } from '@/lib/client'
+import { describeConnectionError, type ClaraClient } from '@/lib/client'
 import { queryKeys } from '@/lib/query-keys'
 
 /** The server uses this error when a session's directory no longer exists. */
@@ -31,7 +31,7 @@ export function isLocationRecoveryError(error: unknown): error is LocationRecove
 }
 
 type RecoveryContext = {
-  client: OpenCodeClient
+  client: ClaraClient
   queryClient: QueryClient
   sessionID: string
 }
@@ -98,7 +98,7 @@ async function recoverMissingLocation<T>(
 }
 
 async function resolveBaseDirectory(
-  client: OpenCodeClient,
+  client: ClaraClient,
   queryClient: QueryClient,
   sessionID: string
 ): Promise<string | null> {

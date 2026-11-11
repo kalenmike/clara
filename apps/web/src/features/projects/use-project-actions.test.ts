@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { SessionInfo } from '@opencode/client'
-import type { OpenCodeClient } from '@/lib/client'
+import type { ClaraClient } from '@/lib/client'
 import { runWithConcurrency } from '@/lib/concurrency'
 import {
   PROJECT_ACTION_CONCURRENCY,
@@ -43,7 +43,7 @@ describe('listAllProjectSessions', () => {
           }
         },
       },
-    } as unknown as OpenCodeClient
+    } as unknown as ClaraClient
 
     const sessions = await listAllProjectSessions(client, 'project')
 
@@ -59,7 +59,7 @@ describe('listAllProjectSessions', () => {
           return { data: [session('s1')], cursor: { next: 'same' } }
         },
       },
-    } as unknown as OpenCodeClient
+    } as unknown as ClaraClient
 
     const sessions = await listAllProjectSessions(client, 'project')
 

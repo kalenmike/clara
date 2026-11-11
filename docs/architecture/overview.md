@@ -128,16 +128,16 @@ described in [pairing.md](../features/pairing.md).
 
 The OpenCode password never reaches the browser. The hub adds basic auth,
 strips client-supplied authorization/hop-by-hop headers, and only reaches
-`/api/` paths on the configured origin from server-side API handlers. During the
-API migration the legacy proxy still accepts `/api/*`; the browser moves to
-`/v1/*` in phase 3.
+`/api/` paths on the configured origin from server-side API handlers. The web
+client uses `@clara/api-client` against `/v1`; the legacy proxy remains only for
+older clients until the final cleanup.
 
 ## Runtime shape
 
 ```text
 ConnectionProvider
-  └─ creates the SDK client
-       └─ OpenCode.make({ fetch: relayFetchOverWebSocket })
+  └─ creates the Clara SDK client
+       └─ createClaraClient({ fetch: relayFetchOverWebSocket })
             ├─ TanStack Query: projects, sessions, messages, catalog, approvals
             └─ EventProvider: one SSE subscription for the whole tab
                  ├─ chatStore: applies streaming deltas per session

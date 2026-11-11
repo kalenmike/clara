@@ -56,24 +56,24 @@ session's own directory. The browser never reads its own filesystem.
    endpoint. It is the default range because it is the most frequently useful.
 3. **Last 3 commits** compares `HEAD~3..HEAD`. **Base branch** compares the
    branch against its default base. Neither includes uncommitted work.
-4. **Commits** runs exactly one command shape on the host:
-   `git log --since=<session start> --until=<latest activity> -n 10
---format=%H%x1f%an%x1f%ae%x1f%aI%x1f%s%x1f%b%x1e`. Both bounds are numeric
-   timestamps from session metadata, never page or user input, and are emitted
-   as ISO strings; the `--since`/`--until` filter happens on the host, so the
-   view never fetches the repository's latest ten commits. The upper bound is
-   the newest assistant or shell message completion, or the newest message
-   creation when there is none. It is omitted while a turn is running so the
-   current turn's commits count; the bound closes when the session goes idle.
-   The field and record separators keep multiline bodies intact. Conventional
-   headers are split into type, scope, and description for the preview, and
-   `Co-authored-by:` trailers are lifted out of the body.
-5. **Commits only work through the hub.** The request travels over the
-   encrypted session, the hub applies the admin shell policy, and only then is
-   it forwarded to OpenCode's shell API.
-6. If the hub policy blocks the command, the hub returns `403` and the view
-   says commit history is disabled on this server. If the OpenCode version has no
-   shell routes, the view says history is unavailable.
+4. **Commits** use the hub's typed `GET /v1/git/log` endpoint with the session
+   directory and its numeric time window. The hub builds exactly one command
+   shape: `git log --since=<session start> --until=<latest activity> -n 10
+--format=%H%x1f%an%x1f%ae%x1f%aI%x1f%s%x1f%b%x1e`. Both bounds come from session
+   metadata, never page or user input; the `--since`/`--until` filter happens on
+   the host, so the view never fetches the repository's latest ten commits. The
+   upper bound is the newest assistant or shell message completion, or the
+   newest message creation when there is none. It is omitted while a turn is
+   running so the current turn's commits count; the bound closes when the
+   session goes idle. The field and record separators keep multiline bodies
+   intact. Conventional headers are split into type, scope, and description for
+   the preview, and `Co-authored-by:` trailers are lifted out of the body.
+5. **The browser never sends a shell command.** The hub runs the fixed command
+   through OpenCode's shell API and returns parsed commits. The request travels
+   over the encrypted session to the hub API.
+6. If OpenCode access is disabled, the hub returns `403` with `disabled` and
+   the view says commit history is disabled on this server. If no harness is
+   configured, the view says history is unavailable.
 7. **Worktrees are project-wide.** The server returns directories only, so:
    - `default` is the entry equal to the project's canonical directory,
    - `current` is the entry equal to this session's directory,
@@ -127,30 +127,19 @@ session's own directory. The browser never reads its own filesystem.
   nothing.
 - **Session has no project record** — the Worktrees view explains that worktrees
   are unavailable rather than guessing a project.
-- **Server policy blocks commands** — the Commits view shows an admin-disabled
+- **OpenCode access disabled** — the Commits view shows an admin-disabled
   state with no retry loop.
+- **No harness configured** — the Commits view says history is unavailable.
 - **Git tab closed** — no git, history, or worktree requests run while another
   panel tab is showing.
 
-## Not a sandbox
+## No browser shell path
 
-**The shell policy is a guardrail, not a sandbox.** It decides whether the hub
-forwards a **command request** from a Clara client to OpenCode. It is not a
-capability boundary for the OpenCode API:
-
-- Any client that reaches OpenCode can still use APIs that are not command
-  requests. Writing files (`/api/experimental/fs/write`), starting a session and
-  prompting an agent, or calling a plugin RPC (`/api/rpc/{rpcID}/{method}`) can
-  all have effects on the host.
-- A modified web build can still call non-command OpenCode APIs through the
-  hub, and the hub forwards them.
-- The policy itself is changed from the loopback panel, which has no
-  authentication beyond being reachable only from the machine.
-
-A real sandbox needs a positive allowlist of every proxied API route (or a
-separate process boundary) and is future work. Until then, treat the policy as a
-way to keep the web client from running commands, not as protection against a
-hostile client or a compromised origin.
+The browser has no generic shell endpoint. Git history is the only host command
+Clara runs, and the hub constructs it from validated timestamps and the session
+directory. The legacy `/api` proxy and its shell policy remain only for older
+clients until the final cleanup; the web client uses the typed `/v1` API and
+never calls them.
 
 ## Out of scope
 
@@ -164,10 +153,9 @@ hostile client or a compromised origin.
 
 ## Known gaps
 
-- **No commit-log endpoint exists.** OpenCode 2.1.x and 2.2.x expose
-  `vcs.get/base/status/diff/branch` only, so history needs `git log` through the
-  shell API. That is why the feature depends on the hub and its shell
-  policy.
+- **OpenCode has no commit-log endpoint.** OpenCode 2.1.x and 2.2.x expose
+  `vcs.get/base/status/diff/branch` only, so the hub's `/v1/git/log` endpoint
+  runs `git log` through OpenCode's shell API and returns parsed commits.
 - **Session scope is time-based.** OpenCode records no commit IDs for a session,
   so Clara asks git for commits between `session.time.created` and the newest
   message activity. Git compares commit dates, not author dates: a manual commit
@@ -175,15 +163,10 @@ hostile client or a compromised origin.
   shows its original author date, and commits made after the latest message are
   excluded. A window with more than ten commits shows only the newest ten.
 - **Each history read spawns a process** on the host and writes a small shell job
-  file that Clara removes afterwards. On a slow volume or a very large
-  repository, expect a short delay; the request is capped at ten seconds.
+  file that the hub removes afterwards. On a slow volume or a very large
+  repository, expect a short delay; the hub caps the request at ten seconds.
   Expanding a row never starts another process; the details arrive with the
   same log.
-- **A non-empty filter must cover the formatted command.** The panel's **Allow
-  Git history** toggle adds `git log`, which covers it. An entry pinned to the
-  old `git log --oneline -n 10` string blocks the new command until it is
-  updated. An empty filter list allows every command, so Git history works
-  without an entry.
 - **The worktree list has no branch names, HEAD, or dirty state.** Enriching rows
   would need one `vcs.get` call per worktree.
 - **The worktree list is stored by OpenCode**, not read live, so it can be stale
@@ -204,21 +187,20 @@ hostile client or a compromised origin.
 - Commit row: `src/components/layout/git-commit-row.tsx`
 - Worktree view: `src/components/layout/git-worktree-list.tsx`
 - Shared messages: `src/components/layout/git-panel-parts.tsx`
-- Hooks and parsers: `src/features/git/use-git.ts` (`gitLogCommand`,
-  `lastSessionActivity`, `parseGitLog`, `parseConventionalHeader`,
-  `splitCommitBody`)
+- Hooks and parsers: `src/features/git/use-git.ts` (`lastSessionActivity`,
+  `parseConventionalHeader`, `splitCommitBody`)
 - Branch and provider: `client.vcs.get({ location: { directory } })`
 - Review base: `client.vcs.base({ location: { directory } })`
 - Working tree: `client.vcs.status({ location: { directory } })`
 - Committed and branch ranges: `client.vcs.diff({ mode, base, context: 0 })`
-- History: `client.shell.create({ command: gitLogCommand(window), cwd })`,
-  polled with `shell.get`, read with `shell.output`, cleaned with `shell.remove`
+- History: `client.git.log({ directory, since, until })` over `GET /v1/git/log`;
+  the hub builds and runs the fixed command and returns parsed commits
 - Worktrees: `client.worktree.list({ projectID })` and
   `client.worktree.refresh({ projectID })`
 - Project ID: the canonical project record for the route, passed from the chat
   page so worktree lookups use the record that owns them
-- Shell policy: enforced in `apps/server/src/shell-policy.ts` before
-  `OpenCodeClient.request` runs; see [panel](panel.md)
+- Git log endpoint: `apps/server/src/api/git.ts` builds the command and parses
+  the output; the legacy shell policy is only used by the retired proxy path
 - Live updates: `filesystem.changed` for changes, `vcs.branch.updated` and
   session idle/execution events for history, `worktree.updated` and
   `worktree.resolved` for worktrees

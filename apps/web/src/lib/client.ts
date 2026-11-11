@@ -1,4 +1,4 @@
-import { OpenCode } from '@opencode/client'
+import { createClaraClient, type ClaraClient } from '@clara/api-client'
 import type { ClaraAction } from '@clara/shared-types'
 import {
   createRelayTransport,
@@ -49,16 +49,16 @@ export type ClientControl = {
 }
 
 export type ClientHandle = {
-  client: OpenCodeClient
+  client: ClaraClient
   close: () => void
   enroll: (label: string) => Promise<EnrolledDevice>
   control: ClientControl
   subscribeStatus: (listener: (status: RelayTransportStatus) => void) => () => void
 }
 
-export type OpenCodeClient = ReturnType<typeof OpenCode.make>
+export type { ClaraClient }
 
-export type ServerInfo = Awaited<ReturnType<OpenCodeClient['server']['info']>>
+export type ServerInfo = Awaited<ReturnType<ClaraClient['server']['info']>>
 
 export type ConnectionStatus = 'disconnected' | 'connecting' | 'connected' | 'error'
 
@@ -120,8 +120,8 @@ export function createClient(config: ConnectionConfig): ClientHandle {
   })
 
   return {
-    client: OpenCode.make({
-      baseUrl: 'http://clara.relay',
+    client: createClaraClient({
+      baseUrl: 'http://clara.api',
       fetch: transport.fetch,
     }),
     close: () => transport.close(),
