@@ -2,7 +2,9 @@
 
 ## Summary
 
-An authenticated control panel served by the Clara home agent. It shows the
+An authenticated control panel served by the Clara home agent. It uses the
+Clara Lab workbench layout: a title bar, an activity rail with tabbed views, and
+a status bar. It shows the
 agent's live state, transports, connected clients, active harness probe, push
 health, configuration sources, database health, storage files, and a live
 traffic meter without exposing secrets. Sensitive values start masked behind a
@@ -32,73 +34,87 @@ monitoring on or off, and gates or paces client settings sync.
    type, username, and password. Use **Test** before saving when possible. In a
    container, the URL must be reachable from the `clara` network, for example
    `http://opencode:4096`; `127.0.0.1` means the Clara server itself.
-4. The **Agent**, **Effective configuration**, **Connected clients**, **Paired
-   devices**, and
-   **Recent activity** cards start expanded. Every other card starts collapsed.
-   Review the headers for the agent process, OpenCode, local transport, relay,
-   push, client sync, effective configuration, clients, activity, shell policy,
-   and storage. Status chips sit beside each card title, including a storage
-   health summary that turns amber for warnings and red for errors. Sensitive
-   values start masked: device ids, config and storage paths, local
-   WebSocket endpoint, relay URL and room, connection session ids, and WebSocket
-   URLs in activity or errors. Choose the eye button beside **Refresh** to
-   reveal them for this tab; the choice survives a reload and a new tab starts
-   masked again. In **Effective configuration**, edit **Web URL** or **VAPID
-   contact** and choose **Save**; **Use default** clears the file value. The
-   source tag shows environment, `server.json`/`vapid.json`, or default, and an
-   environment value locks the field.
-5. Click a card header to expand or collapse its contents. Cards with a feature
-   switch can only be expanded while that feature is enabled; open the header
-   again to collapse it.
-6. Toggle OpenCode, local transport, relay, or push from the switch at the top
-   right of its card. The choice is saved immediately. An enabled switch is
-   green while the agent runs and red while it is stopped; a disabled switch
+4. The panel opens on **Overview** with the Agent and Orchestration cards, a
+   health strip for Harness, Local, Relay, Push, and Orchestration, the five most
+   recent events, and a storage summary. A **Needs attention** banner names every
+   degraded surface; health tiles jump to their tab. Status chips sit beside each
+   card title, including a storage health summary that turns amber for warnings
+   and red for errors. Sensitive values start masked: device ids, config and
+   storage paths, local WebSocket endpoint, relay URL and room, connection
+   session ids, and WebSocket URLs in activity or errors.
+5. Move between views from the activity rail: **Home** (Overview), **Harness**,
+   **Network** (Connections), **Clients**, **Traffic**, and **Activity**, with
+   **Settings** pinned at the bottom. The rail shows live client and event counts
+   and amber or red dots for trouble. Views are hash links (`#traffic`,
+   `#clients`), keep their scroll position while you switch, and survive a
+   reload. Cards open by default inside their view; click a header to collapse
+   it. Cards with a feature switch can only be expanded while that feature is
+   enabled.
+6. The title bar shows the agent config path, the connection badge, the last
+   update, version, the peek control, **Refresh**, and **Sign out**. The status
+   bar along the bottom summarizes the agent, harness, local, relay, push,
+   orchestration, and client state; each item opens the matching view.
+7. In **Harness**, add the OpenCode connection: label, base URL, auth type,
+   username, and password. Use **Test** before saving when possible, then
+   **Activate** it. In a container, the URL must be reachable from the `clara`
+   network, for example `http://opencode:4096`; `127.0.0.1` means the Clara
+   server itself. The adjacent card shows the active harness URL, version,
+   latency, secret state, and its on/off switch.
+8. In **Connections**, toggle local transport, relay, or push from the switch at
+   the top right of its card. The choice is saved immediately. An enabled switch
+   is green while the agent runs and red while it is stopped; a disabled switch
    keeps its neutral track in both cases. Turning a feature off hides its
    details; turning it on makes the header expandable.
-7. In **Shell commands**, use the switch at the top right to enable or block all
-   command requests. Enabling makes the header expandable; open it to edit
-   **Filter commands**, optionally turn on **Allow Git history**, then choose
-   **Apply** at the bottom right. **Discard** sits to its left. The switch stays
-   amber until Apply succeeds, then turns green. Turning it off blocks every
-   command immediately. Empty filters mean every command is allowed, and the
-   card warns about it.
-8. To take every external connection offline, choose **Stop agent** at the top
-   right of the Agent card and confirm. The page keeps polling; the banner
-   explains that the panel is still available.
-9. Choose **Start agent** to restore the saved choices. Feature switches are
-   disabled until the agent is started again and show red while they are
-   stopped, so the stopped state is readable from the switch colors alone. The
-   shell policy stays editable because it only applies while connections are
-   up.
-10. Review the connected-client table and the storage list. A one-time pairing
-    session appears with a **Pairing** badge and no device until enrollment
-    finishes; it is excluded from the active count and the local E2EE session
-    count. Status badges call out degraded OpenCode, relay, push, permissions,
-    or missing files. The storage header summarizes the most severe entry and
-    its count.
-11. In **Traffic**, read the last minute's in and out rates, the request and
+9. In **Settings**, edit **Web URL** or **VAPID contact** and choose **Save**;
+   **Use default** clears the file value. The source tag shows environment,
+   `server.json`/`vapid.json`, or default, and an environment value locks the
+   field.
+10. In **Settings**, use the **Shell commands** switch to enable or block all
+    command requests. Enabling makes the header expandable; open it to edit
+    **Filter commands**, optionally turn on **Allow Git history**, then choose
+    **Apply** at the bottom right. **Discard** sits to its left. The switch stays
+    amber until Apply succeeds, then turns green. Turning it off blocks every
+    command immediately. Empty filters mean every command is allowed, and the
+    card warns about it.
+11. In **Settings**, turn client sync on or off for every paired client, and
+    choose the interval at which those clients check for changes. Turning it off
+    hides the web Sync tab and rejects sync requests; the stored namespace and
+    each device's category choices remain. The interval defaults to 30 seconds.
+12. To take every external connection offline, choose **Stop agent** at the top
+    right of the Agent card on Overview and confirm. The page keeps polling; the
+    banner explains that the panel is still available.
+13. Choose **Start agent** to restore the saved choices. Feature switches are
+    disabled until the agent is started again and show red while they are
+    stopped, so the stopped state is readable from the switch colors alone. The
+    shell policy stays editable because it only applies while connections are
+    up.
+14. In **Clients**, review the connected-client table and paired devices. A
+    one-time pairing session appears with a **Pairing** badge and no device until
+    enrollment finishes; it is excluded from the active count and the local E2EE
+    session count. Status badges call out degraded OpenCode, relay, push,
+    permissions, or missing files.
+15. In **Traffic**, read the last minute's in and out rates, the request and
     error rates, the two sparklines for the last hour, and the totals since the
     window started. The card shows the local-versus-relay split, a peak minute,
     and the error breakdown. An amber **Spike** badge means the last complete
     minute was at least three times the previous half hour and above a floor; it
     is a hint, not a verdict.
-12. Use the switch at the top left of **Traffic** to stop recording. The card
+16. Use the switch at the top left of **Traffic** to stop recording. The card
     collapses to its header, the counters are discarded, and the client table
     drops its traffic columns. Turning it back on starts a fresh window with a
     one-minute warm-up. The switch stays usable while the agent is stopped.
-13. In **Client sync**, turn settings sync on or off for every paired client, and
-    choose the interval at which those clients check for changes. Turning it off
-    hides the web Sync tab and rejects sync requests; the stored namespace and
-    each device's category choices remain. The interval defaults to 30 seconds.
-14. Leave the page open. It refreshes every five seconds while visible and
+17. In **Activity**, read the in-memory events and the storage list. The storage
+    header summarizes the most severe entry and its count, and the overview links
+    here for the full list.
+18. Use **Orchestration** on Overview to start or stop the local orchestration
+    service. Turning it on starts a detached local instance when nothing is
+    answering and waits for `/health`; turning it off stops only the local
+    instance started from this data directory. A Docker or external instance is
+    detected and labelled, and the switch is disabled because the panel does not
+    own it. When the service is reachable, Clara groups worker sessions in
+    **Workers** and keeps their session alerts quiet.
+19. Leave the page open. It refreshes every five seconds while visible and
     pauses when the tab is hidden. Use **Refresh** for an immediate check.
-15. Use **Orchestration** to start or stop the local orchestration service.
-    Turning it on starts a detached local instance when nothing is answering and
-    waits for `/health`; turning it off stops only the local instance started
-    from this data directory. A Docker or external instance is detected and
-    labelled, and the switch is disabled because the panel does not own it. When
-    the service is reachable, Clara groups worker sessions in **Workers** and
-    keeps their session alerts quiet.
 
 ## Core business rules
 
