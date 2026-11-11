@@ -469,8 +469,13 @@ release. See [docs/architecture/overview.md](docs/architecture/overview.md).
 
 ## Documentation
 
-Start at [docs/README.md](docs/README.md). Feature specs follow
-[docs/features/GUIDE.md](docs/features/GUIDE.md); shipped scope lives in
-[docs/features/capabilities.md](docs/features/capabilities.md).
+End-user and self-hosting documentation lives in
+[apps/docs/guide/index.md](apps/docs/guide/index.md). Run the site locally with
+`pnpm clara docs`; it serves the guide at `/guide/` and the developer docs at
+`/internals/`.
+
+Developer and agent documentation starts at [docs/README.md](docs/README.md).
+Feature specs follow [docs/features/GUIDE.md](docs/features/GUIDE.md); shipped
+scope lives in [docs/features/capabilities.md](docs/features/capabilities.md).
 
 Agent instructions are in [AGENTS.md](AGENTS.md).

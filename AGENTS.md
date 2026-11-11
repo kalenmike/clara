@@ -66,6 +66,9 @@ pnpm clara runner   # Run script steps for a workspace (standalone runner)
 pnpm clara rebuild  # Snapshot, rebuild, recover services, inspect, and verify health
 pnpm clara lab      # Open Clara Lab to preview pipelines and probe the agent
 pnpm clara lab check # Validate a package target for CI
+pnpm clara docs     # Run the documentation site on :5176
+pnpm clara docs build # Build the documentation site
+pnpm clara docs check # Check guide and internal doc indexes and links
 pnpm clara mcp install|config|status # Install or inspect the MCP bridge
 pnpm clara adapter install --opencode [--mcp] # Install the OpenCode adapter, MCP, and shared runner
 pnpm typecheck      # tsc -b
@@ -215,6 +218,28 @@ docs(sessions): document archived session filters
 
 ## Documentation map
 
+Clara has two documentation sets. Keep them separate:
+
+- **User guide** — `apps/docs/guide/`, indexed by
+  [apps/docs/guide/index.md](apps/docs/guide/index.md). Written for people using
+  or hosting Clara. No source paths, database columns, or internal routes.
+- **Internal documentation** — `docs/`, indexed by
+  [docs/README.md](docs/README.md). Written for contributors and agents. This is
+  the authoritative behavior reference.
+
+The Docusaurus site renders both together: the guide at `/guide/` and the
+internal set at `/internals/` behind a visible "Internal" banner. `docs/records/`
+is never published.
+
+### User guide
+
+| Before you touch…                    | Read                                                                           |
+| ------------------------------------ | ------------------------------------------------------------------------------ |
+| Using Clara, pairing, sessions, chat | [apps/docs/guide/index.md](apps/docs/guide/index.md)                           |
+| Hosting the hub, Docker, relay       | [apps/docs/guide/self-hosting/index.md](apps/docs/guide/self-hosting/index.md) |
+
+### Internal documentation
+
 | Before you touch…                  | Read                                                             |
 | ---------------------------------- | ---------------------------------------------------------------- |
 | Writing or updating a feature spec | [docs/features/GUIDE.md](docs/features/GUIDE.md)                 |
@@ -248,7 +273,8 @@ docs(sessions): document archived session filters
    affected transport.
 4. Shipped-scope changes update
    [docs/features/capabilities.md](docs/features/capabilities.md) in the same
-   change.
+   change. User-visible changes also update the matching page under
+   `apps/docs/guide/`.
 5. No secrets, generated output, or unrelated files are staged.
 6. Work is committed as coherent Conventional Commits, each carrying the
    OpenCode and model co-author trailers; `git status` shows only intentionally

@@ -1,0 +1,46 @@
+{
+  "name": "@clara/docs",
+  "private": true,
+  "version": "0.1.0",
+  "scripts": {
+    "dev": "docusaurus start --host 127.0.0.1 --port 5176",
+    "start": "docusaurus start --host 127.0.0.1 --port 5176",
+    "build": "docusaurus build",
+    "preview": "docusaurus serve --host 127.0.0.1 --port 5176",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "clear": "docusaurus clear"
+  },
+  "dependencies": {
+    "@docusaurus/core": "3.10.2",
+    "@docusaurus/plugin-content-docs": "3.10.2",
+    "@docusaurus/preset-classic": "3.10.2",
+    "@docusaurus/theme-mermaid": "3.10.2",
+    "@easyops-cn/docusaurus-search-local": "^0.55.3",
+    "@mdx-js/react": "^3.1.1",
+    "react": "^19.3.1",
+    "react-dom": "^19.3.1"
+  },
+  "devDependencies": {
+    "@docusaurus/module-type-aliases": "3.10.2",
+    "@docusaurus/tsconfig": "3.10.2",
+    "@docusaurus/types": "3.10.2",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
+    "typescript": "~6.0.3"
+  },
+  "browserslist": {
+    "production": [
+      ">0.5%",
+      "not dead",
+      "not op_mini all"
+    ],
+    "development": [
+      "last 3 chrome version",
+      "last 3 firefox version",
+      "last 5 safari version"
+    ]
+  },
+  "engines": {
+    "node": ">=22.12"
+  }
+}

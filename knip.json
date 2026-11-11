@@ -12,6 +12,14 @@
       "entry": ["index.html"],
       "project": ["src/**/*.{ts,tsx,css}"]
     },
+    "apps/docs": {
+      "entry": ["src/pages/**/*.tsx", "src/theme/**/*.tsx"],
+      "project": ["*.ts", "src/**/*.{ts,tsx}"],
+      "ignoreDependencies": [
+        "@easyops-cn/docusaurus-search-local",
+        "@easyops-cn/docusaurus-theme-docusaurus-search-local"
+      ]
+    },
     "apps/lab": {
       "entry": ["index.html"],
       "project": ["src/**/*.{ts,tsx}", "server/**/*.ts", "test/**/*.ts"]

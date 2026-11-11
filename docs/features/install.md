@@ -30,7 +30,7 @@ docker network create clara      # once, or reuse the server stack
 pnpm clara web start --docker --build
 ```
 
-Open <http://127.0.0.1:8080>. The image builds the same bundle as
+Open [127.0.0.1:8080](http://127.0.0.1:8080). The image builds the same bundle as
 `pnpm --filter @clara/web build`, and `docker/web.nginx.conf` mirrors
 `apps/web/public/_headers`: the worker and app shell revalidate, hashed assets
 cache for a year, and the CSP, referrer, permissions, and nosniff headers match.

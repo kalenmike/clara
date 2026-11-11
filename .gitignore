@@ -38,5 +38,5 @@ coverage
 
 
 # Docs
-**/.vitepress/dist
-**/.vitepress/cache
+apps/docs/.docusaurus
+apps/docs/build

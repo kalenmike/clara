@@ -1,0 +1,72 @@
+---
+title: Self-hosting
+description: Run the hub service, web client, and optional relay yourself.
+sidebar_position: 13
+---
+
+# Self-hosting Clara
+
+Clara has two halves: the **hub** on the machine that runs OpenCode, and the
+**web client** that devices open. You can run both from one checkout with Docker
+or Node, and add the Cloudflare relay only when devices need to connect from
+outside your network.
+
+```mermaid
+flowchart LR
+  O[OpenCode server] -->|HTTP and SSE| H[Clara hub]
+  H -->|encrypted WebSocket| W[Browser or PWA]
+  H -. optional .-> R[Cloudflare relay]
+  R -. encrypted frames .-> P[Phone]
+```
+
+## What you need
+
+- A machine that can run OpenCode 2.1.x.
+- Node 22 and pnpm 11 for a local install, or Docker with Compose.
+- A checkout of this repository.
+- Optional: a Cloudflare account and a domain for remote access.
+
+## Choose how to run it
+
+|          | Docker                     | Local                                        |
+| -------- | -------------------------- | -------------------------------------------- |
+| Best for | A clean, repeatable stack  | Development and existing Node setups         |
+| Command  | `pnpm clara start --build` | `pnpm clara start --local --build`           |
+| Hub data | Docker volumes             | `~/.config/clara` and `~/.local/share/clara` |
+| Web      | nginx on `127.0.0.1:8080`  | Static build on `127.0.0.1:8080`             |
+
+Both modes use the same hub panel, pairing command, and data model.
+
+## The short path
+
+1. Install dependencies with `pnpm install`.
+2. Start the stack. Docker is the default; add `--local` for host processes.
+3. Run `pnpm clara server setup-token` and open the hub panel. Choose a
+   superadmin password and save the OpenCode connection.
+4. Run `pnpm clara pair` and open the printed link on your device.
+5. Add the web app to your Home Screen or install it.
+
+The detailed steps are in [Docker](docker.md) and
+[Local install](local.md).
+
+## Ports
+
+| Service               | Default          |
+| --------------------- | ---------------- |
+| Web client            | `127.0.0.1:8080` |
+| Hub panel             | `127.0.0.1:8790` |
+| Hub local WebSocket   | `127.0.0.1:8788` |
+| Orchestration service | `127.0.0.1:8789` |
+| Clara Lab             | `127.0.0.1:8791` |
+
+The hub panel is loopback-only. Do not expose it to the internet.
+
+## Where to go next
+
+- [Docker](docker.md)
+- [Local install](local.md)
+- [Configuration](configuration.md)
+- [Remote access with the relay](relay.md)
+- [Updates and backups](updates.md)
+- [Orchestration](orchestration.md)
+- [Security and privacy](../security.md)
