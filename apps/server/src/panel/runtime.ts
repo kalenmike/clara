@@ -450,6 +450,7 @@ function toDevice(device: DeviceInfo, liveSessions: number): PanelDeviceInfo {
   return {
     id: device.id,
     label: device.label,
+    ...(device.alias ? { alias: device.alias } : {}),
     fingerprint: device.fingerprint,
     createdAt: new Date(device.createdAt).toISOString(),
     ...(device.lastSeenAt !== undefined

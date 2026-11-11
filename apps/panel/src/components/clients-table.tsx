@@ -128,7 +128,8 @@ export function ClientsTable({
                       ) : (
                         <>
                           <div className="font-medium">
-                            {client.deviceLabel ??
+                            {deviceFor(client)?.alias ??
+                              client.deviceLabel ??
                               (client.deviceId ? 'Unknown device' : 'Unpaired client')}
                           </div>
                           <div className="font-mono text-[10px] text-neutral-500 dark:text-neutral-400">
