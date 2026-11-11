@@ -8,7 +8,7 @@ import {
   randomBytes,
   sealSecret,
 } from '@clara/crypto'
-import type { DeviceClass, PanelTransport } from '@clara/shared-types'
+import { MAX_DEVICE_ALIAS_LENGTH, type DeviceClass, type PanelTransport } from '@clara/shared-types'
 import type { ClaraDatabase } from './database.ts'
 
 export const MAX_DEVICES = 32
@@ -20,6 +20,7 @@ const TOUCH_INTERVAL_MS = 60_000
 export type DeviceInfo = {
   id: string
   label: string
+  alias?: string
   fingerprint: string
   createdAt: number
   updatedAt: number
@@ -79,6 +80,7 @@ export class DeviceStoreError extends Error {
 type DeviceRow = {
   id: string
   label: string
+  alias: string | null
   fingerprint: string
   created_at: number
   updated_at: number
@@ -209,7 +211,7 @@ export class DeviceStore implements DeviceRegistry {
 
     const existing = this.db
       .prepare(
-        `SELECT d.id, d.label, d.fingerprint, d.created_at, d.updated_at, d.last_seen_at,
+        `SELECT d.id, d.label, d.alias, d.fingerprint, d.created_at, d.updated_at, d.last_seen_at,
                 d.last_transport, d.last_device_class, d.revoked_at,
                 k.ciphertext, k.nonce, k.key_version
            FROM devices d
@@ -293,7 +295,7 @@ export class DeviceStore implements DeviceRegistry {
   listDevices(): DeviceInfo[] {
     const rows = this.db
       .prepare(
-        `SELECT id, label, fingerprint, created_at, updated_at, last_seen_at,
+        `SELECT id, label, alias, fingerprint, created_at, updated_at, last_seen_at,
                 last_transport, last_device_class, revoked_at
            FROM devices
           ORDER BY revoked_at IS NOT NULL, created_at ASC`
@@ -302,10 +304,27 @@ export class DeviceStore implements DeviceRegistry {
     return rows.map(toInfo)
   }
 
+  setAlias(id: string, alias: string | null): DeviceInfo | undefined {
+    const existing = this.db
+      .prepare(
+        `SELECT id, label, alias, fingerprint, created_at, updated_at, last_seen_at,
+                last_transport, last_device_class, revoked_at
+           FROM devices WHERE id = ?`
+      )
+      .get(id) as DeviceRow | undefined
+    if (!existing) return undefined
+    const normalized = normalizeAlias(alias)
+    const now = Date.now()
+    this.db
+      .prepare('UPDATE devices SET alias = ?, updated_at = ? WHERE id = ?')
+      .run(normalized, now, id)
+    return toInfo({ ...existing, alias: normalized, updated_at: now })
+  }
+
   revokeDevice(id: string): DeviceInfo | undefined {
     const existing = this.db
       .prepare(
-        `SELECT id, label, fingerprint, created_at, updated_at, last_seen_at,
+        `SELECT id, label, alias, fingerprint, created_at, updated_at, last_seen_at,
                 last_transport, last_device_class, revoked_at
            FROM devices WHERE id = ?`
       )
@@ -325,7 +344,7 @@ export class DeviceStore implements DeviceRegistry {
   purgeDevice(id: string): DeviceInfo | undefined {
     const existing = this.db
       .prepare(
-        `SELECT id, label, fingerprint, created_at, updated_at, last_seen_at,
+        `SELECT id, label, alias, fingerprint, created_at, updated_at, last_seen_at,
                 last_transport, last_device_class, revoked_at
            FROM devices WHERE id = ?`
       )
@@ -397,6 +416,7 @@ function toInfo(row: DeviceRow): DeviceInfo {
   return {
     id: row.id,
     label: row.label,
+    ...(row.alias ? { alias: row.alias } : {}),
     fingerprint: row.fingerprint,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
@@ -422,6 +442,18 @@ function normalizeLabel(value: string | undefined): string {
     .join('')
   const label = cleaned.trim().slice(0, MAX_LABEL)
   return label || 'Unnamed device'
+}
+
+function normalizeAlias(value: string | null): string | null {
+  if (value === null) return null
+  const cleaned = Array.from(value)
+    .map((character) => {
+      const code = character.charCodeAt(0)
+      return code < 0x20 || code === 0x7f ? ' ' : character
+    })
+    .join('')
+  const alias = cleaned.trim().slice(0, MAX_DEVICE_ALIAS_LENGTH)
+  return alias || null
 }
 
 function deviceAad(id: string): string {

@@ -4,6 +4,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
 import {
+  MAX_DEVICE_ALIAS_LENGTH,
   PANEL_API_VERSION,
   type PanelConfigInfo,
   type PanelConfigMutationResponse,
@@ -305,6 +306,7 @@ function fakeControls(initial: Partial<PanelControls> = {}): FakeControls {
     activateHarness: async () => ({ harnesses: [], harness: { configured: false } }),
     deleteHarness: async () => ({ harnesses: [], harness: { configured: false } }),
     revokeDevice: () => undefined,
+    setDeviceAlias: () => undefined,
     purgeDevice: () => undefined,
   }
 }
@@ -553,6 +555,112 @@ describe('panel server', () => {
     })
     expect(forbidden.status).toBe(403)
     expect(revoked).toEqual(['device-0000000000001'])
+  })
+
+  it('sets and clears a paired device alias', async () => {
+    const calls: Array<{ id: string; alias: string | null }> = []
+    const controls = {
+      ...fakeControls(),
+      setDeviceAlias: (id: string, alias: string | null) => {
+        calls.push({ id, alias })
+        return { id, alias }
+      },
+    }
+    const server = await start(undefined, controls)
+    const path = 'panel/api/v1/devices/device-0000000000001'
+
+    const renamed = await get(server, path, {
+      method: 'PATCH',
+      headers: { 'x-clara-panel': '1', 'content-type': 'application/json' },
+      body: JSON.stringify({ alias: 'Desk MacBook' }),
+    })
+    expect(renamed.status).toBe(200)
+    expect(await renamed.json()).toEqual({
+      id: 'device-0000000000001',
+      alias: 'Desk MacBook',
+    })
+
+    const cleared = await get(server, path, {
+      method: 'PATCH',
+      headers: { 'x-clara-panel': '1', 'content-type': 'application/json' },
+      body: JSON.stringify({ alias: null }),
+    })
+    expect(cleared.status).toBe(200)
+    expect(await cleared.json()).toEqual({ id: 'device-0000000000001', alias: null })
+    expect(calls).toEqual([
+      { id: 'device-0000000000001', alias: 'Desk MacBook' },
+      { id: 'device-0000000000001', alias: null },
+    ])
+  })
+
+  it('validates paired device alias mutations', async () => {
+    const calls: Array<{ id: string; alias: string | null }> = []
+    const controls = {
+      ...fakeControls(),
+      setDeviceAlias: (id: string, alias: string | null) => {
+        calls.push({ id, alias })
+        return undefined
+      },
+    }
+    const server = await start(undefined, controls)
+    const path = 'panel/api/v1/devices/device-0000000000001'
+    const patch = (body: unknown, headers: Record<string, string>) =>
+      get(server, path, {
+        method: 'PATCH',
+        headers,
+        body: JSON.stringify(body),
+      })
+
+    const missingHeader = await patch({ alias: 'Desk' }, { 'content-type': 'application/json' })
+    expect(missingHeader.status).toBe(403)
+
+    const wrongType = await patch(
+      { alias: 'Desk' },
+      {
+        'x-clara-panel': '1',
+        'content-type': 'text/plain',
+      }
+    )
+    expect(wrongType.status).toBe(415)
+
+    const unknownField = await patch(
+      { alias: 'Desk', label: 'Other' },
+      { 'x-clara-panel': '1', 'content-type': 'application/json' }
+    )
+    expect(unknownField.status).toBe(400)
+
+    const missingAlias = await patch(
+      {},
+      { 'x-clara-panel': '1', 'content-type': 'application/json' }
+    )
+    expect(missingAlias.status).toBe(400)
+
+    const invalidType = await patch(
+      { alias: 42 },
+      { 'x-clara-panel': '1', 'content-type': 'application/json' }
+    )
+    expect(invalidType.status).toBe(400)
+
+    const tooLong = await patch(
+      { alias: 'x'.repeat(MAX_DEVICE_ALIAS_LENGTH + 1) },
+      { 'x-clara-panel': '1', 'content-type': 'application/json' }
+    )
+    expect(tooLong.status).toBe(400)
+    expect(calls).toEqual([])
+
+    const unknownDevice = await patch(
+      { alias: 'Desk' },
+      { 'x-clara-panel': '1', 'content-type': 'application/json' }
+    )
+    expect(unknownDevice.status).toBe(404)
+    expect(calls).toEqual([{ id: 'device-0000000000001', alias: 'Desk' }])
+
+    const wrongMethod = await get(server, path, {
+      method: 'POST',
+      headers: { 'x-clara-panel': '1' },
+    })
+    expect(wrongMethod.status).toBe(405)
+    expect(wrongMethod.headers.get('allow')).toBe('PATCH, DELETE')
   })
 
   it('purges a revoked device record', async () => {

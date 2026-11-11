@@ -213,6 +213,17 @@ export class RuntimeController {
     return this.options.devices.countActive()
   }
 
+  /** Change only the panel-facing name; the enrolled label stays immutable. */
+  setDeviceAlias(
+    id: string,
+    alias: string | null
+  ): { id: string; alias: string | null } | undefined {
+    const device = this.options.devices.setAlias(id, alias)
+    if (!device) return undefined
+    this.options.log(`device alias updated (${id})`)
+    return { id: device.id, alias: device.alias ?? null }
+  }
+
   /** Revoke one device, drop its live sessions, and clear its push routes. */
   revokeDevice(id: string): DeviceInfo | undefined {
     const device = this.options.devices.revokeDevice(id)

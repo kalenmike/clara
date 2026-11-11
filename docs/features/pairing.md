@@ -174,7 +174,9 @@ camera or pastes the same code, and Clara stores the device credential locally.
   `pairingBaseUrl` there and `pair` reads it without opening SQLite for the Web
   URL, then opens SQLite to create the enrollment token
 - Device keys: `devices` and `device_keys` in SQLite, encrypted with
-  `secrets.key`
+  `secrets.key`. `devices.label` is the enrolled name captured at pairing and is
+  immutable; a nullable panel-set `devices.alias` overrides only the displayed
+  name.
 - Pairing tokens: `pairing_tokens` in SQLite, encrypted with `secrets.key`
 - Push subscriptions: `~/.config/clara/subscriptions.json`, tagged with the
   device id and removed when that device is revoked

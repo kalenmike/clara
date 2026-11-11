@@ -82,6 +82,7 @@ function devices(): DeviceInfo[] {
     {
       id: 'device-remote',
       label: 'Phone',
+      alias: 'Pocket',
       fingerprint: 'device-fingerprint-2',
       createdAt: now - 30_000,
       updatedAt: now - 500,
@@ -235,6 +236,10 @@ describe('PanelRuntime', () => {
     expect(snapshot.push.error).toContain('[redacted]')
     expect(snapshot.agent.pairedDevices).toBe(2)
     expect(snapshot.devices).toHaveLength(2)
+    expect(snapshot.devices.find((device) => device.id === 'device-remote')?.alias).toBe('Pocket')
+    expect(snapshot.devices.find((device) => device.id === 'device-local')).not.toHaveProperty(
+      'alias'
+    )
     expect(snapshot.harness.configured).toBe(true)
     expect(snapshot.harnesses).toHaveLength(1)
     expect(snapshot.config.vapidSubject).toEqual({

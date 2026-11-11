@@ -204,9 +204,14 @@ export type PanelClientInfo = {
   holdPhone: boolean
 }
 
+/** Longest custom device alias accepted by the panel. */
+export const MAX_DEVICE_ALIAS_LENGTH = 64
+
 export type PanelDeviceInfo = {
   id: string
   label: string
+  /** Panel-set display name that overrides the enrolled label when present. */
+  alias?: string
   fingerprint: string
   createdAt: string
   lastSeenAt?: string

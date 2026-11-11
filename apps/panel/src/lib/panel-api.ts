@@ -30,6 +30,10 @@ export async function postPanel<T = void>(path: string, body: unknown): Promise<
   return request<T>('POST', path, body)
 }
 
+export async function patchPanel<T = void>(path: string, body: unknown): Promise<T> {
+  return request<T>('PATCH', path, body)
+}
+
 export async function deletePanel<T = void>(path: string, body?: unknown): Promise<T> {
   return request<T>('DELETE', path, body)
 }

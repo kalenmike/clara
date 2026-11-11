@@ -4,6 +4,7 @@ import { extname, join, resolve, sep } from 'node:path'
 import type { Server } from 'node:http'
 import {
   isSyncIntervalMs,
+  MAX_DEVICE_ALIAS_LENGTH,
   type PanelAuthInfo,
   type PanelConfigUpdate,
   type PanelFeatureName,
@@ -643,10 +644,56 @@ async function handleDevices(
     return
   }
 
+  if (method === 'PATCH') {
+    if (!requireMutationHeader(request, response, method, true)) return
+
+    const body = await readJsonBody(request)
+    if (!body.ok) {
+      sendJson(response, method, body.status, { error: { code: body.code, message: body.message } })
+      return
+    }
+    if (!isRecord(body.value)) {
+      sendJson(response, method, 400, {
+        error: { code: 'invalid_body', message: 'The request body must be a JSON object' },
+      })
+      return
+    }
+    const unknown = unknownFields(body.value, ['alias'])
+    if (unknown) return invalidField(response, method, unknown)
+    if (!('alias' in body.value)) return invalidField(response, method, 'alias')
+
+    const value = body.value.alias
+    if (value !== null && typeof value !== 'string') {
+      return invalidField(response, method, 'alias')
+    }
+    if (typeof value === 'string' && value.trim().length > MAX_DEVICE_ALIAS_LENGTH) {
+      sendJson(response, method, 400, {
+        error: {
+          code: 'invalid_body',
+          message: `Device aliases may be at most ${MAX_DEVICE_ALIAS_LENGTH} characters`,
+        },
+      })
+      return
+    }
+
+    const device = controls.setDeviceAlias(id, value)
+    if (!device) {
+      sendJson(response, method, 404, {
+        error: { code: 'not_found', message: 'That device no longer exists' },
+      })
+      return
+    }
+    sendJson(response, method, 200, { id: device.id, alias: device.alias })
+    return
+  }
+
   if (method !== 'DELETE') {
-    response.setHeader('allow', 'DELETE')
+    response.setHeader('allow', 'PATCH, DELETE')
     sendJson(response, method, 405, {
-      error: { code: 'method_not_allowed', message: 'Use DELETE to revoke a device' },
+      error: {
+        code: 'method_not_allowed',
+        message: 'Use PATCH to rename or DELETE to revoke a device',
+      },
     })
     return
   }
