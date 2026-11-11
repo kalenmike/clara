@@ -222,7 +222,8 @@ export function registerSessionRoutes(
       const result = await forwardResult<SessionActiveOutput>(
         deps,
         { method: 'GET', path: '/api/session/active' },
-        c.req.raw.signal
+        c.req.raw.signal,
+        true
       )
       return c.json(result)
     }
@@ -583,7 +584,8 @@ export function registerSessionRoutes(
           method: 'GET',
           path: `/api/session/${encodeURIComponent(sessionID)}/context`,
         },
-        c.req.raw.signal
+        c.req.raw.signal,
+        true
       )
       return c.json(result)
     }
@@ -640,7 +642,8 @@ export function registerSessionRoutes(
           method: 'GET',
           path: `/api/session/${encodeURIComponent(sessionID)}/form`,
         },
-        c.req.raw.signal
+        c.req.raw.signal,
+        true
       )
       return c.json(result)
     }
@@ -715,7 +718,8 @@ export function registerSessionRoutes(
           method: 'GET',
           path: `/api/session/${encodeURIComponent(sessionID)}/inbox`,
         },
-        c.req.raw.signal
+        c.req.raw.signal,
+        true
       )
       return c.json(result)
     }
