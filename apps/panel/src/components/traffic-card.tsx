@@ -30,7 +30,7 @@ const ERROR_LABELS: Array<[PanelTrafficErrorKey, string]> = [
   ['crypto', 'Decrypt or replay rejects'],
   ['orphan', 'Frames for unknown sessions'],
   ['dropped', 'Malformed frames'],
-  ['refused', 'Refused shell commands'],
+  ['refused', 'Refused requests'],
   ['limited', 'Request-limit refusals'],
   ['upstream', 'Upstream request errors'],
   ['expired', 'Expired sessions'],

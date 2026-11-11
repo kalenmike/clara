@@ -273,29 +273,9 @@ export type PanelFeatureControl = {
   error?: string
 }
 
-/**
- * `off` blocks every command request. `allowlist` admits a request only when
- * one of `commands` is an argv prefix of it; an empty list allows every
- * command. Entries are literal tokens, never shell syntax, and a request that
- * contains shell metacharacters never matches a non-empty list.
- */
-export type ShellPolicyMode = 'off' | 'allowlist'
-
-export type ShellPolicy = {
-  mode: ShellPolicyMode
-  /** Literal command prefixes, for example `git log`. */
-  commands: string[]
-}
-
-export type PanelShellControl = ShellPolicy & {
-  /** Command requests the hub refused since it started. */
-  blocked: number
-}
-
 export type PanelControls = {
   stopped: boolean
   features: PanelFeatureControl[]
-  shell: PanelShellControl
   monitoring: PanelMonitoringControl
   sync: PanelSyncControl
   orchestration: PanelOrchestrationControl
@@ -329,8 +309,6 @@ export type PanelFeatureUpdate = {
   feature: PanelFeatureName
   enabled: boolean
 }
-
-export type PanelShellUpdate = ShellPolicy
 
 export type PanelAgentUpdate = {
   stopped: boolean

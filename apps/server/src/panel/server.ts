@@ -15,7 +15,6 @@ import { PanelAuth, PanelAuthError, type PanelAuthUser } from './auth.ts'
 import { readControlFailure, type PanelControlService } from './controls.ts'
 import { checkPanelRequest } from './security.ts'
 import type { PanelDataSource } from './runtime.ts'
-import { parseShellPolicy } from '../shell-policy.ts'
 
 const API_PATH = '/panel/api/v1/status'
 const SESSION_PATH = '/panel/api/v1/session'
@@ -23,7 +22,6 @@ const SETUP_PATH = '/panel/api/v1/setup'
 const PASSWORD_PATH = '/panel/api/v1/account/password'
 const FEATURES_PATH = '/panel/api/v1/features'
 const AGENT_PATH = '/panel/api/v1/agent'
-const SHELL_PATH = '/panel/api/v1/shell'
 const MONITORING_PATH = '/panel/api/v1/monitoring'
 const SYNC_PATH = '/panel/api/v1/sync'
 const ORCHESTRATION_PATH = '/panel/api/v1/orchestration'
@@ -730,17 +728,15 @@ async function handleMutation(
       ? 'features'
       : pathname === AGENT_PATH
         ? 'agent'
-        : pathname === SHELL_PATH
-          ? 'shell'
-          : pathname === MONITORING_PATH
-            ? 'monitoring'
-            : pathname === SYNC_PATH
-              ? 'sync'
-              : pathname === ORCHESTRATION_PATH
-                ? 'orchestration'
-                : pathname === CONFIG_PATH
-                  ? 'config'
-                  : undefined
+        : pathname === MONITORING_PATH
+          ? 'monitoring'
+          : pathname === SYNC_PATH
+            ? 'sync'
+            : pathname === ORCHESTRATION_PATH
+              ? 'orchestration'
+              : pathname === CONFIG_PATH
+                ? 'config'
+                : undefined
   if (!kind) {
     sendJson(response, method, 404, {
       error: { code: 'not_found', message: 'Unknown panel endpoint' },
@@ -790,17 +786,6 @@ async function handleMutation(
         return invalidField(response, method, 'stopped')
       }
       updated = await controls.setStopped(body.value.stopped)
-    } else if (kind === 'shell') {
-      const unknown = unknownFields(body.value, ['mode', 'commands'])
-      if (unknown) return invalidField(response, method, unknown)
-      const parsed = parseShellPolicy(body.value.mode, body.value.commands)
-      if (!parsed.ok) {
-        sendJson(response, method, 400, {
-          error: { code: 'invalid_body', message: parsed.message },
-        })
-        return
-      }
-      updated = await controls.setShellPolicy(parsed.policy)
     } else if (kind === 'monitoring') {
       const unknown = unknownFields(body.value, ['enabled'])
       if (unknown) return invalidField(response, method, unknown)

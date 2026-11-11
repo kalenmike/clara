@@ -209,7 +209,6 @@ describe('buildHealth', () => {
       controls: {
         stopped: false,
         features: [],
-        shell: { mode: 'off', commands: [], blocked: 0 },
         monitoring: { enabled: true },
         sync: { enabled: true, intervalMs: 30_000 },
         orchestration: orchestration(),
