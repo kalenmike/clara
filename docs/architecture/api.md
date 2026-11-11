@@ -73,6 +73,25 @@ Regenerate the components after bumping `@opencode/client`:
 pnpm --filter @clara/api-contract generate:schemas
 ```
 
+## Client SDK
+
+`@clara/api-client` is a fetch-based SDK for the hub API. It mirrors the
+OpenCode client method names and return types, so the web migration is mostly a
+client swap. Pass the E2EE transport's `fetch` in the browser, or global `fetch`
+with a bearer header in Node and MCP tools.
+
+```ts
+const client = createClaraClient({ fetch: transport.fetch })
+
+const projects = await client.project.list()
+const session = await client.session.get({ sessionID })
+for await (const event of client.event.subscribe()) {
+  // handle a V2Event
+}
+```
+
+`ClaraApiError` carries `status`, `code`, `message`, and `details`.
+
 ## Errors
 
 Errors use one envelope:

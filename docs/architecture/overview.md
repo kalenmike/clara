@@ -71,6 +71,7 @@ apps/
 packages/
   shared-types/        Wire frames, actions, states, pairing payloads
   api-contract/        Hub API schemas and generated OpenAPI components
+  api-client/          Fetch-based hub API SDK
   api-mcp/             Read-only hub API MCP tools
   orchestration/       Package loader, runtime, leases, and watchdog
   orchestration-control/ Shared service paths, health, start, and stop helpers
