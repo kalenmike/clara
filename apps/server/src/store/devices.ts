@@ -322,6 +322,27 @@ export class DeviceStore implements DeviceRegistry {
     return { ...toInfo(existing), revokedAt: now }
   }
 
+  purgeDevice(id: string): DeviceInfo | undefined {
+    const existing = this.db
+      .prepare(
+        `SELECT id, label, fingerprint, created_at, updated_at, last_seen_at,
+                last_transport, last_device_class, revoked_at
+           FROM devices WHERE id = ?`
+      )
+      .get(id) as DeviceRow | undefined
+    if (!existing) return undefined
+    if (existing.revoked_at === null) {
+      throw new DeviceStoreError('device_active', 'Revoke this device before deleting it')
+    }
+    const write = this.db.transaction(() => {
+      this.db.prepare('DELETE FROM device_keys WHERE device_id = ?').run(id)
+      this.db.prepare('DELETE FROM pairing_tokens WHERE used_device_id = ?').run(id)
+      this.db.prepare('DELETE FROM devices WHERE id = ?').run(id)
+    })
+    write()
+    return toInfo(existing)
+  }
+
   revokeAllDevices(): number {
     const now = Date.now()
     const write = this.db.transaction(() => {
