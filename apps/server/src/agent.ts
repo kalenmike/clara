@@ -189,7 +189,10 @@ export class Agent {
     this.options.traffic?.recordInbound(bytes, this.transport)
 
     if (isHelloFrame(frame)) {
-      void this.handleHello(frame)
+      void this.handleHello(frame).catch((cause) => {
+        this.options.log?.('handshake failed', cause)
+        this.sendError(frame.sid, 'invalid_device', 'Could not start the session')
+      })
       return
     }
     if (isSealedFrame(frame)) {

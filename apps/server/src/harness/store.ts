@@ -309,7 +309,8 @@ export class HarnessStore {
   async pairingToken(id: string): Promise<string | undefined> {
     const row = this.db
       .prepare(
-        `SELECT id, ciphertext, nonce, key_version, fingerprint, expires_at, used_at
+        `SELECT id, token_ciphertext AS ciphertext, token_nonce AS nonce,
+                key_version, fingerprint, expires_at, used_at
            FROM harness_pairings
           WHERE id = ? AND used_at IS NULL AND expires_at > ?`
       )
