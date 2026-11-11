@@ -30,7 +30,7 @@ export function ClientsView({
       }
     >
       <div className="space-y-3">
-        <ClientsTable clients={snapshot.clients} now={now} />
+        <ClientsTable clients={snapshot.clients} devices={snapshot.devices} now={now} />
         <DevicesCard devices={snapshot.devices} now={now} onChanged={onChanged} />
       </div>
     </View>

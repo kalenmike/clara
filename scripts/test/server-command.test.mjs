@@ -14,7 +14,7 @@ function runServer(args) {
 test('pair treats --local as a deployment target, not a pairing option', () => {
   const result = runServer(['pair', '--docker', '--local'])
   assert.equal(result.status, 1)
-  assert.match(result.stderr, /both --docker and --host\/--local/)
+  assert.match(result.stderr, /both --docker and --local/)
   assert.doesNotMatch(result.stderr, /cannot be combined/)
 })
 

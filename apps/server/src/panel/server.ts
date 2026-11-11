@@ -605,7 +605,7 @@ async function handleDevices(
     return
   }
 
-  if (!requireMutationHeader(request, response, method, true)) return
+  if (!requireMutationHeader(request, response, method)) return
   const device = controls.revokeDevice(id)
   if (!device) {
     sendJson(response, method, 404, {
