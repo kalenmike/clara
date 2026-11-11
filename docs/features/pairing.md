@@ -68,7 +68,8 @@ camera or pastes the same code, and Clara stores the device credential locally.
    key bytes are never written to `localStorage`.
 8. The fingerprint shown by the web should match the terminal fingerprint before
    the enrollment is trusted.
-9. Each device has its own key and can be revoked independently.
+9. Each device has its own key and can be revoked independently. A revoked
+   device's record can then be deleted permanently from the panel.
 
 ## Edge cases
 
@@ -113,7 +114,9 @@ camera or pastes the same code, and Clara stores the device credential locally.
 - **Agent restart** — the DO closes clients with `1012`; the web reconnects and
   re-handshakes automatically with the stored device key.
 - **Device revoked** — the next handshake or action receives `revoked_device`;
-  the client disconnects and the panel shows the device as revoked.
+  the client disconnects and the panel shows the device as revoked. Delete the
+  revoked record when it is no longer useful for auditing; later connections
+  are then rejected as an unknown device.
 - **Browser cannot store a protected key** — Clara refuses to consume the code
   and explains that the browser cannot persist a non-extractable key.
 - **Local-only pairing** — the code points at `ws://127.0.0.1:8788/ws`; it only

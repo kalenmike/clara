@@ -80,7 +80,7 @@ own device key through a one-time code; there is no shared browser key.
 - **Agent offline** — the client connects, receives `1013`, and reports that the
   home server is unreachable.
 - **Device revoked** — the agent sends `revoked_device`, the client disconnects,
-  and the panel shows the device as revoked.
+  and the panel shows the device as revoked until its record is deleted.
 - **Harness not configured** — the agent connects but the OpenCode probe fails
   with `harness_unconfigured`. Open the panel and save an active connection.
 - **Harness reachable from the host but not the container** — `127.0.0.1` inside
