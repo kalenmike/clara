@@ -1,4 +1,4 @@
-import { spawn } from 'node:child_process'
+import { spawn, spawnSync } from 'node:child_process'
 import { closeSync, existsSync, openSync, readFileSync, unlinkSync } from 'node:fs'
 import { setTimeout as delay } from 'node:timers/promises'
 import { fileURLToPath } from 'node:url'
@@ -265,6 +265,29 @@ export function composeArgs(action: ComposeAction, build = false): string[] {
   if (build) args.push('--build')
   args.push('orchestrator')
   return args
+}
+
+export function composeLogArgs(tail = 40): string[] {
+  return [
+    'compose',
+    '-f',
+    'docker/orchestrator.compose.yml',
+    'logs',
+    '--tail',
+    String(tail),
+    'orchestrator',
+  ]
+}
+
+/** Recent container output, or an empty string when Docker is unavailable. */
+export function readComposeLogs(tail = 40): string {
+  const result = spawnSync('docker', composeLogArgs(tail), {
+    cwd: repoRoot(),
+    encoding: 'utf8',
+    timeout: 5_000,
+  })
+  if (result.error) return ''
+  return `${result.stdout ?? ''}${result.stderr ?? ''}`.trim()
 }
 
 /**

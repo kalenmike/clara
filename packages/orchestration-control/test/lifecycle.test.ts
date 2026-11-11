@@ -10,6 +10,7 @@ import {
   collectStatus,
   composeArgs,
   composeEnv,
+  composeLogArgs,
   formatStatus,
   readPidState,
   startDockerService,
@@ -416,6 +417,15 @@ describe('docker start', () => {
       'up',
       '-d',
       '--build',
+      'orchestrator',
+    ])
+    expect(composeLogArgs(10)).toEqual([
+      'compose',
+      '-f',
+      'docker/orchestrator.compose.yml',
+      'logs',
+      '--tail',
+      '10',
       'orchestrator',
     ])
   })

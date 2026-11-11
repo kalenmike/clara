@@ -17,7 +17,10 @@ import {
   CONTAINERS,
   SCRIPTS,
   SERVICES,
+  composeEnvValues,
   ensureOrchestratorEnv,
+  hubEnvErrors,
+  hubEnvWarnings,
   orchestratorURL,
   parseSelection,
   selectedNames,
@@ -221,10 +224,7 @@ async function startSelection(selection) {
       return
     }
   }
-  if (selection.mode === 'docker' && ensureNetwork() !== 0) {
-    process.exitCode = 1
-    return
-  }
+  if (selection.mode === 'docker' && selection.server && !validateHubEnv()) return
   if (selection.mode === 'docker' && selection.orchestrator) {
     try {
       ensureOrchestratorEnv()
@@ -233,6 +233,10 @@ async function startSelection(selection) {
       process.exitCode = 1
       return
     }
+  }
+  if (selection.mode === 'docker' && ensureNetwork() !== 0) {
+    process.exitCode = 1
+    return
   }
   const modeArgs = selection.mode === 'local' ? ['--local'] : ['--docker']
   for (const name of selectedNames(selection)) {
@@ -278,6 +282,18 @@ function parseOrExit(options) {
     process.exitCode = 2
     return undefined
   }
+}
+
+function validateHubEnv() {
+  const values = composeEnvValues()
+  const errors = hubEnvErrors(values)
+  if (errors.length) {
+    for (const error of errors) console.error(`error: ${error}`)
+    process.exitCode = 1
+    return false
+  }
+  for (const warning of hubEnvWarnings(values)) console.warn(`warning: ${warning}`)
+  return true
 }
 
 function runPrimitive(name, primitiveArgs) {

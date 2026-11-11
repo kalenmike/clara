@@ -99,6 +99,19 @@ export function parseEnvFile(path) {
   return values
 }
 
+/**
+ * Compose interpolation values for the Docker stack. Shell variables win over
+ * docker/.env, matching Compose's own precedence.
+ */
+export function composeEnvValues(repoRoot = root, env = process.env) {
+  const path = envPath(repoRoot)
+  const values = existsSync(path) ? parseEnvFile(path) : {}
+  for (const [key, value] of Object.entries(env)) {
+    if (value !== undefined) values[key] = value
+  }
+  return values
+}
+
 function writeEnvFile(path, values) {
   mkdirSync(dirname(path), { recursive: true, mode: 0o700 })
   const lines = [
@@ -123,6 +136,82 @@ function readText(path) {
   } catch {
     return ''
   }
+}
+
+const EXAMPLE_TOKEN = 'replace-with-a-long-random-token'
+
+function pathErrors(values, keys) {
+  const errors = []
+  for (const key of keys) {
+    const value = values[key]?.trim()
+    if (!value) continue
+    const expanded = expandHome(value)
+    if (!isAbsolute(expanded)) {
+      errors.push(`${key} must be an absolute path when set: ${expanded}`)
+    }
+  }
+  return errors
+}
+
+/** Problems that stop the orchestrator container before it can start. */
+export function orchestratorEnvErrors(values, { envFile = envPath() } = {}) {
+  const errors = []
+  const missing = ['CLARA_ORCHESTRATION_TOKEN', 'CLARA_WORKSPACE'].filter(
+    (key) => !values[key]?.trim()
+  )
+  if (missing.length) {
+    errors.push(
+      existsSync(envFile)
+        ? `${envFile} is missing ${missing.join(', ')}. Copy docker/.env.example or remove the file so \`pnpm clara start\` can create it.`
+        : `Missing ${missing.join(', ')} for the orchestrator container. Set them in ${envFile} (copy docker/.env.example) or export them before starting.`
+    )
+  }
+  if (values.CLARA_ORCHESTRATION_TOKEN?.trim() === EXAMPLE_TOKEN) {
+    errors.push(
+      `${envFile} still has the example token. Generate one with \`openssl rand -hex 32\`.`
+    )
+  }
+
+  const configured = values.CLARA_WORKSPACE?.trim()
+  if (configured) {
+    const workspace = expandHome(configured)
+    if (!isAbsolute(workspace)) {
+      errors.push(`CLARA_WORKSPACE must be an absolute path: ${workspace}`)
+    } else if (!existsSync(workspace)) {
+      errors.push(`CLARA_WORKSPACE does not exist: ${workspace}`)
+    }
+  }
+
+  errors.push(...pathErrors(values, ['CLARA_ORCHESTRATOR_DATA_DIR']))
+  return errors
+}
+
+/** Problems that stop the hub container before it can start. */
+export function hubEnvErrors(values) {
+  const errors = pathErrors(values, ['CLARA_SERVER_CONFIG_DIR', 'CLARA_SERVER_DATA_DIR'])
+  if (values.CLARA_RELAY_URL?.trim()) {
+    const missing = ['CLARA_AGENT_TOKEN', 'CLARA_CLIENT_TOKEN'].filter(
+      (key) => !values[key]?.trim()
+    )
+    if (missing.length) {
+      errors.push(
+        `CLARA_RELAY_URL is set but ${missing.join(' and ')} ${missing.length === 1 ? 'is' : 'are'} missing. The hub exits at startup without both relay tokens. Set them in docker/.env or unset CLARA_RELAY_URL.`
+      )
+    }
+  }
+  return errors
+}
+
+/** Non-fatal hub settings that leave a feature disabled. */
+export function hubEnvWarnings(values) {
+  const publicKey = values.CLARA_VAPID_PUBLIC_KEY?.trim()
+  const privateKey = values.CLARA_VAPID_PRIVATE_KEY?.trim()
+  if (Boolean(publicKey) !== Boolean(privateKey)) {
+    return [
+      'Set both CLARA_VAPID_PUBLIC_KEY and CLARA_VAPID_PRIVATE_KEY, or neither; push notifications stay disabled with only one key.',
+    ]
+  }
+  return []
 }
 
 /** The orchestrator token from the Docker stack, independent of local state. */
@@ -160,40 +249,13 @@ export function ensureOrchestratorEnv(repoRoot = root) {
     console.log(`created ${path}`)
   }
 
-  const missing = ['CLARA_ORCHESTRATION_TOKEN', 'CLARA_WORKSPACE'].filter(
-    (key) => !values[key]?.trim()
-  )
-  if (missing.length) {
-    throw new Error(
-      `${path} is missing ${missing.join(', ')}. Copy docker/.env.example or remove the file so \`pnpm clara start\` can create it.`
-    )
-  }
-  if (values.CLARA_ORCHESTRATION_TOKEN === 'replace-with-a-long-random-token') {
-    throw new Error(
-      `${path} still has the example token. Generate one with \`openssl rand -hex 32\`.`
-    )
-  }
+  const errors = [
+    ...orchestratorEnvErrors(values, { envFile: path }),
+    ...pathErrors(values, ['CLARA_SERVER_CONFIG_DIR', 'CLARA_SERVER_DATA_DIR']),
+  ]
+  if (errors.length) throw new Error(errors.join(' '))
 
   const workspace = expandHome(values.CLARA_WORKSPACE)
-  if (!isAbsolute(workspace)) {
-    throw new Error(`CLARA_WORKSPACE must be an absolute path: ${workspace}`)
-  }
-  if (!existsSync(workspace)) {
-    throw new Error(`CLARA_WORKSPACE does not exist: ${workspace}`)
-  }
-
-  for (const key of [
-    'CLARA_SERVER_CONFIG_DIR',
-    'CLARA_SERVER_DATA_DIR',
-    'CLARA_ORCHESTRATOR_DATA_DIR',
-  ]) {
-    const value = values[key]?.trim()
-    if (!value) continue
-    const expanded = expandHome(value)
-    if (!isAbsolute(expanded)) {
-      throw new Error(`${key} must be an absolute path when set: ${expanded}`)
-    }
-  }
 
   const stateDir = dockerStateDir()
   mkdirSync(stateDir, { recursive: true, mode: 0o700 })

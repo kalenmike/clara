@@ -5,8 +5,12 @@ import { join } from 'node:path'
 import test from 'node:test'
 import {
   VOLUMES,
+  composeEnvValues,
   defaultEnv,
   ensureOrchestratorEnv,
+  hubEnvErrors,
+  hubEnvWarnings,
+  orchestratorEnvErrors,
   parseEnvFile,
   parseSelection,
   readDockerToken,
@@ -126,4 +130,101 @@ test('keeps the Docker control token out of local data', (t) => {
 
 test('lists the Docker state volumes', () => {
   assert.deepEqual(VOLUMES, ['clara-server-config', 'clara-server-data', 'clara-orchestrator-data'])
+})
+
+test('compose env reads docker/.env and lets the shell win', (t) => {
+  const dir = mkdtempSync(join(tmpdir(), 'clara-stack-'))
+  mkdirSync(join(dir, 'docker'), { recursive: true })
+  writeFileSync(
+    join(dir, 'docker', '.env'),
+    ['CLARA_RELAY_URL=wss://relay.example', 'CLARA_AGENT_TOKEN=file-token', ''].join('\n')
+  )
+  t.after(() => rmSync(dir, { recursive: true, force: true }))
+
+  const values = composeEnvValues(dir, { CLARA_AGENT_TOKEN: 'shell-token' })
+  assert.equal(values.CLARA_RELAY_URL, 'wss://relay.example')
+  assert.equal(values.CLARA_AGENT_TOKEN, 'shell-token')
+})
+
+test('hub env requires both relay tokens when a relay URL is set', () => {
+  assert.deepEqual(hubEnvErrors({}), [])
+  const missing = hubEnvErrors({ CLARA_RELAY_URL: 'wss://relay.example' })
+  assert.equal(missing.length, 1)
+  assert.match(missing[0], /CLARA_AGENT_TOKEN and CLARA_CLIENT_TOKEN are missing/)
+  assert.deepEqual(
+    hubEnvErrors({
+      CLARA_RELAY_URL: 'wss://relay.example',
+      CLARA_AGENT_TOKEN: 'agent',
+      CLARA_CLIENT_TOKEN: 'client',
+    }),
+    []
+  )
+})
+
+test('hub env rejects relative bind directories', () => {
+  const errors = hubEnvErrors({ CLARA_SERVER_DATA_DIR: 'data' })
+  assert.equal(errors.length, 1)
+  assert.match(errors[0], /CLARA_SERVER_DATA_DIR must be an absolute path/)
+})
+
+test('hub env warns about a half-configured VAPID key pair', () => {
+  assert.deepEqual(hubEnvWarnings({}), [])
+  const warnings = hubEnvWarnings({ CLARA_VAPID_PUBLIC_KEY: 'public' })
+  assert.equal(warnings.length, 1)
+  assert.match(warnings[0], /CLARA_VAPID_PUBLIC_KEY and CLARA_VAPID_PRIVATE_KEY/)
+})
+
+test('orchestrator env reports missing, example, and invalid workspace values', (t) => {
+  const dir = mkdtempSync(join(tmpdir(), 'clara-stack-'))
+  const workspace = join(dir, 'workspace')
+  mkdirSync(workspace)
+  t.after(() => rmSync(dir, { recursive: true, force: true }))
+
+  assert.match(
+    orchestratorEnvErrors({}, { envFile: join(dir, 'docker', '.env') })[0],
+    /Missing CLARA_ORCHESTRATION_TOKEN, CLARA_WORKSPACE/
+  )
+  mkdirSync(join(dir, 'docker'), { recursive: true })
+  const envFile = join(dir, 'docker', '.env')
+  writeFileSync(envFile, '')
+  assert.match(
+    orchestratorEnvErrors({}, { envFile })[0],
+    /is missing CLARA_ORCHESTRATION_TOKEN, CLARA_WORKSPACE/
+  )
+  assert.match(
+    orchestratorEnvErrors({
+      CLARA_ORCHESTRATION_TOKEN: 'replace-with-a-long-random-token',
+      CLARA_WORKSPACE: workspace,
+    }).join(' '),
+    /example token/
+  )
+  assert.match(
+    orchestratorEnvErrors({
+      CLARA_ORCHESTRATION_TOKEN: 'token',
+      CLARA_WORKSPACE: 'relative/path',
+    }).join(' '),
+    /CLARA_WORKSPACE must be an absolute path/
+  )
+  assert.match(
+    orchestratorEnvErrors({
+      CLARA_ORCHESTRATION_TOKEN: 'token',
+      CLARA_WORKSPACE: join(dir, 'missing'),
+    }).join(' '),
+    /CLARA_WORKSPACE does not exist/
+  )
+  assert.match(
+    orchestratorEnvErrors({
+      CLARA_ORCHESTRATION_TOKEN: 'token',
+      CLARA_WORKSPACE: workspace,
+      CLARA_ORCHESTRATOR_DATA_DIR: 'data',
+    }).join(' '),
+    /CLARA_ORCHESTRATOR_DATA_DIR must be an absolute path/
+  )
+  assert.deepEqual(
+    orchestratorEnvErrors({
+      CLARA_ORCHESTRATION_TOKEN: 'token',
+      CLARA_WORKSPACE: workspace,
+    }),
+    []
+  )
 })

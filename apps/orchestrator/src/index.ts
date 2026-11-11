@@ -27,6 +27,7 @@ import {
   logPath,
   pidPath,
   port,
+  readComposeLogs,
   readPidState,
   startDockerService,
   startLocalService,
@@ -102,6 +103,7 @@ async function serve(): Promise<void> {
 }
 
 async function startDocker(build: boolean): Promise<void> {
+  console.log(`checking the orchestrator container at ${baseURL()}/health`)
   const result = await startDockerService({ build })
   if (result.kind === 'container-started') {
     console.log(`started docker container at ${baseURL()}`)
@@ -136,6 +138,11 @@ async function startDocker(build: boolean): Promise<void> {
     return
   }
   console.error(`the docker container did not become healthy at ${baseURL()}`)
+  const logs = readComposeLogs()
+  if (logs) {
+    console.error('recent container logs:')
+    for (const line of logs.split('\n')) console.error(`  ${line}`)
+  }
   console.error('check `docker compose -f docker/orchestrator.compose.yml logs orchestrator`')
   process.exitCode = 1
 }

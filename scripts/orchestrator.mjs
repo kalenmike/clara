@@ -11,7 +11,12 @@ import { join } from 'node:path'
 import { followLog, parseMode } from './lib/local-runtime.mjs'
 import { root, run, runNode, runPnpm } from './lib/router.mjs'
 import { collectStatus, renderJSON, renderStatus, statusExitCode } from './lib/status.mjs'
-import { orchestratorContainerRunning, readDockerToken } from './lib/stack-control.mjs'
+import {
+  composeEnvValues,
+  orchestratorContainerRunning,
+  orchestratorEnvErrors,
+  readDockerToken,
+} from './lib/stack-control.mjs'
 
 const source = join(root, 'apps', 'orchestrator', 'src', 'index.ts')
 const built = join(root, 'apps', 'orchestrator', 'dist', 'index.js')
@@ -62,12 +67,27 @@ async function lifecycle(name, mode, build) {
       return code
     }
   }
+  if (
+    mode === 'docker' &&
+    name === 'start' &&
+    !orchestratorContainerRunning() &&
+    !validateDockerEnv()
+  ) {
+    return 1
+  }
   const forwarded = [
     name,
     ...(mode === 'docker' ? ['--docker'] : []),
     ...(mode === 'docker' && build ? ['--build'] : []),
   ]
   return runService(forwarded)
+}
+
+function validateDockerEnv() {
+  const errors = orchestratorEnvErrors(composeEnvValues())
+  if (!errors.length) return true
+  for (const error of errors) console.error(`error: ${error}`)
+  return false
 }
 
 function runService(serviceArgs) {
