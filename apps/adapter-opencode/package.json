@@ -35,6 +35,7 @@
     "./install": "./src/install.ts",
     ".": "./src/index.ts",
     "./config": "./src/config.ts",
-    "./service": "./src/service.ts"
+    "./service": "./src/service.ts",
+    "./package.json": "./package.json"
   }
 }

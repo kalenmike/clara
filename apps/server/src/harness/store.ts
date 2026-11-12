@@ -66,6 +66,7 @@ type PairingRow = SecretRow & {
   created_at: number
   expires_at: number
   used_at: number | null
+  used_harness_id: string | null
 }
 
 const PAIRING_TTL_MS = 10 * 60_000
@@ -312,7 +313,7 @@ export class HarnessStore {
         `SELECT id, token_ciphertext AS ciphertext, token_nonce AS nonce,
                 key_version, fingerprint, expires_at, used_at
            FROM harness_pairings
-          WHERE id = ? AND used_at IS NULL AND expires_at > ?`
+          WHERE id = ? AND expires_at > ?`
       )
       .get(id, Date.now()) as PairingRow | undefined
     if (!row || row.key_version !== this.keyVersion) return undefined
@@ -330,11 +331,12 @@ export class HarnessStore {
     const pairing = this.db
       .prepare(
         `SELECT id, kind, label, token_ciphertext AS ciphertext, token_nonce AS nonce,
-                key_version, fingerprint, replaces_connection_id, created_at, expires_at, used_at
+                key_version, fingerprint, replaces_connection_id, created_at, expires_at,
+                used_at, used_harness_id
            FROM harness_pairings WHERE id = ?`
       )
       .get(input.pairId) as PairingRow | undefined
-    if (!pairing || pairing.used_at !== null || pairing.expires_at <= Date.now()) {
+    if (!pairing || pairing.expires_at <= Date.now()) {
       throw new HarnessValidationError('pairing_invalid', 'The pairing code is invalid or expired')
     }
     if (pairing.key_version !== this.keyVersion) {
@@ -352,6 +354,26 @@ export class HarnessStore {
         'pairing_kind',
         `This code is for ${pairing.kind}, not ${input.kind}`
       )
+    }
+
+    if (pairing.used_at !== null) {
+      if (pairing.used_harness_id !== input.harnessId) {
+        throw new HarnessValidationError('pairing_used', 'This pairing code has already been used')
+      }
+      const credential = await this.credential(input.adapterId)
+      if (!credential || credential.harnessId !== input.harnessId || credential.key !== input.key) {
+        throw new HarnessValidationError(
+          'pairing_invalid',
+          'The pairing retry credentials do not match'
+        )
+      }
+      const connection = this.db
+        .prepare('SELECT id FROM harness_connections WHERE harness_id = ?')
+        .get(input.harnessId) as { id: string } | undefined
+      if (!connection) {
+        throw new HarnessValidationError('pairing_invalid', 'The paired connection is missing')
+      }
+      return { connection: this.get(connection.id) as HarnessConnection, reconnected: true }
     }
 
     const now = Date.now()
@@ -423,7 +445,7 @@ export class HarnessStore {
         this.db
           .prepare(
             `UPDATE harness_connections
-                SET harness_id = ?, kind = ?, label = ?, transport = ?, online = 1,
+                SET harness_id = ?, kind = ?, label = ?, transport = ?, online = 0,
                     adapter_version = ?, protocol_version = ?, harness_version = ?,
                     capabilities_json = ?, credential_id = ?, last_seen_at = ?, updated_at = ?
               WHERE id = ?`
@@ -461,7 +483,7 @@ export class HarnessStore {
                 is_active, created_at, updated_at, harness_id, credential_id, transport,
                 online, adapter_version, protocol_version, harness_version, capabilities_json,
                 last_seen_at)
-             VALUES (?, ?, ?, '', 'session', NULL, '{}', ?, ?, ?, ?, ?, ?, 1, ?, ?, ?, ?, ?)`
+             VALUES (?, ?, ?, '', 'session', NULL, '{}', ?, ?, ?, ?, ?, ?, 0, ?, ?, ?, ?, ?)`
           )
           .run(
             connectionID,

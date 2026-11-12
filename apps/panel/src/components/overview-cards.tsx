@@ -156,13 +156,14 @@ export function OpenCodeCard({
   const { masked, redact } = usePeek()
   const disabled = opencode.code === 'disabled'
   const unconfigured = opencode.code === 'unconfigured'
+  const offline = opencode.code === 'offline'
   const tone: Tone = disabled
     ? 'neutral'
     : unconfigured
       ? 'warning'
       : opencode.reachable
         ? 'success'
-        : opencode.code === 'auth'
+        : opencode.code === 'auth' || offline
           ? 'warning'
           : 'danger'
   const status = unconfigured
@@ -171,11 +172,13 @@ export function OpenCodeCard({
       ? 'Disabled'
       : opencode.reachable
         ? 'Reachable'
-        : opencode.code === 'auth'
-          ? 'Auth rejected'
-          : opencode.code === 'timeout'
-            ? 'Timed out'
-            : 'Unreachable'
+        : offline
+          ? 'Adapter offline'
+          : opencode.code === 'auth'
+            ? 'Auth rejected'
+            : opencode.code === 'timeout'
+              ? 'Timed out'
+              : 'Unreachable'
 
   return (
     <CollapsibleCard

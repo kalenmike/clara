@@ -11,11 +11,17 @@ import {
   type InstallManifest,
   type RunnerManifest,
 } from './manifest.ts'
-import { cliEntry, mcpEntryPath } from './package-paths.ts'
+import { cliEntry, mcpEntryPath, openCodeAdapterDaemonEntry } from './package-paths.ts'
 import { runnerConfigPath, writeRunnerConfig } from './runner-config.ts'
 import { installService, removeService, serviceActive } from './service.ts'
 import { installOpenCode, openCodeStatus, uninstallOpenCode } from './harnesses/opencode.ts'
 import { installOpenCodeAdapter, uninstallOpenCodeAdapter } from '@clara/adapter-opencode/install'
+import {
+  adapterProcessStatus,
+  startAdapterProcess,
+  stopAdapterProcess,
+  tailAdapterLog,
+} from '@clara/adapter-opencode/service'
 import { adapterConfigPath, readConfig } from '@clara/adapter-opencode/config'
 
 export interface InstallResult {
@@ -97,6 +103,7 @@ export async function install(options: Options): Promise<InstallResult> {
         ...(options.opencodePassword ? { opencodePassword: options.opencodePassword } : {}),
         noService: options.noService,
         dryRun: options.dryRun,
+        entry: openCodeAdapterDaemonEntry(),
       })
       actions.push(...daemon.actions)
       warnings.push(...daemon.warnings)
@@ -228,6 +235,9 @@ export interface StatusReport {
   adapter?: {
     config: string
     present: boolean
+    running: boolean
+    pid?: number
+    log: string
     harnessId?: string
     wsUrl?: string
     opencodeUrl?: string
@@ -240,6 +250,7 @@ export async function status(): Promise<StatusReport> {
   if (manifest.harnesses.opencode) harnesses.opencode = openCodeStatus()
   const runnerPath = runnerConfigPath()
   const adapter = readConfig()
+  const adapterProcess = adapterProcessStatus()
   const orchestrator: 'running' | 'stopped' = await fetch(
     `${manifest.runner?.url ?? process.env.CLARA_ORCHESTRATION_URL ?? 'http://127.0.0.1:8789'}/health`,
     { signal: AbortSignal.timeout(1_500) }
@@ -266,6 +277,9 @@ export async function status(): Promise<StatusReport> {
     adapter: {
       config: adapterConfigPath(),
       present: adapter !== undefined,
+      running: adapterProcess.running,
+      ...(adapterProcess.pid !== undefined ? { pid: adapterProcess.pid } : {}),
+      log: adapterProcess.log,
       ...(adapter
         ? { harnessId: adapter.harnessId, wsUrl: adapter.wsUrl, opencodeUrl: adapter.opencode.url }
         : {}),
@@ -277,4 +291,16 @@ export async function status(): Promise<StatusReport> {
 // installer even when callers only read the manifest.
 export function configDirectory(): string {
   return claraConfigDir()
+}
+
+export function startAdapter(): string[] {
+  return startAdapterProcess(openCodeAdapterDaemonEntry()).actions
+}
+
+export function stopAdapter(): string[] {
+  return stopAdapterProcess()
+}
+
+export function adapterLogs(lines = 80): string {
+  return tailAdapterLog(lines)
 }

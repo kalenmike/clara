@@ -67,24 +67,58 @@ describe('harness store', () => {
     expect(raw.key_ciphertext.toString('utf8')).not.toContain(key)
   })
 
-  it('opens the pairing token before enrollment and closes it after', async () => {
+  it('keeps the pairing token retryable but never marks enrollment online', async () => {
     const pairing = await store.createPairing({ kind: 'opencode', label: 'OpenCode' })
     expect(await store.pairingToken(pairing.id)).toBe(pairing.token)
+    const key = generateKey()
 
-    await store.enroll({
+    const result = await store.enroll({
       pairId: pairing.id,
       pairToken: pairing.token,
       harnessId: 'harness-a',
       kind: 'opencode',
       label: 'OpenCode',
       adapterId: 'adapter-a',
-      key: generateKey(),
+      key,
       adapterVersion: '0.1.0',
       protocolVersion: 1,
       capabilities: {},
       transport: 'local',
     })
-    expect(await store.pairingToken(pairing.id)).toBeUndefined()
+    expect(result.connection.online).toBe(false)
+    expect(await store.pairingToken(pairing.id)).toBe(pairing.token)
+
+    const retry = await store.enroll({
+      pairId: pairing.id,
+      pairToken: pairing.token,
+      harnessId: 'harness-a',
+      kind: 'opencode',
+      label: 'OpenCode',
+      adapterId: 'adapter-a',
+      key,
+      adapterVersion: '0.1.0',
+      protocolVersion: 1,
+      capabilities: {},
+      transport: 'local',
+    })
+    expect(retry.reconnected).toBe(true)
+    expect(retry.connection.id).toBe(result.connection.id)
+
+    await expect(
+      store.enroll({
+        pairId: pairing.id,
+        pairToken: pairing.token,
+        harnessId: 'harness-b',
+        kind: 'opencode',
+        label: 'OpenCode',
+        adapterId: 'adapter-b',
+        key: generateKey(),
+        adapterVersion: '0.1.0',
+        protocolVersion: 1,
+        capabilities: {},
+        transport: 'local',
+      })
+    ).rejects.toBeInstanceOf(HarnessValidationError)
   })
 
   it('reuses the same connection when the stable identity pairs again', async () => {
@@ -121,6 +155,8 @@ describe('harness store', () => {
       transport: 'local' as const,
     }
     await store.enroll(input)
-    await expect(store.enroll(input)).rejects.toBeInstanceOf(HarnessValidationError)
+    await expect(
+      store.enroll({ ...input, harnessId: 'harness-b', adapterId: 'adapter-b', key: generateKey() })
+    ).rejects.toBeInstanceOf(HarnessValidationError)
   })
 })

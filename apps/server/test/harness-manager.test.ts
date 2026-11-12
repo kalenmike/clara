@@ -58,8 +58,14 @@ describe('harness manager', () => {
   it('marks an enrolled adapter offline until its session registers', async () => {
     const result = await enroll()
     expect(result.connection.isActive).toBe(true)
+    expect(result.connection.online).toBe(false)
     expect(manager.configured).toBe(true)
     expect((await manager.probe()).code).toBe('offline')
+
+    await manager.setLive('harness-a', async () => Response.json({ protocol: 1 }), 'local')
+    expect(manager.active?.online).toBe(true)
+    await manager.clearLive('harness-a')
+    expect(manager.active?.online).toBe(false)
   })
 
   it('proxies through a live adapter session', async () => {

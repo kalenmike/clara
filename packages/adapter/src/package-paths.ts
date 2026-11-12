@@ -23,6 +23,18 @@ export function openCodeAgentSource(): string {
   return join(openCodeAdapterRoot(), 'agents', 'clara.md')
 }
 
+/** The hub-facing adapter daemon entry. */
+export function openCodeAdapterDaemonEntry(): string {
+  const root = packageRoot('@clara/adapter-opencode')
+  const built = join(root, 'dist', 'index.js')
+  if (existsSync(built)) return built
+  const source = join(root, 'src', 'index.ts')
+  if (existsSync(source)) return source
+  throw new Error(
+    'The OpenCode adapter is not built. Run `pnpm --filter @clara/adapter-opencode build` and retry.'
+  )
+}
+
 export function mcpEntryPath(): string {
   const path = join(packageRoot('@clara/mcp'), 'dist', 'index.js')
   if (!existsSync(path)) {

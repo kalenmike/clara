@@ -18,8 +18,10 @@ installing it installs both the hub-facing daemon and the orchestration binding.
 4. The installer discovers OpenCode from flags, environment, or
    `~/.local/state/opencode/service.json`. If it cannot reach OpenCode, it
    prompts for the URL, username, and password.
-5. The adapter enrolls, stores its credential, and starts. The panel shows the
-   adapter online and activates it.
+5. The adapter enrolls and stores its credential. The installer then starts a
+   user service, or a background adapter process when systemd/launchd is not
+   available. The panel shows **Paired** until the adapter connects, then
+   **Online**.
 6. Open the web client. Sessions and projects arrive through the adapter; the
    hub never contacts OpenCode.
 

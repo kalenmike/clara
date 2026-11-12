@@ -25,7 +25,16 @@ opens a port on the OpenCode machine.
 
 5. The installer looks for OpenCode. If it cannot find it, enter the OpenCode
    URL and password when asked.
-6. Return to the panel. The adapter appears online and becomes active.
+6. The installer starts a user service, or a background process when systemd is
+   not available. Return to the panel. The adapter appears online and becomes
+   active.
+
+If the panel shows **Paired · Offline**, start it with:
+
+```bash
+pnpm clara adapter start --opencode
+pnpm clara adapter logs --opencode
+```
 
 The same command also installs the Clara orchestration binding. Use
 `--no-daemon` to install only the binding or `--no-orchestration` to install
