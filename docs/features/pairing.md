@@ -10,7 +10,7 @@ camera or pastes the same code, and Clara stores the device credential locally.
 ## Harness adapter pairing
 
 The panel also pairs harness adapters with the same one-time-code and E2EE
-pattern. **Harness adapters → Add harness → OpenCode** produces a
+pattern. **Harness → Add harness → OpenCode** produces a
 `clara-harness1_…` code. On the harness machine,
 `clara-adapter-opencode install --pair <code>` (or `pnpm clara adapter install --opencode --pair <code>` in the repository) discovers OpenCode, enrolls
 the adapter over the local or relay WebSocket, and stores its long-lived

@@ -45,11 +45,13 @@ Clara can reach the hub while the harness is unavailable. A banner names the
 problem and offers **Retry**.
 
 - The hub may not have an active adapter. Ask the host to open the hub panel,
-  check that the adapter card says **Online**, and activate it.
-- If the card says **Paired · Offline**, start the adapter service on the
-  OpenCode machine.
+  check that the adapter says **Online** under **Connected adapters**, and
+  activate it under **Paired harnesses**.
+- If it says **Paired · Offline**, start the adapter service on the OpenCode
+  machine.
 - If the hub returns `harness_unconfigured`, no adapter is paired.
-- If the card says **Off**, the Harness switch in the panel is turned off.
+- If the page says **Off**, the Harness switch in the panel header is turned
+  off.
 - A containerized adapter connects to the hub on the `clara` network, not to
   `127.0.0.1`.
 

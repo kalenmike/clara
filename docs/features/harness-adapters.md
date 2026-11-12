@@ -9,8 +9,8 @@ installing it installs both the hub-facing daemon and the orchestration binding.
 
 ## User flow
 
-1. Open the hub panel → **Harness adapters** → choose **OpenCode** and the
-   adapter location: **Docker network** (default), **This machine**, or
+1. Open the hub panel → **Harness** → **Add harness** → choose **OpenCode** and
+   the adapter location: **Docker network** (default), **This machine**, or
    **Cloudflare relay** → **Add harness**.
 2. Copy the pairing code or the matching command. Panel codes start with
    `clara-harness1_` and only install an adapter; the browser still pairs with
@@ -22,9 +22,10 @@ installing it installs both the hub-facing daemon and the orchestration binding.
    prompts for the URL, username, and password.
 5. The adapter enrolls and stores its credential. The installer then starts a
    user service, or a background adapter process when systemd/launchd is not
-   available. The panel shows **Paired · Offline** until the adapter connects,
-   then **Online**. The first adapter is **Active**; turning the Harness switch
-   off shows **Off** while the adapter credential is kept.
+   available. The panel shows **Paired · Offline** under **Paired harnesses**
+   until the adapter connects; it then shows **Online** and adds a live row under
+   **Connected adapters**. The first adapter is **Active**; turning the Harness
+   switch off shows **Off** while the adapter credential is kept.
 6. Open the web client. Sessions and projects arrive through the adapter; the
    hub never contacts OpenCode.
 
@@ -59,6 +60,9 @@ installing it installs both the hub-facing daemon and the orchestration binding.
   the web tells the user to install them with the adapter command and to use
   `pnpm clara pair` for a browser.
 - **Wrong harness kind** — the adapter rejects a code issued for another type.
+- **Adapter connected** — it appears under **Harness → Connected adapters**
+  with its harness label, kind, short harness id, and credential fingerprint.
+  The browser **Clients** view stays device-only and excludes it from its counts.
 - **Adapter offline** — the panel shows **Paired · Offline**, keeps the
   connection, and `/v1` returns `harness_offline`; the adapter reconnects with
   backoff when it returns. The web stays connected and shows a retryable
