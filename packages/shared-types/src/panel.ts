@@ -21,7 +21,11 @@ export type PanelDeviceClass = 'desktop' | 'mobile'
 
 export type PanelTransport = 'local' | 'relay'
 
-/** `enroll` is a one-time pairing session that has no device yet. */
+/**
+ * `enroll` is a one-time pairing session that has no device yet. `adapter` is
+ * a live harness adapter session, shown on the Harness view rather than with
+ * browser clients.
+ */
 export type PanelClientKind = 'device' | 'enroll' | 'adapter'
 
 export type PanelRelayStatus =
@@ -99,6 +103,8 @@ export type PanelHarness = {
   label: string
   transport: PanelHarnessTransport
   online: boolean
+  /** Fingerprint of the paired adapter credential. */
+  fingerprint?: string
   adapterVersion?: string
   protocolVersion?: number
   harnessVersion?: string
@@ -209,6 +215,10 @@ export type PanelClientInfo = {
   kind: PanelClientKind
   deviceId?: string
   deviceLabel?: string
+  /** Present on `adapter` sessions. */
+  adapterId?: string
+  /** Present on `adapter` sessions; the stable harness identity. */
+  harnessId?: string
   deviceClass?: PanelDeviceClass
   connectedAt: string
   lastSeenAt: string

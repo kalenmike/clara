@@ -235,6 +235,11 @@ describe('adapter sessions', () => {
     try {
       const client = await connect(agent, frames, { adapterId: 'adapter-a', key: ADAPTER_KEY })
       await waitFor(() => live)
+      expect(agent.getSnapshot()[0]).toMatchObject({
+        kind: 'adapter',
+        adapterId: 'adapter-a',
+        harnessId: 'harness-a',
+      })
       agent.disconnect(client.sid)
       await waitFor(() => (cleared.length > 0 ? true : undefined))
       expect(cleared).toEqual(['harness-a'])

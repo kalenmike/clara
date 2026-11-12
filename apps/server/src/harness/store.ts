@@ -41,6 +41,7 @@ type ConnectionRow = {
   created_at: number
   updated_at: number
   credential_id: string | null
+  credential_fingerprint: string | null
 }
 
 type SecretRow = {
@@ -523,8 +524,10 @@ const selectConnection = `
   SELECT c.id, c.harness_id, c.kind, c.label, c.transport, c.online,
          c.adapter_version, c.protocol_version, c.harness_version, c.capabilities_json,
          c.is_active, c.last_test_at, c.last_test_ok, c.last_test_error,
-         c.last_seen_at, c.created_at, c.updated_at, c.credential_id
-    FROM harness_connections c`
+         c.last_seen_at, c.created_at, c.updated_at, c.credential_id,
+         ac.fingerprint AS credential_fingerprint
+    FROM harness_connections c
+    LEFT JOIN adapter_credentials ac ON ac.adapter_id = c.credential_id`
 
 function toConnection(row: ConnectionRow): HarnessConnection {
   return {
@@ -534,6 +537,7 @@ function toConnection(row: ConnectionRow): HarnessConnection {
     label: row.label,
     transport: row.transport === 'relay' ? 'relay' : 'local',
     online: row.online === 1,
+    ...(row.credential_fingerprint ? { fingerprint: row.credential_fingerprint } : {}),
     ...(row.adapter_version ? { adapterVersion: row.adapter_version } : {}),
     ...(row.protocol_version !== null ? { protocolVersion: row.protocol_version } : {}),
     ...(row.harness_version ? { harnessVersion: row.harness_version } : {}),

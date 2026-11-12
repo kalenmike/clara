@@ -2,7 +2,7 @@ import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
-import { generateKey, generateSecretKey, loadSecretKey } from '@clara/crypto'
+import { fingerprintKey, generateKey, generateSecretKey, loadSecretKey } from '@clara/crypto'
 import { HarnessStore } from '../src/harness/store.ts'
 import { HarnessValidationError } from '../src/harness/types.ts'
 import { closeDatabase, openDatabase, type ClaraDatabase } from '../src/store/database.ts'
@@ -58,7 +58,9 @@ describe('harness store', () => {
     const result = await enroll({ key })
     expect(result.connection.isActive).toBe(true)
     expect(result.connection.credentialConfigured).toBe(true)
+    expect(result.connection.fingerprint).toBe(await fingerprintKey(key))
     expect(store.active()?.id).toBe(result.connection.id)
+    expect(store.active()?.fingerprint).toBe(await fingerprintKey(key))
     expect((await store.credential('adapter-a'))?.key).toBe(key)
 
     const raw = db
