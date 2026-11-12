@@ -17,6 +17,7 @@ import { canonicalProject, useProjects } from '@/features/projects/use-projects'
 import { useActiveSessions, useSessions } from '@/features/sessions/use-sessions'
 import { useStartSession } from '@/features/sessions/use-start-session'
 import { useSessionWording } from '@/features/sessions/use-wording'
+import { errorMessage } from '@/lib/errors'
 import { formatCost, formatRelativeTime, formatTokens } from '@/lib/format'
 import { cn } from '@/lib/utils'
 
@@ -98,7 +99,37 @@ export function SessionsPage() {
           </div>
         )}
 
-        {!sessionsQuery.isLoading && sessions.length === 0 && (
+        {sessionsQuery.isError && sessions.length > 0 && (
+          <div className="rounded-lg border border-dashed px-4 py-3 text-xs text-muted-foreground">
+            Could not refresh {lowerPlural}.{' '}
+            <button className="underline" onClick={() => void sessionsQuery.refetch()}>
+              Retry
+            </button>
+            <span className="mt-1 block break-words text-[10px] text-muted-foreground/70">
+              {errorMessage(sessionsQuery.error)}
+            </span>
+          </div>
+        )}
+
+        {!sessionsQuery.isLoading && sessionsQuery.isError && sessions.length === 0 && (
+          <div className="flex flex-col items-center justify-center rounded-xl border border-dashed p-12 text-center">
+            <SearchX className="size-8 text-muted-foreground" />
+            <p className="mt-3 text-sm font-medium">Could not load {lowerPlural}</p>
+            <p className="mt-1 max-w-sm break-words text-xs text-muted-foreground">
+              {errorMessage(sessionsQuery.error)}
+            </p>
+            <Button
+              onClick={() => void sessionsQuery.refetch()}
+              className="mt-4"
+              size="sm"
+              variant="outline"
+            >
+              Retry
+            </Button>
+          </div>
+        )}
+
+        {!sessionsQuery.isLoading && !sessionsQuery.isError && sessions.length === 0 && (
           <div className="flex flex-col items-center justify-center rounded-xl border border-dashed p-12 text-center">
             <SearchX className="size-8 text-muted-foreground" />
             <p className="mt-3 text-sm font-medium">No {lowerPlural} yet</p>
