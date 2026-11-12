@@ -21,7 +21,6 @@ RUN corepack enable
 
 WORKDIR /repo
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml tsconfig.base.json ./
-COPY patches patches
 # These manifest and source copies cover the workspace dependency closure of
 # @clara/server and @clara/panel. Missing packages make the build fail to
 # resolve imports even though the filtered install succeeds.

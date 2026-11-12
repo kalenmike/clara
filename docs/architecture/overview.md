@@ -221,8 +221,11 @@ open session, its `location.directory` wins when it differs from the project
 canonical.
 
 The server can keep more than one project record for the same canonical path,
-for example before and after `git init`. Clara prefers the VCS-backed record, so
-route and remembered IDs resolve to the project that owns the sessions.
+for example before and after `git init`. Clara maps one project to every linked
+record and merges their sessions and worktrees, so duplicate records cannot hide
+work. When a link is missing, the hub rebuilds the links from the harness
+project list once and retries; a project with no record returns
+`project_unmapped` instead of forwarding the Clara ID or showing an empty list.
 
 Sessions can report `projectID: "global"`. Session rows build links from the
 route/selected project ID; notifications resolve the owning project, preferring
