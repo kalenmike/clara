@@ -10,6 +10,7 @@ import type {
 } from '@clara/shared-types'
 import { deletePanel, postPanel } from '../lib/panel-api.ts'
 import { formatRelative, formatTimestamp } from '../lib/format.ts'
+import { harnessState } from '../lib/harness-state.ts'
 import { PEEK_MASK } from '../lib/peek.ts'
 import { usePeek } from '../lib/peek-context.tsx'
 import { Badge, CardBody, CollapsibleCard, Notice } from './primitives.tsx'
@@ -19,12 +20,14 @@ const KINDS = [{ kind: 'opencode', label: 'OpenCode' }]
 export function HarnessCard({
   harness,
   harnesses,
+  enabled,
   relayConfigured,
   onChanged,
   now,
 }: {
   harness: PanelHarnessState
   harnesses: PanelHarness[]
+  enabled: boolean
   relayConfigured: boolean
   onChanged: () => void
   now: number
@@ -145,13 +148,19 @@ export function HarnessCard({
       description="Adapters connect out to the hub like a paired browser"
       icon={<Cable className="size-4" aria-hidden="true" />}
       action={
-        <Badge tone={harness.configured ? 'success' : 'warning'}>
-          {harness.configured ? 'Configured' : 'Not configured'}
+        <Badge tone={!enabled ? 'neutral' : harness.configured ? 'success' : 'warning'}>
+          {!enabled ? 'Off' : harness.configured ? 'Configured' : 'Not configured'}
         </Badge>
       }
       defaultExpanded
     >
       <CardBody>
+        {!enabled ? (
+          <Notice tone="warning">
+            The Harness switch is off. Adapters keep their credentials, but the hub does not proxy
+            to them until the switch is on again.
+          </Notice>
+        ) : null}
         {harness.error ? <Notice tone="danger">{redact(harness.error)}</Notice> : null}
         {error ? <Notice tone="danger">{redact(error)}</Notice> : null}
         {test ? (
@@ -169,76 +178,81 @@ export function HarnessCard({
           </p>
         ) : (
           <div className="space-y-2">
-            {harnesses.map((connection) => (
-              <div
-                key={connection.id}
-                className="rounded-lg border border-neutral-200 px-3 py-2 dark:border-neutral-800"
-              >
-                <div className="flex flex-wrap items-center justify-between gap-2">
-                  <div className="min-w-0">
-                    <div className="flex flex-wrap items-center gap-2 text-sm font-medium">
-                      {connection.label}
-                      {connection.isActive ? <Badge tone="success">Active</Badge> : null}
-                      <Badge tone={connection.online ? 'success' : 'warning'}>
-                        {connection.online ? 'Online' : 'Offline'}
-                      </Badge>
+            {harnesses.map((connection) => {
+              const status = harnessState(connection, enabled)
+              return (
+                <div
+                  key={connection.id}
+                  className="rounded-lg border border-neutral-200 px-3 py-2 dark:border-neutral-800"
+                >
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <div className="min-w-0">
+                      <div className="flex flex-wrap items-center gap-2 text-sm font-medium">
+                        {connection.label}
+                        {connection.isActive ? (
+                          <Badge tone={enabled ? 'success' : 'neutral'}>Active</Badge>
+                        ) : null}
+                        <Badge tone={status.tone}>{status.label}</Badge>
+                      </div>
+                      <p className="truncate font-mono text-[11px] text-neutral-500 dark:text-neutral-400">
+                        {connection.kind} · {connection.transport} ·{' '}
+                        {masked ? PEEK_MASK : connection.harnessId.slice(0, 12)}
+                        {connection.harnessVersion ? ` · ${connection.harnessVersion}` : ''}
+                      </p>
                     </div>
-                    <p className="truncate font-mono text-[11px] text-neutral-500 dark:text-neutral-400">
-                      {connection.kind} · {connection.transport} ·{' '}
-                      {masked ? PEEK_MASK : connection.harnessId.slice(0, 12)}
-                      {connection.harnessVersion ? ` · ${connection.harnessVersion}` : ''}
-                    </p>
-                  </div>
-                  <div className="flex flex-wrap items-center gap-1.5">
-                    {!connection.isActive ? (
+                    <div className="flex flex-wrap items-center gap-1.5">
+                      {!connection.isActive ? (
+                        <button
+                          type="button"
+                          onClick={() => void activate(connection)}
+                          disabled={disabled}
+                          className="inline-flex items-center gap-1 rounded-md border border-neutral-200 px-2 py-1 text-[11px] font-medium transition hover:bg-neutral-100 disabled:opacity-50 dark:border-neutral-700 dark:hover:bg-neutral-800"
+                        >
+                          <Check className="size-3" aria-hidden="true" />
+                          Activate
+                        </button>
+                      ) : null}
                       <button
                         type="button"
-                        onClick={() => void activate(connection)}
+                        onClick={() => void runTest(connection)}
                         disabled={disabled}
                         className="inline-flex items-center gap-1 rounded-md border border-neutral-200 px-2 py-1 text-[11px] font-medium transition hover:bg-neutral-100 disabled:opacity-50 dark:border-neutral-700 dark:hover:bg-neutral-800"
                       >
-                        <Check className="size-3" aria-hidden="true" />
-                        Activate
+                        <FlaskConical className="size-3" aria-hidden="true" />
+                        {pending === `test:${connection.id}` ? 'Testing…' : 'Test'}
                       </button>
-                    ) : null}
-                    <button
-                      type="button"
-                      onClick={() => void runTest(connection)}
-                      disabled={disabled}
-                      className="inline-flex items-center gap-1 rounded-md border border-neutral-200 px-2 py-1 text-[11px] font-medium transition hover:bg-neutral-100 disabled:opacity-50 dark:border-neutral-700 dark:hover:bg-neutral-800"
-                    >
-                      <FlaskConical className="size-3" aria-hidden="true" />
-                      {pending === `test:${connection.id}` ? 'Testing…' : 'Test'}
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => void remove(connection)}
-                      disabled={disabled}
-                      className="inline-flex items-center gap-1 rounded-md border border-red-200 px-2 py-1 text-[11px] font-medium text-red-700 transition hover:bg-red-50 disabled:opacity-50 dark:border-red-900 dark:text-red-300 dark:hover:bg-red-950/40"
-                    >
-                      <Trash2 className="size-3" aria-hidden="true" />
-                      Delete
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => void remove(connection, true)}
-                      disabled={disabled}
-                      className="rounded-md border border-neutral-200 px-2 py-1 text-[11px] font-medium text-neutral-600 transition hover:bg-neutral-100 disabled:opacity-50 dark:border-neutral-700 dark:text-neutral-300 dark:hover:bg-neutral-800"
-                    >
-                      Forget
-                    </button>
+                      <button
+                        type="button"
+                        onClick={() => void remove(connection)}
+                        disabled={disabled}
+                        className="inline-flex items-center gap-1 rounded-md border border-red-200 px-2 py-1 text-[11px] font-medium text-red-700 transition hover:bg-red-50 disabled:opacity-50 dark:border-red-900 dark:text-red-300 dark:hover:bg-red-950/40"
+                      >
+                        <Trash2 className="size-3" aria-hidden="true" />
+                        Delete
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => void remove(connection, true)}
+                        disabled={disabled}
+                        className="rounded-md border border-neutral-200 px-2 py-1 text-[11px] font-medium text-neutral-600 transition hover:bg-neutral-100 disabled:opacity-50 dark:border-neutral-700 dark:text-neutral-300 dark:hover:bg-neutral-800"
+                      >
+                        Forget
+                      </button>
+                    </div>
                   </div>
+                  {connection.lastTestAt ? (
+                    <p className="mt-1 text-[11px] text-neutral-500 dark:text-neutral-400">
+                      Last test {formatRelative(connection.lastTestAt, now)} ·{' '}
+                      <span title={formatTimestamp(connection.lastTestAt)}>
+                        {connection.lastTestOk
+                          ? 'ok'
+                          : redact(connection.lastTestError ?? 'failed')}
+                      </span>
+                    </p>
+                  ) : null}
                 </div>
-                {connection.lastTestAt ? (
-                  <p className="mt-1 text-[11px] text-neutral-500 dark:text-neutral-400">
-                    Last test {formatRelative(connection.lastTestAt, now)} ·{' '}
-                    <span title={formatTimestamp(connection.lastTestAt)}>
-                      {connection.lastTestOk ? 'ok' : redact(connection.lastTestError ?? 'failed')}
-                    </span>
-                  </p>
-                ) : null}
-              </div>
-            ))}
+              )
+            })}
           </div>
         )}
 

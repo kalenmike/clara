@@ -84,7 +84,6 @@ function snapshot(): PanelSnapshot {
         transport: 'local',
         online: true,
         capabilities: {},
-        options: {},
         isActive: true,
         credentialConfigured: true,
         createdAt: new Date(0).toISOString(),

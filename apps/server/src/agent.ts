@@ -216,6 +216,16 @@ export class Agent {
     this.sessions.clear()
   }
 
+  /**
+   * Drop one session when its transport socket closes. The local listener owns
+   * one client per socket, so this clears the adapter's online state promptly
+   * instead of waiting for the idle sweep.
+   */
+  disconnect(sid: string): void {
+    const session = this.sessions.get(sid)
+    if (session) this.closeSession(session)
+  }
+
   close(): void {
     clearInterval(this.sweepTimer)
     this.reset()

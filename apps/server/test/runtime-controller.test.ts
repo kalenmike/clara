@@ -81,6 +81,7 @@ async function createController(
 ): Promise<{
   controller: RuntimeController
   settings: SettingsStore
+  harness: HarnessManager
   info: AgentInfo
   serverConfig: ServerConfig
   close: () => Promise<void>
@@ -128,6 +129,7 @@ async function createController(
   return {
     controller,
     settings,
+    harness,
     info: controllerInfo,
     serverConfig,
     close: async () => {
@@ -539,6 +541,22 @@ describe('RuntimeController', () => {
         status: 400,
         code: 'invalid_vapid_subject',
       })
+    } finally {
+      await close()
+    }
+  })
+
+  it('keeps live sessions when the harness connection registers or clears', async () => {
+    const { controller, harness, close } = await createController()
+    const reset = vi.spyOn(controller.agent, 'reset')
+    try {
+      await harness.setLive('harness-a', async () => Response.json({ protocol: 1 }), 'local')
+      expect(harness.active?.online).toBe(true)
+      expect(reset).not.toHaveBeenCalled()
+
+      await harness.clearLive('harness-a')
+      expect(harness.active?.online).toBe(false)
+      expect(reset).not.toHaveBeenCalled()
     } finally {
       await close()
     }

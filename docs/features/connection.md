@@ -153,7 +153,8 @@ own device key through a one-time code; there is no shared browser key.
   client together; `--no-*` selects a subset; `restart` recreates the selection.
   Use the scoped commands for one service.
 - Server container: `pnpm clara server start --docker`; panel and local
-  WebSocket publish on host loopback, harness URLs use the `clara` Docker network.
+  WebSocket publish on host loopback, and adapters on the `clara` Docker network
+  connect to `ws://server:8788/ws`.
   The maintenance snapshot records `local` vs `container` and recreates the
   container with stop/start; see [maintenance.md](maintenance.md).
 - Web container: `pnpm clara web start --docker --build` serves the SPA on

@@ -51,6 +51,7 @@ export class HarnessManager {
   }
 
   async load(): Promise<void> {
+    this.store.resetOnline()
     this.bump()
   }
 
@@ -139,22 +140,22 @@ export class HarnessManager {
   }
 
   async remove(id: string): Promise<void> {
+    const connection = this.store.get(id)
     this.store.remove(id)
+    if (connection) this.live.delete(connection.harnessId)
     this.bump()
     await this.notify()
   }
 
   async forget(id: string): Promise<void> {
+    const connection = this.store.get(id)
     this.store.forget(id)
+    if (connection) this.live.delete(connection.harnessId)
     this.bump()
     await this.notify()
   }
 
-  async createPairing(input: {
-    kind: string
-    label: string
-    replacesConnectionId?: string
-  }): Promise<HarnessPairing> {
+  async createPairing(input: { kind: string; label: string }): Promise<HarnessPairing> {
     return this.store.createPairing(input)
   }
 
@@ -206,12 +207,7 @@ export class HarnessManager {
     void transport
     const connection = this.store.list().find((item) => item.harnessId === harnessId)
     const active = this.store.active()
-    if (
-      connection &&
-      (active === undefined ||
-        !active.credentialConfigured ||
-        active.harnessId.startsWith('legacy-'))
-    ) {
+    if (connection && (active === undefined || !active.credentialConfigured)) {
       this.store.setActive(connection.id)
     }
     this.live.set(harnessId, fetch)

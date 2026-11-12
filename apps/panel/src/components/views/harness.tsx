@@ -23,6 +23,10 @@ export function HarnessView({
         <HarnessCard
           harness={snapshot.harness}
           harnesses={snapshot.harnesses}
+          enabled={
+            snapshot.controls.features.find((feature) => feature.name === 'opencode')?.desired ??
+            true
+          }
           relayConfigured={snapshot.relay.configured}
           onChanged={onChanged}
           now={now}

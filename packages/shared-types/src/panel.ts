@@ -89,7 +89,6 @@ export type PanelPasswordUpdate = {
 }
 
 export type PanelHarnessKind = string
-export type PanelHarnessAuthType = 'none' | 'basic' | 'session'
 export type PanelHarnessTransport = 'local' | 'relay'
 export type PanelHarnessSetupMode = 'local' | 'docker' | 'relay'
 
@@ -104,7 +103,6 @@ export type PanelHarness = {
   protocolVersion?: number
   harnessVersion?: string
   capabilities?: Record<string, unknown>
-  options: Record<string, unknown>
   isActive: boolean
   credentialConfigured: boolean
   lastTestAt?: string
@@ -138,12 +136,6 @@ export type PanelHarnessState = {
   configured: boolean
   activeId?: string
   error?: string
-}
-
-export type PanelHarnessUpdate = {
-  kind: PanelHarnessKind
-  label: string
-  options?: Record<string, unknown>
 }
 
 export type PanelHarnessTestResult = {

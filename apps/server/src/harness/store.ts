@@ -62,7 +62,6 @@ type PairingRow = SecretRow & {
   kind: string
   label: string
   fingerprint: string
-  replaces_connection_id: string | null
   created_at: number
   expires_at: number
   used_at: number | null
@@ -226,11 +225,21 @@ export class HarnessStore {
       .run(online ? 1 : 0, Date.now(), Date.now(), harnessId)
   }
 
-  async createPairing(input: {
-    kind: string
-    label: string
-    replacesConnectionId?: string
-  }): Promise<HarnessPairing> {
+  /**
+   * Online is live-session state, not saved configuration. Clear it when the
+   * hub starts so a stopped adapter cannot look online from a previous run.
+   */
+  resetOnline(): void {
+    this.db
+      .prepare(
+        `UPDATE harness_connections
+            SET online = 0, updated_at = ?
+          WHERE online = 1`
+      )
+      .run(Date.now())
+  }
+
+  async createPairing(input: { kind: string; label: string }): Promise<HarnessPairing> {
     this.db
       .prepare(
         `DELETE FROM harness_pairings
@@ -258,8 +267,8 @@ export class HarnessStore {
       .prepare(
         `INSERT INTO harness_pairings
            (id, kind, label, token_ciphertext, token_nonce, key_version, fingerprint,
-            replaces_connection_id, created_at, expires_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+            created_at, expires_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
       )
       .run(
         id,
@@ -269,7 +278,6 @@ export class HarnessStore {
         Buffer.from(box.iv, 'base64url'),
         this.keyVersion,
         fingerprint,
-        input.replacesConnectionId ?? null,
         now,
         now + PAIRING_TTL_MS
       )
@@ -279,7 +287,6 @@ export class HarnessStore {
       label: input.label,
       token,
       fingerprint,
-      ...(input.replacesConnectionId ? { replacesConnectionId: input.replacesConnectionId } : {}),
       createdAt: now,
       expiresAt: now + PAIRING_TTL_MS,
     }
@@ -288,7 +295,7 @@ export class HarnessStore {
   listPairings(): HarnessPairing[] {
     const rows = this.db
       .prepare(
-        `SELECT id, kind, label, fingerprint, replaces_connection_id, created_at, expires_at,
+        `SELECT id, kind, label, fingerprint, created_at, expires_at,
                 token_ciphertext AS ciphertext, token_nonce AS nonce, key_version, used_at
            FROM harness_pairings
           WHERE used_at IS NULL AND expires_at > ?
@@ -301,7 +308,6 @@ export class HarnessStore {
       label: row.label,
       token: '',
       fingerprint: row.fingerprint,
-      ...(row.replaces_connection_id ? { replacesConnectionId: row.replaces_connection_id } : {}),
       createdAt: row.created_at,
       expiresAt: row.expires_at,
     }))
@@ -331,7 +337,7 @@ export class HarnessStore {
     const pairing = this.db
       .prepare(
         `SELECT id, kind, label, token_ciphertext AS ciphertext, token_nonce AS nonce,
-                key_version, fingerprint, replaces_connection_id, created_at, expires_at,
+                key_version, fingerprint, created_at, expires_at,
                 used_at, used_harness_id
            FROM harness_pairings WHERE id = ?`
       )
@@ -382,19 +388,9 @@ export class HarnessStore {
     const existingConnection = this.db
       .prepare('SELECT id, harness_id FROM harness_connections WHERE harness_id = ?')
       .get(input.harnessId) as { id: string; harness_id: string } | undefined
-    const replacement = pairing.replaces_connection_id
-      ? (this.db
-          .prepare('SELECT id, harness_id FROM harness_connections WHERE id = ?')
-          .get(pairing.replaces_connection_id) as
-          { id: string; harness_id: string | null } | undefined)
-      : undefined
-    const connectionID = existingConnection?.id ?? replacement?.id ?? randomUUID()
-    const legacyHarnessId = replacement?.harness_id ?? null
+    const connectionID = existingConnection?.id ?? randomUUID()
     const currentActive = this.active()
-    const activateOnEnroll =
-      currentActive === undefined ||
-      !currentActive.credentialConfigured ||
-      currentActive.harnessId.startsWith('legacy-')
+    const activateOnEnroll = currentActive === undefined || !currentActive.credentialConfigured
 
     const write = this.db.transaction(() => {
       if (activateOnEnroll) {
@@ -410,21 +406,6 @@ export class HarnessStore {
              retired_at = NULL`
         )
         .run(input.harnessId, input.kind, now, now)
-
-      if (legacyHarnessId && legacyHarnessId !== input.harnessId) {
-        this.db
-          .prepare(
-            `UPDATE harness_project_links SET harness_id = ?
-              WHERE harness_id = ?`
-          )
-          .run(input.harnessId, legacyHarnessId)
-        this.db
-          .prepare(
-            `UPDATE clara_sessions SET harness_id = ?
-              WHERE harness_id = ?`
-          )
-          .run(input.harnessId, legacyHarnessId)
-      }
 
       this.db
         .prepare(
@@ -472,26 +453,15 @@ export class HarnessStore {
             now,
             connectionID
           )
-        if (legacyHarnessId && legacyHarnessId !== input.harnessId) {
-          const remaining = this.db
-            .prepare('SELECT 1 FROM harness_connections WHERE harness_id = ? LIMIT 1')
-            .get(legacyHarnessId)
-          if (!remaining) {
-            this.db
-              .prepare('DELETE FROM harness_identities WHERE harness_id = ?')
-              .run(legacyHarnessId)
-          }
-        }
       } else {
         const takeActive = activateOnEnroll
         this.db
           .prepare(
             `INSERT INTO harness_connections
-               (id, kind, label, base_url, auth_type, username, options_json,
-                is_active, created_at, updated_at, harness_id, credential_id, transport,
-                online, adapter_version, protocol_version, harness_version, capabilities_json,
-                last_seen_at)
-             VALUES (?, ?, ?, '', 'session', NULL, '{}', ?, ?, ?, ?, ?, ?, 0, ?, ?, ?, ?, ?)`
+               (id, kind, label, is_active, created_at, updated_at, harness_id, credential_id,
+                transport, online, adapter_version, protocol_version, harness_version,
+                capabilities_json, last_seen_at)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?, ?, ?)`
           )
           .run(
             connectionID,

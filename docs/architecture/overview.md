@@ -171,8 +171,8 @@ ConnectionProvider
   and harness configuration, reads one allowlisted runtime snapshot, exposes
   guarded controls for the four external features, the Go offline control,
   monitoring, the client-sync gate and cadence, and the local orchestration
-  service, and never returns device keys, harness password, tokens,
-  push endpoints, sync values, or file contents. See
+  service, and never returns device keys, adapter credentials, tokens, push
+  endpoints, sync values, or file contents. See
   [panel.md](../features/panel.md) and
   [hub-controls.md](../features/hub-controls.md).
 - Harness adapters live in SQLite; exactly one is active. Each adapter connects

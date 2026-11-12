@@ -16,7 +16,6 @@ export function toPanelHarness(connection: HarnessConnection): PanelHarness {
       : {}),
     ...(connection.harnessVersion ? { harnessVersion: connection.harnessVersion } : {}),
     ...(connection.capabilities ? { capabilities: connection.capabilities } : {}),
-    options: {},
     isActive: connection.isActive,
     credentialConfigured: connection.credentialConfigured,
     ...(connection.lastTestAt !== undefined

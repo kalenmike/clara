@@ -40,13 +40,14 @@ a generic error.
 
 ## Clara connects but shows no projects
 
-- The hub may not have an active OpenCode connection. Ask the host to open the
-  hub panel, test the harness connection, and activate it.
-- If the hub returns `harness_unconfigured`, the panel has no saved harness.
-- If the hub cannot reach OpenCode, the panel's test reports the network or
-  authentication error.
-- A containerized hub cannot use `127.0.0.1` for OpenCode. It needs a name on the
-  same Docker network, such as `http://opencode:4096`.
+- The hub may not have an active adapter. Ask the host to open the hub panel,
+  check that the adapter card says **Online**, and activate it.
+- If the card says **Paired · Offline**, start the adapter service on the
+  OpenCode machine.
+- If the hub returns `harness_unconfigured`, no adapter is paired.
+- If the card says **Off**, the Harness switch in the panel is turned off.
+- A containerized adapter connects to the hub on the `clara` network, not to
+  `127.0.0.1`.
 
 ## The relay is offline
 

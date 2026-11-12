@@ -28,12 +28,14 @@ traffic monitoring on or off, and gates or paces client settings sync.
    automatically), then choose the superadmin password. Later visits show the
    sign-in form. After a host reset, the sign-in form shows a reset link while
    the token is valid.
-3. After signing in, open **Harness adapters**, choose **OpenCode**, and copy the
-   pairing code. Run the install command on the OpenCode machine. The adapter
-   joins the panel as online, with its stable identity, versions, and
-   capabilities. Use **Test** before saving when possible. In a
-   container, the URL must be reachable from the `clara` network, for example
-   `http://opencode:4096`; `127.0.0.1` means the hub service itself.
+3. After signing in, open **Harness adapters**, choose **OpenCode** and the
+   adapter location, then copy the pairing code or install command. Run the
+   command on the machine that runs OpenCode. A new adapter starts as
+   **Paired · Offline**; it becomes **Online** when its credential session
+   connects and the first adapter becomes **Active**. Turning the Harness
+   switch off keeps the credential but shows **Off** instead of a live state.
+   Use **Test** to probe the adapter. In a container, the adapter connects to
+   `ws://server:8788/ws` on the `clara` network; `127.0.0.1` means the hub host.
 4. The panel opens on **Overview** with the Hub and Orchestration cards, a
    health strip for Harness, Local, Relay, Push, and Orchestration, the five most
    recent events, and a storage summary. A **Needs attention** banner names every
@@ -54,12 +56,14 @@ traffic monitoring on or off, and gates or paces client settings sync.
    update, version, the peek control, **Refresh**, and **Sign out**. The status
    bar along the bottom summarizes the hub, harness, local, relay, push,
    orchestration, and client state; each item opens the matching view.
-7. In **Harness**, add the OpenCode connection: label, base URL, auth type,
-   username, and password. Use **Test** before saving when possible, then
-   **Activate** it. In a container, the URL must be reachable from the `clara`
-   network, for example `http://opencode:4096`; `127.0.0.1` means the hub
-   service itself. The adjacent card shows the active harness URL (masked until
-   revealed), version, latency, secret state, and its on/off switch.
+7. In **Harness**, each paired adapter shows its **Active** badge and one
+   status badge: **Online** for a live session, **Paired · Offline** when the
+   credential exists but no session is connected, **Not paired** before
+   enrollment, or **Off** while the Harness switch is off. Use **Test** to probe
+   the adapter and **Activate** to choose the backend. The adjacent card shows
+   the active adapter transport (masked until revealed), version, latency,
+   credential state, and the Harness switch. Turning the switch off stops
+   hub proxying but keeps the adapter credential.
 8. In **Connections**, toggle local transport, relay, or push from the switch at
    the top right of its card. The choice is saved immediately. An enabled switch
    is green while external connections are on and red while they are off; a disabled switch
@@ -142,7 +146,7 @@ traffic monitoring on or off, and gates or paces client settings sync.
    routes; `PATCH` changes a device alias; `DELETE` revokes a device and removes a
    harness or the session. Unknown mutating methods return `405`.
 4. **Secrets stay out.** The snapshot is built from an explicit allowlist. The
-   device keys, enrollment codes, harness password, relay tokens, push
+   device keys, enrollment codes, adapter credentials, relay tokens, push
    endpoints, sync values, and file contents are never returned. Device keys and
    unused enrollment tokens are encrypted at rest in SQLite with a key outside
    the database. Device fingerprints, secret-configured flags, room id, and
@@ -179,19 +183,18 @@ traffic monitoring on or off, and gates or paces client settings sync.
 
 ## Edge cases
 
-- **No harness is configured** — the harness card starts open with the setup
-  form. `/v1` requests through the hub return `503 harness_unconfigured`
-  until a connection is saved and activated. The web app should be configured
-  after this step.
-- **The harness is down or rejects the password** — the harness card shows
-  unreachable, timed out, or auth rejected, with the last check time. The hub
-  keeps running.
-- **The harness is turned off** — the card says disabled, the probe is not run,
-  and proxied requests fail with a disabled error. Local and relay clients stay
-  connected.
-- **The harness secret key is lost** — the connection stays listed but is
-  marked unconfigured. Re-enter the password; the rest of the hub keeps
-  running.
+- **No harness is configured** — the adapter card starts open with the pairing
+  form. `/v1` requests through the hub return `503 harness_unconfigured` until
+  an adapter is paired and activated. The web app should be configured after
+  this step.
+- **The adapter is paired but offline** — the card says **Paired · Offline**,
+  the probe is not run, and `/v1` returns `harness_offline`. Start the adapter
+  service; it reconnects automatically.
+- **The harness is turned off** — the adapter card says **Off**, the probe is
+  not run, and proxied requests fail with a disabled error. Local and relay
+  clients stay connected.
+- **The adapter credential cannot be opened** — the connection stays listed but
+  cannot authenticate. Re-pair the adapter; the rest of the hub keeps running.
 - **The setup token is missing** — the panel explains how to run
   `pnpm clara server setup-token` or `clara-server admin reset`. It does not
   fall back to a default password.
@@ -287,8 +290,8 @@ traffic monitoring on or off, and gates or paces client settings sync.
   database, or `secrets.key` can still act as the hub; keep the config and
   data directories private.
 - Sessions are in memory, so restarting the hub service signs everyone out.
-- The superadmin password is hashed; harness passwords are reversible and must
-  be encrypted at rest with a backed-up key.
+- The superadmin password is hashed; adapter credentials are reversible and
+  must be encrypted at rest with a backed-up key.
 - Device identity is logical, not hardware-bound. The panel shows one row per
   stored device and one row per live connection; multiple tabs share a device.
 - Traffic is measured at the hub, so connections the relay rejects before they
@@ -323,8 +326,9 @@ traffic monitoring on or off, and gates or paces client settings sync.
     `{ "vapidSubject": "mailto:..." }`; send `null` to restore the default
   - `POST /panel/api/v1/monitoring` with `{ "enabled": false }`
   - `POST /panel/api/v1/sync` with `{ "enabled": true, "intervalMs": 30000 }`
-  - `POST /panel/api/v1/harnesses` and `POST /panel/api/v1/harnesses/:id`
-  - `POST /panel/api/v1/harnesses/:id/test|activate`
+  - `POST /panel/api/v1/harnesses/pairings` creates an adapter pairing code
+  - `DELETE /panel/api/v1/harnesses/pairings/:id` cancels one
+  - `POST /panel/api/v1/harnesses/:id/test|activate|forget`
   - `DELETE /panel/api/v1/harnesses/:id`
   - `DELETE /panel/api/v1/devices/:id` revokes the device
   - `PATCH /panel/api/v1/devices/:id` with `{ "alias": "Desk MacBook" }` renames
@@ -344,7 +348,7 @@ traffic monitoring on or off, and gates or paces client settings sync.
   - `CLARA_VAPID_SUBJECT` overrides the panel VAPID contact
   - `CLARA_WEB_PORT` sets the default Web URL port (default `8080`)
   - `CLARA_DB_PATH` moves the database (default `<data dir>/clara.db`)
-  - `CLARA_SECRET_KEY` or `CLARA_SECRET_KEY_FILE` encrypts harness secrets; otherwise
+  - `CLARA_SECRET_KEY` or `CLARA_SECRET_KEY_FILE` encrypts adapter credentials; otherwise
     `secrets.key` is generated in the config directory
   - `CLARA_ADMIN_SETUP_TOKEN` or `CLARA_ADMIN_SETUP_TOKEN_FILE` supplies the first-run token
 - CLI: `clara-server serve --no-panel`, `clara-server admin reset|setup-token`
@@ -383,14 +387,17 @@ traffic monitoring on or off, and gates or paces client settings sync.
 - Policy storage: `monitoring.enabled`, added by migration `3`;
   `sync.enabled` and `sync.intervalMs`, added by migration `4`;
   `orchestration.enabled`, added by migration `5`; panel users, setup tokens,
-  harness connections, and harness secrets added by migration `6`; device records
-  added by migration `7`; the optional device alias column added by migration `8`
+  and harness connections added by migration `6`; device records added by
+  migration `7`; the optional device alias column added by migration `8`;
+  adapter identities, credentials, and pairings added by migration `9`; retired
+  direct-connection columns and the harness secrets table dropped by migration
+  `10`
 - Database health: path, existence, mode, bytes, schema version, client-sync
   counts and bytes (never values)
 - Auth: scrypt password hashes, hashed session tokens in memory, per-source and
   per-username login limits, session-version revocation, one-time setup tokens
-- Harness secrets: AES-256-GCM with a per-secret nonce and AAD bound to the
-  connection and field; the key lives outside SQLite
+- Adapter credentials: AES-256-GCM with a per-secret nonce and AAD bound to the
+  adapter id; the key lives outside SQLite
 - Guards: authenticated session for `/panel/api/*`, optional bridge source
   allowance, `Host`, `Origin`, `Sec-Fetch-Site`, guarded JSON mutations, path
   allowlist, CSP, `no-store`, no CORS

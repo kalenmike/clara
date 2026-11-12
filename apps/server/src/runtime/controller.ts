@@ -517,13 +517,7 @@ export class RuntimeController {
     const label = typeof record.label === 'string' ? record.label.trim() : ''
     if (!kind) throw new PanelControlError(400, 'invalid_kind', 'Choose a harness type')
     const pairing = await harnessCall(() =>
-      this.options.harness.createPairing({
-        kind,
-        label: label || kind,
-        ...(typeof record.replacesConnectionId === 'string'
-          ? { replacesConnectionId: record.replacesConnectionId }
-          : {}),
-      })
+      this.options.harness.createPairing({ kind, label: label || kind })
     )
     const transport =
       record.transport === 'local' || record.transport === 'relay'
@@ -559,9 +553,6 @@ export class RuntimeController {
       enrollToken: pairing.token,
       fingerprint: pairing.fingerprint,
       expiresAt: pairing.expiresAt,
-      ...(pairing.replacesConnectionId
-        ? { replacesConnectionId: pairing.replacesConnectionId }
-        : {}),
     }
     const code = `${HARNESS_PAIRING_CODE_PREFIX}${encodeHarnessPairingCode(payload)}`
     return {
@@ -778,8 +769,9 @@ export class RuntimeController {
   }
 
   private async onHarnessChanged(): Promise<void> {
-    this.localAgent.reset()
-    this.relayAgent?.reset()
+    // Adapters own their live sessions. Resetting the agents here would drop
+    // the enrollment session before the hub can answer it, and would tear down
+    // the credential session the moment it registers.
     this.stopPushMonitor()
     await this.refreshHarnessInfo()
     this.syncPushMonitor()

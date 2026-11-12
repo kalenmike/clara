@@ -12,20 +12,23 @@ set with environment variables, which take precedence over the panel files.
 ## Connect OpenCode
 
 1. Start the hub and open the panel.
-2. Open **Harness**.
-3. Enter a label, the OpenCode base URL, the auth type, and the username and
-   password if your server uses them.
-4. Choose **Test**, then **Save** and **Activate**.
+2. Open **Harness adapters**, choose **OpenCode**, and choose where the adapter
+   runs.
+3. Copy the pairing code or install command and run it on the machine that runs
+   OpenCode.
+4. The adapter connects out to the hub. The panel shows **Paired · Offline**
+   until the adapter connects, then **Online**. Use **Test** to probe it and
+   **Activate** to choose the backend.
 
-Only one harness connection is active at a time. Saving a connection hot-swaps
-the proxy without restarting the hub.
+Only one adapter is active at a time. Re-pairing keeps the adapter identity and
+Clara session metadata.
 
-The hub does not read OpenCode's `service.json` and does not take a fixed
-OpenCode URL or password from the environment. The connection lives in the hub's
-SQLite database, with the secret encrypted at rest.
+The hub never contacts OpenCode directly and does not read OpenCode's
+`service.json`. Adapter credentials live in the hub's SQLite database, encrypted
+at rest.
 
-In Docker, use a hostname reachable from the `clara` network, such as
-`http://opencode:4096`. `127.0.0.1` means the hub container.
+In Docker, the adapter connects to `ws://server:8788/ws` on the `clara`
+network. `127.0.0.1` means the hub host.
 
 ## Set the Web URL
 
@@ -78,7 +81,7 @@ values.
 | `CLARA_DB_PATH`                                            | Move the SQLite database                                     |
 | `CLARA_CONFIG_DIR`                                         | Move configuration files                                     |
 | `CLARA_DATA_DIR`                                           | Move data files and logs                                     |
-| `CLARA_SECRET_KEY` / `CLARA_SECRET_KEY_FILE`               | Encrypt harness secrets instead of using `secrets.key`       |
+| `CLARA_SECRET_KEY` / `CLARA_SECRET_KEY_FILE`               | Encrypt adapter credentials instead of using `secrets.key`   |
 | `CLARA_ADMIN_SETUP_TOKEN` / `CLARA_ADMIN_SETUP_TOKEN_FILE` | Supply the first-run setup token                             |
 | `CLARA_RELAY_URL`                                          | Relay endpoint                                               |
 | `CLARA_RELAY_ROOM`                                         | Relay room; generated and persisted when omitted             |
