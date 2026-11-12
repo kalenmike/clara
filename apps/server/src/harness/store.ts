@@ -390,8 +390,16 @@ export class HarnessStore {
       : undefined
     const connectionID = existingConnection?.id ?? replacement?.id ?? randomUUID()
     const legacyHarnessId = replacement?.harness_id ?? null
+    const currentActive = this.active()
+    const activateOnEnroll =
+      currentActive === undefined ||
+      !currentActive.credentialConfigured ||
+      currentActive.harnessId.startsWith('legacy-')
 
     const write = this.db.transaction(() => {
+      if (activateOnEnroll) {
+        this.db.prepare('UPDATE harness_connections SET is_active = 0 WHERE is_active = 1').run()
+      }
       this.db
         .prepare(
           `INSERT INTO harness_identities (harness_id, kind, first_seen_at, last_seen_at)
@@ -475,7 +483,7 @@ export class HarnessStore {
           }
         }
       } else {
-        const takeActive = this.active() === undefined
+        const takeActive = activateOnEnroll
         this.db
           .prepare(
             `INSERT INTO harness_connections
@@ -508,6 +516,7 @@ export class HarnessStore {
         .run(now, input.harnessId, input.pairId)
     })
     write()
+    if (activateOnEnroll && existingConnection) this.setActive(connectionID)
 
     return {
       connection: this.get(connectionID) as HarnessConnection,

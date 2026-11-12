@@ -204,6 +204,16 @@ export class HarnessManager {
 
   async setLive(harnessId: string, fetch: Fetch, transport: HarnessTransport): Promise<void> {
     void transport
+    const connection = this.store.list().find((item) => item.harnessId === harnessId)
+    const active = this.store.active()
+    if (
+      connection &&
+      (active === undefined ||
+        !active.credentialConfigured ||
+        active.harnessId.startsWith('legacy-'))
+    ) {
+      this.store.setActive(connection.id)
+    }
     this.live.set(harnessId, fetch)
     this.store.setOnline(harnessId, true)
     this.bump()
