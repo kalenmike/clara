@@ -4,17 +4,18 @@ import { join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { beforeEach, describe, expect, it } from 'vitest'
 import { reserveTokens } from '@clara/policy'
-import { Runtime, Store, loadCatalog } from '../src/index.ts'
+import { Runtime, Store, defaultConfigPath } from '../src/index.ts'
 
 const workspace = fileURLToPath(new URL('../../../', import.meta.url))
 const stdRoot = join(workspace, 'packages', 'orchestration', 'std')
-const defaults = loadCatalog(join(workspace, 'orchestration', 'index.yml')).root.manifest.defaults
+const config = defaultConfigPath()
+if (!config) throw new Error('bundled default config is missing')
 let store: Store
 let runtime: Runtime
 
 beforeEach(() => {
   store = new Store(':memory:')
-  runtime = new Runtime({ store, configPath: `${workspace}/orchestration/index.yml` })
+  runtime = new Runtime({ store, configPath: config })
 })
 
 function adapter(): void {
@@ -373,8 +374,8 @@ describe('runtime', () => {
     })
     expect(started.work).toHaveLength(1)
     expect(started.work[0].name).toBe('create_spec')
-    expect(started.work[0].provider).toBe(defaults?.provider)
-    expect(started.work[0].model).toBe(defaults?.model)
+    expect(started.work[0].provider).toBeUndefined()
+    expect(started.work[0].model).toBeUndefined()
     expect(started.work[0].work_token).toBeTruthy()
 
     const completed = runtime.complete(
@@ -462,8 +463,8 @@ describe('runtime', () => {
     adapter()
     const started = runtime.start({ workspace, prompt: 'a new feature', target: 'std:software' })
     expect(started.work[0].kind).toBe('router')
-    expect(started.work[0].provider).toBe(defaults?.provider)
-    expect(started.work[0].model).toBe(defaults?.model)
+    expect(started.work[0].provider).toBeUndefined()
+    expect(started.work[0].model).toBeUndefined()
     expect(started.work[0].routes?.map((route) => route.when)).toEqual([
       'feature',
       'bug',
@@ -1464,7 +1465,7 @@ describe('runtime', () => {
       const firstStore = new Store(path)
       const firstRuntime = new Runtime({
         store: firstStore,
-        configPath: `${workspace}/orchestration/index.yml`,
+        configPath: config,
       })
       const started = firstRuntime.start({
         workspace,
@@ -1484,7 +1485,7 @@ describe('runtime', () => {
       const secondStore = new Store(path)
       const secondRuntime = new Runtime({
         store: secondStore,
-        configPath: `${workspace}/orchestration/index.yml`,
+        configPath: config,
       })
       expect(secondRuntime.claimDelivery(started.run.id, { terminal: true })).toEqual({
         terminal: false,

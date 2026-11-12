@@ -92,7 +92,6 @@ function normalizeImports(
       if (!entryPath) throw new OrchestrationError(path, `imports.${namespace}: path is required`)
       return {
         path: entryPath,
-        ...(str(item.as) ? { as: String(item.as) } : {}),
         ...(Array.isArray(item.select)
           ? { select: item.select.filter((name): name is string => typeof name === 'string') }
           : {}),
@@ -663,6 +662,21 @@ export function bundledStdDir(): string | undefined {
   for (const candidate of [
     fileURLToPath(new URL('../std/', import.meta.url)),
     fileURLToPath(new URL('./std/', import.meta.url)),
+  ]) {
+    if (existsSync(candidate)) return resolve(candidate)
+  }
+  return
+}
+
+/**
+ * The default routing config ships with the engine. A source checkout resolves
+ * it next to this module; a bundled service resolves the copy placed beside its
+ * bundle at build time.
+ */
+export function defaultConfigPath(): string | undefined {
+  for (const candidate of [
+    fileURLToPath(new URL('../default/index.yml', import.meta.url)),
+    fileURLToPath(new URL('./default/index.yml', import.meta.url)),
   ]) {
     if (existsSync(candidate)) return resolve(candidate)
   }

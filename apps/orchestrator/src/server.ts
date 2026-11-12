@@ -116,6 +116,7 @@ export function createOrchestratorServer(options: OrchestratorServerOptions): Or
       if (req.method === 'GET' && url.pathname === '/v1/config') {
         json(res, 200, {
           workspace: options.workspace ?? null,
+          configSource: options.configPath ? 'file' : 'bundled',
           ...(options.configPath ? { configPath: options.configPath } : {}),
         })
         return

@@ -4,6 +4,7 @@ import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { describe, expect, it } from 'vitest'
 import type { CompiledNode } from '@clara/orchestration/types'
+import { defaultConfigPath } from '@clara/orchestration/loader'
 import {
   collectSources,
   diffCompiled,
@@ -13,7 +14,8 @@ import {
 } from '../src/index.ts'
 
 const root = fileURLToPath(new URL('../../../', import.meta.url))
-const config = join(root, 'orchestration', 'index.yml')
+const config = defaultConfigPath()
+if (!config) throw new Error('bundled default config is missing')
 
 describe('pipeline preview', () => {
   it('discovers root and imported targets', () => {
@@ -68,7 +70,11 @@ describe('pipeline preview', () => {
           '              command: pnpm fix --json',
         ].join('\n')
       )
-      const result = previewPipeline({ workspace: dir, target: 'main' })
+      const result = previewPipeline({
+        workspace: dir,
+        configPath: join(dir, 'orchestration', 'index.yml'),
+        target: 'main',
+      })
       expect(result.diagnostics.filter((entry) => entry.severity === 'error')).toEqual([])
       const primary = result.compiled?.root.children?.[0]
       expect(primary?.onFailure?.children[0].name).toBe('fix')
@@ -107,7 +113,11 @@ describe('pipeline preview', () => {
           '                    command: pnpm fix --json',
         ].join('\n')
       )
-      const result = previewPipeline({ workspace: dir, target: 'main' })
+      const result = previewPipeline({
+        workspace: dir,
+        configPath: join(dir, 'orchestration', 'index.yml'),
+        target: 'main',
+      })
       expect(result.diagnostics.some((entry) => entry.code === 'compile_failed')).toBe(true)
     } finally {
       rmSync(dir, { recursive: true, force: true })
@@ -182,7 +192,10 @@ describe('pipeline preview', () => {
           '        agent: not_there',
         ].join('\n')
       )
-      const result = previewPipeline({ workspace: dir })
+      const result = previewPipeline({
+        workspace: dir,
+        configPath: join(dir, 'index.yml'),
+      })
       const codes = result.diagnostics.map((entry) => entry.code)
       expect(codes).toContain('agent_prompt_fallback')
       expect(codes).toContain('route_without_criteria')
@@ -243,6 +256,7 @@ describe('pipeline preview', () => {
       )
       const result = previewPipeline({
         workspace: dir,
+        configPath: join(dir, 'index.yml'),
         models: [
           { providerID: 'p', id: 'm', enabled: true },
           { providerID: 'p', id: 'off', enabled: false },
@@ -295,7 +309,10 @@ describe('pipeline preview', () => {
           '          spec: spec.md',
         ].join('\n')
       )
-      const result = previewPipeline({ workspace: dir })
+      const result = previewPipeline({
+        workspace: dir,
+        configPath: join(dir, 'index.yml'),
+      })
       const children = result.compiled?.root.children ?? []
       expect(children.find((step) => step.name === 'third')?.inputs).toEqual({
         one: 'temp/1-first',
@@ -337,15 +354,36 @@ describe('pipeline preview', () => {
 })
 
 describe('workspace resolution', () => {
-  it('accepts a workspace directory and an index file', () => {
-    expect(resolveWorkspace({ workspace: root }).configPath).toBe(config)
-    expect(resolveWorkspace({ workspace: config }).workspace).toBe(root.slice(0, -1))
+  it('uses the bundled default when the workspace has no config', () => {
+    const resolved = resolveWorkspace({ workspace: root })
+    expect(resolved.configPath).toBe(config)
+    expect(resolved.configSource).toBe('bundled')
+    expect(resolveWorkspace({ workspace: config }).configPath).toBe(config)
+    expect(resolveWorkspace({ workspace: config }).configSource).toBe('file')
   })
 
-  it('fails with a clear error when no config exists', () => {
+  it('prefers an explicit config path', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'clara-devtools-config-'))
+    try {
+      const explicit = join(dir, 'index.yml')
+      writeFileSync(
+        explicit,
+        'id: temp\nname: Temp\nversion: 1\npipelines:\n  main:\n    steps:\n      - name: one\n'
+      )
+      const resolved = resolveWorkspace({ workspace: root, configPath: explicit })
+      expect(resolved.configPath).toBe(explicit)
+      expect(resolved.configSource).toBe('file')
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('fails with a clear error for a missing explicit config', () => {
     const dir = mkdtempSync(join(tmpdir(), 'clara-devtools-empty-'))
     try {
-      expect(() => resolveWorkspace({ workspace: dir })).toThrow(/No orchestration config/)
+      expect(() =>
+        resolveWorkspace({ workspace: dir, configPath: join(dir, 'missing.yml') })
+      ).toThrow(/No orchestration config/)
     } finally {
       rmSync(dir, { recursive: true, force: true })
     }
