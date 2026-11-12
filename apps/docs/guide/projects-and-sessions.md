@@ -20,6 +20,12 @@ Choose **All projects** at the end of the menu to see every non-empty project.
 The filter icon in the header reveals empty projects. A project card shows its
 directory, last activity, and active and archived session counts.
 
+OpenCode can keep more than one project record for the same directory, for
+example before and after `git init`. Clara combines the sessions from every
+record, so the project shows all of its work. If the session list cannot be
+loaded, Clara shows the error and a **Retry** action instead of an empty
+project; project counts that could not be checked are marked unavailable.
+
 ## Work the mailbox
 
 Sessions are grouped into five collapsible sections:

@@ -200,13 +200,21 @@ export class HarnessMetadataStore {
     }
   }
 
-  harnessProjectId(harnessId: string, projectId: string): string | undefined {
-    const row = this.db
+  /**
+   * Every harness project linked to one Clara project. OpenCode can keep more
+   * than one record for the same canonical directory (for example before and
+   * after `git init`), and sessions may be spread across them.
+   */
+  harnessProjectIds(harnessId: string, projectId: string): string[] {
+    const rows = this.db
       .prepare(
-        'SELECT harness_project_id FROM harness_project_links WHERE harness_id = ? AND project_id = ?'
+        `SELECT harness_project_id
+           FROM harness_project_links
+          WHERE harness_id = ? AND project_id = ?
+          ORDER BY harness_project_id`
       )
-      .get(harnessId, projectId) as { harness_project_id: string } | undefined
-    return row?.harness_project_id
+      .all(harnessId, projectId) as Array<{ harness_project_id: string }>
+    return rows.map((row) => row.harness_project_id)
   }
 
   setSnoozed(harnessId: string, sessionId: string, snoozed: boolean): void {

@@ -111,11 +111,15 @@ column or bulk toolbar.
 
 1. Sessions are fetched by **project ID**. A project can own sessions in its
    canonical directory, git worktrees, and sandboxes; a directory query is exact
-   and would hide sessions after an agent moves one to a worktree. When the
-   server holds duplicate records for the same canonical path, Clara uses the
-   VCS-backed record.
-2. The active list shows the newest 50 non-archived sessions for the directory;
-   the archived list shows the newest 50 archived sessions.
+   and would hide sessions after an agent moves one to a worktree. The hub maps
+   the Clara project to every harness project record for that canonical path,
+   merges their session pages, deduplicates by id, and keeps one cursor per
+   record. If the links are missing, the hub rebuilds them from the project list
+   once; a project that still has no record returns `project_unmapped` instead
+   of an empty list.
+2. The active list requests the newest 50 non-archived sessions from each linked
+   record and shows the merged result; the archived list does the same for
+   archived sessions.
 3. A new session inherits the model of the most recent active session in the
    project, so the first prompt uses a model that already works. A model hidden
    in **Settings → Models** is not inherited; the new session starts on the
@@ -329,8 +333,10 @@ column or bulk toolbar.
 - **Agent moves a session to a worktree** — its project ID is unchanged, so it
   stays in the project's list, search, and Inbox. The chat uses the worktree
   directory for Git, mentions, skills, and approvals.
-- **Duplicate project records for one directory** — Clara lists and remembers
-  the VCS-backed record, so selecting either duplicate shows the same sessions.
+- **Duplicate project records for one directory** — Clara merges the sessions
+  from every record, so selecting any duplicate shows the same complete list.
+- **Project has no harness record** — the session list reports
+  `project_unmapped` with a retry instead of showing an empty project.
 - **Session creation fails** — the button returns to its normal state and no
   navigation happens.
 - **Session refresh fails** — the last list stays visible with a compact refresh

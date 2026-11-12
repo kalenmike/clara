@@ -35,6 +35,17 @@ no generic `/api/*` proxy.
 stream. The wire payloads are typed as the Clara `ClaraEvent` union from
 `@clara/api-contract`; adapters translate their harness events into that union.
 
+### Project-scoped lists
+
+Clara project IDs are hub-owned. `GET /v1/sessions?project=` and
+`GET /v1/worktrees?project=` accept a Clara project ID and map it to every
+harness project record linked to that canonical directory. Sessions are merged,
+deduplicated, and ordered by `time.updated`. A project linked to more than one
+record requests up to `limit` rows per record and uses a hub-owned composite
+cursor, so paging still visits every record exactly once. When no record is
+linked, the hub rebuilds the links from the harness project list once and then
+returns `project_unmapped`; it never forwards a Clara ID to the harness.
+
 `GET /v1/git/log` is the only host command Clara runs. The hub builds a fixed
 `git log` command from validated timestamps and the session directory; there is
 no arbitrary shell endpoint.
@@ -103,9 +114,9 @@ Errors use one envelope:
 }
 ```
 
-Common codes are `unauthorized`, `read_only`, `disabled`, `harness_unconfigured`,
-`harness_offline`, `harness_auth`, `upstream_error`, `upstream_invalid`, and
-`not_found`.
+Common codes are `unauthorized`, `read_only`, `disabled`,
+`harness_unconfigured`, `harness_offline`, `harness_auth`, `upstream_error`,
+`upstream_invalid`, `project_unmapped`, and `not_found`.
 
 ## Read-only MCP
 

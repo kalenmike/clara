@@ -14,6 +14,7 @@ import {
   claraSessionMessagesResponseSchema,
   claraSessionSchema,
   type ClaraSession,
+  type ClaraSessionsResponse,
   claraSessionsResponseSchema,
 } from '@clara/api-contract'
 import type { ApiDependencies, ApiVariables } from '../context.ts'
@@ -33,6 +34,8 @@ import {
   parseClaraSessions,
 } from '../dto.ts'
 import { forwardResult, query } from '../harness.ts'
+import { resolveHarnessProjectIds, unmappedProjectError } from '../project-links.ts'
+import { decodeMergedSessionCursor, mergeSessionPages, type SessionPage } from '../session-pages.ts'
 import { emptyResponse, jsonResponse, responses, statusResponses } from '../schemas.ts'
 import { optionalBooleanQuery, optionalPositiveIntQuery } from '../query.ts'
 
@@ -180,19 +183,20 @@ export function registerSessionRoutes(
     ),
     async (c) => {
       const params = c.req.valid('query')
-      const mappedProject = params.project
-        ? deps.harness.harnessProjectId(params.project)
-        : undefined
-      const result = await forwardDto(
-        deps,
-        {
-          method: 'GET',
-          path: '/sessions',
-          search: query({ ...params, ...(mappedProject ? { project: mappedProject } : {}) }),
-        },
-        c.req.raw.signal,
-        parseClaraSessions
-      )
+      const projectIds = params.project
+        ? await resolveHarnessProjectIds(deps, params.project, c.req.raw.signal)
+        : []
+      if (params.project && projectIds.length === 0) {
+        throw unmappedProjectError(params.project)
+      }
+
+      const result =
+        projectIds.length > 1
+          ? mergeSessionPages(
+              await listSessionPages(deps, params, projectIds, c.req.raw.signal),
+              params.order
+            )
+          : await listSingleSessionPage(deps, params, projectIds[0], c.req.raw.signal)
       const overlaid = deps.harness.overlaySessionList(result)
       const data =
         params.archived === undefined
@@ -856,6 +860,89 @@ export function registerSessionRoutes(
       )
       return c.body(null, 204)
     }
+  )
+}
+
+type SessionListParams = {
+  limit?: number
+  order?: 'asc' | 'desc'
+  search?: string
+  parentID?: string
+  archived?: boolean
+  directory?: string
+  project?: string
+  subpath?: string
+  cursor?: string
+}
+
+/**
+ * List sessions for a Clara project that currently owns a single harness
+ * record. A composite cursor left over from when the project owned several
+ * records is translated to that record's cursor instead of being forwarded to
+ * the harness as-is.
+ */
+async function listSingleSessionPage(
+  deps: ApiDependencies,
+  params: SessionListParams,
+  projectID: string | undefined,
+  signal: AbortSignal
+): Promise<ClaraSessionsResponse> {
+  const merged = decodeMergedSessionCursor(params.cursor)
+  const cursor = projectID && merged ? merged.projects[projectID] : params.cursor
+  if (cursor === null) {
+    return { data: [], cursor: { previous: null, next: null } }
+  }
+  return forwardDto(
+    deps,
+    {
+      method: 'GET',
+      path: '/sessions',
+      search: query({
+        ...params,
+        cursor,
+        ...(projectID ? { project: projectID } : {}),
+      }),
+    },
+    signal,
+    parseClaraSessions
+  )
+}
+
+/**
+ * Fetch one page from every harness project record linked to a Clara project.
+ * Each record keeps its own cursor, so the hub can merge the pages without
+ * losing or repeating rows. Exhausted records return no data and stay in the
+ * page list so the next cursor can mark them done.
+ */
+async function listSessionPages(
+  deps: ApiDependencies,
+  params: SessionListParams,
+  projectIds: string[],
+  signal: AbortSignal
+): Promise<SessionPage[]> {
+  const merged = decodeMergedSessionCursor(params.cursor)
+  return Promise.all(
+    projectIds.map(async (projectID): Promise<SessionPage> => {
+      const cursor = merged?.projects[projectID]
+      if (cursor === null) {
+        return { projectID, data: [], cursor: { previous: null, next: null } }
+      }
+      const result: ClaraSessionsResponse = await forwardDto(
+        deps,
+        {
+          method: 'GET',
+          path: '/sessions',
+          search: query({
+            ...params,
+            cursor: cursor ?? undefined,
+            project: projectID,
+          }),
+        },
+        signal,
+        parseClaraSessions
+      )
+      return { projectID, ...result }
+    })
   )
 }
 

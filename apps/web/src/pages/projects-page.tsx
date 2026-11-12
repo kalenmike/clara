@@ -1,5 +1,6 @@
 import { useMemo } from 'react'
 import { Link } from 'react-router'
+import { useQueryClient } from '@tanstack/react-query'
 import { FolderGit2, Loader2 } from 'lucide-react'
 import { PageShell } from '@/components/layout/page-shell'
 import { ProjectCard } from '@/components/projects/project-card'
@@ -13,6 +14,7 @@ import { canonicalProjects, useProjects } from '@/features/projects/use-projects
 import { formatCount } from '@/lib/format'
 
 export function ProjectsPage() {
+  const queryClient = useQueryClient()
   const projectsQuery = useProjects()
   const { pending: reconciling } = useProjectReconciliation()
   const { showEmpty, setShowEmpty } = useShowEmptyProjects()
@@ -21,10 +23,11 @@ export function ProjectsPage() {
     [projectsQuery.data]
   )
   const projectIDs = useMemo(() => projects.map((project) => project.id), [projects])
-  const { hasSessions, pending: presencePending } = useProjectSessionPresence(
-    projectIDs,
-    !showEmpty
-  )
+  const {
+    hasSessions,
+    pending: presencePending,
+    failed: presenceFailed,
+  } = useProjectSessionPresence(projectIDs, !showEmpty)
   const visibleProjects = useMemo(
     () => filterVisibleProjects(projects, hasSessions, showEmpty),
     [hasSessions, projects, showEmpty]
@@ -93,17 +96,53 @@ export function ProjectsPage() {
       }
       actions={<ProjectFilter />}
     >
-      {visibleProjects.length === 0 ? (
-        <div className="rounded-xl border border-dashed p-8 text-center">
-          <FolderGit2 className="mx-auto size-8 text-muted-foreground" />
-          <p className="mt-3 text-sm font-medium">No projects with sessions</p>
-          <p className="mt-1 text-xs text-muted-foreground">
-            Every project on this OpenCode server is empty.
-          </p>
-          <Button variant="outline" size="sm" className="mt-4" onClick={() => setShowEmpty(true)}>
-            Show empty projects
-          </Button>
+      {presenceFailed && visibleProjects.length > 0 && (
+        <div className="rounded-lg border border-dashed px-4 py-3 text-xs text-muted-foreground">
+          Some projects could not be checked for sessions.{' '}
+          <button
+            className="underline"
+            onClick={() => void queryClient.invalidateQueries({ queryKey: ['project-presence'] })}
+          >
+            Retry
+          </button>
         </div>
+      )}
+
+      {visibleProjects.length === 0 ? (
+        presenceFailed ? (
+          <div className="rounded-xl border border-dashed p-8 text-center">
+            <FolderGit2 className="mx-auto size-8 text-muted-foreground" />
+            <p className="mt-3 text-sm font-medium">Could not check for sessions</p>
+            <p className="mt-1 text-xs text-muted-foreground">
+              The hub could not load sessions for these projects. Try again or show every project.
+            </p>
+            <div className="mt-4 flex flex-wrap justify-center gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() =>
+                  void queryClient.invalidateQueries({ queryKey: ['project-presence'] })
+                }
+              >
+                Retry
+              </Button>
+              <Button variant="outline" size="sm" onClick={() => setShowEmpty(true)}>
+                Show empty projects
+              </Button>
+            </div>
+          </div>
+        ) : (
+          <div className="rounded-xl border border-dashed p-8 text-center">
+            <FolderGit2 className="mx-auto size-8 text-muted-foreground" />
+            <p className="mt-3 text-sm font-medium">No projects with sessions</p>
+            <p className="mt-1 text-xs text-muted-foreground">
+              Every project on this OpenCode server is empty.
+            </p>
+            <Button variant="outline" size="sm" className="mt-4" onClick={() => setShowEmpty(true)}>
+              Show empty projects
+            </Button>
+          </div>
+        )
       ) : (
         <div className="grid gap-3 sm:grid-cols-2">
           {visibleProjects.map((project) => (
