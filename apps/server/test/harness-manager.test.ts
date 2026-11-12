@@ -68,6 +68,30 @@ describe('harness manager', () => {
     expect(manager.active?.online).toBe(false)
   })
 
+  it('reports the live harness from the health route', async () => {
+    await enroll()
+    await manager.setLive(
+      'harness-a',
+      async (request) => {
+        expect(new URL(request.url).pathname).toBe('/harness/v1/health')
+        return Response.json({
+          ok: true,
+          code: 'ok',
+          version: '2.1.1',
+          latencyMs: 7,
+        })
+      },
+      'local'
+    )
+
+    await expect(manager.probe()).resolves.toMatchObject({
+      ok: true,
+      code: 'ok',
+      version: '2.1.1',
+      latencyMs: 7,
+    })
+  })
+
   it('proxies through a live adapter session', async () => {
     await enroll()
     await manager.setLive(
