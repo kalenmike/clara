@@ -76,6 +76,7 @@ export class AdapterTransport {
   private heartbeatTimer: NodeJS.Timeout | null = null
   private lastSeen = 0
   private connected = false
+  private authenticated = false
   private messageChain: Promise<void> = Promise.resolve()
 
   constructor(options: AdapterTransportOptions) {
@@ -102,6 +103,7 @@ export class AdapterTransport {
     this.socket = null
     this.keys = null
     this.connected = false
+    this.authenticated = false
     this.rejectAll(new Error('Adapter connection closed'))
   }
 
@@ -137,6 +139,7 @@ export class AdapterTransport {
 
   private connect(): void {
     if (this.stopped) return
+    this.authenticated = false
     const protocols =
       this.options.clientToken && this.options.clientToken !== 'local'
         ? [
@@ -172,6 +175,7 @@ export class AdapterTransport {
       this.socket = null
       this.keys = null
       this.connected = false
+      this.authenticated = false
       this.stopHeartbeat()
       this.rejectAll(
         new Error(`Adapter disconnected (${code} ${reason.toString() || 'no reason'})`)
@@ -219,7 +223,7 @@ export class AdapterTransport {
       this.receive = new ReplayGuard()
       this.sendSeq = 0
       this.connected = true
-      this.options.log?.('adapter authenticated')
+      this.options.log?.('adapter handshake complete')
       return
     }
 
@@ -240,6 +244,10 @@ export class AdapterTransport {
       const payload = JSON.parse(new TextDecoder().decode(plaintext)) as
         ClaraAction | ClaraState | AdapterAction | AdapterResponseState
       await this.handlePayload(payload)
+      if (!this.authenticated) {
+        this.authenticated = true
+        this.options.log?.('adapter authenticated')
+      }
     } catch (cause) {
       this.options.log?.('adapter could not open a frame', cause)
       this.socket?.close(1000, 'bad frame')
