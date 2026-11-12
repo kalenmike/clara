@@ -6,12 +6,12 @@ reach it through a loopback HTTP listener.
 
 ```text
 Browser / PWA
-  └─ E2EE WebSocket ──▶ hub service ──▶ /v1 API ──▶ active adapter ──▶ OpenCode
+  └─ E2EE WebSocket ──▶ hub service ──▶ /v1 API ──▶ active adapter ──▶ harness
 MCP / local tools
   └─ loopback HTTP + bearer token ──▶ /v1 API
 ```
 
-The browser never calls OpenCode directly. The hub only exposes `/v1`; there is
+The browser never calls a harness directly. The hub only exposes `/v1`; there is
 no generic `/api/*` proxy.
 
 ## API surface
@@ -84,10 +84,10 @@ must not import it.
 
 ## Client SDK
 
-`@clara/api-client` is a fetch-based SDK for the hub API. It mirrors the
-OpenCode client method names but returns Clara DTOs from `@clara/api-contract`.
-Pass the E2EE transport's `fetch` in the browser, or global `fetch` with a
-bearer header in Node and MCP tools.
+`@clara/api-client` is a fetch-based SDK for the hub API. It follows the familiar
+harness method names but returns Clara DTOs from `@clara/api-contract`. Pass the
+E2EE transport's `fetch` in the browser, or global `fetch` with a bearer header
+in Node and MCP tools.
 
 ```ts
 const client = createClaraClient({ fetch: transport.fetch })

@@ -2,26 +2,29 @@
 
 ## Summary
 
-Pairs a browser or installed PWA with a Clara hub without exposing the
-OpenCode password to Cloudflare. Each device receives its own revocable key
+Pairs a browser or installed PWA with a Clara hub without exposing the harness
+password to Cloudflare. Each device receives its own revocable key
 through a one-time enrollment link. The phone scans the terminal QR with its
 camera or pastes the same code, and Clara stores the device credential locally.
 
 ## Harness adapter pairing
 
 The panel also pairs harness adapters with the same one-time-code and E2EE
-pattern. **Harness → Add harness → OpenCode** produces a
-`clara-harness1_…` code. On the harness machine,
-`clara-adapter-opencode install --pair <code>` (or `pnpm clara adapter install --opencode --pair <code>` in the repository) discovers OpenCode, enrolls
-the adapter over the local or relay WebSocket, and stores its long-lived
-credential. The adapter reconnects with that credential and never exposes an
-inbound port. Reinstall and re-pair reuse the stable harness identity, so Clara
-session and project metadata stays attached. Adapter codes cannot enroll a
-browser: the connect screen names them and points at `clara-server pair`.
+pattern. **Harness → Add harness** chooses the adapter type and location and
+produces a `clara-harness1_…` code. On the harness machine, run the adapter
+installer; for the included adapter that is
+`clara-adapter-opencode install --pair <code>` (or
+`pnpm clara adapter install --opencode --pair <code>` in the repository). It
+discovers the harness, enrolls the adapter over the local or relay WebSocket,
+and stores its long-lived credential. The adapter reconnects with that
+credential and never exposes an inbound port. Reinstall and re-pair reuse the
+stable harness identity, so Clara session and project metadata stays attached.
+Adapter codes cannot enroll a browser: the connect screen names them and points
+at `clara-server pair`.
 
 ## User flow
 
-1. Start the hub (`clara-server serve` or the systemd unit).
+1. Start the hub (`pnpm clara server start` or the systemd unit).
 2. Run `clara-server pair` on the machine that runs the hub service. The terminal
    prints a QR code, a web link, a `clara1_…` code, and an enrollment
    fingerprint. Local codes print the panel Web URL (default
@@ -38,8 +41,8 @@ browser: the connect screen names them and points at `clara-server pair`.
    the device.
 5. The hub stores the device key encrypted at rest, consumes the token, and
    returns the device id and fingerprint. Clara stores the non-extractable key
-   in IndexedDB, reconnects with the device id, and probes the OpenCode info
-   endpoint.
+   in IndexedDB, reconnects with the device id, and probes the hub API. Harness
+   information loads separately through the active adapter.
 6. On success Clara opens the last project. The Settings → Server card shows the
    relay state and device identity. On failure Clara returns to the pair form and
    shows the reason.

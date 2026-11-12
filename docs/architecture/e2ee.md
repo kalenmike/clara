@@ -1,9 +1,9 @@
 # End-to-end encryption
 
-Clara encrypts every WebSocket payload between the browser transport and the
-hub. Cloudflare, the relay Worker, and the Durable Object see ciphertext,
-frame sizes, timing, room ids, and connection metadata. They never see OpenCode
-requests, responses, prompts, or the OpenCode password.
+Clara encrypts every WebSocket payload between a browser or adapter and the
+hub. Cloudflare, the relay Worker, and the Durable Object see ciphertext, frame
+sizes, timing, room ids, and connection metadata. They never see harness
+requests, responses, prompts, or the harness password.
 
 ## Key model
 
@@ -13,7 +13,8 @@ requests, responses, prompts, or the OpenCode password.
   **non-extractable** `CryptoKey` in IndexedDB. Raw key bytes are not written to
   `localStorage`.
 - The hub stores each device key encrypted at rest with
-  `~/.config/clara/secrets.key` (mode `0600`).
+  `~/.config/clara/secrets.key` (mode `0600`). Adapter credentials use the same
+  encrypted store and enrollment pattern.
 - A pairing link carries a one-time enrollment token, never a long-lived key.
   The token is valid for 10 minutes, is consumed by one device, and is stored
   encrypted on the hub until it is used or expires.
@@ -102,9 +103,9 @@ broadcast frames:
 - `agent.status` also carries the current hub info when an admin changes the
   client-sync gate or cadence, so connected clients update without reconnecting.
 
-The hub routes `/v1` requests through the hub API. The API strips hop-by-hop
-headers, adds OpenCode basic auth, and prevents origin changes. The browser
-never receives the OpenCode password in relay mode.
+The hub routes `/v1` requests through the hub API. The adapter adds harness
+authentication; the hub never holds the harness password and the browser never
+receives it.
 
 Push subscription management is sealed like every other action. Push delivery
 itself leaves the E2EE channel: `web-push` encrypts the payload to the browser's

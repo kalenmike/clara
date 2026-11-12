@@ -2,22 +2,23 @@
 
 ## Summary
 
-Connects Clara to one OpenCode server through the Clara hub over an
+Connects Clara to the active harness through the Clara hub over an
 end-to-end encrypted WebSocket, either through the Cloudflare relay or the local
 listener. There is no direct HTTP mode. The browser tunnels to the hub even
-before an OpenCode harness connection is online; harness-backed requests wait
-for the active adapter. The hub no longer discovers OpenCode's `service.json`.
-Each browser enrolls its own device key through a one-time code; there is no
-shared browser key.
+before a harness adapter is online; harness-backed requests wait for the active
+adapter. Only the adapter discovers the harness; the hub never reads its service
+file or contacts it. Each browser enrolls its own device key through a one-time
+code; there is no shared browser key.
 
 ## User flow
 
 1. Start the hub and open its panel. Complete the one-time setup token and
-   sign in. In **Harness → Add harness**, choose **OpenCode** and copy the
-   pairing code. On the OpenCode machine, run
-   `pnpm clara adapter install --opencode --pair <code>`; the adapter discovers
-   OpenCode, prompts for its URL/password if needed, enrolls, and installs both
-   the hub-facing adapter and the orchestration binding.
+   sign in. In **Harness → Add harness**, choose the adapter type and location,
+   then copy the pairing code. On the harness machine, run the printed install
+   command; for the included adapter, that is
+   `pnpm clara adapter install --opencode --pair <code>`. The adapter discovers
+   its harness, prompts for its URL/password if needed, enrolls, and installs
+   both the hub-facing adapter and the orchestration binding.
 2. Open Clara. A branded splash shows while Clara checks a pairing link in the
    URL fragment or a stored device. A successful attempt opens the last project
    without showing the connect form.
@@ -48,8 +49,9 @@ shared browser key.
 1. Clara talks to one hub at a time. Connecting again replaces the
    client, clears cached queries when the target changes, and restarts the
    stream.
-2. The transport never sends the OpenCode password to the browser. The hub
-   adds basic auth and only proxies `/api/` paths on the configured origin.
+2. The transport never sends the harness password to the browser. The adapter
+   adds harness authentication and is the only process that talks to the
+   harness; the hub maps typed `/v1` calls to the active adapter.
 3. `VITE_CLARA_WS_URL` retargets relay-room pairings; a `local` pairing keeps the
    endpoint from its payload. `clara-server pair --no-relay` produces a `local`
    pairing even when the hub has a relay configured.
@@ -92,9 +94,10 @@ shared browser key.
   banner instead of the connect screen. Open the panel and pair an adapter.
 - **Harness paired but offline** — the banner reports `harness_offline` and
   offers Retry; the hub tunnel and settings stay usable.
-- **Harness reachable from the host but not the container** — `127.0.0.1` inside
-  the hub container is the hub service. Use the OpenCode container service
-  name or an address reachable from the `clara` network.
+- **Adapter cannot reach the harness** — `127.0.0.1` inside an adapter
+  container is the adapter itself. Use the harness service name or an address
+  reachable from the adapter host. In the Docker stack the adapter joins the
+  `clara` network and reaches the hub at `ws://server:8788/ws`.
 - **Stored device cannot connect** — Clara falls back to the pair form; it does
   not silently try another hub. Revoke the stale entry in the panel.
 - **Pairing link fails** — the connecting splash gives way to the pair form,
@@ -155,7 +158,7 @@ shared browser key.
 - Harness setup: panel pairing → `harness_identities`, `harness_connections`,
   and `adapter_credentials` in `clara.db`; the adapter connects out over the
   WebSocket and speaks the Clara Harness Protocol. The hub never sees the
-  OpenCode password.
+  harness password; the adapter keeps it in its own config.
 - Docker stack: `pnpm clara start` starts the orchestrator, server, and web
   client together; `--no-*` selects a subset; `restart` recreates the selection.
   Use the scoped commands for one service.
