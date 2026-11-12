@@ -447,10 +447,10 @@ function textPartIndex(message: ClaraSessionMessageAssistant, index: number): nu
   return count
 }
 
-/** Plain-language next step for the provider failures OpenCode reports most often. */
+/** Plain-language next step for the provider failures the harness reports most often. */
 function errorHint(type: string): string | null {
   if (type === 'provider.auth') {
-    return 'Check this provider’s credentials in OpenCode, or switch to another model.'
+    return 'Check this provider’s credentials, or switch to another model.'
   }
   if (type === 'provider.quota') {
     return 'This provider account has no available credit. Top up the account or switch models.'

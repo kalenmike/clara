@@ -36,7 +36,7 @@ export default defineConfig(({ command }) => ({
         id: '/',
         name: 'Clara',
         short_name: 'Clara',
-        description: 'A secure web client for OpenCode sessions.',
+        description: 'A secure web client for your coding harness.',
         theme_color: '#0a0a0a',
         background_color: '#0a0a0a',
         display: 'standalone',

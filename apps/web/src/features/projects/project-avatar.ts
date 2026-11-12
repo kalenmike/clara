@@ -1,7 +1,7 @@
 import type { ClaraProject } from '@clara/api-contract'
 import { projectLabel } from '@/features/projects/project-list'
 
-/** The palette keys OpenCode accepts for a generated project avatar. */
+/** The palette keys the harness accepts for a generated project avatar. */
 export const PROJECT_AVATAR_COLORS = ['pink', 'mint', 'orange', 'purple', 'cyan', 'lime'] as const
 
 export type ProjectAvatarColor = (typeof PROJECT_AVATAR_COLORS)[number]
@@ -16,7 +16,7 @@ export function isProjectAvatarColor(value: unknown): value is ProjectAvatarColo
 }
 
 /**
- * Only render sources that are safe to place in an image tag. OpenCode stores
+ * Only render sources that are safe to place in an image tag. The harness stores
  * data URLs for both the user's icon and its discovered favicon.
  */
 function imageSource(value: string | undefined): string | null {
@@ -34,7 +34,7 @@ function imageSource(value: string | undefined): string | null {
 }
 
 /**
- * Mirror OpenCode's precedence: a custom image wins, then an explicit palette
+ * Mirror the harness's precedence: a custom image wins, then an explicit palette
  * color, then the favicon the server discovered in the project. A color
  * intentionally hides the discovered favicon until the color is cleared.
  */

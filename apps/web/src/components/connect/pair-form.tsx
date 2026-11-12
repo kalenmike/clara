@@ -66,7 +66,7 @@ export function PairForm({
         />
         <p className="text-[11px] text-muted-foreground">
           Paste the code printed by <code>pnpm clara pair</code>. Adapter codes from the hub panel
-          install on the OpenCode machine instead. The key never leaves this browser.
+          install on the harness machine instead. The key never leaves this browser.
         </p>
       </div>
 

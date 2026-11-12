@@ -67,7 +67,7 @@ function CommitError({ query }: { query: ReturnType<typeof useGitCommits> }) {
     return (
       <GitPanelMessage
         title="Commit history is disabled"
-        description="An admin disabled OpenCode access on the Clara hub. Enable it in the hub panel."
+        description="An admin disabled harness access on the Clara hub. Enable it in the hub panel."
       />
     )
   }
@@ -76,7 +76,7 @@ function CommitError({ query }: { query: ReturnType<typeof useGitCommits> }) {
     return (
       <GitPanelMessage
         title="Commit history is unavailable"
-        description="No OpenCode harness is configured. Set one up in the hub panel."
+        description="No harness is configured. Set one up in the hub panel."
       />
     )
   }

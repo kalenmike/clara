@@ -142,7 +142,7 @@ export function EventProvider({ children }: { children: ReactNode }) {
           predicate: (query) => query.queryKey[0] !== 'messages',
         })
         if (Date.now() - downSince > RECONNECT_NOTICE_MS) {
-          toast.success('Reconnected to OpenCode', { id: 'stream-reconnected' })
+          toast.success('Reconnected', { id: 'stream-reconnected' })
         }
         hadFailure = false
         downSince = 0
@@ -175,7 +175,7 @@ export function EventProvider({ children }: { children: ReactNode }) {
       }
       if (event.type === 'session.execution.failed') {
         const error = event.data.error
-        toast.error('OpenCode run failed', {
+        toast.error('Run failed', {
           id: `run-failed:${event.data.sessionID}`,
           description: error.status ? `${error.message} (${error.status})` : error.message,
         })

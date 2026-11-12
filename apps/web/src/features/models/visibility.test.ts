@@ -83,7 +83,7 @@ describe('hidden model storage', () => {
 })
 
 describe('provider labels', () => {
-  it('shows the OpenCode product name instead of the host-prefixed server name', () => {
+  it('shows the provider product name instead of the host-prefixed server name', () => {
     expect(providerDisplayName('opencode', 'Goose / OpenCode')).toBe('OpenCode')
     expect(providerDisplayName('opencode-go', 'OpenCode Go')).toBe('OpenCode Go')
   })

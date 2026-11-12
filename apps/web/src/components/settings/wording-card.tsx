@@ -33,7 +33,7 @@ export function WordingCard() {
           <Type className="size-4" /> Session wording
         </CardTitle>
         <CardDescription>
-          Clara calls each OpenCode session a name of your choice. The default is Brief.
+          Clara calls each session a name of your choice. The default is Brief.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
@@ -81,8 +81,8 @@ export function WordingCard() {
         </div>
 
         <p className="text-[11px] text-muted-foreground">
-          The plural is generated automatically: {singular} → {plural}. OpenCode still calls these
-          sessions in its API.
+          The plural is generated automatically: {singular} → {plural}. The harness still calls
+          these sessions in its API.
         </p>
       </CardContent>
     </Card>

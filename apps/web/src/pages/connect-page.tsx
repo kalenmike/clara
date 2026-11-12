@@ -71,7 +71,7 @@ export function ConnectPage() {
           <img src="/clara-mark.png" alt="" className="size-10 shrink-0" />
           <div>
             <img src="/clara-type.png" alt="Clara" className="h-5 w-auto" />
-            <p className="text-xs text-muted-foreground">A web client for OpenCode {lowerPlural}</p>
+            <p className="text-xs text-muted-foreground">A web client for your {lowerPlural}</p>
           </div>
         </div>
 
@@ -106,7 +106,8 @@ export function ConnectPage() {
         />
 
         <p className="text-center text-[11px] text-muted-foreground">
-          The relay only sees encrypted frames. Your OpenCode password never leaves the home server.
+          The relay only sees encrypted frames. Your harness credentials never leave the home
+          server.
         </p>
       </div>
     </div>

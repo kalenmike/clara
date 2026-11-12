@@ -11,7 +11,7 @@ const TODO_TOOL = 'todowrite'
 const STATUSES = new Set<PlanTodoStatus>(['pending', 'in_progress', 'completed', 'cancelled'])
 
 /**
- * The v2 API does not expose todos. OpenCode keeps the current list in the
+ * The v2 API does not expose todos. The harness keeps the current list in the
  * input of the newest completed `todowrite` tool call, so read it from the
  * transcript. An empty list means the agent cleared the plan.
  *

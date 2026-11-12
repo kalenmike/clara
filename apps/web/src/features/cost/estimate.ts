@@ -25,14 +25,14 @@ export function findModel(
   return models.find((item) => item.modelID === model.id && item.providerID === model.providerID)
 }
 
-/** The context size OpenCode uses to choose a pricing tier. */
+/** The context size the harness uses to choose a pricing tier. */
 export function tokensContextTokens(tokens: ClaraTokenUsage | undefined): number | undefined {
   if (!tokens) return undefined
   return tokens.input + tokens.cache.read + tokens.cache.write
 }
 
 /**
- * Pick the price entry for one request. OpenCode applies the highest context
+ * Pick the price entry for one request. The harness applies the highest context
  * tier whose size is strictly exceeded and falls back to the base entry below
  * every tier. Entries without a tier are base prices.
  */
@@ -54,7 +54,7 @@ export function selectCostTier(
 }
 
 /**
- * Recreate OpenCode's calculated cost from token counts and a model's prices.
+ * Recreate the harness's calculated cost from token counts and a model's prices.
  * Reasoning tokens are charged at the output rate. Callers that estimate a
  * whole session can pass the latest request's context size so tiered pricing
  * does not treat the session total as one huge request.

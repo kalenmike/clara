@@ -63,7 +63,7 @@ function useInvalidateProjectSessions(projectID: string) {
 
 /**
  * Archive every session in a project. The project record itself cannot be
- * archived through the OpenCode API, so this is the closest supported action.
+ * archived through the harness API, so this is the closest supported action.
  */
 export function useArchiveProjectSessions(projectID: string) {
   const { client } = useConnection()
