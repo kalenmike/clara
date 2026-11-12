@@ -13,8 +13,8 @@ shared browser key.
 ## User flow
 
 1. Start the hub and open its panel. Complete the one-time setup token and
-   sign in. In **Harness adapters**, choose **OpenCode** and copy the pairing
-   code. On the OpenCode machine, run
+   sign in. In **Harness → Add harness**, choose **OpenCode** and copy the
+   pairing code. On the OpenCode machine, run
    `pnpm clara adapter install --opencode --pair <code>`; the adapter discovers
    OpenCode, prompts for its URL/password if needed, enrolls, and installs both
    the hub-facing adapter and the orchestration binding.

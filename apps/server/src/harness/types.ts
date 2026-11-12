@@ -10,6 +10,8 @@ export type HarnessConnection = {
   label: string
   transport: HarnessTransport
   online: boolean
+  /** Fingerprint of the paired adapter credential. */
+  fingerprint?: string
   adapterVersion?: string
   protocolVersion?: number
   harnessVersion?: string

@@ -13,9 +13,9 @@ for client settings sync.
 2. The **Hub**, **Effective configuration**, **Connected clients**, and
    **Recent activity** cards start expanded; every other card starts collapsed.
    Click a card header to expand or collapse it.
-3. Each transport card carries its own switch at the top right: OpenCode
-   connection, local transport, relay, and push notifications. The status chip
-   sits beside the card title.
+3. Each transport card carries its own switch at the top right: local
+   transport, relay, and push notifications. The Harness switch and status chip
+   sit in the Harness page header.
 4. Toggle one feature. The panel posts the change, waits for the hub service to
    apply it, then refreshes the snapshot. A disabled feature hides its details
    and its header cannot be expanded; enabling it makes the header expandable.

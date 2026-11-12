@@ -102,6 +102,7 @@ function harnessConnection(): HarnessConnection {
     label: 'Test OpenCode',
     transport: 'local',
     online: true,
+    fingerprint: 'harness-fingerprint',
     capabilities: {},
     isActive: true,
     lastTestAt: now,
@@ -145,45 +146,51 @@ function createRuntime(
     probeCalls?: { value: number }
     relay?: RelaySnapshot
     traffic?: TrafficMeter
+    localSessions?: AgentSessionInfo[]
+    relaySessions?: AgentSessionInfo[]
   } = {}
 ): PanelRuntime {
   const runtimeOptions: PanelRuntimeOptions = {
     config: config(dir),
     harness: fakeHarness(options),
-    localAgent: agent([
-      {
-        sid: 'local-sid',
-        kind: 'device',
-        deviceId: 'device-local',
-        deviceLabel: 'Desk',
-        connectedAt: Date.now() - 5_000,
-        lastSeen: Date.now() - 1_000,
-        requests: 2,
-        bytesIn: 2_048,
-        bytesOut: 1_024,
-        requestsTotal: 7,
-        deviceClass: 'desktop',
-        presenceAt: Date.now() - 1_000,
-        holdPhone: true,
-      },
-    ]),
-    relayAgent: agent([
-      {
-        sid: 'relay-sid',
-        kind: 'device',
-        deviceId: 'device-remote',
-        deviceLabel: 'Phone',
-        connectedAt: Date.now() - 3_000,
-        lastSeen: Date.now() - 500,
-        requests: 0,
-        bytesIn: 512,
-        bytesOut: 256,
-        requestsTotal: 1,
-        deviceClass: 'mobile',
-        presenceAt: Date.now() - 500,
-        holdPhone: false,
-      },
-    ]),
+    localAgent: agent(
+      options.localSessions ?? [
+        {
+          sid: 'local-sid',
+          kind: 'device',
+          deviceId: 'device-local',
+          deviceLabel: 'Desk',
+          connectedAt: Date.now() - 5_000,
+          lastSeen: Date.now() - 1_000,
+          requests: 2,
+          bytesIn: 2_048,
+          bytesOut: 1_024,
+          requestsTotal: 7,
+          deviceClass: 'desktop',
+          presenceAt: Date.now() - 1_000,
+          holdPhone: true,
+        },
+      ]
+    ),
+    relayAgent: agent(
+      options.relaySessions ?? [
+        {
+          sid: 'relay-sid',
+          kind: 'device',
+          deviceId: 'device-remote',
+          deviceLabel: 'Phone',
+          connectedAt: Date.now() - 3_000,
+          lastSeen: Date.now() - 500,
+          requests: 0,
+          bytesIn: 512,
+          bytesOut: 256,
+          requestsTotal: 1,
+          deviceClass: 'mobile',
+          presenceAt: Date.now() - 500,
+          holdPhone: false,
+        },
+      ]
+    ),
     relayClient: relayClient(
       options.relay ?? {
         status: 'online',
@@ -274,6 +281,42 @@ describe('PanelRuntime', () => {
     const snapshot = await runtime.snapshot(AUTH)
     expect(snapshot.relay.lastError).toContain('[redacted]')
     expect(snapshot.relay.lastError).not.toContain('sentinel-agent-token')
+  })
+
+  it('reports adapter sessions with harness identity and fingerprint', async () => {
+    const dir = tempDir()
+    writeFileSync(join(dir, 'server.json'), '{}', { mode: 0o600 })
+    const runtime = createRuntime(dir, {
+      localSessions: [
+        {
+          sid: 'adapter-sid',
+          kind: 'adapter',
+          adapterId: 'adapter-a',
+          harnessId: 'harness-a',
+          connectedAt: Date.now() - 2_000,
+          lastSeen: Date.now() - 500,
+          requests: 1,
+          bytesIn: 128,
+          bytesOut: 64,
+          requestsTotal: 2,
+          holdPhone: false,
+        },
+      ],
+      relaySessions: [],
+    })
+
+    const snapshot = await runtime.snapshot(AUTH)
+
+    expect(snapshot.clients).toEqual([
+      expect.objectContaining({
+        sid: 'adapter-sid',
+        kind: 'adapter',
+        transport: 'local',
+        adapterId: 'adapter-a',
+        harnessId: 'harness-a',
+      }),
+    ])
+    expect(snapshot.harnesses[0]?.fingerprint).toBe('harness-fingerprint')
   })
 
   it('caches harness probes between polls', async () => {

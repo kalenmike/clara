@@ -429,6 +429,8 @@ function toClient(
     kind: session.kind,
     ...(session.deviceId ? { deviceId: session.deviceId } : {}),
     ...(session.deviceLabel ? { deviceLabel: session.deviceLabel } : {}),
+    ...(session.adapterId ? { adapterId: session.adapterId } : {}),
+    ...(session.harnessId ? { harnessId: session.harnessId } : {}),
     ...(session.deviceClass ? { deviceClass: session.deviceClass } : {}),
     connectedAt: new Date(session.connectedAt).toISOString(),
     lastSeenAt: new Date(session.lastSeen).toISOString(),

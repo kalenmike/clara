@@ -10,6 +10,7 @@ export function toPanelHarness(connection: HarnessConnection): PanelHarness {
     label: connection.label,
     transport: connection.transport,
     online: connection.online,
+    ...(connection.fingerprint ? { fingerprint: connection.fingerprint } : {}),
     ...(connection.adapterVersion ? { adapterVersion: connection.adapterVersion } : {}),
     ...(connection.protocolVersion !== undefined
       ? { protocolVersion: connection.protocolVersion }

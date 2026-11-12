@@ -36,7 +36,7 @@ export function ClientsTable({
   return (
     <CollapsibleCard
       title="Connected clients"
-      description="Live end-to-end encrypted sessions linked to paired devices"
+      description="Live end-to-end encrypted browser sessions linked to paired devices"
       icon={<Users className="size-4" aria-hidden="true" />}
       action={
         <span className="inline-flex items-center gap-1">
@@ -193,7 +193,8 @@ export function ClientsTable({
           Session IDs are random per connection. A pairing session closes once enrollment completes;
           it carries no device until then. For paired devices, compare the short device id or
           fingerprint with Paired devices when labels match; the fingerprint identifies the key
-          without revealing it. Traffic counters are omitted while monitoring is off.
+          without revealing it. Harness adapter sessions are listed under Harness. Traffic counters
+          are omitted while monitoring is off.
         </p>
       </CardBody>
     </CollapsibleCard>

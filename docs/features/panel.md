@@ -4,8 +4,9 @@
 
 An authenticated control panel served by the hub service. It uses the
 Clara Lab workbench layout: a title bar, an activity rail with tabbed views, and
-a status bar. It shows the hub's live state, transports, connected clients,
-active harness probe, push health, configuration sources, database health,
+a status bar. It shows the hub's live state, transports, browser clients,
+harness adapters, the active harness probe, push health, configuration sources,
+database health,
 storage files, and a live traffic meter without exposing secrets. Sensitive
 values, including the harness URL and relay room, start masked behind a header
 peek control so the panel can be screenshared safely. It is also the one-time
@@ -28,13 +29,14 @@ traffic monitoring on or off, and gates or paces client settings sync.
    automatically), then choose the superadmin password. Later visits show the
    sign-in form. After a host reset, the sign-in form shows a reset link while
    the token is valid.
-3. After signing in, open **Harness adapters**, choose **OpenCode** and the
-   adapter location, then copy the pairing code or install command. Run the
-   command on the machine that runs OpenCode. A new adapter starts as
-   **Paired · Offline**; it becomes **Online** when its credential session
-   connects and the first adapter becomes **Active**. Turning the Harness
-   switch off keeps the credential but shows **Off** instead of a live state.
-   Use **Test** to probe the adapter. In a container, the adapter connects to
+3. After signing in, open **Harness**, use **Add harness**, choose **OpenCode**
+   and the adapter location, then copy the pairing code or install command. Run
+   the command on the machine that runs OpenCode. A new adapter appears under
+   **Paired harnesses** as **Paired · Offline**; when its credential session
+   connects it also appears under **Connected adapters**, becomes **Online**,
+   and the first adapter becomes **Active**. Turning the Harness switch off
+   keeps the credential but shows **Off** instead of a live state. Use **Test**
+   to probe an adapter. In a container, the adapter connects to
    `ws://server:8788/ws` on the `clara` network; `127.0.0.1` means the hub host.
 4. The panel opens on **Overview** with the Hub and Orchestration cards, a
    health strip for Harness, Local, Relay, Push, and Orchestration, the five most
@@ -56,14 +58,20 @@ traffic monitoring on or off, and gates or paces client settings sync.
    update, version, the peek control, **Refresh**, and **Sign out**. The status
    bar along the bottom summarizes the hub, harness, local, relay, push,
    orchestration, and client state; each item opens the matching view.
-7. In **Harness**, each paired adapter shows its **Active** badge and one
-   status badge: **Online** for a live session, **Paired · Offline** when the
+7. **Harness** mirrors the Clients view. The page header carries the active
+   harness health badge, its version/latency detail, and the Harness switch.
+   **Add harness** sits first and owns the harness type, adapter location, and
+   pairing code. **Connected adapters** follows with live adapter sessions:
+   transport, session id, harness label and kind, short harness id, credential
+   fingerprint, timestamps, and the same traffic counters as Clients.
+   **Paired harnesses** sits at the bottom with the label, kind, fingerprint,
+   transport, version, status, last seen, and last test for every enrolled
+   adapter. Each paired row carries **Activate**, **Test**, **Delete**, and
+   **Forget**. A paired adapter shows **Active** when selected and one status
+   badge: **Online** for a live session, **Paired · Offline** when the
    credential exists but no session is connected, **Not paired** before
-   enrollment, or **Off** while the Harness switch is off. Use **Test** to probe
-   the adapter and **Activate** to choose the backend. The adjacent card shows
-   the active adapter transport (masked until revealed), version, latency,
-   credential state, and the Harness switch. Turning the switch off stops
-   hub proxying but keeps the adapter credential.
+   enrollment, or **Off** while the Harness switch is off. Turning the switch
+   off stops hub proxying but keeps the adapter credential.
 8. In **Connections**, toggle local transport, relay, or push from the switch at
    the top right of its card. The choice is saved immediately. An enabled switch
    is green while external connections are on and red while they are off; a disabled switch
@@ -90,7 +98,8 @@ traffic monitoring on or off, and gates or paces client settings sync.
 13. Choose **Go online** to restore the saved choices. Feature switches are
     disabled until connections are back online and show red while they are
     stopped, so the offline state is readable from the switch colors alone.
-14. In **Clients**, review the connected-client table and paired devices. A
+14. In **Clients**, review the browser client table and paired devices. Harness
+    adapter sessions are not listed here; they live under **Harness**. A
     one-time pairing session appears with a **Pairing** badge and no device until
     enrollment finishes; it is excluded from the active count and the local E2EE
     session count. Each paired session row shows the device's display name, short
@@ -183,16 +192,16 @@ traffic monitoring on or off, and gates or paces client settings sync.
 
 ## Edge cases
 
-- **No harness is configured** — the adapter card starts open with the pairing
-  form. Harness-backed `/v1` requests return `503 harness_unconfigured` until
-  an adapter is paired and activated. The web can still connect and shows a
-  harness banner.
-- **The adapter is paired but offline** — the card says **Paired · Offline**,
-  the probe is not run, and harness-backed `/v1` returns `harness_offline`.
-  Start the adapter service; it reconnects automatically.
-- **The harness is turned off** — the adapter card says **Off**, the probe is
-  not run, and proxied requests fail with a disabled error. Local and relay
-  clients stay connected.
+- **No harness is configured** — **Add harness** starts open, and the header
+  says **Not configured**. Harness-backed `/v1` requests return
+  `503 harness_unconfigured` until an adapter is paired and activated. The web
+  can still connect and shows a harness banner.
+- **The adapter is paired but offline** — **Paired harnesses** says
+  **Paired · Offline**, the probe is not run, and harness-backed `/v1` returns
+  `harness_offline`. Start the adapter service; it reconnects automatically.
+- **The harness is turned off** — the page header and paired status say **Off**,
+  the probe is not run, and proxied requests fail with a disabled error. Local
+  and relay clients stay connected.
 - **The adapter credential cannot be opened** — the connection stays listed but
   cannot authenticate. Re-pair the adapter; the rest of the hub keeps running.
 - **The setup token is missing** — the panel explains how to run
@@ -241,7 +250,11 @@ traffic monitoring on or off, and gates or paces client settings sync.
   from the panel.
 - **A feature fails to start** — the saved choice remains, the card shows the
   error, and the rest of the hub keeps running.
-- **No clients** — the client table shows an empty state.
+- **No browser clients** — the client table shows an empty state. A connected
+  harness adapter still appears under **Harness → Connected adapters**.
+- **A harness adapter is connected** — it has its own row under
+  **Connected adapters** with its harness label, kind, short harness id, and
+  credential fingerprint. It never appears in the Clients table or its counts.
 - **A pairing session is listed** — the row carries a **Pairing** badge instead
   of a device. It is the one-time enrollment connection, not a failed client,
   and the hub retires it as soon as the device-enrolled response is sent.
@@ -301,8 +314,8 @@ traffic monitoring on or off, and gates or paces client settings sync.
   hub service restarts.
 - A session that spans a monitoring toggle shows only the traffic recorded while
   monitoring was on.
-- The OpenCode probe is cached for five seconds, so the card can briefly lag a
-  restart.
+- The OpenCode probe is cached for five seconds, so the header can briefly lag
+  a restart.
 - The peek control hides values in the rendered panel only. The JSON snapshot
   still contains them, so browser devtools and the network panel can show them.
 
@@ -369,17 +382,21 @@ traffic monitoring on or off, and gates or paces client settings sync.
 - Dev UI: `pnpm dev:panel` (Vite on `5174`, proxying `/panel/api` to `8790`; the
   proxy rewrites `Host` and `Origin`, and the browser carries the session cookie)
 - Snapshot sections: hub, auth, config, harness, harnesses, devices, local transport,
-  relay, clients, push, controls (feature switches, monitoring, sync,
-  orchestration), storage, events, traffic
+  relay, clients (browser and adapter sessions), push, controls (feature switches,
+  monitoring, sync, orchestration), storage, events, traffic
 - Traffic meter: `apps/server/src/traffic.ts` (sixty one-minute buckets, rates,
   spike detection), fed by `apps/server/src/agent.ts` and read by
   `PanelRuntime`; rendered by the `TrafficCard` in
   `apps/panel/src/components/traffic-card.tsx`
 - Panel controls: per-card switches in
-  `apps/panel/src/components/overview-cards.tsx`, the stop/start action in
+  `apps/panel/src/components/overview-cards.tsx`, the Harness switch in
+  `apps/panel/src/components/views/harness.tsx`, the stop/start action in
   `AgentCard`, the monitoring switch in `TrafficCard`, the gate and interval in
   `apps/panel/src/components/client-sync-card.tsx`, and `useFeatureControl` in
   `apps/panel/src/lib/feature-control.ts`
+- Harness view: `harness-add-card.tsx` (pairing flow),
+  `harness-sessions-card.tsx` (live adapters), and
+  `harness-connections-card.tsx` (paired harnesses and actions)
 - Peek control: `apps/panel/src/lib/peek.ts` (mask and free-text scrubber),
   `apps/panel/src/lib/peek-context.tsx` (tab state), and the header button in
   `apps/panel/src/App.tsx`; the choice is stored under `clara.panel.peek` in

@@ -256,6 +256,8 @@ export class Agent {
         kind: session.kind,
         ...(session.deviceId ? { deviceId: session.deviceId } : {}),
         ...(session.deviceLabel ? { deviceLabel: session.deviceLabel } : {}),
+        ...(session.adapterId ? { adapterId: session.adapterId } : {}),
+        ...(session.harnessId ? { harnessId: session.harnessId } : {}),
         connectedAt: session.connectedAt,
         lastSeen: session.lastSeen,
         requests: session.requests.size,

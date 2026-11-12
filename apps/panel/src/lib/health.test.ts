@@ -113,6 +113,13 @@ describe('harnessHealth', () => {
   it('keeps a disabled harness idle', () => {
     expect(harnessHealth(opencode({ code: 'disabled', desired: false })).tone).toBe('idle')
   })
+
+  it('distinguishes an offline adapter from an unreachable harness', () => {
+    expect(harnessHealth(opencode({ code: 'offline', reachable: false }))).toMatchObject({
+      tone: 'warn',
+      status: 'Adapter offline',
+    })
+  })
 })
 
 describe('localHealth', () => {

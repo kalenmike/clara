@@ -12,13 +12,14 @@ set with environment variables, which take precedence over the panel files.
 ## Connect OpenCode
 
 1. Start the hub and open the panel.
-2. Open **Harness adapters**, choose **OpenCode**, and choose where the adapter
-   runs.
+2. Open **Harness**, use **Add harness**, choose **OpenCode**, and choose where
+   the adapter runs.
 3. Copy the pairing code or install command and run it on the machine that runs
    OpenCode.
-4. The adapter connects out to the hub. The panel shows **Paired · Offline**
-   until the adapter connects, then **Online**. Use **Test** to probe it and
-   **Activate** to choose the backend.
+4. The adapter connects out to the hub. **Paired harnesses** shows
+   **Paired · Offline** until the adapter connects, then **Online** with a live
+   row under **Connected adapters**. Use **Test** to probe it and **Activate**
+   to choose the backend.
 
 Only one adapter is active at a time. Re-pairing keeps the adapter identity and
 Clara session metadata.

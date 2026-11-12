@@ -125,7 +125,7 @@ function buildBadges(snapshot: PanelSnapshot): Partial<Record<PanelTab, RailBadg
   const traffic = snapshot.traffic.spike.length > 0
   const storage = storageHealth(snapshot.storage)
   const eventWarnings = snapshot.events.filter((event) => event.level !== 'info').length
-  const activeClients = snapshot.clients.filter((client) => client.kind !== 'enroll').length
+  const activeClients = snapshot.clients.filter((client) => client.kind === 'device').length
   const attention = health.filter(needsAttention)
 
   const badges: Partial<Record<PanelTab, RailBadge>> = {}

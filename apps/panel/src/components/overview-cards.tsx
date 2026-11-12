@@ -1,11 +1,10 @@
 import { useEffect, useState } from 'react'
-import { Bell, Cpu, Power, Radio, Server, Settings2 } from 'lucide-react'
+import { Bell, Power, Radio, Server, Settings2 } from 'lucide-react'
 import type {
   PanelAgentInfo,
   PanelConfigInfo,
   PanelControls,
   PanelLocalTransport,
-  PanelOpenCodeInfo,
   PanelPushInfo,
   PanelRelayTransport,
   PanelValueSource,
@@ -133,107 +132,6 @@ export function AgentCard({
           {masked ? PEEK_MASK : agent.configPath}
         </KeyValue>
         <KeyValue label="Paired devices">{agent.pairedDevices}</KeyValue>
-      </CardBody>
-    </CollapsibleCard>
-  )
-}
-
-export function OpenCodeCard({
-  opencode,
-  controls,
-  onChanged,
-  now,
-  defaultExpanded = false,
-}: {
-  opencode: PanelOpenCodeInfo
-  controls: PanelControls
-  onChanged: () => void
-  now: number
-  defaultExpanded?: boolean
-}) {
-  const feature = findFeature(controls, 'opencode')
-  const control = useFeatureControl(feature, controls.stopped, onChanged)
-  const { masked, redact } = usePeek()
-  const disabled = opencode.code === 'disabled'
-  const unconfigured = opencode.code === 'unconfigured'
-  const offline = opencode.code === 'offline'
-  const tone: Tone = disabled
-    ? 'neutral'
-    : unconfigured
-      ? 'warning'
-      : opencode.reachable
-        ? 'success'
-        : opencode.code === 'auth' || offline
-          ? 'warning'
-          : 'danger'
-  const status = unconfigured
-    ? 'Not configured'
-    : disabled
-      ? 'Disabled'
-      : opencode.reachable
-        ? 'Reachable'
-        : offline
-          ? 'Adapter offline'
-          : opencode.code === 'auth'
-            ? 'Auth rejected'
-            : opencode.code === 'timeout'
-              ? 'Timed out'
-              : 'Unreachable'
-
-  return (
-    <CollapsibleCard
-      title="Harness"
-      description="The active harness connection this hub proxies"
-      icon={<Cpu className="size-4" aria-hidden="true" />}
-      action={<Badge tone={tone}>{status}</Badge>}
-      defaultExpanded={defaultExpanded}
-      expandable={feature.desired && opencode.configured}
-      control={
-        <Toggle
-          checked={feature.desired}
-          onChange={control.toggle}
-          label={`Harness connection: ${feature.desired ? 'on' : 'off'}`}
-          state={control.pending ? 'pending' : feature.desired ? 'on' : 'off'}
-          disabled={control.disabled}
-          stopped={controls.stopped}
-          title={control.title}
-        />
-      }
-      notice={
-        control.error ? (
-          <div className="px-4 pt-3">
-            <Notice tone="danger">{redact(control.error)}</Notice>
-          </div>
-        ) : null
-      }
-    >
-      <CardBody>
-        <KeyValue label="URL">
-          <span className="inline-flex flex-wrap items-center justify-end gap-2">
-            <span className="font-mono text-xs">
-              {opencode.url ? (masked ? PEEK_MASK : opencode.url) : 'Not configured'}
-            </span>
-            {opencode.url && !masked ? <CopyButton value={opencode.url} label="Copy URL" /> : null}
-          </span>
-        </KeyValue>
-        <KeyValue label="Desired">{opencode.desired ? 'On' : 'Off'}</KeyValue>
-        <KeyValue label="Effective">{opencode.effective ? 'On' : 'Off'}</KeyValue>
-        <KeyValue label="Version">{opencode.version ?? 'Unknown'}</KeyValue>
-        <KeyValue label="Latency">{opencode.latencyMs ?? '—'} ms</KeyValue>
-        <KeyValue label="Secret">
-          {opencode.passwordConfigured ? 'Configured' : 'Not configured'}
-        </KeyValue>
-        <KeyValue label="Checked" title={formatTimestamp(opencode.checkedAt)}>
-          {formatRelative(opencode.checkedAt, now)}
-        </KeyValue>
-        {opencode.error && !disabled && !unconfigured ? (
-          <Notice tone="danger">{redact(opencode.error)}</Notice>
-        ) : null}
-        {unconfigured ? (
-          <p className="pt-2 text-xs text-neutral-500 dark:text-neutral-400">
-            Add an OpenCode connection in the Harness connections card.
-          </p>
-        ) : null}
       </CardBody>
     </CollapsibleCard>
   )
