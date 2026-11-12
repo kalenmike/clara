@@ -140,7 +140,7 @@ every case.
   message ordering therefore relies on the order the transcript snapshot holds.
 - Forwarded text is stored as a local composer draft until sent. Reloading keeps
   the text, but not attachments.
-- A forwarded assistant reply is presented as user input, because OpenCode has
+- A forwarded assistant reply is presented as user input, because the harness has
   no stable API for injecting an assistant message into a new session.
 
 ## Technical appendix

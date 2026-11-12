@@ -2,7 +2,7 @@
 
 ## Summary
 
-The chat view is where people read and steer an OpenCode session. It shows the
+The chat view is where people read and steer a harness session. It shows the
 conversation history, streams new output as it arrives, exposes tool activity,
 and pauses for approval when the agent needs permission. Prompt and reply text
 renders as GitHub-flavored Markdown, with single line breaks preserved in
@@ -25,7 +25,7 @@ names the active agent. Actions
 Clara triggers on the person's behalf — requesting a plan,
 refreshing it, and starting work — and the person's answers to an agent
 question appear as compact system rows in the thread rather than as if the
-person had typed them. OpenCode's mode reminders appear as collapsed
+person had typed them. The harness's mode reminders appear as collapsed
 **System Reminder** rows, shown only when internal output is on, whose detail is
 the reminder text without its tags.
 When a
@@ -262,7 +262,7 @@ See [fork.md](fork.md).
     Request Plan and Request Update actions. Worker question forms stay above
     the thread because there is no composer. When orchestration is off, the
     same session uses the normal chat controls.
-17. If a message-sending request fails with OpenCode's `LocationNotFoundError`,
+17. If a message-sending request fails with the harness's `LocationNotFoundError`,
     Clara shows a toast that the workspace folder is missing, moves the session
     to the project's canonical directory with `session.move`, and retries the
     same request once. This covers prompts, queued messages, commands, saved

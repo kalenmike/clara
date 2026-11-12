@@ -31,7 +31,7 @@ can answer a form or start work with an optional custom message.
 3. Press Enter to send with steering, or Shift+Enter to add a line. On touch
    devices Enter always adds a line; tap Send to submit.
 4. Before the first agent reply, use the send button's chevron menu and choose
-   **Save as draft**. Clara sends the prompt with OpenCode's no-reply mode,
+   **Save as draft**. Clara sends the prompt with the harness's no-reply mode,
    updates an untitled session to a short title, and leaves the session in
    Drafts. The draft message appears in the thread and a **Start** panel appears
    above it.
@@ -95,14 +95,14 @@ can answer a form or start work with an optional custom message.
    reply. It calls `session.prompt` with `resume: false`, which admits the
    message to the session inbox without starting a run. An untitled session is
    renamed to the first 50 characters of the message plus `…` when truncated.
-   The session stays in Drafts because OpenCode has no projected messages yet.
+   The session stays in Drafts because the harness has no projected messages yet.
 9. Pending inbox messages are rendered in the thread as draft user messages. A
    **Start** panel above the thread appears when an idle session still has a
    pending user item; it sends a short synthetic approval with steering, which
    delivers the queued draft and starts the run. The handoff renders as a
    system event instead of a user prompt.
 10. **Send as queued** calls `session.prompt` or `session.command` with
-    `delivery: 'queue'`. OpenCode keeps the input pending and promotes it as the
+    `delivery: 'queue'`. The harness keeps the input pending and promotes it as the
     next turn when the session would otherwise become idle, so the active run is
     not redirected. The queued message renders in the thread while it waits.
 11. The window is connected to one session at a time. While open or minimized it

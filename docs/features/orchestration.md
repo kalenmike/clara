@@ -95,7 +95,7 @@ hidden automation.
 
 ## Container deployment
 
-The orchestrator can run as a container on the same Docker network as OpenCode
+The orchestrator can run as a container on the same Docker network as the harness
 and the hub. That is the preferred setup when the hub itself is
 containerized. `pnpm clara start` brings up the orchestrator, hub, and
 web client together; the steps below cover the orchestrator-only path.
@@ -120,7 +120,7 @@ orchestrator container is named `clara-orchestrator`.
    exported in the shell: `down` fills the required compose variables with
    absolute placeholders before Compose interpolates the file.
 
-3. Join the OpenCode container to the `clara` network and set:
+3. Join the harness container to the `clara` network and set:
 
    ```sh
    CLARA_ORCHESTRATION_URL=http://orchestrator:8789
@@ -141,7 +141,7 @@ orchestrator container is named `clara-orchestrator`.
    pnpm clara server setup-token --docker
    ```
 
-   In its panel, use `http://opencode:4096` when OpenCode is a container on the
+   In its panel, use `http://opencode:4096` when the harness is a container on the
    `clara` network. The orchestrator URL is set with
    `CLARA_ORCHESTRATION_HOST=orchestrator` and port `8789`.
 
@@ -161,7 +161,7 @@ orchestrator container is named `clara-orchestrator`.
    for a remote deployment (`CLARA_PAIRING_BASE_URL` overrides it), and set
    `VITE_CLARA_WS_URL` in `infra/docker/.env` and rebuild only when the browser must
    use a different relay endpoint than the hub. The web container is static
-   and does not proxy OpenCode traffic.
+   and does not proxy harness traffic.
 
 The compose service sets `CLARA_ORCHESTRATION_WORKSPACE=/workspace/clara`, which
 is the path the service reports to Clara Lab. Change it only if you move the
@@ -669,7 +669,7 @@ operator can start it directly with `target: std:diagnostics`. See
 
 The `std:maintenance` package has three pipelines. `rebuild` snapshots the
 running services and adapters, runs `pnpm install --frozen-lockfile` and
-`pnpm build`, installs the OpenCode adapter, restarts only the services that
+`pnpm build`, installs the configured harness adapters, restarts only the services that
 were running, and verifies every health endpoint. `recover` restores services
 from the current snapshot without rebuilding or recapturing. `diagnose` collects
 a failed run and the snapshot, classifies the failure with two read-only agents,

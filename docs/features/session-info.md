@@ -4,7 +4,7 @@
 
 The session info tab answers "how big is this conversation and what has it
 cost?" It shows context usage against the model limit, token breakdowns, message
-counts, timing, and the active model's limits. Cost can be the amount OpenCode
+counts, timing, and the active model's limits. Cost can be the amount the harness
 reports or an estimate calculated from model prices. A Plan dock below the tabs
 renders the agent's todo checklist on every tab, so the plan stays visible while
 the person watches Git or the pair terminal. It shares the right panel with the
@@ -183,8 +183,8 @@ of the session's token and cost totals also sits in the chat's bottom usage bar
   cache write, divided by 1,000,000; context tiers use input + cache read + write
 - Per-message cost: `src/features/chat/usage-summary.ts` and
   `src/features/chat/timeline.ts`
-- Server prerequisite: OpenCode must enable `experimental.todo` before it
-  registers the `todowrite` tool
+- Server prerequisite for OpenCode: the server must enable
+  `experimental.todo` before it registers the `todowrite` tool
 - Context percentages are clamped to 100 and never show a negative width.
 - Related: [chat](chat.md), [git](git.md), [capabilities](capabilities.md)
 

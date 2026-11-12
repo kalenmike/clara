@@ -29,7 +29,7 @@ taste without giving up automatic appearance changes.
 2. Default is the palette Clara already used before color themes existed, so
    existing users see no change until they choose another theme.
 3. The color theme is stored locally in `clara.colorTheme`; the mode remains
-   stored under `clara.theme` by `next-themes`. Neither is sent to the OpenCode
+   stored under `clara.theme` by `next-themes`. Neither is sent to the harness
    server. When **Theme** sync is enabled on this device, the Clara hub
    stores both keys and its values win on a pull; see [sync](sync.md).
 4. The selected palette is applied as `data-theme` on the document root, while
@@ -68,7 +68,7 @@ taste without giving up automatic appearance changes.
 
 - A theme editor or user-defined palettes.
 - Per-project, per-session, or per-agent themes.
-- Syncing appearance settings to the OpenCode server. Cross-device sharing is
+- Syncing appearance settings to the harness server. Cross-device sharing is
   available only through the optional Clara settings sync described in
   [sync](sync.md).
 - Importing VS Code, Neovim, or terminal color schemes.

@@ -3,7 +3,7 @@
 ## Summary
 
 The project and session browser is how people find their work. Projects group
-sessions by the directory OpenCode opened; sessions are the units of conversation
+sessions by the directory the harness opened; sessions are the units of conversation
 that Clara opens in the chat view. The sidebar switcher keeps the seven most
 recently active non-empty projects, while the All projects page shows every
 non-empty project with session counts and server-side rename. A filter on the
@@ -52,7 +52,7 @@ column or bulk toolbar.
 9. The All projects page shows one card per canonical, non-empty project with
    its directory, last activity, and active/archived session counts. A filter
    icon at the far right of the header opens a **Show empty projects** switch,
-   off by default. The card menu renames the project on the OpenCode server; the
+   off by default. The card menu renames the project on the harness server; the
    directory does not change.
 10. The project page uses the same page shell as Settings and All projects. A
     project info card shows the directory, ID, icon, VCS, commands, sandboxes,
@@ -143,11 +143,11 @@ column or bulk toolbar.
    idle, the latest message author decides (agent → Inbox, user → Outbox).
    Internal messages such as `idle`, `system`, and model switches are ignored.
    A follow-up queued from the composer while a run is active is a pending inbox
-   item; OpenCode promotes it as the next turn when the session would otherwise
+   item; the harness promotes it as the next turn when the session would otherwise
    become idle.
 6. Drafts contains sessions with no projected user or assistant messages that
    are not running. This includes new empty sessions and sessions whose first
-   message was saved with OpenCode's no-reply mode and still sits in the session
+   message was saved with the harness's no-reply mode and still sits in the session
    inbox. The queued message is shown in the chat and can be started from the
    Start panel.
 7. Archive state comes only from the server's `archived` timestamp, and snooze
@@ -204,7 +204,7 @@ column or bulk toolbar.
     wording replaces that noun in every user-facing label, placeholder, toast,
     and notification. The setting offers Brief, Task, Session, Action, Run, and
     Job presets or any custom singular word, derives the plural, and stores the
-    choice in the browser. OpenCode's API and Clara's internal code still use
+    choice in the browser. The harness API and Clara's internal code still use
     `session`.
 16. Project recency comes from the server's `time.active`; the switcher takes
     the newest seven and pins the current project when it falls outside them.
@@ -212,18 +212,18 @@ column or bulk toolbar.
     with zero total sessions are hidden from both views by default; the header
     filter reveals them and saves the choice on the device. The current project
     stays pinned in the switcher even when it is empty. Project names are saved
-    with `client.project.update` on the OpenCode server, so a rename reaches
+    with `client.project.update` on the harness server, so a rename reaches
     every Clara client and never becomes a local-only label. Session counts split
     on `time.archived`; the statistics request is capped and the total shows `+`
     when it reaches the cap.
-17. Project bulk actions are session-level only. OpenCode has no project
+17. Project bulk actions are session-level only. The harness has no project
     archive or delete endpoint. **Archive all sessions** archives every
     non-archived session in the project, and **Delete all sessions** permanently
     deletes every session. Both actions load every page of the project's session
     list before writing, run four writes at a time, and leave the project record
     and directory untouched.
 18. Project settings are shared server metadata. Clara writes a custom icon to
-    `icon.override` as a 128×128 PNG data URL, writes one of OpenCode's six
+    `icon.override` as a 128×128 PNG data URL, writes one of six harness
     avatar colors to `icon.color`, and writes the workspace startup command to
     `commands.start`. It never writes the server-discovered `icon.url`.
 19. While the orchestration service is reachable, a session whose metadata says
@@ -235,10 +235,10 @@ column or bulk toolbar.
     Removing a custom image reveals the selected color or discovered favicon.
     Every project avatar in the sidebar, All projects cards, and project page
     follows that order.
-20. OpenCode runs `commands.start` after it creates a new worktree. Clara does
+20. The harness runs `commands.start` after it creates a new worktree. Clara does
     not create worktrees, so New brief does not run the startup script; the
-    setting is for OpenCode Desktop, the CLI, and future workspace support.
-21. OpenCode hides a project from `project.list()` after its directory has been
+    setting is for the harness desktop app, the CLI, and future workspace support.
+21. The harness hides a project from `project.list()` after its directory has been
     missing for an hour, and restores it when a directory-scoped request
     resolves the directory again. On connect and from **Refresh projects**,
     Clara lists archived projects and probes each canonical directory with
@@ -252,7 +252,7 @@ column or bulk toolbar.
 ## Edge cases
 
 - **No projects** — an empty state explains that a directory must be opened with
-  OpenCode first.
+  the harness first.
 - **Project directory returns** — Clara restores the project on connect or when
   **Refresh projects** runs in the switcher, without another server restart.
 - **Project directory is still missing** — the project stays archived and hidden;
@@ -268,7 +268,7 @@ column or bulk toolbar.
 - **Project icon save fails** — the preview returns to the server's icon and a
   toast reports the failure.
 - **Project has a color and a discovered favicon** — the color avatar wins in
-  Clara, matching OpenCode; choosing **Default** reveals the favicon again.
+  Clara, matching the harness; choosing **Default** reveals the favicon again.
 - **Custom project icon removed** — only `icon.override` is cleared; the
   discovered favicon and selected color stay on the server.
 - **Startup script save fails** — the input keeps the text and a toast reports
@@ -452,7 +452,7 @@ column or bulk toolbar.
   center-crops, rejects inputs over 5 MB or results over 256 KB, and re-encodes
   as PNG
 - Workspace startup script: `commands.start`, capped at 4,096 characters in the
-  settings input; OpenCode runs it after creating a new worktree
+  settings input; the harness runs it after creating a new worktree
 - Project statistics: `client.session.list({ project: projectID, limit: 1000 })`
   counted by `time.archived`; the total shows `+` at the cap
 - Project page: `PageShell` with a `ProjectInfoCard` and `ProjectSettingsCard`;
