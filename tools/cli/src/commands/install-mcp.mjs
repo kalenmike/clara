@@ -22,7 +22,7 @@ import {
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..', '..', '..', '..')
 const mcpEntry = join(root, 'packages', 'mcp', 'dist', 'index.js')
-const apiMcpEntry = join(root, 'apps', 'api-mcp', 'dist', 'index.js')
+const apiMcpEntry = join(root, 'packages', 'api-mcp', 'dist', 'index.js')
 const orchestratorEntry = join(root, 'apps', 'orchestrator', 'dist', 'index.js')
 const configHome = process.env.XDG_CONFIG_HOME?.trim() || join(homedir(), '.config')
 const opencodeDir = join(configHome, 'opencode')
@@ -56,7 +56,7 @@ function install() {
     fail('The MCP bridge is not built. Run `pnpm --filter @clara/mcp build` first.')
   }
   if (withApi && !existsSync(apiMcpEntry)) {
-    fail('The API MCP bridge is not built. Run `pnpm --filter @clara/api-mcp-app build` first.')
+    fail('The API MCP bridge is not built. Run `pnpm --filter @clara/api-mcp build` first.')
   }
   mkdirSync(opencodeDir, { recursive: true, mode: 0o700 })
   const config = readConfig()

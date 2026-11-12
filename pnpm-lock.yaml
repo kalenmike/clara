@@ -97,34 +97,6 @@ importers:
         specifier: ^5.0.5
         version: 5.0.5(@types/node@24.19.2)(vite@8.3.5(@types/node@24.19.2)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1))
 
-  apps/api-mcp:
-    dependencies:
-      '@clara/api-client':
-        specifier: workspace:*
-        version: link:../../packages/api-client
-      '@clara/api-mcp':
-        specifier: workspace:*
-        version: link:../../packages/api-mcp
-      '@modelcontextprotocol/sdk':
-        specifier: ^1.24.3
-        version: 1.32.2(zod@4.6.7)
-    devDependencies:
-      '@types/node':
-        specifier: ^24.19.2
-        version: 24.19.2
-      tsup:
-        specifier: ^9.0.0
-        version: 9.0.0(jiti@2.7.0)(postcss@8.5.32)(tsx@4.23.15)(typescript@6.0.3)(yaml@2.9.1)
-      tsx:
-        specifier: ^4.23.15
-        version: 4.23.15
-      typescript:
-        specifier: ~6.0.3
-        version: 6.0.3
-      vitest:
-        specifier: ^5.0.5
-        version: 5.0.5(@types/node@24.19.2)(vite@8.3.5(@types/node@24.19.2)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1))
-
   apps/docs:
     dependencies:
       '@docusaurus/core':
@@ -607,6 +579,9 @@ importers:
 
   packages/api-mcp:
     dependencies:
+      '@clara/api-client':
+        specifier: workspace:*
+        version: link:../api-client
       '@modelcontextprotocol/sdk':
         specifier: ^1.24.3
         version: 1.32.2(zod@4.6.7)
@@ -617,6 +592,12 @@ importers:
       '@types/node':
         specifier: ^24.19.2
         version: 24.19.2
+      tsup:
+        specifier: ^9.0.0
+        version: 9.0.0(jiti@2.7.0)(postcss@8.5.32)(tsx@4.23.15)(typescript@6.0.3)(yaml@2.9.1)
+      tsx:
+        specifier: ^4.23.15
+        version: 4.23.15
       typescript:
         specifier: ~6.0.3
         version: 6.0.3

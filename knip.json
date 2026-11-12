@@ -39,9 +39,6 @@
     "packages/api-mcp": {
       "project": ["src/**/*.ts", "test/**/*.ts"]
     },
-    "apps/api-mcp": {
-      "project": ["src/**/*.ts"]
-    },
     "packages/crypto": {
       "project": ["src/**/*.ts", "test/**/*.ts"]
     },

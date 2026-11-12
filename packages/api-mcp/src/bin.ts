@@ -1,8 +1,8 @@
 #!/usr/bin/env node
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js'
-import { createClaraApiServer } from '@clara/api-mcp'
 import { HttpBackend } from './backend.ts'
 import { apiToken, apiURL } from './config.ts'
+import { createClaraApiServer } from './server.ts'
 
 async function main(): Promise<void> {
   const url = apiURL()

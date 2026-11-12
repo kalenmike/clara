@@ -26,9 +26,6 @@
       "path": "./packages/api-mcp"
     },
     {
-      "path": "./apps/api-mcp"
-    },
-    {
       "path": "./workers/relay"
     },
     {

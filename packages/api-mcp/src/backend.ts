@@ -6,7 +6,7 @@ import type {
   MessageListQuery,
   SessionListQuery,
   VcsDiffQuery,
-} from '@clara/api-mcp'
+} from './types.ts'
 
 export class HttpBackend implements ClaraApiReadBackend {
   private readonly client: ClaraClient
