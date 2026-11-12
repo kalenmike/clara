@@ -236,6 +236,47 @@ describe('adapter sessions', () => {
     }
   })
 
+  it('clears the live adapter when the agent resets', async () => {
+    const frames: WireFrame[] = []
+    let live: ((request: Request) => Promise<Response>) | undefined
+    const cleared: string[] = []
+    const adapters: AdapterSessionHandler = {
+      pairingToken: async () => undefined,
+      credential: async (id) =>
+        id === 'adapter-a'
+          ? { adapterId: 'adapter-a', harnessId: 'harness-a', key: ADAPTER_KEY }
+          : undefined,
+      enroll: async () => {
+        throw new Error('not used')
+      },
+      setLive: async (_harnessId, fetch) => {
+        live = fetch
+      },
+      clearLive: async (harnessId) => {
+        live = undefined
+        cleared.push(harnessId)
+      },
+    }
+    const agent = new Agent({
+      api: api(),
+      devices: devices(),
+      info: { version: 'test', protocol: PROTOCOL_VERSION },
+      send: (frame) => frames.push(frame),
+      adapters,
+    })
+
+    try {
+      await connect(agent, frames, { adapterId: 'adapter-a', key: ADAPTER_KEY })
+      await waitFor(() => live)
+      agent.reset()
+      await waitFor(() => (cleared.length > 0 ? true : undefined))
+      expect(cleared).toEqual(['harness-a'])
+      expect(agent.sessionCount).toBe(0)
+    } finally {
+      agent.close()
+    }
+  })
+
   it('carries a hub request over the live adapter session', async () => {
     const frames: WireFrame[] = []
     let live: ((request: Request) => Promise<Response>) | undefined

@@ -68,6 +68,7 @@ type Session = {
   adapterId?: string
   harnessId?: string
   adapterBridge?: AdapterSessionBridge
+  adapterFetch?: (request: Request) => Promise<Response>
   isAdapter?: boolean
   keys: SessionKeys
   sendSeq: number
@@ -119,7 +120,7 @@ export type AdapterSessionHandler = {
     fetch: (request: Request) => Promise<Response>,
     transport: PanelTransport
   ) => Promise<void>
-  clearLive: (harnessId: string) => Promise<void>
+  clearLive: (harnessId: string, fetch?: (request: Request) => Promise<Response>) => Promise<void>
 }
 
 export type AgentPolicy = {
@@ -209,11 +210,9 @@ export class Agent {
   }
 
   reset(): void {
-    for (const session of this.sessions.values()) {
-      this.abortSession(session)
-      this.options.traffic?.recordSessionClosed()
-    }
-    this.sessions.clear()
+    // Go through closeSession so adapter sessions also clear their live fetch.
+    // Leaving a stale fetch behind makes every later harness request hang.
+    for (const session of [...this.sessions.values()]) this.closeSession(session)
   }
 
   /**
@@ -404,11 +403,9 @@ export class Agent {
     })
     this.enqueue(session, { type: 'ready', agent: this.options.info })
     if (kind === 'adapter' && harnessId && session.adapterBridge) {
-      await this.options.adapters?.setLive(
-        harnessId,
-        (request) => session.adapterBridge!.fetch(request),
-        this.transport
-      )
+      const fetch = (request: Request) => session.adapterBridge!.fetch(request)
+      session.adapterFetch = fetch
+      await this.options.adapters?.setLive(harnessId, fetch, this.transport)
     }
   }
 
@@ -640,8 +637,8 @@ export class Agent {
     if (this.sessions.get(session.sid) !== session) return
     this.sessions.delete(session.sid)
     this.abortSession(session)
-    if (session.kind === 'adapter' && session.harnessId) {
-      void this.options.adapters?.clearLive(session.harnessId)
+    if (session.kind === 'adapter' && session.harnessId && session.adapterFetch) {
+      void this.options.adapters?.clearLive(session.harnessId, session.adapterFetch)
     }
     this.options.traffic?.recordSessionClosed()
   }

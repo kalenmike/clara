@@ -80,11 +80,16 @@ export class HarnessManager {
     }
 
     const started = Date.now()
+    const controller = new AbortController()
     try {
-      const response = await fetch(
-        new Request('http://adapter/harness/v1/info', {
-          signal: AbortSignal.timeout(timeoutMs),
-        })
+      const response = await withTimeout(
+        fetch(
+          new Request('http://adapter/harness/v1/info', {
+            signal: controller.signal,
+          })
+        ),
+        timeoutMs,
+        () => controller.abort(timeoutError(timeoutMs))
       )
       const latencyMs = Date.now() - started
       if (!response.ok) {
@@ -216,7 +221,10 @@ export class HarnessManager {
     await this.notify()
   }
 
-  async clearLive(harnessId: string): Promise<void> {
+  async clearLive(harnessId: string, fetch?: Fetch): Promise<void> {
+    // A late close from an old adapter session must not remove the session that
+    // replaced it. Without a fetch argument the caller explicitly clears it.
+    if (fetch && this.live.get(harnessId) !== fetch) return
     this.live.delete(harnessId)
     this.store.setOnline(harnessId, false)
     this.bump()
@@ -303,4 +311,36 @@ export class HarnessManager {
       }
     }
   }
+}
+
+/**
+ * Bound a probe even if the transport ignores its abort signal. A hung probe
+ * otherwise stays cached in the panel runtime and blocks every later snapshot.
+ */
+async function withTimeout<T>(
+  promise: Promise<T>,
+  timeoutMs: number,
+  onTimeout: () => void
+): Promise<T> {
+  let timer: ReturnType<typeof setTimeout> | undefined
+  try {
+    return await Promise.race([
+      promise,
+      new Promise<never>((_, reject) => {
+        timer = setTimeout(() => {
+          onTimeout()
+          reject(timeoutError(timeoutMs))
+        }, timeoutMs)
+        timer.unref?.()
+      }),
+    ])
+  } finally {
+    if (timer) clearTimeout(timer)
+  }
+}
+
+function timeoutError(timeoutMs: number): Error {
+  const error = new Error(`The adapter did not answer within ${timeoutMs}ms`)
+  error.name = 'TimeoutError'
+  return error
 }
