@@ -7,6 +7,7 @@ import { catalogSummary, compileRun, loadCatalog } from '../src/index.ts'
 
 const root = fileURLToPath(new URL('../../../', import.meta.url))
 const config = `${root}/orchestration/index.yml`
+const stdRoot = join(root, 'packages', 'orchestration', 'std')
 
 function pipelinePackage(steps: string[]): string {
   const dir = mkdtempSync(join(tmpdir(), 'clara-wiring-'))
@@ -34,6 +35,24 @@ describe('package loader', () => {
     const software = summary.find((pkg) => pkg.id === 'software')
     expect(software?.pipelines).toEqual(['bug', 'docs', 'feature'])
     expect(software?.routers).toContain('classifier')
+  })
+
+  it('resolves standard packages bundled with the engine from any workspace', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'clara-bundled-std-'))
+    try {
+      mkdirSync(join(dir, 'orchestration'))
+      writeFileSync(
+        join(dir, 'orchestration', 'index.yml'),
+        ['id: temp', 'name: Temp', 'version: 1', 'imports:', '  std:', '    - path: software'].join(
+          '\n'
+        )
+      )
+      const catalog = loadCatalog(join(dir, 'orchestration', 'index.yml'))
+      expect(catalog.stdDir).toBe(stdRoot)
+      expect(compileRun(catalog, 'std:software/feature').root.kind).toBe('pipeline')
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
   })
 
   it('compiles the package entry router and a named pipeline', () => {
@@ -258,7 +277,6 @@ describe('package loader', () => {
 
   it('keeps standard packages free of model and provider defaults', () => {
     const catalog = loadCatalog(config)
-    const stdRoot = join(root, 'lib', 'std')
     const std = catalog.packages.filter((pkg) => pkg.dir.startsWith(stdRoot))
     expect(std.length).toBeGreaterThan(0)
     for (const pkg of std) {
@@ -289,7 +307,7 @@ describe('package loader', () => {
           '  provider: workspace-provider',
           'imports:',
           '  std:',
-          `    - path: ${join(root, 'lib', 'std', 'software')}`,
+          `    - path: ${join(stdRoot, 'software')}`,
         ].join('\n')
       )
       const catalog = loadCatalog(dir)
@@ -418,7 +436,7 @@ describe('package loader', () => {
           '        provider: task-provider',
           'imports:',
           '  std:',
-          `    - path: ${join(root, 'lib', 'std', 'software')}`,
+          `    - path: ${join(stdRoot, 'software')}`,
         ].join('\n')
       )
       const catalog = loadCatalog(dir)
@@ -456,7 +474,7 @@ describe('package loader', () => {
             'version: 1',
             'imports:',
             '  std:',
-            `    - path: ${join(root, 'lib', 'std', 'software')}`,
+            `    - path: ${join(stdRoot, 'software')}`,
             'overrides:',
             ...overrides,
           ].join('\n')
