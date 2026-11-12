@@ -365,7 +365,7 @@ traffic monitoring on or off, and gates or paces client settings sync.
     `secrets.key` is generated in the config directory
   - `CLARA_ADMIN_SETUP_TOKEN` or `CLARA_ADMIN_SETUP_TOKEN_FILE` supplies the first-run token
 - CLI: `clara-server serve --no-panel`, `clara-server admin reset|setup-token`
-- Built assets: `apps/server/dist/panel`, copied from `apps/panel/dist`
+- Built assets: `apps/hub/server/dist/panel`, copied from `apps/hub/panel/dist`
 - Open the built panel: `pnpm clara server panel` opens
   `http://127.0.0.1:${CLARA_PANEL_PORT:-8790}/` in a browser when the hub service is
   already serving it; start the hub with `pnpm clara server start --local`
@@ -384,22 +384,22 @@ traffic monitoring on or off, and gates or paces client settings sync.
 - Snapshot sections: hub, auth, config, harness, harnesses, devices, local transport,
   relay, clients (browser and adapter sessions), push, controls (feature switches,
   monitoring, sync, orchestration), storage, events, traffic
-- Traffic meter: `apps/server/src/traffic.ts` (sixty one-minute buckets, rates,
-  spike detection), fed by `apps/server/src/agent.ts` and read by
+- Traffic meter: `apps/hub/server/src/traffic.ts` (sixty one-minute buckets, rates,
+  spike detection), fed by `apps/hub/server/src/agent.ts` and read by
   `PanelRuntime`; rendered by the `TrafficCard` in
-  `apps/panel/src/components/traffic-card.tsx`
+  `apps/hub/panel/src/components/traffic-card.tsx`
 - Panel controls: per-card switches in
-  `apps/panel/src/components/overview-cards.tsx`, the Harness switch in
-  `apps/panel/src/components/views/harness.tsx`, the stop/start action in
+  `apps/hub/panel/src/components/overview-cards.tsx`, the Harness switch in
+  `apps/hub/panel/src/components/views/harness.tsx`, the stop/start action in
   `AgentCard`, the monitoring switch in `TrafficCard`, the gate and interval in
-  `apps/panel/src/components/client-sync-card.tsx`, and `useFeatureControl` in
-  `apps/panel/src/lib/feature-control.ts`
+  `apps/hub/panel/src/components/client-sync-card.tsx`, and `useFeatureControl` in
+  `apps/hub/panel/src/lib/feature-control.ts`
 - Harness view: `harness-add-card.tsx` (pairing flow),
   `harness-sessions-card.tsx` (live adapters), and
   `harness-connections-card.tsx` (paired harnesses and actions)
-- Peek control: `apps/panel/src/lib/peek.ts` (mask and free-text scrubber),
-  `apps/panel/src/lib/peek-context.tsx` (tab state), and the header button in
-  `apps/panel/src/App.tsx`; the choice is stored under `clara.panel.peek` in
+- Peek control: `apps/hub/panel/src/lib/peek.ts` (mask and free-text scrubber),
+  `apps/hub/panel/src/lib/peek-context.tsx` (tab state), and the header button in
+  `apps/hub/panel/src/App.tsx`; the choice is stored under `clara.panel.peek` in
   `sessionStorage`
 - Policy storage: `monitoring.enabled`, added by migration `3`;
   `sync.enabled` and `sync.intervalMs`, added by migration `4`;

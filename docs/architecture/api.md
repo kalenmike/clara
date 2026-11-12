@@ -78,7 +78,7 @@ read-only MCP uses that header for every call.
   registered directly with `hono-openapi`'s resolver. There is no generated
   schema file or regeneration step.
 
-`@opencode/client` is an implementation detail of `apps/adapter-opencode` and `apps/lab`. The hub has no OpenCode dependency.
+`@opencode/client` is an implementation detail of `apps/adapters/opencode` and `tools/lab`. The hub has no OpenCode dependency.
 The web, `@clara/api-client`, and `@clara/api-contract` use the Clara DTOs and
 must not import it.
 
@@ -120,7 +120,7 @@ Common codes are `unauthorized`, `read_only`, `disabled`,
 
 ## Read-only MCP
 
-`apps/api-mcp` is a stdio MCP bridge to the loopback API. It exposes only read
+`packages/api/mcp` is a stdio MCP bridge to the loopback API. It exposes only read
 tools, sends `x-clara-readonly: 1`, and is intended for agents testing frontend
 code against live data.
 

@@ -90,9 +90,9 @@ Swagger UI is at `/docs` and the OpenAPI document is at `/openapi.json`. The
 loopback API requires the bearer token in the hub config directory
 (`api.token`); the WebSocket transport authenticates with the paired device.
 
-Response DTOs and OpenAPI components live in `packages/api-contract` as zod
+Response DTOs and OpenAPI components live in `packages/contracts/api-contract` as zod
 schemas. The hub registers them directly with `hono-openapi`; there is no
-generation step. `@opencode/client` stays inside `apps/server` and `apps/lab`,
+generation step. `@opencode/client` stays inside `apps/hub/server` and `tools/lab`,
 and `pnpm check:boundaries` enforces that split.
 
 Install the read-only API MCP for live frontend testing:
@@ -113,7 +113,7 @@ configured.
 `pnpm clara server panel` opens a panel that is already being served; start the
 hub service first with `pnpm clara server start --local` (or `--docker`).
 `pnpm clara start` starts Docker by default: it creates the `clara` network,
-bootstraps `docker/.env` and the orchestrator token on first run, then starts
+bootstraps `infra/docker/.env` and the orchestrator token on first run, then starts
 the selected services in orchestrator, server, web order. Pass `--local` to run
 the same selection as detached local processes instead; `--docker` is the
 explicit default. Disable any part with `--no-server`, `--no-web`, or
@@ -159,7 +159,7 @@ reads the other's service state.
 | Server database       | `~/.local/share/clara/clara.db`           | volume `clara-server-data`                       |
 | Orchestrator database | `~/.local/share/clara/orchestration.db`   | volume `clara-orchestrator-data`                 |
 | Orchestrator token    | `~/.local/share/clara/orchestrator.token` | `~/.local/share/clara/docker/orchestrator.token` |
-| Compose input         | none                                      | `docker/.env`                                    |
+| Compose input         | none                                      | `infra/docker/.env`                              |
 | Workspace             | host path                                 | bind mount at `/workspace/clara`                 |
 
 `CLARA_DOCKER_STATE_DIR` moves the Docker control directory. The workspace and
@@ -185,7 +185,7 @@ tar -czf ~/clara-local-state-backup.tar.gz \
   ~/.config/clara \
   ~/.local/share/clara/clara.db* \
   ~/.local/share/clara/orchestrator \
-  docker/.env
+  infra/docker/.env
 docker volume create clara-server-config clara-server-data clara-orchestrator-data
 docker run --rm \
   -v clara-server-config:/to/config \
@@ -202,7 +202,7 @@ docker run --rm \
   '
 ```
 
-Remove `CLARA_DATA_DIR` from `docker/.env`, then start and verify the panel,
+Remove `CLARA_DATA_DIR` from `infra/docker/.env`, then start and verify the panel,
 harness connection, and pairing:
 
 ```bash

@@ -20,10 +20,10 @@ encrypted frames; it cannot read them.
 
 ## Deploy the Worker
 
-The Worker and its `RelayRoom` Durable Object live in `workers/relay`.
+The Worker and its `RelayRoom` Durable Object live in `infra/relay`.
 
 ```bash
-cd workers/relay
+cd infra/relay
 pnpm exec wrangler secret put CLARA_AGENT_TOKEN
 pnpm exec wrangler secret put CLARA_CLIENT_TOKEN
 pnpm exec wrangler deploy
@@ -35,7 +35,7 @@ Use two different, random values. The hub uses the agent token; pairing payloads
 embed the client token. Rotate both if either leaks.
 
 The default configuration uses the `workers.dev` URL. For a custom host, add a
-route in `workers/relay/wrangler.jsonc`:
+route in `infra/relay/wrangler.jsonc`:
 
 ```jsonc
 "routes": [{ "pattern": "relay.example.com", "custom_domain": true }]
@@ -52,7 +52,7 @@ Set `VITE_CLARA_WS_URL` to the relay endpoint when building the web app:
 VITE_CLARA_WS_URL=wss://relay.example pnpm --filter @clara/web build
 ```
 
-For the web container, put the same value in `docker/.env` and rebuild with
+For the web container, put the same value in `infra/docker/.env` and rebuild with
 `--build`. The value is baked into the web build.
 
 ## Configure the hub

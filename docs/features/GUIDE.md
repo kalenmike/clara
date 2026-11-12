@@ -37,7 +37,7 @@ index.
 - One canonical doc per topic; edit the existing feature doc.
 - Relative links only, and every link must resolve.
 - If the change is visible to people using Clara, update the matching page under
-  `apps/docs/guide/` in the same change. The guide describes what people do; a
+  `tools/docs/guide/` in the same change. The guide describes what people do; a
   feature spec describes how it works.
 
 ## Skeleton

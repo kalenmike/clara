@@ -32,7 +32,7 @@ limits:
 Verify the docs change against the repository rules.
 
 - Confirm every relative link resolves and every internal doc is listed in `docs/README.md`.
-- Confirm every guide page is listed in `apps/docs/guide/index.md` and that the guide does not link into `/internals/` beyond the landing page.
+- Confirm every guide page is listed in `tools/docs/guide/index.md` and that the guide does not link into `/internals/` beyond the landing page.
 - Confirm feature specs follow `docs/features/GUIDE.md` and describe current behavior.
 - Confirm `docs/records/**` is untouched and excluded from the site.
 - Run `pnpm docs:check`, `pnpm docs:build`, and `pnpm format:check`.

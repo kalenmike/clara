@@ -13,8 +13,8 @@ The home-side installation is the **hub**. Three names cover it:
 | Name        | Meaning                                                                                                                        |
 | ----------- | ------------------------------------------------------------------------------------------------------------------------------ |
 | Hub         | The Clara installation on the machine that runs the harness: one process, one database, one panel, and at most one relay room. |
-| Hub service | The Node process that implements the hub (`apps/server`, `pnpm clara server`, the `clara-server` container).                   |
-| Hub panel   | The authenticated loopback dashboard served by the hub service (`apps/panel`).                                                 |
+| Hub service | The Node process that implements the hub (`apps/hub/server`, `pnpm clara server`, the `clara-server` container).               |
+| Hub panel   | The authenticated loopback dashboard served by the hub service (`apps/hub/panel`).                                             |
 
 Other terms:
 
@@ -47,7 +47,7 @@ compatibility names, not prose.
 ### Version contract
 
 Clara pins `@opencode/client` to the OpenCode server version it targets (2.1.1)
-inside `apps/adapter-opencode` and `apps/lab`. The `/v1` DTOs and OpenAPI components are
+inside `apps/adapters/opencode` and `tools/lab`. The `/v1` DTOs and OpenAPI components are
 Clara-owned in `@clara/api-contract`; the web and SDK never import the harness
 client. Before bumping either side:
 
@@ -67,22 +67,27 @@ browser-safe, so Clara uses the browser client from the same family.
 ```text
 apps/
   web/                 React SPA, deployed to Cloudflare Pages or the web container
-  panel/               Loopback dashboard and admin controls served by the hub service
-  server/              Node hub service, outbound relay client, local WS listener, /v1 API
+  hub/
+    server/            Node hub service, outbound relay client, local WS listener, /v1 API
+    panel/             Loopback dashboard and admin controls served by the hub service
   orchestrator/        Loopback orchestration service and CLI
-  mcp/                 stdio MCP bridge to the orchestration service
-  api-mcp/             stdio read-only MCP bridge to the hub API
+  adapters/
+    opencode/          OpenCode harness adapter, binding, and standalone bin
+tools/
+  cli/                 Developer CLI for the stack, worktrees, and docs
+  lab/                 Loopback pipeline preview and agent probe
+  docs/                User guide and internal documentation site
 packages/
-  shared-types/        Wire frames, actions, states, pairing payloads
-  api-contract/        Clara-owned hub API DTOs, zod schemas, and OpenAPI components
-  api-client/          Fetch-based hub API SDK
-  api-mcp/             Read-only hub API MCP tools
-  orchestration/       Package loader, runtime, leases, and watchdog
-  orchestration-control/ Shared service paths, health, start, and stop helpers
+  contracts/           shared-types, api-contract, harness-protocol
+  api/                 api-client, mcp
+  orchestration/       engine, policy, control, mcp
+  adapters/            runtime, binding, runner
+  preview/             Pipeline preview, diagnostics, and snapshot diff SDK
   crypto/              device-key derivation, AES-GCM envelopes, replay guard
-workers/
-  relay/               Worker + RelayRoom Durable Object
-docs/
+infra/
+  relay/               Cloudflare Worker + RelayRoom Durable Object
+  docker/              Compose files, Dockerfiles, and the stack .env example
+docs/                  Internal documentation
 ```
 
 ## Topology
@@ -166,7 +171,7 @@ ConnectionProvider
 - The hub service also reads OpenCode's `/api/event` stream for push and stores
   Web Push subscriptions at `~/.config/clara/subscriptions.json`. VAPID keys
   live in `~/.config/clara/vapid.json`.
-- The hub service serves `apps/panel` on a second listener (default
+- The hub service serves `apps/hub/panel` on a second listener (default
   `127.0.0.1:8790`). It requires a superadmin session, provides first-run setup
   and harness configuration, reads one allowlisted runtime snapshot, exposes
   guarded controls for the four external features, the Go offline control,

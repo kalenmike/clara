@@ -91,7 +91,7 @@ broadcast frames:
 
 ## Actions and states
 
-`packages/shared-types` defines the payload unions:
+`packages/contracts/shared-types` defines the payload unions:
 
 - Actions (browser → hub): `http.request`, `http.abort`, `ping`, `pong`,
   `ready`, `ready.ack`, `device.enroll`, `push.subscribe`, `push.unsubscribe`,

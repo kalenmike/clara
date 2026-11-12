@@ -8,29 +8,32 @@ working in this repo.
 ## Workspace
 
 ```text
-apps/web              React/Vite SPA (Cloudflare Pages or the web container)
-apps/panel            Authenticated hub panel and setup surface
-apps/lab              Loopback pipeline preview and agent probe
-apps/server           Node hub service, local WS + outbound Cloudflare relay
-apps/orchestrator     Loopback orchestration service, REST/SSE/MCP
-apps/mcp              stdio MCP bridge to the orchestration service
-apps/api-mcp          stdio read-only MCP bridge to the hub API
-apps/adapter-opencode  OpenCode harness adapter, binding, and standalone bin
-packages/adapter      Harness-neutral adapter runtime, supervision, and enrollment
-packages/binding-core Orchestration binding client, delivery, prompt, and usage
-packages/shared-types Wire frames, actions, states, pairing payloads
-packages/api-contract Hub API DTOs, zod schemas, and OpenAPI components
-packages/api-client   Fetch-based hub API SDK
-packages/api-mcp      Read-only hub API MCP tools
-packages/policy       Step policy, budgets, and violation rules
-packages/orchestration Package loader, runtime, leases, watchdog, and standard packages
-packages/orchestration/default Default routing config and classifier router
-packages/orchestration/std Standard orchestration packages (software, content, research, diagnostics, maintenance)
-packages/runner       Shared script runner for harness adapters
-packages/devtools     Pipeline preview, diagnostics, and snapshot diff SDK
-packages/mcp-server   Shared MCP tools and resources
-packages/crypto       device-key derivation, AES-GCM envelopes, replay guard
-workers/relay         Cloudflare Worker + RelayRoom Durable Object
+apps/web                             React/Vite SPA (Cloudflare Pages or the web container)
+apps/hub/panel                       Authenticated hub panel and setup surface
+apps/hub/server                      Node hub service, local WS + outbound Cloudflare relay
+apps/orchestrator                    Loopback orchestration service, REST/SSE/MCP
+apps/adapters/opencode               OpenCode harness adapter, binding, and standalone bin
+tools/lab                            Loopback pipeline preview and agent probe
+tools/docs                           User guide and internal documentation site
+tools/cli                            Developer CLI for the stack, worktrees, and docs
+packages/contracts/shared-types      Wire frames, actions, states, pairing payloads
+packages/contracts/api-contract      Hub API DTOs, zod schemas, and OpenAPI components
+packages/contracts/harness-protocol  Clara Harness Protocol frames and client
+packages/api/api-client              Fetch-based hub API SDK
+packages/api/mcp                     Read-only hub API MCP tools and stdio bridge
+packages/orchestration/engine        Package loader, runtime, leases, and watchdog
+packages/orchestration/engine/default Default routing config and classifier router
+packages/orchestration/engine/std    Standard orchestration packages
+packages/orchestration/policy        Step policy, budgets, and violation rules
+packages/orchestration/control       Shared service paths, health, start, and stop helpers
+packages/orchestration/mcp           Orchestration MCP tools and stdio bridge
+packages/adapters/runtime            Harness-neutral adapter runtime and supervision
+packages/adapters/binding            Orchestration binding client, delivery, and usage
+packages/adapters/runner             Shared script runner for harness adapters
+packages/preview                     Pipeline preview, diagnostics, and snapshot diff SDK
+packages/crypto                      Device-key derivation, AES-GCM envelopes, replay guard
+infra/relay                          Cloudflare Worker + RelayRoom Durable Object
+infra/docker                         Compose files, Dockerfiles, and the stack .env example
 ```
 
 ## Tech stack
@@ -76,7 +79,7 @@ pnpm clara docs build # Build the documentation site
 pnpm clara docs check # Check guide and internal doc indexes and links
 pnpm clara mcp install|config|status # Install or inspect the MCP bridge
 pnpm clara mcp install --api        # Add the read-only hub API MCP
-pnpm check:boundaries # Fail if @opencode/client escapes apps/adapter-opencode and apps/lab
+pnpm check:boundaries # Fail if @opencode/client escapes apps/adapters/opencode and tools/lab
 pnpm clara adapter install --opencode --pair <code> [--mcp] # Install the OpenCode adapter, MCP, and shared runner
 clara-adapter-opencode install --pair <code> [--mcp] # Standalone OpenCode adapter install
 pnpm typecheck      # tsc -b
@@ -114,9 +117,9 @@ create a task worktree outside `../clara-worktrees` (override with
 
 - Clara targets OpenCode 2.1.x and the v2 HTTP API under `/api`.
 - The harness SDK is `@opencode/client`, version-matched to the server and used
-  only inside `apps/adapter-opencode` and `apps/lab`. Do not swap it for `@opencode-ai/sdk`
+  only inside `apps/adapters/opencode` and `tools/lab`. Do not swap it for `@opencode-ai/sdk`
   (v1 API) or import `@opencode/sdk` into the browser (embedded Node server).
-- The hub API contract in `packages/api-contract` owns the Clara DTOs and
+- The hub API contract in `packages/contracts/api-contract` owns the Clara DTOs and
   OpenAPI components. The web, `@clara/api-client`, and `@clara/api-contract`
   must not import or depend on `@opencode/client`. The hub itself has no harness
   SDK; adapters connect out over the Clara Harness Protocol.
@@ -144,16 +147,16 @@ transport, Worker, Durable Object, or crypto.
   and **hub panel** for its dashboard. Reserve **agent** for LLM agents. See the
   [vocabulary](docs/architecture/overview.md#vocabulary).
 - Web components live under `apps/web/src/components`; web hooks under
-  `apps/web/src/features`. Server code lives under `apps/server/src`.
+  `apps/web/src/features`. Server code lives under `apps/hub/server/src`.
 - Use the shadcn components in `apps/web/src/components/ui`; add new ones with
   `pnpm dlx shadcn@latest add <name>` and keep the generated aliases.
 - Path alias: `@/` maps to `apps/web/src/`.
 - Prefer `type` imports. No `any`; use the SDK's exported types.
 - Keep server state in TanStack Query and live stream state in `chatStore`.
   Invalidate queries from `EventProvider` instead of polling.
-- Use `packages/shared-types` for wire types and `packages/crypto` for E2EE.
-  Use Clara DTOs from `packages/api-contract` outside the hub service and lab;
-  keep OpenCode domain types inside `apps/server` and `apps/lab`.
+- Use `packages/contracts/shared-types` for wire types and `packages/crypto` for E2EE.
+  Use Clara DTOs from `packages/contracts/api-contract` outside the hub service and lab;
+  keep OpenCode domain types inside `apps/hub/server` and `tools/lab`.
 - The Worker/DO must not parse or persist encrypted payloads.
 - Never store credentials outside `sessionStorage`/`localStorage` (the latter
   only when the user opts in). Never commit pairing codes, device keys, tokens, or
@@ -235,8 +238,8 @@ docs(sessions): document archived session filters
 
 Clara has two documentation sets. Keep them separate:
 
-- **User guide** — `apps/docs/guide/`, indexed by
-  [apps/docs/guide/index.md](apps/docs/guide/index.md). Written for people using
+- **User guide** — `tools/docs/guide/`, indexed by
+  [tools/docs/guide/index.md](tools/docs/guide/index.md). Written for people using
   or hosting Clara. No source paths, database columns, or internal routes.
 - **Internal documentation** — `docs/`, indexed by
   [docs/README.md](docs/README.md). Written for contributors and agents. This is
@@ -248,10 +251,10 @@ is never published.
 
 ### User guide
 
-| Before you touch…                    | Read                                                                           |
-| ------------------------------------ | ------------------------------------------------------------------------------ |
-| Using Clara, pairing, sessions, chat | [apps/docs/guide/index.md](apps/docs/guide/index.md)                           |
-| Hosting the hub, Docker, relay       | [apps/docs/guide/self-hosting/index.md](apps/docs/guide/self-hosting/index.md) |
+| Before you touch…                    | Read                                                                             |
+| ------------------------------------ | -------------------------------------------------------------------------------- |
+| Using Clara, pairing, sessions, chat | [tools/docs/guide/index.md](tools/docs/guide/index.md)                           |
+| Hosting the hub, Docker, relay       | [tools/docs/guide/self-hosting/index.md](tools/docs/guide/self-hosting/index.md) |
 
 ### Internal documentation
 
@@ -290,7 +293,7 @@ is never published.
 4. Shipped-scope changes update
    [docs/features/capabilities.md](docs/features/capabilities.md) in the same
    change. User-visible changes also update the matching page under
-   `apps/docs/guide/`.
+   `tools/docs/guide/`.
 5. No secrets, generated output, or unrelated files are staged.
 6. Work is committed as coherent Conventional Commits, each carrying the
    OpenCode and model co-author trailers; `git status` shows only intentionally

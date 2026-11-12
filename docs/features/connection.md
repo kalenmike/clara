@@ -149,9 +149,9 @@ shared browser key.
   and camera error copy in `apps/web/src/lib/qr-scan.ts`
 - Relay transport: `apps/web/src/lib/transport/relay.ts` (also serves the local
   listener)
-- Hub: `apps/server/src/` (`config`, `agent`, `harness`, `local-server`,
+- Hub: `apps/hub/server/src/` (`config`, `agent`, `harness`, `local-server`,
   `relay-client`, `pairing`, `store/devices`); adapter daemon:
-  `apps/adapter-opencode/`
+  `apps/adapters/opencode/`
 - Harness setup: panel pairing → `harness_identities`, `harness_connections`,
   and `adapter_credentials` in `clara.db`; the adapter connects out over the
   WebSocket and speaks the Clara Harness Protocol. The hub never sees the

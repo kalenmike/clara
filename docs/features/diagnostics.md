@@ -117,12 +117,12 @@ and the rebuild snapshot instead of aggregating history. See
 <details>
 <summary>Commands, data, and references</summary>
 
-- Package: `packages/orchestration/std/diagnostics`; entry pipeline `diagnose`;
+- Package: `packages/orchestration/engine/std/diagnostics`; entry pipeline `diagnose`;
   reference `std:diagnostics` or `std:diagnostics/diagnose`.
 - Pipeline:
   `collect_evidence → pattern_failures → audit_setup → rank_issues →
 propose_fixes → review_report`.
-- Analyzer: `packages/orchestration/src/diagnostics.ts`;
+- Analyzer: `packages/orchestration/engine/src/diagnostics.ts`;
   `analyzeDatabase(db, options)` and `analyzeDatabaseFile(path, options)`.
 - CLI: `pnpm clara orchestrator analyze [--json] [--days n] [--db path]
 [--url url]`. Default window is 30 days; `--days 0` is all history.
@@ -139,7 +139,7 @@ propose_fixes → review_report`.
   `${CLARA_DATA_DIR:-~/.local/share/clara}/orchestration.db`; the Docker stack
   keeps it in the `clara-orchestrator-data` volume. When the service is running,
   `analyze` and `inspect` use the authenticated HTTP API instead of the file.
-- Tests: `packages/orchestration/test/diagnostics.test.ts` and
+- Tests: `packages/orchestration/engine/test/diagnostics.test.ts` and
   `apps/orchestrator/test/cli.test.ts`.
 - See [orchestration.md](orchestration.md) for packages, runs, and adapters.
 

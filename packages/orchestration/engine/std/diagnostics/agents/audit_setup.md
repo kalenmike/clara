@@ -29,7 +29,7 @@ Start with:
   `CLARA_ORCHESTRATION_CONFIG`, for imports, defaults, package overrides, router
   criteria, and reserved watchdog settings,
 - the standard packages bundled with the orchestrator engine (under
-  `packages/orchestration/std` in the Clara checkout) for defaults, enforcement,
+  `packages/orchestration/engine/std` in the Clara checkout) for defaults, enforcement,
   and entry points,
 - their `pipelines/*.yml` for steps, retries, limits, and enforcement,
 - their `routers/*.md` for route criteria, turn and token budgets,

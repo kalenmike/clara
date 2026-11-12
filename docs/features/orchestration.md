@@ -100,11 +100,11 @@ and the hub. That is the preferred setup when the hub itself is
 containerized. `pnpm clara start` brings up the orchestrator, hub, and
 web client together; the steps below cover the orchestrator-only path.
 
-The hub uses `docker/server.compose.yml`, joins the same external `clara`
+The hub uses `infra/docker/server.compose.yml`, joins the same external `clara`
 network, and reaches the orchestrator at `http://orchestrator:8789`. The
 orchestrator container is named `clara-orchestrator`.
 
-1. Copy `docker/.env.example` and set:
+1. Copy `infra/docker/.env.example` and set:
    - `CLARA_ORCHESTRATION_TOKEN` to a long random token,
    - `CLARA_WORKSPACE` to the absolute path of the repository or workspace.
      The database and token default to the `clara-orchestrator-data` volume. Set
@@ -113,7 +113,7 @@ orchestrator container is named `clara-orchestrator`.
 2. Start the service:
 
    ```sh
-   docker compose -f docker/orchestrator.compose.yml up -d --build orchestrator
+   docker compose -f infra/docker/orchestrator.compose.yml up -d --build orchestrator
    ```
 
    `pnpm clara orchestrator stop --docker` does not need the token or workspace
@@ -145,7 +145,7 @@ orchestrator container is named `clara-orchestrator`.
    `clara` network. The orchestrator URL is set with
    `CLARA_ORCHESTRATION_HOST=orchestrator` and port `8789`.
 
-   `pnpm clara server ... --docker` loads `docker/.env` when the file exists.
+   `pnpm clara server ... --docker` loads `infra/docker/.env` when the file exists.
    If the hub uses the relay, set `CLARA_RELAY_ROOM` to a fixed value: pairing
    codes are scoped to the room, and a changed room makes clients connect to an
    empty room (`hub offline`) until they pair again.
@@ -159,7 +159,7 @@ orchestrator container is named `clara-orchestrator`.
    Open `http://127.0.0.1:8080`. The pairing code decides local vs relay; the
    panel Web URL defaults to this container. Set **Web URL** in the hub panel
    for a remote deployment (`CLARA_PAIRING_BASE_URL` overrides it), and set
-   `VITE_CLARA_WS_URL` in `docker/.env` and rebuild only when the browser must
+   `VITE_CLARA_WS_URL` in `infra/docker/.env` and rebuild only when the browser must
    use a different relay endpoint than the hub. The web container is static
    and does not proxy OpenCode traffic.
 
@@ -186,7 +186,7 @@ exported. It also runs `docker compose down` when the container is unhealthy or
 already stopped, so a crashed container can be cleaned up.
 
 Start it from the host with `pnpm clara orchestrator start --docker`. That runs
-`docker compose -f docker/orchestrator.compose.yml up -d orchestrator` and waits for
+`docker compose -f infra/docker/orchestrator.compose.yml up -d orchestrator` and waits for
 `/health` to report a container. Add `--build` to rebuild the image first. If a
 local instance is already running, the command refuses and asks you to stop it
 first.
@@ -639,7 +639,7 @@ independent verification gate, review, and docs. Bug work runs reproduction, a
 failing regression test, the smallest fix, verification, review, and docs.
 Documentation-only work runs assessment, in-place updates, link and index
 verification, and review. Every agent step resolves to a Markdown agent under
-`packages/orchestration/std/software/agents`; the loader test fails when a
+`packages/orchestration/engine/std/software/agents`; the loader test fails when a
 pipeline names a missing agent. Bug agents opt into `on_exhausted: fail`, carry a token `growth_rate` so a
 retry has more room than the attempt it replaces, and limit automated attempts
 (one retry for most steps, two for the fix) so a failing lifecycle stops with
@@ -818,16 +818,17 @@ they can run while the adapter or setup is degraded. See
 <summary>Commands, packages, data, and references</summary>
 
 - Service: `apps/orchestrator`, loopback REST, SSE, and `/mcp`.
-- MCP bridge: `apps/mcp`, stdio, talks to the service over loopback HTTP.
-- Engine: `packages/orchestration`; policy: `packages/policy`; shared MCP tools:
-  `packages/mcp-server`; script runner: `packages/runner`; adapter installer:
-  `apps/adapter-opencode`; harness-neutral adapter runtime: `packages/adapter`;
-  orchestration binding core: `packages/binding-core`; developer preview and probe:
-  `packages/devtools` and `apps/lab`.
-- Standard packages: `packages/orchestration/std/software`,
-  `packages/orchestration/std/content`, `packages/orchestration/std/research`,
-  `packages/orchestration/std/diagnostics`, and
-  `packages/orchestration/std/maintenance`. The research pipeline scopes the
+- MCP: `packages/orchestration/mcp` provides the shared tools and the stdio bridge,
+  which talks to the service over loopback HTTP.
+- Engine: `packages/orchestration/engine`; policy: `packages/orchestration/policy`;
+  script runner: `packages/adapters/runner`; adapter installer:
+  `apps/adapters/opencode`; harness-neutral adapter runtime: `packages/adapters/runtime`;
+  orchestration binding core: `packages/adapters/binding`; developer preview and probe:
+  `packages/preview` and `tools/lab`.
+- Standard packages: `packages/orchestration/engine/std/software`,
+  `packages/orchestration/engine/std/content`, `packages/orchestration/engine/std/research`,
+  `packages/orchestration/engine/std/diagnostics`, and
+  `packages/orchestration/engine/std/maintenance`. The research pipeline scopes the
   question, gathers external sources, verifies every material claim against
   independent dated sources, and returns a concise linked Markdown report. The
   diagnostics pipeline analyzes the orchestrator database and setup, then
@@ -835,7 +836,7 @@ they can run while the adapter or setup is degraded. See
   entirely deterministic scripts that rebuild Clara, reinstall its adapters,
   restart the captured services, and verify health. See
   [maintenance.md](maintenance.md).
-- Primary config: `packages/orchestration/default/index.yml`, bundled with the
+- Primary config: `packages/orchestration/engine/default/index.yml`, bundled with the
   engine. Set `CLARA_ORCHESTRATION_CONFIG` to a custom `index.yml` to replace
   it. The default imports the five standard packages and routes to them.
 - Data: local installs use
@@ -846,8 +847,8 @@ they can run while the adapter or setup is degraded. See
   `CLARA_ORCHESTRATION_WORKSPACE` (default: the service's working directory),
   the active `configSource` (`bundled` or `file`), and `configPath` when a
   custom file is configured.
-- Container: `docker compose -f docker/orchestrator.compose.yml up -d --build orchestrator`;
-  the hub uses `docker/server.compose.yml` on the same `clara` network.
+- Container: `docker compose -f infra/docker/orchestrator.compose.yml up -d --build orchestrator`;
+  the hub uses `infra/docker/server.compose.yml` on the same `clara` network.
 - Commands:
   `pnpm clara orchestrator start [--docker] [--build]|stop [--docker]|status|serve|token|analyze`,
   `pnpm clara mcp install|uninstall|config|status`,
@@ -859,7 +860,7 @@ they can run while the adapter or setup is degraded. See
   subcommand prints help instead of starting the service.
 - Diagnostics: `pnpm clara orchestrator analyze [--json] [--days n] [--db
 path] [--url url]` and `GET /v1/diagnostics?days=30`. The analyzer is
-  `packages/orchestration/src/diagnostics.ts`; see
+  `packages/orchestration/engine/src/diagnostics.ts`; see
   [diagnostics.md](diagnostics.md).
 - OpenCode entry point: the `clara` agent at
   `~/.config/opencode/agents/clara.md`, installed by the adapter. The MCP-only
