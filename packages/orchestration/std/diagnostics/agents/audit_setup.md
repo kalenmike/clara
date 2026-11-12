@@ -27,12 +27,14 @@ Start with:
 
 - `orchestration/index.yml` for imports, defaults, package overrides, watchdog
   thresholds, the escalation pipeline, and router criteria,
-- each `lib/std/*/index.yml` for defaults, enforcement, and entry points,
-- `lib/std/*/pipelines/*.yml` for steps, retries, limits, and enforcement,
-- `lib/std/*/routers/*.md` for route criteria, turn and token budgets,
-- `lib/std/*/agents/*.md` for prompts, permissions, and limits,
-- `lib/std/*/scripts/*.yml` for deterministic script commands, timeouts, and
-  input handling.
+- the standard packages bundled with the orchestrator engine (under
+  `packages/orchestration/std` in the Clara checkout) for defaults, enforcement,
+  and entry points,
+- their `pipelines/*.yml` for steps, retries, limits, and enforcement,
+- their `routers/*.md` for route criteria, turn and token budgets,
+- their `agents/*.md` for prompts, permissions, and limits,
+- their `scripts/*.yml` for deterministic script commands, timeouts, and input
+  handling.
 
 ## Checks
 

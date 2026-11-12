@@ -628,10 +628,7 @@ export function previewPipeline(input: PreviewInput = {}): PreviewResult {
 
   let catalog: LoadedCatalog
   try {
-    catalog = loadCatalog(
-      workspace.configPath,
-      workspace.stdDir ? { stdDir: workspace.stdDir } : {}
-    )
+    catalog = loadCatalog(workspace.configPath)
   } catch (error) {
     diagnostics.push({
       severity: 'error',

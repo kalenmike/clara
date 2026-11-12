@@ -139,7 +139,6 @@ export async function probeOrchestrator({
     })
     if (config.ok && config.body && typeof config.body === 'object') {
       result.workspace = stringOrUndefined(config.body.workspace)
-      result.stdDir = stringOrUndefined(config.body.stdDir)
       result.configPath = stringOrUndefined(config.body.configPath)
     } else if (config.status === 401) {
       result.warning = 'the orchestrator rejected the token; workspace is unknown'

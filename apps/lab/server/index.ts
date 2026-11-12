@@ -22,7 +22,6 @@ interface Options {
   workspace?: string
   target?: string
   configPath?: string
-  stdDir?: string
   port?: number
   json: boolean
   open: boolean
@@ -46,7 +45,6 @@ function parse(args: string[]): Options {
       if (name === 'workspace') options.workspace = value
       else if (name === 'target') options.target = value
       else if (name === 'config') options.configPath = value
-      else if (name === 'std-dir') options.stdDir = value
       else if (name === 'port') options.port = Number(value)
       else throw new Error(`Unknown option --${name}`)
     } else {
@@ -69,7 +67,6 @@ function usage(): string {
     '  --workspace <path>  Workspace or config path (default: cwd)',
     '  --target <ref>      Pipeline target for check or the initial preview',
     '  --config <path>     Explicit orchestration index.yml',
-    '  --std-dir <path>    Standard package directory',
     '  --port <number>     Lab port (default: 8791)',
     '  --no-open           Do not open a browser',
     '  --json              Machine-readable check output',
@@ -90,7 +87,6 @@ async function check(options: Options): Promise<void> {
     ...(options.workspace ? { workspace: options.workspace } : {}),
     ...(options.target ? { target: options.target } : {}),
     ...(options.configPath ? { configPath: options.configPath } : {}),
-    ...(options.stdDir ? { stdDir: options.stdDir } : {}),
     ...(catalog?.ok ? { models: catalog.models } : {}),
   })
   const errors = result.diagnostics.filter((diagnostic) => diagnostic.severity === 'error')

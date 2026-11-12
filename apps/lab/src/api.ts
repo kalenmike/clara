@@ -69,7 +69,6 @@ export interface PreviewRequest {
   workspace?: string
   target?: string
   configPath?: string
-  stdDir?: string
 }
 
 export function preview(input: PreviewRequest): Promise<LabPreviewResult> {

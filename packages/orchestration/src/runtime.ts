@@ -98,7 +98,6 @@ export interface AdvanceResult {
 export interface RuntimeOptions {
   store: Store
   configPath?: string
-  stdDir?: string
   leaseMs?: number
   stalledMs?: number
   adapterStaleMs?: number
@@ -220,7 +219,6 @@ export class OrchestrationErrorWithCode extends Error {
 export class Runtime {
   readonly store: Store
   private readonly configPath?: string
-  private readonly stdDir?: string
   private readonly leaseMs: number
   private readonly stalledMs: number
   private readonly adapterStaleMs: number
@@ -236,7 +234,6 @@ export class Runtime {
   constructor(options: RuntimeOptions) {
     this.store = options.store
     this.configPath = options.configPath
-    this.stdDir = options.stdDir
     this.leaseMs = options.leaseMs ?? 30 * 60_000
     this.stalledMs = options.stalledMs ?? 5 * 60_000
     this.adapterStaleMs = options.adapterStaleMs ?? 120_000
@@ -257,7 +254,7 @@ export class Runtime {
     const path = this.configFor(workspace)
     const cached = this.catalogCache.get(path)
     if (cached) return cached.catalog
-    const catalog = loadCatalog(path, this.stdDir ? { stdDir: this.stdDir } : {})
+    const catalog = loadCatalog(path)
     this.catalogCache.set(path, { at: Date.now(), catalog })
     return catalog
   }

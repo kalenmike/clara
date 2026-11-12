@@ -13,7 +13,6 @@ export interface OrchestratorServerOptions {
   port?: number
   tickMs?: number
   workspace?: string
-  stdDir?: string
   configPath?: string
 }
 
@@ -117,7 +116,6 @@ export function createOrchestratorServer(options: OrchestratorServerOptions): Or
       if (req.method === 'GET' && url.pathname === '/v1/config') {
         json(res, 200, {
           workspace: options.workspace ?? null,
-          ...(options.stdDir ? { stdDir: options.stdDir } : {}),
           ...(options.configPath ? { configPath: options.configPath } : {}),
         })
         return

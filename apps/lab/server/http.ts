@@ -91,7 +91,6 @@ function previewInput(body: Record<string, unknown>): PreviewInput {
   return {
     ...(stringField(body.workspace) ? { workspace: stringField(body.workspace) } : {}),
     ...(stringField(body.configPath) ? { configPath: stringField(body.configPath) } : {}),
-    ...(stringField(body.stdDir) ? { stdDir: stringField(body.stdDir) } : {}),
     ...(stringField(body.target) ? { target: stringField(body.target) } : {}),
   }
 }

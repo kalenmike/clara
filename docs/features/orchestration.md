@@ -4,10 +4,10 @@
 
 Clara orchestration is a local service and MCP bridge that runs package-based
 pipelines without taking over the harness's agent loop. A pipeline is YAML and
-Markdown data under `lib/std` or the workspace; the service owns run state,
-leases, transitions, budgets, and alerts, while a thin harness adapter executes
-work orders, enforces strict policy, and carries results back to the
-human-facing Clara agent.
+Markdown data bundled with the engine or supplied by the workspace; the service
+owns run state, leases, transitions, budgets, and alerts, while a thin harness
+adapter executes work orders, enforces strict policy, and carries results back
+to the human-facing Clara agent.
 
 ## User flow
 
@@ -162,10 +162,10 @@ orchestrator container is named `clara-orchestrator`.
 
 The compose service sets `CLARA_ORCHESTRATION_WORKSPACE=/workspace/clara`, which
 is the path the service reports to Clara Lab. Change it only if you move the
-workspace mount. The orchestrator image bakes `lib/std` at
-`/opt/clara/lib/std`. A workspace that vendors its own standard library can set
-`CLARA_STD_DIR` to its `lib/std`. Compose publishes the port on host loopback
-only (`127.0.0.1:8789:8789`) so host tools such as
+workspace mount. The orchestrator image bundles the standard packages inside the
+built service, so the container does not mount or copy the standard packages
+separately. Compose publishes the port on host loopback only
+(`127.0.0.1:8789:8789`) so host tools such as
 `pnpm clara orchestrator status` and Clara Lab can reach the container. The
 database and container token live in the `clara-orchestrator-data` volume.
 `pnpm clara start` writes a host copy of the token to
@@ -197,9 +197,10 @@ the one-time migration.
 
 ## Core business rules
 
-1. **Packages are data.** The engine has no built-in software pipeline. A
-   package is a directory with `index.yml` plus auto-discovered
-   `pipelines/*.yml`, `routers/*.md`, `agents/*.md`, and `scripts/*.yml`.
+1. **Packages are data.** The engine ships its standard packages as data, not
+   code constants, and has no built-in software pipeline. A package is a
+   directory with `index.yml` plus auto-discovered `pipelines/*.yml`,
+   `routers/*.md`, `agents/*.md`, and `scripts/*.yml`.
 2. **State is event-driven.** A completion, failure, route, or spawn triggers
    the next transition in one transaction. The watchdog only repairs expired
    leases, silent workers, restart gaps, and deadline breaches, and it feeds
@@ -634,8 +635,8 @@ independent verification gate, review, and docs. Bug work runs reproduction, a
 failing regression test, the smallest fix, verification, review, and docs.
 Documentation-only work runs assessment, in-place updates, link and index
 verification, and review. Every agent step resolves to a Markdown agent under
-`lib/std/software/agents`; the loader test fails when a pipeline names a missing
-agent. Bug agents opt into `on_exhausted: fail`, carry a token `growth_rate` so a
+`packages/orchestration/std/software/agents`; the loader test fails when a
+pipeline names a missing agent. Bug agents opt into `on_exhausted: fail`, carry a token `growth_rate` so a
 retry has more room than the attempt it replaces, and limit automated attempts
 (one retry for most steps, two for the fix) so a failing lifecycle stops with
 an alert instead of spending a larger budget on the same investigation.
@@ -818,14 +819,16 @@ they can run while the adapter or setup is degraded. See
   `apps/adapter-opencode`; harness-neutral adapter runtime: `packages/adapter`;
   orchestration binding core: `packages/binding-core`; developer preview and probe:
   `packages/devtools` and `apps/lab`.
-- Standard packages: `lib/std/software`, `lib/std/content`,
-  `lib/std/research`, `lib/std/diagnostics`, and `lib/std/maintenance`. The
-  research pipeline scopes the question, gathers external sources, verifies
-  every material claim against independent dated sources, and returns a concise
-  linked Markdown report. The diagnostics pipeline analyzes the orchestrator
-  database and setup, then returns ranked issues with proposed fixes. The
-  maintenance pipeline is entirely deterministic scripts that rebuild Clara,
-  reinstall its adapters, restart the captured services, and verify health. See
+- Standard packages: `packages/orchestration/std/software`,
+  `packages/orchestration/std/content`, `packages/orchestration/std/research`,
+  `packages/orchestration/std/diagnostics`, and
+  `packages/orchestration/std/maintenance`. The research pipeline scopes the
+  question, gathers external sources, verifies every material claim against
+  independent dated sources, and returns a concise linked Markdown report. The
+  diagnostics pipeline analyzes the orchestrator database and setup, then
+  returns ranked issues with proposed fixes. The maintenance pipeline is
+  entirely deterministic scripts that rebuild Clara, reinstall its adapters,
+  restart the captured services, and verify health. See
   [maintenance.md](maintenance.md).
 - Primary config: `orchestration/index.yml`.
 - Data: local installs use
@@ -834,7 +837,7 @@ they can run while the adapter or setup is degraded. See
   The Docker stack keeps them in the `clara-orchestrator-data` volume.
 - Workspace: `GET /v1/config` reports the service workspace from
   `CLARA_ORCHESTRATION_WORKSPACE` (default: the service's working directory),
-  plus `CLARA_STD_DIR` and `CLARA_ORCHESTRATION_CONFIG` when set.
+  plus `CLARA_ORCHESTRATION_CONFIG` when set.
 - Container: `docker compose -f docker/orchestrator.compose.yml up -d --build orchestrator`;
   the hub uses `docker/server.compose.yml` on the same `clara` network.
 - Commands:

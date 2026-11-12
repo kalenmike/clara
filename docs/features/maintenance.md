@@ -207,7 +207,7 @@ clara`. A manually started hub is restarted from the captured root with its
 <summary>Commands, state, endpoints, and references</summary>
 
 - Pipeline: `std:maintenance/rebuild`, `std:maintenance/recover`, and
-  `std:maintenance/diagnose`; package `lib/std/maintenance`.
+  `std:maintenance/diagnose`; package `packages/orchestration/std/maintenance`.
 - CLI: `pnpm clara rebuild status|build|adapters|restart|health|inspect|recover`
   with `--json`, `--root <path>`, `--state <path>`, `--dry-run`,
   `--manage-external`, `--force`, `--skip <service>`, `--lines <n>`, and

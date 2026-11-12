@@ -1,6 +1,7 @@
 import { createHash } from 'node:crypto'
 import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs'
 import { basename, dirname, extname, isAbsolute, join, relative, resolve } from 'node:path'
+import { fileURLToPath } from 'node:url'
 import type { Limits, PermissionRule, StepPolicy } from '@clara/policy'
 import { parseMarkdownDocument, parseYamlRecord } from './frontmatter.ts'
 import type {
@@ -653,16 +654,17 @@ function indexPath(path: string): string {
   return path
 }
 
-function findStdDir(configDir: string): string | undefined {
-  const configured = process.env.CLARA_STD_DIR?.trim()
-  if (configured) return resolve(configured)
-  let current = resolve(configDir)
-  for (let depth = 0; depth < 8; depth++) {
-    const candidate = join(current, 'lib', 'std')
-    if (existsSync(candidate)) return candidate
-    const parent = dirname(current)
-    if (parent === current) break
-    current = parent
+/**
+ * The standard packages ship with the engine. A source checkout resolves them
+ * next to this module; a bundled service resolves the copy placed beside its
+ * bundle at build time.
+ */
+export function bundledStdDir(): string | undefined {
+  for (const candidate of [
+    fileURLToPath(new URL('../std/', import.meta.url)),
+    fileURLToPath(new URL('./std/', import.meta.url)),
+  ]) {
+    if (existsSync(candidate)) return resolve(candidate)
   }
   return
 }
@@ -879,7 +881,7 @@ function applyOverrides(root: LoadedPackage, overrides: WorkspaceOverrides, sour
 
 export function loadCatalog(configPath: string, options: LoadOptions = {}): LoadedCatalog {
   const index = indexPath(resolve(configPath))
-  const stdDir = options.stdDir ? resolve(options.stdDir) : findStdDir(dirname(index))
+  const stdDir = options.stdDir ? resolve(options.stdDir) : bundledStdDir()
   const raw = parseYamlRecord(readFileSync(index, 'utf8'), index)
   const root = loadPackageDirectory(index, options, stdDir, new Set(), 0)
   const packages: LoadedPackage[] = [root]

@@ -47,7 +47,6 @@ ENV CLARA_DATA_DIR=/data
 ENV CLARA_ORCHESTRATION_HOST=0.0.0.0
 ENV CLARA_ORCHESTRATION_PORT=8789
 ENV CLARA_ORCHESTRATION_WORKSPACE=/workspace/clara
-ENV CLARA_STD_DIR=/opt/clara/lib/std
 ENV CLARA_ORCHESTRATION_CONTAINER=1
 
 WORKDIR /app
@@ -56,7 +55,6 @@ RUN mkdir -p /data /opt/clara && chown -R node:node /app /data /opt/clara
 COPY --from=build --chown=node:node /out/package.json /app/package.json
 COPY --from=build --chown=node:node /out/node_modules /app/node_modules
 COPY --from=build --chown=node:node /repo/apps/orchestrator/dist /app/dist
-COPY --chown=node:node lib/std /opt/clara/lib/std
 
 USER node
 EXPOSE 8789

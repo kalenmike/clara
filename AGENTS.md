@@ -23,13 +23,13 @@ packages/api-contract Hub API DTOs, zod schemas, and OpenAPI components
 packages/api-client   Fetch-based hub API SDK
 packages/api-mcp      Read-only hub API MCP tools
 packages/policy       Step policy, budgets, and violation rules
-packages/orchestration Package loader, runtime, leases, and watchdog
+packages/orchestration Package loader, runtime, leases, watchdog, and standard packages
+packages/orchestration/std Standard orchestration packages (software, content, research, diagnostics, maintenance)
 packages/runner       Shared script runner for harness adapters
 packages/devtools     Pipeline preview, diagnostics, and snapshot diff SDK
 packages/mcp-server   Shared MCP tools and resources
 packages/crypto       device-key derivation, AES-GCM envelopes, replay guard
 workers/relay         Cloudflare Worker + RelayRoom Durable Object
-lib/std               Standard orchestration packages (software, content, research, diagnostics, maintenance)
 ```
 
 ## Tech stack

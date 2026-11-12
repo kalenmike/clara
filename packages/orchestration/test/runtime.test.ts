@@ -7,6 +7,7 @@ import { reserveTokens } from '@clara/policy'
 import { Runtime, Store, loadCatalog } from '../src/index.ts'
 
 const workspace = fileURLToPath(new URL('../../../', import.meta.url))
+const stdRoot = join(workspace, 'packages', 'orchestration', 'std')
 const defaults = loadCatalog(join(workspace, 'orchestration', 'index.yml')).root.manifest.defaults
 let store: Store
 let runtime: Runtime
@@ -436,7 +437,7 @@ describe('runtime', () => {
           '  model: workspace-model',
           'imports:',
           '  std:',
-          `    - path: ${join(workspace, 'lib', 'std', 'software')}`,
+          `    - path: ${join(stdRoot, 'software')}`,
         ].join('\n')
       )
       const local = new Runtime({ store, configPath: join(dir, 'orchestration', 'index.yml') })
