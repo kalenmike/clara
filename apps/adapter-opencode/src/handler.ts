@@ -1,5 +1,5 @@
 import { Hono, type Context } from 'hono'
-import { booleanQuery, jsonBody, numberQuery } from '@clara/adapter'
+import { booleanQuery, jsonBody, numberQuery } from '@clara/adapter-runtime'
 import type {
   FileFindInput,
   MessageListInput,

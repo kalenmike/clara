@@ -5,8 +5,8 @@ import {
   removeAdapterConfig,
   removeIdentity as removeAdapterIdentity,
   writeAdapterConfig,
-} from '@clara/adapter'
-import type { AdapterConfig as GenericAdapterConfig, AdapterIdentity } from '@clara/adapter'
+} from '@clara/adapter-runtime'
+import type { AdapterConfig as GenericAdapterConfig, AdapterIdentity } from '@clara/adapter-runtime'
 
 export type OpenCodeConfig = {
   url: string

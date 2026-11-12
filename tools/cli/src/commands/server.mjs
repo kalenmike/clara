@@ -33,7 +33,7 @@ const serverService = {
   name: 'server',
   label: 'server',
   title: 'Clara server',
-  filter: '@clara/server',
+  filter: '@clara/hub-server',
   local: {
     entry: SERVER_ENTRY,
     missing: 'The hub service is not built. Run `pnpm build` first.',

@@ -53,7 +53,7 @@ importers:
 
   apps/adapter-opencode:
     dependencies:
-      '@clara/adapter':
+      '@clara/adapter-runtime':
         specifier: workspace:*
         version: link:../../packages/adapter
       '@clara/api-contract':
@@ -151,12 +151,12 @@ importers:
 
   apps/lab:
     dependencies:
-      '@clara/devtools':
-        specifier: workspace:*
-        version: link:../../packages/devtools
       '@clara/mcp':
         specifier: workspace:*
         version: link:../../packages/mcp
+      '@clara/pipeline-preview':
+        specifier: workspace:*
+        version: link:../../packages/devtools
       '@clara/policy':
         specifier: workspace:*
         version: link:../../packages/policy
@@ -227,7 +227,7 @@ importers:
       '@clara/orchestration':
         specifier: workspace:*
         version: link:../../packages/orchestration
-      '@clara/orchestration-control':
+      '@clara/service-control':
         specifier: workspace:*
         version: link:../../packages/orchestration-control
       '@modelcontextprotocol/sdk':
@@ -313,7 +313,7 @@ importers:
       '@clara/harness-protocol':
         specifier: workspace:*
         version: link:../../packages/harness-protocol
-      '@clara/orchestration-control':
+      '@clara/service-control':
         specifier: workspace:*
         version: link:../../packages/orchestration-control
       '@clara/shared-types':

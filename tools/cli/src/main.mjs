@@ -28,7 +28,15 @@ async function pair(args) {
       ...forwarded,
     ])
   }
-  return runPnpm(['--filter', '@clara/server', 'exec', 'tsx', 'src/index.ts', 'pair', ...forwarded])
+  return runPnpm([
+    '--filter',
+    '@clara/hub-server',
+    'exec',
+    'tsx',
+    'src/index.ts',
+    'pair',
+    ...forwarded,
+  ])
 }
 
 function server(args) {

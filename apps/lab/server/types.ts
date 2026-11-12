@@ -1,4 +1,4 @@
-import type { PreviewResult } from '@clara/devtools'
+import type { PreviewResult } from '@clara/pipeline-preview'
 
 export interface ModelCatalogSummary {
   ok: boolean

@@ -4,7 +4,7 @@ import {
   type AdapterInfo,
   type CompiledNode,
   type PreviewInput,
-} from '@clara/devtools'
+} from '@clara/pipeline-preview'
 import { EventRelay } from './orchestrator-events.ts'
 import { McpClient, type ToolResult } from './mcp.ts'
 import {

@@ -1,5 +1,5 @@
 {
-  "name": "@clara/adapter",
+  "name": "@clara/adapter-runtime",
   "private": true,
   "version": "0.1.0",
   "type": "module",

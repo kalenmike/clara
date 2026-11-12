@@ -2,7 +2,7 @@
 import { existsSync } from 'node:fs'
 import { connect } from 'node:net'
 import { join } from 'node:path'
-import { previewPipeline, type Diagnostic } from '@clara/devtools'
+import { previewPipeline, type Diagnostic } from '@clara/pipeline-preview'
 import {
   ensureOrchestrator,
   labPort,

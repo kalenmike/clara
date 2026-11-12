@@ -8,7 +8,7 @@ const target = join(here, '..', 'dist', 'panel')
 
 if (!existsSync(join(source, 'index.html'))) {
   console.error(
-    'The panel build is missing. Run `pnpm --filter @clara/panel build` before building the agent.'
+    'The panel build is missing. Run `pnpm --filter @clara/hub-panel build` before building the agent.'
   )
   process.exit(1)
 }

@@ -15,7 +15,7 @@
     "test": "vitest run --passWithNoTests"
   },
   "dependencies": {
-    "@clara/adapter": "workspace:*",
+    "@clara/adapter-runtime": "workspace:*",
     "@clara/api-contract": "workspace:*",
     "@clara/binding-core": "workspace:*",
     "@clara/mcp": "workspace:*",

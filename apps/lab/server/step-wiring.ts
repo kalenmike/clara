@@ -1,4 +1,4 @@
-import { flattenCompiled, inspectSnapshot } from '@clara/devtools'
+import { flattenCompiled, inspectSnapshot } from '@clara/pipeline-preview'
 import type { StepArtifact, StepInput, StepSummary } from './types.ts'
 
 export interface StepWiring {

@@ -35,7 +35,7 @@ import {
   stopService,
   tokenPath,
   workspace,
-} from '@clara/orchestration-control'
+} from '@clara/service-control'
 import { createOrchestratorServer } from './server.ts'
 
 function selfCommand(): string[] {

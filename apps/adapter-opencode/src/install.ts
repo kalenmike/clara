@@ -16,7 +16,7 @@ import {
   removeState,
   startAdapterProcess,
   waitForAdapterAuthentication,
-} from '@clara/adapter'
+} from '@clara/adapter-runtime'
 import { installRunner } from '@clara/runner'
 import {
   adapterConfigPath,

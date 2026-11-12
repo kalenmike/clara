@@ -1,7 +1,7 @@
-import type { PreviewResult } from '@clara/devtools'
+import type { PreviewResult } from '@clara/pipeline-preview'
 
 export type { PreviewResult }
-export type { CompiledNode, CompiledRoute } from '@clara/devtools'
+export type { CompiledNode, CompiledRoute } from '@clara/pipeline-preview'
 
 export interface ModelCatalogSummary {
   ok: boolean
@@ -25,7 +25,7 @@ export type {
   PreviewStats,
   SourceRef,
   TargetInfo,
-} from '@clara/devtools'
+} from '@clara/pipeline-preview'
 
 export interface StepInput {
   label: string

@@ -16,7 +16,7 @@ import type {
   PanelOrchestrationControl,
   PanelSyncUpdate,
 } from '@clara/shared-types'
-import { baseURL } from '@clara/orchestration-control'
+import { baseURL } from '@clara/service-control'
 import type { WebSocket } from 'ws'
 import { Agent } from '../agent.ts'
 import { createApiApp } from '../api/app.ts'

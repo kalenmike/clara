@@ -1,5 +1,5 @@
 {
-  "name": "@clara/devtools",
+  "name": "@clara/pipeline-preview",
   "private": true,
   "version": "0.1.0",
   "type": "module",

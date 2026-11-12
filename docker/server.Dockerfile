@@ -22,7 +22,7 @@ RUN corepack enable
 WORKDIR /repo
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml tsconfig.base.json ./
 # These manifest and source copies cover the workspace dependency closure of
-# @clara/server and @clara/panel. Missing packages make the build fail to
+# @clara/hub-server and @clara/hub-panel. Missing packages make the build fail to
 # resolve imports even though the filtered install succeeds.
 COPY apps/server/package.json apps/server/package.json
 COPY apps/panel/package.json apps/panel/package.json
@@ -31,7 +31,7 @@ COPY packages/shared-types/package.json packages/shared-types/package.json
 COPY packages/orchestration-control/package.json packages/orchestration-control/package.json
 COPY packages/api-contract/package.json packages/api-contract/package.json
 COPY packages/harness-protocol/package.json packages/harness-protocol/package.json
-RUN pnpm install --frozen-lockfile --filter @clara/server... --filter @clara/panel...
+RUN pnpm install --frozen-lockfile --filter @clara/hub-server... --filter @clara/hub-panel...
 
 COPY apps/server apps/server
 COPY apps/panel apps/panel
@@ -40,8 +40,8 @@ COPY packages/shared-types packages/shared-types
 COPY packages/orchestration-control packages/orchestration-control
 COPY packages/api-contract packages/api-contract
 COPY packages/harness-protocol packages/harness-protocol
-RUN pnpm --filter @clara/server build
-RUN pnpm --filter @clara/server deploy /out --prod --legacy
+RUN pnpm --filter @clara/hub-server build
+RUN pnpm --filter @clara/hub-server deploy /out --prod --legacy
 
 FROM node:22-bookworm-slim AS runtime
 RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates \

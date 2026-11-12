@@ -3,7 +3,7 @@ import { homedir } from 'node:os'
 import { join } from 'node:path'
 import { OpenCode } from '@opencode/client'
 import type { ModelInfo } from '@opencode/client'
-import type { ModelOption } from '@clara/devtools'
+import type { ModelOption } from '@clara/pipeline-preview'
 
 const DEFAULT_OPENCODE_URL = 'http://127.0.0.1:4096'
 

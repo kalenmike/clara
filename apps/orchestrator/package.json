@@ -16,7 +16,7 @@
   "dependencies": {
     "@clara/mcp": "workspace:*",
     "@clara/orchestration": "workspace:*",
-    "@clara/orchestration-control": "workspace:*",
+    "@clara/service-control": "workspace:*",
     "@modelcontextprotocol/sdk": "^1.24.3",
     "better-sqlite3": "^13.0.3",
     "zod": "^4.1.13",

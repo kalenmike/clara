@@ -1,5 +1,5 @@
 {
-  "name": "@clara/server",
+  "name": "@clara/hub-server",
   "private": true,
   "version": "0.1.0",
   "type": "module",
@@ -9,7 +9,7 @@
   "scripts": {
     "dev": "tsx watch src/index.ts",
     "start": "node dist/index.js",
-    "prebuild": "pnpm --filter @clara/panel build",
+    "prebuild": "pnpm --filter @clara/hub-panel build",
     "build": "tsup && node scripts/check-bundle.mjs && node scripts/copy-panel.mjs",
     "typecheck": "tsc -p tsconfig.json",
     "test": "vitest run",
@@ -19,7 +19,7 @@
   "dependencies": {
     "@clara/api-contract": "workspace:*",
     "@clara/crypto": "workspace:*",
-    "@clara/orchestration-control": "workspace:*",
+    "@clara/service-control": "workspace:*",
     "@clara/shared-types": "workspace:*",
     "@hono/node-server": "^2.1.6",
     "@hono/swagger-ui": "^0.6.2",

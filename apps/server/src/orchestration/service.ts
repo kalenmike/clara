@@ -8,7 +8,7 @@ import {
   startLocalService,
   stopService,
   type StatusReport,
-} from '@clara/orchestration-control'
+} from '@clara/service-control'
 import { PanelControlError } from '../panel/controls.ts'
 
 /** Resolve the built orchestrator, or its source in a development checkout. */

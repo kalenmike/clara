@@ -1,5 +1,5 @@
 {
-  "name": "@clara/orchestration-control",
+  "name": "@clara/service-control",
   "private": true,
   "version": "0.1.0",
   "type": "module",

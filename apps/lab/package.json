@@ -16,7 +16,7 @@
     "test": "vitest run --passWithNoTests"
   },
   "dependencies": {
-    "@clara/devtools": "workspace:*",
+    "@clara/pipeline-preview": "workspace:*",
     "@clara/mcp": "workspace:*",
     "@clara/policy": "workspace:*",
     "@modelcontextprotocol/sdk": "^1.24.3",

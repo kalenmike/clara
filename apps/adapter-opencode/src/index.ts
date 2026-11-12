@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-import { runAdapterCli, type AdapterDefinition } from '@clara/adapter'
+import { runAdapterCli, type AdapterDefinition } from '@clara/adapter-runtime'
 import { openCodePaths, type OpenCodeConfig } from './config.ts'
 import { createAdapterApp } from './handler.ts'
 import {
