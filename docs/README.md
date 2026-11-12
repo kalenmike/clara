@@ -37,6 +37,9 @@ Clara works; the guide describes how to use it.
     change, edit the matching page under `tools/docs/guide/` in the same change.
 11. **Guide pages never link into internal docs.** The guide may link to the
     developer documentation landing page, not to individual specs.
+12. **Write platform behavior as harness and adapter.** The hub and web client
+    are harness-neutral. Name a harness, such as OpenCode, only for its included
+    adapter, its install commands, or a fact specific to that harness.
 
 ## Index
 
