@@ -63,6 +63,12 @@ connection keeps that state; use **Forget** only when you want to discard it.
   adapter service, then use **Test** in the panel. The hub keeps the connection
   and reconnects automatically. Clara stays connected and shows a harness
   banner with **Retry**.
+- **The panel says Online but requests time out** — run
+  `pnpm clara adapter status`. The **hub** and **link** lines show whether the
+  adapter has an authenticated session with the hub and how long ago it last
+  heard from it; **health** shows the adapter's last OpenCode check. If the
+  process is running but the link is offline or stale, restart it with
+  `pnpm clara adapter stop --opencode` and `pnpm clara adapter start --opencode`.
 - **The Harness switch is off** — the card says **Off**. Turn the switch on to
   proxy again; the adapter credential is kept while it is off.
 - **The adapter was moved** — pair it again; the stable identity keeps the same
