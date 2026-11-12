@@ -48,6 +48,10 @@ export function adapterPidPath(env = process.env): string {
   return join(dataDir(env), 'adapter.pid')
 }
 
+export function adapterStatePath(env = process.env): string {
+  return join(dataDir(env), 'state.json')
+}
+
 export type AdapterIdentity = {
   harnessId: string
   adapterId: string

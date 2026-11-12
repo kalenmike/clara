@@ -22,6 +22,15 @@ function printResult(result: {
   }
 }
 
+function age(at: number): string {
+  const seconds = Math.max(0, Math.round((Date.now() - at) / 1_000))
+  if (seconds < 2) return 'just now'
+  if (seconds < 60) return `${seconds}s ago`
+  const minutes = Math.round(seconds / 60)
+  if (minutes < 60) return `${minutes}m ago`
+  return `${Math.round(minutes / 60)}h ago`
+}
+
 async function main(argv: string[]): Promise<void> {
   if (argv[0] === 'runner') {
     if (argv.includes('--help') || argv.includes('-h')) {
@@ -96,6 +105,25 @@ async function main(argv: string[]): Promise<void> {
         if (report.adapter.harnessId) console.log(`  harness: ${report.adapter.harnessId}`)
         if (report.adapter.wsUrl) console.log(`  ws: ${report.adapter.wsUrl}`)
         if (report.adapter.opencodeUrl) console.log(`  opencode: ${report.adapter.opencodeUrl}`)
+        if (report.adapter.live) {
+          const live = report.adapter.live
+          if (report.adapter.running) {
+            console.log(`  hub: ${live.hub.status} (${live.hub.url})`)
+            console.log(
+              `  link: ${live.hub.authenticated ? 'authenticated' : live.hub.connected ? 'handshake complete' : 'not authenticated'}` +
+                (live.hub.lastFrameAt ? `, last frame ${age(live.hub.lastFrameAt)}` : '')
+            )
+            if (live.hub.lastError) console.log(`  hub error: ${live.hub.lastError}`)
+            console.log(
+              `  health: ${live.opencode.reachable ? 'reachable' : 'unreachable'} (${live.opencode.code ?? 'unknown'}` +
+                `${live.opencode.version ? `, ${live.opencode.version}` : ''}` +
+                `${live.opencode.checkedAt ? `, checked ${age(live.opencode.checkedAt)}` : ''})`
+            )
+            if (live.opencode.message) console.log(`  opencode error: ${live.opencode.message}`)
+          } else {
+            console.log(`  live: stale (last ${live.hub.status}, updated ${age(live.updatedAt)})`)
+          }
+        }
       } else {
         console.log('adapter: not installed')
       }

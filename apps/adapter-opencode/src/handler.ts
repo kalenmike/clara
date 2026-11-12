@@ -57,6 +57,8 @@ export function createAdapterApp(context: AdapterContext): Hono {
     })
   )
 
+  app.get('/harness/v1/health', async (c) => c.json(await client.probe(1_500)))
+
   app.get('/harness/v1/harness/info', async (c) =>
     json(c, 'GET', '/api/info', undefined, parseClaraServerInfo)
   )

@@ -16,6 +16,7 @@ import {
 import { discoverOpenCode } from './discover.ts'
 import { enrollAdapter } from './enroll.ts'
 import { OpenCodeClient } from './opencode.ts'
+import { removeState } from './state.ts'
 import {
   adapterEntry,
   adapterLogSize,
@@ -216,6 +217,7 @@ async function prompt(question: string): Promise<string> {
 export function uninstallOpenCodeAdapter(options: { purge?: boolean } = {}): string[] {
   const actions = removeAdapterService()
   removeConfig()
+  removeState()
   actions.push(`remove adapter config ${adapterConfigPath()}`)
   if (options.purge) {
     removeIdentity()
