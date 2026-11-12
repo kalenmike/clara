@@ -63,10 +63,10 @@ target for CI.
 
 ## Pipelines
 
-Pipelines are YAML and Markdown data under `lib/std` or your workspace. The
-service may start with the orchestration switch, or the MCP bridge may start it on
-first use. The service owns the workspace and entry point; the model never passes
-them.
+Pipelines are YAML and Markdown data bundled with the orchestrator or supplied
+by your workspace. The service may start with the orchestration switch, or the
+MCP bridge may start it on first use. The service owns the workspace and entry
+point; the model never passes them.
 
 ## MCP
 

@@ -7,8 +7,8 @@ defaults:
   provider: 'opencode-go'
   model: 'deepseek-v4.1-flash'
 
-# Override a standard package without editing lib/std. Only the keys you set
-# are replaced; everything else still comes from the package.
+# Override a standard package without editing the bundled engine packages. Only
+# the keys you set are replaced; everything else still comes from the package.
 # overrides:
 #   std:software:
 #     defaults:

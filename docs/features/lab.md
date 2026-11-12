@@ -173,9 +173,9 @@ writing custom pipelines, not for end users.
   service or set `CLARA_ORCHESTRATION_TOKEN`.
 - The orchestrator rejects the token: Settings shows the token hint; restart the
   lab with the service's token.
-- The container's standard packages are stale: the host check passes but the run
-  fails with a missing `lib/std` package; rebuild the image or fix
-  `CLARA_STD_DIR`.
+- The service and Lab bundle different standard packages: the host check passes
+  but the run fails on a package the service does not have. Rebuild both the
+  orchestrator and Lab from the same checkout.
 - A strict target has no adapter: the run registers one automatically; the
   adapter status changes to live in Settings on the next check.
 - There are no active runs: **Kill all runs** stays disabled, and no empty
@@ -259,7 +259,7 @@ writing custom pipelines, not for end users.
   `CLARA_ORCHESTRATION_URL`, `CLARA_ORCHESTRATION_TOKEN`,
   `CLARA_ORCHESTRATION_TOKEN_FILE`, `CLARA_ORCHESTRATION_WORKSPACE`
   (the service workspace, also the lab host default),
-  `CLARA_ORCHESTRATION_CONFIG`, `CLARA_STD_DIR`,
+  `CLARA_ORCHESTRATION_CONFIG`,
   `CLARA_ORCHESTRATION_AUTOSTART`, `CLARA_OPENCODE_URL`,
   `CLARA_OPENCODE_PASSWORD`. The lab also reads
   `${XDG_STATE_HOME:-~/.local/state}/opencode/service.json` when the OpenCode

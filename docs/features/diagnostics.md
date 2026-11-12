@@ -117,8 +117,8 @@ and the rebuild snapshot instead of aggregating history. See
 <details>
 <summary>Commands, data, and references</summary>
 
-- Package: `lib/std/diagnostics`; entry pipeline `diagnose`; reference
-  `std:diagnostics` or `std:diagnostics/diagnose`.
+- Package: `packages/orchestration/std/diagnostics`; entry pipeline `diagnose`;
+  reference `std:diagnostics` or `std:diagnostics/diagnose`.
 - Pipeline:
   `collect_evidence → pattern_failures → audit_setup → rank_issues →
 propose_fixes → review_report`.
