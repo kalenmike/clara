@@ -26,8 +26,10 @@ opens a port on the OpenCode machine.
 5. The installer looks for OpenCode. If it cannot find it, enter the OpenCode
    URL and password when asked.
 6. The installer starts a user service, or a background process when systemd is
-   not available. Return to the panel. The adapter appears online and becomes
-   active.
+   not available. Return to the panel. A newly paired adapter shows
+   **Paired · Offline**; it becomes **Online** when its session connects, and
+   the first adapter becomes **Active**. If the Harness switch is off, the card
+   shows **Off** instead of a live state.
 
 If the panel shows **Paired · Offline**, start it with:
 
@@ -51,8 +53,11 @@ connection keeps that state; use **Forget** only when you want to discard it.
 - **OpenCode is not found** — run the installer again and enter the URL,
   username, and password. The adapter retests before saving.
 - **The code expired** — create a new code in the panel.
-- **The adapter is offline** — start the adapter service, then use **Test** in
-  the panel. The hub keeps the connection and reconnects automatically.
+- **The adapter is offline** — the card says **Paired · Offline**. Start the
+  adapter service, then use **Test** in the panel. The hub keeps the connection
+  and reconnects automatically.
+- **The Harness switch is off** — the card says **Off**. Turn the switch on to
+  proxy again; the adapter credential is kept while it is off.
 - **The adapter was moved** — pair it again; the stable identity keeps the same
   sessions if the session directory moved with it.
 

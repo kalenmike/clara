@@ -20,8 +20,9 @@ installing it installs both the hub-facing daemon and the orchestration binding.
    prompts for the URL, username, and password.
 5. The adapter enrolls and stores its credential. The installer then starts a
    user service, or a background adapter process when systemd/launchd is not
-   available. The panel shows **Paired** until the adapter connects, then
-   **Online**.
+   available. The panel shows **Paired · Offline** until the adapter connects,
+   then **Online**. The first adapter is **Active**; turning the Harness switch
+   off shows **Off** while the adapter credential is kept.
 6. Open the web client. Sessions and projects arrive through the adapter; the
    hub never contacts OpenCode.
 
@@ -51,8 +52,12 @@ installing it installs both the hub-facing daemon and the orchestration binding.
   then retests.
 - **Pairing code expired or used** — generate a new code in the panel.
 - **Wrong harness kind** — the adapter rejects a code issued for another type.
-- **Adapter offline** — the panel keeps the connection and `/v1` returns
-  `harness_offline`; the adapter reconnects with backoff when it returns.
+- **Adapter offline** — the panel shows **Paired · Offline**, keeps the
+  connection, and `/v1` returns `harness_offline`; the adapter reconnects with
+  backoff when it returns. A hub restart clears persisted online state, and a
+  socket close clears it immediately.
+- **Harness switch off** — adapters keep their credentials but the panel shows
+  **Off** and the hub does not proxy until the switch is on again.
 - **Adapter reinstalled** — the same identity reconnects the same sessions and
   metadata without duplicating the connection.
 - **Connection deleted** — identity and metadata stay; re-pairing restores the
