@@ -54,8 +54,8 @@ export function RenameProjectDialog({
           <DialogHeader>
             <DialogTitle>Rename project</DialogTitle>
             <DialogDescription>
-              This changes the name on the server for every Clara client. The directory stays{' '}
-              {project.canonical}.
+              This changes the name in Clara for every connected client. Workspace directories are
+              not affected.
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-1.5">

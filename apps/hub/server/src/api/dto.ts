@@ -5,6 +5,7 @@ import {
   claraEventSchema,
   claraFileFindOutputSchema,
   claraFormSchema,
+  claraHarnessProjectSchema,
   claraLocationSchema,
   claraModelListOutputSchema,
   claraPermissionRequestListOutputSchema,
@@ -30,7 +31,7 @@ import {
   claraWorktreeSchema,
 } from '@clara/api-contract'
 import { ApiRequestError, type ApiDependencies } from './context.ts'
-import { forwardResult, type ForwardRequest } from './harness.ts'
+import { forwardResult, forwardResultTo, type ForwardRequest } from './harness.ts'
 
 function parser<T>(schema: z.ZodType<T>, label: string) {
   return (value: unknown): T => {
@@ -49,6 +50,10 @@ function parser<T>(schema: z.ZodType<T>, label: string) {
 
 export const parseClaraProject = parser(claraProjectSchema, 'project')
 export const parseClaraProjects = parser(z.array(claraProjectSchema), 'project list')
+export const parseHarnessProjects = parser(
+  z.array(claraHarnessProjectSchema),
+  'harness project list'
+)
 export const parseClaraSession = parser(claraSessionSchema, 'session')
 export const parseClaraSessions = parser(claraSessionsResponseSchema, 'session list')
 export const parseClaraSessionMessage = parser(claraSessionMessageSchema, 'message')
@@ -107,5 +112,17 @@ export async function forwardDto<T>(
   unwrapData = false
 ): Promise<T> {
   const value = await forwardResult<unknown>(deps, request, signal, unwrapData)
+  return parse(value)
+}
+
+export async function forwardDtoTo<T>(
+  deps: ApiDependencies,
+  harnessID: string,
+  request: ForwardRequest,
+  signal: AbortSignal,
+  parse: (value: unknown) => T,
+  unwrapData = false
+): Promise<T> {
+  const value = await forwardResultTo<unknown>(deps, harnessID, request, signal, unwrapData)
   return parse(value)
 }

@@ -4,10 +4,14 @@ import type {
   ClaraCommandListOutput,
   ClaraFileFindOutput,
   ClaraForm,
+  ClaraHarnessConnection,
   ClaraLocation,
   ClaraModelListOutput,
   ClaraPermissionRequestListOutput,
   ClaraProject,
+  ClaraProjectArchiveResult,
+  ClaraProjectAvailable,
+  ClaraProjectDeleteResult,
   ClaraProviderListOutput,
   ClaraReferenceListOutput,
   ClaraServerInfo,
@@ -76,10 +80,21 @@ export function createClaraClient(options: ClaraClientOptions): ClaraClient {
       openapi: (requestOptions) =>
         request<Record<string, unknown>>('GET', '/openapi.json', { options: requestOptions }),
     },
+    harness: {
+      list: (requestOptions) =>
+        request<ClaraHarnessConnection[]>('GET', '/v1/harnesses', {
+          options: requestOptions,
+        }),
+    },
     project: {
       list: (input, requestOptions) =>
         request<ClaraProject[]>('GET', '/v1/projects', {
           query: { archived: input?.archived },
+          options: requestOptions,
+        }),
+      create: (input, requestOptions) =>
+        request<ClaraProject>('POST', '/v1/projects', {
+          body: input,
           options: requestOptions,
         }),
       update: (input, requestOptions) => {
@@ -88,6 +103,52 @@ export function createClaraClient(options: ClaraClientOptions): ClaraClient {
           body,
           options: requestOptions,
         })
+      },
+      archive: (input, requestOptions) =>
+        request<ClaraProjectArchiveResult>(
+          'POST',
+          `/v1/projects/${encodeURIComponent(input.projectID)}/archive`,
+          { options: requestOptions }
+        ),
+      unarchive: (input, requestOptions) =>
+        request<ClaraProjectArchiveResult>(
+          'POST',
+          `/v1/projects/${encodeURIComponent(input.projectID)}/unarchive`,
+          { options: requestOptions }
+        ),
+      remove: (input, requestOptions) =>
+        request<ClaraProjectDeleteResult>(
+          'DELETE',
+          `/v1/projects/${encodeURIComponent(input.projectID)}`,
+          {
+            query: { mode: input.mode },
+            options: requestOptions,
+          }
+        ),
+      sync: (input, requestOptions) =>
+        request<ClaraProject>('POST', `/v1/projects/${encodeURIComponent(input.projectID)}/sync`, {
+          options: requestOptions,
+        }),
+      available: (input, requestOptions) =>
+        request<ClaraProjectAvailable[]>('GET', '/v1/projects/available', {
+          query: { harnessID: input?.harnessID },
+          options: requestOptions,
+        }),
+      workspace: {
+        add: (input, requestOptions) => {
+          const { projectID, ...body } = input
+          return request<ClaraProject>(
+            'POST',
+            `/v1/projects/${encodeURIComponent(projectID)}/workspaces`,
+            { body, options: requestOptions }
+          )
+        },
+        remove: (input, requestOptions) =>
+          request<void>(
+            'DELETE',
+            `/v1/projects/${encodeURIComponent(input.projectID)}/workspaces/${encodeURIComponent(input.workspaceID)}`,
+            { options: requestOptions }
+          ),
       },
     },
     location: {

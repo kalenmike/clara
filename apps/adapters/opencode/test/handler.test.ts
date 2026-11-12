@@ -19,6 +19,41 @@ const SESSION = {
 }
 
 describe('adapter handler', () => {
+  it('archives every session in a project record', async () => {
+    const { fetch, requests } = createFakeFetch((request) => {
+      if (request.method === 'GET') return jsonResponse({ data: [SESSION], cursor: {} })
+      return emptyResponse(204)
+    })
+    const app = createApp(fetch)
+
+    const response = await app.request('/harness/v1/projects/p1/archive', { method: 'POST' })
+
+    expect(response.status).toBe(200)
+    expect(await response.json()).toEqual({ affected: 1 })
+    expect(requests[0]?.method).toBe('GET')
+    expect(requests[0]?.url.pathname).toBe('/api/session')
+    expect(requests[0]?.url.searchParams.get('project')).toBe('p1')
+    expect(requests[0]?.url.searchParams.get('archived')).toBe('false')
+    expect(requests[1]?.method).toBe('PATCH')
+    expect(requests[1]?.url.pathname).toBe('/api/session/s1')
+  })
+
+  it('deletes every session in a project record', async () => {
+    const { fetch, requests } = createFakeFetch((request) => {
+      if (request.method === 'GET') return jsonResponse({ data: [SESSION], cursor: {} })
+      return emptyResponse(204)
+    })
+    const app = createApp(fetch)
+
+    const response = await app.request('/harness/v1/projects/p1', { method: 'DELETE' })
+
+    expect(response.status).toBe(200)
+    expect(await response.json()).toEqual({ affected: 1 })
+    expect(requests[0]?.url.searchParams.get('archived')).toBeNull()
+    expect(requests[1]?.method).toBe('DELETE')
+    expect(requests[1]?.url.pathname).toBe('/api/session/s1')
+  })
+
   it('returns adapter info without touching OpenCode', async () => {
     const { fetch, requests } = createFakeFetch(() => jsonResponse({}))
     const app = createApp(fetch)

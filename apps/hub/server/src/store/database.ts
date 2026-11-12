@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto'
 import { chmodSync, closeSync, existsSync, mkdirSync, openSync } from 'node:fs'
 import { dirname } from 'node:path'
 import { DEFAULT_SYNC_INTERVAL_MS } from '@clara/shared-types'
@@ -5,7 +6,7 @@ import Database from 'better-sqlite3'
 
 export type ClaraDatabase = Database.Database
 
-export const SCHEMA_VERSION = 10
+export const SCHEMA_VERSION = 11
 
 const BUSY_TIMEOUT_MS = 5_000
 const DATABASE_MODE = 0o600
@@ -326,6 +327,186 @@ const MIGRATIONS: Migration[] = [
       ALTER TABLE harness_connections DROP COLUMN options_json;
 
       ALTER TABLE harness_pairings DROP COLUMN replaces_connection_id;
+    `)
+  },
+  /**
+   * Clara projects are user-owned containers, not directories. A project can
+   * group several harness workspaces, so the old canonical column moves to
+   * clara_project_workspaces and every existing link gets a workspace.
+   */
+  (db) => {
+    const projects = db
+      .prepare(
+        `SELECT id, canonical, name, icon_json, commands_json, startup_script,
+                created_at, updated_at
+           FROM clara_projects`
+      )
+      .all() as Array<{
+      id: string
+      canonical: string
+      name: string | null
+      icon_json: string | null
+      commands_json: string | null
+      startup_script: string | null
+      created_at: number
+      updated_at: number
+    }>
+    const links = db
+      .prepare(
+        `SELECT harness_id, harness_project_id, project_id, last_seen_at
+           FROM harness_project_links`
+      )
+      .all() as Array<{
+      harness_id: string
+      harness_project_id: string
+      project_id: string
+      last_seen_at: number
+    }>
+
+    db.exec(`
+      CREATE TABLE clara_projects_next (
+        id TEXT PRIMARY KEY,
+        name TEXT,
+        icon_json TEXT,
+        commands_json TEXT,
+        startup_script TEXT,
+        archived_at INTEGER,
+        last_active_at INTEGER,
+        default_workspace_id TEXT,
+        created_at INTEGER NOT NULL,
+        updated_at INTEGER NOT NULL
+      );
+
+      DROP TABLE harness_project_links;
+      DROP TABLE clara_projects;
+      ALTER TABLE clara_projects_next RENAME TO clara_projects;
+
+      CREATE TABLE clara_project_workspaces (
+        id TEXT PRIMARY KEY,
+        project_id TEXT NOT NULL REFERENCES clara_projects(id) ON DELETE CASCADE,
+        harness_id TEXT NOT NULL REFERENCES harness_identities(harness_id) ON DELETE CASCADE,
+        directory TEXT NOT NULL,
+        canonical TEXT,
+        label TEXT,
+        snapshot_json TEXT,
+        created_at INTEGER NOT NULL,
+        updated_at INTEGER NOT NULL,
+        last_seen_at INTEGER
+      );
+
+      CREATE UNIQUE INDEX clara_project_workspaces_location
+        ON clara_project_workspaces(harness_id, directory);
+
+      CREATE INDEX clara_project_workspaces_project
+        ON clara_project_workspaces(project_id);
+
+      CREATE TABLE harness_project_links (
+        harness_id TEXT NOT NULL REFERENCES harness_identities(harness_id) ON DELETE CASCADE,
+        harness_project_id TEXT NOT NULL,
+        project_id TEXT NOT NULL REFERENCES clara_projects(id) ON DELETE CASCADE,
+        workspace_id TEXT REFERENCES clara_project_workspaces(id) ON DELETE CASCADE,
+        last_seen_at INTEGER NOT NULL,
+        PRIMARY KEY (harness_id, harness_project_id)
+      );
+
+      CREATE INDEX harness_project_links_project
+        ON harness_project_links(project_id);
+
+      CREATE INDEX harness_project_links_workspace
+        ON harness_project_links(workspace_id);
+
+      ALTER TABLE clara_sessions ADD COLUMN workspace_id TEXT
+        REFERENCES clara_project_workspaces(id) ON DELETE SET NULL;
+
+      CREATE INDEX clara_sessions_project
+        ON clara_sessions(project_id);
+    `)
+
+    const insertProject = db.prepare(
+      `INSERT INTO clara_projects
+         (id, name, icon_json, commands_json, startup_script, archived_at,
+          last_active_at, default_workspace_id, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, NULL, ?, NULL, ?, ?)`
+    )
+    const lastActive = db.prepare(
+      'SELECT MAX(last_seen_at) AS value FROM clara_sessions WHERE project_id = ?'
+    )
+    const now = Date.now()
+    for (const project of projects) {
+      const active = lastActive.get(project.id) as { value: number | null }
+      insertProject.run(
+        project.id,
+        project.name,
+        project.icon_json,
+        project.commands_json,
+        project.startup_script,
+        active.value ?? project.updated_at,
+        project.created_at,
+        project.updated_at
+      )
+    }
+
+    const workspaceByLocation = new Map<string, string>()
+    const insertWorkspace = db.prepare(
+      `INSERT INTO clara_project_workspaces
+         (id, project_id, harness_id, directory, canonical, created_at, updated_at, last_seen_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
+    )
+    const setDefaultWorkspace = db.prepare(
+      'UPDATE clara_projects SET default_workspace_id = ? WHERE id = ?'
+    )
+    for (const project of projects) {
+      const harnesses = new Set(
+        links.filter((link) => link.project_id === project.id).map((link) => link.harness_id)
+      )
+      for (const harnessId of harnesses) {
+        const workspaceID = `w_${randomUUID()}`
+        insertWorkspace.run(
+          workspaceID,
+          project.id,
+          harnessId,
+          project.canonical,
+          project.canonical,
+          project.created_at,
+          project.updated_at,
+          now
+        )
+        workspaceByLocation.set(`${project.id}\u0000${harnessId}`, workspaceID)
+      }
+      const first = [...harnesses][0]
+      if (first) {
+        setDefaultWorkspace.run(
+          workspaceByLocation.get(`${project.id}\u0000${first}`) ?? null,
+          project.id
+        )
+      }
+    }
+
+    const insertLink = db.prepare(
+      `INSERT INTO harness_project_links
+         (harness_id, harness_project_id, project_id, workspace_id, last_seen_at)
+       VALUES (?, ?, ?, ?, ?)`
+    )
+    for (const link of links) {
+      insertLink.run(
+        link.harness_id,
+        link.harness_project_id,
+        link.project_id,
+        workspaceByLocation.get(`${link.project_id}\u0000${link.harness_id}`) ?? null,
+        link.last_seen_at
+      )
+    }
+
+    db.exec(`
+      UPDATE clara_sessions
+         SET workspace_id = (
+           SELECT w.id
+             FROM clara_project_workspaces w
+            WHERE w.project_id = clara_sessions.project_id
+              AND w.harness_id = clara_sessions.harness_id
+            LIMIT 1
+         )
+       WHERE project_id <> 'unknown'
     `)
   },
 ]

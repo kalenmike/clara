@@ -19,7 +19,7 @@ no generic `/api/*` proxy.
 | Area        | Endpoints                                                                                                                                                                                                                                                                          |
 | ----------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Meta        | `GET /v1/info`, `GET /v1/harness/info`                                                                                                                                                                                                                                             |
-| Projects    | `GET /v1/projects`, `PATCH /v1/projects/:projectID`, `GET /v1/locations`                                                                                                                                                                                                           |
+| Projects    | `GET /v1/projects`, `POST /v1/projects`, `PATCH/DELETE /v1/projects/:projectID`, `POST .../archive`, `.../unarchive`, `.../sync`, `.../workspaces`, `GET /v1/projects/available`, `GET /v1/harnesses`, `GET /v1/locations`                                                         |
 | Sessions    | `GET /v1/sessions`, `POST /v1/sessions`, `GET /v1/sessions/active`, `GET/PATCH/DELETE /v1/sessions/:sessionID`, `POST .../fork`, `.../move`, `.../view`, `.../prompt`, `.../synthetic`, `.../command`, `.../interrupt`, `.../compact`, `.../agent`, `.../model`, `GET .../context` |
 | Messages    | `GET /v1/sessions/:sessionID/messages`                                                                                                                                                                                                                                             |
 | Forms       | `GET /v1/sessions/:sessionID/forms`, `POST .../forms/:formID/reply`, `DELETE .../forms/:formID`                                                                                                                                                                                    |
@@ -35,16 +35,36 @@ no generic `/api/*` proxy.
 stream. The wire payloads are typed as the Clara `ClaraEvent` union from
 `@clara/api-contract`; adapters translate their harness events into that union.
 
+### Projects and workspaces
+
+Clara project IDs are hub-owned. A project is a container, not a directory. Its
+workspaces are `(harness, directory)` links in `clara_project_workspaces`, and
+`harness_project_links` maps each workspace to every harness project record for
+that directory. `POST /v1/projects` creates the container by name;
+`POST /v1/projects/:projectID/workspaces` adds a directory on a paired harness.
+When the harness is online the hub resolves the directory through `locations`,
+links every matching project record, and stores a snapshot for display. When it
+is offline the workspace stays unresolved until `POST .../sync`.
+
+`GET /v1/projects` reads Clara only; the harness project list never creates,
+hides, or archives a Clara project. Harness archive state is therefore invisible
+to Clara visibility. `POST .../archive` and `.../unarchive` set the Clara flag
+and signal every linked harness; `DELETE ?mode=propagate` signals every linked
+harness before removing the container, while `mode=disconnect` removes only
+Clara state. Per-harness failures are returned in the result and do not roll back
+the Clara action.
+
 ### Project-scoped lists
 
-Clara project IDs are hub-owned. `GET /v1/sessions?project=` and
-`GET /v1/worktrees?project=` accept a Clara project ID and map it to every
-harness project record linked to that canonical directory. Sessions are merged,
-deduplicated, and ordered by `time.updated`. A project linked to more than one
-record requests up to `limit` rows per record and uses a hub-owned composite
-cursor, so paging still visits every record exactly once. When no record is
-linked, the hub rebuilds the links from the harness project list once and then
-returns `project_unmapped`; it never forwards a Clara ID to the harness.
+`GET /v1/sessions?project=` and `GET /v1/worktrees?project=` accept a Clara
+project ID and map it to every harness project record linked to the project's
+workspaces on the active harness. Sessions are merged, deduplicated, and ordered
+by `time.updated`. A project linked to more than one record requests up to
+`limit` rows per record and uses a hub-owned composite cursor, so paging still
+visits every record exactly once. When a workspace has no links, the hub resolves
+it from the harness location once and retries; a project with no workspace on the
+active harness returns `project_unmapped`; the hub never forwards a Clara ID to
+the harness.
 
 `GET /v1/git/log` is the only host command Clara runs. The hub builds a fixed
 `git log` command from validated timestamps and the session directory; there is
@@ -116,7 +136,8 @@ Errors use one envelope:
 
 Common codes are `unauthorized`, `read_only`, `disabled`,
 `harness_unconfigured`, `harness_offline`, `harness_auth`, `upstream_error`,
-`upstream_invalid`, `project_unmapped`, and `not_found`.
+`upstream_invalid`, `project_unmapped`, `project_exists`, `harness_missing`, and
+`not_found`.
 
 ## Read-only MCP
 

@@ -10,6 +10,7 @@ import type { ServerConfig } from '../src/config.ts'
 import { HarnessManager } from '../src/harness/manager.ts'
 import { HarnessMetadataStore } from '../src/harness/metadata.ts'
 import { HarnessStore } from '../src/harness/store.ts'
+import { ProjectStore } from '../src/projects/store.ts'
 import type { PushService } from '../src/push/service.ts'
 import { AgentStoppedError, RuntimeController } from '../src/runtime/controller.ts'
 import { closeDatabase, openDatabase } from '../src/store/database.ts'
@@ -112,7 +113,8 @@ async function createController(
     transport: 'local',
   })
   void options.openCodeUrl
-  const harness = new HarnessManager(harnessStore, new HarnessMetadataStore(db))
+  const projects = new ProjectStore(db)
+  const harness = new HarnessManager(harnessStore, new HarnessMetadataStore(db, projects), projects)
   await harness.load()
   const controller = new RuntimeController({
     config: serverConfig,

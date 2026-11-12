@@ -1,8 +1,8 @@
-import type { ClaraEvent, ClaraProject, ClaraSession } from '@clara/api-contract'
+import type { ClaraEvent, ClaraSession } from '@clara/api-contract'
 import type { AttentionKind } from '@clara/shared-types'
 import type { HarnessManager } from '../harness/manager.ts'
 import { isArchivedSession, isSnoozedSession, loadSessionAttention } from './attention.ts'
-import { getSession, listProjects, openEventStream } from './harness.ts'
+import { getSession, openEventStream } from './harness.ts'
 import { buildPushPayload } from './payload.ts'
 import type { PushService } from './service.ts'
 import { parseSse } from './sse.ts'
@@ -13,6 +13,11 @@ const PROJECT_CACHE_MS = 60_000
 const STALL_MS = 45_000
 const WATCHDOG_MS = 5_000
 const MAX_BACKOFF_MS = 30_000
+
+type ProjectRoute = {
+  id: string
+  directories: string[]
+}
 
 export type PushMonitorOptions = {
   harness: HarnessManager
@@ -38,7 +43,7 @@ export class PushMonitor {
   private readonly timers = new Map<string, NodeJS.Timeout>()
   private readonly interrupted = new Set<string>()
   private readonly lastAlert = new Map<string, { kind: AttentionKind; at: number }>()
-  private projectsCache: { at: number; projects: ClaraProject[] } | undefined
+  private projectsCache: { at: number; projects: ProjectRoute[] } | undefined
   private controller: AbortController | null = null
   private stopped = true
 
@@ -218,9 +223,10 @@ export class PushMonitor {
     if (session.projectID && session.projectID !== 'global') return route(session.projectID)
 
     const projects = await this.projects()
+    const directory = session.location.directory
     const project =
       projects.find((item) => item.id === session.projectID) ??
-      projects.find((item) => item.canonical === session.location.directory)
+      projects.find((item) => item.directories.includes(directory))
     return project ? route(project.id) : '/'
   }
 
@@ -229,15 +235,19 @@ export class PushMonitor {
     return harnessId ? this.harness.overlaySession(harnessId, session) : session
   }
 
-  private async projects(): Promise<ClaraProject[]> {
+  private async projects(): Promise<ProjectRoute[]> {
     const now = Date.now()
     if (this.projectsCache && now - this.projectsCache.at < PROJECT_CACHE_MS) {
       return this.projectsCache.projects
     }
-    const harnessId = this.harness.active?.harnessId
-    const projects = (await listProjects(this.harness)).map((project) =>
-      harnessId ? this.harness.overlayProject(harnessId, project) : project
-    )
+    const projects = this.harness.projects.list().map((record) => ({
+      id: record.project.id,
+      directories: record.workspaces.flatMap((workspace) =>
+        [workspace.directory, workspace.canonical].filter((value): value is string =>
+          Boolean(value)
+        )
+      ),
+    }))
     this.projectsCache = { at: now, projects }
     return projects
   }

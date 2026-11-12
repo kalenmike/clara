@@ -24,6 +24,10 @@ import {
   saveHiddenModels,
 } from '@/features/models/visibility'
 import {
+  SHOW_ARCHIVED_PROJECTS_KEY,
+  saveShowArchivedProjects,
+} from '@/features/projects/show-archived-projects'
+import {
   SHOW_EMPTY_PROJECTS_KEY,
   saveShowEmptyProjects,
 } from '@/features/projects/show-empty-projects'
@@ -298,6 +302,21 @@ function showEmptyProjectsField(): SyncField {
   }
 }
 
+function showArchivedProjectsField(): SyncField {
+  return {
+    key: SHOW_ARCHIVED_PROJECTS_KEY,
+    read: () => {
+      const raw = readRaw(SHOW_ARCHIVED_PROJECTS_KEY)
+      return raw === 'shown' || raw === 'hidden' ? raw : null
+    },
+    apply: (value) => {
+      if (value !== 'shown' && value !== 'hidden') return false
+      saveShowArchivedProjects(value === 'shown')
+      return true
+    },
+  }
+}
+
 function inboxMonitorField(overrides: SyncFieldOverrides): SyncField {
   return {
     key: MONITOR_INBOX_KEY,
@@ -321,7 +340,7 @@ export function buildSyncFields(overrides: SyncFieldOverrides = {}): SyncFieldGr
     preferences: [defaultAgentField(), lastAgentField(), wordingField(), costDisplayField()],
     models: [hiddenModelsField()],
     notifications: [notificationsField()],
-    project: [lastProjectField(), showEmptyProjectsField()],
+    project: [lastProjectField(), showEmptyProjectsField(), showArchivedProjectsField()],
     inbox: [inboxMonitorField(overrides)],
   }
 }

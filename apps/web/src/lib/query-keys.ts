@@ -1,6 +1,8 @@
 export const queryKeys = {
   projects: ['projects'] as const,
-  projectReconciliation: (generation: number) => ['project-reconciliation', generation] as const,
+  archivedProjects: ['projects', 'archived'] as const,
+  harnesses: ['harnesses'] as const,
+  projectAvailable: (harnessID?: string) => ['project-available', harnessID ?? 'active'] as const,
   sessions: (projectID: string | null) => ['sessions', projectID ?? 'all'] as const,
   archivedSessions: (projectID: string | null) =>
     ['sessions', projectID ?? 'all', 'archived'] as const,

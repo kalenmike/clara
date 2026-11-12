@@ -66,7 +66,9 @@ export function ProjectSettingsCard({ project }: { project: ClaraProject }) {
     try {
       const dataURL = await projectIconDataURL(file)
       setPreview(dataURL)
-      await update.mutateAsync({ icon: { override: dataURL } })
+      await update.mutateAsync({
+        icon: { override: dataURL, color: project.icon?.color },
+      })
       toast.success('Project icon updated')
     } catch (error) {
       setPreview(project.icon?.override)
@@ -83,7 +85,7 @@ export function ProjectSettingsCard({ project }: { project: ClaraProject }) {
     setBusy('icon')
     setPreview('')
     update.mutate(
-      { icon: { override: '' } },
+      { icon: { override: '', color: project.icon?.color } },
       {
         onSuccess: () => toast.success('Custom icon removed'),
         onError: () => {
@@ -100,7 +102,7 @@ export function ProjectSettingsCard({ project }: { project: ClaraProject }) {
     setBusy('color')
     setColorPreview(next)
     update.mutate(
-      { icon: { color: next ?? '' } },
+      { icon: { override: project.icon?.override, color: next ?? '' } },
       {
         onSuccess: () =>
           toast.success(next ? `Avatar color set to ${next}` : 'Avatar color cleared'),
@@ -135,7 +137,7 @@ export function ProjectSettingsCard({ project }: { project: ClaraProject }) {
           <Settings2 className="size-4" /> Project settings
         </CardTitle>
         <CardDescription>
-          Saved on the server and shared with every client that opens this project.
+          Saved in Clara and shared with every client connected to this hub.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-5">

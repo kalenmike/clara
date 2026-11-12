@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import type { ClaraProject, ClaraSession } from '@clara/api-contract'
+import type { ClaraHarnessProject, ClaraSession } from '@clara/api-contract'
 import { createApiApp } from '../src/api/app.ts'
 import type { ApiDependencies } from '../src/api/context.ts'
 import {
@@ -34,16 +34,57 @@ type FakeHarness = {
   links: Map<string, string[]>
   requests: HarnessRequest[]
   sessions: Map<string, ClaraSession[]>
-  projects: ClaraProject[]
+  projects: ClaraHarnessProject[]
   cursors: Map<string, string>
 }
 
-function fakeHarness(options: { projects?: ClaraProject[] } = {}): FakeHarness {
+function fakeHarness(options: { projects?: ClaraHarnessProject[] } = {}): FakeHarness {
   const links = new Map<string, string[]>()
   const requests: HarnessRequest[] = []
   const sessions = new Map<string, ClaraSession[]>()
   const cursors = new Map<string, string>()
   const projects = options.projects ?? []
+  const workspace = {
+    id: 'w_demo',
+    projectID: 'p_demo',
+    harnessID: 'harness-a',
+    directory: '/workspace/demo',
+    canonical: '/workspace/demo',
+    createdAt: 1,
+    updatedAt: 2,
+  }
+  const projectState = {
+    id: 'p_demo',
+    defaultWorkspaceID: 'w_demo',
+    createdAt: 1,
+    updatedAt: 2,
+    lastActiveAt: 3,
+  }
+  const projectStore = {
+    get: (projectID: string) =>
+      projectID === 'p_demo' ? { project: projectState, workspaces: [workspace] } : undefined,
+    linksForProject: (projectID: string) =>
+      (links.get(projectID) ?? []).map((harnessProjectID) => ({
+        harness_id: 'harness-a',
+        harness_project_id: harnessProjectID,
+        project_id: projectID,
+        workspace_id: 'w_demo',
+        last_seen_at: 3,
+      })),
+    linkHarnessProject: (input: { harnessProjectID: string; projectID: string }) => {
+      const current = links.get(input.projectID) ?? []
+      if (!current.includes(input.harnessProjectID)) current.push(input.harnessProjectID)
+      links.set(input.projectID, current)
+    },
+    updateWorkspace: () => workspace,
+    findWorkspaceByCanonical: (harnessID: string, canonical: string) =>
+      harnessID === 'harness-a' && canonical === '/workspace/demo' ? workspace : undefined,
+    linkForHarnessProject: (harnessID: string, harnessProjectID: string) =>
+      harnessID === 'harness-a' && (links.get('p_demo') ?? []).includes(harnessProjectID)
+        ? { harness_id: 'harness-a', harness_project_id: harnessProjectID, project_id: 'p_demo' }
+        : undefined,
+    workspace: () => workspace,
+  }
 
   const harness = {
     configured: true,
@@ -63,19 +104,19 @@ function fakeHarness(options: { projects?: ClaraProject[] } = {}): FakeHarness {
     },
     lastError: undefined,
     harnessId: 'harness-a',
+    projects: projectStore,
     harnessProjectIds: (projectId: string) => links.get(projectId) ?? [],
-    overlayProjectList: (list: ClaraProject[]) => {
-      for (const project of list) {
-        const claraID = `p_${project.canonical.split('/').filter(Boolean).pop() ?? 'root'}`
-        const current = links.get(claraID) ?? []
-        links.set(claraID, current.includes(project.id) ? current : [...current, project.id])
-      }
-      return list
-    },
     overlaySessionList: <T>(value: T) => value,
+    connection: () => harness.active,
     request: async (action: { path: string; search?: string }) => {
       const search = new URLSearchParams(action.search ?? '')
       requests.push({ path: action.path, search })
+      if (action.path === '/locations') {
+        return json({
+          directory: '/workspace/demo',
+          project: { id: 'project-a', directory: '/workspace/demo', canonical: '/workspace/demo' },
+        })
+      }
       if (action.path === '/projects') return json(projects)
       if (action.path === '/sessions') {
         const projectID = search.get('project') ?? ''
@@ -93,6 +134,16 @@ function fakeHarness(options: { projects?: ClaraProject[] } = {}): FakeHarness {
       return json({ error: { code: 'not_found', message: 'not found' } }, 404)
     },
   } as unknown as HarnessManager
+  ;(
+    harness as unknown as {
+      requestFor: (harnessID: string, input: { path: string; search?: string }) => Promise<Response>
+    }
+  ).requestFor = (_harnessID, input) =>
+    (
+      harness as unknown as {
+        request: (input: { path: string; search?: string }) => Promise<Response>
+      }
+    ).request(input)
 
   return { harness, links, requests, sessions, projects, cursors }
 }
@@ -115,7 +166,7 @@ function request(path: string): Request {
   })
 }
 
-const PROJECT: ClaraProject = {
+const PROJECT: ClaraHarnessProject = {
   id: 'project-a',
   canonical: '/workspace/demo',
   time: { created: 1, updated: 2, active: 3 },
@@ -179,7 +230,7 @@ describe('project session mapping', () => {
     expect(fake.requests[0]?.search.get('cursor')).toBe('opaque-open-curve')
   })
 
-  it('rebuilds links from the harness project list before failing', async () => {
+  it('syncs a project workspace from the harness location before failing', async () => {
     const fake = fakeHarness({ projects: [PROJECT] })
     fake.sessions.set('project-a', [session('s1', 'project-a', 10)])
     const api = createTestApi(fake.harness)
@@ -189,7 +240,7 @@ describe('project session mapping', () => {
     expect(response.status).toBe(200)
     const body = (await response.json()) as { data: ClaraSession[] }
     expect(body.data.map((item) => item.id)).toEqual(['s1'])
-    expect(fake.requests[0]?.path).toBe('/projects')
+    expect(fake.requests[0]?.path).toBe('/locations')
     expect(fake.requests.some((item) => item.search.get('project') === 'p_demo')).toBe(false)
   })
 

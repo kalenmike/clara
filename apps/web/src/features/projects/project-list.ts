@@ -2,12 +2,31 @@ import type { ClaraProject } from '@clara/api-contract'
 
 export const RECENT_PROJECT_LIMIT = 7
 
-/** The name shown for a project, falling back to the directory basename. */
+function workspaceLabel(project: ClaraProject): string | undefined {
+  const workspace =
+    project.workspaces.find((item) => item.id === project.defaultWorkspaceID) ??
+    project.workspaces[0]
+  const directory = workspace?.canonical ?? workspace?.directory
+  return directory?.split('/').filter(Boolean).pop()
+}
+
+/** The name shown for a project, falling back to its default workspace folder. */
 export function projectLabel(project: ClaraProject): string {
   const name = project.name?.trim()
   if (name) return name
-  const segment = project.canonical.split('/').filter(Boolean).pop()
-  return segment ?? project.canonical
+  return workspaceLabel(project) ?? 'Untitled project'
+}
+
+/** Short workspace summary for cards and the selector. */
+export function projectWorkspaceSummary(project: ClaraProject): string {
+  const count = project.workspaces.length
+  if (count === 0) return 'No workspaces'
+  if (count === 1) {
+    const workspace = project.workspaces[0]
+    return workspace ? `${workspace.harnessLabel} · ${workspace.directory}` : '1 workspace'
+  }
+  const harnesses = new Set(project.workspaces.map((workspace) => workspace.harnessLabel))
+  return `${count} workspaces · ${harnesses.size} ${harnesses.size === 1 ? 'harness' : 'harnesses'}`
 }
 
 /** The server's last-activity timestamp, with stable fallbacks for older records. */
@@ -20,7 +39,7 @@ function compareProjects(a: ClaraProject, b: ClaraProject): number {
     projectRecency(b) - projectRecency(a) ||
     b.time.updated - a.time.updated ||
     b.time.created - a.time.created ||
-    a.canonical.localeCompare(b.canonical)
+    projectLabel(a).localeCompare(projectLabel(b))
   )
 }
 
@@ -44,9 +63,8 @@ export function filterVisibleProjects(
 }
 
 /**
- * The projects shown in the sidebar switcher. Input is expected to be
- * canonical (one record per directory). The selected project is pinned into
- * the list when it falls outside the recent window.
+ * The projects shown in the sidebar switcher. The selected project is pinned
+ * into the list when it falls outside the recent window.
  */
 export function recentProjects(
   projects: ClaraProject[],

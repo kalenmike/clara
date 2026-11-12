@@ -34,10 +34,23 @@ function recoveryContext() {
   queryClient.setQueryData<ClaraProject[]>(queryKeys.projects, [
     {
       id: 'proj_1',
-      canonical: '/base',
       time: { created: 0, updated: 0, active: 0 },
-      sandboxes: [],
-    } as ClaraProject,
+      defaultWorkspaceID: 'workspace-1',
+      workspaces: [
+        {
+          id: 'workspace-1',
+          harnessID: 'harness-1',
+          harnessKind: 'test',
+          harnessLabel: 'Test harness',
+          online: true,
+          active: true,
+          directory: '/base',
+          canonical: '/base',
+          projectIDs: ['project-1'],
+          linked: true,
+        },
+      ],
+    } satisfies ClaraProject,
   ])
 
   const move = vi.fn().mockResolvedValue(undefined)

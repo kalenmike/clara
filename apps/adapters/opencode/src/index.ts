@@ -13,7 +13,7 @@ const ADAPTER_NAME = 'opencode'
 const ADAPTER_VERSION = '0.1.0'
 
 const CAPABILITIES = {
-  projects: { list: true, update: true },
+  projects: { list: true, update: true, archive: true, unarchive: true, delete: true },
   sessions: {
     list: true,
     create: true,

@@ -30,29 +30,53 @@ export async function forward(
     )
   }
 
-  const input: HarnessRequestInput = {
+  try {
+    return await deps.harness.request(toHarnessInput(request), signal)
+  } catch (cause) {
+    throw harnessError(cause)
+  }
+}
+
+/** Forward a request to one specific paired harness. */
+export async function forwardTo(
+  deps: ApiDependencies,
+  harnessID: string,
+  request: ForwardRequest,
+  signal: AbortSignal
+): Promise<Response> {
+  if (!deps.canAccess()) {
+    throw new ApiRequestError(403, 'disabled', 'Harness access is disabled by an admin setting')
+  }
+
+  try {
+    return await deps.harness.requestFor(harnessID, toHarnessInput(request), signal)
+  } catch (cause) {
+    throw harnessError(cause)
+  }
+}
+
+function toHarnessInput(request: ForwardRequest): HarnessRequestInput {
+  return {
     method: request.method,
     path: request.path,
     ...(request.search ? { search: request.search } : {}),
     ...(request.headers ? { headers: request.headers } : {}),
     ...(request.body === undefined ? {} : { body: request.body }),
   }
+}
 
-  try {
-    return await deps.harness.request(input, signal)
-  } catch (cause) {
-    if (cause instanceof HarnessUnconfiguredError) {
-      throw new ApiRequestError(503, cause.code, cause.message)
-    }
-    if (cause instanceof HarnessOfflineError) {
-      throw new ApiRequestError(503, cause.code, cause.message)
-    }
-    throw new ApiRequestError(
-      502,
-      'upstream_error',
-      cause instanceof Error ? cause.message : String(cause)
-    )
+function harnessError(cause: unknown): never {
+  if (cause instanceof HarnessUnconfiguredError) {
+    throw new ApiRequestError(503, cause.code, cause.message)
   }
+  if (cause instanceof HarnessOfflineError) {
+    throw new ApiRequestError(503, cause.code, cause.message)
+  }
+  throw new ApiRequestError(
+    502,
+    'upstream_error',
+    cause instanceof Error ? cause.message : String(cause)
+  )
 }
 
 export async function forwardJson(
@@ -96,7 +120,20 @@ export async function forwardResult<T>(
   signal: AbortSignal,
   unwrapData = false
 ): Promise<T> {
-  const response = await forward(deps, request, signal)
+  return readForwardResult<T>(await forward(deps, request, signal), unwrapData)
+}
+
+export async function forwardResultTo<T>(
+  deps: ApiDependencies,
+  harnessID: string,
+  request: ForwardRequest,
+  signal: AbortSignal,
+  unwrapData = false
+): Promise<T> {
+  return readForwardResult<T>(await forwardTo(deps, harnessID, request, signal), unwrapData)
+}
+
+async function readForwardResult<T>(response: Response, unwrapData: boolean): Promise<T> {
   if (!response.ok) throw await upstreamError(response)
   if (response.status === 204 || response.status === 205) return undefined as T
   const value = await readJson<unknown>(response)

@@ -38,3 +38,17 @@ export const apiInfoSchema = z.object({
 })
 
 export type ApiInfo = z.infer<typeof apiInfoSchema>
+
+/** A paired harness connection exposed to the browser for workspace setup. */
+export const claraHarnessConnectionSchema = z.object({
+  harnessID: z.string(),
+  kind: z.string(),
+  label: z.string(),
+  online: z.boolean(),
+  active: z.boolean(),
+  capabilities: z.record(z.string(), z.unknown()),
+})
+
+export const claraHarnessConnectionListSchema = z.array(claraHarnessConnectionSchema)
+
+export type ClaraHarnessConnection = z.infer<typeof claraHarnessConnectionSchema>

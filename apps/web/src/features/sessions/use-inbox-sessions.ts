@@ -10,7 +10,7 @@ import { useActiveSessions, useSessions } from '@/features/sessions/use-sessions
 /** Inbox sessions for a project, newest first, with the data needed to jump to them. */
 export function useInboxSessions(projectID: string | null, directory: string | null) {
   const { isAutomation } = useSessionPolicy()
-  const sessionsQuery = useSessions(projectID, '', Boolean(projectID))
+  const sessionsQuery = useSessions(projectID, '', Boolean(projectID && directory))
   const activeQuery = useActiveSessions()
   const permissionsQuery = usePendingPermissions(directory ?? undefined)
 

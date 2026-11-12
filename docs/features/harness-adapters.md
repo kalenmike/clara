@@ -37,8 +37,9 @@ contacts the harness directly.
    until the adapter connects; it then shows **Online** and adds a live row under
    **Connected adapters**. The first adapter is **Active**; turning the Harness
    switch off shows **Off** while the adapter credential is kept.
-6. Open the web client. Sessions and projects arrive through the adapter; the
-   hub never contacts the harness.
+6. Open the web client. Sessions arrive through the adapter; Clara projects are
+   created in the web client and their workspaces link directories on the
+   adapter. The hub never contacts the harness.
 
 ## Core business rules
 
@@ -55,9 +56,19 @@ contacts the harness directly.
    it explicitly.
 5. The hub owns Clara metadata. Adapters return harness-native data and never
    store snooze, archive, view, or project settings.
-6. A harness version bump changes only that adapter. The hub and web branch on
+6. Project lifecycle is capability-gated. The hub sends
+   `POST /harness/v1/projects/:projectID/archive`, `.../unarchive`, and
+   `DELETE /harness/v1/projects/:projectID` to every linked harness and reports
+   each result. An adapter advertises `projects.archive`, `projects.unarchive`,
+   and `projects.delete`; one that does not is reported as unsupported while
+   Clara still applies its own archive or delete. The included adapter maps
+   those actions to bulk session archive/unarchive/delete because OpenCode has no
+   project archive or delete endpoint; the harness project record may remain.
+   Clara never creates projects from a harness project list, so a harness cannot
+   add or hide a Clara project.
+7. A harness version bump changes only that adapter. The hub and web branch on
    capability flags, not harness kind.
-7. The included OpenCode installer installs the daemon, the OpenCode binding,
+8. The included OpenCode installer installs the daemon, the OpenCode binding,
    and the shared runner. `--no-runner` and `--no-service` split those pieces.
    Inside the repository, `pnpm clara adapter install --opencode` dispatches to
    the same adapter binary.
