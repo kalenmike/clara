@@ -15,7 +15,7 @@ import {
 } from './config.ts'
 import { discoverOpenCode } from './discover.ts'
 import { enrollAdapter } from './enroll.ts'
-import { OpenCodeClient } from './opencode.ts'
+import { OpenCodeGateway } from './opencode.ts'
 import { removeState } from './state.ts'
 import {
   adapterEntry,
@@ -81,9 +81,11 @@ export async function installOpenCodeAdapter(options: InstallOptions): Promise<I
   })
   const openCode = discovery ?? (await promptOpenCode())
   const identity = loadIdentity()
-  const probe = await new OpenCodeClient(openCode.url, openCode.password, openCode.username).probe(
-    3_000
-  )
+  const probe = await new OpenCodeGateway({
+    url: openCode.url,
+    username: openCode.username,
+    ...(openCode.password ? { password: openCode.password } : {}),
+  }).probe(3_000)
 
   const entry = options.entry ?? adapterEntry()
   const command = foregroundCommand(entry)
@@ -198,7 +200,11 @@ async function promptOpenCode(): Promise<{
     username,
     ...(password ? { password } : {}),
   }
-  const probe = await new OpenCodeClient(config.url, config.password, config.username).probe(3_000)
+  const probe = await new OpenCodeGateway({
+    url: config.url,
+    username: config.username,
+    ...(config.password ? { password: config.password } : {}),
+  }).probe(3_000)
   if (!probe.ok) {
     throw new Error(`OpenCode is still unreachable (${probe.code}): ${probe.message ?? ''}`)
   }

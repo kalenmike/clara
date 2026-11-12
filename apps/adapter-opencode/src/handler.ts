@@ -1,40 +1,33 @@
 import { Hono, type Context } from 'hono'
+import type {
+  FileFindInput,
+  MessageListInput,
+  PermissionReplyInput,
+  ProjectUpdateInput,
+  SessionCommandInput,
+  SessionCompactInput,
+  SessionCreateInput,
+  SessionFormCancelInput,
+  SessionFormReplyInput,
+  SessionForkInput,
+  SessionInterruptInput,
+  SessionListInput,
+  SessionMoveInput,
+  SessionPromptInput,
+  SessionSwitchAgentInput,
+  SessionSwitchModelInput,
+  SessionSyntheticInput,
+  SessionUpdateInput,
+  SessionViewInput,
+  VcsDiffInput,
+  WorktreeListInput,
+} from '@opencode/client'
 import { AdapterError } from './errors.ts'
-import {
-  parseClaraAgentList,
-  parseClaraCommandList,
-  parseClaraFiles,
-  parseClaraForms,
-  parseClaraLocation,
-  parseClaraModelList,
-  parseClaraPermissionRequests,
-  parseClaraProject,
-  parseClaraProjects,
-  parseClaraProviderList,
-  parseClaraReferenceList,
-  parseClaraServerInfo,
-  parseClaraSession,
-  parseClaraSessionActive,
-  parseClaraSessionInbox,
-  parseClaraSessionInboxCompaction,
-  parseClaraSessionInboxSynthetic,
-  parseClaraSessionInboxUser,
-  parseClaraSessionInterrupt,
-  parseClaraSessionMessages,
-  parseClaraSessionMessagesResponse,
-  parseClaraSessions,
-  parseClaraSkillList,
-  parseClaraVcs,
-  parseClaraVcsBase,
-  parseClaraVcsDiff,
-  parseClaraVcsStatus,
-  parseClaraWorktrees,
-} from './dto.ts'
 import { loadGitLog } from './git.ts'
-import { OpenCodeClient, type OpenCodeRequest } from './opencode.ts'
+import { OpenCodeGateway, toAdapterError } from './opencode.ts'
 
 export type AdapterContext = {
-  opencode: OpenCodeClient
+  opencode: OpenCodeGateway
   info: {
     adapter: { name: string; version: string }
     harness: { kind: string; version?: string }
@@ -42,7 +35,10 @@ export type AdapterContext = {
   }
 }
 
-type Parse<T> = (value: unknown) => T
+type LocationInput = { location?: { directory?: string } }
+
+const KEEPALIVE_MS = 15_000
+const MAX_BODY_BYTES = 10 * 1024 * 1024
 
 export function createAdapterApp(context: AdapterContext): Hono {
   const app = new Hono()
@@ -60,212 +56,392 @@ export function createAdapterApp(context: AdapterContext): Hono {
   app.get('/harness/v1/health', async (c) => c.json(await client.probe(1_500)))
 
   app.get('/harness/v1/harness/info', async (c) =>
-    json(c, 'GET', '/api/info', undefined, parseClaraServerInfo)
+    c.json(await run(c, () => client.client.server.info({ signal: c.req.raw.signal })))
   )
 
   app.get('/harness/v1/projects', async (c) =>
-    json(c, 'GET', '/api/project', undefined, parseClaraProjects, c.req.query())
-  )
-
-  app.patch('/harness/v1/projects/:projectID', async (c) =>
-    json(
-      c,
-      'PATCH',
-      `/api/project/${encodeURIComponent(c.req.param('projectID'))}`,
-      await body(c),
-      parseClaraProject,
-      undefined,
-      true
+    c.json(
+      await run(c, () =>
+        client.client.project.list(
+          {
+            ...(booleanQuery(c, 'archived') !== undefined
+              ? { archived: booleanQuery(c, 'archived') }
+              : {}),
+          },
+          { signal: c.req.raw.signal }
+        )
+      )
     )
   )
 
+  app.patch('/harness/v1/projects/:projectID', async (c) => {
+    const body = await jsonBody<Omit<ProjectUpdateInput, 'projectID'>>(c)
+    return c.json(
+      await run(c, () =>
+        client.client.project.update(
+          { projectID: c.req.param('projectID'), ...body },
+          { signal: c.req.raw.signal }
+        )
+      )
+    )
+  })
+
   app.get('/harness/v1/locations', async (c) =>
-    json(c, 'GET', '/api/location', undefined, parseClaraLocation, queryLocation(c.req.query()))
+    c.json(
+      await run(c, () => client.client.location.get(locationInput(c), { signal: c.req.raw.signal }))
+    )
   )
 
-  app.get('/harness/v1/files/find', async (c) =>
-    json(c, 'GET', '/api/fs/find', undefined, parseClaraFiles, queryLocation(c.req.query()))
-  )
+  app.get('/harness/v1/files/find', async (c) => {
+    const type = fileType(c.req.query('type'))
+    const input = {
+      ...locationInput(c),
+      query: c.req.query('query') ?? '',
+      ...(type ? { type } : {}),
+      ...(numberQuery(c, 'limit') !== undefined ? { limit: numberQuery(c, 'limit') } : {}),
+    } satisfies FileFindInput
+    return c.json(await run(c, () => client.client.file.find(input, { signal: c.req.raw.signal })))
+  })
 
   app.get('/harness/v1/vcs', async (c) =>
-    json(c, 'GET', '/api/vcs', undefined, parseClaraVcs, queryLocation(c.req.query()))
+    c.json(
+      await run(c, () => client.client.vcs.get(locationInput(c), { signal: c.req.raw.signal }))
+    )
   )
   app.get('/harness/v1/vcs/base', async (c) =>
-    json(c, 'GET', '/api/vcs/base', undefined, parseClaraVcsBase, queryLocation(c.req.query()))
+    c.json(
+      await run(c, () => client.client.vcs.base(locationInput(c), { signal: c.req.raw.signal }))
+    )
   )
   app.get('/harness/v1/vcs/status', async (c) =>
-    json(c, 'GET', '/api/vcs/status', undefined, parseClaraVcsStatus, queryLocation(c.req.query()))
+    c.json(
+      await run(c, () => client.client.vcs.status(locationInput(c), { signal: c.req.raw.signal }))
+    )
   )
-  app.get('/harness/v1/vcs/diff', async (c) =>
-    json(c, 'POST', '/api/vcs/diff', undefined, parseClaraVcsDiff, queryLocation(c.req.query()))
-  )
+  app.get('/harness/v1/vcs/diff', async (c) => {
+    const mode = c.req.query('mode')
+    if (mode !== 'working' && mode !== 'branch' && mode !== 'committed') {
+      throw new AdapterError(400, 'invalid_request', 'A valid VCS diff mode is required')
+    }
+    const input = {
+      ...locationInput(c),
+      mode,
+      ...(c.req.query('base') ? { base: c.req.query('base') } : {}),
+      ...(numberQuery(c, 'context') !== undefined ? { context: numberQuery(c, 'context') } : {}),
+    } satisfies VcsDiffInput
+    return c.json(await run(c, () => client.client.vcs.diff(input, { signal: c.req.raw.signal })))
+  })
 
   app.get('/harness/v1/worktrees', async (c) =>
-    json(c, 'GET', '/api/worktree', undefined, parseClaraWorktrees, c.req.query())
+    c.json(
+      await run(c, () =>
+        client.client.worktree.list(worktreeListInput(c.req.query('projectID')), {
+          signal: c.req.raw.signal,
+        })
+      )
+    )
   )
   app.post('/harness/v1/worktrees/refresh', async (c) => {
-    await empty(c, 'POST', '/api/worktree/refresh', await body(c))
+    const body = await jsonBody<{ projectID: string }>(c)
+    await run(c, () => client.client.worktree.refresh(body, { signal: c.req.raw.signal }))
     return c.body(null, 204)
   })
 
-  app.get('/harness/v1/sessions', async (c) =>
-    json(c, 'GET', '/api/session', undefined, parseClaraSessions, c.req.query())
-  )
-  app.post('/harness/v1/sessions', async (c) =>
-    json(c, 'POST', '/api/session', await body(c), parseClaraSession, undefined, true)
-  )
+  app.get('/harness/v1/sessions', async (c) => {
+    const input = sessionListInput(c)
+    return c.json(
+      await run(c, () => client.client.session.list(input, { signal: c.req.raw.signal }))
+    )
+  })
+  app.post('/harness/v1/sessions', async (c) => {
+    const body = await jsonBody<SessionCreateInput>(c)
+    return c.json(
+      await run(c, () =>
+        client.client.session.create(body, {
+          signal: c.req.raw.signal,
+        })
+      )
+    )
+  })
   app.get('/harness/v1/sessions/active', async (c) =>
-    json(c, 'GET', '/api/session/active', undefined, parseClaraSessionActive, undefined, true)
+    c.json(await run(c, () => client.client.session.active({ signal: c.req.raw.signal })))
   )
   app.get('/harness/v1/sessions/:sessionID', async (c) =>
-    json(
-      c,
-      'GET',
-      `/api/session/${encodeURIComponent(c.req.param('sessionID'))}`,
-      undefined,
-      parseClaraSession,
-      undefined,
-      true
+    c.json(
+      await run(c, () =>
+        client.client.session.get(
+          { sessionID: c.req.param('sessionID') },
+          { signal: c.req.raw.signal }
+        )
+      )
     )
   )
   app.patch('/harness/v1/sessions/:sessionID', async (c) => {
-    await empty(
-      c,
-      'PATCH',
-      `/api/session/${encodeURIComponent(c.req.param('sessionID'))}`,
-      await body(c)
+    const body = await jsonBody<Omit<SessionUpdateInput, 'sessionID'>>(c)
+    await run(c, () =>
+      client.client.session.update(
+        { sessionID: c.req.param('sessionID'), ...body },
+        { signal: c.req.raw.signal }
+      )
     )
     return c.body(null, 204)
   })
   app.delete('/harness/v1/sessions/:sessionID', async (c) => {
-    await empty(c, 'DELETE', `/api/session/${encodeURIComponent(c.req.param('sessionID'))}`)
+    await run(c, () =>
+      client.client.session.remove(
+        { sessionID: c.req.param('sessionID') },
+        { signal: c.req.raw.signal }
+      )
+    )
     return c.body(null, 204)
   })
 
-  registerSessionAction(app, 'fork', parseClaraSession, true)
-  registerSessionAction(app, 'move')
-  registerSessionAction(app, 'view')
-  registerSessionAction(app, 'prompt', parseClaraSessionInboxUser, true)
-  registerSessionAction(app, 'synthetic', parseClaraSessionInboxSynthetic, true)
-  registerSessionAction(app, 'command')
-  registerSessionAction(app, 'interrupt', parseClaraSessionInterrupt, true)
-  registerSessionAction(app, 'compact', parseClaraSessionInboxCompaction, true)
-  registerSessionAction(app, 'agent')
-  registerSessionAction(app, 'model')
-
-  app.get('/harness/v1/sessions/:sessionID/messages', async (c) =>
-    json(
-      c,
-      'GET',
-      `/api/session/${encodeURIComponent(c.req.param('sessionID'))}/message`,
-      undefined,
-      parseClaraSessionMessagesResponse,
-      c.req.query()
+  app.post('/harness/v1/sessions/:sessionID/fork', async (c) => {
+    const body = await jsonBody<Omit<SessionForkInput, 'sessionID'>>(c)
+    return c.json(
+      await run(c, () =>
+        client.client.session.fork(
+          { sessionID: c.req.param('sessionID'), ...body },
+          { signal: c.req.raw.signal }
+        )
+      )
     )
-  )
+  })
+
+  app.post('/harness/v1/sessions/:sessionID/move', async (c) => {
+    const body = await jsonBody<Omit<SessionMoveInput, 'sessionID'>>(c)
+    await run(c, () =>
+      client.client.session.move(
+        { sessionID: c.req.param('sessionID'), ...body },
+        { signal: c.req.raw.signal }
+      )
+    )
+    return c.body(null, 204)
+  })
+
+  app.post('/harness/v1/sessions/:sessionID/view', async (c) => {
+    const body = await jsonBody<Omit<SessionViewInput, 'sessionID'>>(c)
+    await run(c, () =>
+      client.client.session.view(
+        { sessionID: c.req.param('sessionID'), idle: body.idle },
+        { signal: c.req.raw.signal }
+      )
+    )
+    return c.body(null, 204)
+  })
+
+  app.post('/harness/v1/sessions/:sessionID/prompt', async (c) => {
+    const body = await jsonBody<Omit<SessionPromptInput, 'sessionID'>>(c)
+    return c.json(
+      await run(c, () =>
+        client.client.session.prompt(
+          { sessionID: c.req.param('sessionID'), ...body },
+          { signal: c.req.raw.signal }
+        )
+      )
+    )
+  })
+
+  app.post('/harness/v1/sessions/:sessionID/synthetic', async (c) => {
+    const body = await jsonBody<Omit<SessionSyntheticInput, 'sessionID'>>(c)
+    return c.json(
+      await run(c, () =>
+        client.client.session.synthetic(
+          { sessionID: c.req.param('sessionID'), ...body },
+          { signal: c.req.raw.signal }
+        )
+      )
+    )
+  })
+
+  app.post('/harness/v1/sessions/:sessionID/command', async (c) => {
+    const body = await jsonBody<Omit<SessionCommandInput, 'sessionID'>>(c)
+    await run(c, () =>
+      client.client.session.command(
+        { sessionID: c.req.param('sessionID'), ...body },
+        { signal: c.req.raw.signal }
+      )
+    )
+    return c.body(null, 204)
+  })
+
+  app.post('/harness/v1/sessions/:sessionID/interrupt', async (c) => {
+    const body = await jsonBody<Omit<SessionInterruptInput, 'sessionID'>>(c)
+    return c.json(
+      await run(c, () =>
+        client.client.session.interrupt(
+          { sessionID: c.req.param('sessionID'), ...body },
+          { signal: c.req.raw.signal }
+        )
+      )
+    )
+  })
+
+  app.post('/harness/v1/sessions/:sessionID/compact', async (c) => {
+    const body = await jsonBody<Omit<SessionCompactInput, 'sessionID'>>(c)
+    return c.json(
+      await run(c, () =>
+        client.client.session.compact(
+          { sessionID: c.req.param('sessionID'), ...body },
+          { signal: c.req.raw.signal }
+        )
+      )
+    )
+  })
+
+  app.post('/harness/v1/sessions/:sessionID/agent', async (c) => {
+    const body = await jsonBody<Omit<SessionSwitchAgentInput, 'sessionID'>>(c)
+    await run(c, () =>
+      client.client.session.switchAgent(
+        { sessionID: c.req.param('sessionID'), ...body },
+        { signal: c.req.raw.signal }
+      )
+    )
+    return c.body(null, 204)
+  })
+
+  app.post('/harness/v1/sessions/:sessionID/model', async (c) => {
+    const body = await jsonBody<Omit<SessionSwitchModelInput, 'sessionID'>>(c)
+    await run(c, () =>
+      client.client.session.switchModel(
+        { sessionID: c.req.param('sessionID'), ...body },
+        { signal: c.req.raw.signal }
+      )
+    )
+    return c.body(null, 204)
+  })
+
+  app.get('/harness/v1/sessions/:sessionID/messages', async (c) => {
+    const input = messageListInput(c)
+    return c.json(
+      await run(c, () => client.client.message.list(input, { signal: c.req.raw.signal }))
+    )
+  })
   app.get('/harness/v1/sessions/:sessionID/context', async (c) =>
-    json(
-      c,
-      'GET',
-      `/api/session/${encodeURIComponent(c.req.param('sessionID'))}/context`,
-      undefined,
-      parseClaraSessionMessages,
-      undefined,
-      true
+    c.json(
+      await run(c, () =>
+        client.client.session.context(
+          { sessionID: c.req.param('sessionID') },
+          { signal: c.req.raw.signal }
+        )
+      )
     )
   )
   app.get('/harness/v1/sessions/:sessionID/forms', async (c) =>
-    json(
-      c,
-      'GET',
-      `/api/session/${encodeURIComponent(c.req.param('sessionID'))}/form`,
-      undefined,
-      parseClaraForms,
-      undefined,
-      true
+    c.json(
+      await run(c, () =>
+        client.client.session.form.list(
+          { sessionID: c.req.param('sessionID') },
+          { signal: c.req.raw.signal }
+        )
+      )
     )
   )
   app.post('/harness/v1/sessions/:sessionID/forms/:formID/reply', async (c) => {
-    await empty(
-      c,
-      'POST',
-      `/api/session/${encodeURIComponent(c.req.param('sessionID'))}/form/${encodeURIComponent(c.req.param('formID'))}/reply`,
-      await body(c)
+    const body = await jsonBody<Omit<SessionFormReplyInput, 'sessionID' | 'formID'>>(c)
+    await run(c, () =>
+      client.client.session.form.reply(
+        {
+          sessionID: c.req.param('sessionID'),
+          formID: c.req.param('formID'),
+          ...body,
+        },
+        { signal: c.req.raw.signal }
+      )
     )
     return c.body(null, 204)
   })
   app.delete('/harness/v1/sessions/:sessionID/forms/:formID', async (c) => {
-    await empty(
-      c,
-      'DELETE',
-      `/api/session/${encodeURIComponent(c.req.param('sessionID'))}/form/${encodeURIComponent(c.req.param('formID'))}`,
-      await body(c)
+    const body = await jsonBody<Omit<SessionFormCancelInput, 'sessionID' | 'formID'>>(c)
+    await run(c, () =>
+      client.client.session.form.cancel(
+        {
+          sessionID: c.req.param('sessionID'),
+          formID: c.req.param('formID'),
+          ...body,
+        },
+        { signal: c.req.raw.signal }
+      )
     )
     return c.body(null, 204)
   })
   app.get('/harness/v1/sessions/:sessionID/inbox', async (c) =>
-    json(
-      c,
-      'GET',
-      `/api/session/${encodeURIComponent(c.req.param('sessionID'))}/inbox`,
-      undefined,
-      parseClaraSessionInbox,
-      undefined,
-      true
+    c.json(
+      await run(c, () =>
+        client.client.session.inbox.list(
+          { sessionID: c.req.param('sessionID') },
+          { signal: c.req.raw.signal }
+        )
+      )
     )
   )
   app.delete('/harness/v1/sessions/:sessionID/inbox/:inboxID', async (c) => {
-    await empty(
-      c,
-      'DELETE',
-      `/api/session/${encodeURIComponent(c.req.param('sessionID'))}/inbox/${encodeURIComponent(c.req.param('inboxID'))}`
+    await run(c, () =>
+      client.client.session.inbox.cancel(
+        {
+          sessionID: c.req.param('sessionID'),
+          inboxID: c.req.param('inboxID'),
+        },
+        { signal: c.req.raw.signal }
+      )
     )
     return c.body(null, 204)
   })
 
   app.get('/harness/v1/permissions', async (c) =>
-    json(
-      c,
-      'GET',
-      '/api/permission/request',
-      undefined,
-      parseClaraPermissionRequests,
-      queryLocation(c.req.query())
+    c.json(
+      await run(c, () =>
+        client.client.permission.request.list(locationInput(c), { signal: c.req.raw.signal })
+      )
     )
   )
   app.post('/harness/v1/sessions/:sessionID/permissions/:requestID/reply', async (c) => {
-    await empty(
-      c,
-      'POST',
-      `/api/session/${encodeURIComponent(c.req.param('sessionID'))}/permission/${encodeURIComponent(c.req.param('requestID'))}/reply`,
-      await body(c)
+    const body = await jsonBody<Omit<PermissionReplyInput, 'sessionID' | 'requestID'>>(c)
+    await run(c, () =>
+      client.client.permission.reply(
+        {
+          sessionID: c.req.param('sessionID'),
+          requestID: c.req.param('requestID'),
+          ...body,
+        },
+        { signal: c.req.raw.signal }
+      )
     )
     return c.body(null, 204)
   })
 
   app.get('/harness/v1/agents', async (c) =>
-    json(c, 'GET', '/api/agent', undefined, parseClaraAgentList)
+    c.json(
+      await run(c, () => client.client.agent.list(locationInput(c), { signal: c.req.raw.signal }))
+    )
   )
   app.get('/harness/v1/models', async (c) =>
-    json(c, 'GET', '/api/model', undefined, parseClaraModelList)
+    c.json(
+      await run(c, () => client.client.model.list(locationInput(c), { signal: c.req.raw.signal }))
+    )
   )
   app.get('/harness/v1/providers', async (c) =>
-    json(c, 'GET', '/api/provider', undefined, parseClaraProviderList)
+    c.json(
+      await run(c, () =>
+        client.client.provider.list(locationInput(c), { signal: c.req.raw.signal })
+      )
+    )
   )
   app.get('/harness/v1/commands', async (c) =>
-    json(c, 'GET', '/api/command', undefined, parseClaraCommandList)
+    c.json(
+      await run(c, () => client.client.command.list(locationInput(c), { signal: c.req.raw.signal }))
+    )
   )
   app.get('/harness/v1/skills', async (c) =>
-    json(c, 'GET', '/api/skill', undefined, parseClaraSkillList, queryLocation(c.req.query()))
+    c.json(
+      await run(c, () => client.client.skill.list(locationInput(c), { signal: c.req.raw.signal }))
+    )
   )
   app.get('/harness/v1/references', async (c) =>
-    json(
-      c,
-      'GET',
-      '/api/reference',
-      undefined,
-      parseClaraReferenceList,
-      queryLocation(c.req.query())
+    c.json(
+      await run(c, () =>
+        client.client.reference.list(locationInput(c), { signal: c.req.raw.signal })
+      )
     )
   )
 
@@ -283,14 +459,7 @@ export function createAdapterApp(context: AdapterContext): Hono {
     )
   )
 
-  app.get('/harness/v1/events', async (c) => {
-    const response = await client.request(
-      { method: 'GET', path: '/api/event', headers: { accept: 'text/event-stream' } },
-      c.req.raw.signal
-    )
-    if (!response.ok) throw await upstreamError(response)
-    return response
-  })
+  app.get('/harness/v1/events', (c) => eventStream(client, c.req.raw.signal))
 
   app.onError((error, c) => {
     if (error instanceof AdapterError) {
@@ -316,128 +485,143 @@ export function createAdapterApp(context: AdapterContext): Hono {
     )
   })
 
-  function registerSessionAction(
-    target: Hono,
-    action: string,
-    parse?: Parse<unknown>,
-    unwrapData = false
-  ): void {
-    target.post(`/harness/v1/sessions/:sessionID/${action}`, async (c) => {
-      return json(
-        c,
-        'POST',
-        `/api/session/${encodeURIComponent(c.req.param('sessionID'))}/${action}`,
-        await body(c),
-        parse,
-        undefined,
-        unwrapData
-      )
-    })
-  }
-
-  async function json<T>(
-    c: Context,
-    method: OpenCodeRequest['method'],
-    path: string,
-    bodyValue?: string,
-    parse?: Parse<T>,
-    search?: Record<string, string | string[] | undefined>,
-    unwrapData = false
-  ): Promise<Response> {
-    const response = await client.request(
-      {
-        method,
-        path,
-        ...(search ? { search: toSearch(search) } : {}),
-        ...(bodyValue === undefined
-          ? {}
-          : { headers: { 'content-type': 'application/json' }, body: bodyValue }),
-      },
-      c.req.raw.signal
-    )
-    if (!response.ok) throw await upstreamError(response)
-    if (response.status === 204 || response.status === 205) return c.body(null, 204)
-    const text = await response.text()
-    if (!text) return c.body(null, 204)
-    const value = JSON.parse(text) as unknown
-    const unwrapped =
-      unwrapData && value && typeof value === 'object' && 'data' in value
-        ? (value as { data: unknown }).data
-        : value
-    const parsed = parse ? parse(unwrapped) : (unwrapped as T)
-    return c.json(parsed)
-  }
-
-  async function empty(
-    c: Context,
-    method: OpenCodeRequest['method'],
-    path: string,
-    bodyValue?: string
-  ): Promise<void> {
-    const response = await client.request(
-      {
-        method,
-        path,
-        ...(bodyValue === undefined
-          ? {}
-          : { headers: { 'content-type': 'application/json' }, body: bodyValue }),
-      },
-      c.req.raw.signal
-    )
-    if (!response.ok) throw await upstreamError(response)
-  }
-
   return app
 }
 
-async function body(c: { req: { json: <T>() => Promise<T> } }): Promise<string> {
+async function run<T>(_c: Context, operation: () => Promise<T>): Promise<T> {
   try {
-    return JSON.stringify(await c.req.json())
-  } catch {
-    return ''
+    return await operation()
+  } catch (cause) {
+    throw toAdapterError(cause)
   }
 }
 
-function queryLocation(
-  input: Record<string, string | string[] | undefined>
-): Record<string, string> {
-  const directory = input.directory
-  return typeof directory === 'string' && directory ? { 'location[directory]': directory } : {}
-}
+function eventStream(gateway: OpenCodeGateway, requestSignal: AbortSignal): Response {
+  const encoder = new TextEncoder()
+  const controller = new AbortController()
+  let closed = false
+  let lastCommentAt = 0
 
-function toSearch(input: Record<string, string | string[] | undefined>): string {
-  const search = new URLSearchParams()
-  for (const [key, value] of Object.entries(input)) {
-    if (value === undefined) continue
-    for (const item of Array.isArray(value) ? value : [value]) search.append(key, item)
-  }
-  const text = search.toString()
-  return text ? `?${text}` : ''
-}
+  const abort = () => controller.abort()
+  if (requestSignal.aborted) controller.abort()
+  else requestSignal.addEventListener('abort', abort, { once: true })
 
-async function upstreamError(response: Response): Promise<AdapterError> {
-  const text = await response.text().catch(() => '')
-  let code = 'upstream_error'
-  let message = text.trim() || `OpenCode responded with ${response.status}`
-  if (text) {
-    try {
-      const parsed = JSON.parse(text) as {
-        error?: { code?: string; message?: string }
-        message?: string
+  const stream = new ReadableStream<Uint8Array>({
+    async start(target) {
+      const send = (text: string) => {
+        if (closed) return
+        try {
+          target.enqueue(encoder.encode(text))
+        } catch {
+          closed = true
+        }
       }
-      if (parsed.error?.code) code = parsed.error.code
-      if (parsed.error?.message) message = parsed.error.message
-      else if (typeof parsed.message === 'string') message = parsed.message
-    } catch {
-      // Keep the raw text.
-    }
+      const comment = () => {
+        const now = Date.now()
+        if (now - lastCommentAt < KEEPALIVE_MS) return
+        lastCommentAt = now
+        send(':\n\n')
+      }
+
+      lastCommentAt = Date.now()
+      send(':\n\n')
+      try {
+        for await (const event of gateway.client.event.subscribe({
+          signal: controller.signal,
+          onActivity: comment,
+        })) {
+          send(`data: ${JSON.stringify(event)}\n\n`)
+        }
+        if (!closed) target.close()
+      } catch (cause) {
+        if (!closed) {
+          if (controller.signal.aborted) target.close()
+          else target.error(toAdapterError(cause))
+        }
+      } finally {
+        closed = true
+        requestSignal.removeEventListener('abort', abort)
+      }
+    },
+    cancel() {
+      closed = true
+      controller.abort()
+      requestSignal.removeEventListener('abort', abort)
+    },
+  })
+
+  return new Response(stream, {
+    headers: {
+      'content-type': 'text/event-stream',
+      'cache-control': 'no-cache',
+      connection: 'keep-alive',
+    },
+  })
+}
+
+function locationInput(c: Context): LocationInput | undefined {
+  const directory = c.req.query('directory')
+  return directory ? { location: { directory } } : undefined
+}
+
+function numberQuery(c: Context, name: string): number | undefined {
+  const value = c.req.query(name)
+  if (!value) return undefined
+  const parsed = Number(value)
+  return Number.isFinite(parsed) ? parsed : undefined
+}
+
+function booleanQuery(c: Context, name: string): boolean | undefined {
+  const value = c.req.query(name)
+  if (value === 'true') return true
+  if (value === 'false') return false
+  return undefined
+}
+
+function fileType(value: string | undefined): 'file' | 'directory' | undefined {
+  return value === 'file' || value === 'directory' ? value : undefined
+}
+
+function sessionListInput(c: Context): SessionListInput {
+  const order = c.req.query('order')
+  return {
+    ...(numberQuery(c, 'limit') !== undefined ? { limit: numberQuery(c, 'limit') } : {}),
+    ...(order === 'asc' || order === 'desc' ? { order } : {}),
+    ...(c.req.query('search') ? { search: c.req.query('search') } : {}),
+    ...(c.req.query('parentID') ? { parentID: c.req.query('parentID') } : {}),
+    ...(booleanQuery(c, 'archived') !== undefined ? { archived: booleanQuery(c, 'archived') } : {}),
+    ...(c.req.query('directory') ? { directory: c.req.query('directory') } : {}),
+    ...(c.req.query('project') ? { project: c.req.query('project') } : {}),
+    ...(c.req.query('subpath') ? { subpath: c.req.query('subpath') } : {}),
+    ...(c.req.query('cursor') ? { cursor: c.req.query('cursor') } : {}),
   }
-  if (response.status === 401 || response.status === 403) {
-    return new AdapterError(
-      502,
-      'harness_auth',
-      message || 'OpenCode rejected the adapter credentials'
-    )
+}
+
+function messageListInput(c: Context): MessageListInput {
+  const order = c.req.query('order')
+  const type = c.req.query('type') as MessageListInput['type'] | undefined
+  return {
+    sessionID: c.req.param('sessionID') ?? '',
+    ...(numberQuery(c, 'limit') !== undefined ? { limit: numberQuery(c, 'limit') } : {}),
+    ...(order === 'asc' || order === 'desc' ? { order } : {}),
+    ...(c.req.query('cursor') ? { cursor: c.req.query('cursor') } : {}),
+    ...(type ? { type } : {}),
   }
-  return new AdapterError(response.status >= 500 ? 502 : response.status, code, message)
+}
+
+function worktreeListInput(projectID: string | undefined): WorktreeListInput {
+  // The SDK marks this required, but the existing Clara route allows it to be
+  // omitted and the old proxy omitted the query in that case.
+  return (projectID ? { projectID } : {}) as WorktreeListInput
+}
+
+async function jsonBody<T>(c: Context): Promise<T> {
+  try {
+    const text = await c.req.text()
+    if (Buffer.byteLength(text) > MAX_BODY_BYTES) throw new Error('Request body is too large')
+    return (text ? JSON.parse(text) : {}) as T
+  } catch (cause) {
+    if (cause instanceof Error && cause.message === 'Request body is too large') throw cause
+    return {} as T
+  }
 }
