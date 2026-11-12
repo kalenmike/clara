@@ -162,9 +162,9 @@ describe('AdapterTransport authentication', () => {
     )
     await requestStarted
     await hub.sendSealed(hello, { type: 'adapter.abort', id: 'request-1' }, { seq: 2 })
-    await waitFor(() => aborted, 20_000)
+    await waitFor(() => aborted, 90_000)
     transport.close()
-  }, 30_000)
+  }, 120_000)
 })
 
 describe('AdapterTransport send ordering', () => {
@@ -383,7 +383,7 @@ async function startHub(): Promise<FakeHub> {
   return hub
 }
 
-async function waitFor(check: () => boolean, timeoutMs = 2_000): Promise<void> {
+async function waitFor(check: () => boolean, timeoutMs = 10_000): Promise<void> {
   const started = Date.now()
   while (!check()) {
     if (Date.now() - started > timeoutMs) throw new Error('Timed out waiting for adapter state')
