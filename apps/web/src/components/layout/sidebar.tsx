@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useLocation, useNavigate, useParams } from 'react-router'
 import {
+  Activity,
   ChevronDown,
   ChevronRight,
   ChevronsDownUp,
@@ -692,6 +693,12 @@ export function SidebarContent({
             )}
           </div>
         </div>
+        <Button asChild variant="ghost" size="icon" className="size-11 md:size-8">
+          <Link to="/activity" onClick={onNavigate} title="Running agents">
+            <Activity className="size-5 md:size-4" />
+            <span className="sr-only">Running agents</span>
+          </Link>
+        </Button>
         <Button asChild variant="ghost" size="icon" className="size-11 md:size-8">
           <Link
             to={onSettings ? '/' : '/settings'}
