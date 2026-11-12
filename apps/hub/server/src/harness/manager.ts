@@ -1,6 +1,7 @@
-import type { ClaraProject, ClaraSession } from '@clara/api-contract'
+import type { ClaraSession } from '@clara/api-contract'
 import { HarnessClient } from '@clara/harness-protocol'
 import type { AdapterEnrollAction, PanelTransport } from '@clara/shared-types'
+import type { ProjectStore } from '../projects/store.ts'
 import type { HarnessMetadataStore } from './metadata.ts'
 import type { EnrollAdapterInput, EnrollAdapterResult, HarnessStore } from './store.ts'
 import {
@@ -20,14 +21,16 @@ type Fetch = (request: Request) => Promise<Response>
 export class HarnessManager {
   private readonly store: HarnessStore
   readonly metadata: HarnessMetadataStore
+  readonly projects: ProjectStore
   private readonly listeners = new Set<HarnessChangeListener>()
   private readonly live = new Map<string, Fetch>()
   private error?: string
   private generationValue = 0
 
-  constructor(store: HarnessStore, metadata: HarnessMetadataStore) {
+  constructor(store: HarnessStore, metadata: HarnessMetadataStore, projects: ProjectStore) {
     this.store = store
     this.metadata = metadata
+    this.projects = projects
   }
 
   get configured(): boolean {
@@ -187,12 +190,29 @@ export class HarnessManager {
   async request(input: HarnessRequestInput, signal: AbortSignal): Promise<Response> {
     const active = this.active
     if (!active) throw new HarnessUnconfiguredError()
-    const fetch = this.live.get(active.harnessId)
+    return this.requestFor(active.harnessId, input, signal)
+  }
+
+  /**
+   * Send a request to one paired harness even when another connection is
+   * active. Project workspace sync and archive/delete need to reach every
+   * linked harness, not only the one that serves sessions.
+   */
+  async requestFor(
+    harnessId: string,
+    input: HarnessRequestInput,
+    signal: AbortSignal
+  ): Promise<Response> {
+    const fetch = this.live.get(harnessId)
     if (!fetch) throw new HarnessOfflineError()
     return new HarnessClient({ fetch, baseUrl: 'http://adapter' }).request({
       ...input,
       signal,
     })
+  }
+
+  connection(harnessId: string): HarnessConnection | undefined {
+    return this.store.list().find((connection) => connection.harnessId === harnessId)
   }
 
   async reload(): Promise<void> {
@@ -311,17 +331,6 @@ export class HarnessManager {
     return this.active?.harnessId
   }
 
-  overlayProject(harnessId: string, project: ClaraProject): ClaraProject {
-    return this.metadata.overlayProject(harnessId, project)
-  }
-
-  overlayProjectList(projects: ClaraProject[]): ClaraProject[] {
-    const harnessId = this.harnessId
-    return harnessId
-      ? projects.map((project) => this.metadata.overlayProject(harnessId, project))
-      : projects
-  }
-
   overlaySession(harnessId: string, session: ClaraSession): ClaraSession {
     return this.metadata.overlaySession(harnessId, session)
   }
@@ -341,24 +350,7 @@ export class HarnessManager {
 
   harnessProjectIds(projectId: string): string[] {
     const harnessId = this.harnessId
-    return harnessId ? this.metadata.harnessProjectIds(harnessId, projectId) : []
-  }
-
-  updateProject(
-    projectId: string,
-    patch: { name?: string; icon?: unknown; commands?: unknown; startupScript?: string }
-  ): ClaraProject | undefined {
-    const state = this.metadata.updateProject(projectId, patch)
-    if (!state) return undefined
-    return {
-      id: state.id,
-      canonical: state.canonical,
-      sandboxes: [],
-      time: { created: Date.now(), updated: Date.now(), active: Date.now() },
-      ...(state.name ? { name: state.name } : {}),
-      ...(state.icon ? { icon: state.icon } : {}),
-      ...(state.commands ? { commands: state.commands } : {}),
-    }
+    return harnessId ? this.projects.harnessProjectIds(harnessId, projectId) : []
   }
 
   private bump(): void {

@@ -16,15 +16,28 @@ function makeProject(input: {
   name?: string
 }): ClaraProject {
   return {
-    id: input.id as ClaraProject['id'],
-    canonical: input.canonical as ClaraProject['canonical'],
+    id: input.id,
     name: input.name,
     time: {
       created: input.active,
       updated: input.updated ?? input.active,
       active: input.active,
     },
-    sandboxes: [],
+    defaultWorkspaceID: 'workspace-1',
+    workspaces: [
+      {
+        id: 'workspace-1',
+        harnessID: 'harness-1',
+        harnessKind: 'test',
+        harnessLabel: 'Test harness',
+        online: true,
+        active: true,
+        directory: input.canonical,
+        canonical: input.canonical,
+        projectIDs: ['harness-project-1'],
+        linked: true,
+      },
+    ],
   }
 }
 
@@ -36,7 +49,9 @@ describe('projectLabel', () => {
     expect(
       projectLabel(makeProject({ id: '1', canonical: '/home/jet/clara', active: 1, name: 'Work' }))
     ).toBe('Work')
-    expect(projectLabel(makeProject({ id: 'root', canonical: '/', active: 1 }))).toBe('/')
+    expect(projectLabel(makeProject({ id: 'root', canonical: '/', active: 1 }))).toBe(
+      'Untitled project'
+    )
   })
 })
 

@@ -5,12 +5,16 @@ import type {
   ClaraEvent,
   ClaraFileFindOutput,
   ClaraForm,
+  ClaraHarnessConnection,
   ClaraLocation,
   ClaraModelListOutput,
   ClaraModelRef,
   ClaraPermissionRequestListOutput,
   ClaraPermissionRule,
   ClaraProject,
+  ClaraProjectArchiveResult,
+  ClaraProjectAvailable,
+  ClaraProjectDeleteResult,
   ClaraProviderListOutput,
   ClaraReferenceListOutput,
   ClaraServerInfo,
@@ -53,12 +57,41 @@ export type ClaraProjectListInput = {
   readonly archived?: boolean
 }
 
-export type ClaraProjectUpdateInput = {
-  readonly projectID: string
-  readonly canonical?: string
+export type ClaraProjectCreateInput = {
   readonly name?: string
   readonly icon?: Record<string, unknown>
   readonly commands?: Record<string, unknown>
+  readonly startupScript?: string
+}
+
+export type ClaraProjectUpdateInput = {
+  readonly projectID: string
+  readonly name?: string
+  readonly icon?: Record<string, unknown>
+  readonly commands?: Record<string, unknown>
+  readonly startupScript?: string
+  readonly defaultWorkspaceID?: string | null
+}
+
+export type ClaraProjectDeleteInput = {
+  readonly projectID: string
+  readonly mode?: 'propagate' | 'disconnect'
+}
+
+export type ClaraProjectAvailableInput = {
+  readonly harnessID?: string
+}
+
+export type ClaraProjectWorkspaceCreateInput = {
+  readonly projectID: string
+  readonly harnessID: string
+  readonly directory: string
+  readonly label?: string
+}
+
+export type ClaraProjectWorkspaceRemoveInput = {
+  readonly projectID: string
+  readonly workspaceID: string
 }
 
 export type ClaraPromptMentionInput = {
@@ -260,9 +293,37 @@ export type ClaraClient = {
     status: (options?: RequestOptions) => Promise<ApiInfo>
     openapi: (options?: RequestOptions) => Promise<Record<string, unknown>>
   }
+  harness: {
+    list: (options?: RequestOptions) => Promise<ClaraHarnessConnection[]>
+  }
   project: {
     list: (input?: ClaraProjectListInput, options?: RequestOptions) => Promise<ClaraProject[]>
+    create: (input?: ClaraProjectCreateInput, options?: RequestOptions) => Promise<ClaraProject>
     update: (input: ClaraProjectUpdateInput, options?: RequestOptions) => Promise<ClaraProject>
+    archive: (
+      input: { readonly projectID: string },
+      options?: RequestOptions
+    ) => Promise<ClaraProjectArchiveResult>
+    unarchive: (
+      input: { readonly projectID: string },
+      options?: RequestOptions
+    ) => Promise<ClaraProjectArchiveResult>
+    remove: (
+      input: ClaraProjectDeleteInput,
+      options?: RequestOptions
+    ) => Promise<ClaraProjectDeleteResult>
+    sync: (input: { readonly projectID: string }, options?: RequestOptions) => Promise<ClaraProject>
+    available: (
+      input?: ClaraProjectAvailableInput,
+      options?: RequestOptions
+    ) => Promise<ClaraProjectAvailable[]>
+    workspace: {
+      add: (
+        input: ClaraProjectWorkspaceCreateInput,
+        options?: RequestOptions
+      ) => Promise<ClaraProject>
+      remove: (input: ClaraProjectWorkspaceRemoveInput, options?: RequestOptions) => Promise<void>
+    }
   }
   location: {
     get: (input?: ClaraLocationInput, options?: RequestOptions) => Promise<ClaraLocation>

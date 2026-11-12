@@ -2,7 +2,6 @@ import type { QueryClient } from '@tanstack/react-query'
 import type { ClaraProject, ClaraSession } from '@clara/api-contract'
 import type { ClaraClient } from '@/lib/client'
 import { queryKeys } from '@/lib/query-keys'
-import { canonicalProjects } from '@/features/projects/use-projects'
 import { isArchivedSession } from '@/features/sessions/session-archive'
 import { getSessionInfo } from '@/features/sessions/session-cache'
 import { loadSessionMailboxSignals } from '@/features/sessions/session-mailbox-signals'
@@ -39,9 +38,13 @@ export async function loadSessionAttention(
 function projectIDFromList(projects: ClaraProject[], session: ClaraSession): string | null {
   const direct = projects.find((project) => project.id === session.projectID)
   if (direct) return direct.id
+  const directory = session.location.directory
   return (
-    canonicalProjects(projects).find((project) => project.canonical === session.location.directory)
-      ?.id ?? null
+    projects.find((project) =>
+      project.workspaces.some(
+        (workspace) => workspace.canonical === directory || workspace.directory === directory
+      )
+    )?.id ?? null
   )
 }
 

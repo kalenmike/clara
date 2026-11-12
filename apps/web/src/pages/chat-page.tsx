@@ -44,7 +44,7 @@ import { useModelVisibility } from '@/features/models/use-model-visibility'
 import { isModelVisible } from '@/features/models/visibility'
 import { useSessionPolicy } from '@/features/notifications/session-policy'
 import { useInboxMonitor } from '@/features/sessions/inbox-monitor'
-import { canonicalProject, useProjects } from '@/features/projects/use-projects'
+import { projectDefaultWorkspace, useProject } from '@/features/projects/use-projects'
 import { planMessageFork } from '@/features/sessions/fork'
 import { isArchivedSession } from '@/features/sessions/session-archive'
 import { isSnoozedSession } from '@/features/sessions/session-snooze'
@@ -84,10 +84,11 @@ function ChatPageContent() {
   const { singular, lowerSingular, lowerPlural } = useSessionWording()
   const inboxMonitor = useInboxMonitor()
   const { setTheme, resolvedTheme } = useTheme()
-  const projectsQuery = useProjects()
-  const project = projectsQuery.data?.find((item) => item.id === projectId)
-  /** The record that owns worktrees, even when the route names a duplicate. */
-  const owningProject = canonicalProject(projectsQuery.data ?? [], projectId)
+  const projectQuery = useProject(projectId)
+  const project = projectQuery.project
+  /** The container that owns worktrees and the selected workspace. */
+  const owningProject = project
+  const workspace = projectDefaultWorkspace(project)
   const sessionQuery = useSession(sessionId ?? null)
   const session = sessionQuery.data
   useMarkSessionViewed(session)
@@ -229,10 +230,10 @@ function ChatPageContent() {
     if (session.agent !== fixedDefaultAgent) switchAgent.mutate(fixedDefaultAgent)
   }, [draftCount, fixedDefaultAgent, inboxQuery.isPending, isDraftSession, session, switchAgent])
 
-  const directory = session?.location.directory ?? project?.canonical
+  const directory = session?.location.directory ?? workspace?.canonical ?? workspace?.directory
   const { startSession } = useStartSession({
     projectID: projectId,
-    directory,
+    workspace,
     agent: session?.agent,
     model: session?.model,
   })
@@ -531,7 +532,7 @@ function ChatPageContent() {
           messages={allMessages}
           directory={directory}
           projectID={owningProject?.id ?? projectId}
-          canonical={owningProject?.canonical ?? project?.canonical}
+          canonical={workspace?.canonical ?? workspace?.directory}
           draft={isDraftSession}
           tab={panelTab}
           onTabChange={setPanelTab}
@@ -555,7 +556,7 @@ function ChatPageContent() {
               messages={allMessages}
               directory={directory}
               projectID={owningProject?.id ?? projectId}
-              canonical={owningProject?.canonical ?? project?.canonical}
+              canonical={workspace?.canonical ?? workspace?.directory}
               draft={isDraftSession}
               tab={panelTab}
               onTabChange={setPanelTab}

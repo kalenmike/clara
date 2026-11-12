@@ -1,7 +1,9 @@
 import { useState, type ReactNode } from 'react'
-import { Archive, Loader2, MoreHorizontal, Trash2 } from 'lucide-react'
+import { FolderPlus, Loader2, RefreshCw, Star, Trash2 } from 'lucide-react'
 import { toast } from 'sonner'
-import type { ClaraProject } from '@clara/api-contract'
+import type { ClaraProject, ClaraProjectWorkspace } from '@clara/api-contract'
+import { AddWorkspaceDialog } from '@/components/projects/add-workspace-dialog'
+import { ProjectActionsMenu } from '@/components/projects/project-actions'
 import { ProjectAvatar } from '@/components/projects/project-avatar'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -21,71 +23,51 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu'
 import { Separator } from '@/components/ui/separator'
 import { Skeleton } from '@/components/ui/skeleton'
-import { projectAvatarSource } from '@/features/projects/project-avatar'
-import { projectLabel } from '@/features/projects/project-list'
+import { projectLabel, projectWorkspaceSummary } from '@/features/projects/project-list'
 import {
-  useArchiveProjectSessions,
-  useDeleteProjectSessions,
-} from '@/features/projects/use-project-actions'
+  useRemoveProjectWorkspace,
+  useSyncProject,
+  useUpdateProject,
+} from '@/features/projects/use-projects'
 import { useProjectStats } from '@/features/projects/use-project-stats'
 import { useSessionWording } from '@/features/sessions/use-wording'
 import { formatCount, formatDateTime } from '@/lib/format'
 import { cn } from '@/lib/utils'
 
-type ProjectAction = 'archive' | 'delete'
-
 export function ProjectInfoCard({ project }: { project: ClaraProject }) {
-  const [action, setAction] = useState<ProjectAction | null>(null)
   const statsQuery = useProjectStats(project.id)
-  const archive = useArchiveProjectSessions(project.id)
-  const remove = useDeleteProjectSessions(project.id)
-  const { lowerPlural, lowerSingular } = useSessionWording()
+  const update = useUpdateProject(project.id)
+  const sync = useSyncProject(project.id)
+  const removeWorkspace = useRemoveProjectWorkspace(project.id)
+  const { lowerPlural } = useSessionWording()
+  const [workspaceOpen, setWorkspaceOpen] = useState(false)
+  const [removing, setRemoving] = useState<ClaraProjectWorkspace | null>(null)
   const stats = statsQuery.data
-  const pending = archive.isPending || remove.isPending
+  const pending = update.isPending || sync.isPending || removeWorkspace.isPending
   const label = projectLabel(project)
+  const archived = project.time.archived !== undefined
 
-  const totalLabel = stats
-    ? `${formatCount(stats.total)}${stats.truncated ? '+' : ''} ${stats.total === 1 ? lowerSingular : lowerPlural}`
-    : `every ${lowerSingular}`
+  const setDefault = (workspaceID: string) => {
+    update.mutate(
+      { defaultWorkspaceID: workspaceID },
+      {
+        onSuccess: () => toast.success('Default workspace updated'),
+        onError: () => toast.error('Could not change the default workspace'),
+      }
+    )
+  }
 
-  const confirm = () => {
-    if (action === 'archive') {
-      archive.mutate(undefined, {
-        onSuccess: (count) => {
-          toast.success(
-            count === 0
-              ? 'No sessions needed archiving'
-              : `Archived ${formatCount(count)} ${count === 1 ? lowerSingular : lowerPlural}`
-          )
-          setAction(null)
-        },
-        onError: () => toast.error('Could not archive the sessions'),
-      })
-      return
-    }
-
-    if (action === 'delete') {
-      remove.mutate(undefined, {
-        onSuccess: (count) => {
-          toast.success(
-            count === 0
-              ? 'No sessions to delete'
-              : `Deleted ${formatCount(count)} ${count === 1 ? lowerSingular : lowerPlural}`
-          )
-          setAction(null)
-        },
-        onError: () => toast.error('Could not delete the sessions'),
-      })
-    }
+  const confirmRemove = () => {
+    if (!removing) return
+    removeWorkspace.mutate(removing.id, {
+      onSuccess: () => {
+        toast.success('Workspace removed from Clara')
+        setRemoving(null)
+      },
+      onError: () => toast.error('Could not remove the workspace'),
+    })
   }
 
   return (
@@ -97,43 +79,17 @@ export function ProjectInfoCard({ project }: { project: ClaraProject }) {
             <div className="min-w-0">
               <CardTitle className="text-sm">{label}</CardTitle>
               <CardDescription className="mt-0.5 truncate font-mono text-[11px]">
-                {project.canonical}
+                {projectWorkspaceSummary(project)}
               </CardDescription>
             </div>
           </div>
-          <CardAction>
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="size-8 max-md:size-11"
-                  aria-label={`Actions for ${label}`}
-                >
-                  <MoreHorizontal className="size-4 max-md:size-5" />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-56">
-                <DropdownMenuItem
-                  disabled={stats?.total === 0}
-                  onSelect={() => setAction('archive')}
-                >
-                  <Archive className="size-3.5" /> Archive all {lowerPlural}
-                </DropdownMenuItem>
-                <DropdownMenuSeparator />
-                <DropdownMenuItem
-                  variant="destructive"
-                  disabled={stats?.total === 0}
-                  onSelect={() => setAction('delete')}
-                >
-                  <Trash2 className="size-3.5" /> Delete all {lowerPlural}
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
+          <CardAction className="flex items-center gap-1">
+            <ProjectActionsMenu project={project} />
           </CardAction>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="flex flex-wrap items-center gap-1.5">
+            {archived && <Badge variant="outline">Archived</Badge>}
             {statsQuery.isPending ? (
               <>
                 <Skeleton className="h-5 w-20" />
@@ -158,15 +114,71 @@ export function ProjectInfoCard({ project }: { project: ClaraProject }) {
 
           <Separator />
 
+          <div className="space-y-3">
+            <div className="flex items-center justify-between gap-2">
+              <div>
+                <p className="text-sm font-medium">Workspaces</p>
+                <p className="text-xs text-muted-foreground">
+                  Each workspace is a directory on one harness.
+                </p>
+              </div>
+              <div className="flex items-center gap-1">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => sync.mutate()}
+                  disabled={sync.isPending}
+                >
+                  {sync.isPending ? (
+                    <Loader2 className="size-3.5 animate-spin" />
+                  ) : (
+                    <RefreshCw className="size-3.5" />
+                  )}
+                  Sync
+                </Button>
+                <Button variant="outline" size="sm" onClick={() => setWorkspaceOpen(true)}>
+                  <FolderPlus className="size-3.5" /> Add
+                </Button>
+              </div>
+            </div>
+
+            {project.workspaces.length === 0 ? (
+              <div className="rounded-lg border border-dashed p-4 text-center">
+                <p className="text-sm">This project has no workspaces yet.</p>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  Add a directory on a paired harness before creating {lowerPlural}.
+                </p>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="mt-3"
+                  onClick={() => setWorkspaceOpen(true)}
+                >
+                  <FolderPlus className="size-3.5" /> Add workspace
+                </Button>
+              </div>
+            ) : (
+              <div className="space-y-2">
+                {project.workspaces.map((workspace) => (
+                  <WorkspaceRow
+                    key={workspace.id}
+                    workspace={workspace}
+                    isDefault={project.defaultWorkspaceID === workspace.id}
+                    disabled={pending}
+                    onDefault={() => setDefault(workspace.id)}
+                    onRemove={() => setRemoving(workspace)}
+                  />
+                ))}
+              </div>
+            )}
+          </div>
+
+          <Separator />
+
           <div className="grid gap-x-6 gap-y-4 sm:grid-cols-2">
-            <InfoRow label="Location" mono>
-              {project.canonical}
-            </InfoRow>
             <InfoRow label="ID" mono>
               {project.id}
             </InfoRow>
-            <InfoRow label="VCS">{project.vcs ?? 'None'}</InfoRow>
-            <InfoRow label="Icon">{iconDescription(project)}</InfoRow>
             <InfoRow label="Commands">
               {project.commands?.start?.trim() ? (
                 <code className="break-all rounded bg-muted px-1.5 py-0.5 text-xs">
@@ -176,66 +188,55 @@ export function ProjectInfoCard({ project }: { project: ClaraProject }) {
                 'None'
               )}
             </InfoRow>
-            <InfoRow label="Sandboxes">
-              {project.sandboxes.length === 0 ? (
-                'None'
-              ) : (
-                <span className="flex flex-wrap gap-1">
-                  {project.sandboxes.map((sandbox) => (
-                    <Badge
-                      key={sandbox}
-                      variant="outline"
-                      className="max-w-full font-mono text-[10px]"
-                    >
-                      <span className="truncate">{sandbox}</span>
-                    </Badge>
-                  ))}
-                </span>
-              )}
-            </InfoRow>
           </div>
 
           <Separator />
 
-          <div className="grid gap-x-6 gap-y-4 sm:grid-cols-2">
+          <div className="grid gap-x-6 gap-y-4 sm:grid-cols-3">
             <InfoRow label="Created">{formatDateTime(project.time.created)}</InfoRow>
             <InfoRow label="Updated">{formatDateTime(project.time.updated)}</InfoRow>
             <InfoRow label="Active">{formatDateTime(project.time.active)}</InfoRow>
             <InfoRow label="Archived">
               {project.time.archived ? formatDateTime(project.time.archived) : 'Not archived'}
             </InfoRow>
+            <InfoRow label="Default workspace">
+              {project.workspaces.find((item) => item.id === project.defaultWorkspaceID)?.label ??
+                'First workspace'}
+            </InfoRow>
+            <InfoRow label="Sessions">{`${formatCount(stats?.total ?? 0)} ${lowerPlural}`}</InfoRow>
           </div>
         </CardContent>
       </Card>
 
+      <AddWorkspaceDialog project={project} open={workspaceOpen} onOpenChange={setWorkspaceOpen} />
+
       <Dialog
-        open={action !== null}
-        onOpenChange={(open) => {
-          if (!open && !pending) setAction(null)
-        }}
+        open={removing !== null}
+        onOpenChange={(open) => (open ? undefined : setRemoving(null))}
       >
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>
-              {action === 'archive' ? `Archive all ${lowerPlural}?` : `Delete all ${lowerPlural}?`}
-            </DialogTitle>
+            <DialogTitle>Remove this workspace?</DialogTitle>
             <DialogDescription>
-              {action === 'archive'
-                ? `This archives ${totalLabel} on the server. The project itself is not archived and stays available.`
-                : `This permanently deletes ${totalLabel} from the server. The project record stays, but its sessions cannot be restored.`}
+              {removing?.directory} is removed from this Clara project. The harness project and its
+              sessions stay untouched.
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setAction(null)} disabled={pending}>
+            <Button
+              variant="outline"
+              onClick={() => setRemoving(null)}
+              disabled={removeWorkspace.isPending}
+            >
               Cancel
             </Button>
             <Button
-              variant={action === 'delete' ? 'destructive' : 'default'}
-              onClick={confirm}
-              disabled={pending}
+              variant="destructive"
+              onClick={confirmRemove}
+              disabled={removeWorkspace.isPending}
             >
-              {pending && <Loader2 className="size-4 animate-spin" />}
-              {action === 'archive' ? 'Archive all' : 'Delete all'}
+              {removeWorkspace.isPending && <Loader2 className="size-4 animate-spin" />}
+              Remove workspace
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -244,13 +245,81 @@ export function ProjectInfoCard({ project }: { project: ClaraProject }) {
   )
 }
 
-function iconDescription(project: ClaraProject): string {
-  const source = projectAvatarSource(project)
-  if (source.kind === 'image') {
-    return source.src === project.icon?.override?.trim() ? 'Custom image' : 'Discovered favicon'
-  }
-  if (source.kind === 'color') return `Color: ${source.color}`
-  return 'Default'
+function WorkspaceRow({
+  workspace,
+  isDefault,
+  disabled,
+  onDefault,
+  onRemove,
+}: {
+  workspace: ClaraProjectWorkspace
+  isDefault: boolean
+  disabled: boolean
+  onDefault: () => void
+  onRemove: () => void
+}) {
+  return (
+    <div className="flex items-start gap-2 rounded-lg border px-3 py-2">
+      <div className="min-w-0 flex-1 space-y-1">
+        <div className="flex flex-wrap items-center gap-1.5">
+          <Badge variant="secondary" className="text-[10px]">
+            {workspace.harnessLabel || workspace.harnessKind || 'Harness'}
+          </Badge>
+          {isDefault && (
+            <Badge variant="outline" className="text-[10px]">
+              <Star className="size-2.5" /> Default
+            </Badge>
+          )}
+          <Badge
+            variant={workspace.online ? 'outline' : 'secondary'}
+            className={cn('text-[10px]', !workspace.online && 'text-muted-foreground')}
+          >
+            {workspace.online ? 'online' : 'offline'}
+          </Badge>
+          {!workspace.linked && (
+            <Badge variant="secondary" className="text-[10px]">
+              unresolved
+            </Badge>
+          )}
+        </div>
+        <p
+          className="truncate font-mono text-[11px]"
+          title={workspace.canonical ?? workspace.directory}
+        >
+          {workspace.canonical ?? workspace.directory}
+        </p>
+        {workspace.label && (
+          <p className="truncate text-[11px] text-muted-foreground">{workspace.label}</p>
+        )}
+      </div>
+      <div className="flex shrink-0 items-center gap-1">
+        {!isDefault && (
+          <Button
+            variant="ghost"
+            size="icon"
+            className="size-8"
+            disabled={disabled}
+            onClick={onDefault}
+            aria-label="Set as default workspace"
+            title="Set as default workspace"
+          >
+            <Star className="size-3.5" />
+          </Button>
+        )}
+        <Button
+          variant="ghost"
+          size="icon"
+          className="size-8 text-muted-foreground hover:text-destructive"
+          disabled={disabled}
+          onClick={onRemove}
+          aria-label="Remove workspace"
+          title="Remove workspace from Clara"
+        >
+          <Trash2 className="size-3.5" />
+        </Button>
+      </div>
+    </div>
+  )
 }
 
 function InfoRow({

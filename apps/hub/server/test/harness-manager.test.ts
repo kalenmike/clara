@@ -2,12 +2,12 @@ import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
-import type { ClaraProject } from '@clara/api-contract'
 import { generateKey, generateSecretKey, loadSecretKey } from '@clara/crypto'
 import { HarnessManager } from '../src/harness/manager.ts'
 import { HarnessMetadataStore } from '../src/harness/metadata.ts'
 import { HarnessStore } from '../src/harness/store.ts'
 import { HarnessUnconfiguredError } from '../src/harness/types.ts'
+import { ProjectStore } from '../src/projects/store.ts'
 import { closeDatabase, openDatabase, type ClaraDatabase } from '../src/store/database.ts'
 
 let dir: string
@@ -18,9 +18,11 @@ beforeEach(async () => {
   dir = mkdtempSync(join(tmpdir(), 'clara-harness-manager-'))
   db = openDatabase(join(dir, 'clara.db'))
   const key = await loadSecretKey(generateSecretKey())
+  const projects = new ProjectStore(db)
   manager = new HarnessManager(
     new HarnessStore({ db, key, keyVersion: 1 }),
-    new HarnessMetadataStore(db)
+    new HarnessMetadataStore(db, projects),
+    projects
   )
   await manager.load()
 })
@@ -69,21 +71,22 @@ describe('harness manager', () => {
     expect(manager.active?.online).toBe(false)
   })
 
-  it('keeps every harness record linked to one canonical directory', async () => {
+  it('keeps every harness record linked to one workspace', async () => {
     await enroll()
-    const project = (id: string, canonical: string): ClaraProject => ({
-      id,
-      canonical,
-      time: { created: 1, updated: 2, active: 3 },
-      sandboxes: [],
+    const project = manager.projects.create({ name: 'Demo' })
+    const workspace = manager.projects.addWorkspace(project.id, {
+      harnessID: 'harness-a',
+      directory: '/workspace/demo',
     })
-    const [first] = manager.overlayProjectList([
-      project('harness-project-a', '/workspace/demo'),
-      project('harness-project-b', '/workspace/demo'),
-    ])
-    const target = first?.id
-    expect(target).toBeDefined()
-    expect(manager.harnessProjectIds(target ?? '')).toEqual([
+    for (const harnessProjectID of ['harness-project-a', 'harness-project-b']) {
+      manager.projects.linkHarnessProject({
+        harnessID: 'harness-a',
+        harnessProjectID,
+        projectID: project.id,
+        workspaceID: workspace.id,
+      })
+    }
+    expect(manager.harnessProjectIds(project.id)).toEqual([
       'harness-project-a',
       'harness-project-b',
     ])

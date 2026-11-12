@@ -5,11 +5,9 @@ import { projectAvatarSource, projectInitial } from './project-avatar'
 function project(overrides: Partial<ClaraProject> = {}): ClaraProject {
   return {
     id: 'project-1',
-    canonical: '/home/jet/Projects/clara',
     name: 'Clara',
-    vcs: 'git',
-    sandboxes: [],
     time: { created: 1, updated: 2, active: 3 },
+    workspaces: [],
     ...overrides,
   }
 }
@@ -72,6 +70,26 @@ describe('projectAvatarSource', () => {
 describe('projectInitial', () => {
   it('uses the first character of the project label', () => {
     expect(projectInitial(project({ name: 'clara' }))).toBe('C')
-    expect(projectInitial(project({ name: undefined, canonical: '/tmp/website' }))).toBe('W')
+    expect(
+      projectInitial(
+        project({
+          name: undefined,
+          workspaces: [
+            {
+              id: 'workspace-1',
+              harnessID: 'harness-1',
+              harnessKind: 'test',
+              harnessLabel: 'Test harness',
+              online: true,
+              active: true,
+              directory: '/tmp/website',
+              canonical: '/tmp/website',
+              projectIDs: ['project-1'],
+              linked: true,
+            },
+          ],
+        })
+      )
+    ).toBe('W')
   })
 })

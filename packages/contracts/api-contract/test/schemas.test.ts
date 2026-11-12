@@ -13,10 +13,23 @@ import {
 
 const project = {
   id: 'p1',
-  canonical: '/workspace/demo',
   name: 'Demo',
   time: { created: 1, updated: 2, active: 3 },
-  sandboxes: [],
+  defaultWorkspaceID: 'w1',
+  workspaces: [
+    {
+      id: 'w1',
+      harnessID: 'h1',
+      harnessKind: 'opencode',
+      harnessLabel: 'OpenCode',
+      online: true,
+      active: true,
+      directory: '/workspace/demo',
+      canonical: '/workspace/demo',
+      projectIDs: ['hp1'],
+      linked: true,
+    },
+  ],
 }
 
 const session = {

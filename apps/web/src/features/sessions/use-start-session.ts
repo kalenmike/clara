@@ -1,5 +1,6 @@
 import { useCallback } from 'react'
 import { useNavigate } from 'react-router'
+import type { ClaraProjectWorkspace } from '@clara/api-contract'
 import { resolveDefaultAgent } from '@/features/agents/default-agent'
 import { useDefaultAgent } from '@/features/agents/use-default-agent'
 import { useAgents } from '@/features/catalog/use-catalog'
@@ -16,18 +17,18 @@ export type ChatComposeState = {
 
 export function useStartSession({
   projectID,
-  directory,
+  workspace,
   agent,
   model,
 }: {
   projectID: string | undefined
-  directory: string | undefined
+  workspace: ClaraProjectWorkspace | null | undefined
   /** Latest session's agent, used when no default has been chosen yet. */
   agent?: CreateSessionInput['agent']
   model?: CreateSessionInput['model']
 }) {
   const navigate = useNavigate()
-  const createSession = useCreateSession(directory ?? '')
+  const createSession = useCreateSession()
   const { settings, lastAgent } = useDefaultAgent()
   const agentsQuery = useAgents()
   const { visibility } = useModelVisibility()
@@ -40,18 +41,23 @@ export function useStartSession({
   })
   const resolvedModel = resolveInheritedModel(model, visibility)
 
-  const startSession = useCallback(() => {
-    if (!projectID || !directory) return
-    createSession.mutate(
-      { agent: resolvedAgent, model: resolvedModel },
-      {
-        onSuccess: (session) => {
-          const state: ChatComposeState = { compose: true }
-          navigate(`/p/${projectID}/s/${session.id}`, { state })
-        },
-      }
-    )
-  }, [createSession, directory, navigate, projectID, resolvedAgent, resolvedModel])
+  const startSession = useCallback(
+    (nextWorkspace?: ClaraProjectWorkspace) => {
+      const target = nextWorkspace ?? workspace
+      const directory = target?.canonical ?? target?.directory
+      if (!projectID || !directory) return
+      createSession.mutate(
+        { directory, agent: resolvedAgent, model: resolvedModel },
+        {
+          onSuccess: (session) => {
+            const state: ChatComposeState = { compose: true }
+            navigate(`/p/${projectID}/s/${session.id}`, { state })
+          },
+        }
+      )
+    },
+    [createSession, navigate, projectID, resolvedAgent, resolvedModel, workspace]
+  )
 
   return { startSession, pending: createSession.isPending }
 }

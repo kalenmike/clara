@@ -12,8 +12,7 @@ import { useModels } from '@/features/catalog/use-catalog'
 import { estimateSessionCost, resolveDisplayCost } from '@/features/cost/estimate'
 import { useCostDisplay } from '@/features/cost/use-cost-display'
 import { projectLabel } from '@/features/projects/project-list'
-import { useProjectReconciliation } from '@/features/projects/use-project-reconciliation'
-import { canonicalProject, useProjects } from '@/features/projects/use-projects'
+import { projectDefaultWorkspace, useProject } from '@/features/projects/use-projects'
 import { useActiveSessions, useSessions } from '@/features/sessions/use-sessions'
 import { useStartSession } from '@/features/sessions/use-start-session'
 import { useSessionWording } from '@/features/sessions/use-wording'
@@ -23,11 +22,10 @@ import { cn } from '@/lib/utils'
 
 export function SessionsPage() {
   const { projectId } = useParams<{ projectId: string }>()
-  const projectsQuery = useProjects()
-  const { pending: reconciling } = useProjectReconciliation()
-  const projects = useMemo(() => projectsQuery.data ?? [], [projectsQuery.data])
-  const project = useMemo(() => canonicalProject(projects, projectId), [projectId, projects])
-  const sessionsQuery = useSessions(project?.id ?? null, '')
+  const projectQuery = useProject(projectId)
+  const project = projectQuery.project
+  const workspace = useMemo(() => projectDefaultWorkspace(project), [project])
+  const sessionsQuery = useSessions(project?.id ?? null, '', Boolean(project?.workspaces.length))
   const activeQuery = useActiveSessions()
   const modelsQuery = useModels()
   const { source: costSource } = useCostDisplay()
@@ -37,12 +35,12 @@ export function SessionsPage() {
   const latest = sessions[0]
   const { startSession, pending } = useStartSession({
     projectID: project?.id,
-    directory: project?.canonical,
+    workspace,
     agent: latest?.agent,
     model: latest?.model,
   })
 
-  if (projectsQuery.isLoading || (!project && reconciling)) {
+  if (projectQuery.isLoading) {
     return (
       <Centered>
         <Loader2 className="size-4 animate-spin" /> Loading project…
@@ -75,9 +73,9 @@ export function SessionsPage() {
           <span>Project</span>
         </>
       }
-      description={`Project details and ${lowerPlural} for this directory.`}
+      description={`Project details and ${lowerPlural}.`}
       actions={
-        <Button onClick={startSession} disabled={pending}>
+        <Button onClick={() => startSession()} disabled={pending}>
           {pending ? <Loader2 className="size-4 animate-spin" /> : <Plus className="size-4" />}
           New {lowerSingular}
         </Button>
@@ -136,7 +134,7 @@ export function SessionsPage() {
             <p className="mt-1 max-w-sm text-xs text-muted-foreground">
               Start a {lowerSingular} to chat with an agent in this project.
             </p>
-            <Button onClick={startSession} className="mt-4" size="sm" disabled={pending}>
+            <Button onClick={() => startSession()} className="mt-4" size="sm" disabled={pending}>
               <Plus className="size-4" /> New {lowerSingular}
             </Button>
           </div>

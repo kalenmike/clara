@@ -1,7 +1,7 @@
 import type { QueryClient } from '@tanstack/react-query'
 import type { ClaraProject, ClaraSession } from '@clara/api-contract'
 import { toast } from 'sonner'
-import { canonicalProject } from '@/features/projects/use-projects'
+import { findProject, projectDefaultWorkspace } from '@/features/projects/use-projects'
 import { describeConnectionError, type ClaraClient } from '@/lib/client'
 import { queryKeys } from '@/lib/query-keys'
 
@@ -117,5 +117,6 @@ async function resolveBaseDirectory(
     queryClient.setQueryData(queryKeys.projects, projects)
   }
 
-  return canonicalProject(projects, session.projectID)?.canonical ?? null
+  const workspace = projectDefaultWorkspace(findProject(projects, session.projectID))
+  return workspace?.canonical ?? workspace?.directory ?? null
 }

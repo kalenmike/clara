@@ -1,15 +1,6 @@
-import { createHash } from 'node:crypto'
-import type { ClaraProject, ClaraSession } from '@clara/api-contract'
+import type { ClaraSession } from '@clara/api-contract'
 import type { ClaraDatabase } from '../store/database.ts'
-
-export type ClaraProjectState = {
-  id: string
-  canonical: string
-  name?: string
-  icon?: ClaraProject['icon']
-  commands?: ClaraProject['commands']
-  startupScript?: string
-}
+import type { ProjectStore } from '../projects/store.ts'
 
 export type ClaraSessionState = {
   titleOverride?: string
@@ -17,15 +8,6 @@ export type ClaraSessionState = {
   snoozedAt?: number
   viewedAt?: number
   metadata: NonNullable<ClaraSession['metadata']>
-}
-
-type ProjectRow = {
-  id: string
-  canonical: string
-  name: string | null
-  icon_json: string | null
-  commands_json: string | null
-  startup_script: string | null
 }
 
 type SessionRow = {
@@ -36,106 +18,18 @@ type SessionRow = {
   metadata_json: string
 }
 
+/**
+ * Clara-owned session metadata. Projects and workspaces live in ProjectStore;
+ * this store only remembers per-session overrides such as snooze, archive and
+ * title.
+ */
 export class HarnessMetadataStore {
   private readonly db: ClaraDatabase
+  private readonly projects: ProjectStore
 
-  constructor(db: ClaraDatabase) {
+  constructor(db: ClaraDatabase, projects: ProjectStore) {
     this.db = db
-  }
-
-  projectId(canonical: string): string {
-    const digest = createHash('sha256').update(canonical).digest('base64url')
-    return `p_${digest.slice(0, 22)}`
-  }
-
-  /** Ensure a canonical directory has a Clara project and link it to a harness project. */
-  ensureProject(harnessId: string, harnessProjectId: string, canonical: string): ClaraProjectState {
-    const projectId = this.projectId(canonical)
-    const now = Date.now()
-    this.db
-      .prepare(
-        `INSERT INTO clara_projects (id, canonical, created_at, updated_at)
-         VALUES (?, ?, ?, ?)
-         ON CONFLICT(id) DO UPDATE SET updated_at = excluded.updated_at`
-      )
-      .run(projectId, canonical, now, now)
-    this.db
-      .prepare(
-        `INSERT INTO harness_project_links
-           (harness_id, harness_project_id, project_id, last_seen_at)
-         VALUES (?, ?, ?, ?)
-         ON CONFLICT(harness_id, harness_project_id) DO UPDATE SET
-           project_id = excluded.project_id,
-           last_seen_at = excluded.last_seen_at`
-      )
-      .run(harnessId, harnessProjectId, projectId, now)
-    return this.project(projectId) as ClaraProjectState
-  }
-
-  project(projectId: string): ClaraProjectState | undefined {
-    const row = this.db
-      .prepare(
-        'SELECT id, canonical, name, icon_json, commands_json, startup_script FROM clara_projects WHERE id = ?'
-      )
-      .get(projectId) as ProjectRow | undefined
-    return row ? toProjectState(row) : undefined
-  }
-
-  projectForHarness(harnessId: string, harnessProjectId: string): ClaraProjectState | undefined {
-    const row = this.db
-      .prepare(
-        `SELECT p.id, p.canonical, p.name, p.icon_json, p.commands_json, p.startup_script
-           FROM harness_project_links l
-           JOIN clara_projects p ON p.id = l.project_id
-          WHERE l.harness_id = ? AND l.harness_project_id = ?`
-      )
-      .get(harnessId, harnessProjectId) as ProjectRow | undefined
-    return row ? toProjectState(row) : undefined
-  }
-
-  updateProject(
-    projectId: string,
-    patch: { name?: string; icon?: unknown; commands?: unknown; startupScript?: string }
-  ): ClaraProjectState | undefined {
-    const current = this.project(projectId)
-    if (!current) return undefined
-    this.db
-      .prepare(
-        `UPDATE clara_projects
-            SET name = ?, icon_json = ?, commands_json = ?, startup_script = ?, updated_at = ?
-          WHERE id = ?`
-      )
-      .run(
-        patch.name ?? current.name ?? null,
-        patch.icon === undefined
-          ? current.icon
-            ? JSON.stringify(current.icon)
-            : null
-          : JSON.stringify(patch.icon),
-        patch.commands === undefined
-          ? current.commands
-            ? JSON.stringify(current.commands)
-            : null
-          : JSON.stringify(patch.commands),
-        patch.startupScript ?? current.startupScript ?? null,
-        Date.now(),
-        projectId
-      )
-    return this.project(projectId)
-  }
-
-  overlayProject(harnessId: string, project: ClaraProject): ClaraProject {
-    const state =
-      this.projectForHarness(harnessId, project.id) ??
-      this.ensureProject(harnessId, project.id, project.canonical)
-    return {
-      ...project,
-      id: state.id,
-      canonical: state.canonical,
-      ...(state.name ? { name: state.name } : {}),
-      ...(state.icon ? { icon: state.icon } : {}),
-      ...(state.commands ? { commands: state.commands } : {}),
-    }
+    this.projects = projects
   }
 
   session(harnessId: string, sessionId: string): ClaraSessionState {
@@ -155,31 +49,48 @@ export class HarnessMetadataStore {
     }
   }
 
-  ensureSession(harnessId: string, sessionId: string, projectId: string): void {
+  ensureSession(
+    harnessId: string,
+    sessionId: string,
+    projectId: string,
+    workspaceId?: string
+  ): void {
     const now = Date.now()
     this.db
       .prepare(
         `INSERT INTO clara_sessions
-           (harness_id, session_id, project_id, first_seen_at, last_seen_at)
-         VALUES (?, ?, ?, ?, ?)
+           (harness_id, session_id, project_id, workspace_id, first_seen_at, last_seen_at)
+         VALUES (?, ?, ?, ?, ?, ?)
          ON CONFLICT(harness_id, session_id) DO UPDATE SET
            project_id = CASE
              WHEN clara_sessions.project_id = 'unknown' THEN excluded.project_id
              ELSE clara_sessions.project_id
            END,
+           workspace_id = COALESCE(clara_sessions.workspace_id, excluded.workspace_id),
            last_seen_at = excluded.last_seen_at`
       )
-      .run(harnessId, sessionId, projectId, now, now)
+      .run(harnessId, sessionId, projectId, workspaceId ?? null, now, now)
   }
 
   overlaySession(harnessId: string, session: ClaraSession): ClaraSession {
     const state = this.session(harnessId, session.id)
     const canonical = session.location?.directory
-    const project =
-      canonical && session.projectID && session.projectID !== 'global'
-        ? this.ensureProject(harnessId, session.projectID, canonical)
-        : this.projectForHarness(harnessId, session.projectID)
-    this.ensureSession(harnessId, session.id, project?.id ?? session.projectID)
+    let project =
+      session.projectID && session.projectID !== 'global'
+        ? this.projects.projectForHarnessProject(harnessId, session.projectID)
+        : undefined
+    let workspace =
+      session.projectID && session.projectID !== 'global'
+        ? this.projects.workspaceForHarnessProject(harnessId, session.projectID)
+        : undefined
+    if (!project && canonical && session.projectID && session.projectID !== 'global') {
+      workspace = this.projects.linkMatchingWorkspace(harnessId, session.projectID, canonical)
+      project = workspace
+        ? this.projects.projectForHarnessProject(harnessId, session.projectID)
+        : undefined
+    }
+    if (project) this.projects.touchActivity(project.id, session.time.updated)
+    this.ensureSession(harnessId, session.id, project?.id ?? session.projectID, workspace?.id)
     const metadata: NonNullable<ClaraSession['metadata']> = {
       ...(session.metadata ?? {}),
       ...state.metadata,
@@ -189,6 +100,7 @@ export class HarnessMetadataStore {
     return {
       ...session,
       ...(project ? { projectID: project.id } : {}),
+      ...(workspace ? { workspaceID: workspace.id } : {}),
       ...(state.titleOverride ? { title: state.titleOverride } : {}),
       ...(state.archivedAt !== undefined
         ? { time: { ...session.time, archived: state.archivedAt } }
@@ -198,23 +110,6 @@ export class HarnessMetadataStore {
         : {}),
       metadata,
     }
-  }
-
-  /**
-   * Every harness project linked to one Clara project. OpenCode can keep more
-   * than one record for the same canonical directory (for example before and
-   * after `git init`), and sessions may be spread across them.
-   */
-  harnessProjectIds(harnessId: string, projectId: string): string[] {
-    const rows = this.db
-      .prepare(
-        `SELECT harness_project_id
-           FROM harness_project_links
-          WHERE harness_id = ? AND project_id = ?
-          ORDER BY harness_project_id`
-      )
-      .all(harnessId, projectId) as Array<{ harness_project_id: string }>
-    return rows.map((row) => row.harness_project_id)
   }
 
   setSnoozed(harnessId: string, sessionId: string, snoozed: boolean): void {
@@ -263,19 +158,6 @@ export class HarnessMetadataStore {
 
   forget(harnessId: string): void {
     this.db.prepare('DELETE FROM harness_identities WHERE harness_id = ?').run(harnessId)
-  }
-}
-
-function toProjectState(row: ProjectRow): ClaraProjectState {
-  return {
-    id: row.id,
-    canonical: row.canonical,
-    ...(row.name ? { name: row.name } : {}),
-    ...(row.icon_json ? { icon: parseObject(row.icon_json) as ClaraProject['icon'] } : {}),
-    ...(row.commands_json
-      ? { commands: parseObject(row.commands_json) as ClaraProject['commands'] }
-      : {}),
-    ...(row.startup_script ? { startupScript: row.startup_script } : {}),
   }
 }
 

@@ -8,7 +8,6 @@ import { HarnessBanner } from '@/components/layout/harness-banner'
 import { MobileActionsProvider, MobileActionsSlot } from '@/components/layout/mobile-actions'
 import { Sidebar, SidebarContent } from '@/components/layout/sidebar'
 import { OrchestrationProvider } from '@/features/orchestration/provider'
-import { ProjectReconciliation } from '@/features/projects/project-reconciliation'
 import { InboxMonitorProvider } from '@/features/sessions/inbox-monitor'
 import { useSessionWording } from '@/features/sessions/use-wording'
 import { UpdateBanner } from '@/components/pwa/update-banner'
@@ -37,7 +36,6 @@ export function AppShell() {
 
   return (
     <OrchestrationProvider>
-      <ProjectReconciliation />
       <InboxMonitorProvider>
         <SettingsSyncProvider>
           <MobileActionsProvider>

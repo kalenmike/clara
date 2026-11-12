@@ -6,10 +6,10 @@ import {
   ChevronsDownUp,
   ChevronsUpDown,
   FolderGit2,
+  FolderPlus,
   LayoutGrid,
   Loader2,
   Plus,
-  RotateCw,
   Search,
   Settings,
   X,
@@ -29,6 +29,7 @@ import {
 import { Input } from '@/components/ui/input'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Skeleton } from '@/components/ui/skeleton'
+import { AddProjectDialog } from '@/components/projects/add-project-dialog'
 import { ProjectAvatar } from '@/components/projects/project-avatar'
 import { SidebarDeleteDialog } from '@/components/layout/sidebar-delete-dialog'
 import { SidebarSelectionBar } from '@/components/layout/sidebar-selection-bar'
@@ -41,10 +42,14 @@ import {
   projectLabel,
   recentProjects,
 } from '@/features/projects/project-list'
-import { useProjectReconciliation } from '@/features/projects/use-project-reconciliation'
 import { useProjectSessionPresence } from '@/features/projects/use-project-presence'
 import { useShowEmptyProjects } from '@/features/projects/use-show-empty-projects'
-import { canonicalProject, canonicalProjects, useProjects } from '@/features/projects/use-projects'
+import {
+  activeProjectWorkspaces,
+  findProject,
+  projectDefaultWorkspace,
+  useProjects,
+} from '@/features/projects/use-projects'
 import { useSessionPolicy } from '@/features/notifications/session-policy'
 import { resolveDeleteFocusTarget } from '@/features/sessions/delete-focus'
 import { isArchivedSession } from '@/features/sessions/session-archive'
@@ -146,7 +151,6 @@ export function SidebarContent({
   const { state } = useEventStream()
   const projectsQuery = useProjects()
   const projects = useMemo(() => projectsQuery.data ?? [], [projectsQuery.data])
-  const { reconcile, pending: reconciling } = useProjectReconciliation()
   const { showEmpty } = useShowEmptyProjects()
   const [search, setSearch] = useState('')
   const [openSections, setOpenSections] = useState(readSidebarSections)
@@ -156,6 +160,7 @@ export function SidebarContent({
   })
   const [failureNote, setFailureNote] = useState<string | null>(null)
   const [dialogOpen, setDialogOpen] = useState(false)
+  const [addProjectOpen, setAddProjectOpen] = useState(false)
   const [snapshot, setSnapshot] = useState<ClaraSession[]>([])
   const clearButtonRef = useRef<HTMLButtonElement>(null)
   const searchInputRef = useRef<HTMLInputElement>(null)
@@ -172,8 +177,14 @@ export function SidebarContent({
   const remove = useDeleteSessions()
   const searching = search.trim().length > 0
 
-  const projectOptions = useMemo(() => canonicalProjects(projects), [projects])
-  const projectIDs = useMemo(() => projectOptions.map((project) => project.id), [projectOptions])
+  const projectOptions = projects
+  const projectIDs = useMemo(
+    () =>
+      projectOptions
+        .filter((project) => project.workspaces.length > 0)
+        .map((project) => project.id),
+    [projectOptions]
+  )
   const { hasSessions, pending: presencePending } = useProjectSessionPresence(
     projectIDs,
     !showEmpty
@@ -184,10 +195,25 @@ export function SidebarContent({
   )
 
   const selectedProject = useMemo(() => {
-    const fromUrl = canonicalProject(projects, params.projectId)
+    const fromUrl = findProject(projects, params.projectId)
     if (fromUrl) return fromUrl
-    return canonicalProject(projects, readLastProject()) ?? projectOptions[0] ?? null
+    return findProject(projects, readLastProject()) ?? projectOptions[0] ?? null
   }, [params.projectId, projectOptions, projects])
+  const selectedWorkspace = useMemo(
+    () => projectDefaultWorkspace(selectedProject),
+    [selectedProject]
+  )
+  const sessionWorkspaces = useMemo(
+    () => activeProjectWorkspaces(selectedProject),
+    [selectedProject]
+  )
+  const sessionWorkspace = useMemo(
+    () =>
+      sessionWorkspaces.find((workspace) => workspace.id === selectedProject?.defaultWorkspaceID) ??
+      sessionWorkspaces[0] ??
+      selectedWorkspace,
+    [selectedProject?.defaultWorkspaceID, selectedWorkspace, sessionWorkspaces]
+  )
 
   const recentProjectOptions = useMemo(() => {
     const options =
@@ -199,13 +225,15 @@ export function SidebarContent({
     return recentProjects(options, selectedProject?.id)
   }, [selectedProject, showEmpty, visibleProjectOptions])
 
-  const projectsPending =
-    projectsQuery.isLoading ||
-    (projects.length === 0 && reconciling) ||
-    (!showEmpty && presencePending)
+  const projectsPending = projectsQuery.isLoading || (!showEmpty && presencePending)
 
-  const sessionsQuery = useSessions(selectedProject?.id ?? null, search)
-  const archivedQuery = useArchivedSessions(selectedProject?.id ?? null, search)
+  const projectHasWorkspaces = Boolean(selectedProject?.workspaces.length)
+  const sessionsQuery = useSessions(selectedProject?.id ?? null, search, projectHasWorkspaces)
+  const archivedQuery = useArchivedSessions(
+    selectedProject?.id ?? null,
+    search,
+    projectHasWorkspaces
+  )
 
   useEffect(() => {
     if (selectedProject) saveLastProject(selectedProject.id)
@@ -234,7 +262,9 @@ export function SidebarContent({
   const { signals: mailboxSignals, pending: mailboxesPending } =
     useSessionMailboxSignals(mailboxSessions)
 
-  const permissionsQuery = usePendingPermissions(selectedProject?.canonical)
+  const permissionsQuery = usePendingPermissions(
+    selectedWorkspace?.canonical ?? selectedWorkspace?.directory
+  )
   const awaitingInput = useMemo(
     () => new Set((permissionsQuery.data ?? []).map((request) => request.sessionID)),
     [permissionsQuery.data]
@@ -312,7 +342,7 @@ export function SidebarContent({
   const latest = sessions.find((session) => !isAutomation?.(session))
   const { startSession: newSession, pending: createPending } = useStartSession({
     projectID: selectedProject?.id,
-    directory: selectedProject?.canonical,
+    workspace: sessionWorkspace,
     agent: latest?.agent,
     model: latest?.model,
   })
@@ -574,20 +604,6 @@ export function SidebarContent({
     onNavigate?.()
   }
 
-  const refreshProjects = async () => {
-    const result = await reconcile()
-    if (result.isError) {
-      toast.error('Could not refresh projects')
-      return
-    }
-    const restored = result.data?.restored.length ?? 0
-    if (restored === 0) {
-      toast.message('No archived projects to restore')
-      return
-    }
-    toast.success(`Restored ${restored} ${restored === 1 ? 'project' : 'projects'}`)
-  }
-
   const setSectionOpen = (section: SidebarSection, open: boolean) => {
     setOpenSections((current) => {
       const next = { ...current, [section]: open }
@@ -718,7 +734,9 @@ export function SidebarContent({
                     {selectedProject ? projectLabel(selectedProject) : 'Select project'}
                   </span>
                   <span className="block truncate text-[11px] text-muted-foreground md:text-[10px]">
-                    {selectedProject?.canonical ?? 'No project selected'}
+                    {selectedProject
+                      ? (sessionWorkspace?.directory ?? 'No workspace')
+                      : 'No project selected'}
                   </span>
                 </span>
               </span>
@@ -742,7 +760,7 @@ export function SidebarContent({
                   <span className="min-w-0 flex-1">
                     <span className="block truncate text-xs">{projectLabel(project)}</span>
                     <span className="block truncate text-[10px] text-muted-foreground">
-                      {project.canonical}
+                      {project.workspaces[0]?.directory ?? 'No workspaces'}
                     </span>
                   </span>
                 </DropdownMenuItem>
@@ -753,16 +771,9 @@ export function SidebarContent({
               </div>
             )}
             <DropdownMenuSeparator />
-            <DropdownMenuItem
-              onSelect={() => void refreshProjects()}
-              disabled={reconciling}
-              title="Restore projects whose directories are available again"
-              className="gap-2"
-            >
-              <RotateCw
-                className={cn('size-3.5 text-muted-foreground', reconciling && 'animate-spin')}
-              />
-              <span className="min-w-0 flex-1 truncate text-xs">Refresh projects</span>
+            <DropdownMenuItem onSelect={() => setAddProjectOpen(true)} className="gap-2">
+              <FolderPlus className="size-3.5 text-muted-foreground" />
+              <span className="min-w-0 flex-1 truncate text-xs">New project</span>
             </DropdownMenuItem>
             <DropdownMenuItem asChild>
               <Link to="/projects" onClick={onNavigate} className="gap-2">
@@ -775,21 +786,62 @@ export function SidebarContent({
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
+        <AddProjectDialog open={addProjectOpen} onOpenChange={setAddProjectOpen} />
       </div>
 
       <div className="flex flex-col gap-2 px-3 pb-3">
-        <Button
-          className="h-11 w-full text-sm md:h-7 md:text-[0.8rem]"
-          onClick={newSession}
-          disabled={!selectedProject || createPending}
-        >
-          {createPending ? (
-            <Loader2 className="size-4 animate-spin" />
-          ) : (
-            <Plus className="size-4" />
-          )}
-          New {lowerSingular}
-        </Button>
+        {sessionWorkspaces.length > 1 ? (
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button
+                className="h-11 w-full text-sm md:h-7 md:text-[0.8rem]"
+                disabled={!selectedProject || createPending}
+              >
+                {createPending ? (
+                  <Loader2 className="size-4 animate-spin" />
+                ) : (
+                  <Plus className="size-4" />
+                )}
+                New {lowerSingular}
+                <ChevronDown className="ml-auto size-4 opacity-70" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="start" className="w-72">
+              <DropdownMenuLabel>New {lowerSingular} in</DropdownMenuLabel>
+              <DropdownMenuSeparator />
+              {sessionWorkspaces.map((workspace) => (
+                <DropdownMenuItem
+                  key={workspace.id}
+                  onSelect={() => newSession(workspace)}
+                  className="gap-2"
+                >
+                  <FolderGit2 className="size-3.5 text-muted-foreground" />
+                  <span className="min-w-0 flex-1">
+                    <span className="block truncate text-xs">
+                      {workspace.label ?? workspace.harnessLabel}
+                    </span>
+                    <span className="block truncate font-mono text-[10px] text-muted-foreground">
+                      {workspace.directory}
+                    </span>
+                  </span>
+                </DropdownMenuItem>
+              ))}
+            </DropdownMenuContent>
+          </DropdownMenu>
+        ) : (
+          <Button
+            className="h-11 w-full text-sm md:h-7 md:text-[0.8rem]"
+            onClick={() => newSession()}
+            disabled={!selectedProject || !sessionWorkspace || createPending}
+          >
+            {createPending ? (
+              <Loader2 className="size-4 animate-spin" />
+            ) : (
+              <Plus className="size-4" />
+            )}
+            New {lowerSingular}
+          </Button>
+        )}
       </div>
 
       <div className="flex items-center gap-1.5 px-3 pb-2">

@@ -23,7 +23,7 @@ export function useSessions(projectID: string | null, search: string, enabled = 
   })
 }
 
-export function useArchivedSessions(projectID: string | null, search: string) {
+export function useArchivedSessions(projectID: string | null, search: string, enabled = true) {
   const { client } = useConnection()
   return useQuery({
     queryKey: [...queryKeys.archivedSessions(projectID), search],
@@ -34,7 +34,7 @@ export function useArchivedSessions(projectID: string | null, search: string) {
         archived: true,
         limit: 50,
       }),
-    enabled: Boolean(client),
+    enabled: Boolean(client) && enabled,
   })
 }
 
@@ -63,16 +63,16 @@ export type CreateSessionInput = {
   model?: { id: string; providerID: string; variant?: string }
 }
 
-export function useCreateSession(directory: string) {
+export function useCreateSession() {
   const { client } = useConnection()
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: (input: CreateSessionInput = {}) =>
+    mutationFn: (input: CreateSessionInput & { directory: string }) =>
       client!.session.create({
         title: input.title || undefined,
         agent: input.agent,
         model: input.model,
-        location: { directory },
+        location: { directory: input.directory },
       }),
     onSuccess: (session: ClaraSession) => {
       void queryClient.invalidateQueries({ queryKey: ['sessions'] })

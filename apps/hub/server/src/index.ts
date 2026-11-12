@@ -5,6 +5,7 @@ import { loadAdminPaths, loadConfig } from './config.ts'
 import { HarnessManager } from './harness/manager.ts'
 import { HarnessMetadataStore } from './harness/metadata.ts'
 import { HarnessStore } from './harness/store.ts'
+import { ProjectStore } from './projects/store.ts'
 import { PanelAuth } from './panel/auth.ts'
 import { PanelLog } from './panel/log.ts'
 import { PanelRuntime } from './panel/runtime.ts'
@@ -103,8 +104,9 @@ async function main(): Promise<void> {
     key: secretKey.key,
     keyVersion: secretKey.version,
   })
-  const harnessMetadata = new HarnessMetadataStore(database)
-  const harness = new HarnessManager(harnessStore, harnessMetadata)
+  const projects = new ProjectStore(database)
+  const harnessMetadata = new HarnessMetadataStore(database, projects)
+  const harness = new HarnessManager(harnessStore, harnessMetadata, projects)
   await harness.load()
 
   const panelEnabled = !args.includes('--no-panel') && process.env.CLARA_PANEL_DISABLED !== '1'

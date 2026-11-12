@@ -17,7 +17,7 @@ const text = (value: unknown) => {
 
 export const SERVER_INSTRUCTIONS = `You are connected to a running Clara hub through a read-only MCP server.
 
-Use these tools to inspect the live projects, sessions, messages, catalog, VCS
+Use these tools to inspect the live Clara projects and workspaces, sessions, messages, catalog, VCS
 state, and Git history that the Clara web client displays. You cannot send
 prompts, answer permissions, change sessions, or modify anything.
 
@@ -63,9 +63,12 @@ export function createClaraApiServer(backend: ClaraApiReadBackend, version = '0.
   server.registerTool(
     'clara_projects_list',
     {
-      description: 'List OpenCode projects visible to Clara.',
+      description: 'List Clara projects and their harness workspaces.',
       inputSchema: {
-        archived: z.boolean().optional().describe('Include archived projects'),
+        archived: z
+          .boolean()
+          .optional()
+          .describe('List archived projects instead of active projects'),
       },
     },
     async (args) => text(await backend.projects(args))

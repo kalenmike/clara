@@ -3,8 +3,7 @@ import { Loader2, Plus } from 'lucide-react'
 import { EmptySessionView } from '@/components/chat/empty-session-view'
 import { InboxMonitorToggle } from '@/components/chat/inbox-monitor-toggle'
 import { useHarnessLabel } from '@/features/harness/use-harness-label'
-import { useProjectReconciliation } from '@/features/projects/use-project-reconciliation'
-import { canonicalProject, canonicalProjects, useProjects } from '@/features/projects/use-projects'
+import { findProject, projectDefaultWorkspace, useProjects } from '@/features/projects/use-projects'
 import { useSessions } from '@/features/sessions/use-sessions'
 import { useStartSession } from '@/features/sessions/use-start-session'
 import { useSessionWording } from '@/features/sessions/use-wording'
@@ -16,18 +15,18 @@ export function HomePage() {
   const label = useHarnessLabel()
   const { lowerSingular } = useSessionWording()
   const projectsQuery = useProjects()
-  const { pending: reconciling } = useProjectReconciliation()
   const projects = useMemo(() => projectsQuery.data ?? [], [projectsQuery.data])
   const last = readLastProject()
   const project = useMemo(
-    () => canonicalProject(projects, last) ?? canonicalProjects(projects)[0] ?? null,
+    () => findProject(projects, last) ?? projects[0] ?? null,
     [last, projects]
   )
-  const sessionsQuery = useSessions(project?.id ?? null, '')
+  const workspace = useMemo(() => projectDefaultWorkspace(project), [project])
+  const sessionsQuery = useSessions(project?.id ?? null, '', Boolean(project?.workspaces.length))
   const latest = sessionsQuery.data?.data[0]
   const { startSession, pending } = useStartSession({
     projectID: project?.id,
-    directory: project?.canonical,
+    workspace,
     agent: latest?.agent,
     model: latest?.model,
   })
@@ -36,7 +35,7 @@ export function HomePage() {
     if (project) saveLastProject(project.id)
   }, [project])
 
-  if (status !== 'connected' || projectsQuery.isLoading || (!project && reconciling)) {
+  if (status !== 'connected' || projectsQuery.isLoading) {
     return (
       <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
         <Loader2 className="mr-2 size-4 animate-spin" />
@@ -49,7 +48,16 @@ export function HomePage() {
     return (
       <EmptySessionView
         title="No projects yet"
-        description={`Open a directory with ${label} first. Projects appear here once the server has seen them.`}
+        description="Create a Clara project from the sidebar, then add a directory on a paired harness."
+      />
+    )
+  }
+
+  if (!workspace) {
+    return (
+      <EmptySessionView
+        title="Add a workspace"
+        description={`${label} does not know where to run work for this project yet. Add a directory on the project page.`}
       />
     )
   }
@@ -60,7 +68,7 @@ export function HomePage() {
       description="Give Clara something to work on!"
       actionLabel={`New ${lowerSingular}`}
       actionIcon={<Plus className="size-4" />}
-      onAction={startSession}
+      onAction={() => startSession()}
       actionPending={pending}
       footer={<InboxMonitorToggle />}
     />

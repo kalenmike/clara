@@ -15,7 +15,25 @@ export const claraSessionMetadataSchema = z.record(z.string(), claraJsonValueSch
 
 export type ClaraSessionMetadata = Record<string, z.infer<typeof claraJsonValueSchema>>
 
-export const claraProjectSchema = passthroughObject({
+export const claraProjectWorkspaceSchema = passthroughObject({
+  id: z.string(),
+  harnessID: z.string(),
+  harnessKind: z.string(),
+  harnessLabel: z.string(),
+  online: z.boolean(),
+  active: z.boolean(),
+  directory: z.string(),
+  canonical: z.string().optional(),
+  label: z.string().optional(),
+  projectIDs: z.array(z.string()),
+  linked: z.boolean(),
+  lastSeenAt: z.number().optional(),
+  vcs: z.string().optional(),
+  sandboxes: z.array(z.string()).optional(),
+}).meta({ id: 'ClaraProjectWorkspace' })
+
+/** The harness's own project record. Workspaces link Clara projects to it. */
+export const claraHarnessProjectSchema = passthroughObject({
   id: z.string(),
   canonical: z.string(),
   vcs: z.string().optional(),
@@ -35,6 +53,33 @@ export const claraProjectSchema = passthroughObject({
     archived: z.number().optional(),
   }),
   sandboxes: z.array(z.string()),
+}).meta({ id: 'ClaraHarnessProject' })
+
+/**
+ * A Clara project is a user-owned container. Directories live on its
+ * workspaces, one per harness location, so a project can group several
+ * harnesses without pretending every harness shares a path.
+ */
+export const claraProjectSchema = passthroughObject({
+  id: z.string(),
+  name: z.string().optional(),
+  icon: passthroughObject({
+    url: z.string().optional(),
+    override: z.string().optional(),
+    color: z.string().optional(),
+  }).optional(),
+  commands: passthroughObject({
+    start: z.string().optional(),
+  }).optional(),
+  startupScript: z.string().optional(),
+  time: passthroughObject({
+    created: z.number(),
+    updated: z.number(),
+    active: z.number(),
+    archived: z.number().optional(),
+  }),
+  defaultWorkspaceID: z.string().optional(),
+  workspaces: z.array(claraProjectWorkspaceSchema),
 }).meta({ id: 'ClaraProject' })
 
 export const claraSessionStatusSchema = z
@@ -228,6 +273,8 @@ export const claraSessionInboxInfoSchema = z
 export const claraSessionInboxListSchema = z.array(claraSessionInboxInfoSchema)
 
 export type ClaraProject = z.infer<typeof claraProjectSchema>
+export type ClaraProjectWorkspace = z.infer<typeof claraProjectWorkspaceSchema>
+export type ClaraHarnessProject = z.infer<typeof claraHarnessProjectSchema>
 export type ClaraSessionStatus = z.infer<typeof claraSessionStatusSchema>
 export type ClaraSessionForkBoundary = z.infer<typeof claraSessionForkBoundarySchema>
 export type ClaraSessionRevert = z.infer<typeof claraSessionRevertSchema>

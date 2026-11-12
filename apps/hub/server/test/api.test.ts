@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import type { HarnessManager } from '../src/harness/manager.ts'
 import { createApiApp } from '../src/api/app.ts'
 import type { ApiDependencies } from '../src/api/context.ts'
+import type { ProjectStore } from '../src/projects/store.ts'
 
 function json(value: unknown, status = 200): Response {
   return new Response(JSON.stringify(value), {
@@ -10,26 +11,47 @@ function json(value: unknown, status = 200): Response {
   })
 }
 
+const connection = {
+  id: 'h1',
+  harnessId: 'harness-a',
+  kind: 'opencode',
+  label: 'Test OpenCode',
+  transport: 'local' as const,
+  online: true,
+  capabilities: {},
+  isActive: true,
+  credentialConfigured: true,
+  createdAt: 1,
+  updatedAt: 1,
+}
+
+function fakeProjects(): ProjectStore {
+  const record = {
+    project: {
+      id: 'p1',
+      name: 'Demo',
+      createdAt: 1,
+      updatedAt: 2,
+      lastActiveAt: 3,
+    },
+    workspaces: [],
+  }
+  return {
+    list: () => [record],
+    get: (projectID: string) => (projectID === 'p1' ? record : undefined),
+    linksForProject: () => [],
+  } as unknown as ProjectStore
+}
+
 function fakeHarness(): HarnessManager {
   return {
     configured: true,
     generation: 3,
-    active: {
-      id: 'h1',
-      harnessId: 'harness-a',
-      kind: 'opencode',
-      label: 'Test OpenCode',
-      transport: 'local',
-      online: true,
-      capabilities: {},
-      isActive: true,
-      credentialConfigured: true,
-      createdAt: 1,
-      updatedAt: 1,
-    },
+    active: connection,
     lastError: undefined,
     harnessId: 'harness-a',
-    overlayProjectList: (projects: unknown[]) => projects,
+    projects: fakeProjects(),
+    list: () => [connection],
     overlaySessionList: (value: { data: unknown[]; cursor: unknown }) => value,
     request: async (action: { path: string }) => {
       if (action.path === '/harness/info' || action.path === '/api/info') {
@@ -104,10 +126,12 @@ describe('hub API', () => {
 
   it('rejects an invalid upstream payload with upstream_invalid', async () => {
     const harness = fakeHarness()
-    harness.request = async () => json([{ id: 'incomplete-project' }])
+    harness.request = async () => json({ id: 'incomplete-location' })
     const api = createTestApi(harness)
     const response = await api.fetch(
-      request('/v1/projects', { headers: { authorization: 'Bearer secret' } })
+      request('/v1/locations?directory=/workspace/demo', {
+        headers: { authorization: 'Bearer secret' },
+      })
     )
     expect(response.status).toBe(502)
     const body = (await response.json()) as { error: { code: string } }

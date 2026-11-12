@@ -1,9 +1,4 @@
-import type {
-  ClaraForm,
-  ClaraProject,
-  ClaraSession,
-  ClaraSessionMessage,
-} from '@clara/api-contract'
+import type { ClaraForm, ClaraSession, ClaraSessionMessage } from '@clara/api-contract'
 import type { HarnessRequest } from '../harness/types.ts'
 
 const REQUEST_TIMEOUT_MS = 5_000
@@ -35,14 +30,6 @@ export async function listRecentMessages(
 export async function listForms(client: HarnessRequest, sessionID: string): Promise<ClaraForm[]> {
   try {
     return await getData<ClaraForm[]>(client, `/sessions/${encodeURIComponent(sessionID)}/forms`)
-  } catch {
-    return []
-  }
-}
-
-export async function listProjects(client: HarnessRequest): Promise<ClaraProject[]> {
-  try {
-    return await getData<ClaraProject[]>(client, '/projects')
   } catch {
     return []
   }

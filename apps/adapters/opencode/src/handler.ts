@@ -20,6 +20,7 @@ import type {
   SessionSyntheticInput,
   SessionUpdateInput,
   SessionViewInput,
+  SessionInfo,
   VcsDiffInput,
   WorktreeListInput,
 } from '@opencode/client'
@@ -84,6 +85,38 @@ export function createAdapterApp(context: AdapterContext): Hono {
         )
       )
     )
+  })
+
+  /**
+   * OpenCode has no project archive or delete endpoint, so the adapter maps
+   * project-level operations onto every session in that project record. The
+   * hub still owns the Clara container and only receives the affected count.
+   */
+  app.post('/harness/v1/projects/:projectID/archive', async (c) => {
+    const projectID = c.req.param('projectID')
+    const sessions = await run(c, () =>
+      listProjectSessions(client, projectID, false, c.req.raw.signal)
+    )
+    const affected = await run(c, () => updateSessions(client, sessions, true, c.req.raw.signal))
+    return c.json({ affected })
+  })
+
+  app.post('/harness/v1/projects/:projectID/unarchive', async (c) => {
+    const projectID = c.req.param('projectID')
+    const sessions = await run(c, () =>
+      listProjectSessions(client, projectID, true, c.req.raw.signal)
+    )
+    const affected = await run(c, () => updateSessions(client, sessions, false, c.req.raw.signal))
+    return c.json({ affected })
+  })
+
+  app.delete('/harness/v1/projects/:projectID', async (c) => {
+    const projectID = c.req.param('projectID')
+    const sessions = await run(c, () =>
+      listProjectSessions(client, projectID, undefined, c.req.raw.signal)
+    )
+    const affected = await run(c, () => removeSessions(client, sessions, c.req.raw.signal))
+    return c.json({ affected })
   })
 
   app.get('/harness/v1/locations', async (c) =>
@@ -557,6 +590,90 @@ function eventStream(gateway: OpenCodeGateway, requestSignal: AbortSignal): Resp
       connection: 'keep-alive',
     },
   })
+}
+
+const SESSION_BULK_PAGE_SIZE = 200
+const SESSION_BULK_LIMIT = 100
+const SESSION_BULK_WRITE_CONCURRENCY = 8
+
+async function listProjectSessions(
+  client: OpenCodeGateway,
+  projectID: string,
+  archived: boolean | undefined,
+  signal: AbortSignal
+): Promise<SessionInfo[]> {
+  const sessions: SessionInfo[] = []
+  const seen = new Set<string>()
+  const cursors = new Set<string>()
+  let cursor: string | undefined
+  for (let page = 0; page < SESSION_BULK_LIMIT; page += 1) {
+    const response = await client.client.session.list(
+      {
+        project: projectID,
+        limit: SESSION_BULK_PAGE_SIZE,
+        ...(archived === undefined ? {} : { archived }),
+        ...(cursor ? { cursor } : {}),
+      },
+      { signal }
+    )
+    for (const session of response.data) {
+      if (seen.has(session.id)) continue
+      seen.add(session.id)
+      sessions.push(session)
+    }
+    const next = response.cursor.next ?? undefined
+    if (!next || cursors.has(next)) break
+    cursors.add(next)
+    cursor = next
+  }
+  return sessions
+}
+
+async function updateSessions(
+  client: OpenCodeGateway,
+  sessions: SessionInfo[],
+  archived: boolean,
+  signal: AbortSignal
+): Promise<number> {
+  let affected = 0
+  await forEachConcurrent(sessions, SESSION_BULK_WRITE_CONCURRENCY, async (session) => {
+    await client.client.session.update({ sessionID: session.id, archived }, { signal })
+    affected += 1
+  })
+  return affected
+}
+
+async function removeSessions(
+  client: OpenCodeGateway,
+  sessions: SessionInfo[],
+  signal: AbortSignal
+): Promise<number> {
+  let affected = 0
+  await forEachConcurrent(sessions, SESSION_BULK_WRITE_CONCURRENCY, async (session) => {
+    await client.client.session.remove({ sessionID: session.id }, { signal })
+    affected += 1
+  })
+  return affected
+}
+
+async function forEachConcurrent<T>(
+  items: T[],
+  concurrency: number,
+  run: (item: T) => Promise<void>
+): Promise<void> {
+  let index = 0
+  const count = Math.min(Math.max(concurrency, 1), items.length)
+  await Promise.all(
+    Array.from({ length: count }, async () => {
+      while (true) {
+        const current = index
+        index += 1
+        const item = items[current]
+        if (item === undefined) return
+        await run(item)
+      }
+    })
+  )
 }
 
 function locationInput(c: Context): LocationInput | undefined {

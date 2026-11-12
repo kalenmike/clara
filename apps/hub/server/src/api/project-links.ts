@@ -1,15 +1,15 @@
 import { ApiRequestError, type ApiDependencies } from './context.ts'
-import { forwardDto, parseClaraProjects } from './dto.ts'
+import { syncProject } from './project-service.ts'
 
 /**
- * Resolve a Clara project to every harness project record it owns. OpenCode can
- * keep more than one record for the same canonical directory (for example
- * before and after `git init`), and a project's sessions may live in any of
- * them, so callers must query all of them instead of picking one.
+ * Resolve a Clara project to every harness project record the active harness
+ * owns. OpenCode can keep more than one record for the same directory (for
+ * example before and after `git init`), and a project's sessions may live in
+ * any of them, so callers must query all of them instead of picking one.
  *
- * When the link table has no entry yet, refresh the harness project list once
- * to rebuild the links, then retry. This keeps a stale hub database from
- * turning a project into an empty session list.
+ * When the project has no workspace on the active harness, sync its workspaces
+ * once and retry. This keeps a newly paired harness from looking empty without
+ * ever inventing a Clara project from a harness list.
  */
 export async function resolveHarnessProjectIds(
   deps: ApiDependencies,
@@ -19,13 +19,9 @@ export async function resolveHarnessProjectIds(
   const direct = deps.harness.harnessProjectIds(projectId)
   if (direct.length > 0) return direct
 
-  const projects = await forwardDto(
-    deps,
-    { method: 'GET', path: '/projects' },
-    signal,
-    parseClaraProjects
-  )
-  deps.harness.overlayProjectList(projects)
+  const record = deps.harness.projects.get(projectId)
+  if (!record) throw unmappedProjectError(projectId)
+  await syncProject(deps, projectId, signal).catch(() => undefined)
   return deps.harness.harnessProjectIds(projectId)
 }
 
@@ -38,7 +34,7 @@ export function unmappedProjectError(projectId: string): ApiRequestError {
   return new ApiRequestError(
     409,
     'project_unmapped',
-    'This project is not linked to the active harness adapter. Refresh projects and try again.',
+    'This project is not linked to a workspace on the active harness.',
     { projectID: projectId }
   )
 }
