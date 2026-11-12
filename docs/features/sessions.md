@@ -2,16 +2,17 @@
 
 ## Summary
 
-The project and session browser is how people find their work. Projects group
-sessions by the directory the harness opened; sessions are the units of conversation
-that Clara opens in the chat view. The sidebar switcher keeps the seven most
-recently active non-empty projects, while the All projects page shows every
-non-empty project with session counts and server-side rename. A filter on the
-projects header reveals empty projects. The interface calls sessions **Briefs**
-by default, and the noun is configurable in Settings. A shift-click selects a
-range of sessions from an anchor, and Delete or Backspace permanently removes
-the selection after an explicit confirmation; the resting list has no checkbox
-column or bulk toolbar.
+The project and session browser is how people find their work. A Clara project
+is a user-owned container; each workspace inside it links the project to a
+directory on one paired harness. Sessions are the units of conversation that
+Clara opens in the chat view. The sidebar switcher keeps the seven most recently
+active non-empty projects, while the All projects page shows every non-empty
+project with session counts, workspace management, and Clara-side rename. A
+filter on the projects header reveals empty and archived projects. The interface
+calls sessions **Briefs** by default, and the noun is configurable in Settings. A
+shift-click selects a range of sessions from an anchor, and Delete or Backspace
+permanently removes the selection after an explicit confirmation; the resting
+list has no checkbox column or bulk toolbar.
 
 ## User flow
 
@@ -19,8 +20,8 @@ column or bulk toolbar.
    project or the first project selected in the sidebar.
 2. The sidebar project button opens a menu of the seven most recently active
    projects, skipping projects without sessions by default, plus the current
-   project when it falls outside that window. Each row shows its name and
-   canonical path; **All projects** at the end opens the projects page.
+   project when it falls outside that window. Each row shows its name and its
+   first workspace directory; **New project** and **All projects** end the menu.
 3. Choosing a project loads its sessions into five collapsible mailbox
    sections: Inbox, Outbox, Drafts, Snoozed, and Archived. While the
    orchestration service is reachable, worker sessions are removed from those
@@ -49,20 +50,22 @@ column or bulk toolbar.
    prompt; the empty session appears in Drafts. Creating the session re-targets
    the composer even when it is already open or minimized on another session.
    Opening an empty draft with locally saved text opens the composer too.
-9. The All projects page shows one card per canonical, non-empty project with
-   its directory, last activity, and active/archived session counts. A filter
-   icon at the far right of the header opens a **Show empty projects** switch,
-   off by default. The card menu renames the project on the harness server; the
-   directory does not change.
+9. The All projects page shows one card per non-empty project with its
+   workspace summary, last activity, and active/archived session counts, plus a
+   **New project** action. A filter icon at the far right of the header opens
+   **Show empty projects** and **Show archived projects** switches, both off by
+   default. The card menu renames the project in Clara, adds a workspace, and
+   archives, restores, deletes, or removes the project.
 10. The project page uses the same page shell as Settings and All projects. A
-    project info card shows the directory, ID, icon, VCS, commands, sandboxes,
+    project info card shows the container ID, workspace list, default workspace,
     created/updated/active/archived timestamps, and active/inactive/total session
-    counts. Its menu archives every session or deletes every session after
-    confirmation; the project record itself stays on the server. Below the card,
+    counts. Each workspace shows its harness, directory, online state, and link
+    state, with actions to set the default, sync, or remove it from Clara. The
+    card menu archives, restores, deletes, or removes the project. Below the card,
     a project settings card edits the icon, avatar color, and workspace startup
-    script on the server. Below that, a sessions heading introduces the session
-    cards with agent, model, token totals, cost, and update time. Cost follows
-    the **Cost display** setting, so a card can show the reported amount or an
+    script in Clara. Below that, a sessions heading introduces the session cards
+    with agent, model, token totals, cost, and update time. Cost follows the
+    **Cost display** setting, so a card can show the reported amount or an
     estimate marked with `~`.
 11. Opening a session shows it in the sidebar and loads the chat view, or a
     dedicated New message view when it has no messages and no pending draft.
@@ -109,25 +112,41 @@ column or bulk toolbar.
 
 ## Core business rules
 
-1. Sessions are fetched by **project ID**. A project can own sessions in its
-   canonical directory, git worktrees, and sandboxes; a directory query is exact
-   and would hide sessions after an agent moves one to a worktree. The hub maps
-   the Clara project to every harness project record for that canonical path,
-   merges their session pages, deduplicates by id, and keeps one cursor per
-   record. If the links are missing, the hub rebuilds them from the project list
-   once; a project that still has no record returns `project_unmapped` instead
-   of an empty list.
-2. The active list requests the newest 50 non-archived sessions from each linked
+1. Sessions are fetched by **Clara project ID**. A project owns one or more
+   workspaces, and each workspace links to every harness project record for its
+   directory on one harness. A directory query is exact and would hide sessions
+   after an agent moves one to a worktree, so the hub merges the session pages of
+   every linked record on the active harness, deduplicates by id, and keeps one
+   cursor per record. If a workspace has no links yet, the hub resolves it from
+   the harness location once and links every matching record; a project with no
+   workspace on the active harness returns `project_unmapped` instead of an
+   empty list.
+2. Clara projects are not directories. `clara_projects` stores the container,
+   name, icon, commands, startup script, archive state, and default workspace;
+   `clara_project_workspaces` stores `(harness, directory, canonical)` links.
+   Harness project lists never create Clara projects, and a harness archive never
+   hides a Clara project.
+3. A workspace can be added while its harness is offline. Clara stores the
+   directory, shows it as unresolved, and links it through the harness location
+   the next time the workspace or project is synced.
+4. Project archive and delete are Clara actions that also signal every linked
+   harness. The included adapter maps archive to archiving every session in the
+   linked project records and delete to deleting every session; the harness
+   project record may remain. **Remove from Clara** deletes only the container
+   and its workspace links, leaving harness data untouched. Older adapters that
+   do not advertise `projects.archive` or `projects.delete` are reported as
+   unsupported and never block the Clara-side change.
+5. The active list requests the newest 50 non-archived sessions from each linked
    record and shows the merged result; the archived list does the same for
    archived sessions.
-3. A new session inherits the model of the most recent active session in the
+6. A new session inherits the model of the most recent active session in the
    project, so the first prompt uses a model that already works. A model hidden
    in **Settings → Models** is not inherited; the new session starts on the
    server default instead. Its agent follows the **Default agent** setting: the
    last agent selected anywhere in Clara, or a specific agent. A specific agent
    also replaces the agent of an empty draft the first time that draft is
    opened. Sessions that already have messages are never changed.
-4. Running sessions are marked with a live dot driven by the active-session map
+7. Running sessions are marked with a live dot driven by the active-session map
    and status events, and that same map keeps them in Outbox. Inbox rows show
    what they need: a red pulsing dot while a run is blocked on an approval or
    question, a red dot when the latest message is a failed run, an orange dot
@@ -137,7 +156,7 @@ column or bulk toolbar.
    Unread Inbox sessions use a heavier title weight; opening the chat marks the
    newest completed turn viewed. These states also drive Inbox alerts; see
    [notifications](notifications.md).
-5. Inbox, Outbox, and Drafts combine the latest `user` or `assistant` message
+8. Inbox, Outbox, and Drafts combine the latest `user` or `assistant` message
    with live run state. A pending permission or form request puts the session in
    Inbox; a running session stays in Outbox even after the agent writes; once
    idle, the latest message author decides (agent → Inbox, user → Outbox).
@@ -145,33 +164,33 @@ column or bulk toolbar.
    A follow-up queued from the composer while a run is active is a pending inbox
    item; the harness promotes it as the next turn when the session would otherwise
    become idle.
-6. Drafts contains sessions with no projected user or assistant messages that
+9. Drafts contains sessions with no projected user or assistant messages that
    are not running. This includes new empty sessions and sessions whose first
    message was saved with the harness's no-reply mode and still sits in the session
    inbox. The queued message is shown in the chat and can be started from the
    Start panel.
-7. Archive state comes only from the server's `archived` timestamp, and snooze
-   state only from `metadata.snoozed === true`. Title text, including any legacy
-   `[DONE]` or `(DONE)` suffix, never moves a session out of Inbox on its own.
-8. Done sets the server's archived flag without changing the title, and returns
-   to the start view after a short celebration delay, or opens the next Inbox
-   session when Monitor Inbox is active. An empty, non-archived draft shows
-   **Delete** instead; it removes the session immediately. Done is hidden while
-   the agent is running and on snoozed sessions.
-9. Reopening clears the archived flag and any snooze metadata, and does not
-   rename the session. Reopen is available only while the reply window is closed
-   and the agent is idle.
-10. A session without projected messages and without a pending draft shows a
+10. Archive state comes only from the server's `archived` timestamp, and snooze
+    state only from `metadata.snoozed === true`. Title text, including any legacy
+    `[DONE]` or `(DONE)` suffix, never moves a session out of Inbox on its own.
+11. Done sets the server's archived flag without changing the title, and returns
+    to the start view after a short celebration delay, or opens the next Inbox
+    session when Monitor Inbox is active. An empty, non-archived draft shows
+    **Delete** instead; it removes the session immediately. Done is hidden while
+    the agent is running and on snoozed sessions.
+12. Reopening clears the archived flag and any snooze metadata, and does not
+    rename the session. Reopen is available only while the reply window is closed
+    and the agent is idle.
+13. A session without projected messages and without a pending draft shows a
     dedicated New message view instead of the chat. **New** replaces Reply and
     opens the composer in the last-used size; opening the draft with locally
     saved text opens the composer automatically. A new session skips this step
     and opens the composer immediately.
-11. Each section header shows its session count whether the section is expanded
+14. Each section header shows its session count whether the section is expanded
     or collapsed. Sections collapse independently; the toggle beside the search
     box opens or closes all of them at once, and both actions are remembered in
     local storage. Search temporarily forces every section open without
     overwriting the saved state.
-12. Deleting one session or a shift-click range requires an explicit
+15. Deleting one session or a shift-click range requires an explicit
     confirmation and permanently removes those sessions and their messages.
     Selection is local to the sidebar instance: a normal click clears it and
     sets the anchor, shift-click or Shift+Enter selects the inclusive rendered
@@ -184,7 +203,7 @@ column or bulk toolbar.
     note. Partial failures continue the batch, keep the failed sessions selected,
     and name the failures. Deleting the open session returns to its project
     page.
-13. Monitor Inbox targets the newest Inbox session for the current project by
+16. Monitor Inbox targets the newest Inbox session for the current project by
     update time, independent of the sidebar search. It moves the open view when
     the toggle is turned on, after Done, Send, Build, or saving a draft, or when
     a session newly enters the Inbox while the start view is open. The first
@@ -193,84 +212,88 @@ column or bulk toolbar.
     redirect, so manual navigation and the switch stay usable. The preference is
     remembered in local storage. The switch also shows the current Outbox count
     as “N agents working” (or “No agents working”) for the project.
-14. Snoozed sessions leave Inbox, Outbox, and Drafts until they are reopened or
+17. Snoozed sessions leave Inbox, Outbox, and Drafts until they are reopened or
     engaged. Sending a reply, starting work, requesting a plan, running a
     command, saving a draft, or answering a permission or question clears the
     snooze marker first, so the session returns to whichever section its state
     implies. Archived wins when a session is both archived and snoozed. Snoozed
     sessions do not trigger desktop notifications, inbox sounds, or Monitor
     Inbox.
-15. The interface calls a session a **Brief** by default. Settings → Session
+18. The interface calls a session a **Brief** by default. Settings → Session
     wording replaces that noun in every user-facing label, placeholder, toast,
     and notification. The setting offers Brief, Task, Session, Action, Run, and
     Job presets or any custom singular word, derives the plural, and stores the
     choice in the browser. The harness API and Clara's internal code still use
     `session`.
-16. Project recency comes from the server's `time.active`; the switcher takes
-    the newest seven and pins the current project when it falls outside them.
-    The All projects page lists every canonical, non-archived project. Projects
-    with zero total sessions are hidden from both views by default; the header
-    filter reveals them and saves the choice on the device. The current project
-    stays pinned in the switcher even when it is empty. Project names are saved
-    with `client.project.update` on the harness server, so a rename reaches
-    every Clara client and never becomes a local-only label. Session counts split
-    on `time.archived`; the statistics request is capped and the total shows `+`
-    when it reaches the cap.
-17. Project bulk actions are session-level only. The harness has no project
-    archive or delete endpoint. **Archive all sessions** archives every
-    non-archived session in the project, and **Delete all sessions** permanently
-    deletes every session. Both actions load every page of the project's session
-    list before writing, run four writes at a time, and leave the project record
-    and directory untouched.
-18. Project settings are shared server metadata. Clara writes a custom icon to
-    `icon.override` as a 128×128 PNG data URL, writes one of six harness
-    avatar colors to `icon.color`, and writes the workspace startup command to
-    `commands.start`. It never writes the server-discovered `icon.url`.
-19. While the orchestration service is reachable, a session whose metadata says
+19. Project recency comes from Clara's `last_active_at`, which follows the
+    newest session update seen for the project; the switcher takes the newest
+    seven and pins the current project when it falls outside them. The All
+    projects page lists every non-archived project, or archived projects too when
+    the filter asks for them. Projects with zero total sessions are hidden from
+    both views by default; the header filter reveals them and saves the choice on
+    the device. The current project stays pinned in the switcher even when it is
+    empty. Project names, icons, and startup scripts are stored in Clara and
+    shared by every connected client. Session counts split on `time.archived`;
+    the statistics request is capped and the total shows `+` when it reaches the
+    cap.
+20. Project archive, restore, delete, and remove are container actions. Archive
+    sets the Clara flag and signals every linked harness; restore clears it and
+    signals unarchive. Delete signals every linked harness and then removes the
+    Clara container. Remove from Clara deletes only the container and workspace
+    links. The harness result list is reported per harness; an offline or
+    unsupported harness never blocks the Clara change.
+21. Project settings are Clara metadata. Clara stores a custom icon override as
+    a 128×128 PNG data URL, one of six avatar colors, and the workspace startup
+    command. It merges the harness-discovered favicon from the workspace
+    snapshot, and removing a custom image reveals the selected color or that
+    favicon. Every project avatar in the sidebar, All projects cards, and project
+    page follows that order.
+22. While the orchestration service is reachable, a session whose metadata says
     `automation === true` never enters Inbox, Outbox, Drafts, Snoozed, or
     Archived. It stays in Workers even when archived, and New session does not
     inherit its agent or model. When the Orchestration switch is off, the same
     session is treated as an ordinary session and returns to the normal mailbox
     groups.
-    Removing a custom image reveals the selected color or discovered favicon.
-    Every project avatar in the sidebar, All projects cards, and project page
-    follows that order.
-20. The harness runs `commands.start` after it creates a new worktree. Clara does
+23. The harness runs `commands.start` after it creates a new worktree. Clara does
     not create worktrees, so New brief does not run the startup script; the
-    setting is for the harness desktop app, the CLI, and future workspace support.
-21. The harness hides a project from `project.list()` after its directory has been
-    missing for an hour, and restores it when a directory-scoped request
-    resolves the directory again. On connect and from **Refresh projects**,
-    Clara lists archived projects and probes each canonical directory with
-    `location.get`. Projects whose directory is back return to the active list;
-    directories that are still missing stay archived and hidden.
-22. Mailbox lookups run within a shared request budget instead of launching
+    setting is for harness clients and future workspace support.
+24. A harness can archive its own project record when a directory is missing.
+    Clara ignores that archive state for visibility; only an explicit Clara
+    archive hides a project. Reconciling a workspace through the harness
+    location can unarchive the harness record, but it never removes the Clara
+    container.
+25. Mailbox lookups run within a shared request budget instead of launching
     three requests per session at once. A failed background refresh keeps the
     last list visible with a compact refresh notice; the full retry state appears
     only when no list is cached.
 
 ## Edge cases
 
-- **No projects** — an empty state explains that a directory must be opened with
-  the harness first.
-- **Project directory returns** — Clara restores the project on connect or when
-  **Refresh projects** runs in the switcher, without another server restart.
-- **Project directory is still missing** — the project stays archived and hidden;
-  a failed directory probe is treated as unavailable, not as an error.
+- **No projects** — an empty state offers **New project**; a project can be
+  created before any workspace exists.
+- **No workspaces** — New session is disabled on the home view and the project
+  page invites the person to add a directory on a paired harness.
+- **Workspace harness is offline** — adding a workspace still succeeds with an
+  unresolved link; syncing later fills in the canonical path and harness project
+  records.
+- **Workspace directory is missing** — the Clara project stays visible; the
+  workspace remains unresolved and session lookup reports the harness problem.
+- **A harness archives its own project** — Clara ignores it; only **Archive
+  project** hides the Clara container.
 - **Selected project outside the recent seven** — the switcher keeps it visible
   by replacing the seventh recent entry.
 - **Project rename fails** — the dialog reports the error and the old name stays
   in place.
-- **Project renamed on another client** — the `project.updated` event refreshes
-  the switcher and the All projects cards.
+- **Project renamed on another client** — the mutation invalidates the project
+  list for that client; the next refresh shows the new name.
 - **Project icon image cannot be read or is too large** — the settings card
   reports the problem and keeps the previous icon.
-- **Project icon save fails** — the preview returns to the server's icon and a
+- **Project icon save fails** — the preview returns to the stored icon and a
   toast reports the failure.
 - **Project has a color and a discovered favicon** — the color avatar wins in
   Clara, matching the harness; choosing **Default** reveals the favicon again.
-- **Custom project icon removed** — only `icon.override` is cleared; the
-  discovered favicon and selected color stay on the server.
+- **Custom project icon removed** — only the Clara icon override is cleared; the
+  discovered favicon and selected color stay available.
 - **Startup script save fails** — the input keeps the text and a toast reports
   the failure.
 - **Project metadata changes on another client** — the `project.updated` event
@@ -286,16 +309,15 @@ column or bulk toolbar.
   empty-state check without a page reload.
 - **More than the statistics cap** — counts are shown with a `+` because the
   request is bounded.
-- **Project statistics fail** — the card keeps its directory and rename action
-  and shows that counts are unavailable.
-- **Archive all sessions fails partway** — the toast reports the failure; a retry
-  only writes sessions that are still not archived.
-- **Delete all sessions fails partway** — deleted sessions stay gone and the
-  remaining sessions stay in the project; a retry lists what is left.
-- **A project has more sessions than one page** — both bulk actions follow every
-  server cursor before writing, so no page is skipped.
-- **Project record cannot be archived or deleted** — the confirmation text says
-  the project itself stays; only its sessions change.
+- **Project statistics fail** — the card keeps its workspaces and actions and
+  shows that counts are unavailable.
+- **Project archive or delete fails on one harness** — the Clara action still
+  applies and the toast reports how many harnesses could not comply.
+- **A harness does not support project archive/delete** — the result says
+  unsupported; the Clara change still applies, and **Remove from Clara** remains
+  available for a local-only removal.
+- **Deleting a project that has no harness links** — Clara deletes the container
+  without sending a harness signal.
 - **No sessions** — the list invites the person to create one.
 - **Custom wording is blank** — Clara falls back to the current or default noun
   instead of saving an empty label.
@@ -408,8 +430,8 @@ column or bulk toolbar.
 
 ## Out of scope
 
-- Bulk actions other than project archive-all/delete-all and the sidebar's
-  shift-click range deletion
+- Bulk actions other than project archive/delete and the sidebar's shift-click
+  range deletion
 - Clara-hosted project images, arbitrary avatar colors, or running the workspace
   startup script from Clara
 - Creating, switching, or removing worktrees, or moving sessions between
@@ -434,20 +456,22 @@ column or bulk toolbar.
 <summary>Routes, data, and references</summary>
 
 - Routes: `/`, `/projects`, `/p/:projectId`, `/p/:projectId/s/:sessionId`
-- Projects: `client.project.list()` sorted by `time.active`; the switcher takes
-  seven and pins the current project when needed; duplicate canonical records
-  resolve to the VCS-backed one
-- Project reconciliation: `client.project.list({ archived: true })` then
-  `client.location.get({ location: { directory } })` for each archived project,
-  three at a time with a 5s timeout; resolving a directory clears
-  `time.archived`, while a missing directory returns 404 and stays archived
-- Refresh projects: the project switcher item reruns reconciliation and
-  invalidates the project list when at least one project comes back
-- Project update: `client.project.update({ projectID, name?, icon?, commands? })`;
-  the `project.updated` event invalidates the cached project list
-- Project icon: `icon.override` holds a custom image as a 128×128 PNG data URL;
-  `icon.url` is a server-discovered favicon that Clara never writes; `icon.color`
-  is one of `pink`, `mint`, `orange`, `purple`, `cyan`, or `lime`
+- Projects: `client.project.list()` returns Clara containers sorted by
+  `last_active_at`; the switcher takes seven and pins the current project when
+  needed. `client.project.create({ name })` creates a container without a
+  directory. `client.project.workspace.add({ harnessID, directory })` links a
+  directory and calls the harness location to resolve it.
+- Project workspace sync: `client.project.sync({ projectID })` resolves every
+  unresolved workspace, links matching harness project records, and stores the
+  harness snapshot used for VCS, favicon, and sandbox display.
+- Project archive/delete: `client.project.archive`, `unarchive`, and
+  `remove({ mode })` return per-harness results. `mode: 'disconnect'` removes only
+  Clara state.
+- Project update: `client.project.update({ projectID, name?, icon?, commands?,
+startupScript?, defaultWorkspaceID? })`.
+- Project icon: the Clara override holds a custom image as a 128×128 PNG data
+  URL; `icon.url` comes from the workspace snapshot; `icon.color` is one of
+  `pink`, `mint`, `orange`, `purple`, `cyan`, or `lime`
 - Icon upload: `apps/web/src/features/projects/project-icon.ts` resizes,
   center-crops, rejects inputs over 5 MB or results over 256 KB, and re-encodes
   as PNG

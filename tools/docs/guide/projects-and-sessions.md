@@ -6,25 +6,55 @@ sidebar_position: 4
 
 # Projects and sessions
 
-A project is a directory the harness has opened. A session is one conversation in
-that project. Clara calls sessions **Briefs** by default; the noun is yours to
-change.
+A Clara project is a container for your work. It is not a directory. Each
+workspace inside a project links it to a directory on one paired harness, so one
+project can group several harnesses or several folders. A session is one
+conversation in a workspace. Clara calls sessions **Briefs** by default; the noun
+is yours to change.
+
+## Create a project
+
+Choose **New project** in the sidebar project menu or on the All projects page.
+Give it a name; it starts with no workspaces.
+
+Open the project and choose **Add workspace**. Pick a paired harness, then enter
+a directory or import an existing harness project. If the harness is offline,
+Clara still saves the workspace and links it when the harness reconnects. Use
+**Sync** after a directory moves or a harness comes online again.
 
 ## Find a project
 
 The project button in the sidebar opens the seven most recently active projects.
-Each row shows the project name and its directory. Projects without sessions are
-hidden by default.
+Each row shows the project name and its first workspace. Projects without
+sessions are hidden by default.
 
 Choose **All projects** at the end of the menu to see every non-empty project.
-The filter icon in the header reveals empty projects. A project card shows its
-directory, last activity, and active and archived session counts.
+The filter icon in the header reveals empty and archived projects. A project card
+shows its workspace summary, last activity, and active and archived session
+counts.
 
 The harness can keep more than one project record for the same directory, for
 example before and after `git init`. Clara combines the sessions from every
-record, so the project shows all of its work. If the session list cannot be
-loaded, Clara shows the error and a **Retry** action instead of an empty
+linked record, so the project shows all of its work. If the session list cannot
+be loaded, Clara shows the error and a **Retry** action instead of an empty
 project; project counts that could not be checked are marked unavailable.
+
+## Archive, delete, or remove
+
+The project menu offers three different actions:
+
+- **Archive project** hides the project and asks every linked harness to archive
+  its project data. Restore reverses that.
+- **Delete project** deletes the Clara project and asks every linked harness to
+  delete its project data. With the included OpenCode adapter, this permanently
+  deletes every session in the linked project records; the harness project
+  record may remain.
+- **Remove from Clara** deletes only the Clara project and its workspace links.
+  Harness projects and sessions stay untouched.
+
+Clara always applies its own change and reports any harness that was offline or
+does not support the action. Removing a workspace from the project page only
+unlinks it from Clara.
 
 ## Work the mailbox
 
@@ -42,15 +72,15 @@ separate **Workers** drawer when orchestration is running.
 
 ## Start a session
 
-1. Choose **New session**. Clara creates the session in the selected project and
-   opens the composer.
+1. Choose **New session**. Clara creates the session in the default workspace,
+   or asks which workspace when the project has several. It opens the composer.
 2. Type a prompt and send it. The session moves to Outbox while the agent works.
 3. When the reply arrives, the session moves to Inbox if it needs review.
 4. Use **Reply** to continue, or **Done** to archive it.
 
 A new session inherits the model of the most recent working session in the
 project. It follows your **Default agent** setting. Hidden models are not
-inherited.
+inherited. Set the default workspace from the project page.
 
 ## Save a first prompt as a draft
 

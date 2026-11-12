@@ -117,7 +117,7 @@ at all and how often clients check for changes.
   - Models: `clara.hiddenModels`
   - Notifications: `clara.notifications` (sounds, UI sounds, volume,
     `soundKinds`, `deskIdleMs` only)
-  - Project: `clara.lastProject`, `clara.showEmptyProjects`
+  - Project: `clara.lastProject`, `clara.showEmptyProjects`, `clara.showArchivedProjects`
   - Inbox: `clara.monitorInbox`
 - Per-client state: `clara.sync` with `{ categories, revision, dirty }`; never
   uploaded

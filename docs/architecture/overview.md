@@ -222,27 +222,29 @@ default) instead of creating another session.
 
 ## Project and directory scoping
 
-Sessions belong to a project, and one project can own sessions in several
-locations: its canonical directory, git worktrees, and sandboxes. Clara lists
-sessions with `GET /api/session?project=<id>` so sessions moved to a worktree
-stay in the project view. The `directory` filter is exact and is not used for
-the session list.
+Sessions belong to a Clara project. A project is a container, not a directory:
+its workspaces store one `(harness, directory)` pair each. Clara lists sessions
+with `GET /v1/sessions?project=<clara-id>` so sessions moved to a worktree stay
+in the project view. The `directory` filter is exact and is not used for the
+session list.
 
-The canonical directory is still used to create sessions and to scope
+A workspace's canonical directory is used to create sessions and to scope
 location-specific data such as skills, references, and pending approvals. For an
-open session, its `location.directory` wins when it differs from the project
-canonical.
+open session, its `location.directory` wins when it differs from the workspace
+directory.
 
-The server can keep more than one project record for the same canonical path,
-for example before and after `git init`. Clara maps one project to every linked
+A harness can keep more than one project record for the same canonical path, for
+example before and after `git init`. Clara maps one workspace to every linked
 record and merges their sessions and worktrees, so duplicate records cannot hide
-work. When a link is missing, the hub rebuilds the links from the harness
-project list once and retries; a project with no record returns
-`project_unmapped` instead of forwarding the Clara ID or showing an empty list.
+work. When a workspace has no links yet, the hub resolves it through the harness
+location once and retries; a project with no workspace on the active harness
+returns `project_unmapped` instead of forwarding the Clara ID or showing an empty
+list. Harness project lists never create Clara projects, and harness archive
+state never hides one.
 
 Sessions can report `projectID: "global"`. Session rows build links from the
 route/selected project ID; notifications resolve the owning project, preferring
-the session's project ID and falling back to the canonical directory.
+the session's project ID and falling back to a workspace directory.
 
 Session-scoped endpoints (`messages`, `prompt`, `command`, `switchAgent`,
 `switchModel`, `context`) take only the session ID; the server resolves the
