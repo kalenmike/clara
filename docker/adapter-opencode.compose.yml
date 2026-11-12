@@ -5,7 +5,7 @@
 # Pair it once from the hub panel and pass the code to the install command:
 #
 #   docker compose -f docker/adapter-opencode.compose.yml run --rm adapter \
-#     install --pair <code> --opencode-url http://opencode:4096
+#     install --pair <code> --opencode-url http://opencode:4096 --no-binding --no-runner --no-service
 #
 # The adapter only makes outbound connections. It publishes no ports, and
 # OpenCode stays private to the `clara` network.

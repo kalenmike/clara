@@ -1,4 +1,5 @@
 import { Hono, type Context } from 'hono'
+import { booleanQuery, jsonBody, numberQuery } from '@clara/adapter'
 import type {
   FileFindInput,
   MessageListInput,
@@ -38,7 +39,6 @@ export type AdapterContext = {
 type LocationInput = { location?: { directory?: string } }
 
 const KEEPALIVE_MS = 15_000
-const MAX_BODY_BYTES = 10 * 1024 * 1024
 
 export function createAdapterApp(context: AdapterContext): Hono {
   const app = new Hono()
@@ -564,20 +564,6 @@ function locationInput(c: Context): LocationInput | undefined {
   return directory ? { location: { directory } } : undefined
 }
 
-function numberQuery(c: Context, name: string): number | undefined {
-  const value = c.req.query(name)
-  if (!value) return undefined
-  const parsed = Number(value)
-  return Number.isFinite(parsed) ? parsed : undefined
-}
-
-function booleanQuery(c: Context, name: string): boolean | undefined {
-  const value = c.req.query(name)
-  if (value === 'true') return true
-  if (value === 'false') return false
-  return undefined
-}
-
 function fileType(value: string | undefined): 'file' | 'directory' | undefined {
   return value === 'file' || value === 'directory' ? value : undefined
 }
@@ -613,15 +599,4 @@ function worktreeListInput(projectID: string | undefined): WorktreeListInput {
   // The SDK marks this required, but the existing Clara route allows it to be
   // omitted and the old proxy omitted the query in that case.
   return (projectID ? { projectID } : {}) as WorktreeListInput
-}
-
-async function jsonBody<T>(c: Context): Promise<T> {
-  try {
-    const text = await c.req.text()
-    if (Buffer.byteLength(text) > MAX_BODY_BYTES) throw new Error('Request body is too large')
-    return (text ? JSON.parse(text) : {}) as T
-  } catch (cause) {
-    if (cause instanceof Error && cause.message === 'Request body is too large') throw cause
-    return {} as T
-  }
 }

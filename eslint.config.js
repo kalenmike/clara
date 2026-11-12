@@ -69,13 +69,18 @@ export default defineConfig([
     },
   },
   {
-    files: ['apps/server/**/*.ts', 'packages/**/*.ts', 'plugins/**/*.ts', 'workers/**/*.ts'],
+    files: [
+      'apps/server/**/*.ts',
+      'apps/adapter-opencode/plugin/**/*.ts',
+      'packages/**/*.ts',
+      'workers/**/*.ts',
+    ],
     languageOptions: {
       globals: globals.node,
     },
   },
   {
-    files: ['plugins/clara-policy/**/*.ts'],
+    files: ['apps/adapter-opencode/plugin/**/*.ts'],
     rules: {
       // The OpenCode plugin context is host-provided and intentionally untyped.
       '@typescript-eslint/no-explicit-any': 'off',

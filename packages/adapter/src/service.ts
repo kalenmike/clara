@@ -1,171 +1,264 @@
-import { spawnSync } from 'node:child_process'
-import { existsSync, mkdirSync, rmSync, unlinkSync, writeFileSync } from 'node:fs'
-import { dirname, join } from 'node:path'
+import { spawn, spawnSync } from 'node:child_process'
+import {
+  closeSync,
+  existsSync,
+  mkdirSync,
+  openSync,
+  readFileSync,
+  unlinkSync,
+  writeFileSync,
+} from 'node:fs'
+import { dirname, join, resolve } from 'node:path'
+import type { AdapterPaths, AdapterProcessStatus, ServiceResult } from './types.ts'
 
-export type ServiceKind = 'systemd' | 'launchd' | 'none'
-
-export interface ServiceResult {
-  service: ServiceKind
-  unitPath?: string
-  actions: string[]
-  warning?: string
+export type AdapterServiceInput = {
+  name: string
+  label: string
+  entry: string
+  paths: AdapterPaths
 }
 
-export interface ServiceInput {
-  entry: string
-  configPath: string
-  dryRun?: boolean
+function unitName(name: string): string {
+  return `clara-adapter-${name}`
+}
+
+function launchLabel(name: string): string {
+  return `ai.clara.adapter-${name}`
 }
 
 function nodeArgs(entry: string): string[] {
   return entry.endsWith('.ts') ? ['--experimental-strip-types', '--no-warnings', entry] : [entry]
 }
 
-function systemdUnit(input: ServiceInput): string {
-  const args = [process.execPath, ...nodeArgs(input.entry), 'runner', '--config', input.configPath]
-    .map((value) => (value.includes(' ') ? `"${value}"` : value))
-    .join(' ')
-  return `[Unit]
-Description=Clara script runner
-After=default.target
-
-[Service]
-Type=simple
-ExecStart=${args}
-Restart=on-failure
-RestartSec=5
-
-[Install]
-WantedBy=default.target
-`
-}
-
-function launchAgent(input: ServiceInput): string {
-  const args = [process.execPath, ...nodeArgs(input.entry), 'runner', '--config', input.configPath]
-  return `<?xml version="1.0" encoding="UTF-8"?>
-<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-<plist version="1.0">
-<dict>
-  <key>Label</key><string>ai.clara.runner</string>
-  <key>ProgramArguments</key>
-  <array>
-${args.map((arg) => `    <string>${xml(arg)}</string>`).join('\n')}
-  </array>
-  <key>RunAtLoad</key><true/>
-  <key>KeepAlive</key><true/>
-  <key>StandardOutPath</key><string>${xml(join(dirname(input.configPath), 'runner.log'))}</string>
-  <key>StandardErrorPath</key><string>${xml(join(dirname(input.configPath), 'runner.log'))}</string>
-</dict>
-</plist>
-`
-}
-
-function xml(value: string): string {
-  return value
-    .replaceAll('&', '&amp;')
-    .replaceAll('<', '&lt;')
-    .replaceAll('>', '&gt;')
-    .replaceAll('"', '&quot;')
-}
-
 function run(command: string, args: string[]): boolean {
-  const result = spawnSync(command, args, { stdio: 'ignore' })
-  return result.status === 0
+  return spawnSync(command, args, { stdio: 'ignore' }).status === 0
 }
 
-export function installService(input: ServiceInput): ServiceResult {
-  const actions: string[] = []
+function quote(value: string): string {
+  return value.includes(' ') ? `"${value}"` : value
+}
+
+export function foregroundCommand(entry: string, command = 'serve'): string {
+  return [process.execPath, ...nodeArgs(entry), command].map(quote).join(' ')
+}
+
+export function adapterLogSize(paths: AdapterPaths): number {
+  try {
+    return existsSync(paths.logPath) ? readFileSync(paths.logPath).byteLength : 0
+  } catch {
+    return 0
+  }
+}
+
+export async function waitForAdapterAuthentication(
+  paths: AdapterPaths,
+  fromOffset: number,
+  timeoutMs = 8_000
+): Promise<boolean> {
+  const started = Date.now()
+  while (Date.now() - started < timeoutMs) {
+    const pid = readPid(paths)
+    if (pid === undefined || !isAlive(pid)) return false
+    let text = ''
+    try {
+      text = readFileSync(paths.logPath, 'utf8').slice(fromOffset)
+    } catch {
+      // The log may not exist yet.
+    }
+    if (text.includes('adapter authenticated')) return true
+    if (
+      text.includes('adapter session error') ||
+      text.includes('could not open a frame') ||
+      text.includes('adapter socket error')
+    ) {
+      return false
+    }
+    await new Promise((resolve) => setTimeout(resolve, 150))
+  }
+  return false
+}
+
+function userSystemdAvailable(): boolean {
+  if (!process.env.XDG_RUNTIME_DIR?.trim()) return false
+  return run('systemctl', ['--user', 'show-environment'])
+}
+
+export function installAdapterService(input: AdapterServiceInput): ServiceResult {
+  const args = [process.execPath, ...nodeArgs(input.entry), 'serve']
   if (process.platform === 'linux') {
+    if (!userSystemdAvailable()) {
+      return {
+        service: 'none',
+        actions: [],
+        warning:
+          'User systemd is not available; the adapter will run as a background process instead.',
+      }
+    }
+    const name = unitName(input.name)
     const unitPath = join(
       process.env.XDG_CONFIG_HOME?.trim() || join(process.env.HOME || '', '.config'),
       'systemd',
       'user',
-      'clara-runner.service'
+      `${name}.service`
     )
-    const unit = systemdUnit(input)
-    if (!input.dryRun) {
-      mkdirSync(dirname(unitPath), { recursive: true, mode: 0o700 })
-      writeFileSync(unitPath, unit, { mode: 0o600 })
-      actions.push(`write systemd unit ${unitPath}`)
-      const reloaded = run('systemctl', ['--user', 'daemon-reload'])
-      const enabled = reloaded && run('systemctl', ['--user', 'enable', '--now', 'clara-runner'])
-      if (enabled) actions.push('enable and start clara-runner.service')
-      else {
-        return {
-          service: 'systemd',
-          unitPath,
-          actions,
-          warning:
-            'systemd user service was written but could not be enabled. Run: systemctl --user enable --now clara-runner',
-        }
-      }
-    } else {
-      actions.push(`write systemd unit ${unitPath}`)
+    mkdirSync(dirname(unitPath), { recursive: true, mode: 0o700 })
+    writeFileSync(
+      unitPath,
+      `[Unit]\nDescription=Clara ${input.label} adapter\nAfter=default.target\n\n[Service]\nType=simple\nExecStart=${args
+        .map(quote)
+        .join(' ')}\nRestart=on-failure\nRestartSec=5\n\n[Install]\nWantedBy=default.target\n`,
+      { mode: 0o600 }
+    )
+    const loaded =
+      run('systemctl', ['--user', 'daemon-reload']) &&
+      run('systemctl', ['--user', 'enable', '--now', name])
+    return {
+      service: 'systemd',
+      unitPath,
+      actions: [`write systemd unit ${unitPath}`],
+      ...(loaded
+        ? {}
+        : {
+            warning: `systemd user service was written but could not be enabled. Run: systemctl --user enable --now ${name}`,
+          }),
     }
-    return { service: 'systemd', unitPath, actions }
   }
-
   if (process.platform === 'darwin') {
-    const unitPath = join(
-      process.env.HOME || '',
-      'Library',
-      'LaunchAgents',
-      'ai.clara.runner.plist'
+    const label = launchLabel(input.name)
+    const unitPath = join(process.env.HOME || '', 'Library', 'LaunchAgents', `${label}.plist`)
+    mkdirSync(dirname(unitPath), { recursive: true, mode: 0o700 })
+    writeFileSync(
+      unitPath,
+      `<?xml version="1.0" encoding="UTF-8"?>\n<plist version="1.0"><dict><key>Label</key><string>${label}</string><key>ProgramArguments</key><array>${args
+        .map((value) => `<string>${value}</string>`)
+        .join('')}</array><key>RunAtLoad</key><true/><key>KeepAlive</key><true/></dict></plist>\n`,
+      { mode: 0o600 }
     )
-    if (!input.dryRun) {
-      mkdirSync(dirname(unitPath), { recursive: true, mode: 0o700 })
-      writeFileSync(unitPath, launchAgent(input), { mode: 0o600 })
-      actions.push(`write launch agent ${unitPath}`)
-      run('launchctl', ['unload', unitPath])
-      const loaded = run('launchctl', ['load', '-w', unitPath])
-      if (loaded) actions.push('load ai.clara.runner')
-      else {
-        return {
-          service: 'launchd',
-          unitPath,
-          actions,
-          warning: `launchctl could not load ${unitPath}`,
-        }
-      }
-    } else {
-      actions.push(`write launch agent ${unitPath}`)
-    }
-    return { service: 'launchd', unitPath, actions }
-  }
-
-  return {
-    service: 'none',
-    actions,
-    warning: 'No user service manager is available. Run `clara-adapter runner` in the foreground.',
-  }
-}
-
-export function removeService(service: ServiceKind, unitPath?: string): void {
-  if (service === 'systemd') {
-    run('systemctl', ['--user', 'disable', '--now', 'clara-runner'])
-    if (unitPath && existsSync(unitPath)) unlinkSync(unitPath)
-    run('systemctl', ['--user', 'daemon-reload'])
-    return
-  }
-  if (service === 'launchd' && unitPath) {
     run('launchctl', ['unload', unitPath])
-    if (existsSync(unitPath)) unlinkSync(unitPath)
-    return
+    run('launchctl', ['load', '-w', unitPath])
+    return { service: 'launchd', unitPath, actions: [`write launch agent ${unitPath}`] }
   }
-  if (unitPath && existsSync(unitPath)) rmSync(unitPath, { force: true })
+  return { service: 'none', actions: [] }
 }
 
-export function serviceActive(service: ServiceKind): 'active' | 'inactive' | 'unknown' {
-  if (service === 'systemd') {
-    const result = spawnSync('systemctl', ['--user', 'is-active', 'clara-runner'], {
-      encoding: 'utf8',
+export function adapterProcessStatus(paths: AdapterPaths): AdapterProcessStatus {
+  const pid = readPid(paths)
+  if (pid === undefined) return { running: false, log: paths.logPath }
+  return { running: isAlive(pid), pid, log: paths.logPath }
+}
+
+export function startAdapterProcess(input: AdapterServiceInput): ServiceResult {
+  const existing = readPid(input.paths)
+  if (existing !== undefined && isAlive(existing)) {
+    return { service: 'process', actions: [`adapter already running (pid ${existing})`] }
+  }
+  rmPid(input.paths)
+  mkdirSync(dirname(input.paths.logPath), { recursive: true, mode: 0o700 })
+  const log = openSync(input.paths.logPath, 'a', 0o600)
+  try {
+    const child = spawn(process.execPath, [...nodeArgs(input.entry), 'serve'], {
+      detached: true,
+      stdio: ['ignore', log, log],
+      env: process.env,
     })
-    if (result.status === 0) return 'active'
-    return 'inactive'
+    child.unref()
+    if (child.pid === undefined) throw new Error('Could not start the adapter process')
+    writeFileSync(input.paths.pidPath, `${child.pid}\n`, { mode: 0o600 })
+    return { service: 'process', actions: [`start adapter process (pid ${child.pid})`] }
+  } finally {
+    closeSync(log)
   }
-  if (service === 'launchd') {
-    const result = spawnSync('launchctl', ['list', 'ai.clara.runner'], { encoding: 'utf8' })
-    return result.status === 0 ? 'active' : 'inactive'
+}
+
+export function stopAdapterProcess(paths: AdapterPaths): string[] {
+  const actions: string[] = []
+  const pid = readPid(paths)
+  if (pid === undefined) return ['adapter process is not running']
+  if (isAlive(pid)) {
+    try {
+      process.kill(pid, 'SIGTERM')
+      actions.push(`stop adapter process (pid ${pid})`)
+    } catch {
+      // Already gone.
+    }
   }
-  return 'unknown'
+  rmPid(paths)
+  return actions
+}
+
+export function tailAdapterLog(paths: AdapterPaths, lines = 80): string {
+  if (!existsSync(paths.logPath)) return 'No adapter log yet.'
+  const text = readFileSync(paths.logPath, 'utf8').trimEnd().split('\n')
+  return text.slice(-lines).join('\n')
+}
+
+export function removeAdapterService(input: AdapterServiceInput): string[] {
+  const actions: string[] = [...stopAdapterProcess(input.paths)]
+  if (process.platform === 'linux') {
+    const name = unitName(input.name)
+    const unitPath = join(
+      process.env.XDG_CONFIG_HOME?.trim() || join(process.env.HOME || '', '.config'),
+      'systemd',
+      'user',
+      `${name}.service`
+    )
+    run('systemctl', ['--user', 'disable', '--now', name])
+    try {
+      unlinkSync(unitPath)
+      actions.push(`remove systemd unit ${unitPath}`)
+    } catch {
+      // Already removed.
+    }
+    run('systemctl', ['--user', 'daemon-reload'])
+  }
+  if (process.platform === 'darwin') {
+    const label = launchLabel(input.name)
+    const unitPath = join(process.env.HOME || '', 'Library', 'LaunchAgents', `${label}.plist`)
+    run('launchctl', ['unload', unitPath])
+    try {
+      unlinkSync(unitPath)
+      actions.push(`remove launch agent ${unitPath}`)
+    } catch {
+      // Already removed.
+    }
+  }
+  return actions
+}
+
+/** Resolve a built or source entry for a package directory. */
+export function adapterEntry(
+  root: string,
+  sources: string[] = ['dist/index.js', 'src/index.ts']
+): string {
+  const candidates = sources.flatMap((source) => [
+    resolve(root, source),
+    resolve(process.cwd(), source),
+  ])
+  for (const candidate of candidates) {
+    if (existsSync(candidate)) return candidate
+  }
+  throw new Error(`The adapter entry is missing under ${root}. Build it and retry.`)
+}
+
+function readPid(paths: AdapterPaths): number | undefined {
+  if (!existsSync(paths.pidPath)) return undefined
+  const value = Number.parseInt(readFileSync(paths.pidPath, 'utf8').trim(), 10)
+  return Number.isInteger(value) && value > 0 ? value : undefined
+}
+
+function rmPid(paths: AdapterPaths): void {
+  try {
+    unlinkSync(paths.pidPath)
+  } catch {
+    // Already removed.
+  }
+}
+
+function isAlive(pid: number): boolean {
+  try {
+    process.kill(pid, 0)
+    return true
+  } catch {
+    return false
+  }
 }

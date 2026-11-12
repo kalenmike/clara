@@ -171,7 +171,7 @@ export function adapterSnapshot(root, env = process.env) {
       target,
       agentInstalled: existsSync(agent),
       agentPath: agent,
-      expectedTarget: join(root, 'plugins', 'clara-policy'),
+      expectedTarget: join(root, 'apps', 'adapter-opencode', 'plugin'),
     },
     mcp: {
       configured: mcpConfigured(configPath),

@@ -1,28 +1,409 @@
-#!/usr/bin/env node
-import { helpText, parseOptions, UsageError } from './args.ts'
-import { adapterLogs, install, startAdapter, status, stopAdapter, uninstall } from './install.ts'
-import { runRunner } from './runner.ts'
+import { createInterface } from 'node:readline/promises'
+import { stdin, stdout } from 'node:process'
+import type { Hono } from 'hono'
+import { HARNESS_PROTOCOL_VERSION } from '@clara/harness-protocol'
+import { parseHarnessPairingInput, type HarnessPairingPayload } from '@clara/shared-types'
+import {
+  loadIdentity,
+  readAdapterConfig,
+  removeAdapterConfig,
+  removeIdentity,
+  writeAdapterConfig,
+} from './config.ts'
+import { enrollAdapter } from './enroll.ts'
+import {
+  adapterProcessStatus,
+  installAdapterService,
+  removeAdapterService,
+  startAdapterProcess,
+  stopAdapterProcess,
+  tailAdapterLog,
+} from './service.ts'
+import { readState, writeState } from './state.ts'
+import { AdapterTransport } from './transport.ts'
+import type {
+  AdapterConfig,
+  AdapterInfo,
+  AdapterLiveState,
+  AdapterPaths,
+  AdapterProbe,
+  ServiceResult,
+} from './types.ts'
 
-function printResult(result: {
-  actions: string[]
-  warnings: string[]
-  genericMcp?: string
-  json: boolean
-}): void {
-  if (result.json) {
-    console.log(JSON.stringify(result, null, 2))
+export type AdapterDefinition<THarness> = {
+  name: string
+  version: string
+  label: string
+  capabilities: Record<string, unknown>
+  paths: AdapterPaths
+  /** Probe the harness for liveness and version. */
+  probe(config: AdapterConfig<THarness>, timeoutMs?: number): Promise<AdapterProbe>
+  /** Build the harness-specific HTTP surface served over the hub link. */
+  createApp(input: {
+    config: AdapterConfig<THarness>
+    probe: AdapterProbe
+    info: AdapterInfo
+  }): Hono | Promise<Hono>
+  /** The harness URL shown by `status`. */
+  describe(config: AdapterConfig<THarness>): { url: string; label?: string }
+  /** Discover or prompt for the harness-specific config during pairing. */
+  resolveHarness(args: string[]): Promise<THarness>
+  /** Full `install` command. Defaults to pairing when omitted. */
+  install?(args: string[], helpers: AdapterInstallHelpers<THarness>): Promise<void>
+  /** `uninstall` command. */
+  uninstall?(args: string[]): Promise<void>
+  /** Extra lines printed by `status` before the fallback probe. */
+  statusLines?(config: AdapterConfig<THarness>, probe: AdapterProbe): string[]
+  help?: string
+}
+
+export type AdapterInstallHelpers<THarness> = {
+  paths: AdapterPaths
+  entry: string
+  pair(args: string[]): Promise<AdapterConfig<THarness>>
+  config(): AdapterConfig<THarness> | undefined
+  writeConfig(config: AdapterConfig<THarness>): void
+  installService(): ServiceResult
+}
+
+export async function runAdapterCli<THarness>(
+  definition: AdapterDefinition<THarness>,
+  argv: string[]
+): Promise<void> {
+  const [command = 'serve', ...args] = argv
+  if (command === 'help' || command === '--help' || command === '-h') {
+    console.log(definition.help ?? defaultHelp(definition))
     return
   }
-  for (const action of result.actions) console.log(action)
-  for (const warning of result.warnings) console.error(`warn ${warning}`)
-  if (result.genericMcp) {
-    console.log('')
-    console.log('Generic MCP client config:')
-    console.log(result.genericMcp)
+  if (command === 'serve') {
+    await serve(definition, args)
+    return
+  }
+  if (command === 'pair') {
+    await pair(definition, args)
+    return
+  }
+  if (command === 'install') {
+    const helpers = installHelpers(definition)
+    if (definition.install) await definition.install(args, helpers)
+    else await helpers.pair(args)
+    return
+  }
+  if (command === 'uninstall') {
+    if (definition.uninstall) {
+      await definition.uninstall(args)
+      return
+    }
+    for (const action of uninstallAdapter(definition, args)) console.log(action)
+    return
+  }
+  if (command === 'status') {
+    await status(definition)
+    return
+  }
+  if (command === 'start') {
+    await start(definition)
+    return
+  }
+  if (command === 'stop') {
+    for (const action of stopAdapterProcess(definition.paths)) console.log(action)
+    return
+  }
+  if (command === 'logs') {
+    console.log(tailAdapterLog(definition.paths, Number(argValue(args, '--lines') ?? 80)))
+    return
+  }
+  if (command === 'config-path') {
+    console.log(definition.paths.configPath)
+    console.log(definition.paths.identityPath)
+    return
+  }
+  throw new Error(`unknown command: ${command}`)
+}
+
+async function serve<THarness>(
+  definition: AdapterDefinition<THarness>,
+  args: string[]
+): Promise<void> {
+  const config = readAdapterConfig<THarness>(definition.paths)
+  if (!config) {
+    throw new Error(
+      `No adapter config at ${definition.paths.configPath}. Run: clara-adapter-${definition.name} install --pair <code>`
+    )
+  }
+  const probe = await definition.probe(config, 3_000)
+  const info: AdapterInfo = {
+    adapter: { name: definition.name, version: definition.version },
+    harness: {
+      kind: definition.name,
+      ...(probe.version ? { version: probe.version } : {}),
+    },
+    capabilities: definition.capabilities,
+  }
+  const app = await definition.createApp({ config, probe, info })
+  const harness = definition.describe(config)
+  const transport = new AdapterTransport({
+    wsUrl: argValue(args, '--ws-url') ?? config.wsUrl,
+    clientToken: argValue(args, '--client-token') ?? config.clientToken,
+    identity: { harnessId: config.harnessId, adapterId: config.adapterId, key: config.key },
+    kind: definition.name,
+    label: config.label ?? definition.label,
+    info: {
+      adapterVersion: definition.version,
+      protocolVersion: HARNESS_PROTOCOL_VERSION,
+      ...(probe.version ? { harnessVersion: probe.version } : {}),
+      capabilities: definition.capabilities,
+    },
+    handler: async (request) => app.fetch(request),
+    log: (message, detail) => {
+      console.error(`[adapter] ${message}`)
+      if (process.env.CLARA_ADAPTER_DEBUG === '1' && detail !== undefined) {
+        console.error(detail)
+      }
+    },
+  })
+  const startedAt = Date.now()
+  let current = probe
+  let checkedAt = startedAt
+  let probing = false
+  const writeLive = () => {
+    const status = transport.status
+    const state: AdapterLiveState = {
+      pid: process.pid,
+      startedAt,
+      updatedAt: Date.now(),
+      harnessId: config.harnessId,
+      hub: {
+        url: config.wsUrl,
+        status: status.status,
+        connected: status.connected,
+        authenticated: status.authenticated,
+        ...(status.lastFrameAt ? { lastFrameAt: status.lastFrameAt } : {}),
+        ...(status.lastError ? { lastError: status.lastError } : {}),
+      },
+      harness: {
+        url: harness.url,
+        reachable: current.ok,
+        ...(current.version ? { version: current.version } : {}),
+        code: current.code,
+        latencyMs: current.latencyMs,
+        checkedAt,
+        ...(current.message ? { message: current.message } : {}),
+      },
+    }
+    try {
+      writeState(definition.paths.statePath, state)
+    } catch (cause) {
+      console.error(
+        `[adapter] could not write status: ${cause instanceof Error ? cause.message : String(cause)}`
+      )
+    }
+  }
+
+  transport.start()
+  writeLive()
+  const statusTimer = setInterval(writeLive, 2_000)
+  statusTimer.unref()
+  const healthTimer = setInterval(() => {
+    if (probing) return
+    probing = true
+    void definition
+      .probe(config, 2_000)
+      .then((next) => {
+        current = next
+        checkedAt = Date.now()
+        writeLive()
+      })
+      .finally(() => {
+        probing = false
+      })
+  }, 10_000)
+  healthTimer.unref()
+
+  console.log(
+    `Clara ${definition.label} adapter ${definition.version} connecting to ${config.wsUrl} as ${config.harnessId}`
+  )
+  const stop = () => {
+    clearInterval(statusTimer)
+    clearInterval(healthTimer)
+    transport.close()
+    writeLive()
+    process.exit(0)
+  }
+  process.on('SIGINT', stop)
+  process.on('SIGTERM', stop)
+}
+
+export async function pair<THarness>(
+  definition: AdapterDefinition<THarness>,
+  args: string[]
+): Promise<AdapterConfig<THarness>> {
+  const input = await pairingInput(args)
+  if (input.kind !== definition.name) {
+    throw new Error(`This pairing code is for ${input.kind}, not ${definition.label}`)
+  }
+  const identity = loadIdentity(definition.paths.identityPath)
+  const harness = await definition.resolveHarness(args)
+  const config: AdapterConfig<THarness> = {
+    ...identity,
+    wsUrl: input.wsUrl,
+    clientToken: input.clientToken,
+    ...harness,
+    label: definition.label,
+  }
+  const probe = await definition.probe(config, 3_000)
+  const enrolled = await enrollAdapter({
+    wsUrl: input.wsUrl,
+    clientToken: input.clientToken,
+    enrollId: input.enrollId,
+    enrollToken: input.enrollToken,
+    harnessId: identity.harnessId,
+    kind: input.kind,
+    label: definition.label,
+    adapterId: identity.adapterId,
+    key: identity.key,
+    adapterVersion: definition.version,
+    ...(probe.version ? { harnessVersion: probe.version } : {}),
+    capabilities: definition.capabilities,
+  })
+  writeAdapterConfig(definition.paths, config)
+  console.log(
+    `Paired ${input.kind} adapter ${identity.harnessId} as connection ${enrolled.connectionId}` +
+      (enrolled.reconnected ? ' (reconnected)' : '')
+  )
+  console.log(`Config: ${definition.paths.configPath}`)
+  console.log(`Start it with: clara-adapter-${definition.name} serve`)
+  return config
+}
+
+function installHelpers<THarness>(
+  definition: AdapterDefinition<THarness>
+): AdapterInstallHelpers<THarness> {
+  return {
+    paths: definition.paths,
+    entry: process.argv[1] ?? '',
+    pair: (args) => pair(definition, args),
+    config: () => readAdapterConfig<THarness>(definition.paths),
+    writeConfig: (config) => writeAdapterConfig(definition.paths, config),
+    installService: () =>
+      installAdapterService({
+        name: definition.name,
+        label: definition.label,
+        entry: process.argv[1] ?? '',
+        paths: definition.paths,
+      }),
   }
 }
 
-function age(at: number): string {
+async function start<THarness>(definition: AdapterDefinition<THarness>): Promise<void> {
+  if (!readAdapterConfig(definition.paths)) {
+    throw new Error(
+      `No adapter config at ${definition.paths.configPath}. Run: clara-adapter-${definition.name} install --pair <code>`
+    )
+  }
+  const result = startAdapterProcess({
+    name: definition.name,
+    label: definition.label,
+    entry: process.argv[1] ?? '',
+    paths: definition.paths,
+  })
+  for (const action of result.actions) console.log(action)
+  const status = adapterProcessStatus(definition.paths)
+  if (status.running) console.log(`adapter running (pid ${status.pid})`)
+  else console.log(`adapter did not start; check ${status.log}`)
+}
+
+async function status<THarness>(definition: AdapterDefinition<THarness>): Promise<void> {
+  const config = readAdapterConfig<THarness>(definition.paths)
+  const identity = loadIdentity(definition.paths.identityPath)
+  console.log(`adapter:  ${definition.name} ${definition.version}`)
+  console.log(`harness:  ${identity.harnessId}`)
+  console.log(`credential: ${identity.adapterId}`)
+  if (!config) {
+    console.log('config:   missing')
+    return
+  }
+  const described = definition.describe(config)
+  console.log(`config:   ${definition.paths.configPath}`)
+  console.log(`ws:       ${config.wsUrl}`)
+  console.log(`${definition.name}: ${described.url}`)
+  const processStatus = adapterProcessStatus(definition.paths)
+  console.log(
+    `process:  ${processStatus.running ? `running (pid ${processStatus.pid})` : 'stopped'}`
+  )
+  const live = readState(definition.paths.statePath)
+  if (live && processStatus.running) {
+    console.log(`hub:      ${live.hub.status} (${live.hub.url})`)
+    console.log(
+      `link:     ${live.hub.authenticated ? 'authenticated' : live.hub.connected ? 'handshake complete' : 'not authenticated'}` +
+        (live.hub.lastFrameAt ? `, last frame ${formatAge(live.hub.lastFrameAt)}` : '')
+    )
+    if (live.hub.lastError) console.log(`hub error: ${live.hub.lastError}`)
+    const health = live.harness
+    console.log(
+      `health:   ${health.reachable ? 'reachable' : 'unreachable'} (${health.code ?? 'unknown'}` +
+        `${health.version ? `, ${health.version}` : ''}` +
+        `${health.checkedAt ? `, checked ${formatAge(health.checkedAt)}` : ''})`
+    )
+    if (health.message) console.log(`${definition.name} error: ${health.message}`)
+  } else if (live) {
+    console.log(`live:     stale (last ${live.hub.status}, updated ${formatAge(live.updatedAt)})`)
+  }
+  console.log(`log:      ${processStatus.log}`)
+  const probe = await definition.probe(config, 3_000)
+  if (definition.statusLines) {
+    for (const line of definition.statusLines(config, probe)) console.log(line)
+  }
+  console.log(
+    `reachable: ${probe.ok ? `yes${probe.version ? ` (${probe.version})` : ''}` : `no (${probe.code})`}`
+  )
+}
+
+function uninstallAdapter<THarness>(
+  definition: AdapterDefinition<THarness>,
+  args: string[]
+): string[] {
+  const actions = removeAdapterService({
+    name: definition.name,
+    label: definition.label,
+    entry: process.argv[1] ?? '',
+    paths: definition.paths,
+  })
+  removeAdapterConfig(definition.paths)
+  if (hasFlag(args, '--purge')) {
+    removeIdentity(definition.paths)
+    actions.push('remove harness identity and credential')
+  }
+  return [...actions, `remove adapter config ${definition.paths.configPath}`]
+}
+
+export async function pairingInput(args: string[]): Promise<HarnessPairingPayload> {
+  const value = argValue(args, '--pair') ?? (await prompt('Pairing code: '))
+  const parsed = parseHarnessPairingInput(value)
+  if (!parsed) throw new Error('That is not a valid Clara harness pairing code')
+  if (parsed.expiresAt <= Date.now()) throw new Error('That pairing code has expired')
+  return parsed
+}
+
+export async function prompt(question: string): Promise<string> {
+  const rl = createInterface({ input: stdin, output: stdout })
+  try {
+    return (await rl.question(question)).trim()
+  } finally {
+    rl.close()
+  }
+}
+
+export function argValue(args: string[], name: string): string | undefined {
+  const index = args.indexOf(name)
+  return index >= 0 ? args[index + 1] : undefined
+}
+
+export function hasFlag(args: string[], name: string): boolean {
+  return args.includes(name)
+}
+
+export function formatAge(at: number): string {
   const seconds = Math.max(0, Math.round((Date.now() - at) / 1_000))
   if (seconds < 2) return 'just now'
   if (seconds < 60) return `${seconds}s ago`
@@ -31,126 +412,19 @@ function age(at: number): string {
   return `${Math.round(minutes / 60)}h ago`
 }
 
-async function main(argv: string[]): Promise<void> {
-  if (argv[0] === 'runner') {
-    if (argv.includes('--help') || argv.includes('-h')) {
-      console.log(helpText())
-      return
-    }
-    await runRunner(argv.slice(1))
-    return
-  }
+export function defaultHelp<THarness>(definition: AdapterDefinition<THarness>): string {
+  const bin = `clara-adapter-${definition.name}`
+  return `Clara ${definition.label} adapter
 
-  const options = parseOptions(argv)
-  if (options.help || options.command === 'help' || options.command === '') {
-    console.log(helpText())
-    return
-  }
+Usage:
+  ${bin} install [--pair <code>] [options]
+  ${bin} pair [--pair <code>] [options]
+  ${bin} serve
+  ${bin} start|stop|logs [--lines <n>]
+  ${bin} status
+  ${bin} uninstall
+  ${bin} config-path
 
-  if (options.command === 'start' || options.command === 'stop' || options.command === 'logs') {
-    const selected = options.harnesses.length ? options.harnesses : (['opencode'] as const)
-    if (!selected.includes('opencode')) {
-      throw new UsageError('the adapter lifecycle commands currently support --opencode')
-    }
-    if (options.command === 'start') {
-      for (const action of startAdapter()) console.log(action)
-      return
-    }
-    if (options.command === 'stop') {
-      for (const action of stopAdapter()) console.log(action)
-      return
-    }
-    console.log(adapterLogs(options.lines ?? 80))
-    return
-  }
-
-  if (options.command === 'install') {
-    const result = await install(options)
-    printResult({ ...result, json: options.json })
-    if (result.genericMcp && !options.json) {
-      console.log('')
-      console.log('No harness was selected, so no harness config was written.')
-    }
-    return
-  }
-
-  if (options.command === 'uninstall') {
-    const result = uninstall(options)
-    printResult({ ...result, json: options.json })
-    return
-  }
-
-  if (options.command === 'status') {
-    const report = await status()
-    if (options.json) {
-      console.log(JSON.stringify(report, null, 2))
-    } else {
-      const harnesses = Object.entries(report.harnesses)
-      console.log(
-        `harnesses: ${harnesses.length ? harnesses.map(([name]) => name).join(', ') : 'none'}`
-      )
-      for (const [name, value] of harnesses) {
-        console.log(
-          `  ${name}: plugin ${value.plugin}, agent ${value.agent}, config ${value.config ? 'yes' : 'no'}, mcp ${value.mcp ? 'yes' : 'no'}`
-        )
-      }
-      if (report.adapter) {
-        console.log(
-          `adapter: ${report.adapter.present ? 'configured' : 'missing'} (${report.adapter.config})`
-        )
-        console.log(
-          `  process: ${report.adapter.running ? `running${report.adapter.pid ? ` (pid ${report.adapter.pid})` : ''}` : 'stopped'}`
-        )
-        console.log(`  log: ${report.adapter.log}`)
-        if (report.adapter.harnessId) console.log(`  harness: ${report.adapter.harnessId}`)
-        if (report.adapter.wsUrl) console.log(`  ws: ${report.adapter.wsUrl}`)
-        if (report.adapter.opencodeUrl) console.log(`  opencode: ${report.adapter.opencodeUrl}`)
-        if (report.adapter.live) {
-          const live = report.adapter.live
-          if (report.adapter.running) {
-            console.log(`  hub: ${live.hub.status} (${live.hub.url})`)
-            console.log(
-              `  link: ${live.hub.authenticated ? 'authenticated' : live.hub.connected ? 'handshake complete' : 'not authenticated'}` +
-                (live.hub.lastFrameAt ? `, last frame ${age(live.hub.lastFrameAt)}` : '')
-            )
-            if (live.hub.lastError) console.log(`  hub error: ${live.hub.lastError}`)
-            console.log(
-              `  health: ${live.opencode.reachable ? 'reachable' : 'unreachable'} (${live.opencode.code ?? 'unknown'}` +
-                `${live.opencode.version ? `, ${live.opencode.version}` : ''}` +
-                `${live.opencode.checkedAt ? `, checked ${age(live.opencode.checkedAt)}` : ''})`
-            )
-            if (live.opencode.message) console.log(`  opencode error: ${live.opencode.message}`)
-          } else {
-            console.log(`  live: stale (last ${live.hub.status}, updated ${age(live.updatedAt)})`)
-          }
-        }
-      } else {
-        console.log('adapter: not installed')
-      }
-      if (report.runner) {
-        console.log(
-          `runner: ${report.runner.present ? 'configured' : 'missing'} (${report.runner.service}, ${report.runner.active})`
-        )
-        console.log(`  config: ${report.runner.config}`)
-      } else {
-        console.log('runner: not installed')
-      }
-      console.log(`orchestrator: ${report.orchestrator}`)
-    }
-    if (report.orchestrator !== 'running') process.exitCode = 1
-    return
-  }
-
-  throw new UsageError(`unknown command: ${options.command}`)
+The adapter connects out to the hub over the same WebSocket and E2EE session
+as the browser. It never listens on an inbound port.`
 }
-
-main(process.argv.slice(2)).catch((error: unknown) => {
-  if (error instanceof UsageError) {
-    console.error(`error ${error.message}`)
-    console.error('')
-    console.error(helpText())
-  } else {
-    console.error(`error ${error instanceof Error ? error.message : String(error)}`)
-  }
-  process.exitCode = 1
-})

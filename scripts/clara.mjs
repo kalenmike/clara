@@ -68,12 +68,52 @@ function mcp(args) {
   return runNode(join(root, 'scripts/install-clara-mcp.mjs'), args)
 }
 
-function adapter(args) {
+function adapterOpencode(args) {
   return runTypeScript(
-    join(root, 'packages/adapter/src/cli.ts'),
-    join(root, 'packages/adapter/dist/cli.js'),
+    join(root, 'apps/adapter-opencode/src/index.ts'),
+    join(root, 'apps/adapter-opencode/dist/index.js'),
     args,
-    'The Clara adapter installer'
+    'The Clara OpenCode adapter'
+  )
+}
+
+function adapter(args) {
+  const command = args[0] ?? 'help'
+  const forwarded = args.filter(
+    (arg) => arg !== '--opencode' && arg !== 'opencode' && arg !== '--runner'
+  )
+  const selectsOpencode = args.includes('--opencode') || args.includes('opencode')
+  const selectsRunner = args.includes('--runner') || args.includes('--no-runner')
+
+  if (command === 'status') {
+    const adapterCode = adapterOpencode(['status'])
+    const runnerCode = runTypeScript(
+      join(root, 'packages/runner/src/install-cli.ts'),
+      join(root, 'packages/runner/dist/install-cli.js'),
+      ['status'],
+      'The Clara runner installer'
+    )
+    return adapterCode || runnerCode
+  }
+
+  if (
+    selectsOpencode ||
+    command === 'help' ||
+    command === '--help' ||
+    command === '-h' ||
+    command === 'start' ||
+    command === 'stop' ||
+    command === 'logs' ||
+    ((command === 'install' || command === 'uninstall') && !selectsRunner)
+  ) {
+    return adapterOpencode(forwarded)
+  }
+
+  return runTypeScript(
+    join(root, 'packages/runner/src/install-cli.ts'),
+    join(root, 'packages/runner/dist/install-cli.js'),
+    args,
+    'The Clara runner installer'
   )
 }
 
