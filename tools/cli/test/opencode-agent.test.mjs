@@ -8,7 +8,7 @@ import {
   installAgentFile,
   readAgentManifest,
   removeAgentFile,
-} from '../lib/opencode-agent.mjs'
+} from '../src/lib/opencode-agent.mjs'
 
 function workspace(t) {
   const dir = mkdtempSync(join(tmpdir(), 'clara-agent-'))

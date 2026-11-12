@@ -23,12 +23,18 @@ import {
   SERVER_ENTRY,
   serverLogTail,
   waitForPanel,
-} from './lib/server-control.mjs'
-import { followLog, logPath, parseMode, startDetached, stopDetached } from './lib/local-runtime.mjs'
-import { openPanel } from './lib/panel.mjs'
-import { root, runPnpm } from './lib/router.mjs'
-import { composeEnvValues, hubEnvErrors, hubEnvWarnings } from './lib/stack-control.mjs'
-import { collectStatus, renderJSON, renderStatus, statusExitCode } from './lib/status.mjs'
+} from '../lib/server-control.mjs'
+import {
+  followLog,
+  logPath,
+  parseMode,
+  startDetached,
+  stopDetached,
+} from '../lib/local-runtime.mjs'
+import { openPanel } from '../lib/panel.mjs'
+import { root, runPnpm } from '../lib/router.mjs'
+import { composeEnvValues, hubEnvErrors, hubEnvWarnings } from '../lib/stack-control.mjs'
+import { collectStatus, renderJSON, renderStatus, statusExitCode } from '../lib/status.mjs'
 
 const args = process.argv.slice(2)
 const command = args[0] ?? 'status'

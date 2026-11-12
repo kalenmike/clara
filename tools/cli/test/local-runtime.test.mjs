@@ -3,8 +3,8 @@ import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import test from 'node:test'
-import { parseMode, pidPath, readPid, stateDir } from '../lib/local-runtime.mjs'
-import { distFile } from '../lib/local-web.mjs'
+import { parseMode, pidPath, readPid, stateDir } from '../src/lib/local-runtime.mjs'
+import { distFile } from '../src/lib/local-web.mjs'
 
 test('defaults to docker and parses explicit modes', () => {
   assert.equal(parseMode([]), 'docker')

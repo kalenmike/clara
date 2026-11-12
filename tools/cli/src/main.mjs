@@ -22,17 +22,21 @@ async function pair(args) {
   }
   const forwarded = args.filter((arg) => arg !== '--docker' && arg !== '--local')
   if (result.target === 'container') {
-    return runNode(join(root, 'scripts/server.mjs'), ['pair', '--docker', ...forwarded])
+    return runNode(join(root, 'tools/cli/src/commands/server.mjs'), [
+      'pair',
+      '--docker',
+      ...forwarded,
+    ])
   }
   return runPnpm(['--filter', '@clara/server', 'exec', 'tsx', 'src/index.ts', 'pair', ...forwarded])
 }
 
 function server(args) {
-  return runNode(join(root, 'scripts/server.mjs'), args)
+  return runNode(join(root, 'tools/cli/src/commands/server.mjs'), args)
 }
 
 function web(args) {
-  return runNode(join(root, 'scripts/web.mjs'), args)
+  return runNode(join(root, 'tools/cli/src/commands/web.mjs'), args)
 }
 
 // Developer commands prefer their TypeScript source. A stale apps/*/dist build
@@ -48,11 +52,11 @@ function runTypeScript(source, built, args, label) {
 }
 
 function orchestrator(args) {
-  return runNode(join(root, 'scripts/orchestrator.mjs'), args)
+  return runNode(join(root, 'tools/cli/src/commands/orchestrator.mjs'), args)
 }
 
 function stack(command, args) {
-  return runNode(join(root, 'scripts/stack.mjs'), [command, ...args])
+  return runNode(join(root, 'tools/cli/src/commands/stack.mjs'), [command, ...args])
 }
 
 function lab(args) {
@@ -65,7 +69,7 @@ function lab(args) {
 }
 
 function mcp(args) {
-  return runNode(join(root, 'scripts/install-clara-mcp.mjs'), args)
+  return runNode(join(root, 'tools/cli/src/commands/install-mcp.mjs'), args)
 }
 
 function adapterOpencode(args) {
@@ -118,11 +122,11 @@ function adapter(args) {
 }
 
 function rebuild(args) {
-  return runNode(join(root, 'scripts/rebuild.mjs'), args)
+  return runNode(join(root, 'tools/cli/src/commands/rebuild.mjs'), args)
 }
 
 function docs(args) {
-  return runNode(join(root, 'scripts/docs.mjs'), args)
+  return runNode(join(root, 'tools/cli/src/commands/docs.mjs'), args)
 }
 
 function runner(args) {

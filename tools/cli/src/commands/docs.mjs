@@ -6,7 +6,7 @@
 //   pnpm clara docs check --json
 
 import { join } from 'node:path'
-import { root, runNode, runPnpm } from './lib/router.mjs'
+import { root, runNode, runPnpm } from '../lib/router.mjs'
 
 const DEFAULT_PORT = '5176'
 const DEFAULT_HOST = '127.0.0.1'
@@ -97,7 +97,10 @@ async function main() {
   }
 
   if (options.action === 'check') {
-    return runNode(join(root, 'scripts/docs-check.mjs'), options.json ? ['--json'] : [])
+    return runNode(
+      join(root, 'tools/cli/src/commands/docs-check.mjs'),
+      options.json ? ['--json'] : []
+    )
   }
 
   return runPnpm(docsArgs(options))

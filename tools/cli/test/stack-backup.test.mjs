@@ -8,8 +8,8 @@ import {
   parseBackupArgs,
   parseRestoreArgs,
   restoreArgs,
-} from '../lib/stack-backup.mjs'
-import { VOLUMES } from '../lib/stack-control.mjs'
+} from '../src/lib/stack-backup.mjs'
+import { VOLUMES } from '../src/lib/stack-control.mjs'
 
 test('builds a timestamped backup path', () => {
   const path = defaultBackupPath(new Date('2026-11-10T12:34:56Z'))

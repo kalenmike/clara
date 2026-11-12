@@ -1,16 +1,16 @@
 // A tiny command tree for the repository's developer tools.
 //
-// Each entry point (scripts/clara.mjs, scripts/task.mjs) passes a tree to
-// `main`, which resolves the command path, renders help, and forwards arguments
-// to one existing implementation. There is deliberately no option parser here:
-// leaf commands own their arguments.
+// Each entry point (src/main.mjs, src/task.mjs) passes a tree to `main`, which
+// resolves the command path, renders help, and forwards arguments to one
+// existing implementation. There is deliberately no option parser here: leaf
+// commands own their arguments.
 
 import { spawnSync } from 'node:child_process'
 import { readFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
-export const root = join(dirname(fileURLToPath(import.meta.url)), '..', '..')
+export const root = join(dirname(fileURLToPath(import.meta.url)), '..', '..', '..', '..')
 
 const PNPM = process.platform === 'win32' ? 'pnpm.cmd' : 'pnpm'
 
@@ -152,7 +152,7 @@ function commandAt(tree, path) {
   return node
 }
 
-/** Entry point shared by scripts/clara.mjs and scripts/task.mjs. */
+/** Entry point shared by src/main.mjs and src/task.mjs. */
 export async function main(tree, argv = process.argv.slice(2)) {
   try {
     if (argv.length === 1 && (argv[0] === '--version' || argv[0] === '-v')) {

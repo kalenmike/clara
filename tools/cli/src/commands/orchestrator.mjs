@@ -8,15 +8,15 @@
 
 import { existsSync } from 'node:fs'
 import { join } from 'node:path'
-import { followLog, parseMode } from './lib/local-runtime.mjs'
-import { root, run, runNode, runPnpm } from './lib/router.mjs'
-import { collectStatus, renderJSON, renderStatus, statusExitCode } from './lib/status.mjs'
+import { followLog, parseMode } from '../lib/local-runtime.mjs'
+import { root, run, runNode, runPnpm } from '../lib/router.mjs'
+import { collectStatus, renderJSON, renderStatus, statusExitCode } from '../lib/status.mjs'
 import {
   composeEnvValues,
   orchestratorContainerRunning,
   orchestratorEnvErrors,
   readDockerToken,
-} from './lib/stack-control.mjs'
+} from '../lib/stack-control.mjs'
 
 const source = join(root, 'apps', 'orchestrator', 'src', 'index.ts')
 const built = join(root, 'apps', 'orchestrator', 'dist', 'index.js')

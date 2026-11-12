@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { renderHelp, resolveCommand } from '../lib/router.mjs'
+import { renderHelp, resolveCommand } from '../src/lib/router.mjs'
 
 const tree = {
   name: 'demo',

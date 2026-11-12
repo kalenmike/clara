@@ -8,11 +8,11 @@
 //   pnpm clara logs <server|web|orchestrator>
 
 import { existsSync } from 'node:fs'
-import { ensureNetwork, panelURL } from './lib/server-control.mjs'
-import { webURL } from './lib/web-control.mjs'
-import { followLog, parseMode } from './lib/local-runtime.mjs'
-import { root, runNode, runPnpm } from './lib/router.mjs'
-import { collectStatus, renderJSON, renderStatus, statusExitCode } from './lib/status.mjs'
+import { ensureNetwork, panelURL } from '../lib/server-control.mjs'
+import { webURL } from '../lib/web-control.mjs'
+import { followLog, parseMode } from '../lib/local-runtime.mjs'
+import { root, runNode, runPnpm } from '../lib/router.mjs'
+import { collectStatus, renderJSON, renderStatus, statusExitCode } from '../lib/status.mjs'
 import {
   CONTAINERS,
   SCRIPTS,
@@ -24,7 +24,7 @@ import {
   orchestratorURL,
   parseSelection,
   selectedNames,
-} from './lib/stack-control.mjs'
+} from '../lib/stack-control.mjs'
 import {
   existingVolumes,
   parseBackupArgs,
@@ -32,7 +32,7 @@ import {
   runBackup,
   runRestore,
   runningContainers,
-} from './lib/stack-backup.mjs'
+} from '../lib/stack-backup.mjs'
 
 const command = process.argv[2] ?? 'help'
 const args = process.argv.slice(3)

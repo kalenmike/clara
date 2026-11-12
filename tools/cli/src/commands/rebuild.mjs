@@ -25,7 +25,7 @@ import {
   runRestart,
   runStatus,
   summarizeHealth,
-} from './lib/rebuild/run.mjs'
+} from '../lib/rebuild/run.mjs'
 
 const USAGE = [
   'Clara rebuild lifecycle',

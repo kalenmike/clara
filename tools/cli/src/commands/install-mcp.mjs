@@ -13,14 +13,14 @@ import { homedir } from 'node:os'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { spawnSync } from 'node:child_process'
-import { installCommand, removeCommand } from './lib/clara-command.mjs'
+import { installCommand, removeCommand } from '../lib/clara-command.mjs'
 import {
   dockerTokenPath,
   orchestratorContainerRunning,
   readDockerToken,
-} from './lib/stack-control.mjs'
+} from '../lib/stack-control.mjs'
 
-const root = resolve(dirname(fileURLToPath(import.meta.url)), '..')
+const root = resolve(dirname(fileURLToPath(import.meta.url)), '..', '..', '..', '..')
 const mcpEntry = join(root, 'apps', 'mcp', 'dist', 'index.js')
 const apiMcpEntry = join(root, 'apps', 'api-mcp', 'dist', 'index.js')
 const orchestratorEntry = join(root, 'apps', 'orchestrator', 'dist', 'index.js')

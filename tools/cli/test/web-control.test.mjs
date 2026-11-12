@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import test from 'node:test'
 
-import { composeArgs, composeFile, envFile, webPort, webURL } from '../lib/web-control.mjs'
+import { composeArgs, composeFile, envFile, webPort, webURL } from '../src/lib/web-control.mjs'
 
 test('web port defaults to 8080 and accepts an override', () => {
   assert.equal(webPort({}), 8080)

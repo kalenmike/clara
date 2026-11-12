@@ -6,7 +6,7 @@ import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs'
 import { dirname, join, relative, resolve, sep } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
-const root = resolve(dirname(fileURLToPath(import.meta.url)), '..')
+const root = resolve(dirname(fileURLToPath(import.meta.url)), '..', '..', '..', '..')
 const guideRoot = join(root, 'apps/docs/guide')
 const internalRoot = join(root, 'docs')
 const guideIndex = join(guideRoot, 'index.md')

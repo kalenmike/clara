@@ -9,7 +9,7 @@ import {
   commandPath,
   installCommand,
   removeGeneratedCommand,
-} from '../lib/clara-command.mjs'
+} from '../src/lib/clara-command.mjs'
 
 function configHome(t) {
   const dir = mkdtempSync(join(tmpdir(), 'clara-command-'))

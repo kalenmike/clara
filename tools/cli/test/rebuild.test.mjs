@@ -5,7 +5,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import test from 'node:test'
 
-import { adapterSnapshot } from '../lib/rebuild/run.mjs'
+import { adapterSnapshot } from '../src/lib/rebuild/run.mjs'
 import {
   deploymentModes,
   evaluateHealth,
@@ -13,7 +13,7 @@ import {
   primaryWorktree,
   recoveryPlan,
   restartPlan,
-} from '../lib/rebuild/plan.mjs'
+} from '../src/lib/rebuild/plan.mjs'
 import {
   canSignal,
   parseFuserPid,
@@ -22,14 +22,14 @@ import {
   positiveInt,
   probeServer,
   probeWeb,
-} from '../lib/rebuild/probe.mjs'
+} from '../src/lib/rebuild/probe.mjs'
 import {
   isSnapshotStale,
   migrateState,
   readState,
   tail,
   writeState,
-} from '../lib/rebuild/state.mjs'
+} from '../src/lib/rebuild/state.mjs'
 
 const adapter = {
   opencode: {

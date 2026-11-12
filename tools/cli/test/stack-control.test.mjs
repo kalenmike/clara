@@ -15,7 +15,7 @@ import {
   parseSelection,
   readDockerToken,
   selectedNames,
-} from '../lib/stack-control.mjs'
+} from '../src/lib/stack-control.mjs'
 
 test('selects all services by default', () => {
   assert.deepEqual(parseSelection([]), {

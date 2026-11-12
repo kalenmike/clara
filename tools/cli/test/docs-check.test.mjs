@@ -6,7 +6,7 @@ import {
   parseLinks,
   runChecks,
   splitTarget,
-} from '../docs-check.mjs'
+} from '../src/commands/docs-check.mjs'
 
 test('parseLinks extracts markdown links and skips images', () => {
   const markdown = [

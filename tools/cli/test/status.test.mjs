@@ -6,7 +6,7 @@ import {
   renderStatus,
   resolveState,
   statusExitCode,
-} from '../lib/status.mjs'
+} from '../src/lib/status.mjs'
 
 const runningContainer = { available: true, state: 'running' }
 const stoppedContainer = { available: true, state: 'exited' }

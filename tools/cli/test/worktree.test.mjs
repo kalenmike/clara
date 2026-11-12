@@ -7,7 +7,7 @@ import {
   selectWorktree,
   slugify,
   worktreesDirectory,
-} from '../lib/worktree.mjs'
+} from '../src/lib/worktree.mjs'
 
 const porcelain = `worktree /work/clara
 HEAD 1111111111111111111111111111111111111111

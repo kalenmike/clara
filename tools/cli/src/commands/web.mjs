@@ -9,12 +9,18 @@
 
 import { existsSync } from 'node:fs'
 import { join } from 'node:path'
-import { compose, webURL, waitForWeb } from './lib/web-control.mjs'
-import { ensureNetwork, probe } from './lib/server-control.mjs'
-import { followLog, logPath, parseMode, startDetached, stopDetached } from './lib/local-runtime.mjs'
-import { WEB_DIST } from './lib/local-web.mjs'
-import { root, runPnpm } from './lib/router.mjs'
-import { collectStatus, renderJSON, renderStatus, statusExitCode } from './lib/status.mjs'
+import { compose, webURL, waitForWeb } from '../lib/web-control.mjs'
+import { ensureNetwork, probe } from '../lib/server-control.mjs'
+import {
+  followLog,
+  logPath,
+  parseMode,
+  startDetached,
+  stopDetached,
+} from '../lib/local-runtime.mjs'
+import { WEB_DIST } from '../lib/local-web.mjs'
+import { root, runPnpm } from '../lib/router.mjs'
+import { collectStatus, renderJSON, renderStatus, statusExitCode } from '../lib/status.mjs'
 
 const args = process.argv.slice(2)
 const command = args[0] ?? 'status'

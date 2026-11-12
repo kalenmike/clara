@@ -1,8 +1,8 @@
 {
   "workspaces": {
-    ".": {
-      "entry": ["scripts/*.mjs", "scripts/test/*.test.mjs"],
-      "project": ["scripts/**/*.mjs"]
+    "tools/cli": {
+      "entry": ["src/commands/*.mjs", "test/*.test.mjs"],
+      "project": ["src/**/*.mjs", "test/**/*.mjs"]
     },
     "apps/web": {
       "entry": ["index.html"],

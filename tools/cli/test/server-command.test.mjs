@@ -4,8 +4,8 @@ import { dirname, join } from 'node:path'
 import test from 'node:test'
 import { fileURLToPath } from 'node:url'
 
-const root = join(dirname(fileURLToPath(import.meta.url)), '..', '..')
-const script = join(root, 'scripts', 'server.mjs')
+const root = join(dirname(fileURLToPath(import.meta.url)), '..', '..', '..')
+const script = join(root, 'tools', 'cli', 'src', 'commands', 'server.mjs')
 
 function runServer(args) {
   return spawnSync(process.execPath, [script, ...args], { encoding: 'utf8' })
