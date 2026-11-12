@@ -19,6 +19,7 @@ no generic `/api/*` proxy.
 | Area        | Endpoints                                                                                                                                                                                                                                                                          |
 | ----------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Meta        | `GET /v1/info`, `GET /v1/harness/info`                                                                                                                                                                                                                                             |
+| Activity    | `GET /v1/activity/running`                                                                                                                                                                                                                                                         |
 | Projects    | `GET /v1/projects`, `POST /v1/projects`, `PATCH/DELETE /v1/projects/:projectID`, `POST .../archive`, `.../unarchive`, `.../sync`, `.../workspaces`, `GET /v1/projects/available`, `GET /v1/harnesses`, `GET /v1/locations`                                                         |
 | Sessions    | `GET /v1/sessions`, `POST /v1/sessions`, `GET /v1/sessions/active`, `GET/PATCH/DELETE /v1/sessions/:sessionID`, `POST .../fork`, `.../move`, `.../view`, `.../prompt`, `.../synthetic`, `.../command`, `.../interrupt`, `.../compact`, `.../agent`, `.../model`, `GET .../context` |
 | Messages    | `GET /v1/sessions/:sessionID/messages`                                                                                                                                                                                                                                             |
@@ -69,6 +70,17 @@ the harness.
 `GET /v1/git/log` is the only host command Clara runs. The hub builds a fixed
 `git log` command from validated timestamps and the session directory; there is
 no arbitrary shell endpoint.
+
+### Cross-harness running activity
+
+`GET /v1/activity/running` is the read-only exception to active-harness scoping.
+It asks every paired harness for `/sessions/active`, reads each running session,
+and overlays the result with its Clara project and workspace links. It also reads
+the session context to return the newest completed `todowrite` plan. The response
+keeps per-harness status so offline or partially failing harnesses do not hide
+results from the others. Transcript lookups are cached briefly per harness and
+session; the browser polls this endpoint rather than expecting a cross-harness
+event stream.
 
 ## Authentication
 

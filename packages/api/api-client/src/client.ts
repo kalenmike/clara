@@ -14,6 +14,7 @@ import type {
   ClaraProjectDeleteResult,
   ClaraProviderListOutput,
   ClaraReferenceListOutput,
+  ClaraRunningSessionsResponse,
   ClaraServerInfo,
   ClaraSession,
   ClaraSessionActiveOutput,
@@ -79,6 +80,12 @@ export function createClaraClient(options: ClaraClientOptions): ClaraClient {
       status: (requestOptions) => request<ApiInfo>('GET', '/v1/info', { options: requestOptions }),
       openapi: (requestOptions) =>
         request<Record<string, unknown>>('GET', '/openapi.json', { options: requestOptions }),
+    },
+    activity: {
+      running: (requestOptions) =>
+        request<ClaraRunningSessionsResponse>('GET', '/v1/activity/running', {
+          options: requestOptions,
+        }),
     },
     harness: {
       list: (requestOptions) =>

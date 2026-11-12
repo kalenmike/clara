@@ -1,6 +1,7 @@
 import { createBrowserRouter, Navigate } from 'react-router'
 import { RouteError } from '@/components/errors/route-error'
 import { AppShell } from '@/components/layout/app-shell'
+import { ActivityPage } from '@/pages/activity-page'
 import { ChatPage } from '@/pages/chat-page'
 import { ConnectPage } from '@/pages/connect-page'
 import { HomePage } from '@/pages/home-page'
@@ -15,6 +16,7 @@ export const router = createBrowserRouter([
     errorElement: <RouteError />,
     children: [
       { index: true, element: <HomePage /> },
+      { path: 'activity', element: <ActivityPage /> },
       { path: 'p/:projectId', element: <SessionsPage /> },
       { path: 'projects', element: <ProjectsPage /> },
       { path: 'p/:projectId/s/:sessionId', element: <ChatPage /> },

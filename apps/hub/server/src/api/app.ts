@@ -4,6 +4,7 @@ import { generateSpecs } from 'hono-openapi'
 import { swaggerUI } from '@hono/swagger-ui'
 import { SERVER_VERSION } from '../version.ts'
 import { ApiRequestError, type ApiApp, type ApiDependencies, type ApiVariables } from './context.ts'
+import { registerActivityRoutes } from './routes/activity.ts'
 import { registerCatalogRoutes } from './routes/catalog.ts'
 import { registerEventRoutes } from './routes/events.ts'
 import { registerGitRoutes } from './routes/git.ts'
@@ -49,6 +50,7 @@ export function createApiApp(deps: ApiDependencies, options: ApiAppOptions): Api
   })
 
   registerMetaRoutes(app, deps)
+  registerActivityRoutes(app, deps)
   registerProjectRoutes(app, deps)
   registerSessionRoutes(app, deps)
   registerCatalogRoutes(app, deps)
@@ -71,6 +73,7 @@ export function createApiApp(deps: ApiDependencies, options: ApiAppOptions): Api
           servers: [{ url: '/' }],
           tags: [
             { name: 'meta', description: 'Hub and harness status' },
+            { name: 'activity', description: 'Running sessions across paired harnesses' },
             { name: 'projects', description: 'Projects, locations, files, VCS, and worktrees' },
             { name: 'sessions', description: 'Session lifecycle and prompts' },
             { name: 'messages', description: 'Session messages' },

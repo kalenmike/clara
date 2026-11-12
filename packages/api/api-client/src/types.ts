@@ -17,6 +17,7 @@ import type {
   ClaraProjectDeleteResult,
   ClaraProviderListOutput,
   ClaraReferenceListOutput,
+  ClaraRunningSessionsResponse,
   ClaraServerInfo,
   ClaraSession,
   ClaraSessionActiveOutput,
@@ -292,6 +293,9 @@ export type ClaraClient = {
     info: (options?: RequestOptions) => Promise<ClaraServerInfo>
     status: (options?: RequestOptions) => Promise<ApiInfo>
     openapi: (options?: RequestOptions) => Promise<Record<string, unknown>>
+  }
+  activity: {
+    running: (options?: RequestOptions) => Promise<ClaraRunningSessionsResponse>
   }
   harness: {
     list: (options?: RequestOptions) => Promise<ClaraHarnessConnection[]>
