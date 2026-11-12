@@ -71,8 +71,8 @@ writing custom pipelines, not for end users.
    (default: its working directory) over `GET /v1/config`. Settings keeps the
    host path editable and shows the service path read-only, and the Review debug
    dock always uses the reported path. The Lab is also the supported place to
-   choose a pipeline target; model-facing `clara_start` always uses the
-   workspace's configured entry.
+   choose a pipeline target; model-facing `clara_start` always uses the active
+   config's entry.
 3. **Setup has one home.** Workspace selection, reconnect, adapter registration,
    model status, and preflight results live only in **Settings**. The status bar
    reports failures and setup issues, but healthy state stays quiet. No view

@@ -4,10 +4,13 @@
 
 Clara orchestration is a local service and MCP bridge that runs package-based
 pipelines without taking over the harness's agent loop. A pipeline is YAML and
-Markdown data bundled with the engine or supplied by the workspace; the service
-owns run state, leases, transitions, budgets, and alerts, while a thin harness
-adapter executes work orders, enforces strict policy, and carries results back
-to the human-facing Clara agent.
+Markdown data bundled with the engine as its default, or supplied by a custom
+config file; the service owns run state, leases, transitions, budgets, and
+alerts, while a thin harness adapter executes work orders, enforces strict
+policy, and carries results back to the human-facing Clara agent.
+
+See [orchestration-dsl.md](orchestration-dsl.md) for the complete package and
+step reference.
 
 ## User flow
 
@@ -217,15 +220,16 @@ the one-time migration.
    alerts and finished root runs into the origin session; the inbox and SSE
    remain the read-only fallback.
 6. **The orchestrator owns the workspace and entry.** `CLARA_ORCHESTRATION_WORKSPACE`
-   configures the workspace, defaulting to the service working directory. Every
-   run starts at the `entry` declared by that workspace's
-   `orchestration/index.yml`. Model-facing `clara_start` takes only the request;
-   the capability filter is internal to the executor. Explicit package
-   references such as `std:software/feature` are reserved for the Lab, operator
-   REST calls, and tests. In-flight runs pin the resolved snapshot and hash. Run
-   lists, run status, and every MCP run payload omit the
-   pinned tree; the full step prompt, policy, limits, result, and lease are read
-   only from the Lab's dedicated endpoints.
+   configures the run workspace, defaulting to the service working directory.
+   Every run starts at the `entry` declared by the active config: the bundled
+   default, or the `index.yml` named by `CLARA_ORCHESTRATION_CONFIG` (or the
+   Lab's `--config`). Model-facing `clara_start` takes only the request; the
+   capability filter is internal to the executor. Explicit package references
+   such as `std:software/feature` are reserved for the Lab, operator REST calls,
+   and tests. In-flight runs pin the resolved snapshot and hash. Run lists, run
+   status, and every MCP run payload omit the pinned tree; the full step prompt,
+   policy, limits, result, and lease are read only from the Lab's dedicated
+   endpoints.
 7. **The panel controls the local service.** The **Orchestration** switch keeps
    `orchestration.enabled` in the hub database and starts or stops a
    local instance. A service started from the CLI, MCP bridge, or Docker is
@@ -484,7 +488,7 @@ packages do not pin a model. They inherit the workspace defaults, so a fresh
 install runs against whatever provider the user's OpenCode can reach.
 
 ```yaml
-# orchestration/index.yml
+# custom index.yml named by CLARA_ORCHESTRATION_CONFIG
 defaults:
   provider: opencode-go
   model: deepseek-v4.1-flash
@@ -755,8 +759,9 @@ they can run while the adapter or setup is degraded. See
 - A step is `observed`: permission denials are recorded as `policy.observed`
   events, but tools are not blocked. `strict` and `sandboxed` steps deny and
   count violations. Enforcement mode does not relax the resource budgets above.
-- A workspace has no `orchestration/index.yml`: start fails with a clear config
-  error instead of guessing a pipeline.
+- A custom config file is missing: start fails with a clear config error
+  instead of guessing a pipeline. Without a custom config, the bundled default
+  is used.
 - A step declares a model without a provider: the lab reports
   `model_provider_missing`; the adapter refuses to silently pin a provider and
   logs an incomplete model reference instead.
@@ -830,14 +835,17 @@ they can run while the adapter or setup is degraded. See
   entirely deterministic scripts that rebuild Clara, reinstall its adapters,
   restart the captured services, and verify health. See
   [maintenance.md](maintenance.md).
-- Primary config: `orchestration/index.yml`.
+- Primary config: `packages/orchestration/default/index.yml`, bundled with the
+  engine. Set `CLARA_ORCHESTRATION_CONFIG` to a custom `index.yml` to replace
+  it. The default imports the five standard packages and routes to them.
 - Data: local installs use
   `${CLARA_DATA_DIR:-~/.local/share/clara}/orchestration.db`,
   `orchestrator.token`, and `policy-delivery.json` (adapter delivery cursor).
   The Docker stack keeps them in the `clara-orchestrator-data` volume.
 - Workspace: `GET /v1/config` reports the service workspace from
   `CLARA_ORCHESTRATION_WORKSPACE` (default: the service's working directory),
-  plus `CLARA_ORCHESTRATION_CONFIG` when set.
+  the active `configSource` (`bundled` or `file`), and `configPath` when a
+  custom file is configured.
 - Container: `docker compose -f docker/orchestrator.compose.yml up -d --build orchestrator`;
   the hub uses `docker/server.compose.yml` on the same `clara` network.
 - Commands:
@@ -872,18 +880,9 @@ path] [--url url]` and `GET /v1/diagnostics?days=30`. The analyzer is
   `clara_catalog`, and the adapter administration tools. `clara_next` accepts
   `capabilities`; `clara_complete` and `clara_fail` accept `exit_code`.
 - Package assets: `pipelines/*.yml`, `routers/*.md`, `agents/*.md`, and
-  `scripts/*.yml`; `index.yml`
-  declares the entry, imports, defaults, and can override discovered assets.
-  Defaults accept `provider`, `model`, `agent_dir`, `script_dir`, and
-  `enforcement`; pipelines accept `default_provider` / `default_model`; steps and
-  agents accept
-  `provider` / `model`. The workspace config also accepts `overrides`, keyed by
-  import ref, with `defaults`, `pipelines.<id>`, and `agents.<name>` model and
-  provider patches. Script steps accept `script` or `command`, `interpreter`,
-  `cwd`, `env`, `pass_env`, `timeout_seconds`, `success_codes`, `result_mode`,
-  and `max_output_bytes`. Agent, script, and router steps accept `on_failure`
-  with `max_cycles` (1..3), `retry`, and its own `steps`. Router routes accept
-  `when`, `run`, and optional `criteria`.
+  `scripts/*.yml`; `index.yml` declares the entry, imports, defaults, overrides,
+  and inline pipelines. See [orchestration-dsl.md](orchestration-dsl.md) for
+  every manifest, pipeline, step, agent, router, and script field.
 - References: `std:software` (package entry), `std:software/feature`,
   `std:software/bug`, and `std:software/docs` (named pipelines), `std:research`
   (research brief), `std:diagnostics` (self-diagnosis), `std:maintenance`

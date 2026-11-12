@@ -24,6 +24,7 @@ packages/api-client   Fetch-based hub API SDK
 packages/api-mcp      Read-only hub API MCP tools
 packages/policy       Step policy, budgets, and violation rules
 packages/orchestration Package loader, runtime, leases, watchdog, and standard packages
+packages/orchestration/default Default routing config and classifier router
 packages/orchestration/std Standard orchestration packages (software, content, research, diagnostics, maintenance)
 packages/runner       Shared script runner for harness adapters
 packages/devtools     Pipeline preview, diagnostics, and snapshot diff SDK
@@ -254,30 +255,31 @@ is never published.
 
 ### Internal documentation
 
-| Before you touch…                  | Read                                                             |
-| ---------------------------------- | ---------------------------------------------------------------- |
-| Writing or updating a feature spec | [docs/features/GUIDE.md](docs/features/GUIDE.md)                 |
-| Developer commands and worktrees   | [docs/development.md](docs/development.md)                       |
-| Workspace, modes, auth, streaming  | [docs/architecture/overview.md](docs/architecture/overview.md)   |
-| Relay Worker, DO, remote access    | [docs/architecture/relay.md](docs/architecture/relay.md)         |
-| E2EE, device keys, envelopes       | [docs/architecture/e2ee.md](docs/architecture/e2ee.md)           |
-| What ships and what does not       | [docs/features/capabilities.md](docs/features/capabilities.md)   |
-| Orchestration service and control  | [docs/features/orchestration.md](docs/features/orchestration.md) |
-| Orchestrator diagnosis and fixes   | [docs/features/diagnostics.md](docs/features/diagnostics.md)     |
-| Rebuilding and restarting Clara    | [docs/features/maintenance.md](docs/features/maintenance.md)     |
-| Pipeline preview and agent probe   | [docs/features/lab.md](docs/features/lab.md)                     |
-| Pairing, QR codes, device storage  | [docs/features/pairing.md](docs/features/pairing.md)             |
-| Install, updates, offline caching  | [docs/features/install.md](docs/features/install.md)             |
-| Connection and credentials         | [docs/features/connection.md](docs/features/connection.md)       |
-| Hub panel and local hub state      | [docs/features/panel.md](docs/features/panel.md)                 |
-| Project/session browser            | [docs/features/sessions.md](docs/features/sessions.md)           |
-| Messages, tools, approvals         | [docs/features/chat.md](docs/features/chat.md)                   |
-| Forking, forwarding                | [docs/features/fork.md](docs/features/fork.md)                   |
-| Prompt box, commands, mentions     | [docs/features/composer.md](docs/features/composer.md)           |
-| Cost, tokens, context              | [docs/features/session-info.md](docs/features/session-info.md)   |
-| Inbox notifications and sounds     | [docs/features/notifications.md](docs/features/notifications.md) |
-| Keyboard behavior                  | [docs/features/shortcuts.md](docs/features/shortcuts.md)         |
-| Everything else                    | [docs/README.md](docs/README.md)                                 |
+| Before you touch…                  | Read                                                                     |
+| ---------------------------------- | ------------------------------------------------------------------------ |
+| Writing or updating a feature spec | [docs/features/GUIDE.md](docs/features/GUIDE.md)                         |
+| Developer commands and worktrees   | [docs/development.md](docs/development.md)                               |
+| Workspace, modes, auth, streaming  | [docs/architecture/overview.md](docs/architecture/overview.md)           |
+| Relay Worker, DO, remote access    | [docs/architecture/relay.md](docs/architecture/relay.md)                 |
+| E2EE, device keys, envelopes       | [docs/architecture/e2ee.md](docs/architecture/e2ee.md)                   |
+| What ships and what does not       | [docs/features/capabilities.md](docs/features/capabilities.md)           |
+| Orchestration service and control  | [docs/features/orchestration.md](docs/features/orchestration.md)         |
+| Pipeline DSL and package fields    | [docs/features/orchestration-dsl.md](docs/features/orchestration-dsl.md) |
+| Orchestrator diagnosis and fixes   | [docs/features/diagnostics.md](docs/features/diagnostics.md)             |
+| Rebuilding and restarting Clara    | [docs/features/maintenance.md](docs/features/maintenance.md)             |
+| Pipeline preview and agent probe   | [docs/features/lab.md](docs/features/lab.md)                             |
+| Pairing, QR codes, device storage  | [docs/features/pairing.md](docs/features/pairing.md)                     |
+| Install, updates, offline caching  | [docs/features/install.md](docs/features/install.md)                     |
+| Connection and credentials         | [docs/features/connection.md](docs/features/connection.md)               |
+| Hub panel and local hub state      | [docs/features/panel.md](docs/features/panel.md)                         |
+| Project/session browser            | [docs/features/sessions.md](docs/features/sessions.md)                   |
+| Messages, tools, approvals         | [docs/features/chat.md](docs/features/chat.md)                           |
+| Forking, forwarding                | [docs/features/fork.md](docs/features/fork.md)                           |
+| Prompt box, commands, mentions     | [docs/features/composer.md](docs/features/composer.md)                   |
+| Cost, tokens, context              | [docs/features/session-info.md](docs/features/session-info.md)           |
+| Inbox notifications and sounds     | [docs/features/notifications.md](docs/features/notifications.md)         |
+| Keyboard behavior                  | [docs/features/shortcuts.md](docs/features/shortcuts.md)                 |
+| Everything else                    | [docs/README.md](docs/README.md)                                         |
 
 ## Definition of done
 

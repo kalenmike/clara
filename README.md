@@ -308,9 +308,11 @@ pnpm clara orchestrator stop --docker
 ```
 
 It serves REST, SSE, and MCP on `127.0.0.1:8789` with its bearer token and needs
-only a workspace containing `orchestration/index.yml` plus a harness adapter to
-execute work orders. The OpenCode adapter and Clara Lab talk to it directly; the
-web client is not required. See
+only a run workspace plus a harness adapter to execute work orders. The bundled
+default config routes to the standard packages; set
+`CLARA_ORCHESTRATION_CONFIG` to an `index.yml` to supply your own routing. The
+OpenCode adapter and Clara Lab talk to it directly; the web client is not
+required. See
 [docs/features/orchestration.md](docs/features/orchestration.md).
 
 ### Local WebSocket mode
