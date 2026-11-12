@@ -12,6 +12,7 @@ import {
 } from '@clara/crypto'
 import {
   PROTOCOL_VERSION,
+  isErrorFrame,
   isHelloFrame,
   isSealedFrame,
   type AdapterAction,
@@ -26,6 +27,7 @@ import type { ApiApp } from '../src/api/context.ts'
 const PAIR_ID = 'pair-1'
 const PAIR_TOKEN = generateKey()
 const ADAPTER_KEY = generateKey()
+const DEVICE_KEY = generateKey()
 
 function api(): ApiApp {
   return {
@@ -72,10 +74,11 @@ type Client = {
 async function connect(
   agent: Agent,
   frames: WireFrame[],
-  identity: { enrollId?: string; adapterId?: string; key: string }
+  identity: { enrollId?: string; adapterId?: string; deviceId?: string; key: string }
 ): Promise<Client> {
   const sid = bytesToBase64Url(randomBytes(16))
   const clientNonce = bytesToBase64Url(randomBytes(16))
+  const adapter = identity.adapterId !== undefined || identity.enrollId !== undefined
   agent.handleMessage(
     JSON.stringify({
       t: 'hello',
@@ -83,9 +86,10 @@ async function connect(
       sid,
       nonce: clientNonce,
       role: 'client',
-      adapter: true,
+      ...(adapter ? { adapter: true } : {}),
       ...(identity.enrollId ? { enrollId: identity.enrollId } : {}),
       ...(identity.adapterId ? { adapterId: identity.adapterId } : {}),
+      ...(identity.deviceId ? { deviceId: identity.deviceId } : {}),
     })
   )
   const hello = await waitFor(() => {
@@ -106,6 +110,10 @@ async function connect(
 async function send(client: Client, agent: Agent, payload: unknown): Promise<void> {
   const seq = client.sendSeq
   client.sendSeq += 1
+  await sendAt(client, agent, payload, seq)
+}
+
+async function sendAt(client: Client, agent: Agent, payload: unknown, seq: number): Promise<void> {
   const box = await seal(
     client.keys.c2s,
     { sid: client.sid, direction: 'c2s', seq },
@@ -335,4 +343,111 @@ describe('adapter sessions', () => {
       agent.close()
     }
   })
+
+  it('clears the live adapter and asks it to reconnect after a bad sequence', async () => {
+    const frames: WireFrame[] = []
+    let live: ((request: Request) => Promise<Response>) | undefined
+    const cleared: string[] = []
+    const adapters: AdapterSessionHandler = {
+      pairingToken: async () => undefined,
+      credential: async (id) =>
+        id === 'adapter-a'
+          ? { adapterId: 'adapter-a', harnessId: 'harness-a', key: ADAPTER_KEY }
+          : undefined,
+      enroll: async () => {
+        throw new Error('not used')
+      },
+      setLive: async (_harnessId, fetch) => {
+        live = fetch
+      },
+      clearLive: async (harnessId) => {
+        live = undefined
+        cleared.push(harnessId)
+      },
+    }
+    const agent = new Agent({
+      api: api(),
+      devices: devices(),
+      info: { version: 'test', protocol: PROTOCOL_VERSION },
+      send: (frame) => frames.push(frame),
+      adapters,
+    })
+
+    try {
+      const client = await connect(agent, frames, { adapterId: 'adapter-a', key: ADAPTER_KEY })
+      await waitFor(() => live)
+      // Frame 0 was never sent, so the replay guard rejects this one.
+      await sendAt(
+        client,
+        agent,
+        { type: 'adapter.response', id: 'bad', status: 200, statusText: 'OK', headers: {} },
+        1
+      )
+      await waitFor(() => (cleared.length > 0 ? true : undefined))
+      expect(cleared).toEqual(['harness-a'])
+      expect(live).toBeUndefined()
+      expect(agent.sessionCount).toBe(0)
+      const error = frames.find((frame) => isErrorFrame(frame) && frame.sid === client.sid)
+      expect(error).toMatchObject({ code: 'protocol_error' })
+    } finally {
+      agent.close()
+    }
+  })
+
+  it('keeps large frames ahead of later small frames while decrypting', async () => {
+    const frames: WireFrame[] = []
+    const seen: string[] = []
+    const agent = new Agent({
+      api: {
+        fetch: async (request) => {
+          seen.push(new URL(request.url).pathname)
+          return new Response(null, { status: 204 })
+        },
+        openapi: async () => ({}),
+      },
+      devices: {
+        findPairingToken: async () => undefined,
+        findActiveDevice: async (id: string) =>
+          id === 'device-a' ? { id: 'device-a', label: 'test device', key: DEVICE_KEY } : undefined,
+        isActive: () => true,
+        enrollDevice: async () => {
+          throw new Error('not used')
+        },
+        touchDevice: () => undefined,
+        revokeDevice: () => undefined,
+        pruneExpiredTokens: () => 0,
+      } as never,
+      info: { version: 'test', protocol: PROTOCOL_VERSION },
+      send: (frame) => frames.push(frame),
+    })
+
+    try {
+      const client = await connect(agent, frames, { deviceId: 'device-a', key: DEVICE_KEY })
+      // The first frame decrypts much more slowly than the second. Without a
+      // per-session receive chain the small frame can overtake it.
+      const large = bytesToBase64Url(utf8('x'.repeat(1_000_000)))
+      await sendAt(
+        client,
+        agent,
+        { type: 'http.request', id: 'a', method: 'POST', path: '/v1/first', body: large },
+        0
+      )
+      await sendAt(
+        client,
+        agent,
+        {
+          type: 'http.request',
+          id: 'b',
+          method: 'POST',
+          path: '/v1/second',
+          body: bytesToBase64Url(utf8('{}')),
+        },
+        1
+      )
+      await waitFor(() => (seen.length === 2 ? true : undefined), 5_000)
+      expect(seen).toEqual(['/v1/first', '/v1/second'])
+    } finally {
+      agent.close()
+    }
+  }, 15_000)
 })

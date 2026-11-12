@@ -77,6 +77,7 @@ type Session = {
   lastSeen: number
   presence?: SessionPresence
   sendChain: Promise<void>
+  receiveChain: Promise<void>
   requests: Map<string, AbortController>
   /** Traffic counters, frozen while monitoring is off. */
   bytesIn: number
@@ -205,7 +206,14 @@ export class Agent {
         return
       }
       if (this.monitoring) session.bytesIn += bytes
-      void this.handleSealed(session, frame)
+      // AES-GCM is asynchronous, so decryption can finish out of order. Keep
+      // every frame in arrival order for this session; otherwise an adapter's
+      // `end` can overtake its `response` and leave the request pending.
+      session.receiveChain = session.receiveChain
+        .then(() => this.handleSealed(session, frame))
+        .catch((cause) => {
+          this.options.log?.('could not process a client frame', cause)
+        })
     }
   }
 
@@ -291,8 +299,7 @@ export class Agent {
 
     const existing = this.sessions.get(sid)
     if (existing) {
-      this.abortSession(existing)
-      this.options.traffic?.recordSessionClosed()
+      this.closeSession(existing)
     }
 
     const isAdapter = frame.adapter === true
@@ -380,6 +387,7 @@ export class Agent {
       connectedAt: Date.now(),
       lastSeen: Date.now(),
       sendChain: Promise.resolve(),
+      receiveChain: Promise.resolve(),
       requests: new Map(),
       bytesIn: 0,
       bytesOut: 0,
@@ -413,6 +421,8 @@ export class Agent {
     session: Session,
     frame: Extract<WireFrame, { t: 'sealed' }>
   ): Promise<void> {
+    // A queued frame can outlive a session that an earlier frame closed.
+    if (this.sessions.get(session.sid) !== session) return
     session.lastSeen = Date.now()
 
     try {
@@ -420,8 +430,9 @@ export class Agent {
     } catch (cause) {
       this.options.traffic?.recordError('crypto')
       this.options.log?.('rejected an out-of-order frame', cause)
-      this.abortSession(session)
-      this.sessions.delete(frame.sid)
+      // Tell the adapter to reconnect instead of leaving its socket open with
+      // a session the hub already dropped.
+      this.failSession(session, 'protocol_error', 'The adapter frame sequence was invalid')
       return
     }
 
@@ -435,15 +446,13 @@ export class Agent {
     } catch (cause) {
       this.options.traffic?.recordError('crypto')
       this.options.log?.('could not decrypt a client frame', cause)
-      this.abortSession(session)
-      this.sessions.delete(frame.sid)
+      this.failSession(session, 'protocol_error', 'The adapter frame could not be decrypted')
       return
     }
 
     if (plaintext.byteLength > MAX_PAYLOAD_BYTES) {
       this.options.traffic?.recordError('dropped')
-      this.abortSession(session)
-      this.sessions.delete(frame.sid)
+      this.failSession(session, 'protocol_error', 'The adapter frame was too large')
       return
     }
 
@@ -624,6 +633,17 @@ export class Agent {
   }
 
   private rejectSession(session: Session, code: DeviceErrorCode, message: string): void {
+    this.sendError(session.sid, code, message)
+    this.closeSession(session)
+  }
+
+  /**
+   * Drop a session after a protocol failure and tell the peer why. An adapter
+   * must reconnect after a bad frame; leaving its socket open makes every
+   * later request hang against a session the hub no longer holds.
+   */
+  private failSession(session: Session, code: DeviceErrorCode, message: string): void {
+    if (this.sessions.get(session.sid) !== session) return
     this.sendError(session.sid, code, message)
     this.closeSession(session)
   }

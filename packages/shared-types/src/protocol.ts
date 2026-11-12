@@ -10,6 +10,7 @@ export type DeviceErrorCode =
   | 'device_limit'
   | 'invalid_device'
   | 'not_allowed'
+  | 'protocol_error'
 
 /** WebSocket subprotocol offered by both clients and the hub. */
 export const RELAY_SUBPROTOCOL = 'clara.v1'
