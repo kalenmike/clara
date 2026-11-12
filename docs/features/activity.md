@@ -19,7 +19,8 @@ more than one harness.
 5. Read the plan checklist for that session. The header shows completed items
    against the total.
 6. On the active harness, choose a session title to open it.
-7. Leave the page open. It refreshes every ten seconds.
+7. Leave the page open. It refreshes every ten seconds, or press **Refresh** to
+   reload immediately and bypass the short plan cache.
 8. Read the Other harnesses row to see paired harnesses that are idle, offline,
    or could not be checked.
 
@@ -71,7 +72,8 @@ more than one harness.
 
 - Spend does not follow the estimated-cost setting because model catalogs are
   scoped to each harness.
-- Plans can be up to the hub cache window stale.
+- Plans can be up to five seconds stale during automatic polling. The Refresh
+  button bypasses that cache.
 - Click-through is limited to the active harness.
 - A session whose metadata fails to load is omitted from the card list and
   counted as a partial harness failure.
@@ -90,7 +92,7 @@ more than one harness.
 - Plan parsing: `findPlanTodos` in `@clara/api-contract`
 - The hub asks each online harness for `/sessions/active`, then reads the
   running sessions and their context. Context results are cached per
-  harness/session for 30 seconds.
+  harness/session for five seconds; `?refresh=true` bypasses the cache.
 - Session overlay maps harness project IDs to Clara project and workspace IDs
   and applies Clara title, archive, and snooze metadata.
 - Related: [sessions](sessions.md), [session-info](session-info.md),
