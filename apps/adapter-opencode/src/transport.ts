@@ -70,6 +70,8 @@ export class AdapterTransport {
   private sendSeq = 0
   private receive = new ReplayGuard()
   private pending = new Map<string, Pending>()
+  /** In-flight requests the hub sent to this adapter, keyed by request id. */
+  private readonly inbound = new Map<string, AbortController>()
   private stopped = true
   private retry = 0
   private reconnectTimer: NodeJS.Timeout | null = null
@@ -104,6 +106,7 @@ export class AdapterTransport {
     this.keys = null
     this.connected = false
     this.authenticated = false
+    this.abortInbound()
     this.rejectAll(new Error('Adapter connection closed'))
   }
 
@@ -177,6 +180,7 @@ export class AdapterTransport {
       this.connected = false
       this.authenticated = false
       this.stopHeartbeat()
+      this.abortInbound()
       this.rejectAll(
         new Error(`Adapter disconnected (${code} ${reason.toString() || 'no reason'})`)
       )
@@ -228,12 +232,16 @@ export class AdapterTransport {
     }
 
     if (isErrorFrame(parsed)) {
+      // Error frames are broadcast to every socket, so ignore another session's.
+      if (parsed.sid !== this.sid) return
       this.options.log?.(`adapter session error: ${parsed.code} ${parsed.message}`)
       this.socket?.close(1000, parsed.code)
       return
     }
 
-    if (!isSealedFrame(parsed) || !this.keys) return
+    // Sealed frames are broadcast too. Trying to open a frame for another
+    // session fails the replay/decrypt step and would tear down this adapter.
+    if (!isSealedFrame(parsed) || parsed.sid !== this.sid || !this.keys) return
     try {
       this.receive.check(parsed.seq)
       const plaintext = await open(
@@ -265,6 +273,7 @@ export class AdapterTransport {
         const pending = this.pending.get(payload.id)
         if (pending) pending.controller.error(new Error('Request aborted'))
         this.pending.delete(payload.id)
+        this.inbound.get(payload.id)?.abort()
         return
       }
       case 'adapter.response':
@@ -285,6 +294,8 @@ export class AdapterTransport {
   }
 
   private async runRequest(action: AdapterRequestAction): Promise<void> {
+    const controller = new AbortController()
+    this.inbound.set(action.id, controller)
     try {
       const url = new URL(`http://adapter${action.path}${action.search ?? ''}`)
       const headers = new Headers(action.headers)
@@ -293,8 +304,10 @@ export class AdapterTransport {
           method: action.method,
           headers,
           ...(action.body === undefined ? {} : { body: action.body }),
+          signal: controller.signal,
         })
       )
+      if (controller.signal.aborted) return
       await this.send({
         type: 'adapter.response',
         id: action.id,
@@ -305,7 +318,7 @@ export class AdapterTransport {
       if (response.body) {
         const reader = response.body.getReader()
         try {
-          while (true) {
+          while (!controller.signal.aborted) {
             const { done, value } = await reader.read()
             if (done) break
             if (value) {
@@ -320,14 +333,20 @@ export class AdapterTransport {
           reader.releaseLock()
         }
       }
-      await this.send({ type: 'adapter.end', id: action.id })
+      if (!controller.signal.aborted) {
+        await this.send({ type: 'adapter.end', id: action.id })
+      }
     } catch (cause) {
-      await this.send({
-        type: 'adapter.error',
-        id: action.id,
-        code: 'adapter_error',
-        message: cause instanceof Error ? cause.message : String(cause),
-      })
+      if (!controller.signal.aborted) {
+        await this.send({
+          type: 'adapter.error',
+          id: action.id,
+          code: 'adapter_error',
+          message: cause instanceof Error ? cause.message : String(cause),
+        })
+      }
+    } finally {
+      this.inbound.delete(action.id)
     }
   }
 
@@ -380,6 +399,11 @@ export class AdapterTransport {
       ct: box.ct,
     }
     socket.send(JSON.stringify(frame))
+  }
+
+  private abortInbound(): void {
+    for (const controller of this.inbound.values()) controller.abort()
+    this.inbound.clear()
   }
 
   private rejectAll(cause: unknown): void {

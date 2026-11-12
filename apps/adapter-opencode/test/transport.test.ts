@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from 'vitest'
-import { WebSocketServer, type WebSocket } from 'ws'
+import { WebSocket, WebSocketServer } from 'ws'
 import {
   bytesToBase64Url,
   deriveSessionKeys,
@@ -21,7 +21,14 @@ type FakeHub = {
   wsUrl: string
   key: string
   hello: () => Promise<Hello>
-  sendSealed: (hello: Hello, payload: unknown, signingKey?: string) => Promise<void>
+  sendSealed: (
+    hello: Hello,
+    payload: unknown,
+    options?: { signingKey?: string; seq?: number }
+  ) => Promise<void>
+  sendError: (sid: string, message?: string) => void
+  sendForeignSealed: (sid: string) => void
+  isOpen: () => boolean
   close: () => Promise<void>
 }
 
@@ -59,15 +66,104 @@ describe('AdapterTransport authentication', () => {
     await hub.sendSealed(
       hello,
       { type: 'ready', agent: { version: 'test', protocol: 3 } },
-      generateKey()
+      {
+        signingKey: generateKey(),
+      }
     )
     await waitFor(() => logs.includes('adapter could not open a frame'))
     expect(logs).not.toContain('adapter authenticated')
     transport.close()
   })
+
+  it('ignores sealed frames for another session', async () => {
+    const hub = await startHub()
+    const logs: string[] = []
+    const transport = createTransport(hub, logs)
+
+    transport.start()
+    const hello = await hub.hello()
+    await waitFor(() => logs.includes('adapter handshake complete'))
+
+    hub.sendForeignSealed('another-session')
+    await new Promise((resolve) => setTimeout(resolve, 50))
+    expect(logs).not.toContain('adapter could not open a frame')
+    expect(hub.isOpen()).toBe(true)
+
+    await hub.sendSealed(hello, { type: 'ready', agent: { version: 'test', protocol: 3 } })
+    await waitFor(() => logs.includes('adapter authenticated'))
+    expect(logs).not.toContain('adapter could not open a frame')
+    transport.close()
+  })
+
+  it('ignores error frames for another session', async () => {
+    const hub = await startHub()
+    const logs: string[] = []
+    const transport = createTransport(hub, logs)
+
+    transport.start()
+    const hello = await hub.hello()
+    await waitFor(() => logs.includes('adapter handshake complete'))
+
+    hub.sendError('another-session')
+    await new Promise((resolve) => setTimeout(resolve, 50))
+    expect(hub.isOpen()).toBe(true)
+    expect(logs.some((line) => line.startsWith('adapter session error'))).toBe(false)
+
+    await hub.sendSealed(hello, { type: 'ready', agent: { version: 'test', protocol: 3 } })
+    await waitFor(() => logs.includes('adapter authenticated'))
+    transport.close()
+  })
+
+  it('aborts an inbound request when the hub cancels it', async () => {
+    const hub = await startHub()
+    const logs: string[] = []
+    let started!: () => void
+    const requestStarted = new Promise<void>((resolve) => {
+      started = resolve
+    })
+    let aborted = false
+    const transport = createTransport(hub, logs, async (request) => {
+      started()
+      await new Promise<void>((resolve) => {
+        if (request.signal.aborted) {
+          aborted = true
+          resolve()
+          return
+        }
+        request.signal.addEventListener(
+          'abort',
+          () => {
+            aborted = true
+            resolve()
+          },
+          { once: true }
+        )
+      })
+      return new Response('late', { status: 200 })
+    })
+
+    transport.start()
+    const hello = await hub.hello()
+    await hub.sendSealed(hello, { type: 'ready', agent: { version: 'test', protocol: 3 } })
+    await waitFor(() => logs.includes('adapter authenticated'))
+
+    await hub.sendSealed(
+      hello,
+      { type: 'adapter.request', id: 'request-1', method: 'GET', path: '/slow' },
+      { seq: 1 }
+    )
+    await requestStarted
+    await hub.sendSealed(hello, { type: 'adapter.abort', id: 'request-1' }, { seq: 2 })
+    await waitFor(() => aborted, 5_000)
+    transport.close()
+  })
 })
 
-function createTransport(hub: FakeHub, logs: string[]): AdapterTransport {
+function createTransport(
+  hub: FakeHub,
+  logs: string[],
+  handler: (request: Request) => Promise<Response> = async () => new Response('{}', { status: 200 })
+): AdapterTransport {
   return new AdapterTransport({
     wsUrl: hub.wsUrl,
     clientToken: 'local',
@@ -75,7 +171,7 @@ function createTransport(hub: FakeHub, logs: string[]): AdapterTransport {
     kind: 'opencode',
     label: 'OpenCode',
     info: { adapterVersion: 'test', protocolVersion: 1, capabilities: {} },
-    handler: async () => new Response('{}', { status: 200 }),
+    handler,
     log: (message) => logs.push(message),
   })
 }
@@ -120,16 +216,17 @@ async function startHub(): Promise<FakeHub> {
     wsUrl: `ws://127.0.0.1:${address.port}`,
     key,
     hello: () => hello,
-    sendSealed: async (value, payload, signingKey = key) => {
+    sendSealed: async (value, payload, options = {}) => {
+      const seq = options.seq ?? 0
       const keys = await deriveSessionKeys({
-        key: signingKey,
+        key: options.signingKey ?? key,
         sid: value.sid,
         clientNonce: value.clientNonce,
         agentNonce: value.agentNonce,
       })
       const box = await seal(
         keys.s2c,
-        { sid: value.sid, direction: 's2c', seq: 0 },
+        { sid: value.sid, direction: 's2c', seq },
         utf8(JSON.stringify(payload))
       )
       client?.send(
@@ -137,12 +234,36 @@ async function startHub(): Promise<FakeHub> {
           t: 'sealed',
           v: PROTOCOL_VERSION,
           sid: value.sid,
-          seq: 0,
+          seq,
           iv: box.iv,
           ct: box.ct,
         })
       )
     },
+    sendError: (sid, message = 'not allowed') => {
+      client?.send(
+        JSON.stringify({
+          t: 'error',
+          v: PROTOCOL_VERSION,
+          sid,
+          code: 'invalid_device',
+          message,
+        })
+      )
+    },
+    sendForeignSealed: (sid) => {
+      client?.send(
+        JSON.stringify({
+          t: 'sealed',
+          v: PROTOCOL_VERSION,
+          sid,
+          seq: 0,
+          iv: 'foreign-iv',
+          ct: 'foreign-ct',
+        })
+      )
+    },
+    isOpen: () => client?.readyState === WebSocket.OPEN,
     close: async () => {
       client?.terminate()
       await new Promise<void>((resolve) => server.close(() => resolve()))

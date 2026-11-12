@@ -162,11 +162,12 @@ export async function enrollAdapter(input: EnrollmentInput): Promise<AdapterEnro
         }
 
         if (isErrorFrame(parsed)) {
+          if (parsed.sid !== sid) return
           fail(new Error(parsed.message))
           return
         }
 
-        if (!isSealedFrame(parsed) || !keys) return
+        if (!isSealedFrame(parsed) || parsed.sid !== sid || !keys) return
         receive.check(parsed.seq)
         const plaintext = await open(
           keys.s2c,
