@@ -36,7 +36,7 @@ pnpm clara orchestrator status --json
 ## Install the adapter
 
 ```bash
-pnpm clara adapter install --opencode
+clara-adapter-opencode install  # or: pnpm clara adapter install --opencode
 ```
 
 The command links the OpenCode plugin, installs the `Clara` agent, and installs

@@ -17,11 +17,14 @@ opens a port on the OpenCode machine.
    runs (**Docker network** is the default; also **This machine** or **Cloudflare
    relay**), and select **Add harness**.
 3. Copy the pairing code or the install command.
-4. On the OpenCode machine, run:
+4. On the OpenCode machine, run the adapter's own installer:
 
    ```bash
-   pnpm clara adapter install --opencode --pair <code>
+   clara-adapter-opencode install --pair <code>
    ```
+
+   Inside the Clara repository you can use
+   `pnpm clara adapter install --opencode --pair <code>` instead.
 
 5. The installer looks for OpenCode. If it cannot find it, enter the OpenCode
    URL and password when asked.
@@ -38,13 +41,13 @@ separate code or link printed by `pnpm clara pair`. A panel code starts with
 If the panel shows **Paired · Offline**, start it with:
 
 ```bash
-pnpm clara adapter start --opencode
-pnpm clara adapter logs --opencode
+clara-adapter-opencode start
+clara-adapter-opencode logs
 ```
 
-The same command also installs the Clara orchestration binding. Use
-`--no-daemon` to install only the binding or `--no-orchestration` to install
-only the hub adapter.
+The same command also installs the Clara orchestration binding and the shared
+script runner. Use `--no-runner` to skip the shared runner, or `--no-service` to
+write the config without installing a user service.
 
 ## Reinstall and reconnect
 

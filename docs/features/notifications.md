@@ -288,7 +288,7 @@ start an agent run and move on, so they do not have to watch the sidebar.
   actions; the hub acknowledges with `push.status`
 - Push monitor: `apps/server/src/push/` reads `/api/event`, applies the same
   750 ms evaluation delay and 5 s cooldown, then sends through `web-push`
-- Orchestration delivery: `plugins/clara-policy/delivery.ts` plans alerts and
+- Orchestration delivery: `packages/binding-core/src/delivery.ts` plans alerts and
   finished root runs; `delivery-cycle.ts` serializes the cycle and reserves each
   run before the prompt; the adapter queues them into the origin session.
 - Alert destination: the root run's origin session when it still uses the

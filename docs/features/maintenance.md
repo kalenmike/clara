@@ -96,7 +96,7 @@ and `pnpm clara orchestrator inspect`.
 ## Edge cases
 
 - **No runner is live:** a script step stays ready and the watchdog opens a
-  `no_runner` alert. Start the shared runner service or `clara-adapter runner`.
+  `no_runner` alert. Start the shared runner service or `clara-runner`.
 - **A script times out:** the runner terminates the process group and fails the
   step with the exit code and output tail.
 - **The orchestrator is stopped:** capture records it as stopped, the restart
@@ -242,7 +242,7 @@ clara`. A manually started hub is restarted from the captured root with its
 - Recovery: `recover` probes health, selects only `expected && !healthy`
   services, restarts them in the same order, and re-runs health. It never
   restarts a healthy service or starts one that was stopped at capture.
-- Adapter install: `pnpm clara adapter install --opencode`; MCP refresh:
+- Adapter install: `clara-adapter-opencode install` or `pnpm clara adapter install --opencode`; MCP refresh:
   `pnpm clara adapter install --opencode --mcp --no-service` or
   `pnpm clara mcp install --no-start`.
 - Default ports: orchestrator `8789`, panel `8790`, local hub `8788`, Lab

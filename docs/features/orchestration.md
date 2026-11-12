@@ -15,7 +15,7 @@ human-facing Clara agent.
    `pnpm clara orchestrator start`, or let the MCP bridge start it on first
    use.
 2. Install the harness adapter and the shared runner with
-   `pnpm clara adapter install --opencode --pair <code>`. The command installs the
+   `clara-adapter-opencode install --pair <code>` (or `pnpm clara adapter install --opencode --pair <code>` in the repository). The command installs the
    hub-facing adapter, links the plugin,
    installs the `clara` agent, disables the plugin's embedded runner, writes the
    shared runner config, and installs a user service where the platform
@@ -366,10 +366,10 @@ adapter.
 
 There are two hosts:
 
-- **Shared standalone (default).** `pnpm clara adapter install --opencode`
+- **Shared standalone (default).** `clara-adapter-opencode install`
   writes `~/.config/clara/runner.json` and installs a user service on Linux or
   macOS. One runner serves every harness in the workspace. Use
-  `clara-adapter runner` when a service manager is unavailable.
+  `clara-runner` when a service manager is unavailable.
 - **Embedded (fallback).** The OpenCode adapter can still import
   `@clara/runner` inside its own process when `runner.enabled` is not `false`.
   The installer disables it so a shared runner is the only one for the
@@ -712,14 +712,14 @@ they can run while the adapter or setup is degraded. See
   and fails the step. The attempt records the timeout, not a model stall.
 - A ready script step has no runner: it stays ready and the watchdog opens one
   `no_runner` alert after `CLARA_RUNNER_WAIT_MS`. Start the shared runner
-  service or `clara-adapter runner`; the step is not failed.
+  service or `clara-runner`; the step is not failed.
 - A strict pipeline mixes agents and scripts: the harness adapter and the runner
   are checked separately, and both must be live.
 - A script writes more than `max_output_bytes`: the result keeps a truncated
   tail and the streamed `step.output` events stay bounded.
 - A script restarts its own host: a shared runner is unaffected. If the
   workspace still uses the embedded fallback, run that step with
-  `clara-adapter runner` on the service host or rely on the command's journal on
+  `clara-runner` on the service host or rely on the command's journal on
   the next attempt.
 - The origin session is archived, missing, or no longer uses the Clara agent:
   the result stays in the inbox and the adapter does not prompt that session.
@@ -815,8 +815,8 @@ they can run while the adapter or setup is degraded. See
 - MCP bridge: `apps/mcp`, stdio, talks to the service over loopback HTTP.
 - Engine: `packages/orchestration`; policy: `packages/policy`; shared MCP tools:
   `packages/mcp-server`; script runner: `packages/runner`; adapter installer:
-  `packages/adapter`; harness-neutral adapter core: `packages/adapter-core`;
-  OpenCode binding: `plugins/clara-policy`; developer preview and probe:
+  `apps/adapter-opencode`; harness-neutral adapter runtime: `packages/adapter`;
+  orchestration binding core: `packages/binding-core`; developer preview and probe:
   `packages/devtools` and `apps/lab`.
 - Standard packages: `lib/std/software`, `lib/std/content`,
   `lib/std/research`, `lib/std/diagnostics`, and `lib/std/maintenance`. The
@@ -840,6 +840,7 @@ they can run while the adapter or setup is degraded. See
 - Commands:
   `pnpm clara orchestrator start [--docker] [--build]|stop [--docker]|status|serve|token|analyze`,
   `pnpm clara mcp install|uninstall|config|status`,
+  `clara-adapter-opencode install|uninstall|status|start|stop|logs`,
   `pnpm clara adapter install|uninstall|status|runner [--opencode] [--mcp] [--runner]`,
   `pnpm clara runner [--workspace <path>] [--label <name>] [--once]`,
   `pnpm clara rebuild status|build|adapters|restart|health`,
