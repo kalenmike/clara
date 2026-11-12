@@ -28,7 +28,7 @@ export function AppShell() {
   }, [location.pathname])
 
   if (status === 'connecting') {
-    return <ConnectionSplash label="Connecting to OpenCode…" />
+    return <ConnectionSplash label="Connecting to the hub…" />
   }
 
   if (status !== 'connected') {
