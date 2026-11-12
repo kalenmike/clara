@@ -169,7 +169,7 @@ browser: the connect screen names them and points at `clara-server pair`.
 <details>
 <summary>Routes, data, and references</summary>
 
-- Pair command: `node apps/server/dist/index.js pair [--no-relay] [--no-qr] [--revoke-all] [--revoke <id>]`
+- Pair command: `node apps/hub/server/dist/index.js pair [--no-relay] [--no-qr] [--revoke-all] [--revoke <id>]`
 - Pairing URL: `<webUrl>/#pair=<base64url(JSON)>`
 - Payload: `{ v, wsUrl, room, clientToken, enrollId, enrollToken, fingerprint, expiresAt }`
 - Scanner: `getUserMedia` is requested first, with `jsqr` loaded in parallel on

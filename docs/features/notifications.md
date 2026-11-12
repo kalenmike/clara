@@ -250,7 +250,7 @@ start an agent run and move on, so they do not have to watch the sidebar.
 - Signals: `client.session.get({ sessionID })`,
   `client.message.list({ sessionID, order: 'desc', limit: 1, type })` for `user`
   and `assistant`, and `client.session.form.list({ sessionID })`
-- State precedence: `packages/shared-types/src/session-signals.ts`, shared by
+- State precedence: `packages/contracts/shared-types/src/session-signals.ts`, shared by
   the web and the hub
 - Event subscription: `EventProvider` exposes `subscribe`; the
   `NotificationProvider` inside the app shell consumes it
@@ -286,15 +286,15 @@ start an agent run and move on, so they do not have to watch the sidebar.
 - Push labels: Error, Needs Input, Ready for Review, Brief Complete
 - Push control: sealed `push.subscribe`, `push.unsubscribe`, and `push.test`
   actions; the hub acknowledges with `push.status`
-- Push monitor: `apps/server/src/push/` reads `/api/event`, applies the same
+- Push monitor: `apps/hub/server/src/push/` reads `/api/event`, applies the same
   750 ms evaluation delay and 5 s cooldown, then sends through `web-push`
-- Orchestration delivery: `packages/binding-core/src/delivery.ts` plans alerts and
+- Orchestration delivery: `packages/adapters/binding/src/delivery.ts` plans alerts and
   finished root runs; `delivery-cycle.ts` serializes the cycle and reserves each
   run before the prompt; the adapter queues them into the origin session.
 - Alert destination: the root run's origin session when it still uses the
   Clara interface agent.
 - Worker filter: `isClaraWorkerTitle` in
-  `packages/shared-types/src/session-signals.ts`, shared by the hub and
+  `packages/contracts/shared-types/src/session-signals.ts`, shared by the hub and
   the web notification provider
 - Push storage: `${CLARA_CONFIG_DIR:-~/.config/clara}/subscriptions.json` (mode
   `0600`); VAPID keys live in `vapid.json` next to it

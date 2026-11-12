@@ -31,7 +31,7 @@ pnpm clara web start --docker --build
 ```
 
 Open [127.0.0.1:8080](http://127.0.0.1:8080). The image builds the same bundle as
-`pnpm --filter @clara/web build`, and `docker/web.nginx.conf` mirrors
+`pnpm --filter @clara/web build`, and `infra/docker/web.nginx.conf` mirrors
 `apps/web/public/_headers`: the worker and app shell revalidate, hashed assets
 cache for a year, and the CSP, referrer, permissions, and nosniff headers match.
 `pnpm clara rebuild` captures the container and recreates it with a fresh build.
@@ -41,7 +41,7 @@ Web URL is `http://127.0.0.1:8080`, so local codes print a link to this
 container. A remote HTTPS page cannot open a `ws://` socket, so remote browsers
 need a relay pairing. Set **Web URL** in the hub panel for a remote deployment
 (`CLARA_PAIRING_BASE_URL` overrides it), and set `VITE_CLARA_WS_URL` in
-`docker/.env` only when the browser must use a different relay endpoint than the
+`infra/docker/.env` only when the browser must use a different relay endpoint than the
 agent, then rebuild with `--build`.
 
 Browsers share cookies across every port on the same host, so other local apps

@@ -16,23 +16,28 @@ trusted network.
 ## Workspace
 
 ```text
-apps/web              React/Vite SPA, deployed to Cloudflare Pages or the web container
-apps/panel            Authenticated hub panel and setup surface served by the hub service
-apps/server           Node hub service, /v1 API, harness proxy, local WS + outbound relay
-apps/orchestrator     Loopback orchestration service, REST/SSE/MCP
-apps/mcp              stdio MCP bridge to the orchestration service
-apps/api-mcp          stdio read-only MCP bridge to the hub API
-apps/adapter-opencode  OpenCode harness adapter, binding, and standalone bin
-packages/adapter      Harness-neutral adapter runtime, supervision, and enrollment
-packages/binding-core Orchestration binding client, delivery, prompt, and usage
-packages/shared-types Wire frames, actions, states, pairing payloads
-packages/api-contract Hub API schemas and generated OpenAPI components
-packages/api-client   Fetch-based hub API SDK
-packages/api-mcp      Read-only hub API MCP tools
-packages/orchestration Package loader, runtime, leases, and watchdog
-packages/runner       Shared script runner for harness adapters
-packages/crypto       device-key derivation, AES-GCM envelopes, replay guard
-workers/relay         Cloudflare Worker + RelayRoom Durable Object
+apps/
+  web/                    React/Vite SPA, deployed to Cloudflare Pages or the web container
+  hub/
+    server/               Node hub service, /v1 API, harness proxy, local WS + outbound relay
+    panel/                Authenticated hub panel and setup surface
+  orchestrator/           Loopback orchestration service, REST/SSE/MCP
+  adapters/
+    opencode/             OpenCode harness adapter, binding, and standalone bin
+tools/
+  cli/                    Developer CLI for the stack, worktrees, and docs
+  lab/                    Loopback pipeline preview and agent probe
+  docs/                   User guide and internal documentation site
+packages/
+  contracts/              shared-types, api-contract, harness-protocol
+  api/                    api-client, mcp
+  orchestration/          engine, policy, control, mcp
+  adapters/               runtime, binding, runner
+  preview/                Pipeline preview, diagnostics, and snapshot diff SDK
+  crypto/                 Device-key derivation, AES-GCM envelopes, replay guard
+infra/
+  relay/                  Cloudflare Worker + RelayRoom Durable Object
+  docker/                 Compose files, Dockerfiles, and the stack .env example
 ```
 
 ## Development workflow
@@ -160,7 +165,7 @@ pnpm clara stop
 ```
 
 `start` brings up the orchestrator, the hub (with its panel), and the web
-client, creates the `clara` network, and writes `docker/.env` with a random
+client, creates the `clara` network, and writes `infra/docker/.env` with a random
 orchestration token on first run. The containers are named `clara-orchestrator`,
 `clara-server`, and `clara-web`. Disable any part with `--no-orchestrator`,
 `--no-server`, or `--no-web`; combine them when needed:
@@ -184,11 +189,11 @@ Docker state lives in named volumes, never in the local install directories:
 | `clara-orchestrator-data` | `orchestration.db` and the container token                                          |
 
 Only the workspace is a host bind. Set `CLARA_SERVER_CONFIG_DIR`,
-`CLARA_SERVER_DATA_DIR`, or `CLARA_ORCHESTRATOR_DATA_DIR` in `docker/.env` to an
+`CLARA_SERVER_DATA_DIR`, or `CLARA_ORCHESTRATOR_DATA_DIR` in `infra/docker/.env` to an
 absolute host path when you want to bind one of those states instead. Local
 installs (`pnpm clara start --local`, `pnpm dev`, and
 `pnpm clara orchestrator start --local`) keep using `~/.config/clara` and
-`~/.local/share/clara`; they never read `docker/.env` or the Docker volumes. See
+`~/.local/share/clara`; they never read `infra/docker/.env` or the Docker volumes. See
 [docs/development.md](docs/development.md#local-and-docker-state) for the full
 state map and the one-time migration.
 
@@ -272,7 +277,7 @@ pnpm clara web stop --docker
 
 Open <http://127.0.0.1:8080>. The image builds the same bundle as
 `pnpm --filter @clara/web build` and serves it with nginx on host loopback; the
-Pages headers and cache rules are mirrored in `docker/web.nginx.conf`.
+Pages headers and cache rules are mirrored in `infra/docker/web.nginx.conf`.
 
 Pairing mode comes from the hub, not the web image. `pnpm clara server pair
 --docker` prints a relay code when the hub has a relay configured and a local
@@ -344,7 +349,7 @@ cannot open a `ws://` socket. For phones, configure the relay instead.
 1. Deploy the Worker once:
 
    ```bash
-   cd workers/relay
+   cd infra/relay
    pnpm exec wrangler secret put CLARA_AGENT_TOKEN
    pnpm exec wrangler secret put CLARA_CLIENT_TOKEN
    cd ../..
@@ -493,7 +498,7 @@ release. See [docs/architecture/overview.md](docs/architecture/overview.md).
 ## Documentation
 
 End-user and self-hosting documentation lives in
-[apps/docs/guide/index.md](apps/docs/guide/index.md). Run the site locally with
+[tools/docs/guide/index.md](tools/docs/guide/index.md). Run the site locally with
 `pnpm clara docs`; it serves the guide at `/guide/` and the developer docs at
 `/internals/`.
 

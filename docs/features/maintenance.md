@@ -122,7 +122,7 @@ and `pnpm clara orchestrator inspect`.
 - **The web client runs in a container:** restart stops and recreates it with
   `pnpm clara web stop --docker` and `pnpm clara web start --docker --build`,
   then waits for `/healthz`. The fresh build reuses any `VITE_CLARA_WS_URL` in
-  `docker/.env`, so keep a retargeted relay endpoint there when the image uses
+  `infra/docker/.env`, so keep a retargeted relay endpoint there when the image uses
   one.
 - **The web client is served outside compose:** a healthy `/healthz` without a
   running compose service is captured as `local` and skipped with a warning;
@@ -177,7 +177,7 @@ clara`. A manually started hub is restarted from the captured root with its
 - A manually started hub can lose environment-only credentials when the
   process environment is not readable; systemd-managed hubs do not.
 - A containerized hub is rebuilt from its Dockerfile, not from the host
-  `apps/server/dist`; the restart step stops it and runs `server start --docker
+  `apps/hub/server/dist`; the restart step stops it and runs `server start --docker
 --build` from the captured build checkout.
 - The hub container form is saved from the panel health `mode` or a
   running compose service. A stopped container is recorded as `stopped`, not as
@@ -185,7 +185,7 @@ clara`. A manually started hub is restarted from the captured root with its
 - The web container form is saved from its `/healthz` response and a running
   compose service. A web client served by another static server is captured as
   `local` and is not restarted by the pipeline.
-- A rebuilt web image takes `VITE_CLARA_WS_URL` from `docker/.env` (or the
+- A rebuilt web image takes `VITE_CLARA_WS_URL` from `infra/docker/.env` (or the
   environment). If a previous image retargeted relay rooms and the value is
   missing, the new image falls back to the relay URL in each pairing code.
 - A Lab started with `pnpm dev:lab` is restarted as the built Lab server, not
@@ -207,7 +207,7 @@ clara`. A manually started hub is restarted from the captured root with its
 <summary>Commands, state, endpoints, and references</summary>
 
 - Pipeline: `std:maintenance/rebuild`, `std:maintenance/recover`, and
-  `std:maintenance/diagnose`; package `packages/orchestration/std/maintenance`.
+  `std:maintenance/diagnose`; package `packages/orchestration/engine/std/maintenance`.
 - CLI: `pnpm clara rebuild status|build|adapters|restart|health|inspect|recover`
   with `--json`, `--root <path>`, `--state <path>`, `--dry-run`,
   `--manage-external`, `--force`, `--skip <service>`, `--lines <n>`, and
@@ -251,11 +251,11 @@ clara`. A manually started hub is restarted from the captured root with its
   discovery. The hub container uses
   `pnpm clara server status|start --docker`; the web container uses
   `pnpm clara web status|start --docker`.
-- Tests: `scripts/test/rebuild.test.mjs`,
-  `scripts/test/web-control.test.mjs`,
-  `packages/orchestration/test/loader.test.ts`,
-  `packages/orchestration/test/evidence.test.ts`, and
-  `packages/devtools/test/preview.test.ts`.
+- Tests: `tools/cli/test/rebuild.test.mjs`,
+  `tools/cli/test/web-control.test.mjs`,
+  `packages/orchestration/engine/test/loader.test.ts`,
+  `packages/orchestration/engine/test/evidence.test.ts`, and
+  `packages/preview/test/preview.test.ts`.
 - See [orchestration.md](orchestration.md) for the engine and
   [capabilities.md](capabilities.md) for shipped scope.
 

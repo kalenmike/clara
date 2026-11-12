@@ -197,7 +197,7 @@ directory. The web client uses the typed `/v1` API and never sends a command.
   `client.worktree.refresh({ projectID })`
 - Project ID: the canonical project record for the route, passed from the chat
   page so worktree lookups use the record that owns them
-- Git log endpoint: `apps/server/src/api/git.ts` builds the command and parses
+- Git log endpoint: `apps/hub/server/src/api/git.ts` builds the command and parses
   the output
 - Live updates: `filesystem.changed` for changes, `vcs.branch.updated` and
   session idle/execution events for history, `worktree.updated` and

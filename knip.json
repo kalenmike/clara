@@ -1,18 +1,18 @@
 {
   "workspaces": {
-    ".": {
-      "entry": ["scripts/*.mjs", "scripts/test/*.test.mjs"],
-      "project": ["scripts/**/*.mjs"]
+    "tools/cli": {
+      "entry": ["src/commands/*.mjs", "test/*.test.mjs"],
+      "project": ["src/**/*.mjs", "test/**/*.mjs"]
     },
     "apps/web": {
       "entry": ["index.html"],
       "project": ["src/**/*.{ts,tsx}"]
     },
-    "apps/panel": {
+    "apps/hub/panel": {
       "entry": ["index.html"],
       "project": ["src/**/*.{ts,tsx,css}"]
     },
-    "apps/docs": {
+    "tools/docs": {
       "entry": ["src/clientModules/**/*.ts", "src/pages/**/*.tsx", "src/theme/**/*.tsx"],
       "project": ["*.ts", "src/**/*.{ts,tsx}"],
       "ignoreDependencies": [
@@ -20,65 +20,59 @@
         "@easyops-cn/docusaurus-theme-docusaurus-search-local"
       ]
     },
-    "apps/lab": {
+    "tools/lab": {
       "entry": ["index.html"],
       "project": ["src/**/*.{ts,tsx}", "server/**/*.ts", "test/**/*.ts"]
     },
-    "apps/server": {
+    "apps/hub/server": {
       "project": ["src/**/*.ts", "test/**/*.ts"]
     },
-    "packages/shared-types": {
+    "packages/contracts/shared-types": {
       "project": ["src/**/*.ts", "test/**/*.ts"]
     },
-    "packages/api-contract": {
+    "packages/contracts/api-contract": {
       "project": ["src/**/*.ts", "test/**/*.ts"]
     },
-    "packages/api-client": {
+    "packages/api/api-client": {
       "project": ["src/**/*.ts", "test/**/*.ts"]
     },
-    "packages/api-mcp": {
+    "packages/api/mcp": {
       "project": ["src/**/*.ts", "test/**/*.ts"]
-    },
-    "apps/api-mcp": {
-      "project": ["src/**/*.ts"]
     },
     "packages/crypto": {
       "project": ["src/**/*.ts", "test/**/*.ts"]
     },
-    "workers/relay": {
+    "infra/relay": {
       "project": ["src/**/*.ts", "test/**/*.ts"]
     },
-    "packages/policy": {
+    "packages/orchestration/policy": {
       "project": ["src/**/*.ts", "test/**/*.ts"]
     },
-    "packages/orchestration": {
+    "packages/orchestration/engine": {
       "project": ["src/**/*.ts", "test/**/*.ts"]
     },
-    "packages/runner": {
+    "packages/adapters/runner": {
       "project": ["src/**/*.ts", "test/**/*.ts"]
     },
-    "packages/binding-core": {
+    "packages/adapters/binding": {
       "project": ["src/**/*.ts", "test/**/*.ts"]
     },
-    "packages/adapter": {
+    "packages/adapters/runtime": {
       "project": ["src/**/*.ts", "test/**/*.ts"]
     },
-    "packages/orchestration-control": {
+    "packages/orchestration/control": {
       "project": ["src/**/*.ts", "test/**/*.ts"]
     },
-    "packages/devtools": {
+    "packages/preview": {
       "project": ["src/**/*.ts", "test/**/*.ts"]
     },
-    "packages/mcp-server": {
-      "project": ["src/**/*.ts"]
+    "packages/orchestration/mcp": {
+      "project": ["src/**/*.ts", "test/**/*.ts"]
     },
     "apps/orchestrator": {
       "project": ["src/**/*.ts", "test/**/*.ts"]
     },
-    "apps/mcp": {
-      "project": ["src/**/*.ts"]
-    },
-    "apps/adapter-opencode": {
+    "apps/adapters/opencode": {
       "project": ["src/**/*.ts", "test/**/*.ts", "plugin/**/*.ts"],
       "ignoreDependencies": ["@clara/mcp", "ws"]
     }

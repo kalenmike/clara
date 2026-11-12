@@ -11,7 +11,7 @@ service and run lifecycle.
 ## Active config
 
 The engine ships a default config at
-`packages/orchestration/default/index.yml`. It imports the five standard
+`packages/orchestration/engine/default/index.yml`. It imports the five standard
 packages and declares the classifier router, so a fresh install can start a run
 without a workspace config. The workspace is only the directory where workers
 run, scripts execute, and artifacts live; it does not have to contain a config.

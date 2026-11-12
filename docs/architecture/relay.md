@@ -17,14 +17,14 @@ Clara hub /v1 API ──outbound WSS──▶ Worker ──▶ RelayRoom DO ◀�
 
 ## Components
 
-| Component       | Location                | Responsibility                                               |
-| --------------- | ----------------------- | ------------------------------------------------------------ |
-| Hub service     | `apps/server`           | Hub `/v1` API, harness auth, E2EE sessions, relay reconnect  |
-| Relay Worker    | `workers/relay`         | Path routing, subprotocol/token auth, static health endpoint |
-| `RelayRoom` DO  | `workers/relay`         | One hub socket + N client sockets; frame forwarding only     |
-| Web transport   | `apps/web`              | Fetch-over-WebSocket shim, E2EE, reconnect, heartbeat        |
-| Shared protocol | `packages/shared-types` | Frame/action/state types and pairing payloads                |
-| Crypto          | `packages/crypto`       | device-key derivation, AES-GCM seal/open, replay guard       |
+| Component       | Location                          | Responsibility                                               |
+| --------------- | --------------------------------- | ------------------------------------------------------------ |
+| Hub service     | `apps/hub/server`                 | Hub `/v1` API, harness auth, E2EE sessions, relay reconnect  |
+| Relay Worker    | `infra/relay`                     | Path routing, subprotocol/token auth, static health endpoint |
+| `RelayRoom` DO  | `infra/relay`                     | One hub socket + N client sockets; frame forwarding only     |
+| Web transport   | `apps/web`                        | Fetch-over-WebSocket shim, E2EE, reconnect, heartbeat        |
+| Shared protocol | `packages/contracts/shared-types` | Frame/action/state types and pairing payloads                |
+| Crypto          | `packages/crypto`                 | device-key derivation, AES-GCM seal/open, replay guard       |
 
 ## Example domain layout
 
@@ -70,7 +70,7 @@ The Worker checks the role-specific token with a constant-time comparison, then
 forwards a trusted `x-clara-role` header to the DO. Use separate secrets:
 
 ```bash
-cd workers/relay
+cd infra/relay
 pnpm exec wrangler secret put CLARA_AGENT_TOKEN
 pnpm exec wrangler secret put CLARA_CLIENT_TOKEN
 ```
@@ -90,7 +90,7 @@ The hub's relay role and secret keep the historical `agent` name
 2. Set `VITE_CLARA_WS_URL=wss://relay.example` in the Pages build environment,
    using your own relay host.
 3. Deploy the Worker with `pnpm deploy:relay`; it creates the DO namespace. Add
-   your own custom domain route in `workers/relay/wrangler.jsonc` or the
+   your own custom domain route in `infra/relay/wrangler.jsonc` or the
    Cloudflare dashboard, or use the workers.dev URL.
 4. Set the Worker secrets and matching server environment variables. Open the
    hub panel and set **Web URL** to your web URL; `CLARA_PAIRING_BASE_URL`
@@ -99,7 +99,7 @@ The hub's relay role and secret keep the historical `agent` name
    `CLARA_AGENT_TOKEN`, and `CLARA_CLIENT_TOKEN`. When the room is omitted, the
    hub generates one and persists it in `server.json`; keep that value stable,
    because every pairing code is scoped to it.
-6. Run `node apps/server/dist/index.js pair` and scan the QR from the phone.
+6. Run `node apps/hub/server/dist/index.js pair` and scan the QR from the phone.
 
 ## Failure behavior
 

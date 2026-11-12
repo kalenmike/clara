@@ -1,0 +1,14 @@
+{
+  "name": "@clara/cli",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "description": "Clara repository, stack, and worktree CLI.",
+  "bin": {
+    "clara": "./src/main.mjs",
+    "clara-task": "./src/task.mjs"
+  },
+  "scripts": {
+    "test": "node --test test/*.test.mjs"
+  }
+}

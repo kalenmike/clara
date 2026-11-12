@@ -312,11 +312,11 @@ writing custom pipelines, not for end users.
   them with origin `{ harness: "clara-lab", agent: "lab", kind: "agent" }` and
   selects them by ID; **Runs** filters the same origin client-side. On load the
   dock resumes only the newest active debug run; terminal runs stay pickable.
-- SDK package: `@clara/devtools` exports `resolveWorkspace`, `previewPipeline`,
+- SDK package: `@clara/pipeline-preview` exports `resolveWorkspace`, `previewPipeline`,
   `listTargets`, `describePackages`, `collectSources`, `diagnoseCompiled`,
   `diagnoseCatalog`, `diffCompiled`, and `inspectSnapshot`.
-- Lab app: `apps/lab`; package: `packages/devtools`; browser UI under
-  `apps/lab/src`; server under `apps/lab/server`.
+- Lab app: `tools/lab`; package: `packages/preview`; browser UI under
+  `tools/lab/src`; server under `tools/lab/server`.
 - Related docs: [orchestration.md](orchestration.md),
   [capabilities.md](capabilities.md).
 

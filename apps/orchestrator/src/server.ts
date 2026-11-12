@@ -1,9 +1,9 @@
 import { randomUUID } from 'node:crypto'
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http'
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js'
-import { createClaraServer } from '@clara/mcp-server'
+import { createClaraServer } from '@clara/mcp'
 import type { Runtime } from '@clara/orchestration'
-import { instanceMode } from '@clara/orchestration-control'
+import { instanceMode } from '@clara/service-control'
 import { RuntimeBackend } from './backend.ts'
 
 export interface OrchestratorServerOptions {

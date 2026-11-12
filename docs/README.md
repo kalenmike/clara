@@ -9,8 +9,8 @@ sidebar_position: 0
 This is the canonical index for developer and agent documentation. If a document
 is not listed here, it is not part of the internal set.
 
-End-user documentation lives separately in `apps/docs/guide/`, is indexed at
-`apps/docs/guide/index.md`, and is published at `/guide/`. Internal docs are
+End-user documentation lives separately in `tools/docs/guide/`, is indexed at
+`tools/docs/guide/index.md`, and is published at `/guide/`. Internal docs are
 published at `/internals/` behind a visible "Internal" banner. They describe how
 Clara works; the guide describes how to use it.
 
@@ -31,10 +31,10 @@ Clara works; the guide describes how to use it.
    append-only and intentionally unindexed. Historical records stay in Git
    history; the canonical docs describe current behaviour.
 9. **Keep the two sets separate.** Developer and agent documentation stays here.
-   End-user pages live in `apps/docs/guide/` and are listed in its own index.
+   End-user pages live in `tools/docs/guide/` and are listed in its own index.
    Do not publish internal implementation detail in the guide.
 10. **User-visible behavior changes update the guide.** If people can see the
-    change, edit the matching page under `apps/docs/guide/` in the same change.
+    change, edit the matching page under `tools/docs/guide/` in the same change.
 11. **Guide pages never link into internal docs.** The guide may link to the
     developer documentation landing page, not to individual specs.
 

@@ -8,9 +8,9 @@
 **/.tmp*
 **/*.tsbuildinfo
 apps/web
-apps/panel
-apps/server
-apps/mcp
-plugins
-workers
+apps/hub
+tools/lab
+tools/docs
+tools
+infra
 docs

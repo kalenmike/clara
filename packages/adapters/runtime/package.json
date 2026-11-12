@@ -1,0 +1,29 @@
+{
+  "name": "@clara/adapter-runtime",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "description": "Harness-neutral adapter runtime and supervision.",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "build": "tsup",
+    "typecheck": "tsc -p tsconfig.json",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@clara/crypto": "workspace:*",
+    "@clara/harness-protocol": "workspace:*",
+    "@clara/shared-types": "workspace:*",
+    "hono": "^4.13.17",
+    "ws": "^8.22.1"
+  },
+  "devDependencies": {
+    "@types/node": "^24.19.2",
+    "@types/ws": "^8.18.2",
+    "tsup": "^9.0.0",
+    "typescript": "~6.0.3",
+    "vitest": "^5.0.5"
+  }
+}

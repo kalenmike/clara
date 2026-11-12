@@ -3,7 +3,7 @@ import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { defineConfig } from 'tsup'
 
-const engineSource = fileURLToPath(new URL('../../packages/orchestration/', import.meta.url))
+const engineSource = fileURLToPath(new URL('../../packages/orchestration/engine/', import.meta.url))
 const outputDir = fileURLToPath(new URL('./dist/', import.meta.url))
 
 export default defineConfig({

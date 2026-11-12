@@ -114,13 +114,13 @@ installing it installs both the hub-facing daemon and the orchestration binding.
 - Frames: `adapter.request`, `adapter.abort`, `adapter.response`,
   `adapter.chunk`, `adapter.end`, `adapter.error`, `adapter.enroll`,
   `adapter.enrolled`.
-- Adapter app and binding: `apps/adapter-opencode`; the OpenCode policy plugin
-  and agent live in `apps/adapter-opencode/plugin/`. It uses
+- Adapter app and binding: `apps/adapters/opencode`; the OpenCode policy plugin
+  and agent live in `apps/adapters/opencode/plugin/`. It uses
   `@opencode/client@2.1.1` for all OpenCode HTTP and SSE access; there is no
   raw OpenCode `/api` proxy.
-- Protocol package: `packages/harness-protocol`.
-- Adapter runtime: `packages/adapter`; orchestration binding core:
-  `packages/binding-core`.
+- Protocol package: `packages/contracts/harness-protocol`.
+- Adapter runtime: `packages/adapters/runtime`; orchestration binding core:
+  `packages/adapters/binding`.
 - Adapter data: `<config>/clara/adapters/opencode/config.json` and
   `<data>/clara/adapters/opencode/{identity.json,adapter.log,adapter.pid,state.json}`.
   `state.json` records the live hub link, last frame time, last error, and the
@@ -132,7 +132,7 @@ installing it installs both the hub-facing daemon and the orchestration binding.
   `pnpm clara adapter install --opencode --pair <code>`,
   `pnpm clara adapter status [--json]`,
   `clara-adapter-opencode uninstall [--purge]`.
-- Docker: `docker/adapter-opencode.compose.yml`; no published ports.
+- Docker: `infra/docker/adapter-opencode.compose.yml`; no published ports.
 - Related: [pairing.md](pairing.md), [connection.md](connection.md),
   [panel.md](panel.md), [api.md](../architecture/api.md).
 
