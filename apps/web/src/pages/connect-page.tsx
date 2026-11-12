@@ -6,6 +6,7 @@ import { PairForm } from '@/components/connect/pair-form'
 import { QrScanDialog } from '@/components/connect/qr-scan-dialog'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { useSessionWording } from '@/features/sessions/use-wording'
+import { pairingInputError } from '@/lib/pairing'
 import { isCameraScanningAvailable } from '@/lib/qr-scan'
 import { useConnection } from '@/providers/connection-provider'
 
@@ -33,7 +34,7 @@ export function ConnectPage() {
     event.preventDefault()
     const payload = parsePairingInput(pairCode)
     if (!payload) {
-      setPairError('That does not look like a Clara pairing code or link.')
+      setPairError(pairingInputError(pairCode))
       return
     }
     await startPairing(payload)
@@ -42,9 +43,7 @@ export function ConnectPage() {
   const scanPairing = (value: string): boolean => {
     const payload = parsePairingInput(value)
     if (!payload) {
-      setScanError(
-        'That QR code is not a Clara pairing code. Point the camera at the code printed by clara-server pair.'
-      )
+      setScanError(pairingInputError(value))
       return false
     }
     setScanError(null)
