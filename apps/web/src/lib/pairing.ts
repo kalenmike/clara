@@ -1,4 +1,23 @@
-import { parsePairingInput, type PairingPayload } from '@clara/shared-types'
+import {
+  HARNESS_PAIRING_CODE_PREFIX,
+  parseHarnessPairingInput,
+  parsePairingInput,
+  type PairingPayload,
+} from '@clara/shared-types'
+
+/**
+ * Browser codes and adapter codes look alike but enroll different things.
+ * Name the adapter case so a panel code is not reported as random text.
+ */
+export function pairingInputError(input: string): string {
+  const value = input.trim()
+  if (!value) return 'Enter a Clara pairing code or link.'
+  if (parsePairingInput(value)) return ''
+  if (value.startsWith(HARNESS_PAIRING_CODE_PREFIX) || parseHarnessPairingInput(value)) {
+    return 'That is a harness adapter pairing code. Run pnpm clara adapter install --opencode --pair <code> on the machine that runs OpenCode. To pair this browser, use a code from pnpm clara pair.'
+  }
+  return 'That does not look like a Clara pairing code or link. Browser pairing codes start with clara1_.'
+}
 
 let pending: PairingPayload | null = null
 let captured = false

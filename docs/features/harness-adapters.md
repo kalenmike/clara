@@ -12,7 +12,9 @@ installing it installs both the hub-facing daemon and the orchestration binding.
 1. Open the hub panel → **Harness adapters** → choose **OpenCode** and the
    adapter location: **Docker network** (default), **This machine**, or
    **Cloudflare relay** → **Add harness**.
-2. Copy the pairing code or the matching command.
+2. Copy the pairing code or the matching command. Panel codes start with
+   `clara-harness1_` and only install an adapter; the browser still pairs with
+   a `clara1_` code from `pnpm clara pair`.
 3. On the machine that runs OpenCode, run
    `pnpm clara adapter install --opencode --pair <code>`.
 4. The installer discovers OpenCode from flags, environment, or
@@ -51,11 +53,17 @@ installing it installs both the hub-facing daemon and the orchestration binding.
 - **OpenCode not reachable** — the installer prompts for URL and credentials,
   then retests.
 - **Pairing code expired or used** — generate a new code in the panel.
+- **Wrong code pasted in the browser** — panel codes are named as adapter codes;
+  the web tells the user to install them with the adapter command and to use
+  `pnpm clara pair` for a browser.
 - **Wrong harness kind** — the adapter rejects a code issued for another type.
 - **Adapter offline** — the panel shows **Paired · Offline**, keeps the
   connection, and `/v1` returns `harness_offline`; the adapter reconnects with
-  backoff when it returns. A hub restart clears persisted online state, and a
-  socket close clears it immediately.
+  backoff when it returns. The web stays connected and shows a retryable
+  harness banner. A hub restart clears persisted online state, and a socket
+  close clears it immediately. The adapter logs `adapter authenticated` only
+  after it decrypts a hub frame, so a key mismatch is visible instead of being
+  reported as a successful recovery.
 - **Harness switch off** — adapters keep their credentials but the panel shows
   **Off** and the hub does not proxy until the switch is on again.
 - **Adapter reinstalled** — the same identity reconnects the same sessions and

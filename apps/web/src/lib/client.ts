@@ -1,4 +1,5 @@
 import { createClaraClient, type ClaraClient } from '@clara/api-client'
+import type { ApiInfo, ClaraServerInfo } from '@clara/api-contract'
 import type { ClaraAction } from '@clara/shared-types'
 import {
   createRelayTransport,
@@ -58,7 +59,8 @@ export type ClientHandle = {
 
 export type { ClaraClient }
 
-export type ServerInfo = Awaited<ReturnType<ClaraClient['server']['info']>>
+export type HubInfo = ApiInfo
+export type HarnessInfo = ClaraServerInfo
 
 export type ConnectionStatus = 'disconnected' | 'connecting' | 'connected' | 'error'
 

@@ -4,6 +4,7 @@ import { Menu } from 'lucide-react'
 import { ConnectionSplash } from '@/components/connect/connection-splash'
 import { Button } from '@/components/ui/button'
 import { Sheet, SheetContent, SheetDescription, SheetTitle } from '@/components/ui/sheet'
+import { HarnessBanner } from '@/components/layout/harness-banner'
 import { MobileActionsProvider, MobileActionsSlot } from '@/components/layout/mobile-actions'
 import { Sidebar, SidebarContent } from '@/components/layout/sidebar'
 import { OrchestrationProvider } from '@/features/orchestration/provider'
@@ -27,7 +28,7 @@ export function AppShell() {
   }, [location.pathname])
 
   if (status === 'connecting') {
-    return <ConnectionSplash label="Connecting to OpenCode…" />
+    return <ConnectionSplash label="Connecting to the hub…" />
   }
 
   if (status !== 'connected') {
@@ -77,6 +78,7 @@ export function AppShell() {
                   <MobileActionsSlot />
                 </div>
                 <UpdateBanner />
+                <HarnessBanner />
                 <div className="min-h-0 flex-1">
                   <PushProvider>
                     <NotificationProvider>

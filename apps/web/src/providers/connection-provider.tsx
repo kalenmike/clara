@@ -23,10 +23,12 @@ import {
   type ConnectionSummary,
   type DeviceConnection,
   type ClaraClient,
-  type ServerInfo,
+  type HarnessInfo,
+  type HubInfo,
 } from '@/lib/client'
 import type { RelayTransportStatus } from '@/lib/transport/relay'
 import { chatStore } from '@/features/chat/chat-store'
+import { probeHub } from '@/lib/hub-probe'
 import { hasPendingPairingLink, takePairingLink } from '@/lib/pairing'
 import {
   canStoreDeviceKey,
@@ -49,7 +51,9 @@ export type ConnectionBootSource = 'pairing-link' | 'stored' | null
 type ConnectionContextValue = {
   config: ConnectionSummary | null
   client: ClaraClient | null
-  info: ServerInfo | null
+  hub: HubInfo | null
+  harness: HarnessInfo | null
+  harnessError: string | null
   status: ConnectionStatus
   error: string | null
   attempt: ConnectionSummary | null
@@ -64,6 +68,7 @@ type ConnectionContextValue = {
   reconnectError: string | null
   connect: (payload: PairingPayload) => Promise<boolean>
   reconnect: () => Promise<boolean>
+  refreshHarness: () => Promise<void>
   disconnect: () => void
 }
 
@@ -76,7 +81,9 @@ export function ConnectionProvider({ children }: { children: ReactNode }) {
   const queryClient = useQueryClient()
   const [config, setConfig] = useState<ConnectionSummary | null>(null)
   const [client, setClient] = useState<ClaraClient | null>(null)
-  const [info, setInfo] = useState<ServerInfo | null>(null)
+  const [hub, setHub] = useState<HubInfo | null>(null)
+  const [harness, setHarness] = useState<HarnessInfo | null>(null)
+  const [harnessError, setHarnessError] = useState<string | null>(null)
   const [status, setStatus] = useState<ConnectionStatus>('disconnected')
   const [error, setError] = useState<string | null>(null)
   const [attempt, setAttempt] = useState<ConnectionSummary | null>(null)
@@ -92,7 +99,38 @@ export function ConnectionProvider({ children }: { children: ReactNode }) {
   const configRef = useRef<DeviceConnection | null>(null)
   const handleRef = useRef<ClientHandle | null>(null)
   const unsubscribeRef = useRef<(() => void) | null>(null)
+  const harnessRequestRef = useRef(0)
+  const harnessFailedRef = useRef(false)
   const booted = useRef(false)
+
+  const clearHarness = useCallback(() => {
+    harnessRequestRef.current += 1
+    harnessFailedRef.current = false
+    setHarness(null)
+    setHarnessError(null)
+  }, [])
+
+  const refreshHarness = useCallback(async () => {
+    const handle = handleRef.current
+    if (!handle) return
+    const request = (harnessRequestRef.current += 1)
+    try {
+      const next = await handle.client.server.info({
+        signal: AbortSignal.timeout(PROBE_TIMEOUT_MS),
+      })
+      if (harnessRequestRef.current !== request) return
+      const recovered = harnessFailedRef.current
+      harnessFailedRef.current = false
+      setHarness(next)
+      setHarnessError(null)
+      if (recovered) void queryClient.invalidateQueries()
+    } catch (cause) {
+      if (harnessRequestRef.current !== request) return
+      harnessFailedRef.current = true
+      setHarness(null)
+      setHarnessError(describeConnectionError(cause))
+    }
+  }, [queryClient])
 
   const clearHandle = useCallback(() => {
     unsubscribeRef.current?.()
@@ -111,6 +149,16 @@ export function ConnectionProvider({ children }: { children: ReactNode }) {
     setControl(handle.control)
     unsubscribeRef.current = handle.subscribeStatus(setRelayStatus)
   }, [])
+
+  // Harness liveness is a separate concern from the hub tunnel. A failed
+  // `/v1/harness/info` leaves the connection up and surfaces a banner instead.
+  useEffect(() => {
+    if (!client) {
+      clearHarness()
+      return
+    }
+    void refreshHarness()
+  }, [client, clearHarness, refreshHarness])
 
   const connectDevice = useCallback(
     async (device: StoredDevice): Promise<boolean> => {
@@ -131,9 +179,7 @@ export function ConnectionProvider({ children }: { children: ReactNode }) {
 
       const handle = createClient(next)
       try {
-        const nextInfo = await handle.client.server.info({
-          signal: AbortSignal.timeout(PROBE_TIMEOUT_MS),
-        })
+        const nextHub = await probeHub(handle.client, PROBE_TIMEOUT_MS)
         if (configRef.current && connectionKey(configRef.current) !== connectionKey(summary)) {
           chatStore.reset()
           queryClient.clear()
@@ -142,7 +188,7 @@ export function ConnectionProvider({ children }: { children: ReactNode }) {
         installHandle(handle)
         setClient(handle.client)
         setConfig(summary)
-        setInfo(nextInfo)
+        setHub(nextHub)
         setStatus('connected')
         setGeneration((value) => value + 1)
         return true
@@ -151,13 +197,14 @@ export function ConnectionProvider({ children }: { children: ReactNode }) {
         clearHandle()
         setClient(null)
         setConfig(null)
-        setInfo(null)
+        setHub(null)
+        clearHarness()
         setStatus('error')
         setError(describeConnectionError(cause))
         return false
       }
     },
-    [clearHandle, installHandle, queryClient]
+    [clearHandle, clearHarness, installHandle, queryClient]
   )
 
   const connectPairing = useCallback(
@@ -211,13 +258,14 @@ export function ConnectionProvider({ children }: { children: ReactNode }) {
         clearHandle()
         setClient(null)
         setConfig(null)
-        setInfo(null)
+        setHub(null)
+        clearHarness()
         setStatus('error')
         setError(describeConnectionError(cause))
         return false
       }
     },
-    [clearHandle, connectDevice]
+    [clearHandle, clearHarness, connectDevice]
   )
 
   const connect = useCallback(
@@ -239,12 +287,10 @@ export function ConnectionProvider({ children }: { children: ReactNode }) {
 
     const handle = createClient(current)
     try {
-      const nextInfo = await handle.client.server.info({
-        signal: AbortSignal.timeout(RECONNECT_TIMEOUT_MS),
-      })
+      const nextHub = await probeHub(handle.client, RECONNECT_TIMEOUT_MS)
       installHandle(handle)
       setClient(handle.client)
-      setInfo(nextInfo)
+      setHub(nextHub)
       setStatus('connected')
       setError(null)
       setGeneration((value) => value + 1)
@@ -267,13 +313,14 @@ export function ConnectionProvider({ children }: { children: ReactNode }) {
     queryClient.clear()
     setClient(null)
     setConfig(null)
-    setInfo(null)
+    setHub(null)
+    clearHarness()
     setStatus('disconnected')
     setError(null)
     setAttempt(null)
     setReconnectError(null)
     setGeneration((value) => value + 1)
-  }, [clearHandle, queryClient])
+  }, [clearHandle, clearHarness, queryClient])
 
   useEffect(() => {
     if (booted.current || bootStarted) return
@@ -315,7 +362,9 @@ export function ConnectionProvider({ children }: { children: ReactNode }) {
     () => ({
       config,
       client,
-      info,
+      hub,
+      harness,
+      harnessError,
       status,
       error,
       attempt,
@@ -328,12 +377,15 @@ export function ConnectionProvider({ children }: { children: ReactNode }) {
       reconnectError,
       connect,
       reconnect,
+      refreshHarness,
       disconnect,
     }),
     [
       config,
       client,
-      info,
+      hub,
+      harness,
+      harnessError,
       status,
       error,
       attempt,
@@ -346,6 +398,7 @@ export function ConnectionProvider({ children }: { children: ReactNode }) {
       reconnectError,
       connect,
       reconnect,
+      refreshHarness,
       disconnect,
     ]
   )

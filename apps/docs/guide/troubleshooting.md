@@ -21,13 +21,14 @@ a generic error.
 
 ## The pairing code fails
 
-| Message                   | Fix                                                                        |
-| ------------------------- | -------------------------------------------------------------------------- |
-| Invalid or truncated code | Paste the whole `clara1_…` value or scan the QR again.                     |
-| Expired code              | Codes last 10 minutes. Ask for a fresh one.                                |
-| Code already used         | Each code enrolls one device. Ask for a new code.                          |
-| Fingerprint mismatch      | Do not trust the pairing. Ask the host for a fresh code and compare again. |
-| Device revoked            | The host revoked this browser. Pair again if access is still needed.       |
+| Message                   | Fix                                                                                                             |
+| ------------------------- | --------------------------------------------------------------------------------------------------------------- |
+| Adapter pairing code      | Panel codes (`clara-harness1_…`) install the adapter, not the browser. Run `pnpm clara pair` and use that code. |
+| Invalid or truncated code | Paste the whole `clara1_…` value or scan the QR again.                                                          |
+| Expired code              | Codes last 10 minutes. Ask for a fresh one.                                                                     |
+| Code already used         | Each code enrolls one device. Ask for a new code.                                                               |
+| Fingerprint mismatch      | Do not trust the pairing. Ask the host for a fresh code and compare again.                                      |
+| Device revoked            | The host revoked this browser. Pair again if access is still needed.                                            |
 
 ## The camera will not scan
 
@@ -39,6 +40,9 @@ a generic error.
 - If the camera is busy or missing, paste the code instead.
 
 ## Clara connects but shows no projects
+
+Clara can reach the hub while the harness is unavailable. A banner names the
+problem and offers **Retry**.
 
 - The hub may not have an active adapter. Ask the host to open the hub panel,
   check that the adapter card says **Online**, and activate it.

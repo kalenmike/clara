@@ -184,12 +184,12 @@ traffic monitoring on or off, and gates or paces client settings sync.
 ## Edge cases
 
 - **No harness is configured** — the adapter card starts open with the pairing
-  form. `/v1` requests through the hub return `503 harness_unconfigured` until
-  an adapter is paired and activated. The web app should be configured after
-  this step.
+  form. Harness-backed `/v1` requests return `503 harness_unconfigured` until
+  an adapter is paired and activated. The web can still connect and shows a
+  harness banner.
 - **The adapter is paired but offline** — the card says **Paired · Offline**,
-  the probe is not run, and `/v1` returns `harness_offline`. Start the adapter
-  service; it reconnects automatically.
+  the probe is not run, and harness-backed `/v1` returns `harness_offline`.
+  Start the adapter service; it reconnects automatically.
 - **The harness is turned off** — the adapter card says **Off**, the probe is
   not run, and proxied requests fail with a disabled error. Local and relay
   clients stay connected.

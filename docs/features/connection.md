@@ -4,10 +4,11 @@
 
 Connects Clara to one OpenCode server through the Clara hub over an
 end-to-end encrypted WebSocket, either through the Cloudflare relay or the local
-listener. There is no direct HTTP mode. Before pairing, the hub's
-authenticated panel must contain an active OpenCode harness connection; the
-hub no longer discovers OpenCode's `service.json`. Each browser enrolls its
-own device key through a one-time code; there is no shared browser key.
+listener. There is no direct HTTP mode. The browser tunnels to the hub even
+before an OpenCode harness connection is online; harness-backed requests wait
+for the active adapter. The hub no longer discovers OpenCode's `service.json`.
+Each browser enrolls its own device key through a one-time code; there is no
+shared browser key.
 
 ## User flow
 
@@ -29,9 +30,11 @@ own device key through a one-time code; there is no shared browser key.
    and the non-extractable device key in IndexedDB.
 5. Clara opens the WebSocket with the one-time enrollment token, completes the
    enrollment handshake, stores the device key, reconnects with the device id,
-   and calls the OpenCode info endpoint through the tunnel.
+   and calls `/v1/info` through the tunnel to prove the hub is reachable.
 6. On success Clara opens the last project, or the first project the server
-   returns.
+   returns. It fetches `/v1/harness/info` separately; when the active adapter is
+   missing or offline, the app stays connected and shows a retryable harness
+   banner instead of failing the connect screen.
 7. On failure the form explains whether the code, expiry, fingerprint, relay,
    authentication, or reachability failed. A failed pairing link returns to the
    pair form with the reason.
@@ -60,7 +63,9 @@ own device key through a one-time code; there is no shared browser key.
 7. The hub resolves its active adapter from SQLite. If none is paired, the
    tunnel can connect but `/v1/harness/info` returns `503` with
    `harness_unconfigured`; if the adapter is paired but offline, it returns
-   `harness_offline`. Pair or start the adapter in the panel first.
+   `harness_offline`. The connection probe is `/v1/info`, not the harness
+   endpoint, so these states render as a banner instead of a connection error.
+   Pair or start the adapter in the panel to use projects and sessions.
 8. Push notifications need the hub's E2EE transport; the control channel
    also carries push subscriptions.
 9. The web transport queues HTTP requests above a small in-flight cap. Query
@@ -83,8 +88,10 @@ own device key through a one-time code; there is no shared browser key.
   hub is unreachable.
 - **Device revoked** — the hub sends `revoked_device`, the client disconnects,
   and the panel shows the device as revoked until its record is deleted.
-- **Harness not configured** — the hub connects but the OpenCode probe fails
-  with `harness_unconfigured`. Open the panel and save an active connection.
+- **Harness not configured** — the hub connects and the app shows a harness
+  banner instead of the connect screen. Open the panel and pair an adapter.
+- **Harness paired but offline** — the banner reports `harness_offline` and
+  offers Retry; the hub tunnel and settings stay usable.
 - **Harness reachable from the host but not the container** — `127.0.0.1` inside
   the hub container is the hub service. Use the OpenCode container service
   name or an address reachable from the `clara` network.
@@ -131,8 +138,8 @@ own device key through a one-time code; there is no shared browser key.
 
 - Route: `/connect`
 - Pairing payload: `{ v, wsUrl, room, clientToken, enrollId, enrollToken, fingerprint, expiresAt }`
-- Probe: `GET /api/info` through the WebSocket transport, 8s timeout on connect,
-  5s on reconnect
+- Probe: `GET /v1/info` through the WebSocket transport, 8s timeout on connect,
+  5s on reconnect; `/v1/harness/info` loads separately for the harness banner
 - Boot gate: `ConnectionProvider` exposes `booting` and `bootSource`; the page
   renders a splash until boot settles, with a 12s watchdog
 - Client factory: `createClient` in `apps/web/src/lib/client.ts`, WebSocket only

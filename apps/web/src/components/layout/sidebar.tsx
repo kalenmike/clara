@@ -138,7 +138,7 @@ export function SidebarContent({
   const location = useLocation()
   const params = useParams<{ projectId: string; sessionId?: string }>()
   const { lowerSingular, lowerPlural } = useSessionWording()
-  const { info, reconnect, reconnecting } = useConnection()
+  const { harness, reconnect, reconnecting } = useConnection()
   const { isAutomation } = useSessionPolicy()
   const claraEnabled = Boolean(isAutomation)
   const { state } = useEventStream()
@@ -958,7 +958,9 @@ export function SidebarContent({
 
       <div className="shrink-0 border-t px-3 py-2.5 text-[11px] text-muted-foreground md:py-2 md:text-[10px]">
         <div className="flex items-center justify-between gap-2">
-          <span className="truncate">{info ? `OpenCode ${info.version}` : 'Not connected'}</span>
+          <span className="truncate">
+            {harness ? `OpenCode ${harness.version}` : 'Harness offline'}
+          </span>
           <span className="truncate" title={claraBuildTitle}>
             Clara {claraVersion} · {claraBuildLabel}
           </span>

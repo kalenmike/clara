@@ -50,7 +50,7 @@ export function QrScanDialog({
             Scan pairing QR
           </DialogTitle>
           <DialogDescription>
-            Point the camera at the QR code printed by <code>clara-server pair</code>. The code is
+            Point the camera at the QR code printed by <code>pnpm clara pair</code>. The code is
             decoded on this device and never uploaded.
           </DialogDescription>
         </DialogHeader>
@@ -93,13 +93,13 @@ export function QrScanDialog({
             </p>
           ) : scanError ? (
             <Alert variant="destructive">
-              <AlertTitle>Not a Clara pairing code</AlertTitle>
+              <AlertTitle>Pairing code</AlertTitle>
               <AlertDescription>{scanError}</AlertDescription>
             </Alert>
           ) : (
             <p className="text-center text-xs text-muted-foreground">
               {status === 'scanning'
-                ? 'Looking for a Clara pairing code…'
+                ? 'Looking for a browser pairing code…'
                 : 'Allow the camera prompt if iPhone asks.'}
             </p>
           )}

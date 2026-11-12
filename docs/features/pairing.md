@@ -16,7 +16,8 @@ pattern. **Harness adapters → Add harness → OpenCode** produces a
 the adapter over the local or relay WebSocket, and stores its long-lived
 credential. The adapter reconnects with that credential and never exposes an
 inbound port. Reinstall and re-pair reuse the stable harness identity, so Clara
-session and project metadata stays attached.
+session and project metadata stays attached. Adapter codes cannot enroll a
+browser: the connect screen names them and points at `clara-server pair`.
 
 ## User flow
 

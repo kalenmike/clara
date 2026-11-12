@@ -31,6 +31,10 @@ opens a port on the OpenCode machine.
    the first adapter becomes **Active**. If the Harness switch is off, the card
    shows **Off** instead of a live state.
 
+Panel codes are only for the adapter installer. To pair this browser, use the
+separate code or link printed by `pnpm clara pair`. A panel code starts with
+`clara-harness1_`; a browser code starts with `clara1_`.
+
 If the panel shows **Paired · Offline**, start it with:
 
 ```bash
@@ -53,9 +57,12 @@ connection keeps that state; use **Forget** only when you want to discard it.
 - **OpenCode is not found** — run the installer again and enter the URL,
   username, and password. The adapter retests before saving.
 - **The code expired** — create a new code in the panel.
+- **The browser rejects a panel code** — panel codes install the adapter, not
+  the browser. Run `pnpm clara pair`, then paste that link or code in Clara.
 - **The adapter is offline** — the card says **Paired · Offline**. Start the
   adapter service, then use **Test** in the panel. The hub keeps the connection
-  and reconnects automatically.
+  and reconnects automatically. Clara stays connected and shows a harness
+  banner with **Retry**.
 - **The Harness switch is off** — the card says **Off**. Turn the switch on to
   proxy again; the adapter credential is kept while it is off.
 - **The adapter was moved** — pair it again; the stable identity keeps the same
