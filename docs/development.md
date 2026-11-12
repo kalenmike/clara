@@ -47,26 +47,8 @@ The primary checkout's current branch is the merge target. Normally that is
 ## Worker tests
 
 `@clara/relay` runs its tests in `workerd` through the Cloudflare Vitest pool.
-`workerd` is a glibc binary and does not run on musl hosts such as Alpine. The
-relay test command probes the pinned binary before starting Vitest:
-
-- a working `workerd` runs the suite as usual;
-- a glibc loader mismatch prints a warning and skips the suite, so `pnpm check`
-  and `pnpm task session close` still finish on musl hosts;
-- any other failure, including a missing binary, stops the run.
-
-Set `CLARA_REQUIRE_WORKERD=1` on glibc CI and release runners to turn the skip
-into a failure. To use a different binary, set `MINIFLARE_WORKERD_PATH`; a
-failure there is always fatal. On Alpine, run `pnpm --filter @clara/relay test`
-inside a Debian/Ubuntu container for full Worker coverage.
-
-## Native modules
-
-`better-sqlite3` and Rollup select their prebuilt binaries from the libc Node
-reports. Alpine images that install `gcompat` report a glibc version even though
-Node runs on musl, so the patches under `patches/` inspect the loaded
-interpreter instead. Keep those patches until the dependencies detect gcompat
-correctly.
+`workerd` is a glibc binary, so the suite needs a glibc host such as Debian or
+Ubuntu and does not run on musl hosts.
 
 ## Developer commands
 
