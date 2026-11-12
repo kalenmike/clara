@@ -86,4 +86,13 @@ describe('harness manager', () => {
     expect((await response.json()) as { data: unknown[] }).toEqual({ data: [], cursor: {} })
     expect((await manager.probe()).ok).toBe(false)
   })
+
+  it('times out a probe even when the adapter ignores the abort signal', async () => {
+    await enroll()
+    await manager.setLive('harness-a', () => new Promise(() => {}), 'local')
+
+    const probe = await manager.probe(25)
+    expect(probe.code).toBe('timeout')
+    expect(probe.ok).toBe(false)
+  })
 })

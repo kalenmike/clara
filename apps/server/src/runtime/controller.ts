@@ -83,7 +83,8 @@ function adapterSessions(harness: HarnessManager) {
       fetch: (request: Request) => Promise<Response>,
       transport: Parameters<HarnessManager['enrollAdapter']>[2]
     ) => harness.setLive(harnessId, fetch, transport),
-    clearLive: (harnessId: string) => harness.clearLive(harnessId),
+    clearLive: (harnessId: string, fetch?: (request: Request) => Promise<Response>) =>
+      harness.clearLive(harnessId, fetch),
   }
 }
 
