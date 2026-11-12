@@ -51,26 +51,26 @@ importers:
         specifier: ^8.72.1
         version: 8.72.1(eslint@10.13.0(jiti@2.7.0))(typescript@6.0.3)
 
-  apps/adapter-opencode:
+  apps/adapters/opencode:
     dependencies:
       '@clara/adapter-runtime':
         specifier: workspace:*
-        version: link:../../packages/adapter
+        version: link:../../../packages/adapters/runtime
       '@clara/api-contract':
         specifier: workspace:*
-        version: link:../../packages/api-contract
+        version: link:../../../packages/contracts/api-contract
       '@clara/binding-core':
         specifier: workspace:*
-        version: link:../../packages/binding-core
+        version: link:../../../packages/adapters/binding
       '@clara/mcp':
         specifier: workspace:*
-        version: link:../../packages/mcp
+        version: link:../../../packages/orchestration/mcp
       '@clara/runner':
         specifier: workspace:*
-        version: link:../../packages/runner
+        version: link:../../../packages/adapters/runner
       '@clara/shared-types':
         specifier: workspace:*
-        version: link:../../packages/shared-types
+        version: link:../../../packages/contracts/shared-types
       '@opencode/client':
         specifier: 2.1.1
         version: 2.1.1(effect@4.0.1)
@@ -149,121 +149,11 @@ importers:
         specifier: ~6.0.3
         version: 6.0.3
 
-  apps/lab:
-    dependencies:
-      '@clara/mcp':
-        specifier: workspace:*
-        version: link:../../packages/mcp
-      '@clara/pipeline-preview':
-        specifier: workspace:*
-        version: link:../../packages/devtools
-      '@clara/policy':
-        specifier: workspace:*
-        version: link:../../packages/policy
-      '@modelcontextprotocol/sdk':
-        specifier: ^1.24.3
-        version: 1.32.2(zod@4.6.7)
-      '@opencode/client':
-        specifier: 2.1.1
-        version: 2.1.1(effect@4.0.1)
-      react:
-        specifier: ^19.3.1
-        version: 19.3.1
-      react-dom:
-        specifier: ^19.3.1
-        version: 19.3.1(react@19.3.1)
-      react-markdown:
-        specifier: ^10.1.0
-        version: 10.1.0(@types/react@19.3.0)(react@19.3.1)
-      remark-breaks:
-        specifier: ^4.0.0
-        version: 4.0.0
-      remark-gfm:
-        specifier: ^4.0.1
-        version: 4.0.1
-      yaml:
-        specifier: ^2.8.1
-        version: 2.9.1
-      zod:
-        specifier: ^4.1.13
-        version: 4.6.7
-    devDependencies:
-      '@clara/orchestration':
-        specifier: workspace:*
-        version: link:../../packages/orchestration
-      '@types/node':
-        specifier: ^24.19.2
-        version: 24.19.2
-      '@types/react':
-        specifier: ^19.3.0
-        version: 19.3.0
-      '@types/react-dom':
-        specifier: ^19.3.0
-        version: 19.3.0(@types/react@19.3.0)
-      '@vitejs/plugin-react':
-        specifier: ^6.1.2
-        version: 6.1.2(vite@8.3.5(@types/node@24.19.2)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1))
-      tsup:
-        specifier: ^9.0.0
-        version: 9.0.0(jiti@2.7.0)(postcss@8.5.32)(tsx@4.23.15)(typescript@6.0.3)(yaml@2.9.1)
-      tsx:
-        specifier: ^4.23.15
-        version: 4.23.15
-      typescript:
-        specifier: ~6.0.3
-        version: 6.0.3
-      vite:
-        specifier: ^8.3.5
-        version: 8.3.5(@types/node@24.19.2)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1)
-      vitest:
-        specifier: ^5.0.5
-        version: 5.0.5(@types/node@24.19.2)(vite@8.3.5(@types/node@24.19.2)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1))
-
-  apps/orchestrator:
-    dependencies:
-      '@clara/mcp':
-        specifier: workspace:*
-        version: link:../../packages/mcp
-      '@clara/orchestration':
-        specifier: workspace:*
-        version: link:../../packages/orchestration
-      '@clara/service-control':
-        specifier: workspace:*
-        version: link:../../packages/orchestration-control
-      '@modelcontextprotocol/sdk':
-        specifier: ^1.24.3
-        version: 1.32.2(zod@4.6.7)
-      better-sqlite3:
-        specifier: ^13.0.3
-        version: 13.0.3
-      yaml:
-        specifier: ^2.8.1
-        version: 2.9.1
-      zod:
-        specifier: ^4.1.13
-        version: 4.6.7
-    devDependencies:
-      '@types/node':
-        specifier: ^24.19.2
-        version: 24.19.2
-      tsup:
-        specifier: ^9.0.0
-        version: 9.0.0(jiti@2.7.0)(postcss@8.5.32)(tsx@4.23.15)(typescript@6.0.3)(yaml@2.9.1)
-      tsx:
-        specifier: ^4.23.15
-        version: 4.23.15
-      typescript:
-        specifier: ~6.0.3
-        version: 6.0.3
-      vitest:
-        specifier: ^5.0.5
-        version: 5.0.5(@types/node@24.19.2)(vite@8.3.5(@types/node@24.19.2)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1))
-
-  apps/panel:
+  apps/hub/panel:
     dependencies:
       '@clara/shared-types':
         specifier: workspace:*
-        version: link:../../packages/shared-types
+        version: link:../../../packages/contracts/shared-types
       lucide-react:
         specifier: ^1.64.0
         version: 1.64.0(@types/react@19.3.0)(react@19.3.1)
@@ -302,23 +192,23 @@ importers:
         specifier: ^5.0.5
         version: 5.0.5(@types/node@24.19.2)(vite@8.3.5(@types/node@24.19.2)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1))
 
-  apps/server:
+  apps/hub/server:
     dependencies:
       '@clara/api-contract':
         specifier: workspace:*
-        version: link:../../packages/api-contract
+        version: link:../../../packages/contracts/api-contract
       '@clara/crypto':
         specifier: workspace:*
-        version: link:../../packages/crypto
+        version: link:../../../packages/crypto
       '@clara/harness-protocol':
         specifier: workspace:*
-        version: link:../../packages/harness-protocol
+        version: link:../../../packages/contracts/harness-protocol
       '@clara/service-control':
         specifier: workspace:*
-        version: link:../../packages/orchestration-control
+        version: link:../../../packages/orchestration/control
       '@clara/shared-types':
         specifier: workspace:*
-        version: link:../../packages/shared-types
+        version: link:../../../packages/contracts/shared-types
       '@hono/node-server':
         specifier: ^2.1.6
         version: 2.1.6(hono@4.13.17)
@@ -378,20 +268,130 @@ importers:
         specifier: ^5.0.5
         version: 5.0.5(@types/node@24.19.2)(vite@8.3.5(@types/node@24.19.2)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1))
 
+  apps/lab:
+    dependencies:
+      '@clara/mcp':
+        specifier: workspace:*
+        version: link:../../packages/orchestration/mcp
+      '@clara/pipeline-preview':
+        specifier: workspace:*
+        version: link:../../packages/preview
+      '@clara/policy':
+        specifier: workspace:*
+        version: link:../../packages/orchestration/policy
+      '@modelcontextprotocol/sdk':
+        specifier: ^1.24.3
+        version: 1.32.2(zod@4.6.7)
+      '@opencode/client':
+        specifier: 2.1.1
+        version: 2.1.1(effect@4.0.1)
+      react:
+        specifier: ^19.3.1
+        version: 19.3.1
+      react-dom:
+        specifier: ^19.3.1
+        version: 19.3.1(react@19.3.1)
+      react-markdown:
+        specifier: ^10.1.0
+        version: 10.1.0(@types/react@19.3.0)(react@19.3.1)
+      remark-breaks:
+        specifier: ^4.0.0
+        version: 4.0.0
+      remark-gfm:
+        specifier: ^4.0.1
+        version: 4.0.1
+      yaml:
+        specifier: ^2.8.1
+        version: 2.9.1
+      zod:
+        specifier: ^4.1.13
+        version: 4.6.7
+    devDependencies:
+      '@clara/orchestration':
+        specifier: workspace:*
+        version: link:../../packages/orchestration/engine
+      '@types/node':
+        specifier: ^24.19.2
+        version: 24.19.2
+      '@types/react':
+        specifier: ^19.3.0
+        version: 19.3.0
+      '@types/react-dom':
+        specifier: ^19.3.0
+        version: 19.3.0(@types/react@19.3.0)
+      '@vitejs/plugin-react':
+        specifier: ^6.1.2
+        version: 6.1.2(vite@8.3.5(@types/node@24.19.2)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1))
+      tsup:
+        specifier: ^9.0.0
+        version: 9.0.0(jiti@2.7.0)(postcss@8.5.32)(tsx@4.23.15)(typescript@6.0.3)(yaml@2.9.1)
+      tsx:
+        specifier: ^4.23.15
+        version: 4.23.15
+      typescript:
+        specifier: ~6.0.3
+        version: 6.0.3
+      vite:
+        specifier: ^8.3.5
+        version: 8.3.5(@types/node@24.19.2)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1)
+      vitest:
+        specifier: ^5.0.5
+        version: 5.0.5(@types/node@24.19.2)(vite@8.3.5(@types/node@24.19.2)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1))
+
+  apps/orchestrator:
+    dependencies:
+      '@clara/mcp':
+        specifier: workspace:*
+        version: link:../../packages/orchestration/mcp
+      '@clara/orchestration':
+        specifier: workspace:*
+        version: link:../../packages/orchestration/engine
+      '@clara/service-control':
+        specifier: workspace:*
+        version: link:../../packages/orchestration/control
+      '@modelcontextprotocol/sdk':
+        specifier: ^1.24.3
+        version: 1.32.2(zod@4.6.7)
+      better-sqlite3:
+        specifier: ^13.0.3
+        version: 13.0.3
+      yaml:
+        specifier: ^2.8.1
+        version: 2.9.1
+      zod:
+        specifier: ^4.1.13
+        version: 4.6.7
+    devDependencies:
+      '@types/node':
+        specifier: ^24.19.2
+        version: 24.19.2
+      tsup:
+        specifier: ^9.0.0
+        version: 9.0.0(jiti@2.7.0)(postcss@8.5.32)(tsx@4.23.15)(typescript@6.0.3)(yaml@2.9.1)
+      tsx:
+        specifier: ^4.23.15
+        version: 4.23.15
+      typescript:
+        specifier: ~6.0.3
+        version: 6.0.3
+      vitest:
+        specifier: ^5.0.5
+        version: 5.0.5(@types/node@24.19.2)(vite@8.3.5(@types/node@24.19.2)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1))
+
   apps/web:
     dependencies:
       '@clara/api-client':
         specifier: workspace:*
-        version: link:../../packages/api-client
+        version: link:../../packages/api/api-client
       '@clara/api-contract':
         specifier: workspace:*
-        version: link:../../packages/api-contract
+        version: link:../../packages/contracts/api-contract
       '@clara/crypto':
         specifier: workspace:*
         version: link:../../packages/crypto
       '@clara/shared-types':
         specifier: workspace:*
-        version: link:../../packages/shared-types
+        version: link:../../packages/contracts/shared-types
       '@fontsource-variable/geist':
         specifier: ^5.3.0
         version: 5.3.0
@@ -511,17 +511,41 @@ importers:
         specifier: ^8.22.1
         version: 8.22.1
 
-  packages/adapter:
+  packages/adapters/binding:
+    devDependencies:
+      '@types/node':
+        specifier: ^24.19.2
+        version: 24.19.2
+      typescript:
+        specifier: ~6.0.3
+        version: 6.0.3
+
+  packages/adapters/runner:
+    devDependencies:
+      '@types/node':
+        specifier: ^24.19.2
+        version: 24.19.2
+      tsup:
+        specifier: ^9.0.0
+        version: 9.0.0(jiti@2.7.0)(postcss@8.5.32)(tsx@4.23.15)(typescript@6.0.3)(yaml@2.9.1)
+      typescript:
+        specifier: ~6.0.3
+        version: 6.0.3
+      vitest:
+        specifier: ^5.0.5
+        version: 5.0.5(@types/node@24.19.2)(vite@8.3.5(@types/node@24.19.2)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1))
+
+  packages/adapters/runtime:
     dependencies:
       '@clara/crypto':
         specifier: workspace:*
-        version: link:../crypto
+        version: link:../../crypto
       '@clara/harness-protocol':
         specifier: workspace:*
-        version: link:../harness-protocol
+        version: link:../../contracts/harness-protocol
       '@clara/shared-types':
         specifier: workspace:*
-        version: link:../shared-types
+        version: link:../../contracts/shared-types
       hono:
         specifier: ^4.13.17
         version: 4.13.17
@@ -545,11 +569,11 @@ importers:
         specifier: ^5.0.5
         version: 5.0.5(@types/node@24.19.2)(vite@8.3.5(@types/node@24.19.2)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1))
 
-  packages/api-client:
+  packages/api/api-client:
     dependencies:
       '@clara/api-contract':
         specifier: workspace:*
-        version: link:../api-contract
+        version: link:../../contracts/api-contract
     devDependencies:
       '@types/node':
         specifier: ^24.19.2
@@ -561,23 +585,7 @@ importers:
         specifier: ^5.0.5
         version: 5.0.5(@types/node@24.19.2)(vite@8.3.5(@types/node@24.19.2)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1))
 
-  packages/api-contract:
-    dependencies:
-      zod:
-        specifier: ^4.1.13
-        version: 4.6.7
-    devDependencies:
-      '@types/node':
-        specifier: ^24.19.2
-        version: 24.19.2
-      typescript:
-        specifier: ~6.0.3
-        version: 6.0.3
-      vitest:
-        specifier: ^5.0.5
-        version: 5.0.5(@types/node@24.19.2)(vite@8.3.5(@types/node@24.19.2)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1))
-
-  packages/api-mcp:
+  packages/api/mcp:
     dependencies:
       '@clara/api-client':
         specifier: workspace:*
@@ -605,32 +613,11 @@ importers:
         specifier: ^5.0.5
         version: 5.0.5(@types/node@24.19.2)(vite@8.3.5(@types/node@24.19.2)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1))
 
-  packages/binding-core:
-    devDependencies:
-      '@types/node':
-        specifier: ^24.19.2
-        version: 24.19.2
-      typescript:
-        specifier: ~6.0.3
-        version: 6.0.3
-
-  packages/crypto:
-    devDependencies:
-      typescript:
-        specifier: ~6.0.3
-        version: 6.0.3
-      vitest:
-        specifier: ^5.0.5
-        version: 5.0.5(@types/node@24.19.2)(vite@8.3.5(@types/node@24.19.2)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1))
-
-  packages/devtools:
+  packages/contracts/api-contract:
     dependencies:
-      '@clara/orchestration':
-        specifier: workspace:*
-        version: link:../orchestration
-      '@clara/policy':
-        specifier: workspace:*
-        version: link:../policy
+      zod:
+        specifier: ^4.1.13
+        version: 4.6.7
     devDependencies:
       '@types/node':
         specifier: ^24.19.2
@@ -642,7 +629,7 @@ importers:
         specifier: ^5.0.5
         version: 5.0.5(@types/node@24.19.2)(vite@8.3.5(@types/node@24.19.2)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1))
 
-  packages/harness-protocol:
+  packages/contracts/harness-protocol:
     dependencies:
       '@clara/api-contract':
         specifier: workspace:*
@@ -661,24 +648,8 @@ importers:
         specifier: ^5.0.5
         version: 5.0.5(@types/node@24.19.2)(vite@8.3.5(@types/node@24.19.2)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1))
 
-  packages/mcp:
-    dependencies:
-      '@modelcontextprotocol/sdk':
-        specifier: ^1.24.3
-        version: 1.32.2(zod@4.6.7)
-      zod:
-        specifier: ^4.1.13
-        version: 4.6.7
+  packages/contracts/shared-types:
     devDependencies:
-      '@types/node':
-        specifier: ^24.19.2
-        version: 24.19.2
-      tsup:
-        specifier: ^9.0.0
-        version: 9.0.0(jiti@2.7.0)(postcss@8.5.32)(tsx@4.23.15)(typescript@6.0.3)(yaml@2.9.1)
-      tsx:
-        specifier: ^4.23.15
-        version: 4.23.15
       typescript:
         specifier: ~6.0.3
         version: 6.0.3
@@ -686,7 +657,28 @@ importers:
         specifier: ^5.0.5
         version: 5.0.5(@types/node@24.19.2)(vite@8.3.5(@types/node@24.19.2)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1))
 
-  packages/orchestration:
+  packages/crypto:
+    devDependencies:
+      typescript:
+        specifier: ~6.0.3
+        version: 6.0.3
+      vitest:
+        specifier: ^5.0.5
+        version: 5.0.5(@types/node@24.19.2)(vite@8.3.5(@types/node@24.19.2)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1))
+
+  packages/orchestration/control:
+    devDependencies:
+      '@types/node':
+        specifier: ^24.19.2
+        version: 24.19.2
+      typescript:
+        specifier: ~6.0.3
+        version: 6.0.3
+      vitest:
+        specifier: ^5.0.5
+        version: 5.0.5(@types/node@24.19.2)(vite@8.3.5(@types/node@24.19.2)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1))
+
+  packages/orchestration/engine:
     dependencies:
       '@clara/policy':
         specifier: workspace:*
@@ -711,28 +703,14 @@ importers:
         specifier: ^5.0.5
         version: 5.0.5(@types/node@24.19.2)(vite@8.3.5(@types/node@24.19.2)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1))
 
-  packages/orchestration-control:
-    devDependencies:
-      '@types/node':
-        specifier: ^24.19.2
-        version: 24.19.2
-      typescript:
-        specifier: ~6.0.3
-        version: 6.0.3
-      vitest:
-        specifier: ^5.0.5
-        version: 5.0.5(@types/node@24.19.2)(vite@8.3.5(@types/node@24.19.2)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1))
-
-  packages/policy:
-    devDependencies:
-      typescript:
-        specifier: ~6.0.3
-        version: 6.0.3
-      vitest:
-        specifier: ^5.0.5
-        version: 5.0.5(@types/node@24.19.2)(vite@8.3.5(@types/node@24.19.2)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1))
-
-  packages/runner:
+  packages/orchestration/mcp:
+    dependencies:
+      '@modelcontextprotocol/sdk':
+        specifier: ^1.24.3
+        version: 1.32.2(zod@4.6.7)
+      zod:
+        specifier: ^4.1.13
+        version: 4.6.7
     devDependencies:
       '@types/node':
         specifier: ^24.19.2
@@ -740,6 +718,9 @@ importers:
       tsup:
         specifier: ^9.0.0
         version: 9.0.0(jiti@2.7.0)(postcss@8.5.32)(tsx@4.23.15)(typescript@6.0.3)(yaml@2.9.1)
+      tsx:
+        specifier: ^4.23.15
+        version: 4.23.15
       typescript:
         specifier: ~6.0.3
         version: 6.0.3
@@ -747,8 +728,27 @@ importers:
         specifier: ^5.0.5
         version: 5.0.5(@types/node@24.19.2)(vite@8.3.5(@types/node@24.19.2)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1))
 
-  packages/shared-types:
+  packages/orchestration/policy:
     devDependencies:
+      typescript:
+        specifier: ~6.0.3
+        version: 6.0.3
+      vitest:
+        specifier: ^5.0.5
+        version: 5.0.5(@types/node@24.19.2)(vite@8.3.5(@types/node@24.19.2)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1))
+
+  packages/preview:
+    dependencies:
+      '@clara/orchestration':
+        specifier: workspace:*
+        version: link:../orchestration/engine
+      '@clara/policy':
+        specifier: workspace:*
+        version: link:../orchestration/policy
+    devDependencies:
+      '@types/node':
+        specifier: ^24.19.2
+        version: 24.19.2
       typescript:
         specifier: ~6.0.3
         version: 6.0.3
@@ -762,7 +762,7 @@ importers:
     dependencies:
       '@clara/shared-types':
         specifier: workspace:*
-        version: link:../../packages/shared-types
+        version: link:../../packages/contracts/shared-types
     devDependencies:
       '@cloudflare/vitest-plugin':
         specifier: ^1.4.11

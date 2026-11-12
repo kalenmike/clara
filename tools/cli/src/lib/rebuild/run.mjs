@@ -171,7 +171,7 @@ export function adapterSnapshot(root, env = process.env) {
       target,
       agentInstalled: existsSync(agent),
       agentPath: agent,
-      expectedTarget: join(root, 'apps', 'adapter-opencode', 'plugin'),
+      expectedTarget: join(root, 'apps', 'adapters', 'opencode', 'plugin'),
     },
     mcp: {
       configured: mcpConfigured(configPath),
@@ -876,7 +876,7 @@ async function restartServer(state, options) {
   const pid = current.expected
     ? (current.pid ?? findListenerPid(current.panelPort) ?? findListenerPid(current.localPort))
     : server.pid
-  if (pid && canSignal(pid) && processMatches(pid, ['apps/server', 'clara-server']) !== false) {
+  if (pid && canSignal(pid) && processMatches(pid, ['apps/hub/server', 'clara-server']) !== false) {
     const env = readProcessEnv(pid) ?? { ...process.env }
     process.kill(pid, 'SIGTERM')
     if (!(await waitForExit(pid, 10000))) {
@@ -916,7 +916,7 @@ async function restartServerContainer(buildRoot, server, options) {
 
 async function startServer(state, server, env) {
   const root = state.installRoot ?? state.root
-  const entry = join(root, 'apps', 'server', 'dist', 'index.js')
+  const entry = join(root, 'apps', 'hub', 'server', 'dist', 'index.js')
   if (!existsSync(entry)) throw new Error(`agent entry not found at ${entry}`)
   const args = [entry]
   if (!server.panel) args.push('--no-panel')

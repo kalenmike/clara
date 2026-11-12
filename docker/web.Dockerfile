@@ -24,17 +24,17 @@ COPY package.json pnpm-lock.yaml pnpm-workspace.yaml tsconfig.base.json ./
 # @clara/web. Missing packages make the build fail to resolve imports even
 # though the filtered install succeeds.
 COPY apps/web/package.json apps/web/package.json
-COPY packages/api-client/package.json packages/api-client/package.json
-COPY packages/api-contract/package.json packages/api-contract/package.json
+COPY packages/api/api-client/package.json packages/api/api-client/package.json
+COPY packages/contracts/api-contract/package.json packages/contracts/api-contract/package.json
 COPY packages/crypto/package.json packages/crypto/package.json
-COPY packages/shared-types/package.json packages/shared-types/package.json
+COPY packages/contracts/shared-types/package.json packages/contracts/shared-types/package.json
 RUN pnpm install --frozen-lockfile --filter @clara/web...
 
 COPY apps/web apps/web
-COPY packages/api-client packages/api-client
-COPY packages/api-contract packages/api-contract
+COPY packages/api/api-client packages/api/api-client
+COPY packages/contracts/api-contract packages/contracts/api-contract
 COPY packages/crypto packages/crypto
-COPY packages/shared-types packages/shared-types
+COPY packages/contracts/shared-types packages/contracts/shared-types
 
 ARG VITE_CLARA_WS_URL=
 ENV VITE_CLARA_WS_URL=$VITE_CLARA_WS_URL

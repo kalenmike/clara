@@ -35,7 +35,7 @@ const adapter = {
   opencode: {
     linked: true,
     agentInstalled: true,
-    target: '/work/clara/apps/adapter-opencode/plugin',
+    target: '/work/clara/apps/adapters/opencode/plugin',
   },
   mcp: { configured: true, configPath: '/home/user/.config/opencode/opencode.json' },
 }

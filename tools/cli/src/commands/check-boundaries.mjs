@@ -3,7 +3,7 @@ import { join, relative, sep } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 const root = fileURLToPath(new URL('..', import.meta.url))
-const allowed = new Set(['apps/adapter-opencode', 'apps/lab'])
+const allowed = new Set(['apps/adapters/opencode', 'apps/lab'])
 const roots = ['apps', 'packages']
 const skippedDirs = new Set(['node_modules', 'dist', 'build', 'coverage', '.git'])
 const importPattern =
@@ -71,9 +71,9 @@ for (const directory of roots) {
 }
 
 for (const relativePath of [
-  'apps/server/src/api/routes',
-  'apps/server/src/harness',
-  'apps/server/src/push',
+  'apps/hub/server/src/api/routes',
+  'apps/hub/server/src/harness',
+  'apps/hub/server/src/push',
 ]) {
   const directory = join(root, relativePath)
   try {
@@ -91,7 +91,7 @@ for (const relativePath of [
 }
 
 if (violations.length > 0) {
-  console.error('@opencode/client is only allowed in apps/server and apps/lab:')
+  console.error('@opencode/client is only allowed in apps/hub/server and apps/lab:')
   for (const violation of violations) console.error(`  ${violation}`)
   process.exit(1)
 }

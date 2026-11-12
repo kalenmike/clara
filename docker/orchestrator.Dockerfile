@@ -27,17 +27,17 @@ COPY package.json pnpm-lock.yaml pnpm-workspace.yaml tsconfig.base.json ./
 # of @clara/orchestrator. Missing packages make the tsup build fail to resolve
 # their imports even though the filtered install succeeds.
 COPY apps/orchestrator/package.json apps/orchestrator/package.json
-COPY packages/mcp/package.json packages/mcp/package.json
-COPY packages/orchestration/package.json packages/orchestration/package.json
-COPY packages/orchestration-control/package.json packages/orchestration-control/package.json
-COPY packages/policy/package.json packages/policy/package.json
+COPY packages/orchestration/mcp/package.json packages/orchestration/mcp/package.json
+COPY packages/orchestration/engine/package.json packages/orchestration/engine/package.json
+COPY packages/orchestration/control/package.json packages/orchestration/control/package.json
+COPY packages/orchestration/policy/package.json packages/orchestration/policy/package.json
 RUN pnpm install --frozen-lockfile --filter @clara/orchestrator...
 
 COPY apps/orchestrator apps/orchestrator
-COPY packages/mcp packages/mcp
-COPY packages/orchestration packages/orchestration
-COPY packages/orchestration-control packages/orchestration-control
-COPY packages/policy packages/policy
+COPY packages/orchestration/mcp packages/orchestration/mcp
+COPY packages/orchestration/engine packages/orchestration/engine
+COPY packages/orchestration/control packages/orchestration/control
+COPY packages/orchestration/policy packages/orchestration/policy
 RUN pnpm --filter @clara/orchestrator build
 RUN pnpm --filter @clara/orchestrator deploy /out --prod --legacy
 

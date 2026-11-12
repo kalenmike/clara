@@ -48,7 +48,7 @@ export default defineConfig([
     },
   },
   {
-    files: ['apps/web/**/*.{ts,tsx}', 'apps/panel/**/*.{ts,tsx}'],
+    files: ['apps/web/**/*.{ts,tsx}', 'apps/hub/panel/**/*.{ts,tsx}'],
     extends: [reactHooks.configs.flat.recommended, reactRefresh.configs.vite],
     languageOptions: {
       globals: globals.browser,
@@ -70,8 +70,8 @@ export default defineConfig([
   },
   {
     files: [
-      'apps/server/**/*.ts',
-      'apps/adapter-opencode/plugin/**/*.ts',
+      'apps/hub/server/**/*.ts',
+      'apps/adapters/opencode/plugin/**/*.ts',
       'packages/**/*.ts',
       'workers/**/*.ts',
     ],
@@ -80,7 +80,7 @@ export default defineConfig([
     },
   },
   {
-    files: ['apps/adapter-opencode/plugin/**/*.ts'],
+    files: ['apps/adapters/opencode/plugin/**/*.ts'],
     rules: {
       // The OpenCode plugin context is host-provided and intentionally untyped.
       '@typescript-eslint/no-explicit-any': 'off',
@@ -94,14 +94,14 @@ export default defineConfig([
     },
   },
   {
-    files: ['apps/server/**/*.ts'],
+    files: ['apps/hub/server/**/*.ts'],
     rules: {
       // The hub service is a CLI; startup and pairing output belongs on stdout.
       'no-console': 'off',
     },
   },
   {
-    files: ['apps/web/vite.config.ts', 'apps/panel/vite.config.ts'],
+    files: ['apps/web/vite.config.ts', 'apps/hub/panel/vite.config.ts'],
     languageOptions: { globals: globals.node },
   },
   prettier,

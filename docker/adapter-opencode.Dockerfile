@@ -16,26 +16,26 @@ RUN corepack enable
 
 WORKDIR /repo
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml tsconfig.base.json ./
-COPY apps/adapter-opencode/package.json apps/adapter-opencode/package.json
-COPY packages/adapter/package.json packages/adapter/package.json
-COPY packages/api-contract/package.json packages/api-contract/package.json
-COPY packages/binding-core/package.json packages/binding-core/package.json
+COPY apps/adapters/opencode/package.json apps/adapters/opencode/package.json
+COPY packages/adapters/runtime/package.json packages/adapters/runtime/package.json
+COPY packages/contracts/api-contract/package.json packages/contracts/api-contract/package.json
+COPY packages/adapters/binding/package.json packages/adapters/binding/package.json
 COPY packages/crypto/package.json packages/crypto/package.json
-COPY packages/harness-protocol/package.json packages/harness-protocol/package.json
-COPY packages/mcp/package.json packages/mcp/package.json
-COPY packages/runner/package.json packages/runner/package.json
-COPY packages/shared-types/package.json packages/shared-types/package.json
+COPY packages/contracts/harness-protocol/package.json packages/contracts/harness-protocol/package.json
+COPY packages/orchestration/mcp/package.json packages/orchestration/mcp/package.json
+COPY packages/adapters/runner/package.json packages/adapters/runner/package.json
+COPY packages/contracts/shared-types/package.json packages/contracts/shared-types/package.json
 RUN pnpm install --frozen-lockfile --filter @clara/adapter-opencode...
 
-COPY apps/adapter-opencode apps/adapter-opencode
-COPY packages/adapter packages/adapter
-COPY packages/api-contract packages/api-contract
-COPY packages/binding-core packages/binding-core
+COPY apps/adapters/opencode apps/adapters/opencode
+COPY packages/adapters/runtime packages/adapters/runtime
+COPY packages/contracts/api-contract packages/contracts/api-contract
+COPY packages/adapters/binding packages/adapters/binding
 COPY packages/crypto packages/crypto
-COPY packages/harness-protocol packages/harness-protocol
-COPY packages/mcp packages/mcp
-COPY packages/runner packages/runner
-COPY packages/shared-types packages/shared-types
+COPY packages/contracts/harness-protocol packages/contracts/harness-protocol
+COPY packages/orchestration/mcp packages/orchestration/mcp
+COPY packages/adapters/runner packages/adapters/runner
+COPY packages/contracts/shared-types packages/contracts/shared-types
 RUN pnpm --filter @clara/adapter-opencode build
 RUN pnpm --filter @clara/adapter-opencode deploy /out --prod --legacy
 
@@ -52,7 +52,7 @@ RUN mkdir -p /config /data && chown -R node:node /app /config /data
 
 COPY --from=build --chown=node:node /out/package.json /app/package.json
 COPY --from=build --chown=node:node /out/node_modules /app/node_modules
-COPY --from=build --chown=node:node /repo/apps/adapter-opencode/dist /app/dist
+COPY --from=build --chown=node:node /repo/apps/adapters/opencode/dist /app/dist
 
 USER node
 

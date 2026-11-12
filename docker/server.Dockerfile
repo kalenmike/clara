@@ -24,22 +24,22 @@ COPY package.json pnpm-lock.yaml pnpm-workspace.yaml tsconfig.base.json ./
 # These manifest and source copies cover the workspace dependency closure of
 # @clara/hub-server and @clara/hub-panel. Missing packages make the build fail to
 # resolve imports even though the filtered install succeeds.
-COPY apps/server/package.json apps/server/package.json
-COPY apps/panel/package.json apps/panel/package.json
+COPY apps/hub/server/package.json apps/hub/server/package.json
+COPY apps/hub/panel/package.json apps/hub/panel/package.json
 COPY packages/crypto/package.json packages/crypto/package.json
-COPY packages/shared-types/package.json packages/shared-types/package.json
-COPY packages/orchestration-control/package.json packages/orchestration-control/package.json
-COPY packages/api-contract/package.json packages/api-contract/package.json
-COPY packages/harness-protocol/package.json packages/harness-protocol/package.json
+COPY packages/contracts/shared-types/package.json packages/contracts/shared-types/package.json
+COPY packages/orchestration/control/package.json packages/orchestration/control/package.json
+COPY packages/contracts/api-contract/package.json packages/contracts/api-contract/package.json
+COPY packages/contracts/harness-protocol/package.json packages/contracts/harness-protocol/package.json
 RUN pnpm install --frozen-lockfile --filter @clara/hub-server... --filter @clara/hub-panel...
 
-COPY apps/server apps/server
-COPY apps/panel apps/panel
+COPY apps/hub/server apps/hub/server
+COPY apps/hub/panel apps/hub/panel
 COPY packages/crypto packages/crypto
-COPY packages/shared-types packages/shared-types
-COPY packages/orchestration-control packages/orchestration-control
-COPY packages/api-contract packages/api-contract
-COPY packages/harness-protocol packages/harness-protocol
+COPY packages/contracts/shared-types packages/contracts/shared-types
+COPY packages/orchestration/control packages/orchestration/control
+COPY packages/contracts/api-contract packages/contracts/api-contract
+COPY packages/contracts/harness-protocol packages/contracts/harness-protocol
 RUN pnpm --filter @clara/hub-server build
 RUN pnpm --filter @clara/hub-server deploy /out --prod --legacy
 
@@ -64,7 +64,7 @@ RUN mkdir -p /config /data && chown -R node:node /app /config /data
 
 COPY --from=build --chown=node:node /out/package.json /app/package.json
 COPY --from=build --chown=node:node /out/node_modules /app/node_modules
-COPY --from=build --chown=node:node /repo/apps/server/dist /app/dist
+COPY --from=build --chown=node:node /repo/apps/hub/server/dist /app/dist
 
 USER node
 EXPOSE 8788 8790

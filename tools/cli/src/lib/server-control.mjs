@@ -23,7 +23,7 @@ function composeArgs(args, repoRoot = root) {
   return ['compose', ...envArgs, '-f', composeFile(repoRoot), ...args]
 }
 
-export const SERVER_ENTRY = join(root, 'apps', 'server', 'dist', 'index.js')
+export const SERVER_ENTRY = join(root, 'apps', 'hub', 'server', 'dist', 'index.js')
 export const NETWORK = 'clara'
 export const SERVER_CONTAINER = 'clara-server'
 export const SERVER_VOLUMES = ['clara-server-config', 'clara-server-data']
@@ -155,7 +155,7 @@ export function dockerServerState() {
   }
 }
 
-/** The host directories a local install uses, mirroring apps/server/src/config.ts. */
+/** The host directories a local install uses, mirroring apps/hub/server/src/config.ts. */
 export function serverLocalState(env = process.env) {
   const configHome = env.XDG_CONFIG_HOME?.trim() || join(homedir(), '.config')
   const dataHome = env.XDG_DATA_HOME?.trim() || join(homedir(), '.local', 'share')

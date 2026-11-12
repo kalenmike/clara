@@ -2,10 +2,10 @@
   "files": [],
   "references": [
     {
-      "path": "./apps/server"
+      "path": "./apps/hub/server"
     },
     {
-      "path": "./apps/panel"
+      "path": "./apps/hub/panel"
     },
     {
       "path": "./apps/web"
@@ -14,46 +14,46 @@
       "path": "./packages/crypto"
     },
     {
-      "path": "./packages/shared-types"
+      "path": "./packages/contracts/shared-types"
     },
     {
-      "path": "./packages/api-contract"
+      "path": "./packages/contracts/api-contract"
     },
     {
-      "path": "./packages/api-client"
+      "path": "./packages/api/api-client"
     },
     {
-      "path": "./packages/api-mcp"
+      "path": "./packages/api/mcp"
     },
     {
       "path": "./workers/relay"
     },
     {
-      "path": "./packages/policy"
+      "path": "./packages/orchestration/policy"
     },
     {
-      "path": "./packages/orchestration"
+      "path": "./packages/orchestration/engine"
     },
     {
-      "path": "./packages/runner"
+      "path": "./packages/adapters/runner"
     },
     {
-      "path": "./packages/binding-core"
+      "path": "./packages/adapters/binding"
     },
     {
-      "path": "./packages/adapter"
+      "path": "./packages/adapters/runtime"
     },
     {
-      "path": "./packages/orchestration-control"
+      "path": "./packages/orchestration/control"
     },
     {
-      "path": "./packages/mcp"
+      "path": "./packages/orchestration/mcp"
     },
     {
       "path": "./apps/orchestrator"
     },
     {
-      "path": "./packages/devtools"
+      "path": "./packages/preview"
     },
     {
       "path": "./apps/lab"
@@ -62,13 +62,13 @@
       "path": "./apps/lab/tsconfig.server.json"
     },
     {
-      "path": "./apps/adapter-opencode/plugin"
+      "path": "./apps/adapters/opencode/plugin"
     },
     {
-      "path": "./packages/harness-protocol"
+      "path": "./packages/contracts/harness-protocol"
     },
     {
-      "path": "./apps/adapter-opencode"
+      "path": "./apps/adapters/opencode"
     }
   ]
 }

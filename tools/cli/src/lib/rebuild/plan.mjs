@@ -287,7 +287,7 @@ export function evaluateHealth(state, observed, { adapter, now = new Date(), mod
     linked: adapter?.opencode?.linked === true,
     agentInstalled: adapter?.opencode?.agentInstalled === true,
     target: adapter?.opencode?.target ?? null,
-    expectedTarget: state?.root ? `${state.root}/apps/adapter-opencode/plugin` : null,
+    expectedTarget: state?.root ? `${state.root}/apps/adapters/opencode/plugin` : null,
   }
   if (opencodeAdapter.expectedTarget && opencodeAdapter.target) {
     if (!samePath(opencodeAdapter.target, opencodeAdapter.expectedTarget)) {

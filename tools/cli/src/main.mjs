@@ -82,8 +82,8 @@ function mcp(args) {
 
 function adapterOpencode(args) {
   return runTypeScript(
-    join(root, 'apps/adapter-opencode/src/index.ts'),
-    join(root, 'apps/adapter-opencode/dist/index.js'),
+    join(root, 'apps/adapters/opencode/src/index.ts'),
+    join(root, 'apps/adapters/opencode/dist/index.js'),
     args,
     'The Clara OpenCode adapter'
   )
@@ -100,8 +100,8 @@ function adapter(args) {
   if (command === 'status') {
     const adapterCode = adapterOpencode(['status'])
     const runnerCode = runTypeScript(
-      join(root, 'packages/runner/src/install-cli.ts'),
-      join(root, 'packages/runner/dist/install-cli.js'),
+      join(root, 'packages/adapters/runner/src/install-cli.ts'),
+      join(root, 'packages/adapters/runner/dist/install-cli.js'),
       ['status'],
       'The Clara runner installer'
     )
@@ -122,8 +122,8 @@ function adapter(args) {
   }
 
   return runTypeScript(
-    join(root, 'packages/runner/src/install-cli.ts'),
-    join(root, 'packages/runner/dist/install-cli.js'),
+    join(root, 'packages/adapters/runner/src/install-cli.ts'),
+    join(root, 'packages/adapters/runner/dist/install-cli.js'),
     args,
     'The Clara runner installer'
   )
@@ -139,8 +139,8 @@ function docs(args) {
 
 function runner(args) {
   return runTypeScript(
-    join(root, 'packages/runner/src/cli.ts'),
-    join(root, 'packages/runner/dist/cli.js'),
+    join(root, 'packages/adapters/runner/src/cli.ts'),
+    join(root, 'packages/adapters/runner/dist/cli.js'),
     args,
     'The Clara runner'
   )
