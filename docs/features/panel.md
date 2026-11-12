@@ -11,7 +11,8 @@ storage files, and a live traffic meter without exposing secrets. Sensitive
 values, including the harness URL and relay room, start masked behind a header
 peek control so the panel can be screenshared safely. It is also the one-time
 setup surface for harness adapters: the superadmin signs in, chooses a
-password, and saves the OpenCode base URL and credentials. The same surface edits the Web URL used by pairing links and the
+password, then adds an adapter and runs its install command on the harness
+machine. The same surface edits the Web URL used by pairing links and the
 VAPID contact used by Web Push, switches external connections on and off without
 stopping the process, starts and stops the local orchestration service, turns
 traffic monitoring on or off, and gates or paces client settings sync.
@@ -29,9 +30,9 @@ traffic monitoring on or off, and gates or paces client settings sync.
    automatically), then choose the superadmin password. Later visits show the
    sign-in form. After a host reset, the sign-in form shows a reset link while
    the token is valid.
-3. After signing in, open **Harness**, use **Add harness**, choose **OpenCode**
-   and the adapter location, then copy the pairing code or install command. Run
-   the command on the machine that runs OpenCode. A new adapter appears under
+3. After signing in, open **Harness**, use **Add harness**, choose the adapter
+   type and location, then copy the pairing code or install command. Run the
+   command on the harness machine. A new adapter appears under
    **Paired harnesses** as **Paired · Offline**; when its credential session
    connects it also appears under **Connected adapters**, becomes **Online**,
    and the first adapter becomes **Active**. Turning the Harness switch off
@@ -108,7 +109,7 @@ traffic monitoring on or off, and gates or paces client settings sync.
     enrolled label stays visible as secondary text, and clearing the alias restores
     the enrolled name. Connected clients resolve the same alias from the paired
     device list, so a rename applies on the next snapshot without reconnecting.
-    Status badges call out degraded OpenCode, relay, push, permissions, or
+    Status badges call out degraded harness, relay, push, permissions, or
     missing files.
 15. In **Traffic**, read the last minute's in and out rates, the request and
     error rates, the two sparklines for the last hour, and the totals since the
@@ -314,8 +315,8 @@ traffic monitoring on or off, and gates or paces client settings sync.
   hub service restarts.
 - A session that spans a monitoring toggle shows only the traffic recorded while
   monitoring was on.
-- The OpenCode probe is cached for five seconds, so the header can briefly lag
-  a restart.
+- The active harness probe is cached for five seconds, so the header can briefly
+  lag a restart.
 - The peek control hides values in the rendered panel only. The JSON snapshot
   still contains them, so browser devtools and the network panel can show them.
 

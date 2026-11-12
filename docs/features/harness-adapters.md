@@ -4,20 +4,31 @@
 
 Clara reaches a harness through a small adapter daemon. The adapter connects out
 to the hub over the same local or relay WebSocket and E2EE session as a browser
-client, then speaks the Clara Harness Protocol. OpenCode is the first adapter:
-installing it installs both the hub-facing daemon and the orchestration binding.
+client, then speaks the Clara Harness Protocol. The hub is harness-neutral: it
+routes typed `/v1` calls to whichever adapter is active and branches on
+capability flags, not harness kind. This repository includes the OpenCode
+adapter. Additional adapters can use the same pairing, transport, and capability
+model.
+
+| Included adapter          | Harness        | Install                                        |
+| ------------------------- | -------------- | ---------------------------------------------- |
+| `@clara/adapter-opencode` | OpenCode 2.1.x | `clara-adapter-opencode install --pair <code>` |
+
+The adapter, not the hub, discovers and authenticates the harness. The hub never
+contacts the harness directly.
 
 ## User flow
 
-1. Open the hub panel → **Harness** → **Add harness** → choose **OpenCode** and
-   the adapter location: **Docker network** (default), **This machine**, or
-   **Cloudflare relay** → **Add harness**.
+1. Open the hub panel → **Harness** → **Add harness** → choose the adapter type
+   and the adapter location: **Docker network** (default), **This machine**, or
+   **Cloudflare relay** → **Add harness**. OpenCode is the only adapter type
+   included with this release.
 2. Copy the pairing code or the matching command. Panel codes start with
    `clara-harness1_` and only install an adapter; the browser still pairs with
    a `clara1_` code from `pnpm clara pair`.
-3. On the machine that runs OpenCode, run
-   `pnpm clara adapter install --opencode --pair <code>`.
-4. The installer discovers OpenCode from flags, environment, or
+3. On the harness machine, run the adapter installer. For the included adapter,
+   that is `pnpm clara adapter install --opencode --pair <code>`.
+4. The OpenCode installer discovers OpenCode from flags, environment, or
    `~/.local/state/opencode/service.json`. If it cannot reach OpenCode, it
    prompts for the URL, username, and password.
 5. The adapter enrolls and stores its credential. The installer then starts a
@@ -27,7 +38,7 @@ installing it installs both the hub-facing daemon and the orchestration binding.
    **Connected adapters**. The first adapter is **Active**; turning the Harness
    switch off shows **Off** while the adapter credential is kept.
 6. Open the web client. Sessions and projects arrive through the adapter; the
-   hub never contacts OpenCode.
+   hub never contacts the harness.
 
 ## Core business rules
 
@@ -46,14 +57,14 @@ installing it installs both the hub-facing daemon and the orchestration binding.
    store snooze, archive, view, or project settings.
 6. A harness version bump changes only that adapter. The hub and web branch on
    capability flags, not harness kind.
-7. `clara-adapter-opencode install` installs the daemon, the OpenCode binding,
+7. The included OpenCode installer installs the daemon, the OpenCode binding,
    and the shared runner. `--no-runner` and `--no-service` split those pieces.
    Inside the repository, `pnpm clara adapter install --opencode` dispatches to
    the same adapter binary.
 
 ## Edge cases
 
-- **OpenCode not reachable** — the installer prompts for URL and credentials,
+- **Harness not reachable** — the installer prompts for URL and credentials,
   then retests.
 - **Pairing code expired or used** — generate a new code in the panel.
 - **Wrong code pasted in the browser** — panel codes are named as adapter codes;
@@ -75,8 +86,8 @@ installing it installs both the hub-facing daemon and the orchestration binding.
   `closeSession` on a protocol failure. The adapter serializes outbound frames,
   sends an application-level heartbeat, and reconnects when the hub closes its
   session. Use `pnpm clara adapter status --json` for the last hub link state
-  and the adapter's last OpenCode health check instead of relying on a fresh
-  OpenCode probe.
+  and the adapter's last harness health check instead of relying on a fresh
+  harness probe.
 - **Harness switch off** — adapters keep their credentials but the panel shows
   **Off** and the hub does not proxy until the switch is on again.
 - **Adapter reinstalled** — the same identity reconnects the same sessions and
@@ -92,10 +103,12 @@ installing it installs both the hub-facing daemon and the orchestration binding.
 - Running the adapter inside the hub process.
 - An inbound adapter HTTP port.
 - Multiple active adapters at once.
-- A second adapter type in this release.
 
 ## Known gaps
 
+- Only the OpenCode adapter is included with this release. The hub, web client,
+  and protocol are harness-neutral, but another harness needs its own adapter
+  and installer.
 - Pending pairing codes are shown only in the panel session that created them;
   the snapshot keeps the pairing list for the paired result.
 - The relay client token is shared by browser clients and adapters, as before.
@@ -109,22 +122,23 @@ installing it installs both the hub-facing daemon and the orchestration binding.
 <summary>Protocol, data, and commands</summary>
 
 - Protocol: `/harness/v1` over the adapter's E2EE WebSocket session.
-  `/harness/v1/health` returns a live OpenCode probe; `/harness/v1/info` keeps
-  the adapter and harness metadata.
+  `/harness/v1/health` returns the adapter's live harness probe;
+  `/harness/v1/info` keeps the adapter and harness metadata.
 - Frames: `adapter.request`, `adapter.abort`, `adapter.response`,
   `adapter.chunk`, `adapter.end`, `adapter.error`, `adapter.enroll`,
   `adapter.enrolled`.
-- Adapter app and binding: `apps/adapters/opencode`; the OpenCode policy plugin
-  and agent live in `apps/adapters/opencode/plugin/`. It uses
+- Included adapter app and binding: `apps/adapters/opencode`; the OpenCode
+  policy plugin and agent live in `apps/adapters/opencode/plugin/`. It uses
   `@opencode/client@2.1.1` for all OpenCode HTTP and SSE access; there is no
   raw OpenCode `/api` proxy.
 - Protocol package: `packages/contracts/harness-protocol`.
 - Adapter runtime: `packages/adapters/runtime`; orchestration binding core:
   `packages/adapters/binding`.
-- Adapter data: `<config>/clara/adapters/opencode/config.json` and
-  `<data>/clara/adapters/opencode/{identity.json,adapter.log,adapter.pid,state.json}`.
-  `state.json` records the live hub link, last frame time, last error, and the
-  last OpenCode health check for `pnpm clara adapter status`.
+- Adapter data: `<config>/clara/adapters/<kind>/config.json` and
+  `<data>/clara/adapters/<kind>/{identity.json,adapter.log,adapter.pid,state.json}`.
+  For OpenCode, `<kind>` is `opencode`. `state.json` records the live hub link,
+  last frame time, last error, and the last harness health check for
+  `pnpm clara adapter status`.
 - Tables: `harness_identities`, `harness_connections`, `adapter_credentials`,
   `harness_pairings`, `clara_projects`, `harness_project_links`,
   `clara_sessions`.
