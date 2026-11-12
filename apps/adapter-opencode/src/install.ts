@@ -18,10 +18,12 @@ import { enrollAdapter } from './enroll.ts'
 import { OpenCodeClient } from './opencode.ts'
 import {
   adapterEntry,
+  adapterLogSize,
   foregroundCommand,
   installAdapterService,
   removeAdapterService,
   startAdapterProcess,
+  waitForAdapterAuthentication,
 } from './service.ts'
 
 const ADAPTER_VERSION = '0.1.0'
@@ -120,6 +122,22 @@ export async function installOpenCodeAdapter(options: InstallOptions): Promise<I
         })
   } catch (cause) {
     const reason = cause instanceof Error ? cause.message : String(cause)
+    if (options.dryRun) throw new Error(reason, { cause })
+    warnings.push(reason)
+    actions.push(`pair adapter ${identity.harnessId} (enrollment response missing)`)
+    if (options.noService) {
+      actions.push(`run the adapter in the foreground: ${command}`)
+      return { actions, warnings, configPath: adapterConfigPath(), foregroundCommand: command }
+    }
+    const offset = adapterLogSize()
+    const started = startAdapterProcess(entry)
+    actions.push(...started.actions)
+    if (await waitForAdapterAuthentication(offset)) {
+      warnings.push(
+        'The enrollment response was lost, but the adapter connected with the saved credential.'
+      )
+      return { actions, warnings, configPath: adapterConfigPath(), foregroundCommand: command }
+    }
     throw new Error(
       `${reason}\nThe adapter config was saved at ${adapterConfigPath()}. ` +
         `Start it with: pnpm clara adapter start --opencode\n` +

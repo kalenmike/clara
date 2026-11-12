@@ -141,7 +141,10 @@ async function serve(args: string[]): Promise<void> {
     },
     handler: async (request) => app.fetch(request),
     log: (message, detail) => {
-      if (process.env.CLARA_ADAPTER_DEBUG === '1') console.error(message, detail ?? '')
+      console.error(`[adapter] ${message}`)
+      if (process.env.CLARA_ADAPTER_DEBUG === '1' && detail !== undefined) {
+        console.error(detail)
+      }
     },
   })
   transport.start()

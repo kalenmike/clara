@@ -25,6 +25,43 @@ export type AdapterProcessStatus = {
   log: string
 }
 
+export type AdapterStartResult = ServiceResult & { logOffset: number }
+
+export function adapterLogSize(): number {
+  try {
+    return existsSync(adapterLogPath()) ? readFileSync(adapterLogPath()).byteLength : 0
+  } catch {
+    return 0
+  }
+}
+
+export async function waitForAdapterAuthentication(
+  fromOffset: number,
+  timeoutMs = 8_000
+): Promise<boolean> {
+  const started = Date.now()
+  while (Date.now() - started < timeoutMs) {
+    const pid = readPid()
+    if (pid === undefined || !isAlive(pid)) return false
+    let text = ''
+    try {
+      text = readFileSync(adapterLogPath(), 'utf8').slice(fromOffset)
+    } catch {
+      // The log may not exist yet.
+    }
+    if (text.includes('adapter authenticated')) return true
+    if (
+      text.includes('adapter session error') ||
+      text.includes('could not open a frame') ||
+      text.includes('adapter socket error')
+    ) {
+      return false
+    }
+    await new Promise((resolve) => setTimeout(resolve, 150))
+  }
+  return false
+}
+
 function nodeArgs(entry: string): string[] {
   return entry.endsWith('.ts') ? ['--experimental-strip-types', '--no-warnings', entry] : [entry]
 }
