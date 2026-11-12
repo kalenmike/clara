@@ -42,6 +42,15 @@ describe('Clara API client', () => {
     expect(fake.requests[0]?.url).toBe('http://clara.api/v1/projects?archived=true')
   })
 
+  it('reads running activity across paired harnesses', async () => {
+    const fake = fakeFetch(() => json({ data: [], harnesses: [] }))
+    const client = createClaraClient({ fetch: fake.fetch })
+
+    await expect(client.activity.running()).resolves.toEqual({ data: [], harnesses: [] })
+    expect(fake.requests[0]?.method).toBe('GET')
+    expect(fake.requests[0]?.url).toBe('http://clara.api/v1/activity/running')
+  })
+
   it('sends a prompt to the session endpoint', async () => {
     const fake = fakeFetch(() => json({ id: 'inbox-1' }))
     const client = createClaraClient({ fetch: fake.fetch })
