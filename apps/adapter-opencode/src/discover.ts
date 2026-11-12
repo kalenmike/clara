@@ -1,7 +1,7 @@
 import { existsSync, readFileSync } from 'node:fs'
 import { homedir } from 'node:os'
 import { join } from 'node:path'
-import { OpenCodeClient } from './opencode.ts'
+import { OpenCodeGateway } from './opencode.ts'
 
 export type OpenCodeConfig = {
   url: string
@@ -54,8 +54,12 @@ export async function discoverOpenCode(input: DiscoveryInput): Promise<OpenCodeC
   }
 
   for (const candidate of candidates) {
-    const client = new OpenCodeClient(candidate.url, candidate.password, candidate.username)
-    const probe = await client.probe(1_500)
+    const gateway = new OpenCodeGateway({
+      url: candidate.url,
+      username: candidate.username,
+      ...(candidate.password ? { password: candidate.password } : {}),
+    })
+    const probe = await gateway.probe(1_500)
     if (probe.ok) return candidate
   }
   return undefined

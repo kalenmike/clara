@@ -1,5 +1,5 @@
 import type { GitCommit } from '@clara/api-contract'
-import type { OpenCodeClient } from './opencode.ts'
+import type { OpenCodeGateway } from './opencode.ts'
 
 const GIT_LOG_FORMAT = '%H%x1f%an%x1f%ae%x1f%aI%x1f%s%x1f%b%x1e'
 const COMMIT_COUNT = 10
@@ -16,64 +16,33 @@ export type GitLogInput = {
   until?: number
 }
 
-type ShellInfo = {
-  id: string
-  status: 'running' | 'exited' | 'timeout' | 'killed'
-  exit?: number
-  command: string
-  cwd: string
-}
-
 /** Run the fixed git history command through OpenCode's shell API. */
 export async function loadGitLog(
-  client: OpenCodeClient,
+  gateway: OpenCodeGateway,
   input: GitLogInput,
   signal: AbortSignal
 ): Promise<GitCommit[]> {
   const location = { directory: input.directory }
-  const search = new URLSearchParams({ 'location[directory]': input.directory }).toString()
-  const created = await readData<ShellInfo>(
-    client,
+  const created = await gateway.client.shell.create(
     {
-      method: 'POST',
-      path: '/api/shell',
-      search: `?${search}`,
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({
-        command: gitLogCommand(input),
-        cwd: input.directory,
-        timeout: SHELL_TIMEOUT_MS,
-      }),
+      location,
+      command: gitLogCommand(input),
+      cwd: input.directory,
+      timeout: SHELL_TIMEOUT_MS,
     },
-    signal
+    { signal }
   )
 
   try {
-    let status = created
+    let status = created.data
     for (let attempt = 0; status.status === 'running' && attempt < SHELL_POLL_LIMIT; attempt += 1) {
       if (signal.aborted) throw new Error('The commit request was cancelled')
       await sleep(SHELL_POLL_MS)
-      status = await readData<ShellInfo>(
-        client,
-        {
-          method: 'GET',
-          path: `/api/shell/${encodeURIComponent(status.id)}`,
-          search: `?${search}`,
-        },
-        signal
-      )
+      status = (await gateway.client.shell.get({ id: status.id, location }, { signal })).data
     }
     if (status.status === 'running') throw new Error('git log did not finish in time')
 
-    const output = await readData<{ output: string }>(
-      client,
-      {
-        method: 'GET',
-        path: `/api/shell/${encodeURIComponent(status.id)}/output`,
-        search: `?${search}`,
-      },
-      signal
-    )
+    const output = (await gateway.client.shell.output({ id: status.id, location }, { signal })).data
     if (status.exit !== 0) {
       if (/does not have any commits|no commits yet/i.test(output.output)) return []
       const message = output.output.trim().split('\n').at(-1)
@@ -81,17 +50,9 @@ export async function loadGitLog(
     }
     return parseGitLog(output.output).slice(0, COMMIT_COUNT)
   } finally {
-    await client
-      .request(
-        {
-          method: 'DELETE',
-          path: `/api/shell/${encodeURIComponent(created.id)}`,
-          search: `?${search}`,
-        },
-        AbortSignal.timeout(2_000)
-      )
+    await gateway.client.shell
+      .remove({ id: created.data.id, location }, { signal: AbortSignal.timeout(2_000) })
       .catch(() => undefined)
-    void location
   }
 }
 
@@ -123,18 +84,6 @@ export function parseGitLog(value: string): GitCommit[] {
     })
   }
   return commits
-}
-
-async function readData<T>(
-  client: OpenCodeClient,
-  request: Parameters<OpenCodeClient['request']>[0],
-  signal: AbortSignal
-): Promise<T> {
-  const response = await client.request(request, signal)
-  if (!response.ok) throw new Error(`OpenCode responded with ${response.status}`)
-  const body = (await response.json()) as { data?: T }
-  if (body.data === undefined) throw new Error('OpenCode returned no data')
-  return body.data
 }
 
 function sleep(ms: number): Promise<void> {

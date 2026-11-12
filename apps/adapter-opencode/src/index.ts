@@ -14,7 +14,7 @@ import {
 import { discoverOpenCode, type DiscoveryInput } from './discover.ts'
 import { enrollAdapter } from './enroll.ts'
 import { createAdapterApp } from './handler.ts'
-import { OpenCodeClient } from './opencode.ts'
+import { OpenCodeGateway } from './opencode.ts'
 import { readState, writeState, type AdapterLiveState } from './state.ts'
 import { AdapterTransport } from './transport.ts'
 import {
@@ -114,11 +114,11 @@ async function serve(args: string[]): Promise<void> {
       `No adapter config at ${adapterConfigPath()}. Run: clara-adapter-opencode install --pair <code>`
     )
   }
-  const openCode = new OpenCodeClient(
-    config.opencode.url,
-    config.opencode.password,
-    config.opencode.username
-  )
+  const openCode = new OpenCodeGateway({
+    url: config.opencode.url,
+    username: config.opencode.username,
+    ...(config.opencode.password ? { password: config.opencode.password } : {}),
+  })
   const probe = await openCode.probe(3_000)
   const app = createAdapterApp({
     opencode: openCode,
@@ -300,11 +300,11 @@ async function status(): Promise<void> {
     console.log(`live:     stale (last ${live.hub.status}, updated ${formatAge(live.updatedAt)})`)
   }
   console.log(`log:      ${processStatus.log}`)
-  const probe = await new OpenCodeClient(
-    config.opencode.url,
-    config.opencode.password,
-    config.opencode.username
-  ).probe(3_000)
+  const probe = await new OpenCodeGateway({
+    url: config.opencode.url,
+    username: config.opencode.username,
+    ...(config.opencode.password ? { password: config.opencode.password } : {}),
+  }).probe(3_000)
   console.log(
     `reachable: ${probe.ok ? `yes${probe.version ? ` (${probe.version})` : ''}` : `no (${probe.code})`}`
   )
@@ -315,9 +315,11 @@ async function enroll(
   input: HarnessPairingPayload,
   openCode: { url: string; username: string; password?: string }
 ) {
-  const probe = await new OpenCodeClient(openCode.url, openCode.password, openCode.username).probe(
-    3_000
-  )
+  const probe = await new OpenCodeGateway({
+    url: openCode.url,
+    username: openCode.username,
+    ...(openCode.password ? { password: openCode.password } : {}),
+  }).probe(3_000)
   const result = await enrollAdapter({
     wsUrl: input.wsUrl,
     clientToken: input.clientToken,
@@ -369,7 +371,11 @@ async function promptOpenCode(args: string[]): Promise<{
     username,
     ...(password ? { password } : {}),
   }
-  const probe = await new OpenCodeClient(config.url, config.password, config.username).probe(3_000)
+  const probe = await new OpenCodeGateway({
+    url: config.url,
+    username: config.username,
+    ...(config.password ? { password: config.password } : {}),
+  }).probe(3_000)
   if (!probe.ok) {
     throw new Error(`OpenCode is still unreachable (${probe.code}): ${probe.message ?? ''}`)
   }
