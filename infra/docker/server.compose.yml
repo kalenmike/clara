@@ -1,7 +1,7 @@
 # Clara hub container.
 #
 #   docker network create clara            # once, or start the orchestrator stack
-#   docker compose -f docker/server.compose.yml up -d --build
+#   docker compose -f infra/docker/server.compose.yml up -d --build
 #
 # The server joins the same private network as the orchestrator and OpenCode.
 # Its panel is published on host loopback and now requires a one-time setup
@@ -17,8 +17,8 @@ services:
   server:
     container_name: clara-server
     build:
-      context: ..
-      dockerfile: docker/server.Dockerfile
+      context: ../..
+      dockerfile: infra/docker/server.Dockerfile
     restart: unless-stopped
     init: true
     environment:

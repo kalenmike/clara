@@ -73,7 +73,7 @@ export default defineConfig([
       'apps/hub/server/**/*.ts',
       'apps/adapters/opencode/plugin/**/*.ts',
       'packages/**/*.ts',
-      'workers/**/*.ts',
+      'infra/**/*.ts',
     ],
     languageOptions: {
       globals: globals.node,

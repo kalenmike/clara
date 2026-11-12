@@ -2,7 +2,7 @@
 #
 #   export CLARA_ORCHESTRATION_TOKEN="$(openssl rand -hex 32)"
 #   export CLARA_WORKSPACE=/absolute/path/to/your/workspace
-#   docker compose -f docker/orchestrator.compose.yml up -d --build
+#   docker compose -f infra/docker/orchestrator.compose.yml up -d --build
 #
 # The orchestrator listens only on the private `clara` network. The host
 # loopback publish exists for host tools; the OpenCode container joins the same
@@ -18,8 +18,8 @@ services:
   orchestrator:
     container_name: clara-orchestrator
     build:
-      context: ..
-      dockerfile: docker/orchestrator.Dockerfile
+      context: ../..
+      dockerfile: infra/docker/orchestrator.Dockerfile
     restart: unless-stopped
     environment:
       CLARA_ORCHESTRATION_HOST: 0.0.0.0

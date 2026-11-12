@@ -5,18 +5,18 @@ import { root, run } from './router.mjs'
 import { positiveInt, probe } from './server-control.mjs'
 
 export function composeFile(repoRoot = root) {
-  return join(repoRoot, 'docker', 'web.compose.yml')
+  return join(repoRoot, 'infra', 'docker', 'web.compose.yml')
 }
 
 export function envFile(repoRoot = root) {
-  return join(repoRoot, 'docker', '.env')
+  return join(repoRoot, 'infra', 'docker', '.env')
 }
 
 export function compose(args, repoRoot = root) {
   return run('docker', composeArgs(args, repoRoot), { cwd: repoRoot })
 }
 
-/** Load docker/.env so `clara web ... --docker` matches the documented setup. */
+/** Load infra/docker/.env so `clara web ... --docker` matches the documented setup. */
 export function composeArgs(args, repoRoot = root) {
   const file = envFile(repoRoot)
   const envArgs = existsSync(file) ? ['--env-file', file] : []

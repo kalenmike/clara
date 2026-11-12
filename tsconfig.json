@@ -26,7 +26,7 @@
       "path": "./packages/api/mcp"
     },
     {
-      "path": "./workers/relay"
+      "path": "./infra/relay"
     },
     {
       "path": "./packages/orchestration/policy"

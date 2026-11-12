@@ -140,7 +140,7 @@ async function startDocker(build: boolean): Promise<void> {
     console.error('recent container logs:')
     for (const line of logs.split('\n')) console.error(`  ${line}`)
   }
-  console.error('check `docker compose -f docker/orchestrator.compose.yml logs orchestrator`')
+  console.error('check `docker compose -f infra/docker/orchestrator.compose.yml logs orchestrator`')
   process.exitCode = 1
 }
 

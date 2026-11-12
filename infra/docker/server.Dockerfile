@@ -3,7 +3,7 @@
 # Build the hub service, its panel, and only its runtime dependencies.
 # Build context: repository root.
 #
-#   docker build -f docker/server.Dockerfile -t clara-server .
+#   docker build -f infra/docker/server.Dockerfile -t clara-server .
 #
 # The config and data directories are mounted at runtime. The panel listens on
 # 0.0.0.0 inside the container and is published on the host loopback only.

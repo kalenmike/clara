@@ -1,7 +1,7 @@
 # Clara web client container.
 #
 #   docker network create clara            # once, or start the server stack
-#   docker compose -f docker/web.compose.yml up -d --build
+#   docker compose -f infra/docker/web.compose.yml up -d --build
 #
 # The SPA is static; the browser connects to the hub or relay directly.
 # The container joins the clara network so a reverse proxy beside it can reach
@@ -17,8 +17,8 @@ services:
   web:
     container_name: clara-web
     build:
-      context: ..
-      dockerfile: docker/web.Dockerfile
+      context: ../..
+      dockerfile: infra/docker/web.Dockerfile
       args:
         VITE_CLARA_WS_URL: ${VITE_CLARA_WS_URL:-}
     restart: unless-stopped

@@ -256,12 +256,12 @@ async function waitForExit(pid: number, timeoutMs: number): Promise<boolean> {
 }
 
 function repoRoot(): string {
-  return fileURLToPath(new URL('../../..', import.meta.url))
+  return fileURLToPath(new URL('../../../..', import.meta.url))
 }
 
 export function composeArgs(action: ComposeAction, build = false): string[] {
-  if (action === 'down') return ['compose', '-f', 'docker/orchestrator.compose.yml', 'down']
-  const args = ['compose', '-f', 'docker/orchestrator.compose.yml', 'up', '-d']
+  if (action === 'down') return ['compose', '-f', 'infra/docker/orchestrator.compose.yml', 'down']
+  const args = ['compose', '-f', 'infra/docker/orchestrator.compose.yml', 'up', '-d']
   if (build) args.push('--build')
   args.push('orchestrator')
   return args
@@ -271,7 +271,7 @@ export function composeLogArgs(tail = 40): string[] {
   return [
     'compose',
     '-f',
-    'docker/orchestrator.compose.yml',
+    'infra/docker/orchestrator.compose.yml',
     'logs',
     '--tail',
     String(tail),

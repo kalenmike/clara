@@ -5,18 +5,18 @@ import { join } from 'node:path'
 import { root, run } from './router.mjs'
 
 export function composeFile(repoRoot = root) {
-  return join(repoRoot, 'docker', 'server.compose.yml')
+  return join(repoRoot, 'infra', 'docker', 'server.compose.yml')
 }
 
 export function envFile(repoRoot = root) {
-  return join(repoRoot, 'docker', '.env')
+  return join(repoRoot, 'infra', 'docker', '.env')
 }
 
 export function compose(args, repoRoot = root) {
   return run('docker', composeArgs(args, repoRoot), { cwd: repoRoot })
 }
 
-/** Load docker/.env so `clara server ... --docker` matches the documented setup. */
+/** Load infra/docker/.env so `clara server ... --docker` matches the documented setup. */
 function composeArgs(args, repoRoot = root) {
   const file = envFile(repoRoot)
   const envArgs = existsSync(file) ? ['--env-file', file] : []

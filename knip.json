@@ -42,7 +42,7 @@
     "packages/crypto": {
       "project": ["src/**/*.ts", "test/**/*.ts"]
     },
-    "workers/relay": {
+    "infra/relay": {
       "project": ["src/**/*.ts", "test/**/*.ts"]
     },
     "packages/orchestration/policy": {

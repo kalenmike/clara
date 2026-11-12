@@ -3,13 +3,13 @@
 # Build the Clara web client and serve it as a static site.
 # Build context: repository root.
 #
-#   docker build -f docker/web.Dockerfile -t clara-web .
+#   docker build -f infra/docker/web.Dockerfile -t clara-web .
 #
 # VITE_CLARA_WS_URL is baked into the bundle at build time. Leave it unset to
 # use the relay URL carried by each pairing code; set it only to retarget relay
 # rooms to a different relay endpoint.
 #
-#   docker build -f docker/web.Dockerfile \
+#   docker build -f infra/docker/web.Dockerfile \
 #     --build-arg VITE_CLARA_WS_URL=wss://relay.example -t clara-web .
 
 FROM node:22-bookworm-slim AS build
@@ -42,7 +42,7 @@ RUN pnpm --filter @clara/web build
 
 FROM nginx:alpine AS runtime
 
-COPY docker/web.nginx.conf /etc/nginx/conf.d/default.conf
+COPY infra/docker/web.nginx.conf /etc/nginx/conf.d/default.conf
 COPY --from=build /repo/apps/web/dist /usr/share/nginx/html
 
 EXPOSE 80

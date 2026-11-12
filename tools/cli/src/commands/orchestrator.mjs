@@ -20,8 +20,8 @@ import {
 
 const source = join(root, 'apps', 'orchestrator', 'src', 'index.ts')
 const built = join(root, 'apps', 'orchestrator', 'dist', 'index.js')
-const composeFile = join(root, 'docker', 'orchestrator.compose.yml')
-const envFile = join(root, 'docker', '.env')
+const composeFile = join(root, 'infra', 'docker', 'orchestrator.compose.yml')
+const envFile = join(root, 'infra', 'docker', '.env')
 const ctx = readServiceArgs(process.argv.slice(2), 'help')
 const dockerToken =
   !process.env.CLARA_ORCHESTRATION_TOKEN &&

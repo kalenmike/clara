@@ -399,13 +399,13 @@ describe('docker start', () => {
     expect(composeArgs('down')).toEqual([
       'compose',
       '-f',
-      'docker/orchestrator.compose.yml',
+      'infra/docker/orchestrator.compose.yml',
       'down',
     ])
     expect(composeArgs('up')).toEqual([
       'compose',
       '-f',
-      'docker/orchestrator.compose.yml',
+      'infra/docker/orchestrator.compose.yml',
       'up',
       '-d',
       'orchestrator',
@@ -413,7 +413,7 @@ describe('docker start', () => {
     expect(composeArgs('up', true)).toEqual([
       'compose',
       '-f',
-      'docker/orchestrator.compose.yml',
+      'infra/docker/orchestrator.compose.yml',
       'up',
       '-d',
       '--build',
@@ -422,7 +422,7 @@ describe('docker start', () => {
     expect(composeLogArgs(10)).toEqual([
       'compose',
       '-f',
-      'docker/orchestrator.compose.yml',
+      'infra/docker/orchestrator.compose.yml',
       'logs',
       '--tail',
       '10',

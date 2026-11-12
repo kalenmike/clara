@@ -24,7 +24,11 @@ export const SCRIPTS = {
 }
 
 export function envPath(repoRoot = root) {
-  return join(repoRoot, 'docker', '.env')
+  const current = join(repoRoot, 'infra', 'docker', '.env')
+  const legacy = join(repoRoot, 'docker', '.env')
+  // Keep existing checkouts working after docker/ moved under infra/.
+  if (!existsSync(current) && existsSync(legacy)) return legacy
+  return current
 }
 
 export function parseSelection(args, { build = true, json = false } = {}) {
@@ -78,7 +82,7 @@ export function defaultEnv(repoRoot = root) {
   }
 }
 
-/** Read the simple KEY=value form used by docker/.env. */
+/** Read the simple KEY=value form used by infra/docker/.env. */
 export function parseEnvFile(path) {
   const values = {}
   for (const line of readFileSync(path, 'utf8').split(/\r?\n/)) {
@@ -101,7 +105,7 @@ export function parseEnvFile(path) {
 
 /**
  * Compose interpolation values for the Docker stack. Shell variables win over
- * docker/.env, matching Compose's own precedence.
+ * infra/docker/.env, matching Compose's own precedence.
  */
 export function composeEnvValues(repoRoot = root, env = process.env) {
   const path = envPath(repoRoot)
@@ -162,8 +166,8 @@ export function orchestratorEnvErrors(values, { envFile = envPath() } = {}) {
   if (missing.length) {
     errors.push(
       existsSync(envFile)
-        ? `${envFile} is missing ${missing.join(', ')}. Copy docker/.env.example or remove the file so \`pnpm clara start\` can create it.`
-        : `Missing ${missing.join(', ')} for the orchestrator container. Set them in ${envFile} (copy docker/.env.example) or export them before starting.`
+        ? `${envFile} is missing ${missing.join(', ')}. Copy infra/docker/.env.example or remove the file so \`pnpm clara start\` can create it.`
+        : `Missing ${missing.join(', ')} for the orchestrator container. Set them in ${envFile} (copy infra/docker/.env.example) or export them before starting.`
     )
   }
   if (values.CLARA_ORCHESTRATION_TOKEN?.trim() === EXAMPLE_TOKEN) {
@@ -195,7 +199,7 @@ export function hubEnvErrors(values) {
     )
     if (missing.length) {
       errors.push(
-        `CLARA_RELAY_URL is set but ${missing.join(' and ')} ${missing.length === 1 ? 'is' : 'are'} missing. The hub exits at startup without both relay tokens. Set them in docker/.env or unset CLARA_RELAY_URL.`
+        `CLARA_RELAY_URL is set but ${missing.join(' and ')} ${missing.length === 1 ? 'is' : 'are'} missing. The hub exits at startup without both relay tokens. Set them in infra/docker/.env or unset CLARA_RELAY_URL.`
       )
     }
   }

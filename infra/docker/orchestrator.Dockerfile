@@ -3,7 +3,7 @@
 # Build the loopback orchestration service and only its runtime dependencies.
 # Build context: repository root.
 #
-#   docker build -f docker/orchestrator.Dockerfile -t clara-orchestrator .
+#   docker build -f infra/docker/orchestrator.Dockerfile -t clara-orchestrator .
 #
 # The workspace is mounted at runtime, not baked into the image. Both the
 # orchestrator container and the OpenCode container must see the same absolute

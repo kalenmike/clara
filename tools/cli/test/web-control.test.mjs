@@ -18,28 +18,28 @@ test('web URL follows the configured port', () => {
   assert.equal(webURL({ CLARA_WEB_PORT: '9090' }), 'http://127.0.0.1:9090')
 })
 
-test('compose args use docker/web.compose.yml and load docker/.env when present', () => {
+test('compose args use infra/docker/web.compose.yml and load infra/docker/.env when present', () => {
   const root = mkdtempSync(join(tmpdir(), 'clara-web-control-'))
   try {
-    assert.equal(composeFile(root), join(root, 'docker', 'web.compose.yml'))
-    assert.equal(envFile(root), join(root, 'docker', '.env'))
+    assert.equal(composeFile(root), join(root, 'infra', 'docker', 'web.compose.yml'))
+    assert.equal(envFile(root), join(root, 'infra', 'docker', '.env'))
     assert.deepEqual(composeArgs(['up', '-d', 'web'], root), [
       'compose',
       '-f',
-      join(root, 'docker', 'web.compose.yml'),
+      join(root, 'infra', 'docker', 'web.compose.yml'),
       'up',
       '-d',
       'web',
     ])
 
-    mkdirSync(join(root, 'docker'))
-    writeFileSync(join(root, 'docker', '.env'), 'VITE_CLARA_WS_URL=wss://relay.example\n')
+    mkdirSync(join(root, 'infra', 'docker'), { recursive: true })
+    writeFileSync(join(root, 'infra', 'docker', '.env'), 'VITE_CLARA_WS_URL=wss://relay.example\n')
     assert.deepEqual(composeArgs(['down'], root), [
       'compose',
       '--env-file',
-      join(root, 'docker', '.env'),
+      join(root, 'infra', 'docker', '.env'),
       '-f',
-      join(root, 'docker', 'web.compose.yml'),
+      join(root, 'infra', 'docker', 'web.compose.yml'),
       'down',
     ])
   } finally {

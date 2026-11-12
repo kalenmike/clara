@@ -6,7 +6,7 @@ import { beforeEach, describe, expect, it } from 'vitest'
 import { reserveTokens } from '@clara/policy'
 import { Runtime, Store, defaultConfigPath } from '../src/index.ts'
 
-const workspace = fileURLToPath(new URL('../../../', import.meta.url))
+const workspace = fileURLToPath(new URL('../../../../', import.meta.url))
 const stdRoot = fileURLToPath(new URL('../std', import.meta.url))
 const config = defaultConfigPath()
 if (!config) throw new Error('bundled default config is missing')

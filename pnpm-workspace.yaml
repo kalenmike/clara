@@ -4,7 +4,7 @@ packages:
   - packages/*
   - packages/*/*
   - tools/*
-  - workers/*
+  - infra/*
 
 allowBuilds:
   better-sqlite3: true

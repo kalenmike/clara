@@ -16,9 +16,13 @@ async function healthy(url: string): Promise<boolean> {
 function orchestratorCommand(): { command: string; args: string[] } | undefined {
   const configured = process.env.CLARA_ORCHESTRATOR_BIN?.trim()
   if (configured) return { command: process.execPath, args: [configured, 'start'] }
-  const dist = fileURLToPath(new URL('../../orchestrator/dist/index.js', import.meta.url))
+  const dist = fileURLToPath(
+    new URL('../../../../apps/orchestrator/dist/index.js', import.meta.url)
+  )
   if (existsSync(dist)) return { command: process.execPath, args: [dist, 'start'] }
-  const source = fileURLToPath(new URL('../../orchestrator/src/index.ts', import.meta.url))
+  const source = fileURLToPath(
+    new URL('../../../../apps/orchestrator/src/index.ts', import.meta.url)
+  )
   if (existsSync(source)) {
     return {
       command: process.execPath,

@@ -8,6 +8,7 @@ import {
   composeEnvValues,
   defaultEnv,
   ensureOrchestratorEnv,
+  envPath,
   hubEnvErrors,
   hubEnvWarnings,
   orchestratorEnvErrors,
@@ -103,11 +104,11 @@ test('keeps the Docker control token out of local data', (t) => {
   const repo = join(dir, 'repo')
   const workspace = join(dir, 'workspace')
   const state = join(dir, 'docker-state')
-  mkdirSync(join(repo, 'docker'), { recursive: true })
+  mkdirSync(join(repo, 'infra', 'docker'), { recursive: true })
   mkdirSync(workspace, { recursive: true })
   const token = 'a'.repeat(64)
   writeFileSync(
-    join(repo, 'docker', '.env'),
+    join(repo, 'infra', 'docker', '.env'),
     [`CLARA_ORCHESTRATION_TOKEN=${token}`, `CLARA_WORKSPACE=${workspace}`, ''].join('\n')
   )
 
@@ -132,11 +133,11 @@ test('lists the Docker state volumes', () => {
   assert.deepEqual(VOLUMES, ['clara-server-config', 'clara-server-data', 'clara-orchestrator-data'])
 })
 
-test('compose env reads docker/.env and lets the shell win', (t) => {
+test('compose env reads infra/docker/.env and lets the shell win', (t) => {
   const dir = mkdtempSync(join(tmpdir(), 'clara-stack-'))
-  mkdirSync(join(dir, 'docker'), { recursive: true })
+  mkdirSync(join(dir, 'infra', 'docker'), { recursive: true })
   writeFileSync(
-    join(dir, 'docker', '.env'),
+    join(dir, 'infra', 'docker', '.env'),
     ['CLARA_RELAY_URL=wss://relay.example', 'CLARA_AGENT_TOKEN=file-token', ''].join('\n')
   )
   t.after(() => rmSync(dir, { recursive: true, force: true }))
@@ -144,6 +145,17 @@ test('compose env reads docker/.env and lets the shell win', (t) => {
   const values = composeEnvValues(dir, { CLARA_AGENT_TOKEN: 'shell-token' })
   assert.equal(values.CLARA_RELAY_URL, 'wss://relay.example')
   assert.equal(values.CLARA_AGENT_TOKEN, 'shell-token')
+})
+
+test('falls back to the legacy docker/.env after the move', (t) => {
+  const dir = mkdtempSync(join(tmpdir(), 'clara-stack-legacy-'))
+  mkdirSync(join(dir, 'docker'), { recursive: true })
+  writeFileSync(join(dir, 'docker', '.env'), 'CLARA_RELAY_URL=wss://legacy.example\n')
+  t.after(() => rmSync(dir, { recursive: true, force: true }))
+
+  assert.equal(envPath(dir), join(dir, 'docker', '.env'))
+  const values = composeEnvValues(dir, {})
+  assert.equal(values.CLARA_RELAY_URL, 'wss://legacy.example')
 })
 
 test('hub env requires both relay tokens when a relay URL is set', () => {
@@ -181,11 +193,11 @@ test('orchestrator env reports missing, example, and invalid workspace values', 
   t.after(() => rmSync(dir, { recursive: true, force: true }))
 
   assert.match(
-    orchestratorEnvErrors({}, { envFile: join(dir, 'docker', '.env') })[0],
+    orchestratorEnvErrors({}, { envFile: join(dir, 'infra', 'docker', '.env') })[0],
     /Missing CLARA_ORCHESTRATION_TOKEN, CLARA_WORKSPACE/
   )
-  mkdirSync(join(dir, 'docker'), { recursive: true })
-  const envFile = join(dir, 'docker', '.env')
+  mkdirSync(join(dir, 'infra', 'docker'), { recursive: true })
+  const envFile = join(dir, 'infra', 'docker', '.env')
   writeFileSync(envFile, '')
   assert.match(
     orchestratorEnvErrors({}, { envFile })[0],

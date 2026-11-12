@@ -12,5 +12,5 @@ apps/hub
 tools/lab
 tools/docs
 tools
-workers
+infra
 docs
