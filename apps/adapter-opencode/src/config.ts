@@ -40,6 +40,14 @@ export function adapterIdentityPath(env = process.env): string {
   return join(dataDir(env), 'identity.json')
 }
 
+export function adapterLogPath(env = process.env): string {
+  return join(dataDir(env), 'adapter.log')
+}
+
+export function adapterPidPath(env = process.env): string {
+  return join(dataDir(env), 'adapter.pid')
+}
+
 export type AdapterIdentity = {
   harnessId: string
   adapterId: string

@@ -16,6 +16,12 @@ import { enrollAdapter } from './enroll.ts'
 import { createAdapterApp } from './handler.ts'
 import { OpenCodeClient } from './opencode.ts'
 import { AdapterTransport } from './transport.ts'
+import {
+  adapterProcessStatus,
+  startAdapterProcess,
+  stopAdapterProcess,
+  tailAdapterLog,
+} from './service.ts'
 
 const ADAPTER_NAME = 'opencode'
 const ADAPTER_VERSION = '0.1.0'
@@ -78,6 +84,18 @@ async function main(argv: string[]): Promise<void> {
   }
   if (command === 'status') {
     await status()
+    return
+  }
+  if (command === 'start') {
+    await start()
+    return
+  }
+  if (command === 'stop') {
+    for (const action of stopAdapterProcess()) console.log(action)
+    return
+  }
+  if (command === 'logs') {
+    console.log(tailAdapterLog(Number(argValue(args, '--lines') ?? 80)))
     return
   }
   if (command === 'config-path') {
@@ -168,6 +186,20 @@ async function install(args: string[]): Promise<void> {
   await pair(args)
 }
 
+async function start(): Promise<void> {
+  if (!readConfig()) {
+    throw new Error(
+      `No adapter config at ${adapterConfigPath()}. Run: clara-adapter-opencode install --pair <code>`
+    )
+  }
+  const entry = process.argv[1]
+  const result = startAdapterProcess(entry ? entry : undefined)
+  for (const action of result.actions) console.log(action)
+  const status = adapterProcessStatus()
+  if (status.running) console.log(`adapter running (pid ${status.pid})`)
+  else console.log(`adapter did not start; check ${status.log}`)
+}
+
 async function status(): Promise<void> {
   const config = readConfig()
   const identity = loadIdentity()
@@ -181,6 +213,11 @@ async function status(): Promise<void> {
   console.log(`config:   ${adapterConfigPath()}`)
   console.log(`ws:       ${config.wsUrl}`)
   console.log(`opencode: ${config.opencode.url}`)
+  const processStatus = adapterProcessStatus()
+  console.log(
+    `process:  ${processStatus.running ? `running (pid ${processStatus.pid})` : 'stopped'}`
+  )
+  console.log(`log:      ${processStatus.log}`)
   const probe = await new OpenCodeClient(
     config.opencode.url,
     config.opencode.password,
@@ -277,8 +314,10 @@ function printHelp(): void {
 
 Usage:
   clara-adapter-opencode install [--pair <code>] [--opencode-url <url>]
+  clara-adapter-opencode start|stop|logs [--lines <n>]
   clara-adapter-opencode pair [--pair <code>] [--opencode-url <url>]
   clara-adapter-opencode serve
+  clara-adapter-opencode start|stop|logs
   clara-adapter-opencode status
   clara-adapter-opencode config-path
 

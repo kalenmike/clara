@@ -20,6 +20,7 @@ export interface Options {
   opencodeUsername?: string
   opencodePassword?: string
   foreground: boolean
+  lines?: number
   workspace?: string
   url?: string
   concurrency?: number
@@ -69,6 +70,7 @@ export function parseOptions(argv: string[]): Options {
       'opencode-username': { type: 'string' },
       'opencode-password': { type: 'string' },
       foreground: { type: 'boolean', default: false },
+      lines: { type: 'string' },
       workspace: { type: 'string' },
       url: { type: 'string' },
       concurrency: { type: 'string' },
@@ -112,6 +114,7 @@ export function parseOptions(argv: string[]): Options {
     ...(values['opencode-username'] ? { opencodeUsername: values['opencode-username'] } : {}),
     ...(values['opencode-password'] ? { opencodePassword: values['opencode-password'] } : {}),
     foreground: values.foreground,
+    ...(values.lines ? { lines: Number(values.lines) } : {}),
     ...(values.workspace ? { workspace: values.workspace } : {}),
     ...(values.url ? { url: values.url } : {}),
     ...(concurrency !== undefined ? { concurrency } : {}),
@@ -130,6 +133,8 @@ Usage:
   clara-adapter install [--opencode] [--pair <code>] [--mcp] [--runner] [options]
   clara-adapter uninstall [--opencode] [--runner]
   clara-adapter status [--json]
+  clara-adapter start|stop [--opencode]
+  clara-adapter logs [--opencode] [--lines <n>]
   clara-adapter runner [--once] [--workspace <path>] [options]
 
 Harnesses:

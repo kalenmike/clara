@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 import { helpText, parseOptions, UsageError } from './args.ts'
-import { install, status, uninstall } from './install.ts'
+import { adapterLogs, install, startAdapter, status, stopAdapter, uninstall } from './install.ts'
 import { runRunner } from './runner.ts'
 
 function printResult(result: {
@@ -38,6 +38,23 @@ async function main(argv: string[]): Promise<void> {
     return
   }
 
+  if (options.command === 'start' || options.command === 'stop' || options.command === 'logs') {
+    const selected = options.harnesses.length ? options.harnesses : (['opencode'] as const)
+    if (!selected.includes('opencode')) {
+      throw new UsageError('the adapter lifecycle commands currently support --opencode')
+    }
+    if (options.command === 'start') {
+      for (const action of startAdapter()) console.log(action)
+      return
+    }
+    if (options.command === 'stop') {
+      for (const action of stopAdapter()) console.log(action)
+      return
+    }
+    console.log(adapterLogs(options.lines ?? 80))
+    return
+  }
+
   if (options.command === 'install') {
     const result = await install(options)
     printResult({ ...result, json: options.json })
@@ -72,6 +89,10 @@ async function main(argv: string[]): Promise<void> {
         console.log(
           `adapter: ${report.adapter.present ? 'configured' : 'missing'} (${report.adapter.config})`
         )
+        console.log(
+          `  process: ${report.adapter.running ? `running${report.adapter.pid ? ` (pid ${report.adapter.pid})` : ''}` : 'stopped'}`
+        )
+        console.log(`  log: ${report.adapter.log}`)
         if (report.adapter.harnessId) console.log(`  harness: ${report.adapter.harnessId}`)
         if (report.adapter.wsUrl) console.log(`  ws: ${report.adapter.wsUrl}`)
         if (report.adapter.opencodeUrl) console.log(`  opencode: ${report.adapter.opencodeUrl}`)

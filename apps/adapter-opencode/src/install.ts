@@ -15,7 +15,13 @@ import {
 import { discoverOpenCode } from './discover.ts'
 import { enrollAdapter } from './enroll.ts'
 import { OpenCodeClient } from './opencode.ts'
-import { adapterEntry, installAdapterService, removeAdapterService } from './service.ts'
+import {
+  adapterEntry,
+  foregroundCommand,
+  installAdapterService,
+  removeAdapterService,
+  startAdapterProcess,
+} from './service.ts'
 
 const ADAPTER_VERSION = '0.1.0'
 
@@ -48,12 +54,14 @@ export type InstallOptions = {
   opencodePassword?: string
   noService?: boolean
   dryRun?: boolean
+  entry?: string
 }
 
 export type InstallResult = {
   actions: string[]
   warnings: string[]
   configPath: string
+  foregroundCommand: string
 }
 
 /** Install the hub-facing adapter daemon and pair it in one command. */
@@ -105,15 +113,22 @@ export async function installOpenCodeAdapter(options: InstallOptions): Promise<I
       label: 'OpenCode',
     })
   }
-  if (!options.noService) {
-    if (options.dryRun) actions.push(`install user service for ${adapterEntry()}`)
-    else {
-      const service = installAdapterService(adapterEntry())
-      actions.push(...service.actions)
-      if (service.warning) warnings.push(service.warning)
+  const entry = options.entry ?? adapterEntry()
+  const command = foregroundCommand(entry)
+  if (options.noService) {
+    actions.push(`run the adapter in the foreground: ${command}`)
+  } else if (options.dryRun) {
+    actions.push(`install user service or start background adapter for ${entry}`)
+  } else {
+    const service = installAdapterService(entry)
+    actions.push(...service.actions)
+    if (service.warning) warnings.push(service.warning)
+    if (service.service === 'none' || service.warning) {
+      const started = startAdapterProcess(entry)
+      actions.push(...started.actions)
     }
   }
-  return { actions, warnings, configPath: adapterConfigPath() }
+  return { actions, warnings, configPath: adapterConfigPath(), foregroundCommand: command }
 }
 
 async function pairingInput(value: string | undefined): Promise<HarnessPairingPayload> {
