@@ -1,7 +1,7 @@
 import { createServer, type Server } from 'node:http'
 import { getRequestListener } from '@hono/node-server'
 import { WebSocket, WebSocketServer } from 'ws'
-import type { WireFrame } from '@clara/shared-types'
+import { parseWireFrame, type WireFrame } from '@clara/shared-types'
 import type { Agent } from './agent.ts'
 import type { ApiApp } from './api/context.ts'
 
@@ -75,14 +75,24 @@ export class LocalTransport {
       wss.handleUpgrade(request, socket, head, (client) => {
         this.options.sockets.add(client)
         this.options.log?.('local client connected')
-        client.on('message', (data) => this.options.agent.handleMessage(data.toString()))
-        client.on('close', () => {
+        const sids = new Set<string>()
+        let dropped = false
+        const drop = () => {
+          if (dropped) return
+          dropped = true
           this.options.sockets.delete(client)
+          for (const sid of sids) this.options.agent.disconnect(sid)
+          sids.clear()
           this.options.log?.('local client disconnected')
+        }
+        client.on('message', (data) => {
+          const text = data.toString()
+          this.options.agent.handleMessage(text)
+          const sid = frameSid(text)
+          if (sid) sids.add(sid)
         })
-        client.on('error', () => {
-          this.options.sockets.delete(client)
-        })
+        client.on('close', drop)
+        client.on('error', drop)
       })
     })
 
@@ -149,6 +159,14 @@ export class LocalTransport {
       server.close(() => resolve())
       server.closeAllConnections()
     })
+  }
+}
+
+function frameSid(text: string): string | undefined {
+  try {
+    return parseWireFrame(JSON.parse(text))?.sid
+  } catch {
+    return undefined
   }
 }
 

@@ -5,7 +5,7 @@ import Database from 'better-sqlite3'
 
 export type ClaraDatabase = Database.Database
 
-export const SCHEMA_VERSION = 9
+export const SCHEMA_VERSION = 10
 
 const BUSY_TIMEOUT_MS = 5_000
 const DATABASE_MODE = 0o600
@@ -307,6 +307,26 @@ const MIGRATIONS: Migration[] = [
       insertIdentity.run(harnessId, row.kind, row.created_at, row.updated_at)
       updateConnection.run(harnessId, row.id)
     }
+  },
+  /**
+   * Adapters are the only harness connection type. Remove the retired direct
+   * connection columns and secrets table, and drop migrated direct connections
+   * that can no longer be proxied.
+   */
+  (db) => {
+    db.exec(`
+      DELETE FROM harness_connections
+        WHERE harness_id IS NULL OR harness_id LIKE 'legacy-%';
+
+      DROP TABLE IF EXISTS harness_secrets;
+
+      ALTER TABLE harness_connections DROP COLUMN base_url;
+      ALTER TABLE harness_connections DROP COLUMN auth_type;
+      ALTER TABLE harness_connections DROP COLUMN username;
+      ALTER TABLE harness_connections DROP COLUMN options_json;
+
+      ALTER TABLE harness_pairings DROP COLUMN replaces_connection_id;
+    `)
   },
 ]
 

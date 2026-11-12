@@ -121,11 +121,20 @@ describe('harness store', () => {
     ).rejects.toBeInstanceOf(HarnessValidationError)
   })
 
-  it('activates a new adapter over a legacy direct connection', async () => {
-    const legacy = await enroll({ harnessId: 'legacy-target' })
-    db.prepare(
-      'UPDATE harness_connections SET harness_id = ?, credential_id = NULL WHERE id = ?'
-    ).run(`legacy-${legacy.connection.id}`, legacy.connection.id)
+  it('clears persisted online state when the hub starts', async () => {
+    const result = await enroll({})
+    store.setOnline(result.connection.harnessId, true)
+    expect(store.active()?.online).toBe(true)
+
+    store.resetOnline()
+    expect(store.active()?.online).toBe(false)
+  })
+
+  it('activates a new adapter over a credential-less active connection', async () => {
+    const previous = await enroll({ harnessId: 'previous' })
+    db.prepare('UPDATE harness_connections SET credential_id = NULL WHERE id = ?').run(
+      previous.connection.id
+    )
 
     const next = await enroll({ harnessId: 'adapter-new', adapterId: 'adapter-b' })
     expect(next.connection.isActive).toBe(true)

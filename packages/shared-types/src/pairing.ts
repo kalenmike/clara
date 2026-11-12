@@ -113,8 +113,6 @@ export type HarnessPairingPayload = {
   enrollToken: string
   fingerprint: string
   expiresAt: number
-  /** Set while converting a legacy direct connection. */
-  replacesConnectionId?: string
 }
 
 export function encodeHarnessPairingCode(payload: HarnessPairingPayload): string {
@@ -201,9 +199,6 @@ export function validateHarnessPairing(value: unknown): HarnessPairingPayload | 
     enrollToken,
     fingerprint,
     expiresAt,
-    ...(typeof record.replacesConnectionId === 'string' && record.replacesConnectionId
-      ? { replacesConnectionId: record.replacesConnectionId }
-      : {}),
   }
 }
 

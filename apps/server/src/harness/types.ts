@@ -104,7 +104,6 @@ export type HarnessPairing = {
   label: string
   token: string
   fingerprint: string
-  replacesConnectionId?: string
   createdAt: number
   expiresAt: number
 }
