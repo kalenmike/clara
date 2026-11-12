@@ -13,15 +13,16 @@ export function ClientsView({
   now: number
   onChanged: () => void
 }) {
-  const pairing = snapshot.clients.filter((client) => client.kind === 'enroll').length
-  const active = snapshot.clients.length - pairing
+  const clients = snapshot.clients.filter((client) => client.kind !== 'adapter')
+  const pairing = clients.filter((client) => client.kind === 'enroll').length
+  const active = clients.length - pairing
 
   return (
     <View
       id="clients"
       kicker="Sessions"
       title="Clients"
-      description="Live end-to-end encrypted sessions and the devices that own them."
+      description="Live end-to-end encrypted browser sessions and the devices that own them."
       actions={
         <>
           <Badge tone={active > 0 ? 'info' : 'neutral'}>{active} active</Badge>
@@ -30,7 +31,7 @@ export function ClientsView({
       }
     >
       <div className="space-y-3">
-        <ClientsTable clients={snapshot.clients} devices={snapshot.devices} now={now} />
+        <ClientsTable clients={clients} devices={snapshot.devices} now={now} />
         <DevicesCard devices={snapshot.devices} now={now} onChanged={onChanged} />
       </div>
     </View>

@@ -45,7 +45,8 @@ export const PANEL_TABS: PanelTabMeta[] = [
     icon: Cable,
     kicker: 'OpenCode',
     title: 'Harness',
-    description: 'The OpenCode server this hub proxies to every paired client.',
+    description:
+      'Live adapter sessions, paired harnesses, and the OpenCode server this hub proxies.',
     primary: true,
   },
   {
@@ -63,7 +64,7 @@ export const PANEL_TABS: PanelTabMeta[] = [
     icon: Users,
     kicker: 'Sessions',
     title: 'Clients',
-    description: 'Live end-to-end encrypted sessions and the devices that own them.',
+    description: 'Live end-to-end encrypted browser sessions and the devices that own them.',
     primary: true,
   },
   {

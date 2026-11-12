@@ -50,7 +50,7 @@ export function harnessHealth(opencode: PanelOpenCodeInfo): HealthItem {
     : opencode.url || 'No connection saved'
 
   if (opencode.code === 'unconfigured') {
-    return { ...base, tone: 'warn', status: 'Not configured', detail: 'Add an OpenCode connection' }
+    return { ...base, tone: 'warn', status: 'Not configured', detail: 'Add a harness adapter' }
   }
   if (opencode.code === 'disabled') {
     return {
@@ -58,6 +58,14 @@ export function harnessHealth(opencode: PanelOpenCodeInfo): HealthItem {
       tone: 'idle',
       status: 'Off',
       detail: opencode.url || 'Disabled by admin setting',
+    }
+  }
+  if (opencode.code === 'offline') {
+    return {
+      ...base,
+      tone: 'warn',
+      status: 'Adapter offline',
+      detail: opencode.error || 'The active harness adapter is offline',
     }
   }
   if (opencode.reachable) {

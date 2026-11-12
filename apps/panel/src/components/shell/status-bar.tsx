@@ -40,8 +40,8 @@ export function StatusBar({
 
   const health = buildHealth(data)
   const [harness, local, relay, push, orchestration] = health
-  const activeClients = data.clients.filter((client) => client.kind !== 'enroll').length
-  const pairing = data.clients.length - activeClients
+  const activeClients = data.clients.filter((client) => client.kind === 'device').length
+  const pairing = data.clients.filter((client) => client.kind === 'enroll').length
   const clientsLabel = pairing
     ? `${activeClients} clients · ${pairing} pairing`
     : `${activeClients} client${activeClients === 1 ? '' : 's'}`
