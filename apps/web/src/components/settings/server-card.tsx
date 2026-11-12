@@ -12,8 +12,17 @@ import { usePush } from '@/providers/push-provider'
 
 export function ServerCard({ simplified }: { simplified: boolean }) {
   const navigate = useNavigate()
-  const { config, info, disconnect, reconnect, reconnecting, reconnectError, relayStatus } =
-    useConnection()
+  const {
+    config,
+    hub,
+    harness,
+    harnessError,
+    disconnect,
+    reconnect,
+    reconnecting,
+    reconnectError,
+    relayStatus,
+  } = useConnection()
   const { state: streamState, lastError } = useEventStream()
   const push = usePush()
 
@@ -25,7 +34,7 @@ export function ServerCard({ simplified }: { simplified: boolean }) {
 
   const retry = async () => {
     const ok = await reconnect()
-    if (ok) toast.success('Reconnected to OpenCode')
+    if (ok) toast.success('Reconnected to the hub')
     else toast.error('Could not reach the Clara hub. Check that the hub service is running.')
   }
 
@@ -36,7 +45,7 @@ export function ServerCard({ simplified }: { simplified: boolean }) {
           <Server className="size-4" /> Server
         </CardTitle>
         {!simplified && (
-          <CardDescription>The OpenCode instance this browser is connected to.</CardDescription>
+          <CardDescription>The hub and harness this browser is connected to.</CardDescription>
         )}
       </CardHeader>
       <CardContent className="space-y-3 text-sm">
@@ -51,9 +60,18 @@ export function ServerCard({ simplified }: { simplified: boolean }) {
             {relayStatus?.agent?.opencodeVersion && (
               <Row label="OpenCode" value={relayStatus.agent.opencodeVersion} />
             )}
-            <Row label="Version" value={info?.version ?? 'unknown'} />
-            <Row label="PID" value={info ? String(info.pid) : 'unknown'} />
-            <Row label="URLs" value={info?.urls.join(', ') ?? 'unknown'} />
+            <Row
+              label="Hub"
+              value={hub ? `${hub.server.version} (PID ${hub.server.pid})` : 'unknown'}
+            />
+            <Row
+              label="Harness"
+              value={
+                harness
+                  ? `${harness.version} · ${harness.urls.join(', ')}`
+                  : (harnessError ?? 'checking…')
+              }
+            />
             <Row label="Stream" value={streamState} />
             {lastError && <Row label="Stream error" value={lastError} />}
             <Separator />
