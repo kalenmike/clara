@@ -29,6 +29,7 @@ import {
 const RECONNECT_MAX_MS = 30_000
 const HEARTBEAT_MS = 20_000
 const STALL_MS = 45_000
+const HANDSHAKE_TIMEOUT_MS = 10_000
 
 export type AdapterIdentity = {
   harnessId: string
@@ -41,6 +42,14 @@ export type AdapterTransportInfo = {
   protocolVersion: number
   harnessVersion?: string
   capabilities: Record<string, unknown>
+}
+
+export type AdapterTransportStatus = {
+  status: 'connecting' | 'connected' | 'authenticated' | 'offline' | 'stopped'
+  connected: boolean
+  authenticated: boolean
+  lastFrameAt?: number
+  lastError?: string
 }
 
 export type AdapterTransportOptions = {
@@ -68,6 +77,7 @@ export class AdapterTransport {
   private keys: SessionKeys | null = null
   private sid = ''
   private sendSeq = 0
+  private sendChain: Promise<void> = Promise.resolve()
   private receive = new ReplayGuard()
   private pending = new Map<string, Pending>()
   /** In-flight requests the hub sent to this adapter, keyed by request id. */
@@ -76,9 +86,13 @@ export class AdapterTransport {
   private retry = 0
   private reconnectTimer: NodeJS.Timeout | null = null
   private heartbeatTimer: NodeJS.Timeout | null = null
+  private handshakeTimer: NodeJS.Timeout | null = null
   private lastSeen = 0
+  /** Last frame that belonged to this session, not another broadcast session. */
+  private lastHubFrameAt = 0
   private connected = false
   private authenticated = false
+  private lastError: string | undefined
   private messageChain: Promise<void> = Promise.resolve()
 
   constructor(options: AdapterTransportOptions) {
@@ -87,6 +101,25 @@ export class AdapterTransport {
 
   get online(): boolean {
     return this.connected
+  }
+
+  get status(): AdapterTransportStatus {
+    const status: AdapterTransportStatus['status'] = this.stopped
+      ? 'stopped'
+      : this.authenticated
+        ? 'authenticated'
+        : this.connected
+          ? 'connected'
+          : this.socket
+            ? 'connecting'
+            : 'offline'
+    return {
+      status,
+      connected: this.connected,
+      authenticated: this.authenticated,
+      ...(this.lastHubFrameAt > 0 ? { lastFrameAt: this.lastHubFrameAt } : {}),
+      ...(this.lastError ? { lastError: this.lastError } : {}),
+    }
   }
 
   start(): void {
@@ -99,13 +132,17 @@ export class AdapterTransport {
     this.stopped = true
     if (this.reconnectTimer) clearTimeout(this.reconnectTimer)
     if (this.heartbeatTimer) clearInterval(this.heartbeatTimer)
+    if (this.handshakeTimer) clearTimeout(this.handshakeTimer)
     this.reconnectTimer = null
     this.heartbeatTimer = null
+    this.handshakeTimer = null
     this.socket?.close(1000, 'adapter shutting down')
     this.socket = null
     this.keys = null
+    this.sendChain = Promise.resolve()
     this.connected = false
     this.authenticated = false
+    this.lastHubFrameAt = 0
     this.abortInbound()
     this.rejectAll(new Error('Adapter connection closed'))
   }
@@ -136,7 +173,17 @@ export class AdapterTransport {
     const response = new Promise<Response>((resolve, reject) => {
       this.pending.set(id, { controller, stream, resolve, reject, started: false })
     })
-    await this.send(action)
+    try {
+      await this.send(action)
+    } catch (cause) {
+      this.pending.delete(id)
+      try {
+        controller.error(cause)
+      } catch {
+        // The stream may already be closed.
+      }
+      throw cause
+    }
     return response
   }
 
@@ -158,7 +205,11 @@ export class AdapterTransport {
       if (this.socket !== socket) return
       this.retry = 0
       this.lastSeen = Date.now()
+      this.lastHubFrameAt = Date.now()
+      this.lastError = undefined
+      this.sendChain = Promise.resolve()
       this.startHeartbeat(socket)
+      this.startHandshakeTimer(socket)
       void this.handshake(socket)
     })
 
@@ -169,17 +220,28 @@ export class AdapterTransport {
     socket.on('message', (data) => {
       this.lastSeen = Date.now()
       const text = data.toString()
-      this.messageChain = this.messageChain.then(() => this.handleMessage(text))
+      this.messageChain = this.messageChain
+        .then(() => this.handleMessage(text))
+        .catch((cause) => this.options.log?.('adapter frame error', cause))
     })
 
-    socket.on('error', (cause) => this.options.log?.('adapter socket error', cause))
+    socket.on('error', (cause) => {
+      this.lastError = cause instanceof Error ? cause.message : String(cause)
+      this.options.log?.('adapter socket error', cause)
+    })
     socket.on('close', (code, reason) => {
       if (this.socket !== socket) return
+      if (!this.stopped) {
+        this.lastError = `Disconnected (${code} ${reason.toString() || 'no reason'})`
+      }
       this.socket = null
       this.keys = null
       this.connected = false
       this.authenticated = false
+      this.lastHubFrameAt = 0
+      this.sendChain = Promise.resolve()
       this.stopHeartbeat()
+      this.stopHandshakeTimer()
       this.abortInbound()
       this.rejectAll(
         new Error(`Adapter disconnected (${code} ${reason.toString() || 'no reason'})`)
@@ -226,7 +288,10 @@ export class AdapterTransport {
       this.keys = keys
       this.receive = new ReplayGuard()
       this.sendSeq = 0
+      this.sendChain = Promise.resolve()
       this.connected = true
+      this.lastHubFrameAt = Date.now()
+      this.lastError = undefined
       this.options.log?.('adapter handshake complete')
       return
     }
@@ -234,6 +299,7 @@ export class AdapterTransport {
     if (isErrorFrame(parsed)) {
       // Error frames are broadcast to every socket, so ignore another session's.
       if (parsed.sid !== this.sid) return
+      this.lastError = `${parsed.code}: ${parsed.message}`
       this.options.log?.(`adapter session error: ${parsed.code} ${parsed.message}`)
       this.socket?.close(1000, parsed.code)
       return
@@ -242,6 +308,7 @@ export class AdapterTransport {
     // Sealed frames are broadcast too. Trying to open a frame for another
     // session fails the replay/decrypt step and would tear down this adapter.
     if (!isSealedFrame(parsed) || parsed.sid !== this.sid || !this.keys) return
+    this.lastHubFrameAt = Date.now()
     try {
       this.receive.check(parsed.seq)
       const plaintext = await open(
@@ -254,9 +321,12 @@ export class AdapterTransport {
       await this.handlePayload(payload)
       if (!this.authenticated) {
         this.authenticated = true
+        this.lastError = undefined
+        this.stopHandshakeTimer()
         this.options.log?.('adapter authenticated')
       }
     } catch (cause) {
+      this.lastError = cause instanceof Error ? cause.message : String(cause)
       this.options.log?.('adapter could not open a frame', cause)
       this.socket?.close(1000, 'bad frame')
     }
@@ -343,7 +413,7 @@ export class AdapterTransport {
           id: action.id,
           code: 'adapter_error',
           message: cause instanceof Error ? cause.message : String(cause),
-        })
+        }).catch(() => {})
       }
     } finally {
       this.inbound.delete(action.id)
@@ -379,26 +449,37 @@ export class AdapterTransport {
     }
   }
 
-  private async send(payload: unknown): Promise<void> {
+  private send(payload: unknown): Promise<void> {
     const socket = this.socket
-    const keys = this.keys
-    if (!socket || socket.readyState !== WebSocket.OPEN || !keys) return
-    const seq = this.sendSeq
-    this.sendSeq += 1
-    const box = await seal(
-      keys.c2s,
-      { sid: this.sid, direction: 'c2s', seq },
-      utf8(JSON.stringify(payload))
-    )
-    const frame: WireFrame = {
-      t: 'sealed',
-      v: PROTOCOL_VERSION,
-      sid: this.sid,
-      seq,
-      iv: box.iv,
-      ct: box.ct,
-    }
-    socket.send(JSON.stringify(frame))
+    const sid = this.sid
+    const run = this.sendChain.then(async () => {
+      // A frame queued for an old connection must not consume a sequence number
+      // in the session that replaced it.
+      if (this.socket !== socket || this.sid !== sid) return
+      const keys = this.keys
+      if (!socket || socket.readyState !== WebSocket.OPEN || !keys) {
+        throw new Error('The harness adapter is offline')
+      }
+      const seq = this.sendSeq
+      this.sendSeq += 1
+      const box = await seal(
+        keys.c2s,
+        { sid, direction: 'c2s', seq },
+        utf8(JSON.stringify(payload))
+      )
+      if (this.socket !== socket || this.sid !== sid) return
+      const frame: WireFrame = {
+        t: 'sealed',
+        v: PROTOCOL_VERSION,
+        sid,
+        seq,
+        iv: box.iv,
+        ct: box.ct,
+      }
+      socket.send(JSON.stringify(frame))
+    })
+    this.sendChain = run.catch(() => {})
+    return run
   }
 
   private abortInbound(): void {
@@ -438,6 +519,18 @@ export class AdapterTransport {
         socket.terminate()
         return
       }
+      // The hub broadcasts frames for every session, so socket-level traffic is
+      // not proof that this adapter's session is still registered. Require a
+      // frame or pong for this session and reconnect when it goes quiet.
+      if (this.authenticated && Date.now() - this.lastHubFrameAt > STALL_MS) {
+        this.lastError = 'The hub stopped answering this adapter session'
+        this.options.log?.('adapter heartbeat timed out')
+        socket.terminate()
+        return
+      }
+      if (this.authenticated) {
+        void this.send({ type: 'ping', at: Date.now() }).catch(() => {})
+      }
       socket.ping()
     }, HEARTBEAT_MS)
     this.heartbeatTimer.unref()
@@ -446,5 +539,21 @@ export class AdapterTransport {
   private stopHeartbeat(): void {
     if (this.heartbeatTimer) clearInterval(this.heartbeatTimer)
     this.heartbeatTimer = null
+  }
+
+  private startHandshakeTimer(socket: WebSocket): void {
+    this.stopHandshakeTimer()
+    this.handshakeTimer = setTimeout(() => {
+      if (this.socket !== socket || this.authenticated) return
+      this.lastError = 'The hub did not finish the E2EE handshake'
+      this.options.log?.('adapter handshake timed out')
+      socket.terminate()
+    }, HANDSHAKE_TIMEOUT_MS)
+    this.handshakeTimer.unref()
+  }
+
+  private stopHandshakeTimer(): void {
+    if (this.handshakeTimer) clearTimeout(this.handshakeTimer)
+    this.handshakeTimer = null
   }
 }

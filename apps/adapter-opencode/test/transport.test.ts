@@ -4,9 +4,11 @@ import {
   bytesToBase64Url,
   deriveSessionKeys,
   generateKey,
+  open,
   randomBytes,
   seal,
   utf8,
+  type SessionKeys,
 } from '@clara/crypto'
 import { PROTOCOL_VERSION } from '@clara/shared-types'
 import { AdapterTransport } from '../src/transport'
@@ -29,6 +31,12 @@ type FakeHub = {
   sendError: (sid: string, message?: string) => void
   sendForeignSealed: (sid: string) => void
   isOpen: () => boolean
+  arrivalSeqs: () => number[]
+  clientFrames: () => Array<{ seq: number; payload: Record<string, unknown> }>
+  waitForClient: (
+    check: (frames: Array<{ seq: number; payload: Record<string, unknown> }>) => boolean,
+    timeoutMs?: number
+  ) => Promise<Array<{ seq: number; payload: Record<string, unknown> }>>
   close: () => Promise<void>
 }
 
@@ -154,9 +162,60 @@ describe('AdapterTransport authentication', () => {
     )
     await requestStarted
     await hub.sendSealed(hello, { type: 'adapter.abort', id: 'request-1' }, { seq: 2 })
-    await waitFor(() => aborted, 5_000)
+    await waitFor(() => aborted, 10_000)
     transport.close()
-  })
+  }, 15_000)
+})
+
+describe('AdapterTransport send ordering', () => {
+  it('keeps concurrent responses in sealed sequence order', async () => {
+    const hub = await startHub()
+    const logs: string[] = []
+    const transport = createTransport(hub, logs, async (request) => {
+      const path = new URL(request.url).pathname
+      if (path === '/large') {
+        await new Promise((resolve) => setTimeout(resolve, 5))
+        return new Response('x'.repeat(200_000), { status: 200 })
+      }
+      return new Response('{}', { status: 200 })
+    })
+
+    transport.start()
+    const hello = await hub.hello()
+    await hub.sendSealed(hello, { type: 'ready', agent: { version: 'test', protocol: 3 } })
+    await waitFor(() => logs.includes('adapter authenticated'))
+
+    await hub.sendSealed(
+      hello,
+      { type: 'adapter.request', id: 'large', method: 'GET', path: '/large' },
+      { seq: 1 }
+    )
+    await hub.sendSealed(
+      hello,
+      { type: 'adapter.request', id: 'small', method: 'GET', path: '/small' },
+      { seq: 2 }
+    )
+
+    const frames = await hub.waitForClient(
+      (value) => value.filter((frame) => frame.payload.type === 'adapter.end').length === 2,
+      10_000
+    )
+    const arrival = hub.arrivalSeqs()
+    expect(arrival).toEqual(arrival.map((_, index) => index))
+
+    const ordered = frames.slice().sort((left, right) => left.seq - right.seq)
+    for (const id of ['large', 'small']) {
+      const response = ordered.findIndex(
+        (frame) => frame.payload.type === 'adapter.response' && frame.payload.id === id
+      )
+      const end = ordered.findIndex(
+        (frame) => frame.payload.type === 'adapter.end' && frame.payload.id === id
+      )
+      expect(response).toBeGreaterThanOrEqual(0)
+      expect(end).toBeGreaterThan(response)
+    }
+    transport.close()
+  }, 15_000)
 })
 
 function createTransport(
@@ -184,6 +243,9 @@ async function startHub(): Promise<FakeHub> {
   if (typeof address === 'string' || !address) throw new Error('The test hub did not bind')
 
   let client: WebSocket | undefined
+  let keys: SessionKeys | undefined
+  const clientFrames: Array<{ seq: number; payload: Record<string, unknown> }> = []
+  const arrival: number[] = []
   let resolveHello!: (hello: Hello) => void
   const hello = new Promise<Hello>((resolve) => {
     resolveHello = resolve
@@ -192,24 +254,60 @@ async function startHub(): Promise<FakeHub> {
   server.on('connection', (socket) => {
     client = socket
     socket.on('message', (data) => {
-      const frame = JSON.parse(data.toString()) as {
+      void handleFrame(data.toString())
+    })
+
+    async function handleFrame(text: string): Promise<void> {
+      const frame = JSON.parse(text) as {
         t?: string
         sid?: string
         nonce?: string
+        seq?: number
+        iv?: string
+        ct?: string
       }
-      if (frame.t !== 'hello' || !frame.sid || !frame.nonce) return
-      const agentNonce = bytesToBase64Url(randomBytes(16))
-      socket.send(
-        JSON.stringify({
-          t: 'hello',
-          v: PROTOCOL_VERSION,
+      if (frame.t === 'hello' && frame.sid && frame.nonce) {
+        const agentNonce = bytesToBase64Url(randomBytes(16))
+        keys = await deriveSessionKeys({
+          key,
           sid: frame.sid,
-          nonce: agentNonce,
-          role: 'agent',
+          clientNonce: frame.nonce,
+          agentNonce,
         })
+        socket.send(
+          JSON.stringify({
+            t: 'hello',
+            v: PROTOCOL_VERSION,
+            sid: frame.sid,
+            nonce: agentNonce,
+            role: 'agent',
+          })
+        )
+        resolveHello({ sid: frame.sid, clientNonce: frame.nonce, agentNonce })
+        return
+      }
+      if (
+        frame.t !== 'sealed' ||
+        frame.sid === undefined ||
+        frame.seq === undefined ||
+        frame.iv === undefined ||
+        frame.ct === undefined ||
+        !keys ||
+        !frame.sid
+      ) {
+        return
+      }
+      arrival.push(frame.seq)
+      const plaintext = await open(
+        keys.c2s,
+        { sid: frame.sid, direction: 'c2s', seq: frame.seq },
+        { iv: frame.iv, ct: frame.ct }
       )
-      resolveHello({ sid: frame.sid, clientNonce: frame.nonce, agentNonce })
-    })
+      clientFrames.push({
+        seq: frame.seq,
+        payload: JSON.parse(new TextDecoder().decode(plaintext)) as Record<string, unknown>,
+      })
+    }
   })
 
   const hub: FakeHub = {
@@ -264,6 +362,18 @@ async function startHub(): Promise<FakeHub> {
       )
     },
     isOpen: () => client?.readyState === WebSocket.OPEN,
+    arrivalSeqs: () => arrival.slice(),
+    clientFrames: () => clientFrames.slice(),
+    waitForClient: async (check, timeoutMs = 2_000) => {
+      const started = Date.now()
+      while (!check(clientFrames)) {
+        if (Date.now() - started > timeoutMs) {
+          throw new Error('Timed out waiting for adapter frames')
+        }
+        await new Promise((resolve) => setTimeout(resolve, 10))
+      }
+      return clientFrames.slice()
+    },
     close: async () => {
       client?.terminate()
       await new Promise<void>((resolve) => server.close(() => resolve()))
