@@ -60,13 +60,21 @@ export async function enrollAdapter(input: EnrollmentInput): Promise<AdapterEnro
   let sendSeq = 0
   const receive = new ReplayGuard()
   let settled = false
+  let connected = false
+  let helloReceived = false
   let messageChain: Promise<void> = Promise.resolve()
 
   const timeout = setTimeout(() => {
     if (settled) return
     settled = true
     socket.terminate()
-    reject(new Error('The hub did not answer the enrollment'))
+    reject(
+      new Error(
+        `The hub did not answer the enrollment at ${input.wsUrl} ` +
+          `(socket ${connected ? 'connected' : 'not connected'}, ` +
+          `hub hello ${helloReceived ? 'received' : 'missing'})`
+      )
+    )
   }, input.timeoutMs ?? 15_000)
   timeout.unref()
 
@@ -103,6 +111,7 @@ export async function enrollAdapter(input: EnrollmentInput): Promise<AdapterEnro
   }
 
   socket.on('open', () => {
+    connected = true
     socket.send(
       JSON.stringify({
         t: 'hello',
@@ -129,6 +138,7 @@ export async function enrollAdapter(input: EnrollmentInput): Promise<AdapterEnro
 
         if (isHelloFrame(parsed)) {
           if (parsed.sid !== sid || parsed.role !== 'agent') return
+          helloReceived = true
           keys = await deriveSessionKeys({
             key: input.enrollToken,
             sid,
@@ -169,9 +179,23 @@ export async function enrollAdapter(input: EnrollmentInput): Promise<AdapterEnro
       .catch(fail)
   })
 
-  socket.on('error', fail)
-  socket.on('close', () => {
-    if (!settled) fail(new Error('The hub closed the enrollment session'))
+  socket.on('error', (cause) =>
+    fail(
+      new Error(
+        `Could not connect to ${input.wsUrl}: ${cause instanceof Error ? cause.message : String(cause)}`
+      )
+    )
+  )
+  socket.on('close', (code, reason) => {
+    if (!settled) {
+      fail(
+        new Error(
+          `The hub closed the enrollment session at ${input.wsUrl} ` +
+            `(${code} ${reason.toString() || 'no reason'}; socket ${connected ? 'connected' : 'not connected'}, ` +
+            `hub hello ${helloReceived ? 'received' : 'missing'})`
+        )
+      )
+    }
   })
 
   return result

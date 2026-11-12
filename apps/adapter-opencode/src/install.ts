@@ -7,6 +7,7 @@ import {
 } from '@clara/shared-types'
 import {
   adapterConfigPath,
+  adapterLogPath,
   loadIdentity,
   removeConfig,
   removeIdentity,
@@ -81,29 +82,13 @@ export async function installOpenCodeAdapter(options: InstallOptions): Promise<I
     3_000
   )
 
-  const enrolled = options.dryRun
-    ? { connectionId: '(dry run)', reconnected: false }
-    : await enrollAdapter({
-        wsUrl: pairing.wsUrl,
-        clientToken: pairing.clientToken,
-        enrollId: pairing.enrollId,
-        enrollToken: pairing.enrollToken,
-        harnessId: identity.harnessId,
-        kind: pairing.kind,
-        label: 'OpenCode',
-        adapterId: identity.adapterId,
-        key: identity.key,
-        adapterVersion: ADAPTER_VERSION,
-        ...(probe.version ? { harnessVersion: probe.version } : {}),
-        capabilities: CAPABILITIES,
-      })
-
-  const actions = [
-    `use OpenCode ${openCode.url}`,
-    `write adapter config ${adapterConfigPath()}`,
-    `pair adapter ${identity.harnessId} as connection ${enrolled.connectionId}`,
-  ]
+  const entry = options.entry ?? adapterEntry()
+  const command = foregroundCommand(entry)
+  const actions = [`use OpenCode ${openCode.url}`]
   const warnings: string[] = []
+
+  // Persist before enrollment. If the hub enrolls the adapter but the response
+  // is lost, the saved credential can still reconnect on `adapter start`.
   if (!options.dryRun) {
     writeConfig({
       ...identity,
@@ -112,9 +97,38 @@ export async function installOpenCodeAdapter(options: InstallOptions): Promise<I
       opencode: openCode,
       label: 'OpenCode',
     })
+    actions.push(`write adapter config ${adapterConfigPath()}`)
   }
-  const entry = options.entry ?? adapterEntry()
-  const command = foregroundCommand(entry)
+
+  let enrolled: { connectionId: string; reconnected: boolean }
+  try {
+    enrolled = options.dryRun
+      ? { connectionId: '(dry run)', reconnected: false }
+      : await enrollAdapter({
+          wsUrl: pairing.wsUrl,
+          clientToken: pairing.clientToken,
+          enrollId: pairing.enrollId,
+          enrollToken: pairing.enrollToken,
+          harnessId: identity.harnessId,
+          kind: pairing.kind,
+          label: 'OpenCode',
+          adapterId: identity.adapterId,
+          key: identity.key,
+          adapterVersion: ADAPTER_VERSION,
+          ...(probe.version ? { harnessVersion: probe.version } : {}),
+          capabilities: CAPABILITIES,
+        })
+  } catch (cause) {
+    const reason = cause instanceof Error ? cause.message : String(cause)
+    throw new Error(
+      `${reason}\nThe adapter config was saved at ${adapterConfigPath()}. ` +
+        `Start it with: pnpm clara adapter start --opencode\n` +
+        `Log: ${adapterLogPath()}`,
+      { cause }
+    )
+  }
+  actions.push(`pair adapter ${identity.harnessId} as connection ${enrolled.connectionId}`)
+
   if (options.noService) {
     actions.push(`run the adapter in the foreground: ${command}`)
   } else if (options.dryRun) {
