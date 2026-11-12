@@ -23,7 +23,6 @@ COPY packages/binding-core/package.json packages/binding-core/package.json
 COPY packages/crypto/package.json packages/crypto/package.json
 COPY packages/harness-protocol/package.json packages/harness-protocol/package.json
 COPY packages/mcp/package.json packages/mcp/package.json
-COPY packages/mcp-server/package.json packages/mcp-server/package.json
 COPY packages/runner/package.json packages/runner/package.json
 COPY packages/shared-types/package.json packages/shared-types/package.json
 RUN pnpm install --frozen-lockfile --filter @clara/adapter-opencode...
@@ -35,7 +34,6 @@ COPY packages/binding-core packages/binding-core
 COPY packages/crypto packages/crypto
 COPY packages/harness-protocol packages/harness-protocol
 COPY packages/mcp packages/mcp
-COPY packages/mcp-server packages/mcp-server
 COPY packages/runner packages/runner
 COPY packages/shared-types packages/shared-types
 RUN pnpm --filter @clara/adapter-opencode build

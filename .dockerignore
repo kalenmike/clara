@@ -10,7 +10,6 @@
 apps/web
 apps/panel
 apps/server
-apps/mcp
 plugins
 workers
 docs

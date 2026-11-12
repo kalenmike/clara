@@ -69,14 +69,11 @@
     "packages/devtools": {
       "project": ["src/**/*.ts", "test/**/*.ts"]
     },
-    "packages/mcp-server": {
-      "project": ["src/**/*.ts"]
+    "packages/mcp": {
+      "project": ["src/**/*.ts", "test/**/*.ts"]
     },
     "apps/orchestrator": {
       "project": ["src/**/*.ts", "test/**/*.ts"]
-    },
-    "apps/mcp": {
-      "project": ["src/**/*.ts"]
     },
     "apps/adapter-opencode": {
       "project": ["src/**/*.ts", "test/**/*.ts", "plugin/**/*.ts"],

@@ -3,18 +3,21 @@
   "private": true,
   "version": "0.1.0",
   "type": "module",
+  "description": "Clara orchestration MCP tools and stdio bridge.",
   "bin": {
     "clara-mcp": "./dist/index.js"
   },
+  "exports": {
+    ".": "./src/index.ts"
+  },
   "scripts": {
-    "dev": "tsx src/index.ts",
+    "dev": "tsx src/bin.ts",
     "build": "tsup",
     "start": "node dist/index.js",
     "typecheck": "tsc -p tsconfig.json",
-    "test": "vitest run --passWithNoTests"
+    "test": "vitest run"
   },
   "dependencies": {
-    "@clara/mcp-server": "workspace:*",
     "@modelcontextprotocol/sdk": "^1.24.3",
     "zod": "^4.1.13"
   },

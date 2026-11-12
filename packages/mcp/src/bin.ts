@@ -3,9 +3,9 @@ import { spawn } from 'node:child_process'
 import { existsSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js'
-import { createClaraServer } from '@clara/mcp-server'
 import { autostart, serviceURL, token } from './config.ts'
 import { HttpBackend } from './http-backend.ts'
+import { createClaraServer } from './server.ts'
 
 async function healthy(url: string): Promise<boolean> {
   return fetch(`${url}/health`)

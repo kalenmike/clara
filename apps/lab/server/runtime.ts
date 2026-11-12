@@ -1,4 +1,4 @@
-import { SERVER_INSTRUCTIONS } from '@clara/mcp-server'
+import { SERVER_INSTRUCTIONS } from '@clara/mcp'
 import {
   previewPipeline,
   type AdapterInfo,

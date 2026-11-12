@@ -1,4 +1,4 @@
-import type { ClaraBackend, UsageInput } from '@clara/mcp-server'
+import type { ClaraBackend, UsageInput } from './types.ts'
 
 export class HttpBackend implements ClaraBackend {
   readonly baseURL: string

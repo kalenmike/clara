@@ -1,6 +1,6 @@
 import { existsSync } from 'node:fs'
 import { resolve } from 'node:path'
-import type { ClaraBackend, UsageInput } from '@clara/mcp-server'
+import type { ClaraBackend, UsageInput } from '@clara/mcp'
 import {
   catalogSummary,
   OrchestrationErrorWithCode,

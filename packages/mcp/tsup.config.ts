@@ -1,11 +1,10 @@
 import { defineConfig } from 'tsup'
 
 export default defineConfig({
-  entry: ['src/index.ts'],
+  entry: { index: 'src/bin.ts' },
   format: ['esm'],
   target: 'node22',
   sourcemap: true,
   clean: true,
-  noExternal: [/^@clara\//],
   external: ['@modelcontextprotocol/sdk', 'zod'],
 })

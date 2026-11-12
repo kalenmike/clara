@@ -50,13 +50,10 @@
       "path": "./packages/orchestration-control"
     },
     {
-      "path": "./packages/mcp-server"
+      "path": "./packages/mcp"
     },
     {
       "path": "./apps/orchestrator"
-    },
-    {
-      "path": "./apps/mcp"
     },
     {
       "path": "./packages/devtools"

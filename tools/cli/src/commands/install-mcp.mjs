@@ -21,7 +21,7 @@ import {
 } from '../lib/stack-control.mjs'
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..', '..', '..', '..')
-const mcpEntry = join(root, 'apps', 'mcp', 'dist', 'index.js')
+const mcpEntry = join(root, 'packages', 'mcp', 'dist', 'index.js')
 const apiMcpEntry = join(root, 'apps', 'api-mcp', 'dist', 'index.js')
 const orchestratorEntry = join(root, 'apps', 'orchestrator', 'dist', 'index.js')
 const configHome = process.env.XDG_CONFIG_HOME?.trim() || join(homedir(), '.config')
