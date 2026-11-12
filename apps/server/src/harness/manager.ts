@@ -84,6 +84,70 @@ export class HarnessManager {
     try {
       const response = await withTimeout(
         fetch(
+          new Request('http://adapter/harness/v1/health', {
+            signal: controller.signal,
+          })
+        ),
+        timeoutMs,
+        () => controller.abort(timeoutError(timeoutMs))
+      )
+      const latencyMs = Date.now() - started
+      if (response.status === 404) {
+        // Older adapters only expose `/info`; keep probing them without
+        // pretending the cached harness version proves OpenCode is reachable.
+        return await this.probeInfo(fetch, timeoutMs, started)
+      }
+      if (!response.ok) {
+        return {
+          ok: false,
+          status: response.status,
+          latencyMs,
+          code: 'http',
+          message: `The adapter responded with ${response.status}`,
+        }
+      }
+      const health = (await response.json()) as {
+        ok?: unknown
+        version?: unknown
+        status?: unknown
+        latencyMs?: unknown
+        code?: unknown
+        message?: unknown
+      }
+      if (typeof health.ok !== 'boolean') {
+        return {
+          ok: false,
+          latencyMs,
+          code: 'unsupported',
+          message: 'The adapter returned an invalid health result',
+        }
+      }
+      return {
+        ok: health.ok,
+        latencyMs:
+          typeof health.latencyMs === 'number' && Number.isFinite(health.latencyMs)
+            ? health.latencyMs
+            : latencyMs,
+        code: typeof health.code === 'string' ? (health.code as HarnessProbe['code']) : 'http',
+        ...(typeof health.version === 'string' ? { version: health.version } : {}),
+        ...(typeof health.status === 'number' ? { status: health.status } : {}),
+        ...(typeof health.message === 'string' ? { message: health.message } : {}),
+      }
+    } catch (cause) {
+      return {
+        ok: false,
+        latencyMs: Date.now() - started,
+        code: cause instanceof Error && cause.name === 'TimeoutError' ? 'timeout' : 'unreachable',
+        message: cause instanceof Error ? cause.message : String(cause),
+      }
+    }
+  }
+
+  private async probeInfo(fetch: Fetch, timeoutMs: number, started: number): Promise<HarnessProbe> {
+    const controller = new AbortController()
+    try {
+      const response = await withTimeout(
+        fetch(
           new Request('http://adapter/harness/v1/info', {
             signal: controller.signal,
           })
@@ -103,7 +167,6 @@ export class HarnessManager {
       }
       const info = (await response.json()) as {
         harness?: { version?: unknown }
-        adapter?: { version?: unknown }
       }
       return {
         ok: true,

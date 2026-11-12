@@ -15,6 +15,7 @@ import { discoverOpenCode, type DiscoveryInput } from './discover.ts'
 import { enrollAdapter } from './enroll.ts'
 import { createAdapterApp } from './handler.ts'
 import { OpenCodeClient } from './opencode.ts'
+import { readState, writeState, type AdapterLiveState } from './state.ts'
 import { AdapterTransport } from './transport.ts'
 import {
   adapterProcessStatus,
@@ -147,12 +148,72 @@ async function serve(args: string[]): Promise<void> {
       }
     },
   })
+  const startedAt = Date.now()
+  let opencodeProbe = probe
+  let opencodeCheckedAt = startedAt
+  let probing = false
+  const writeLive = () => {
+    const status = transport.status
+    const state: AdapterLiveState = {
+      pid: process.pid,
+      startedAt,
+      updatedAt: Date.now(),
+      harnessId: config.harnessId,
+      hub: {
+        url: config.wsUrl,
+        status: status.status,
+        connected: status.connected,
+        authenticated: status.authenticated,
+        ...(status.lastFrameAt ? { lastFrameAt: status.lastFrameAt } : {}),
+        ...(status.lastError ? { lastError: status.lastError } : {}),
+      },
+      opencode: {
+        url: config.opencode.url,
+        reachable: opencodeProbe.ok,
+        ...(opencodeProbe.version ? { version: opencodeProbe.version } : {}),
+        code: opencodeProbe.code,
+        latencyMs: opencodeProbe.latencyMs,
+        checkedAt: opencodeCheckedAt,
+        ...(opencodeProbe.message ? { message: opencodeProbe.message } : {}),
+      },
+    }
+    try {
+      writeState(state)
+    } catch (cause) {
+      console.error(
+        `[adapter] could not write status: ${cause instanceof Error ? cause.message : String(cause)}`
+      )
+    }
+  }
+
   transport.start()
+  writeLive()
+  const statusTimer = setInterval(writeLive, 2_000)
+  statusTimer.unref()
+  const healthTimer = setInterval(() => {
+    if (probing) return
+    probing = true
+    void openCode
+      .probe(2_000)
+      .then((next) => {
+        opencodeProbe = next
+        opencodeCheckedAt = Date.now()
+        writeLive()
+      })
+      .finally(() => {
+        probing = false
+      })
+  }, 10_000)
+  healthTimer.unref()
+
   console.log(
     `Clara OpenCode adapter ${ADAPTER_VERSION} connecting to ${config.wsUrl} as ${config.harnessId}`
   )
   const stop = () => {
+    clearInterval(statusTimer)
+    clearInterval(healthTimer)
     transport.close()
+    writeLive()
     process.exit(0)
   }
   process.on('SIGINT', stop)
@@ -220,6 +281,24 @@ async function status(): Promise<void> {
   console.log(
     `process:  ${processStatus.running ? `running (pid ${processStatus.pid})` : 'stopped'}`
   )
+  const live = readState()
+  if (live && processStatus.running) {
+    console.log(`hub:      ${live.hub.status} (${live.hub.url})`)
+    console.log(
+      `link:     ${live.hub.authenticated ? 'authenticated' : live.hub.connected ? 'handshake complete' : 'not authenticated'}` +
+        (live.hub.lastFrameAt ? `, last frame ${formatAge(live.hub.lastFrameAt)}` : '')
+    )
+    if (live.hub.lastError) console.log(`hub error: ${live.hub.lastError}`)
+    const opencode = live.opencode
+    console.log(
+      `health:   ${opencode.reachable ? 'reachable' : 'unreachable'} (${opencode.code ?? 'unknown'}` +
+        `${opencode.version ? `, ${opencode.version}` : ''}` +
+        `${opencode.checkedAt ? `, checked ${formatAge(opencode.checkedAt)}` : ''})`
+    )
+    if (opencode.message) console.log(`opencode error: ${opencode.message}`)
+  } else if (live) {
+    console.log(`live:     stale (last ${live.hub.status}, updated ${formatAge(live.updatedAt)})`)
+  }
   console.log(`log:      ${processStatus.log}`)
   const probe = await new OpenCodeClient(
     config.opencode.url,
@@ -310,6 +389,15 @@ async function prompt(question: string): Promise<string> {
 function argValue(args: string[], name: string): string | undefined {
   const index = args.indexOf(name)
   return index >= 0 ? args[index + 1] : undefined
+}
+
+function formatAge(at: number): string {
+  const seconds = Math.max(0, Math.round((Date.now() - at) / 1_000))
+  if (seconds < 2) return 'just now'
+  if (seconds < 60) return `${seconds}s ago`
+  const minutes = Math.round(seconds / 60)
+  if (minutes < 60) return `${minutes}m ago`
+  return `${Math.round(minutes / 60)}h ago`
 }
 
 function printHelp(): void {

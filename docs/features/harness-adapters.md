@@ -64,6 +64,13 @@ installing it installs both the hub-facing daemon and the orchestration binding.
   close clears it immediately. The adapter logs `adapter authenticated` only
   after it decrypts a hub frame, so a key mismatch is visible instead of being
   reported as a successful recovery.
+- **Adapter link looks online but probes time out** — the hub serializes
+  inbound sealed frames per session and clears the live fetch through
+  `closeSession` on a protocol failure. The adapter serializes outbound frames,
+  sends an application-level heartbeat, and reconnects when the hub closes its
+  session. Use `pnpm clara adapter status --json` for the last hub link state
+  and the adapter's last OpenCode health check instead of relying on a fresh
+  OpenCode probe.
 - **Harness switch off** — adapters keep their credentials but the panel shows
   **Off** and the hub does not proxy until the switch is on again.
 - **Adapter reinstalled** — the same identity reconnects the same sessions and
@@ -96,17 +103,22 @@ installing it installs both the hub-facing daemon and the orchestration binding.
 <summary>Protocol, data, and commands</summary>
 
 - Protocol: `/harness/v1` over the adapter's E2EE WebSocket session.
+  `/harness/v1/health` returns a live OpenCode probe; `/harness/v1/info` keeps
+  the adapter and harness metadata.
 - Frames: `adapter.request`, `adapter.abort`, `adapter.response`,
   `adapter.chunk`, `adapter.end`, `adapter.error`, `adapter.enroll`,
   `adapter.enrolled`.
 - Adapter app: `apps/adapter-opencode`.
 - Protocol package: `packages/harness-protocol`.
+- Adapter data: `identity.json`, `adapter.log`, `adapter.pid`, and
+  `state.json`. The last records the live hub link, last frame time, last
+  error, and the last OpenCode health check for `pnpm clara adapter status`.
 - Tables: `harness_identities`, `harness_connections`, `adapter_credentials`,
   `harness_pairings`, `clara_projects`, `harness_project_links`,
   `clara_sessions`.
 - Commands: `pnpm clara adapter install --opencode --pair <code>`,
-  `pnpm clara adapter status`, `pnpm clara adapter uninstall --opencode
-[--purge]`.
+  `pnpm clara adapter status [--json]`, `pnpm clara adapter uninstall
+--opencode [--purge]`.
 - Docker: `docker/adapter-opencode.compose.yml`; no published ports.
 - Related: [pairing.md](pairing.md), [connection.md](connection.md),
   [panel.md](panel.md), [api.md](../architecture/api.md).

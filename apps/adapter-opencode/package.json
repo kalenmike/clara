@@ -36,6 +36,7 @@
     ".": "./src/index.ts",
     "./config": "./src/config.ts",
     "./service": "./src/service.ts",
+    "./state": "./src/state.ts",
     "./package.json": "./package.json"
   }
 }

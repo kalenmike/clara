@@ -22,7 +22,8 @@ import {
   stopAdapterProcess,
   tailAdapterLog,
 } from '@clara/adapter-opencode/service'
-import { adapterConfigPath, readConfig } from '@clara/adapter-opencode/config'
+import { adapterConfigPath, adapterStatePath, readConfig } from '@clara/adapter-opencode/config'
+import { readState, type AdapterLiveState } from '@clara/adapter-opencode/state'
 
 export interface InstallResult {
   manifest: InstallManifest
@@ -234,6 +235,7 @@ export interface StatusReport {
   orchestrator: 'running' | 'stopped'
   adapter?: {
     config: string
+    state: string
     present: boolean
     running: boolean
     pid?: number
@@ -241,6 +243,7 @@ export interface StatusReport {
     harnessId?: string
     wsUrl?: string
     opencodeUrl?: string
+    live?: AdapterLiveState
   }
 }
 
@@ -251,6 +254,7 @@ export async function status(): Promise<StatusReport> {
   const runnerPath = runnerConfigPath()
   const adapter = readConfig()
   const adapterProcess = adapterProcessStatus()
+  const live = readState()
   const orchestrator: 'running' | 'stopped' = await fetch(
     `${manifest.runner?.url ?? process.env.CLARA_ORCHESTRATION_URL ?? 'http://127.0.0.1:8789'}/health`,
     { signal: AbortSignal.timeout(1_500) }
@@ -276,6 +280,7 @@ export async function status(): Promise<StatusReport> {
     orchestrator,
     adapter: {
       config: adapterConfigPath(),
+      state: adapterStatePath(),
       present: adapter !== undefined,
       running: adapterProcess.running,
       ...(adapterProcess.pid !== undefined ? { pid: adapterProcess.pid } : {}),
@@ -283,6 +288,7 @@ export async function status(): Promise<StatusReport> {
       ...(adapter
         ? { harnessId: adapter.harnessId, wsUrl: adapter.wsUrl, opencodeUrl: adapter.opencode.url }
         : {}),
+      ...(live ? { live } : {}),
     },
   }
 }

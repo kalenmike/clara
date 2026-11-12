@@ -48,6 +48,7 @@ const DEVICE_ERROR_CODES: readonly DeviceErrorCode[] = [
   'device_limit',
   'invalid_device',
   'not_allowed',
+  'protocol_error',
 ]
 
 export function isHelloFrame(value: unknown): value is HelloFrame {
