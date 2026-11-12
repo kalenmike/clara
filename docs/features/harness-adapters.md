@@ -86,6 +86,9 @@ installing it installs both the hub-facing daemon and the orchestration binding.
 - Pending pairing codes are shown only in the panel session that created them;
   the snapshot keeps the pairing list for the paired result.
 - The relay client token is shared by browser clients and adapters, as before.
+- The hub broadcasts hub frames to every client on a transport. Adapters and
+  browsers filter them by session id; routing each frame only to its owning
+  connection is still a future improvement.
 
 ## Technical appendix
 
