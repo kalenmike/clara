@@ -49,6 +49,9 @@ describe('Clara API client', () => {
     await expect(client.activity.running()).resolves.toEqual({ data: [], harnesses: [] })
     expect(fake.requests[0]?.method).toBe('GET')
     expect(fake.requests[0]?.url).toBe('http://clara.api/v1/activity/running')
+
+    await client.activity.running({ refresh: true })
+    expect(fake.requests[1]?.url).toBe('http://clara.api/v1/activity/running?refresh=true')
   })
 
   it('sends a prompt to the session endpoint', async () => {

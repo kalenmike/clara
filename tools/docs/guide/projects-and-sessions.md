@@ -122,7 +122,8 @@ harnesses, not just the active one.
 
 Each card shows the project, harness, agent, model, token total, reported spend,
 and the agent's current plan. Harness sections keep offline or partially
-unavailable harnesses visible. The page refreshes every ten seconds.
+unavailable harnesses visible. The page refreshes every ten seconds. Choose
+**Refresh** to update plans immediately.
 
 You can open a session from the card while its harness is the active one. Other
 harnesses are shown read-only.

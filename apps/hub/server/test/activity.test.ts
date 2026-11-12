@@ -73,8 +73,16 @@ const connection = (harnessID: string, online: boolean, active: boolean) => ({
   updatedAt: 1,
 })
 
-function fakeHarness(): { harness: HarnessManager; calls: string[] } {
+function fakeHarness(): {
+  harness: HarnessManager
+  calls: string[]
+  setS1Todos: (todos: ClaraJsonValue[]) => void
+} {
   const calls: string[] = []
+  let s1Todos: ClaraJsonValue[] = [
+    { content: 'Ship it', status: 'in_progress' },
+    { content: 'Write docs', status: 'pending' },
+  ]
   const connections = [
     connection('harness-a', true, true),
     connection('harness-b', true, false),
@@ -99,12 +107,7 @@ function fakeHarness(): { harness: HarnessManager; calls: string[] } {
         if (input.path === '/sessions/s1') return json({ data: session('s1') })
         if (input.path === '/sessions/s2') return json({ data: session('s2', 4) })
         if (input.path === '/sessions/s1/context') {
-          return json({
-            data: todoMessage([
-              { content: 'Ship it', status: 'in_progress' },
-              { content: 'Write docs', status: 'pending' },
-            ]),
-          })
+          return json({ data: todoMessage(s1Todos) })
         }
         if (input.path === '/sessions/s2/context') return json({ data: [] })
       }
@@ -124,7 +127,13 @@ function fakeHarness(): { harness: HarnessManager; calls: string[] } {
     },
   } as unknown as HarnessManager
 
-  return { harness, calls }
+  return {
+    harness,
+    calls,
+    setS1Todos: (todos) => {
+      s1Todos = todos
+    },
+  }
 }
 
 function createTestApi(harness: HarnessManager) {
@@ -181,6 +190,46 @@ describe('running activity', () => {
       { harnessID: 'harness-c', ok: false, code: 'offline', online: false },
     ])
     expect(fake.calls.some((call) => call.startsWith('harness-c:'))).toBe(false)
+  })
+
+  it('bypasses the plan cache for a manual refresh', async () => {
+    const fake = fakeHarness()
+    const api = createTestApi(fake.harness)
+    const first = (await (await api.fetch(request('/v1/activity/running'))).json()) as {
+      data: Array<{
+        harnessID: string
+        session: ClaraSession
+        todos?: Array<{ content: string; status: string }>
+      }>
+    }
+    expect(first.data.find((item) => item.session.id === 's1')?.todos).toEqual([
+      { content: 'Ship it', status: 'in_progress' },
+      { content: 'Write docs', status: 'pending' },
+    ])
+
+    fake.setS1Todos([{ content: 'Finished', status: 'completed' }])
+    const cached = (await (await api.fetch(request('/v1/activity/running'))).json()) as {
+      data: Array<{
+        session: ClaraSession
+        todos?: Array<{ content: string; status: string }>
+      }>
+    }
+    expect(cached.data.find((item) => item.session.id === 's1')?.todos).toEqual([
+      { content: 'Ship it', status: 'in_progress' },
+      { content: 'Write docs', status: 'pending' },
+    ])
+
+    const refreshed = (await (
+      await api.fetch(request('/v1/activity/running?refresh=true'))
+    ).json()) as {
+      data: Array<{
+        session: ClaraSession
+        todos?: Array<{ content: string; status: string }>
+      }>
+    }
+    expect(refreshed.data.find((item) => item.session.id === 's1')?.todos).toEqual([
+      { content: 'Finished', status: 'completed' },
+    ])
   })
 
   it('returns an empty result when no harnesses are paired', async () => {

@@ -79,8 +79,8 @@ and overlays the result with its Clara project and workspace links. It also read
 the session context to return the newest completed `todowrite` plan. The response
 keeps per-harness status so offline or partially failing harnesses do not hide
 results from the others. Transcript lookups are cached briefly per harness and
-session; the browser polls this endpoint rather than expecting a cross-harness
-event stream.
+session; pass `?refresh=true` to bypass that cache. The browser polls this
+endpoint rather than expecting a cross-harness event stream.
 
 ## Authentication
 

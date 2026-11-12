@@ -53,10 +53,10 @@ export function ActivityPage() {
         <Button
           variant="outline"
           size="sm"
-          onClick={() => void runningQuery.refetch()}
-          disabled={runningQuery.isFetching}
+          onClick={() => runningQuery.refresh.mutate()}
+          disabled={runningQuery.isFetching || runningQuery.refresh.isPending}
         >
-          {runningQuery.isFetching ? (
+          {runningQuery.isFetching || runningQuery.refresh.isPending ? (
             <Loader2 className="size-3.5 animate-spin" />
           ) : (
             <RefreshCw className="size-3.5" />
