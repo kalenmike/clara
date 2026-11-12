@@ -45,8 +45,10 @@ installing it installs both the hub-facing daemon and the orchestration binding.
    store snooze, archive, view, or project settings.
 6. A harness version bump changes only that adapter. The hub and web branch on
    capability flags, not harness kind.
-7. `adapter install --opencode` installs the daemon and the orchestration
-   binding by default; `--no-daemon` and `--no-orchestration` split them.
+7. `clara-adapter-opencode install` installs the daemon, the OpenCode binding,
+   and the shared runner. `--no-runner` and `--no-service` split those pieces.
+   Inside the repository, `pnpm clara adapter install --opencode` dispatches to
+   the same adapter binary.
 
 ## Edge cases
 
@@ -108,18 +110,24 @@ installing it installs both the hub-facing daemon and the orchestration binding.
 - Frames: `adapter.request`, `adapter.abort`, `adapter.response`,
   `adapter.chunk`, `adapter.end`, `adapter.error`, `adapter.enroll`,
   `adapter.enrolled`.
-- Adapter app: `apps/adapter-opencode`. It uses `@opencode/client@2.1.1` for
-  all OpenCode HTTP and SSE access; there is no raw OpenCode `/api` proxy.
+- Adapter app and binding: `apps/adapter-opencode`; the OpenCode policy plugin
+  and agent live in `apps/adapter-opencode/plugin/`. It uses
+  `@opencode/client@2.1.1` for all OpenCode HTTP and SSE access; there is no
+  raw OpenCode `/api` proxy.
 - Protocol package: `packages/harness-protocol`.
-- Adapter data: `identity.json`, `adapter.log`, `adapter.pid`, and
-  `state.json`. The last records the live hub link, last frame time, last
-  error, and the last OpenCode health check for `pnpm clara adapter status`.
+- Adapter runtime: `packages/adapter`; orchestration binding core:
+  `packages/binding-core`.
+- Adapter data: `<config>/clara/adapters/opencode/config.json` and
+  `<data>/clara/adapters/opencode/{identity.json,adapter.log,adapter.pid,state.json}`.
+  `state.json` records the live hub link, last frame time, last error, and the
+  last OpenCode health check for `pnpm clara adapter status`.
 - Tables: `harness_identities`, `harness_connections`, `adapter_credentials`,
   `harness_pairings`, `clara_projects`, `harness_project_links`,
   `clara_sessions`.
-- Commands: `pnpm clara adapter install --opencode --pair <code>`,
-  `pnpm clara adapter status [--json]`, `pnpm clara adapter uninstall
---opencode [--purge]`.
+- Commands: `clara-adapter-opencode install --pair <code>`,
+  `pnpm clara adapter install --opencode --pair <code>`,
+  `pnpm clara adapter status [--json]`,
+  `clara-adapter-opencode uninstall [--purge]`.
 - Docker: `docker/adapter-opencode.compose.yml`; no published ports.
 - Related: [pairing.md](pairing.md), [connection.md](connection.md),
   [panel.md](panel.md), [api.md](../architecture/api.md).

@@ -10,14 +10,16 @@
   "scripts": {
     "dev": "tsx watch src/index.ts serve",
     "start": "node dist/index.js",
-    "build": "tsup",
+    "build": "tsup && node scripts/copy-plugin-assets.mjs",
     "typecheck": "tsc -p tsconfig.json",
     "test": "vitest run --passWithNoTests"
   },
   "dependencies": {
+    "@clara/adapter": "workspace:*",
     "@clara/api-contract": "workspace:*",
-    "@clara/crypto": "workspace:*",
-    "@clara/harness-protocol": "workspace:*",
+    "@clara/binding-core": "workspace:*",
+    "@clara/mcp": "workspace:*",
+    "@clara/runner": "workspace:*",
     "@clara/shared-types": "workspace:*",
     "@opencode/client": "2.1.1",
     "hono": "^4.13.17",
@@ -25,7 +27,6 @@
   },
   "devDependencies": {
     "@types/node": "^24.19.2",
-    "@types/ws": "^8.18.2",
     "tsup": "^9.0.0",
     "tsx": "^4.23.15",
     "typescript": "~6.0.3",
@@ -34,9 +35,6 @@
   "exports": {
     "./install": "./src/install.ts",
     ".": "./src/index.ts",
-    "./config": "./src/config.ts",
-    "./service": "./src/service.ts",
-    "./state": "./src/state.ts",
     "./package.json": "./package.json"
   }
 }

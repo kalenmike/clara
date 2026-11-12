@@ -1,33 +1,32 @@
-import { existsSync } from 'node:fs'
 import { homedir } from 'node:os'
 import { join } from 'node:path'
+import type { AdapterPaths } from './types.ts'
 
-export function opencodeHome(env: NodeJS.ProcessEnv = process.env): string {
-  const xdg = env.XDG_CONFIG_HOME?.trim() || join(homedir(), '.config')
-  return join(xdg, 'opencode')
+function configBase(env: NodeJS.ProcessEnv): string {
+  return env.XDG_CONFIG_HOME?.trim() || join(homedir(), '.config')
 }
 
-export function opencodePaths(env: NodeJS.ProcessEnv = process.env) {
-  const home = opencodeHome(env)
+function dataBase(env: NodeJS.ProcessEnv): string {
+  return env.XDG_DATA_HOME?.trim() || join(homedir(), '.local', 'share')
+}
+
+/**
+ * Resolve one adapter's files under `clara/adapters/<name>`. The explicit
+ * overrides stay in place for containers and tests.
+ */
+export function adapterPaths(name: string, env: NodeJS.ProcessEnv = process.env): AdapterPaths {
+  const configDir =
+    env.CLARA_ADAPTER_CONFIG_DIR?.trim() || join(configBase(env), 'clara', 'adapters', name)
+  const dataDir =
+    env.CLARA_ADAPTER_DATA_DIR?.trim() || join(dataBase(env), 'clara', 'adapters', name)
   return {
-    home,
-    plugins: join(home, 'plugins'),
-    agents: join(home, 'agents'),
-    commands: join(home, 'commands'),
-    config: join(home, 'opencode.json'),
-    adapterConfig: join(home, 'clara-policy.json'),
-    plugin: join(home, 'plugins', 'clara-policy'),
-    agent: join(home, 'agents', 'clara.md'),
-    agentManifest: join(home, 'agents', '.clara-policy-agents.json'),
-    command: join(home, 'commands', 'pipeline.md'),
-    token: join(
-      env.XDG_DATA_HOME?.trim() || join(homedir(), '.local', 'share'),
-      'clara',
-      'orchestrator.token'
-    ),
+    name,
+    configDir,
+    dataDir,
+    configPath: join(configDir, 'config.json'),
+    identityPath: join(dataDir, 'identity.json'),
+    logPath: join(dataDir, 'adapter.log'),
+    pidPath: join(dataDir, 'adapter.pid'),
+    statePath: join(dataDir, 'state.json'),
   }
-}
-
-export function exists(path: string): boolean {
-  return existsSync(path)
 }

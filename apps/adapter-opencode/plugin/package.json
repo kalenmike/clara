@@ -1,0 +1,18 @@
+{
+  "name": "@clara/opencode-policy-plugin",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "description": "Clara strict enforcement adapter for OpenCode.",
+  "exports": {
+    ".": "./index.ts"
+  },
+  "dependencies": {
+    "@clara/binding-core": "workspace:*",
+    "@clara/runner": "workspace:*"
+  },
+  "scripts": {
+    "typecheck": "tsc -p tsconfig.json",
+    "test": "node --experimental-strip-types --no-warnings --test completion.test.ts tools.test.ts usage-events.test.ts workspace.test.ts"
+  }
+}

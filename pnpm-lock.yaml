@@ -57,15 +57,21 @@ importers:
 
   apps/adapter-opencode:
     dependencies:
+      '@clara/adapter':
+        specifier: workspace:*
+        version: link:../../packages/adapter
       '@clara/api-contract':
         specifier: workspace:*
         version: link:../../packages/api-contract
-      '@clara/crypto':
+      '@clara/binding-core':
         specifier: workspace:*
-        version: link:../../packages/crypto
-      '@clara/harness-protocol':
+        version: link:../../packages/binding-core
+      '@clara/mcp':
         specifier: workspace:*
-        version: link:../../packages/harness-protocol
+        version: link:../mcp
+      '@clara/runner':
+        specifier: workspace:*
+        version: link:../../packages/runner
       '@clara/shared-types':
         specifier: workspace:*
         version: link:../../packages/shared-types
@@ -82,9 +88,6 @@ importers:
       '@types/node':
         specifier: ^24.19.2
         version: 24.19.2
-      '@types/ws':
-        specifier: ^8.18.2
-        version: 8.18.2
       tsup:
         specifier: ^9.0.0
         version: 9.0.0(jiti@2.7.0)(postcss@8.5.32)(tsx@4.23.15)(typescript@6.0.3)(yaml@2.9.1)
@@ -570,40 +573,37 @@ importers:
 
   packages/adapter:
     dependencies:
-      '@clara/adapter-core':
+      '@clara/crypto':
         specifier: workspace:*
-        version: link:../adapter-core
-      '@clara/adapter-opencode':
+        version: link:../crypto
+      '@clara/harness-protocol':
         specifier: workspace:*
-        version: link:../../apps/adapter-opencode
-      '@clara/mcp':
+        version: link:../harness-protocol
+      '@clara/shared-types':
         specifier: workspace:*
-        version: link:../../apps/mcp
-      '@clara/opencode-policy-plugin':
-        specifier: workspace:*
-        version: link:../../plugins/clara-policy
-      '@clara/runner':
-        specifier: workspace:*
-        version: link:../runner
+        version: link:../shared-types
+      hono:
+        specifier: ^4.13.17
+        version: 4.13.17
+      ws:
+        specifier: ^8.22.1
+        version: 8.22.1
     devDependencies:
       '@types/node':
         specifier: ^24.19.2
         version: 24.19.2
+      '@types/ws':
+        specifier: ^8.18.2
+        version: 8.18.2
       tsup:
         specifier: ^9.0.0
         version: 9.0.0(jiti@2.7.0)(postcss@8.5.32)(tsx@4.23.15)(typescript@6.0.3)(yaml@2.9.1)
       typescript:
         specifier: ~6.0.3
         version: 6.0.3
-
-  packages/adapter-core:
-    devDependencies:
-      '@types/node':
-        specifier: ^24.19.2
-        version: 24.19.2
-      typescript:
-        specifier: ~6.0.3
-        version: 6.0.3
+      vitest:
+        specifier: ^5.0.5
+        version: 5.0.5(@types/node@24.19.2)(vite@8.3.5(@types/node@24.19.2)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1))
 
   packages/api-client:
     dependencies:
@@ -655,6 +655,15 @@ importers:
       vitest:
         specifier: ^5.0.5
         version: 5.0.5(@types/node@24.19.2)(vite@8.3.5(@types/node@24.19.2)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1))
+
+  packages/binding-core:
+    devDependencies:
+      '@types/node':
+        specifier: ^24.19.2
+        version: 24.19.2
+      typescript:
+        specifier: ~6.0.3
+        version: 6.0.3
 
   packages/crypto:
     devDependencies:
@@ -773,6 +782,9 @@ importers:
       '@types/node':
         specifier: ^24.19.2
         version: 24.19.2
+      tsup:
+        specifier: ^9.0.0
+        version: 9.0.0(jiti@2.7.0)(postcss@8.5.32)(tsx@4.23.15)(typescript@6.0.3)(yaml@2.9.1)
       typescript:
         specifier: ~6.0.3
         version: 6.0.3
@@ -788,15 +800,6 @@ importers:
       vitest:
         specifier: ^5.0.5
         version: 5.0.5(@types/node@24.19.2)(vite@8.3.5(@types/node@24.19.2)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1))
-
-  plugins/clara-policy:
-    dependencies:
-      '@clara/adapter-core':
-        specifier: workspace:*
-        version: link:../../packages/adapter-core
-      '@clara/runner':
-        specifier: workspace:*
-        version: link:../../packages/runner
 
   workers/relay:
     dependencies:

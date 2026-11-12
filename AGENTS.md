@@ -15,9 +15,9 @@ apps/server           Node hub service, local WS + outbound Cloudflare relay
 apps/orchestrator     Loopback orchestration service, REST/SSE/MCP
 apps/mcp              stdio MCP bridge to the orchestration service
 apps/api-mcp          stdio read-only MCP bridge to the hub API
-plugins/clara-policy  OpenCode strict enforcement binding
-packages/adapter      Harness adapter installer, shared runner, and MCP registration
-packages/adapter-core Harness-neutral adapter client, delivery, prompt, and runner pieces
+apps/adapter-opencode  OpenCode harness adapter, binding, and standalone bin
+packages/adapter      Harness-neutral adapter runtime, supervision, and enrollment
+packages/binding-core Orchestration binding client, delivery, prompt, and usage
 packages/shared-types Wire frames, actions, states, pairing payloads
 packages/api-contract Hub API DTOs, zod schemas, and OpenAPI components
 packages/api-client   Fetch-based hub API SDK
@@ -77,6 +77,7 @@ pnpm clara mcp install|config|status # Install or inspect the MCP bridge
 pnpm clara mcp install --api        # Add the read-only hub API MCP
 pnpm check:boundaries # Fail if @opencode/client escapes apps/adapter-opencode and apps/lab
 pnpm clara adapter install --opencode --pair <code> [--mcp] # Install the OpenCode adapter, MCP, and shared runner
+clara-adapter-opencode install --pair <code> [--mcp] # Standalone OpenCode adapter install
 pnpm typecheck      # tsc -b
 pnpm lint           # ESLint
 pnpm format         # Prettier write

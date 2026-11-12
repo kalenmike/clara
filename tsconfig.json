@@ -41,7 +41,7 @@
       "path": "./packages/runner"
     },
     {
-      "path": "./packages/adapter-core"
+      "path": "./packages/binding-core"
     },
     {
       "path": "./packages/adapter"
@@ -68,7 +68,7 @@
       "path": "./apps/lab/tsconfig.server.json"
     },
     {
-      "path": "./plugins/clara-policy"
+      "path": "./apps/adapter-opencode/plugin"
     },
     {
       "path": "./packages/harness-protocol"

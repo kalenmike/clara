@@ -22,9 +22,9 @@ apps/server           Node hub service, /v1 API, harness proxy, local WS + outbo
 apps/orchestrator     Loopback orchestration service, REST/SSE/MCP
 apps/mcp              stdio MCP bridge to the orchestration service
 apps/api-mcp          stdio read-only MCP bridge to the hub API
-plugins/clara-policy  OpenCode strict enforcement binding
-packages/adapter      Harness adapter installer, shared runner, and MCP registration
-packages/adapter-core Harness-neutral adapter client, delivery, prompt, and runner pieces
+apps/adapter-opencode  OpenCode harness adapter, binding, and standalone bin
+packages/adapter      Harness-neutral adapter runtime, supervision, and enrollment
+packages/binding-core Orchestration binding client, delivery, prompt, and usage
 packages/shared-types Wire frames, actions, states, pairing payloads
 packages/api-contract Hub API schemas and generated OpenAPI components
 packages/api-client   Fetch-based hub API SDK
