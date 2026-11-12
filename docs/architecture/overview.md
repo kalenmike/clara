@@ -32,22 +32,22 @@ compatibility names, not prose.
 
 ## Stack
 
-| Layer        | Choice                                                                 |
-| ------------ | ---------------------------------------------------------------------- |
-| Workspace    | pnpm 11 workspaces                                                     |
-| Build        | Vite 8, TypeScript 6                                                   |
-| Web          | React 19, React Router 8, Tailwind CSS 4, shadcn/ui (radix-nova)       |
-| Server state | TanStack Query 5                                                       |
-| Stream state | A small external store (`chatStore`) read with `useSyncExternalStore`  |
-| OpenCode     | `@opencode/client` **2.1.1**, server and lab only, pinned to the minor |
-| Hub service  | Node 22, `ws`, `node:http`, WebCrypto                                  |
-| Relay        | Cloudflare Worker + `RelayRoom` Durable Object                         |
-| Crypto       | Device key → HKDF-SHA-256 → AES-256-GCM (WebCrypto)                    |
+| Layer        | Choice                                                                  |
+| ------------ | ----------------------------------------------------------------------- |
+| Workspace    | pnpm 11 workspaces                                                      |
+| Build        | Vite 8, TypeScript 6                                                    |
+| Web          | React 19, React Router 8, Tailwind CSS 4, shadcn/ui (radix-nova)        |
+| Server state | TanStack Query 5                                                        |
+| Stream state | A small external store (`chatStore`) read with `useSyncExternalStore`   |
+| OpenCode     | `@opencode/client` **2.1.1**, adapter and lab only, pinned to the minor |
+| Hub service  | Node 22, `ws`, `node:http`, WebCrypto                                   |
+| Relay        | Cloudflare Worker + `RelayRoom` Durable Object                          |
+| Crypto       | Device key → HKDF-SHA-256 → AES-256-GCM (WebCrypto)                     |
 
 ### Version contract
 
 Clara pins `@opencode/client` to the OpenCode server version it targets (2.1.1)
-inside `apps/server` and `apps/lab`. The `/v1` DTOs and OpenAPI components are
+inside `apps/adapter-opencode` and `apps/lab`. The `/v1` DTOs and OpenAPI components are
 Clara-owned in `@clara/api-contract`; the web and SDK never import the harness
 client. Before bumping either side:
 

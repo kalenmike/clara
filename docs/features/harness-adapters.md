@@ -108,7 +108,8 @@ installing it installs both the hub-facing daemon and the orchestration binding.
 - Frames: `adapter.request`, `adapter.abort`, `adapter.response`,
   `adapter.chunk`, `adapter.end`, `adapter.error`, `adapter.enroll`,
   `adapter.enrolled`.
-- Adapter app: `apps/adapter-opencode`.
+- Adapter app: `apps/adapter-opencode`. It uses `@opencode/client@2.1.1` for
+  all OpenCode HTTP and SSE access; there is no raw OpenCode `/api` proxy.
 - Protocol package: `packages/harness-protocol`.
 - Adapter data: `identity.json`, `adapter.log`, `adapter.pid`, and
   `state.json`. The last records the live hub link, last frame time, last
