@@ -47,7 +47,7 @@ problem and offers **Retry**.
 - The hub may not have an active adapter. Ask the host to open the hub panel,
   check that the adapter says **Online** under **Connected adapters**, and
   activate it under **Paired harnesses**.
-- If it says **Paired · Offline**, start the adapter service on the OpenCode
+- If it says **Paired · Offline**, start the adapter service on the harness
   machine.
 - If the hub returns `harness_unconfigured`, no adapter is paired.
 - If the page says **Off**, the Harness switch in the panel header is turned

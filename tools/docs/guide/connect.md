@@ -62,10 +62,10 @@ label stays visible underneath.
 
 ## What the hub can see
 
-The hub needs the OpenCode password to talk to OpenCode. That password is never
-sent to the browser. Prompts, replies, and tool output travel inside the
-encrypted WebSocket. The relay sees ciphertext, frame sizes, timing, and room
-metadata, not your conversation.
+The adapter holds the harness password and talks to the harness. That password is
+never sent to the browser. Prompts, replies, and tool output travel inside the
+encrypted WebSocket; the hub routes them and can read them in transit. The relay
+sees ciphertext, frame sizes, timing, and room metadata, not your conversation.
 
 Read [Security and privacy](security.md) for the full picture.
 

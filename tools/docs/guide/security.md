@@ -6,14 +6,15 @@ sidebar_position: 11
 
 # Security and privacy
 
-Clara keeps the OpenCode password on the hub machine and encrypts the WebSocket
-payloads between the browser and the hub. This page explains the boundary in
-plain language.
+Clara keeps the harness password on the adapter machine and encrypts the
+WebSocket payloads between each browser or adapter and the hub. This page
+explains the boundary in plain language.
 
 ## The short version
 
-- The browser never receives the OpenCode password.
-- The hub service adds OpenCode authentication on the server side.
+- The browser never receives the harness password.
+- The adapter adds harness authentication and is the only process that talks to
+  the harness. The hub carries typed API requests to the active adapter.
 - Prompts, replies, tool output, and file content travel inside an encrypted
   WebSocket.
 - Cloudflare and the relay see encrypted frames, frame sizes, timing, room
@@ -35,16 +36,19 @@ fingerprint in the hub panel with the terminal output after enrollment.
 
 ## What each party can see
 
-| Party              | Can see                                                          | Cannot see                                          |
-| ------------------ | ---------------------------------------------------------------- | --------------------------------------------------- |
-| Browser            | Your session, prompts, replies, and device key                   | The OpenCode password                               |
-| Hub service        | OpenCode password, session traffic, device records               | —                                                   |
-| Hub panel          | Status, device list, and configuration (sensitive values masked) | Decrypted messages in the panel                     |
-| Relay / Cloudflare | Ciphertext, frame sizes, timing, room id, connection metadata    | Request bodies, prompts, replies, OpenCode password |
-| Push service       | A notification payload supplied by the hub                       | Your session history                                |
+| Party              | Can see                                                          | Cannot see                                         |
+| ------------------ | ---------------------------------------------------------------- | -------------------------------------------------- |
+| Browser            | Your session, prompts, replies, and device key                   | The harness password                               |
+| Adapter            | Harness URL and password, session traffic, adapter credential    | Other devices' keys                                |
+| Hub service        | Session traffic, device records, encrypted adapter credential    | The harness password                               |
+| Hub panel          | Status, device list, and configuration (sensitive values masked) | Decrypted messages in the panel                    |
+| Relay / Cloudflare | Ciphertext, frame sizes, timing, room id, connection metadata    | Request bodies, prompts, replies, harness password |
+| Push service       | A notification payload supplied by the hub                       | Your session history                               |
 
-The hub is the trust boundary. Whoever runs the hub can read traffic before it
-is encrypted, because the hub talks to OpenCode. Pair only with a hub you trust.
+The hub is a trust boundary: whoever runs it can read traffic in transit because
+it routes requests between the browser and the adapter. The adapter host is the
+other boundary: it holds the harness credentials and talks to the harness. Pair
+only with a hub and adapter you trust.
 
 ## Local and remote connections
 
@@ -68,9 +72,9 @@ forgets the device locally; it does not revoke the key on the hub.
 ## Limits worth knowing
 
 - There is no forward secrecy. Each device key protects that device's sessions.
-- The relay client token is shared by devices. It gates relay socket access but
-  is not the encryption key. An attacker with the token and no device key can
-  open sockets and cause noise, not read traffic.
+- The relay client token is shared by devices and adapters. It gates relay socket
+  access but is not the encryption key. An attacker with the token and no device
+  or adapter key can open sockets and cause noise, not read traffic.
 - Push delivery depends on the browser push service. A notification preview may
   show on a locked screen depending on your operating system settings.
 - The hub panel is loopback-only. Do not expose it to the internet.

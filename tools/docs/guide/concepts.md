@@ -16,7 +16,7 @@ own. These are the ones you will see most often.
 | **Hub**         | The Clara installation on the machine that runs the hub service. It can be one process, one database, one panel, and at most one relay room. |
 | **Hub service** | The process itself. It carries traffic between your devices and the active adapter over the encrypted WebSocket.                             |
 | **Hub panel**   | The authenticated dashboard on the hub machine. The host uses it to add a harness and manage devices. You normally never open it.            |
-| **Harness**     | The agent runtime Clara connects to. OpenCode is the harness used by the adapter included today.                                             |
+| **Harness**     | The agent runtime Clara connects to. OpenCode is the harness used by the adapter included with this release.                                 |
 | **Adapter**     | The small process on the harness machine that connects it to the hub. It holds the harness credentials.                                      |
 | **Project**     | A directory the harness has opened. Projects group sessions.                                                                                 |
 | **Session**     | One conversation with an agent. The interface calls it a **Brief** by default.                                                               |

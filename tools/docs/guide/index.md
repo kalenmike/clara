@@ -38,7 +38,7 @@ You run a harness and want to reach it from your own devices.
 - [Self-hosting overview](self-hosting/index.md) — requirements and architecture.
 - [Docker](self-hosting/docker.md) — the recommended stack.
 - [Local install](self-hosting/local.md) — Node processes on the host.
-- [Configuration](self-hosting/configuration.md) — OpenCode, Web URL, and environment.
+- [Configuration](self-hosting/configuration.md) — harness connection, Web URL, and environment.
 - [Remote access](self-hosting/relay.md) — the Cloudflare relay.
 - [Updates and backups](self-hosting/updates.md) — rebuild, update, and restore.
 - [Orchestration](self-hosting/orchestration.md) — optional pipelines and Clara Lab.

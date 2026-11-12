@@ -13,7 +13,8 @@ service as containers.
 ## Requirements
 
 - Docker with the Compose plugin.
-- An OpenCode 2.1.x server. It can run on the host or in another container.
+- A running harness and its adapter. This release includes the OpenCode 2.1.x
+  adapter. The harness can run on the host or in another container.
 - A checkout of the repository.
 
 ## First run
@@ -40,13 +41,15 @@ pnpm clara server panel
 In the panel:
 
 1. Choose the superadmin password.
-2. Open **Harness**, enter the OpenCode connection, and test it.
-3. Save and activate the connection.
+2. Add a harness under **Harness**, then run the printed adapter install command
+   on the harness machine.
+3. Wait for the adapter to show **Online**, then use **Test** and **Activate**.
 4. Set **Web URL** if the default `http://127.0.0.1:8080` is not what devices
    should open.
 
-Inside a container, `127.0.0.1` means the hub container itself. Use a name that
-is reachable on the `clara` network, for example `http://opencode:4096`.
+Inside a container, `127.0.0.1` means that container. An adapter container joins
+the `clara` network and reaches the hub at `ws://server:8788/ws`; for a
+containerized harness, use a service name such as `http://opencode:4096`.
 
 ## Pair a device
 
