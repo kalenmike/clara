@@ -2,6 +2,7 @@ import { useEffect, useMemo } from 'react'
 import { Loader2, Plus } from 'lucide-react'
 import { EmptySessionView } from '@/components/chat/empty-session-view'
 import { InboxMonitorToggle } from '@/components/chat/inbox-monitor-toggle'
+import { useHarnessLabel } from '@/features/harness/use-harness-label'
 import { useProjectReconciliation } from '@/features/projects/use-project-reconciliation'
 import { canonicalProject, canonicalProjects, useProjects } from '@/features/projects/use-projects'
 import { useSessions } from '@/features/sessions/use-sessions'
@@ -12,6 +13,7 @@ import { useConnection } from '@/providers/connection-provider'
 
 export function HomePage() {
   const { status } = useConnection()
+  const label = useHarnessLabel()
   const { lowerSingular } = useSessionWording()
   const projectsQuery = useProjects()
   const { pending: reconciling } = useProjectReconciliation()
@@ -47,7 +49,7 @@ export function HomePage() {
     return (
       <EmptySessionView
         title="No projects yet"
-        description="Open a directory with OpenCode first. Projects appear here once the server has seen them."
+        description={`Open a directory with ${label} first. Projects appear here once the server has seen them.`}
       />
     )
   }

@@ -5,6 +5,7 @@ import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Separator } from '@/components/ui/separator'
+import { useHarnessLabel } from '@/features/harness/use-harness-label'
 import { connectionUrl } from '@/lib/client'
 import { useConnection } from '@/providers/connection-provider'
 import { useEventStream } from '@/providers/event-provider'
@@ -23,6 +24,7 @@ export function ServerCard({ simplified }: { simplified: boolean }) {
     reconnectError,
     relayStatus,
   } = useConnection()
+  const label = useHarnessLabel('Harness')
   const { state: streamState, lastError } = useEventStream()
   const push = usePush()
 
@@ -58,7 +60,7 @@ export function ServerCard({ simplified }: { simplified: boolean }) {
             />
             {relayStatus && <Row label="Relay" value={relayStatus.state} />}
             {relayStatus?.agent?.opencodeVersion && (
-              <Row label="OpenCode" value={relayStatus.agent.opencodeVersion} />
+              <Row label={`${label} version`} value={relayStatus.agent.opencodeVersion} />
             )}
             <Row
               label="Hub"
