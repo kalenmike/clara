@@ -4,12 +4,14 @@ import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import type { AddressInfo } from 'node:net'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
-import { Runtime, Store } from '@clara/orchestration'
+import { Runtime, Store, defaultConfigPath } from '@clara/orchestration'
 import { createOrchestratorServer, type OrchestratorServer } from '../../orchestrator/src/server.ts'
 import { startLabServer, type LabServer } from '../server/http.ts'
 import { LabRuntime } from '../server/runtime.ts'
 
 const workspace = fileURLToPath(new URL('../../../', import.meta.url))
+const config = defaultConfigPath()
+if (!config) throw new Error('bundled default config is missing')
 const token = 'lab-test-token'
 let orchestrator: OrchestratorServer
 let lab: LabServer
@@ -129,7 +131,11 @@ describe('lab server', () => {
           '        model: not-a-model',
         ].join('\n')
       )
-      const preview = await post('/api/preview', { workspace: dir, target: 'bad' })
+      const preview = await post('/api/preview', {
+        workspace: dir,
+        configPath: join(dir, 'orchestration', 'index.yml'),
+        target: 'bad',
+      })
       expect(preview.response.status).toBe(200)
       const value = preview.value as {
         modelCatalog?: { ok: boolean; count: number }
@@ -233,11 +239,9 @@ describe('lab server', () => {
 
   it('only reads files that belong to the preview', async () => {
     await post('/api/preview', { workspace, target: 'std:maintenance/rebuild' })
-    const allowed = await get(
-      `/api/source?path=${encodeURIComponent(join(workspace, 'orchestration', 'index.yml'))}`
-    )
+    const allowed = await get(`/api/source?path=${encodeURIComponent(config)}`)
     expect(allowed.response.status).toBe(200)
-    expect((allowed.value as { text: string }).text).toContain('is_active')
+    expect((allowed.value as { text: string }).text).toContain('classifier')
 
     const denied = await get('/api/source?path=%2Fetc%2Fpasswd')
     expect(denied.response.status).toBe(403)

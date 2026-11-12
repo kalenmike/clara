@@ -1,9 +1,10 @@
 import { cpSync, rmSync } from 'node:fs'
+import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { defineConfig } from 'tsup'
 
-const stdSource = fileURLToPath(new URL('../../packages/orchestration/std/', import.meta.url))
-const stdTarget = fileURLToPath(new URL('./dist/std/', import.meta.url))
+const engineSource = fileURLToPath(new URL('../../packages/orchestration/', import.meta.url))
+const outputDir = fileURLToPath(new URL('./dist/', import.meta.url))
 
 export default defineConfig({
   entry: ['src/index.ts'],
@@ -14,9 +15,12 @@ export default defineConfig({
   noExternal: [/^@clara\//],
   external: ['better-sqlite3', 'yaml', '@modelcontextprotocol/sdk', 'zod'],
   onSuccess: async () => {
-    // The loader resolves ./std beside the bundle, so the engine's standard
-    // packages travel with every built service that embeds it.
-    rmSync(stdTarget, { recursive: true, force: true })
-    cpSync(stdSource, stdTarget, { recursive: true })
+    // The loader resolves ./std and ./default beside the bundle, so the
+    // engine's standard packages and default config travel with the service.
+    for (const asset of ['std', 'default']) {
+      const target = join(outputDir, asset)
+      rmSync(target, { recursive: true, force: true })
+      cpSync(join(engineSource, asset), target, { recursive: true })
+    }
   },
 })

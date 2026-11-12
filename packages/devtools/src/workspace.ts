@@ -1,5 +1,6 @@
 import { statSync } from 'node:fs'
-import { basename, dirname, join, resolve } from 'node:path'
+import { basename, dirname, resolve } from 'node:path'
+import { defaultConfigPath } from '@clara/orchestration/loader'
 import type { ResolvedWorkspace, PreviewInput } from './types.ts'
 
 export class WorkspaceError extends Error {
@@ -21,9 +22,10 @@ function file(path: string): boolean {
 }
 
 /**
- * Resolve the orchestration config for a workspace without assuming the
- * service is running. Accepts a workspace directory, a package directory, or
- * the index file itself.
+ * Resolve the run workspace and the active orchestration config without
+ * assuming the service is running. Accepts a workspace directory, a package
+ * directory, or a config file. An explicit config file always wins; otherwise
+ * the config bundled with the engine is used.
  */
 export function resolveWorkspace(input: PreviewInput = {}): ResolvedWorkspace {
   const cwd = resolve(input.cwd ?? process.cwd())
@@ -38,20 +40,6 @@ export function resolveWorkspace(input: PreviewInput = {}): ResolvedWorkspace {
   }
 
   if (!configPath) {
-    for (const candidate of [
-      join(workspace, 'orchestration', 'index.yml'),
-      join(workspace, 'orchestration', 'index.yaml'),
-      join(workspace, 'index.yml'),
-      join(workspace, 'index.yaml'),
-    ]) {
-      if (file(candidate)) {
-        configPath = candidate
-        break
-      }
-    }
-  }
-
-  if (!configPath) {
     const configured = input.configPath?.trim() || process.env.CLARA_ORCHESTRATION_CONFIG?.trim()
     if (configured) {
       const candidate = resolve(cwd, configured)
@@ -62,15 +50,16 @@ export function resolveWorkspace(input: PreviewInput = {}): ResolvedWorkspace {
     }
   }
 
-  if (!configPath) {
-    throw new WorkspaceError(
-      'config_missing',
-      `No orchestration config found for ${workspace}. Expected orchestration/index.yml or index.yml.`
-    )
+  if (configPath) {
+    return { workspace, configPath, configSource: 'file' }
   }
 
-  return {
-    workspace,
-    configPath,
+  const fallback = defaultConfigPath()
+  if (!fallback) {
+    throw new WorkspaceError(
+      'config_missing',
+      'The bundled orchestration config is missing; rebuild the Lab and orchestrator.'
+    )
   }
+  return { workspace, configPath: fallback, configSource: 'bundled' }
 }

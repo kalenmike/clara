@@ -4,10 +4,12 @@ import { resolve } from 'node:path'
 import { Client } from '@modelcontextprotocol/sdk/client/index.js'
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
-import { Runtime, Store } from '@clara/orchestration'
+import { Runtime, Store, defaultConfigPath } from '@clara/orchestration'
 import { createOrchestratorServer, type OrchestratorServer } from '../src/server.ts'
 
 const workspace = fileURLToPath(new URL('../../../', import.meta.url))
+const config = defaultConfigPath()
+if (!config) throw new Error('bundled default config is missing')
 const token = 'test-token'
 let app: OrchestratorServer
 let base: string
@@ -15,7 +17,7 @@ let runtime: Runtime
 
 beforeAll(async () => {
   const store = new Store(':memory:')
-  runtime = new Runtime({ store, configPath: `${workspace}/orchestration/index.yml` })
+  runtime = new Runtime({ store, configPath: config })
   app = createOrchestratorServer({ runtime, token, port: 0, tickMs: 60_000, workspace })
   await new Promise<void>((resolve) => app.server.listen(0, '127.0.0.1', () => resolve()))
   const address = app.server.address() as AddressInfo
@@ -60,7 +62,7 @@ describe('orchestrator HTTP service', () => {
 
     const response = await fetch(`${base}/v1/config`, { headers: auth() })
     expect(response.status).toBe(200)
-    expect(await response.json()).toMatchObject({ workspace })
+    expect(await response.json()).toMatchObject({ workspace, configSource: 'bundled' })
   })
 
   it('returns the resolved package catalog', async () => {

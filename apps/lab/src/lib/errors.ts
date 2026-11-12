@@ -16,12 +16,23 @@ export function friendlyError(message: string, context: ErrorContext = 'general'
     lower.includes('no index.yml')
   ) {
     return {
-      title: 'The orchestrator cannot find this workspace',
+      title: 'The orchestrator cannot find the config file',
       detail: text,
       hint:
         context === 'host'
-          ? 'Use the path to the repository on this machine, for example /home/jet/Projects/clara.'
-          : 'The orchestrator reports its own workspace. Point CLARA_ORCHESTRATION_WORKSPACE at the mounted workspace or fix the volume mount.',
+          ? 'Check the custom config path. Without one, Clara uses the config bundled with the engine.'
+          : 'Check CLARA_ORCHESTRATION_CONFIG on the service, or remove it to use the bundled default.',
+    }
+  }
+
+  if (lower.includes('workspace_missing')) {
+    return {
+      title: 'The orchestrator cannot see this workspace',
+      detail: text,
+      hint:
+        context === 'host'
+          ? 'Choose a directory that exists on this machine.'
+          : 'Set CLARA_ORCHESTRATION_WORKSPACE to a path that exists inside the service, or fix the volume mount.',
     }
   }
 

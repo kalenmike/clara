@@ -26,6 +26,8 @@ services:
       CLARA_ORCHESTRATION_PORT: '8789'
       CLARA_DATA_DIR: /data
       CLARA_ORCHESTRATION_WORKSPACE: /workspace/clara
+      # Optional path to a custom index.yml inside the mounted workspace.
+      CLARA_ORCHESTRATION_CONFIG: ${CLARA_ORCHESTRATION_CONFIG:-}
       CLARA_ORCHESTRATION_CONTAINER: '1'
       CLARA_ORCHESTRATION_TOKEN: ${CLARA_ORCHESTRATION_TOKEN:?"set CLARA_ORCHESTRATION_TOKEN"}
     volumes:

@@ -3,10 +3,11 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { describe, expect, it } from 'vitest'
-import { catalogSummary, compileRun, loadCatalog } from '../src/index.ts'
+import { catalogSummary, compileRun, defaultConfigPath, loadCatalog } from '../src/index.ts'
 
 const root = fileURLToPath(new URL('../../../', import.meta.url))
-const config = `${root}/orchestration/index.yml`
+const config = defaultConfigPath()
+if (!config) throw new Error('bundled default config is missing')
 const stdRoot = join(root, 'packages', 'orchestration', 'std')
 
 function pipelinePackage(steps: string[]): string {
@@ -35,6 +36,25 @@ describe('package loader', () => {
     const software = summary.find((pkg) => pkg.id === 'software')
     expect(software?.pipelines).toEqual(['bug', 'docs', 'feature'])
     expect(software?.routers).toContain('classifier')
+  })
+
+  it('uses the bundled default config as the root entry', () => {
+    const catalog = loadCatalog(config)
+    expect(catalog.root.manifest.id).toBe('orchestration')
+    const run = compileRun(catalog)
+    expect(run.root.kind).toBe('router')
+    expect(run.root.routes?.map((route) => route.when)).toEqual([
+      'maintenance-recovery',
+      'maintenance-diagnosis',
+      'rebuild',
+      'content',
+      'software-development',
+      'research',
+      'diagnostics',
+    ])
+    expect(
+      run.root.routes?.find((route) => route.when === 'software-development')?.target?.kind
+    ).toBe('router')
   })
 
   it('resolves standard packages bundled with the engine from any workspace', () => {

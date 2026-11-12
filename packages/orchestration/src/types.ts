@@ -167,7 +167,6 @@ export interface ScriptDefinition {
 
 export interface ImportSpec {
   path: string
-  as?: string
   select?: string[]
 }
 

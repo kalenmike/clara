@@ -63,10 +63,18 @@ target for CI.
 
 ## Pipelines
 
-Pipelines are YAML and Markdown data bundled with the orchestrator or supplied
-by your workspace. The service may start with the orchestration switch, or the
-MCP bridge may start it on first use. The service owns the workspace and entry
-point; the model never passes them.
+Pipelines are YAML and Markdown data. The orchestrator ships with a default
+config that routes to the standard packages, so you can start a run without
+writing any configuration. To choose your own routing, point
+`CLARA_ORCHESTRATION_CONFIG` at an `index.yml`; its imports identify the
+packages. The service may start with the orchestration switch, or the MCP bridge
+may start it on first use. The service owns the workspace and entry point; the
+model never passes them.
+
+Clara Lab compiles a package with the same loader as the service, so you can
+point it at a local `index.yml`, inspect the resolved steps and prompts, and see
+load errors before starting a run. The [developer documentation](/internals/)
+includes the complete package and step reference.
 
 ## MCP
 

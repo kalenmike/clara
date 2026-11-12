@@ -16,7 +16,7 @@ import {
   type Usage,
 } from '@clara/policy'
 import { analyzeDatabase, type DiagnosticsOptions, type DiagnosticsReport } from './diagnostics.ts'
-import { compileRun, loadCatalog } from './loader.ts'
+import { compileRun, defaultConfigPath, loadCatalog } from './loader.ts'
 import type { CompiledNode, LoadedCatalog, ScriptSpec } from './types.ts'
 import {
   now,
@@ -241,12 +241,21 @@ export class Runtime {
   }
 
   configFor(workspace: string): string {
-    const local = join(workspace, 'orchestration', 'index.yml')
-    if (existsSync(local)) return resolve(local)
-    if (this.configPath) return resolve(this.configPath)
+    if (this.configPath) {
+      const path = resolve(this.configPath)
+      if (!existsSync(path)) {
+        throw new OrchestrationErrorWithCode(
+          'config_missing',
+          `No orchestration config found at ${path}.`
+        )
+      }
+      return path
+    }
+    const path = defaultConfigPath()
+    if (path) return path
     throw new OrchestrationErrorWithCode(
       'config_missing',
-      `No orchestration config found for ${workspace}. Expected ${local} or a configured default.`
+      `No orchestration config found for ${workspace}. The bundled default config is missing; rebuild the orchestrator.`
     )
   }
 

@@ -1,25 +1,7 @@
-is_active: true
-
-# Workspace defaults. Imported packages that do not declare their own model
-# and provider inherit these values. Uncomment and set the provider and model
-# your OpenCode install has access to.
-defaults:
-  provider: 'opencode-go'
-  model: 'deepseek-v4.1-flash'
-
-# Override a standard package without editing the bundled engine packages. Only
-# the keys you set are replaced; everything else still comes from the package.
-# overrides:
-#   std:software:
-#     defaults:
-#       provider: 'opencode-go'
-#       model: 'deepseek-v4.1-flash'
-#     pipelines:
-#       feature:
-#         default_model: 'deepseek-v4.1-flash'
-#     agents:
-#       code_review:
-#         model: 'deepseek-v4.1-flash'
+id: orchestration
+name: Clara orchestration
+version: 1
+description: Default entry point and routing for the bundled standard packages.
 
 imports:
   std:
@@ -29,6 +11,8 @@ imports:
     - path: diagnostics
     - path: maintenance
 
+# Watchdog defaults. The service currently reads CLARA_ORCHESTRATION_* for
+# these values; this block is reserved for the orchestrator wiring pass.
 watchdog:
   enabled: true
   check_interval_seconds: 10
@@ -56,26 +40,9 @@ router:
     - when: software-development
       criteria: a normal software feature, bug, or documentation request.
       run: std:software
-    # - when: example
-    #   criteria: run this to show another example route
-    #   run: inline_example
     - when: research
       criteria: a request for external research, industry or market analysis, source gathering, or a cited research brief.
       run: std:research
     - when: diagnostics
       criteria: a request to audit, diagnose, or self-analyze the orchestrator itself, including its database, run history, failures, alerts, retries, or pipeline setup.
       run: std:diagnostics
-
-# pipelines:
-#   inline_example:
-#     name: An example of an inline pipeline
-#     description: 'A quick and easy pipeline without imports'
-#     steps:
-#       - name: step_one
-#         type: agent
-#       - name: step_two
-#         type: script
-#         command: echo '{"ok":true}'
-#         result_mode: json
-#         inputs:
-#           patch: step_one

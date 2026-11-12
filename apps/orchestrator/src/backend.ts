@@ -1,3 +1,5 @@
+import { existsSync } from 'node:fs'
+import { resolve } from 'node:path'
 import type { ClaraBackend, UsageInput } from '@clara/mcp-server'
 import {
   catalogSummary,
@@ -25,7 +27,14 @@ export class RuntimeBackend implements ClaraBackend {
         'The orchestrator has no configured workspace.'
       )
     }
-    return workspace
+    const resolved = resolve(workspace)
+    if (!existsSync(resolved)) {
+      throw new OrchestrationErrorWithCode(
+        'workspace_missing',
+        `The workspace ${resolved} does not exist.`
+      )
+    }
+    return resolved
   }
 
   async start(input: {
