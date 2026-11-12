@@ -5,8 +5,8 @@ pnpm-lock.yaml
 **/dist
 **/.wrangler
 **/*.tsbuildinfo
-apps/docs/.docusaurus
-apps/docs/build
+tools/docs/.docusaurus
+tools/docs/build
 packages/api-contract/src/generated
 # Clara ledger records are generated and append-only.
 docs/records/*.md

@@ -1,10 +1,9 @@
 import { readFileSync, readdirSync, statSync } from 'node:fs'
 import { join, relative, sep } from 'node:path'
-import { fileURLToPath } from 'node:url'
+import { root } from '../lib/router.mjs'
 
-const root = fileURLToPath(new URL('..', import.meta.url))
-const allowed = new Set(['apps/adapters/opencode', 'apps/lab'])
-const roots = ['apps', 'packages']
+const allowed = new Set(['apps/adapters/opencode', 'tools/lab'])
+const roots = ['apps', 'packages', 'tools']
 const skippedDirs = new Set(['node_modules', 'dist', 'build', 'coverage', '.git'])
 const importPattern =
   /(?:from\s+['"]@opencode\/client['"]|import\s*\(\s*['"]@opencode\/client['"]|require\s*\(\s*['"]@opencode\/client['"]\s*\))/
@@ -91,7 +90,7 @@ for (const relativePath of [
 }
 
 if (violations.length > 0) {
-  console.error('@opencode/client is only allowed in apps/hub/server and apps/lab:')
+  console.error('@opencode/client is only allowed in apps/hub/server and tools/lab:')
   for (const violation of violations) console.error(`  ${violation}`)
   process.exit(1)
 }

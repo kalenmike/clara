@@ -38,5 +38,5 @@ coverage
 
 
 # Docs
-apps/docs/.docusaurus
-apps/docs/build
+tools/docs/.docusaurus
+tools/docs/build

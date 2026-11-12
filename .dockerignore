@@ -9,8 +9,8 @@
 **/*.tsbuildinfo
 apps/web
 apps/hub
-apps/lab
-apps/docs
+tools/lab
+tools/docs
 tools
 workers
 docs

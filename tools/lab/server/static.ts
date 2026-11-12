@@ -35,7 +35,7 @@ export interface StaticFiles {
 
 /**
  * The lab server runs from source through `pnpm clara lab` and from the bundle
- * through `pnpm build`. Vite always emits to `apps/lab/dist/web`, so the source
+ * through `pnpm build`. Vite always emits to `tools/lab/dist/web`, so the source
  * layout needs one more parent hop than the bundle layout.
  */
 export function staticRootCandidates(moduleUrl: string | URL = import.meta.url): string[] {

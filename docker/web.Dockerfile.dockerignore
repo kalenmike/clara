@@ -12,8 +12,8 @@
 !.env.example
 apps/hub
 apps/adapters
-apps/lab
-apps/docs
+tools/lab
+tools/docs
 apps/orchestrator
 tools
 workers

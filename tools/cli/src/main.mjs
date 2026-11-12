@@ -69,8 +69,8 @@ function stack(command, args) {
 
 function lab(args) {
   return runTypeScript(
-    join(root, 'apps/lab/server/index.ts'),
-    join(root, 'apps/lab/dist/server/index.js'),
+    join(root, 'tools/lab/server/index.ts'),
+    join(root, 'tools/lab/dist/server/index.js'),
     args,
     'Clara Lab'
   )

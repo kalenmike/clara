@@ -793,7 +793,7 @@ async function restartLab(state, options) {
   }
 
   const pid = current.expected ? (current.pid ?? findListenerPid(port)) : lab.pid
-  if (pid && canSignal(pid) && processMatches(pid, ['apps/lab', 'clara-lab']) !== false) {
+  if (pid && canSignal(pid) && processMatches(pid, ['tools/lab', 'clara-lab']) !== false) {
     process.kill(pid, 'SIGTERM')
     if (!(await waitForExit(pid, 10000))) {
       process.kill(pid, 'SIGKILL')

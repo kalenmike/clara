@@ -13,8 +13,8 @@ export default defineConfig([
     '**/node_modules/**',
     '**/.wrangler/**',
     'apps/web/src/components/ui/**',
-    'apps/docs/.docusaurus/**',
-    'apps/docs/build/**',
+    'tools/docs/.docusaurus/**',
+    'tools/docs/build/**',
   ]),
   {
     files: ['**/*.{ts,tsx}'],
@@ -62,7 +62,7 @@ export default defineConfig([
     },
   },
   {
-    files: ['apps/docs/src/**/*.{ts,tsx}'],
+    files: ['tools/docs/src/**/*.{ts,tsx}'],
     extends: [reactHooks.configs.flat.recommended, reactRefresh.configs.vite],
     languageOptions: {
       globals: globals.browser,

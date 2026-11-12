@@ -12,7 +12,7 @@
       "entry": ["index.html"],
       "project": ["src/**/*.{ts,tsx,css}"]
     },
-    "apps/docs": {
+    "tools/docs": {
       "entry": ["src/clientModules/**/*.ts", "src/pages/**/*.tsx", "src/theme/**/*.tsx"],
       "project": ["*.ts", "src/**/*.{ts,tsx}"],
       "ignoreDependencies": [
@@ -20,7 +20,7 @@
         "@easyops-cn/docusaurus-theme-docusaurus-search-local"
       ]
     },
-    "apps/lab": {
+    "tools/lab": {
       "entry": ["index.html"],
       "project": ["src/**/*.{ts,tsx}", "server/**/*.ts", "test/**/*.ts"]
     },

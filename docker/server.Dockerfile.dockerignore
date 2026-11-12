@@ -11,8 +11,8 @@
 .env.*
 !.env.example
 apps/web
-apps/lab
-apps/docs
+tools/lab
+tools/docs
 apps/orchestrator
 apps/adapters
 tools

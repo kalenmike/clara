@@ -56,10 +56,10 @@
       "path": "./packages/preview"
     },
     {
-      "path": "./apps/lab"
+      "path": "./tools/lab"
     },
     {
-      "path": "./apps/lab/tsconfig.server.json"
+      "path": "./tools/lab/tsconfig.server.json"
     },
     {
       "path": "./apps/adapters/opencode/plugin"

@@ -1,13 +1,13 @@
 #!/usr/bin/env node
 // Validate the two documentation sets: the internal docs under docs/ and the
-// public guide under apps/docs/guide/.
+// public guide under tools/docs/guide/.
 
 import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs'
 import { dirname, join, relative, resolve, sep } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..', '..', '..', '..')
-const guideRoot = join(root, 'apps/docs/guide')
+const guideRoot = join(root, 'tools/docs/guide')
 const internalRoot = join(root, 'docs')
 const guideIndex = join(guideRoot, 'index.md')
 const internalIndex = join(internalRoot, 'README.md')
@@ -66,7 +66,7 @@ export function resolveLink(fromFile, target) {
   const { path } = splitTarget(target)
   if (!path) return { path: '', anchor: splitTarget(target).anchor }
   const absolute = path.startsWith('/')
-    ? join(root, 'apps/docs/static', path)
+    ? join(root, 'tools/docs/static', path)
     : resolve(dirname(fromFile), normalizePath(path))
   return { path: absolute, anchor: splitTarget(target).anchor }
 }
