@@ -48,9 +48,9 @@ export class RunningActivityService {
     }
 
     const results = await Promise.all(
-      this.deps.harness.list().map((connection) =>
-        this.loadHarness(connection, withTimeout(signal, HARNESS_TIMEOUT_MS))
-      )
+      this.deps.harness
+        .list()
+        .map((connection) => this.loadHarness(connection, withTimeout(signal, HARNESS_TIMEOUT_MS)))
     )
 
     return {

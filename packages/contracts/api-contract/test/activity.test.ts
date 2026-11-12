@@ -1,8 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import {
-  claraPlanTodoSchema,
-  claraRunningSessionsResponseSchema,
-} from '../src/index.ts'
+import { claraPlanTodoSchema, claraRunningSessionsResponseSchema } from '../src/index.ts'
 
 const session = {
   id: 's1',
@@ -15,9 +12,9 @@ const session = {
 
 describe('activity contract', () => {
   it('validates plan todos', () => {
-    expect(claraPlanTodoSchema.safeParse({ content: 'Ship it', status: 'in_progress' }).success).toBe(
-      true
-    )
+    expect(
+      claraPlanTodoSchema.safeParse({ content: 'Ship it', status: 'in_progress' }).success
+    ).toBe(true)
     expect(claraPlanTodoSchema.safeParse({ content: 'Ship it', status: 'archived' }).success).toBe(
       false
     )

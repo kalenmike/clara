@@ -20,12 +20,7 @@ export const claraPlanTodoSchema = passthroughObject({
 export type ClaraPlanTodo = z.infer<typeof claraPlanTodoSchema>
 
 const TODO_TOOL = 'todowrite'
-const STATUSES = new Set<ClaraPlanTodoStatus>([
-  'pending',
-  'in_progress',
-  'completed',
-  'cancelled',
-])
+const STATUSES = new Set<ClaraPlanTodoStatus>(['pending', 'in_progress', 'completed', 'cancelled'])
 
 /**
  * The harness API does not expose todos. The current list lives in the input of
