@@ -35,8 +35,8 @@ export function SidebarDeleteDialog({
   const title = count === 1 ? `Delete this ${lowerSingular}?` : `Delete ${count} ${lowerPlural}?`
   const description =
     count === 1
-      ? `This permanently removes this ${lowerSingular} and all of its messages from the OpenCode server. This action cannot be undone.`
-      : `This permanently removes ${count} ${lowerPlural} and all of their messages from the OpenCode server. This action cannot be undone.`
+      ? `This permanently removes this ${lowerSingular} and all of its messages from the server. This action cannot be undone.`
+      : `This permanently removes ${count} ${lowerPlural} and all of their messages from the server. This action cannot be undone.`
   const confirmLabel = count === 1 ? `Delete ${lowerSingular}` : `Delete ${count} ${lowerPlural}`
 
   return (

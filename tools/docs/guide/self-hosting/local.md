@@ -7,13 +7,14 @@ sidebar_position: 2
 # Run Clara locally
 
 The local target runs the hub service and web client as detached Node processes.
-It is the fastest path when Node and OpenCode already run on the machine.
+It is the fastest path when Node and the harness already run on the machine.
 
 ## Requirements
 
 - Node 22 (`.nvmrc`).
 - pnpm 11.
-- A running OpenCode 2.1.x server.
+- A running harness and its adapter. This release includes the OpenCode 2.1.x
+  adapter.
 
 ## First run
 
@@ -27,8 +28,11 @@ pnpm clara server panel
 In the panel:
 
 1. Choose the superadmin password.
-2. Add the OpenCode base URL and credentials under **Harness**.
-3. Test, save, and activate the connection.
+2. Add a harness under **Harness**, then run the printed adapter install command
+   on the harness machine. For OpenCode, the installer finds the server or
+   prompts for its URL and password.
+3. Wait for the adapter to show **Online** under **Paired harnesses**, then use
+   **Test** and **Activate**.
 4. Set **Web URL** if devices should open something other than
    `http://127.0.0.1:8080`.
 

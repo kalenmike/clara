@@ -9,7 +9,7 @@ the commits made between the session start and its latest message with a
 conventional-commit preview, and **Worktrees** for every worktree the project
 knows about.
 
-All three read the repository on the **OpenCode host**, at the selected
+All three read the repository on the **harness host**, at the selected
 session's own directory. The browser never reads its own filesystem.
 
 ## User flow
@@ -40,8 +40,8 @@ session's own directory. The browser never reads its own filesystem.
    - Read every worktree in the project. The project's canonical directory is
      marked `default`; the directory this session runs in is marked `current`
      and highlighted.
-   - Press the rescan button to ask OpenCode to rediscover worktrees, for
-     example after one was created outside OpenCode.
+   - Press the rescan button to ask the harness to rediscover worktrees, for
+     example after one was created outside the harness.
 7. Press the header refresh button to re-read git without reloading the page.
    Only the active view refetches, so refreshing **Changes** never runs a
    `git log`.
@@ -69,9 +69,9 @@ session's own directory. The browser never reads its own filesystem.
    intact. Conventional headers are split into type, scope, and description for
    the preview, and `Co-authored-by:` trailers are lifted out of the body.
 5. **The browser never sends a shell command.** The hub runs the fixed command
-   through OpenCode's shell API and returns parsed commits. The request travels
+   through the active adapter's shell capability and returns parsed commits. The request travels
    over the encrypted session to the hub API.
-6. If OpenCode access is disabled, the hub returns `403` with `disabled` and
+6. If harness access is disabled, the hub returns `403` with `disabled` and
    the view says commit history is disabled on this server. If no harness is
    configured, the view says history is unavailable.
 7. **Worktrees are project-wide.** The server returns directories only, so:
@@ -120,14 +120,14 @@ session's own directory. The browser never reads its own filesystem.
   fail even though the branch name is known.
 - **Worktree removed or directory deleted** — the git requests fail with the
   normal retry states.
-- **Worktree created outside OpenCode** — the list is discovery-backed and may
+- **Worktree created outside the harness** — the list is discovery-backed and may
   lag until the rescan button runs `POST /api/worktree/refresh`.
 - **No other worktrees** — the list still shows the default row; there is no
   special empty state beyond "No worktrees reported." when the server returns
   nothing.
 - **Session has no project record** — the Worktrees view explains that worktrees
   are unavailable rather than guessing a project.
-- **OpenCode access disabled** — the Commits view shows an admin-disabled
+- **Harness access disabled** — the Commits view shows an admin-disabled
   state with no retry loop.
 - **No harness configured** — the Commits view says history is unavailable.
 - **Git tab closed** — no git, history, or worktree requests run while another
@@ -153,8 +153,8 @@ directory. The web client uses the typed `/v1` API and never sends a command.
 
 - **OpenCode has no commit-log endpoint.** OpenCode 2.1.x and 2.2.x expose
   `vcs.get/base/status/diff/branch` only, so the hub's `/v1/git/log` endpoint
-  runs `git log` through OpenCode's shell API and returns parsed commits.
-- **Session scope is time-based.** OpenCode records no commit IDs for a session,
+  runs `git log` through the active adapter's shell capability and returns parsed commits.
+- **Session scope is time-based.** The harness records no commit IDs for a session,
   so Clara asks git for commits between `session.time.created` and the newest
   message activity. Git compares commit dates, not author dates: a manual commit
   made in the same directory inside the window is included, an amended commit
@@ -167,7 +167,7 @@ directory. The web client uses the typed `/v1` API and never sends a command.
   same log.
 - **The worktree list has no branch names, HEAD, or dirty state.** Enriching rows
   would need one `vcs.get` call per worktree.
-- **The worktree list is stored by OpenCode**, not read live, so it can be stale
+- **The worktree list is stored by the harness**, not read live, so it can be stale
   until a rescan.
 - **`vcs.base` fails inside a worktree**, so **Base branch** is unreliable for
   worktree sessions.

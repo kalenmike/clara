@@ -7,7 +7,7 @@ const SOURCES = [
   {
     value: 'actual',
     label: 'Actual',
-    description: 'The cost OpenCode reports for the session.',
+    description: 'The cost the harness reports for the session.',
   },
   {
     value: 'estimated',
@@ -26,7 +26,7 @@ export function CostCard() {
           <Coins className="size-4" /> Cost display
         </CardTitle>
         <CardDescription>
-          Choose whether Clara shows the cost OpenCode reports or an estimate calculated from model
+          Choose whether Clara shows the harness-reported cost or an estimate calculated from model
           prices.
         </CardDescription>
       </CardHeader>

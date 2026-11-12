@@ -1,23 +1,26 @@
 ---
 title: Harness adapters
-description: Pair the OpenCode adapter with your Clara hub.
+description: Pair a harness adapter with your Clara hub.
 sidebar_position: 7
 ---
 
 # Harness adapters
 
-Clara reaches OpenCode through an adapter. The adapter runs on the machine that
-runs OpenCode, connects out to the hub, and carries your sessions. The hub never
-opens a port on the OpenCode machine.
+Clara reaches a harness through an adapter. The adapter runs on the harness
+machine, connects out to the hub, and carries your sessions. The hub never opens
+a port on the harness machine. This release includes the OpenCode adapter; the
+hub and web client are harness-neutral.
 
 ## Pair an adapter
 
 1. Sign in to the hub panel.
-2. Open **Harness**, use **Add harness**, choose **OpenCode**, choose where the
+2. Open **Harness**, use **Add harness**, choose the adapter type and where the
    adapter runs (**Docker network** is the default; also **This machine** or
-   **Cloudflare relay**), and select **Add harness**.
+   **Cloudflare relay**), and select **Add harness**. OpenCode is the only
+   adapter type included with this release.
 3. Copy the pairing code or the install command.
-4. On the OpenCode machine, run the adapter's own installer:
+4. On the harness machine, run the adapter's own installer. For the included
+   adapter:
 
    ```bash
    clara-adapter-opencode install --pair <code>
@@ -26,8 +29,8 @@ opens a port on the OpenCode machine.
    Inside the Clara repository you can use
    `pnpm clara adapter install --opencode --pair <code>` instead.
 
-5. The installer looks for OpenCode. If it cannot find it, enter the OpenCode
-   URL and password when asked.
+5. The installer looks for the harness. For OpenCode, if it cannot find it,
+   enter the OpenCode URL and password when asked.
 6. The installer starts a user service, or a background process when systemd is
    not available. Return to the panel. A newly paired adapter shows
    **Paired · Offline** under **Paired harnesses**; when its session connects it
@@ -58,8 +61,8 @@ connection keeps that state; use **Forget** only when you want to discard it.
 
 ## Troubleshooting
 
-- **OpenCode is not found** — run the installer again and enter the URL,
-  username, and password. The adapter retests before saving.
+- **The harness is not found** — run the installer again and enter the harness
+  URL, username, and password. For OpenCode, the adapter retests before saving.
 - **The code expired** — create a new code in the panel.
 - **The browser rejects a panel code** — panel codes install the adapter, not
   the browser. Run `pnpm clara pair`, then paste that link or code in Clara.
@@ -70,7 +73,7 @@ connection keeps that state; use **Forget** only when you want to discard it.
 - **The panel says Online but requests time out** — run
   `pnpm clara adapter status`. The **hub** and **link** lines show whether the
   adapter has an authenticated session with the hub and how long ago it last
-  heard from it; **health** shows the adapter's last OpenCode check. If the
+  heard from it; **health** shows the adapter's last harness check. If the
   process is running but the link is offline or stale, restart it with
   `pnpm clara adapter stop --opencode` and `pnpm clara adapter start --opencode`.
 - **The Harness switch is off** — the page header and paired status say **Off**.

@@ -54,7 +54,7 @@ export function readClaraEvent(message: ClaraSessionMessageSynthetic): SystemEve
 }
 
 /**
- * OpenCode injects model-facing mode reminders as untagged synthetic messages.
+ * The harness injects model-facing mode reminders as untagged synthetic messages.
  * They are not part of the conversation, but the reader can still inspect them
  * through a collapsed system row instead of the raw tagged text.
  */

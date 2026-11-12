@@ -1,30 +1,30 @@
 # Relay
 
-The relay lets a browser or installed PWA reach a Clara hub that is not
-publicly reachable. The hub opens one outbound WebSocket to Cloudflare; the
-browser opens one inbound WebSocket to the same room. Cloudflare only forwards
-opaque frames.
+The relay lets a browser, installed PWA, or harness adapter reach a Clara hub
+that is not publicly reachable. The hub opens one outbound WebSocket to
+Cloudflare; browsers and adapters open inbound WebSockets to the same room.
+Cloudflare only forwards opaque frames.
 
 ```text
-OpenCode HTTP/SSE
-      ▲
-      │ basic auth (server-side)
-      ▼
-Clara hub /v1 API ──outbound WSS──▶ Worker ──▶ RelayRoom DO ◀──WSS── browser / PWA
-      │                                              │
-      └──────────── E2EE payloads ───────────────────┘
+Harness ──HTTP/SSE──▶ adapter ──outbound WSS──▶ Worker ──▶ RelayRoom DO ◀──outbound WSS── hub
+                                                                    ▲
+                                                                    └──WSS── browser / PWA
 ```
+
+In local mode an adapter opens the hub's local WebSocket directly instead of
+joining the relay room.
 
 ## Components
 
-| Component       | Location                          | Responsibility                                               |
-| --------------- | --------------------------------- | ------------------------------------------------------------ |
-| Hub service     | `apps/hub/server`                 | Hub `/v1` API, harness auth, E2EE sessions, relay reconnect  |
-| Relay Worker    | `infra/relay`                     | Path routing, subprotocol/token auth, static health endpoint |
-| `RelayRoom` DO  | `infra/relay`                     | One hub socket + N client sockets; frame forwarding only     |
-| Web transport   | `apps/web`                        | Fetch-over-WebSocket shim, E2EE, reconnect, heartbeat        |
-| Shared protocol | `packages/contracts/shared-types` | Frame/action/state types and pairing payloads                |
-| Crypto          | `packages/crypto`                 | device-key derivation, AES-GCM seal/open, replay guard       |
+| Component       | Location                          | Responsibility                                                 |
+| --------------- | --------------------------------- | -------------------------------------------------------------- |
+| Hub service     | `apps/hub/server`                 | Hub `/v1` API, adapter routing, E2EE sessions, relay reconnect |
+| Adapter         | `apps/adapters/*`                 | Harness translation, harness auth, adapter E2EE and reconnect  |
+| Relay Worker    | `infra/relay`                     | Path routing, subprotocol/token auth, static health endpoint   |
+| `RelayRoom` DO  | `infra/relay`                     | One hub socket + N client sockets; frame forwarding only       |
+| Web transport   | `apps/web`                        | Fetch-over-WebSocket shim, E2EE, reconnect, heartbeat          |
+| Shared protocol | `packages/contracts/shared-types` | Frame/action/state types and pairing payloads                  |
+| Crypto          | `packages/crypto`                 | device-key derivation, AES-GCM seal/open, replay guard         |
 
 ## Example domain layout
 
@@ -42,12 +42,14 @@ not a secret, but it is unguessable.
 - A room has exactly one hub socket. A new hub connection closes the old
   one with code `4002` and closes clients with `1012` so they re-handshake
   against the new process.
-- Client frames go only to the hub. Hub frames are broadcast to every
-  client. There is no per-client routing state in the DO.
+- Browsers and adapters are both clients of the room. Client frames go only to
+  the hub. Hub frames are broadcast to every client. There is no per-client
+  routing state in the DO.
 - Each client uses its own `sid` and per-session keys. The hello also carries a
-  stable `deviceId`, so the relay can correlate connections from one device
-  even though the `sid` is fresh. Foreign frames fail to decrypt and are
-  dropped; the relay does not need to understand them.
+  stable `deviceId` for a browser or a stable adapter identity for an adapter, so
+  the relay can correlate connections from one peer even though the `sid` is
+  fresh. Foreign frames fail to decrypt and are dropped; the relay does not need
+  to understand them.
 - When the hub disconnects, clients close with `1012` and reconnect with
   jittered backoff.
 - When no hub is present, a client frame closes that client with `1013`.
@@ -75,10 +77,12 @@ pnpm exec wrangler secret put CLARA_AGENT_TOKEN
 pnpm exec wrangler secret put CLARA_CLIENT_TOKEN
 ```
 
-The client token is embedded in the pairing payload. It prevents unpaired
-traffic from reaching the hub, but it is not the encryption key. An attacker
-with the client token and no device key can open sockets and cause noise; they cannot
-read or forge E2EE frames. Rotate both tokens if either leaks.
+The client token is embedded in the pairing payload for browsers and adapters. It
+prevents unpaired traffic from reaching the hub, but it is not the encryption
+key. An attacker with the client token and no device or adapter key can open
+sockets and cause noise; they cannot read or forge E2EE frames. Rotate both
+tokens if either leaks. Adapter pairing also issues its own adapter credential;
+that credential authenticates the adapter after enrollment.
 
 The hub's relay role and secret keep the historical `agent` name
 (`clara.role.agent`, `CLARA_AGENT_TOKEN`), while prose calls that side the hub.
@@ -108,6 +112,7 @@ The hub's relay role and secret keep the historical `agent` name
 | Relay unreachable         | Hub retries with exponential backoff (1s–30s, jittered).                   |
 | Hub offline               | Clients connect, then close with `1013`; the connect screen shows failure. |
 | Hub restarts              | DO closes clients with `1012`; both sides re-handshake.                    |
+| Adapter offline           | Hub returns `harness_offline`; the adapter reconnects with backoff.        |
 | Wrong token               | Worker returns `401` before upgrading.                                     |
 | Unknown or revoked device | Hub sends an `error` frame; the client reports and stops reconnecting.     |
 | Version mismatch          | Handshake is rejected; update web and hub together.                        |

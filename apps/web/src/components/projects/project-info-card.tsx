@@ -221,8 +221,8 @@ export function ProjectInfoCard({ project }: { project: ClaraProject }) {
             </DialogTitle>
             <DialogDescription>
               {action === 'archive'
-                ? `This archives ${totalLabel} on the OpenCode server. The project itself is not archived and stays available.`
-                : `This permanently deletes ${totalLabel} from the OpenCode server. The project record stays, but its sessions cannot be restored.`}
+                ? `This archives ${totalLabel} on the server. The project itself is not archived and stays available.`
+                : `This permanently deletes ${totalLabel} from the server. The project record stays, but its sessions cannot be restored.`}
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>

@@ -1,7 +1,7 @@
 import type { ClaraSessionMessage } from '@clara/api-contract'
 
 /**
- * A user message can be synthetic input from an automation source. OpenCode
+ * A user message can be synthetic input from an automation source. The harness
  * keeps it in the user branch, but Clara must not attribute it to the person.
  */
 export function isSyntheticMessage(message: ClaraSessionMessage): boolean {

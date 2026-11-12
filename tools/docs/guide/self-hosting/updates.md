@@ -15,8 +15,9 @@ pnpm clara rebuild
 ```
 
 The rebuild captures the running services, installs dependencies, builds the
-checkout, reinstalls the OpenCode adapter, and restarts only the services that
-were running. It then verifies their health and retries a failed restart once.
+checkout, reinstalls the configured harness adapters (the included OpenCode
+adapter in this release), and restarts only the services that were running. It
+then verifies their health and retries a failed restart once.
 
 For a smaller change, rebuild and restart one target:
 

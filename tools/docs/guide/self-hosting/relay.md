@@ -6,10 +6,10 @@ sidebar_position: 4
 
 # Remote access with the relay
 
-A browser on another network cannot reach a hub that only listens on
+A browser or adapter on another network cannot reach a hub that only listens on
 `127.0.0.1`. The relay solves that by having the hub open one outbound WebSocket
-to Cloudflare and letting browsers join the same room. Cloudflare forwards
-encrypted frames; it cannot read them.
+to Cloudflare and letting browsers and harness adapters join the same room.
+Cloudflare forwards encrypted frames; it cannot read them.
 
 ## What you need
 
@@ -32,7 +32,7 @@ pnpm exec wrangler deploy
 From the repository root, the same deploy is `pnpm deploy:relay`.
 
 Use two different, random values. The hub uses the agent token; pairing payloads
-embed the client token. Rotate both if either leaks.
+for browsers and adapters embed the client token. Rotate both if either leaks.
 
 The default configuration uses the `workers.dev` URL. For a custom host, add a
 route in `infra/relay/wrangler.jsonc`:
@@ -70,7 +70,9 @@ When `CLARA_RELAY_ROOM` is omitted, the hub generates a room and persists it in
 `server.json`. Keep that value stable: every pairing code is scoped to it.
 
 Open the hub panel, confirm the relay card is connected, and set **Web URL** to
-the public HTTPS URL. `CLARA_PAIRING_BASE_URL` overrides the panel value.
+the public HTTPS URL. `CLARA_PAIRING_BASE_URL` overrides the panel value. When an
+adapter must reach the hub from another network, choose **Cloudflare relay** as
+its location in **Harness → Add harness**.
 
 ## Pair a remote device
 

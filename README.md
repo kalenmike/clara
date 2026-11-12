@@ -1,16 +1,18 @@
 # Clara
 
-A secure web client for [OpenCode](https://opencode.ai) sessions: projects,
-sessions, streaming chat, agents, models, slash commands, `@` mentions, and live
-usage. Clara reaches an OpenCode server through an end-to-end encrypted
-WebSocket, either through the Cloudflare relay or over a local connection on a
-trusted network.
+A secure web client for agent harnesses: projects, sessions, streaming chat,
+agents, models, slash commands, `@` mentions, and live usage. Clara reaches a
+harness through an **adapter**, a small process on the harness machine that
+connects out to the Clara hub over an end-to-end encrypted WebSocket, either
+through the Cloudflare relay or over a local connection on a trusted network.
+The repository includes an adapter for [OpenCode](https://opencode.ai).
 
 ## Requirements
 
 - Node 22 (see `.nvmrc`)
 - pnpm 11
-- A running OpenCode 2.1.x server
+- A running harness and its adapter. This release includes the OpenCode 2.1.x
+  adapter.
 - Optional: a Cloudflare account and your own domain for remote access
 
 ## Workspace
@@ -58,14 +60,15 @@ worktree and branch. See [docs/development.md](docs/development.md).
 
 ## Fast setup
 
-With OpenCode 2.1.x running, a local checkout needs:
+With a harness running, a local checkout needs:
 
 ```bash
 pnpm install
 pnpm clara start --local --build
 pnpm clara server setup-token --local
 pnpm clara server panel
-# In the panel: choose the superadmin password and save the OpenCode URL/password.
+# In the panel: choose the superadmin password, add a harness, and run the
+# printed adapter install command on the harness machine.
 pnpm clara pair --local --no-relay
 # Open http://127.0.0.1:8080 and pair.
 ```
@@ -84,12 +87,14 @@ For orchestration only, install the harness adapter after the stack is up:
 pnpm clara adapter install --opencode
 ```
 
-Only the OpenCode adapter is installable today.
+Only the OpenCode adapter is included with this release. The hub and web client
+are harness-neutral: another adapter can implement the same Clara Harness
+Protocol and appear in the panel.
 
-The hub does **not** read OpenCode's `service.json`; it reads the harness
-connection saved in the authenticated panel. The harness is saved in SQLite with
-its secret encrypted at rest. See [First run](#first-run) for the token file
-and container networking details.
+The hub does **not** read OpenCode's `service.json`; the adapter discovers its
+harness on its own machine. The harness connection is saved in the authenticated
+panel, and the adapter credential is stored in SQLite encrypted at rest. See
+[First run](#first-run) for the token file and container networking details.
 
 ## Development quick start
 
@@ -108,9 +113,12 @@ Open <http://localhost:5173> and pair with the code from `pnpm clara pair`.
 2. Open the panel at <http://127.0.0.1:8790>, or run `pnpm clara server panel`.
 3. Read the one-time setup token from `~/.config/clara/admin-setup.txt` or run
    `pnpm clara server setup-token` (add `--docker` for the container).
-4. Choose the superadmin password, then add the OpenCode base URL and password.
-   Inside a container, use `http://opencode:4096` or another name reachable from
-   the `clara` network, not `127.0.0.1`.
+4. Choose the superadmin password. In **Harness → Add harness**, choose the
+   adapter type and location, then run the printed install command on the
+   harness machine. The adapter finds the harness or prompts for its URL and
+   credentials. Inside a container, the adapter connects to the hub at
+   `ws://server:8788/ws` on the `clara` network; for a containerized OpenCode,
+   the adapter uses a name such as `http://opencode:4096`.
 
 ### Hub panel
 
@@ -126,12 +134,13 @@ In a production build, the panel ships inside the hub service and is available a
 <http://127.0.0.1:8790> after `pnpm build` and `pnpm clara server start --local`.
 Run `pnpm clara server panel` to open it in a browser; the command only opens a
 panel that is already being served. The panel never travels through the relay.
-From it you can configure the OpenCode harness, disable the harness connection,
+From it you can add and manage harness adapters, disable the harness connection,
 local transport, relay, or push, start and stop the local orchestration service,
 and stop every external connection while the process, panel, and database stay
 alive. Settings and harness connections are stored at `CLARA_DB_PATH` or
-`~/.local/share/clara/clara.db` (mode `0600`); harness passwords are encrypted
-with `secrets.key`. The panel never returns device keys, harness password, relay
+`~/.local/share/clara/clara.db` (mode `0600`); adapter credentials are encrypted
+with `secrets.key`. The harness password stays in the adapter's own config on the
+adapter host. The panel never returns device keys, adapter credentials, relay
 tokens, push endpoints, sync values, or file contents. See
 [docs/features/panel.md](docs/features/panel.md) and
 [docs/features/hub-controls.md](docs/features/hub-controls.md).
@@ -248,15 +257,16 @@ pnpm clara server setup-token --docker
 pnpm clara server pair --docker
 ```
 
-The hub service joins the same `clara` network as the orchestrator and OpenCode. Its
-panel and local WebSocket are published on host loopback only. Use an SSH tunnel
+The hub service joins the same `clara` network as the orchestrator and, when
+containerized, the harness. Its panel and local WebSocket are published on host
+loopback only. Use an SSH tunnel
 for remote panel access; the panel's `Host`/`Origin` guard still expects a
 loopback origin. Do not publish plain HTTP on the LAN. See
 [docs/features/connection.md](docs/features/connection.md) and
 [docs/features/panel.md](docs/features/panel.md).
 
 Local installs that keep their databases under `~/.config/clara` should stop
-the hub and OpenCode, then move them once. Docker installs do not use these
+the hub and the harness, then move them once. Docker installs do not use these
 directories; use the volume migration guide instead.
 
 ```bash
@@ -316,8 +326,8 @@ It serves REST, SSE, and MCP on `127.0.0.1:8789` with its bearer token and needs
 only a run workspace plus a harness adapter to execute work orders. The bundled
 default config routes to the standard packages; set
 `CLARA_ORCHESTRATION_CONFIG` to an `index.yml` to supply your own routing. The
-OpenCode adapter and Clara Lab talk to it directly; the web client is not
-required. See
+included OpenCode adapter and Clara Lab talk to it directly; the web client is
+not required. See
 [docs/features/orchestration.md](docs/features/orchestration.md).
 
 ### Local WebSocket mode
@@ -459,22 +469,24 @@ is no UI for it. See [docs/features/sync.md](docs/features/sync.md).
 ## Security
 
 - Cloudflare sees ciphertext and routing metadata only.
-- The browser never receives the OpenCode password in relay mode.
+- The browser never receives the harness password.
 - A pairing link carries a one-time enrollment token, never a long-lived key.
   The browser stores its per-device key as a non-extractable `CryptoKey` in
   IndexedDB. The hub stores device keys encrypted with `secrets.key`.
 - Web Push subscriptions live at `~/.config/clara/subscriptions.json`; VAPID
   keys live at `~/.config/clara/vapid.json`. Both use mode `0600`.
 - Hub settings, client sync data, and harness connections live in
-  `~/.local/share/clara/clara.db` (mode `0600`). Harness passwords are encrypted
-  with `secrets.key` (mode `0600`) or `CLARA_SECRET_KEY`; the database alone does
-  not expose them. Push endpoints and sync secrets remain in their existing
-  files.
+  `~/.local/share/clara/clara.db` (mode `0600`). Adapter credentials are
+  encrypted with `secrets.key` (mode `0600`) or `CLARA_SECRET_KEY`; the database
+  alone does not expose them. The harness URL and password stay in the adapter's
+  config on the adapter host. Push endpoints and sync secrets remain in their
+  existing files.
 - The hub panel requires a superadmin login. It listens on `127.0.0.1:8790`
   by default, guards every request with Host/Origin/fetch-metadata checks, and
   keeps the setup token in `admin-setup.txt` (mode `0600`) until the first login.
-  It never returns device keys, harness password, relay tokens, push endpoints,
-  sync values, or file contents. It is not exposed through the relay or Pages.
+  It never returns device keys, adapter credentials, relay tokens, push
+  endpoints, sync values, or file contents. It is not exposed through the relay
+  or Pages.
 - A lost panel password is reset with `pnpm clara server admin reset` (add
   `--docker` in a container). That command writes a new one-time setup token.
   There is deliberately no network password-reset endpoint.
@@ -492,8 +504,9 @@ Vite 8 · React 19 · TypeScript 6 · Tailwind CSS 4 · shadcn/ui · TanStack Qu
 · React Router 8 · `@opencode/client` 2.1.1 · Node 22 · `ws` · Cloudflare
 Workers/Durable Objects.
 
-`@opencode/client` is pinned to the server minor because the API is generated per
-release. See [docs/architecture/overview.md](docs/architecture/overview.md).
+The included OpenCode adapter and Clara Lab pin `@opencode/client` to the server
+minor because the API is generated per release. See
+[docs/architecture/overview.md](docs/architecture/overview.md).
 
 ## Documentation
 

@@ -6,14 +6,16 @@ sidebar_position: 13
 
 # Self-hosting Clara
 
-Clara has two halves: the **hub** on the machine that runs OpenCode, and the
-**web client** that devices open. You can run both from one checkout with Docker
-or Node, and add the Cloudflare relay only when devices need to connect from
-outside your network.
+Clara has two halves: the **hub** on the machine that runs the hub service, and
+the **web client** that devices open. You can run both from one checkout with
+Docker or Node, and add the Cloudflare relay only when devices need to connect
+from outside your network. A harness adapter connects the harness machine to the
+hub.
 
 ```mermaid
 flowchart LR
-  O[OpenCode server] -->|HTTP and SSE| H[Clara hub]
+  O[Harness] -->|HTTP and SSE| A[Adapter]
+  A -->|encrypted WebSocket| H[Clara hub]
   H -->|encrypted WebSocket| W[Browser or PWA]
   H -. optional .-> R[Cloudflare relay]
   R -. encrypted frames .-> P[Phone]
@@ -21,7 +23,8 @@ flowchart LR
 
 ## What you need
 
-- A machine that can run OpenCode 2.1.x.
+- A machine that can run a harness and its adapter. This release includes the
+  OpenCode 2.1.x adapter.
 - Node 22 and pnpm 11 for a local install, or Docker with Compose.
 - A checkout of this repository.
 - Optional: a Cloudflare account and a domain for remote access.
@@ -42,7 +45,8 @@ Both modes use the same hub panel, pairing command, and data model.
 1. Install dependencies with `pnpm install`.
 2. Start the stack. Docker is the default; add `--local` for host processes.
 3. Run `pnpm clara server setup-token` and open the hub panel. Choose a
-   superadmin password and save the OpenCode connection.
+   superadmin password, add a harness, and run the printed adapter install
+   command on the harness machine.
 4. Run `pnpm clara pair` and open the printed link on your device.
 5. Add the web app to your Home Screen or install it.
 

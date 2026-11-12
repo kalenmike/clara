@@ -7,14 +7,15 @@ sidebar_position: 6
 # Orchestration
 
 Orchestration is optional. It runs package-based pipelines in a local service and
-connects them to OpenCode through an adapter. If you only want Clara's chat
+connects them to your harness through an adapter. If you only want Clara's chat
 client, skip this page.
 
 ## What it adds
 
 - A loopback orchestration service that owns run state, leases, budgets, and
   alerts.
-- A `Clara` agent in OpenCode that starts and checks runs.
+- A `Clara` agent in the harness that starts and checks runs. In OpenCode, the
+  included adapter installs her as a primary agent.
 - Worker sessions for pipeline steps.
 - Clara Lab, a local workbench for previewing packages and driving a run by hand.
 - MCP tools for callers that do not use the adapter.
@@ -40,8 +41,9 @@ clara-adapter-opencode install  # or: pnpm clara adapter install --opencode
 ```
 
 The command links the OpenCode plugin, installs the `Clara` agent, and installs
-the shared runner. Add `--mcp` to register the MCP bridge with the harness.
-OpenCode is the only installable adapter today.
+the shared runner. Add `--mcp` to register the MCP bridge with the harness. The
+OpenCode adapter is included with this release; another harness needs its own
+adapter.
 
 After installation, select the **Clara** agent in OpenCode. She is the
 human-facing entry point: a concrete request starts a run, a status question

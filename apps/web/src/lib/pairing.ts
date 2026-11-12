@@ -13,8 +13,13 @@ export function pairingInputError(input: string): string {
   const value = input.trim()
   if (!value) return 'Enter a Clara pairing code or link.'
   if (parsePairingInput(value)) return ''
-  if (value.startsWith(HARNESS_PAIRING_CODE_PREFIX) || parseHarnessPairingInput(value)) {
-    return 'That is a harness adapter pairing code. Run pnpm clara adapter install --opencode --pair <code> on the machine that runs OpenCode. To pair this browser, use a code from pnpm clara pair.'
+  const harness = parseHarnessPairingInput(value)
+  if (harness || value.startsWith(HARNESS_PAIRING_CODE_PREFIX)) {
+    const kind = harness && /^[a-z0-9_-]+$/i.test(harness.kind) ? harness.kind : null
+    const install = kind
+      ? `Run pnpm clara adapter install --${kind} --pair <code> on the machine that runs your harness.`
+      : 'Install it from the hub panel on the machine that runs your harness.'
+    return `That is a harness adapter pairing code. ${install} To pair this browser, use a code from pnpm clara pair.`
   }
   return 'That does not look like a Clara pairing code or link. Browser pairing codes start with clara1_.'
 }

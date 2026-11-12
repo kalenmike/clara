@@ -17,7 +17,7 @@ function isArchivedProject(project: ClaraProject): boolean {
 }
 
 /**
- * OpenCode archives a project when none of its known directories exist, and
+ * The harness archives a project when none of its known directories exist, and
  * unarchives it when a directory-scoped request resolves one of them again.
  * Probing `location.get` therefore restores every project whose volume is
  * mounted, while missing directories reject with 404 and stay archived.

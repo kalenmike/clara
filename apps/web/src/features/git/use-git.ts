@@ -138,7 +138,7 @@ export function useGitWorktrees(
   return useQuery({
     queryKey: queryKeys.gitWorktrees(projectID, currentDirectory),
     queryFn: () => {
-      if (!client) throw new Error('No OpenCode client')
+      if (!client) throw new Error('No harness client')
       if (!projectID) throw new Error('No project')
       return client.worktree.list({ projectID })
     },

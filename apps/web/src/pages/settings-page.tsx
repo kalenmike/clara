@@ -161,8 +161,8 @@ export function SettingsPage() {
               <CardHeader>
                 <CardTitle className="text-sm">Keyboard shortcuts</CardTitle>
                 <CardDescription>
-                  Based on the standard OpenCode keybinds. The ctrl+x leader stays off while typing
-                  so cut keeps working.
+                  Based on the standard keybinds. The ctrl+x leader stays off while typing so cut
+                  keeps working.
                 </CardDescription>
               </CardHeader>
               <CardContent>

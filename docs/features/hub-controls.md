@@ -43,7 +43,7 @@ for client settings sync.
 1. **Two layers.** _Desired_ is the saved user choice. _Effective_ is true only
    when the choice is on, connections are not stopped, and the transport
    actually started. The panel always shows both.
-2. **Going offline does not change preferences.** Go offline closes OpenCode access,
+2. **Going offline does not change preferences.** Go offline closes harness access,
    the local listener, the relay socket, and the push monitor, but leaves the
    saved feature choices alone. Starting reapplies them.
 3. **The panel outlives the hub's connections.** Go offline keeps the process,
@@ -52,7 +52,7 @@ for client settings sync.
 4. **Failures are reported, not fatal.** If a port is busy, the relay is
    unavailable, or push keys are invalid, the desired value is still saved and
    the panel reports an error with `effective: false`. The process keeps running.
-5. **Dependencies are visible.** Turning OpenCode off stops the push event
+5. **Dependencies are visible.** Turning the harness connection off stops the push event
    monitor but leaves the local and relay transports connected. Push actions are
    gated separately.
 6. **Cards are accordions.** Hub, effective configuration, connected clients,
@@ -79,7 +79,7 @@ for client settings sync.
   the relay card explains that a URL and both tokens are required.
 - **Push unavailable** — a VAPID or subscription-file failure leaves the switch
   on but ineffective, with the startup error. Existing subscriptions are kept.
-- **OpenCode down** — the OpenCode probe reports unreachable while the hub is
+- **Harness down** — the harness probe reports unreachable while the hub is
   running and the other transports stay up.
 - **Panel port busy** — the panel logs `panel unavailable` and the hub service
   keeps its other connections; restart the process after freeing the port.
@@ -89,7 +89,7 @@ for client settings sync.
 ## Out of scope
 
 - Stopping or restarting the systemd unit from the panel
-- Editing `server.json`, the OpenCode URL, ports, rooms, or tokens from the panel
+- Editing `server.json`, the harness URL, ports, rooms, or tokens from the panel
 - Kicking clients or revoking a device
 - Historical metrics or a persisted audit trail
 - Remote access to the panel through the relay or Pages
@@ -111,7 +111,7 @@ for client settings sync.
 <summary>Routes, data, and references</summary>
 
 - Settings file: `CLARA_DB_PATH` or `<CLARA_DATA_DIR>/clara.db` (mode `0600`)
-- Settings keys: `features.opencode`, `features.local`, `features.relay`,
+- Settings keys: `features.opencode` (the historical harness key), `features.local`, `features.relay`,
   `features.push`, `agent.stopped` (the historical key for stopped
   connections), `monitoring.enabled`, `sync.enabled` plus `sync.intervalMs` for
   client settings sync, and `orchestration.enabled` for the local service

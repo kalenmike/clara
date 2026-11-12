@@ -34,6 +34,7 @@ import { SidebarDeleteDialog } from '@/components/layout/sidebar-delete-dialog'
 import { SidebarSelectionBar } from '@/components/layout/sidebar-selection-bar'
 import { SidebarSessionRow } from '@/components/layout/sidebar-session-row'
 import { usePendingPermissions } from '@/features/chat/use-permissions'
+import { useHarnessLabel } from '@/features/harness/use-harness-label'
 import { resolveAttentionKind } from '@/features/notifications/attention'
 import {
   filterVisibleProjects,
@@ -139,6 +140,7 @@ export function SidebarContent({
   const params = useParams<{ projectId: string; sessionId?: string }>()
   const { lowerSingular, lowerPlural } = useSessionWording()
   const { harness, reconnect, reconnecting } = useConnection()
+  const label = useHarnessLabel('Harness')
   const { isAutomation } = useSessionPolicy()
   const claraEnabled = Boolean(isAutomation)
   const { state } = useEventStream()
@@ -660,7 +662,7 @@ export function SidebarContent({
                 type="button"
                 onClick={() => void reconnect()}
                 disabled={reconnecting}
-                title="Reconnect to the OpenCode server"
+                title="Reconnect to the harness"
                 className="flex items-center gap-1 rounded-sm uppercase tracking-wider transition-colors hover:text-foreground disabled:opacity-60"
               >
                 <span
@@ -959,7 +961,7 @@ export function SidebarContent({
       <div className="shrink-0 border-t px-3 py-2.5 text-[11px] text-muted-foreground md:py-2 md:text-[10px]">
         <div className="flex items-center justify-between gap-2">
           <span className="truncate">
-            {harness ? `OpenCode ${harness.version}` : 'Harness offline'}
+            {harness ? `${label} ${harness.version}` : 'Harness offline'}
           </span>
           <span className="truncate" title={claraBuildTitle}>
             Clara {claraVersion} · {claraBuildLabel}

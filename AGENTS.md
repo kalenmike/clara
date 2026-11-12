@@ -1,9 +1,10 @@
 # AGENTS.md — Clara
 
-Clara is a browser/PWA client for one running OpenCode server, plus a hub: a
-small service on your machine that carries the OpenCode HTTP/SSE API over an
-end-to-end encrypted WebSocket. This file is the contract for every AI agent
-working in this repo.
+Clara is a browser/PWA client for agent harnesses, plus a hub: a small service on
+your machine that carries harness traffic over an end-to-end encrypted WebSocket.
+The hub and web client are harness-neutral; they reach a harness through a paired
+adapter. The repository includes the OpenCode adapter. This file is the contract
+for every AI agent working in this repo.
 
 ## Workspace
 
@@ -113,9 +114,10 @@ Never merge by hand, never reuse a task worktree for unrelated work, and never
 create a task worktree outside `../clara-worktrees` (override with
 `CLARA_WORKTREES_DIR`). See [docs/development.md](docs/development.md).
 
-## OpenCode server contract
+## Harness and OpenCode contract
 
-- Clara targets OpenCode 2.1.x and the v2 HTTP API under `/api`.
+- Clara targets OpenCode 2.1.x through the included adapter and the v2 HTTP API
+  under `/api`.
 - The harness SDK is `@opencode/client`, version-matched to the server and used
   only inside `apps/adapters/opencode` and `tools/lab`. Do not swap it for `@opencode-ai/sdk`
   (v1 API) or import `@opencode/sdk` into the browser (embedded Node server).
@@ -125,11 +127,13 @@ create a task worktree outside `../clara-worktrees` (override with
   SDK; adapters connect out over the Clara Harness Protocol.
 - The browser connects only through the hub over the local or relay
   WebSocket, and only to the hub API under `/v1` through `@clara/api-client`.
-  The hub service adds OpenCode basic auth; the browser never receives the
-  password and has no generic OpenCode proxy.
+  The adapter adds harness authentication; the browser never receives the
+  harness password and has no generic harness proxy.
 - Harness adapters are paired from the authenticated hub panel and stored in
-  the hub's SQLite database. The adapter discovers OpenCode on its own machine;
-  the hub never reads OpenCode's `service.json` or stores the OpenCode password.
+  the hub's SQLite database. Each adapter discovers its harness on its own
+  machine; the hub never reads OpenCode's `service.json`, contacts the harness,
+  or stores the harness password. It stores only the adapter identity,
+  capability set, versions, and encrypted adapter credential.
 - Session lists are scoped by `directory`, not `project`. Sessions can report
   `projectID: "global"`; always build links from the selected project ID.
 
@@ -146,6 +150,8 @@ transport, Worker, Durable Object, or crypto.
 - Use **hub** for the home-side installation, **hub service** for its process,
   and **hub panel** for its dashboard. Reserve **agent** for LLM agents. See the
   [vocabulary](docs/architecture/overview.md#vocabulary).
+- Write platform behavior as **harness** and **adapter**. Name OpenCode only for
+  the included adapter, its install commands, or a fact specific to OpenCode.
 - Web components live under `apps/web/src/components`; web hooks under
   `apps/web/src/features`. Server code lives under `apps/hub/server/src`.
 - Use the shadcn components in `apps/web/src/components/ui`; add new ones with
@@ -288,8 +294,8 @@ is never published.
 
 1. `pnpm check` passes.
 2. `pnpm build` succeeds.
-3. The touched screen works against a live OpenCode 2.1.x server, through the
-   affected transport.
+3. The touched screen works against a live target harness, through the
+   affected transport. For the included adapter, that means OpenCode 2.1.x.
 4. Shipped-scope changes update
    [docs/features/capabilities.md](docs/features/capabilities.md) in the same
    change. User-visible changes also update the matching page under

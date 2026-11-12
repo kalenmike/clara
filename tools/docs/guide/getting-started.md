@@ -6,9 +6,9 @@ sidebar_position: 1
 
 # Getting started
 
-Clara opens one OpenCode server from a browser or an installed app. Someone who
-runs Clara — the **hub** — gives you a URL and a pairing code. You do not need an
-OpenCode account or the OpenCode password.
+Clara opens the harness your host exposes from a browser or an installed app.
+Someone who runs Clara — the **hub** — gives you a URL and a pairing code. You do
+not need the harness account or its password.
 
 ## What you need
 

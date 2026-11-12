@@ -56,7 +56,7 @@ export function SessionsPage() {
         <div className="text-center">
           <p className="text-sm font-medium">Project not found</p>
           <p className="mt-1 text-xs text-muted-foreground">
-            It may have been removed from OpenCode.
+            It may have been removed from the server.
           </p>
           <Button asChild variant="outline" size="sm" className="mt-4">
             <Link to="/">Go home</Link>

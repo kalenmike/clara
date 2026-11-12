@@ -6,9 +6,10 @@ sidebar_position: 0
 
 # Clara user guide
 
-Clara is a browser and home-screen client for one OpenCode server. It lets you
-open projects, start and steer sessions, and read what your agents are doing
-without sitting at the machine that runs OpenCode.
+Clara is a browser and home-screen client for agent harnesses. It lets you open
+projects, start and steer sessions, and read what your agents are doing without
+sitting at the machine that runs the harness. The hub reaches a harness through
+a paired adapter; OpenCode is the adapter included with this release.
 
 This guide has two tracks. Pick the one that matches what you are doing.
 
@@ -31,13 +32,13 @@ Someone gave you a Clara URL and a pairing code.
 
 ## Host Clara
 
-You run OpenCode and want to reach it from your own devices.
+You run a harness and want to reach it from your own devices.
 
-- [Harness adapters](harness-adapters.md) — pair the OpenCode adapter with the hub.
+- [Harness adapters](harness-adapters.md) — pair an adapter with the hub.
 - [Self-hosting overview](self-hosting/index.md) — requirements and architecture.
 - [Docker](self-hosting/docker.md) — the recommended stack.
 - [Local install](self-hosting/local.md) — Node processes on the host.
-- [Configuration](self-hosting/configuration.md) — OpenCode, Web URL, and environment.
+- [Configuration](self-hosting/configuration.md) — harness connection, Web URL, and environment.
 - [Remote access](self-hosting/relay.md) — the Cloudflare relay.
 - [Updates and backups](self-hosting/updates.md) — rebuild, update, and restore.
 - [Orchestration](self-hosting/orchestration.md) — optional pipelines and Clara Lab.

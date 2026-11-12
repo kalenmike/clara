@@ -1,29 +1,37 @@
 # Architecture overview
 
-Clara is a browser/PWA client for one running OpenCode server, plus a hub: a small
-service on your machine that carries the OpenCode HTTP/SSE API over an
-end-to-end encrypted WebSocket. The web app reads projects, sessions, and
-messages; the hub owns OpenCode authentication, the outbound relay connection,
-and Web Push delivery while Clara is closed.
+Clara is a browser/PWA client for agent harnesses, plus a hub: a small service on
+your machine that carries harness traffic over an end-to-end encrypted WebSocket.
+The web app reads projects, sessions, and messages; the hub owns transport,
+adapter routing, the outbound relay connection, and Web Push delivery while Clara
+is closed. A harness is reached through an **adapter** on the harness machine.
+This repository includes the OpenCode adapter; the hub and web client do not
+depend on OpenCode.
 
 ## Vocabulary
 
 The home-side installation is the **hub**. Three names cover it:
 
-| Name        | Meaning                                                                                                                        |
-| ----------- | ------------------------------------------------------------------------------------------------------------------------------ |
-| Hub         | The Clara installation on the machine that runs the harness: one process, one database, one panel, and at most one relay room. |
-| Hub service | The Node process that implements the hub (`apps/hub/server`, `pnpm clara server`, the `clara-server` container).               |
-| Hub panel   | The authenticated loopback dashboard served by the hub service (`apps/hub/panel`).                                             |
+| Name        | Meaning                                                                                                                            |
+| ----------- | ---------------------------------------------------------------------------------------------------------------------------------- |
+| Hub         | The Clara installation on the machine that runs the hub service: one process, one database, one panel, and at most one relay room. |
+| Hub service | The Node process that implements the hub (`apps/hub/server`, `pnpm clara server`, the `clara-server` container).                   |
+| Hub panel   | The authenticated loopback dashboard served by the hub service (`apps/hub/panel`).                                                 |
 
 Other terms:
 
-- **Harness** — the agent runtime the hub proxies. OpenCode is the only one today.
+- **Harness** — the agent runtime Clara connects to. OpenCode is the harness used
+  by the included adapter.
+- **Adapter** — the process on the harness machine that speaks the Clara Harness
+  Protocol, translates harness requests and events, and connects out to the hub.
+  It owns harness authentication.
+- **Adapter host** — the machine that runs a harness and its adapter. It may be
+  the hub host or a separate machine; the adapter connects out in both cases.
 - **Agent** — an LLM worker, prompt, or agent definition in a harness or
   orchestration package. It never means the hub.
 - **Client** / **device** — the browser or installed PWA.
 - **Relay** — the Cloudflare Worker and Durable Object that forward encrypted
-  frames.
+  frames from browsers and adapters.
 
 Wire and configuration names keep the historical `agent` role: the relay
 authenticates the hub as `clara.role.agent` with `CLARA_AGENT_TOKEN`, frames use
@@ -32,29 +40,30 @@ compatibility names, not prose.
 
 ## Stack
 
-| Layer        | Choice                                                                  |
-| ------------ | ----------------------------------------------------------------------- |
-| Workspace    | pnpm 11 workspaces                                                      |
-| Build        | Vite 8, TypeScript 6                                                    |
-| Web          | React 19, React Router 8, Tailwind CSS 4, shadcn/ui (radix-nova)        |
-| Server state | TanStack Query 5                                                        |
-| Stream state | A small external store (`chatStore`) read with `useSyncExternalStore`   |
-| OpenCode     | `@opencode/client` **2.1.1**, adapter and lab only, pinned to the minor |
-| Hub service  | Node 22, `ws`, `node:http`, WebCrypto                                   |
-| Relay        | Cloudflare Worker + `RelayRoom` Durable Object                          |
-| Crypto       | Device key → HKDF-SHA-256 → AES-256-GCM (WebCrypto)                     |
+| Layer        | Choice                                                                |
+| ------------ | --------------------------------------------------------------------- |
+| Workspace    | pnpm 11 workspaces                                                    |
+| Build        | Vite 8, TypeScript 6                                                  |
+| Web          | React 19, React Router 8, Tailwind CSS 4, shadcn/ui (radix-nova)      |
+| Server state | TanStack Query 5                                                      |
+| Stream state | A small external store (`chatStore`) read with `useSyncExternalStore` |
+| Adapter SDK  | `@opencode/client` **2.1.1** in the included adapter and lab only     |
+| Hub service  | Node 22, `ws`, `node:http`, WebCrypto                                 |
+| Relay        | Cloudflare Worker + `RelayRoom` Durable Object                        |
+| Crypto       | Device key → HKDF-SHA-256 → AES-256-GCM (WebCrypto)                   |
 
 ### Version contract
 
 Clara pins `@opencode/client` to the OpenCode server version it targets (2.1.1)
-inside `apps/adapters/opencode` and `tools/lab`. The `/v1` DTOs and OpenAPI components are
-Clara-owned in `@clara/api-contract`; the web and SDK never import the harness
-client. Before bumping either side:
+inside `apps/adapters/opencode` and `tools/lab`. The hub has no harness SDK. The
+`/v1` DTOs and OpenAPI components are Clara-owned in `@clara/api-contract`; the
+web and SDK never import the harness client. Before bumping either side:
 
 1. Check the server's `/openapi.json` for endpoint or payload changes.
-2. Update the harness client in the hub service and lab to the same version.
-3. Update the Clara schemas and server mapping when the upstream payloads
-   changed.
+2. Update the harness client in `apps/adapters/opencode` and `tools/lab` to the
+   same version.
+3. Update the Clara schemas and the adapter's mapping when the upstream
+   payloads changed.
 4. Run `pnpm check` and re-test connect, stream, send, and switch flows through
    both the local WebSocket and relay transports.
 
@@ -93,22 +102,22 @@ docs/                  Internal documentation
 ## Topology
 
 ```text
-OpenCode HTTP/SSE
+Harness HTTP/SSE
       ▲
       │ local network, adapter only
       ▼
-adapter-opencode ──outbound WSS──▶ hub ◀──outbound WSS── web / iPhone PWA
-      │                              │
-      └──────── Clara Harness Protocol over E2EE ────────┘
-                                     │
-                                     ├── /v1 API ──▶ active adapter
-                                     └── Web Push (VAPID) ──▶ push service
+adapter ──outbound WSS──▶ hub ◀──outbound WSS── web / iPhone PWA
+      │                    │
+      └── Clara Harness Protocol over E2EE ──┘
+                           │
+                           ├── /v1 API ──▶ active adapter
+                           └── Web Push (VAPID) ──▶ push service
 
-Local mode: web ──WSS──▶ hub /v1 API ──▶ active harness (OpenCode now)
+Local mode: web ──WSS──▶ hub /v1 API ──▶ active adapter ──▶ harness
 Local tools: MCP ──HTTP 127.0.0.1:8788──▶ hub /v1 API
 Panel: browser ──HTTP 127.0.0.1:8790──▶ hub (auth + setup + controls)
 Harness: panel ──▶ SQLite harness identity/pairing ──▶ adapter session (E2EE)
-Docker: web client, hub, orchestrator, and OpenCode on the `clara` bridge network
+Docker: web client, hub, orchestrator, and an optional harness on the `clara` bridge network
 ```
 
 The relay forwards opaque frames. It does not parse, store, or replay payloads.
@@ -135,11 +144,10 @@ branded splash. If none connects, it shows the pairing form. There is no direct
 HTTP option: every browser connection goes through the hub. Pairing is
 described in [pairing.md](../features/pairing.md).
 
-The OpenCode password never reaches the browser. The hub adds basic auth,
-strips client-supplied authorization/hop-by-hop headers, and only reaches
-`/api/` paths on the configured origin from server-side API handlers. The web
-client uses `@clara/api-client` against `/v1`; the browser has no generic
-OpenCode proxy.
+The harness password never reaches the browser. The adapter adds harness
+authentication and is the only process that talks to the harness. The browser
+uses `@clara/api-client` against `/v1`; the hub maps those calls to the active
+adapter and never exposes a generic harness proxy.
 
 ## Runtime shape
 
@@ -153,8 +161,8 @@ ConnectionProvider
                  └─ query invalidations: durable events and list changes
 ```
 
-- The SDK returns Clara DTOs from `@clara/api-contract`; OpenCode types stay in
-  the hub service and lab.
+- The SDK returns Clara DTOs from `@clara/api-contract`; harness domain types
+  stay in the adapter and lab.
 - The relay transport is a `fetch`-compatible shim over one WebSocket. It maps
   HTTP requests to encrypted action frames, streams responses back through a
   `ReadableStream`, and supports abort, binary bodies, and SSE.
@@ -168,7 +176,7 @@ ConnectionProvider
 - The hub keeps one E2EE session per browser connection. Relay clients
   are independent; the Durable Object broadcasts hub frames and clients drop
   frames for other sessions.
-- The hub service also reads OpenCode's `/api/event` stream for push and stores
+- For push, the hub opens the active adapter's harness event stream and stores
   Web Push subscriptions at `~/.config/clara/subscriptions.json`. VAPID keys
   live in `~/.config/clara/vapid.json`.
 - The hub service serves `apps/hub/panel` on a second listener (default
@@ -183,8 +191,8 @@ ConnectionProvider
 - Harness adapters live in SQLite; exactly one is active. Each adapter connects
   out to the hub over the same local or relay WebSocket as a browser client.
   `HarnessManager` routes Clara Harness Protocol requests over that E2EE session,
-  so the hub never contacts OpenCode directly and needs no adapter port.
-  OpenCode is the first adapter; its daemon and orchestration binding install
+  so the hub never contacts a harness directly and needs no adapter port.
+  The included OpenCode adapter installs its daemon and orchestration binding
   together. Session/project metadata is keyed by a stable harness identity, so a
   reinstall or re-pair reconnects the same sessions.
 - Feature choices, the stopped flag, monitoring, the orchestration switch, the
@@ -246,8 +254,8 @@ directory from the session record. Moving a session to a worktree changes only
 The browser has no generic shell path. Git history is the only host command
 Clara runs: the hub's `/v1/git/log` endpoint builds a fixed `git log -n 10` with
 a machine-readable `--format` from validated timestamps and the session
-directory, runs it through OpenCode's shell API, and returns parsed commits. See
-[git.md](../features/git.md).
+directory, sends it through the active adapter's shell capability, and returns
+parsed commits. See [git.md](../features/git.md).
 
 ## Streaming model
 
@@ -269,15 +277,17 @@ loop re-subscribes through the transport.
 
 ## Security notes
 
-- The hub only exposes the typed `/v1` API. The browser has no generic OpenCode
+- The hub only exposes the typed `/v1` API. The browser has no generic harness
   proxy or shell path; the one host command is the fixed Git history endpoint.
 - Never commit `service.json`, passwords, pairing codes, device keys, relay tokens,
   `secrets.key`, or `admin-setup.txt`.
 - The hub's config is `~/.config/clara/server.json` (mode `0600`).
   Settings, client sync data, panel users, and harness connections live in
-  `~/.local/share/clara/clara.db` (mode `0600`). Harness passwords are encrypted
-  with `secrets.key` (mode `0600`) or `CLARA_SECRET_KEY`, so the database alone
-  does not expose them. `vapid.json`, `subscriptions.json`, and the temporary
+  `~/.local/share/clara/clara.db` (mode `0600`). Adapter credentials are
+  encrypted with `secrets.key` (mode `0600`) or `CLARA_SECRET_KEY`, so the
+  database alone does not expose them. The harness URL and password stay in the
+  adapter's `config.json` (mode `0600`) on the adapter host, not in the hub
+  database. `vapid.json`, `subscriptions.json`, and the temporary
   `admin-setup.txt` remain in `~/.config/clara` with the same mode. These are
   the local install paths. The Docker stack uses the `clara-server-config` and
   `clara-server-data` volumes instead and keeps its host control token under
@@ -293,8 +303,9 @@ loop re-subscribes through the transport.
   impersonate the hub.
 - The hub panel requires a superadmin login and defaults to `127.0.0.1`. It
   checks the socket address when remote access is not explicitly allowed, plus
-  `Host`, `Origin`, and fetch metadata, and never returns device keys, harness
-  password, tokens, push endpoints, sync values, or file contents. The first-run
+  `Host`, `Origin`, and fetch metadata, and never returns device keys, adapter
+  credentials, harness password, tokens, push endpoints, sync values, or file
+  contents. The first-run
   setup token is written to a host-only file; a lost password is reset by a
   host-only command, never over HTTP. Authentication is not host isolation;
   keep the database and `secrets.key` private.

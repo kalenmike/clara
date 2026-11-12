@@ -5,7 +5,7 @@
 The maintenance package keeps three pipelines:
 
 - `rebuild` snapshots the running Clara setup, including the web client
-  container, rebuilds the checkout, reinstalls the OpenCode adapters, restarts
+  container, rebuilds the checkout, reinstalls the configured harness adapters, restarts
   exactly the services that were running, and verifies their health. It retries
   restart and health once and has a bounded recovery branch that restarts only
   the unhealthy captured services.

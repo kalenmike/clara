@@ -135,7 +135,7 @@ export function ProjectSettingsCard({ project }: { project: ClaraProject }) {
           <Settings2 className="size-4" /> Project settings
         </CardTitle>
         <CardDescription>
-          Saved on the OpenCode server and shared with every client that opens this project.
+          Saved on the server and shared with every client that opens this project.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-5">
@@ -186,8 +186,8 @@ export function ProjectSettingsCard({ project }: { project: ClaraProject }) {
               </Button>
             </div>
             <p className="text-[11px] text-muted-foreground">
-              A custom image is saved in the same field OpenCode Desktop edits. Removing it reveals
-              the project's favicon or color.
+              A custom image is saved in the same field the harness edits. Removing it reveals the
+              project's favicon or color.
             </p>
           </div>
         </div>
@@ -197,7 +197,7 @@ export function ProjectSettingsCard({ project }: { project: ClaraProject }) {
             <div>
               <p className="text-sm font-medium">Avatar color</p>
               <p className="text-xs text-muted-foreground">
-                Used when there is no custom image. A color hides the favicon OpenCode discovered
+                Used when there is no custom image. A color hides the favicon the harness discovered
                 for this project; clearing it brings the favicon back.
               </p>
             </div>
@@ -243,7 +243,7 @@ export function ProjectSettingsCard({ project }: { project: ClaraProject }) {
           <div className="space-y-1">
             <Label htmlFor={commandID}>Workspace startup script</Label>
             <p id={commandHintID} className="text-xs text-muted-foreground">
-              Runs after OpenCode creates a new workspace (worktree). Clara does not create
+              Runs after the harness creates a new workspace (worktree). Clara does not create
               worktrees today.
             </p>
           </div>

@@ -4,7 +4,7 @@ import { useConnection } from '@/providers/connection-provider'
 import { reconcileArchivedProjects } from './reconcile-projects'
 
 /**
- * Restore archived projects whose directories are available again. OpenCode
+ * Restore archived projects whose directories are available again. The harness
  * archives a project when its directory disappears and unarchives it when a
  * directory-scoped request resolves it, so one probe per archived project is
  * enough. Missing directories stay archived.

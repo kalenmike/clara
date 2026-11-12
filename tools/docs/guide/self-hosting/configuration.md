@@ -1,6 +1,6 @@
 ---
 title: Configuration
-description: Connect OpenCode, set the Web URL, and tune the hub.
+description: Connect a harness, set the Web URL, and tune the hub.
 sidebar_position: 3
 ---
 
@@ -9,13 +9,12 @@ sidebar_position: 3
 Most settings live in the authenticated hub panel. A few deployment values can be
 set with environment variables, which take precedence over the panel files.
 
-## Connect OpenCode
+## Connect a harness
 
 1. Start the hub and open the panel.
-2. Open **Harness**, use **Add harness**, choose **OpenCode**, and choose where
-   the adapter runs.
-3. Copy the pairing code or install command and run it on the machine that runs
-   OpenCode.
+2. Open **Harness**, use **Add harness**, choose the adapter type and where the
+   adapter runs. OpenCode is the only adapter type included with this release.
+3. Copy the pairing code or install command and run it on the harness machine.
 4. The adapter connects out to the hub. **Paired harnesses** shows
    **Paired · Offline** until the adapter connects, then **Online** with a live
    row under **Connected adapters**. Use **Test** to probe it and **Activate**
@@ -24,12 +23,13 @@ set with environment variables, which take precedence over the panel files.
 Only one adapter is active at a time. Re-pairing keeps the adapter identity and
 Clara session metadata.
 
-The hub never contacts OpenCode directly and does not read OpenCode's
-`service.json`. Adapter credentials live in the hub's SQLite database, encrypted
-at rest.
+The adapter, not the hub, discovers and authenticates the harness. The hub never
+contacts the harness and does not read OpenCode's `service.json`. Adapter
+credentials live in the hub's SQLite database, encrypted at rest. The harness URL
+and password stay in the adapter's own config on the harness machine.
 
 In Docker, the adapter connects to `ws://server:8788/ws` on the `clara`
-network. `127.0.0.1` means the hub host.
+network. `127.0.0.1` means the adapter container itself.
 
 ## Set the Web URL
 
@@ -53,12 +53,12 @@ hosts.
 ## Shell policy
 
 The panel's **Shell commands** switch controls whether Clara clients may ask the
-hub to run a command for OpenCode. When it is on, **Filter commands** is an
-optional allowlist; an empty list allows every command. **Allow Git history**
-permits the read-only Git history query used by the Git tab.
+adapter to run a host command for the harness. When it is on, **Filter commands**
+is an optional allowlist; an empty list allows every command. **Allow Git
+history** permits the read-only Git history query used by the Git tab.
 
 The policy is a guardrail, not a sandbox. It does not restrict file writes, agent
-prompts, or the OpenCode API.
+prompts, or the harness API.
 
 ## Settings sync
 

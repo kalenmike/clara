@@ -11,7 +11,7 @@ import { errorMessage } from '@/lib/errors'
 import { GitPanelMessage } from './git-panel-parts'
 
 /**
- * Every worktree OpenCode knows about for this project. The server returns
+ * Every worktree the harness knows about for this project. The server returns
  * directories only, so the default row is the project's canonical directory and
  * the current row is the session's own directory.
  */

@@ -57,7 +57,7 @@ type ProjectUpdatePatch = {
 }
 
 /**
- * Update project metadata on the OpenCode server. Every client reads the same
+ * Update project metadata on the harness server. Every client reads the same
  * record, so Clara keeps no local overrides for name, icon, or commands.
  */
 export function useUpdateProject(projectID: string) {

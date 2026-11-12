@@ -6,7 +6,7 @@ sidebar_position: 4
 
 # Projects and sessions
 
-A project is a directory OpenCode has opened. A session is one conversation in
+A project is a directory the harness has opened. A session is one conversation in
 that project. Clara calls sessions **Briefs** by default; the noun is yours to
 change.
 
@@ -20,7 +20,7 @@ Choose **All projects** at the end of the menu to see every non-empty project.
 The filter icon in the header reveals empty projects. A project card shows its
 directory, last activity, and active and archived session counts.
 
-OpenCode can keep more than one project record for the same directory, for
+The harness can keep more than one project record for the same directory, for
 example before and after `git init`. Clara combines the sessions from every
 record, so the project shows all of its work. If the session list cannot be
 loaded, Clara shows the error and a **Retry** action instead of an empty
@@ -70,7 +70,7 @@ the run.
 ## Rename or delete
 
 The session header can rename the session. Renaming changes only the Clara title;
-the OpenCode session underneath is unchanged.
+the harness session underneath is unchanged.
 
 To delete one session, use the header menu. To delete several, select rows with
 Shift-click or Shift+Enter, then press Delete or Backspace. A confirmation lists

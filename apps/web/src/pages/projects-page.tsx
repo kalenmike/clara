@@ -6,6 +6,7 @@ import { PageShell } from '@/components/layout/page-shell'
 import { ProjectCard } from '@/components/projects/project-card'
 import { ProjectFilter } from '@/components/projects/project-filter'
 import { Button } from '@/components/ui/button'
+import { useHarnessLabel } from '@/features/harness/use-harness-label'
 import { filterVisibleProjects, sortProjectsByRecency } from '@/features/projects/project-list'
 import { useProjectReconciliation } from '@/features/projects/use-project-reconciliation'
 import { useProjectSessionPresence } from '@/features/projects/use-project-presence'
@@ -15,6 +16,7 @@ import { formatCount } from '@/lib/format'
 
 export function ProjectsPage() {
   const queryClient = useQueryClient()
+  const label = useHarnessLabel()
   const projectsQuery = useProjects()
   const { pending: reconciling } = useProjectReconciliation()
   const { showEmpty, setShowEmpty } = useShowEmptyProjects()
@@ -51,7 +53,7 @@ export function ProjectsPage() {
         <div className="text-center">
           <p className="text-sm font-medium">Could not load projects</p>
           <p className="mt-1 text-xs text-muted-foreground">
-            The OpenCode server did not answer. Try again.
+            The harness did not answer. Try again.
           </p>
           <Button
             variant="outline"
@@ -73,8 +75,7 @@ export function ProjectsPage() {
           <FolderGit2 className="mx-auto size-8 text-muted-foreground" />
           <p className="mt-3 text-sm font-medium">No projects yet</p>
           <p className="mt-1 text-xs text-muted-foreground">
-            Open a directory with OpenCode first. Projects appear here once the server has seen
-            them.
+            Open a directory with {label} first. Projects appear here once the server has seen them.
           </p>
           <Button asChild variant="outline" size="sm" className="mt-4">
             <Link to="/">Go home</Link>
@@ -91,8 +92,8 @@ export function ProjectsPage() {
       title="Projects"
       description={
         hiddenCount > 0
-          ? `${formatCount(visibleProjects.length)} of ${formatCount(projects.length)} projects on this OpenCode server`
-          : `${formatCount(visibleProjects.length)} ${visibleProjects.length === 1 ? 'project' : 'projects'} on this OpenCode server`
+          ? `${formatCount(visibleProjects.length)} of ${formatCount(projects.length)} projects on this server`
+          : `${formatCount(visibleProjects.length)} ${visibleProjects.length === 1 ? 'project' : 'projects'} on this server`
       }
       actions={<ProjectFilter />}
     >
@@ -136,7 +137,7 @@ export function ProjectsPage() {
             <FolderGit2 className="mx-auto size-8 text-muted-foreground" />
             <p className="mt-3 text-sm font-medium">No projects with sessions</p>
             <p className="mt-1 text-xs text-muted-foreground">
-              Every project on this OpenCode server is empty.
+              Every project on this server is empty.
             </p>
             <Button variant="outline" size="sm" className="mt-4" onClick={() => setShowEmpty(true)}>
               Show empty projects

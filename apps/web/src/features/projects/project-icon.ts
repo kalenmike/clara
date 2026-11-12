@@ -1,4 +1,4 @@
-/** OpenCode recommends 128×128 for project icons. */
+/** The harness recommends 128×128 for project icons. */
 export const PROJECT_ICON_SIZE = 128
 export const PROJECT_ICON_MAX_INPUT_BYTES = 5 * 1024 * 1024
 export const PROJECT_ICON_MAX_DATA_URL_LENGTH = 256 * 1024
@@ -34,9 +34,9 @@ export function isProjectIconFile(file: File): boolean {
 }
 
 /**
- * Resize a chosen image to OpenCode's recommended 128×128 PNG and return it as
+ * Resize a chosen image to the harness's recommended 128×128 PNG and return it as
  * a data URL. The result is stored in `icon.override`, which is exactly where
- * OpenCode Desktop stores a custom project icon.
+ * the harness stores a custom project icon.
  */
 export async function projectIconDataURL(file: File): Promise<string> {
   if (!isProjectIconFile(file)) {
