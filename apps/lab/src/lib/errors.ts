@@ -25,15 +25,11 @@ export function friendlyError(message: string, context: ErrorContext = 'general'
     }
   }
 
-  if (
-    lower.includes('lib/std') ||
-    lower.includes('enotdir') ||
-    (lower.includes('enoent') && lower.includes('std'))
-  ) {
+  if (lower.includes('enotdir') || (lower.includes('enoent') && lower.includes('std'))) {
     return {
-      title: 'The orchestrator standard packages are stale',
+      title: 'The orchestrator standard packages are missing',
       detail: text,
-      hint: 'Rebuild the orchestrator image so /opt/clara/lib/std includes every package, or point CLARA_STD_DIR at the current lib/std.',
+      hint: 'Rebuild the orchestrator and Lab so each bundles the current standard packages.',
     }
   }
 

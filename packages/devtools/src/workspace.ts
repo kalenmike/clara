@@ -69,10 +69,8 @@ export function resolveWorkspace(input: PreviewInput = {}): ResolvedWorkspace {
     )
   }
 
-  const stdDir = input.stdDir?.trim() || process.env.CLARA_STD_DIR?.trim()
   return {
     workspace,
     configPath,
-    ...(stdDir ? { stdDir: resolve(cwd, stdDir) } : {}),
   }
 }

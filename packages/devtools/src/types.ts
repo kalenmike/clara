@@ -16,7 +16,6 @@ export interface AdapterInfo {
 export interface ResolvedWorkspace {
   workspace: string
   configPath: string
-  stdDir?: string
 }
 
 export interface ModelOption {
@@ -30,7 +29,6 @@ export interface ModelOption {
 export interface PreviewInput {
   workspace?: string
   configPath?: string
-  stdDir?: string
   target?: string
   cwd?: string
   adapters?: AdapterInfo[]

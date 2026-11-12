@@ -952,7 +952,6 @@ async function restartOrchestrator(state, options) {
   const root = state.installRoot ?? state.root
   const env = { ...process.env, CLARA_DATA_DIR: dataDir() }
   if (orchestrator.workspace) env.CLARA_ORCHESTRATION_WORKSPACE = orchestrator.workspace
-  if (orchestrator.stdDir) env.CLARA_STD_DIR = orchestrator.stdDir
   if (orchestrator.configPath) env.CLARA_ORCHESTRATION_CONFIG = orchestrator.configPath
 
   if (orchestrator.mode === 'local') {

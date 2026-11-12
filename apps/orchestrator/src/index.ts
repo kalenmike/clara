@@ -32,7 +32,6 @@ import {
   startDockerService,
   startLocalService,
   statusExitCode,
-  stdDir,
   stopService,
   tokenPath,
   workspace,
@@ -64,7 +63,6 @@ async function serve(): Promise<void> {
   const runtime = new Runtime({
     store,
     ...(configPath() ? { configPath: configPath() } : {}),
-    ...(stdDir() ? { stdDir: stdDir() } : {}),
     stalledMs: Number(process.env.CLARA_ORCHESTRATION_STALLED_MS ?? 5 * 60_000),
     leaseMs: Number(process.env.CLARA_ORCHESTRATION_LEASE_MS ?? 30 * 60_000),
     runnerWaitMs: Number(process.env.CLARA_RUNNER_WAIT_MS ?? 60_000),
@@ -76,7 +74,6 @@ async function serve(): Promise<void> {
     host: host(),
     port: port(),
     workspace: workspace(),
-    ...(stdDir() ? { stdDir: stdDir() } : {}),
     ...(configPath() ? { configPath: configPath() } : {}),
   })
   writePid()

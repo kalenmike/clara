@@ -82,7 +82,3 @@ export function workspace(): string {
   const configured = process.env.CLARA_ORCHESTRATION_WORKSPACE?.trim()
   return resolve(configured || process.cwd())
 }
-
-export function stdDir(): string | undefined {
-  return process.env.CLARA_STD_DIR?.trim() || undefined
-}
