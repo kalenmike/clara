@@ -23,7 +23,6 @@ RUN corepack enable
 
 WORKDIR /repo
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml tsconfig.base.json ./
-COPY patches patches
 # These manifest and source copies must cover the workspace dependency closure
 # of @clara/orchestrator. Missing packages make the tsup build fail to resolve
 # their imports even though the filtered install succeeds.

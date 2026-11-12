@@ -16,7 +16,6 @@ RUN corepack enable
 
 WORKDIR /repo
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml tsconfig.base.json ./
-COPY patches patches
 COPY apps/adapter-opencode/package.json apps/adapter-opencode/package.json
 COPY packages/adapter/package.json packages/adapter/package.json
 COPY packages/api-contract/package.json packages/api-contract/package.json
