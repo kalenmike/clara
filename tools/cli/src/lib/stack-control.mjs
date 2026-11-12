@@ -18,9 +18,9 @@ export const CONTAINERS = {
 export const VOLUMES = ['clara-server-config', 'clara-server-data', 'clara-orchestrator-data']
 
 export const SCRIPTS = {
-  orchestrator: join(root, 'scripts', 'orchestrator.mjs'),
-  server: join(root, 'scripts', 'server.mjs'),
-  web: join(root, 'scripts', 'web.mjs'),
+  orchestrator: join(root, 'tools', 'cli', 'src', 'commands', 'orchestrator.mjs'),
+  server: join(root, 'tools', 'cli', 'src', 'commands', 'server.mjs'),
+  web: join(root, 'tools', 'cli', 'src', 'commands', 'web.mjs'),
 }
 
 export function envPath(repoRoot = root) {

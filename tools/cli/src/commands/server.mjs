@@ -12,10 +12,12 @@
 //   pnpm clara server logs [--local|--docker]
 
 import { existsSync } from 'node:fs'
+import { logPath } from '../lib/local-runtime.mjs'
+import { openPanel } from '../lib/panel.mjs'
+import { root } from '../lib/router.mjs'
 import {
   compose,
   detectServerTarget,
-  ensureNetwork,
   panelURL,
   probe,
   runLocalServerProcess,
@@ -24,95 +26,77 @@ import {
   serverLogTail,
   waitForPanel,
 } from '../lib/server-control.mjs'
-import {
-  followLog,
-  logPath,
-  parseMode,
-  startDetached,
-  stopDetached,
-} from '../lib/local-runtime.mjs'
-import { openPanel } from '../lib/panel.mjs'
-import { root, runPnpm } from '../lib/router.mjs'
+import { readServiceArgs, runServiceLifecycle } from '../lib/service-cli.mjs'
 import { composeEnvValues, hubEnvErrors, hubEnvWarnings } from '../lib/stack-control.mjs'
-import { collectStatus, renderJSON, renderStatus, statusExitCode } from '../lib/status.mjs'
 
-const args = process.argv.slice(2)
-const command = args[0] ?? 'status'
-const docker = args.includes('--docker')
-const local = args.includes('--local')
-const build = args.includes('--build')
-const json = args.includes('--json')
+const serverService = {
+  name: 'server',
+  label: 'server',
+  title: 'Clara server',
+  filter: '@clara/server',
+  local: {
+    entry: SERVER_ENTRY,
+    missing: 'The hub service is not built. Run `pnpm build` first.',
+    buildError: 'error: the local server build failed.',
+    preflight: async () => {
+      const current = await probe(`${panelURL()}/health`)
+      if (current.ok && current.body?.service === 'clara-server') {
+        if (current.body.mode === 'container') {
+          console.error(
+            'The hub is running in a container. Stop it before starting a local hub service.'
+          )
+          process.exitCode = 1
+          return false
+        }
+        console.log(`panel: ${panelURL()}/ (already running locally)`)
+        return false
+      }
+      return true
+    },
+    healthy: async () => {
+      const health = await probe(`${panelURL()}/health`)
+      return health.ok && health.body?.service === 'clara-server'
+    },
+    onStarted: () => {
+      console.log(`panel: ${panelURL()}/`)
+      console.log(`  logs:  ${logPath('server')}`)
+      console.log('Stop it with `pnpm clara server stop --local`.')
+    },
+  },
+  docker: {
+    compose,
+    service: 'server',
+    preflight: validateDockerEnv,
+    starting: () => `starting the hub container; waiting for ${panelURL()}/health`,
+    healthy: () => waitForPanel(90_000),
+    unhealthy: () => `The server did not become healthy at ${panelURL()}/health`,
+    onUnhealthy: printServerLogTail,
+    onStarted: () => {
+      console.log(`panel: ${panelURL()}/`)
+      console.log('If this is the first run, open the panel and use the one-time setup token:')
+      console.log('  pnpm clara server setup-token --docker')
+      console.log('The token is also written to admin-setup.txt in the clara-server-config volume.')
+    },
+  },
+}
 
-if (
-  command === '--help' ||
-  command === '-h' ||
-  command === 'help' ||
-  args.includes('--help') ||
-  args.includes('-h')
-) {
+const ctx = readServiceArgs(process.argv.slice(2))
+
+if (ctx.help) {
   printHelp()
   process.exit(0)
 }
 
-switch (command) {
-  case 'start':
-    await start()
-    break
-  case 'stop':
-    await stop()
-    break
-  case 'restart':
-    await restart()
-    break
-  case 'status':
-    await printStatus()
-    break
-  case 'panel':
-    await panel()
-    break
-  case 'setup-token':
-    await runServerProcessFor(['admin', 'setup-token'])
-    break
-  case 'admin':
-    await admin()
-    break
-  case 'pair':
-    await pair()
-    break
-  case 'logs':
-    logs()
-    break
-  default:
-    console.error(`Unknown server command: ${command}`)
+if (!(await runServiceLifecycle(serverService, ctx))) {
+  if (ctx.command === 'panel') await panel()
+  else if (ctx.command === 'setup-token') await runServerProcessFor(['admin', 'setup-token'])
+  else if (ctx.command === 'admin') await admin()
+  else if (ctx.command === 'pair') await pair()
+  else {
+    console.error(`Unknown server command: ${ctx.command}`)
     printHelp()
     process.exitCode = 2
-}
-
-async function start() {
-  if (parseMode(args) === 'local') return startLocal()
-  if (!validateDockerEnv()) return
-  if (ensureNetwork() !== 0) {
-    process.exitCode = 1
-    return
   }
-  console.log(`starting the hub container; waiting for ${panelURL()}/health`)
-  const code = compose(['up', '-d', ...(build ? ['--build'] : []), 'server'])
-  if (code !== 0) {
-    process.exitCode = code
-    return
-  }
-  const health = await waitForPanel(90_000)
-  if (!health) {
-    console.error(`The server did not become healthy at ${panelURL()}/health`)
-    printServerLogTail()
-    console.error('Check `pnpm clara server logs --docker`.')
-    process.exitCode = 1
-    return
-  }
-  console.log(`panel: ${panelURL()}/`)
-  console.log('If this is the first run, open the panel and use the one-time setup token:')
-  console.log('  pnpm clara server setup-token --docker')
-  console.log('The token is also written to admin-setup.txt in the clara-server-config volume.')
 }
 
 function validateDockerEnv() {
@@ -133,97 +117,6 @@ function printServerLogTail() {
   console.error('\nRecent hub logs:')
   for (const line of tail.split('\n')) console.error(`  ${line}`)
   console.error('')
-}
-
-async function startLocal() {
-  if (build) {
-    const code = runPnpm(['--filter', '@clara/server', 'build'], { cwd: root })
-    if (code !== 0) {
-      console.error('error: the local server build failed.')
-      process.exitCode = code
-      return
-    }
-  }
-  if (!existsSync(SERVER_ENTRY)) {
-    console.error('The hub service is not built. Run `pnpm build` first.')
-    process.exitCode = 1
-    return
-  }
-
-  const current = await probe(`${panelURL()}/health`)
-  if (current.ok && current.body?.service === 'clara-server') {
-    if (current.body.mode === 'container') {
-      console.error(
-        'The hub is running in a container. Stop it before starting a local hub service.'
-      )
-      process.exitCode = 1
-      return
-    }
-    console.log(`panel: ${panelURL()}/ (already running locally)`)
-    return
-  }
-
-  const result = await startDetached({
-    name: 'server',
-    command: process.execPath,
-    args: [SERVER_ENTRY],
-    cwd: root,
-    healthy: async () => {
-      const health = await probe(`${panelURL()}/health`)
-      return health.ok && health.body?.service === 'clara-server'
-    },
-  })
-
-  if (result.status === 'started' || result.status === 'running') {
-    console.log(`panel: ${panelURL()}/`)
-    console.log(`  logs:  ${logPath('server')}`)
-    console.log('Stop it with `pnpm clara server stop --local`.')
-    return
-  }
-  console.error(`error: the local server did not start (${result.status}).`)
-  if (result.log) console.error(`Check ${result.log}.`)
-  process.exitCode = 1
-}
-
-async function stop() {
-  if (parseMode(args) === 'local') return stopLocal()
-  const code = compose(['down'])
-  if (code !== 0) process.exitCode = code
-  else console.log('server container stopped')
-}
-
-async function stopLocal() {
-  const result = await stopDetached({ name: 'server' })
-  if (result.status === 'stopped' || result.status === 'stale') {
-    console.log(
-      result.status === 'stopped' ? `stopped local server (pid ${result.pid})` : 'not running'
-    )
-    return
-  }
-  if (result.status === 'not-running') {
-    console.log('not running')
-    return
-  }
-  console.error(
-    result.status === 'not-exited'
-      ? `pid ${result.pid} is still running after SIGTERM`
-      : `could not stop the local server: ${result.reason ?? result.status}`
-  )
-  process.exitCode = 1
-}
-
-async function restart() {
-  if (parseMode(args) === 'local') {
-    await stopLocal()
-    if (process.exitCode) return
-    return startLocal()
-  }
-  const code = compose(['down'])
-  if (code !== 0) {
-    process.exitCode = code
-    return
-  }
-  return start()
 }
 
 async function panel() {
@@ -252,15 +145,8 @@ async function panel() {
   process.exitCode = 1
 }
 
-async function printStatus() {
-  const [record] = await collectStatus(['server'])
-  if (json) renderJSON([record])
-  else renderStatus([record], { title: 'Clara server' })
-  process.exitCode = statusExitCode([record])
-}
-
 async function admin() {
-  const action = args[1]
+  const action = ctx.args[1]
   if (action !== 'reset' && action !== 'setup-token') {
     console.error('Usage: pnpm clara server admin reset|setup-token [--docker|--local]')
     process.exitCode = 2
@@ -270,7 +156,7 @@ async function admin() {
 }
 
 async function pair() {
-  const forwarded = args.slice(1).filter((arg) => arg !== '--docker' && arg !== '--local')
+  const forwarded = ctx.args.slice(1).filter((arg) => arg !== '--docker' && arg !== '--local')
   await runServerProcessFor(['pair', ...forwarded])
 }
 
@@ -300,20 +186,11 @@ async function runServerProcessFor(serverArgs) {
 }
 
 async function chooseTarget() {
-  const result = await detectServerTarget({ docker, local })
+  const result = await detectServerTarget({ docker: ctx.docker, local: ctx.local })
   if (result.target !== 'ambiguous') return result.target
   console.error(`Cannot choose where to run the command: ${result.reason}.`)
   console.error('Pass --docker for the clara-server container, or --local for a local install.')
   return undefined
-}
-
-async function logs() {
-  if (parseMode(args) === 'local') {
-    await followLog('server')
-    return
-  }
-  const code = compose(['logs', '-f', 'server'])
-  if (code !== 0) process.exitCode = code
 }
 
 function printHelp() {
