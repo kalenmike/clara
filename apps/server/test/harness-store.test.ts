@@ -121,6 +121,17 @@ describe('harness store', () => {
     ).rejects.toBeInstanceOf(HarnessValidationError)
   })
 
+  it('activates a new adapter over a legacy direct connection', async () => {
+    const legacy = await enroll({ harnessId: 'legacy-target' })
+    db.prepare(
+      'UPDATE harness_connections SET harness_id = ?, credential_id = NULL WHERE id = ?'
+    ).run(`legacy-${legacy.connection.id}`, legacy.connection.id)
+
+    const next = await enroll({ harnessId: 'adapter-new', adapterId: 'adapter-b' })
+    expect(next.connection.isActive).toBe(true)
+    expect(store.active()?.harnessId).toBe('adapter-new')
+  })
+
   it('reuses the same connection when the stable identity pairs again', async () => {
     const first = await enroll({ harnessId: 'same', adapterId: 'one' })
     const second = await enroll({ harnessId: 'same', adapterId: 'two' })
