@@ -2,6 +2,7 @@ import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import type { ClaraProject } from '@clara/api-contract'
 import { generateKey, generateSecretKey, loadSecretKey } from '@clara/crypto'
 import { HarnessManager } from '../src/harness/manager.ts'
 import { HarnessMetadataStore } from '../src/harness/metadata.ts'
@@ -66,6 +67,26 @@ describe('harness manager', () => {
     expect(manager.active?.online).toBe(true)
     await manager.clearLive('harness-a')
     expect(manager.active?.online).toBe(false)
+  })
+
+  it('keeps every harness record linked to one canonical directory', async () => {
+    await enroll()
+    const project = (id: string, canonical: string): ClaraProject => ({
+      id,
+      canonical,
+      time: { created: 1, updated: 2, active: 3 },
+      sandboxes: [],
+    })
+    const [first] = manager.overlayProjectList([
+      project('harness-project-a', '/workspace/demo'),
+      project('harness-project-b', '/workspace/demo'),
+    ])
+    const target = first?.id
+    expect(target).toBeDefined()
+    expect(manager.harnessProjectIds(target ?? '')).toEqual([
+      'harness-project-a',
+      'harness-project-b',
+    ])
   })
 
   it('reports the live harness from the health route', async () => {

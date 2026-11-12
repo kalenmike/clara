@@ -339,9 +339,9 @@ export class HarnessManager {
       : value
   }
 
-  harnessProjectId(projectId: string): string | undefined {
+  harnessProjectIds(projectId: string): string[] {
     const harnessId = this.harnessId
-    return harnessId ? this.metadata.harnessProjectId(harnessId, projectId) : undefined
+    return harnessId ? this.metadata.harnessProjectIds(harnessId, projectId) : []
   }
 
   updateProject(

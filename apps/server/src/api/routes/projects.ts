@@ -10,6 +10,7 @@ import {
   claraVcsGetOutputSchema,
   claraVcsStatusOutputSchema,
   claraWorktreeListSchema,
+  type ClaraWorktree,
 } from '@clara/api-contract'
 import { ApiRequestError, type ApiDependencies, type ApiVariables } from '../context.ts'
 import {
@@ -24,6 +25,7 @@ import {
   parseClaraWorktrees,
 } from '../dto.ts'
 import { forwardResult, query } from '../harness.ts'
+import { resolveHarnessProjectIds, unmappedProjectError } from '../project-links.ts'
 import { emptyResponse, jsonResponse, responses, statusResponses } from '../schemas.ts'
 import { optionalBooleanQuery, optionalPositiveIntQuery } from '../query.ts'
 
@@ -276,18 +278,40 @@ export function registerProjectRoutes(
     validator('query', z.object({ project: z.string().min(1).optional() })),
     async (c) => {
       const { project } = c.req.valid('query')
-      const mappedProject = project ? deps.harness.harnessProjectId(project) : undefined
-      const result = await forwardDto(
-        deps,
-        {
-          method: 'GET',
-          path: '/worktrees',
-          search: query({ projectID: mappedProject ?? project }),
-        },
-        c.req.raw.signal,
-        parseClaraWorktrees
+      if (!project) {
+        const result = await forwardDto(
+          deps,
+          { method: 'GET', path: '/worktrees', search: query({}) },
+          c.req.raw.signal,
+          parseClaraWorktrees
+        )
+        return c.json(result)
+      }
+
+      const projectIds = await resolveHarnessProjectIds(deps, project, c.req.raw.signal)
+      if (projectIds.length === 0) throw unmappedProjectError(project)
+
+      const pages = await Promise.all(
+        projectIds.map((projectID) =>
+          forwardDto(
+            deps,
+            {
+              method: 'GET',
+              path: '/worktrees',
+              search: query({ projectID }),
+            },
+            c.req.raw.signal,
+            parseClaraWorktrees
+          )
+        )
       )
-      return c.json(result)
+      const byDirectory = new Map<string, ClaraWorktree>()
+      for (const page of pages) {
+        for (const worktree of page) {
+          if (!byDirectory.has(worktree.directory)) byDirectory.set(worktree.directory, worktree)
+        }
+      }
+      return c.json([...byDirectory.values()])
     }
   )
 
@@ -301,16 +325,23 @@ export function registerProjectRoutes(
     }),
     validator('json', z.object({ projectID: z.string().min(1) })),
     async (c) => {
-      const body = c.req.valid('json')
-      await forwardResult(
-        deps,
-        {
-          method: 'POST',
-          path: '/worktrees/refresh',
-          headers: { 'content-type': 'application/json' },
-          body: JSON.stringify(body),
-        },
-        c.req.raw.signal
+      const { projectID } = c.req.valid('json')
+      const projectIds = await resolveHarnessProjectIds(deps, projectID, c.req.raw.signal)
+      if (projectIds.length === 0) throw unmappedProjectError(projectID)
+
+      await Promise.all(
+        projectIds.map((harnessProjectID) =>
+          forwardResult(
+            deps,
+            {
+              method: 'POST',
+              path: '/worktrees/refresh',
+              headers: { 'content-type': 'application/json' },
+              body: JSON.stringify({ projectID: harnessProjectID }),
+            },
+            c.req.raw.signal
+          )
+        )
       )
       return c.body(null, 204)
     }
