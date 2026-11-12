@@ -1,8 +1,10 @@
 import type { Hono } from 'hono'
-import { describeRoute, resolver } from 'hono-openapi'
+import { describeRoute, resolver, validator } from 'hono-openapi'
+import { z } from 'zod'
 import { claraRunningSessionsResponseSchema } from '@clara/api-contract'
 import { RunningActivityService } from '../../activity/running.ts'
 import type { ApiDependencies, ApiVariables } from '../context.ts'
+import { optionalBooleanQuery } from '../query.ts'
 import { jsonResponse, responses } from '../schemas.ts'
 
 export function registerActivityRoutes(
@@ -24,8 +26,10 @@ export function registerActivityRoutes(
         )
       ),
     }),
+    validator('query', z.object({ refresh: optionalBooleanQuery })),
     async (c) => {
-      return c.json(await service.load(c.req.raw.signal))
+      const { refresh } = c.req.valid('query')
+      return c.json(await service.load(c.req.raw.signal, { refresh: refresh === true }))
     }
   )
 }

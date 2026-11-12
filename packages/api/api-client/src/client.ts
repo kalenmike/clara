@@ -82,8 +82,9 @@ export function createClaraClient(options: ClaraClientOptions): ClaraClient {
         request<Record<string, unknown>>('GET', '/openapi.json', { options: requestOptions }),
     },
     activity: {
-      running: (requestOptions) =>
+      running: (input, requestOptions) =>
         request<ClaraRunningSessionsResponse>('GET', '/v1/activity/running', {
+          query: { refresh: input?.refresh },
           options: requestOptions,
         }),
     },

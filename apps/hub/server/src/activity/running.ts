@@ -16,7 +16,7 @@ import {
 import type { HarnessConnection } from '../harness/types.ts'
 
 const HARNESS_TIMEOUT_MS = 5_000
-const TODO_CACHE_MS = 30_000
+const TODO_CACHE_MS = 5_000
 
 type TodoCacheEntry = {
   at: number
@@ -42,7 +42,10 @@ export class RunningActivityService {
     this.deps = deps
   }
 
-  async load(signal: AbortSignal): Promise<ClaraRunningSessionsResponse> {
+  async load(
+    signal: AbortSignal,
+    options: { refresh?: boolean } = {}
+  ): Promise<ClaraRunningSessionsResponse> {
     if (!this.deps.canAccess()) {
       throw new ApiRequestError(403, 'disabled', 'Harness access is disabled by an admin setting')
     }
@@ -50,7 +53,9 @@ export class RunningActivityService {
     const results = await Promise.all(
       this.deps.harness
         .list()
-        .map((connection) => this.loadHarness(connection, withTimeout(signal, HARNESS_TIMEOUT_MS)))
+        .map((connection) =>
+          this.loadHarness(connection, withTimeout(signal, HARNESS_TIMEOUT_MS), options)
+        )
     )
 
     return {
@@ -61,7 +66,8 @@ export class RunningActivityService {
 
   private async loadHarness(
     connection: HarnessConnection,
-    signal: AbortSignal
+    signal: AbortSignal,
+    options: { refresh?: boolean } = {}
   ): Promise<HarnessResult> {
     const status: ClaraActivityHarness = {
       harnessID: connection.harnessId,
@@ -109,7 +115,7 @@ export class RunningActivityService {
     }
 
     const settled = await Promise.allSettled(
-      runningIDs.map((sessionID) => this.loadSession(connection, sessionID, signal))
+      runningIDs.map((sessionID) => this.loadSession(connection, sessionID, signal, options))
     )
     const data: ClaraRunningSession[] = []
     const failures: string[] = []
@@ -138,7 +144,8 @@ export class RunningActivityService {
   private async loadSession(
     connection: HarnessConnection,
     sessionID: string,
-    signal: AbortSignal
+    signal: AbortSignal,
+    options: { refresh?: boolean } = {}
   ): Promise<ClaraRunningSession> {
     const session = await forwardDtoTo(
       this.deps,
@@ -155,17 +162,18 @@ export class RunningActivityService {
     return {
       harnessID: connection.harnessId,
       session: overlaid,
-      ...(await this.loadTodos(connection, overlaid, signal)),
+      ...(await this.loadTodos(connection, overlaid, signal, options)),
     }
   }
 
   private async loadTodos(
     connection: HarnessConnection,
     session: ClaraSession,
-    signal: AbortSignal
+    signal: AbortSignal,
+    options: { refresh?: boolean } = {}
   ): Promise<Pick<ClaraRunningSession, 'todos' | 'todosUnavailable'>> {
     const key = `${connection.harnessId}:${session.id}`
-    const cached = this.todoCache.get(key)
+    const cached = options.refresh ? undefined : this.todoCache.get(key)
     if (cached && Date.now() - cached.at < TODO_CACHE_MS) {
       return {
         ...(cached.todos ? { todos: cached.todos } : {}),

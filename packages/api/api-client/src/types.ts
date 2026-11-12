@@ -83,6 +83,11 @@ export type ClaraProjectAvailableInput = {
   readonly harnessID?: string
 }
 
+export type ClaraActivityRunningInput = {
+  /** Bypass the hub's short transcript cache for a manual refresh. */
+  readonly refresh?: boolean
+}
+
 export type ClaraProjectWorkspaceCreateInput = {
   readonly projectID: string
   readonly harnessID: string
@@ -295,7 +300,10 @@ export type ClaraClient = {
     openapi: (options?: RequestOptions) => Promise<Record<string, unknown>>
   }
   activity: {
-    running: (options?: RequestOptions) => Promise<ClaraRunningSessionsResponse>
+    running: (
+      input?: ClaraActivityRunningInput,
+      options?: RequestOptions
+    ) => Promise<ClaraRunningSessionsResponse>
   }
   harness: {
     list: (options?: RequestOptions) => Promise<ClaraHarnessConnection[]>
