@@ -1,6 +1,9 @@
 import { describe, expect, it } from 'vitest'
-import type { ClaraJsonValue, ClaraSessionMessageAssistant } from '@clara/api-contract'
-import { findPlanTodos } from './session-plan'
+import {
+  findPlanTodos,
+  type ClaraJsonValue,
+  type ClaraSessionMessageAssistant,
+} from '../src/index.ts'
 
 function assistant(
   content: ClaraSessionMessageAssistant['content'],
