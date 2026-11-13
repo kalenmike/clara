@@ -331,6 +331,68 @@ export class SessionService {
     }
   }
 
+  setSelection(
+    sessionId: string,
+    input: { directory: string; model?: ClaraModelRef; agent?: string }
+  ): void {
+    const existing = this.store.get(sessionId) ?? {
+      id: sessionId,
+      directory: input.directory,
+      canonical: canonical(input.directory),
+      createdAt: Date.now(),
+      updatedAt: Date.now(),
+      cost: 0,
+      tokens: emptyTokens(),
+      started: false,
+    }
+    this.store.put({
+      ...existing,
+      ...(input.model ? { model: input.model } : {}),
+      ...(input.agent ? { agent: input.agent } : {}),
+      updatedAt: Date.now(),
+    })
+  }
+
+  recordTurn(
+    sessionId: string,
+    input: {
+      directory: string
+      costUsd: number
+      tokens: ReturnType<typeof emptyTokens>
+      outcome: 'succeeded' | 'failed' | 'interrupted'
+      started: boolean
+      model?: string
+      agent?: string
+      error?: string
+    }
+  ): { cost: number; tokens: ReturnType<typeof emptyTokens> } {
+    const existing = this.store.get(sessionId) ?? {
+      id: sessionId,
+      directory: input.directory,
+      canonical: canonical(input.directory),
+      createdAt: Date.now(),
+      updatedAt: Date.now(),
+      cost: 0,
+      tokens: emptyTokens(),
+      started: false,
+    }
+    const tokens = maxTokens(existing.tokens, input.tokens)
+    const cost = Math.max(existing.cost, input.costUsd)
+    this.store.put({
+      ...existing,
+      cost,
+      tokens,
+      started: existing.started || input.started,
+      outcome: input.outcome,
+      updatedAt: Date.now(),
+      ...(input.model ? { model: { id: input.model, providerID: 'anthropic' } } : {}),
+      ...(input.agent ? { agent: input.agent } : {}),
+      ...(input.error ? { lastError: input.error } : {}),
+    })
+    this.invalidateProjects()
+    return { cost, tokens }
+  }
+
   async projects(archived: boolean): Promise<ClaraHarnessProject[]> {
     if (archived) return []
     const now = Date.now()
@@ -527,6 +589,21 @@ function cursorOffset(cursor: string | undefined): number {
     ? Number(cursor.slice('offset:'.length))
     : Number(cursor)
   return Number.isInteger(value) && value >= 0 ? value : 0
+}
+
+function maxTokens(
+  current: ReturnType<typeof emptyTokens>,
+  next: ReturnType<typeof emptyTokens>
+): ReturnType<typeof emptyTokens> {
+  return {
+    input: Math.max(current.input, next.input),
+    output: Math.max(current.output, next.output),
+    reasoning: Math.max(current.reasoning, next.reasoning),
+    cache: {
+      read: Math.max(current.cache.read, next.cache.read),
+      write: Math.max(current.cache.write, next.cache.write),
+    },
+  }
 }
 
 function notFound(sessionId: string): AdapterError {

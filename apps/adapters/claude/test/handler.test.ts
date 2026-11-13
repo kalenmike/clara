@@ -5,6 +5,7 @@ import { describe, expect, it } from 'vitest'
 import { createAdapterApp } from '../src/handler.ts'
 import { EventBus } from '../src/events.ts'
 import { SessionService } from '../src/sessions.ts'
+import { ClaudeRuntime } from '../src/runtime.ts'
 import { SessionStore } from '../src/store.ts'
 import { FakeClaudeGateway } from './fake-claude.ts'
 
@@ -16,12 +17,14 @@ const INFO = {
 
 function fixture(gateway = new FakeClaudeGateway()) {
   const store = new SessionStore(join(tmpdir(), `clara-claude-${randomUUID()}.json`))
-  const sessions = new SessionService(gateway, store, '0.1.0', () => {})
+  const events = new EventBus()
+  const sessions = new SessionService(gateway, store, '0.1.0', (event) => events.publish(event))
+  const runtime = new ClaudeRuntime(gateway, sessions, events, {})
   return {
     gateway,
     store,
     sessions,
-    app: createAdapterApp({ claude: gateway, sessions, info: INFO, events: new EventBus() }),
+    app: createAdapterApp({ claude: gateway, sessions, runtime, info: INFO, events }),
   }
 }
 

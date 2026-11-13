@@ -110,18 +110,21 @@ export type ClaudeTurnEvent =
   | {
       type: 'tool-input-started'
       assistantMessageID: string
+      index: number
       toolID: string
       name: string
     }
   | {
       type: 'tool-input-delta'
       assistantMessageID: string
+      index: number
       toolID: string
       delta: string
     }
   | {
       type: 'tool-input-ended'
       assistantMessageID: string
+      index: number
       toolID: string
       text: string
     }
@@ -137,6 +140,7 @@ export type ClaudeTurnEvent =
       model: string
       content: ClaudeContentBlock[]
       stopReason?: string
+      usage?: ClaudeUsage
       aborted: boolean
       userMessageID?: string
     }
@@ -212,6 +216,8 @@ export interface ClaudeTurn {
   push(input: ClaudeSteerInput): void
   interrupt(): Promise<void>
   setModel(model?: string): Promise<void>
+  /** Stop accepting input and let the CLI exit after its current work. */
+  close(): void
 }
 
 export type ClaudeCatalog = {
@@ -463,6 +469,7 @@ export class AgentSdkGateway implements ClaudeGateway {
     const abort = new AbortController()
     const unlink = linkAbort(request.signal, abort)
     let interrupted = false
+    let sawResult = false
     let closed = false
 
     const options: Parameters<typeof query>[0]['options'] = {
@@ -508,7 +515,15 @@ export class AgentSdkGateway implements ClaudeGateway {
     void (async () => {
       try {
         for await (const message of live) {
+          if (message.type === 'result') sawResult = true
           this.translate(message, request, () => interrupted)
+        }
+        if (!sawResult && !request.synthetic && !interrupted) {
+          request.onEvent({
+            type: 'error',
+            message: 'Claude Code ended without a result',
+            fatal: true,
+          })
         }
       } catch (cause) {
         if (!isAbortError(cause)) {
@@ -539,6 +554,7 @@ export class AgentSdkGateway implements ClaudeGateway {
           throw toAdapterError(cause)
         }
       },
+      close: () => finish(),
     }
   }
 
@@ -744,6 +760,7 @@ export class AgentSdkGateway implements ClaudeGateway {
         request.onEvent({
           type: 'tool-input-started',
           assistantMessageID: message.uuid,
+          index: event.index,
           toolID: block.id,
           name: block.name,
         })
@@ -774,6 +791,7 @@ export class AgentSdkGateway implements ClaudeGateway {
         request.onEvent({
           type: 'tool-input-delta',
           assistantMessageID: message.uuid,
+          index: event.index,
           toolID: block.toolID,
           delta: delta.partial_json,
         })
@@ -800,6 +818,7 @@ export class AgentSdkGateway implements ClaudeGateway {
         request.onEvent({
           type: 'tool-input-ended',
           assistantMessageID: message.uuid,
+          index: event.index,
           toolID: block.toolID,
           text: block.input,
         })
@@ -838,6 +857,7 @@ export class AgentSdkGateway implements ClaudeGateway {
       model: message.message.model,
       content: blocks,
       ...(message.message.stop_reason ? { stopReason: message.message.stop_reason } : {}),
+      usage: usageOf(message.message.usage),
       aborted: message.aborted === true || aborted,
       ...(message.user_message_uuid ? { userMessageID: message.user_message_uuid } : {}),
     })
@@ -977,13 +997,14 @@ function toModelRow(model: ModelInfo): ClaudeCatalog['models'][number] {
   }
 }
 
-function usageOf(value: Record<string, unknown> | undefined): ClaudeUsage {
+function usageOf(value: unknown): ClaudeUsage {
+  const usage = recordOf(value)
   return {
-    input: numberValue(value?.input_tokens),
-    output: numberValue(value?.output_tokens),
-    reasoning: numberValue(value?.thinking_tokens),
-    cacheRead: numberValue(value?.cache_read_input_tokens),
-    cacheWrite: numberValue(value?.cache_creation_input_tokens),
+    input: numberValue(usage?.input_tokens),
+    output: numberValue(usage?.output_tokens),
+    reasoning: numberValue(usage?.thinking_tokens),
+    cacheRead: numberValue(usage?.cache_read_input_tokens),
+    cacheWrite: numberValue(usage?.cache_creation_input_tokens),
   }
 }
 

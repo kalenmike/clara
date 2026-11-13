@@ -6,6 +6,7 @@ import { claudePaths, type ClaudeConfig } from './config.ts'
 import { EventBus } from './events.ts'
 import { createAdapterApp } from './handler.ts'
 import { installClaudeCommand, resolveClaudeConfig, uninstallClaudeCommand } from './install.ts'
+import { ClaudeRuntime } from './runtime.ts'
 import { AgentSdkGateway } from './sdk.ts'
 import { SessionService } from './sessions.ts'
 import { SessionStore } from './store.ts'
@@ -18,6 +19,7 @@ type Harness = { claude: ClaudeConfig }
 let cachedGateway: { key: string; value: AgentSdkGateway } | undefined
 let cachedEvents: EventBus | undefined
 let cachedSessions: { key: string; value: SessionService } | undefined
+let cachedRuntime: { key: string; value: ClaudeRuntime } | undefined
 
 function gateway(config: Harness): AgentSdkGateway {
   const key = JSON.stringify(config.claude)
@@ -30,6 +32,17 @@ function gateway(config: Harness): AgentSdkGateway {
 function events(): EventBus {
   cachedEvents ??= new EventBus()
   return cachedEvents
+}
+
+function runtime(config: Harness): ClaudeRuntime {
+  const key = JSON.stringify(config.claude)
+  if (!cachedRuntime || cachedRuntime.key !== key) {
+    cachedRuntime = {
+      key,
+      value: new ClaudeRuntime(gateway(config), sessions(config), events(), config.claude),
+    }
+  }
+  return cachedRuntime.value
 }
 
 function sessions(config: Harness): SessionService {
@@ -92,6 +105,7 @@ function definition(): AdapterDefinition<Harness> {
       createAdapterApp({
         claude: gateway(config),
         sessions: sessions(config),
+        runtime: runtime(config),
         info,
         events: events(),
       }),
@@ -117,6 +131,10 @@ function definition(): AdapterDefinition<Harness> {
     help: HELP,
   }
 }
+
+process.once('exit', () => {
+  cachedRuntime?.value.close()
+})
 
 runAdapterCli(definition(), process.argv.slice(2)).catch((error: unknown) => {
   console.error(error instanceof Error ? error.message : String(error))

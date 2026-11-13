@@ -1,5 +1,6 @@
 import type {
   ClaudeCatalog,
+  ClaudeTurnEvent,
   ClaudeGateway,
   ClaudeSessionInfo,
   ClaudeSessionMessage,
@@ -7,15 +8,22 @@ import type {
   ClaudeTurnRequest,
 } from '../src/sdk.ts'
 
+export type Script = (
+  request: ClaudeTurnRequest,
+  emit: (event: ClaudeTurnEvent) => void
+) => void | Promise<void>
+
 export class FakeClaudeGateway implements ClaudeGateway {
   sessions: ClaudeSessionInfo[] = []
   messages: ClaudeSessionMessage[] = []
   turns: ClaudeTurnRequest[] = []
   projectsDirectory?: string
+  script?: Script
   turn: ClaudeTurn = {
     push: () => {},
     interrupt: async () => {},
     setModel: async () => {},
+    close: () => {},
   }
 
   async probe() {
@@ -56,6 +64,11 @@ export class FakeClaudeGateway implements ClaudeGateway {
 
   async startTurn(request: ClaudeTurnRequest) {
     this.turns.push(request)
+    if (this.script) {
+      void Promise.resolve()
+        .then(() => this.script?.(request, request.onEvent))
+        .catch(() => {})
+    }
     return this.turn
   }
 

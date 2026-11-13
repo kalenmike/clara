@@ -6,6 +6,7 @@ import type { AdapterInfo } from '@clara/adapter-runtime'
 import { AdapterError } from './errors.ts'
 import { EventBus } from './events.ts'
 import type { ClaudeGateway } from './sdk.ts'
+import type { ClaraModelRef } from '@clara/api-contract'
 import type {
   CreateSessionInput,
   MessageListInput,
@@ -13,10 +14,12 @@ import type {
   SessionService,
   UpdateSessionInput,
 } from './sessions.ts'
+import type { ClaudeRuntime } from './runtime.ts'
 
 export type AdapterContext = {
   claude: ClaudeGateway
   sessions: SessionService
+  runtime: ClaudeRuntime
   info: AdapterInfo
   events: EventBus
 }
@@ -74,7 +77,7 @@ export function createAdapterApp(context: AdapterContext): Hono {
   app.post('/harness/v1/sessions', async (c) =>
     c.json(await context.sessions.create(await jsonBody<CreateSessionInput>(c)))
   )
-  app.get('/harness/v1/sessions/active', (c) => c.json({}))
+  app.get('/harness/v1/sessions/active', (c) => c.json(context.runtime.activeSessions()))
 
   app.get('/harness/v1/sessions/:sessionID', async (c) =>
     c.json(
@@ -110,11 +113,68 @@ export function createAdapterApp(context: AdapterContext): Hono {
     c.json(await context.sessions.messages(c.req.param('sessionID'), messageListInput(c)))
   )
 
+  app.post('/harness/v1/sessions/:sessionID/prompt', async (c) => {
+    const body = await jsonBody<PromptBody>(c)
+    return c.json(await context.runtime.prompt(c.req.param('sessionID'), body))
+  })
+  app.post('/harness/v1/sessions/:sessionID/synthetic', async (c) => {
+    const body = await jsonBody<SyntheticBody>(c)
+    return c.json(await context.runtime.synthetic(c.req.param('sessionID'), body))
+  })
+  app.post('/harness/v1/sessions/:sessionID/command', async (c) => {
+    const body = await jsonBody<CommandBody>(c)
+    await context.runtime.command(c.req.param('sessionID'), body)
+    return c.body(null, 204)
+  })
+  app.post('/harness/v1/sessions/:sessionID/interrupt', async (c) =>
+    c.json(await context.runtime.interrupt(c.req.param('sessionID')))
+  )
+  app.post('/harness/v1/sessions/:sessionID/compact', async (c) => {
+    const body = await jsonBody<{ delivery?: 'steer' | 'queue' }>(c)
+    return c.json(await context.runtime.compact(c.req.param('sessionID'), body))
+  })
+  app.post('/harness/v1/sessions/:sessionID/agent', async (c) => {
+    const body = await jsonBody<{ agent?: string }>(c)
+    if (!body.agent) throw new AdapterError(400, 'invalid_request', 'An agent is required')
+    await context.runtime.setAgent(c.req.param('sessionID'), body.agent)
+    return c.body(null, 204)
+  })
+  app.post('/harness/v1/sessions/:sessionID/model', async (c) => {
+    const body = await jsonBody<{ model?: ClaraModelRef }>(c)
+    if (!body.model) throw new AdapterError(400, 'invalid_request', 'A model is required')
+    await context.runtime.setModel(c.req.param('sessionID'), body.model)
+    return c.body(null, 204)
+  })
+  app.post('/harness/v1/sessions/:sessionID/permissions/:requestID/reply', async (c) => {
+    const body = await jsonBody<{
+      decision?: 'once' | 'always' | 'reject'
+      message?: string
+    }>(c)
+    if (!body.decision) throw new AdapterError(400, 'invalid_request', 'A decision is required')
+    await context.runtime.replyPermission(
+      c.req.param('sessionID'),
+      c.req.param('requestID'),
+      body.decision,
+      body.message
+    )
+    return c.body(null, 204)
+  })
+  app.get('/harness/v1/sessions/:sessionID/inbox', (c) =>
+    c.json(context.runtime.inbox(c.req.param('sessionID')))
+  )
+  app.delete('/harness/v1/sessions/:sessionID/inbox/:inboxID', (c) => {
+    context.runtime.cancelInbox(c.req.param('sessionID'), c.req.param('inboxID'))
+    return c.body(null, 204)
+  })
+
   app.get('/harness/v1/sessions/:sessionID/context', (c) => c.json([]))
   app.get('/harness/v1/sessions/:sessionID/forms', (c) => c.json([]))
   app.get('/harness/v1/sessions/:sessionID/inbox', (c) => c.json([]))
   app.get('/harness/v1/permissions', (c) =>
-    c.json({ location: { directory: directory(c) }, data: [] })
+    c.json({
+      location: { directory: directory(c) },
+      data: context.runtime.permissions(directory(c) || undefined),
+    })
   )
 
   app.get('/harness/v1/agents', (c) => c.json({ location: { directory: directory(c) }, data: [] }))
@@ -179,6 +239,28 @@ export function createAdapterApp(context: AdapterContext): Hono {
   })
 
   return app
+}
+
+type PromptBody = {
+  text: string
+  files?: unknown[]
+  agents?: unknown[]
+  skills?: unknown[]
+  delivery?: 'steer' | 'queue'
+  resume?: boolean
+}
+
+type SyntheticBody = {
+  text: string
+  description?: string
+  delivery?: 'steer' | 'queue'
+}
+
+type CommandBody = {
+  name: string
+  text?: string
+  files?: unknown[]
+  delivery?: 'steer' | 'queue'
 }
 
 function directory(c: Context): string {
