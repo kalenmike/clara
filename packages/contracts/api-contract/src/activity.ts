@@ -3,7 +3,7 @@ import { claraPlanTodoSchema } from './plan.ts'
 import { passthroughObject } from './schema.ts'
 import { claraSessionSchema } from './sessions.ts'
 
-/** One paired harness and whether its running-session lookup succeeded. */
+/** One paired harness and whether its session lookup succeeded. */
 export const claraActivityHarnessSchema = passthroughObject({
   harnessID: z.string(),
   kind: z.string(),
@@ -11,23 +11,32 @@ export const claraActivityHarnessSchema = passthroughObject({
   online: z.boolean(),
   active: z.boolean(),
   ok: z.boolean(),
+  createdAt: z.number(),
   code: z.string().optional(),
   message: z.string().optional(),
 }).meta({ id: 'ClaraActivityHarness' })
 
-/** A session that is running now, with its current todo plan when available. */
-export const claraRunningSessionSchema = passthroughObject({
+export const claraActivityMailboxSchema = z.enum(['inbox', 'outbox']).meta({
+  id: 'ClaraActivityMailbox',
+})
+
+/** A session in the Inbox or Outbox, with its current todo plan when available. */
+export const claraActivitySessionSchema = passthroughObject({
   harnessID: z.string(),
   session: claraSessionSchema,
+  mailbox: claraActivityMailboxSchema,
   todos: z.array(claraPlanTodoSchema).optional(),
   todosUnavailable: z.boolean().optional(),
-}).meta({ id: 'ClaraRunningSession' })
+  /** Plans are loaded for the most recently active sessions, not every row. */
+  todosSkipped: z.boolean().optional(),
+}).meta({ id: 'ClaraActivitySession' })
 
-export const claraRunningSessionsResponseSchema = passthroughObject({
-  data: z.array(claraRunningSessionSchema),
+export const claraActivitySessionsResponseSchema = passthroughObject({
+  data: z.array(claraActivitySessionSchema),
   harnesses: z.array(claraActivityHarnessSchema),
-}).meta({ id: 'ClaraRunningSessionsResponse' })
+}).meta({ id: 'ClaraActivitySessionsResponse' })
 
 export type ClaraActivityHarness = z.infer<typeof claraActivityHarnessSchema>
-export type ClaraRunningSession = z.infer<typeof claraRunningSessionSchema>
-export type ClaraRunningSessionsResponse = z.infer<typeof claraRunningSessionsResponseSchema>
+export type ClaraActivityMailbox = z.infer<typeof claraActivityMailboxSchema>
+export type ClaraActivitySession = z.infer<typeof claraActivitySessionSchema>
+export type ClaraActivitySessionsResponse = z.infer<typeof claraActivitySessionsResponseSchema>

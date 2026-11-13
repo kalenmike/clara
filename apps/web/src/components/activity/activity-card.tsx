@@ -1,18 +1,18 @@
 import { Link } from 'react-router'
 import { ArrowUpRight, ListTodo } from 'lucide-react'
-import type { ClaraActivityHarness, ClaraRunningSession } from '@clara/api-contract'
+import type { ClaraActivityHarness, ClaraActivitySession } from '@clara/api-contract'
 import { PlanTodoList } from '@/components/chat/plan-todo-list'
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { formatCost, formatRelativeTime, formatTokens } from '@/lib/format'
 
-export function RunningAgentCard({
+export function ActivityCard({
   item,
   harness,
   projectName,
   href,
 }: {
-  item: ClaraRunningSession
+  item: ClaraActivitySession
   harness: ClaraActivityHarness
   projectName: string
   href: string | null
@@ -52,6 +52,9 @@ export function RunningAgentCard({
           <Badge variant={harness.active ? 'secondary' : 'outline'} className="text-[10px]">
             {harness.label}
           </Badge>
+          <Badge variant={item.mailbox === 'inbox' ? 'default' : 'outline'} className="text-[10px]">
+            {item.mailbox === 'inbox' ? 'Inbox' : 'Outbox'}
+          </Badge>
           <span className="truncate">{projectName}</span>
         </div>
       </CardHeader>
@@ -90,6 +93,13 @@ export function RunningAgentCard({
 
           {item.todosUnavailable ? (
             <p className="text-[10px] text-muted-foreground">Plan unavailable.</p>
+          ) : item.todosSkipped ? (
+            <p
+              className="text-[10px] text-muted-foreground"
+              title="Plans load for Outbox and recently updated sessions."
+            >
+              Plan not loaded.
+            </p>
           ) : todos && todos.length > 0 ? (
             <PlanTodoList todos={todos} className="max-h-40 overflow-y-auto pr-1" />
           ) : (

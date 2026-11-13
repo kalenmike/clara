@@ -72,7 +72,7 @@ Clara works; the guide describes how to use it.
 | [hub-controls.md](features/hub-controls.md)           | You are working on feature toggles or the Go offline control             |
 | [sync.md](features/sync.md)                           | You are working on client settings sync, its protocol, or the Sync tab   |
 | [sessions.md](features/sessions.md)                   | You are working on the project/session browser                           |
-| [activity.md](features/activity.md)                   | You are working on the cross-harness running agents view                 |
+| [activity.md](features/activity.md)                   | You are working on the cross-harness Inbox and Outbox activity view      |
 | [chat.md](features/chat.md)                           | You are working on messages, streaming, tools, or permissions            |
 | [fork.md](features/fork.md)                           | You are working on forking a session or forwarding a message             |
 | [pair-terminal.md](features/pair-terminal.md)         | You are working on the read-only terminal that follows a running session |

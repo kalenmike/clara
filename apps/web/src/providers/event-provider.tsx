@@ -291,6 +291,7 @@ function handleInvalidation(
           invalidateSoon(`messages:${sessionID}`, queryKeys.messages(sessionID))
         }
       }
+      invalidateSoon('activity', queryKeys.activitySessions)
       return
 
     case 'session.metadata.updated':
@@ -298,6 +299,7 @@ function handleInvalidation(
       if (sessionID) {
         void queryClient.invalidateQueries({ queryKey: queryKeys.session(sessionID) })
       }
+      invalidateSoon('activity', queryKeys.activitySessions)
       return
 
     case 'session.viewed':
@@ -323,6 +325,7 @@ function handleInvalidation(
         invalidateSoon(`inbox:${sessionID}`, queryKeys.sessionInbox(sessionID))
         invalidateSoon(`mailbox:${sessionID}`, queryKeys.sessionMailbox(sessionID))
       }
+      invalidateSoon('activity', queryKeys.activitySessions)
       return
 
     case 'session.compaction.started':
@@ -344,6 +347,7 @@ function handleInvalidation(
 
     case 'session.execution.started':
       invalidateSoon('active-sessions', queryKeys.activeSessions)
+      invalidateSoon('activity', queryKeys.activitySessions)
       if (sessionID) {
         invalidateSoon(`mailbox:${sessionID}`, queryKeys.sessionMailbox(sessionID))
       }

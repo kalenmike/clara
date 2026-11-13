@@ -1,60 +1,70 @@
-# Running agents
+# Activity
 
 ## Summary
 
-The Running agents page shows every session where an agent is working across all
-paired harnesses. Each session shows its project, harness, token totals, reported
-spend, and current plan. It is a read-only overview for people who run work on
-more than one harness.
+The Activity page shows every session in the Inbox or Outbox across all paired
+harnesses. It is a read-only overview for people who run agents on more than one
+harness and want to see both work in progress and sessions waiting for them.
 
 ## User flow
 
 1. Choose the activity icon in the sidebar header.
-2. Read the summary for the number of running sessions, harnesses, tokens, and
-   reported spend.
-3. Read each harness section. Sessions are grouped under the harness that owns
-   them, newest activity first.
-4. Read a session card for its project, agent, model, last update, token total,
-   and reported spend.
+2. Read the summary for active sessions, Inbox and Outbox counts, harnesses,
+   tokens, and reported spend.
+3. Read each harness section. Sections follow pairing order, and sessions keep
+   their position from oldest to newest.
+4. Read a session card for its Inbox or Outbox badge, project, harness, agent,
+   model, last update, token total, and reported spend.
 5. Read the plan checklist for that session. The header shows completed items
    against the total.
 6. On the active harness, choose a session title to open it.
 7. Leave the page open. It refreshes every ten seconds, or press **Refresh** to
-   reload immediately and bypass the short plan cache.
-8. Read the Other harnesses row to see paired harnesses that are idle, offline,
-   or could not be checked.
+   reload immediately and bypass the activity caches.
+8. Read the Other harnesses row to see paired harnesses with no Inbox or Outbox
+   sessions, or harnesses that are offline or could not be checked.
 
 ## Core business rules
 
-1. A session appears only while the harness reports it as running. The hub asks
-   every paired harness for its active-session map instead of using only the
-   active harness.
-2. Session totals and spend come from the session record the harness returns.
+1. A session appears while it is in the Inbox or Outbox on any paired harness.
+   Archived and snoozed sessions are hidden, including sessions Clara marked
+   itself; drafts are not part of either mailbox and stay hidden.
+2. Inbox and Outbox follow the same rules as the session sidebar. Awaiting input
+   or an assistant-last transcript is Inbox; a running agent or a user-last
+   transcript is Outbox. Worker sessions are included in this view.
+3. Cards keep their position. Sessions are ordered by creation time, oldest
+   first, within each harness, and harness sections follow pairing time. A run
+   finishing changes the card's badge instead of moving it; new sessions append
+   to the end of their harness.
+4. Session totals and spend come from the session record the harness returns.
    Spend is the amount the harness reports, not a price estimate.
-3. The plan is the newest completed `todowrite` call in the session transcript.
-   An empty list means the agent cleared the plan.
-4. A harness that is offline or fails its lookup is reported on the page without
-   hiding results from other harnesses.
-5. The page polls. Cross-harness status events are not streamed to the browser,
-   so the hub does not push updates for harnesses other than the active one.
-6. Opening a session only works from the active harness. Other harnesses stay
-   read-only until the chat routes can address a harness explicitly.
+5. The plan is the newest completed `todowrite` call in the loaded assistant
+   messages. An empty list means the agent cleared the plan, or that the newest
+   plan was written before the loaded window.
+6. A harness that is offline or fails its lookup is reported on the page without
+   hiding results from other harnesses. A session whose mailbox signals fail is
+   still shown and counted as a partial harness failure.
 
 ## Edge cases
 
 - **No harnesses paired** — the page explains that a harness must be paired
   first.
-- **No agents running** — the page keeps the harness status visible and explains
-  that sessions appear while an agent is working.
+- **No Inbox or Outbox sessions** — the page explains that sessions appear while
+  an agent is working or waiting for a reply, and that snoozed and archived
+  sessions stay hidden.
 - **Harness offline** — its sessions cannot be read, so it appears as offline.
 - **Partial harness failure** — sessions that loaded still appear; the harness
-  is marked Partial with a count of sessions that could not be loaded.
+  is marked Partial with a count of sessions that could not be classified.
 - **Transcript unavailable** — the session still appears, and its plan says
   Plan unavailable.
 - **No plan** — the card says No plan yet.
+- **Session outside the plan budget** — the card says Plan not loaded. Opening
+  the session shows the full plan dock.
 - **Unknown project** — the card shows the harness project ID and does not offer
   a link.
 - **Session on another harness** — the card is readable but has no open link.
+- **Snooze or archive on the active harness** — the activity query refreshes
+  shortly after the session event, so the card disappears without waiting for
+  the next poll.
 - **Long checklist** — the plan area scrolls inside the card.
 - **Page left open** — the query refreshes every ten seconds and shows the last
   successful result if a refresh fails.
@@ -64,37 +74,50 @@ more than one harness.
 - Starting, steering, interrupting, or deleting sessions from this page.
 - Switching the active harness from this page.
 - Opening a session on a non-active harness.
+- Showing drafts, snoozed sessions, or archived sessions.
+- Excluding worker sessions. A later orchestrator view will be able to hide
+  them.
 - Estimated spend across harnesses.
 - Historical spend, usage charts, file activity, or a waterfall timeline.
-- Comparing sessions side by side.
 
 ## Known gaps
 
+- The hub reads up to 1,000 non-archived sessions per harness as a safety bound.
+  Older Inbox or Outbox sessions beyond that bound are not shown.
+- Plans load for Outbox sessions first and then the 50 most recently updated
+  sessions per harness. Older cards stay in place but show Plan not loaded.
+- A plan written before the newest 50 assistant messages is not shown. The
+  session's Plan dock still has the full checklist.
 - Spend does not follow the estimated-cost setting because model catalogs are
   scoped to each harness.
-- Plans can be up to five seconds stale during automatic polling. The Refresh
-  button bypasses that cache.
+- Running plans can be up to five seconds stale, and idle plans up to five
+  minutes stale, during automatic polling. The Refresh button bypasses both
+  caches.
+- Cross-harness changes arrive on the next poll because only the active harness
+  streams events to the browser.
 - Click-through is limited to the active harness.
-- A session whose metadata fails to load is omitted from the card list and
-  counted as a partial harness failure.
 
 ## Technical appendix
 
 <details>
 <summary>Routes, data, and references</summary>
 
-- Endpoint: `GET /v1/activity/running`
-- Response: `ClaraRunningSessionsResponse` in `@clara/api-contract`
+- Endpoint: `GET /v1/activity/sessions`
+- Deprecated alias: `GET /v1/activity/running` returns only running sessions for
+  older cached clients.
+- Response: `ClaraActivitySessionsResponse` in `@clara/api-contract`
+- Mailbox rules: `resolveSessionMailbox` in `@clara/shared-types`
 - Page: `apps/web/src/pages/activity-page.tsx`
 - Cards: `apps/web/src/components/activity/`
-- Hook: `apps/web/src/features/activity/use-running-activity.ts`
-- Hub fan-out: `apps/hub/server/src/activity/running.ts`
+- Hook: `apps/web/src/features/activity/use-activity-sessions.ts`
+- Hub fan-out: `apps/hub/server/src/activity/sessions.ts`
 - Plan parsing: `findPlanTodos` in `@clara/api-contract`
-- The hub asks each online harness for `/sessions/active`, then reads the
-  running sessions and their context. Context results are cached per
-  harness/session for five seconds; `?refresh=true` bypasses the cache.
-- Session overlay maps harness project IDs to Clara project and workspace IDs
-  and applies Clara title, archive, and snooze metadata.
+- The hub asks each online harness for `/sessions/active`, pending
+  `/permissions`, and every page of non-archived `/sessions`. It overlays Clara
+  project, title, archive, and snooze metadata, then reads each session's
+  mailbox signals. Plans come from the newest assistant-message page for the
+  first 50 sessions in the plan budget. Plans and signals are cached per
+  harness/session; `?refresh=true` bypasses both caches.
 - Related: [sessions](sessions.md), [session-info](session-info.md),
   [capabilities](capabilities.md), [API](../architecture/api.md)
 

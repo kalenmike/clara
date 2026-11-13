@@ -1,24 +1,24 @@
 import { useMemo } from 'react'
 import { Activity, Loader2, RefreshCw } from 'lucide-react'
 import type { ClaraActivityHarness, ClaraProject } from '@clara/api-contract'
-import { RunningAgentSection } from '@/components/activity/running-agent-section'
+import { ActivityHarnessSection } from '@/components/activity/activity-harness-section'
 import { PageShell } from '@/components/layout/page-shell'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
 import {
-  groupRunningSessions,
-  sumRunningUsage,
-  type RunningTotals,
-} from '@/features/activity/running-activity'
-import { useRunningActivity } from '@/features/activity/use-running-activity'
+  groupActivitySessions,
+  sumActivityUsage,
+  type ActivityTotals,
+} from '@/features/activity/activity-sessions'
+import { useActivitySessions } from '@/features/activity/use-activity-sessions'
 import { useArchivedProjects, useProjects } from '@/features/projects/use-projects'
 import { errorMessage } from '@/lib/errors'
 import { formatCost, formatCount, formatRelativeTime, formatTokens } from '@/lib/format'
 
 export function ActivityPage() {
-  const runningQuery = useRunningActivity()
+  const activityQuery = useActivitySessions()
   const projectsQuery = useProjects()
   const archivedQuery = useArchivedProjects()
 
@@ -31,32 +31,32 @@ export function ActivityPage() {
   }, [archivedQuery.data, projectsQuery.data])
   const projectIDs = useMemo(() => new Set(projectByID.keys()), [projectByID])
 
-  const response = runningQuery.data
+  const response = activityQuery.data
   const data = useMemo(() => response?.data ?? [], [response])
   const harnesses = useMemo(() => response?.harnesses ?? [], [response])
-  const { groups, idle } = useMemo(() => groupRunningSessions(data, harnesses), [data, harnesses])
-  const totals = useMemo(() => sumRunningUsage(data), [data])
-  const pending = runningQuery.isLoading || projectsQuery.isLoading
-  const initialError = runningQuery.isError && data.length === 0
+  const { groups, idle } = useMemo(() => groupActivitySessions(data, harnesses), [data, harnesses])
+  const totals = useMemo(() => sumActivityUsage(data), [data])
+  const pending = activityQuery.isLoading || projectsQuery.isLoading
+  const initialError = activityQuery.isError && data.length === 0
 
   return (
     <PageShell
-      title="Running agents"
+      title="Activity"
       eyebrow={
         <>
           <Activity className="size-3.5" />
-          <span>Activity</span>
+          <span>Agents</span>
         </>
       }
-      description="Live sessions across every paired harness."
+      description="Sessions in the Inbox or Outbox across every paired harness. Snoozed and archived sessions stay hidden."
       actions={
         <Button
           variant="outline"
           size="sm"
-          onClick={() => runningQuery.refresh.mutate()}
-          disabled={runningQuery.isFetching || runningQuery.refresh.isPending}
+          onClick={() => activityQuery.refresh.mutate()}
+          disabled={activityQuery.isFetching || activityQuery.refresh.isPending}
         >
-          {runningQuery.isFetching || runningQuery.refresh.isPending ? (
+          {activityQuery.isFetching || activityQuery.refresh.isPending ? (
             <Loader2 className="size-3.5 animate-spin" />
           ) : (
             <RefreshCw className="size-3.5" />
@@ -66,31 +66,31 @@ export function ActivityPage() {
       }
     >
       {pending ? (
-        <RunningActivitySkeleton />
+        <ActivitySkeleton />
       ) : initialError ? (
-        <RunningActivityError
-          message={errorMessage(runningQuery.error)}
-          onRetry={() => void runningQuery.refetch()}
+        <ActivityError
+          message={errorMessage(activityQuery.error)}
+          onRetry={() => void activityQuery.refetch()}
         />
       ) : (
         <>
           <Summary totals={totals} harnessCount={harnesses.length} />
 
-          {runningQuery.isError && (
+          {activityQuery.isError && (
             <div className="rounded-lg border border-dashed px-4 py-3 text-xs text-muted-foreground">
-              Could not refresh running agents. Showing the last result.{' '}
-              <button className="underline" onClick={() => void runningQuery.refetch()}>
+              Could not refresh activity. Showing the last result.{' '}
+              <button className="underline" onClick={() => void activityQuery.refetch()}>
                 Retry
               </button>
             </div>
           )}
 
           {data.length === 0 ? (
-            <RunningActivityEmpty paired={harnesses.length > 0} />
+            <ActivityEmpty paired={harnesses.length > 0} />
           ) : (
             <div className="space-y-7">
               {groups.map((group) => (
-                <RunningAgentSection
+                <ActivityHarnessSection
                   key={group.harness.harnessID}
                   harness={group.harness}
                   sessions={group.sessions}
@@ -105,7 +105,7 @@ export function ActivityPage() {
 
           {response && data.length > 0 && (
             <p className="text-[11px] text-muted-foreground">
-              Updated {formatRelativeTime(runningQuery.dataUpdatedAt)}
+              Updated {formatRelativeTime(activityQuery.dataUpdatedAt)}
             </p>
           )}
         </>
@@ -114,10 +114,12 @@ export function ActivityPage() {
   )
 }
 
-function Summary({ totals, harnessCount }: { totals: RunningTotals; harnessCount: number }) {
+function Summary({ totals, harnessCount }: { totals: ActivityTotals; harnessCount: number }) {
   return (
-    <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-      <Stat label="Running" value={formatCount(totals.sessions)} />
+    <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
+      <Stat label="Active" value={formatCount(totals.sessions)} />
+      <Stat label="Inbox" value={formatCount(totals.inbox)} />
+      <Stat label="Outbox" value={formatCount(totals.outbox)} />
       <Stat
         label="Harnesses"
         value={`${formatCount(totals.harnesses)} / ${formatCount(harnessCount)}`}
@@ -161,11 +163,11 @@ function IdleHarnesses({ harnesses }: { harnesses: ClaraActivityHarness[] }) {
   )
 }
 
-function RunningActivitySkeleton() {
+function ActivitySkeleton() {
   return (
     <div className="space-y-4">
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-        {Array.from({ length: 4 }).map((_, index) => (
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
+        {Array.from({ length: 6 }).map((_, index) => (
           <Skeleton key={index} className="h-20 w-full" />
         ))}
       </div>
@@ -178,11 +180,11 @@ function RunningActivitySkeleton() {
   )
 }
 
-function RunningActivityError({ message, onRetry }: { message: string; onRetry: () => void }) {
+function ActivityError({ message, onRetry }: { message: string; onRetry: () => void }) {
   return (
     <div className="flex flex-col items-center justify-center rounded-xl border border-dashed p-12 text-center">
       <Activity className="size-8 text-muted-foreground" />
-      <p className="mt-3 text-sm font-medium">Could not load running agents</p>
+      <p className="mt-3 text-sm font-medium">Could not load activity</p>
       <p className="mt-1 max-w-sm break-words text-xs text-muted-foreground">{message}</p>
       <Button className="mt-4" size="sm" variant="outline" onClick={onRetry}>
         Retry
@@ -191,17 +193,17 @@ function RunningActivityError({ message, onRetry }: { message: string; onRetry: 
   )
 }
 
-function RunningActivityEmpty({ paired }: { paired: boolean }) {
+function ActivityEmpty({ paired }: { paired: boolean }) {
   return (
     <div className="flex flex-col items-center justify-center rounded-xl border border-dashed p-12 text-center">
       <Activity className="size-8 text-muted-foreground" />
       <p className="mt-3 text-sm font-medium">
-        {paired ? 'No agents are running right now' : 'No harnesses paired'}
+        {paired ? 'No sessions in the Inbox or Outbox' : 'No harnesses paired'}
       </p>
       <p className="mt-1 max-w-sm text-xs text-muted-foreground">
         {paired
-          ? 'Sessions appear here while an agent is working. This view refreshes every few seconds.'
-          : 'Pair a harness in the hub panel before running agents can appear here.'}
+          ? 'Sessions appear here while an agent is working or waiting for your reply. Snoozed and archived sessions stay hidden.'
+          : 'Pair a harness in the hub panel before activity can appear here.'}
       </p>
     </div>
   )

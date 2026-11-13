@@ -1,9 +1,6 @@
 import type { ClaraSession } from '@clara/api-contract'
+import { resolveSessionMailbox, type SessionMailboxSignals } from '@clara/shared-types'
 import { isArchivedSession } from '@/features/sessions/session-archive'
-import {
-  resolveSessionMailbox,
-  type SessionMailboxSignals,
-} from '@/features/sessions/session-mailbox'
 import { isSnoozedSession } from '@/features/sessions/session-snooze'
 
 export type SessionGroups = {
