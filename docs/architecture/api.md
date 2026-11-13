@@ -19,7 +19,7 @@ no generic `/api/*` proxy.
 | Area        | Endpoints                                                                                                                                                                                                                                                                          |
 | ----------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Meta        | `GET /v1/info`, `GET /v1/harness/info`                                                                                                                                                                                                                                             |
-| Activity    | `GET /v1/activity/running`                                                                                                                                                                                                                                                         |
+| Activity    | `GET /v1/activity/sessions`, `GET /v1/activity/running` (deprecated alias)                                                                                                                                                                                                         |
 | Projects    | `GET /v1/projects`, `POST /v1/projects`, `PATCH/DELETE /v1/projects/:projectID`, `POST .../archive`, `.../unarchive`, `.../sync`, `.../workspaces`, `GET /v1/projects/available`, `GET /v1/harnesses`, `GET /v1/locations`                                                         |
 | Sessions    | `GET /v1/sessions`, `POST /v1/sessions`, `GET /v1/sessions/active`, `GET/PATCH/DELETE /v1/sessions/:sessionID`, `POST .../fork`, `.../move`, `.../view`, `.../prompt`, `.../synthetic`, `.../command`, `.../interrupt`, `.../compact`, `.../agent`, `.../model`, `GET .../context` |
 | Messages    | `GET /v1/sessions/:sessionID/messages`                                                                                                                                                                                                                                             |
@@ -79,16 +79,22 @@ the harness.
 `git log` command from validated timestamps and the session directory; there is
 no arbitrary shell endpoint.
 
-### Cross-harness running activity
+### Cross-harness activity
 
-`GET /v1/activity/running` is the read-only exception to active-harness scoping.
-It asks every paired harness for `/sessions/active`, reads each running session,
-and overlays the result with its Clara project and workspace links. It also reads
-the session context to return the newest completed `todowrite` plan. The response
+`GET /v1/activity/sessions` is the read-only exception to active-harness
+scoping. It asks every paired harness for `/sessions/active`, pending
+`/permissions`, and every page of non-archived `/sessions`, overlays the result
+with Clara project, title, archive, and snooze metadata, and returns sessions in
+the Inbox or Outbox. Archived and snoozed sessions are dropped, and the response
 keeps per-harness status so offline or partially failing harnesses do not hide
-results from the others. Transcript lookups are cached briefly per harness and
-session; pass `?refresh=true` to bypass that cache. The browser polls this
+results from the others. Each session also carries mailbox signals and, within
+the per-harness plan budget, its newest completed `todowrite` plan from a bounded
+assistant-message page. Signal and plan lookups are cached per harness and
+session; pass `?refresh=true` to bypass both caches. The browser polls this
 endpoint rather than expecting a cross-harness event stream.
+
+`GET /v1/activity/running` remains as a deprecated alias that returns only the
+sessions the harness reports as running, so an older cached client still works.
 
 ## Authentication
 

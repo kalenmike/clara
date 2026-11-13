@@ -114,16 +114,19 @@ session that newly enters the Inbox while the start view is open.
 
 The switch reports how many agents are working in the project's Outbox.
 
-## See every running agent
+## See agent activity
 
-Choose the activity icon beside Settings in the sidebar to open **Running
-agents**. It shows every session where an agent is working across all paired
-harnesses, not just the active one.
+Choose the activity icon beside Settings in the sidebar to open **Activity**. It
+shows every session in the Inbox or Outbox across all paired harnesses, not just
+the active one. Archived and snoozed sessions stay hidden.
 
-Each card shows the project, harness, agent, model, token total, reported spend,
-and the agent's current plan. Harness sections keep offline or partially
-unavailable harnesses visible. The page refreshes every ten seconds. Choose
-**Refresh** to update plans immediately.
+Each card shows whether the session is in the Inbox or Outbox, plus its project,
+harness, agent, model, token total, reported spend, and current plan. Plans load
+for the most recently active sessions; other cards say **Plan not loaded** and
+still open normally. Cards keep their position while you watch, and new sessions
+appear at the end of their harness section. Harness sections keep offline or
+partially unavailable harnesses visible. The page refreshes every ten seconds.
+Choose **Refresh** to update plans and session state immediately.
 
 You can open a session from the card while its harness is the active one. Other
 harnesses are shown read-only.
