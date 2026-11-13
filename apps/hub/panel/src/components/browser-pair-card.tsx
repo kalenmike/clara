@@ -98,6 +98,7 @@ export function BrowserPairCard({
                 <QRCodeSVG
                   value={pairing.link}
                   size={176}
+                  level="M"
                   marginSize={1}
                   title="Clara browser pairing QR code"
                 />
