@@ -1,11 +1,11 @@
 import type { PanelSnapshot } from '@clara/shared-types'
-import { findFeature, useFeatureControl } from '../../lib/feature-control.ts'
+import { findFeature } from '../../lib/feature-control.ts'
 import { harnessHealth, type HealthTone } from '../../lib/health.ts'
 import { usePeek } from '../../lib/peek-context.tsx'
 import { HarnessAddCard } from '../harness-add-card.tsx'
 import { HarnessConnectionsCard } from '../harness-connections-card.tsx'
 import { HarnessSessionsCard } from '../harness-sessions-card.tsx'
-import { Badge, Notice, Toggle, type Tone } from '../primitives.tsx'
+import { Badge, Notice, type Tone } from '../primitives.tsx'
 import { View } from '../shell/view.tsx'
 
 const HEALTH_TONE: Record<HealthTone, Tone> = {
@@ -26,12 +26,10 @@ export function HarnessView({
 }) {
   const { redact } = usePeek()
   const feature = findFeature(snapshot.controls, 'opencode')
-  const control = useFeatureControl(feature, snapshot.controls.stopped, onChanged)
   const activeHarness = snapshot.harnesses.find((harness) => harness.isActive)
   const health = harnessHealth(snapshot.opencode, activeHarness?.label)
   const adapterClients = snapshot.clients.filter((client) => client.kind === 'adapter')
   const notice =
-    control.error ??
     snapshot.harness.error ??
     (snapshot.opencode.code !== 'disabled' && snapshot.opencode.code !== 'unconfigured'
       ? snapshot.opencode.error
@@ -43,23 +41,7 @@ export function HarnessView({
       kicker={activeHarness?.label ?? 'Harness'}
       title="Harness"
       description="Live adapter sessions, paired harnesses, and the harness server this hub proxies."
-      actions={
-        <div className="flex items-center gap-2">
-          <Badge tone={HEALTH_TONE[health.tone]}>{health.status}</Badge>
-          <span className="panel-muted max-w-64 truncate text-[11px]" title={redact(health.detail)}>
-            {redact(health.detail)}
-          </span>
-          <Toggle
-            checked={feature.desired}
-            onChange={control.toggle}
-            label={`Harness connection: ${feature.desired ? 'on' : 'off'}`}
-            state={control.pending ? 'pending' : feature.desired ? 'on' : 'off'}
-            disabled={control.disabled}
-            stopped={snapshot.controls.stopped}
-            title={control.title}
-          />
-        </div>
-      }
+      actions={<Badge tone={HEALTH_TONE[health.tone]}>{health.status}</Badge>}
     >
       {notice ? (
         <div className="mb-3">
@@ -70,6 +52,7 @@ export function HarnessView({
         <HarnessAddCard
           enabled={feature.desired}
           relayConfigured={snapshot.relay.configured}
+          harnesses={snapshot.harnesses}
           onChanged={onChanged}
           now={now}
         />
