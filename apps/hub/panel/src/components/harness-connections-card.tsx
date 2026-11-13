@@ -267,7 +267,7 @@ export function HarnessConnectionsCard({
         )}
         <p className="pt-2 text-xs text-neutral-500 dark:text-neutral-400">
           Only one harness is active at a time. Delete removes the connection but keeps the adapter
-          identity and Clara metadata; Forget purges both. Test probes the adapter's OpenCode
+          identity and Clara metadata; Forget purges both. Test probes the adapter's harness
           endpoint. Fingerprints identify the credential without revealing it.
         </p>
       </CardBody>

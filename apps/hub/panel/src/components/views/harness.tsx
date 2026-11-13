@@ -27,7 +27,8 @@ export function HarnessView({
   const { redact } = usePeek()
   const feature = findFeature(snapshot.controls, 'opencode')
   const control = useFeatureControl(feature, snapshot.controls.stopped, onChanged)
-  const health = harnessHealth(snapshot.opencode)
+  const activeHarness = snapshot.harnesses.find((harness) => harness.isActive)
+  const health = harnessHealth(snapshot.opencode, activeHarness?.label)
   const adapterClients = snapshot.clients.filter((client) => client.kind === 'adapter')
   const notice =
     control.error ??
@@ -39,9 +40,9 @@ export function HarnessView({
   return (
     <View
       id="harness"
-      kicker="OpenCode"
+      kicker={activeHarness?.label ?? 'Harness'}
       title="Harness"
-      description="Live adapter sessions, paired harnesses, and the OpenCode server this hub proxies."
+      description="Live adapter sessions, paired harnesses, and the harness server this hub proxies."
       actions={
         <div className="flex items-center gap-2">
           <Badge tone={HEALTH_TONE[health.tone]}>{health.status}</Badge>
