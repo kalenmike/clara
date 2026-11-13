@@ -22,7 +22,7 @@ function git(args: string[]): string | undefined {
   }
 }
 
-const commit = git(['rev-parse', '--short', 'HEAD']) ?? null
+const commit = git(['rev-parse', '--short=8', 'HEAD']) ?? null
 const dirty = Boolean(git(['status', '--porcelain']))
 const builtAt = new Date().toISOString()
 
