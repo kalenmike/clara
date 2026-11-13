@@ -4,7 +4,10 @@ const pad = (value: number) => String(value).padStart(2, '0')
 
 export const claraVersion = import.meta.env.CLARA_VERSION
 
-/** Compact stamp shown in the sidebar: dev-server start or build time. */
+/** Version with the build commit, e.g. `0.1.0.90d9f352`. */
+export const claraDisplayVersion = build.commit ? `${claraVersion}.${build.commit}` : claraVersion
+
+/** Compact stamp shown in Settings: dev-server start or build time. */
 export const claraBuildLabel = `${build.mode} ${pad(builtAt.getMonth() + 1)}-${pad(builtAt.getDate())} ${pad(builtAt.getHours())}:${pad(builtAt.getMinutes())}`
 
 export const claraBuildTitle = [

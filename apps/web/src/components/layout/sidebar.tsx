@@ -76,7 +76,7 @@ import {
 import { useStartSession } from '@/features/sessions/use-start-session'
 import { useSessionWording } from '@/features/sessions/use-wording'
 import { useSidebarWidth } from '@/hooks/use-sidebar-width'
-import { claraBuildLabel, claraBuildTitle, claraVersion } from '@/lib/build-info'
+import { claraBuildTitle, claraDisplayVersion } from '@/lib/build-info'
 import { errorMessage } from '@/lib/errors'
 import { isTextEntryTarget } from '@/lib/keyboard'
 import {
@@ -1023,7 +1023,7 @@ export function SidebarContent({
             {harness ? `${label} ${harness.version}` : 'Harness offline'}
           </span>
           <span className="truncate" title={claraBuildTitle}>
-            Clara {claraVersion} · {claraBuildLabel}
+            Clara {claraDisplayVersion}
           </span>
         </div>
       </div>
