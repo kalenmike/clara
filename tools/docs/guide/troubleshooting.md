@@ -21,14 +21,14 @@ a generic error.
 
 ## The pairing code fails
 
-| Message                   | Fix                                                                                                             |
-| ------------------------- | --------------------------------------------------------------------------------------------------------------- |
-| Adapter pairing code      | Panel codes (`clara-harness1_…`) install the adapter, not the browser. Run `pnpm clara pair` and use that code. |
-| Invalid or truncated code | Paste the whole `clara1_…` value or scan the QR again.                                                          |
-| Expired code              | Codes last 10 minutes. Ask for a fresh one.                                                                     |
-| Code already used         | Each code enrolls one device. Ask for a new code.                                                               |
-| Fingerprint mismatch      | Do not trust the pairing. Ask the host for a fresh code and compare again.                                      |
-| Device revoked            | The host revoked this browser. Pair again if access is still needed.                                            |
+| Message                   | Fix                                                                                                                                                |
+| ------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Adapter pairing code      | Adapter codes (`clara-harness1_…`) install the adapter, not the browser. Use **Clients → Pair a browser** or `pnpm clara pair` for a browser code. |
+| Invalid or truncated code | Paste the whole `clara1_…` value or scan the QR again.                                                                                             |
+| Expired code              | Codes last 10 minutes. Ask for a fresh one.                                                                                                        |
+| Code already used         | Each code enrolls one device. Ask for a new code.                                                                                                  |
+| Fingerprint mismatch      | Do not trust the pairing. Ask the host for a fresh code and compare again.                                                                         |
+| Device revoked            | The host revoked this browser. Pair again if access is still needed.                                                                               |
 
 ## The camera will not scan
 

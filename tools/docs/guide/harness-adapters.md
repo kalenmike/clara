@@ -38,9 +38,10 @@ hub and web client are harness-neutral.
    adapter becomes **Active**. If the Harness switch in the page header is off,
    the page shows **Off** instead of a live state.
 
-Panel codes are only for the adapter installer. To pair this browser, use the
-separate code or link printed by `pnpm clara pair`. A panel code starts with
-`clara-harness1_`; a browser code starts with `clara1_`.
+Adapter codes are only for the installer. To pair a browser, use
+**Clients → Pair a browser** in the panel, or the separate code or link printed
+by `pnpm clara pair`. An adapter code starts with `clara-harness1_`; a browser
+code starts with `clara1_`.
 
 If the panel shows **Paired · Offline**, start it with:
 
@@ -64,8 +65,9 @@ connection keeps that state; use **Forget** only when you want to discard it.
 - **The harness is not found** — run the installer again and enter the harness
   URL, username, and password. For OpenCode, the adapter retests before saving.
 - **The code expired** — create a new code in the panel.
-- **The browser rejects a panel code** — panel codes install the adapter, not
-  the browser. Run `pnpm clara pair`, then paste that link or code in Clara.
+- **The browser rejects a panel code** — adapter codes install the adapter, not
+  the browser. Use a browser code from **Clients → Pair a browser** or
+  `pnpm clara pair`, then paste that link or code in Clara.
 - **The adapter is offline** — **Paired harnesses** says **Paired · Offline**.
   Start the adapter service, then use **Test** in the panel. The hub keeps the connection
   and reconnects automatically. Clara stays connected and shows a harness

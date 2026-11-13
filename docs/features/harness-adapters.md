@@ -23,9 +23,9 @@ contacts the harness directly.
    and the adapter location: **Docker network** (default), **This machine**, or
    **Cloudflare relay** → **Add harness**. OpenCode is the only adapter type
    included with this release.
-2. Copy the pairing code or the matching command. Panel codes start with
-   `clara-harness1_` and only install an adapter; the browser still pairs with
-   a `clara1_` code from `pnpm clara pair`.
+2. Copy the pairing code or the matching command. Adapter codes start with
+   `clara-harness1_` and only install an adapter; a browser pairs with a
+   `clara1_` code from **Clients → Pair a browser** or `pnpm clara pair`.
 3. On the harness machine, run the adapter installer. For the included adapter,
    that is `pnpm clara adapter install --opencode --pair <code>`.
 4. The OpenCode installer discovers OpenCode from flags, environment, or
@@ -78,9 +78,9 @@ contacts the harness directly.
 - **Harness not reachable** — the installer prompts for URL and credentials,
   then retests.
 - **Pairing code expired or used** — generate a new code in the panel.
-- **Wrong code pasted in the browser** — panel codes are named as adapter codes;
-  the web tells the user to install them with the adapter command and to use
-  `pnpm clara pair` for a browser.
+- **Wrong code pasted in the browser** — adapter codes are named as such; the
+  web tells the user to install them with the adapter command and to use
+  **Clients → Pair a browser** or `pnpm clara pair` for a browser.
 - **Wrong harness kind** — the adapter rejects a code issued for another type.
 - **Adapter connected** — it appears under **Harness → Connected adapters**
   with its harness label, kind, short harness id, and credential fingerprint.

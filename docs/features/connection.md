@@ -24,9 +24,9 @@ code; there is no shared browser key.
    without showing the connect form.
 3. If no device is stored, the connect screen offers the pairing form: **Scan QR
    code** and a paste field.
-4. Scanning opens the rear camera and connects as soon as the QR printed by
-   `clara-server pair` is recognized; a `clara1_…` code or `#pair=` link can
-   still be pasted. A pairing link opened directly starts on the splash with a
+4. Scanning opens the rear camera and connects as soon as the QR shown in the
+   panel's **Clients → Pair a browser** card or printed by `clara-server pair`
+   is recognized; a `clara1_…` code or `#pair=` link can still be pasted. A pairing link opened directly starts on the splash with a
    connecting message. Clara stores only non-secret metadata in `localStorage`
    and the non-extractable device key in IndexedDB.
 5. Clara opens the WebSocket with the one-time enrollment token, completes the
@@ -53,8 +53,9 @@ code; there is no shared browser key.
    adds harness authentication and is the only process that talks to the
    harness; the hub maps typed `/v1` calls to the active adapter.
 3. `VITE_CLARA_WS_URL` retargets relay-room pairings; a `local` pairing keeps the
-   endpoint from its payload. `clara-server pair --no-relay` produces a `local`
-   pairing even when the hub has a relay configured.
+   endpoint from its payload. The panel's local-only option or
+   `clara-server pair --no-relay` produces a `local` pairing even when the hub
+   has a relay configured.
 4. A stored device is retried on boot before the pair form renders. Existing
    clients from before per-device credentials must re-pair.
 5. The connect screen holds a splash until the boot attempt settles, but a

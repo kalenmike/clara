@@ -76,13 +76,16 @@ its location in **Harness → Add harness**.
 
 ## Pair a remote device
 
+Open **Clients → Pair a browser** in the hub panel and scan the QR or open the
+link on the phone. You can also run:
+
 ```bash
 pnpm clara pair
 ```
 
-Open the printed link on the phone. A relay code uses the public Web URL and the
-`wss://` endpoint. A local code (`--no-relay`) keeps its direct `ws://` address
-and only works on the same machine or network.
+A relay code uses the public Web URL and the `wss://` endpoint. Choose **Local
+connection only** in the panel, or use `--no-relay`, to keep a direct `ws://`
+address that only works on the same machine or network.
 
 ## Failure behavior
 

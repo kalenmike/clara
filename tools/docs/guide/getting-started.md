@@ -28,8 +28,8 @@ If you are hosting Clara yourself, start with
 
 1. Open the Clara URL. The first screen offers **Scan QR code** and a paste
    field.
-2. Ask the host to run the pairing command. They will give you a QR code, a
-   link, or a `clara1_…` code.
+2. Ask the host to create a pairing code in the hub panel, or to run the pairing
+   command. They will give you a QR code, a link, or a `clara1_…` code.
 3. Scan the QR code, open the link, or paste the code.
 4. Clara checks the code, enrolls this browser, and stores a device key in the
    browser. The key never leaves the device.
