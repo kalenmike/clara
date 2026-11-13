@@ -141,6 +141,7 @@ describe('CloudflareClient', () => {
       artifact,
       account: { id: 'account', name: 'Account' },
       scriptName: 'clara-relay',
+      allowExisting: true,
       sleep: async () => {},
       fetchImpl: async () => new Response(JSON.stringify({ ok: true }), { status: 200 }),
     })
@@ -164,9 +165,31 @@ describe('CloudflareClient', () => {
         artifact,
         account: { id: 'account', name: 'Account' },
         scriptName: 'clara-relay',
+        allowExisting: true,
         sleep: async () => {},
       })
     ).rejects.toMatchObject({ code: 'unexpected_migration' })
+  })
+
+  it('refuses to overwrite an existing Worker without a local deployment record', async () => {
+    const client = new CloudflareClient('token', async (input) => {
+      const url = String(input)
+      if (url.endsWith('/workers/subdomain')) return json({ subdomain: 'example' })
+      if (url.includes('/workers/services/')) {
+        return json({ default_environment: { script: { migration_tag: 'v1' } } })
+      }
+      throw new Error(`Unexpected request: ${url}`)
+    })
+
+    await expect(
+      deployRelay({
+        client,
+        artifact,
+        account: { id: 'account', name: 'Account' },
+        scriptName: 'clara-relay',
+        sleep: async () => {},
+      })
+    ).rejects.toMatchObject({ code: 'script_exists' })
   })
 
   it('refuses to overwrite an existing Worker without a relay migration', async () => {

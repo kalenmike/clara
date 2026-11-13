@@ -117,7 +117,7 @@ export function DeployForm({
           </a>
           <p className="text-[10px] text-neutral-500 dark:text-neutral-400">
             The token needs Workers Scripts: Edit. Account Settings: Read lets the panel list your
-            accounts.
+            accounts; you can also enter the account ID manually.
           </p>
           <label className="flex items-center gap-2 text-[11px]">
             <input
@@ -167,7 +167,7 @@ export function DeployForm({
             </select>
           </label>
         ) : null}
-        {accounts && accounts.length <= 1 ? (
+        {!accounts || accounts.length <= 1 ? (
           <label className="text-[11px]">
             Account ID
             <input

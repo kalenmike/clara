@@ -62,7 +62,6 @@ async function handleAccounts(
 
   try {
     const client = new CloudflareClient(token)
-    await client.verifyToken()
     const accounts = await client.listAccounts()
     context.sendJson(200, { accounts })
   } catch (cause) {

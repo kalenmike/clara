@@ -53,10 +53,6 @@ export class CloudflareClient {
     this.fetchImpl = fetchImpl
   }
 
-  async verifyToken(): Promise<void> {
-    await this.request('/user/tokens/verify', { method: 'GET' })
-  }
-
   async listAccounts(): Promise<CloudflareAccount[]> {
     const result = await this.request<unknown>('/accounts?per_page=50', { method: 'GET' })
     if (!Array.isArray(result)) throw new Error('Cloudflare returned an unexpected account list')

@@ -158,6 +158,7 @@ export class CloudflareDeploymentState {
         room: current?.room,
         agentToken: current?.agentToken || undefined,
         clientToken: current?.clientToken || undefined,
+        allowExisting: Boolean(this.deployment),
       })
 
       const relay: RelayConfig = {

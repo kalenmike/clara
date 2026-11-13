@@ -15,6 +15,7 @@ export type DeployRelayOptions = {
   room?: string
   agentToken?: string
   clientToken?: string
+  allowExisting?: boolean
   fetchImpl?: typeof fetch
   sleep?: (ms: number) => Promise<void>
 }
@@ -60,6 +61,12 @@ export async function deployRelay(options: DeployRelayOptions): Promise<DeployRe
   }
 
   const existing = await options.client.getScript(options.account.id, scriptName)
+  if (existing && options.allowExisting !== true) {
+    throw new RelayDeploymentError(
+      'script_exists',
+      `A Worker named ${scriptName} already exists. Choose a different Worker name, or delete it in Cloudflare before deploying.`
+    )
+  }
   if (existing && !existing.migrationTag) {
     throw new RelayDeploymentError(
       'script_exists',
