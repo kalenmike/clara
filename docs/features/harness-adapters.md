@@ -122,8 +122,8 @@ contacts the harness directly.
   reinstall or resume finds the same transcript.
 - **Claude Code session moved** — the adapter records the new directory and
   resumes from Claude's cross-project lookup. Clara keeps its project link.
-- **Harness switch off** — adapters keep their credentials but the panel shows
-  **Off** and the hub does not proxy until the switch is on again.
+- **Harness access off** — adapters keep their credentials but the panel shows
+  **Off** and the hub does not proxy until the legacy harness gate is on again.
 - **Adapter reinstalled** — the same identity reconnects the same sessions and
   metadata without duplicating the connection.
 - **Relay offline** — the adapter reconnects when the relay or hub returns.

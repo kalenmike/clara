@@ -36,10 +36,10 @@ and gates or paces client settings sync.
    command on the harness machine. A new adapter appears under
    **Paired harnesses** as **Paired · Offline**; when its credential session
    connects it also appears under **Connected adapters**, becomes **Online**,
-   and the first adapter becomes **Active**. Turning the Harness switch off
-   keeps the credential but shows **Off** instead of a live state. Use **Test**
-   to probe an adapter. In a container, the adapter connects to
-   `ws://server:8788/ws` on the `clara` network; `127.0.0.1` means the hub host.
+   and the first adapter becomes **Active**. The pending pairing card returns
+   to the add form as soon as the adapter registers. Use **Test** to probe an
+   adapter. In a container, the adapter connects to `ws://server:8788/ws` on
+   the `clara` network; `127.0.0.1` means the hub host.
 4. The panel opens on **Overview** with the Hub and Orchestration cards, a
    health strip for Harness, Local, Relay, Push, and Orchestration, the five most
    recent events, and a storage summary. A **Needs attention** banner names every
@@ -56,14 +56,16 @@ and gates or paces client settings sync.
    reload. Cards open by default inside their view; click a header to collapse
    it. Cards with a feature switch can only be expanded while that feature is
    enabled.
-6. The title bar shows the hub config path, the connection badge, the last
-   update, version, the peek control, **Refresh**, and **Sign out**. The status
-   bar along the bottom summarizes the hub, harness, local, relay, push,
-   orchestration, and client state; each item opens the matching view.
+6. The title bar shows the connection badge, the last update, the peek control,
+   **Refresh**, and **Sign out**. The status bar along the bottom summarizes the
+   hub, harness, local, relay, push, orchestration, and client state; each item
+   opens the matching view. Its far end shows the panel version with the build
+   commit and the panel API version, such as `v0.1.0.c8becb85 · API v10`.
 7. **Harness** mirrors the Clients view. The page header carries the active
-   harness health badge, its version/latency detail, and the Harness switch.
-   **Add harness** sits first and owns the harness type, adapter location, and
-   pairing code. **Connected adapters** follows with live adapter sessions:
+   harness health badge. **Add harness** sits first and owns the harness type,
+   adapter location, and pairing code; the form lays the two choices out in a
+   grid, and the latched pairing card returns to the form after the adapter
+   registers. **Connected adapters** follows with live adapter sessions:
    transport, session id, harness label and kind, short harness id, credential
    fingerprint, timestamps, and the same traffic counters as Clients.
    **Paired harnesses** sits at the bottom with the label, kind, fingerprint,
@@ -72,8 +74,7 @@ and gates or paces client settings sync.
    **Forget**. A paired adapter shows **Active** when selected and one status
    badge: **Online** for a live session, **Paired · Offline** when the
    credential exists but no session is connected, **Not paired** before
-   enrollment, or **Off** while the Harness switch is off. Turning the switch
-   off stops hub proxying but keeps the adapter credential.
+   enrollment, or **Off** while harness access is disabled.
 8. In **Connections**, toggle local transport, relay, or push from the switch at
    the top right of its card. The choice is saved immediately. An enabled switch
    is green while external connections are on and red while they are off; a disabled switch
@@ -101,9 +102,10 @@ and gates or paces client settings sync.
     disabled until connections are back online and show red while they are
     stopped, so the offline state is readable from the switch colors alone.
 14. In **Clients**, use **Pair a browser** to create a one-time link, code, or
-    QR for a browser or installed app. When a relay is configured, **Local
-    connection only** creates a code that stays on the hub's network. The card
-    shows the fingerprint, transport, and expiry, and can cancel the code before
+    QR for a browser or installed app. Choose **Relay** or **Local** before
+    creating the code; the helper text explains where that code works. The
+    ready card shows only the QR until **Show codes** is opened, where the link,
+    code, fingerprint, transport, and expiry live; it can cancel the code before
     it is used. Review the browser client table and paired devices below. Harness
     adapter sessions are not listed here; they live under **Harness**. A
     one-time pairing session appears with a **Pairing** badge and no device until
@@ -208,9 +210,10 @@ and gates or paces client settings sync.
 - **The adapter is paired but offline** — **Paired harnesses** says
   **Paired · Offline**, the probe is not run, and harness-backed `/v1` returns
   `harness_offline`. Start the adapter service; it reconnects automatically.
-- **The harness is turned off** — the page header and paired status say **Off**,
-  the probe is not run, and proxied requests fail with a disabled error. Local
-  and relay clients stay connected.
+- **Harness access is disabled** — the page header and paired status say
+  **Off**, the probe is not run, and proxied requests fail with a disabled
+  error. Local and relay clients stay connected. The legacy harness feature gate
+  has no switch in the Harness header because multiple harnesses are supported.
 - **The adapter credential cannot be opened** — the connection stays listed but
   cannot authenticate. Re-pair the adapter; the rest of the hub keeps running.
 - **The setup token is missing** — the panel explains how to run
@@ -406,11 +409,13 @@ and gates or paces client settings sync.
   `PanelRuntime`; rendered by the `TrafficCard` in
   `apps/hub/panel/src/components/traffic-card.tsx`
 - Panel controls: per-card switches in
-  `apps/hub/panel/src/components/overview-cards.tsx`, the Harness switch in
-  `apps/hub/panel/src/components/views/harness.tsx`, the stop/start action in
+  `apps/hub/panel/src/components/overview-cards.tsx`, the stop/start action in
   `AgentCard`, the monitoring switch in `TrafficCard`, the gate and interval in
   `apps/hub/panel/src/components/client-sync-card.tsx`, and `useFeatureControl` in
   `apps/hub/panel/src/lib/feature-control.ts`
+- Panel version: `apps/hub/panel/vite.config.ts` injects the package version and
+  build commit; `apps/hub/panel/src/lib/build-info.ts` renders them in the status
+  bar. Docker builds receive `CLARA_COMMIT` and `CLARA_DIRTY` from the host CLI.
 - Harness view: `harness-add-card.tsx` (pairing flow),
   `harness-sessions-card.tsx` (live adapters), and
   `harness-connections-card.tsx` (paired harnesses and actions)

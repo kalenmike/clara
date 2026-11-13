@@ -32,8 +32,9 @@ Inside the Clara repository you can use
    background process when systemd is not available. Return to the panel. A
    newly paired adapter shows **Paired · Offline** under **Paired harnesses**;
    when its session connects it becomes **Online**, appears under **Connected
-   adapters**, and the first adapter becomes **Active**. If the Harness switch
-   in the page header is off, the page shows **Off** instead of a live state.
+   adapters**, and the first adapter becomes **Active**. The pairing card returns
+   to the add form as soon as the adapter registers. If harness access is
+   disabled, the page shows **Off** instead of a live state.
 
 Adapter codes are only for the installer. To pair a browser, use
 **Clients → Pair a browser** in the panel, or the separate code or link printed
@@ -98,9 +99,8 @@ connection keeps that state; use **Forget** only when you want to discard it.
   harness check. If the process is running but the link is offline or stale,
   restart it with `pnpm clara adapter stop --claude` and
   `pnpm clara adapter start --claude`.
-- **The Harness switch is off** — the page header and paired status say **Off**.
-  Turn the switch on to proxy again; the adapter credential is kept while it is
-  off.
+- **Harness access is off** — the page header and paired status say **Off**; the
+  adapter credential is kept while access is off.
 - **The adapter was moved** — pair it again; the stable identity keeps the same
   sessions if the session directory moved with it.
 
