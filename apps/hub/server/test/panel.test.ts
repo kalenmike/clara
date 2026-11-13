@@ -191,6 +191,8 @@ type FakeControls = PanelControlService & {
   syncs: Array<{ enabled: boolean; intervalMs: number }>
   orchestration: boolean[]
   configs: PanelConfigUpdate[]
+  devicePairings: unknown[]
+  cancelledDevicePairings: string[]
 }
 
 function fakeControls(initial: Partial<PanelControls> = {}): FakeControls {
@@ -226,6 +228,8 @@ function fakeControls(initial: Partial<PanelControls> = {}): FakeControls {
   const syncs: Array<{ enabled: boolean; intervalMs: number }> = []
   const orchestration: boolean[] = []
   const configs: PanelConfigUpdate[] = []
+  const devicePairings: unknown[] = []
+  const cancelledDevicePairings: string[] = []
   return {
     state,
     config,
@@ -235,6 +239,8 @@ function fakeControls(initial: Partial<PanelControls> = {}): FakeControls {
     syncs,
     orchestration,
     configs,
+    devicePairings,
+    cancelledDevicePairings,
     controls: () => state,
     setFeature: async (feature, enabled) => {
       if (state.stopped) {
@@ -286,6 +292,24 @@ function fakeControls(initial: Partial<PanelControls> = {}): FakeControls {
         }
       }
       return config
+    },
+    createDevicePairing: async (value) => {
+      devicePairings.push(value)
+      return {
+        pairing: {
+          id: 'enroll',
+          code: 'clara1_test',
+          link: 'https://clara.example/#pair=test',
+          wsUrl: 'ws://127.0.0.1:8788/ws',
+          room: 'local',
+          transport: 'local' as const,
+          fingerprint: 'fp',
+          expiresAt: new Date(0).toISOString(),
+        },
+      }
+    },
+    cancelDevicePairing: (id) => {
+      cancelledDevicePairings.push(id)
     },
     createHarnessPairing: async () => ({
       pairing: {
@@ -414,6 +438,29 @@ describe('panel server', () => {
 
     const tested = await post(server, 'harnesses/harness-1/test', {})
     expect(tested.status).toBe(200)
+  })
+
+  it('routes browser pairing through the panel control service', async () => {
+    const controls = fakeControls()
+    const server = await start(undefined, controls)
+
+    const created = await post(server, 'devices/pairings', { localOnly: true })
+    expect(created.status).toBe(200)
+    expect(await created.json()).toMatchObject({
+      pairing: { id: 'enroll', code: 'clara1_test', transport: 'local' },
+    })
+    expect(controls.devicePairings).toEqual([{ localOnly: true }])
+
+    const cancelled = await fetch(`${server.url}panel/api/v1/devices/pairings/enroll`, {
+      method: 'DELETE',
+      headers: {
+        'x-clara-panel': '1',
+        cookie: cookies.get(server) ?? '',
+      },
+    })
+    expect(cancelled.status).toBe(200)
+    expect(await cancelled.json()).toEqual({ ok: true })
+    expect(controls.cancelledDevicePairings).toEqual(['enroll'])
   })
 
   it('serves the read-only status snapshot', async () => {

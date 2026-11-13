@@ -401,6 +401,14 @@ export class DeviceStore implements DeviceRegistry {
       .run(Date.now()).changes
   }
 
+  /** Invalidate a pending enrollment without touching an already-used token. */
+  cancelPairingToken(id: string): boolean {
+    return (
+      this.db.prepare('DELETE FROM pairing_tokens WHERE id = ? AND used_at IS NULL').run(id)
+        .changes > 0
+    )
+  }
+
   private consumeToken(id: string, deviceId: string): void {
     this.db
       .prepare(

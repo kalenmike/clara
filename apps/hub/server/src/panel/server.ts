@@ -570,6 +570,66 @@ async function handleDevices(
     return
   }
 
+  if (pathname === `${DEVICES_PREFIX}/pairings`) {
+    if (method !== 'POST') {
+      response.setHeader('allow', 'POST')
+      sendJson(response, method, 405, {
+        error: { code: 'method_not_allowed', message: 'Use POST to create a browser pairing code' },
+      })
+      return
+    }
+    if (!requireMutationHeader(request, response, method, true)) return
+    const body = await readJsonBody(request)
+    if (!body.ok) return sendBodyFailure(response, method, body)
+    if (!isRecord(body.value)) {
+      return sendJson(response, method, 400, {
+        error: { code: 'invalid_body', message: 'The request body must be a JSON object' },
+      })
+    }
+    const unknown = unknownFields(body.value, ['localOnly'])
+    if (unknown) return invalidField(response, method, unknown)
+    if ('localOnly' in body.value && typeof body.value.localOnly !== 'boolean') {
+      return invalidField(response, method, 'localOnly')
+    }
+    try {
+      sendJson(response, method, 200, await controls.createDevicePairing(body.value))
+    } catch (cause) {
+      const failure = readControlFailure(cause)
+      if (failure) {
+        sendJson(response, method, failure.status, {
+          error: { code: failure.code, message: failure.message },
+        })
+        return
+      }
+      context.log?.('browser pairing failed', cause)
+      sendJson(response, method, 500, {
+        error: { code: 'pairing_failed', message: 'Could not create the browser pairing code' },
+      })
+    }
+    return
+  }
+
+  if (pathname.startsWith(`${DEVICES_PREFIX}/pairings/`)) {
+    const pairingId = decodeSegment(pathname.slice(`${DEVICES_PREFIX}/pairings/`.length))
+    if (!pairingId) {
+      sendJson(response, method, 404, {
+        error: { code: 'not_found', message: 'Unknown pairing code' },
+      })
+      return
+    }
+    if (method !== 'DELETE') {
+      response.setHeader('allow', 'DELETE')
+      sendJson(response, method, 405, {
+        error: { code: 'method_not_allowed', message: 'Use DELETE to cancel a pairing code' },
+      })
+      return
+    }
+    if (!requireMutationHeader(request, response, method)) return
+    controls.cancelDevicePairing(pairingId)
+    sendJson(response, method, 200, { ok: true })
+    return
+  }
+
   const rest = pathname.startsWith(`${DEVICES_PREFIX}/`)
     ? pathname.slice(DEVICES_PREFIX.length + 1)
     : ''

@@ -35,7 +35,9 @@ an SSH tunnel.
 
 A **relay** pairing goes through Cloudflare. Use it when the browser is on a
 phone or another network. A page loaded over HTTPS cannot open a `ws://` socket,
-so remote devices need a relay pairing.
+so remote devices need a relay pairing. When a relay is configured, the host can
+choose **Local connection only** in the panel's pairing card, or run
+`pnpm clara pair --no-relay`, to force a local code.
 
 If a code does not connect, ask the host whether the hub is running and whether
 the code was local or relay. The error on the connect screen names the failing
@@ -44,8 +46,9 @@ step.
 ## Fingerprints
 
 Each device has a fingerprint derived from its key. The host can compare the
-fingerprint shown in the hub panel with the one printed by the pairing command.
-If they differ, do not trust the pairing; ask for a fresh code.
+fingerprint shown in the hub panel with the one shown in the panel's pairing card
+or printed by the pairing command. If they differ, do not trust the pairing; ask
+for a fresh code.
 
 ## Manage this device
 

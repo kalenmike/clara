@@ -1,7 +1,10 @@
 import {
   HARNESS_PAIRING_CODE_PREFIX,
+  PAIRING_CODE_PREFIX,
   PROTOCOL_VERSION,
+  buildPairingUrl,
   encodeHarnessPairingCode,
+  encodePairingCode,
   type HarnessPairingPayload,
 } from '@clara/shared-types'
 import type {
@@ -9,6 +12,7 @@ import type {
   PanelConfigInfo,
   PanelConfigUpdate,
   PanelControls,
+  PanelDevicePairingMutationResponse,
   PanelFeatureControl,
   PanelHarnessMutationResponse,
   PanelHarnessPairingMutationResponse,
@@ -32,7 +36,7 @@ import { HarnessValidationError } from '../harness/types.ts'
 import { broadcast, LocalTransport } from '../local-server.ts'
 import { PanelControlError } from '../panel/controls.ts'
 import { harnessList, harnessState, toPanelHarnessTest } from '../panel/harness.ts'
-import { relayWsUrl } from '../pairing.ts'
+import { createPairingPayload, pairingLinkBase, relayWsUrl } from '../pairing.ts'
 import { panelConfigInfo } from '../panel/runtime.ts'
 import { PushMonitor } from '../push/monitor.ts'
 import type { PushService } from '../push/service.ts'
@@ -507,6 +511,43 @@ export class RuntimeController {
     }
 
     return panelConfigInfo(config)
+  }
+
+  async createDevicePairing(value: unknown): Promise<PanelDevicePairingMutationResponse> {
+    if (!value || typeof value !== 'object' || Array.isArray(value)) {
+      throw new PanelControlError(400, 'invalid_body', 'Use a JSON object')
+    }
+    const record = value as Record<string, unknown>
+    if ('localOnly' in record && typeof record.localOnly !== 'boolean') {
+      throw new PanelControlError(400, 'invalid_local_only', 'localOnly must be a boolean')
+    }
+    const localOnly = record.localOnly === true
+    const { config } = this.options
+    this.options.devices.pruneExpiredTokens()
+    const payload = await createPairingPayload(config, this.options.devices, {
+      noRelay: localOnly,
+    })
+    const link = buildPairingUrl(
+      pairingLinkBase(config.pairingBaseUrl, config.local.host, { noRelay: localOnly }),
+      payload
+    )
+    const code = `${PAIRING_CODE_PREFIX}${encodePairingCode(payload)}`
+    return {
+      pairing: {
+        id: payload.enrollId,
+        code,
+        link,
+        wsUrl: payload.wsUrl,
+        room: payload.room,
+        transport: config.relay && !localOnly ? 'relay' : 'local',
+        fingerprint: payload.fingerprint,
+        expiresAt: new Date(payload.expiresAt).toISOString(),
+      },
+    }
+  }
+
+  cancelDevicePairing(id: string): void {
+    this.options.devices.cancelPairingToken(id)
   }
 
   async createHarnessPairing(value: unknown): Promise<PanelHarnessPairingMutationResponse> {
