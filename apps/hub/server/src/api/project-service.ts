@@ -3,7 +3,7 @@ import type { HarnessConnection } from '../harness/types.ts'
 import type { WorkspaceState } from '../projects/store.ts'
 import { ApiRequestError, type ApiDependencies } from './context.ts'
 import { forwardDtoTo, parseClaraLocation, parseHarnessProjects } from './dto.ts'
-import { forwardResultTo, query } from './harness.ts'
+import { forwardResultTo, locationQuery, query } from './harness.ts'
 
 type Action = 'archive' | 'unarchive' | 'delete'
 
@@ -65,7 +65,7 @@ export async function syncWorkspace(
       {
         method: 'GET',
         path: '/locations',
-        search: query({ location: { directory: workspace.directory } }),
+        search: locationQuery(workspace.directory),
       },
       signal,
       parseClaraLocation
@@ -96,29 +96,22 @@ export async function syncWorkspace(
 
   const snapshotProject = matches.get(location.project.id) ?? [...matches.values()][0]
   const store = deps.harness.projects
-  for (const project of matches.values()) {
-    store.linkHarnessProject({
-      harnessID: workspace.harnessID,
-      harnessProjectID: project.id,
-      projectID: workspace.projectID,
-      workspaceID: workspace.id,
-    })
-  }
-  store.updateWorkspace(workspace.id, {
+  const result = store.reconcileWorkspaceLinks({
+    workspaceID: workspace.id,
+    harnessID: workspace.harnessID,
+    projectID: workspace.projectID,
+    harnessProjectIDs: [...matches.keys()],
     canonical,
-    ...(snapshotProject
-      ? {
-          snapshot: {
-            id: snapshotProject.id,
-            canonical: snapshotProject.canonical,
-            ...(snapshotProject.vcs ? { vcs: snapshotProject.vcs } : {}),
-            ...(snapshotProject.icon ? { icon: snapshotProject.icon } : {}),
-            ...(snapshotProject.sandboxes ? { sandboxes: snapshotProject.sandboxes } : {}),
-          },
-        }
-      : {}),
+    ...(snapshotProject ? { snapshot: harnessSnapshot(snapshotProject) } : {}),
   })
-  return { linked: matches.size }
+  if (result.conflicts.length > 0) {
+    return {
+      linked: 0,
+      code: 'workspace_conflict',
+      message: 'That directory is already a workspace in another Clara project',
+    }
+  }
+  return { linked: result.linked }
 }
 
 export async function syncProject(
@@ -294,6 +287,16 @@ export async function availableProjects(
       return !store.findWorkspaceByCanonical(harnessID, project.canonical)
     })
     .map((project) => ({ connection, project }))
+}
+
+function harnessSnapshot(project: ClaraHarnessProject) {
+  return {
+    id: project.id,
+    canonical: project.canonical,
+    ...(project.vcs ? { vcs: project.vcs } : {}),
+    ...(project.icon ? { icon: project.icon } : {}),
+    ...(project.sandboxes ? { sandboxes: project.sandboxes } : {}),
+  }
 }
 
 function errorMessage(cause: unknown): string {

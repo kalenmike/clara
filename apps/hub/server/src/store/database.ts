@@ -6,7 +6,7 @@ import Database from 'better-sqlite3'
 
 export type ClaraDatabase = Database.Database
 
-export const SCHEMA_VERSION = 11
+export const SCHEMA_VERSION = 12
 
 const BUSY_TIMEOUT_MS = 5_000
 const DATABASE_MODE = 0o600
@@ -507,6 +507,43 @@ const MIGRATIONS: Migration[] = [
             LIMIT 1
          )
        WHERE project_id <> 'unknown'
+    `)
+  },
+  /**
+   * A hub release resolved workspace locations with OpenCode's nested query
+   * shape, so every workspace fell back to the harness default directory
+   * (usually `/home/opencode`). Those canonicals and the links derived from
+   * them are wrong and can point sessions at another Clara project. Drop only
+   * the resolvable-but-impossible values so the next sync can rebuild them
+   * from the workspace directory. A canonical outside the workspace directory
+   * is legitimate (a repository root); one that does not contain the directory
+   * at all is the corrupted case.
+   */
+  (db) => {
+    const corrupted = `
+      canonical IS NOT NULL
+      AND rtrim(canonical, '/') <> ''
+      AND canonical <> directory
+      AND NOT (
+        rtrim(canonical, '/') = ''
+        OR substr(directory, 1, length(rtrim(canonical, '/')) + 1) = rtrim(canonical, '/') || '/'
+      )
+    `
+    db.exec(`
+      DELETE FROM harness_project_links
+       WHERE workspace_id IN (
+         SELECT id FROM clara_project_workspaces WHERE ${corrupted}
+       );
+
+      UPDATE clara_sessions
+         SET project_id = 'unknown', workspace_id = NULL
+       WHERE workspace_id IN (
+         SELECT id FROM clara_project_workspaces WHERE ${corrupted}
+       );
+
+      UPDATE clara_project_workspaces
+         SET canonical = NULL, snapshot_json = NULL, last_seen_at = NULL
+       WHERE ${corrupted};
     `)
   },
 ]

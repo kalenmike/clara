@@ -188,6 +188,18 @@ export function query(params: Record<string, unknown>): string {
   return text ? `?${text}` : ''
 }
 
+/**
+ * Location-scoped harness requests use a flat `directory` parameter. The
+ * adapter is responsible for translating it into its harness's wire shape, so
+ * callers must not leak OpenCode's nested `location[directory]` format here.
+ */
+export function locationQuery(
+  directory: string | undefined,
+  params: Record<string, unknown> = {}
+): string {
+  return query({ directory, ...params })
+}
+
 function appendQuery(search: URLSearchParams, key: string, value: unknown): void {
   if (value === undefined || value === null) return
   if (Array.isArray(value)) {

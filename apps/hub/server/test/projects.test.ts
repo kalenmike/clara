@@ -12,7 +12,7 @@ import { closeDatabase, openDatabase, type ClaraDatabase } from '../src/store/da
 let dir: string
 let db: ClaraDatabase
 let projects: ProjectStore
-let calls: Array<{ harnessID: string; path: string }>
+let calls: Array<{ harnessID: string; path: string; search?: string }>
 
 const connection = {
   id: 'h1',
@@ -51,9 +51,9 @@ function fakeHarness(): HarnessManager {
       harnessID: string,
       input: { path: string; search?: string; method?: string }
     ) => {
-      calls.push({ harnessID, path: input.path })
+      calls.push({ harnessID, path: input.path, search: input.search })
       if (input.path === '/locations') {
-        const directory = new URLSearchParams(input.search ?? '').get('location[directory]') ?? ''
+        const directory = new URLSearchParams(input.search ?? '').get('directory') ?? ''
         return json({
           directory,
           project: { id: 'hp1', directory, canonical: directory },
@@ -98,12 +98,15 @@ function request(path: string, init: RequestInit = {}): Request {
   })
 }
 
-async function createProject(api: ReturnType<typeof createTestApi>): Promise<ClaraProject> {
+async function createProject(
+  api: ReturnType<typeof createTestApi>,
+  name = 'Demo'
+): Promise<ClaraProject> {
   const response = await api.fetch(
     request('/v1/projects', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ name: 'Demo' }),
+      body: JSON.stringify({ name }),
     })
   )
   expect(response.status).toBe(200)
@@ -175,6 +178,39 @@ describe('project store', () => {
       .get() as { project_id: string }
     expect(row.project_id).toBe('unknown')
   })
+
+  it('never reassigns a harness record to another Clara project', () => {
+    const first = projects.create({ name: 'First' })
+    const second = projects.create({ name: 'Second' })
+    const firstWorkspace = projects.addWorkspace(first.id, {
+      harnessID: 'harness-a',
+      directory: '/workspace/first',
+    })
+    const secondWorkspace = projects.addWorkspace(second.id, {
+      harnessID: 'harness-a',
+      directory: '/workspace/second',
+    })
+
+    expect(
+      projects.claimHarnessProject({
+        harnessID: 'harness-a',
+        harnessProjectID: 'hp1',
+        projectID: first.id,
+        workspaceID: firstWorkspace.id,
+      })
+    ).toBe(true)
+    expect(
+      projects.claimHarnessProject({
+        harnessID: 'harness-a',
+        harnessProjectID: 'hp1',
+        projectID: second.id,
+        workspaceID: secondWorkspace.id,
+      })
+    ).toBe(false)
+
+    expect(projects.projectForHarnessProject('harness-a', 'hp1')?.id).toBe(first.id)
+    expect(projects.workspaceForHarnessProject('harness-a', 'hp1')?.id).toBe(firstWorkspace.id)
+  })
 })
 
 describe('project routes', () => {
@@ -192,6 +228,10 @@ describe('project routes', () => {
   it('adds a workspace, links every matching harness record, and archives both sides', async () => {
     const api = createTestApi()
     const project = await addWorkspace(api, await createProject(api))
+    const locationCall = calls.find((call) => call.path === '/locations')
+    const locationSearch = new URLSearchParams(locationCall?.search ?? '')
+    expect(locationSearch.get('directory')).toBe('/workspace/demo')
+    expect(locationSearch.get('location[directory]')).toBeNull()
     expect(project.workspaces).toHaveLength(1)
     expect(project.workspaces[0]).toMatchObject({
       harnessLabel: 'Test harness',
@@ -238,5 +278,45 @@ describe('project routes', () => {
     expect(calls).toEqual([{ harnessID: 'harness-a', path: '/projects/hp1' }])
     const missing = await api.fetch(request(`/v1/projects/${project.id}`))
     expect(missing.status).toBe(404)
+  })
+
+  it('does not move a linked harness record to another Clara project', async () => {
+    const api = createTestApi()
+    const first = await addWorkspace(api, await createProject(api, 'First'))
+    const second = await createProject(api, 'Second')
+
+    const response = await api.fetch(
+      request(`/v1/projects/${second.id}/workspaces`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ harnessID: 'harness-a', directory: '/workspace/demo/sub' }),
+      })
+    )
+
+    expect(response.status).toBe(409)
+    const body = (await response.json()) as { error: { code: string } }
+    expect(body.error.code).toBe('workspace_conflict')
+    expect(projects.get(second.id)?.workspaces).toEqual([])
+    expect(projects.projectForHarnessProject('harness-a', 'hp1')?.id).toBe(first.id)
+  })
+
+  it('drops stale linked records when a workspace is resolved again', async () => {
+    const api = createTestApi()
+    const project = await addWorkspace(api, await createProject(api))
+    const workspace = project.workspaces[0]
+    expect(workspace).toBeDefined()
+    projects.linkHarnessProject({
+      harnessID: 'harness-a',
+      harnessProjectID: 'hp-stale',
+      projectID: project.id,
+      workspaceID: workspace!.id,
+    })
+
+    const response = await api.fetch(request(`/v1/projects/${project.id}/sync`, { method: 'POST' }))
+
+    expect(response.status).toBe(200)
+    const synced = (await response.json()) as ClaraProject
+    expect(projects.linkForHarnessProject('harness-a', 'hp-stale')).toBeUndefined()
+    expect(synced.workspaces[0]?.projectIDs).toEqual(['hp1'])
   })
 })

@@ -76,6 +76,21 @@ function fakeHarness(options: { projects?: ClaraHarnessProject[] } = {}): FakeHa
       if (!current.includes(input.harnessProjectID)) current.push(input.harnessProjectID)
       links.set(input.projectID, current)
     },
+    reconcileWorkspaceLinks: (input: {
+      projectID: string
+      harnessProjectIDs: string[]
+    }): { linked: number; conflicts: string[] } => {
+      const conflicts = input.harnessProjectIDs.filter((harnessProjectID) => {
+        for (const [projectID, ids] of links) {
+          if (projectID !== input.projectID && ids.includes(harnessProjectID)) return true
+        }
+        return false
+      })
+      if (conflicts.length > 0) return { linked: 0, conflicts }
+      const current = links.get(input.projectID) ?? []
+      links.set(input.projectID, [...new Set([...current, ...input.harnessProjectIDs])])
+      return { linked: input.harnessProjectIDs.length, conflicts: [] }
+    },
     updateWorkspace: () => workspace,
     findWorkspaceByCanonical: (harnessID: string, canonical: string) =>
       harnessID === 'harness-a' && canonical === '/workspace/demo' ? workspace : undefined,
@@ -112,9 +127,10 @@ function fakeHarness(options: { projects?: ClaraHarnessProject[] } = {}): FakeHa
       const search = new URLSearchParams(action.search ?? '')
       requests.push({ path: action.path, search })
       if (action.path === '/locations') {
+        const directory = search.get('directory') ?? ''
         return json({
-          directory: '/workspace/demo',
-          project: { id: 'project-a', directory: '/workspace/demo', canonical: '/workspace/demo' },
+          directory,
+          project: { id: 'project-a', directory, canonical: directory },
         })
       }
       if (action.path === '/projects') return json(projects)
@@ -241,6 +257,7 @@ describe('project session mapping', () => {
     const body = (await response.json()) as { data: ClaraSession[] }
     expect(body.data.map((item) => item.id)).toEqual(['s1'])
     expect(fake.requests[0]?.path).toBe('/locations')
+    expect(fake.requests[0]?.search.get('directory')).toBe('/workspace/demo')
     expect(fake.requests.some((item) => item.search.get('project') === 'p_demo')).toBe(false)
   })
 

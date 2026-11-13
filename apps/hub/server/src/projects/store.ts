@@ -84,6 +84,21 @@ export type AddWorkspaceInput = {
   snapshot?: HarnessProjectSnapshot
 }
 
+export type ReconcileWorkspaceLinksInput = {
+  workspaceID: string
+  harnessID: string
+  projectID: string
+  harnessProjectIDs: string[]
+  canonical?: string
+  snapshot?: HarnessProjectSnapshot
+}
+
+export type ReconcileWorkspaceLinksResult = {
+  linked: number
+  /** Harness records already owned by a different Clara project. */
+  conflicts: string[]
+}
+
 const PROJECT_COLUMNS = `
   id, name, icon_json, commands_json, startup_script, archived_at,
   last_active_at, default_workspace_id, created_at, updated_at
@@ -396,6 +411,74 @@ export class ProjectStore {
     return this.workspace(workspaceID)
   }
 
+  /** Drop links owned by this workspace that the harness no longer reports. */
+  removeWorkspaceLinksExcept(workspaceID: string, keepHarnessProjectIDs: string[]): number {
+    if (keepHarnessProjectIDs.length === 0) {
+      return this.db
+        .prepare('DELETE FROM harness_project_links WHERE workspace_id = ?')
+        .run(workspaceID).changes
+    }
+    const placeholders = keepHarnessProjectIDs.map(() => '?').join(', ')
+    return this.db
+      .prepare(
+        `DELETE FROM harness_project_links
+          WHERE workspace_id = ?
+            AND harness_project_id NOT IN (${placeholders})`
+      )
+      .run(workspaceID, ...keepHarnessProjectIDs).changes
+  }
+
+  /**
+   * Apply one resolved workspace atomically: remove stale links, attach every
+   * matching harness record, and store the harness snapshot. A record already
+   * owned by another Clara project is a conflict and is never reassigned, so a
+   * sync cannot move sessions between projects.
+   */
+  reconcileWorkspaceLinks(input: ReconcileWorkspaceLinksInput): ReconcileWorkspaceLinksResult {
+    const conflicts = input.harnessProjectIDs.filter((harnessProjectID) => {
+      const existing = this.linkForHarnessProject(input.harnessID, harnessProjectID)
+      return existing !== undefined && existing.project_id !== input.projectID
+    })
+    if (conflicts.length > 0) return { linked: 0, conflicts }
+
+    const write = this.db.transaction(() => {
+      this.removeWorkspaceLinksExcept(input.workspaceID, input.harnessProjectIDs)
+      for (const harnessProjectID of input.harnessProjectIDs) {
+        this.linkHarnessProject({
+          harnessID: input.harnessID,
+          harnessProjectID,
+          projectID: input.projectID,
+          workspaceID: input.workspaceID,
+        })
+      }
+      this.updateWorkspace(input.workspaceID, {
+        ...(input.canonical === undefined ? {} : { canonical: input.canonical }),
+        ...(input.snapshot === undefined ? {} : { snapshot: input.snapshot }),
+      })
+    })
+    write()
+    return { linked: input.harnessProjectIDs.length, conflicts: [] }
+  }
+
+  /** Attach a harness record unless another Clara project already owns it. */
+  claimHarnessProject(input: {
+    harnessID: string
+    harnessProjectID: string
+    projectID: string
+    workspaceID: string
+    lastSeenAt?: number
+  }): boolean {
+    const existing = this.linkForHarnessProject(input.harnessID, input.harnessProjectID)
+    if (existing) return existing.project_id === input.projectID
+    this.linkHarnessProject(input)
+    return true
+  }
+
+  /**
+   * Low-level upsert that can reassign a harness record. Prefer
+   * claimHarnessProject or reconcileWorkspaceLinks so sessions never move
+   * between Clara projects by accident.
+   */
   linkHarnessProject(input: {
     harnessID: string
     harnessProjectID: string
@@ -503,13 +586,13 @@ export class ProjectStore {
       .get(harnessID, canonical, canonical) as WorkspaceRow | undefined
     if (!row) return undefined
     const workspace = toWorkspaceState(row)
-    this.linkHarnessProject({
+    const claimed = this.claimHarnessProject({
       harnessID,
       harnessProjectID,
       projectID: workspace.projectID,
       workspaceID: workspace.id,
     })
-    return workspace
+    return claimed ? workspace : undefined
   }
 
   touchActivity(projectID: string, at: number): void {

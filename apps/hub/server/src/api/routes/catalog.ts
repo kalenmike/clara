@@ -19,7 +19,7 @@ import {
   parseClaraReferenceList,
   parseClaraSkillList,
 } from '../dto.ts'
-import { query } from '../harness.ts'
+import { locationQuery } from '../harness.ts'
 import { jsonResponse, responses } from '../schemas.ts'
 
 export function registerCatalogRoutes(
@@ -118,7 +118,7 @@ export function registerCatalogRoutes(
         {
           method: 'GET',
           path: '/skills',
-          search: query({ location: { directory } }),
+          search: locationQuery(directory),
         },
         c.req.raw.signal,
         parseClaraSkillList
@@ -143,7 +143,7 @@ export function registerCatalogRoutes(
         {
           method: 'GET',
           path: '/references',
-          search: query({ location: { directory } }),
+          search: locationQuery(directory),
         },
         c.req.raw.signal,
         parseClaraReferenceList

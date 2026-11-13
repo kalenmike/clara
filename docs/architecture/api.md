@@ -47,6 +47,14 @@ When the harness is online the hub resolves the directory through `locations`,
 links every matching project record, and stores a snapshot for display. When it
 is offline the workspace stays unresolved until `POST .../sync`.
 
+Location-scoped adapter calls use a flat `directory` query parameter. The
+adapter translates it into its harness's own wire shape; the hub must not send
+OpenCode's nested `location[directory]` form. A harness project record has one
+Clara owner: if a workspace resolves to a record already linked to another Clara
+project, the hub reports `workspace_conflict` and leaves the existing links and
+sessions alone. A successful sync removes links that the harness no longer
+reports for that workspace.
+
 `GET /v1/projects` reads Clara only; the harness project list never creates,
 hides, or archives a Clara project. Harness archive state is therefore invisible
 to Clara visibility. `POST .../archive` and `.../unarchive` set the Clara flag

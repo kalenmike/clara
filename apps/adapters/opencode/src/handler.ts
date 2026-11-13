@@ -677,7 +677,10 @@ async function forEachConcurrent<T>(
 }
 
 function locationInput(c: Context): LocationInput | undefined {
-  const directory = c.req.query('directory')
+  // The harness protocol uses a flat `directory`. Accept OpenCode's nested
+  // shape as well so a hub that predates the contract fix keeps resolving the
+  // requested workspace instead of silently falling back to its default.
+  const directory = c.req.query('directory') ?? c.req.query('location[directory]')
   return directory ? { location: { directory } } : undefined
 }
 

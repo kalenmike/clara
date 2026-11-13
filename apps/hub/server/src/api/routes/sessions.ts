@@ -33,7 +33,7 @@ import {
   parseClaraSessionMessagesResponse,
   parseClaraSessions,
 } from '../dto.ts'
-import { forwardResult, query } from '../harness.ts'
+import { forwardResult, locationQuery, query } from '../harness.ts'
 import { resolveHarnessProjectIds, unmappedProjectError } from '../project-links.ts'
 import { decodeMergedSessionCursor, mergeSessionPages, type SessionPage } from '../session-pages.ts'
 import { emptyResponse, jsonResponse, responses, statusResponses } from '../schemas.ts'
@@ -827,7 +827,7 @@ export function registerSessionRoutes(
         {
           method: 'GET',
           path: '/permissions',
-          search: query({ location: { directory } }),
+          search: locationQuery(directory),
         },
         c.req.raw.signal,
         parseClaraPermissionRequests

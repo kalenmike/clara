@@ -140,4 +140,60 @@ describe('project workspace migration', () => {
       closeDatabase(db)
     }
   })
+
+  it('clears a workspace canonical that does not contain its directory', () => {
+    const db = openDatabase(path)
+    db.prepare(
+      `INSERT INTO harness_identities (harness_id, kind, first_seen_at, last_seen_at)
+       VALUES ('harness-a', 'opencode', 1, 1)`
+    ).run()
+    db.prepare(
+      `INSERT INTO clara_projects (id, name, created_at, updated_at)
+       VALUES ('p_bad', 'Bad', 10, 20)`
+    ).run()
+    db.prepare(
+      `INSERT INTO clara_project_workspaces
+         (id, project_id, harness_id, directory, canonical, created_at, updated_at, last_seen_at)
+       VALUES ('w_bad', 'p_bad', 'harness-a', '/workspace/clara', '/home/opencode', 10, 20, 30)`
+    ).run()
+    db.prepare(
+      `INSERT INTO harness_project_links
+         (harness_id, harness_project_id, project_id, workspace_id, last_seen_at)
+       VALUES ('harness-a', 'hp_home', 'p_bad', 'w_bad', 30)`
+    ).run()
+    db.prepare(
+      `INSERT INTO clara_sessions
+         (harness_id, session_id, project_id, workspace_id, first_seen_at, last_seen_at)
+       VALUES ('harness-a', 's1', 'p_bad', 'w_bad', 40, 50)`
+    ).run()
+    db.pragma('user_version = 11')
+    closeDatabase(db)
+
+    const repaired = openDatabase(path)
+    try {
+      expect(repaired.pragma('user_version', { simple: true })).toBe(SCHEMA_VERSION)
+      const workspace = repaired
+        .prepare(
+          'SELECT canonical, snapshot_json, last_seen_at FROM clara_project_workspaces WHERE id = ?'
+        )
+        .get('w_bad') as {
+        canonical: string | null
+        snapshot_json: string | null
+        last_seen_at: number | null
+      }
+      expect(workspace).toEqual({ canonical: null, snapshot_json: null, last_seen_at: null })
+
+      const link = repaired
+        .prepare("SELECT 1 FROM harness_project_links WHERE harness_project_id = 'hp_home'")
+        .get()
+      expect(link).toBeUndefined()
+
+      const session = repaired
+        .prepare("SELECT project_id, workspace_id FROM clara_sessions WHERE session_id = 's1'")
+        .get() as { project_id: string; workspace_id: string | null }
+      expect(session).toEqual({ project_id: 'unknown', workspace_id: null })
+    } finally {
+      closeDatabase(repaired)
+    }
+  })
 })

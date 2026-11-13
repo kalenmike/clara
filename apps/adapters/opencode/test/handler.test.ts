@@ -94,6 +94,40 @@ describe('adapter handler', () => {
     expect(requests[0]?.url.searchParams.get('archived')).toBe('true')
   })
 
+  it('maps a flat location query into the SDK location parameter', async () => {
+    const location = {
+      directory: '/repo',
+      project: { id: 'p1', directory: '/repo', canonical: '/repo' },
+    }
+    const { fetch, requests } = createFakeFetch(() => jsonResponse(location))
+    const app = createApp(fetch)
+
+    const response = await app.request('/harness/v1/locations?directory=%2Frepo')
+
+    expect(response.status).toBe(200)
+    expect(await response.json()).toEqual(location)
+    expect(requests[0]?.url.pathname).toBe('/api/location')
+    expect(requests[0]?.url.searchParams.get('location[directory]')).toBe('/repo')
+  })
+
+  it('accepts the legacy nested location query from older hubs', async () => {
+    const location = {
+      directory: '/workspace/clara',
+      project: { id: 'p1', directory: '/workspace/clara', canonical: '/workspace/clara' },
+    }
+    const { fetch, requests } = createFakeFetch(() => jsonResponse(location))
+    const app = createApp(fetch)
+
+    const response = await app.request(
+      '/harness/v1/locations?location%5Bdirectory%5D=%2Fworkspace%2Fclara'
+    )
+
+    expect(response.status).toBe(200)
+    expect(await response.json()).toEqual(location)
+    expect(requests[0]?.url.pathname).toBe('/api/location')
+    expect(requests[0]?.url.searchParams.get('location[directory]')).toBe('/workspace/clara')
+  })
+
   it('maps a location-scoped file find request', async () => {
     const files = {
       location: { directory: '/repo' },

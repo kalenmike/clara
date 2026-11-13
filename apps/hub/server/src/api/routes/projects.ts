@@ -29,7 +29,7 @@ import {
   parseClaraVcsStatus,
   parseClaraWorktrees,
 } from '../dto.ts'
-import { forwardResult, query } from '../harness.ts'
+import { forwardResult, locationQuery, query } from '../harness.ts'
 import {
   availableProjects,
   signalProjectArchive,
@@ -315,12 +315,24 @@ export function registerProjectRoutes(
           { projectID: existing.projectID }
         )
       }
+      const directory = body.directory.trim()
+      const alreadyInProject = projects
+        .workspaces(projectID)
+        .some((item) => item.harnessID === body.harnessID && item.directory === directory)
       const workspace = projects.addWorkspace(projectID, {
         harnessID: body.harnessID,
         directory: body.directory,
         ...(body.label !== undefined ? { label: body.label } : {}),
       })
-      await syncWorkspace(deps, workspace, c.req.raw.signal)
+      const result = await syncWorkspace(deps, workspace, c.req.raw.signal)
+      if (result.code === 'workspace_conflict') {
+        if (!alreadyInProject) projects.removeWorkspace(workspace.id)
+        throw new ApiRequestError(
+          409,
+          result.code,
+          result.message ?? 'That directory is already a workspace in another Clara project'
+        )
+      }
       return c.json(present(projectID))
     }
   )
@@ -377,7 +389,7 @@ export function registerProjectRoutes(
         {
           method: 'GET',
           path: '/locations',
-          search: query({ location: { directory } }),
+          search: locationQuery(directory),
         },
         c.req.raw.signal,
         parseClaraLocation
@@ -410,7 +422,7 @@ export function registerProjectRoutes(
         {
           method: 'GET',
           path: '/files/find',
-          search: query({ location: { directory }, query: text, type, limit }),
+          search: locationQuery(directory, { query: text, type, limit }),
         },
         c.req.raw.signal,
         parseClaraFiles
@@ -437,7 +449,7 @@ export function registerProjectRoutes(
         {
           method: 'GET',
           path: '/vcs',
-          search: query({ location: { directory } }),
+          search: locationQuery(directory),
         },
         c.req.raw.signal,
         parseClaraVcs
@@ -462,7 +474,7 @@ export function registerProjectRoutes(
         {
           method: 'GET',
           path: '/vcs/base',
-          search: query({ location: { directory } }),
+          search: locationQuery(directory),
         },
         c.req.raw.signal,
         parseClaraVcsBase
@@ -489,7 +501,7 @@ export function registerProjectRoutes(
         {
           method: 'GET',
           path: '/vcs/status',
-          search: query({ location: { directory } }),
+          search: locationQuery(directory),
         },
         c.req.raw.signal,
         parseClaraVcsStatus
@@ -522,7 +534,7 @@ export function registerProjectRoutes(
         {
           method: 'POST',
           path: '/vcs/diff',
-          search: query({ location: { directory }, mode, base, context }),
+          search: locationQuery(directory, { mode, base, context }),
         },
         c.req.raw.signal,
         parseClaraVcsDiff
