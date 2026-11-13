@@ -11,6 +11,7 @@ export class FakeClaudeGateway implements ClaudeGateway {
   sessions: ClaudeSessionInfo[] = []
   messages: ClaudeSessionMessage[] = []
   turns: ClaudeTurnRequest[] = []
+  projectsDirectory?: string
   turn: ClaudeTurn = {
     push: () => {},
     interrupt: async () => {},
@@ -22,7 +23,11 @@ export class FakeClaudeGateway implements ClaudeGateway {
   }
 
   async auth() {
-    return { loggedIn: true, authMethod: 'oauth' }
+    return {
+      loggedIn: true,
+      authMethod: 'oauth',
+      ...(this.projectsDirectory ? { projectsDirectory: this.projectsDirectory } : {}),
+    }
   }
 
   installation() {

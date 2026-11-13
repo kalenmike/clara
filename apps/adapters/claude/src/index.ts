@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import { join } from 'node:path'
 import { runAdapterCli, type AdapterDefinition } from '@clara/adapter-runtime'
 import { CLAUDE_CAPABILITIES } from './capabilities.ts'
 import { claudePaths, type ClaudeConfig } from './config.ts'
@@ -6,6 +7,8 @@ import { EventBus } from './events.ts'
 import { createAdapterApp } from './handler.ts'
 import { installClaudeCommand, resolveClaudeConfig, uninstallClaudeCommand } from './install.ts'
 import { AgentSdkGateway } from './sdk.ts'
+import { SessionService } from './sessions.ts'
+import { SessionStore } from './store.ts'
 
 const ADAPTER_NAME = 'claude'
 const ADAPTER_VERSION = '0.1.0'
@@ -14,6 +17,7 @@ type Harness = { claude: ClaudeConfig }
 
 let cachedGateway: { key: string; value: AgentSdkGateway } | undefined
 let cachedEvents: EventBus | undefined
+let cachedSessions: { key: string; value: SessionService } | undefined
 
 function gateway(config: Harness): AgentSdkGateway {
   const key = JSON.stringify(config.claude)
@@ -26,6 +30,23 @@ function gateway(config: Harness): AgentSdkGateway {
 function events(): EventBus {
   cachedEvents ??= new EventBus()
   return cachedEvents
+}
+
+function sessions(config: Harness): SessionService {
+  const gatewayInstance = gateway(config)
+  const key = JSON.stringify(config.claude)
+  if (!cachedSessions || cachedSessions.key !== key) {
+    cachedSessions = {
+      key,
+      value: new SessionService(
+        gatewayInstance,
+        new SessionStore(join(claudePaths().dataDir, 'catalog.json')),
+        ADAPTER_VERSION,
+        (event) => events().publish(event)
+      ),
+    }
+  }
+  return cachedSessions.value
 }
 
 const HELP = `Clara Claude Code adapter
@@ -70,6 +91,7 @@ function definition(): AdapterDefinition<Harness> {
     createApp: ({ config, info }) =>
       createAdapterApp({
         claude: gateway(config),
+        sessions: sessions(config),
         info,
         events: events(),
       }),
