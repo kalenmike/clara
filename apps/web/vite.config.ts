@@ -22,8 +22,12 @@ function git(args: string[]): string | undefined {
   }
 }
 
-const commit = git(['rev-parse', '--short=8', 'HEAD']) ?? null
-const dirty = Boolean(git(['status', '--porcelain']))
+const commit = process.env.CLARA_COMMIT?.trim() || git(['rev-parse', '--short=8', 'HEAD']) || null
+const dirtyFromEnv = process.env.CLARA_DIRTY
+const dirty =
+  dirtyFromEnv === undefined
+    ? Boolean(git(['status', '--porcelain']))
+    : dirtyFromEnv === '1' || dirtyFromEnv === 'true'
 const builtAt = new Date().toISOString()
 
 export default defineConfig(({ command }) => ({

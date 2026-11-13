@@ -9,8 +9,12 @@
 # use the relay URL carried by each pairing code; set it only to retarget relay
 # rooms to a different relay endpoint.
 #
+# The `.git` directory is excluded from the Docker context, so the CLI passes
+# CLARA_COMMIT and CLARA_DIRTY from the host checkout for the version label.
+#
 #   docker build -f infra/docker/web.Dockerfile \
-#     --build-arg VITE_CLARA_WS_URL=wss://relay.example -t clara-web .
+#     --build-arg VITE_CLARA_WS_URL=wss://relay.example \
+#     --build-arg CLARA_COMMIT=$(git rev-parse --short=8 HEAD) -t clara-web .
 
 FROM node:22-bookworm-slim AS build
 
@@ -37,7 +41,11 @@ COPY packages/crypto packages/crypto
 COPY packages/contracts/shared-types packages/contracts/shared-types
 
 ARG VITE_CLARA_WS_URL=
+ARG CLARA_COMMIT=
+ARG CLARA_DIRTY=0
 ENV VITE_CLARA_WS_URL=$VITE_CLARA_WS_URL
+ENV CLARA_COMMIT=$CLARA_COMMIT
+ENV CLARA_DIRTY=$CLARA_DIRTY
 RUN pnpm --filter @clara/web build
 
 FROM nginx:alpine AS runtime
