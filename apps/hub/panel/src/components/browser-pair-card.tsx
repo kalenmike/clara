@@ -25,6 +25,7 @@ export function BrowserPairCard({
   const [pending, setPending] = useState<'create' | 'cancel'>()
   const [localOnly, setLocalOnly] = useState(false)
   const [error, setError] = useState<string>()
+  const useLocalOnly = relayConfigured && localAvailable && localOnly
 
   const create = async () => {
     setPending('create')
@@ -32,7 +33,7 @@ export function BrowserPairCard({
     try {
       const result = await postPanel<PanelDevicePairingMutationResponse>(
         '/panel/api/v1/devices/pairings',
-        { localOnly }
+        { localOnly: useLocalOnly }
       )
       setPairing(result.pairing)
       onChanged()
@@ -177,7 +178,7 @@ export function BrowserPairCard({
             </button>
             <span className="text-[10px] text-neutral-500 dark:text-neutral-400">
               {relayConfigured
-                ? localOnly
+                ? useLocalOnly
                   ? 'A local code only works where the hub listener is reachable.'
                   : 'A relay code works from a phone or another network.'
                 : 'No relay is configured, so this code only works on this machine or its network.'}
