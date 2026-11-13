@@ -81,7 +81,7 @@
       "ignoreDependencies": ["ws"]
     }
   },
-  "ignore": ["apps/web/src/components/ui/**"],
+  "ignore": ["apps/web/src/components/ui/**", "tools/build/feature-flags.d.mts"],
   "ignoreBinaries": ["ss"],
   "ignoreDependencies": ["yaml", "cloudflare", "better-sqlite3"],
   "rules": {

@@ -89,10 +89,37 @@ The hub's relay role and secret keep the historical `agent` name
 
 ## Deployment
 
+### From the hub panel
+
+A hub build compiled with `ENABLE_CLOUDFLARE_DEPLOYMENT=true` can deploy the relay
+from the panel. The panel asks for a Cloudflare API token scoped to
+**Workers Scripts: Edit** and, for account discovery, **Account Settings: Read**.
+The hub calls the Cloudflare REST API directly; it does not run Wrangler or store
+the token in `server.json`.
+
+The deployment:
+
+1. lists the token's accounts and reads the account's `workers.dev` subdomain;
+2. uploads `dist/relay/worker.mjs` with the `RELAY_ROOMS` Durable Object binding,
+   a first-deploy `new_sqlite_classes` migration, and both relay tokens as
+   `secret_text` bindings;
+3. enables the Worker on `workers.dev` and waits for `GET /health`;
+4. writes the relay URL and room to `server.json`, stores both tokens encrypted
+   in `relay-credentials.json`, and applies the relay without a hub restart;
+5. optionally stores the Cloudflare token encrypted in `cloudflare-api-token.json`.
+
+Existing devices keep their old pairing endpoint and must pair again. The
+feature is compile-time optional; the panel UI, routes, API code, and worker
+artifact are absent from a build without the flag. The manual Wrangler path
+below remains the supported fallback.
+
+### Manually
+
 1. Create the Pages project and custom domain; build with
    `pnpm --filter @clara/web build` and output `apps/web/dist`.
 2. Set `VITE_CLARA_WS_URL=wss://relay.example` in the Pages build environment,
-   using your own relay host.
+   using your own relay host. This is optional: leave it unset to follow each
+   pairing payload's own relay URL and room.
 3. Deploy the Worker with `pnpm deploy:relay`; it creates the DO namespace. Add
    your own custom domain route in `infra/relay/wrangler.jsonc` or the
    Cloudflare dashboard, or use the workers.dev URL.

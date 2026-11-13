@@ -15,6 +15,7 @@ import { PanelAuth, PanelAuthError, type PanelAuthUser } from './auth.ts'
 import { readControlFailure, type PanelControlService } from './controls.ts'
 import { checkPanelRequest } from './security.ts'
 import type { PanelDataSource } from './runtime.ts'
+import type { PanelFeature } from './feature.ts'
 
 const API_PATH = '/panel/api/v1/status'
 const SESSION_PATH = '/panel/api/v1/session'
@@ -61,6 +62,7 @@ const SECURITY_HEADERS: Record<string, string> = {
 export type PanelServerOptions = {
   source: PanelDataSource
   controls?: PanelControlService
+  feature?: PanelFeature
   auth: PanelAuth
   port: number
   host?: string
@@ -87,6 +89,7 @@ export async function startPanelServer(options: PanelServerOptions): Promise<Pan
     void handleRequest(request, response, {
       source: options.source,
       controls: options.controls,
+      feature: options.feature,
       auth: options.auth,
       port,
       allowRemote: options.allowRemote === true,
@@ -124,6 +127,7 @@ export async function startPanelServer(options: PanelServerOptions): Promise<Pan
 type RequestContext = {
   source: PanelDataSource
   controls?: PanelControlService
+  feature?: PanelFeature
   auth: PanelAuth
   port: number
   allowRemote: boolean
@@ -188,6 +192,23 @@ async function handleRequest(
         error: { code: 'unauthorized', message: 'Sign in to the hub panel' },
       })
       return
+    }
+
+    if (context.feature) {
+      const handled = await context.feature.handleRequest({
+        request,
+        response,
+        method,
+        pathname,
+        user,
+        auth: authInfo(user),
+        readJson: () => readJsonBody(request),
+        sendJson: (status, body, headers) => sendJson(response, method, status, body, headers),
+        requireMutation: (requireJson) =>
+          requireMutationHeader(request, response, method, requireJson),
+        log: (message, detail) => context.log?.(message, detail),
+      })
+      if (handled) return
     }
 
     if (pathname === API_PATH) {

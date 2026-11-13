@@ -61,6 +61,7 @@ pnpm dev:lab        # Clara Lab (Vite :5175, lab server :8791)
 pnpm dev:server     # Hub service only
 pnpm dev:relay      # Local wrangler dev for the Worker/DO
 pnpm build          # Build every workspace package
+ENABLE_CLOUDFLARE_DEPLOYMENT=true pnpm build # Include the optional Cloudflare relay deployment
 pnpm clara pair     # Print a pairing code
 pnpm clara server panel  # Open the hub panel in a browser
 pnpm clara start [--local|--docker] [--no-server] [--no-web] [--no-orchestrator] [--build] # Start the stack

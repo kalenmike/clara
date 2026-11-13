@@ -10,6 +10,9 @@
 
 FROM node:22-bookworm-slim AS build
 
+ARG ENABLE_CLOUDFLARE_DEPLOYMENT=false
+ENV ENABLE_CLOUDFLARE_DEPLOYMENT=$ENABLE_CLOUDFLARE_DEPLOYMENT
+
 RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential \
     python3 \
@@ -35,6 +38,8 @@ RUN pnpm install --frozen-lockfile --filter @clara/hub-server... --filter @clara
 
 COPY apps/hub/server apps/hub/server
 COPY apps/hub/panel apps/hub/panel
+COPY infra/relay infra/relay
+COPY tools/build tools/build
 COPY packages/crypto packages/crypto
 COPY packages/contracts/shared-types packages/contracts/shared-types
 COPY packages/orchestration/control packages/orchestration/control

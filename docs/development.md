@@ -50,6 +50,35 @@ The primary checkout's current branch is the merge target. Normally that is
 `workerd` is a glibc binary, so the suite needs a glibc host such as Debian or
 Ubuntu and does not run on musl hosts.
 
+## Optional build features
+
+`ENABLE_CLOUDFLARE_DEPLOYMENT` compiles the hub panel's one-click Cloudflare
+relay deployment into the panel and hub service. It is a build-time switch, not a
+runtime setting; changing it requires rebuilding both artifacts.
+
+```bash
+ENABLE_CLOUDFLARE_DEPLOYMENT=true pnpm build
+ENABLE_CLOUDFLARE_DEPLOYMENT=true pnpm dev:server
+ENABLE_CLOUDFLARE_DEPLOYMENT=true pnpm dev:panel
+```
+
+Docker builds forward the same flag through the `server` compose build args:
+
+```bash
+ENABLE_CLOUDFLARE_DEPLOYMENT=true pnpm clara server start --docker --build
+```
+
+Anything other than `1`, `true`, `yes`, or `on` builds without the feature. The
+feature source is isolated under `apps/hub/server/src/features/cloudflare-deployment`
+and `apps/hub/panel/src/features/cloudflare-deployment`; the core imports only
+the feature loader. `pnpm check:boundaries` enforces that boundary.
+
+Each build verifies the result:
+
+- enabled: the Cloudflare API routes, panel UI chunk, and `dist/relay/worker.mjs`
+  are present;
+- disabled: those routes, strings, and the relay artifact are absent.
+
 ## Developer commands
 
 ```bash
