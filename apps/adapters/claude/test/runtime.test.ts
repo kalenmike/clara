@@ -135,3 +135,58 @@ describe('Claude runtime', () => {
     expect(received.map((event) => event.type)).toContain('permission.replied')
   })
 })
+
+describe('Claude question forms', () => {
+  it('maps AskUserQuestion to a Clara form and returns answers', async () => {
+    const { gateway, received, sessions, runtime } = fixture()
+    const session = await create(sessions)
+    const sessionId = session.id
+    let decision: { behavior: string; updatedInput?: Record<string, unknown> } | undefined
+    gateway.script = async (request, emit) => {
+      decision = await request.onPermission({
+        id: 'question',
+        toolName: 'AskUserQuestion',
+        input: {
+          questions: [
+            {
+              question: 'Continue?',
+              header: 'Continue',
+              options: [{ label: 'Yes' }, { label: 'No' }],
+              multiSelect: false,
+            },
+          ],
+        },
+        toolUseID: 'q1',
+        signal: new AbortController().signal,
+      })
+      emit({
+        type: 'result',
+        subtype: 'success',
+        sessionId,
+        costUsd: 0,
+        usage: { input: 1, output: 1, reasoning: 0, cacheRead: 0, cacheWrite: 0 },
+        modelUsage: {},
+        errors: [],
+        aborted: false,
+      })
+    }
+
+    await runtime.prompt(sessionId, { text: 'Ask me' })
+    const created = await waitFor(received, 'form.created')
+    if (created.type !== 'form.created') throw new Error('missing form')
+    expect(created.data.form.fields[0]).toMatchObject({
+      key: 'q0',
+      type: 'string',
+      title: 'Continue',
+      options: [{ value: 'Yes' }, { value: 'No' }],
+    })
+
+    await runtime.replyForm(sessionId, created.data.form.id, { q0: 'Yes' })
+    await waitFor(received, 'session.idle')
+
+    expect(decision).toMatchObject({
+      behavior: 'allow',
+      updatedInput: { answers: { 'Continue?': 'Yes' } },
+    })
+  })
+})

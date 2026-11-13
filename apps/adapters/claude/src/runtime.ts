@@ -2,6 +2,9 @@ import { randomUUID } from 'node:crypto'
 import type {
   ClaraEvent,
   ClaraJsonValue,
+  ClaraForm,
+  ClaraFormField,
+  ClaraFormValue,
   ClaraModelRef,
   ClaraPermissionRequest,
   ClaraSessionInboxCompaction,
@@ -91,6 +94,20 @@ type ActiveTurn = {
   done: Deferred<void>
 }
 
+type PendingForm = {
+  form: ClaraForm
+  questions: QuestionInput[]
+  sessionId: string
+  resolve: (decision: ClaudePermissionDecision) => void
+}
+
+type QuestionInput = {
+  question: string
+  header?: string
+  multiSelect?: boolean
+  options?: { label: string; description?: string }[]
+}
+
 type PendingPermission = {
   request: ClaraPermissionRequest
   input: Record<string, unknown>
@@ -125,6 +142,7 @@ export class ClaudeRuntime {
   private readonly config: ClaudeConfig
   private readonly activeTurns = new Map<string, ActiveTurn>()
   private readonly pending = new Map<string, PendingPermission>()
+  private readonly pendingForms = new Map<string, PendingForm>()
   private readonly lastFinish = new Map<
     string,
     'stop' | 'length' | 'tool-calls' | 'content-filter' | 'error' | 'unknown'
@@ -362,8 +380,59 @@ export class ClaudeRuntime {
     })
   }
 
+  forms(sessionId: string): ClaraForm[] {
+    return [...this.pendingForms.values()]
+      .filter((pending) => pending.sessionId === sessionId)
+      .map((pending) => pending.form)
+  }
+
+  async replyForm(
+    sessionId: string,
+    formID: string,
+    answer: Record<string, ClaraFormValue>
+  ): Promise<void> {
+    const pending = this.pendingForms.get(formID)
+    if (!pending || pending.sessionId !== sessionId) {
+      throw new AdapterError(404, 'FormNotFoundError', 'That question is no longer waiting')
+    }
+    this.pendingForms.delete(formID)
+    this.emit('form.replied', { id: formID, sessionID: sessionId, answer })
+    const answers: Record<string, string | string[]> = {}
+    for (let index = 0; index < pending.questions.length; index += 1) {
+      const question = pending.questions[index]
+      if (!question) continue
+      const value = answer[`q${index}`]
+      if (value === undefined) continue
+      answers[question.question] = question.multiSelect
+        ? Array.isArray(value)
+          ? value
+          : [String(value)]
+        : Array.isArray(value)
+          ? value.join(', ')
+          : String(value)
+    }
+    pending.resolve({
+      behavior: 'allow',
+      updatedInput: { questions: pending.questions, answers },
+    })
+  }
+
+  async cancelForm(sessionId: string, formID: string): Promise<void> {
+    const pending = this.pendingForms.get(formID)
+    if (!pending || pending.sessionId !== sessionId) {
+      throw new AdapterError(404, 'FormNotFoundError', 'That question is no longer waiting')
+    }
+    this.pendingForms.delete(formID)
+    this.emit('form.cancelled', { id: formID, sessionID: sessionId })
+    pending.resolve({ behavior: 'deny', message: 'The user dismissed the question' })
+  }
+
   close(): void {
     this.closed = true
+    for (const pending of this.pendingForms.values()) {
+      pending.resolve({ behavior: 'deny', message: 'The adapter is shutting down' })
+    }
+    this.pendingForms.clear()
     for (const pending of this.pending.values()) {
       pending.resolve({ behavior: 'deny', message: 'The adapter is shutting down' })
     }
@@ -642,10 +711,7 @@ export class ClaudeRuntime {
     request: ClaudePermissionRequest
   ): Promise<ClaudePermissionDecision> {
     if (request.toolName === 'AskUserQuestion') {
-      return {
-        behavior: 'deny',
-        message: 'Claude asked a question; review it in the Claude Code terminal.',
-      }
+      return this.askUserQuestion(active, request)
     }
     const owner = active.toolOwners.get(request.toolUseID)
     const claraRequest: ClaraPermissionRequest = {
@@ -765,7 +831,72 @@ export class ClaudeRuntime {
     active.done.resolve()
   }
 
+  private askUserQuestion(
+    active: ActiveTurn,
+    request: ClaudePermissionRequest
+  ): Promise<ClaudePermissionDecision> {
+    const questions = questionInputs(request.input)
+    if (questions.length === 0) {
+      return Promise.resolve({
+        behavior: 'deny',
+        message: 'Claude asked an invalid question',
+      })
+    }
+    const formID = randomUUID()
+    const fields: ClaraFormField[] = questions.map((question, index) => {
+      const options = (question.options ?? []).map((option) => ({
+        value: option.label,
+        label: option.label,
+        ...(option.description ? { description: option.description } : {}),
+      }))
+      if (question.multiSelect) {
+        return {
+          type: 'multiselect',
+          key: `q${index}`,
+          title: question.header ?? `Question ${index + 1}`,
+          description: question.question,
+          required: true,
+          options,
+          custom: true,
+        }
+      }
+      return {
+        type: 'string',
+        key: `q${index}`,
+        title: question.header ?? `Question ${index + 1}`,
+        description: question.question,
+        required: true,
+        options,
+        custom: true,
+      }
+    })
+    const form: ClaraForm = {
+      id: formID,
+      sessionID: active.sessionId,
+      title: request.title ?? 'Claude Code needs input',
+      fields: fields as [ClaraFormField, ...ClaraFormField[]],
+    }
+    const waiting = deferred<ClaudePermissionDecision>()
+    this.pendingForms.set(formID, {
+      form,
+      questions,
+      sessionId: active.sessionId,
+      resolve: waiting.resolve,
+    })
+    this.emit('form.created', { form })
+    return waiting.promise
+  }
+
   private cancelPermissions(active: ActiveTurn): void {
+    for (const [id, pending] of this.pendingForms) {
+      if (pending.sessionId !== active.sessionId) continue
+      this.pendingForms.delete(id)
+      this.emit('form.cancelled', { id, sessionID: active.sessionId })
+      pending.resolve({
+        behavior: 'deny',
+        message: 'The run ended before the question was answered',
+      })
+    }
     for (const [id, pending] of this.pending) {
       if (pending.sessionId !== active.sessionId) continue
       this.pending.delete(id)
@@ -797,6 +928,35 @@ export class ClaudeRuntime {
       data,
     } as Extract<ClaraEvent, { type: T }>)
   }
+}
+
+function questionInputs(input: Record<string, unknown>): QuestionInput[] {
+  const questions = input.questions
+  if (!Array.isArray(questions)) return []
+  return questions.flatMap((question) => {
+    if (!isRecord(question) || typeof question.question !== 'string') return []
+    const options = Array.isArray(question.options)
+      ? question.options.flatMap((option) => {
+          if (!isRecord(option) || typeof option.label !== 'string') return []
+          return [
+            {
+              label: option.label,
+              ...(typeof option.description === 'string'
+                ? { description: option.description }
+                : {}),
+            },
+          ]
+        })
+      : []
+    return [
+      {
+        question: question.question,
+        ...(typeof question.header === 'string' ? { header: question.header } : {}),
+        ...(question.multiSelect === true ? { multiSelect: true } : {}),
+        ...(options.length > 0 ? { options } : {}),
+      },
+    ]
+  })
 }
 
 function permissionResources(toolName: string, input: Record<string, unknown>): string[] {

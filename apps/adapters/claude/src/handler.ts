@@ -6,7 +6,15 @@ import type { AdapterInfo } from '@clara/adapter-runtime'
 import { AdapterError } from './errors.ts'
 import { EventBus } from './events.ts'
 import type { ClaudeGateway } from './sdk.ts'
-import type { ClaraModelRef } from '@clara/api-contract'
+import type { ClaraFormValue, ClaraModelRef } from '@clara/api-contract'
+import {
+  agentList,
+  commandList,
+  modelList,
+  providerList,
+  referenceList,
+  skillList,
+} from './catalog.ts'
 import type {
   CreateSessionInput,
   MessageListInput,
@@ -168,8 +176,19 @@ export function createAdapterApp(context: AdapterContext): Hono {
   })
 
   app.get('/harness/v1/sessions/:sessionID/context', (c) => c.json([]))
-  app.get('/harness/v1/sessions/:sessionID/forms', (c) => c.json([]))
-  app.get('/harness/v1/sessions/:sessionID/inbox', (c) => c.json([]))
+  app.get('/harness/v1/sessions/:sessionID/forms', (c) =>
+    c.json(context.runtime.forms(c.req.param('sessionID')))
+  )
+  app.post('/harness/v1/sessions/:sessionID/forms/:formID/reply', async (c) => {
+    const body = await jsonBody<{ answer?: Record<string, ClaraFormValue> }>(c)
+    if (!body.answer) throw new AdapterError(400, 'invalid_request', 'Answers are required')
+    await context.runtime.replyForm(c.req.param('sessionID'), c.req.param('formID'), body.answer)
+    return c.body(null, 204)
+  })
+  app.delete('/harness/v1/sessions/:sessionID/forms/:formID', async (c) => {
+    await context.runtime.cancelForm(c.req.param('sessionID'), c.req.param('formID'))
+    return c.body(null, 204)
+  })
   app.get('/harness/v1/permissions', (c) =>
     c.json({
       location: { directory: directory(c) },
@@ -177,18 +196,18 @@ export function createAdapterApp(context: AdapterContext): Hono {
     })
   )
 
-  app.get('/harness/v1/agents', (c) => c.json({ location: { directory: directory(c) }, data: [] }))
-  app.get('/harness/v1/models', (c) => c.json({ location: { directory: directory(c) }, data: [] }))
-  app.get('/harness/v1/providers', (c) =>
-    c.json({ location: { directory: directory(c) }, data: [] })
-  )
-  app.get('/harness/v1/commands', (c) =>
-    c.json({ location: { directory: directory(c) }, data: [] })
-  )
-  app.get('/harness/v1/skills', (c) => c.json({ location: { directory: directory(c) }, data: [] }))
-  app.get('/harness/v1/references', (c) =>
-    c.json({ location: { directory: directory(c) }, data: [] })
-  )
+  app.get('/harness/v1/agents', (c) => c.json(agentList(directory(c))))
+  app.get('/harness/v1/models', async (c) => {
+    const location = directory(c)
+    return c.json(modelList(await context.claude.catalog(location || process.cwd()), location))
+  })
+  app.get('/harness/v1/providers', (c) => c.json(providerList(directory(c))))
+  app.get('/harness/v1/commands', async (c) => {
+    const location = directory(c)
+    return c.json(commandList(await context.claude.catalog(location || process.cwd()), location))
+  })
+  app.get('/harness/v1/skills', (c) => c.json(skillList(directory(c))))
+  app.get('/harness/v1/references', (c) => c.json(referenceList(directory(c))))
 
   app.get('/harness/v1/files/find', (c) =>
     c.json({ location: { directory: directory(c) }, data: [] })
