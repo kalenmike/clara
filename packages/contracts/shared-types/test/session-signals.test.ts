@@ -3,6 +3,7 @@ import {
   assistantHasFailed,
   isFinishedPlanReply,
   resolveAttentionKind,
+  resolveSessionMailbox,
   type SessionMailboxSignals,
 } from '../src/index.ts'
 
@@ -30,6 +31,37 @@ describe('resolveAttentionKind', () => {
     expect(resolveAttentionKind({ ...base, last: 'user' }, 'build', false)).toBeNull()
     expect(resolveAttentionKind({ ...base, last: 'none' }, 'build', false)).toBeNull()
     expect(resolveAttentionKind(undefined, 'build', false)).toBeNull()
+  })
+})
+
+describe('resolveSessionMailbox', () => {
+  it('puts awaiting input above running state', () => {
+    expect(
+      resolveSessionMailbox(
+        { ...base, awaitingInput: true },
+        { running: true, awaitingInput: false }
+      )
+    ).toBe('inbox')
+    expect(resolveSessionMailbox(base, { running: true, awaitingInput: true })).toBe('inbox')
+  })
+
+  it('keeps a running session in the outbox until it stops', () => {
+    expect(resolveSessionMailbox(base, { running: true, awaitingInput: false })).toBe('outbox')
+    expect(resolveSessionMailbox(undefined, { running: true, awaitingInput: false })).toBe('outbox')
+  })
+
+  it('uses the latest author once the run is finished', () => {
+    expect(resolveSessionMailbox(base, { running: false, awaitingInput: false })).toBe('inbox')
+    expect(
+      resolveSessionMailbox({ ...base, last: 'user' }, { running: false, awaitingInput: false })
+    ).toBe('outbox')
+    expect(
+      resolveSessionMailbox({ ...base, last: 'none' }, { running: false, awaitingInput: false })
+    ).toBe('draft')
+  })
+
+  it('falls back to the inbox when the signals are unknown', () => {
+    expect(resolveSessionMailbox(undefined, { running: false, awaitingInput: false })).toBe('inbox')
   })
 })
 

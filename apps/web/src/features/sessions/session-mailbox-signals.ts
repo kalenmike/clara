@@ -1,7 +1,7 @@
+import type { SessionMailboxSignals } from '@clara/shared-types'
 import type { ClaraClient } from '@/lib/client'
 import { assistantHasFailed } from '@/features/chat/message-visibility'
 import { isFinishedPlanReply } from '@/features/chat/plan-ready'
-import type { SessionMailboxSignals } from '@/features/sessions/session-mailbox'
 import { withMailboxSignalSlot } from '@/features/sessions/session-mailbox-queue'
 
 /**
