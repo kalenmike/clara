@@ -19,6 +19,9 @@ services:
     build:
       context: ../..
       dockerfile: infra/docker/server.Dockerfile
+      args:
+        CLARA_COMMIT: ${CLARA_COMMIT:-}
+        CLARA_DIRTY: ${CLARA_DIRTY:-0}
     restart: unless-stopped
     init: true
     environment:
