@@ -12,11 +12,12 @@ camera or pastes the same code, and Clara stores the device credential locally.
 The panel also pairs harness adapters with the same one-time-code and E2EE
 pattern. **Harness → Add harness** chooses the adapter type and location and
 produces a `clara-harness1_…` code. On the harness machine, run the adapter
-installer; for the included adapter that is
-`clara-adapter-opencode install --pair <code>` (or
-`pnpm clara adapter install --opencode --pair <code>` in the repository). It
-discovers the harness, enrolls the adapter over the local or relay WebSocket,
-and stores its long-lived credential. The adapter reconnects with that
+installer; for the included adapters that is
+`clara-adapter-opencode install --pair <code>` or
+`clara-adapter-claude install --pair <code>` (or
+`pnpm clara adapter install --opencode --pair <code>` /
+`--claude` in the repository). It discovers the harness, enrolls the adapter
+over the local or relay WebSocket, and stores its long-lived credential. The adapter reconnects with that
 credential and never exposes an inbound port. Reinstall and re-pair reuse the
 stable harness identity, so Clara session and project metadata stays attached.
 Adapter codes cannot enroll a browser: the connect screen names them and points

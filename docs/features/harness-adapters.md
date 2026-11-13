@@ -6,31 +6,33 @@ Clara reaches a harness through a small adapter daemon. The adapter connects out
 to the hub over the same local or relay WebSocket and E2EE session as a browser
 client, then speaks the Clara Harness Protocol. The hub is harness-neutral: it
 routes typed `/v1` calls to whichever adapter is active and branches on
-capability flags, not harness kind. This repository includes the OpenCode
-adapter. Additional adapters can use the same pairing, transport, and capability
-model.
+capability flags, not harness kind. This repository includes the OpenCode and
+Claude Code adapters. Additional adapters can use the same pairing, transport,
+and capability model.
 
-| Included adapter          | Harness        | Install                                        |
-| ------------------------- | -------------- | ---------------------------------------------- |
-| `@clara/adapter-opencode` | OpenCode 2.1.x | `clara-adapter-opencode install --pair <code>` |
+| Included adapter          | Harness             | Install                                        |
+| ------------------------- | ------------------- | ---------------------------------------------- |
+| `@clara/adapter-opencode` | OpenCode 2.1.x      | `clara-adapter-opencode install --pair <code>` |
+| `@clara/adapter-claude`   | Claude Code 2.1.325 | `clara-adapter-claude install --pair <code>`   |
 
 The adapter, not the hub, discovers and authenticates the harness. The hub never
 contacts the harness directly.
 
 ## User flow
 
-1. Open the hub panel → **Harness** → **Add harness** → choose the adapter type
-   and the adapter location: **Docker network** (default), **This machine**, or
-   **Cloudflare relay** → **Add harness**. OpenCode is the only adapter type
-   included with this release.
+1. Open the hub panel → **Harness** → **Add harness** → choose OpenCode or
+   Claude Code and the adapter location: **Docker network** (default), **This
+   machine**, or **Cloudflare relay** → **Add harness**.
 2. Copy the pairing code or the matching command. Panel codes start with
    `clara-harness1_` and only install an adapter; the browser still pairs with
    a `clara1_` code from `pnpm clara pair`.
-3. On the harness machine, run the adapter installer. For the included adapter,
-   that is `pnpm clara adapter install --opencode --pair <code>`.
+3. On the harness machine, run the adapter installer. For OpenCode that is
+   `pnpm clara adapter install --opencode --pair <code>`; for Claude Code it is
+   `pnpm clara adapter install --claude --pair <code>`.
 4. The OpenCode installer discovers OpenCode from flags, environment, or
-   `~/.local/state/opencode/service.json`. If it cannot reach OpenCode, it
-   prompts for the URL, username, and password.
+   `~/.local/state/opencode/service.json`. The Claude Code installer uses the
+   machine's existing Claude Code login and accepts `--claude-path`, `--model`,
+   and `--permission-mode`. It never stores an API key.
 5. The adapter enrolls and stores its credential. The installer then starts a
    user service, or a background adapter process when systemd/launchd is not
    available. The panel shows **Paired · Offline** under **Paired harnesses**
@@ -44,8 +46,8 @@ contacts the harness directly.
 ## Core business rules
 
 1. The adapter connects out; the hub does not connect to an adapter port.
-   Local and relay are transport choices in the pairing code, not separate
-   architectures.
+   Local, Docker, and relay are transport choices in the pairing code, not
+   separate architectures.
 2. The panel chooses the pairing transport: Docker network for an adapter
    container, loopback for an adapter on the hub host, or the relay for a
    remote adapter. The default is Docker.
@@ -61,52 +63,66 @@ contacts the harness directly.
    `DELETE /harness/v1/projects/:projectID` to every linked harness and reports
    each result. An adapter advertises `projects.archive`, `projects.unarchive`,
    and `projects.delete`; one that does not is reported as unsupported while
-   Clara still applies its own archive or delete. The included adapter maps
-   those actions to bulk session archive/unarchive/delete because OpenCode has no
-   project archive or delete endpoint; the harness project record may remain.
+   Clara still applies its own archive or delete. The OpenCode adapter maps
+   those actions to bulk session archive/unarchive/delete; the Claude Code
+   adapter reports them as unsupported and leaves its transcripts untouched.
    Clara never creates projects from a harness project list, so a harness cannot
    add or hide a Clara project.
 7. A harness version bump changes only that adapter. The hub and web branch on
    capability flags, not harness kind.
-8. The included OpenCode installer installs the daemon, the OpenCode binding,
-   and the shared runner. `--no-runner` and `--no-service` split those pieces.
-   Inside the repository, `pnpm clara adapter install --opencode` dispatches to
-   the same adapter binary.
+8. The OpenCode installer installs the daemon, the OpenCode binding, and the
+   shared runner. `--no-runner` and `--no-service` split those pieces. The
+   Claude Code installer installs only the adapter and its service; it does not
+   install an orchestration binding. Inside the repository,
+   `pnpm clara adapter install --opencode` and `--claude` dispatch to the same
+   adapter binaries.
+9. The Claude Code adapter speaks to the Agent SDK inside the adapter process.
+   The SDK is pinned with the adapter and never imported by the hub, web client,
+   or shared packages.
+
+## Adapter mapping
+
+| Clara concept        | Claude Code mapping                                               |
+| -------------------- | ----------------------------------------------------------------- |
+| Project id           | Canonical session directory                                       |
+| Session id           | Claude session UUID                                               |
+| Assistant step       | Claude assistant transcript entry                                 |
+| Model                | `{ providerID: 'anthropic', id: <Claude model> }`                 |
+| Session list         | Claude transcripts merged with the adapter's sidecar catalog      |
+| Messages             | Transcript entries; tool results fold into the requesting tool    |
+| Streaming            | Agent SDK stream events translated to Clara step/text/tool events |
+| Approvals            | `canUseTool` → Clara permission cards                             |
+| Clarifying questions | `AskUserQuestion` → Clara forms                                   |
+| Usage                | Result cost and model usage, cumulative in the sidecar catalog    |
+| Files, VCS, git      | Read-only filesystem and git queries inside the adapter           |
+| Archive/delete       | Unsupported on the harness; Clara applies its own state           |
 
 ## Edge cases
 
-- **Harness not reachable** — the installer prompts for URL and credentials,
-  then retests.
+- **Harness not reachable** — the OpenCode installer prompts for URL and
+  credentials, then retests. The Claude Code installer reports a missing binary
+  or a machine that is not signed in; pairing can still be saved and the panel
+  shows **Auth rejected** until the machine signs in.
 - **Pairing code expired or used** — generate a new code in the panel.
-- **Wrong code pasted in the browser** — panel codes are named as adapter codes;
-  the web tells the user to install them with the adapter command and to use
-  `pnpm clara pair` for a browser.
 - **Wrong harness kind** — the adapter rejects a code issued for another type.
 - **Adapter connected** — it appears under **Harness → Connected adapters**
   with its harness label, kind, short harness id, and credential fingerprint.
   The browser **Clients** view stays device-only and excludes it from its counts.
 - **Adapter offline** — the panel shows **Paired · Offline**, keeps the
   connection, and `/v1` returns `harness_offline`; the adapter reconnects with
-  backoff when it returns. The web stays connected and shows a retryable
-  harness banner. A hub restart clears persisted online state, and a socket
-  close clears it immediately. The adapter logs `adapter authenticated` only
-  after it decrypts a hub frame, so a key mismatch is visible instead of being
-  reported as a successful recovery.
-- **Adapter link looks online but probes time out** — the hub serializes
-  inbound sealed frames per session and clears the live fetch through
-  `closeSession` on a protocol failure. The adapter serializes outbound frames,
-  sends an application-level heartbeat, and reconnects when the hub closes its
-  session. Use `pnpm clara adapter status --json` for the last hub link state
-  and the adapter's last harness health check instead of relying on a fresh
-  harness probe.
+  backoff when it returns.
+- **Claude Code question or approval** — the turn waits while the request is
+  pending. Answering in Clara releases the turn; closing the turn denies the
+  pending request.
+- **Claude Code session created in Clara** — the sidecar catalog keeps it
+  visible before its first prompt. The first turn fixes the Claude UUID so a
+  reinstall or resume finds the same transcript.
+- **Claude Code session moved** — the adapter records the new directory and
+  resumes from Claude's cross-project lookup. Clara keeps its project link.
 - **Harness switch off** — adapters keep their credentials but the panel shows
   **Off** and the hub does not proxy until the switch is on again.
 - **Adapter reinstalled** — the same identity reconnects the same sessions and
   metadata without duplicating the connection.
-- **Connection deleted** — identity and metadata stay; re-pairing restores the
-  connection; use **Forget** to purge.
-- **Two adapters claim one identity** — the latest enrollment wins and the
-  panel warns; revoke or forget the stale one.
 - **Relay offline** — the adapter reconnects when the relay or hub returns.
 
 ## Out of scope
@@ -114,18 +130,19 @@ contacts the harness directly.
 - Running the adapter inside the hub process.
 - An inbound adapter HTTP port.
 - Multiple active adapters at once.
+- A Claude Code orchestration binding or shared runner integration.
+- A shipped Claude Code container image.
 
 ## Known gaps
 
-- Only the OpenCode adapter is included with this release. The hub, web client,
-  and protocol are harness-neutral, but another harness needs its own adapter
-  and installer.
-- Pending pairing codes are shown only in the panel session that created them;
-  the snapshot keeps the pairing list for the paired result.
+- The Claude Code adapter does not expose Claude's subagent sessions as separate
+  Clara sessions; subagent transcript entries are skipped.
+- Per-step Claude cost is not available. The turn result carries the turn cost
+  and session totals; intermediate steps show zero cost.
+- Claude Code's `AskUserQuestion` supports at most four questions with four
+  options each, matching Clara form limits.
+- Pending pairing codes are shown only in the panel session that created them.
 - The relay client token is shared by browser clients and adapters, as before.
-- The hub broadcasts hub frames to every client on a transport. Adapters and
-  browsers filter them by session id; routing each frame only to its owning
-  connection is still a future improvement.
 
 ## Technical appendix
 
@@ -138,27 +155,30 @@ contacts the harness directly.
 - Frames: `adapter.request`, `adapter.abort`, `adapter.response`,
   `adapter.chunk`, `adapter.end`, `adapter.error`, `adapter.enroll`,
   `adapter.enrolled`.
-- Included adapter app and binding: `apps/adapters/opencode`; the OpenCode
-  policy plugin and agent live in `apps/adapters/opencode/plugin/`. It uses
-  `@opencode/client@2.1.1` for all OpenCode HTTP and SSE access; there is no
-  raw OpenCode `/api` proxy.
+- Included adapters: `apps/adapters/opencode` and `apps/adapters/claude`.
+  The OpenCode policy plugin and agent live in `apps/adapters/opencode/plugin/`.
+  The Claude adapter keeps all Agent SDK usage inside
+  `apps/adapters/claude`.
+- Harness SDKs: `@opencode/client@2.1.1` for OpenCode, and
+  `@anthropic-ai/claude-agent-sdk@0.3.325` for Claude Code. The Claude SDK
+  bundles Claude Code 2.1.325.
 - Protocol package: `packages/contracts/harness-protocol`.
 - Adapter runtime: `packages/adapters/runtime`; orchestration binding core:
   `packages/adapters/binding`.
 - Adapter data: `<config>/clara/adapters/<kind>/config.json` and
   `<data>/clara/adapters/<kind>/{identity.json,adapter.log,adapter.pid,state.json}`.
-  For OpenCode, `<kind>` is `opencode`. `state.json` records the live hub link,
-  last frame time, last error, and the last harness health check for
-  `pnpm clara adapter status`.
+  Claude also keeps `catalog.json` for created sessions, titles, and usage.
+- Values of `<kind>`: `opencode` and `claude`.
 - Tables: `harness_identities`, `harness_connections`, `adapter_credentials`,
   `harness_pairings`, `clara_projects`, `harness_project_links`,
   `clara_sessions`.
 - Commands: `clara-adapter-opencode install --pair <code>`,
-  `pnpm clara adapter install --opencode --pair <code>`,
-  `pnpm clara adapter status [--json]`,
-  `clara-adapter-opencode uninstall [--purge]`.
+  `clara-adapter-claude install --pair <code>`,
+  `pnpm clara adapter install --claude --pair <code>`,
+  `pnpm clara adapter status [--claude]`,
+  `clara-adapter-claude uninstall [--purge]`.
 - Docker: `infra/docker/adapter-opencode.compose.yml`; no published ports.
-- Related: [pairing.md](pairing.md), [connection.md](connection.md),
-  [panel.md](panel.md), [api.md](../architecture/api.md).
+  No Claude Code image ships with Clara. Install the adapter in the container
+  that runs Claude Code and mount the Claude config directory and workspace.
 
 </details>
