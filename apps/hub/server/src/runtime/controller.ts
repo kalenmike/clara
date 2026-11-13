@@ -29,6 +29,7 @@ import {
   defaultPairingBaseUrl,
   normalizePairingBaseUrl,
   savePairingBaseUrl,
+  type RelayConfig,
   type ServerConfig,
 } from '../config.ts'
 import type { HarnessManager } from '../harness/manager.ts'
@@ -104,8 +105,8 @@ export class RuntimeController {
   private readonly localSockets = new Set<WebSocket>()
   private readonly api: ApiApp
   private readonly localAgent: Agent
-  private readonly relayAgent?: Agent
-  private readonly relayClient?: RelayClient
+  private relayAgent?: Agent
+  private relayClient?: RelayClient
   private readonly localTransport: LocalTransport
   private readonly pushMonitor?: PushMonitor
   private pushMonitorRunning = false
@@ -160,30 +161,7 @@ export class RuntimeController {
     })
 
     if (config.relay) {
-      this.relayAgent = new Agent({
-        api: this.api,
-        devices: options.devices,
-        info: options.info,
-        send: (frame) => this.relayClient?.send(frame),
-        push: options.push,
-        sync: options.sync,
-        traffic: this.trafficMeter,
-        adapters: adapterSessions(options.harness),
-        transport: 'relay',
-        policy: {
-          canPush: () => this.canPush(),
-          canSync: () => this.canSync(),
-        },
-        log: options.log,
-      })
-      this.relayClient = new RelayClient({
-        url: config.relay.url,
-        room: config.relay.room,
-        agentToken: config.relay.agentToken,
-        agent: this.relayAgent,
-        log: options.log,
-        onStatus: (status) => this.logRelayStatus(status),
-      })
+      this.createRelayTransport(config.relay)
     }
 
     this.localTransport = new LocalTransport({
@@ -208,6 +186,67 @@ export class RuntimeController {
     }
 
     this.harnessUnsubscribe = options.harness.subscribe(() => this.onHarnessChanged())
+  }
+
+  /**
+   * Replace the outbound relay target without restarting the hub process. The
+   * panel's Cloudflare deployment uses this after it saves a new relay URL,
+   * room, and token pair.
+   */
+  applyRelayConfig(relay?: RelayConfig): void {
+    this.relayClient?.close()
+    this.relayAgent?.close()
+    this.relayClient = undefined
+    this.relayAgent = undefined
+    this.errors.delete('relay')
+
+    this.options.config.relay = relay
+    this.options.info.room = relay?.room
+
+    const next = relay ? this.createRelayTransport(relay) : undefined
+    const shouldRun =
+      next !== undefined &&
+      this.options.settings.getFeature('relay') &&
+      !this.options.settings.getStopped()
+    if (shouldRun) next.client.start()
+
+    this.localAgent.broadcastAgentInfo()
+    next?.agent.broadcastAgentInfo()
+    this.options.log(relay ? `relay target updated (${relay.url})` : 'relay target removed')
+  }
+
+  private createRelayTransport(relay: RelayConfig): {
+    agent: Agent
+    client: RelayClient
+  } {
+    const options = this.options
+    const agent = new Agent({
+      api: this.api,
+      devices: options.devices,
+      info: options.info,
+      send: (frame) => this.relayClient?.send(frame),
+      push: options.push,
+      sync: options.sync,
+      traffic: this.trafficMeter,
+      adapters: adapterSessions(options.harness),
+      transport: 'relay',
+      policy: {
+        canPush: () => this.canPush(),
+        canSync: () => this.canSync(),
+      },
+      log: options.log,
+    })
+    this.relayAgent = agent
+    const client = new RelayClient({
+      url: relay.url,
+      room: relay.room,
+      agentToken: relay.agentToken,
+      agent,
+      log: options.log,
+      onStatus: (status) => this.logRelayStatus(status),
+    })
+    this.relayClient = client
+    return { agent, client }
   }
 
   get agent(): Agent {

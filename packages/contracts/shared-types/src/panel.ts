@@ -193,6 +193,29 @@ export type PanelLocalTransport = {
   error?: string
 }
 
+export type PanelCloudflareAccount = {
+  id: string
+  name: string
+}
+
+export type PanelRelayDeployment = {
+  /** Compiled into this hub build. */
+  available: boolean
+  /** The relay target was created by the panel deployment flow. */
+  managed: boolean
+  /** The current relay configuration is owned by the environment or a file. */
+  envManaged: boolean
+  connected: boolean
+  tokenStored: boolean
+  accountId?: string
+  accountName?: string
+  scriptName?: string
+  hostname?: string
+  deployedAt?: string
+  reachable?: boolean
+  error?: string
+}
+
 export type PanelRelayTransport = {
   configured: boolean
   url?: string
@@ -207,6 +230,8 @@ export type PanelRelayTransport = {
   reconnectAttempts?: number
   lastError?: string
   error?: string
+  /** Present when the optional Cloudflare deployment feature is built in. */
+  cloudflare?: PanelRelayDeployment
 }
 
 export type PanelClientInfo = {

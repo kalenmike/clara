@@ -2,7 +2,12 @@ import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
-import { loadConfig, savePairingBaseUrl } from '../src/config.ts'
+import {
+  loadConfig,
+  savePairingBaseUrl,
+  saveRelayTarget,
+  validateRelayConfig,
+} from '../src/config.ts'
 
 const tempDirs: string[] = []
 const ENV_KEYS = [
@@ -370,5 +375,44 @@ describe('savePairingBaseUrl', () => {
     const saved = JSON.parse(readFileSync(path, 'utf8'))
 
     expect(saved.pairingBaseUrl).toBeUndefined()
+  })
+})
+
+describe('panel-managed relay configuration', () => {
+  it('allows a relay URL without tokens until the feature merges its stored credentials', () => {
+    const dir = tempDir()
+    process.env.CLARA_CONFIG_DIR = dir
+    process.env.XDG_STATE_HOME = tempDir()
+    process.env.CLARA_RELAY_URL = 'wss://relay.example'
+    process.env.CLARA_RELAY_ROOM = 'room-1'
+
+    const config = loadConfig({ allowMissingRelayTokens: true })
+    expect(config.relay?.agentToken).toBe('')
+    expect(() => validateRelayConfig(config)).toThrow(/Missing CLARA_AGENT_TOKEN/)
+
+    config.relay = {
+      url: 'wss://relay.example',
+      room: 'room-1',
+      agentToken: 'agent',
+      clientToken: 'client',
+    }
+    expect(() => validateRelayConfig(config)).not.toThrow()
+  })
+
+  it('writes a panel relay target without tokens', () => {
+    const dir = tempDir()
+    const path = join(dir, 'server.json')
+    writeFileSync(path, JSON.stringify({ local: { host: '127.0.0.1', port: 8788 } }), {
+      mode: 0o600,
+    })
+
+    saveRelayTarget(path, { url: 'wss://relay.example', room: 'room-1' })
+    const saved = JSON.parse(readFileSync(path, 'utf8'))
+
+    expect(saved.relay).toEqual({ url: 'wss://relay.example', room: 'room-1' })
+    expect(saved.relay.agentToken).toBeUndefined()
+
+    saveRelayTarget(path, undefined)
+    expect(JSON.parse(readFileSync(path, 'utf8')).relay).toBeUndefined()
   })
 })

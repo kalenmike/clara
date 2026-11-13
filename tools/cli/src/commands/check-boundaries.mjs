@@ -8,6 +8,12 @@ const skippedDirs = new Set(['node_modules', 'dist', 'build', 'coverage', '.git'
 const importPattern =
   /(?:from\s+['"]@opencode\/client['"]|import\s*\(\s*['"]@opencode\/client['"]|require\s*\(\s*['"]@opencode\/client['"]\s*\))/
 
+const cloudflareFeaturePattern = /features\/cloudflare-deployment\/(?!loader\.(?:ts|tsx))/
+const cloudflareFeatureRoots = [
+  'apps/hub/server/src/features/cloudflare-deployment',
+  'apps/hub/panel/src/features/cloudflare-deployment',
+]
+
 const violations = []
 
 function isAllowed(path) {
@@ -23,6 +29,20 @@ function checkSource(path, relativePath) {
   const source = readFileSync(path, 'utf8')
   if (importPattern.test(source))
     violations.push(`${normalize(relativePath)} imports @opencode/client`)
+
+  const inFeature = cloudflareFeatureRoots.some(
+    (prefix) => relativePath === prefix || relativePath.startsWith(`${prefix}${sep}`)
+  )
+  const inTest = relativePath.split(sep).includes('test')
+  if (
+    !inFeature &&
+    !inTest &&
+    cloudflareFeaturePattern.test(normalize(relativePath + '\n' + source))
+  ) {
+    violations.push(
+      `${normalize(relativePath)} imports the Cloudflare deployment feature outside its loader`
+    )
+  }
 }
 
 function checkManifest(path, relativePath) {
@@ -90,9 +110,9 @@ for (const relativePath of [
 }
 
 if (violations.length > 0) {
-  console.error('@opencode/client is only allowed in apps/hub/server and tools/lab:')
+  console.error('Source boundary violations:')
   for (const violation of violations) console.error(`  ${violation}`)
   process.exit(1)
 }
 
-console.log('OpenCode type boundary is clean.')
+console.log('Source boundaries are clean.')

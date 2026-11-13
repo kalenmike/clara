@@ -19,6 +19,8 @@ services:
     build:
       context: ../..
       dockerfile: infra/docker/server.Dockerfile
+      args:
+        ENABLE_CLOUDFLARE_DEPLOYMENT: ${ENABLE_CLOUDFLARE_DEPLOYMENT:-false}
     restart: unless-stopped
     init: true
     environment:

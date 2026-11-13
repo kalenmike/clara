@@ -33,6 +33,7 @@ import type { DeviceInfo } from '../store/devices.ts'
 import { emptyTraffic, type TrafficMeter } from '../traffic.ts'
 import { SERVER_VERSION } from '../version.ts'
 import type { PanelLog } from './log.ts'
+import type { PanelFeature } from './feature.ts'
 
 const PROBE_TTL_MS = 5_000
 const MAX_ERROR_LENGTH = 240
@@ -47,8 +48,8 @@ export type PanelRuntimeOptions = {
   config: ServerConfig
   harness: HarnessManager
   localAgent: Agent
-  relayAgent?: Agent
-  relayClient?: RelayClient
+  relayAgent: () => Agent | undefined
+  relayClient: () => RelayClient | undefined
   localConnections: () => number
   traffic?: TrafficMeter
   push?: PushService
@@ -60,6 +61,7 @@ export type PanelRuntimeOptions = {
   probeEnabled?: () => boolean
   secretKey?: { path?: string; source: string }
   database?: PanelDatabaseSource
+  feature?: PanelFeature
   log: PanelLog
 }
 
@@ -94,7 +96,7 @@ export class PanelRuntime implements PanelDataSource {
     const push = controlFor(controls, 'push')
     const harness = this.harnessState()
 
-    return {
+    const snapshot: PanelSnapshot = {
       apiVersion: PANEL_API_VERSION,
       generatedAt: new Date(now).toISOString(),
       agent: {
@@ -148,6 +150,8 @@ export class PanelRuntime implements PanelDataSource {
       events: this.events(),
       traffic,
     }
+    await this.options.feature?.decorateSnapshot?.(snapshot)
+    return snapshot
   }
 
   private openCodeSnapshot(
@@ -183,7 +187,8 @@ export class PanelRuntime implements PanelDataSource {
 
   private relaySnapshot(stopped: boolean, control: PanelFeatureControl): PanelRelayTransport {
     const relay = this.options.config.relay
-    if (!relay || !this.options.relayClient) {
+    const relayClient = this.options.relayClient()
+    if (!relay || !relayClient) {
       return {
         configured: false,
         status: 'disabled',
@@ -195,7 +200,7 @@ export class PanelRuntime implements PanelDataSource {
       }
     }
 
-    const snapshot = this.options.relayClient.getSnapshot()
+    const snapshot = relayClient.getSnapshot()
     const status: PanelRelayTransport['status'] = stopped
       ? 'stopped'
       : !control.desired
@@ -225,7 +230,7 @@ export class PanelRuntime implements PanelDataSource {
     for (const session of this.options.localAgent.getSnapshot(now)) {
       clients.push(toClient(session, 'local', now, includeTraffic))
     }
-    for (const session of this.options.relayAgent?.getSnapshot(now) ?? []) {
+    for (const session of this.options.relayAgent()?.getSnapshot(now) ?? []) {
       clients.push(toClient(session, 'relay', now, includeTraffic))
     }
     return clients.sort((left, right) => left.connectedAt.localeCompare(right.connectedAt))
@@ -236,7 +241,7 @@ export class PanelRuntime implements PanelDataSource {
     for (const session of this.options.localAgent.getSnapshot()) {
       if (session.deviceId) live.set(session.deviceId, (live.get(session.deviceId) ?? 0) + 1)
     }
-    for (const session of this.options.relayAgent?.getSnapshot() ?? []) {
+    for (const session of this.options.relayAgent()?.getSnapshot() ?? []) {
       if (session.deviceId) live.set(session.deviceId, (live.get(session.deviceId) ?? 0) + 1)
     }
     return this.options.devices().map((device) => toDevice(device, live.get(device.id) ?? 0))
