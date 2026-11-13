@@ -89,13 +89,30 @@ function adapterOpencode(args) {
   )
 }
 
+function adapterClaude(args) {
+  return runTypeScript(
+    join(root, 'apps/adapters/claude/src/index.ts'),
+    join(root, 'apps/adapters/claude/dist/index.js'),
+    args,
+    'The Clara Claude Code adapter'
+  )
+}
+
 function adapter(args) {
   const command = args[0] ?? 'help'
+  const selectsClaude = args.includes('--claude') || args.includes('claude')
   const forwarded = args.filter(
-    (arg) => arg !== '--opencode' && arg !== 'opencode' && arg !== '--runner'
+    (arg) =>
+      arg !== '--opencode' &&
+      arg !== 'opencode' &&
+      arg !== '--claude' &&
+      arg !== 'claude' &&
+      arg !== '--runner'
   )
   const selectsOpencode = args.includes('--opencode') || args.includes('opencode')
   const selectsRunner = args.includes('--runner') || args.includes('--no-runner')
+
+  if (selectsClaude) return adapterClaude(forwarded)
 
   if (command === 'status') {
     const adapterCode = adapterOpencode(['status'])
@@ -155,6 +172,7 @@ const clara = {
     'pnpm clara server panel',
     'pnpm clara pair --no-relay',
     'pnpm clara adapter install --opencode',
+    'pnpm clara adapter install --claude --pair <code>',
     'pnpm clara lab',
   ],
   commands: [
@@ -288,13 +306,14 @@ const clara = {
       name: 'adapter',
       group: 'Services',
       summary: 'Install harness adapters, the MCP bridge, and the shared runner',
-      usage: '<install|uninstall|status|runner> [--opencode] [--mcp] [--runner]',
+      usage: '<install|uninstall|status|runner> [--opencode|--claude] [--mcp] [--runner]',
       passthroughHelp: true,
       examples: [
         'pnpm clara adapter install --opencode',
+        'pnpm clara adapter install --claude --pair <code>',
         'pnpm clara adapter install --opencode --mcp',
         'pnpm clara adapter install --runner --mcp',
-        'pnpm clara adapter status',
+        'pnpm clara adapter status --claude',
       ],
       run: adapter,
     },

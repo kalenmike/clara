@@ -6,7 +6,10 @@ import { deletePanel, postPanel } from '../lib/panel-api.ts'
 import { usePeek } from '../lib/peek-context.tsx'
 import { CardBody, CollapsibleCard, Notice } from './primitives.tsx'
 
-const KINDS = [{ kind: 'opencode', label: 'OpenCode' }]
+const KINDS = [
+  { kind: 'opencode', label: 'OpenCode' },
+  { kind: 'claude', label: 'Claude Code' },
+]
 
 export function HarnessAddCard({
   enabled,
@@ -69,7 +72,9 @@ export function HarnessAddCard({
     }
   }
 
-  const command = pairing ? `pnpm clara adapter install --opencode --pair ${pairing.code}` : ''
+  const command = pairing
+    ? `pnpm clara adapter install --${pairing.kind} --pair ${pairing.code}`
+    : ''
 
   return (
     <CollapsibleCard
