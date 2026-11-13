@@ -23,6 +23,8 @@ import type {
   UpdateSessionInput,
 } from './sessions.ts'
 import type { ClaudeRuntime } from './runtime.ts'
+import { findFiles } from './files.ts'
+import { gitLog, vcsBase, vcsDiff, vcsInfo, vcsStatus, worktrees } from './git.ts'
 
 export type AdapterContext = {
   claude: ClaudeGateway
@@ -209,27 +211,48 @@ export function createAdapterApp(context: AdapterContext): Hono {
   app.get('/harness/v1/skills', (c) => c.json(skillList(directory(c))))
   app.get('/harness/v1/references', (c) => c.json(referenceList(directory(c))))
 
-  app.get('/harness/v1/files/find', (c) =>
-    c.json({ location: { directory: directory(c) }, data: [] })
-  )
+  app.get('/harness/v1/files/find', (c) => {
+    const location = requiredDirectory(c)
+    const type = c.req.query('type')
+    return c.json({
+      location: { directory: location },
+      data: findFiles({
+        directory: location,
+        query: c.req.query('query') ?? '',
+        ...(type === 'file' || type === 'directory' ? { type } : {}),
+        ...(numberQuery(c, 'limit') !== undefined ? { limit: numberQuery(c, 'limit') } : {}),
+      }),
+    })
+  })
 
-  app.get('/harness/v1/vcs', (c) =>
-    c.json({ location: { directory: directory(c) }, data: { branch: {} } })
-  )
-  app.get('/harness/v1/vcs/base', (c) =>
-    c.json({ location: { directory: directory(c) }, data: null })
-  )
-  app.get('/harness/v1/vcs/status', (c) =>
-    c.json({ location: { directory: directory(c) }, data: [] })
-  )
-  app.get('/harness/v1/vcs/diff', (c) =>
-    c.json({ location: { directory: directory(c) }, data: [] })
-  )
+  app.get('/harness/v1/vcs', async (c) => c.json(await vcsInfo(requiredDirectory(c))))
+  app.get('/harness/v1/vcs/base', async (c) => c.json(await vcsBase(requiredDirectory(c))))
+  app.get('/harness/v1/vcs/status', async (c) => c.json(await vcsStatus(requiredDirectory(c))))
+  app.get('/harness/v1/vcs/diff', async (c) => {
+    const mode = c.req.query('mode')
+    if (mode !== 'working' && mode !== 'branch' && mode !== 'committed') {
+      throw new AdapterError(400, 'invalid_request', 'A valid VCS diff mode is required')
+    }
+    return c.json(
+      await vcsDiff(requiredDirectory(c), {
+        mode,
+        ...(c.req.query('base') ? { base: c.req.query('base') } : {}),
+        ...(numberQuery(c, 'context') !== undefined ? { context: numberQuery(c, 'context') } : {}),
+      })
+    )
+  })
 
-  app.get('/harness/v1/worktrees', (c) => c.json([]))
+  app.get('/harness/v1/worktrees', async (c) => c.json(await worktrees(requiredDirectory(c))))
   app.post('/harness/v1/worktrees/refresh', (c) => c.body(null, 204))
 
-  app.get('/harness/v1/git/log', (c) => c.json([]))
+  app.get('/harness/v1/git/log', async (c) =>
+    c.json(
+      await gitLog(requiredDirectory(c), {
+        since: Number(c.req.query('since')),
+        ...(c.req.query('until') ? { until: Number(c.req.query('until')) } : {}),
+      })
+    )
+  )
 
   app.get('/harness/v1/events', (c) => context.events.stream(c.req.raw.signal))
 
@@ -284,6 +307,12 @@ type CommandBody = {
 
 function directory(c: Context): string {
   return c.req.query('directory') ?? c.req.query('location[directory]') ?? ''
+}
+
+function requiredDirectory(c: Context): string {
+  const value = directory(c)
+  if (!value) throw new AdapterError(400, 'invalid_request', 'A directory is required')
+  return value
 }
 
 function sessionListInput(c: Context): SessionListInput {
