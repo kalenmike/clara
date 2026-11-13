@@ -21,6 +21,8 @@ services:
       dockerfile: infra/docker/web.Dockerfile
       args:
         VITE_CLARA_WS_URL: ${VITE_CLARA_WS_URL:-}
+        CLARA_COMMIT: ${CLARA_COMMIT:-}
+        CLARA_DIRTY: ${CLARA_DIRTY:-0}
     restart: unless-stopped
     ports:
       - '127.0.0.1:${CLARA_WEB_PORT:-8080}:80'

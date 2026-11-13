@@ -131,21 +131,16 @@ describe('AdapterTransport authentication', () => {
     })
     let aborted = false
     const transport = createTransport(hub, logs, async (request) => {
-      started()
       await new Promise<void>((resolve) => {
-        if (request.signal.aborted) {
+        const onAbort = () => {
           aborted = true
           resolve()
-          return
         }
-        request.signal.addEventListener(
-          'abort',
-          () => {
-            aborted = true
-            resolve()
-          },
-          { once: true }
-        )
+        // Register before announcing the request so an abort cannot slip
+        // between the start signal and the listener.
+        request.signal.addEventListener('abort', onAbort, { once: true })
+        started()
+        if (request.signal.aborted) onAbort()
       })
       return new Response('late', { status: 200 })
     })

@@ -1,10 +1,18 @@
 import assert from 'node:assert/strict'
+import { execFileSync } from 'node:child_process'
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import test from 'node:test'
 
-import { composeArgs, composeFile, envFile, webPort, webURL } from '../src/lib/web-control.mjs'
+import {
+  buildInfoEnv,
+  composeArgs,
+  composeFile,
+  envFile,
+  webPort,
+  webURL,
+} from '../src/lib/web-control.mjs'
 
 test('web port defaults to 8080 and accepts an override', () => {
   assert.equal(webPort({}), 8080)
@@ -42,6 +50,38 @@ test('compose args use infra/docker/web.compose.yml and load infra/docker/.env w
       join(root, 'infra', 'docker', 'web.compose.yml'),
       'down',
     ])
+  } finally {
+    rmSync(root, { recursive: true, force: true })
+  }
+})
+
+test('build info comes from the host checkout', () => {
+  const root = mkdtempSync(join(tmpdir(), 'clara-web-build-info-'))
+  try {
+    execFileSync('git', ['init', '--quiet'], { cwd: root })
+    writeFileSync(join(root, 'file.txt'), 'one\n')
+    execFileSync('git', ['add', 'file.txt'], { cwd: root })
+    execFileSync(
+      'git',
+      [
+        '-c',
+        'user.name=Clara Test',
+        '-c',
+        'user.email=clara@example.com',
+        'commit',
+        '--quiet',
+        '-m',
+        'init',
+      ],
+      { cwd: root }
+    )
+
+    const clean = buildInfoEnv(root)
+    assert.match(clean.CLARA_COMMIT, /^[0-9a-f]{8,40}$/)
+    assert.equal(clean.CLARA_DIRTY, '0')
+
+    writeFileSync(join(root, 'file.txt'), 'two\n')
+    assert.equal(buildInfoEnv(root).CLARA_DIRTY, '1')
   } finally {
     rmSync(root, { recursive: true, force: true })
   }

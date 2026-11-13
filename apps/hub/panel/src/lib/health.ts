@@ -43,10 +43,10 @@ function countLabel(count: number, singular: string, plural = `${singular}s`): s
   return `${count} ${count === 1 ? singular : plural}`
 }
 
-export function harnessHealth(opencode: PanelOpenCodeInfo): HealthItem {
+export function harnessHealth(opencode: PanelOpenCodeInfo, label = 'OpenCode'): HealthItem {
   const base = { key: 'harness', label: 'Harness', tab: 'harness' } as const
   const detail = opencode.version
-    ? `OpenCode ${opencode.version}`
+    ? `${label} ${opencode.version}`
     : opencode.url || 'No connection saved'
 
   if (opencode.code === 'unconfigured') {
@@ -224,8 +224,9 @@ export function storageHealth(storage: PanelStorageEntry[]): StorageHealth {
 }
 
 export function buildHealth(snapshot: PanelSnapshot): HealthItem[] {
+  const activeHarness = snapshot.harnesses?.find((harness) => harness.isActive)
   return [
-    harnessHealth(snapshot.opencode),
+    harnessHealth(snapshot.opencode, activeHarness?.label),
     localHealth(snapshot.local),
     relayHealth(snapshot.relay),
     pushHealth(snapshot.push),

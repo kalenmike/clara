@@ -75,6 +75,10 @@
     "apps/adapters/opencode": {
       "project": ["src/**/*.ts", "test/**/*.ts", "plugin/**/*.ts"],
       "ignoreDependencies": ["@clara/mcp", "ws"]
+    },
+    "apps/adapters/claude": {
+      "project": ["src/**/*.ts", "test/**/*.ts"],
+      "ignoreDependencies": ["ws"]
     }
   },
   "ignore": ["apps/web/src/components/ui/**", "tools/build/feature-flags.d.mts"],

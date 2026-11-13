@@ -14,6 +14,7 @@ apps/hub/panel                       Authenticated hub panel and setup surface
 apps/hub/server                      Node hub service, local WS + outbound Cloudflare relay
 apps/orchestrator                    Loopback orchestration service, REST/SSE/MCP
 apps/adapters/opencode               OpenCode harness adapter, binding, and standalone bin
+apps/adapters/claude                 Claude Code harness adapter and standalone bin
 tools/lab                            Loopback pipeline preview and agent probe
 tools/docs                           User guide and internal documentation site
 tools/cli                            Developer CLI for the stack, worktrees, and docs
@@ -44,6 +45,7 @@ infra/docker                         Compose files, Dockerfiles, and the stack .
 - Tailwind CSS 4 + shadcn/ui (`radix-nova` preset)
 - TanStack Query 5 + a small external chat store
 - `@opencode/client@2.1.1` — pinned to the targeted OpenCode server version; used only by the OpenCode adapter and Clara Lab
+- `@anthropic-ai/claude-agent-sdk@0.3.325` — pinned to Claude Code 2.1.325; used only by the Claude Code adapter
 - `ws`, WebCrypto, Cloudflare Workers/Durable Objects, Wrangler
 
 ## Commands
@@ -81,8 +83,10 @@ pnpm clara docs build # Build the documentation site
 pnpm clara docs check # Check guide and internal doc indexes and links
 pnpm clara mcp install|config|status # Install or inspect the MCP bridge
 pnpm clara mcp install --api        # Add the read-only hub API MCP
-pnpm check:boundaries # Fail if @opencode/client escapes apps/adapters/opencode and tools/lab
+pnpm check:boundaries # Fail if a harness SDK escapes its adapter package
 pnpm clara adapter install --opencode --pair <code> [--mcp] # Install the OpenCode adapter, MCP, and shared runner
+pnpm clara adapter install --claude --pair <code> # Install the Claude Code adapter
+clara-adapter-claude install --pair <code> # Standalone Claude Code adapter install
 clara-adapter-opencode install --pair <code> [--mcp] # Standalone OpenCode adapter install
 pnpm typecheck      # tsc -b
 pnpm lint           # ESLint
@@ -115,16 +119,20 @@ Never merge by hand, never reuse a task worktree for unrelated work, and never
 create a task worktree outside `../clara-worktrees` (override with
 `CLARA_WORKTREES_DIR`). See [docs/development.md](docs/development.md).
 
-## Harness and OpenCode contract
+## Harness contract
 
 - Clara targets OpenCode 2.1.x through the included adapter and the v2 HTTP API
-  under `/api`.
-- The harness SDK is `@opencode/client`, version-matched to the server and used
-  only inside `apps/adapters/opencode` and `tools/lab`. Do not swap it for `@opencode-ai/sdk`
-  (v1 API) or import `@opencode/sdk` into the browser (embedded Node server).
+  under `/api`, and Claude Code 2.1.325 through the Agent SDK in the Claude Code
+  adapter.
+- The OpenCode harness SDK is `@opencode/client`, version-matched to the server
+  and used only inside `apps/adapters/opencode` and `tools/lab`. Do not swap it
+  for `@opencode-ai/sdk` (v1 API) or import `@opencode/sdk` into the browser
+  (embedded Node server). The Claude Code harness SDK is
+  `@anthropic-ai/claude-agent-sdk`, pinned inside `apps/adapters/claude`. Neither
+  SDK may appear in the hub, web, shared packages, or the other adapter.
 - The hub API contract in `packages/contracts/api-contract` owns the Clara DTOs and
   OpenAPI components. The web, `@clara/api-client`, and `@clara/api-contract`
-  must not import or depend on `@opencode/client`. The hub itself has no harness
+  must not import or depend on a harness SDK. The hub itself has no harness
   SDK; adapters connect out over the Clara Harness Protocol.
 - The browser connects only through the hub over the local or relay
   WebSocket, and only to the hub API under `/v1` through `@clara/api-client`.

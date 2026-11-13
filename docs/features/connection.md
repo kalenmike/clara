@@ -15,10 +15,11 @@ code; there is no shared browser key.
 1. Start the hub and open its panel. Complete the one-time setup token and
    sign in. In **Harness → Add harness**, choose the adapter type and location,
    then copy the pairing code. On the harness machine, run the printed install
-   command; for the included adapter, that is
-   `pnpm clara adapter install --opencode --pair <code>`. The adapter discovers
-   its harness, prompts for its URL/password if needed, enrolls, and installs
-   both the hub-facing adapter and the orchestration binding.
+   command; for the included adapters, that is
+   `pnpm clara adapter install --opencode --pair <code>` or
+   `pnpm clara adapter install --claude --pair <code>`. The adapter discovers
+   its harness, prompts for its URL/password if needed (OpenCode) or uses the
+   machine's Claude Code login, enrolls, and installs the hub-facing adapter.
 2. Open Clara. A branded splash shows while Clara checks a pairing link in the
    URL fragment or a stored device. A successful attempt opens the last project
    without showing the connect form.
