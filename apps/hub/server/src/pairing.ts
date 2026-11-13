@@ -20,9 +20,10 @@ export type PairingOptions = {
 
 export async function createPairingPayload(
   config: ServerConfig,
-  devices: DeviceStore
+  devices: DeviceStore,
+  options: PairingOptions = {}
 ): Promise<PairingPayload> {
-  const relay = config.relay
+  const relay = options.noRelay ? undefined : config.relay
   const wsUrl = relay
     ? relayWsUrl(relay.url, relay.room)
     : `ws://${config.local.host}:${config.local.port}/ws`
@@ -67,7 +68,7 @@ export async function printPairing(
   withQr = true,
   options: PairingOptions = {}
 ): Promise<PairingPayload> {
-  const payload = await createPairingPayload(config, devices)
+  const payload = await createPairingPayload(config, devices, options)
   const url = buildPairingUrl(
     pairingLinkBase(config.pairingBaseUrl, config.local.host, { noRelay: options.noRelay }),
     payload

@@ -5,7 +5,7 @@ import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { AgentInfo } from '@clara/shared-types'
 import { generateKey, generateSecretKey, loadSecretKey } from '@clara/crypto'
-import { decodeHarnessPairingCode } from '@clara/shared-types'
+import { decodeHarnessPairingCode, decodePairingCode } from '@clara/shared-types'
 import type { ServerConfig } from '../src/config.ts'
 import { HarnessManager } from '../src/harness/manager.ts'
 import { HarnessMetadataStore } from '../src/harness/metadata.ts'
@@ -83,6 +83,7 @@ async function createController(
   controller: RuntimeController
   settings: SettingsStore
   harness: HarnessManager
+  devices: DeviceStore
   info: AgentInfo
   serverConfig: ServerConfig
   close: () => Promise<void>
@@ -132,6 +133,7 @@ async function createController(
     controller,
     settings,
     harness,
+    devices,
     info: controllerInfo,
     serverConfig,
     close: async () => {
@@ -563,6 +565,35 @@ describe('RuntimeController', () => {
       await close()
     }
   })
+})
+
+it('creates a one-time browser pairing code and cancels it', async () => {
+  const { controller, devices, close } = await createController(8788)
+  try {
+    const created = await controller.createDevicePairing({})
+    expect(created.pairing).toMatchObject({
+      transport: 'local',
+      room: 'local',
+      wsUrl: 'ws://127.0.0.1:8788/ws',
+    })
+    expect(created.pairing.link).toContain('https://clara.example/#pair=')
+    expect(decodePairingCode(created.pairing.code)).toMatchObject({
+      wsUrl: 'ws://127.0.0.1:8788/ws',
+      room: 'local',
+      clientToken: 'local',
+    })
+    expect(await devices.findPairingToken(created.pairing.id)).toBeDefined()
+
+    controller.cancelDevicePairing(created.pairing.id)
+    expect(await devices.findPairingToken(created.pairing.id)).toBeUndefined()
+
+    await expect(controller.createDevicePairing({ localOnly: 'yes' })).rejects.toMatchObject({
+      status: 400,
+      code: 'invalid_local_only',
+    })
+  } finally {
+    await close()
+  }
 })
 
 it('harness pairing defaults to the docker network and can choose loopback', async () => {

@@ -2,6 +2,7 @@ import type {
   PanelConfigInfo,
   PanelConfigUpdate,
   PanelControls,
+  PanelDevicePairingMutationResponse,
   PanelFeatureName,
   PanelHarnessMutationResponse,
   PanelHarnessPairingMutationResponse,
@@ -22,6 +23,8 @@ export type PanelControlService = {
   setSync: (update: PanelSyncUpdate) => Promise<PanelControls>
   setOrchestration: (enabled: boolean) => Promise<PanelControls>
   updateConfig: (update: PanelConfigUpdate) => Promise<PanelConfigInfo>
+  createDevicePairing: (value: unknown) => Promise<PanelDevicePairingMutationResponse>
+  cancelDevicePairing: (id: string) => void
   createHarnessPairing: (value: unknown) => Promise<PanelHarnessPairingMutationResponse>
   cancelHarnessPairing: (id: string) => Promise<void>
   testHarness: (id: string) => Promise<PanelHarnessTestResult>
