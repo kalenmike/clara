@@ -9,13 +9,14 @@ harness adapters, the active harness probe, push health, configuration sources,
 database health,
 storage files, and a live traffic meter without exposing secrets. Sensitive
 values, including the harness URL and relay room, start masked behind a header
-peek control so the panel can be screenshared safely. It is also the one-time
-setup surface for harness adapters: the superadmin signs in, chooses a
-password, then adds an adapter and runs its install command on the harness
-machine. The same surface edits the Web URL used by pairing links and the
-VAPID contact used by Web Push, switches external connections on and off without
-stopping the process, starts and stops the local orchestration service, turns
-traffic monitoring on or off, and gates or paces client settings sync.
+peek control so the panel can be screenshared safely. It is also the setup
+surface for browser pairing and harness adapters: the superadmin signs in,
+chooses a password, then creates a one-time browser link, code, or QR, or adds an
+adapter and runs its install command on the harness machine. The same surface
+edits the Web URL used by pairing links and the VAPID contact used by Web Push,
+switches external connections on and off without stopping the process, starts
+and stops the local orchestration service, turns traffic monitoring on or off,
+and gates or paces client settings sync.
 
 ## User flow
 
@@ -99,7 +100,11 @@ traffic monitoring on or off, and gates or paces client settings sync.
 13. Choose **Go online** to restore the saved choices. Feature switches are
     disabled until connections are back online and show red while they are
     stopped, so the offline state is readable from the switch colors alone.
-14. In **Clients**, review the browser client table and paired devices. Harness
+14. In **Clients**, use **Pair a browser** to create a one-time link, code, or
+    QR for a browser or installed app. When a relay is configured, **Local
+    connection only** creates a code that stays on the hub's network. The card
+    shows the fingerprint, transport, and expiry, and can cancel the code before
+    it is used. Review the browser client table and paired devices below. Harness
     adapter sessions are not listed here; they live under **Harness**. A
     one-time pairing session appears with a **Pairing** badge and no device until
     enrollment finishes; it is excluded from the active count and the local E2EE
@@ -152,15 +157,18 @@ traffic monitoring on or off, and gates or paces client settings sync.
    There is no network password-reset endpoint.
 3. **Reads and writes require a session.** `GET` and `HEAD` serve the snapshot
    and assets after login. `POST` is accepted at the feature, master-stop,
-   monitoring, sync, orchestration, config, harness, password, and device-purge
-   routes; `PATCH` changes a device alias; `DELETE` revokes a device and removes a
-   harness or the session. Unknown mutating methods return `405`.
-4. **Secrets stay out.** The snapshot is built from an explicit allowlist. The
-   device keys, enrollment codes, adapter credentials, relay tokens, push
-   endpoints, sync values, and file contents are never returned. Device keys and
-   unused enrollment tokens are encrypted at rest in SQLite with a key outside
-   the database. Device fingerprints, secret-configured flags, room id, and
-   effective config values are included and start masked in the panel.
+   monitoring, sync, orchestration, config, harness, browser-pairing, password,
+   and device-purge routes; `PATCH` changes a device alias; `DELETE` revokes a
+   device, cancels a browser pairing code, and removes a harness or the session.
+   Unknown mutating methods return `405`.
+4. **Secrets stay out of the snapshot.** The snapshot is built from an explicit
+   allowlist. Device keys, enrollment codes, adapter credentials, relay tokens,
+   push endpoints, sync values, and file contents are never returned there. A
+   one-time browser or adapter pairing code is returned only by the authenticated
+   request that creates it. Device keys and unused enrollment tokens are
+   encrypted at rest in SQLite with a key outside the database. Device
+   fingerprints, secret-configured flags, room id, and effective config values
+   are included and start masked in the panel.
 5. **Mutations are browser-hard to forge.** Besides authentication, the
    `Host`, `Origin`, and `Sec-Fetch-Site` checks, writes require
    `x-clara-panel: 1`; a write with a JSON body also requires
@@ -241,9 +249,10 @@ traffic monitoring on or off, and gates or paces client settings sync.
 - **Sync interval changes** — connected clients receive the new cadence in a
   hub status update and reschedule their next check without reconnecting.
 - **Connections are off** — a banner says external connections are off, every
-  transport card shows a stopped state, and feature switches are disabled. An
-  enabled feature switch turns red and a disabled one keeps its neutral track.
-  The Traffic and Client sync switches keep their usual colors.
+  transport card shows a stopped state, feature switches are disabled, and
+  **Pair a browser** cannot create a code. An enabled feature switch turns red
+  and a disabled one keeps its neutral track. The Traffic and Client sync
+  switches keep their usual colors.
 - **Orchestration changes** — the hub probes `/health` before and after
   the action, then broadcasts the new `orchestration` flag so connected clients
   add or remove the Workers treatment without a reload. A failed local start
@@ -251,14 +260,18 @@ traffic monitoring on or off, and gates or paces client settings sync.
   from the panel.
 - **A feature fails to start** — the saved choice remains, the card shows the
   error, and the rest of the hub keeps running.
-- **No browser clients** — the client table shows an empty state. A connected
-  harness adapter still appears under **Harness → Connected adapters**.
+- **No browser clients** — the client table shows an empty state and **Pair a
+  browser** sits above it. A connected harness adapter still appears under
+  **Harness → Connected adapters**.
 - **A harness adapter is connected** — it has its own row under
   **Connected adapters** with its harness label, kind, short harness id, and
   credential fingerprint. It never appears in the Clients table or its counts.
 - **A pairing session is listed** — the row carries a **Pairing** badge instead
   of a device. It is the one-time enrollment connection, not a failed client,
   and the hub retires it as soon as the device-enrolled response is sent.
+- **A browser pairing code is cancelled or expires** — it cannot enroll a
+  device. Create a new code; the cancelled token is removed immediately and an
+  expired token is pruned on the next creation or pair command.
 - **The panel is screenshared** — sensitive values load masked and the eye
   button reveals them for the tab. Masked values lose their full-value tooltips
   and copy buttons, and the same scrubber covers activity messages, error
@@ -344,6 +357,9 @@ traffic monitoring on or off, and gates or paces client settings sync.
   - `DELETE /panel/api/v1/harnesses/pairings/:id` cancels one
   - `POST /panel/api/v1/harnesses/:id/test|activate|forget`
   - `DELETE /panel/api/v1/harnesses/:id`
+  - `POST /panel/api/v1/devices/pairings` with `{ "localOnly": true }` creates a
+    browser pairing link, code, and fingerprint
+  - `DELETE /panel/api/v1/devices/pairings/:id` cancels an unused browser code
   - `DELETE /panel/api/v1/devices/:id` revokes the device
   - `PATCH /panel/api/v1/devices/:id` with `{ "alias": "Desk MacBook" }` renames
     it; send `{ "alias": null }` to restore the enrolled label
@@ -398,6 +414,8 @@ traffic monitoring on or off, and gates or paces client settings sync.
 - Harness view: `harness-add-card.tsx` (pairing flow),
   `harness-sessions-card.tsx` (live adapters), and
   `harness-connections-card.tsx` (paired harnesses and actions)
+- Browser pairing card: `apps/hub/panel/src/components/browser-pair-card.tsx`;
+  the QR is rendered locally with `qrcode.react`
 - Peek control: `apps/hub/panel/src/lib/peek.ts` (mask and free-text scrubber),
   `apps/hub/panel/src/lib/peek-context.tsx` (tab state), and the header button in
   `apps/hub/panel/src/App.tsx`; the choice is stored under `clara.panel.peek` in

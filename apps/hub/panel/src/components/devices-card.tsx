@@ -95,8 +95,8 @@ export function DevicesCard({
       <CardBody>
         {devices.length === 0 ? (
           <EmptyState>
-            No devices are paired. Run <code className="font-mono">pnpm clara pair</code> to create
-            a one-time enrollment link.
+            No devices are paired. Use <strong>Pair a browser</strong> above to create a one-time
+            enrollment link, or run <code className="font-mono">pnpm clara pair</code> on the host.
           </EmptyState>
         ) : (
           <div className="-mx-1 overflow-x-auto">

@@ -53,12 +53,15 @@ containerized harness, use a service name such as `http://opencode:4096`.
 
 ## Pair a device
 
+Open **Clients → Pair a browser** in the hub panel and scan the QR or open the
+link on the device. You can also run:
+
 ```bash
 pnpm clara pair
 ```
 
-Open the printed link on the device. Use `pnpm clara pair --no-relay` for a
-same-machine code. For a phone or another network, configure the relay first;
+Use **Local connection only** in the panel, or `pnpm clara pair --no-relay`, for
+a same-machine code. For a phone or another network, configure the relay first;
 see [Remote access](relay.md).
 
 ## Services and ports

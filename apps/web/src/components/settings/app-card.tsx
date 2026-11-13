@@ -4,7 +4,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Separator } from '@/components/ui/separator'
 import { isStandalone } from '@/features/notifications/push'
 import { applyUpdate, clearCachedAppData, usePwaUpdate } from '@/features/pwa/update-store'
-import { claraBuildLabel, claraBuildTitle, claraVersion } from '@/lib/build-info'
+import { claraBuildLabel, claraBuildTitle, claraDisplayVersion } from '@/lib/build-info'
 
 /**
  * The escape hatch for a wedged PWA: clearing the caches and reloading repairs
@@ -29,7 +29,9 @@ export function AppCard({ simplified }: { simplified: boolean }) {
       <CardContent className="space-y-3 text-sm">
         <div className="flex items-start justify-between gap-4">
           <span className="text-muted-foreground">Version</span>
-          <span className="max-w-[70%] truncate text-right font-mono text-xs">{claraVersion}</span>
+          <span className="max-w-[70%] truncate text-right font-mono text-xs">
+            {claraDisplayVersion}
+          </span>
         </div>
         {!simplified && (
           <>

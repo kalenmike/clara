@@ -36,13 +36,13 @@ In the panel:
 4. Set **Web URL** if devices should open something other than
    `http://127.0.0.1:8080`.
 
-Then pair:
+Then pair from **Clients → Pair a browser** in the panel, or run:
 
 ```bash
 pnpm clara pair --local --no-relay
 ```
 
-Open the printed link, or open `http://127.0.0.1:8080` and paste the code.
+Open the link, or open `http://127.0.0.1:8080` and paste the code.
 
 ## Services and ports
 

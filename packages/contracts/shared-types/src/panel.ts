@@ -252,6 +252,26 @@ export type PanelDeviceInfo = {
   revokedAt?: string
 }
 
+/**
+ * A one-time browser enrollment capability created by the panel. The code is
+ * returned only from the authenticated creation request, never in the
+ * read-only snapshot.
+ */
+export type PanelDevicePairing = {
+  id: string
+  code: string
+  link: string
+  wsUrl: string
+  room: string
+  transport: PanelTransport
+  fingerprint: string
+  expiresAt: string
+}
+
+export type PanelDevicePairingMutationResponse = {
+  pairing: PanelDevicePairing
+}
+
 export type PanelPushInfo = {
   enabled: boolean
   desired: boolean

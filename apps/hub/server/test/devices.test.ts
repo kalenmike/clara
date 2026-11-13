@@ -53,6 +53,23 @@ describe('DeviceStore', () => {
     expect(await store.findPairingToken(token.id)).toBeUndefined()
   })
 
+  it('cancels a pending pairing token without touching a used one', async () => {
+    const store = await createStore()
+    const pending = await store.createPairingToken()
+    const used = await store.createPairingToken()
+
+    await store.enrollDevice({
+      pairingTokenId: used.id,
+      deviceId: 'device-0000000000001',
+      key: generateKey(),
+      label: 'Desk',
+    })
+
+    expect(store.cancelPairingToken(pending.id)).toBe(true)
+    expect(await store.findPairingToken(pending.id)).toBeUndefined()
+    expect(store.cancelPairingToken(used.id)).toBe(false)
+  })
+
   it('sets, normalizes, and clears an alias without changing the label', async () => {
     const store = await createStore()
     const token = await store.createPairingToken()

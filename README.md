@@ -68,7 +68,9 @@ pnpm clara start --local --build
 pnpm clara server setup-token --local
 pnpm clara server panel
 # In the panel: choose the superadmin password, add a harness, and run the
-# printed adapter install command on the harness machine.
+# printed adapter install command on the harness machine. Then open
+# Clients -> Pair a browser and scan the QR or open the link.
+# Alternatively, print a local code:
 pnpm clara pair --local --no-relay
 # Open http://127.0.0.1:8080 and pair.
 ```
@@ -77,9 +79,9 @@ On a fresh install, `setup-token` prints the one-time token. Skip it if the
 panel already has an admin.
 
 For Docker, use `pnpm clara start --build` and
-`pnpm clara server setup-token --docker`. Add `--no-relay` for a same-machine
-code; use `pnpm clara pair` without `--no-relay` for a relay pairing on a phone
-or another device.
+`pnpm clara server setup-token --docker`. Choose **Local connection only** in
+the panel for a same-machine code; leave it off for a relay pairing on a phone
+or another device, or use `pnpm clara pair --no-relay`.
 
 For orchestration only, install the harness adapter after the stack is up:
 
@@ -105,7 +107,9 @@ pnpm dev                    # web on :5173 and the hub service on :8788
 pnpm clara pair             # print a pairing code for the connect screen
 ```
 
-Open <http://localhost:5173> and pair with the code from `pnpm clara pair`.
+Open <http://localhost:5173> and pair with the code from `pnpm clara pair`, or
+sign in to the panel at <http://localhost:8790> and create a code under
+**Clients → Pair a browser**.
 
 ### First run
 
@@ -119,6 +123,9 @@ Open <http://localhost:5173> and pair with the code from `pnpm clara pair`.
    credentials. Inside a container, the adapter connects to the hub at
    `ws://server:8788/ws` on the `clara` network; for a containerized OpenCode,
    the adapter uses a name such as `http://opencode:4096`.
+5. Open **Clients → Pair a browser**, then scan the QR or open the link on the
+   browser or installed app you want to use. The code expires after 10 minutes
+   and enrolls one device.
 
 ### Hub panel
 
@@ -134,8 +141,9 @@ In a production build, the panel ships inside the hub service and is available a
 <http://127.0.0.1:8790> after `pnpm build` and `pnpm clara server start --local`.
 Run `pnpm clara server panel` to open it in a browser; the command only opens a
 panel that is already being served. The panel never travels through the relay.
-From it you can add and manage harness adapters, disable the harness connection,
-local transport, relay, or push, start and stop the local orchestration service,
+From it you can create one-time browser pairing links and QR codes, add and
+manage harness adapters, disable the harness connection, local transport, relay,
+or push, start and stop the local orchestration service,
 and stop every external connection while the process, panel, and database stay
 alive. Settings and harness connections are stored at `CLARA_DB_PATH` or
 `~/.local/share/clara/clara.db` (mode `0600`); adapter credentials are encrypted
@@ -332,7 +340,8 @@ not required. See
 
 ### Local WebSocket mode
 
-Pair with the local hub directly:
+Pair with the local hub directly from **Clients → Pair a browser** with
+**Local connection only**, or run:
 
 ```bash
 pnpm clara pair
@@ -342,9 +351,9 @@ The pairing payload carries the hub's own `ws://127.0.0.1:8788/ws` URL, so no
 build-time endpoint is needed. Scan the QR or paste the code on the connect
 screen. Local mode still uses E2EE; it does not fall back to plaintext.
 
-Add `--no-relay` (`pnpm clara pair --no-relay`) to force a local-only
-code and print the local web app link even when the hub has a relay
-configured. The local listener runs
+Choose the panel's local-only option, or add `--no-relay`
+(`pnpm clara pair --no-relay`), to force a local-only code and print the local
+web app link even when the hub has a relay configured. The local listener runs
 alongside the relay client, so this exercises the WebSocket transport without
 sending traffic through Cloudflare. For the dev app,
 set **Web URL** to `http://localhost:5173` in the hub panel (or set
@@ -485,8 +494,9 @@ is no UI for it. See [docs/features/sync.md](docs/features/sync.md).
   by default, guards every request with Host/Origin/fetch-metadata checks, and
   keeps the setup token in `admin-setup.txt` (mode `0600`) until the first login.
   It never returns device keys, adapter credentials, relay tokens, push
-  endpoints, sync values, or file contents. It is not exposed through the relay
-  or Pages.
+  endpoints, sync values, or file contents. A one-time pairing code is returned
+  only by the authenticated request that creates it, never in the status
+  snapshot. It is not exposed through the relay or Pages.
 - A lost panel password is reset with `pnpm clara server admin reset` (add
   `--docker` in a container). That command writes a new one-time setup token.
   There is deliberately no network password-reset endpoint.

@@ -47,7 +47,8 @@ Both modes use the same hub panel, pairing command, and data model.
 3. Run `pnpm clara server setup-token` and open the hub panel. Choose a
    superadmin password, add a harness, and run the printed adapter install
    command on the harness machine.
-4. Run `pnpm clara pair` and open the printed link on your device.
+4. In the panel, open **Clients → Pair a browser** and scan the QR or open the
+   link on your device. You can also run `pnpm clara pair` and use its link.
 5. Add the web app to your Home Screen or install it.
 
 The detailed steps are in [Docker](docker.md) and

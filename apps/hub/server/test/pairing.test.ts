@@ -117,6 +117,27 @@ describe('createPairingPayload', () => {
       clientToken: 'client',
     })
   })
+
+  it('ignores a configured relay for a local-only panel code', async () => {
+    const payload = await createPairingPayload(
+      baseConfig({
+        relay: {
+          url: 'wss://relay.example',
+          room: 'room-1',
+          agentToken: 'agent',
+          clientToken: 'client',
+        },
+      }),
+      fakeDevices(),
+      { noRelay: true }
+    )
+
+    expect(payload).toMatchObject({
+      wsUrl: 'ws://127.0.0.1:8788/ws',
+      room: 'local',
+      clientToken: 'local',
+    })
+  })
 })
 
 describe('pairingLinkBase', () => {
