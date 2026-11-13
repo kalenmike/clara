@@ -114,11 +114,11 @@ export function detectClaudeInstallation(configuredPath?: string): ClaudeInstall
   const explicit = configuredPath ?? process.env.CLAUDE_CODE_PATH?.trim()
   if (explicit) return { binary: explicit, source: 'configured' }
 
-  const system = findOnPath('claude')
-  if (system) return { binary: system, source: 'path' }
-
   const bundled = resolveBundledBinary()
   if (bundled) return { binary: bundled, source: 'sdk' }
+
+  const system = findOnPath('claude')
+  if (system) return { binary: system, source: 'path' }
   return undefined
 }
 

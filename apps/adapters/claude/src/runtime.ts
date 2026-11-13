@@ -85,6 +85,7 @@ type ActiveTurn = {
   assistantMessageID?: string
   nextOrdinal: Map<string, number>
   ordinals: Map<string, number>
+  streamed: Set<string>
   toolOwners: Map<string, ToolOwner>
   deniedTools: Set<string>
   endedSteps: Set<string>
@@ -188,7 +189,7 @@ export class ClaudeRuntime {
 
     const active = this.activeTurns.get(sessionId)
     if (active) {
-      if (delivery === 'queue' || !active.turn) {
+      if (delivery === 'queue' || !active.turn || active.synthetic) {
         active.queue.push({ item, input: turnInput })
         this.emit('session.inbox.enqueued', { sessionID: sessionId, inboxID: item.id, item })
       } else {
@@ -460,6 +461,7 @@ export class ClaudeRuntime {
       compact: input.compact,
       nextOrdinal: new Map(),
       ordinals: new Map(),
+      streamed: new Set(),
       toolOwners: new Map(),
       deniedTools: new Set(),
       endedSteps: new Set(),
@@ -488,7 +490,7 @@ export class ClaudeRuntime {
     }
 
     try {
-      active.turn = await this.claude.startTurn({
+      const turn = await this.claude.startTurn({
         sessionId,
         directory,
         text: input.text,
@@ -503,6 +505,8 @@ export class ClaudeRuntime {
           if (process.env.CLARA_ADAPTER_DEBUG === '1') console.error(`[claude] ${chunk}`)
         },
       })
+      active.turn = turn
+      if (active.finished) turn.close()
       if (active.synthetic) {
         const timer = setTimeout(() => {
           active.turn?.close()
@@ -536,9 +540,11 @@ export class ClaudeRuntime {
         active.model = event.model
         return
       case 'message-start':
+        active.streamed.add(event.assistantMessageID)
         this.startStep(active, event.assistantMessageID, event.model)
         return
       case 'text-started':
+        active.streamed.add(event.assistantMessageID)
         this.emit('session.text.started', {
           sessionID: active.sessionId,
           assistantMessageID: event.assistantMessageID,
@@ -562,6 +568,7 @@ export class ClaudeRuntime {
         })
         return
       case 'reasoning-started':
+        active.streamed.add(event.assistantMessageID)
         this.emit('session.reasoning.started', {
           sessionID: active.sessionId,
           assistantMessageID: event.assistantMessageID,
@@ -585,6 +592,7 @@ export class ClaudeRuntime {
         })
         return
       case 'tool-input-started': {
+        active.streamed.add(event.assistantMessageID)
         this.startStep(active, event.assistantMessageID, active.model ?? 'default')
         const ordinal = this.ordinalFor(active, event.assistantMessageID, event.index)
         active.toolOwners.set(event.toolID, {
@@ -680,6 +688,60 @@ export class ClaudeRuntime {
   ): void {
     this.startStep(active, event.assistantMessageID, event.model)
     this.lastFinish.set(active.sessionId, finishOf(event.stopReason))
+    if (active.streamed.has(event.assistantMessageID)) return
+
+    event.content.forEach((block, index) => {
+      const ordinal = this.ordinalFor(active, event.assistantMessageID, index)
+      if (block.type === 'text') {
+        this.emit('session.text.started', {
+          sessionID: active.sessionId,
+          assistantMessageID: event.assistantMessageID,
+          ordinal,
+        })
+        this.emit('session.text.ended', {
+          sessionID: active.sessionId,
+          assistantMessageID: event.assistantMessageID,
+          ordinal,
+          text: block.text,
+        })
+      } else if (block.type === 'thinking') {
+        this.emit('session.reasoning.started', {
+          sessionID: active.sessionId,
+          assistantMessageID: event.assistantMessageID,
+          ordinal,
+        })
+        this.emit('session.reasoning.ended', {
+          sessionID: active.sessionId,
+          assistantMessageID: event.assistantMessageID,
+          ordinal,
+          text: block.text,
+        })
+      } else {
+        active.toolOwners.set(block.id, {
+          assistantMessageID: event.assistantMessageID,
+          ordinal,
+        })
+        this.emit('session.tool.input.started', {
+          sessionID: active.sessionId,
+          assistantMessageID: event.assistantMessageID,
+          id: block.id,
+          name: block.name,
+        })
+        this.emit('session.tool.input.ended', {
+          sessionID: active.sessionId,
+          assistantMessageID: event.assistantMessageID,
+          id: block.id,
+          text: JSON.stringify(block.input),
+        })
+        this.emit('session.tool.called', {
+          sessionID: active.sessionId,
+          assistantMessageID: event.assistantMessageID,
+          id: block.id,
+          input: block.input as Record<string, ClaraJsonValue>,
+          executed: !active.deniedTools.has(block.id),
+        })
+      }
+    })
   }
 
   private toolResult(active: ActiveTurn, toolID: string, content: string, isError: boolean): void {
@@ -798,6 +860,7 @@ export class ClaudeRuntime {
     }
     this.emit('session.idle', { sessionID: active.sessionId })
     this.emit('session.status', { sessionID: active.sessionId, status: { type: 'idle' } })
+    active.turn?.close()
     active.done.resolve()
   }
 

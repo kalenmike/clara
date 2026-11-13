@@ -312,6 +312,7 @@ export class AgentSdkGateway implements ClaudeGateway {
   private cachedAuth?: { at: number; value: ClaudeAuth | undefined }
   private cachedInstallation?: ClaudeInstallation
   private catalogValue?: ClaudeCatalog
+  private catalogAt = 0
 
   constructor(config: ClaudeConfig) {
     this.config = config
@@ -559,7 +560,8 @@ export class AgentSdkGateway implements ClaudeGateway {
   }
 
   async catalog(directory: string): Promise<ClaudeCatalog> {
-    return this.catalogValue ?? this.readCatalog(directory)
+    if (this.catalogValue && Date.now() - this.catalogAt < 60_000) return this.catalogValue
+    return this.readCatalog(directory)
   }
 
   lastInit(): ClaudeCatalog | undefined {
@@ -619,9 +621,13 @@ export class AgentSdkGateway implements ClaudeGateway {
         skills: init.skills ?? [],
       }
       this.catalogValue = catalog
+      this.catalogAt = Date.now()
       return catalog
     } catch {
-      return this.fallbackCatalog()
+      const catalog = this.fallbackCatalog()
+      this.catalogValue = catalog
+      this.catalogAt = Date.now()
+      return catalog
     } finally {
       clearTimeout(timer)
       abort.abort()

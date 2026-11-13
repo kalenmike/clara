@@ -305,6 +305,9 @@ export class SessionService {
   ): Promise<{ data: ClaraSessionMessage[]; cursor: { previous: null; next: string | null } }> {
     const record = await this.lookup(sessionId)
     if (!record) throw notFound(sessionId)
+    if (record.stored?.started === false && !record.info) {
+      return { data: [], cursor: { previous: null, next: null } }
+    }
     const directory = record.stored?.directory ?? record.info?.cwd ?? ''
     const start = record.info?.createdAt ?? record.info?.lastModified ?? Date.now()
     const entries = await this.transcriptEntries(sessionId, directory)
@@ -440,11 +443,14 @@ export class SessionService {
     directory?: string
   ): Promise<{ info?: ClaudeSessionInfo; stored?: StoredSession } | undefined> {
     const stored = this.store.get(sessionId)
-    let info = await this.claude
-      .getSessionInfo(sessionId, directory ?? stored?.directory)
-      .catch(() => undefined)
-    if (!info && (directory || stored?.directory)) {
-      info = await this.claude.getSessionInfo(sessionId).catch(() => undefined)
+    let info: ClaudeSessionInfo | undefined
+    if (!stored || stored.started) {
+      info = await this.claude
+        .getSessionInfo(sessionId, directory ?? stored?.directory)
+        .catch(() => undefined)
+      if (!info && (directory || stored?.directory)) {
+        info = await this.claude.getSessionInfo(sessionId).catch(() => undefined)
+      }
     }
     if (!info && !stored) return undefined
     return { ...(info ? { info } : {}), ...(stored ? { stored } : {}) }

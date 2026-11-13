@@ -123,7 +123,9 @@ export async function installClaude(options: InstallOptions): Promise<InstallRes
   const commands = foregroundCommand(entry)
   const actions = [probe.version ? `use Claude Code ${probe.version}` : 'use Claude Code']
   const warnings: string[] = []
-  if (!probe.ok) warnings.push(probe.message ?? 'Claude Code is not signed in')
+  if (!probe.ok && !options.skipAuthCheck) {
+    warnings.push(probe.message ?? 'Claude Code is not signed in')
+  }
 
   if (!options.skipAuthCheck) {
     const auth = await readClaudeAuth(detectClaudeInstallation(claude.claudePath)?.binary ?? '')
