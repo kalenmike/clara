@@ -15,8 +15,7 @@ tools/lab
 tools/docs
 apps/orchestrator
 apps/adapters
-tools
-infra/relay
+tools/cli
 docs
 orchestration
 .github

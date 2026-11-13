@@ -16,7 +16,9 @@ adapter and runs its install command on the harness machine. The same surface
 edits the Web URL used by pairing links and the VAPID contact used by Web Push,
 switches external connections on and off without stopping the process, starts
 and stops the local orchestration service, turns traffic monitoring on or off,
-and gates or paces client settings sync.
+and gates or paces client settings sync. A build compiled with
+`ENABLE_CLOUDFLARE_DEPLOYMENT=true` also deploys the relay Worker and Durable
+Object to the operator's Cloudflare account from the Relay card.
 
 ## User flow
 
@@ -79,7 +81,11 @@ and gates or paces client settings sync.
    the top right of its card. The choice is saved immediately. An enabled switch
    is green while external connections are on and red while they are off; a disabled switch
    keeps its neutral track in both cases. Turning a feature off hides its
-   details; turning it on makes the header expandable.
+   details; turning it on makes the header expandable. When the build includes
+   the optional Cloudflare deployment, the Relay card also carries **Deploy
+   relay to Cloudflare**: paste a Workers-scoped API token, choose the account,
+   and Clara uploads the Worker, creates the Durable Object namespace, sets both
+   relay tokens, and connects the relay. Existing devices must pair again.
 9. In **Settings**, edit **Web URL** or **VAPID contact** and choose **Save**;
    **Use default** clears the file value. The source tag shows environment,
    `server.json`/`vapid.json`, or default, and an environment value locks the
@@ -303,7 +309,11 @@ and gates or paces client settings sync.
 - Non-superadmin panel users and roles; the schema reserves a role column
 - Remote access to the panel through the relay
 - Editing relay URLs, rooms, tokens, or other `server.json` fields from the
-  panel; the Web URL and VAPID contact are the exceptions
+  panel, except for the relay target and encrypted credentials written by the
+  optional Cloudflare deployment; the Web URL and VAPID contact are the other
+  exceptions
+- Cloudflare custom domains, Worker deletion, or account selection beyond the
+  one account used for a relay deployment
 - Multiple simultaneously active harnesses; the panel stores one active backend
 - Per-device relay tokens; the relay client token remains shared
 - A sandbox for command execution, or an allowlist of every proxied API route

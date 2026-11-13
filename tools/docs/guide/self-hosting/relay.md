@@ -20,6 +20,27 @@ Cloudflare forwards encrypted frames; it cannot read them.
 
 ## Deploy the Worker
 
+### From the hub panel
+
+If your Clara build includes the optional Cloudflare deployment feature, open
+**Connections → Relay → Deploy relay to Cloudflare** in the hub panel.
+
+1. Create a Cloudflare API token from the link in the panel. It needs
+   **Workers Scripts: Edit**; **Account Settings: Read** lets the panel list your
+   accounts.
+2. Paste the token, choose the account, and choose **Deploy relay**.
+3. Clara uploads the Worker, creates its Durable Object namespace, sets both
+   relay tokens, enables the `workers.dev` host, and health-checks it.
+
+The hub stores the relay tokens encrypted on this machine. The Cloudflare token
+is kept only for the deployment unless you choose to save it. Existing devices
+must pair again after the relay changes.
+
+Builds without the feature, and custom-domain deployments, use the manual path
+below.
+
+### Manually
+
 The Worker and its `RelayRoom` Durable Object live in `infra/relay`.
 
 ```bash
@@ -46,7 +67,12 @@ a secret, but it is unguessable.
 
 ## Point the web client at the relay
 
-Set `VITE_CLARA_WS_URL` to the relay endpoint when building the web app:
+`VITE_CLARA_WS_URL` is optional. Each pairing payload carries its hub's relay URL
+and room, so a web build can connect to any relay when this value is left empty.
+This is the right choice for a shared hosted web client.
+
+Set it only when the browser must use one fixed relay endpoint regardless of the
+pairing payload:
 
 ```bash
 VITE_CLARA_WS_URL=wss://relay.example pnpm --filter @clara/web build
@@ -105,6 +131,9 @@ address that only works on the same machine or network.
 - The client token is shared by devices. It is not the encryption key.
 - The hub panel is loopback-only. Use an SSH tunnel if you need to reach it
   remotely; do not expose it to the internet.
+- Enter the Cloudflare API token only in the hub panel over loopback or HTTPS.
+  The hub uses it for the deployment and never returns it to the browser. Saving
+  it is optional and encrypted with the hub secret key.
 - Use HTTPS for the web app. An HTTPS page cannot open a `ws://` socket.
 
 ## Related

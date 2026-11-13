@@ -1,7 +1,8 @@
 import { join, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { PROTOCOL_VERSION } from '@clara/shared-types'
-import { loadAdminPaths, loadConfig } from './config.ts'
+import { loadAdminPaths, loadConfig, validateRelayConfig } from './config.ts'
+import { loadCloudflareDeploymentFeature } from './features/cloudflare-deployment/loader.ts'
 import { HarnessManager } from './harness/manager.ts'
 import { HarnessMetadataStore } from './harness/metadata.ts'
 import { HarnessStore } from './harness/store.ts'
@@ -49,10 +50,17 @@ async function main(): Promise<void> {
   // A local-only code is a pairing command option; serving must keep its relay
   // config so the outbound transport still starts.
   const noRelay = command === 'pair' && args.includes('--no-relay')
-  const config = loadConfig({ noRelay })
+  const config = loadConfig({ noRelay, allowMissingRelayTokens: true })
 
   const database = openDatabase(config.dbPath)
   const secretKey = await readSecretKey(config.configDir)
+  const cloudflare = await loadCloudflareDeploymentFeature({
+    config,
+    secretKey,
+    log,
+  })
+  if (!noRelay) await cloudflare?.applyStoredRelay()
+  validateRelayConfig(config)
   const devices = new DeviceStore({
     db: database,
     key: secretKey.key,
@@ -186,6 +194,7 @@ async function main(): Promise<void> {
   })
 
   await controller.start()
+  cloudflare?.attachRuntime({ controller, settings })
   if (apiToken) {
     log(
       `api at http://${config.local.host === '0.0.0.0' ? '127.0.0.1' : config.local.host}:${config.local.port} (docs /docs)`
@@ -208,8 +217,8 @@ async function main(): Promise<void> {
       config,
       harness,
       localAgent: controller.agent,
-      relayAgent: controller.relay,
-      relayClient: controller.relayTransport,
+      relayAgent: () => controller.relay,
+      relayClient: () => controller.relayTransport,
       localConnections: () => controller.localConnections,
       traffic: controller.traffic,
       push,
@@ -225,6 +234,7 @@ async function main(): Promise<void> {
         schemaVersion: schemaVersion(database),
         sync: () => clientStorage.stats(),
       },
+      feature: cloudflare?.panel,
       log: panelLog,
     })
     const assetsDir = join(dirname(fileURLToPath(import.meta.url)), 'panel')
@@ -232,6 +242,7 @@ async function main(): Promise<void> {
       panel = await startPanelServer({
         source: runtime,
         controls: controller,
+        feature: cloudflare?.panel,
         auth,
         host: process.env.CLARA_PANEL_BIND_HOST?.trim() || '127.0.0.1',
         allowRemote: readBooleanEnv('CLARA_PANEL_ALLOW_REMOTE'),
@@ -258,6 +269,7 @@ async function main(): Promise<void> {
     stopping = true
     log('shutting down')
     await controller.close()
+    cloudflare?.close()
     await panel?.close()
     closeDatabase(database)
     process.exit(0)

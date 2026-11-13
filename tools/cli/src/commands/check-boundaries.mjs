@@ -20,6 +20,12 @@ const rules = [
 const roots = ['apps', 'packages', 'tools']
 const skippedDirs = new Set(['node_modules', 'dist', 'build', 'coverage', '.git'])
 
+const cloudflareFeaturePattern = /features\/cloudflare-deployment\/(?!loader\.(?:ts|tsx))/
+const cloudflareFeatureRoots = [
+  'apps/hub/server/src/features/cloudflare-deployment',
+  'apps/hub/panel/src/features/cloudflare-deployment',
+]
+
 const violations = []
 
 function isAllowed(path, allowed) {
@@ -35,6 +41,22 @@ function checkSource(path, relativePath, specifier) {
   const source = readFileSync(path, 'utf8')
   if (importPattern(specifier).test(source)) {
     violations.push(`${normalize(relativePath)} imports ${specifier}`)
+  }
+}
+
+function checkCloudflareIsolation(path, relativePath) {
+  if (!/\.(?:[cm]?[jt]s|[jt]sx)$/.test(path)) return
+  const inFeature = cloudflareFeatureRoots.some(
+    (prefix) => relativePath === prefix || relativePath.startsWith(`${prefix}${sep}`)
+  )
+  const inTest = relativePath.split(sep).includes('test')
+  if (inFeature || inTest) return
+
+  const source = readFileSync(path, 'utf8')
+  if (cloudflareFeaturePattern.test(normalize(relativePath + '\n' + source))) {
+    violations.push(
+      `${normalize(relativePath)} imports the Cloudflare deployment feature outside its loader`
+    )
   }
 }
 
@@ -75,6 +97,7 @@ function walk(directory) {
       walk(path)
       continue
     }
+    checkCloudflareIsolation(path, relativePath)
     for (const rule of rules) {
       if (isAllowed(relativePath, rule.allowed)) continue
       checkSource(path, relativePath, rule.specifier)
@@ -112,9 +135,9 @@ for (const relativePath of [
 }
 
 if (violations.length > 0) {
-  console.error('Harness SDKs must stay inside their own adapter:')
+  console.error('Source boundary violations:')
   for (const violation of violations) console.error(`  ${violation}`)
   process.exit(1)
 }
 
-console.log('Harness SDK boundaries are clean.')
+console.log('Source boundaries are clean.')

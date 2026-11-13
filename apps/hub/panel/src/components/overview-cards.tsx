@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { Suspense, useEffect, useState } from 'react'
 import { Bell, Power, Radio, Server, Settings2 } from 'lucide-react'
 import type {
   PanelAgentInfo,
@@ -9,6 +9,7 @@ import type {
   PanelRelayTransport,
   PanelValueSource,
 } from '@clara/shared-types'
+import { CloudflareRelaySlot } from '../features/cloudflare-deployment/loader.tsx'
 import { findFeature, useFeatureControl } from '../lib/feature-control.ts'
 import {
   formatBytes,
@@ -298,14 +299,29 @@ export function RelayCard({
         ) : (
           <>
             <EmptyState>
-              This hub is local-only. Set <span className="font-mono">CLARA_RELAY_URL</span>, a
-              room, and both tokens to enable remote access.
+              {relay.cloudflare?.available ? (
+                <>
+                  This hub is local-only. Deploy a relay below, or set{' '}
+                  <span className="font-mono">CLARA_RELAY_URL</span>, a room, and both tokens to
+                  enable remote access.
+                </>
+              ) : (
+                <>
+                  This hub is local-only. Set <span className="font-mono">CLARA_RELAY_URL</span>, a
+                  room, and both tokens to enable remote access.
+                </>
+              )}
             </EmptyState>
             <p className="pt-2 text-xs text-neutral-500 dark:text-neutral-400">
               A relay-disabled hub still serves the local WebSocket and this panel.
             </p>
           </>
         )}
+        {CloudflareRelaySlot ? (
+          <Suspense fallback={null}>
+            <CloudflareRelaySlot relay={relay} now={now} onChanged={onChanged} />
+          </Suspense>
+        ) : null}
       </CardBody>
     </CollapsibleCard>
   )

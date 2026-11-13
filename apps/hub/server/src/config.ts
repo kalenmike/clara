@@ -61,7 +61,9 @@ const DEFAULT_LOCAL_HOST = '127.0.0.1'
 const DEFAULT_LOCAL_PORT = 8788
 const DEFAULT_WEB_PORT = 8080
 
-export function loadConfig(options: { noRelay?: boolean } = {}): ServerConfig {
+export function loadConfig(
+  options: { noRelay?: boolean; allowMissingRelayTokens?: boolean } = {}
+): ServerConfig {
   const configDir = resolveConfigDir()
   const dataDir = resolveDataDir()
   const configPath = join(configDir, 'server.json')
@@ -97,7 +99,7 @@ export function loadConfig(options: { noRelay?: boolean } = {}): ServerConfig {
   const envRoom = readEnv('CLARA_RELAY_ROOM')
   const fileRoom = nonEmpty(file.relay?.room)
   const configuredRoom = envRoom ?? fileRoom
-  const relayRoom = configuredRoom || createRoom()
+  const relayRoom = configuredRoom || createRelayRoom()
   const relayRoomSource: ConfigSource = !relayUrl
     ? 'none'
     : !configuredRoom
@@ -127,18 +129,8 @@ export function loadConfig(options: { noRelay?: boolean } = {}): ServerConfig {
         }
       : undefined
 
-  if (relay && (!relay.agentToken || !relay.clientToken)) {
-    const missing = [
-      relay.agentToken ? null : 'CLARA_AGENT_TOKEN',
-      relay.clientToken ? null : 'CLARA_CLIENT_TOKEN',
-    ]
-      .filter(Boolean)
-      .join(' and ')
-    throw new Error(
-      `Missing ${missing}. The relay URL is configured in ${configPath}, but tokens are never ` +
-        `stored there. Add them to ${join(configDir, 'server.env')} (systemd EnvironmentFile), ` +
-        `export them before starting the hub service, or set them under "relay" in ${configPath}.`
-    )
+  if (relay && !options.allowMissingRelayTokens) {
+    assertRelayTokens(relay, configPath, configDir)
   }
 
   const envPairingBaseUrl = readEnv('CLARA_PAIRING_BASE_URL')
@@ -324,8 +316,52 @@ function parsePort(value: string): number {
   return port
 }
 
-function createRoom(): string {
+function createRelayRoom(): string {
   return bytesToBase64Url(randomBytes(16))
+}
+
+export { createRelayRoom }
+
+/**
+ * Fail early when a relay URL has no usable credentials. The hub panel can
+ * supply the tokens from its own encrypted store, so serving and pairing call
+ * this after that merge rather than inside loadConfig.
+ */
+export function validateRelayConfig(config: ServerConfig): void {
+  if (config.relay) assertRelayTokens(config.relay, config.configPath, config.configDir)
+}
+
+function assertRelayTokens(relay: RelayConfig, configPath: string, configDir: string): void {
+  if (relay.agentToken && relay.clientToken) return
+  const missing = [
+    relay.agentToken ? null : 'CLARA_AGENT_TOKEN',
+    relay.clientToken ? null : 'CLARA_CLIENT_TOKEN',
+  ]
+    .filter(Boolean)
+    .join(' and ')
+  throw new Error(
+    `Missing ${missing}. The relay URL is configured in ${configPath}. Add the tokens to ` +
+      `${join(configDir, 'server.env')} (systemd EnvironmentFile), export them before starting ` +
+      `the hub service, set them under "relay" in ${configPath}, or deploy the relay from the ` +
+      `hub panel when the Cloudflare deployment feature is built in.`
+  )
+}
+
+/**
+ * Persist a panel-managed relay target. The tokens live in the feature's
+ * encrypted credential file, never in server.json.
+ */
+export function saveRelayTarget(
+  configPath: string,
+  relay: { url: string; room: string } | undefined
+): void {
+  const previous = readConfig(configPath)
+  const next: ConfigFile = { ...previous }
+  delete next.opencode
+  delete next.psk
+  if (relay) next.relay = { url: relay.url, room: relay.room }
+  else delete next.relay
+  writeConfigFile(configPath, next)
 }
 
 /** Environment values set to whitespace only are treated as absent. */

@@ -172,33 +172,35 @@ function createRuntime(
         },
       ]
     ),
-    relayAgent: agent(
-      options.relaySessions ?? [
-        {
-          sid: 'relay-sid',
-          kind: 'device',
-          deviceId: 'device-remote',
-          deviceLabel: 'Phone',
-          connectedAt: Date.now() - 3_000,
-          lastSeen: Date.now() - 500,
-          requests: 0,
-          bytesIn: 512,
-          bytesOut: 256,
-          requestsTotal: 1,
-          deviceClass: 'mobile',
-          presenceAt: Date.now() - 500,
-          holdPhone: false,
-        },
-      ]
-    ),
-    relayClient: relayClient(
-      options.relay ?? {
-        status: 'online',
-        connectedSince: Date.now() - 10_000,
-        lastChangedAt: Date.now() - 10_000,
-        reconnectAttempts: 2,
-      }
-    ),
+    relayAgent: () =>
+      agent(
+        options.relaySessions ?? [
+          {
+            sid: 'relay-sid',
+            kind: 'device',
+            deviceId: 'device-remote',
+            deviceLabel: 'Phone',
+            connectedAt: Date.now() - 3_000,
+            lastSeen: Date.now() - 500,
+            requests: 0,
+            bytesIn: 512,
+            bytesOut: 256,
+            requestsTotal: 1,
+            deviceClass: 'mobile',
+            presenceAt: Date.now() - 500,
+            holdPhone: false,
+          },
+        ]
+      ),
+    relayClient: () =>
+      relayClient(
+        options.relay ?? {
+          status: 'online',
+          connectedSince: Date.now() - 10_000,
+          lastChangedAt: Date.now() - 10_000,
+          reconnectAttempts: 2,
+        }
+      ),
     localConnections: () => 1,
     ...(options.traffic ? { traffic: options.traffic } : {}),
     push: pushService(),
