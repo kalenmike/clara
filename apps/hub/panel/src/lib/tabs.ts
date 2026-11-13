@@ -43,10 +43,10 @@ export const PANEL_TABS: PanelTabMeta[] = [
     id: 'harness',
     label: 'Harness',
     icon: Cable,
-    kicker: 'OpenCode',
+    kicker: 'Harness',
     title: 'Harness',
     description:
-      'Live adapter sessions, paired harnesses, and the OpenCode server this hub proxies.',
+      'Live adapter sessions, paired harnesses, and the harness server this hub proxies.',
     primary: true,
   },
   {

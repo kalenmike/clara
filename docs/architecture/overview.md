@@ -5,8 +5,8 @@ your machine that carries harness traffic over an end-to-end encrypted WebSocket
 The web app reads projects, sessions, and messages; the hub owns transport,
 adapter routing, the outbound relay connection, and Web Push delivery while Clara
 is closed. A harness is reached through an **adapter** on the harness machine.
-This repository includes the OpenCode adapter; the hub and web client do not
-depend on OpenCode.
+This repository includes the OpenCode and Claude Code adapters; the hub and
+web client do not depend on either harness.
 
 ## Vocabulary
 
@@ -40,22 +40,24 @@ compatibility names, not prose.
 
 ## Stack
 
-| Layer        | Choice                                                                |
-| ------------ | --------------------------------------------------------------------- |
-| Workspace    | pnpm 11 workspaces                                                    |
-| Build        | Vite 8, TypeScript 6                                                  |
-| Web          | React 19, React Router 8, Tailwind CSS 4, shadcn/ui (radix-nova)      |
-| Server state | TanStack Query 5                                                      |
-| Stream state | A small external store (`chatStore`) read with `useSyncExternalStore` |
-| Adapter SDK  | `@opencode/client` **2.1.1** in the included adapter and lab only     |
-| Hub service  | Node 22, `ws`, `node:http`, WebCrypto                                 |
-| Relay        | Cloudflare Worker + `RelayRoom` Durable Object                        |
-| Crypto       | Device key → HKDF-SHA-256 → AES-256-GCM (WebCrypto)                   |
+| Layer        | Choice                                                                                                                              |
+| ------------ | ----------------------------------------------------------------------------------------------------------------------------------- |
+| Workspace    | pnpm 11 workspaces                                                                                                                  |
+| Build        | Vite 8, TypeScript 6                                                                                                                |
+| Web          | React 19, React Router 8, Tailwind CSS 4, shadcn/ui (radix-nova)                                                                    |
+| Server state | TanStack Query 5                                                                                                                    |
+| Stream state | A small external store (`chatStore`) read with `useSyncExternalStore`                                                               |
+| Adapter SDK  | `@opencode/client` **2.1.1** (OpenCode) and `@anthropic-ai/claude-agent-sdk` **0.3.325** (Claude Code), each inside its own adapter |
+| Hub service  | Node 22, `ws`, `node:http`, WebCrypto                                                                                               |
+| Relay        | Cloudflare Worker + `RelayRoom` Durable Object                                                                                      |
+| Crypto       | Device key → HKDF-SHA-256 → AES-256-GCM (WebCrypto)                                                                                 |
 
 ### Version contract
 
 Clara pins `@opencode/client` to the OpenCode server version it targets (2.1.1)
-inside `apps/adapters/opencode` and `tools/lab`. The hub has no harness SDK. The
+inside `apps/adapters/opencode` and `tools/lab`, and pins
+`@anthropic-ai/claude-agent-sdk` (0.3.325, bundling Claude Code 2.1.325)
+inside `apps/adapters/claude`. The hub has no harness SDK. The
 `/v1` DTOs and OpenAPI components are Clara-owned in `@clara/api-contract`; the
 web and SDK never import the harness client. Before bumping either side:
 
@@ -82,6 +84,7 @@ apps/
   orchestrator/        Loopback orchestration service and CLI
   adapters/
     opencode/          OpenCode harness adapter, binding, and standalone bin
+    claude/            Claude Code harness adapter and standalone bin
 tools/
   cli/                 Developer CLI for the stack, worktrees, and docs
   lab/                 Loopback pipeline preview and agent probe
@@ -193,7 +196,8 @@ ConnectionProvider
   `HarnessManager` routes Clara Harness Protocol requests over that E2EE session,
   so the hub never contacts a harness directly and needs no adapter port.
   The included OpenCode adapter installs its daemon and orchestration binding
-  together. Session/project metadata is keyed by a stable harness identity, so a
+  together; the Claude Code adapter installs only its daemon and relies on the
+  machine's Claude Code login. Session/project metadata is keyed by a stable harness identity, so a
   reinstall or re-pair reconnects the same sessions.
 - Feature choices, the stopped flag, monitoring, the orchestration switch, the
   client-sync gate and interval, panel users, and harness connections live in a

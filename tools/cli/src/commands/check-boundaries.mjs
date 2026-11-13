@@ -2,30 +2,43 @@ import { readFileSync, readdirSync, statSync } from 'node:fs'
 import { join, relative, sep } from 'node:path'
 import { root } from '../lib/router.mjs'
 
-const allowed = new Set(['apps/adapters/opencode', 'tools/lab'])
+/**
+ * Harness SDKs may only appear inside their own adapter. Adding a third
+ * harness means adding one rule here, not loosening an existing one.
+ */
+const rules = [
+  {
+    specifier: '@opencode/client',
+    allowed: ['apps/adapters/opencode', 'tools/lab'],
+  },
+  {
+    specifier: '@anthropic-ai/claude-agent-sdk',
+    allowed: ['apps/adapters/claude'],
+  },
+]
+
 const roots = ['apps', 'packages', 'tools']
 const skippedDirs = new Set(['node_modules', 'dist', 'build', 'coverage', '.git'])
-const importPattern =
-  /(?:from\s+['"]@opencode\/client['"]|import\s*\(\s*['"]@opencode\/client['"]|require\s*\(\s*['"]@opencode\/client['"]\s*\))/
 
 const violations = []
 
-function isAllowed(path) {
-  return [...allowed].some((prefix) => path === prefix || path.startsWith(`${prefix}${sep}`))
+function isAllowed(path, allowed) {
+  return allowed.some((prefix) => path === prefix || path.startsWith(`${prefix}${sep}`))
 }
 
 function normalize(path) {
   return path.split(sep).join('/')
 }
 
-function checkSource(path, relativePath) {
+function checkSource(path, relativePath, specifier) {
   if (!/\.(?:[cm]?[jt]s|[jt]sx)$/.test(path)) return
   const source = readFileSync(path, 'utf8')
-  if (importPattern.test(source))
-    violations.push(`${normalize(relativePath)} imports @opencode/client`)
+  if (importPattern(specifier).test(source)) {
+    violations.push(`${normalize(relativePath)} imports ${specifier}`)
+  }
 }
 
-function checkManifest(path, relativePath) {
+function checkManifest(path, relativePath, specifier) {
   if (!path.endsWith('package.json')) return
   let manifest
   try {
@@ -39,10 +52,17 @@ function checkManifest(path, relativePath) {
     'peerDependencies',
     'optionalDependencies',
   ]) {
-    if (manifest[section]?.['@opencode/client']) {
-      violations.push(`${normalize(relativePath)} depends on @opencode/client`)
+    if (manifest[section]?.[specifier]) {
+      violations.push(`${normalize(relativePath)} depends on ${specifier}`)
     }
   }
+}
+
+function importPattern(specifier) {
+  const escaped = specifier.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+  return new RegExp(
+    `(?:from\\s+['"]${escaped}['"]|import\\s*\\(\\s*['"]${escaped}['"]|require\\s*\\(\\s*['"]${escaped}['"]\\s*\\))`
+  )
 }
 
 function walk(directory) {
@@ -55,9 +75,11 @@ function walk(directory) {
       walk(path)
       continue
     }
-    if (isAllowed(relativePath)) continue
-    checkSource(path, relativePath)
-    checkManifest(path, relativePath)
+    for (const rule of rules) {
+      if (isAllowed(relativePath, rule.allowed)) continue
+      checkSource(path, relativePath, rule.specifier)
+      checkManifest(path, relativePath, rule.specifier)
+    }
   }
 }
 
@@ -90,9 +112,9 @@ for (const relativePath of [
 }
 
 if (violations.length > 0) {
-  console.error('@opencode/client is only allowed in apps/hub/server and tools/lab:')
+  console.error('Harness SDKs must stay inside their own adapter:')
   for (const violation of violations) console.error(`  ${violation}`)
   process.exit(1)
 }
 
-console.log('OpenCode type boundary is clean.')
+console.log('Harness SDK boundaries are clean.')
