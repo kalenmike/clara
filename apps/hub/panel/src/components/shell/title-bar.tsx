@@ -1,7 +1,6 @@
-import { Eye, EyeOff, Folder, LogOut, RefreshCw } from 'lucide-react'
+import { Eye, EyeOff, LogOut, RefreshCw } from 'lucide-react'
 import type { PanelSnapshot } from '@clara/shared-types'
 import { formatRelative, formatTimestamp } from '../../lib/format.ts'
-import { PEEK_MASK } from '../../lib/peek.ts'
 import { usePeek } from '../../lib/peek-context.tsx'
 import { Badge } from '../primitives.tsx'
 
@@ -25,7 +24,6 @@ export function TitleBar({
   const { masked, toggle } = usePeek()
   const tone = error && data ? 'warning' : data ? 'success' : error ? 'danger' : 'neutral'
   const connection = error && data ? 'Stale' : data ? 'Connected' : error ? 'Offline' : 'Connecting'
-  const configPath = data?.agent.configPath
   const updatedIso = updatedAt ? new Date(updatedAt).toISOString() : undefined
 
   return (
@@ -38,11 +36,6 @@ export function TitleBar({
         <span className="panel-titlebar-tag">hub</span>
       </div>
 
-      <div className="panel-titlebar-path" title={configPath}>
-        <Folder className="size-3.5" aria-hidden="true" />
-        <code>{configPath ? (masked ? PEEK_MASK : configPath) : 'Waiting for the hub…'}</code>
-      </div>
-
       <div className="panel-titlebar-actions">
         <Badge tone={tone}>{connection}</Badge>
         {updatedIso ? (
@@ -50,7 +43,6 @@ export function TitleBar({
             Updated {formatRelative(updatedIso, now)}
           </span>
         ) : null}
-        {data ? <span className="panel-titlebar-meta">v{data.agent.version}</span> : null}
         <button
           type="button"
           role="switch"

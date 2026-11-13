@@ -1,3 +1,6 @@
+import { execFileSync } from 'node:child_process'
+import { readFileSync } from 'node:fs'
+import { fileURLToPath, URL } from 'node:url'
 import tailwindcss from '@tailwindcss/vite'
 import react from '@vitejs/plugin-react'
 import { defineConfig } from 'vite'
@@ -6,8 +9,43 @@ import { defineConfig } from 'vite'
 // present both Host and Origin as the panel listener rather than the Vite one.
 const PANEL_API = 'http://127.0.0.1:8790'
 
-export default defineConfig({
+const root = fileURLToPath(new URL('../../..', import.meta.url))
+
+const packageVersion = (
+  JSON.parse(readFileSync(new URL('../../../package.json', import.meta.url), 'utf8')) as {
+    version: string
+  }
+).version
+
+function git(args: string[]): string | undefined {
+  try {
+    return execFileSync('git', args, { cwd: root, encoding: 'utf8' }).trim()
+  } catch {
+    return undefined
+  }
+}
+
+// The Docker context excludes `.git`, so the CLI passes the host checkout's
+// values as environment variables before the panel build.
+const commit = process.env.CLARA_COMMIT?.trim() || git(['rev-parse', '--short=8', 'HEAD']) || null
+const dirtyFromEnv = process.env.CLARA_DIRTY
+const dirty =
+  dirtyFromEnv === undefined
+    ? Boolean(git(['status', '--porcelain']))
+    : dirtyFromEnv === '1' || dirtyFromEnv === 'true'
+const builtAt = new Date().toISOString()
+
+export default defineConfig(({ command }) => ({
   plugins: [react(), tailwindcss()],
+  define: {
+    'import.meta.env.CLARA_VERSION': JSON.stringify(packageVersion),
+    'import.meta.env.CLARA_BUILD': JSON.stringify({
+      mode: command === 'serve' ? 'dev' : 'build',
+      commit,
+      dirty,
+      builtAt,
+    }),
+  },
   server: {
     port: 5174,
     strictPort: true,
@@ -28,4 +66,4 @@ export default defineConfig({
   build: {
     sourcemap: false,
   },
-})
+}))
