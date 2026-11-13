@@ -1,18 +1,18 @@
 import { WifiOff } from 'lucide-react'
-import type { ClaraActivityHarness, ClaraProject, ClaraRunningSession } from '@clara/api-contract'
-import { RunningAgentCard } from '@/components/activity/running-agent-card'
+import type { ClaraActivityHarness, ClaraActivitySession, ClaraProject } from '@clara/api-contract'
+import { ActivityCard } from '@/components/activity/activity-card'
 import { Badge } from '@/components/ui/badge'
-import { runningSessionPath } from '@/features/activity/running-activity'
+import { activitySessionPath } from '@/features/activity/activity-sessions'
 import { projectLabel } from '@/features/projects/project-list'
 
-export function RunningAgentSection({
+export function ActivityHarnessSection({
   harness,
   sessions,
   projectByID,
   projectIDs,
 }: {
   harness: ClaraActivityHarness
-  sessions: ClaraRunningSession[]
+  sessions: ClaraActivitySession[]
   projectByID: ReadonlyMap<string, ClaraProject>
   projectIDs: ReadonlySet<string>
 }) {
@@ -26,7 +26,7 @@ export function RunningAgentSection({
           </Badge>
         ) : harness.ok ? (
           <Badge variant="secondary" className="text-[10px]">
-            {sessions.length} running
+            {sessions.length} active
           </Badge>
         ) : (
           <Badge variant="outline" className="text-[10px] text-amber-600 dark:text-amber-400">
@@ -48,12 +48,12 @@ export function RunningAgentSection({
         {sessions.map((item) => {
           const project = projectByID.get(item.session.projectID)
           return (
-            <RunningAgentCard
+            <ActivityCard
               key={`${item.harnessID}:${item.session.id}`}
               item={item}
               harness={harness}
               projectName={project ? projectLabel(project) : item.session.projectID}
-              href={runningSessionPath(item, harness, projectIDs)}
+              href={activitySessionPath(item, harness, projectIDs)}
             />
           )
         })}

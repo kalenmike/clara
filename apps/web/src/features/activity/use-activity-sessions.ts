@@ -2,22 +2,22 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { queryKeys } from '@/lib/query-keys'
 import { useConnection } from '@/providers/connection-provider'
 
-/** Running sessions across every paired harness. */
-export function useRunningActivity() {
+/** Inbox and Outbox sessions across every paired harness. */
+export function useActivitySessions() {
   const { client } = useConnection()
   const queryClient = useQueryClient()
-  const running = useQuery({
-    queryKey: queryKeys.runningActivity,
-    queryFn: () => client!.activity.running(),
+  const activity = useQuery({
+    queryKey: queryKeys.activitySessions,
+    queryFn: () => client!.activity.sessions(),
     enabled: Boolean(client),
     refetchInterval: 10_000,
   })
   const refresh = useMutation({
-    mutationFn: () => client!.activity.running({ refresh: true }),
+    mutationFn: () => client!.activity.sessions({ refresh: true }),
     onSuccess: (data) => {
-      queryClient.setQueryData(queryKeys.runningActivity, data)
+      queryClient.setQueryData(queryKeys.activitySessions, data)
     },
   })
 
-  return { ...running, refresh }
+  return { ...activity, refresh }
 }

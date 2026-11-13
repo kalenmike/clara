@@ -694,9 +694,9 @@ export function SidebarContent({
           </div>
         </div>
         <Button asChild variant="ghost" size="icon" className="size-11 md:size-8">
-          <Link to="/activity" onClick={onNavigate} title="Running agents">
+          <Link to="/activity" onClick={onNavigate} title="Activity">
             <Activity className="size-5 md:size-4" />
-            <span className="sr-only">Running agents</span>
+            <span className="sr-only">Activity</span>
           </Link>
         </Button>
         <Button asChild variant="ghost" size="icon" className="size-11 md:size-8">

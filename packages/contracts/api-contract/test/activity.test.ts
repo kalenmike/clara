@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { claraPlanTodoSchema, claraRunningSessionsResponseSchema } from '../src/index.ts'
+import { claraActivitySessionsResponseSchema, claraPlanTodoSchema } from '../src/index.ts'
 
 const session = {
   id: 's1',
@@ -20,18 +20,26 @@ describe('activity contract', () => {
     )
   })
 
-  it('validates running sessions with partial harness status', () => {
-    const parsed = claraRunningSessionsResponseSchema.safeParse({
+  it('validates inbox and outbox sessions with partial harness status', () => {
+    const parsed = claraActivitySessionsResponseSchema.safeParse({
       data: [
         {
           harnessID: 'harness-a',
           session,
+          mailbox: 'outbox',
           todos: [{ content: 'Ship it', status: 'in_progress' }],
         },
         {
           harnessID: 'harness-a',
           session: { ...session, id: 's2' },
+          mailbox: 'inbox',
           todosUnavailable: true,
+        },
+        {
+          harnessID: 'harness-a',
+          session: { ...session, id: 's3' },
+          mailbox: 'inbox',
+          todosSkipped: true,
         },
       ],
       harnesses: [
@@ -42,6 +50,7 @@ describe('activity contract', () => {
           online: true,
           active: true,
           ok: true,
+          createdAt: 1,
         },
         {
           harnessID: 'harness-b',
@@ -50,6 +59,7 @@ describe('activity contract', () => {
           online: false,
           active: false,
           ok: false,
+          createdAt: 2,
           code: 'offline',
           message: 'The harness adapter is offline',
         },
@@ -57,5 +67,14 @@ describe('activity contract', () => {
     })
 
     expect(parsed.success).toBe(true)
+  })
+
+  it('rejects an unknown mailbox', () => {
+    const parsed = claraActivitySessionsResponseSchema.safeParse({
+      data: [{ harnessID: 'harness-a', session, mailbox: 'draft' }],
+      harnesses: [],
+    })
+
+    expect(parsed.success).toBe(false)
   })
 })

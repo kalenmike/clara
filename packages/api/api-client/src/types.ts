@@ -17,7 +17,7 @@ import type {
   ClaraProjectDeleteResult,
   ClaraProviderListOutput,
   ClaraReferenceListOutput,
-  ClaraRunningSessionsResponse,
+  ClaraActivitySessionsResponse,
   ClaraServerInfo,
   ClaraSession,
   ClaraSessionActiveOutput,
@@ -83,8 +83,8 @@ export type ClaraProjectAvailableInput = {
   readonly harnessID?: string
 }
 
-export type ClaraActivityRunningInput = {
-  /** Bypass the hub's short transcript cache for a manual refresh. */
+export type ClaraActivitySessionsInput = {
+  /** Bypass the hub's activity caches for a manual refresh. */
   readonly refresh?: boolean
 }
 
@@ -300,10 +300,10 @@ export type ClaraClient = {
     openapi: (options?: RequestOptions) => Promise<Record<string, unknown>>
   }
   activity: {
-    running: (
-      input?: ClaraActivityRunningInput,
+    sessions: (
+      input?: ClaraActivitySessionsInput,
       options?: RequestOptions
-    ) => Promise<ClaraRunningSessionsResponse>
+    ) => Promise<ClaraActivitySessionsResponse>
   }
   harness: {
     list: (options?: RequestOptions) => Promise<ClaraHarnessConnection[]>
