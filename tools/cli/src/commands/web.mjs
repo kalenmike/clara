@@ -14,7 +14,18 @@ import { WEB_DIST } from '../lib/local-web.mjs'
 import { root } from '../lib/router.mjs'
 import { probe } from '../lib/server-control.mjs'
 import { readServiceArgs, runServiceLifecycle } from '../lib/service-cli.mjs'
-import { compose, waitForWeb, webURL } from '../lib/web-control.mjs'
+import { compose, waitForWeb, webPort, webURL } from '../lib/web-control.mjs'
+
+async function webHealthy() {
+  const health = await probe(`${webURL()}/healthz`)
+  return health.ok && health.body?.service === 'clara-web'
+}
+
+async function webHealthPid() {
+  const health = await probe(`${webURL()}/healthz`)
+  if (!health.ok || health.body?.service !== 'clara-web') return undefined
+  return typeof health.body.pid === 'number' ? health.body.pid : undefined
+}
 
 const webService = {
   name: 'web',
@@ -26,10 +37,12 @@ const webService = {
     ready: () => existsSync(join(WEB_DIST, 'index.html')),
     missing: 'The web client is not built. Run `pnpm build` first.',
     buildError: 'error: the local web build failed.',
-    healthy: async () => {
-      const health = await probe(`${webURL()}/healthz`)
-      return health.ok && health.body?.service === 'clara-web'
-    },
+    patterns: ['local-web.mjs'],
+    ports: () => [webPort()],
+    discoverPid: webHealthPid,
+    adoptPid: webHealthPid,
+    healthy: webHealthy,
+    running: webHealthy,
     onStarted: () => {
       console.log(`web: ${webURL()}/`)
       console.log(`  logs:  ${logPath('web')}`)
