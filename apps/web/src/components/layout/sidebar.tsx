@@ -35,7 +35,7 @@ import { ProjectAvatar } from '@/components/projects/project-avatar'
 import { SidebarDeleteDialog } from '@/components/layout/sidebar-delete-dialog'
 import { SidebarSelectionBar } from '@/components/layout/sidebar-selection-bar'
 import { SidebarSessionRow } from '@/components/layout/sidebar-session-row'
-import { usePendingPermissions } from '@/features/chat/use-permissions'
+import { useWorkspacePendingPermissions } from '@/features/chat/use-permissions'
 import { useHarnessLabel } from '@/features/harness/use-harness-label'
 import { resolveAttentionKind } from '@/features/notifications/attention'
 import {
@@ -267,13 +267,10 @@ export function SidebarContent({
   const { signals: mailboxSignals, pending: mailboxesPending } =
     useSessionMailboxSignals(mailboxSessions)
 
-  const permissionsQuery = usePendingPermissions(
-    sessionWorkspace?.canonical ?? sessionWorkspace?.directory,
-    sessionWorkspace?.harnessID
-  )
+  const { requests: permissions } = useWorkspacePendingPermissions(selectedProject?.workspaces)
   const awaitingInput = useMemo(
-    () => new Set((permissionsQuery.data ?? []).map((request) => request.sessionID)),
-    [permissionsQuery.data]
+    () => new Set(permissions.map((request) => request.sessionID)),
+    [permissions]
   )
 
   const grouped = useMemo(

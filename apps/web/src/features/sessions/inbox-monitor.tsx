@@ -10,16 +10,10 @@ import {
   type ReactNode,
 } from 'react'
 import { useLocation, useMatches, useNavigate } from 'react-router'
-import { resolveProjectWorkspaceTarget } from '@/features/projects/project-workspaces'
 import { findProject, useProjects } from '@/features/projects/use-projects'
 import { useInboxSessions } from '@/features/sessions/use-inbox-sessions'
 import { useSessionWording } from '@/features/sessions/use-wording'
-import {
-  readInboxMonitor,
-  readLastProject,
-  readLastWorkspace,
-  saveInboxMonitor,
-} from '@/lib/storage'
+import { readInboxMonitor, readLastProject, saveInboxMonitor } from '@/lib/storage'
 
 type InboxMonitorContextValue = {
   active: boolean
@@ -64,16 +58,9 @@ export function InboxMonitorProvider({ children }: { children: ReactNode }) {
     if (fromRoute) return fromRoute
     return findProject(projects, readLastProject()) ?? projects[0] ?? null
   }, [projects, routeParams.projectID])
-  const lastWorkspaceID = project ? readLastWorkspace(project.id) : null
-  const workspace = useMemo(
-    () => resolveProjectWorkspaceTarget(project, lastWorkspaceID).workspace,
-    [lastWorkspaceID, project]
-  )
-
   const { inbox, outboxCount, top, pending, isError } = useInboxSessions(
     project?.id ?? null,
-    workspace?.canonical ?? workspace?.directory ?? null,
-    workspace?.harnessID
+    project?.workspaces
   )
   const [active, setActiveState] = useState(readInboxMonitor)
   /** A one-shot jump requested while the Inbox was still loading. */

@@ -32,15 +32,15 @@ afterEach(() => {
   rmSync(dir, { recursive: true, force: true })
 })
 
-async function enroll() {
+async function enroll(harnessId = 'harness-a', adapterId = 'adapter-a') {
   const pairing = await manager.createPairing({ kind: 'opencode', label: 'OpenCode' })
   return manager.enroll({
     pairId: pairing.id,
     pairToken: pairing.token,
-    harnessId: 'harness-a',
+    harnessId,
     kind: 'opencode',
     label: 'OpenCode',
-    adapterId: 'adapter-a',
+    adapterId,
     key: generateKey(),
     adapterVersion: '0.1.0',
     protocolVersion: 1,
@@ -69,6 +69,18 @@ describe('harness manager', () => {
     expect(manager.active?.online).toBe(true)
     await manager.clearLive('harness-a')
     expect(manager.active?.online).toBe(false)
+  })
+
+  it('promotes another harness when the active one is removed', async () => {
+    const first = await enroll('harness-a', 'adapter-a')
+    const second = await enroll('harness-b', 'adapter-b')
+    expect(first.connection.isActive).toBe(true)
+    expect(second.connection.isActive).toBe(false)
+
+    await manager.remove(first.connection.id)
+
+    expect(manager.configured).toBe(true)
+    expect(manager.active?.harnessId).toBe('harness-b')
   })
 
   it('keeps every harness record linked to one workspace', async () => {

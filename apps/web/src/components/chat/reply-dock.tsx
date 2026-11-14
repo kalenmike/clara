@@ -54,7 +54,7 @@ function ConnectedComposer({ target, harnessID }: { target: ComposerTarget; harn
   )
   const formsQuery = useSessionForms(target.sessionID)
   const requestCount = composerRequestCount(formsQuery.data ?? [], planReady)
-  const targetHarnessID = harnessID ?? session?.harnessID
+  const targetHarnessID = session?.harnessID ?? harnessID
   const agentsQuery = useAgents(targetHarnessID)
   const switchAgent = useSwitchAgent(target.sessionID)
   const agents = useMemo(

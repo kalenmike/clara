@@ -1,4 +1,10 @@
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useMemo } from 'react'
+import { useMutation, useQueries, useQuery, useQueryClient } from '@tanstack/react-query'
+import type {
+  ClaraPermissionRequest,
+  ClaraPermissionRequestListOutput,
+  ClaraProjectWorkspace,
+} from '@clara/api-contract'
 import { unsnoozeSessionOnEngage } from '@/features/sessions/unsnooze'
 import { harnessLocation, useHarnessScope } from '@/features/harness/harness-scope'
 import { queryKeys } from '@/lib/query-keys'
@@ -14,6 +20,45 @@ export function usePendingPermissions(directory: string | undefined, harnessID?:
     enabled: Boolean(client),
     select: (result) => result.data,
     refetchInterval: 15_000,
+  })
+}
+
+/**
+ * Pending approvals for every workspace on a project. A project-wide session
+ * list must not miss an approval that is waiting on another harness.
+ */
+export function useWorkspacePendingPermissions(
+  workspaces: readonly ClaraProjectWorkspace[] | undefined
+) {
+  const { client } = useConnection()
+  const targets = useMemo(() => {
+    const seen = new Set<string>()
+    const next: Array<{ directory: string; harnessID: string }> = []
+    for (const workspace of workspaces ?? []) {
+      if (!workspace.linked) continue
+      const directory = workspace.canonical ?? workspace.directory
+      const key = `${workspace.harnessID}:${directory}`
+      if (seen.has(key)) continue
+      seen.add(key)
+      next.push({ directory, harnessID: workspace.harnessID })
+    }
+    return next
+  }, [workspaces])
+
+  return useQueries({
+    queries: targets.map(({ directory, harnessID }) => ({
+      queryKey: queryKeys.permissionsFor(directory, harnessID),
+      queryFn: () => client!.permission.request.list({ location: { directory }, harnessID }),
+      enabled: Boolean(client),
+      select: (result: ClaraPermissionRequestListOutput) => result.data,
+      refetchInterval: 15_000,
+    })),
+    combine: (
+      results: ReadonlyArray<{ data?: readonly ClaraPermissionRequest[]; isPending: boolean }>
+    ) => ({
+      requests: results.flatMap((result) => result.data ?? []),
+      pending: results.some((result) => result.isPending),
+    }),
   })
 }
 
