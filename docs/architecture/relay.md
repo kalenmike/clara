@@ -112,6 +112,47 @@ refused with `400` instead of reaching the DO, and the Worker strips the
 The hub's relay role and secret keep the historical `agent` name
 (`clara.role.agent`, `CLARA_AGENT_TOKEN`), while prose calls that side the hub.
 
+## Hub token compromise
+
+Two hubs that present the same hub token to the same room evict each other: the
+DO keeps one hub socket, so every connection closes the previous one with
+`4002`. The replaced hub waits at least 30 seconds, records the replacement, and
+the Relay card shows a warning instead of treating `4002` as an ordinary
+disconnect. With a leaked token the two sides ping-pong indefinitely and remote
+clients look flaky.
+
+Symptoms:
+
+- The Relay card repeatedly reports **Another hub connected to this room**.
+- The relay reconnects about every 30 seconds or more, and remote clients
+  disconnect at the same time.
+- The hub log shows `relay disconnected (4002 ...)` followed by the replacement
+  warning.
+
+Immediate steps:
+
+1. Find the second hub process using this room and token. Check other machines,
+   old containers, and a second copy of the hub started from a different config
+   directory, then stop it. Confirm that only one hub process serves this room.
+2. Rotate the Worker secret, keeping the same value on the hub:
+
+   ```bash
+   cd infra/relay
+   pnpm exec wrangler secret put CLARA_AGENT_TOKEN
+   ```
+
+   Then enter the same value in the panel's **Relay** card, or deploy the relay
+   again from the panel, which writes the token. Saving the card applies the new
+   token without a hub restart and clears the replacement warning.
+
+3. Watch the Relay card until it stays online and the warning does not return.
+4. If the Cloudflare API token may have leaked, rotate it in Cloudflare and
+   update the panel's saved deployment token.
+
+A hub-token rotation does not require devices to pair again: grants are signed
+by the Worker and the hub keeps the same room. Devices pair again only when the
+relay URL or the room changes.
+
 ## Relay version
 
 The DO advertises `x-clara-relay-version: 3` on the upgrade response and speaks
@@ -220,21 +261,22 @@ without the flag. The manual Wrangler path below remains the supported fallback.
 
 ## Failure behavior
 
-| Failure                   | Result                                                                                                       |
-| ------------------------- | ------------------------------------------------------------------------------------------------------------ |
-| Relay unreachable         | Hub retries with exponential backoff (1s–30s, jittered).                                                     |
-| Hub offline               | Clients connect, then close with `1013`; the connect screen shows failure.                                   |
-| Hub restarts              | DO closes clients with `1012`; both sides re-handshake.                                                      |
-| Adapter offline           | Hub returns `harness_offline`; the adapter reconnects with backoff.                                          |
-| Wrong hub token or grant  | Worker returns `401` before upgrading.                                                                       |
-| Outdated relay            | Hub reports **The relay is outdated; redeploy the Worker** and stays offline until the Worker is updated.    |
-| Unknown or revoked device | Hub sends an `error` frame; a transient code reconnects, a credential-dead code stops after three in a row.  |
-| Room full                 | The DO refuses the 33rd client socket, or a 9th from one address, with `4008` and a reason naming the limit. |
-| Per-peer rate limited     | A peer above 60 frames/s or 512 KiB/s closes with `4008`; the client reconnects with backoff.                |
-| Hub session limit         | A hello beyond 64 live sessions gets `not_allowed`; the client retries with backoff.                         |
-| Version mismatch          | Handshake is rejected; update web and hub together.                                                          |
-| Slow client               | DO closes above the buffered-output threshold.                                                               |
-| Many clients              | Egress scales with client count because hub frames are broadcast.                                            |
+| Failure                   | Result                                                                                                            |
+| ------------------------- | ----------------------------------------------------------------------------------------------------------------- |
+| Relay unreachable         | Hub retries with exponential backoff (1s–30s, jittered).                                                          |
+| Hub offline               | Clients connect, then close with `1013`; the connect screen shows failure.                                        |
+| Hub restarts              | DO closes clients with `1012`; both sides re-handshake.                                                           |
+| Adapter offline           | Hub returns `harness_offline`; the adapter reconnects with backoff.                                               |
+| Wrong hub token or grant  | Worker returns `401` before upgrading.                                                                            |
+| Another hub took the room | The old hub socket closes with `4002`; the hub records a replacement warning and waits at least 30s to reconnect. |
+| Outdated relay            | Hub reports **The relay is outdated; redeploy the Worker** and stays offline until the Worker is updated.         |
+| Unknown or revoked device | Hub sends an `error` frame; a transient code reconnects, a credential-dead code stops after three in a row.       |
+| Room full                 | The DO refuses the 33rd client socket, or a 9th from one address, with `4008` and a reason naming the limit.      |
+| Per-peer rate limited     | A peer above 60 frames/s or 512 KiB/s closes with `4008`; the client reconnects with backoff.                     |
+| Hub session limit         | A hello beyond 64 live sessions gets `not_allowed`; the client retries with backoff.                              |
+| Version mismatch          | Handshake is rejected; update web and hub together.                                                               |
+| Slow client               | DO closes above the buffered-output threshold.                                                                    |
+| Many clients              | Egress scales with client count because hub frames are broadcast.                                                 |
 
 ## Related
 

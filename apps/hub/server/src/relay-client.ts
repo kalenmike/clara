@@ -10,6 +10,15 @@ import type { Agent } from './agent.ts'
 const MAX_BACKOFF_MS = 30_000
 const HEARTBEAT_MS = 20_000
 const STALL_MS = 45_000
+/** The DO closes the previous hub socket when another hub takes the room. */
+const REPLACED_CLOSE_CODE = 4002
+/**
+ * Two hubs that share a token evict each other on every connect. A longer pause
+ * keeps the replacement out of a tight loop while an operator fixes the token.
+ */
+const REPLACED_BACKOFF_MS = 30_000
+const REPLACED_MESSAGE =
+  'Another hub connected to this room. Check for a second hub using the same token, or rotate the hub token.'
 /**
  * The route envelope v3 adds the verified grant id (`i`) and the handshake v4
  * cutover depends on it. A v2 relay cannot bind a hello to its credential.
@@ -25,6 +34,8 @@ export type RelaySnapshot = {
   lastChangedAt: number
   reconnectAttempts: number
   lastError?: string
+  /** When another hub last took the room. */
+  replacedAt?: number
 }
 
 export type RelayClientOptions = {
@@ -44,6 +55,7 @@ export class RelayClient {
   private statusChangedAt = Date.now()
   private connectedSince: number | undefined
   private lastError: string | undefined
+  private replacedAt: number | undefined
   private reconnectTimer: NodeJS.Timeout | null = null
   private heartbeatTimer: NodeJS.Timeout | null = null
   private lastPong = 0
@@ -65,6 +77,7 @@ export class RelayClient {
       lastChangedAt: this.statusChangedAt,
       reconnectAttempts: this.retry,
       ...(this.lastError ? { lastError: this.lastError } : {}),
+      ...(this.replacedAt !== undefined ? { replacedAt: this.replacedAt } : {}),
     }
   }
 
@@ -163,15 +176,24 @@ export class RelayClient {
       this.stopHeartbeat()
       this.options.agent.reset()
       this.options.log?.(`relay disconnected (${code} ${reason.toString() || 'no reason'})`)
+      if (code === REPLACED_CLOSE_CODE) {
+        // A second hub claimed the room. Reconnecting right away would evict
+        // it and start a replacement loop, so report the cause and back off.
+        this.replacedAt = Date.now()
+        this.lastError = REPLACED_MESSAGE
+        this.options.log?.(REPLACED_MESSAGE)
+        this.scheduleReconnect(REPLACED_BACKOFF_MS)
+        return
+      }
       this.scheduleReconnect()
     })
   }
 
-  private scheduleReconnect(): void {
+  private scheduleReconnect(minimumDelay = 0): void {
     if (this.stopped) return
     this.setStatus('reconnecting')
     const base = Math.min(1_000 * 2 ** Math.min(this.retry, 5), MAX_BACKOFF_MS)
-    const delay = Math.round(base * (0.8 + Math.random() * 0.4))
+    const delay = Math.max(Math.round(base * (0.8 + Math.random() * 0.4)), minimumDelay)
     this.retry += 1
     this.reconnectTimer = setTimeout(() => {
       this.reconnectTimer = null

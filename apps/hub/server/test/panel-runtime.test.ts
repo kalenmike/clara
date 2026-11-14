@@ -287,6 +287,32 @@ describe('PanelRuntime', () => {
     expect(snapshot.relay.lastError).not.toContain('sentinel-agent-token')
   })
 
+  it('reports when another hub took the relay room', async () => {
+    const dir = tempDir()
+    writeFileSync(join(dir, 'server.json'), '{}', { mode: 0o600 })
+    const replacedAt = Date.now() - 5_000
+    const runtime = createRuntime(dir, {
+      relay: {
+        status: 'reconnecting',
+        lastChangedAt: Date.now(),
+        reconnectAttempts: 1,
+        replacedAt,
+        lastError:
+          'Another hub connected to this room. Check for a second hub using the same token, or rotate the hub token.',
+      },
+    })
+    const snapshot = await runtime.snapshot(AUTH)
+    expect(snapshot.relay.replacedAt).toBe(replacedAt)
+  })
+
+  it('omits the relay replacement timestamp when no hub was replaced', async () => {
+    const dir = tempDir()
+    writeFileSync(join(dir, 'server.json'), '{}', { mode: 0o600 })
+    const runtime = createRuntime(dir)
+    const snapshot = await runtime.snapshot(AUTH)
+    expect(snapshot.relay).not.toHaveProperty('replacedAt')
+  })
+
   it('redacts secrets from session monitor errors', async () => {
     const dir = tempDir()
     writeFileSync(join(dir, 'server.json'), '{}', { mode: 0o600 })

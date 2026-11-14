@@ -164,6 +164,32 @@ Confirm the relay card is connected, and set **Web URL** to the public HTTPS URL
 hub from another network, choose **Cloudflare relay** as its location in
 **Harness → Add harness**.
 
+## If another hub takes the room
+
+A room accepts one hub connection. If the Relay card repeatedly says **Another
+hub connected to this room**, a second hub process is using the same hub token
+and room, or the token has leaked. Fix it before devices start dropping:
+
+1. Find and stop the other hub process. Look on other machines, in old
+   containers, and in a copy started with a different config directory. Only one
+   hub should serve this room.
+2. Rotate the Worker secret and save the same value in **Connections → Relay**:
+
+   ```bash
+   cd infra/relay
+   pnpm exec wrangler secret put CLARA_AGENT_TOKEN
+   ```
+
+   Saving the Relay card applies the new token without a hub restart. Deploying
+   the relay from the panel also writes it.
+
+3. Confirm the Relay card stays connected and the warning does not return.
+4. If the Cloudflare API token may have leaked, rotate it in Cloudflare and
+   update the deployment token in the panel.
+
+Rotating the hub token does not require devices to pair again. Pair again only
+when the relay URL or the room changes.
+
 ## Upgrading to v4
 
 Handshake v4 replaces the shared relay client token with per-device signed
@@ -187,19 +213,20 @@ address that only works on the same machine or network.
 
 ## Failure behavior
 
-| Failure              | Result                                                                                                      |
-| -------------------- | ----------------------------------------------------------------------------------------------------------- |
-| Relay unreachable    | The hub retries with backoff and the panel shows the relay state.                                           |
-| Hub token missing    | The hub starts local-only; save the hub token in **Connections → Relay**.                                   |
-| Relay outdated       | The hub reports that the relay must be redeployed and stays offline until both sides run the same version.  |
-| Hub offline          | Clients connect to the room, then close and report a connection failure.                                    |
-| Hub restart          | Clients close and re-handshake with their stored device key.                                                |
-| Wrong token or grant | The Worker rejects the upgrade with `401`.                                                                  |
-| Room full            | The room already has 32 connections, or eight from this address; close an unused device or reconnect later. |
-| Rate limited         | A connection that sends too many frames or bytes is disconnected and reconnects with backoff.               |
-| Hub at capacity      | The hub is already serving its maximum relay sessions; the client retries shortly.                          |
-| Revoked device       | The hub rejects the device; the client stops reconnecting once the rejection repeats.                       |
-| Version mismatch     | Update the web client and hub together.                                                                     |
+| Failure               | Result                                                                                                      |
+| --------------------- | ----------------------------------------------------------------------------------------------------------- |
+| Relay unreachable     | The hub retries with backoff and the panel shows the relay state.                                           |
+| Hub token missing     | The hub starts local-only; save the hub token in **Connections → Relay**.                                   |
+| Relay outdated        | The hub reports that the relay must be redeployed and stays offline until both sides run the same version.  |
+| Hub offline           | Clients connect to the room, then close and report a connection failure.                                    |
+| Hub restart           | Clients close and re-handshake with their stored device key.                                                |
+| Wrong token or grant  | The Worker rejects the upgrade with `401`.                                                                  |
+| Another hub connected | The Relay card reports another hub in the room; stop the second hub and rotate the hub token.               |
+| Room full             | The room already has 32 connections, or eight from this address; close an unused device or reconnect later. |
+| Rate limited          | A connection that sends too many frames or bytes is disconnected and reconnects with backoff.               |
+| Hub at capacity       | The hub is already serving its maximum relay sessions; the client retries shortly.                          |
+| Revoked device        | The hub rejects the device; the client stops reconnecting once the rejection repeats.                       |
+| Version mismatch      | Update the web client and hub together.                                                                     |
 
 ## Security notes
 

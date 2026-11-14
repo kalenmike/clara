@@ -1,7 +1,7 @@
 import { useEffect, useId, useState } from 'react'
 import { RefreshCw, Trash2 } from 'lucide-react'
 import type { PanelRelayTransport } from '@clara/shared-types'
-import { sourceLabel } from '../lib/format.ts'
+import { formatTimestamp, sourceLabel } from '../lib/format.ts'
 import { deletePanel, postPanel } from '../lib/panel-api.ts'
 import { usePeek } from '../lib/peek-context.tsx'
 import { Notice, SourceTag } from './primitives.tsx'
@@ -43,6 +43,10 @@ export function RelayEditor({
     relay.roomSource === 'generated' ||
     relay.agentTokenSource === 'file'
   const hasAgentToken = agentFromEnv || relay.agentTokenConfigured || Boolean(agentToken.trim())
+  const replacedAt =
+    relay.replacedAt !== undefined
+      ? formatTimestamp(new Date(relay.replacedAt).toISOString())
+      : undefined
   const canSave =
     Boolean((relay.url ?? '').trim() || url.trim()) &&
     hasAgentToken &&
@@ -120,6 +124,14 @@ export function RelayEditor({
 
   return (
     <div className="space-y-2 border-t border-neutral-100 pt-2 dark:border-neutral-800/60">
+      {replacedAt ? (
+        <Notice>
+          Another hub connected to this room at {replacedAt}. Check for a second hub using the same
+          token, or rotate the hub token. See the troubleshooting guide, &ldquo;The relay keeps
+          saying another hub connected.&rdquo;
+        </Notice>
+      ) : null}
+
       {relay.envManaged ? (
         <Notice>
           Environment values take precedence. Fields marked <SourceTag source="environment" /> are
