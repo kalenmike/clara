@@ -116,6 +116,55 @@ export function saveComposerSize(size: ComposerSize): void {
   window.localStorage.setItem(COMPOSER_SIZE_KEY, size)
 }
 
+export const COMPOSER_HEIGHT_MIN = 220
+export const COMPOSER_HEIGHT_DEFAULT = 320
+export const COMPOSER_HEIGHT_MAX = 720
+
+/** Room the dock must leave for the chat header, thread, and usage bar. */
+const COMPOSER_HEIGHT_RESERVED = 200
+
+const COMPOSER_HEIGHT_KEY = 'clara.composerHeight'
+const COMPOSER_PINNED_KEY = 'clara.composerPinned'
+
+/** The tallest the dock may grow without covering the whole thread. */
+export function composerHeightMax(viewportHeight: number): number {
+  return Math.max(
+    COMPOSER_HEIGHT_MIN,
+    Math.min(COMPOSER_HEIGHT_MAX, Math.round(viewportHeight - COMPOSER_HEIGHT_RESERVED))
+  )
+}
+
+export function clampComposerHeight(height: number, viewportHeight: number): number {
+  return Math.min(
+    composerHeightMax(viewportHeight),
+    Math.max(COMPOSER_HEIGHT_MIN, Math.round(height))
+  )
+}
+
+export function readComposerHeight(): number {
+  const raw = window.localStorage.getItem(COMPOSER_HEIGHT_KEY)
+  if (!raw) return clampComposerHeight(COMPOSER_HEIGHT_DEFAULT, window.innerHeight)
+  const value = Number.parseInt(raw, 10)
+  if (!Number.isFinite(value))
+    return clampComposerHeight(COMPOSER_HEIGHT_DEFAULT, window.innerHeight)
+  return clampComposerHeight(value, window.innerHeight)
+}
+
+export function saveComposerHeight(height: number): void {
+  window.localStorage.setItem(
+    COMPOSER_HEIGHT_KEY,
+    String(clampComposerHeight(height, window.innerHeight))
+  )
+}
+
+export function readComposerPinned(): boolean {
+  return window.localStorage.getItem(COMPOSER_PINNED_KEY) === 'on'
+}
+
+export function saveComposerPinned(pinned: boolean): void {
+  window.localStorage.setItem(COMPOSER_PINNED_KEY, pinned ? 'on' : 'off')
+}
+
 export const THEME_KEY = 'clara.theme'
 export const THEME_VALUES = ['light', 'dark', 'system'] as const
 
