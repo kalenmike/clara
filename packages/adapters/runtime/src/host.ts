@@ -173,7 +173,9 @@ export function createHostMetrics(options: HostMetricsOptions): HostMetrics {
     }
   }
 
-  function readMemory(cgroup: CgroupSnapshot | undefined): Omit<HostMemoryMetrics, 'processRssBytes'> {
+  function readMemory(
+    cgroup: CgroupSnapshot | undefined
+  ): Omit<HostMemoryMetrics, 'processRssBytes'> {
     const hostTotal = deps.totalmem()
     const hostFree = deps.freemem()
     const limited = cgroup?.memory

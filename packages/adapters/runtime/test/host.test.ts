@@ -18,7 +18,10 @@ type Deps = {
   setNow: (value: number) => void
 }
 
-function fakeDeps(overrides: Partial<HostMetricsDeps> = {}): { deps: HostMetricsDeps; controls: Deps } {
+function fakeDeps(overrides: Partial<HostMetricsDeps> = {}): {
+  deps: HostMetricsDeps
+  controls: Deps
+} {
   let cpus = [cpu(0, 1_000)]
   let cgroup: CgroupSnapshot | undefined
   let now = 1_000
