@@ -65,7 +65,7 @@ The request carries `previewUrls: false`, so the hub posts
 
 ### 3. List version and preview hostnames
 
-1. In the Cloudflare dashboard, open **Workers & Pages → <Worker> → Settings →
+1. In the Cloudflare dashboard, open **Workers & Pages → `<Worker>` → Settings →
    Domains & Routes** and find **Version URLs**. Expect it to be disabled.
 2. Open **Deployments** and select a non-production version. When version URLs
    are enabled, Cloudflare shows a URL in the form
@@ -151,7 +151,7 @@ If Cloudflare rejects `previews_enabled` for a Durable-Object-backed Worker:
 
 ## Rollback
 
-1. Delete the test Worker in **Workers & Pages → <Worker> → Settings → Delete**,
+1. Delete the test Worker in **Workers & Pages → `<Worker>` → Settings → Delete**,
    or run `pnpm exec wrangler delete --name <worker>` from `infra/relay`.
 2. Alternatively, redeploy with the toggle off. This leaves the Worker in place
    and clears preview URLs.

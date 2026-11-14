@@ -49,7 +49,7 @@ below.
 
 ### Confirm preview and version URLs are off
 
-After a panel deploy, open **Workers & Pages → <Worker> → Settings → Domains &
+After a panel deploy, open **Workers & Pages → `<Worker>` → Settings → Domains &
 Routes** and check **Version URLs**; Cloudflare still calls the setting preview
 URLs in some places. It should be disabled. The **Deployments** tab shows a
 version URL for a non-production version only when the setting is on, so no
