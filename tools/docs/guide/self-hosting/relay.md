@@ -32,6 +32,12 @@ If your Clara build includes the optional Cloudflare deployment feature, open
 3. Clara uploads the Worker, creates its Durable Object namespace, sets both
    relay tokens, enables the `workers.dev` host, and health-checks it.
 
+Preview and version URLs are off by default. Each version would get its own
+extra `workers.dev` hostname, and those hostnames bypass WAF and rate-limit rules
+scoped to the relay host. Turn them on only when you need to test a version
+directly: the panel keeps them off on every deploy unless you opt in under
+**Advanced**.
+
 The hub stores the relay tokens encrypted on this machine. The Cloudflare token
 is kept only for the deployment unless you choose to save it. Existing devices
 must pair again after the relay changes. A relay URL, room, or token supplied by
