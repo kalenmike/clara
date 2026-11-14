@@ -8,6 +8,9 @@
       "entry": ["index.html"],
       "project": ["src/**/*.{ts,tsx}"]
     },
+    "apps/desktop": {
+      "ignoreBinaries": ["vite"]
+    },
     "apps/hub/panel": {
       "entry": ["index.html"],
       "project": ["src/**/*.{ts,tsx,css}"]

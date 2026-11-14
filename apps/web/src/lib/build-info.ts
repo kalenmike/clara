@@ -11,7 +11,11 @@ export const claraDisplayVersion = build.commit ? `${claraVersion}.${build.commi
 export const claraBuildLabel = `${build.mode} ${pad(builtAt.getMonth() + 1)}-${pad(builtAt.getDate())} ${pad(builtAt.getHours())}:${pad(builtAt.getMinutes())}`
 
 export const claraBuildTitle = [
-  build.mode === 'dev' ? 'Clara dev server' : 'Clara preview build',
+  build.mode === 'dev'
+    ? 'Clara dev server'
+    : build.surface === 'desktop'
+      ? 'Clara desktop build'
+      : 'Clara preview build',
   build.commit
     ? `commit ${build.commit}${build.dirty ? ' with uncommitted changes' : ''}`
     : 'no git commit',

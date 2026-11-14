@@ -31,13 +31,19 @@ let captured = false
  * React Router rewrites the URL to `/connect` before provider effects run, so
  * the pairing fragment must be read at module load. The payload stays in
  * memory; the fragment is removed from the address bar immediately.
+ *
+ * A URL from another source (a future `clara://` deep link, which does not own
+ * the address bar) can be passed in; that URL is never rewritten.
  */
-export function capturePairingLink(): void {
+export function capturePairingLink(href?: string): void {
   if (captured) return
   captured = true
-  pending = parsePairingInput(window.location.href)
+  const fromLocation = href === undefined
+  pending = parsePairingInput(href ?? window.location.href)
   if (!pending) return
-  window.history.replaceState(null, '', `${window.location.pathname}${window.location.search}`)
+  if (fromLocation) {
+    window.history.replaceState(null, '', `${window.location.pathname}${window.location.search}`)
+  }
 }
 
 export function takePairingLink(): PairingPayload | null {

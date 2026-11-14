@@ -1,0 +1,55 @@
+---
+title: Desktop app
+description: Run Clara in its own native window instead of a browser tab.
+sidebar_position: 11.5
+---
+
+# Desktop app
+
+Clara can run in its own native window as well as in the browser. The desktop
+app is the same client: your hub, projects, sessions, chat, and settings are
+unchanged. It is an extra way to open Clara, not a replacement for the web app
+or the home-screen install.
+
+## Build an installer
+
+There is no hosted download yet, so build the app from a checkout of the
+repository. The machine needs the Rust toolchain and the WebView development
+packages for its operating system (WebView2 on Windows, WebKitGTK on Linux,
+the system WebKit on macOS).
+
+```bash
+pnpm install
+pnpm desktop:build       # installer for the current operating system
+pnpm desktop:build:app   # app bundle only, no installer
+pnpm desktop:dev         # development window with hot reload
+```
+
+Installers are unsigned for now, so the system may ask you to confirm the first
+launch.
+
+## Pair the app
+
+Pairing works the same way as the browser:
+
+1. Open the hub panel and choose **Clients → Pair a browser**.
+2. Copy the pairing code.
+3. Open Clara, paste the code on the connect screen, and connect.
+
+`pnpm clara pair` prints a code too. A pairing link opens the web app, so paste
+the code when you are using the desktop app. The QR button needs a camera that
+the system webview exposes; pasting the code always works.
+
+## What is different
+
+- The app has its own window, taskbar or dock icon, and install location.
+- Links in messages open in your default browser instead of replacing Clara.
+- There is no install prompt, service worker, offline shell, or update banner.
+  To update, install a newer build.
+- Web Push is not available. Inbox sounds and toasts work while the window is
+  running; native desktop notifications are not part of this build yet.
+- Pairing and drafts belong to the app installation. Removing the app removes
+  them, so pair again after reinstalling.
+
+Everything else, including end-to-end encryption, approval prompts, and cost
+reporting, matches the web client.

@@ -28,6 +28,7 @@ Someone gave you a Clara URL and a pairing code.
 - [Notifications](notifications.md) — Inbox alerts, sounds, and push.
 - [Shortcuts](shortcuts.md) — the leader key and direct keys.
 - [Security and privacy](security.md) — what is encrypted and what the hub sees.
+- [Desktop app](desktop.md) — build and pair the native window.
 - [Troubleshooting](troubleshooting.md) — pairing, connection, and update problems.
 
 ## Host Clara

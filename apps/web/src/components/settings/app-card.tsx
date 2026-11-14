@@ -3,16 +3,19 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Separator } from '@/components/ui/separator'
 import { isStandalone } from '@/features/notifications/push'
-import { applyUpdate, clearCachedAppData, usePwaUpdate } from '@/features/pwa/update-store'
+import { clearCachedAppData } from '@/features/pwa/update-store'
+import { applyAppUpdate, useAppUpdate } from '@/features/updates/app-update'
 import { claraBuildLabel, claraBuildTitle, claraDisplayVersion } from '@/lib/build-info'
 
 /**
  * The escape hatch for a wedged PWA: clearing the caches and reloading repairs
  * a stale app without asking anyone to delete and re-add the home-screen icon.
+ * The desktop shell installs with its app, so it has no caches to clear.
  */
 export function AppCard({ simplified }: { simplified: boolean }) {
-  const { status } = usePwaUpdate()
+  const { status, channel } = useAppUpdate()
   const applying = status === 'applying'
+  const installed = channel === 'installer'
 
   return (
     <Card>
@@ -47,7 +50,7 @@ export function AppCard({ simplified }: { simplified: boolean }) {
             <div className="flex items-start justify-between gap-4">
               <span className="text-muted-foreground">Running as</span>
               <span className="max-w-[70%] truncate text-right text-xs">
-                {isStandalone() ? 'installed app' : 'browser tab'}
+                {installed ? 'desktop app' : isStandalone() ? 'installed app' : 'browser tab'}
               </span>
             </div>
           </>
@@ -55,29 +58,36 @@ export function AppCard({ simplified }: { simplified: boolean }) {
         <div className="flex items-start justify-between gap-4">
           <span className="text-muted-foreground">Updates</span>
           <span className="max-w-[70%] truncate text-right text-xs">
-            {status === 'available'
-              ? 'a new version is ready'
-              : status === 'applying'
-                ? 'updating'
-                : 'up to date'}
+            {installed
+              ? 'installed with the app'
+              : status === 'available'
+                ? 'a new version is ready'
+                : status === 'applying'
+                  ? 'updating'
+                  : 'up to date'}
           </span>
         </div>
         {status === 'available' && (
-          <Button size="sm" onClick={() => void applyUpdate()} disabled={applying}>
+          <Button size="sm" onClick={() => void applyAppUpdate()} disabled={applying}>
             {applying && <Loader2 className="size-4 animate-spin" />}
             {applying ? 'Updating…' : 'Update and reload'}
           </Button>
         )}
-        <Separator />
-        {!simplified && (
-          <p className="text-xs text-muted-foreground">
-            Clearing cached files reloads Clara and downloads the current build. Pairing, settings,
-            and drafts stay on this device; notifications may need to be turned on again.
-          </p>
+        {!installed && (
+          <>
+            <Separator />
+            {!simplified && (
+              <p className="text-xs text-muted-foreground">
+                Clearing cached files reloads Clara and downloads the current build. Pairing,
+                settings, and drafts stay on this device; notifications may need to be turned on
+                again.
+              </p>
+            )}
+            <Button variant="outline" size="sm" onClick={() => void clearCachedAppData()}>
+              <Trash2 className="size-4" /> Clear cached app data
+            </Button>
+          </>
         )}
-        <Button variant="outline" size="sm" onClick={() => void clearCachedAppData()}>
-          <Trash2 className="size-4" /> Clear cached app data
-        </Button>
       </CardContent>
     </Card>
   )

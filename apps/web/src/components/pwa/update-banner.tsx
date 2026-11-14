@@ -1,6 +1,6 @@
 import { Loader2, RefreshCw } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import { applyUpdate, dismissUpdate, usePwaUpdate } from '@/features/pwa/update-store'
+import { applyAppUpdate, dismissAppUpdate, useAppUpdate } from '@/features/updates/app-update'
 
 /**
  * Sits in the flow under the mobile app bar. An installed app can resume for
@@ -8,7 +8,7 @@ import { applyUpdate, dismissUpdate, usePwaUpdate } from '@/features/pwa/update-
  * reload would drop an open chat.
  */
 export function UpdateBanner() {
-  const { status, dismissed } = usePwaUpdate()
+  const { status, dismissed } = useAppUpdate()
   if (status === 'idle' || dismissed) return null
 
   const applying = status === 'applying'
@@ -30,7 +30,7 @@ export function UpdateBanner() {
         <Button
           size="sm"
           className="h-11 px-4 md:h-8"
-          onClick={() => void applyUpdate()}
+          onClick={() => void applyAppUpdate()}
           disabled={applying}
         >
           {applying && <Loader2 className="size-4 animate-spin" />}
@@ -40,7 +40,7 @@ export function UpdateBanner() {
           size="sm"
           variant="ghost"
           className="h-11 px-4 md:h-8"
-          onClick={dismissUpdate}
+          onClick={dismissAppUpdate}
           disabled={applying}
         >
           Later

@@ -30,72 +30,85 @@ const dirty =
     : dirtyFromEnv === '1' || dirtyFromEnv === 'true'
 const builtAt = new Date().toISOString()
 
-export default defineConfig(({ command }) => ({
-  plugins: [
-    react(),
-    tailwindcss(),
-    VitePWA({
-      includeAssets: ['favicon.png', 'apple-touch-icon.png'],
-      manifest: {
-        id: '/',
-        name: 'Clara',
-        short_name: 'Clara',
-        description: 'A secure web client for your coding harness.',
-        theme_color: '#0a0a0a',
-        background_color: '#0a0a0a',
-        display: 'standalone',
-        start_url: '/',
-        scope: '/',
-        icons: [
-          { src: '/icon-192.png', sizes: '192x192', type: 'image/png' },
-          { src: '/icon-512.png', sizes: '512x512', type: 'image/png' },
-          {
-            src: '/icon-512-maskable.png',
-            sizes: '512x512',
-            type: 'image/png',
-            purpose: 'maskable',
-          },
-        ],
-      },
-      strategies: 'injectManifest',
-      // The plugin locates the custom worker as `<srcDir>/<filename>`.
-      srcDir: 'src',
-      filename: 'sw.ts',
-      registerType: 'prompt',
-      // Registration lives in src/features/pwa so the banner owns the lifecycle.
-      injectRegister: false,
-      injectManifest: {
-        globPatterns: ['**/*.{js,css,html,svg,png,woff2}'],
-        // A classic worker keeps `importScripts` available and avoids module
-        // service worker support gaps on iOS.
-        rollupFormat: 'iife',
-      },
-    }),
-  ],
-  define: {
-    'import.meta.env.CLARA_VERSION': JSON.stringify(packageVersion),
-    'import.meta.env.CLARA_BUILD': JSON.stringify({
-      mode: command === 'serve' ? 'dev' : 'build',
-      commit,
-      dirty,
-      builtAt,
-    }),
-  },
-  resolve: {
-    alias: {
-      '@': fileURLToPath(new URL('./src', import.meta.url)),
+export default defineConfig(({ command, mode }) => {
+  // The desktop shell bundles the same app without the service worker, into its
+  // own directory so a Tauri build can never leak into the deployed web build.
+  const desktop = mode === 'desktop'
+
+  return {
+    plugins: [
+      react(),
+      tailwindcss(),
+      ...(desktop
+        ? []
+        : [
+            VitePWA({
+              includeAssets: ['favicon.png', 'apple-touch-icon.png'],
+              manifest: {
+                id: '/',
+                name: 'Clara',
+                short_name: 'Clara',
+                description: 'A secure web client for your coding harness.',
+                theme_color: '#0a0a0a',
+                background_color: '#0a0a0a',
+                display: 'standalone',
+                start_url: '/',
+                scope: '/',
+                icons: [
+                  { src: '/icon-192.png', sizes: '192x192', type: 'image/png' },
+                  { src: '/icon-512.png', sizes: '512x512', type: 'image/png' },
+                  {
+                    src: '/icon-512-maskable.png',
+                    sizes: '512x512',
+                    type: 'image/png',
+                    purpose: 'maskable',
+                  },
+                ],
+              },
+              strategies: 'injectManifest',
+              // The plugin locates the custom worker as `<srcDir>/<filename>`.
+              srcDir: 'src',
+              filename: 'sw.ts',
+              registerType: 'prompt',
+              // Registration lives in src/features/pwa so the banner owns the lifecycle.
+              injectRegister: false,
+              injectManifest: {
+                globPatterns: ['**/*.{js,css,html,svg,png,woff2}'],
+                // A classic worker keeps `importScripts` available and avoids module
+                // service worker support gaps on iOS.
+                rollupFormat: 'iife',
+              },
+            }),
+          ]),
+    ],
+    define: {
+      'import.meta.env.CLARA_VERSION': JSON.stringify(packageVersion),
+      'import.meta.env.CLARA_DESKTOP': JSON.stringify(desktop),
+      'import.meta.env.CLARA_BUILD': JSON.stringify({
+        mode: command === 'serve' ? 'dev' : 'build',
+        surface: desktop ? 'desktop' : 'web',
+        commit,
+        dirty,
+        builtAt,
+      }),
     },
-  },
-  server: {
-    port: 5173,
-    strictPort: true,
-    watch: {
-      // Docs are content only; editing them should not trigger a browser reload.
-      ignored: ['**/docs/**'],
+    build: desktop ? { outDir: 'dist-desktop' } : undefined,
+    resolve: {
+      alias: {
+        '@': fileURLToPath(new URL('./src', import.meta.url)),
+      },
     },
-  },
-  preview: {
-    port: 4173,
-    strictPort: true,
-  },
-}))
+    server: {
+      port: 5173,
+      strictPort: true,
+      watch: {
+        // Docs are content only; editing them should not trigger a browser reload.
+        ignored: ['**/docs/**'],
+      },
+    },
+    preview: {
+      port: 4173,
+      strictPort: true,
+    },
+  }
+})
