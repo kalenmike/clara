@@ -246,6 +246,7 @@ export class PanelRuntime implements PanelDataSource {
       lastChangedAt: new Date(snapshot.lastChangedAt).toISOString(),
       reconnectAttempts: snapshot.reconnectAttempts,
       ...(snapshot.lastError ? { lastError: this.redact(snapshot.lastError) } : {}),
+      ...(snapshot.replacedAt !== undefined ? { replacedAt: snapshot.replacedAt } : {}),
       ...(control.error ? { error: this.redact(control.error) } : {}),
     }
   }

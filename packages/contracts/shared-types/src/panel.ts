@@ -263,6 +263,8 @@ export type PanelRelayTransport = {
   lastChangedAt?: string
   reconnectAttempts?: number
   lastError?: string
+  /** When another hub last connected to this room; epoch milliseconds. */
+  replacedAt?: number
   error?: string
   /** Present when the optional Cloudflare deployment feature is built in. */
   cloudflare?: PanelRelayDeployment
