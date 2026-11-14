@@ -132,7 +132,8 @@ contacts the harness directly.
 
 - Running the adapter inside the hub process.
 - An inbound adapter HTTP port.
-- Multiple active adapters at once.
+- A per-client active harness; the panel keeps one default backend while every
+  paired adapter serves the workspaces that belong to it.
 - A Claude Code orchestration binding or shared runner integration.
 - A shipped Claude Code container image.
 

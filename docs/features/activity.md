@@ -17,7 +17,8 @@ harness and want to see both work in progress and sessions waiting for them.
    model, last update, token total, and reported spend.
 5. Read the plan checklist for that session. The header shows completed items
    against the total.
-6. On the active harness, choose a session title to open it.
+6. Choose a session title to open it, on any harness. A card whose project Clara
+   does not know shows the harness project id and no link.
 7. Leave the page open. It refreshes every ten seconds, or press **Refresh** to
    reload immediately and bypass the activity caches.
 8. Read the Other harnesses row to see paired harnesses with no Inbox or Outbox
@@ -61,10 +62,11 @@ harness and want to see both work in progress and sessions waiting for them.
   the session shows the full plan dock.
 - **Unknown project** — the card shows the harness project ID and does not offer
   a link.
-- **Session on another harness** — the card is readable but has no open link.
-- **Snooze or archive on the active harness** — the activity query refreshes
-  shortly after the session event, so the card disappears without waiting for
-  the next poll.
+- **Session on another harness** — the card behaves like any other: it opens the
+  session when Clara knows its project, and shows no link when it does not.
+- **Snooze or archive on any harness** — the activity query refreshes shortly
+  after the session event, so the card disappears without waiting for the next
+  poll.
 - **Long checklist** — the plan area scrolls inside the card.
 - **Page left open** — the query refreshes every ten seconds and shows the last
   successful result if a refresh fails.
@@ -72,8 +74,7 @@ harness and want to see both work in progress and sessions waiting for them.
 ## Out of scope
 
 - Starting, steering, interrupting, or deleting sessions from this page.
-- Switching the active harness from this page.
-- Opening a session on a non-active harness.
+- Choosing a default harness from this page; that remains a panel setting.
 - Showing drafts, snoozed sessions, or archived sessions.
 - Excluding worker sessions. A later orchestrator view will be able to hide
   them.
@@ -88,14 +89,13 @@ harness and want to see both work in progress and sessions waiting for them.
   sessions per harness. Older cards stay in place but show Plan not loaded.
 - A plan written before the newest 50 assistant messages is not shown. The
   session's Plan dock still has the full checklist.
-- Spend does not follow the estimated-cost setting because model catalogs are
-  scoped to each harness.
+- Spend is always the amount each harness reports; Activity does not estimate
+  cost from model prices.
 - Running plans can be up to five seconds stale, and idle plans up to five
   minutes stale, during automatic polling. The Refresh button bypasses both
   caches.
-- Cross-harness changes arrive on the next poll because only the active harness
-  streams events to the browser.
-- Click-through is limited to the active harness.
+- An offline harness reports changes on the next poll; the page refreshes every
+  ten seconds regardless.
 
 ## Technical appendix
 

@@ -44,15 +44,31 @@ a generic error.
 Clara can reach the hub while the harness is unavailable. A banner names the
 problem and offers **Retry**.
 
-- The hub may not have an active adapter. Ask the host to open the hub panel,
-  check that the adapter says **Online** under **Connected adapters**, and
-  activate it under **Paired harnesses**.
+- No harness is answering. Ask the host to open the hub panel and check that at
+  least one adapter says **Online** under **Connected adapters**. A project that
+  uses a workspace on an offline harness keeps working on the other harnesses.
 - If it says **Paired · Offline**, start the adapter service on the harness
   machine.
 - If the hub returns `harness_unconfigured`, no adapter is paired.
 - If the page says **Off**, harness access is disabled in the hub's settings.
 - A containerized adapter connects to the hub on the `clara` network, not to
   `127.0.0.1`.
+
+## One project spans several harnesses
+
+A project can hold a workspace on more than one harness, of any kind, on any
+machine. When one of them is offline:
+
+- Session lists keep the rows from the harnesses that answered. The project page
+  shows which workspace is offline.
+- Counts on project cards and the project page stay visible but are marked
+  partial and name the missing harness. **Counts unavailable** means no linked
+  harness answered.
+- **New session** shows the offline workspace as disabled. Start in another
+  workspace, or reconnect that harness and try again.
+- If the same path exists on two machines, Clara refuses to guess and reports
+  that the path matches more than one harness. Make the intended harness the
+  active one, or give the workspaces distinct labels.
 
 ## The relay is offline
 
@@ -107,7 +123,8 @@ jar can exceed the proxy's header buffer. Open `http://localhost:8080` instead o
 
 The sidebar keeps the last list visible when a background refresh fails and shows
 a compact notice. Use the refresh action, or reconnect from Settings. The session
-list is scoped to the selected project, not to every directory on the server.
+list is scoped to the selected project, which can draw sessions from several
+harnesses; a failed lookup for one harness does not empty the list.
 
 ## Orchestration is not available
 

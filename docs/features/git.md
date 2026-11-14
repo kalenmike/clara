@@ -68,9 +68,13 @@ session's own directory. The browser never reads its own filesystem.
    session goes idle. The field and record separators keep multiline bodies
    intact. Conventional headers are split into type, scope, and description for
    the preview, and `Co-authored-by:` trailers are lifted out of the body.
-5. **The browser never sends a shell command.** The hub runs the fixed command
-   through the active adapter's shell capability and returns parsed commits. The request travels
-   over the encrypted session to the hub API.
+5. **The browser never sends a shell command.** The hub builds the command and
+   forwards it to the harness that owns the workspace directory, so history is
+   read on the machine that holds the repository, not on the hub host. The
+   request travels over the encrypted session to the hub API, and the hub returns
+   parsed commits. A directory that exists on two harnesses needs an unambiguous
+   scope; otherwise the hub answers `harness_ambiguous` rather than reading the
+   wrong repository.
 6. If harness access is disabled, the hub returns `403` with `disabled` and
    the view says commit history is disabled on this server. If no harness is
    configured, the view says history is unavailable.
@@ -120,6 +124,10 @@ session's own directory. The browser never reads its own filesystem.
   fail even though the branch name is known.
 - **Worktree removed or directory deleted** — the git requests fail with the
   normal retry states.
+- **The same directory exists on two harnesses** — git reads the harness that
+  owns the session or workspace; without that scope the request reports an
+  ambiguous harness, so the panel asks the person to choose rather than reading
+  the wrong repository.
 - **Worktree created outside the harness** — the list is discovery-backed and may
   lag until the rescan button runs `POST /api/worktree/refresh`.
 - **No other worktrees** — the list still shows the default row; there is no
@@ -137,7 +145,8 @@ session's own directory. The browser never reads its own filesystem.
 
 The browser has no generic shell endpoint. Git history is the only host command
 Clara runs, and the hub constructs it from validated timestamps and the session
-directory. The web client uses the typed `/v1` API and never sends a command.
+directory before forwarding it to the workspace's own harness. The web client
+uses the typed `/v1` API and never sends a command.
 
 ## Out of scope
 
@@ -153,7 +162,8 @@ directory. The web client uses the typed `/v1` API and never sends a command.
 
 - **OpenCode has no commit-log endpoint.** OpenCode 2.1.x and 2.2.x expose
   `vcs.get/base/status/diff/branch` only, so the hub's `/v1/git/log` endpoint
-  runs `git log` through the active adapter's shell capability and returns parsed commits.
+  builds `git log` and forwards it through the shell capability of the harness
+  that owns the workspace directory.
 - **Session scope is time-based.** The harness records no commit IDs for a session,
   so Clara asks git for commits between `session.time.created` and the newest
   message activity. Git compares commit dates, not author dates: a manual commit
@@ -191,8 +201,12 @@ directory. The web client uses the typed `/v1` API and never sends a command.
 - Review base: `client.vcs.base({ location: { directory } })`
 - Working tree: `client.vcs.status({ location: { directory } })`
 - Committed and branch ranges: `client.vcs.diff({ mode, base, context: 0 })`
-- History: `client.git.log({ directory, since, until })` over `GET /v1/git/log`;
-  the hub builds and runs the fixed command and returns parsed commits
+- History: `client.git.log({ directory, harnessID, since, until })` over
+  `GET /v1/git/log`; the hub builds the fixed command, resolves the harness that
+  owns the directory, forwards it, and returns parsed commits
+- Directory scope: `vcs.get/base/status/diff`, `files.find`, and `git.log` accept
+  an optional `harnessID`; without one the hub resolves the owning harness from
+  the workspace links
 - Worktrees: `client.worktree.list({ projectID })` and
   `client.worktree.refresh({ projectID })`
 - Project ID: the canonical project record for the route, passed from the chat

@@ -14,16 +14,24 @@ own. These are the ones you will see most often.
 | Term            | What it means                                                                                                                                |
 | --------------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
 | **Hub**         | The Clara installation on the machine that runs the hub service. It can be one process, one database, one panel, and at most one relay room. |
-| **Hub service** | The process itself. It carries traffic between your devices and the active adapter over the encrypted WebSocket.                             |
+| **Hub service** | The process itself. It carries traffic between your devices and the harnesses they use over the encrypted WebSocket.                         |
 | **Hub panel**   | The authenticated dashboard on the hub machine. The host uses it to add a harness and manage devices. You normally never open it.            |
-| **Harness**     | The agent runtime Clara connects to. OpenCode is the harness used by the adapter included with this release.                                 |
+| **Harness**     | The agent runtime Clara connects to. Several can be paired; the active one is the default when a screen does not name a harness.             |
 | **Adapter**     | The small process on the harness machine that connects it to the hub. It holds the harness credentials.                                      |
-| **Project**     | A directory the harness has opened. Projects group sessions.                                                                                 |
+| **Project**     | A container for your work. It holds workspaces, so one project can span harnesses and machines.                                              |
+| **Workspace**   | A directory on one harness that a project can run work in. A project can have several workspaces.                                            |
 | **Session**     | One conversation with an agent. The interface calls it a **Brief** by default.                                                               |
 | **Agent**       | The LLM worker or agent definition that produces a reply. This never means the hub.                                                          |
 | **Model**       | The LLM a session uses, with an optional variant.                                                                                            |
 | **Relay**       | The Cloudflare service that lets a browser or adapter reach a hub that is not publicly reachable. It only forwards encrypted frames.         |
 | **Device**      | A browser or installed app that has paired with the hub. Each device has its own revocable key.                                              |
+
+A **project** is yours; a **workspace** is a directory on one harness. Add a
+workspace for each folder a project should reach, and Clara keeps the work
+together even when the folders live on different machines. The **active
+harness** is only a default: it answers screens that do not name a session or
+workspace, while anything opened from a workspace goes to that workspace's own
+harness. You choose the active harness in the hub panel.
 
 ## The mailbox
 

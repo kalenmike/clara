@@ -2,13 +2,13 @@
 
 ## Summary
 
-Connects Clara to the active harness through the Clara hub over an
+Connects Clara to its paired harnesses through the Clara hub over an
 end-to-end encrypted WebSocket, either through the Cloudflare relay or the local
 listener. There is no direct HTTP mode. The browser tunnels to the hub even
-before a harness adapter is online; harness-backed requests wait for the active
-adapter. Only the adapter discovers the harness; the hub never reads its service
-file or contacts it. Each browser enrolls its own device key through a one-time
-code; there is no shared browser key.
+before a harness adapter is online; harness-backed requests wait for the adapter
+that owns the session or workspace. Only the adapter discovers the harness; the
+hub never reads its service file or contacts it. Each browser enrolls its own
+device key through a one-time code; there is no shared browser key.
 
 ## User flow
 
@@ -34,9 +34,9 @@ code; there is no shared browser key.
    enrollment handshake, stores the device key, reconnects with the device id,
    and calls `/v1/info` through the tunnel to prove the hub is reachable.
 6. On success Clara opens the last project, or the first project the server
-   returns. It fetches `/v1/harness/info` separately; when the active adapter is
-   missing or offline, the app stays connected and shows a retryable harness
-   banner instead of failing the connect screen.
+   returns. It fetches `/v1/harness/info` separately; when the default harness
+   adapter is missing or offline, the app stays connected and shows a retryable
+   harness banner instead of failing the connect screen.
 7. On failure the form explains whether the code, expiry, fingerprint, relay,
    authentication, or reachability failed. A failed pairing link returns to the
    pair form with the reason.
@@ -50,9 +50,10 @@ code; there is no shared browser key.
 1. Clara talks to one hub at a time. Connecting again replaces the
    client, clears cached queries when the target changes, and restarts the
    stream.
-2. The transport never sends the harness password to the browser. The adapter
-   adds harness authentication and is the only process that talks to the
-   harness; the hub maps typed `/v1` calls to the active adapter.
+2. The transport never sends a harness password to the browser. The adapter
+   adds harness authentication and is the only process that talks to its
+   harness; the hub maps each typed `/v1` call to the harness that owns the
+   session or workspace, and to the default harness otherwise.
 3. `VITE_CLARA_WS_URL` retargets relay-room pairings; a `local` pairing keeps the
    endpoint from its payload. The panel's local-only option or
    `clara-server pair --no-relay` produces a `local` pairing even when the hub
@@ -64,12 +65,13 @@ code; there is no shared browser key.
    handshake failures settle first and report their own reason.
 6. The event stream is healthy only while chunks keep arriving. The hub sends
    a heartbeat every 15 seconds; 45 seconds of silence is treated as dead.
-7. The hub resolves its active adapter from SQLite. If none is paired, the
-   tunnel can connect but `/v1/harness/info` returns `503` with
-   `harness_unconfigured`; if the adapter is paired but offline, it returns
-   `harness_offline`. The connection probe is `/v1/info`, not the harness
-   endpoint, so these states render as a banner instead of a connection error.
-   Pair or start the adapter in the panel to use projects and sessions.
+7. The hub resolves its default harness from SQLite and keeps every paired
+   connection in the same table. If none is paired, the tunnel can connect but
+   `/v1/harness/info` returns `503` with `harness_unconfigured`; if the default
+   adapter is paired but offline, it returns `harness_offline`. The connection
+   probe is `/v1/info`, not the harness endpoint, so these states render as a
+   banner instead of a connection error. Pair or start an adapter in the panel
+   to use projects and sessions.
 8. Push notifications need the hub's E2EE transport; the control channel
    also carries push subscriptions.
 9. The web transport queues HTTP requests above a small in-flight cap. Query

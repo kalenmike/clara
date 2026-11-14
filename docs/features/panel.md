@@ -6,10 +6,12 @@ An authenticated control panel served by the hub service. It uses the
 Clara Lab workbench layout: a title bar, an activity rail with tabbed views, and
 a status bar. It shows the hub's live state, transports, browser clients,
 harness adapters, the active harness probe, push health, configuration sources,
-database health,
-storage files, and a live traffic meter without exposing secrets. Sensitive
-values, including the harness URL and relay room, start masked behind a header
-peek control so the panel can be screenshared safely. It is also the setup
+database health, storage files, and a live traffic meter without exposing
+secrets. The active harness is the panel's default backend: any number of
+harnesses can be paired and serve their own workspaces, while a request that
+names neither a session nor a workspace falls back to the active one. Sensitive values, including the
+harness URL and relay room, start masked behind a header peek control so the
+panel can be screenshared safely. It is also the setup
 surface for browser pairing and harness adapters: the superadmin signs in,
 chooses a password, then creates a one-time browser link, code, or QR, or adds an
 adapter and runs its install command on the harness machine. The same surface
@@ -38,7 +40,8 @@ Object to the operator's Cloudflare account from the Relay card.
    command on the harness machine. A new adapter appears under
    **Paired harnesses** as **Paired · Offline**; when its credential session
    connects it also appears under **Connected adapters**, becomes **Online**,
-   and the first adapter becomes **Active**. The pending pairing card returns
+   and the first adapter becomes **Active**, the default for screens that do not
+   name a session or workspace. The pending pairing card returns
    to the add form as soon as the adapter registers. Use **Test** to probe an
    adapter. In a container, the adapter connects to `ws://server:8788/ws` on
    the `clara` network; `127.0.0.1` means the hub host.
@@ -76,7 +79,9 @@ Object to the operator's Cloudflare account from the Relay card.
    **Forget**. A paired adapter shows **Active** when selected and one status
    badge: **Online** for a live session, **Paired · Offline** when the
    credential exists but no session is connected, **Not paired** before
-   enrollment, or **Off** while harness access is disabled.
+   enrollment, or **Off** while harness access is disabled. **Active** only
+   chooses the default backend; projects, sessions, and workspaces on other
+   paired harnesses keep working through their own scope.
 8. In **Connections**, toggle local transport, relay, or push from the switch at
    the top right of its card. The choice is saved immediately. An enabled switch
    is green while external connections are on and red while they are off; a disabled switch
@@ -314,7 +319,10 @@ Object to the operator's Cloudflare account from the Relay card.
   exceptions
 - Cloudflare custom domains, Worker deletion, or account selection beyond the
   one account used for a relay deployment
-- Multiple simultaneously active harnesses; the panel stores one active backend
+- A second active harness or per-client selection in the panel header; the panel
+  stores one active backend as the default for requests that name no session or
+  workspace, while paired harnesses keep serving the workspaces and sessions
+  scoped to them
 - Per-device relay tokens; the relay client token remains shared
 - A sandbox for command execution, or an allowlist of every proxied API route
 - Per-command arguments, wildcards, or regular expressions in the allowlist

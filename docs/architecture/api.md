@@ -6,13 +6,15 @@ reach it through a loopback HTTP listener.
 
 ```text
 Browser / PWA
-  └─ E2EE WebSocket ──▶ hub service ──▶ /v1 API ──▶ active adapter ──▶ harness
+  └─ E2EE WebSocket ──▶ hub service ──▶ /v1 API ──▶ routed adapter ──▶ harness
 MCP / local tools
   └─ loopback HTTP + bearer token ──▶ /v1 API
 ```
 
 The browser never calls a harness directly. The hub only exposes `/v1`; there is
-no generic `/api/*` proxy.
+no generic `/api/*` proxy. Each request goes to one harness: the session's owner,
+the workspace that holds the directory, an explicit `harnessID`, or the active
+harness as the default.
 
 ## API surface
 
@@ -32,9 +34,36 @@ no generic `/api/*` proxy.
 | Worktrees   | `GET /v1/worktrees`, `POST /v1/worktrees/refresh`                                                                                                                                                                                                                                  |
 | Clara       | `GET /v1/git/log`, `GET /v1/events`                                                                                                                                                                                                                                                |
 
-`GET /v1/events` forwards the active adapter's Clara Harness Protocol SSE
-stream. The wire payloads are typed as the Clara `ClaraEvent` union from
+`GET /v1/events` streams one harness: pass `?harnessID=` to name it, or omit it
+for the active harness. A client that needs every harness opens one stream per
+online harness. The wire payloads are typed as the Clara `ClaraEvent` union from
 `@clara/api-contract`; adapters translate their harness events into that union.
+Web Push is supervised apart from the browser: while the hub runs, it keeps one
+event stream per online harness, so a closed client is still notified for
+sessions on any paired harness.
+
+### Harness routing
+
+Every request is answered by one harness. The hub resolves it in this order:
+
+1. An explicit `harnessID`, given as a query parameter or request field. A hint
+   that names a harness that is no longer paired fails with `harness_missing`.
+2. The session record, for session-scoped routes. Clara records which harness
+   owns each session it has listed, so `messages`, `prompt`, `command`, `fork`,
+   `view`, `context`, permissions, and forms need no hint.
+3. The workspace that holds the directory, for directory-scoped routes such as
+   files, VCS, skills, references, locations, git history, and permissions. If
+   two harnesses link the same path and neither is the active one, the request
+   fails with `harness_ambiguous` and lists the candidate `harnessIDs` instead
+   of guessing across machines.
+4. The active harness, the default backend chosen in the panel, for a request
+   that names neither a session nor a directory.
+
+`harnessID` is a hub routing hint and is never forwarded to the adapter. A
+project list ignores it because that list always fans out; see below.
+`POST /v1/sessions` accepts an optional `harnessID` and resolves the directory
+the same way, so creating a session in a workspace on a non-default harness
+needs no extra round trip.
 
 ### Projects and workspaces
 
@@ -66,23 +95,32 @@ the Clara action.
 ### Project-scoped lists
 
 `GET /v1/sessions?project=` and `GET /v1/worktrees?project=` accept a Clara
-project ID and map it to every harness project record linked to the project's
-workspaces on the active harness. Sessions are merged, deduplicated, and ordered
-by `time.updated`. A project linked to more than one record requests up to
-`limit` rows per record and uses a hub-owned composite cursor, so paging still
-visits every record exactly once. When a workspace has no links, the hub resolves
-it from the harness location once and retries; a project with no workspace on the
-active harness returns `project_unmapped`; the hub never forwards a Clara ID to
-the harness.
+project ID and fan out to every harness that owns a record linked to the
+project's workspaces. Each page is overlaid with the harness that produced it,
+then merged, deduplicated, and ordered by `time.updated`. Paging uses a
+hub-owned composite cursor that keeps one cursor per harness project record, so
+every record is visited exactly once and no row repeats.
 
-`GET /v1/git/log` is the only host command Clara runs. The hub builds a fixed
-`git log` command from validated timestamps and the session directory; there is
-no arbitrary shell endpoint.
+A harness that is offline, unpaired, or failing contributes no rows instead of
+failing the whole list. When the project spans more than one harness, or any
+harness failed, the response carries `harnesses[]` with `harnessID`, `label`,
+`kind`, `online`, `ok`, and an error `code` and `message` for the failures. The
+list fails with a harness error only when no linked harness answers at all.
+`project_unmapped` is reserved for a project with no linked record on any paired
+harness; an unlinked workspace is resolved once through the harness location and
+retried before that error is returned. The hub never forwards a Clara ID to a
+harness.
+
+`GET /v1/git/log` is the only host command Clara runs, and it runs on the
+workspace's harness, not on the hub host. The hub builds a fixed `git log`
+command from validated timestamps and the session directory, resolves the
+harness that owns that directory, and forwards the command through that
+adapter's shell capability. There is no arbitrary shell endpoint.
 
 ### Cross-harness activity
 
-`GET /v1/activity/sessions` is the read-only exception to active-harness
-scoping. It asks every paired harness for `/sessions/active`, pending
+`GET /v1/activity/sessions` reads every paired harness, not the project-scoped
+path. It asks each online harness for `/sessions/active`, pending
 `/permissions`, and every page of non-archived `/sessions`, overlays the result
 with Clara project, title, archive, and snooze metadata, and returns sessions in
 the Inbox or Outbox. Archived and snoozed sessions are dropped, and the response
@@ -161,9 +199,10 @@ Errors use one envelope:
 ```
 
 Common codes are `unauthorized`, `read_only`, `disabled`,
-`harness_unconfigured`, `harness_offline`, `harness_auth`, `upstream_error`,
-`upstream_invalid`, `project_unmapped`, `project_exists`, `harness_missing`, and
-`not_found`.
+`harness_unconfigured`, `harness_offline`, `harness_auth`, `harness_missing`,
+`harness_ambiguous`, `upstream_error`, `upstream_invalid`, `project_unmapped`,
+`project_exists`, and `not_found`. `harness_ambiguous` includes the candidate
+`harnessIDs` in `details` so a caller can retry with an explicit scope.
 
 ## Read-only MCP
 

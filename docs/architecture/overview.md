@@ -113,10 +113,10 @@ adapter ──outbound WSS──▶ hub ◀──outbound WSS── web / iPhone
       │                    │
       └── Clara Harness Protocol over E2EE ──┘
                            │
-                           ├── /v1 API ──▶ active adapter
+                           ├── /v1 API ──▶ routed adapter
                            └── Web Push (VAPID) ──▶ push service
 
-Local mode: web ──WSS──▶ hub /v1 API ──▶ active adapter ──▶ harness
+Local mode: web ──WSS──▶ hub /v1 API ──▶ routed adapter ──▶ harness
 Local tools: MCP ──HTTP 127.0.0.1:8788──▶ hub /v1 API
 Panel: browser ──HTTP 127.0.0.1:8790──▶ hub (auth + setup + controls)
 Harness: panel ──▶ SQLite harness identity/pairing ──▶ adapter session (E2EE)
@@ -149,8 +149,9 @@ described in [pairing.md](../features/pairing.md).
 
 The harness password never reaches the browser. The adapter adds harness
 authentication and is the only process that talks to the harness. The browser
-uses `@clara/api-client` against `/v1`; the hub maps those calls to the active
-adapter and never exposes a generic harness proxy.
+uses `@clara/api-client` against `/v1`; the hub routes each call to the harness
+that owns the session or workspace, falls back to the active harness for a
+request that names neither, and never exposes a generic harness proxy.
 
 ## Runtime shape
 
@@ -159,7 +160,7 @@ ConnectionProvider
   └─ creates the Clara SDK client
        └─ createClaraClient({ fetch: relayFetchOverWebSocket })
             ├─ TanStack Query: projects, sessions, messages, catalog, approvals
-            └─ EventProvider: one SSE subscription for the whole tab
+            └─ EventProvider: one SSE subscription per online harness
                  ├─ chatStore: applies streaming deltas per session
                  └─ query invalidations: durable events and list changes
 ```
@@ -179,7 +180,7 @@ ConnectionProvider
 - The hub keeps one E2EE session per browser connection. Relay clients
   are independent; the Durable Object broadcasts hub frames and clients drop
   frames for other sessions.
-- For push, the hub opens the active adapter's harness event stream and stores
+- For push, the hub keeps one harness event stream per online harness and stores
   Web Push subscriptions at `~/.config/clara/subscriptions.json`. VAPID keys
   live in `~/.config/clara/vapid.json`.
 - The hub service serves `apps/hub/panel` on a second listener (default
@@ -191,10 +192,13 @@ ConnectionProvider
   endpoints, sync values, or file contents. See
   [panel.md](../features/panel.md) and
   [hub-controls.md](../features/hub-controls.md).
-- Harness adapters live in SQLite; exactly one is active. Each adapter connects
-  out to the hub over the same local or relay WebSocket as a browser client.
-  `HarnessManager` routes Clara Harness Protocol requests over that E2EE session,
-  so the hub never contacts a harness directly and needs no adapter port.
+- Harness adapters live in SQLite. Any number can be paired and online at once;
+  one is **active**, the default backend for requests that name neither a
+  session nor a workspace. Each adapter connects out to the hub over the same
+  local or relay WebSocket as a browser client.
+  `HarnessManager` routes Clara Harness Protocol requests over each adapter's own
+  E2EE session, so the hub never contacts a harness directly and needs no adapter
+  port.
   The included OpenCode adapter installs its daemon and orchestration binding
   together; the Claude Code adapter installs only its daemon and relies on the
   machine's Claude Code login. Session/project metadata is keyed by a stable harness identity, so a
@@ -227,24 +231,38 @@ default) instead of creating another session.
 ## Project and directory scoping
 
 Sessions belong to a Clara project. A project is a container, not a directory:
-its workspaces store one `(harness, directory)` pair each. Clara lists sessions
-with `GET /v1/sessions?project=<clara-id>` so sessions moved to a worktree stay
-in the project view. The `directory` filter is exact and is not used for the
-session list.
+its workspaces store one `(harness, directory)` pair each, and a project can hold
+workspaces on any number of paired harnesses, of any kind, on any machine. Clara
+lists sessions with `GET /v1/sessions?project=<clara-id>`, which fans out to
+every harness that owns a linked record and merges the pages, so sessions moved
+to a worktree stay in the project view and sessions on two machines appear
+together. The `directory` filter is exact and is not used for the session list.
 
 A workspace's canonical directory is used to create sessions and to scope
 location-specific data such as skills, references, and pending approvals. For an
 open session, its `location.directory` wins when it differs from the workspace
-directory.
+directory. Session creation takes an optional `harnessID`; without one, the hub
+resolves the owning harness from the directory and falls back to the active
+harness.
+
+The active harness is a default, not a boundary. It answers requests that name
+neither a session nor a directory, and it is what an older client that knows only
+one harness talks to. Everything else is scoped explicitly:
+
+- A session-scoped call resolves its harness from the session record.
+- A directory-scoped call resolves the harness that links that path. If the same
+  path exists on more than one harness and the active harness is not one of them,
+  the hub returns `harness_ambiguous` and lists the candidates instead of
+  guessing.
+- A project-scoped list always fans out and never narrows to one harness.
 
 A harness can keep more than one project record for the same canonical path, for
 example before and after `git init`. Clara maps one workspace to every linked
 record and merges their sessions and worktrees, so duplicate records cannot hide
 work. When a workspace has no links yet, the hub resolves it through the harness
-location once and retries; a project with no workspace on the active harness
-returns `project_unmapped` instead of forwarding the Clara ID or showing an empty
-list. Harness project lists never create Clara projects, and harness archive
-state never hides one.
+location once and retries; `project_unmapped` means the project has no linked
+record on any paired harness, not that one harness lacks it. Harness project
+lists never create Clara projects, and harness archive state never hides one.
 
 Sessions can report `projectID: "global"`. Session rows build links from the
 route/selected project ID; notifications resolve the owning project, preferring
@@ -252,16 +270,17 @@ the session's project ID and falling back to a workspace directory.
 
 Session-scoped endpoints (`messages`, `prompt`, `command`, `switchAgent`,
 `switchModel`, `context`) take only the session ID; the server resolves the
-directory from the session record. Moving a session to a worktree changes only
-`location.directory`; its project ID stays the same.
+directory and harness from the session record. Moving a session to a worktree
+changes only `location.directory`; its project ID stays the same.
 
 ## Host command policy
 
 The browser has no generic shell path. Git history is the only host command
-Clara runs: the hub's `/v1/git/log` endpoint builds a fixed `git log -n 10` with
-a machine-readable `--format` from validated timestamps and the session
-directory, sends it through the active adapter's shell capability, and returns
-parsed commits. See [git.md](../features/git.md).
+Clara runs, and it runs on the workspace's harness rather than on the hub host:
+`/v1/git/log` builds a fixed `git log -n 10` with a machine-readable `--format`
+from validated timestamps and the session directory, resolves the harness that
+owns that directory, and sends it through that adapter's shell capability. The
+hub returns parsed commits. See [git.md](../features/git.md).
 
 ## Streaming model
 
@@ -281,10 +300,16 @@ A refetch on idle reconciles the stream with persisted history. On the WebSocket
 transport a dropped socket errors the SSE response, and the existing EventProvider
 loop re-subscribes through the transport.
 
+Each stream carries one harness. A tab that needs events from another harness
+opens its own stream, or asks the hub to forward a named one with `harnessID`.
+The hub's push monitor keeps a stream per online harness while no client is
+guaranteed to be connected, so alerts still reach a closed app.
+
 ## Security notes
 
 - The hub only exposes the typed `/v1` API. The browser has no generic harness
-  proxy or shell path; the one host command is the fixed Git history endpoint.
+  proxy or shell path; the one host command is the fixed Git history endpoint,
+  and the hub forwards it to the workspace's own harness.
 - Never commit `service.json`, passwords, pairing codes, device keys, relay tokens,
   `secrets.key`, or `admin-setup.txt`.
 - The hub's config is `~/.config/clara/server.json` (mode `0600`).

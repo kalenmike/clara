@@ -14,7 +14,8 @@ explains the boundary in plain language.
 
 - The browser never receives the harness password.
 - The adapter adds harness authentication and is the only process that talks to
-  the harness. The hub carries typed API requests to the active adapter.
+  the harness. The hub carries typed API requests to the harness that owns each
+  session or workspace.
 - Prompts, replies, tool output, and file content travel inside an encrypted
   WebSocket.
 - Cloudflare and the relay see encrypted frames, frame sizes, timing, room

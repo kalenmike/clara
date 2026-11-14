@@ -53,8 +53,10 @@ start an agent run and move on, so they do not have to watch the sidebar.
    resolved after a short debounce from the latest messages and forms.
    Interruptions only suppress the next evaluation, and the same state is not
    announced twice for a session within five seconds.
-3. The hub service runs the same classification while it runs, so push and
-   the open sidebar agree on the state.
+3. The hub service runs the same classification while it runs, one stream per
+   online harness, so push and the open sidebar agree on the state for sessions
+   on any paired harness. An offline harness has no stream, so it cannot raise a
+   live alert until its adapter reconnects.
 4. A session that is open and whose tab is visible and focused never alerts.
    Archived and snoozed sessions, sessions whose latest message is from the
    person, and interrupted runs do not alert.
@@ -64,12 +66,15 @@ start an agent run and move on, so they do not have to watch the sidebar.
    notification and reports a refusal, so the person can check delivery before
    trusting an alert.
 6. Push notifications need browser permission and a Clara hub; they are
-   stored on the hub and sent directly with Web Push. A visible Clara window
-   handles its own alert, and a hidden or closed Clara leaves delivery to the
-   service worker push so the person is not notified twice. Desktop devices
-   always receive push; mobile devices are held while a desktop client is
-   present at the desk. The VAPID contact defaults to `https://clara.local`; the
-   hub panel can edit it and `CLARA_VAPID_SUBJECT` overrides it.
+   stored on the hub and sent directly with Web Push. Subscriptions stay
+   device-level, while the hub watches each online harness separately, so a
+   session on a second harness notifies the same devices as one on the default
+   harness. A visible Clara window handles its own alert, and a hidden or closed
+   Clara leaves delivery to the service worker push so the person is not notified
+   twice. Desktop devices always receive push; mobile devices are held while a
+   desktop client is present at the desk. The VAPID contact defaults to
+   `https://clara.local`; the hub panel can edit it and `CLARA_VAPID_SUBJECT`
+   overrides it.
 7. Settings shows the controls that fit the current device. **Desktop
    notifications** appears only when the primary pointer is fine, such as a
    laptop with a mouse or trackpad. **Push notifications** appears on every
@@ -144,8 +149,9 @@ start an agent run and move on, so they do not have to watch the sidebar.
   alert, because the person cannot see it.
 - **Another session is open** — the alert is delivered for the session that
   needs attention.
-- **Clicking a notification** — Clara resolves the project from the session's
-  directory. If no project matches, it focuses the window without navigating.
+- **Clicking a notification** — Clara opens the session on whichever harness owns
+  it and resolves the project from the session and its directory. If no project
+  matches, it focuses the window without navigating.
 - **Session archived or snoozed between the event and the alert** — the alert is
   dropped.
 - **Interrupted run** — the next idle evaluation is suppressed, so cancelling a
@@ -179,6 +185,9 @@ start an agent run and move on, so they do not have to watch the sidebar.
   reconciled the next time Clara opens.
 - **Hub stopped or asleep** — events during the gap are not replayed, so
   a run that finishes while the hub is down does not push later.
+- **A harness is offline** — its stream is missing while the adapter is away, so a
+  run that finishes in that window does not push. The hub reopens the stream when
+  the adapter reconnects.
 - **Orchestration off** — worker sessions lose the automation treatment and
   keep their ordinary session alerts.
 - **No Clara client connected** — the alert still waits in its origin session;
@@ -286,8 +295,9 @@ start an agent run and move on, so they do not have to watch the sidebar.
 - Push labels: Error, Needs Input, Ready for Review, Brief Complete
 - Push control: sealed `push.subscribe`, `push.unsubscribe`, and `push.test`
   actions; the hub acknowledges with `push.status`
-- Push monitor: `apps/hub/server/src/push/` reads `/api/event`, applies the same
-  750 ms evaluation delay and 5 s cooldown, then sends through `web-push`
+- Push monitor: `apps/hub/server/src/push/` keeps one `/events` stream per online
+  harness, applies the same 750 ms evaluation delay and 5 s cooldown, then sends
+  through `web-push`; subscriptions stay keyed by device, not harness
 - Orchestration delivery: `packages/adapters/binding/src/delivery.ts` plans alerts and
   finished root runs; `delivery-cycle.ts` serializes the cycle and reserves each
   run before the prompt; the adapter queues them into the origin session.
