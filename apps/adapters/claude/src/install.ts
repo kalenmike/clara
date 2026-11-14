@@ -16,6 +16,7 @@ import {
   isLocalHubUrl,
   removeAdapterService,
   removeState,
+  selfEntry,
   startAdapterProcess,
   waitForAdapterAuthentication,
 } from '@clara/adapter-runtime'
@@ -319,7 +320,7 @@ export function uninstallClaudeCommand(args: string[]): void {
       ...removeAdapterService({
         name: 'claude',
         label: 'Claude Code',
-        entry: process.argv[1] ?? '',
+        entry: selfEntry(),
         paths,
       })
     )

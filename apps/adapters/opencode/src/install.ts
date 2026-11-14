@@ -16,6 +16,7 @@ import {
   isLocalHubUrl,
   removeAdapterService,
   removeState,
+  selfEntry,
   startAdapterProcess,
   waitForAdapterAuthentication,
 } from '@clara/adapter-runtime'
@@ -383,7 +384,7 @@ function uninstallDaemon(input: { purge: boolean; dryRun: boolean }): string[] {
       ...removeAdapterService({
         name: 'opencode',
         label: 'OpenCode',
-        entry: process.argv[1] ?? '',
+        entry: selfEntry(),
         paths,
       })
     )

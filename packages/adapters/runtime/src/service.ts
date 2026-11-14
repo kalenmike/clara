@@ -30,6 +30,22 @@ function nodeArgs(entry: string): string[] {
   return entry.endsWith('.ts') ? ['--experimental-strip-types', '--no-warnings', entry] : [entry]
 }
 
+/**
+ * The script path when this process was started by a JS runtime, or an empty
+ * string when it is a Bun-compiled executable. Compiled executables do not have
+ * a script argument; `process.argv[1]` is the first CLI command instead.
+ */
+export function selfEntry(argv: string[] = process.argv): string {
+  const candidate = argv[1] ?? ''
+  if (!candidate || candidate.startsWith('-')) return ''
+  return /\.(?:[cm]?[jt]s)$/i.test(candidate) ? candidate : ''
+}
+
+function selfArgs(entry: string, command: string): string[] {
+  if (!entry || entry === process.execPath) return [command]
+  return [...nodeArgs(entry), command]
+}
+
 function run(command: string, args: string[]): boolean {
   return spawnSync(command, args, { stdio: 'ignore' }).status === 0
 }
@@ -39,7 +55,7 @@ function quote(value: string): string {
 }
 
 export function foregroundCommand(entry: string, command = 'serve'): string {
-  return [process.execPath, ...nodeArgs(entry), command].map(quote).join(' ')
+  return [process.execPath, ...selfArgs(entry, command)].map(quote).join(' ')
 }
 
 export function adapterLogSize(paths: AdapterPaths): number {
@@ -84,7 +100,7 @@ function userSystemdAvailable(): boolean {
 }
 
 export function installAdapterService(input: AdapterServiceInput): ServiceResult {
-  const args = [process.execPath, ...nodeArgs(input.entry), 'serve']
+  const args = [process.execPath, ...selfArgs(input.entry, 'serve')]
   if (process.platform === 'linux') {
     if (!userSystemdAvailable()) {
       return {
@@ -156,7 +172,7 @@ export function startAdapterProcess(input: AdapterServiceInput): ServiceResult {
   mkdirSync(dirname(input.paths.logPath), { recursive: true, mode: 0o700 })
   const log = openSync(input.paths.logPath, 'a', 0o600)
   try {
-    const child = spawn(process.execPath, [...nodeArgs(input.entry), 'serve'], {
+    const child = spawn(process.execPath, selfArgs(input.entry, 'serve'), {
       detached: true,
       stdio: ['ignore', log, log],
       env: process.env,
