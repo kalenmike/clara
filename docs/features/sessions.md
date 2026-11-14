@@ -4,10 +4,12 @@
 
 The project and session browser is how people find their work. A Clara project
 is a user-owned container; each workspace inside it links the project to a
-directory on one paired harness. Sessions are the units of conversation that
-Clara opens in the chat view. The sidebar switcher keeps the seven most recently
-active non-empty projects, while the All projects page shows every non-empty
-project with session counts, workspace management, and Clara-side rename. A
+directory on one paired harness, and a project can hold workspaces on several
+harnesses, of any kind, on different machines. Sessions are the units of
+conversation that Clara opens in the chat view. The sidebar switcher keeps the
+seven most recently active non-empty projects, while the All projects page shows
+every non-empty project with session counts, workspace management, and Clara-side
+rename. A
 filter on the projects header reveals empty and archived projects. The interface
 calls sessions **Briefs** by default, and the noun is configurable in Settings. A
 shift-click selects a range of sessions from an anchor, and Delete or Backspace
@@ -21,7 +23,8 @@ list has no checkbox column or bulk toolbar.
 2. The sidebar project button opens a menu of the seven most recently active
    projects, skipping projects without sessions by default, plus the current
    project when it falls outside that window. Each row shows its name and its
-   first workspace directory; **New project** and **All projects** end the menu.
+   first workspace, labelled with the harness when the project spans more than
+   one; **New project** and **All projects** end the menu.
 3. Choosing a project loads its sessions into five collapsible mailbox
    sections: Inbox, Outbox, Drafts, Snoozed, and Archived. While the
    orchestration service is reachable, worker sessions are removed from those
@@ -47,9 +50,13 @@ list has no checkbox column or bulk toolbar.
    it is disabled while a search is active.
 8. **New session** creates a session in the selected project and opens the reply
    composer in the last-used size (expanded by default), ready for the first
-   prompt; the empty session appears in Drafts. Creating the session re-targets
-   the composer even when it is already open or minimized on another session.
-   Opening an empty draft with locally saved text opens the composer too.
+   prompt; the empty session appears in Drafts. When the project has more than
+   one workspace, the button opens a menu that lists every linked workspace
+   across harnesses, disables the offline and unlinked ones, and starts the
+   session where the person chose. Otherwise it starts in the workspace the
+   project last used. Creating the session re-targets the composer even when it
+   is already open or minimized on another session. Opening an empty draft with
+   locally saved text opens the composer too.
 9. The All projects page shows one card per non-empty project with its
    workspace summary, last activity, and active/archived session counts, plus a
    **New project** action. A filter icon at the far right of the header opens
@@ -112,20 +119,21 @@ list has no checkbox column or bulk toolbar.
 
 ## Core business rules
 
-1. Sessions are fetched by **Clara project ID**. A project owns one or more
-   workspaces, and each workspace links to every harness project record for its
-   directory on one harness. A directory query is exact and would hide sessions
-   after an agent moves one to a worktree, so the hub merges the session pages of
-   every linked record on the active harness, deduplicates by id, and keeps one
-   cursor per record. If a workspace has no links yet, the hub resolves it from
-   the harness location once and links every matching record; a project with no
-   workspace on the active harness returns `project_unmapped` instead of an
-   empty list.
+1. Sessions are fetched by **Clara project ID**. The hub asks every harness that
+   owns a record linked to the project's workspaces, overlays each page with its
+   harness, and merges, deduplicates, and orders the rows, keeping one cursor per
+   record. A harness that is offline or failing hides only its own rows: the
+   response carries per-harness status and the list keeps what the others
+   returned. The list fails only when no linked harness answers, and
+   `project_unmapped` means the project has no linked record on any paired
+   harness. If a workspace has no links yet, the hub resolves it from the
+   harness location once and retries.
 2. Clara projects are not directories. `clara_projects` stores the container,
    name, icon, commands, startup script, archive state, and default workspace;
-   `clara_project_workspaces` stores `(harness, directory, canonical)` links.
-   Harness project lists never create Clara projects, and a harness archive never
-   hides a Clara project.
+   `clara_project_workspaces` stores `(harness, directory, canonical)` links, and
+   each link maps to every harness project record for that directory on its own
+   harness. Harness project lists never create Clara projects, and a harness
+   archive never hides a Clara project.
 3. A workspace can be added while its harness is offline. Clara stores the
    directory, shows it as unresolved, and links it through the harness location
    the next time the workspace or project is synced.
@@ -136,9 +144,10 @@ list has no checkbox column or bulk toolbar.
    and its workspace links, leaving harness data untouched. Older adapters that
    do not advertise `projects.archive` or `projects.delete` are reported as
    unsupported and never block the Clara-side change.
-5. The active list requests the newest 50 non-archived sessions from each linked
-   record and shows the merged result; the archived list does the same for
-   archived sessions.
+5. The active list requests the newest 50 non-archived sessions from every linked
+   record on every harness and shows the merged result; the archived list does
+   the same for archived sessions. A record that cannot be read contributes no
+   rows and is named in the per-harness status instead of failing the list.
 6. A new session inherits the model of the most recent active session in the
    project, so the first prompt uses a model that already works. A model hidden
    in **Settings → Models** is not inherited; the new session starts on the
@@ -226,16 +235,18 @@ list has no checkbox column or bulk toolbar.
     choice in the browser. The harness API and Clara's internal code still use
     `session`.
 19. Project recency comes from Clara's `last_active_at`, which follows the
-    newest session update seen for the project; the switcher takes the newest
-    seven and pins the current project when it falls outside them. The All
-    projects page lists every non-archived project, or archived projects too when
-    the filter asks for them. Projects with zero total sessions are hidden from
-    both views by default; the header filter reveals them and saves the choice on
-    the device. The current project stays pinned in the switcher even when it is
-    empty. Project names, icons, and startup scripts are stored in Clara and
-    shared by every connected client. Session counts split on `time.archived`;
-    the statistics request is capped and the total shows `+` when it reaches the
-    cap.
+    newest session update seen for the project, on any harness; the switcher
+    takes the newest seven and pins the current project when it falls outside
+    them. The All projects page lists every non-archived project, or archived
+    projects too when the filter asks for them. Projects with zero total sessions
+    are hidden from both views by default; the header filter reveals them and
+    saves the choice on the device. The current project stays pinned in the
+    switcher even when it is empty. Project names, icons, and startup scripts are
+    stored in Clara and shared by every connected client. Session counts combine
+    every harness and split on `time.archived`; the statistics request is capped
+    and the total shows `+` when it reaches the cap. A project whose linked
+    harness is offline keeps its partial counts and stays visible with a partial
+    marker; **Counts unavailable** appears only when the whole lookup fails.
 20. Project archive, restore, delete, and remove are container actions. Archive
     sets the Clara flag and signals every linked harness; restore clears it and
     signals unarchive. Delete signals every linked harness and then removes the
@@ -266,6 +277,16 @@ list has no checkbox column or bulk toolbar.
     three requests per session at once. A failed background refresh keeps the
     last list visible with a compact refresh notice; the full retry state appears
     only when no list is cached.
+26. New brief picks a workspace in this order: the workspace last used for this
+    project, the project's default workspace when it is online, the first online
+    workspace, then the first linked workspace. The last-used workspace wins even
+    when its harness is offline, so the choice never silently moves to another
+    machine; a project with several workspaces still offers the others in the
+    menu. The choice is remembered for the project on the device, so the next
+    brief starts where the last one ran. A workspace can start work only when it
+    is linked and its harness is online. A row shows the workspace label when
+    set, otherwise the harness label; when two harnesses share a label, the menu
+    appends a short harness id so the rows stay distinguishable.
 
 ## Edge cases
 
@@ -276,6 +297,13 @@ list has no checkbox column or bulk toolbar.
 - **Workspace harness is offline** — adding a workspace still succeeds with an
   unresolved link; syncing later fills in the canonical path and harness project
   records.
+- **The last-used workspace is offline** — New brief stays pointed at that
+  workspace and is disabled until the harness reconnects; when the project has
+  several workspaces, the menu shows the offline row disabled beside the online
+  ones.
+- **Every workspace is offline** — New brief is disabled and the start view names
+  the offline harness and points at the workspace menu, so the person can
+  reconnect rather than wonder where work went.
 - **Workspace directory is missing** — the Clara project stays visible; the
   workspace remains unresolved and session lookup reports the harness problem.
 - **A harness archives its own project** — Clara ignores it; only **Archive
@@ -311,6 +339,10 @@ list has no checkbox column or bulk toolbar.
   request is bounded.
 - **Project statistics fail** — the card keeps its workspaces and actions and
   shows that counts are unavailable.
+- **One linked harness is offline** — the card keeps the counts from the others, stays
+  visible, and marks them as partial with a note naming the harness.
+- **All linked harnesses fail** — only then does the card say counts are
+  unavailable, and the project stays visible with its workspaces and actions.
 - **Project archive or delete fails on one harness** — the Clara action still
   applies and the toast reports how many harnesses could not comply.
 - **A harness does not support project archive/delete** — the result says
@@ -357,8 +389,15 @@ list has no checkbox column or bulk toolbar.
   directory for Git, mentions, skills, and approvals.
 - **Duplicate project records for one directory** — Clara merges the sessions
   from every record, so selecting any duplicate shows the same complete list.
-- **Project has no harness record** — the session list reports
-  `project_unmapped` with a retry instead of showing an empty project.
+- **One harness is offline during a project list** — the rows from the other
+  harnesses still load and the offline harness is named in the per-harness status;
+  the list does not fall back to an error state.
+- **No linked harness answers** — the list reports the harness error with a retry
+  instead of showing the project as empty.
+- **Project has no record on any paired harness** — the session list reports
+  `project_unmapped` with a retry, not an empty project.
+- **Two workspaces share a harness label** — the New brief menu appends a short
+  harness id to each row so the workspace on each machine stays distinguishable.
 - **Session creation fails** — the button returns to its normal state and no
   navigation happens.
 - **Session refresh fails** — the last list stays visible with a compact refresh
@@ -436,6 +475,8 @@ list has no checkbox column or bulk toolbar.
   startup script from Clara
 - Creating, switching, or removing worktrees, or moving sessions between
   projects
+- Moving a session from one harness to another, or switching which harness is
+  active from the session list
 - Sharing, export, or import
 - Organizing sessions into folders or tags
 
@@ -446,6 +487,8 @@ list has no checkbox column or bulk toolbar.
 - The workspace startup script set on the project page is not run by Clara's
   New brief action because Clara does not create worktrees.
 - The active and archived lists each cap at 50 sessions.
+- Settings model and agent catalogs come from the default harness in this
+  release; the composer uses the open session or target workspace harness.
 - Session cards do not show a message count; that lives in the chat info panel.
 - Saved drafts cannot be edited or cancelled from Clara yet; start the draft or
   delete the session.
@@ -459,8 +502,8 @@ list has no checkbox column or bulk toolbar.
 - Projects: `client.project.list()` returns Clara containers sorted by
   `last_active_at`; the switcher takes seven and pins the current project when
   needed. `client.project.create({ name })` creates a container without a
-  directory. `client.project.workspace.add({ harnessID, directory })` links a
-  directory and calls the harness location to resolve it.
+  directory. `client.project.workspace.add({ harnessID, directory, label? })`
+  links a directory and calls the harness location to resolve it.
 - Project workspace sync: `client.project.sync({ projectID })` resolves every
   unresolved workspace, links matching harness project records, and stores the
   harness snapshot used for VCS, favicon, and sandbox display.
@@ -478,7 +521,8 @@ startupScript?, defaultWorkspaceID? })`.
 - Workspace startup script: `commands.start`, capped at 4,096 characters in the
   settings input; the harness runs it after creating a new worktree
 - Project statistics: `client.session.list({ project: projectID, limit: 1000 })`
-  counted by `time.archived`; the total shows `+` at the cap
+  counted by `time.archived`; the total shows `+` at the cap. `harnesses[]` marks
+  the counts partial, and `describePartialHarnesses` names the missing harness
 - Project page: `PageShell` with a `ProjectInfoCard` and `ProjectSettingsCard`;
   metadata comes from `client.project.list()`, counts from the project statistics
   query
@@ -492,7 +536,14 @@ startupScript?, defaultWorkspaceID? })`.
 - Empty project filter: `clara.showEmptyProjects` in `localStorage` (`shown` or
   `hidden`, default `hidden`)
 - Active list: `client.session.list({ project: projectID, search, archived: false, limit: 50 })`;
-  includes snoozed sessions and sessions in worktrees or sandboxes
+  includes snoozed sessions and sessions in worktrees or sandboxes, and returns
+  `harnesses[]` per-harness status when the project spans more than one harness or
+  a harness fails
+- Workspace choice: `resolveProjectWorkspaceTarget` and `workspaceHarnessLabels` in
+  `src/features/projects/project-workspaces.ts`; `projectSessionWorkspaces` keeps
+  linked workspaces, `isWorkspaceStartable` requires `linked && online`
+- Last workspace: `clara:last-workspace:<projectID>` in `localStorage`, written when
+  a session starts
 - Archived list: `client.session.list({ project: projectID, search, archived: true, limit: 50 })`
 - Mailbox signals: `client.message.list({ sessionID, order: 'desc', limit: 1, type })`
   for `user` and `assistant`, plus `client.session.form.list({ sessionID })`
@@ -512,9 +563,10 @@ metadata, delivery: 'steer' })`
   `session.status`, and `session.idle` events
 - Awaiting input: `client.permission.request.list({ location: { directory } })`
   and pending forms
-- Create: `client.session.create({ location: { directory }, agent, model })`
+- Create: `client.session.create({ location: { directory }, harnessID, agent, model })`
   with `agent` resolved from `clara.defaultAgent` and `clara.lastAgent` in
-  `localStorage`
+  `localStorage`; `harnessID` is optional and resolved from the directory when
+  omitted
 - Update: `client.session.update({ sessionID, title?, metadata?, archived? })` —
   metadata replaces the stored object, so snooze writes merge the current keys
 - Snooze: `client.session.update({ sessionID, metadata: { ...existing, snoozed: true } })`
