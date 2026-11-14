@@ -6,6 +6,7 @@
 //     [--version 0.1.0-dev+abc1234] [--tag adapters-v0.1.0-dev+abc1234]
 //     [--targets linux-x64,darwin-arm64,...|all] [--all-targets]
 //     [--artifact-base https://github.com/<owner>/<repo>/releases/download/<tag>]
+//     [--from-release <tag> --repo <owner/repo> [--api-url https://api.github.com]]
 //     [--build dist/adapters] [--out dist/adapters]
 //     [--artifacts-only] [--skip-build] [--no-adapter-build]
 //     [--print-targets]
@@ -14,9 +15,15 @@
 // builds every OS on its own runner, uploads the archives to a GitHub release,
 // and generates the registry files the web deployment serves.
 //
+// To generate manifests for archives that are already in a GitHub release,
+// use --from-release. It reads the asset names, sizes, and SHA-256 digests from
+// the GitHub API; no archive is downloaded.
+//
 //   pnpm adapters:build                       # host target, local registry
 //   pnpm adapters:build --print-targets       # show the host target
 //   pnpm adapters:build --all-targets         # deliberate full local build
+//   pnpm adapters:build --from-release adapters-v0.1.0 --version 0.1.0 \
+//     --repo owner/repo --out apps/web/public/adapters
 
 import { createHash } from 'node:crypto'
 import { spawnSync } from 'node:child_process'
@@ -50,39 +57,71 @@ const here = dirname(fileURLToPath(import.meta.url))
 const repoRoot = resolve(here, '../..')
 const args = parseArgs(process.argv.slice(2))
 const packageVersion = JSON.parse(readFileSync(join(repoRoot, 'package.json'), 'utf8')).version
-const version = readString(args.version, defaultVersion())
-const tag = readString(args.tag, `adapters-v${version}`)
+const fromRelease = readString(args['from-release'], undefined)
+const version = readString(
+  args.version,
+  fromRelease ? versionFromTag(fromRelease) : defaultVersion()
+)
+const tag = readString(args.tag, fromRelease ?? `adapters-v${version}`)
 const kinds = parseKinds(args.kind)
 const targets = parseTargets(args)
 const buildRoot = resolve(repoRoot, readString(args.build, 'dist/adapters'))
 const outRoot = resolve(repoRoot, readString(args.out, buildRoot))
+const artifactBaseOverride = args['artifact-base'] !== undefined
 const artifactBase = readString(
   args['artifact-base'],
   `https://github.com/kalenmichael/clara/releases/download/${encodeURIComponent(tag)}`
 )
+const repo = readString(args.repo, process.env.GITHUB_REPOSITORY?.trim() || 'kalenmichael/clara')
+const apiUrl = readString(
+  args['api-url'],
+  process.env.GITHUB_API_URL?.trim() || 'https://api.github.com'
+).replace(/\/+$/, '')
 const artifactsOnly = Boolean(args['artifacts-only'])
 const bun = process.env.BUN_BIN?.trim() || 'bun'
+
+if (fromRelease && artifactsOnly) {
+  fail('--from-release cannot be combined with --artifacts-only')
+}
 
 if (args['print-targets']) {
   for (const target of targets) console.log(target)
   process.exit(0)
 }
 
+const releaseAssets = fromRelease ? await fetchReleaseAssets() : undefined
 const built = []
 
-if (!args['no-adapter-build'] && kinds.includes('opencode')) {
+if (!fromRelease && !args['no-adapter-build'] && kinds.includes('opencode')) {
   runPnpm(['--filter', '@clara/adapter-opencode', 'build'], repoRoot)
 }
 
 for (const kind of kinds) {
   const artifactDir = join(buildRoot, kind)
   const registryDir = join(outRoot, kind)
-  mkdirSync(artifactDir, { recursive: true })
+  if (!fromRelease) mkdirSync(artifactDir, { recursive: true })
   if (!artifactsOnly) mkdirSync(registryDir, { recursive: true })
 
   const artifacts = {}
   for (const target of targets) {
     const file = artifactName(kind, target)
+    if (fromRelease) {
+      const asset = releaseAssets.get(file)
+      if (!asset) {
+        const available = [...releaseAssets.keys()].join(', ') || '(none)'
+        fail(`Release ${fromRelease} in ${repo} has no asset named ${file}. Assets: ${available}`)
+      }
+      const metadata = releaseArtifact(asset)
+      artifacts[target] = {
+        url: artifactBaseOverride
+          ? `${artifactBase}/${encodeURIComponent(file)}`
+          : asset.browser_download_url,
+        ...metadata,
+      }
+      const size = metadata.size === undefined ? '' : ` (${formatSize(metadata.size)})`
+      console.log(`using ${kind} ${target}${size}`)
+      continue
+    }
     const path = join(artifactDir, file)
     if (!args['skip-build']) buildArtifact(kind, target, path)
     if (!existsSync(path)) {
@@ -120,11 +159,25 @@ for (const kind of kinds) {
 }
 
 console.log('')
-console.log(`Artifacts: ${buildRoot}`)
+if (fromRelease) {
+  console.log(`Release:   ${repo} ${fromRelease}`)
+} else {
+  console.log(`Artifacts: ${buildRoot}`)
+  console.log(`Tag:       ${tag}`)
+}
 if (!artifactsOnly) console.log(`Registry:  ${outRoot}`)
-console.log(`Tag:       ${tag}`)
 
-if (!artifactsOnly) {
+if (fromRelease) {
+  console.log('')
+  console.log(
+    artifactBaseOverride
+      ? `Manifest URLs point at ${artifactBase}.`
+      : 'Manifest URLs point at the browser download URL from the GitHub release.'
+  )
+  if (!process.env.CI && outRoot === resolve(repoRoot, 'apps/web/public/adapters')) {
+    console.log('Deploy the web app with pnpm deploy:web.')
+  }
+} else if (!artifactsOnly) {
   console.log('')
   const complete = SUPPORTED_TARGETS.every((target) => targets.includes(target))
   if (!complete) {
@@ -201,6 +254,83 @@ function defaultVersion() {
   return `${packageVersion}-dev+${commit}`
 }
 
+function versionFromTag(tag) {
+  const match = /^(?:adapters-)?v(.+)$/.exec(tag)
+  if (!match) {
+    fail(`Cannot derive a version from ${tag}. Pass --version explicitly.`)
+  }
+  return match[1]
+}
+
+async function fetchReleaseAssets() {
+  const release = await getJson(
+    `${apiUrl}/repos/${repo}/releases/tags/${encodeURIComponent(fromRelease)}`
+  )
+  const listed = Array.isArray(release.assets) ? release.assets : []
+  const assetsUrl =
+    release.id !== undefined
+      ? `${apiUrl}/repos/${repo}/releases/${release.id}/assets`
+      : release.assets_url
+  const assets =
+    assetsUrl && (listed.length === 0 || listed.length >= 30) ? await listAssets(assetsUrl) : listed
+  return new Map(assets.map((asset) => [asset.name, asset]))
+}
+
+async function listAssets(url) {
+  const assets = []
+  const base = url.split('?')[0]
+  for (let page = 1; page <= 20; page += 1) {
+    const batch = await getJson(`${base}?per_page=100&page=${page}`)
+    if (!Array.isArray(batch) || batch.length === 0) break
+    assets.push(...batch)
+    if (batch.length < 100) break
+  }
+  return assets
+}
+
+async function getJson(url) {
+  const token = process.env.GITHUB_TOKEN?.trim() || process.env.GH_TOKEN?.trim()
+  const headers = {
+    accept: 'application/vnd.github+json',
+    'user-agent': 'clara-adapters',
+    'x-github-api-version': '2022-11-28',
+  }
+  if (token) headers.authorization = `Bearer ${token}`
+
+  let response
+  try {
+    response = await fetch(url, { headers })
+  } catch (error) {
+    fail(`Could not reach ${url}: ${error.message}`)
+  }
+  if (!response.ok) {
+    const detail = await response.text().catch(() => '')
+    const hint =
+      response.status === 404
+        ? ' Check the tag and --repo; private repositories need GITHUB_TOKEN or GH_TOKEN.'
+        : ''
+    const body = detail.trim() ? `\n${detail.trim()}` : ''
+    fail(`GitHub API ${response.status} for ${url}.${hint}${body}`)
+  }
+  return response.json()
+}
+
+function releaseArtifact(asset) {
+  const digest = typeof asset.digest === 'string' ? asset.digest.trim() : ''
+  const match = /^sha256:([0-9a-fA-F]{64})$/.exec(digest)
+  if (!match) {
+    fail(
+      `Release asset ${asset.name} has no SHA-256 digest. Re-upload it to a release, or use --skip-build with local archives.`
+    )
+  }
+  if (typeof asset.browser_download_url !== 'string' || !asset.browser_download_url) {
+    fail(`Release asset ${asset.name} has no browser_download_url.`)
+  }
+  const metadata = { sha256: match[1].toLowerCase() }
+  if (Number.isFinite(asset.size)) metadata.size = asset.size
+  return metadata
+}
+
 function git(command) {
   const result = spawnSync('git', command, { cwd: repoRoot, encoding: 'utf8' })
   return result.status === 0 ? result.stdout.trim() || undefined : undefined
@@ -263,7 +393,9 @@ function parseKinds(value) {
 
 function parseTargets(input) {
   if (input['all-targets']) return [...SUPPORTED_TARGETS]
-  if (!input.targets || input.targets === true) return [hostTarget()]
+  if (!input.targets || input.targets === true) {
+    return fromRelease ? [...SUPPORTED_TARGETS] : [hostTarget()]
+  }
   const text = String(input.targets).trim()
   if (text === 'all') return [...SUPPORTED_TARGETS]
   const targets = text

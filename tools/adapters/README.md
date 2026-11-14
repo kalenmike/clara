@@ -67,6 +67,36 @@ apps/web/public/adapters/<harness>/manifest.json
 apps/web/public/adapters/<harness>/v<version>-install.sh
 ```
 
+## Generate the registry from an existing release
+
+When the archives are already attached to a GitHub release, generate the
+manifest and install script without downloading anything. The builder reads each
+asset's name, size, and SHA-256 digest from the GitHub API, and points the
+manifest at the asset's browser download URL:
+
+```bash
+pnpm adapters:build --from-release adapters-v0.1.0-dev+abc1234 \
+  --repo kalenmichael/clara \
+  --out apps/web/public/adapters
+```
+
+- The version comes from the tag (`adapters-v0.1.0` → `0.1.0`); pass `--version`
+  when the tag does not carry it.
+- `--repo` defaults to `GITHUB_REPOSITORY`, then `kalenmichael/clara`.
+- `--api-url` defaults to `GITHUB_API_URL`, then `https://api.github.com`.
+- Without `--targets`, every supported target is expected in the release. Pass
+  `--targets linux-x64,darwin-arm64` to generate a partial registry.
+- `--artifact-base` overrides the download URL; by default the manifest uses the
+  release asset's `browser_download_url`.
+
+The release must expose a SHA-256 `digest` for every asset. GitHub adds it to
+assets uploaded after June 2025; re-upload older assets if a digest is missing.
+No archive is downloaded, and no hash is computed locally.
+
+Private repositories need `GITHUB_TOKEN` or `GH_TOKEN` for the API call.
+The install script still downloads the assets without a token, so the release
+itself must be publicly readable.
+
 ## Local build (host only)
 
 Local builds are for development and for the machine you are on. They default to

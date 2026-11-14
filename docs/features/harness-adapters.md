@@ -378,6 +378,10 @@ ask for confirmation run without one, exactly as in the Pi TUI.
   script as the `adapter-registry` workflow artifact. `pnpm adapters:build`
   locally builds only the host target (or explicit `--targets`) under
   `dist/adapters`; the maintainer deploys the web registry from the artifact.
+  `pnpm adapters:build --from-release <tag> --repo <owner/repo> [--api-url URL]`
+  regenerates the same files from archives already attached to a release,
+  reading asset names, sizes, and SHA-256 digests from the GitHub API without
+  downloading them.
 - Panel routes: `GET /panel/api/v1/install`,
   `POST /panel/api/v1/install`, `GET|DELETE /panel/api/v1/install/jobs/:id`,
   and `POST /panel/api/v1/install/settings`.
