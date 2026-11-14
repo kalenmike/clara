@@ -17,6 +17,7 @@ apps/hub/server                      Node hub service, local WS + outbound Cloud
 apps/orchestrator                    Loopback orchestration service, REST/SSE/MCP
 apps/adapters/opencode               OpenCode harness adapter, binding, and standalone bin
 apps/adapters/claude                 Claude Code harness adapter and standalone bin
+apps/adapters/pi                     Pi harness adapter and standalone bin (RPC mode)
 tools/lab                            Loopback pipeline preview and agent probe
 tools/docs                           User guide and internal documentation site
 tools/cli                            Developer CLI for the stack, worktrees, and docs
@@ -48,6 +49,7 @@ infra/docker                         Compose files, Dockerfiles, and the stack .
 - TanStack Query 5 + a small external chat store
 - `@opencode/client@2.1.1` — pinned to the targeted OpenCode server version; used only by the OpenCode adapter and Clara Lab
 - `@anthropic-ai/claude-agent-sdk@0.3.325` — pinned to Claude Code 2.1.325; used only by the Claude Code adapter
+- Pi 1.5.x — driven as the user's installed `pi` binary over `--mode rpc`; the Pi SDK is not a dependency
 - Tauri 2 and Rust for the desktop apps; `@tauri-apps/cli` and the `tauri` crates live only in `apps/desktop` and `apps/hub/desktop`
 - Bun 1.4+ for the hub sidecar; `@clara/sqlite` selects `better-sqlite3` on Node and `bun:sqlite` under Bun
 - `ws`, WebCrypto, Cloudflare Workers/Durable Objects, Wrangler
@@ -90,7 +92,9 @@ pnpm clara mcp install --api        # Add the read-only hub API MCP
 pnpm check:boundaries # Fail if a harness SDK escapes its adapter package
 pnpm clara adapter install --opencode --pair <code> [--mcp] # Install the OpenCode adapter, MCP, and shared runner
 pnpm clara adapter install --claude --pair <code> # Install the Claude Code adapter
+pnpm clara adapter install --pi --pair <code> # Install the Pi adapter
 clara-adapter-claude install --pair <code> # Standalone Claude Code adapter install
+clara-adapter-pi install --pair <code> # Standalone Pi adapter install
 clara-adapter-opencode install --pair <code> [--mcp] # Standalone OpenCode adapter install
 pnpm typecheck      # tsc -b
 pnpm lint           # ESLint
@@ -138,14 +142,15 @@ create a task worktree outside `../clara-worktrees` (override with
 ## Harness contract
 
 - Clara targets OpenCode 2.1.x through the included adapter and the v2 HTTP API
-  under `/api`, and Claude Code 2.1.325 through the Agent SDK in the Claude Code
-  adapter.
+  under `/api`, Claude Code 2.1.325 through the Agent SDK in the Claude Code
+  adapter, and Pi 1.5.x by driving the installed `pi` binary in RPC mode.
 - The OpenCode harness SDK is `@opencode/client`, version-matched to the server
   and used only inside `apps/adapters/opencode` and `tools/lab`. Do not swap it
   for `@opencode-ai/sdk` (v1 API) or import `@opencode/sdk` into the browser
   (embedded Node server). The Claude Code harness SDK is
   `@anthropic-ai/claude-agent-sdk`, pinned inside `apps/adapters/claude`. Neither
-  SDK may appear in the hub, web, shared packages, or the other adapter.
+  SDK may appear in the hub, web, shared packages, or the other adapter. The Pi
+  adapter has no Pi SDK dependency: it runs the user's binary over JSONL RPC.
 - The hub API contract in `packages/contracts/api-contract` owns the Clara DTOs and
   OpenAPI components. The web, `@clara/api-client`, and `@clara/api-contract`
   must not import or depend on a harness SDK. The hub itself has no harness
@@ -329,7 +334,8 @@ is never published.
    `pnpm desktop:build` when your change touches the client shell and
    `pnpm hub:build` when it touches the hub shell or sidecar.
 3. The touched screen works against a live target harness, through the
-   affected transport. For the included adapter, that means OpenCode 2.1.x.
+   affected transport. For the included adapters, that means OpenCode 2.1.x,
+   Claude Code 2.1.325, or Pi 1.5.x.
    A desktop shell change is verified by building the app on the affected
    platform and pairing it once.
 4. Shipped-scope changes update
