@@ -29,7 +29,7 @@ Other terms:
   the hub host or a separate machine; the adapter connects out in both cases.
 - **Agent** — an LLM worker, prompt, or agent definition in a harness or
   orchestration package. It never means the hub.
-- **Client** / **device** — the browser or installed PWA.
+- **Client** / **device** — the browser, installed PWA, or desktop app.
 - **Relay** — the Cloudflare Worker and Durable Object that forward encrypted
   frames from browsers and adapters.
 
@@ -109,7 +109,7 @@ Harness HTTP/SSE
       ▲
       │ local network, adapter only
       ▼
-adapter ──outbound WSS──▶ hub ◀──outbound WSS── web / iPhone PWA
+adapter ──outbound WSS──▶ hub ◀──outbound WSS── web / PWA / desktop
       │                    │
       └── Clara Harness Protocol over E2EE ──┘
                            │

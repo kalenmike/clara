@@ -4,7 +4,8 @@
 
 Clara installs as a PWA on desktop and iPhone and keeps itself current without
 asking anyone to delete and re-add the home-screen icon. The same app can be
-served from a local container instead of Cloudflare Pages.
+served from a local container instead of Cloudflare Pages. A native desktop app
+can be built from the same client; see [desktop.md](desktop.md).
 
 ## User flow
 
