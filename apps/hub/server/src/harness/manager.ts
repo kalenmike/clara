@@ -34,15 +34,16 @@ export class HarnessManager {
   }
 
   get configured(): boolean {
-    return this.store.active() !== undefined
+    return this.store.list().length > 0
   }
 
   get generation(): number {
     return this.generationValue
   }
 
+  /** The selected default harness, or the first paired one when none is flagged. */
   get active(): HarnessConnection | undefined {
-    return this.store.active()
+    return this.store.active() ?? this.store.list()[0]
   }
 
   get lastError(): string | undefined {
@@ -229,18 +230,29 @@ export class HarnessManager {
 
   async remove(id: string): Promise<void> {
     const connection = this.store.get(id)
+    const wasActive = connection?.isActive === true
     this.store.remove(id)
     if (connection) this.live.delete(connection.harnessId)
+    if (wasActive) this.promoteActive()
     this.bump()
     await this.notify()
   }
 
   async forget(id: string): Promise<void> {
     const connection = this.store.get(id)
+    const wasActive = connection?.isActive === true
     this.store.forget(id)
     if (connection) this.live.delete(connection.harnessId)
+    if (wasActive) this.promoteActive()
     this.bump()
     await this.notify()
+  }
+
+  /** Keep one default when the active harness is deleted or forgotten. */
+  private promoteActive(): void {
+    if (this.store.active()) return
+    const next = this.store.list()[0]
+    if (next) this.store.setActive(next.id)
   }
 
   async createPairing(input: { kind: string; label: string }): Promise<HarnessPairing> {

@@ -203,9 +203,15 @@ export function registerSessionRoutes(
       const { harnessID, ...filters } = params
       const targetHarnessID = params.project
         ? undefined
-        : resolveHarnessForDirectory(deps, params.directory, harnessID)
+        : harnessID
+          ? requireHarness(deps, harnessID)
+          : params.directory
+            ? resolveHarnessForDirectory(deps, params.directory)
+            : params.parentID
+              ? resolveHarnessForSession(deps, params.parentID)
+              : undefined
       const result = params.project
-        ? await listProjectSessions(deps, filters, params.project, c.req.raw.signal)
+        ? await listProjectSessions(deps, filters, params.project, c.req.raw.signal, harnessID)
         : overlaySessionListFor(
             deps,
             targetHarnessID,
@@ -237,11 +243,13 @@ export function registerSessionRoutes(
     async (c) => {
       const body = c.req.valid('json')
       const { harnessID: requestedHarnessID, ...forward } = body
-      const harnessID = resolveHarnessForDirectory(
-        deps,
-        body.location?.directory,
-        requestedHarnessID
-      )
+      const harnessID = requestedHarnessID
+        ? requireHarness(deps, requestedHarnessID)
+        : body.location?.directory
+          ? resolveHarnessForDirectory(deps, body.location.directory)
+          : body.parentID
+            ? resolveHarnessForSession(deps, body.parentID)
+            : deps.harness.active?.harnessId
       const session = await forwardScopedDto(
         deps,
         harnessID,
@@ -991,9 +999,12 @@ async function listProjectSessions(
   deps: ApiDependencies,
   params: SessionListParams,
   projectID: string,
-  signal: AbortSignal
+  signal: AbortSignal,
+  harnessID?: string
 ): Promise<ClaraSessionsResponse> {
-  const groups = await resolveHarnessProjectGroups(deps, projectID, signal)
+  const groups = (await resolveHarnessProjectGroups(deps, projectID, signal)).filter(
+    (group) => !harnessID || group.harnessID === harnessID
+  )
   if (groups.length === 0) throw unmappedProjectError(projectID)
 
   const merged = decodeMergedSessionCursor(params.cursor)

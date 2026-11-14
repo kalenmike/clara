@@ -117,6 +117,7 @@ export class HarnessMetadataStore {
     else delete metadata.snoozed
     return {
       ...session,
+      harnessID: harnessId,
       ...(project ? { projectID: project.id } : {}),
       ...(workspace ? { workspaceID: workspace.id } : {}),
       ...(state.titleOverride ? { title: state.titleOverride } : {}),

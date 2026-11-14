@@ -143,6 +143,10 @@ export type ClaraSessionListInput = {
   readonly cursor?: string
 }
 
+export type ClaraSessionActiveInput = {
+  readonly harnessID?: string
+}
+
 export type ClaraSessionCreateInput = {
   readonly id?: string | null
   readonly parentID?: string | null
@@ -387,7 +391,10 @@ export type ClaraClient = {
       input: { sessionID: string },
       options?: RequestOptions
     ) => Promise<ClaraSessionMessage[]>
-    active: (options?: RequestOptions) => Promise<ClaraSessionActiveOutput>
+    active: (
+      input?: ClaraSessionActiveInput,
+      options?: RequestOptions
+    ) => Promise<ClaraSessionActiveOutput>
     form: {
       list: (input: ClaraSessionFormListInput, options?: RequestOptions) => Promise<ClaraForm[]>
       reply: (input: ClaraSessionFormReplyInput, options?: RequestOptions) => Promise<void>

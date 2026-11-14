@@ -283,8 +283,9 @@ export function createClaraClient(options: ClaraClientOptions): ClaraClient {
           `/v1/sessions/${encodeURIComponent(input.sessionID)}/context`,
           { options: requestOptions }
         ),
-      active: (requestOptions) =>
+      active: (input, requestOptions) =>
         request<ClaraSessionActiveOutput>('GET', '/v1/sessions/active', {
+          query: { harnessID: input?.harnessID },
           options: requestOptions,
         }),
       form: {

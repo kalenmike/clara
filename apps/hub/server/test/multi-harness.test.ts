@@ -571,4 +571,50 @@ describe('multi-harness sessions and projects', () => {
     expect(fake.requests[0]?.harnessID).toBe('harness-b')
     expect(fake.requests[0]?.path).toBe('/permissions')
   })
+
+  it('routes a parentID list through the parent session harness', async () => {
+    const fake = fixture({
+      sessions: {
+        'harness-b:project-b': [session('s-b', 'project-b', 10)],
+      },
+    })
+    const api = createTestApi(fake.harness)
+
+    const response = await api.fetch(request('/v1/sessions?parentID=s-b'))
+    expect(response.status).toBe(200)
+    expect(fake.requests[0]?.harnessID).toBe('harness-b')
+    expect(fake.requests[0]?.search.get('parentID')).toBe('s-b')
+  })
+
+  it('filters a project list to an explicit harness', async () => {
+    const fake = fixture({
+      links: {
+        p_demo: [
+          ['harness-a', 'project-a'],
+          ['harness-b', 'project-b'],
+        ],
+      },
+      sessions: {
+        'harness-a:project-a': [session('s-a', 'project-a', 10)],
+        'harness-b:project-b': [session('s-b', 'project-b', 20)],
+      },
+    })
+    const api = createTestApi(fake.harness)
+
+    const response = await api.fetch(request('/v1/sessions?project=p_demo&harnessID=harness-b'))
+    expect(response.status).toBe(200)
+    expect(fake.requests.map((item) => item.harnessID)).toEqual(['harness-b'])
+    const body = (await response.json()) as { data: ClaraSession[] }
+    expect(body.data.map((item) => item.id)).toEqual(['s-b'])
+  })
+
+  it('merges active sessions only for the requested harness', async () => {
+    const fake = fixture()
+    const api = createTestApi(fake.harness)
+
+    const response = await api.fetch(request('/v1/sessions/active?harnessID=harness-b'))
+    expect(response.status).toBe(200)
+    expect(await response.json()).toEqual({ 'harness-b-running': { type: 'running' } })
+    expect(fake.requests.map((item) => item.harnessID)).toEqual(['harness-b'])
+  })
 })

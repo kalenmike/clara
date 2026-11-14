@@ -52,6 +52,10 @@ export function resolveHarnessForDirectory(
   if (harnessIDs.length === 1) return harnessIDs[0]
 
   const active = deps.harness.active?.harnessId
+  const online = harnessIDs.filter((harnessID) => deps.harness.connection(harnessID)?.online)
+  // Prefer the only reachable match over a stale default on an offline machine.
+  if (online.length === 1) return online[0]
+  if (active && online.includes(active)) return active
   if (active && harnessIDs.includes(active)) return active
   if (harnessIDs.length > 1) {
     throw new ApiRequestError(
