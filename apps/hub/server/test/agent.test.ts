@@ -1293,7 +1293,10 @@ describe('agent adapter enrollment', () => {
       const adapterKey = generateKey()
       const adapters: AdapterSessionHandler = {
         pairingToken: async (id) => (id === pairId ? pairToken : undefined),
-        credential: async () => undefined,
+        credential: async (id) =>
+          id === 'adapter-a'
+            ? { adapterId: 'adapter-a', harnessId: 'harness-a', key: adapterKey }
+            : undefined,
         enroll: async (action) => ({
           connection: { id: 'connection-1', harnessId: action.harnessId, label: action.label },
           reconnected: false,
@@ -1343,6 +1346,29 @@ describe('agent adapter enrollment', () => {
         room: RELAY_ROOM,
       })
       expect(verified).toEqual({
+        ok: true,
+        payload: expect.objectContaining({ id: 'adapter-a' }),
+      })
+
+      // A later adapter connect refreshes the same grant in `ready`.
+      const adapterClient = await openClient(
+        agent,
+        frames,
+        adapterKey,
+        { adapter: true, adapterId: 'adapter-a' },
+        { sid: 'adapter-connect' }
+      )
+      const ready = await waitFor(async () => {
+        const payloads = await readPayloads(adapterClient, frames)
+        return payloads.find((payload) => payload.type === 'ready')
+      })
+      const refreshed = ready.type === 'ready' ? ready.relayGrant : undefined
+      expect(refreshed).toBeDefined()
+      const verifiedRefresh = await verifyRelayGrant(refreshed!.grant, {
+        agentToken: RELAY_AGENT_TOKEN,
+        room: RELAY_ROOM,
+      })
+      expect(verifiedRefresh).toEqual({
         ok: true,
         payload: expect.objectContaining({ id: 'adapter-a' }),
       })
