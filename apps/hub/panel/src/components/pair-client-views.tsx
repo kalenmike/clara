@@ -3,6 +3,7 @@ import { QRCodeSVG } from 'qrcode.react'
 import type { PanelDevicePairing } from '@clara/shared-types'
 import type { BrowserPairingConnection } from '../lib/browser-pairing.ts'
 import { formatRelative } from '../lib/format.ts'
+import { usePeek } from '../lib/peek-context.tsx'
 import type { ClientPairingFlow } from '../lib/use-client-pairing.ts'
 import { CopyButton, Notice } from './primitives.tsx'
 
@@ -46,11 +47,7 @@ export function PairClientHeader({
 export function PairClientSetupView({ flow }: { flow: ClientPairingFlow }) {
   return (
     <div className="space-y-4">
-      {!flow.canPair ? (
-        <Notice>
-          External connections are off. Turn them on from Overview before creating a pairing code.
-        </Notice>
-      ) : null}
+      {flow.notice ? <Notice>{flow.notice}</Notice> : null}
       <div>
         <div
           className="inline-flex rounded-md border border-neutral-200 p-0.5 dark:border-neutral-700"
@@ -59,7 +56,7 @@ export function PairClientSetupView({ flow }: { flow: ClientPairingFlow }) {
         >
           <TransportButton
             active={flow.transport === 'relay'}
-            disabled={!flow.relayConfigured || !flow.relayAvailable}
+            disabled={!flow.relayUsable}
             onClick={() => flow.setTransport('relay')}
           >
             Relay
@@ -74,6 +71,26 @@ export function PairClientSetupView({ flow }: { flow: ClientPairingFlow }) {
         </div>
         <p className="mt-2 text-xs text-neutral-500 dark:text-neutral-400">{flow.helper}</p>
       </div>
+    </div>
+  )
+}
+
+export function PairClientContent({ flow, now }: { flow: ClientPairingFlow; now: number }) {
+  const { redact } = usePeek()
+
+  return (
+    <div className="space-y-3">
+      {flow.error ? <Notice tone="danger">{redact(flow.error)}</Notice> : null}
+      {flow.pairing ? (
+        <PairClientPairingView
+          pairing={flow.pairing}
+          connection={flow.connection}
+          expired={flow.expired}
+          now={now}
+        />
+      ) : (
+        <PairClientSetupView flow={flow} />
+      )}
     </div>
   )
 }
