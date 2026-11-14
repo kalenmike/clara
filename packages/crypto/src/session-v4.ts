@@ -48,11 +48,12 @@ export type V4SessionMaterial = {
 /**
  * Generates a fresh P-256 ECDH key pair per connection. The private key is
  * memory-only and discarded when the session ends; that discard is what gives
- * v4 forward secrecy. The key pair is extractable so the public point can be
- * exported, but the private key never leaves the process.
+ * v4 forward secrecy. It is generated non-extractable so page script cannot
+ * export it; WebCrypto still exports the public key as the raw point needed for
+ * the hello.
  */
 export async function generateEphemeralKeyPair(): Promise<V4EphemeralKeyPair> {
-  const pair = await getCrypto().subtle.generateKey({ name: 'ECDH', namedCurve: 'P-256' }, true, [
+  const pair = await getCrypto().subtle.generateKey({ name: 'ECDH', namedCurve: 'P-256' }, false, [
     'deriveBits',
   ])
   const raw = new Uint8Array(await getCrypto().subtle.exportKey('raw', pair.publicKey))

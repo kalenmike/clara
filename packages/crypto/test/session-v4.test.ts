@@ -3,6 +3,7 @@ import {
   deriveV4SessionKeys,
   generateEphemeralKeyPair,
   generateKey,
+  getCrypto,
   importSessionKey,
   open,
   seal,
@@ -69,6 +70,12 @@ describe('v4 ephemeral keys', () => {
       expect(bytes[0]).toBe(0x04)
     }
     expect(first.publicKey).not.toBe(second.publicKey)
+  })
+
+  it('keeps the private key non-extractable', async () => {
+    const pair = await generateEphemeralKeyPair()
+    expect(pair.privateKey.extractable).toBe(false)
+    await expect(getCrypto().subtle.exportKey('raw', pair.privateKey)).rejects.toThrow()
   })
 })
 
