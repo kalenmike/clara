@@ -237,7 +237,10 @@ export class AdapterTransport {
       this.sendChain = Promise.resolve()
       this.startHeartbeat(socket)
       this.startHandshakeTimer(socket)
-      void this.handshake(socket)
+      void this.handshake(socket).catch((cause) => {
+        this.options.log?.('adapter handshake setup failed', cause)
+        this.failHandshake('The v4 handshake could not start')
+      })
     })
 
     socket.on('pong', () => {
