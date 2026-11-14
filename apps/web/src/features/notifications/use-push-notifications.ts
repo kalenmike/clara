@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import type { PushSubscriptionPayload } from '@clara/shared-types'
+import { useOrchestratorMode } from '@/features/orchestration/use-orchestrator-mode'
 import { useConnection } from '@/providers/connection-provider'
 import { readNotificationPermission, requestNotificationPermission } from './notifier'
 import {
@@ -32,6 +33,7 @@ export type PushNotificationsState = {
 
 export function usePushNotifications(): PushNotificationsState {
   const { control, generation, relayStatus } = useConnection()
+  const { optedIn: orchestrationOptIn } = useOrchestratorMode()
   const { settings, update } = useNotificationSettings()
   const [enabled, setEnabled] = useState(false)
   const [busy, setBusy] = useState(false)
@@ -67,9 +69,10 @@ export function usePushNotifications(): PushNotificationsState {
         subscription,
         userAgent: navigator.userAgent.slice(0, 200),
         deviceClass: readDeviceClass(),
+        orchestrationOptIn,
       })
     },
-    [control]
+    [control, orchestrationOptIn]
   )
 
   const refresh = useCallback(async () => {

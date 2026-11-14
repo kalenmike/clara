@@ -25,8 +25,8 @@ export type PushMonitorOptions = {
   push: PushService
   /** True while a desktop client is visible and recently used. */
   isDeskActive?: () => boolean
-  /** True when this session should not produce a generic session alert. */
-  suppressSession?: (session: ClaraSession) => boolean
+  /** True when worker alerts should skip devices that use orchestrator mode. */
+  suppressForOrchestratorClients?: (session: ClaraSession) => boolean
   log?: (message: string, detail?: unknown) => void
 }
 
@@ -39,7 +39,7 @@ export class PushMonitor {
   private readonly harness: HarnessManager
   private readonly push: PushService
   private readonly isDeskActive?: () => boolean
-  private readonly suppressSession?: (session: ClaraSession) => boolean
+  private readonly suppressForOrchestratorClients?: (session: ClaraSession) => boolean
   private readonly log?: (message: string, detail?: unknown) => void
   private readonly timers = new Map<string, NodeJS.Timeout>()
   private readonly interrupted = new Set<string>()
@@ -51,7 +51,7 @@ export class PushMonitor {
     this.harness = options.harness
     this.push = options.push
     this.isDeskActive = options.isDeskActive
-    this.suppressSession = options.suppressSession
+    this.suppressForOrchestratorClients = options.suppressForOrchestratorClients
     this.log = options.log
   }
 
@@ -227,7 +227,6 @@ export class PushMonitor {
       const loaded = knownSession ?? (await getSession(stream.client, sessionID))
       const session = loaded ? this.overlaySession(harnessID, loaded) : null
       if (!session || isArchivedSession(session) || isSnoozedSession(session)) return
-      if (this.suppressSession?.(session)) return
 
       const url = this.resolveSessionUrl(harnessID, session)
       await this.push.notify(
@@ -238,7 +237,10 @@ export class PushMonitor {
           detail,
           url,
         }),
-        { skipMobile: this.isDeskActive?.() === true }
+        {
+          skipMobile: this.isDeskActive?.() === true,
+          skipOrchestratorClients: this.suppressForOrchestratorClients?.(session) === true,
+        }
       )
     } catch (cause) {
       this.log?.('push notification failed', cause)

@@ -13,6 +13,8 @@ import {
 } from '@/features/notifications/notifier'
 import { loadSessionAttention, resolveProjectID } from '@/features/notifications/session-attention'
 import { isPushActive } from '@/features/notifications/push'
+import { isAutomationSession } from '@/features/sessions/session-automation'
+import { useOrchestratorMode } from '@/features/orchestration/use-orchestrator-mode'
 import { readNotificationSettings } from '@/features/notifications/settings'
 import { ensureSoundUnlock, playAttentionSound } from '@/features/notifications/sounds'
 import { useConnection } from '@/providers/connection-provider'
@@ -26,6 +28,7 @@ const BODY_DETAIL_MAX = 180
 
 export function NotificationProvider({ children }: { children: ReactNode }) {
   const { client } = useConnection()
+  const { active: orchestratorMode } = useOrchestratorMode()
   const { subscribe } = useEventStream()
   const queryClient = useQueryClient()
   const navigate = useNavigate()
@@ -88,6 +91,7 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
           }
         }
         if (disposed || isArchivedSession(session) || isSnoozedSession(session)) return
+        if (orchestratorMode && isAutomationSession(session)) return
 
         const projectID = await resolveProjectID(client, queryClient, session).catch(() => null)
         if (disposed) return
@@ -172,7 +176,7 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
       unsubscribe()
       for (const timer of timers.values()) window.clearTimeout(timer)
     }
-  }, [client, subscribe, queryClient, navigate])
+  }, [client, orchestratorMode, subscribe, queryClient, navigate])
 
   return <>{children}</>
 }

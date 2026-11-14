@@ -28,6 +28,8 @@ export type PushServiceOptions = {
 export type PushNotifyOptions = {
   /** Hold mobile devices, for example while a desktop client is in use. */
   skipMobile?: boolean
+  /** Hold automation-session alerts on devices that use orchestrator mode. */
+  skipOrchestratorClients?: boolean
 }
 
 export class PushService {
@@ -123,10 +125,13 @@ export class PushService {
   }
 
   private async sendAll(text: string, options: PushNotifyOptions = {}): Promise<void> {
-    const subscriptions = [...this.store.list()]
-    const targets = options.skipMobile
-      ? subscriptions.filter((entry) => entry.deviceClass === 'desktop')
-      : subscriptions
+    let targets = [...this.store.list()]
+    if (options.skipMobile) {
+      targets = targets.filter((entry) => entry.deviceClass === 'desktop')
+    }
+    if (options.skipOrchestratorClients) {
+      targets = targets.filter((entry) => entry.orchestrationOptIn !== true)
+    }
     await Promise.allSettled(targets.map((entry) => this.sendOne(entry, text)))
   }
 

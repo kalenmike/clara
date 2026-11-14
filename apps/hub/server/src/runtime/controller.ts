@@ -210,7 +210,7 @@ export class RuntimeController {
         push: options.push,
         isDeskActive: () =>
           this.localAgent.deskHoldActive() || (this.relayAgent?.deskHoldActive() ?? false),
-        suppressSession: (session) =>
+        suppressForOrchestratorClients: (session) =>
           this.orchestration.effective && session.metadata?.automation === true,
         log: options.log,
       })
@@ -464,8 +464,8 @@ export class RuntimeController {
   }
 
   /**
-   * Orchestration is the master switch for the local service and the
-   * automation-session treatment. It is independent of the transport stop flag.
+   * Orchestration is the master switch for the local service and its
+   * client-facing feature. It is independent of the transport stop flag.
    */
   async setOrchestration(enabled: boolean): Promise<PanelControls> {
     const previous = this.options.settings.getOrchestration()

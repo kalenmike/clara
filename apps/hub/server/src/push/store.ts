@@ -14,6 +14,8 @@ export type StoredPushSubscription = PushSubscriptionPayload & {
   deviceId?: string
   userAgent?: string
   deviceClass?: DeviceClass
+  /** This device uses orchestrator mode and should not receive worker alerts. */
+  orchestrationOptIn?: boolean
   lastSuccessAt?: number
   lastError?: string
 }
@@ -27,6 +29,7 @@ export type SubscriptionMeta = {
   deviceId?: string
   userAgent?: string
   deviceClass?: DeviceClass
+  orchestrationOptIn?: boolean
 }
 
 export type SubscriptionResult = {
@@ -72,6 +75,7 @@ export class PushSubscriptionStore {
       normalizeDeviceClass(meta.deviceClass) ??
       previous?.deviceClass ??
       classifyUserAgent(userAgent)
+    const orchestrationOptIn = meta.orchestrationOptIn ?? previous?.orchestrationOptIn
     const entry: StoredPushSubscription = {
       ...normalized,
       createdAt: previous?.createdAt ?? now,
@@ -81,6 +85,7 @@ export class PushSubscriptionStore {
         : {}),
       ...(userAgent ? { userAgent } : {}),
       ...(deviceClass ? { deviceClass } : {}),
+      ...(orchestrationOptIn !== undefined ? { orchestrationOptIn } : {}),
       ...(previous?.lastSuccessAt ? { lastSuccessAt: previous.lastSuccessAt } : {}),
       ...(previous?.lastError ? { lastError: previous.lastError } : {}),
     }
@@ -170,6 +175,9 @@ export class PushSubscriptionStore {
           ...(deviceId ? { deviceId } : {}),
           ...(userAgent ? { userAgent } : {}),
           ...(deviceClass ? { deviceClass } : {}),
+          ...(typeof record.orchestrationOptIn === 'boolean'
+            ? { orchestrationOptIn: record.orchestrationOptIn }
+            : {}),
           ...(lastSuccessAt ? { lastSuccessAt } : {}),
           ...(typeof record.lastError === 'string'
             ? { lastError: clip(record.lastError, MAX_ERROR_LENGTH) }
