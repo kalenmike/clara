@@ -107,7 +107,25 @@ export default defineConfig(({ command, mode }) => {
       // build, which lets them compare versions over a message.
       ...buildIdentityDefine,
     },
-    build: desktop ? { outDir: 'dist-desktop' } : undefined,
+    build: {
+      outDir: desktop ? 'dist-desktop' : 'dist',
+      rollupOptions: {
+        output: {
+          // Routes split into their own chunks (see `src/router.tsx`), and the
+          // rest is left to Rolldown's automatic chunking. The one group worth
+          // forcing is the framework: React and the router change far less often
+          // than the app, so keeping them in a stable chunk means an installed
+          // PWA re-downloads app code on update, not the 300 kB runtime.
+          manualChunks(id: string) {
+            if (!id.includes('node_modules')) return undefined
+            if (/\/node_modules\/(\.pnpm\/)?(react|react-dom|scheduler|react-router)@/.test(id)) {
+              return 'vendor-react'
+            }
+            return undefined
+          },
+        },
+      },
+    },
     resolve: {
       alias: {
         '@': fileURLToPath(new URL('./src', import.meta.url)),
