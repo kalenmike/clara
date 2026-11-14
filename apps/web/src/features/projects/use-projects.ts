@@ -31,6 +31,8 @@ export function useHarnesses() {
     queryFn: () => client!.harness.list(),
     enabled: Boolean(client),
     staleTime: 30_000,
+    // A newly paired harness must start streaming without a page reload.
+    refetchInterval: 30_000,
   })
 }
 

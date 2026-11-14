@@ -13,16 +13,28 @@ import { useCostDisplay } from '@/features/cost/use-cost-display'
 type SessionCostSnapshot = Pick<ChatSnapshot, 'cost' | 'tokens' | 'messages'>
 
 /**
+ * The harness whose model catalog prices estimate this session. A session that
+ * records its harness always wins; the fallback only covers older payloads.
+ */
+export function costHarnessID(
+  session: Pick<ClaraSession, 'harnessID'> | undefined,
+  fallback?: string
+): string | undefined {
+  return session?.harnessID ?? fallback
+}
+
+/**
  * The session-level cost in the selected display mode. Estimated mode uses the
  * session total and the latest request's context size so tiered pricing does
  * not price the whole session as one huge request.
  */
 export function useSessionCost(
   session: ClaraSession | undefined,
-  snapshot: SessionCostSnapshot
+  snapshot: SessionCostSnapshot,
+  harnessID?: string
 ): DisplayCost {
   const { source } = useCostDisplay()
-  const modelsQuery = useModels()
+  const modelsQuery = useModels(costHarnessID(session, harnessID))
 
   const actual = snapshot.cost || session?.cost
   const tokens = snapshot.tokens ?? session?.tokens
