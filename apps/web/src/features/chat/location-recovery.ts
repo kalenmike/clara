@@ -1,9 +1,11 @@
 import type { QueryClient } from '@tanstack/react-query'
 import type { ClaraProject, ClaraSession } from '@clara/api-contract'
 import { toast } from 'sonner'
-import { findProject, projectDefaultWorkspace } from '@/features/projects/use-projects'
+import { resolveProjectWorkspaceTarget } from '@/features/projects/project-workspaces'
+import { findProject } from '@/features/projects/use-projects'
 import { describeConnectionError, type ClaraClient } from '@/lib/client'
 import { queryKeys } from '@/lib/query-keys'
+import { readLastWorkspace } from '@/lib/storage'
 
 type LocationNotFoundError = {
   readonly _tag: 'LocationNotFoundError'
@@ -117,6 +119,12 @@ async function resolveBaseDirectory(
     queryClient.setQueryData(queryKeys.projects, projects)
   }
 
-  const workspace = projectDefaultWorkspace(findProject(projects, session.projectID))
+  const projectID = session.projectID
+  const target = resolveProjectWorkspaceTarget(
+    findProject(projects, projectID),
+    readLastWorkspace(projectID),
+    { harnessID: session.harnessID }
+  )
+  const workspace = target.workspace
   return workspace?.canonical ?? workspace?.directory ?? null
 }
