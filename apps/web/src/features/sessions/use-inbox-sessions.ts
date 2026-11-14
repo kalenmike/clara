@@ -1,5 +1,6 @@
 import { useMemo } from 'react'
-import { usePendingPermissions } from '@/features/chat/use-permissions'
+import type { ClaraProjectWorkspace } from '@clara/api-contract'
+import { useWorkspacePendingPermissions } from '@/features/chat/use-permissions'
 import { useSessionPolicy } from '@/features/notifications/session-policy'
 import { isArchivedSession } from '@/features/sessions/session-archive'
 import { groupSessionsByMailbox } from '@/features/sessions/session-sections'
@@ -10,13 +11,14 @@ import { useActiveSessions, useSessions } from '@/features/sessions/use-sessions
 /** Inbox sessions for a project, newest first, with the data needed to jump to them. */
 export function useInboxSessions(
   projectID: string | null,
-  directory: string | null,
-  harnessID?: string
+  workspaces: readonly ClaraProjectWorkspace[] | undefined
 ) {
   const { isAutomation } = useSessionPolicy()
-  const sessionsQuery = useSessions(projectID, '', Boolean(projectID && directory))
+  const hasWorkspace = Boolean(workspaces?.some((workspace) => workspace.linked))
+  const sessionsQuery = useSessions(projectID, '', Boolean(projectID && hasWorkspace))
   const activeQuery = useActiveSessions()
-  const permissionsQuery = usePendingPermissions(directory ?? undefined, harnessID)
+  const permissions = useWorkspacePendingPermissions(workspaces)
+  const permissionsPending = permissions.pending
 
   const sessions = useMemo(() => sessionsQuery.data?.data ?? [], [sessionsQuery.data])
   const mailboxSessions = useMemo(
@@ -29,8 +31,8 @@ export function useInboxSessions(
   )
   const { signals, pending: mailboxesPending } = useSessionMailboxSignals(mailboxSessions)
   const awaitingInput = useMemo(
-    () => new Set((permissionsQuery.data ?? []).map((request) => request.sessionID)),
-    [permissionsQuery.data]
+    () => new Set(permissions.requests.map((request) => request.sessionID)),
+    [permissions.requests]
   )
   const groups = useMemo(
     () => groupSessionsByMailbox(mailboxSessions, signals, activeQuery.data, awaitingInput),
@@ -44,7 +46,7 @@ export function useInboxSessions(
     pending:
       sessionsQuery.isPending ||
       activeQuery.isPending ||
-      permissionsQuery.isPending ||
+      permissionsPending ||
       (mailboxSessions.length > 0 && mailboxesPending),
     isError: sessionsQuery.isError,
   }

@@ -67,7 +67,9 @@ export function AddWorkspaceDialog({
       },
       {
         onSuccess: (updated) => {
-          const workspace = updated.workspaces.find((item) => item.directory === value)
+          const workspace = updated.workspaces.find(
+            (item) => item.directory === value && item.harnessID === harnessID
+          )
           if (workspace?.linked) {
             toast.success(`Linked ${value}`)
           } else {

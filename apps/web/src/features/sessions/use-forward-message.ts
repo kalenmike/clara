@@ -53,6 +53,7 @@ export function useForwardMessage({ session, projectID }: SessionTarget) {
         title: selection ? forwardTitleFromText(selection) : forwardTitle(message),
         agent: session.agent,
         model: resolveInheritedModel(session.model, visibility),
+        ...(session.harnessID ? { harnessID: session.harnessID } : {}),
         location: { directory: session.location.directory },
       })
       saveDraft(created.id, text)
