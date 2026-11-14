@@ -2,7 +2,7 @@ import { createServer, type Server } from 'node:http'
 import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { afterEach, describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import {
   bytesToBase64Url,
   deriveSessionKeys,
@@ -19,7 +19,7 @@ import {
   type ClaraState,
   type WireFrame,
 } from '@clara/shared-types'
-import { Agent, type AgentPolicy } from '../src/agent.ts'
+import { Agent, MAX_HELLOS_PER_WINDOW, MAX_SESSIONS, type AgentPolicy } from '../src/agent.ts'
 import { createApiApp } from '../src/api/app.ts'
 import type { ApiApp } from '../src/api/context.ts'
 import type { HarnessManager } from '../src/harness/manager.ts'
@@ -1504,4 +1504,203 @@ describe('agent relay envelope', () => {
       await fake.close()
     }
   })
+})
+
+describe('agent relay limits', () => {
+  function route(peer: string, frame: WireFrame): string {
+    return JSON.stringify({
+      t: 'route',
+      v: PROTOCOL_VERSION,
+      p: peer,
+      m: JSON.stringify(frame),
+    })
+  }
+
+  function helloFrame(
+    sid: string,
+    nonce = bytesToBase64Url(randomBytes(16))
+  ): Extract<WireFrame, { t: 'hello' }> {
+    return {
+      t: 'hello',
+      v: PROTOCOL_VERSION,
+      sid,
+      nonce,
+      role: 'client',
+      deviceId: DEVICE_ID,
+    }
+  }
+
+  function relayAgent(
+    fake: FakeOpenCode,
+    key: string,
+    frames: WireFrame[],
+    devices?: DeviceRegistry,
+    log?: (message: string, detail?: unknown) => void
+  ): Agent {
+    const agent = new Agent({
+      api: fakeApi(fake),
+      devices: devices ?? testDevices(key),
+      info: { version: 'test', protocol: PROTOCOL_VERSION },
+      send: (frame) => frames.push(frame),
+      ...(log ? { log } : {}),
+    })
+    agent.setEnvelope('relay')
+    agents.push(agent)
+    return agent
+  }
+
+  async function sendSealed(
+    client: Client,
+    agent: Agent,
+    peer: string,
+    payload: ClaraAction
+  ): Promise<void> {
+    const seq = client.sendSeq
+    client.sendSeq += 1
+    const box = await seal(
+      client.keys.c2s,
+      { sid: client.sid, direction: 'c2s', seq },
+      utf8(JSON.stringify(payload))
+    )
+    agent.handleMessage(
+      route(peer, {
+        t: 'sealed',
+        v: PROTOCOL_VERSION,
+        sid: client.sid,
+        seq,
+        iv: box.iv,
+        ct: box.ct,
+      })
+    )
+  }
+
+  it('refuses a hello past the session cap and keeps the live sessions working', async () => {
+    const fake = await startFakeOpenCode()
+    try {
+      const key = generateKey()
+      const frames: WireFrame[] = []
+      const agent = relayAgent(fake, key, frames)
+      const sessions: Array<{ client: Client; peer: string }> = []
+
+      for (let index = 0; index < MAX_SESSIONS; index += 1) {
+        const sid = `cap-${index}`
+        const peer = `peer-cap-${String(index).padStart(4, '0')}`
+        const nonce = bytesToBase64Url(randomBytes(16))
+        const before = frames.filter((frame) => frame.t === 'hello').length
+        agent.handleMessage(route(peer, helloFrame(sid, nonce)))
+        const agentHello = await waitFor(
+          () => frames.filter((frame) => frame.t === 'hello')[before]
+        )
+        if (agentHello.t !== 'hello') throw new Error('No hello frame')
+        sessions.push({
+          client: {
+            sid,
+            keys: await deriveSessionKeys({
+              key,
+              sid,
+              clientNonce: nonce,
+              agentNonce: agentHello.nonce,
+            }),
+            sendSeq: 0,
+            receiveSeq: 0,
+          },
+          peer,
+        })
+      }
+      expect(agent.sessionCount).toBe(MAX_SESSIONS)
+
+      // `device_limit` means the device registry is full and is treated as a
+      // credential-dead code, so capacity uses the transient `not_allowed`.
+      agent.handleMessage(route('peer-over', helloFrame('cap-over')))
+      const error = await waitFor(() =>
+        frames.find((frame) => frame.t === 'error' && frame.sid === 'cap-over')
+      )
+      expect(error).toMatchObject({
+        t: 'error',
+        code: 'not_allowed',
+        message: 'The hub is at its session limit; retry shortly',
+      })
+      expect(agent.sessionCount).toBe(MAX_SESSIONS)
+      expect(agent.getSnapshot().some((session) => session.sid === 'cap-over')).toBe(false)
+
+      const first = sessions[0]
+      if (!first) throw new Error('No session')
+      await sendSealed(first.client, agent, first.peer, {
+        type: 'ready.ack',
+        agent: { version: 'web', protocol: PROTOCOL_VERSION },
+      })
+      await sendSealed(first.client, agent, first.peer, {
+        type: 'http.request',
+        id: 'cap-still-works',
+        method: 'GET',
+        path: '/v1/harness/info',
+      })
+      const states = await waitFor(async () => {
+        const parsed = await readStates(first.client, frames)
+        return parsed.some((state) => state.type === 'http.end') ? parsed : undefined
+      })
+      expect(states.some((state) => state.type === 'http.response' && state.status === 200)).toBe(
+        true
+      )
+    } finally {
+      await fake.close()
+    }
+  }, 20_000)
+
+  it('drops hellos above the per-peer rate before database lookups', async () => {
+    const fake = await startFakeOpenCode()
+    try {
+      const key = generateKey()
+      const devices = testDevices(key)
+      const findActiveDevice = vi.fn(devices.findActiveDevice)
+      const frames: WireFrame[] = []
+      const logs: string[] = []
+      const agent = relayAgent(fake, key, frames, { ...devices, findActiveDevice }, (message) =>
+        logs.push(message)
+      )
+
+      const peer = 'peer-rate'
+      for (let index = 0; index < MAX_HELLOS_PER_WINDOW * 2; index += 1) {
+        agent.handleMessage(route(peer, helloFrame(`rate-${index}`)))
+      }
+
+      await waitFor(() => (agent.sessionCount === MAX_HELLOS_PER_WINDOW ? true : undefined))
+      await new Promise((resolve) => setTimeout(resolve, 50))
+
+      expect(findActiveDevice).toHaveBeenCalledTimes(MAX_HELLOS_PER_WINDOW)
+      expect(agent.sessionCount).toBe(MAX_HELLOS_PER_WINDOW)
+      expect(logs.filter((message) => message.includes('relay peer limit'))).toHaveLength(1)
+    } finally {
+      await fake.close()
+    }
+  })
+
+  it('does not apply relay hello limits on the local transport', async () => {
+    const fake = await startFakeOpenCode()
+    try {
+      const key = generateKey()
+      const devices = testDevices(key)
+      const findActiveDevice = vi.fn(devices.findActiveDevice)
+      const frames: WireFrame[] = []
+      const agent = new Agent({
+        api: fakeApi(fake),
+        devices: { ...devices, findActiveDevice },
+        info: { version: 'test', protocol: PROTOCOL_VERSION },
+        send: (frame) => frames.push(frame),
+      })
+      agents.push(agent)
+
+      // More hellos than both the per-peer budget and the relay session cap.
+      const total = MAX_SESSIONS + 2
+      for (let index = 0; index < total; index += 1) {
+        agent.handleMessage(JSON.stringify(helloFrame(`local-${index}`)))
+      }
+
+      await waitFor(() => (agent.sessionCount === total ? true : undefined))
+      expect(findActiveDevice).toHaveBeenCalledTimes(total)
+      expect(frames.some((frame) => frame.t === 'error')).toBe(false)
+    } finally {
+      await fake.close()
+    }
+  }, 20_000)
 })

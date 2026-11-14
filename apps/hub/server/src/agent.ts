@@ -51,6 +51,28 @@ const SESSION_IDLE_MS = 90_000
 const SWEEP_MS = 30_000
 const PRESENCE_TTL_MS = 60_000
 
+/**
+ * Live E2EE sessions per transport. A typical install has a phone, a desktop,
+ * a PWA, and one or two adapters; 64 leaves generous room for all of them while
+ * keeping the cost of a stolen client token bounded. Existing sessions are
+ * never evicted to admit a new one, because that would kick a working client.
+ */
+export const MAX_SESSIONS = 64
+
+/** Handshakes in flight. Keeping this at the session cap bounds database work. */
+const MAX_PENDING_PEERS = 64
+
+/**
+ * Ten hellos per ten seconds per relay peer. A reconnect after a network blip
+ * uses one or two; a flood is dropped before it can reach the device store. The
+ * window bounds the counter map as well, since old entries are pruned.
+ */
+const HELLO_WINDOW_MS = 10_000
+export const MAX_HELLOS_PER_WINDOW = 10
+
+/** Hard cap on retained hello counters if peer churn outpaces the room cap. */
+const MAX_HELLO_PEERS = 256
+
 type SessionPresence = {
   at: number
   deviceClass: DeviceClass
@@ -58,6 +80,9 @@ type SessionPresence = {
 }
 
 type SessionKind = 'device' | 'enroll' | 'adapter'
+
+/** Hello budget for one relay peer; `warned` keeps logging to once per window. */
+type HelloWindow = { since: number; count: number; warned: boolean }
 
 /** Whether frames arrive bare or wrapped in the relay's route envelope. */
 type AgentEnvelope = 'plain' | 'relay'
@@ -165,6 +190,8 @@ export class Agent {
   private readonly sessions = new Map<string, Session>()
   /** Sid to peer for a handshake that is still being established. */
   private readonly pendingPeers = new Map<string, string>()
+  /** Per-relay-peer hello budgets; reset with the transport, not across reconnects. */
+  private readonly helloWindows = new Map<string, HelloWindow>()
   private readonly sweepTimer: NodeJS.Timeout
   private readonly options: AgentOptions
   private envelopeMode: AgentEnvelope = 'plain'
@@ -270,6 +297,7 @@ export class Agent {
     // Go through closeSession so adapter sessions also clear their live fetch.
     // Leaving a stale fetch behind makes every later harness request hang.
     for (const session of [...this.sessions.values()]) this.closeSession(session)
+    this.helloWindows.clear()
   }
 
   /**
@@ -349,6 +377,10 @@ export class Agent {
     if (role !== 'client' || !sid || !clientNonce) return
 
     const relayPeer = this.envelopeMode === 'relay' ? peer : undefined
+    // The local transport has its own one-client-per-socket model and does not
+    // pass through these limits; only relay peers are metered.
+    if (relayPeer !== undefined && !this.allowHello(relayPeer)) return
+
     const existing = this.sessions.get(sid)
     if (existing) {
       // A relay session belongs to the socket that opened it. A hello reusing
@@ -360,6 +392,19 @@ export class Agent {
       }
       this.closeSession(existing)
     } else if (relayPeer !== undefined) {
+      // In-flight handshakes are reservations: counting them here stops two
+      // racing hellos from both passing the cap and creating the 65th session.
+      if (this.pendingPeers.size >= MAX_PENDING_PEERS && !this.pendingPeers.has(sid)) {
+        this.options.log?.('refused a hello at the pending handshake limit', { sid })
+        return
+      }
+      if (this.sessions.size + this.pendingPeers.size >= MAX_SESSIONS) {
+        // `device_limit` is a credential-dead code (the device registry is
+        // full), so a transient hub capacity refusal must use `not_allowed`
+        // to let the browser reconnect with backoff.
+        this.sendError(sid, 'not_allowed', 'The hub is at its session limit; retry shortly')
+        return
+      }
       // Refuse a different peer while the first handshake is still in flight.
       const pending = this.pendingPeers.get(sid)
       if (pending !== undefined && pending !== relayPeer) {
@@ -374,6 +419,42 @@ export class Agent {
     } finally {
       if (relayPeer !== undefined) this.pendingPeers.delete(sid)
     }
+  }
+
+  /**
+   * Charge one hello to a relay peer. Refusals happen before any device or
+   * adapter lookup, so a hello flood costs counters instead of database reads.
+   */
+  private allowHello(peer: string): boolean {
+    const now = Date.now()
+    let window = this.helloWindows.get(peer)
+    if (!window || now - window.since >= HELLO_WINDOW_MS) {
+      window = { since: now, count: 0, warned: false }
+      this.rememberHelloWindow(peer, window)
+    } else {
+      // Refresh insertion order so the least recently seen peer is evicted.
+      this.helloWindows.delete(peer)
+      this.helloWindows.set(peer, window)
+    }
+
+    if (window.count >= MAX_HELLOS_PER_WINDOW) {
+      if (!window.warned) {
+        window.warned = true
+        this.options.traffic?.recordError('limited')
+        this.options.log?.('dropped hellos above the relay peer limit', { peer })
+      }
+      return false
+    }
+    window.count += 1
+    return true
+  }
+
+  private rememberHelloWindow(peer: string, window: HelloWindow): void {
+    if (this.helloWindows.size >= MAX_HELLO_PEERS) {
+      const oldest = this.helloWindows.keys().next().value
+      if (oldest !== undefined) this.helloWindows.delete(oldest)
+    }
+    this.helloWindows.set(peer, window)
   }
 
   private async establishSession(frame: HelloFrame, peer?: string): Promise<void> {
@@ -1232,6 +1313,9 @@ export class Agent {
       if (now - session.lastSeen <= SESSION_IDLE_MS) continue
       this.closeSession(session)
       this.options.traffic?.recordError('expired')
+    }
+    for (const [peer, window] of this.helloWindows) {
+      if (now - window.since >= HELLO_WINDOW_MS) this.helloWindows.delete(peer)
     }
   }
 }
