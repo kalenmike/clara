@@ -125,7 +125,7 @@ export function serverRunningInCompose(repoRoot = root) {
 
 export function runServerProcess(args) {
   if (serverRunningInCompose()) {
-    return compose(['exec', '-T', 'server', 'node', '/app/dist/index.js', ...args])
+    return compose(['exec', '-T', 'server', '/app/clara-server', ...args])
   }
   return compose(['run', '--rm', 'server', ...args])
 }
