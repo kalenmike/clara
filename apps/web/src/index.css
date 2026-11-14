@@ -307,6 +307,19 @@ body {
  * strongest tint, warning next, and success/info stay lightest. The whole
  * toast is the dismiss target on every device, so it shows a pointer.
  */
+
+/*
+ * Below `md` the app bar owns the top edge, so top toasts start underneath it
+ * instead of behind the menu and title. The bar is 48px tall plus the
+ * status-bar inset, and `1rem` keeps the toaster's own mobile gap below it.
+ * Desktop and tablet have no bar and keep Sonner's default offset.
+ */
+@media (width < 48rem) {
+  [data-sonner-toaster].toaster[data-y-position='top'] {
+    top: calc(3rem + env(safe-area-inset-top) + 1rem);
+  }
+}
+
 .cn-toast[data-styled='true'] {
   cursor: pointer;
 }
