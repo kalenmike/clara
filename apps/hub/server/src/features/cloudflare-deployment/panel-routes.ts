@@ -83,10 +83,11 @@ async function handleDeploy(
     'scriptName',
     'rememberToken',
     'replaceExisting',
+    'previewUrls',
   ])
   if (unknown) return invalidField(context, unknown)
 
-  const { token, accountId, scriptName, rememberToken, replaceExisting } = body.value
+  const { token, accountId, scriptName, rememberToken, replaceExisting, previewUrls } = body.value
   if (token !== undefined && (typeof token !== 'string' || token.length > MAX_TOKEN_LENGTH)) {
     return invalidField(context, 'token')
   }
@@ -102,6 +103,9 @@ async function handleDeploy(
   if (replaceExisting !== undefined && typeof replaceExisting !== 'boolean') {
     return invalidField(context, 'replaceExisting')
   }
+  if (previewUrls !== undefined && typeof previewUrls !== 'boolean') {
+    return invalidField(context, 'previewUrls')
+  }
 
   try {
     const outcome = await state.deploy({
@@ -110,6 +114,7 @@ async function handleDeploy(
       ...(typeof scriptName === 'string' ? { scriptName } : {}),
       ...(typeof rememberToken === 'boolean' ? { rememberToken } : {}),
       ...(typeof replaceExisting === 'boolean' ? { replaceExisting } : {}),
+      ...(typeof previewUrls === 'boolean' ? { previewUrls } : {}),
     })
     context.sendJson(200, outcome)
   } catch (cause) {

@@ -18,6 +18,14 @@ export type UploadRelayScriptInput = {
   module: string
 }
 
+export type ConfigureSubdomainInput = {
+  accountId: string
+  scriptName: string
+  enabled: boolean
+  /** Omit to send the legacy body that leaves the API default in place. */
+  previewsEnabled?: boolean
+}
+
 type FetchLike = (input: string | URL | Request, init?: RequestInit) => Promise<Response>
 
 export class CloudflareError extends Error {
@@ -110,13 +118,28 @@ export class CloudflareClient {
     )
   }
 
-  async enableSubdomain(accountId: string, scriptName: string): Promise<void> {
+  /**
+   * `previews_enabled` on the script subdomain endpoint is the Cloudflare
+   * setting that turns preview/version URLs on or off; upload metadata has no
+   * preview field. Wrangler sends the same body and API-date header for its
+   * `preview_urls` config, so this call needs no extra token scope beyond
+   * Workers Scripts: Edit.
+   */
+  async configureSubdomain(input: ConfigureSubdomainInput): Promise<void> {
     await this.request(
-      `/accounts/${encodeURIComponent(accountId)}/workers/scripts/${encodeURIComponent(scriptName)}/subdomain`,
+      `/accounts/${encodeURIComponent(input.accountId)}/workers/scripts/${encodeURIComponent(input.scriptName)}/subdomain`,
       {
         method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ enabled: true }),
+        headers: {
+          'content-type': 'application/json',
+          'Cloudflare-Workers-Script-Api-Date': '2025-08-01',
+        },
+        body: JSON.stringify({
+          enabled: input.enabled,
+          ...(input.previewsEnabled === undefined
+            ? {}
+            : { previews_enabled: input.previewsEnabled }),
+        }),
       }
     )
   }

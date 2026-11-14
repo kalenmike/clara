@@ -26,6 +26,7 @@ export function DeployForm({
   const [accountId, setAccountId] = useState(cloudflare.accountId ?? '')
   const [scriptName, setScriptName] = useState(cloudflare.scriptName ?? 'clara-relay')
   const [replaceExisting, setReplaceExisting] = useState(cloudflare.managed)
+  const [previewUrls, setPreviewUrls] = useState(cloudflare.previewUrls ?? false)
   const [pending, setPending] = useState<'accounts' | 'deploy'>()
   const [error, setError] = useState<string>()
   const [notice, setNotice] = useState<string>()
@@ -77,6 +78,7 @@ export function DeployForm({
           accountId: accountId.trim(),
           scriptName: scriptName.trim() || 'clara-relay',
           replaceExisting,
+          previewUrls,
         }
       )
       setToken('')
@@ -199,6 +201,31 @@ export function DeployForm({
         />
         Replace an existing Clara relay Worker with this name
       </label>
+
+      <details className="rounded-md border border-neutral-200 dark:border-neutral-800">
+        <summary className="cursor-pointer list-none px-2 py-1.5 text-[11px] font-medium text-neutral-600 marker:hidden dark:text-neutral-300 [&::-webkit-details-marker]:hidden">
+          Advanced
+        </summary>
+        <div className="space-y-1 border-t border-neutral-100 px-2 py-2 dark:border-neutral-800/60">
+          <label className="flex items-start gap-2 text-[11px]">
+            <input
+              type="checkbox"
+              checked={previewUrls}
+              onChange={(event) => setPreviewUrls(event.target.checked)}
+              aria-describedby="cloudflare-preview-urls-help"
+              className="mt-0.5"
+            />
+            Enable preview and version URLs for this Worker
+          </label>
+          <p
+            id="cloudflare-preview-urls-help"
+            className="text-[10px] text-neutral-500 dark:text-neutral-400"
+          >
+            The panel does not support custom domains yet, so the workers.dev hostname stays on.
+            Preview URLs only add extra hostnames that bypass host-scoped WAF and rate-limit rules.
+          </p>
+        </div>
+      </details>
 
       {notice ? <Notice tone="warning">{redact(notice)}</Notice> : null}
       {error ? <Notice tone="danger">{redact(error)}</Notice> : null}

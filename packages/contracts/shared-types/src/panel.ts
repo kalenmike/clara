@@ -221,6 +221,8 @@ export type PanelRelayDeployment = {
   hostname?: string
   deployedAt?: string
   reachable?: boolean
+  /** Preview/version URLs are enabled for the deployed Worker. */
+  previewUrls?: boolean
   error?: string
 }
 
