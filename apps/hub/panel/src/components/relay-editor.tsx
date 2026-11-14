@@ -4,6 +4,7 @@ import type { PanelRelayTransport } from '@clara/shared-types'
 import { formatTimestamp, sourceLabel } from '../lib/format.ts'
 import { deletePanel, postPanel } from '../lib/panel-api.ts'
 import { usePeek } from '../lib/peek-context.tsx'
+import { ConfirmDialog } from './confirm-dialog.tsx'
 import { Notice, SourceTag } from './primitives.tsx'
 
 const TOKEN_FORMAT_ERROR =
@@ -26,6 +27,7 @@ export function RelayEditor({
   const [url, setUrl] = useState(relay.url ?? '')
   const [agentToken, setAgentToken] = useState('')
   const [pending, setPending] = useState<'save' | 'clear' | 'room'>()
+  const [confirmAction, setConfirmAction] = useState<'clear' | 'room' | null>(null)
   const [error, setError] = useState<string>()
   const [notice, setNotice] = useState<string>()
 
@@ -79,13 +81,6 @@ export function RelayEditor({
   }
 
   const clear = async () => {
-    if (
-      !window.confirm(
-        'Remove the relay values saved in the panel? Environment values still apply, and devices may need to pair again.'
-      )
-    ) {
-      return
-    }
     setPending('clear')
     setError(undefined)
     setNotice(undefined)
@@ -97,17 +92,11 @@ export function RelayEditor({
       setError(cause instanceof Error ? cause.message : String(cause))
     } finally {
       setPending(undefined)
+      setConfirmAction(null)
     }
   }
 
   const regenerate = async () => {
-    if (
-      !window.confirm(
-        'Replace the relay room with a new random value? Every paired device must pair again.'
-      )
-    ) {
-      return
-    }
     setPending('room')
     setError(undefined)
     setNotice(undefined)
@@ -119,6 +108,7 @@ export function RelayEditor({
       setError(cause instanceof Error ? cause.message : String(cause))
     } finally {
       setPending(undefined)
+      setConfirmAction(null)
     }
   }
 
@@ -164,7 +154,7 @@ export function RelayEditor({
         </span>
         <button
           type="button"
-          onClick={() => void regenerate()}
+          onClick={() => setConfirmAction('room')}
           disabled={!relay.roomRegeneratable || pending !== undefined}
           className="inline-flex shrink-0 items-center gap-1 rounded-md border border-neutral-200 px-2 py-1 text-[11px] font-medium disabled:opacity-60 dark:border-neutral-700"
         >
@@ -229,7 +219,7 @@ export function RelayEditor({
         {hasPanelValues ? (
           <button
             type="button"
-            onClick={() => void clear()}
+            onClick={() => setConfirmAction('clear')}
             disabled={pending !== undefined}
             className="inline-flex items-center gap-1.5 rounded-lg border border-neutral-200 px-2.5 py-1.5 text-xs font-semibold transition hover:bg-neutral-50 disabled:opacity-60 dark:border-neutral-700 dark:hover:bg-neutral-900"
           >
@@ -238,6 +228,33 @@ export function RelayEditor({
           </button>
         ) : null}
       </div>
+
+      <ConfirmDialog
+        open={confirmAction != null}
+        title={confirmAction === 'room' ? 'Regenerate relay room?' : 'Clear panel relay?'}
+        description={
+          confirmAction === 'room'
+            ? 'Replace the relay room with a new random value? Every paired device must pair again.'
+            : 'Remove the relay values saved in the panel? Environment values still apply, and devices may need to pair again.'
+        }
+        confirmLabel={confirmAction === 'room' ? 'Regenerate room' : 'Clear panel relay'}
+        pendingLabel={confirmAction === 'room' ? 'Regenerating…' : 'Clearing…'}
+        pending={
+          confirmAction === 'room'
+            ? pending === 'room'
+            : confirmAction === 'clear'
+              ? pending === 'clear'
+              : false
+        }
+        danger
+        onOpenChange={(open) => {
+          if (!open) setConfirmAction(null)
+        }}
+        onConfirm={() => {
+          if (confirmAction === 'room') void regenerate()
+          else if (confirmAction === 'clear') void clear()
+        }}
+      />
     </div>
   )
 }

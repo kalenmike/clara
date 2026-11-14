@@ -5,6 +5,7 @@ import { formatRelative, formatTimestamp, shortId } from '../lib/format.ts'
 import { deletePanel, patchPanel, postPanel } from '../lib/panel-api.ts'
 import { PEEK_MASK } from '../lib/peek.ts'
 import { usePeek } from '../lib/peek-context.tsx'
+import { ConfirmDialog } from './confirm-dialog.tsx'
 import { Badge, CardBody, CollapsibleCard, EmptyState } from './primitives.tsx'
 
 export function DevicesCard({
@@ -18,6 +19,7 @@ export function DevicesCard({
 }) {
   const { masked } = usePeek()
   const [pending, setPending] = useState<string | null>(null)
+  const [revokeTarget, setRevokeTarget] = useState<PanelDeviceInfo | null>(null)
   const [editing, setEditing] = useState<string | null>(null)
   const [draft, setDraft] = useState('')
   const [error, setError] = useState<string>()
@@ -52,13 +54,6 @@ export function DevicesCard({
   }
 
   const revoke = async (device: PanelDeviceInfo) => {
-    if (
-      !window.confirm(
-        `Revoke ${device.alias ?? device.label}? Its key is deleted and live sessions are disconnected.`
-      )
-    ) {
-      return
-    }
     setPending(device.id)
     setError(undefined)
     try {
@@ -68,6 +63,7 @@ export function DevicesCard({
       setError(cause instanceof Error ? cause.message : String(cause))
     } finally {
       setPending(null)
+      setRevokeTarget(null)
     }
   }
 
@@ -236,7 +232,7 @@ export function DevicesCard({
                           <button
                             type="button"
                             disabled={pending === device.id}
-                            onClick={() => void revoke(device)}
+                            onClick={() => setRevokeTarget(device)}
                             className="inline-flex items-center gap-1 rounded-md border border-red-200 px-2 py-1 text-[10px] font-medium text-red-700 transition hover:bg-red-50 disabled:opacity-60 dark:border-red-900 dark:text-red-300 dark:hover:bg-red-950/50"
                           >
                             <ShieldOff className="size-3" aria-hidden="true" />
@@ -262,6 +258,21 @@ export function DevicesCard({
           revoked device to remove its record. Multiple live sessions on one device are usually tabs
           of the same browser.
         </p>
+        <ConfirmDialog
+          open={revokeTarget != null}
+          title={`Revoke ${revokeTarget?.alias ?? revokeTarget?.label ?? 'device'}?`}
+          description="Its key is deleted and live sessions are disconnected."
+          confirmLabel="Revoke"
+          pendingLabel="Revoking…"
+          pending={revokeTarget != null && pending === revokeTarget.id}
+          danger
+          onOpenChange={(open) => {
+            if (!open) setRevokeTarget(null)
+          }}
+          onConfirm={() => {
+            if (revokeTarget) void revoke(revokeTarget)
+          }}
+        />
       </CardBody>
     </CollapsibleCard>
   )

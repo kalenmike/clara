@@ -10,6 +10,7 @@ import { harnessState } from '../lib/harness-state.ts'
 import { deletePanel, postPanel } from '../lib/panel-api.ts'
 import { PEEK_MASK } from '../lib/peek.ts'
 import { usePeek } from '../lib/peek-context.tsx'
+import { ConfirmDialog } from './confirm-dialog.tsx'
 import { Badge, CardBody, CollapsibleCard, EmptyState, Notice } from './primitives.tsx'
 
 export function HarnessConnectionsCard({
@@ -25,6 +26,10 @@ export function HarnessConnectionsCard({
 }) {
   const { masked, redact } = usePeek()
   const [pending, setPending] = useState<string>()
+  const [removeTarget, setRemoveTarget] = useState<{
+    connection: PanelHarness
+    forget: boolean
+  } | null>(null)
   const [error, setError] = useState<string>()
   const [test, setTest] = useState<PanelHarnessTestResult>()
 
@@ -62,11 +67,7 @@ export function HarnessConnectionsCard({
     }
   }
 
-  const remove = async (connection: PanelHarness, forget = false) => {
-    const message = forget
-      ? `Forget "${connection.label}" and its Clara session metadata?`
-      : `Delete the "${connection.label}" connection? Its identity and metadata are kept.`
-    if (!window.confirm(message)) return
+  const remove = async (connection: PanelHarness, forget: boolean) => {
     const action = forget ? 'forget' : 'delete'
     setPending(`${action}:${connection.id}`)
     setError(undefined)
@@ -81,6 +82,7 @@ export function HarnessConnectionsCard({
       setError(cause instanceof Error ? cause.message : String(cause))
     } finally {
       setPending(undefined)
+      setRemoveTarget(null)
     }
   }
 
@@ -241,7 +243,7 @@ export function HarnessConnectionsCard({
                           </button>
                           <button
                             type="button"
-                            onClick={() => void remove(connection)}
+                            onClick={() => setRemoveTarget({ connection, forget: false })}
                             disabled={pending !== undefined}
                             className="inline-flex items-center gap-1 rounded-md border border-red-200 px-2 py-1 text-[10px] font-medium text-red-700 transition hover:bg-red-50 disabled:opacity-50 dark:border-red-900 dark:text-red-300 dark:hover:bg-red-950/40"
                           >
@@ -250,7 +252,7 @@ export function HarnessConnectionsCard({
                           </button>
                           <button
                             type="button"
-                            onClick={() => void remove(connection, true)}
+                            onClick={() => setRemoveTarget({ connection, forget: true })}
                             disabled={pending !== undefined}
                             className="rounded-md border border-neutral-200 px-2 py-1 text-[10px] font-medium text-neutral-600 transition hover:bg-neutral-100 disabled:opacity-50 dark:border-neutral-700 dark:text-neutral-300 dark:hover:bg-neutral-800"
                           >
@@ -270,6 +272,34 @@ export function HarnessConnectionsCard({
           identity and Clara metadata; Forget purges both. Test probes the adapter's harness
           endpoint. Fingerprints identify the credential without revealing it.
         </p>
+        <ConfirmDialog
+          open={removeTarget != null}
+          title={
+            removeTarget
+              ? removeTarget.forget
+                ? `Forget "${removeTarget.connection.label}"?`
+                : `Delete the "${removeTarget.connection.label}" connection?`
+              : ''
+          }
+          description={
+            removeTarget?.forget
+              ? 'This purges the connection and its Clara session metadata.'
+              : 'This removes the connection but keeps its identity and metadata.'
+          }
+          confirmLabel={removeTarget?.forget ? 'Forget' : 'Delete'}
+          pendingLabel={removeTarget?.forget ? 'Forgetting…' : 'Deleting…'}
+          pending={
+            removeTarget != null &&
+            pending === `${removeTarget.forget ? 'forget' : 'delete'}:${removeTarget.connection.id}`
+          }
+          danger
+          onOpenChange={(open) => {
+            if (!open) setRemoveTarget(null)
+          }}
+          onConfirm={() => {
+            if (removeTarget) void remove(removeTarget.connection, removeTarget.forget)
+          }}
+        />
       </CardBody>
     </CollapsibleCard>
   )
