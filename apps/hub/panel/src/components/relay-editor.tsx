@@ -1,10 +1,18 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useId, useState } from 'react'
 import { RefreshCw, Trash2 } from 'lucide-react'
 import type { PanelRelayTransport } from '@clara/shared-types'
 import { sourceLabel } from '../lib/format.ts'
 import { deletePanel, postPanel } from '../lib/panel-api.ts'
 import { usePeek } from '../lib/peek-context.tsx'
 import { Notice, SourceTag } from './primitives.tsx'
+
+const TOKEN_FORMAT_ERROR =
+  'Relay tokens must be at least 32 characters with no spaces or commas. Use the generated value or `openssl rand -base64 32`.'
+
+function invalidToken(value: string): boolean {
+  const trimmed = value.trim()
+  return trimmed.length < 32 || trimmed.length > 512 || /[\s,]/.test(trimmed)
+}
 
 export function RelayEditor({
   relay,
@@ -14,6 +22,7 @@ export function RelayEditor({
   onChanged: () => void
 }) {
   const { redact } = usePeek()
+  const tokenErrorId = useId()
   const [url, setUrl] = useState(relay.url ?? '')
   const [agentToken, setAgentToken] = useState('')
   const [clientToken, setClientToken] = useState('')
@@ -28,6 +37,9 @@ export function RelayEditor({
   const urlFromEnv = relay.urlSource === 'env'
   const agentFromEnv = relay.agentTokenSource === 'env'
   const clientFromEnv = relay.clientTokenSource === 'env'
+  const agentTokenInvalid = Boolean(agentToken.trim()) && invalidToken(agentToken)
+  const clientTokenInvalid = Boolean(clientToken.trim()) && invalidToken(clientToken)
+  const tokenError = agentTokenInvalid || clientTokenInvalid ? TOKEN_FORMAT_ERROR : undefined
   const hasPanelValues =
     relay.urlSource === 'file' ||
     relay.roomSource === 'file' ||
@@ -40,6 +52,7 @@ export function RelayEditor({
     Boolean((relay.url ?? '').trim() || url.trim()) &&
     hasAgentToken &&
     hasClientToken &&
+    !tokenError &&
     (!urlFromEnv || Boolean(agentToken.trim()) || Boolean(clientToken.trim()))
 
   const save = async () => {
@@ -170,6 +183,8 @@ export function RelayEditor({
           disabled={agentFromEnv || pending !== undefined}
           autoComplete="off"
           spellCheck={false}
+          aria-invalid={agentTokenInvalid || undefined}
+          aria-describedby={agentTokenInvalid ? tokenErrorId : undefined}
           placeholder={
             agentFromEnv
               ? 'Provided by the environment'
@@ -195,6 +210,8 @@ export function RelayEditor({
           disabled={clientFromEnv || pending !== undefined}
           autoComplete="off"
           spellCheck={false}
+          aria-invalid={clientTokenInvalid || undefined}
+          aria-describedby={clientTokenInvalid ? tokenErrorId : undefined}
           placeholder={
             clientFromEnv
               ? 'Provided by the environment'
@@ -211,6 +228,11 @@ export function RelayEditor({
         Changing the room or client token requires every device to pair again.
       </p>
 
+      {tokenError ? (
+        <Notice tone="danger">
+          <span id={tokenErrorId}>{redact(tokenError)}</span>
+        </Notice>
+      ) : null}
       {notice ? (
         <p className="rounded-md bg-emerald-50 px-2.5 py-2 text-xs text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-300">
           {redact(notice)}

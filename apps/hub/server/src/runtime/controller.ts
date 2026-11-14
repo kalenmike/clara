@@ -1111,6 +1111,15 @@ function tokenValue(
   if (!trimmed) {
     throw new PanelControlError(400, 'invalid_relay_token', `The relay ${label} cannot be empty`)
   }
+  // Both tokens travel as `clara.auth.*` subprotocol values, so a comma breaks
+  // the header and short values are guessable. The relay rejects the same shape.
+  if (trimmed.length < 32 || trimmed.length > 512 || /[\s,]/.test(trimmed)) {
+    throw new PanelControlError(
+      400,
+      'invalid_relay_token',
+      'Relay tokens must be at least 32 characters with no spaces or commas. Use the generated value or `openssl rand -base64 32`.'
+    )
+  }
   return trimmed
 }
 

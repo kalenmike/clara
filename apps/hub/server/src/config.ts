@@ -61,6 +61,11 @@ const DEFAULT_LOCAL_HOST = '127.0.0.1'
 const DEFAULT_LOCAL_PORT = 8788
 const DEFAULT_WEB_PORT = 8080
 
+const RELAY_TOKEN_MIN_LENGTH = 32
+const RELAY_TOKEN_MAX_LENGTH = 512
+const RELAY_TOKEN_FORMAT_ERROR =
+  'Relay tokens must be at least 32 characters with no spaces or commas. Use the generated value or `openssl rand -base64 32`.'
+
 export function loadConfig(
   options: {
     noRelay?: boolean
@@ -360,7 +365,14 @@ export function validateRelayConfig(config: ServerConfig): void {
 }
 
 function assertRelayTokens(relay: RelayConfig, configPath: string, configDir: string): void {
-  if (relay.agentToken && relay.clientToken) return
+  if (relay.agentToken && relay.clientToken) {
+    // A comma would split the Sec-WebSocket-Protocol header and a short value
+    // is guessable; both fail closed here instead of at the relay.
+    if (!isValidRelayToken(relay.agentToken) || !isValidRelayToken(relay.clientToken)) {
+      throw new Error(RELAY_TOKEN_FORMAT_ERROR)
+    }
+    return
+  }
   const missing = [
     relay.agentToken ? null : 'CLARA_AGENT_TOKEN',
     relay.clientToken ? null : 'CLARA_CLIENT_TOKEN',
@@ -371,6 +383,14 @@ function assertRelayTokens(relay: RelayConfig, configPath: string, configDir: st
     `Missing ${missing}. The relay URL is configured in ${configPath}. Save both tokens in the ` +
       `hub panel's Relay card, export them before starting the hub service, or add them to ` +
       `${join(configDir, 'server.env')} (systemd EnvironmentFile).`
+  )
+}
+
+function isValidRelayToken(value: string): boolean {
+  return (
+    value.length >= RELAY_TOKEN_MIN_LENGTH &&
+    value.length <= RELAY_TOKEN_MAX_LENGTH &&
+    !/[\s,]/.test(value)
   )
 }
 
