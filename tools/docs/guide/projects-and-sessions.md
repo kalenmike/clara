@@ -99,6 +99,10 @@ A new session inherits the model of the most recent working session in the
 project. It follows your **Default agent** setting. Hidden models are not
 inherited.
 
+If you leave a new session before typing or saving a draft, Clara removes the
+empty session so it does not pile up under **Drafts**. Typed text, attachments,
+and saved drafts keep the session.
+
 ## Save a first prompt as a draft
 
 Before the first agent reply, the send button's menu offers **Save as draft**.

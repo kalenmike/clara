@@ -82,7 +82,9 @@ can answer a form or start work with an optional custom message.
    opened after the setting changed. Sessions that already have messages keep
    their agent.
 5. Unsent composer text is stored per session in local storage. Attachments stay
-   with the open window but are not persisted across a reload.
+   with the open window but are not persisted across a reload. An untitled brief
+   with no composer text or attachments and no saved draft is discarded when the
+   view leaves it, so empty briefs do not accumulate in Drafts.
 6. A successful send clears the editor, closes the window, and returns focus to
    Reply when it is visible. Closing resets the connection to the session on
    screen. A failed send keeps the text and attachments on the connected session.
@@ -265,6 +267,10 @@ can answer a form or start work with an optional custom message.
   the window and moves the previous session's text to its local draft.
 - **Leave the chat view** — home, projects, and settings unmount the chat-scoped
   composer; returning to a session starts with it closed.
+- **Leave an empty brief** — an untitled brief with no messages, no saved draft,
+  no waiting request, and no composer text or attachments is deleted after the
+  view leaves it. A composer bound to that brief closes and follows the view that
+  replaced it; a brief with any of those is kept.
 - **Minimized window** — a model or agent shortcut restores the window to its
   saved size before opening its picker, without changing the connected session.
 - **Composer title** — the session title is the heading, falling back to **Untitled
