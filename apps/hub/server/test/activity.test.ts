@@ -118,7 +118,13 @@ type FakeHarness = {
   failSignals: (sessionID: string, fail: boolean) => void
 }
 
-function fakeHarness(options: { extraSessions?: number } = {}): FakeHarness {
+function fakeHarness(
+  options: {
+    extraSessions?: number
+    projectHarnesses?: string[]
+    sessionProjects?: Record<string, string>
+  } = {}
+): FakeHarness {
   const calls: string[] = []
   const todos = new Map<string, ClaraJsonValue[]>([
     [
@@ -193,8 +199,29 @@ function fakeHarness(options: { extraSessions?: number } = {}): FakeHarness {
     lastError: undefined,
     harnessId: 'harness-a',
     list: () => connections,
-    overlaySession: (harnessID: string, value: ClaraSession): ClaraSession =>
-      harnessID === 'harness-a' ? { ...value, projectID: 'p_demo' } : value,
+    projects: {
+      get: (projectID: string) =>
+        projectID === 'p_demo'
+          ? {
+              project: { id: 'p_demo', createdAt: 1, updatedAt: 1 },
+              workspaces: (options.projectHarnesses ?? ['harness-a']).map((harnessID, index) => ({
+                id: `workspace-${harnessID}`,
+                projectID: 'p_demo',
+                harnessID,
+                directory: '/workspace/demo',
+                createdAt: index + 1,
+                updatedAt: index + 1,
+              })),
+            }
+          : undefined,
+    },
+    overlaySession: (harnessID: string, value: ClaraSession): ClaraSession => {
+      const defaultProjectID = harnessID === 'harness-a' ? 'p_demo' : value.projectID
+      return {
+        ...value,
+        projectID: options.sessionProjects?.[value.id] ?? defaultProjectID,
+      }
+    },
     requestFor: async (harnessID: string, input: { path: string; search?: string }) => {
       calls.push(`${harnessID}:${input.path}`)
       const search = new URLSearchParams(
@@ -393,6 +420,78 @@ describe('activity sessions', () => {
       { harnessID: 'harness-c', ok: false, code: 'offline', online: false, createdAt: 3 },
     ])
     expect(fake.calls.some((call) => call.startsWith('harness-c:'))).toBe(false)
+  })
+
+  it('scopes activity to one project across all of its harnesses and workspaces', async () => {
+    const fake = fakeHarness({
+      projectHarnesses: ['harness-a', 'harness-b'],
+      sessionProjects: { s8: 'p_demo' },
+    })
+    const api = createTestApi(fake.harness)
+
+    const body = (await (
+      await api.fetch(request('/v1/activity/sessions?project=p_demo'))
+    ).json()) as ActivityBody
+
+    expect(body.data.map((item) => `${item.harnessID}:${item.session.id}`)).toEqual([
+      'harness-b:s8',
+      'harness-a:s1',
+      'harness-a:s2',
+      'harness-a:s3',
+      'harness-a:s7',
+      'harness-a:s10',
+    ])
+    expect(body.harnesses.map((item) => item.harnessID)).toEqual(['harness-b', 'harness-a'])
+    expect(fake.calls.some((call) => call.startsWith('harness-c:'))).toBe(false)
+  })
+
+  it('reports offline harnesses that belong to the project', async () => {
+    const fake = fakeHarness({ projectHarnesses: ['harness-a', 'harness-c'] })
+    const api = createTestApi(fake.harness)
+
+    const body = (await (
+      await api.fetch(request('/v1/activity/sessions?project=p_demo'))
+    ).json()) as ActivityBody
+
+    expect(body.data.every((item) => item.harnessID === 'harness-a')).toBe(true)
+    expect(body.harnesses).toMatchObject([
+      { harnessID: 'harness-a', ok: true, online: true },
+      { harnessID: 'harness-c', ok: false, online: false, code: 'offline' },
+    ])
+  })
+
+  it('returns no activity when the project has no workspaces', async () => {
+    const fake = fakeHarness({ projectHarnesses: [] })
+    const api = createTestApi(fake.harness)
+
+    const body = (await (
+      await api.fetch(request('/v1/activity/sessions?project=p_demo'))
+    ).json()) as ActivityBody
+
+    expect(body).toEqual({ data: [], harnesses: [] })
+  })
+
+  it('rejects activity for an unknown project', async () => {
+    const fake = fakeHarness()
+    const api = createTestApi(fake.harness)
+
+    const response = await api.fetch(request('/v1/activity/sessions?project=missing'))
+
+    expect(response.status).toBe(404)
+    const body = (await response.json()) as { error: { code: string } }
+    expect(body.error.code).toBe('not_found')
+  })
+
+  it('scopes the deprecated running route to the project too', async () => {
+    const fake = fakeHarness({ projectHarnesses: ['harness-a'] })
+    const api = createTestApi(fake.harness)
+
+    const body = (await (
+      await api.fetch(request('/v1/activity/running?project=p_demo'))
+    ).json()) as ActivityBody
+
+    expect(body.data.map((item) => item.session.id)).toEqual(['s1', 's7'])
+    expect(body.harnesses.map((item) => item.harnessID)).toEqual(['harness-a'])
   })
 
   it('caps plan loading while keeping every session and its position', async () => {

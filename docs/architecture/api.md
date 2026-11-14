@@ -119,20 +119,26 @@ adapter's shell capability. There is no arbitrary shell endpoint.
 
 ### Cross-harness activity
 
-`GET /v1/activity/sessions` reads every paired harness, not the project-scoped
-path. It asks each online harness for `/sessions/active`, pending
-`/permissions`, and every page of non-archived `/sessions`, overlays the result
-with Clara project, title, archive, and snooze metadata, and returns sessions in
-the Inbox or Outbox. Archived and snoozed sessions are dropped, and the response
-keeps per-harness status so offline or partially failing harnesses do not hide
-results from the others. Each session also carries mailbox signals and, within
-the per-harness plan budget, its newest completed `todowrite` plan from a bounded
-assistant-message page. Signal and plan lookups are cached per harness and
-session; pass `?refresh=true` to bypass both caches. The browser polls this
-endpoint rather than expecting a cross-harness event stream.
+`GET /v1/activity/sessions` is the read-only cross-harness view. Pass `project`
+with a Clara project ID to scope the fan-out to that project: the hub resolves
+the project's workspaces, reads only the harnesses that host them, overlays the
+result with Clara project, title, archive, and snooze metadata, and keeps only
+sessions whose overlaid project matches. Without `project`, the endpoint keeps
+the legacy unscoped fan-out for older clients.
+
+For each scoped harness it asks for `/sessions/active`, pending
+`/permissions`, and every page of non-archived `/sessions`. The response contains
+sessions in the Inbox or Outbox; archived and snoozed sessions are dropped.
+Per-harness status stays in the response so offline or partially failing project
+harnesses do not hide results from the others. Each session also carries mailbox
+signals and, within the per-harness plan budget, its newest completed `todowrite`
+plan from a bounded assistant-message page. Signal and plan lookups are cached
+per harness and session; pass `?refresh=true` to bypass both caches. The browser
+polls this endpoint rather than expecting a cross-harness event stream.
 
 `GET /v1/activity/running` remains as a deprecated alias that returns only the
-sessions the harness reports as running, so an older cached client still works.
+sessions the harness reports as running and accepts the same optional project
+scope, so an older cached client still works.
 
 ## Authentication
 
