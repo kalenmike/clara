@@ -400,6 +400,7 @@ function InstallJob({ job, onCancel }: { job: PanelInstallJob; onCancel: () => v
       <pre className="max-h-52 overflow-auto rounded-md bg-neutral-950 p-2 font-mono text-[11px] whitespace-pre-wrap text-neutral-100">
         {job.lines.join('\n')}
       </pre>
+      {job.error ? <Notice tone="danger">{job.error}</Notice> : null}
     </div>
   )
 }
