@@ -1,8 +1,8 @@
 import { useQuery } from '@tanstack/react-query'
-import {
-  type ClaraSessionMessage,
-  type ClaraVcsFileStatus,
-  type ClaraWorktree,
+import type {
+  ClaraSessionMessage,
+  ClaraVcsFileStatus,
+  ClaraWorktree,
 } from '@clara/api-contract'
 import { ClaraApiError } from '@clara/api-client'
 import { harnessLocation, useHarnessScope } from '@/features/harness/harness-scope'
