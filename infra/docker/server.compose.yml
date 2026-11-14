@@ -64,7 +64,11 @@ services:
     networks:
       - clara
     healthcheck:
-      test: ['CMD', '/app/clara-server', 'health']
+      test:
+        [
+          'CMD-SHELL',
+          'if [ -x /app/clara-server ]; then /app/clara-server health; else node -e "fetch(''http://127.0.0.1:8790/health'').then((r) => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))"; fi',
+        ]
       interval: 10s
       timeout: 5s
       start_period: 10s
