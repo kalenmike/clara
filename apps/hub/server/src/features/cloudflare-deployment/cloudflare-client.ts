@@ -22,7 +22,8 @@ export type ConfigureSubdomainInput = {
   accountId: string
   scriptName: string
   enabled: boolean
-  previewsEnabled: boolean
+  /** Omit to send the legacy body that leaves the API default in place. */
+  previewsEnabled?: boolean
 }
 
 type FetchLike = (input: string | URL | Request, init?: RequestInit) => Promise<Response>
@@ -133,7 +134,12 @@ export class CloudflareClient {
           'content-type': 'application/json',
           'Cloudflare-Workers-Script-Api-Date': '2025-08-01',
         },
-        body: JSON.stringify({ enabled: input.enabled, previews_enabled: input.previewsEnabled }),
+        body: JSON.stringify({
+          enabled: input.enabled,
+          ...(input.previewsEnabled === undefined
+            ? {}
+            : { previews_enabled: input.previewsEnabled }),
+        }),
       }
     )
   }

@@ -122,6 +122,7 @@ export async function deployRelay(options: DeployRelayOptions): Promise<DeployRe
   // Cloudflare has no preview field in upload metadata; `previews_enabled` on
   // the subdomain endpoint is the supported switch, sent on every deploy so an
   // older Worker gets cleared too.
+  let appliedPreviewUrls = previewUrls
   let previewUrlsError: string | undefined
   try {
     await options.client.configureSubdomain({
@@ -131,6 +132,15 @@ export async function deployRelay(options: DeployRelayOptions): Promise<DeployRe
       previewsEnabled: previewUrls,
     })
   } catch (cause) {
+    // Fall back to the legacy body so the workers.dev hostname is still
+    // enabled when Cloudflare rejects the preview field for this Worker. If
+    // this retry fails too, the deployment fails before its health check.
+    await options.client.configureSubdomain({
+      accountId: options.account.id,
+      scriptName,
+      enabled: true,
+    })
+    appliedPreviewUrls = false
     previewUrlsError = cause instanceof Error ? cause.message : String(cause)
   }
 
@@ -147,7 +157,7 @@ export async function deployRelay(options: DeployRelayOptions): Promise<DeployRe
     clientToken,
     deployedAt: new Date().toISOString(),
     reachable: health.ok,
-    previewUrls,
+    previewUrls: appliedPreviewUrls,
     ...(previewUrlsError ? { previewUrlsError } : {}),
     ...(health.error ? { healthError: health.error } : {}),
   }

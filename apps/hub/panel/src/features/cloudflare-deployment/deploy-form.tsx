@@ -26,7 +26,7 @@ export function DeployForm({
   const [accountId, setAccountId] = useState(cloudflare.accountId ?? '')
   const [scriptName, setScriptName] = useState(cloudflare.scriptName ?? 'clara-relay')
   const [replaceExisting, setReplaceExisting] = useState(cloudflare.managed)
-  const [previewUrls, setPreviewUrls] = useState(false)
+  const [previewUrls, setPreviewUrls] = useState(cloudflare.previewUrls ?? false)
   const [pending, setPending] = useState<'accounts' | 'deploy'>()
   const [error, setError] = useState<string>()
   const [notice, setNotice] = useState<string>()

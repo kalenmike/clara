@@ -211,12 +211,18 @@ describe('CloudflareClient', () => {
     expect(subdomainBody).toEqual({ enabled: true, previews_enabled: false })
   })
 
-  it('keeps deploying when the preview URL setting is rejected', async () => {
+  it('retries with the legacy body when the preview URL setting is rejected', async () => {
+    const subdomainBodies: unknown[] = []
+    let healthCalls = 0
     const client = new CloudflareClient('token', async (input, init) => {
       const url = String(input)
       if (url.endsWith('/workers/subdomain')) return json({ subdomain: 'example' })
       if (url.includes('/workers/services/')) return json(undefined, 404)
-      if (url.endsWith('/subdomain')) return json(undefined, 400)
+      if (url.endsWith('/subdomain')) {
+        const body = JSON.parse(String(init?.body)) as Record<string, unknown>
+        subdomainBodies.push(body)
+        return 'previews_enabled' in body ? json(undefined, 400) : json({ enabled: true })
+      }
       if (init?.method === 'PUT') return json({ id: 'script' })
       throw new Error(`Unexpected request: ${init?.method} ${url}`)
     })
@@ -227,11 +233,44 @@ describe('CloudflareClient', () => {
       account: { id: 'account', name: 'Account' },
       scriptName: 'clara-relay',
       sleep: async () => {},
-      fetchImpl: async () => new Response(JSON.stringify({ ok: true }), { status: 200 }),
+      fetchImpl: async () => {
+        healthCalls += 1
+        return new Response(JSON.stringify({ ok: true }), { status: 200 })
+      },
     })
 
+    expect(subdomainBodies).toEqual([{ enabled: true, previews_enabled: false }, { enabled: true }])
+    expect(result.hostname).toBe('clara-relay.example.workers.dev')
     expect(result.previewUrls).toBe(false)
     expect(result.previewUrlsError).toBe('error')
+    expect(healthCalls).toBe(1)
+  })
+
+  it('fails the deploy when the subdomain cannot be enabled', async () => {
+    let healthCalls = 0
+    const client = new CloudflareClient('token', async (input, init) => {
+      const url = String(input)
+      if (url.endsWith('/workers/subdomain')) return json({ subdomain: 'example' })
+      if (url.includes('/workers/services/')) return json(undefined, 404)
+      if (url.endsWith('/subdomain')) return json(undefined, 400)
+      if (init?.method === 'PUT') return json({ id: 'script' })
+      throw new Error(`Unexpected request: ${init?.method} ${url}`)
+    })
+
+    await expect(
+      deployRelay({
+        client,
+        artifact,
+        account: { id: 'account', name: 'Account' },
+        scriptName: 'clara-relay',
+        sleep: async () => {},
+        fetchImpl: async () => {
+          healthCalls += 1
+          return new Response(JSON.stringify({ ok: true }), { status: 200 })
+        },
+      })
+    ).rejects.toMatchObject({ status: 400 })
+    expect(healthCalls).toBe(0)
   })
 
   it('skips the migration when the published Worker already has the tag', async () => {

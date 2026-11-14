@@ -192,7 +192,7 @@ export class CloudflareDeploymentState {
       if (result.previewUrlsError) {
         this.log('cloudflare relay preview URL setting failed', result.previewUrlsError)
         warnings.push(
-          `The Worker deployed, but its preview URL setting could not be applied: ${result.previewUrlsError}`
+          `The Worker deployed, but preview URLs could not be configured, so the Worker stays on the default: ${result.previewUrlsError}`
         )
       }
       if (!result.reachable) {
