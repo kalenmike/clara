@@ -22,19 +22,25 @@ contacts the harness directly.
 ## User flow
 
 1. Open the hub panel → **Harness** → **Add harness** → choose OpenCode,
-   Claude Code, or Pi and the adapter location: **Docker network** (default),
-   **This machine**, or **Cloudflare relay** → **Add harness**.
-2. Copy the pairing code or the matching command. Adapter codes start with
-   `clara-harness1_` and only install an adapter; a browser pairs with a
+   Claude Code, or Pi and the install method: **SSH**, **Docker**, or
+   **Manual**. Manual also chooses the adapter location: **Docker network**
+   (default), **This machine**, or **Cloudflare relay**.
+2. SSH selects a host from `~/.ssh/config` or takes a user/host/port; Docker
+   lists running containers. The hub fetches the adapter manifest from the
+   configured registry and runs its install script on the target. Manual shows
+   the pairing code and the registry or repository command. Adapter codes start
+   with `clara-harness1_` and only install an adapter; a browser pairs with a
    `clara1_` code from **Clients → Pair Client** or `pnpm clara pair`.
-3. On the harness machine, run the adapter installer. For OpenCode that is
-   `pnpm clara adapter install --opencode --pair <code>`; for Claude Code it is
-   `pnpm clara adapter install --claude --pair <code>`; for Pi it is
-   `pnpm clara adapter install --pi --pair <code>`.
+3. The install script detects the target platform, downloads the matching
+   Bun-compiled adapter archive, verifies its SHA-256, installs it under the
+   adapter data directory, and runs the adapter installer. The manual commands
+   are `pnpm clara adapter install --opencode --pair <code>`,
+   `--claude`, and `--pi`.
 4. The OpenCode installer discovers OpenCode from flags, environment, or
    `~/.local/state/opencode/service.json`. The Claude Code installer uses the
    machine's existing Claude Code login and accepts `--claude-path`, `--model`,
-   and `--permission-mode`. It never stores an API key.
+   and `--permission-mode`. It never stores an API key. The Pi installer uses
+   the machine's installed `pi` binary in RPC mode.
 5. The adapter enrolls and stores its credential. The installer then starts a
    user service, or a background adapter process when systemd/launchd is not
    available. The panel shows **Paired · Offline** under **Paired harnesses**
@@ -83,6 +89,12 @@ contacts the harness directly.
 9. The Claude Code adapter speaks to the Agent SDK inside the adapter process.
    The SDK is pinned with the adapter and never imported by the hub, web client,
    or shared packages.
+10. The hub embeds no adapter artifacts. It reads
+    `<registry>/<kind>/manifest.json`, verifies the install script's SHA-256,
+    and runs that script on the target. The script downloads the platform
+    archive from the URL in its generated map. Install actions are off by
+    default and are available only from a loopback panel backed by a local hub
+    process.
 
 ## Adapter mapping
 
@@ -220,6 +232,29 @@ ask for confirmation run without one, exactly as in the Pi TUI.
 - **Adapter reinstalled** — the same identity reconnects the same sessions and
   metadata without duplicating the connection.
 - **Relay offline** — the adapter reconnects when the relay or hub returns.
+- **Install actions off** — SSH and Docker are disabled until the owner turns
+  on **Settings → Adapter downloads**. The manual code keeps working.
+- **Registry unreachable** — the panel names the manifest error and leaves the
+  manual commands available. An install does not start with no manifest.
+- **SSH host missing** — an alias that is not in `~/.ssh/config` is rejected;
+  enter the user, host, and port manually instead.
+- **SSH authentication** — installs use key or agent authentication only
+  (`BatchMode=yes`). A passphrase-protected key that is not in the agent fails
+  without prompting.
+- **Container has no downloader** — the install stops when the selected
+  container has neither `curl` nor `wget`; install into a different container or
+  use Manual. The included OpenCode adapter image ships `curl`.
+- **Checksum mismatch** — the hub verifies the install script, and the script
+  verifies the adapter archive. Either mismatch fails without executing the
+  downloaded file.
+- **OpenCode needs a password over SSH** — remote installs cannot prompt for
+  credentials. Pass the OpenCode URL in the panel and make the password
+  available through `OPENCODE_PASSWORD` in the target environment, or run the
+  manual installer interactively. The hub never stores the harness password.
+- **Unsupported target** — the script lists the platforms it can install and
+  exits; use a supported OS/architecture or run the release archive manually.
+- **Container recreated** — an install into an ephemeral container does not
+  survive recreation. Use a mounted config/data path or the adapter container.
 
 ## Out of scope
 
@@ -294,9 +329,18 @@ ask for confirmation run without one, exactly as in the Pi TUI.
 - Commands: `clara-adapter-opencode install --pair <code>`,
   `clara-adapter-claude install --pair <code>`,
   `clara-adapter-pi install --pair <code>`,
+  `pnpm clara adapter install --claude --pair <code>`,
   `pnpm clara adapter install --pi --pair <code>`,
   `pnpm clara adapter status [--claude|--pi]`,
+  `clara-adapter-claude uninstall [--purge]`,
   `clara-adapter-pi uninstall [--purge]`.
+- Registry: `<registry>/<kind>/manifest.json` and
+  `<registry>/<kind>/v<version>-install.sh`; the default registry is
+  `https://clara.kalenmichael.com/adapters`. `pnpm adapters:build` generates
+  both and writes the archives to `dist/adapters`.
+- Panel routes: `GET /panel/api/v1/install`,
+  `POST /panel/api/v1/install`, `GET|DELETE /panel/api/v1/install/jobs/:id`,
+  and `POST /panel/api/v1/install/settings`.
 - Docker: `infra/docker/adapter-opencode.compose.yml`; no published ports.
   No Claude Code or Pi image ships with Clara. Install the adapter in the
   container that runs the harness and mount its config directory and workspace.

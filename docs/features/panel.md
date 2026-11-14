@@ -15,8 +15,8 @@ panel can be screenshared safely. It is also the setup
 surface for the owner account, browser pairing, and harness adapters: on first
 run it serves only a local setup screen until the owner account exists, then the
 hub starts its transports and the superadmin can create a one-time browser link,
-code, or QR, or add an adapter and run its install command on the harness
-machine. The same surface
+code, or QR, or add an adapter. Adapter installs can be run over SSH or Docker
+from the hub host, or copied as a registry command for a manual install. The same surface
 edits the Web URL used by pairing links, the VAPID contact used by Web Push, and
 the relay target, switches external connections on and off without stopping the
 process, starts and stops the local orchestration service, turns traffic
@@ -61,8 +61,12 @@ card.
    available from **Replay setup guide**. Reconfiguring a relay or its room can
    require adapters and devices to pair again.
 3. After signing in, open **Harness**, use **Add harness**, choose the adapter
-   type and location, then copy the pairing code or install command. Run the
-   command on the harness machine. A new adapter appears under
+   type and install method: **SSH**, **Docker**, or **Manual**. SSH uses a host
+   from `~/.ssh/config` or a typed user/host/port; Docker lists running
+   containers. Both run the registry install script on the target and stream the
+   log back. Manual shows the pairing code and the registry or repository
+   command. Install actions are off until they are enabled in **Settings →
+   Adapter downloads**. A new adapter appears under
    **Paired harnesses** as **Paired · Offline**; when its credential session
    connects it also appears under **Connected adapters**, becomes **Online**,
    and the first adapter becomes **Active**, the default for screens that do not
@@ -261,14 +265,17 @@ card.
    are rate-limited per source and username.
 6. **Settings are durable.** Feature choices, the stopped flag, the monitoring
    choice, the orchestration switch, the client-sync gate and interval, the
-   panel users, and harness connections live in the
+   adapter-install switch, the panel users, and harness connections live in the
    hub's SQLite database and are loaded before any transport starts. The panel
    can fail without stopping the hub service; a busy panel port only loses the panel.
-   The Web URL and relay URL/room live in `server.json`, the VAPID contact in
+   The Web URL, adapter registry URL, and relay URL/room live in `server.json`, the VAPID contact in
    `vapid.json`, and the relay token in the encrypted `relay-credentials.json`; the
    panel writes all of them, the environment overrides any field, and the VAPID
    contact and relay target are applied live. The appearance choice is
    browser-local: it never reaches the hub service or its database.
+   Adapter installs are off by default; they also require a loopback panel and a
+   local hub process, so a containerized hub and a remote-exposed panel never
+   receive SSH or Docker install actions.
 7. **Traffic monitoring is advisory and in memory.** The meter counts frame
    sizes, decrypted request actions, and the failures the hub already detects;
    it never reads or stores payloads. Counters live in a sixty-minute ring of
@@ -525,7 +532,7 @@ card.
 - Session: `GET|POST|DELETE /panel/api/v1/session`
 - Setup: `POST /panel/api/v1/setup` with `{ "username": "...", "password": "..." }`,
   plus `"token"` only when the host supplied one
-- Read API: `GET /panel/api/v1/status` (API version `12`, authenticated)
+- Read API: `GET /panel/api/v1/status` (API version `13`, authenticated)
 - Sessions API: `GET /panel/api/v1/sessions` (authenticated) accepts
   `harnessID`, `running=true|false`, `archived=true|false`, `q`, and `limit`
   (1–500). It returns `{ generatedAt, sessions, harnesses, truncated }`, with one
@@ -534,7 +541,8 @@ card.
   - `POST /panel/api/v1/features` with `{ "feature": "...", "enabled": true }`
   - `POST /panel/api/v1/agent` with `{ "stopped": true }` (external connections off)
   - `POST /panel/api/v1/orchestration` with `{ "enabled": true }`
-  - `POST /panel/api/v1/config` with `{ "pairingBaseUrl": "https://..." }` or
+  - `POST /panel/api/v1/config` with `{ "pairingBaseUrl": "https://..." }`,
+    `{ "adapterRegistryUrl": "https://..." }`, or
     `{ "vapidSubject": "mailto:..." }`; send `null` to restore the default
   - `POST /panel/api/v1/relay` with `{ "url": "wss://...", "agentToken": "..." }`;
     an omitted token keeps its saved value, and `room` is rejected
@@ -546,6 +554,16 @@ card.
   - `DELETE /panel/api/v1/harnesses/pairings/:id` cancels one
   - `POST /panel/api/v1/harnesses/:id/test|activate|forget`
   - `DELETE /panel/api/v1/harnesses/:id`
+  - `GET /panel/api/v1/install` returns the registry manifests, SSH hosts,
+    Docker containers, and whether installs are available
+  - `POST /panel/api/v1/install` with
+    `{ "kind": "opencode", "method": "ssh|docker", "host": {...}, "container": "...", "opencodeUrl": "..." }`
+    creates a pairing and starts the registry install script; the response is
+    `{ pairing, job }`
+  - `GET /panel/api/v1/install/jobs/:id` polls a job;
+    `DELETE /panel/api/v1/install/jobs/:id` cancels it
+  - `POST /panel/api/v1/install/settings` with `{ "enabled": true }` toggles
+    adapter installs
   - `POST /panel/api/v1/devices/pairings` with `{ "localOnly": true }` creates a
     browser pairing link, code, and fingerprint
   - `DELETE /panel/api/v1/devices/pairings/:id` cancels an unused browser code
@@ -564,6 +582,8 @@ card.
   - `CLARA_PANEL_SECURE_COOKIE=1` for a loopback-preserving HTTPS proxy
   - `CLARA_PANEL_DISABLED=1` disables the panel
   - `CLARA_PAIRING_BASE_URL` overrides the panel Web URL
+  - `CLARA_ADAPTER_REGISTRY_URL` overrides the adapter registry base
+    (default `https://clara.kalenmichael.com/adapters`)
   - `CLARA_VAPID_SUBJECT` overrides the panel VAPID contact
   - `CLARA_WEB_PORT` sets the default Web URL port (default `8080`)
   - `CLARA_DB_PATH` moves the database (default `<data dir>/clara.db`)

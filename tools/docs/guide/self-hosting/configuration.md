@@ -50,9 +50,11 @@ relay or its room can require adapters and devices to pair again.
 ## Connect a harness
 
 1. Start the hub and open the panel.
-2. Open **Harness**, use **Add harness**, choose the adapter type and where the
-   adapter runs. OpenCode is the only adapter type included with this release.
-3. Copy the pairing code or install command and run it on the harness machine.
+2. Open **Harness**, use **Add harness**, and choose the adapter type. Then choose
+   **SSH**, **Docker**, or **Manual**. SSH and Docker run the registry install
+   script on the target; Manual copies the code and command. Turn on install
+   actions in **Settings → Adapter downloads** first.
+3. For a manual install, run the copied command on the harness machine.
 4. The adapter connects out to the hub. **Paired harnesses** shows
    **Paired · Offline** until the adapter connects, then **Online** with a live
    row under **Connected adapters**. Use **Test** to probe it and **Activate**
@@ -68,6 +70,20 @@ and password stay in the adapter's own config on the harness machine.
 
 In Docker, the adapter connects to `ws://server:8788/ws` on the `clara`
 network. `127.0.0.1` means the adapter container itself.
+
+## Adapter downloads
+
+**Settings → Adapter downloads** sets the registry URL and turns SSH/Docker
+installs on or off. The registry publishes one manifest per harness at
+`<registry>/<harness>/manifest.json`; the default registry is
+`https://clara.kalenmichael.com/adapters`. The hub reads the manifest, verifies
+the install script, and runs it on the target. It never downloads the adapter
+itself, and the panel lets the target download the platform build.
+
+`CLARA_ADAPTER_REGISTRY_URL` overrides the panel value. Installs are off by
+default and are available only when the panel is loopback-only and the hub runs
+as a local process. A containerized hub or a remote-exposed panel uses the
+manual command instead.
 
 ## Set the Web URL
 

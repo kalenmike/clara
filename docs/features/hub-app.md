@@ -56,6 +56,11 @@ hub data model, pairing, relay, panel, and adapters are unchanged.
    EOF. The tray Quit uses the stdin path, waits briefly, then kills the child.
 8. The panel assets are embedded in the sidecar and extracted once per build to
    the app cache. The shipped sidecar is one executable.
+9. The sidecar runs adapter installs for the panel. SSH and Docker actions use
+   the signed-in user's `~/.ssh/config`, SSH keys, and Docker socket; the hub
+   embeds no adapter artifacts. It reads the adapter registry and runs the
+   install script on the target when the owner enables installs in the panel.
+   A containerized hub and a remote-exposed panel never receive these actions.
 
 ## Edge cases
 
@@ -130,7 +135,11 @@ hub data model, pairing, relay, panel, and adapters are unchanged.
   desktop shell read it.
 - Hub app environment: `CLARA_CONFIG_DIR`, `CLARA_DATA_DIR`, `CLARA_CACHE_DIR`,
   loopback bind hosts, and `CLARA_CONTROL_STDIN=1`. The sidecar chooses the
-  ports.
+  ports. `CLARA_ADAPTER_REGISTRY_URL` overrides the adapter registry; the panel
+  can edit the same value in `server.json`.
+- Adapter installs: the sidecar reads `~/.ssh/config` and runs `ssh`/`docker`
+  with a fixed command. The panel's install switch is stored as
+  `install.enabled` in SQLite and is off by default.
 - Docker: `infra/docker/server.Dockerfile` builds the Bun sidecar; the Node
   fallback is `server-node.Dockerfile`. Compose keeps the fixed `8788`/`8790`
   mappings and uses `clara-server health` for the healthcheck.
