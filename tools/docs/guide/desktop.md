@@ -74,3 +74,6 @@ the system webview exposes; pasting the code always works.
 
 Everything else, including end-to-end encryption, approval prompts, and cost
 reporting, matches the web client.
+
+To run the hub itself from a desktop window and tray icon, see the
+[Hub app](hub-app.md).

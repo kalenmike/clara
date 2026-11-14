@@ -90,6 +90,22 @@ their own hosts. AppImage bundling sets `NO_STRIP` and extract-and-run so
 linuxdeploy survives without FUSE; narrow the bundle list if it still fails. See
 [features/desktop.md](features/desktop.md).
 
+### Hub app
+
+`apps/hub/desktop` is a second Tauri app: a tray shell around the Bun hub
+sidecar. It needs the same Rust and WebView prerequisites, plus Bun 1.4+. The
+sidecar build embeds the panel and compiles one executable.
+
+```bash
+pnpm hub:sidecar   # panel + embedded-asset sidecar only
+pnpm hub:dev       # sidecar, then the tray app
+pnpm hub:build     # sidecar, then the host installer
+```
+
+`pnpm build` does not build either Tauri app. See
+[features/hub-app.md](features/hub-app.md) for ports, the runtime file, and the
+Docker switch.
+
 Each build verifies the result:
 
 - enabled: the Cloudflare API routes, panel UI chunk, and `dist/relay/worker.mjs`

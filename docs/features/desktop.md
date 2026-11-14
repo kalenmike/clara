@@ -39,6 +39,10 @@ into the checkout.
    new windows are denied. Other schemes never reach the system.
 5. The window is served with the same CSP as the deployed web headers. No
    remote page is trusted inside the app.
+6. A local hub can return on a different port after a conflict. The shell reads
+   the shared runtime file and exposes it to the webview through Tauri IPC; the
+   client refreshes its stored local URL on boot and reconnect. Relay pairings
+   keep their stored relay URL.
 
 ## Edge cases
 
@@ -60,6 +64,8 @@ into the checkout.
 - WebCrypto must be available for device-key pairing. If a platform webview
   ever loads the app outside a secure context, pairing fails instead of
   silently degrading.
+- A local port change is repaired from the runtime file without a new pairing.
+  A remote client that cannot read the file keeps its relay URL.
 - Several app windows can run at once. Each opens its own hub connection from
   the same paired device.
 
@@ -106,6 +112,9 @@ into the checkout.
   keeps using the service worker. Notifications stay behind
   `features/notifications/notifier.ts`, and pairing capture accepts an explicit
   URL, so both can gain desktop branches without touching their callers.
+- The shell exposes `hub_runtime` through `withGlobalTauri`. On boot and
+  reconnect, `apps/web/src/lib/desktop-runtime.ts` asks for the live local
+  `wsUrl` and `connection-provider.tsx` persists it when it changed.
 - See [install.md](install.md) for the web/PWA lifecycle and
   [../architecture/overview.md](../architecture/overview.md) for the connection
   model.

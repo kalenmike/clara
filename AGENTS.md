@@ -12,6 +12,7 @@ for every AI agent working in this repo.
 apps/web                             React/Vite SPA (Cloudflare Pages or the web container)
 apps/desktop                         Tauri shell that packages the web client for desktop
 apps/hub/panel                       Authenticated hub panel and setup surface
+apps/hub/desktop                     Tauri tray app that runs the Bun hub sidecar and panel
 apps/hub/server                      Node hub service, local WS + outbound Cloudflare relay
 apps/orchestrator                    Loopback orchestration service, REST/SSE/MCP
 apps/adapters/opencode               OpenCode harness adapter, binding, and standalone bin
@@ -47,7 +48,8 @@ infra/docker                         Compose files, Dockerfiles, and the stack .
 - TanStack Query 5 + a small external chat store
 - `@opencode/client@2.1.1` — pinned to the targeted OpenCode server version; used only by the OpenCode adapter and Clara Lab
 - `@anthropic-ai/claude-agent-sdk@0.3.325` — pinned to Claude Code 2.1.325; used only by the Claude Code adapter
-- Tauri 2 and Rust for the desktop shell; `@tauri-apps/cli` and the `tauri` crates live only in `apps/desktop`
+- Tauri 2 and Rust for the desktop apps; `@tauri-apps/cli` and the `tauri` crates live only in `apps/desktop` and `apps/hub/desktop`
+- Bun 1.4+ for the hub sidecar; `@clara/sqlite` selects `better-sqlite3` on Node and `bun:sqlite` under Bun
 - `ws`, WebCrypto, Cloudflare Workers/Durable Objects, Wrangler
 
 ## Commands
@@ -105,6 +107,11 @@ pnpm desktop:build  # Native installer for the host OS (needs Rust + WebView dev
 pnpm desktop:build:app # App bundle without installers
 pnpm desktop:build:docker # Linux bundles in Docker, extracted to dist/desktop
 pnpm desktop:icons  # Regenerate the desktop icons from the web mark
+pnpm hub:dev        # Hub tray app with the Bun sidecar
+pnpm hub:build      # Hub native installer for the host OS
+pnpm hub:build:app  # Hub app bundle without installers
+pnpm hub:sidecar    # Build the embedded-panel Bun sidecar only
+pnpm hub:icons      # Regenerate the hub app icons from the web mark
 ```
 
 ## Worktrees
@@ -185,8 +192,10 @@ transport, Worker, Durable Object, or crypto.
   `.env`/`.dev.vars`.
 - Keep files focused; split a component once it carries more than one concern.
 - The desktop shell lives in `apps/desktop` and consumes the web client built in
-  desktop mode. Keep Tauri dependencies out of the web, hub, and shared
-  packages; desktop-only web behavior sits behind the build-time surface flag.
+  desktop mode. The hub tray shell lives in `apps/hub/desktop` and consumes the
+  Bun sidecar built in `apps/hub/server`. Keep Tauri dependencies out of the web,
+  hub server, and shared packages; desktop-only web behavior sits behind the
+  build-time surface flag.
 - Commit incrementally with Conventional Commits; see [Commits](#commits).
 
 ## Planning
@@ -299,6 +308,7 @@ is never published.
 | Pairing, QR codes, device storage  | [docs/features/pairing.md](docs/features/pairing.md)                     |
 | Install, updates, offline caching  | [docs/features/install.md](docs/features/install.md)                     |
 | Desktop shell and native build     | [docs/features/desktop.md](docs/features/desktop.md)                     |
+| Hub tray app, sidecar, ports       | [docs/features/hub-app.md](docs/features/hub-app.md)                     |
 | Connection and credentials         | [docs/features/connection.md](docs/features/connection.md)               |
 | Hub panel and local hub state      | [docs/features/panel.md](docs/features/panel.md)                         |
 | Project/session browser            | [docs/features/sessions.md](docs/features/sessions.md)                   |
@@ -313,8 +323,9 @@ is never published.
 ## Definition of done
 
 1. `pnpm check` passes.
-2. `pnpm build` succeeds. The desktop shell is outside that build; run
-   `pnpm desktop:build` when your change touches the shell or its configuration.
+2. `pnpm build` succeeds. The desktop shells are outside that build; run
+   `pnpm desktop:build` when your change touches the client shell and
+   `pnpm hub:build` when it touches the hub shell or sidecar.
 3. The touched screen works against a live target harness, through the
    affected transport. For the included adapter, that means OpenCode 2.1.x.
    A desktop shell change is verified by building the app on the affected
