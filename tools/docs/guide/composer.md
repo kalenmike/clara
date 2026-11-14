@@ -19,6 +19,19 @@ opens from **Reply**, **New**, or when a new session is created.
 The composer remembers its size. **Expanded** is the default; the smaller dock is
 restored the next time it opens if you chose it before.
 
+## Pin the composer
+
+Use the pin button in the composer title bar to dock it as a full-width block at
+the bottom of the chat. The thread ends at the top of the dock, so the composer
+never covers a message.
+
+- Drag the dock's top edge to make it taller or shorter.
+- With the resize handle focused, use Up/Down, Home/End, or double-click to
+  reset the height.
+- **Minimize** and **Maximize** leave the dock and use the usual floating
+  window. Restoring returns to the floating size.
+- Pin and dock height are remembered across sessions and reloads.
+
 ## Keep the draft
 
 Unsent text is stored per session in local storage, so switching sessions or
