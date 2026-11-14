@@ -68,10 +68,14 @@ ENV CLARA_DIRTY=$CLARA_DIRTY
 RUN node apps/hub/desktop/scripts/build-sidecar.mjs
 
 FROM debian:bookworm-slim AS runtime
+# Keep the 1000:1000 IDs the previous Node image used. Existing
+# clara-server-config and clara-server-data volumes were created by the `node`
+# user, and a different UID makes the hub fail with EACCES in /data.
 RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates \
     && rm -rf /var/lib/apt/lists/* \
-    && groupadd --system clara \
-    && useradd --system --gid clara --home-dir /app clara
+    && groupadd --gid 1000 clara \
+    && useradd --uid 1000 --gid 1000 --home-dir /app \
+               --no-create-home --shell /usr/sbin/nologin clara
 
 ENV CLARA_CONFIG_DIR=/config
 ENV CLARA_DATA_DIR=/data
