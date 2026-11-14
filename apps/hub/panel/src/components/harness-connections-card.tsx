@@ -106,8 +106,8 @@ export function HarnessConnectionsCard({
 
         {harnesses.length === 0 ? (
           <EmptyState>
-            No harness is paired yet. Add one above, then run the install command on the harness
-            machine.
+            No harness is paired yet. Use Pair Harness, then install the adapter on the machine that
+            runs it.
           </EmptyState>
         ) : (
           <div className="-mx-1 overflow-x-auto">

@@ -21,44 +21,52 @@ contacts the harness directly.
 
 ## User flow
 
-1. Open the hub panel → **Harness** → **Add harness** → choose OpenCode,
-   Claude Code, or Pi and the install method: **SSH**, **Docker**, or
-   **Manual**. Manual also chooses the adapter location: **Docker network**
-   (default), **This machine**, or **Cloudflare relay**.
-2. SSH selects a host from `~/.ssh/config` or takes a user/host/port; Docker
-   lists running containers. The hub fetches the adapter manifest from the
-   configured registry and runs its install script on the target. Manual shows
-   the pairing code and the registry or repository command. Adapter codes start
-   with `clara-harness1_` and only install an adapter; a browser pairs with a
-   `clara1_` code from **Clients → Pair Client** or `pnpm clara pair`.
-3. The install script detects the target platform, downloads the matching
+1. Open the hub panel → **Harness** → **Pair Harness**. Choose OpenCode,
+   Claude Code, or Pi, then answer one question: is the harness **Remote** or
+   **Local**?
+2. Remote installs over **SSH** from a `~/.ssh/config` host or a typed
+   user/host/port and always uses the relay. Local installs into a running
+   **Docker** container or runs directly on the hub host; a container on a
+   host-process hub falls back to the relay. Every branch also offers **Copy
+   code** and **Copy command** for a manual install, and the local branch has an
+   **Advanced** WebSocket URL override for a non-default address.
+3. The hub fetches the adapter manifest from the configured registry and runs
+   its install script on the target. Adapter codes start with `clara-harness1_`
+   and only install an adapter; a browser pairs with a `clara1_` code from
+   **Clients → Pair Client** or `pnpm clara pair`.
+4. The install script detects the target platform, downloads the matching
    Bun-compiled adapter archive, verifies its SHA-256, installs it under the
    adapter data directory, and runs the adapter installer. The manual commands
    are `pnpm clara adapter install --opencode --pair <code>`,
    `--claude`, and `--pi`.
-4. The OpenCode installer discovers OpenCode from flags, environment, or
+5. The OpenCode installer discovers OpenCode from flags, environment, or
    `~/.local/state/opencode/service.json`. The Claude Code installer uses the
    machine's existing Claude Code login and accepts `--claude-path`, `--model`,
    and `--permission-mode`. It never stores an API key. The Pi installer uses
    the machine's installed `pi` binary in RPC mode.
-5. The adapter enrolls and stores its credential. The installer then starts a
+6. The adapter enrolls and stores its credential. The installer then starts a
    user service, or a background adapter process when systemd/launchd is not
-   available. The panel shows **Paired · Offline** under **Paired harnesses**
-   until the adapter connects; it then shows **Online** and adds a live row under
-   **Connected adapters**. The first adapter is **Active**; turning the Harness
-   switch off shows **Off** while the adapter credential is kept.
-6. Open the web client. Sessions arrive through the adapter; Clara projects are
+   available. The pairing card shows **Waiting for the adapter to connect…**
+   and switches to **Connected** when the adapter registers; closing before
+   enrollment cancels the code. The panel shows **Paired · Offline** under
+   **Paired harnesses** until the adapter connects; it then shows **Online** and
+   adds a live row under **Connected adapters**. The first adapter is
+   **Active**; turning the Harness switch off shows **Off** while the adapter
+   credential is kept.
+7. Open the web client. Sessions arrive through the adapter; Clara projects are
    created in the web client and their workspaces link directories on the
    adapter. The hub never contacts the harness.
 
 ## Core business rules
 
 1. The adapter connects out; the hub does not connect to an adapter port.
-   Local, Docker, and relay are transport choices in the pairing code, not
+   Local, Docker, and relay are transport values in the pairing code, not
    separate architectures.
-2. The panel chooses the pairing transport: Docker network for an adapter
-   container, loopback for an adapter on the hub host, or the relay for a
-   remote adapter. The default is Docker.
+2. The panel infers the transport from the machine answer: the relay for a
+   remote harness, the Docker network for a container on a containerized hub,
+   and loopback for a local harness outside Docker. A container on a
+   host-process hub uses the relay. The user does not choose the transport; an
+   advanced WebSocket URL can override the local address.
 3. Adapter pairing uses the same one-time code, fingerprint, expiry, E2EE
    handshake, replay guard, and revocation model as browser pairing. A relay
    code carries a ten-minute enrollment grant; the adapter then receives and
@@ -245,8 +253,9 @@ ask for confirmation run without one, exactly as in the Pi TUI.
 - **Adapter reinstalled** — the same identity reconnects the same sessions and
   metadata without duplicating the connection.
 - **Relay offline** — the adapter reconnects when the relay or hub returns.
-- **Install actions off** — SSH and Docker are disabled until the owner turns
-  on **Settings → Adapter downloads**. The manual code keeps working.
+- **Install actions off** — SSH and Docker installs are disabled until the
+  owner turns on **Settings → Adapter downloads**. **Copy code** and **Copy
+  command** keep working.
 - **Registry unreachable** — the panel names the manifest error and leaves the
   manual commands available. An install does not start with no manifest.
 - **SSH host missing** — an alias that is not in `~/.ssh/config` is rejected;
@@ -256,7 +265,8 @@ ask for confirmation run without one, exactly as in the Pi TUI.
   without prompting.
 - **Container has no downloader** — the install stops when the selected
   container has neither `curl` nor `wget`; install into a different container or
-  use Manual. The included OpenCode adapter image ships `curl`.
+  copy the code and run the installer by hand. The included OpenCode adapter
+  image ships `curl`.
 - **Checksum mismatch** — the hub verifies the install script, and the script
   verifies the adapter archive. Either mismatch fails without executing the
   downloaded file.

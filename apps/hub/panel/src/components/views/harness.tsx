@@ -1,19 +1,12 @@
+import { useState } from 'react'
 import type { PanelSnapshot } from '@clara/shared-types'
 import { findFeature } from '../../lib/feature-control.ts'
-import { harnessHealth, type HealthTone } from '../../lib/health.ts'
 import { usePeek } from '../../lib/peek-context.tsx'
-import { HarnessAddCard } from '../harness-add-card.tsx'
 import { HarnessConnectionsCard } from '../harness-connections-card.tsx'
+import { HarnessPairDialog } from '../harness-pair-dialog.tsx'
 import { HarnessSessionsCard } from '../harness-sessions-card.tsx'
-import { Badge, Notice, type Tone } from '../primitives.tsx'
+import { Notice } from '../primitives.tsx'
 import { View } from '../shell/view.tsx'
-
-const HEALTH_TONE: Record<HealthTone, Tone> = {
-  ok: 'success',
-  warn: 'warning',
-  bad: 'danger',
-  idle: 'neutral',
-}
 
 export function HarnessView({
   snapshot,
@@ -25,9 +18,9 @@ export function HarnessView({
   onChanged: () => void
 }) {
   const { redact } = usePeek()
+  const [pairingOpen, setPairingOpen] = useState(false)
   const feature = findFeature(snapshot.controls, 'opencode')
   const activeHarness = snapshot.harnesses.find((harness) => harness.isActive)
-  const health = harnessHealth(snapshot.opencode, activeHarness?.label)
   const adapterClients = snapshot.clients.filter((client) => client.kind === 'adapter')
   const notice =
     snapshot.harness.error ??
@@ -41,7 +34,11 @@ export function HarnessView({
       kicker={activeHarness?.label ?? 'Harness'}
       title="Harness"
       description="Live adapter sessions, paired harnesses, and the harness server this hub proxies."
-      actions={<Badge tone={HEALTH_TONE[health.tone]}>{health.status}</Badge>}
+      actions={
+        <button type="button" className="panel-button primary" onClick={() => setPairingOpen(true)}>
+          Pair Harness
+        </button>
+      }
     >
       {notice ? (
         <div className="mb-3">
@@ -49,16 +46,6 @@ export function HarnessView({
         </div>
       ) : null}
       <div className="space-y-3">
-        <HarnessAddCard
-          enabled={feature.desired}
-          installEnabled={snapshot.controls.install.enabled}
-          relayConfigured={snapshot.relay.configured}
-          containerized={snapshot.agent.container}
-          harnesses={snapshot.harnesses}
-          onChanged={onChanged}
-          now={now}
-          initialTransport={snapshot.agent.container ? 'docker' : 'local'}
-        />
         <HarnessSessionsCard clients={adapterClients} harnesses={snapshot.harnesses} now={now} />
         <HarnessConnectionsCard
           harnesses={snapshot.harnesses}
@@ -67,6 +54,13 @@ export function HarnessView({
           now={now}
         />
       </div>
+      <HarnessPairDialog
+        open={pairingOpen}
+        snapshot={snapshot}
+        now={now}
+        onChanged={onChanged}
+        onClose={() => setPairingOpen(false)}
+      />
     </View>
   )
 }

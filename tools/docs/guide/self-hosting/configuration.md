@@ -37,7 +37,7 @@ After the owner account exists, the panel opens a dismissible Setup modal:
 1. Choose **Local only** or **Remote via relay**. The relay path embeds the
    relay editor and the Web URL; it continues only when the relay is online and
    the Web URL is HTTPS.
-2. Pair a harness. The adapter transport choices follow the connection path.
+2. Pair a harness. The setup path preselects **Remote** or **Local**.
 3. Pair a client. The pairing link uses the Web URL chosen in step 1.
 4. Read **How Clara works**.
 
@@ -50,11 +50,12 @@ relay or its room can require adapters and devices to pair again.
 ## Connect a harness
 
 1. Start the hub and open the panel.
-2. Open **Harness**, use **Add harness**, and choose the adapter type. Then choose
-   **SSH**, **Docker**, or **Manual**. SSH and Docker run the registry install
-   script on the target; Manual copies the code and command. Turn on install
-   actions in **Settings → Adapter downloads** first.
-3. For a manual install, run the copied command on the harness machine.
+2. Open **Harness** and choose **Pair Harness**. Choose the adapter type, then
+   answer **Remote** or **Local**. Remote installs over SSH; Local installs into
+   a running container or runs on this machine. Both branches can also copy the
+   code and command. Turn on install actions in
+   **Settings → Adapter downloads** first.
+3. Run the install action, or run the copied command on the harness machine.
 4. The adapter connects out to the hub. **Paired harnesses** shows
    **Paired · Offline** until the adapter connects, then **Online** with a live
    row under **Connected adapters**. Use **Test** to probe it and **Activate**

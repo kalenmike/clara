@@ -2,7 +2,8 @@ import { Cable } from 'lucide-react'
 import type { PanelSnapshot } from '@clara/shared-types'
 import { findFeature } from '../../lib/feature-control.ts'
 import type { SetupState } from '../../lib/onboarding.ts'
-import { HarnessAddCard } from '../harness-add-card.tsx'
+import { useHarnessPairing } from '../../lib/use-harness-pairing.ts'
+import { HarnessPairContent, HarnessPairFooter } from '../harness-pair-views.tsx'
 import { Badge, Notice } from '../primitives.tsx'
 
 export function HarnessStep({
@@ -17,12 +18,13 @@ export function HarnessStep({
   onChanged: () => void
 }) {
   const feature = findFeature(snapshot.controls, 'opencode')
-  const initialTransport =
-    setup.path === 'relay' ? 'relay' : snapshot.agent.container ? 'docker' : 'local'
-  const allowedTransports =
-    setup.path === 'relay'
-      ? (['relay', 'local', 'docker'] as const)
-      : (['local', 'docker'] as const)
+  const flow = useHarnessPairing({
+    open: true,
+    snapshot,
+    now,
+    onChanged,
+    initialMachine: setup.path === 'relay' ? 'remote' : 'local',
+  })
   const online = snapshot.harnesses.filter((harness) => harness.online).length
 
   return (
@@ -41,9 +43,9 @@ export function HarnessStep({
           What is a harness?
         </p>
         <p className="mt-1">
-          It is the agent server that runs your sessions. This release includes OpenCode 2.1.x and
-          Claude Code 2.1.325 adapters. Choose the harness you run, then run the printed install
-          command on the machine that runs it.
+          It is the agent server that runs your sessions. This release includes OpenCode 2.1.x,
+          Claude Code 2.1.325, and Pi 1.5.x adapters. Choose the harness you run, then install the
+          adapter on the machine that runs it.
         </p>
       </div>
 
@@ -82,17 +84,12 @@ export function HarnessStep({
         </div>
       ) : null}
 
-      <HarnessAddCard
-        enabled={feature.desired}
-        installEnabled={snapshot.controls.install.enabled}
-        relayConfigured={snapshot.relay.configured}
-        containerized={snapshot.agent.container}
-        harnesses={snapshot.harnesses}
-        onChanged={onChanged}
-        now={now}
-        initialTransport={initialTransport}
-        allowedTransports={[...allowedTransports]}
-      />
+      <div className="overflow-hidden rounded-lg border border-neutral-200 dark:border-neutral-800">
+        <div className="panel-setup-body">
+          <HarnessPairContent flow={flow} now={now} />
+        </div>
+        <HarnessPairFooter flow={flow} />
+      </div>
     </div>
   )
 }
