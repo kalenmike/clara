@@ -231,26 +231,52 @@ describe('pair command configuration', () => {
   })
 })
 
-describe('loadConfig no-relay pairing', () => {
-  it('drops the relay so a local code needs no relay tokens', async () => {
+describe('pairing with an incomplete relay', () => {
+  it('falls back to a local code without relay tokens', async () => {
     const dir = tempDir()
     process.env.CLARA_CONFIG_DIR = dir
     process.env.XDG_STATE_HOME = tempDir()
     process.env.CLARA_RELAY_URL = 'wss://relay.example'
     process.env.CLARA_RELAY_ROOM = 'room-1'
 
-    expect(() => loadConfig()).toThrow(/Missing CLARA_AGENT_TOKEN and CLARA_CLIENT_TOKEN/)
+    const config = loadConfig()
+    expect(config.relay?.agentToken).toBe('')
+    const incomplete = await createPairingPayload(config, fakeDevices())
+    expect(incomplete).toMatchObject({
+      wsUrl: 'ws://127.0.0.1:8788/ws',
+      room: 'local',
+      clientToken: 'local',
+      enrollId: 'enroll-id',
+    })
 
-    const config = loadConfig({ noRelay: true })
-    expect(config.relay).toBeUndefined()
-    expect(config.sources.relayUrl).toBe('none')
+    const local = loadConfig({ noRelay: true })
+    expect(local.relay).toBeUndefined()
+    expect(local.sources.relayUrl).toBe('none')
 
-    const payload = await createPairingPayload(config, fakeDevices())
+    const payload = await createPairingPayload(local, fakeDevices())
     expect(payload).toMatchObject({
       wsUrl: 'ws://127.0.0.1:8788/ws',
       room: 'local',
       clientToken: 'local',
       enrollId: 'enroll-id',
     })
+  })
+
+  it('uses a local link and warns when the relay tokens are missing', async () => {
+    const config = baseConfig({
+      relay: { url: 'wss://relay.example', room: 'room-1', agentToken: '', clientToken: '' },
+    })
+    const logs: string[] = []
+    const spy = vi.spyOn(console, 'log').mockImplementation((...args: unknown[]) => {
+      logs.push(args.map(String).join(' '))
+    })
+    try {
+      await printPairing(config, fakeDevices(), false)
+    } finally {
+      spy.mockRestore()
+    }
+
+    expect(logs.join('\n')).toContain('http://127.0.0.1:8080/#pair=')
+    expect(logs.join('\n')).toContain('tokens are missing')
   })
 })

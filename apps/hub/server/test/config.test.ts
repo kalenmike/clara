@@ -420,7 +420,7 @@ describe('panel-managed relay configuration', () => {
     process.env.CLARA_RELAY_URL = 'wss://relay.example'
     process.env.CLARA_RELAY_ROOM = 'room-1'
 
-    const config = loadConfig({ allowMissingRelayTokens: true })
+    const config = loadConfig()
     expect(config.relay?.agentToken).toBe('')
     expect(() => validateRelayConfig(config)).toThrow(/Missing CLARA_AGENT_TOKEN/)
 
@@ -467,7 +467,7 @@ describe('panel-managed relay configuration', () => {
     const dir = tempDir()
     process.env.CLARA_CONFIG_DIR = dir
     process.env.XDG_STATE_HOME = tempDir()
-    const config = loadConfig({ allowMissingRelayTokens: true })
+    const config = loadConfig()
     config.relay = {
       url: 'wss://relay.example',
       room: 'room-1',

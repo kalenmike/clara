@@ -169,6 +169,11 @@ device key through a one-time code; there is no shared browser key.
   desktop client refreshes a local `wsUrl` on boot and reconnect, so a port
   change does not require pairing again. Relay pairings carry the relay URL and
   are unaffected.
+- Incomplete relay: a saved relay URL without both tokens never blocks startup.
+  The hub runs local-only, the panel marks the relay as missing its tokens, and
+  saving both in the Relay card starts the relay without a restart. Only explicit
+  relay actions (relay pairing, Cloudflare deployment) reject an incomplete
+  relay.
 - Docker stack: `pnpm clara start` starts the orchestrator, server, and web
   client together; `--no-*` selects a subset; `restart` recreates the selection.
   Use the scoped commands for one service.

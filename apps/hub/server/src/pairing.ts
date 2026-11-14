@@ -6,7 +6,7 @@ import {
   encodePairingCode,
   type PairingPayload,
 } from '@clara/shared-types'
-import { localWebPort, type ServerConfig } from './config.ts'
+import { localWebPort, type RelayConfig, type ServerConfig } from './config.ts'
 import type { DeviceStore } from './store/devices.ts'
 
 export type PairingOptions = {
@@ -23,7 +23,7 @@ export async function createPairingPayload(
   devices: DeviceStore,
   options: PairingOptions = {}
 ): Promise<PairingPayload> {
-  const relay = options.noRelay ? undefined : config.relay
+  const relay = options.noRelay ? undefined : usableRelay(config.relay)
   const wsUrl = relay
     ? relayWsUrl(relay.url, relay.room)
     : `ws://${config.local.host}:${config.local.port}/ws`
@@ -69,8 +69,10 @@ export async function printPairing(
   options: PairingOptions = {}
 ): Promise<PairingPayload> {
   const payload = await createPairingPayload(config, devices, options)
+  const relayIncomplete = Boolean(config.relay && !usableRelay(config.relay))
+  const useLocalLink = Boolean(options.noRelay || relayIncomplete)
   const url = buildPairingUrl(
-    pairingLinkBase(config.pairingBaseUrl, config.local.host, { noRelay: options.noRelay }),
+    pairingLinkBase(config.pairingBaseUrl, config.local.host, { noRelay: useLocalLink }),
     payload
   )
   const code = `${PAIRING_CODE_PREFIX}${encodePairingCode(payload)}`
@@ -92,6 +94,10 @@ export async function printPairing(
     if (!options.noRelay && !isLoopbackUrl(config.pairingBaseUrl)) {
       console.log('               Use --no-relay to open the local web app instead.')
     }
+  } else if (!options.noRelay && !usableRelay(config.relay)) {
+    console.log(
+      '  Relay:       tokens are missing; this code is local-only. Save both tokens in the hub panel Relay card.'
+    )
   }
   console.log('')
   if (withQr) qrcode.generate(url, { small: true })
@@ -106,6 +112,10 @@ function isLoopbackUrl(value: string): boolean {
   } catch {
     return false
   }
+}
+
+function usableRelay(relay: RelayConfig | undefined): RelayConfig | undefined {
+  return relay?.url && relay.agentToken && relay.clientToken ? relay : undefined
 }
 
 export function relayWsUrl(value: string, room: string): string {

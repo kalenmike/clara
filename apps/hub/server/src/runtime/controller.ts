@@ -113,6 +113,14 @@ function adapterSessions(harness: HarnessManager) {
 
 const FEATURE_ORDER: FeatureName[] = ['opencode', 'local', 'relay', 'push']
 
+const RELAY_TOKENS_MISSING =
+  'The relay URL is saved, but the hub and client tokens are missing. Save both in the Relay card or the environment.'
+
+/** A relay is only usable when its URL and both tokens are present. */
+function relayUsable(relay: RelayConfig | undefined): relay is RelayConfig {
+  return Boolean(relay?.url && relay.agentToken && relay.clientToken)
+}
+
 /**
  * Owns the lifecycle of every outbound transport. Persisted settings are the
  * desired state; the effective state can only be true when the process is not
@@ -179,7 +187,8 @@ export class RuntimeController {
     })
 
     if (config.relay) {
-      this.createRelayTransport(config.relay)
+      if (relayUsable(config.relay)) this.createRelayTransport(config.relay)
+      else this.errors.set('relay', RELAY_TOKENS_MISSING)
     }
 
     this.localTransport = new LocalTransport({
@@ -225,7 +234,8 @@ export class RuntimeController {
     this.options.config.relay = relay
     this.options.info.room = relay?.room
 
-    const next = relay ? this.createRelayTransport(relay) : undefined
+    const next = relayUsable(relay) ? this.createRelayTransport(relay) : undefined
+    if (relay && !relayUsable(relay)) this.errors.set('relay', RELAY_TOKENS_MISSING)
     const shouldRun =
       next !== undefined &&
       this.options.settings.getFeature('relay') &&
@@ -756,12 +766,17 @@ export class RuntimeController {
     }
     const localOnly = record.localOnly === true
     const { config } = this.options
+    const relayIncomplete = Boolean(config.relay && !relayUsable(config.relay))
+    const useLocal = localOnly || relayIncomplete
+    if (!localOnly && relayIncomplete) {
+      this.options.log('relay tokens are missing; created a local browser pairing')
+    }
     this.options.devices.pruneExpiredTokens()
     const payload = await createPairingPayload(config, this.options.devices, {
-      noRelay: localOnly,
+      noRelay: useLocal,
     })
     const link = buildPairingUrl(
-      pairingLinkBase(config.pairingBaseUrl, config.local.host, { noRelay: localOnly }),
+      pairingLinkBase(config.pairingBaseUrl, config.local.host, { noRelay: useLocal }),
       payload
     )
     const code = `${PAIRING_CODE_PREFIX}${encodePairingCode(payload)}`
@@ -772,7 +787,7 @@ export class RuntimeController {
         link,
         wsUrl: payload.wsUrl,
         room: payload.room,
-        transport: config.relay && !localOnly ? 'relay' : 'local',
+        transport: payload.room === 'local' ? 'local' : 'relay',
         fingerprint: payload.fingerprint,
         expiresAt: new Date(payload.expiresAt).toISOString(),
       },
@@ -791,23 +806,23 @@ export class RuntimeController {
     const kind = typeof record.kind === 'string' ? record.kind.trim() : ''
     const label = typeof record.label === 'string' ? record.label.trim() : ''
     if (!kind) throw new PanelControlError(400, 'invalid_kind', 'Choose a harness type')
-    const pairing = await harnessCall(() =>
-      this.options.harness.createPairing({ kind, label: label || kind })
-    )
     const transport =
       record.transport === 'local' || record.transport === 'relay'
         ? record.transport
         : record.transport === 'docker'
           ? 'docker'
           : 'docker'
-    const relay = this.options.config.relay
+    const relay = relayUsable(this.options.config.relay) ? this.options.config.relay : undefined
     if (transport === 'relay' && !relay) {
       throw new PanelControlError(
         400,
-        'relay_unconfigured',
-        'Configure the relay before creating a relay pairing code'
+        'relay_tokens_required',
+        'Save both relay tokens in the Relay card before creating a relay pairing.'
       )
     }
+    const pairing = await harnessCall(() =>
+      this.options.harness.createPairing({ kind, label: label || kind })
+    )
     const localPort = this.options.config.local.port
     const room = transport === 'relay' && relay ? relay.room : 'local'
     const wsUrl =
@@ -957,6 +972,10 @@ export class RuntimeController {
           this.relayClient?.close()
           return
         }
+        if (!this.relayConfigured()) {
+          if (this.options.config.relay) this.errors.set('relay', RELAY_TOKENS_MISSING)
+          return
+        }
         if (!this.relayClient) return
         this.relayClient.start()
         return
@@ -1033,8 +1052,7 @@ export class RuntimeController {
   }
 
   private relayConfigured(): boolean {
-    const relay = this.options.config.relay
-    return Boolean(relay?.url && relay.agentToken && relay.clientToken)
+    return relayUsable(this.options.config.relay)
   }
 
   private harnessMutation(): PanelHarnessMutationResponse {
