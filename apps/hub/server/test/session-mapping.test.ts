@@ -122,6 +122,7 @@ function fakeHarness(options: { projects?: ClaraHarnessProject[] } = {}): FakeHa
     projects: projectStore,
     harnessProjectIds: (projectId: string) => links.get(projectId) ?? [],
     overlaySessionList: <T>(value: T) => value,
+    overlaySession: (harnessID: string, item: ClaraSession) => ({ ...item, harnessID }),
     connection: () => harness.active,
     request: async (action: { path: string; search?: string }) => {
       const search = new URLSearchParams(action.search ?? '')
