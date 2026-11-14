@@ -57,6 +57,23 @@ export default function CloudflareRelaySlot({ relay, now, onChanged }: Cloudflar
           <KeyValue label="Worker" mono>
             {cloudflare.scriptName ?? '—'}
           </KeyValue>
+          {cloudflare.customDomain ? (
+            <KeyValue label="Custom domain" mono>
+              <span className="inline-flex flex-wrap items-center justify-end gap-2">
+                <span>{cloudflare.customDomain.hostname}</span>
+                <span
+                  className={
+                    cloudflare.customDomain.ready
+                      ? 'rounded bg-emerald-100 px-1.5 py-0.5 text-[10px] font-medium text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300'
+                      : 'rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-medium text-amber-800 dark:bg-amber-950/60 dark:text-amber-300'
+                  }
+                >
+                  {cloudflare.customDomain.ready ? 'Ready' : 'Certificate pending'}
+                </span>
+              </span>
+            </KeyValue>
+          ) : null}
+          {cloudflare.disableWorkersDev ? <KeyValue label="workers.dev">Disabled</KeyValue> : null}
           <KeyValue label="Relay host" mono>
             <span className="inline-flex flex-wrap items-center justify-end gap-2">
               <span>{cloudflare.hostname ?? '—'}</span>
@@ -91,6 +108,13 @@ export default function CloudflareRelaySlot({ relay, now, onChanged }: Cloudflar
       {cloudflare.managed && !cloudflare.connected && relay.configured ? (
         <Notice tone="warning">
           The relay URL changed outside this deployment. Deploy again to reconnect it.
+        </Notice>
+      ) : null}
+      {cloudflare.customDomain && !cloudflare.customDomain.ready ? (
+        <Notice tone="warning">
+          The custom hostname is not answering yet, so the relay stays on the workers.dev hostname.
+          Cloudflare can take a few minutes to issue the certificate; deploy again once it is
+          active.
         </Notice>
       ) : null}
       {notice ? <Notice tone="warning">{redact(notice)}</Notice> : null}

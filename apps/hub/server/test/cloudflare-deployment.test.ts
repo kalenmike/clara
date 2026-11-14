@@ -1,19 +1,28 @@
-import { mkdtempSync, rmSync } from 'node:fs'
+import { mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { afterEach, describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import { generateSecretKey, loadSecretKey } from '@clara/crypto'
+import type { ServerConfig } from '../src/config.ts'
 import type { SecretKeyInfo } from '../src/store/secret-key.ts'
-import { CloudflareClient } from '../src/features/cloudflare-deployment/cloudflare-client.ts'
-import { deployRelay } from '../src/features/cloudflare-deployment/deploy.ts'
+import {
+  CloudflareClient,
+  CloudflareError,
+} from '../src/features/cloudflare-deployment/cloudflare-client.ts'
+import {
+  deployRelay,
+  validateCustomHostname,
+} from '../src/features/cloudflare-deployment/deploy.ts'
 import { createCloudflarePanelFeature } from '../src/features/cloudflare-deployment/panel-routes.ts'
-import type { CloudflareDeploymentState } from '../src/features/cloudflare-deployment/state.ts'
+import { CloudflareDeploymentState } from '../src/features/cloudflare-deployment/state.ts'
 import type { PanelFeatureRequest } from '../src/panel/feature.ts'
 import {
   forgetCloudflareToken,
   hasCloudflareToken,
   loadCloudflareToken,
+  loadRelayDeployment,
   saveCloudflareToken,
+  saveRelayDeployment,
 } from '../src/features/cloudflare-deployment/storage.ts'
 import { loadRelayCredentials, saveRelayCredentials } from '../src/store/relay.ts'
 import type { RelayArtifact } from '../src/features/cloudflare-deployment/artifact.ts'
@@ -27,6 +36,7 @@ function tempDir(): string {
 }
 
 afterEach(() => {
+  vi.unstubAllGlobals()
   for (const dir of tempDirs.splice(0)) rmSync(dir, { recursive: true, force: true })
 })
 
@@ -59,6 +69,42 @@ describe('cloudflare deployment storage', () => {
 
     forgetCloudflareToken(dir)
     expect(hasCloudflareToken(dir)).toBe(false)
+  })
+
+  it('keeps custom-domain fields and tolerates records written before they existed', () => {
+    const dir = tempDir()
+    const legacy = {
+      accountId: 'account',
+      scriptName: 'clara-relay',
+      hostname: 'clara-relay.example.workers.dev',
+      deployedAt: '2026-01-01T00:00:00.000Z',
+      reachable: true,
+      previewUrls: false,
+    }
+    writeFileSync(join(dir, 'relay-deployment.json'), JSON.stringify(legacy))
+
+    expect(loadRelayDeployment(dir)).toEqual(legacy)
+
+    saveRelayDeployment(dir, {
+      ...legacy,
+      customDomain: {
+        hostname: 'relay.example.com',
+        zoneId: 'zone-1',
+        domainId: 'domain-1',
+        ready: true,
+      },
+      disableWorkersDev: true,
+    })
+
+    expect(loadRelayDeployment(dir)).toMatchObject({
+      customDomain: {
+        hostname: 'relay.example.com',
+        zoneId: 'zone-1',
+        domainId: 'domain-1',
+        ready: true,
+      },
+      disableWorkersDev: true,
+    })
   })
 })
 
@@ -380,6 +426,342 @@ describe('CloudflareClient', () => {
   })
 })
 
+describe('Cloudflare zones and custom domains', () => {
+  it('lists zones with the account filter and names every scope on 403', async () => {
+    let requested = ''
+    const client = new CloudflareClient('token', async (input) => {
+      requested = String(input)
+      return json([{ id: 'zone-1', name: 'example.com' }])
+    })
+
+    expect(await client.listZones('account')).toEqual([{ id: 'zone-1', name: 'example.com' }])
+    expect(requested).toContain('/zones?account.id=account&per_page=50')
+
+    const denied = new CloudflareClient('token', async () => json(undefined, 403))
+    const error = await denied.listZones('account').catch((cause: unknown) => cause)
+    expect(error).toBeInstanceOf(CloudflareError)
+    expect((error as CloudflareError).status).toBe(403)
+    expect((error as Error).message).toContain('Workers Scripts: Edit')
+    expect((error as Error).message).toContain('Zone: Read')
+    expect((error as Error).message).toContain('Zone: Workers Routes: Edit')
+  })
+
+  it('lists domains for one service and attaches with the exact body', async () => {
+    let listUrl = ''
+    let attachBody: unknown
+    const client = new CloudflareClient('token', async (input, init) => {
+      const url = String(input)
+      if (init?.method === 'GET') {
+        listUrl = url
+        return json([
+          {
+            id: 'domain-0',
+            zone_id: 'zone-1',
+            zone_name: 'example.com',
+            hostname: 'relay.example.com',
+            service: 'clara-relay',
+            environment: 'production',
+          },
+        ])
+      }
+      attachBody = JSON.parse(String(init?.body))
+      return json({
+        id: 'domain-1',
+        zone_id: 'zone-1',
+        hostname: 'relay.example.com',
+        service: 'clara-relay',
+        environment: 'production',
+      })
+    })
+
+    expect(await client.listWorkerDomains('account', 'clara-relay')).toEqual([
+      {
+        id: 'domain-0',
+        zoneId: 'zone-1',
+        zoneName: 'example.com',
+        hostname: 'relay.example.com',
+        service: 'clara-relay',
+        environment: 'production',
+      },
+    ])
+    expect(listUrl).toContain('/accounts/account/workers/domains?service=clara-relay')
+
+    const attached = await client.attachWorkerDomain({
+      accountId: 'account',
+      scriptName: 'clara-relay',
+      zoneId: 'zone-1',
+      hostname: 'relay.example.com',
+    })
+    expect(attachBody).toEqual({
+      zone_id: 'zone-1',
+      hostname: 'relay.example.com',
+      service: 'clara-relay',
+      environment: 'production',
+    })
+    expect(attached.id).toBe('domain-1')
+  })
+
+  function customClient(options: {
+    domains?: unknown[]
+    attachId?: string
+    onAttach?: () => void
+    onDetach?: (domainId: string) => void
+    subdomainBodies?: unknown[]
+  }): CloudflareClient {
+    return new CloudflareClient('token', async (input, init) => {
+      const url = String(input)
+      if (url.endsWith('/workers/subdomain')) return json({ subdomain: 'example' })
+      if (url.includes('/workers/services/')) return json(undefined, 404)
+      if (url.endsWith('/subdomain')) {
+        options.subdomainBodies?.push(JSON.parse(String(init?.body)))
+        return json({ enabled: true })
+      }
+      if (url.includes('/workers/domains?service=')) return json(options.domains ?? [])
+      if (url.includes('/workers/domains/')) {
+        const domainId = url.split('/').pop() ?? ''
+        options.onDetach?.(domainId)
+        return json({})
+      }
+      if (url.endsWith('/workers/domains')) {
+        options.onAttach?.()
+        return json({
+          id: options.attachId ?? 'domain-new',
+          zone_id: 'zone-1',
+          hostname: 'relay.example.com',
+          service: 'clara-relay',
+          environment: 'production',
+        })
+      }
+      if (url.endsWith('/zones?account.id=account&per_page=50')) {
+        return json([{ id: 'zone-1', name: 'example.com' }])
+      }
+      if (init?.method === 'PUT') return json({ id: 'script' })
+      throw new Error(`Unexpected request: ${init?.method} ${url}`)
+    })
+  }
+
+  function healthyFetch(customHealth: boolean = true): typeof fetch {
+    return async (input) => {
+      const url = String(input)
+      const healthy = customHealth || !url.includes('relay.example.com')
+      return new Response(JSON.stringify(healthy ? { ok: true, relay: 2 } : { ok: false }), {
+        status: healthy ? 200 : 503,
+      })
+    }
+  }
+
+  it('uses the custom host once it answers and records the binding', async () => {
+    let attachBody: unknown
+    let attachCalls = 0
+    const client = customClient({
+      onAttach: () => {
+        attachCalls += 1
+      },
+    })
+    const original = client.attachWorkerDomain.bind(client)
+    client.attachWorkerDomain = async (input) => {
+      attachBody = {
+        zone_id: input.zoneId,
+        hostname: input.hostname,
+        service: input.scriptName,
+        environment: 'production',
+      }
+      return original(input)
+    }
+
+    const result = await deployRelay({
+      client,
+      artifact,
+      account: { id: 'account', name: 'Account' },
+      scriptName: 'clara-relay',
+      customDomain: { hostname: 'relay.example.com', zoneId: 'zone-1' },
+      sleep: async () => {},
+      fetchImpl: healthyFetch(true),
+    })
+
+    expect(attachCalls).toBe(1)
+    expect(attachBody).toEqual({
+      zone_id: 'zone-1',
+      hostname: 'relay.example.com',
+      service: 'clara-relay',
+      environment: 'production',
+    })
+    expect(result.hostname).toBe('relay.example.com')
+    expect(result.url).toBe('wss://relay.example.com')
+    expect(result.customDomain).toEqual({
+      hostname: 'relay.example.com',
+      zoneId: 'zone-1',
+      domainId: 'domain-new',
+      ready: true,
+    })
+    expect(result.disableWorkersDev).toBe(false)
+  })
+
+  it('reuses an existing binding on redeploy instead of attaching again', async () => {
+    let attachCalls = 0
+    const result = await deployRelay({
+      client: customClient({
+        domains: [
+          {
+            id: 'domain-existing',
+            zone_id: 'zone-1',
+            hostname: 'relay.example.com',
+            service: 'clara-relay',
+          },
+        ],
+        onAttach: () => {
+          attachCalls += 1
+        },
+      }),
+      artifact,
+      account: { id: 'account', name: 'Account' },
+      scriptName: 'clara-relay',
+      customDomain: { hostname: 'relay.example.com', zoneId: 'zone-1' },
+      sleep: async () => {},
+      fetchImpl: healthyFetch(true),
+    })
+
+    expect(attachCalls).toBe(0)
+    expect(result.customDomain?.domainId).toBe('domain-existing')
+  })
+
+  it('detaches the previous binding when the hostname changes', async () => {
+    const detached: string[] = []
+    const result = await deployRelay({
+      client: customClient({ onDetach: (domainId) => detached.push(domainId) }),
+      artifact,
+      account: { id: 'account', name: 'Account' },
+      scriptName: 'clara-relay',
+      customDomain: { hostname: 'relay.example.com', zoneId: 'zone-1' },
+      previousCustomDomain: {
+        hostname: 'old.example.com',
+        zoneId: 'zone-1',
+        domainId: 'domain-old',
+      },
+      sleep: async () => {},
+      fetchImpl: healthyFetch(true),
+    })
+
+    expect(detached).toEqual(['domain-old'])
+    expect(result.customDomain?.domainId).toBe('domain-new')
+  })
+
+  it('keeps workers.dev and warns when the custom host does not answer', async () => {
+    const subdomainBodies: unknown[] = []
+    const result = await deployRelay({
+      client: customClient({ subdomainBodies }),
+      artifact,
+      account: { id: 'account', name: 'Account' },
+      scriptName: 'clara-relay',
+      customDomain: { hostname: 'relay.example.com', zoneId: 'zone-1' },
+      disableWorkersDev: true,
+      sleep: async () => {},
+      fetchImpl: healthyFetch(false),
+    })
+
+    expect(result.url).toBe('wss://clara-relay.example.workers.dev')
+    expect(result.hostname).toBe('clara-relay.example.workers.dev')
+    expect(result.customDomain?.ready).toBe(false)
+    expect(result.customDomainError).toContain('five minutes')
+    expect(result.disableWorkersDev).toBe(false)
+    expect(subdomainBodies).toEqual([{ enabled: true, previews_enabled: false }])
+  })
+
+  it('disables workers.dev only after the custom host is healthy', async () => {
+    const subdomainBodies: unknown[] = []
+    const result = await deployRelay({
+      client: customClient({ subdomainBodies }),
+      artifact,
+      account: { id: 'account', name: 'Account' },
+      scriptName: 'clara-relay',
+      customDomain: { hostname: 'relay.example.com', zoneId: 'zone-1' },
+      disableWorkersDev: true,
+      sleep: async () => {},
+      fetchImpl: healthyFetch(true),
+    })
+
+    expect(subdomainBodies).toEqual([
+      { enabled: true, previews_enabled: false },
+      { enabled: false, previews_enabled: false },
+    ])
+    expect(result.url).toBe('wss://relay.example.com')
+    expect(result.disableWorkersDev).toBe(true)
+  })
+
+  it('never disables workers.dev without a custom hostname', async () => {
+    const subdomainBodies: unknown[] = []
+    const result = await deployRelay({
+      client: customClient({ subdomainBodies }),
+      artifact,
+      account: { id: 'account', name: 'Account' },
+      scriptName: 'clara-relay',
+      disableWorkersDev: true,
+      sleep: async () => {},
+      fetchImpl: healthyFetch(true),
+    })
+
+    expect(subdomainBodies).toEqual([{ enabled: true, previews_enabled: false }])
+    expect(result.disableWorkersDev).toBe(false)
+    expect(result.url).toBe('wss://clara-relay.example.workers.dev')
+  })
+
+  it('resolves the zone from the hostname when none is supplied', async () => {
+    let attachZone = ''
+    const client = customClient({})
+    const original = client.attachWorkerDomain.bind(client)
+    client.attachWorkerDomain = (input) => {
+      attachZone = input.zoneId
+      return original(input)
+    }
+
+    const result = await deployRelay({
+      client,
+      artifact,
+      account: { id: 'account', name: 'Account' },
+      scriptName: 'clara-relay',
+      customDomain: { hostname: 'relay.example.com' },
+      sleep: async () => {},
+      fetchImpl: healthyFetch(true),
+    })
+
+    expect(attachZone).toBe('zone-1')
+    expect(result.customDomain?.zoneId).toBe('zone-1')
+  })
+})
+
+describe('custom hostname validation', () => {
+  it.each([
+    'https://relay.example.com',
+    'relay.example.com/room',
+    '*.example.com',
+    'relay.example.com?x=1',
+    'relay.example.com#fragment',
+    'relay.workers.dev',
+    'workers.dev',
+    'not a host',
+    'relay',
+  ])('rejects %s before any Cloudflare call', async (hostname) => {
+    const client = new CloudflareClient('token', async () => {
+      throw new Error('The client must not be called for invalid input')
+    })
+
+    await expect(
+      deployRelay({
+        client,
+        artifact,
+        account: { id: 'account', name: 'Account' },
+        scriptName: 'clara-relay',
+        customDomain: { hostname },
+        sleep: async () => {},
+      })
+    ).rejects.toMatchObject({ code: 'invalid_custom_domain' })
+  })
+
+  it('normalizes a valid hostname to lowercase', () => {
+    expect(validateCustomHostname(' Relay.Example.COM ')).toBe('relay.example.com')
+  })
+})
+
 describe('deployRelay health check', () => {
   function deploymentClient(): CloudflareClient {
     return new CloudflareClient('token', async (input) => {
@@ -549,6 +931,162 @@ describe('cloudflare deployment panel route', () => {
     expect(await request.feature.handleRequest(request.context)).toBe(true)
     expect(request.response.status).toBe(200)
     expect(request.deployed()).toEqual({ accountId: 'a'.repeat(32), previewUrls: true })
+  })
+
+  it('forwards a custom hostname and the workers.dev switch', async () => {
+    const request = deployRequest({
+      accountId: 'a'.repeat(32),
+      customDomain: { hostname: 'Relay.Example.com', zoneId: 'zone-1' },
+      disableWorkersDev: true,
+    })
+
+    expect(await request.feature.handleRequest(request.context)).toBe(true)
+    expect(request.response.status).toBe(200)
+    expect(request.deployed()).toEqual({
+      accountId: 'a'.repeat(32),
+      customDomain: { hostname: 'relay.example.com', zoneId: 'zone-1' },
+      disableWorkersDev: true,
+    })
+  })
+
+  it.each([
+    [{ customDomain: 'relay.example.com' }, 'customDomain'],
+    [{ customDomain: { hostname: 7 } }, 'customDomain.hostname'],
+    [{ customDomain: { hostname: 'relay.example.com', extra: true } }, 'customDomain.extra'],
+    [{ customDomain: { hostname: 'relay.example.com', zoneId: 7 } }, 'customDomain.zoneId'],
+    [{ disableWorkersDev: 'yes' }, 'disableWorkersDev'],
+  ])('rejects malformed deploy fields %j', async (fields, field) => {
+    const request = deployRequest({ accountId: 'a'.repeat(32), ...fields })
+
+    expect(await request.feature.handleRequest(request.context)).toBe(true)
+    expect(request.response.status).toBe(400)
+    expect(request.response.body).toEqual({
+      error: { code: 'invalid_body', message: `Invalid or unknown field: ${field}` },
+    })
+    expect(request.deployed()).toBeUndefined()
+  })
+
+  it.each([
+    'https://relay.example.com',
+    'relay.example.com/path',
+    '*.example.com',
+    'relay.workers.dev',
+  ])('rejects the invalid hostname %s before deploying', async (hostname) => {
+    const request = deployRequest({
+      accountId: 'a'.repeat(32),
+      customDomain: { hostname },
+    })
+
+    expect(await request.feature.handleRequest(request.context)).toBe(true)
+    expect(request.response.status).toBe(400)
+    expect(request.response.body).toMatchObject({
+      error: { code: 'invalid_custom_domain' },
+    })
+    expect(request.deployed()).toBeUndefined()
+  })
+
+  it('lists zones for the selected account', async () => {
+    let received: unknown
+    const state = {
+      listZones: async (input: unknown) => {
+        received = input
+        return [{ id: 'zone-1', name: 'example.com' }]
+      },
+    } as unknown as CloudflareDeploymentState
+    const response: { status?: number; body?: unknown } = {}
+    const context = {
+      method: 'POST',
+      pathname: '/panel/api/v1/relay/cloudflare/zones',
+      readJson: async () => ({
+        ok: true,
+        value: { token: 'token', accountId: 'a'.repeat(32) },
+      }),
+      sendJson: (status: number, payload: unknown) => {
+        response.status = status
+        response.body = payload
+      },
+      requireMutation: () => true,
+      log: () => {},
+    } as unknown as PanelFeatureRequest
+    const feature = createCloudflarePanelFeature(state)
+
+    expect(await feature.handleRequest(context)).toBe(true)
+    expect(response).toEqual({
+      status: 200,
+      body: { zones: [{ id: 'zone-1', name: 'example.com' }] },
+    })
+    expect(received).toEqual({ token: 'token', accountId: 'a'.repeat(32) })
+  })
+})
+
+describe('cloudflare deployment rollback', () => {
+  function config(dir: string): ServerConfig {
+    return {
+      local: { host: '127.0.0.1', bindHost: '127.0.0.1', port: 8788 },
+      relay: {
+        url: 'wss://relay.example.com',
+        room: 'room-123',
+        agentToken: 'sentinel-agent-token',
+        clientToken: 'sentinel-client-token',
+      },
+      pairingBaseUrl: 'https://clara.example',
+      configDir: dir,
+      configPath: join(dir, 'server.json'),
+      dataDir: dir,
+      dbPath: join(dir, 'clara.db'),
+      sources: {
+        localHost: 'default',
+        localBindHost: 'default',
+        localPort: 'default',
+        relayUrl: 'file',
+        relayRoom: 'file',
+        agentToken: 'file',
+        clientToken: 'file',
+        pairingBaseUrl: 'default',
+      },
+    }
+  }
+
+  it('detaches the stored custom domain when the deployment is forgotten', async () => {
+    const dir = tempDir()
+    const key = await secretKey()
+    saveRelayDeployment(dir, {
+      accountId: 'account',
+      scriptName: 'clara-relay',
+      hostname: 'relay.example.com',
+      deployedAt: '2026-01-01T00:00:00.000Z',
+      reachable: true,
+      previewUrls: false,
+      customDomain: {
+        hostname: 'relay.example.com',
+        zoneId: 'zone-1',
+        domainId: 'domain-1',
+        ready: true,
+      },
+      disableWorkersDev: true,
+    })
+    await saveCloudflareToken(dir, key, 'cloudflare-token')
+
+    const requests: Array<{ url: string; method?: string }> = []
+    vi.stubGlobal('fetch', async (input: string | URL | Request, init?: RequestInit) => {
+      requests.push({ url: String(input), ...(init?.method ? { method: init.method } : {}) })
+      return json({})
+    })
+
+    const state = new CloudflareDeploymentState({
+      config: config(dir),
+      secretKey: key,
+      log: () => {},
+    })
+    await state.forgetDeployment()
+
+    expect(requests).toEqual([
+      {
+        url: 'https://api.cloudflare.com/client/v4/accounts/account/workers/domains/domain-1',
+        method: 'DELETE',
+      },
+    ])
+    expect(loadRelayDeployment(dir)).toBeUndefined()
   })
 })
 

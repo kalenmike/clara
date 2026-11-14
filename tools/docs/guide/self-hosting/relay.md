@@ -26,11 +26,26 @@ If your Clara build includes the optional Cloudflare deployment feature, open
 **Connections → Relay → Deploy relay to Cloudflare** in the hub panel.
 
 1. Create a Cloudflare API token from the link in the panel. It needs
-   **Workers Scripts: Edit**; **Account Settings: Read** lets the panel list your
-   accounts.
+   **Workers Scripts: Edit**, **Zone: Read**, and **Zone: Workers Routes: Edit**.
+   **Account Settings: Read** lets the panel list your accounts; without it, you
+   can type the account ID.
 2. Paste the token, choose the account, and choose **Deploy relay**.
 3. Clara uploads the Worker, creates its Durable Object namespace, sets both
    relay tokens, enables the `workers.dev` host, and health-checks it.
+
+To serve the relay on your own host, enter a **Custom domain** before deploying.
+Choose **Load zones**, pick the zone that holds the name, and enter a bare
+hostname such as `relay.example.com` with no scheme, path, or wildcard. Clara
+attaches the hostname to the Worker and waits up to five minutes for Cloudflare
+to issue the certificate and for the relay to answer there. If the host does not
+answer in time, the deployment stays on `workers.dev` and the panel shows a
+warning; deploy again once the certificate is ready. A successful custom domain
+becomes the relay URL in the panel, so existing devices must pair again.
+
+Under **Advanced**, **Disable the workers.dev hostname** turns the fallback host
+off after the custom host answers. Only use it when you want the custom hostname
+to be the only relay URL. The panel never turns `workers.dev` off when no custom
+hostname is set, or before the custom host passes its health check.
 
 Preview and version URLs are off by default. Each version would get its own
 extra `workers.dev` hostname, and those hostnames bypass WAF and rate-limit rules
@@ -44,8 +59,7 @@ must pair again after the relay changes. A relay URL, room, or token supplied by
 the environment takes precedence, so remove those variables before deploying a
 relay from the panel.
 
-Builds without the feature, and custom-domain deployments, use the manual path
-below.
+Builds without the feature use the manual path below.
 
 ### Confirm preview and version URLs are off
 

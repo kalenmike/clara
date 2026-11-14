@@ -206,6 +206,19 @@ export type PanelCloudflareAccount = {
   name: string
 }
 
+export type PanelCloudflareZone = {
+  id: string
+  name: string
+}
+
+export type PanelRelayDeploymentCustomDomain = {
+  hostname: string
+  zoneId: string
+  domainId: string
+  /** The custom hostname answered its relay health check. */
+  ready: boolean
+}
+
 export type PanelRelayDeployment = {
   /** Compiled into this hub build. */
   available: boolean
@@ -223,6 +236,10 @@ export type PanelRelayDeployment = {
   reachable?: boolean
   /** Preview/version URLs are enabled for the deployed Worker. */
   previewUrls?: boolean
+  /** Attached Worker custom domain, when one was requested. */
+  customDomain?: PanelRelayDeploymentCustomDomain
+  /** The workers.dev host was turned off after the custom host went live. */
+  disableWorkersDev?: boolean
   error?: string
 }
 
