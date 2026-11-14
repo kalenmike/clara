@@ -14,10 +14,20 @@ import type { ClaraEvent } from '@clara/api-contract'
 import { toast } from 'sonner'
 import { saveLastAgent } from '@/features/agents/default-agent'
 import { chatStore } from '@/features/chat/chat-store'
+import {
+  aggregateStreamState,
+  onlineHarnessIDs,
+  type StreamState,
+} from '@/features/harness/stream-state'
+import {
+  superviseHarnessStream,
+  type HarnessStreamHandle,
+} from '@/features/harness/stream-supervisor'
+import { useHarnesses } from '@/features/projects/use-projects'
 import { queryKeys } from '@/lib/query-keys'
 import { useConnection } from '@/providers/connection-provider'
 
-export type StreamState = 'connecting' | 'live' | 'reconnecting' | 'offline'
+export type { StreamState }
 
 type EventListener = (event: ClaraEvent) => void
 
@@ -38,15 +48,9 @@ const EventContext = createContext<EventContextValue>({
   subscribe: () => () => {},
 })
 
-/** The server writes an SSE heartbeat every 15 seconds. */
-const HEARTBEAT_MS = 15_000
-/** Three missed heartbeats mean the socket is half-open rather than idle. */
-const STALL_MS = HEARTBEAT_MS * 3
-const WATCHDOG_MS = 5_000
-const MAX_BACKOFF_MS = 15_000
 const RECONNECT_NOTICE_MS = 5_000
-/** A connection must survive this long before it resets the backoff. */
-const STABLE_MS = 10_000
+/** Before the harness list settles, stream the active/default harness. */
+const DEFAULT_STREAM = '\u0000default'
 
 const MESSAGE_EVENTS = new Set([
   'session.synthetic',
@@ -65,11 +69,22 @@ const MESSAGE_EVENTS = new Set([
 export function EventProvider({ children }: { children: ReactNode }) {
   const { client, generation } = useConnection()
   const queryClient = useQueryClient()
-  const [live, setLive] = useState(false)
+  const harnessesQuery = useHarnesses()
   const [state, setState] = useState<StreamState>('offline')
   const [lastEventAt, setLastEventAt] = useState(0)
   const [lastError, setLastError] = useState<string | null>(null)
   const listeners = useRef(new Set<EventListener>())
+
+  const onlineIDs = useMemo(
+    () => (harnessesQuery.isSuccess ? onlineHarnessIDs(harnessesQuery.data ?? []) : []),
+    [harnessesQuery.data, harnessesQuery.isSuccess]
+  )
+  /**
+   * One stream per online harness. Until the harness list settles the active
+   * harness still streams, so the first paint keeps working on single-harness
+   * installs and offline harnesses never open a socket.
+   */
+  const streamTargets = harnessesQuery.isSuccess ? onlineIDs.join('\u0000') : DEFAULT_STREAM
 
   const subscribe = useCallback((listener: EventListener) => {
     listeners.current.add(listener)
@@ -80,32 +95,21 @@ export function EventProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     if (!client) {
-      setLive(false)
       setState('offline')
       return
     }
 
-    const controller = new AbortController()
-    let retry = 0
-    let cancelSleep: (() => void) | null = null
-    let active: AbortController | null = null
-    let connected = false
-    let hadFailure = false
-    let downSince = 0
-    let lastActivity = Date.now()
-    let stableTimer: number | null = null
+    const harnessIDs: (string | undefined)[] =
+      streamTargets === DEFAULT_STREAM
+        ? [undefined]
+        : streamTargets
+          ? streamTargets.split('\u0000')
+          : []
+    const states = new Map<string, StreamState>()
+    const handles: HarnessStreamHandle[] = []
     const timers = new Map<string, number>()
 
-    setState('connecting')
-
-    const sleep = (ms: number) =>
-      new Promise<void>((resolve) => {
-        const timer = window.setTimeout(resolve, ms)
-        cancelSleep = () => {
-          window.clearTimeout(timer)
-          resolve()
-        }
-      })
+    const publish = () => setState(aggregateStreamState([...states.values()]))
 
     const invalidateSoon = (key: string, queryKey: readonly unknown[]) => {
       const existing = timers.get(key)
@@ -119,52 +123,7 @@ export function EventProvider({ children }: { children: ReactNode }) {
       )
     }
 
-    /** Runs on every raw chunk, including keepalive comments. */
-    const markAlive = () => {
-      lastActivity = Date.now()
-      if (connected) return
-      connected = true
-      if (stableTimer === null) {
-        stableTimer = window.setTimeout(() => {
-          stableTimer = null
-          retry = 0
-        }, STABLE_MS)
-      }
-      setLive(true)
-      setState('live')
-      setLastError(null)
-      if (hadFailure) {
-        // Events that arrived while the stream was down were never replayed.
-        chatStore.resetHistories()
-        chatStore.resetStatuses()
-        void queryClient.resetQueries({ queryKey: ['messages'] })
-        void queryClient.invalidateQueries({
-          predicate: (query) => query.queryKey[0] !== 'messages',
-        })
-        if (Date.now() - downSince > RECONNECT_NOTICE_MS) {
-          toast.success('Reconnected', { id: 'stream-reconnected' })
-        }
-        hadFailure = false
-        downSince = 0
-      }
-    }
-
-    const markDown = () => {
-      if (stableTimer !== null) {
-        window.clearTimeout(stableTimer)
-        stableTimer = null
-      }
-      connected = false
-      if (!hadFailure) {
-        hadFailure = true
-        downSince = Date.now()
-      }
-      setLive(false)
-      setState('reconnecting')
-    }
-
     const handleEvent = (event: ClaraEvent) => {
-      markAlive()
       setLastEventAt(Date.now())
       for (const listener of listeners.current) {
         try {
@@ -184,71 +143,52 @@ export function EventProvider({ children }: { children: ReactNode }) {
       handleInvalidation(event, queryClient, invalidateSoon)
     }
 
-    const run = async () => {
-      while (!controller.signal.aborted) {
-        const attempt = new AbortController()
-        active = attempt
-        lastActivity = Date.now()
-        const abortAttempt = () => attempt.abort()
-        controller.signal.addEventListener('abort', abortAttempt, { once: true })
-
-        try {
-          for await (const event of client.event.subscribe({
-            signal: attempt.signal,
-            onActivity: markAlive,
-          })) {
-            handleEvent(event)
-          }
-        } catch (cause) {
-          if (!controller.signal.aborted) setLastError(describeStreamError(cause))
-        } finally {
-          controller.signal.removeEventListener('abort', abortAttempt)
-          if (active === attempt) active = null
-        }
-
-        if (controller.signal.aborted) break
-        markDown()
-        retry += 1
-        await sleep(backoff(retry))
+    /** A dropped stream reconnected: nothing that arrived while it was down was replayed. */
+    const recovered = (downForMs: number) => {
+      chatStore.resetHistories()
+      chatStore.resetStatuses()
+      void queryClient.resetQueries({ queryKey: ['messages'] })
+      void queryClient.invalidateQueries({
+        predicate: (query) => query.queryKey[0] !== 'messages',
+      })
+      if (downForMs > RECONNECT_NOTICE_MS) {
+        toast.success('Reconnected', { id: 'stream-reconnected' })
       }
     }
 
-    // A half-open SSE socket never rejects, so the loop above would wait forever.
-    const watchdog = window.setInterval(() => {
-      if (Date.now() - lastActivity > STALL_MS) active?.abort()
-    }, WATCHDOG_MS)
-
-    void run()
+    for (const harnessID of harnessIDs) {
+      const key = harnessID ?? 'active'
+      states.set(key, 'connecting')
+      handles.push(
+        superviseHarnessStream({
+          client,
+          harnessID,
+          onEvent: handleEvent,
+          onState: (next) => {
+            states.set(key, next)
+            if (next === 'live') setLastError(null)
+            publish()
+          },
+          onError: (message) => setLastError(message),
+          onRecovered: recovered,
+        })
+      )
+    }
+    publish()
 
     return () => {
-      controller.abort()
-      active?.abort()
-      window.clearInterval(watchdog)
-      if (stableTimer !== null) window.clearTimeout(stableTimer)
-      cancelSleep?.()
+      for (const handle of handles) handle.stop()
       for (const timer of timers.values()) window.clearTimeout(timer)
-      setLive(false)
     }
-    // generation forces a fresh subscription after a manual reconnect.
-  }, [client, generation, queryClient])
+    // generation forces fresh subscriptions after a manual reconnect.
+  }, [client, generation, queryClient, streamTargets])
 
   const value = useMemo(
-    () => ({ live, state, lastEventAt, lastError, subscribe }),
-    [live, state, lastEventAt, lastError, subscribe]
+    () => ({ live: state === 'live', state, lastEventAt, lastError, subscribe }),
+    [state, lastEventAt, lastError, subscribe]
   )
 
   return <EventContext.Provider value={value}>{children}</EventContext.Provider>
-}
-
-function describeStreamError(error: unknown): string {
-  if (error instanceof Error && error.message) return error.message
-  return 'The event stream disconnected.'
-}
-
-function backoff(attempt: number): number {
-  const base = Math.min(1000 * 2 ** Math.min(attempt, 4), MAX_BACKOFF_MS)
-  // Jitter keeps several tabs from reconnecting in lockstep.
-  return base * (0.8 + Math.random() * 0.4)
 }
 
 function handleInvalidation(
