@@ -18,7 +18,8 @@
     "@clara/adapter-runtime": "workspace:*",
     "@clara/api-contract": "workspace:*",
     "@clara/shared-types": "workspace:*",
-    "hono": "^4.13.17"
+    "hono": "^4.13.17",
+    "ws": "^8.22.1"
   },
   "devDependencies": {
     "@types/node": "^24.19.2",
