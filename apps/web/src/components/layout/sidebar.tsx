@@ -56,7 +56,7 @@ import {
 import { findProject, useProjects } from '@/features/projects/use-projects'
 import { resolveDeleteFocusTarget } from '@/features/sessions/delete-focus'
 import { isArchivedSession } from '@/features/sessions/session-archive'
-import { groupSessionsByMailbox } from '@/features/sessions/session-sections'
+import { groupSessionsByMailbox, mergeSessionLists } from '@/features/sessions/session-sections'
 import {
   pruneSelection,
   selectRange,
@@ -244,14 +244,10 @@ export function SidebarContent({
 
   const sessions = useMemo(() => sessionsQuery.data?.data ?? [], [sessionsQuery.data])
   const archivedSessions = useMemo(() => archivedQuery.data?.data ?? [], [archivedQuery.data])
-  const allSessions = useMemo(() => {
-    const byID = new Map<string, ClaraSession>()
-    for (const session of archivedSessions) byID.set(session.id, session)
-    for (const session of sessions) {
-      if (!byID.has(session.id)) byID.set(session.id, session)
-    }
-    return [...byID.values()]
-  }, [sessions, archivedSessions])
+  const allSessions = useMemo(
+    () => mergeSessionLists(sessions, archivedSessions),
+    [sessions, archivedSessions]
+  )
 
   const activeQuery = useActiveSessions()
   const mailboxSessions = useMemo(
@@ -276,8 +272,10 @@ export function SidebarContent({
   )
 
   const grouped = useMemo(
-    () => groupSessionsByMailbox(mailboxSessions, mailboxSignals, activeQuery.data, awaitingInput),
-    [mailboxSessions, mailboxSignals, activeQuery.data, awaitingInput]
+    // Group the full list: archived and snoozed sessions are filtered out of the
+    // mailbox pool above, but they still need their own sections.
+    () => groupSessionsByMailbox(allSessions, mailboxSignals, activeQuery.data, awaitingInput),
+    [allSessions, mailboxSignals, activeQuery.data, awaitingInput]
   )
 
   const sections = useMemo<SidebarSectionView[]>(
@@ -955,7 +953,7 @@ export function SidebarContent({
           </div>
         )}
 
-        {!listPending && !sessionsError && mailboxSessions.length === 0 && (
+        {!listPending && !sessionsError && allSessions.length === 0 && (
           <div className="p-3 text-sm text-muted-foreground md:text-xs">
             {search
               ? `No ${lowerPlural} match your search.`

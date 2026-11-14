@@ -11,6 +11,22 @@ export type SessionGroups = {
   archived: ClaraSession[]
 }
 
+/**
+ * Merge the active and archived session lists, keeping the archived copy when
+ * both lists return the same session.
+ */
+export function mergeSessionLists(
+  sessions: ClaraSession[],
+  archivedSessions: ClaraSession[]
+): ClaraSession[] {
+  const byID = new Map<string, ClaraSession>()
+  for (const session of archivedSessions) byID.set(session.id, session)
+  for (const session of sessions) {
+    if (!byID.has(session.id)) byID.set(session.id, session)
+  }
+  return [...byID.values()]
+}
+
 /** Split sessions into the sidebar's mailbox sections, newest first. */
 export function groupSessionsByMailbox(
   sessions: ClaraSession[],
