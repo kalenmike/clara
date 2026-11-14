@@ -58,6 +58,15 @@ hub executable and panel, run `pnpm hub:sidecar`.
 The tray menu has **Open panel**, **Copy setup token**, and **Quit**. Closing the
 panel window hides it; Quit stops the hub.
 
+## Panel appearance
+
+Open **Settings → Appearance** to choose **Light**, **Dark**, or **System** for
+the hub panel. **System** follows the operating system setting. The choice is
+stored in the panel on this device and also applies to the sign-in screen.
+
+The web and desktop clients have their own Appearance settings; changing the
+panel does not change them.
+
 ## Ports
 
 The hub app chooses its panel and local ports instead of relying on fixed ones.
