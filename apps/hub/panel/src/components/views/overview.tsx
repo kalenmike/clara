@@ -69,7 +69,7 @@ export function OverviewView({
 
       <HealthTiles items={health} onSelect={onSelect} />
 
-      <div className="grid items-start gap-3 md:grid-cols-2">
+      <div className="grid items-stretch gap-3 md:grid-cols-2">
         <ActiveClientsCard
           clients={browserClients}
           devices={snapshot.devices}
@@ -84,7 +84,7 @@ export function OverviewView({
         />
       </div>
 
-      <div className="grid items-start gap-3 md:grid-cols-2">
+      <div className="grid items-stretch gap-3 md:grid-cols-2">
         <RecentActivity events={snapshot.events} now={now} onOpen={() => onSelect('activity')} />
         <StorageSummary storage={snapshot.storage} now={now} onOpen={() => onSelect('activity')} />
       </div>

@@ -458,6 +458,7 @@ body {
   background: color-mix(in srgb, var(--panel-ok) 8%, var(--panel-surface));
 }
 
+/* Six tiles: keep column counts at 6, 3, 2, or 1 so every row stays full. */
 .panel-health-grid {
   display: grid;
   gap: 8px;
@@ -712,12 +713,6 @@ body {
 /* Responsive */
 
 @media (max-width: 1280px) {
-  .panel-health-grid {
-    grid-template-columns: repeat(4, minmax(0, 1fr));
-  }
-}
-
-@media (max-width: 1024px) {
   .panel-health-grid {
     grid-template-columns: repeat(3, minmax(0, 1fr));
   }
