@@ -99,6 +99,11 @@ describe('Claude runtime', () => {
     )
     const step = received.find((event) => event.type === 'session.step.started')
     expect(step).toMatchObject({ data: { model: { providerID: 'anthropic' } } })
+    const delivered = received.find((event) => event.type === 'session.inbox.delivered')
+    expect(delivered).toMatchObject({
+      data: { inboxID: prompt.id, item: { id: prompt.id, type: 'user', payload: { text: 'Hi' } } },
+    })
+    expect(gateway.turns[0]?.userMessageID).toBe(prompt.id)
     expect((await sessions.get(sessionId)).cost).toBe(0.01)
   })
 

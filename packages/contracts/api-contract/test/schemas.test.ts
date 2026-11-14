@@ -110,6 +110,35 @@ describe('api contract', () => {
     ).toBe(true)
   })
 
+  it('accepts the delivered inbox item on an inbox event', () => {
+    const parsed = claraEventSchema.safeParse({
+      id: 'e3',
+      created: 1,
+      type: 'session.inbox.delivered',
+      data: {
+        sessionID: 's1',
+        inboxID: 'draft-1',
+        item: {
+          id: 'draft-1',
+          sessionID: 's1',
+          type: 'user',
+          delivery: 'steer',
+          payload: { text: 'Hello' },
+          time: { created: 1 },
+        },
+      },
+    })
+    expect(parsed.success).toBe(true)
+    expect(
+      claraEventSchema.safeParse({
+        id: 'e4',
+        created: 1,
+        type: 'session.inbox.delivered',
+        data: { sessionID: 's1', inboxID: 'draft-1' },
+      }).success
+    ).toBe(true)
+  })
+
   it('validates forms and VCS wrappers', () => {
     expect(
       claraFormSchema.safeParse({

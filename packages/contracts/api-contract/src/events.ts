@@ -10,6 +10,7 @@ import {
   claraProjectSchema,
   claraSessionForkBoundarySchema,
   claraSessionInboxDeliverySchema,
+  claraSessionInboxInfoSchema,
   claraSessionInboxItemSchema,
   claraSessionMetadataSchema,
   claraSessionRevertSchema,
@@ -150,6 +151,11 @@ export const claraEventSchema = z
       passthroughObject({
         ...sessionIDShape,
         inboxID: z.string(),
+        /**
+         * The delivered item. A client keeps its user message visible while
+         * the harness writes the transcript, then dedupes by message ID.
+         */
+        item: claraSessionInboxInfoSchema.optional(),
       })
     ),
     event(

@@ -25,7 +25,7 @@ import { useDefaultAgent } from '@/features/agents/use-default-agent'
 import { useAgents, useModels } from '@/features/catalog/use-catalog'
 import { ComposerProvider, useComposer } from '@/features/chat/composer-provider'
 import { findPlanReadyReply } from '@/features/chat/plan-ready'
-import { mergeSessionMessages } from '@/features/chat/session-messages'
+import { inboxDraftToMessage, mergeSessionMessages } from '@/features/chat/session-messages'
 import { buildTimeline } from '@/features/chat/timeline'
 import { useDiscardEmptyDraft } from '@/features/chat/use-discard-empty-draft'
 import { estimateStepCost } from '@/features/cost/estimate'
@@ -127,10 +127,13 @@ function ChatPageContent() {
       (inboxQuery.data ?? []).filter((item): item is ClaraSessionInboxUser => item.type === 'user'),
     [inboxQuery.data]
   )
+  const drafts = useMemo(
+    () => [...snapshot.sent, ...pendingDrafts.map(inboxDraftToMessage)],
+    [pendingDrafts, snapshot.sent]
+  )
   const allMessages = useMemo<ClaraSessionMessage[]>(
-    () =>
-      mergeSessionMessages(snapshot.messages, messagesQuery.data?.messages ?? [], pendingDrafts),
-    [messagesQuery.data?.messages, pendingDrafts, snapshot.messages]
+    () => mergeSessionMessages(snapshot.messages, messagesQuery.data?.messages ?? [], drafts),
+    [drafts, messagesQuery.data?.messages, snapshot.messages]
   )
   const modelsQuery = useModels(harnessID)
   const { source: costSource } = useCostDisplay()

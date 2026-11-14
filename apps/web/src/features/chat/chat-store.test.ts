@@ -67,3 +67,54 @@ describe('chatStore status', () => {
     expect(chatStore.getSnapshot(SESSION).status).toEqual({ type: 'idle' })
   })
 })
+
+describe('chatStore delivered prompts', () => {
+  it('keeps a sent prompt until the transcript owns its ID', () => {
+    chatStore.dispatch(
+      event('session.inbox.delivered', {
+        sessionID: SESSION,
+        inboxID: 'draft-1',
+        item: {
+          id: 'draft-1',
+          sessionID: SESSION,
+          type: 'user',
+          delivery: 'steer',
+          payload: { text: 'Hello' },
+          time: { created: 1 },
+        },
+      })
+    )
+
+    expect(chatStore.getSnapshot(SESSION).sent).toMatchObject([
+      { id: 'draft-1', type: 'user', text: 'Hello' },
+    ])
+
+    chatStore.hydrate(SESSION, [], null)
+    expect(chatStore.getSnapshot(SESSION).sent).toHaveLength(1)
+
+    chatStore.hydrate(
+      SESSION,
+      [{ id: 'draft-1', type: 'user', text: 'Hello', time: { created: 2 } }],
+      null
+    )
+    expect(chatStore.getSnapshot(SESSION).sent).toHaveLength(0)
+    expect(chatStore.getSnapshot(SESSION).messages).toMatchObject([
+      { id: 'draft-1', type: 'user', text: 'Hello' },
+    ])
+  })
+
+  it('does not duplicate a delivered prompt', () => {
+    const item = {
+      id: 'draft-2',
+      sessionID: SESSION,
+      type: 'user' as const,
+      delivery: 'steer' as const,
+      payload: { text: 'Again' },
+      time: { created: 1 },
+    }
+    chatStore.deliverUser(SESSION, item)
+    chatStore.deliverUser(SESSION, item)
+
+    expect(chatStore.getSnapshot(SESSION).sent).toHaveLength(1)
+  })
+})

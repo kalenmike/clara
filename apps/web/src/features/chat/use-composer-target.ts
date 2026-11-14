@@ -2,7 +2,7 @@ import { useMemo } from 'react'
 import type { ClaraSessionInboxUser } from '@clara/api-contract'
 import { composerMenuMode, type ComposerMenuMode } from '@/features/chat/composer-menu'
 import { findPlanReadyReply } from '@/features/chat/plan-ready'
-import { mergeSessionMessages } from '@/features/chat/session-messages'
+import { inboxDraftToMessage, mergeSessionMessages } from '@/features/chat/session-messages'
 import { useChatSnapshot, useSessionInbox, useSessionMessages } from '@/features/chat/use-chat'
 import { isArchivedSession } from '@/features/sessions/session-archive'
 import { useSession } from '@/features/sessions/use-sessions'
@@ -24,10 +24,13 @@ export function useComposerTarget(sessionID: string) {
     [inboxQuery.data]
   )
 
+  const drafts = useMemo(
+    () => [...snapshot.sent, ...pendingDrafts.map(inboxDraftToMessage)],
+    [pendingDrafts, snapshot.sent]
+  )
   const messages = useMemo(
-    () =>
-      mergeSessionMessages(snapshot.messages, messagesQuery.data?.messages ?? [], pendingDrafts),
-    [messagesQuery.data?.messages, pendingDrafts, snapshot.messages]
+    () => mergeSessionMessages(snapshot.messages, messagesQuery.data?.messages ?? [], drafts),
+    [drafts, messagesQuery.data?.messages, snapshot.messages]
   )
 
   const busy = snapshot.status.type !== 'idle'
