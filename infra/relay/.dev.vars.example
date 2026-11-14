@@ -1,3 +1,3 @@
-# Local-only secrets for `wrangler dev`.
+# Local-only secrets for `wrangler dev`. The agent token also signs relay
+# grants; clients present a grant instead of a shared client token.
 CLARA_AGENT_TOKEN=replace-with-a-long-random-value
-CLARA_CLIENT_TOKEN=replace-with-a-different-long-random-value

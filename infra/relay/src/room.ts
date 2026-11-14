@@ -1,4 +1,9 @@
-import { PROTOCOL_VERSION, RELAY_SUBPROTOCOL, type RouteFrame } from '@clara/shared-types'
+import {
+  PROTOCOL_VERSION,
+  RELAY_GRANT_MAX_ID_LENGTH,
+  RELAY_SUBPROTOCOL,
+  type RouteFrameV3,
+} from '@clara/shared-types'
 import type { Env } from './env.ts'
 
 const MAX_BUFFERED_BYTES = 1_000_000
@@ -41,9 +46,14 @@ const FRAME_TOO_LARGE_CODE = 4009
 const OFFLINE_CODE = 1013
 
 /** The route envelope this room speaks; the hub refuses anything older. */
-export const RELAY_VERSION = 2
+export const RELAY_VERSION = 3
 
-type Attachment = { peer?: string; ip?: string }
+type Attachment = {
+  peer?: string
+  ip?: string
+  /** Grant id the Worker verified before the upgrade; tags every frame. */
+  grant?: string
+}
 
 type TokenBucket = { tokens: number; at: number }
 
@@ -84,6 +94,14 @@ export class RelayRoom {
       return new Response('Missing relay role', { status: 400 })
     }
 
+    // The Worker stamps this after verifying the grant. Without it the hub
+    // cannot bind the session identity, so refuse instead of guessing.
+    const clientGrant =
+      role === 'client' ? normalizeGrantId(request.headers.get('x-clara-grant-id')) : undefined
+    if (role === 'client' && !clientGrant) {
+      return new Response('Missing relay grant id', { status: 400 })
+    }
+
     if (role === 'agent') {
       // A new hub owns the room. Drop the old hub and make clients
       // re-handshake immediately against the new process.
@@ -105,10 +123,11 @@ export class RelayRoom {
       if (reason) {
         server.close(CLIENT_LIMIT_CODE, reason)
       } else {
-        // The peer id is what the hub keys frames to, so it must survive
-        // hibernation. Only client sockets carry one.
+        // The peer id and grant id are both per-connection, so they must
+        // survive hibernation in the attachment. Only clients carry them.
         const ip = normalizeIp(request.headers.get('cf-connecting-ip'))
         const attachment: Attachment = { peer: randomPeerId() }
+        if (clientGrant) attachment.grant = clientGrant
         if (ip) attachment.ip = ip
         server.serializeAttachment(attachment)
       }
@@ -146,8 +165,17 @@ export class RelayRoom {
     }
 
     const peer = this.peerOf(socket)
-    if (!this.withinRate(peer, size)) {
-      this.peers.delete(peer)
+    const grantId = peerAttachment(socket)?.grant
+    if (typeof grantId !== 'string' || grantId.length === 0) {
+      // Without the verified grant id the hub could not bind the identity, so
+      // drop the peer rather than forward an unattributable frame.
+      socket.close(CLIENT_LIMIT_CODE, 'missing grant')
+      return
+    }
+    // The grant id is the identity budget: a reconnecting device shares one
+    // bucket instead of resetting its budget on every socket.
+    if (!this.withinRate(grantId, size)) {
+      this.peers.delete(grantId)
       socket.close(CLIENT_LIMIT_CODE, 'rate limit')
       return
     }
@@ -158,7 +186,7 @@ export class RelayRoom {
       return
     }
 
-    const route = this.route(peer, message)
+    const route = this.route(peer, grantId, message)
     for (const agent of agents) this.send(agent, route)
   }
 
@@ -208,15 +236,15 @@ export class RelayRoom {
   }
 
   /** Refill both buckets for the elapsed time, then charge the frame once. */
-  private withinRate(peer: string, size: number): boolean {
+  private withinRate(identity: string, size: number): boolean {
     const now = Date.now()
-    let limits = this.peers.get(peer)
+    let limits = this.peers.get(identity)
     if (!limits) {
       limits = {
         frames: { tokens: CLIENT_FRAME_BURST, at: now },
         bytes: { tokens: CLIENT_BYTE_BURST, at: now },
       }
-      this.peers.set(peer, limits)
+      this.peers.set(identity, limits)
     }
 
     const frames = refill(limits.frames, CLIENT_FRAME_BURST, CLIENT_FRAMES_PER_SECOND, now)
@@ -229,8 +257,8 @@ export class RelayRoom {
   }
 
   private forgetPeer(socket: WebSocket): void {
-    const peer = peerAttachment(socket)?.peer
-    if (typeof peer === 'string') this.peers.delete(peer)
+    const grant = peerAttachment(socket)?.grant
+    if (typeof grant === 'string') this.peers.delete(grant)
   }
 
   /** Hibernation drops in-memory state; the attachment is the source of truth. */
@@ -243,14 +271,15 @@ export class RelayRoom {
     return next
   }
 
-  private route(peer: string, message: string | ArrayBuffer): string {
-    const frame: RouteFrame =
+  private route(peer: string, grantId: string, message: string | ArrayBuffer): string {
+    const frame: RouteFrameV3 =
       typeof message === 'string'
-        ? { t: 'route', v: PROTOCOL_VERSION, p: peer, m: message }
+        ? { t: 'route', v: PROTOCOL_VERSION, p: peer, i: grantId, m: message }
         : {
             t: 'route',
             v: PROTOCOL_VERSION,
             p: peer,
+            i: grantId,
             b: true,
             m: toBase64Url(new Uint8Array(message)),
           }
@@ -289,6 +318,11 @@ function peerAttachment(socket: WebSocket): Attachment | null {
 function normalizeIp(value: string | null): string | undefined {
   const ip = value?.trim()
   return ip ? ip : undefined
+}
+
+function normalizeGrantId(value: string | null): string | undefined {
+  const grant = value?.trim()
+  return grant && grant.length <= RELAY_GRANT_MAX_ID_LENGTH ? grant : undefined
 }
 
 /** Refill a bucket for the elapsed time, charge nothing, and return its tokens. */
