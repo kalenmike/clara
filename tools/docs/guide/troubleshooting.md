@@ -155,7 +155,7 @@ harnesses; a failed lookup for one harness does not empty the list.
 
 Orchestration is optional. If the service is stopped, orchestration runs and
 worker sessions are unavailable. The host can start it from the hub panel or
-with `pnpm clara orchestrator start`. See
+with `pnpm clara start orchestrator`. See
 [Orchestration](self-hosting/orchestration.md).
 
 ## A Docker container keeps restarting
@@ -164,7 +164,7 @@ with `pnpm clara orchestrator start`. See
 and prints the recent log lines when a service does not become healthy. If a
 container still keeps restarting:
 
-- Read the printed log tail, or run `pnpm clara logs server`, `pnpm clara logs web`,
+- Read the printed log tail, or run `pnpm clara logs hub`, `pnpm clara logs web`,
   or `pnpm clara logs orchestrator`.
 - A `CLARA_RELAY_URL` without `CLARA_AGENT_TOKEN` stops the hub at startup only
   when the panel has not saved the token. `pnpm clara start` warns about the gap

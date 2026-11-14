@@ -45,8 +45,8 @@ Both modes use the same hub panel, pairing command, and data model.
 1. Install dependencies with `pnpm install`.
 2. Start the stack. Docker is the default; add `--local` for host processes.
 3. Open the hub panel and create the owner account. No other hub service starts
-   until that account exists. For a headless install, run
-   `pnpm clara server setup --password-stdin` instead.
+   until that account exists. For a headless local install, run
+   `node apps/hub/server/dist/index.js setup --password-stdin` instead.
 4. The Setup modal asks for the connection path. Choose **Local only** or set up
    the relay with an HTTPS Web URL.
 5. Pair a harness in the modal, then run the printed adapter install command on

@@ -9,7 +9,7 @@ writing custom pipelines, not for end users.
 
 ## User flow
 
-1. Start the lab with `pnpm clara lab`, or run `pnpm dev:lab` while editing it.
+1. Start the lab with `pnpm clara start lab`, or run `pnpm dev:lab` while editing it.
    The lab opens on `127.0.0.1:8791` in a full-height workbench with one
    navigation rail: **Review**, **Runs**, **Traffic**, **Console**, and
    **Settings**.
@@ -55,7 +55,7 @@ writing custom pipelines, not for end users.
     form from each tool's input schema with required, range, and enum hints
     under every field, keeps the raw JSON editor behind a Form/JSON toggle, and
     loads recent calls back into the form.
-11. Run `pnpm clara lab check` in CI to compile a target and fail on errors.
+11. Run `pnpm clara status lab --check` in CI to compile a target and fail on errors.
     Model diagnostics stay static: missing providers, missing models, and unset
     models are reported without reading a live catalog.
 
@@ -225,7 +225,7 @@ writing custom pipelines, not for end users.
 <details>
 <summary>Commands, routes, data, and packages</summary>
 
-- Start: `pnpm clara lab` (serve), `pnpm clara lab check` (validate).
+- Start: `pnpm clara start lab` (serve), `pnpm clara status lab --check` (validate).
 - Dev: `pnpm dev:lab` runs Vite on `5175` and the lab server on `8791`.
 - Default ports: lab `8791`, orchestrator `8789`.
 - Environment: `CLARA_LAB_PORT`, `CLARA_LAB_OPEN=0`,

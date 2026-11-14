@@ -28,9 +28,9 @@ card.
 
 ## User flow
 
-1. Start the hub after `pnpm build` with `pnpm clara server start --local`, or
-   `pnpm clara server start` for the container, then run
-   `pnpm clara server panel`. The open command only opens a panel that is
+1. Start the hub after `pnpm build` with `pnpm clara start hub --local`, or
+   `pnpm clara start hub` for the container, then run
+   `pnpm clara status hub --open`. The open command only opens a panel that is
    already being served; the start command prints the panel URL
    (`http://127.0.0.1:8790/` by default).
 2. On first run the panel is the only surface. It shows **Create the hub owner
@@ -41,7 +41,7 @@ card.
    credentials and submit; the hub starts its transports in the same process and
    the dashboard replaces the setup screen. Later visits show the sign-in form.
    A host reset adds a reset link while its token is valid. For a headless
-   install, run `pnpm clara server setup --password-stdin` while the hub is in
+   install, run `node apps/hub/server/dist/index.js setup --password-stdin` while the hub is in
    setup mode, or set `CLARA_ADMIN_USERNAME` and `CLARA_ADMIN_PASSWORD` (or
    `CLARA_ADMIN_PASSWORD_FILE`) before starting it. The environment path creates
    the owner before any transport starts and skips the setup screen. A
@@ -372,9 +372,10 @@ card.
 - **The setup token is wrong or expired** — setup returns a generic invalid-token
   error and keeps the form available. A token is only required when the host
   supplied one; local setup needs no token.
-- **The superadmin password is lost** — run `pnpm clara server admin reset`. It
-  targets the running deployment automatically and prints which one it chose,
-  writes a new one-time token, and revokes every panel session. While that token
+- **The superadmin password is lost** — run `clara-server admin reset`, or
+  `docker exec clara-server /app/clara-server admin reset` for a container. It
+  targets the running deployment, writes a new one-time token, and revokes every
+  panel session. While that token
   is valid, the sign-in screen shows **Lost your password? Use a reset token**;
   the form takes the token and a new password and keeps the existing username.
   The link disappears when the token is used or expires. There is no HTTP reset
@@ -613,16 +614,16 @@ card.
   `clara-server setup [--username <name>] [--password-stdin]`,
   `clara-server admin reset|setup-token`
 - Built assets: `apps/hub/server/dist/panel`, copied from `apps/hub/panel/dist`
-- Open the built panel: `pnpm clara server panel` opens
+- Open the built panel: `pnpm clara status hub --open` opens
   `http://127.0.0.1:${CLARA_PANEL_PORT:-8790}/` in a browser when the hub service is
-  already serving it; start the hub with `pnpm clara server start --local`
+  already serving it; start the hub with `pnpm clara start hub --local`
   (or `--docker`) first. The panel is a surface of the hub, not a
   separate service
-- Docker (default): `pnpm clara server start|stop|restart|status|setup|setup-token|pair|admin|logs`;
-  `setup`, `setup-token`, `admin`, and `pair` target the running deployment
-  automatically, and `--docker`/`--local` force the container or the host
-  install. Pass `--local` to `start`, `stop`, `restart`, or `logs` to use
-  the detached local hub instead. `pair --no-relay` emits a local-only code.
+- Docker (default): `pnpm clara start|stop|restart|status|logs hub` and
+  `pnpm clara pair`; `clara-server setup`, `setup-token`, and `admin` target the
+  running deployment, and `--docker`/`--local` force the container or the host
+  install. Pass `--local` to `start`, `stop`, `restart`, or `logs` to use the
+  detached local hub instead. `pair --no-relay` emits a local-only code.
   The rebuild snapshot records the hub as `container` or `local` and
   recreates a container with stop/start instead of signalling a PID. See
   [maintenance.md](maintenance.md).
