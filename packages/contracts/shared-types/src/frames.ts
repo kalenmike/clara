@@ -39,6 +39,22 @@ export type ErrorFrame = {
 
 export type WireFrame = HelloFrame | SealedFrame | ErrorFrame
 
+/**
+ * A client frame as the relay wraps it. The relay assigns `p` itself, so the
+ * hub can tie a session to the socket that opened it instead of trusting the
+ * `sid` a client claims. `b` marks `m` as base64url-encoded bytes rather than
+ * frame text; the relay picks the form from the original client frame.
+ */
+export type RouteFrame = {
+  t: 'route'
+  v: typeof PROTOCOL_VERSION
+  /** Relay-assigned peer id for the client socket. */
+  p: string
+  /** True when `m` carries bytes instead of frame text. */
+  b?: boolean
+  m: string
+}
+
 const DEVICE_ERROR_CODES: readonly DeviceErrorCode[] = [
   'unknown_device',
   'revoked_device',
@@ -92,6 +108,18 @@ export function isErrorFrame(value: unknown): value is ErrorFrame {
     value.sid.length > 0 &&
     isDeviceErrorCode(value.code) &&
     typeof value.message === 'string'
+  )
+}
+
+export function isRouteFrame(value: unknown): value is RouteFrame {
+  if (!isRecord(value)) return false
+  return (
+    value.t === 'route' &&
+    value.v === PROTOCOL_VERSION &&
+    typeof value.p === 'string' &&
+    value.p.length > 0 &&
+    typeof value.m === 'string' &&
+    (value.b === undefined || typeof value.b === 'boolean')
   )
 }
 
