@@ -16,6 +16,7 @@ import {
   isLocalHubUrl,
   removeAdapterService,
   removeState,
+  selfEntry,
   startAdapterProcess,
   waitForAdapterAuthentication,
 } from '@clara/adapter-runtime'
@@ -292,8 +293,13 @@ async function resolveClaudeConfigFromOptions(options: InstallOptions): Promise<
     )
   }
 
+  // A compiled adapter cannot resolve the SDK's optional native package, so
+  // persist the system binary it found on PATH for the service that starts it.
+  const systemPath =
+    resolvedPath ?? (installation?.source === 'path' ? installation.binary : undefined)
+
   return {
-    ...(resolvedPath ? { claudePath: resolvedPath } : {}),
+    ...(systemPath ? { claudePath: systemPath } : {}),
     ...(options.baseUrl ? { baseUrl: options.baseUrl } : {}),
     ...(options.provider ? { provider: options.provider } : {}),
     ...(options.model ? { model: options.model } : {}),
@@ -319,7 +325,7 @@ export function uninstallClaudeCommand(args: string[]): void {
       ...removeAdapterService({
         name: 'claude',
         label: 'Claude Code',
-        entry: process.argv[1] ?? '',
+        entry: selfEntry(),
         paths,
       })
     )

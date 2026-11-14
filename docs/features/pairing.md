@@ -11,9 +11,10 @@ pastes the same code, and Clara stores the device credential locally.
 ## Harness adapter pairing
 
 The panel also pairs harness adapters with the same one-time-code and E2EE
-pattern. **Harness → Add harness** chooses the adapter type and location and
-produces a `clara-harness1_…` code. On the harness machine, run the adapter
-installer; for the included adapters that is
+pattern. **Harness → Add harness** chooses the adapter type and install method
+(SSH, Docker, or Manual) and produces a `clara-harness1_…` code. SSH and Docker
+run the registry install script on the target; Manual copies the code and
+command. For the included adapters the manual command is
 `clara-adapter-opencode install --pair <code>` or
 `clara-adapter-claude install --pair <code>` (or
 `pnpm clara adapter install --opencode --pair <code>` /

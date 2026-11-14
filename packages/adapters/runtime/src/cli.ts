@@ -21,6 +21,7 @@ import {
   adapterProcessStatus,
   installAdapterService,
   removeAdapterService,
+  selfEntry,
   startAdapterProcess,
   stopAdapterProcess,
   tailAdapterLog,
@@ -311,7 +312,7 @@ function installHelpers<THarness>(
 ): AdapterInstallHelpers<THarness> {
   return {
     paths: definition.paths,
-    entry: process.argv[1] ?? '',
+    entry: selfEntry(),
     pair: (args) => pair(definition, args),
     config: () => readAdapterConfig<THarness>(definition.paths),
     writeConfig: (config) => writeAdapterConfig(definition.paths, config),
@@ -319,7 +320,7 @@ function installHelpers<THarness>(
       installAdapterService({
         name: definition.name,
         label: definition.label,
-        entry: process.argv[1] ?? '',
+        entry: selfEntry(),
         paths: definition.paths,
       }),
   }
@@ -334,7 +335,7 @@ async function start<THarness>(definition: AdapterDefinition<THarness>): Promise
   const result = startAdapterProcess({
     name: definition.name,
     label: definition.label,
-    entry: process.argv[1] ?? '',
+    entry: selfEntry(),
     paths: definition.paths,
   })
   for (const action of result.actions) console.log(action)
@@ -396,7 +397,7 @@ function uninstallAdapter<THarness>(
   const actions = removeAdapterService({
     name: definition.name,
     label: definition.label,
-    entry: process.argv[1] ?? '',
+    entry: selfEntry(),
     paths: definition.paths,
   })
   removeAdapterConfig(definition.paths)

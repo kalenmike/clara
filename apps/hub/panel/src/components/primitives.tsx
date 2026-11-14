@@ -142,12 +142,14 @@ export function Notice({
   tone = 'warning',
 }: {
   children: ReactNode
-  tone?: 'warning' | 'danger'
+  tone?: 'warning' | 'danger' | 'success'
 }) {
   const classes =
     tone === 'danger'
       ? 'bg-red-50 text-red-700 dark:bg-red-950/50 dark:text-red-300'
-      : 'bg-amber-50 text-amber-800 dark:bg-amber-950/50 dark:text-amber-300'
+      : tone === 'success'
+        ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-300'
+        : 'bg-amber-50 text-amber-800 dark:bg-amber-950/50 dark:text-amber-300'
   return (
     <p className={`flex items-start gap-1.5 rounded-md px-2.5 py-2 text-xs ${classes}`}>
       <CircleAlert className="mt-0.5 size-3.5 shrink-0" aria-hidden="true" />

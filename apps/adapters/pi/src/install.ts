@@ -15,6 +15,7 @@ import {
   isLocalHubUrl,
   removeAdapterService,
   removeState,
+  selfEntry,
   startAdapterProcess,
   waitForAdapterAuthentication,
 } from '@clara/adapter-runtime'
@@ -197,7 +198,7 @@ export function uninstallPiCommand(args: string[]): void {
       ...removeAdapterService({
         name: 'pi',
         label: 'Pi',
-        entry: process.argv[1] ?? '',
+        entry: selfEntry(),
         paths,
       })
     )

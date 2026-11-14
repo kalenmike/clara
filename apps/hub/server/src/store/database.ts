@@ -6,7 +6,7 @@ import { openSqlite, type SqliteDatabase } from '@clara/sqlite'
 
 export type ClaraDatabase = SqliteDatabase
 
-export const SCHEMA_VERSION = 13
+export const SCHEMA_VERSION = 14
 
 const BUSY_TIMEOUT_MS = 5_000
 const DATABASE_MODE = 0o600
@@ -557,6 +557,19 @@ const MIGRATIONS: Migration[] = [
         ON clara_sessions(session_id);
     `)
   },
+  /**
+   * Adapter installs can run a registry script over SSH or Docker. Existing
+   * hubs start with the capability off until the owner enables it.
+   */
+  (db) => {
+    const hasSettings = db
+      .prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'settings'")
+      .get()
+    if (!hasSettings) return
+    db.prepare(
+      'INSERT INTO settings (key, value, updated_at) VALUES (?, ?, ?) ON CONFLICT (key) DO NOTHING'
+    ).run('install.enabled', JSON.stringify(false), Date.now())
+  },
 ]
 
 /** The settings seeded into every new database. */
@@ -572,6 +585,7 @@ export const DEFAULT_SETTINGS = {
   'sync.enabled': true,
   'sync.intervalMs': DEFAULT_SYNC_INTERVAL_MS,
   'orchestration.enabled': false,
+  'install.enabled': false,
 } as const
 
 export function openDatabase(path: string): ClaraDatabase {

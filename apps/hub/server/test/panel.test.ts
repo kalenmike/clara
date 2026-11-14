@@ -10,6 +10,9 @@ import {
   type PanelConfigMutationResponse,
   type PanelConfigUpdate,
   type PanelControls,
+  type PanelInstallInfo,
+  type PanelInstallJob,
+  type PanelInstallStart,
   type PanelMutationResponse,
   type PanelRelayUpdate,
   type PanelSessionsQuery,
@@ -17,6 +20,7 @@ import {
   type PanelSnapshot,
 } from '@clara/shared-types'
 import { PanelControlError, type PanelControlService } from '../src/panel/controls.ts'
+import type { InstallService } from '../src/panel/install-service.ts'
 import { PanelAuth } from '../src/panel/auth.ts'
 import { hashPassword } from '../src/panel/password.ts'
 import type { PanelDataSource } from '../src/panel/runtime.ts'
@@ -62,6 +66,10 @@ function snapshot(): PanelSnapshot {
       relayUrl: { value: null, source: 'none' },
       relayRoom: { value: null, source: 'none' },
       pairingBaseUrl: { value: 'https://clara.example', source: 'default' },
+      adapterRegistryUrl: {
+        value: 'https://clara.example/adapters',
+        source: 'default',
+      },
       vapidSubject: { value: 'https://clara.local', source: 'default' },
     },
     opencode: {
@@ -135,6 +143,7 @@ function snapshot(): PanelSnapshot {
         state: 'stopped',
         url: 'http://127.0.0.1:8789',
       },
+      install: { enabled: false },
     },
     storage: [],
     events: [],
@@ -193,6 +202,7 @@ type FakeControls = PanelControlService & {
   monitorings: boolean[]
   syncs: Array<{ enabled: boolean; intervalMs: number }>
   orchestration: boolean[]
+  installs: boolean[]
   configs: PanelConfigUpdate[]
   relayUpdates: PanelRelayUpdate[]
   clears: number
@@ -218,6 +228,7 @@ function fakeControls(initial: Partial<PanelControls> = {}): FakeControls {
       state: 'stopped',
       url: 'http://127.0.0.1:8789',
     },
+    install: { enabled: false },
     ...initial,
   }
   const config: PanelConfigInfo = {
@@ -226,6 +237,10 @@ function fakeControls(initial: Partial<PanelControls> = {}): FakeControls {
     relayUrl: { value: null, source: 'none' },
     relayRoom: { value: null, source: 'none' },
     pairingBaseUrl: { value: 'https://clara.example', source: 'default' },
+    adapterRegistryUrl: {
+      value: 'https://clara.example/adapters',
+      source: 'default',
+    },
     vapidSubject: { value: 'https://clara.local', source: 'default' },
   }
   const features: Array<{ feature: string; enabled: boolean }> = []
@@ -233,6 +248,7 @@ function fakeControls(initial: Partial<PanelControls> = {}): FakeControls {
   const monitorings: boolean[] = []
   const syncs: Array<{ enabled: boolean; intervalMs: number }> = []
   const orchestration: boolean[] = []
+  const installs: boolean[] = []
   const configs: PanelConfigUpdate[] = []
   const relayUpdates: PanelRelayUpdate[] = []
   let clears = 0
@@ -247,6 +263,7 @@ function fakeControls(initial: Partial<PanelControls> = {}): FakeControls {
     monitorings,
     syncs,
     orchestration,
+    installs,
     configs,
     relayUpdates,
     get clears() {
@@ -289,6 +306,11 @@ function fakeControls(initial: Partial<PanelControls> = {}): FakeControls {
     setOrchestration: async (enabled) => {
       orchestration.push(enabled)
       state.orchestration = { ...state.orchestration, desired: enabled, effective: enabled }
+      return state
+    },
+    setInstall: async (enabled) => {
+      installs.push(enabled)
+      state.install = { enabled }
       return state
     },
     updateRelay: async (update) => {
@@ -371,10 +393,48 @@ function fakeControls(initial: Partial<PanelControls> = {}): FakeControls {
   }
 }
 
+function fakeInstall(): { service: InstallService; started: PanelInstallStart[] } {
+  const started: PanelInstallStart[] = []
+  let job: PanelInstallJob | undefined
+  const service = {
+    info: async (): Promise<PanelInstallInfo> => ({
+      enabled: true,
+      available: true,
+      registry: {
+        baseUrl: 'https://clara.example/adapters',
+        source: 'default',
+        entries: [],
+      },
+      ssh: { available: true, hosts: [{ alias: 'prod', hostname: 'prod.example' }] },
+      docker: { available: true, containers: [] },
+    }),
+    transportFor: () => 'relay' as const,
+    start: async (input: PanelInstallStart) => {
+      started.push(input)
+      job = {
+        id: 'job-1',
+        pairingId: 'pair',
+        kind: input.kind,
+        method: input.method,
+        target: 'prod',
+        state: 'running',
+        startedAt: new Date(0).toISOString(),
+        lines: ['Installing'],
+      }
+      return job
+    },
+    job: (id: string) => (job?.id === id ? job : undefined),
+    cancel: (id: string) => job?.id === id,
+    close: () => {},
+  } as unknown as InstallService
+  return { service, started }
+}
+
 async function start(
   assetsDir?: string,
   controls?: PanelControlService,
-  sourceOverride?: PanelDataSource
+  sourceOverride?: PanelDataSource,
+  install?: InstallService
 ): Promise<PanelServer> {
   const dir = tempDir()
   const db = openDatabase(join(dir, 'clara.db'))
@@ -385,6 +445,7 @@ async function start(
   const server = await startPanelServer({
     source: sourceOverride ?? source(),
     controls,
+    install,
     auth,
     port: 0,
     assetsDir,
@@ -523,6 +584,41 @@ describe('panel server', () => {
 
     const tested = await post(server, 'harnesses/harness-1/test', {})
     expect(tested.status).toBe(200)
+  })
+
+  it('serves the install registry and starts jobs through the install route', async () => {
+    const controls = fakeControls()
+    const install = fakeInstall()
+    const server = await start(undefined, controls, undefined, install.service)
+
+    const info = await get(server, 'panel/api/v1/install')
+    expect(info.status).toBe(200)
+    expect(await info.json()).toMatchObject({
+      available: true,
+      ssh: { hosts: [{ alias: 'prod' }] },
+    })
+
+    const started = await post(server, 'install', {
+      kind: 'opencode',
+      method: 'ssh',
+      host: { alias: 'prod' },
+    })
+    expect(started.status).toBe(200)
+    const body = (await started.json()) as {
+      job: { id: string; state: string }
+      pairing: { kind: string }
+    }
+    expect(body.job).toMatchObject({ id: 'job-1', state: 'running' })
+    expect(body.pairing.kind).toBe('opencode')
+    expect(install.started).toHaveLength(1)
+
+    const job = await get(server, `panel/api/v1/install/jobs/${body.job.id}`)
+    expect(job.status).toBe(200)
+    expect(await job.json()).toMatchObject({ id: 'job-1' })
+
+    const toggle = await post(server, 'install/settings', { enabled: true })
+    expect(toggle.status).toBe(200)
+    expect(controls.installs).toEqual([true])
   })
 
   it('routes browser pairing through the panel control service', async () => {

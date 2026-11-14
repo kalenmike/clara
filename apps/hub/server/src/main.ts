@@ -24,6 +24,8 @@ import { HarnessMetadataStore } from './harness/metadata.ts'
 import { HarnessStore } from './harness/store.ts'
 import { ProjectStore } from './projects/store.ts'
 import { PanelAuth } from './panel/auth.ts'
+import { InstallRegistry } from './panel/install-registry.ts'
+import { InstallService } from './panel/install-service.ts'
 import { PanelLog } from './panel/log.ts'
 import { PanelRuntime } from './panel/runtime.ts'
 import { startPanelServer, type PanelServer } from './panel/server.ts'
@@ -292,6 +294,16 @@ async function runServe(
     }
   }
 
+  const installRegistry = new InstallRegistry({ config, log })
+  const install = new InstallService({
+    config,
+    registry: installRegistry,
+    isEnabled: () => settings.getInstall(),
+    isContainerized,
+    allowRemote: () => readBooleanEnv('CLARA_PANEL_ALLOW_REMOTE'),
+    log,
+  })
+
   const controller = new RuntimeController({
     config,
     harness,
@@ -306,6 +318,7 @@ async function runServe(
     secretKey,
     onRelayTargetChanged: () => cloudflare?.forgetDeployment(),
     onLocalEndpointChange: publishRuntime,
+    onInstallDisabled: () => install.cancelAll(),
     log,
   })
   controllerRef.current = controller
@@ -373,6 +386,7 @@ async function runServe(
       panel = await startPanelServer({
         source: runtime,
         controls: controller,
+        install,
         feature: cloudflare?.panel,
         auth,
         host: process.env.CLARA_PANEL_BIND_HOST?.trim() || '127.0.0.1',
@@ -418,6 +432,7 @@ async function runServe(
     if (stopping) return
     stopping = true
     log('shutting down')
+    install.close()
     await controller.close()
     cloudflare?.close()
     await panel?.close()

@@ -6,7 +6,7 @@
  * agent on a loopback listener; it never travels through the relay.
  */
 
-export const PANEL_API_VERSION = 12
+export const PANEL_API_VERSION = 13
 
 export type PanelValueSource =
   'env' | 'file' | 'database' | 'default' | 'generated' | 'runtime' | 'none'
@@ -56,11 +56,13 @@ export type PanelConfigInfo = {
   relayUrl: PanelValue<string | null>
   relayRoom: PanelValue<string | null>
   pairingBaseUrl: PanelValue<string>
+  adapterRegistryUrl: PanelValue<string>
   vapidSubject: PanelValue<string>
 }
 
 export type PanelConfigUpdate = {
   pairingBaseUrl?: string | null
+  adapterRegistryUrl?: string | null
   vapidSubject?: string | null
 }
 
@@ -165,6 +167,119 @@ export type PanelHarnessTestResult = {
 export type PanelHarnessMutationResponse = {
   harnesses: PanelHarness[]
   harness: PanelHarnessState
+}
+
+/** One downloadable adapter build in a registry manifest. */
+export type PanelInstallArtifact = {
+  url: string
+  sha256: string
+  size?: number
+}
+
+/**
+ * The registry manifest for one harness. The hub reads it to learn the latest
+ * version and the install script; it never downloads the adapter itself.
+ */
+export type PanelInstallManifest = {
+  schemaVersion: 1
+  harness: string
+  version: string
+  publishedAt?: string
+  install: string
+  installSha256: string
+  artifacts: Record<string, PanelInstallArtifact>
+}
+
+export type PanelInstallRegistryEntry = {
+  kind: string
+  manifestUrl: string
+  ok: boolean
+  checkedAt: string
+  manifest?: PanelInstallManifest
+  error?: string
+}
+
+export type PanelInstallRegistry = {
+  baseUrl: string
+  source: PanelValueSource
+  entries: PanelInstallRegistryEntry[]
+}
+
+export type PanelInstallSshHost = {
+  /** The Host alias from ~/.ssh/config, or the entered hostname. */
+  alias: string
+  hostname: string
+  user?: string
+  port?: number
+}
+
+export type PanelInstallSshTargets = {
+  available: boolean
+  reason?: string
+  hosts: PanelInstallSshHost[]
+}
+
+export type PanelInstallDockerContainer = {
+  id: string
+  name: string
+  image: string
+  state: string
+  project?: string
+  service?: string
+}
+
+export type PanelInstallDockerTargets = {
+  available: boolean
+  reason?: string
+  containers: PanelInstallDockerContainer[]
+}
+
+export type PanelInstallInfo = {
+  enabled: boolean
+  available: boolean
+  reason?: string
+  registry: PanelInstallRegistry
+  ssh: PanelInstallSshTargets
+  docker: PanelInstallDockerTargets
+}
+
+export type PanelInstallMethod = 'ssh' | 'docker'
+
+export type PanelInstallHostInput = {
+  /** Use this ~/.ssh/config alias and let ssh resolve user, host, and port. */
+  alias?: string
+  hostname?: string
+  user?: string
+  port?: number
+}
+
+export type PanelInstallStart = {
+  kind: string
+  method: PanelInstallMethod
+  host?: PanelInstallHostInput
+  container?: string
+  opencodeUrl?: string
+}
+
+export type PanelInstallJobState = 'running' | 'succeeded' | 'failed' | 'cancelled'
+
+export type PanelInstallJob = {
+  id: string
+  pairingId: string
+  kind: string
+  method: PanelInstallMethod
+  target: string
+  state: PanelInstallJobState
+  startedAt: string
+  finishedAt?: string
+  exitCode?: number
+  lines: string[]
+  error?: string
+}
+
+export type PanelInstallResponse = {
+  pairing: PanelHarnessPairing
+  job: PanelInstallJob
 }
 
 export type PanelOpenCodeInfo = {
@@ -404,6 +519,12 @@ export type PanelControls = {
   monitoring: PanelMonitoringControl
   sync: PanelSyncControl
   orchestration: PanelOrchestrationControl
+  install: PanelInstallControl
+}
+
+export type PanelInstallControl = {
+  /** Allows the panel to run the adapter install script over SSH or Docker. */
+  enabled: boolean
 }
 
 export type PanelMonitoringControl = {
@@ -449,6 +570,10 @@ export type PanelSyncUpdate = {
 }
 
 export type PanelOrchestrationUpdate = {
+  enabled: boolean
+}
+
+export type PanelInstallUpdate = {
   enabled: boolean
 }
 

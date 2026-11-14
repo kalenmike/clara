@@ -45,6 +45,7 @@ function baseConfig(overrides: Partial<ServerConfig> = {}): ServerConfig {
   return {
     local: { host: '127.0.0.1', bindHost: '127.0.0.1', port: 8788 },
     pairingBaseUrl: 'https://clara.example',
+    adapterRegistryUrl: 'https://clara.example/adapters',
     configDir: '/tmp/clara-pairing',
     configPath: '/tmp/clara-pairing/server.json',
     dataDir: '/tmp/clara-pairing',
@@ -57,6 +58,7 @@ function baseConfig(overrides: Partial<ServerConfig> = {}): ServerConfig {
       relayRoom: 'none',
       agentToken: 'none',
       pairingBaseUrl: 'default',
+      adapterRegistryUrl: 'default',
     },
     ...overrides,
   }

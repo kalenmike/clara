@@ -37,6 +37,7 @@ describe('SQLite settings store', () => {
         monitoring: true,
         sync: { enabled: true, intervalMs: 30_000 },
         orchestration: false,
+        install: false,
       })
       const rows = db.prepare('SELECT key FROM settings ORDER BY key').all() as Array<{
         key: string
@@ -71,6 +72,7 @@ describe('SQLite settings store', () => {
         monitoring: false,
         sync: { enabled: true, intervalMs: 30_000 },
         orchestration: false,
+        install: false,
       })
     } finally {
       closeDatabase(second)
@@ -102,6 +104,7 @@ describe('SQLite settings store', () => {
         monitoring: true,
         sync: { enabled: true, intervalMs: 30_000 },
         orchestration: false,
+        install: false,
       })
     } finally {
       closeDatabase(db)

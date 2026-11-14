@@ -37,6 +37,7 @@ function config(dir: string): ServerConfig {
       agentToken: 'sentinel-agent-token',
     },
     pairingBaseUrl: 'https://clara.example',
+    adapterRegistryUrl: 'https://clara.example/adapters',
     configDir: dir,
     configPath: join(dir, 'server.json'),
     dataDir: dir,
@@ -49,6 +50,7 @@ function config(dir: string): ServerConfig {
       relayRoom: 'file',
       agentToken: 'env',
       pairingBaseUrl: 'default',
+      adapterRegistryUrl: 'default',
     },
   }
 }

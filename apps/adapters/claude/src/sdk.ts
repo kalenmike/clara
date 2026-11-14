@@ -565,9 +565,9 @@ export class AgentSdkGateway implements ClaudeGateway {
       this.config.permissionMode === 'bypassPermissions'
         ? { allowDangerouslySkipPermissions: true }
         : {}),
-      ...(installation?.source === 'configured'
-        ? { pathToClaudeCodeExecutable: installation.binary }
-        : {}),
+      // In a Bun-compiled adapter the SDK cannot resolve its optional native
+      // package, so always use the binary this adapter detected.
+      ...(installation ? { pathToClaudeCodeExecutable: installation.binary } : {}),
     }
 
     const live = query({ prompt: queue, options })
@@ -683,6 +683,7 @@ export class AgentSdkGateway implements ClaudeGateway {
   ): Promise<ClaudeCatalog | undefined> {
     const abort = new AbortController()
     const timer = setTimeout(() => abort.abort(), 8_000)
+    const installation = this.installation()
     let deadline: NodeJS.Timeout | undefined
     let live: ReturnType<typeof query> | undefined
     try {
@@ -696,9 +697,7 @@ export class AgentSdkGateway implements ClaudeGateway {
             ...process.env,
             ...(baseUrl ? { ANTHROPIC_BASE_URL: baseUrl } : {}),
           },
-          ...(this.installation()?.source === 'configured'
-            ? { pathToClaudeCodeExecutable: this.installation()?.binary ?? '' }
-            : {}),
+          ...(installation ? { pathToClaudeCodeExecutable: installation.binary } : {}),
         },
       })
       const init = await Promise.race([

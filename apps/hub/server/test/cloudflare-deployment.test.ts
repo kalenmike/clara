@@ -1028,6 +1028,7 @@ describe('cloudflare deployment rollback', () => {
         agentToken: 'sentinel-agent-token',
       },
       pairingBaseUrl: 'https://clara.example',
+      adapterRegistryUrl: 'https://clara.example/adapters',
       configDir: dir,
       configPath: join(dir, 'server.json'),
       dataDir: dir,
@@ -1040,6 +1041,7 @@ describe('cloudflare deployment rollback', () => {
         relayRoom: 'file',
         agentToken: 'file',
         pairingBaseUrl: 'default',
+        adapterRegistryUrl: 'default',
       },
     }
   }
