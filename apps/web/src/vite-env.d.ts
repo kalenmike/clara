@@ -20,3 +20,6 @@ interface ImportMetaEnv {
 interface ImportMeta {
   readonly env: ImportMetaEnv
 }
+
+/** Injected by Vite: the identity a page and its service worker compare. */
+declare const __CLARA_BUILD_ID__: string

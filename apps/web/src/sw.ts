@@ -15,6 +15,11 @@ declare let self: ServiceWorkerGlobalScope & {
   __WB_MANIFEST: Array<PrecacheEntry | string>
 }
 
+// Compiled in by Vite's `define` (see `apps/web/vite.config.ts`); the page knows
+// the same values and asks for them before offering an update.
+declare const __CLARA_BUILD_ID__: string
+declare const __CLARA_BUILD_AT__: string
+
 /**
  * Push and notification-click handlers stay in a hand-written script: the hub
  * ships the same behavior and the file is easier to read on its own.
@@ -60,7 +65,17 @@ setCatchHandler(async (options) => {
 // The update banner asks for this message. Skipping waiting on install would
 // swap the worker under a page that is still running the previous build.
 self.addEventListener('message', (event) => {
-  if (event.data?.type === 'SKIP_WAITING') self.skipWaiting()
+  const data = event.data as { type?: string } | null
+  if (data?.type === 'SKIP_WAITING') self.skipWaiting()
+  // A waiting worker answers with its build so the page can tell a new deploy
+  // from the browser re-installing the build that is already running.
+  if (data?.type === 'CLARA_BUILD' && event.ports[0]) {
+    event.ports[0].postMessage({
+      type: 'CLARA_BUILD',
+      buildId: __CLARA_BUILD_ID__,
+      builtAt: __CLARA_BUILD_AT__,
+    })
+  }
 })
 
 // A claimed page receives `controllerchange`, which is what the banner reloads

@@ -30,6 +30,18 @@ const dirty =
     : dirtyFromEnv === '1' || dirtyFromEnv === 'true'
 const builtAt = new Date().toISOString()
 
+// The identity a page and its service worker compare before offering an update.
+// A clean checkout is identified by its commit, so rebuilding the same code does
+// not look like a new version; a dirty tree or a checkout without git can differ
+// between builds, so it is identified by its build time. The values are compiled
+// into both the app and the worker (a separate Vite build without
+// `vite-env.d.ts`), so they are bare globals.
+const buildId = commit ? (dirty ? `${commit}+${builtAt}` : commit) : builtAt
+const buildIdentityDefine = {
+  __CLARA_BUILD_ID__: JSON.stringify(buildId),
+  __CLARA_BUILD_AT__: JSON.stringify(builtAt),
+}
+
 export default defineConfig(({ command, mode }) => {
   // The desktop shell bundles the same app without the service worker, into its
   // own directory so a Tauri build can never leak into the deployed web build.
@@ -91,6 +103,9 @@ export default defineConfig(({ command, mode }) => {
         dirty,
         builtAt,
       }),
+      // The same identity is compiled into the app and into the service worker
+      // build, which lets them compare versions over a message.
+      ...buildIdentityDefine,
     },
     build: desktop ? { outDir: 'dist-desktop' } : undefined,
     resolve: {
