@@ -2,29 +2,34 @@ import {
   ReplayGuard,
   base64UrlToBytes,
   bytesToBase64Url,
-  deriveSessionKeys,
+  deriveV4SessionKeys,
   fingerprintKey,
+  generateEphemeralKeyPair,
   generateKey,
   importSessionKey,
   open,
   randomBytes,
   seal,
   utf8,
+  verifyV4HelloMac,
   type SessionKeys,
+  type V4EphemeralKeyPair,
 } from '@clara/crypto'
 import {
   PROTOCOL_VERSION,
+  PROTOCOL_VERSION_V4,
   RELAY_AUTH_PREFIX,
   RELAY_ROLE_PREFIX,
   RELAY_SUBPROTOCOL,
   isErrorFrame,
-  isHelloFrame,
+  isHubHelloFrameV4,
   isSealedFrame,
   type AgentInfo,
   type ClaraAction,
   type ClaraState,
+  type ClientHelloFrameV4,
   type DeviceErrorCode,
-  type HelloFrame,
+  type RelayGrantState,
   type SyncCheckAction,
   type SyncErrorCode,
   type SyncPullAction,
@@ -33,6 +38,13 @@ import {
   type WireFrame,
 } from '@clara/shared-types'
 import { installPresenceTracking, readPresenceSnapshot } from '@/features/notifications/presence'
+import {
+  RELAY_GRANT_REJECTED_MESSAGE,
+  closeReason,
+  describeClose,
+  refusedReason,
+  relayReachable,
+} from './relay-close'
 
 const HANDSHAKE_TIMEOUT_MS = 10_000
 const REQUEST_HEAD_TIMEOUT_MS = 30_000
@@ -48,7 +60,6 @@ const SYNC_TIMEOUT_MS = 30_000
  * also lets a hub restart or a transient race heal itself.
  */
 const CREDENTIAL_DEAD_LIMIT = 3
-const MAX_CLOSE_REASON_BYTES = 120
 
 /** Codes that mean the stored credential cannot ever work again. */
 const CREDENTIAL_DEAD_CODES = [
@@ -90,8 +101,11 @@ export type RelayCredential =
 
 export type RelayTransportConfig = {
   wsUrl: string
-  clientToken: string
+  /** The grant presented as `clara.auth.<grant>`. Empty for a local pairing. */
+  grant: string
   credential: RelayCredential
+  /** Called whenever the hub refreshes the device grant in `ready`. */
+  onRelayGrant?: (grant: RelayGrantState) => void
 }
 
 /** A device credential returned after a successful enrollment. */
@@ -101,6 +115,8 @@ export type EnrolledDevice = {
   key: CryptoKey
   fingerprint: string
   label: string
+  /** The first device grant, delivered with `device.enrolled`. */
+  relayGrant?: RelayGrantState
 }
 
 export type RelayTransportState = 'idle' | 'connecting' | 'open' | 'reconnecting' | 'closed'
@@ -174,6 +190,7 @@ type EnrolledSummary = {
   deviceId: string
   fingerprint: string
   label: string
+  relayGrant?: RelayGrantState
 }
 
 type PendingEnrollment = {
@@ -201,7 +218,9 @@ class RelayFetchTransport implements RelayTransport {
   private keys: SessionKeys | null = null
   private sid: string | null = null
   private clientNonce: string | null = null
+  private clientEphemeral: V4EphemeralKeyPair | null = null
   private receive: ReplayGuard | null = null
+  private attemptSeq = 0
   private sendChain: Promise<void> = Promise.resolve()
   private receiveChain: Promise<void> = Promise.resolve()
   private sendSeq = 0
@@ -344,6 +363,7 @@ class RelayFetchTransport implements RelayTransport {
       key,
       fingerprint,
       label: result.label,
+      ...(result.relayGrant ? { relayGrant: result.relayGrant } : {}),
     }
   }
 
@@ -448,14 +468,15 @@ class RelayFetchTransport implements RelayTransport {
   private openSocket(): void {
     if (this.closed) return
     this.setState(this.retry === 0 ? 'connecting' : 'reconnecting', null)
+    this.attemptSeq += 1
+    const attempt = this.attemptSeq
+
+    const protocols = [RELAY_SUBPROTOCOL, `${RELAY_ROLE_PREFIX}client`]
+    if (this.config.grant) protocols.push(`${RELAY_AUTH_PREFIX}${this.config.grant}`)
 
     let socket: WebSocket
     try {
-      socket = new WebSocket(this.config.wsUrl, [
-        RELAY_SUBPROTOCOL,
-        `${RELAY_ROLE_PREFIX}client`,
-        `${RELAY_AUTH_PREFIX}${this.config.clientToken}`,
-      ])
+      socket = new WebSocket(this.config.wsUrl, protocols)
     } catch (cause) {
       this.rejectHandshake(cause)
       this.scheduleReconnect()
@@ -463,6 +484,8 @@ class RelayFetchTransport implements RelayTransport {
     }
     this.socket = socket
     this.lastReceivedAt = Date.now()
+    let opened = false
+    let refusalHandled = false
 
     this.handshakeTimer = window.setTimeout(() => {
       this.rejectHandshake(new Error('The home server did not finish the E2EE handshake'))
@@ -471,23 +494,8 @@ class RelayFetchTransport implements RelayTransport {
 
     socket.addEventListener('open', () => {
       if (this.socket !== socket) return
-      this.sid = randomId()
-      this.clientNonce = bytesToBase64Url(randomBytes(16))
-      this.sendChain = Promise.resolve()
-      this.receiveChain = Promise.resolve()
-      this.sendSeq = 0
-      const credential = this.config.credential
-      const hello: HelloFrame = {
-        t: 'hello',
-        v: PROTOCOL_VERSION,
-        sid: this.sid,
-        nonce: this.clientNonce,
-        role: 'client',
-        ...(credential.kind === 'device'
-          ? { deviceId: credential.deviceId }
-          : { enrollId: credential.enrollId }),
-      }
-      socket.send(JSON.stringify(hello satisfies WireFrame))
+      opened = true
+      void this.beginHandshake(socket)
     })
 
     socket.addEventListener('message', (event) => {
@@ -503,10 +511,17 @@ class RelayFetchTransport implements RelayTransport {
         return
       }
       const reason = refusedReason(this.config.wsUrl)
-      this.setState(this.statusValue.state, reason)
       // Browsers follow an error with a close, but not every runtime does, so
       // fail a pending handshake here as well.
       this.rejectHandshake(new Error(reason))
+      if (!opened && this.config.grant) {
+        if (!refusalHandled) {
+          refusalHandled = true
+          this.classifyRefusedUpgrade(attempt, reason)
+        }
+        return
+      }
+      this.setState(this.statusValue.state, reason)
     })
 
     socket.addEventListener('close', (event) => {
@@ -515,6 +530,7 @@ class RelayFetchTransport implements RelayTransport {
       this.socket = null
       this.keys = null
       this.receive = null
+      this.clientEphemeral = null
       this.stopHeartbeat()
       if (this.handshakeTimer !== null) window.clearTimeout(this.handshakeTimer)
       this.handshakeTimer = null
@@ -530,9 +546,72 @@ class RelayFetchTransport implements RelayTransport {
         this.setState('closed', this.terminal)
         return
       }
+      if (!opened && refusalHandled) return
+      // A failed upgrade cannot expose its HTTP status to a browser. For a relay
+      // device or enrollment grant, a reachable relay that still refused means
+      // the grant expired, was revoked, or belongs to another relay; retrying
+      // cannot fix that. An unreachable relay stays transient.
+      if (!opened && this.config.grant) {
+        refusalHandled = true
+        this.classifyRefusedUpgrade(attempt, reason)
+        return
+      }
       this.setState('reconnecting', reason)
       this.scheduleReconnect()
     })
+  }
+
+  private async beginHandshake(socket: WebSocket): Promise<void> {
+    this.sid = randomId()
+    this.clientNonce = bytesToBase64Url(randomBytes(16))
+    this.sendChain = Promise.resolve()
+    this.receiveChain = Promise.resolve()
+    this.sendSeq = 0
+    this.keys = null
+    this.receive = null
+
+    try {
+      const ephemeral = await generateEphemeralKeyPair()
+      if (this.socket !== socket) return
+      this.clientEphemeral = ephemeral
+      const credential = this.config.credential
+      const hello: ClientHelloFrameV4 = {
+        t: 'hello',
+        v: PROTOCOL_VERSION_V4,
+        sid: this.sid,
+        nonce: this.clientNonce,
+        role: 'client',
+        eph: ephemeral.publicKey,
+        ...(credential.kind === 'device'
+          ? { deviceId: credential.deviceId }
+          : { enrollId: credential.enrollId }),
+      }
+      socket.send(JSON.stringify(hello satisfies WireFrame))
+    } catch (cause) {
+      this.rejectHandshake(cause)
+      socket.close(4001, 'handshake failed')
+    }
+  }
+
+  /**
+   * Separate a dead relay grant from a relay that is merely unreachable. The
+   * health probe runs off the socket close, so a caller waiting on the rejected
+   * handshake is not held open by it.
+   */
+  private classifyRefusedUpgrade(attempt: number, reason: string): void {
+    this.setState('reconnecting', reason)
+    void (async () => {
+      const reachable = await relayReachable(this.config.wsUrl)
+      if (this.closed || this.terminal || this.attemptSeq !== attempt) return
+      if (!reachable) {
+        this.setState('reconnecting', reason)
+        this.scheduleReconnect()
+        return
+      }
+      this.terminal = RELAY_GRANT_REJECTED_MESSAGE
+      this.failEnrollment(new Error(this.terminal))
+      this.setState('closed', this.terminal)
+    })()
   }
 
   private async handleFrame(raw: unknown): Promise<void> {
@@ -562,17 +641,31 @@ class RelayFetchTransport implements RelayTransport {
       return
     }
 
-    if (isHelloFrame(parsed)) {
-      if (parsed.role !== 'agent' || parsed.sid !== this.sid || !this.clientNonce) return
+    if (isHubHelloFrameV4(parsed)) {
+      if (this.keys) return
+      if (parsed.sid !== this.sid || !this.clientNonce || !this.clientEphemeral) return
+      const credential = this.config.credential
+      const input = {
+        staticKey: credential.kind === 'device' ? credential.key : credential.enrollToken,
+        sid: parsed.sid,
+        nonceC: this.clientNonce,
+        nonceS: parsed.nonce,
+        ephC: this.clientEphemeral.publicKey,
+        ephS: parsed.eph,
+        privateKey: this.clientEphemeral.privateKey,
+        peerPublicKey: parsed.eph,
+      }
       try {
-        const credential = this.config.credential
-        const keys = await deriveSessionKeys({
-          key: credential.kind === 'device' ? credential.key : credential.enrollToken,
-          sid: parsed.sid,
-          clientNonce: this.clientNonce,
-          agentNonce: parsed.nonce,
-        })
-        this.keys = keys
+        // Verify the hub's proof before adopting any key. A bad MAC means this
+        // socket is not talking to a hub that holds the static key; never fall
+        // back to a nonce-only session.
+        if (!(await verifyV4HelloMac({ ...input, mac: parsed.mac }))) {
+          this.rejectHandshake(new Error('The home server could not prove the E2EE session key'))
+          this.socket?.close(4001, 'handshake failed')
+          return
+        }
+        const material = await deriveV4SessionKeys(input)
+        this.keys = material.keys
         this.receive = new ReplayGuard()
       } catch (cause) {
         this.rejectHandshake(cause)
@@ -620,12 +713,20 @@ class RelayFetchTransport implements RelayTransport {
           deviceId: payload.deviceId,
           fingerprint: payload.fingerprint,
           label: payload.label,
+          ...(payload.relayGrant ? { relayGrant: payload.relayGrant } : {}),
         })
       }
       return
     }
 
     if (payload.type === 'ready') {
+      if (payload.relayGrant) {
+        try {
+          this.config.onRelayGrant?.(payload.relayGrant)
+        } catch {
+          // Persisting a refreshed grant must not break the session.
+        }
+      }
       this.statusValue = { ...this.statusValue, agent: payload.agent }
       this.retry = 0
       this.deadCode = null
@@ -937,7 +1038,7 @@ class RelayFetchTransport implements RelayTransport {
   }
 
   private scheduleReconnect(): void {
-    if (this.closed || this.reconnectTimer !== null) return
+    if (this.closed || this.terminal || this.reconnectTimer !== null) return
     const base = Math.min(1_000 * 2 ** Math.min(this.retry, 5), MAX_RECONNECT_MS)
     const delay = Math.round(base * (0.8 + Math.random() * 0.4))
     this.retry += 1
@@ -1044,43 +1145,6 @@ function abortError(): DOMException {
 
 function isCredentialDeadCode(code: DeviceErrorCode): code is CredentialDeadCode {
   return (CREDENTIAL_DEAD_CODES as readonly DeviceErrorCode[]).includes(code)
-}
-
-/**
- * A WebSocket close reason is capped at 123 UTF-8 bytes and an overlong reason
- * throws, so carry the hub's message only while it fits.
- */
-function closeReason(message: string): string {
-  const bytes = utf8(message)
-  if (bytes.byteLength <= MAX_CLOSE_REASON_BYTES) return message
-  return new TextDecoder().decode(bytes.slice(0, MAX_CLOSE_REASON_BYTES))
-}
-
-/**
- * A refused WebSocket upgrade (Worker 404/401, or a mixed-content block for a
- * `ws://` endpoint on an HTTPS page) closes without a reason, so turn the bare
- * code into something actionable.
- */
-const LOCAL_ONLY_MESSAGE =
-  'This pairing code is local-only. Configure the relay on the hub, then pair again.'
-const REFUSED_MESSAGE = 'The relay refused the connection. Check the room URL and the client token.'
-
-function describeClose(event: CloseEvent, wsUrl: string, wasOpen: boolean): string {
-  if (event.reason) return event.reason
-  if (event.code === 1006 || event.code === 1005) {
-    if (wasOpen) return 'The connection to the relay dropped. Reconnecting.'
-    return refusedReason(wsUrl)
-  }
-  return `The relay connection closed (code ${event.code}).`
-}
-
-function refusedReason(wsUrl: string): string {
-  return isBlockedLocalEndpoint(wsUrl) ? LOCAL_ONLY_MESSAGE : REFUSED_MESSAGE
-}
-
-function isBlockedLocalEndpoint(wsUrl: string): boolean {
-  if (!wsUrl.startsWith('ws://')) return false
-  return typeof window !== 'undefined' && window.location?.protocol === 'https:'
 }
 
 function isState(

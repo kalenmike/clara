@@ -109,7 +109,7 @@ export function resolveRelayWsUrl(wsUrl: string, room: string): string {
 export function createClient(config: ConnectionConfig): ClientHandle {
   const transport = createRelayTransport({
     wsUrl: config.wsUrl,
-    clientToken: config.clientToken,
+    grant: config.clientToken,
     credential:
       config.kind === 'device'
         ? { kind: 'device', deviceId: config.deviceId, key: config.key }
