@@ -103,7 +103,8 @@ clara-adapter-pi install --pair <code>
 
 The installer finds `pi` on `PATH`, under `~/.pi/agent/bin`, or under
 `~/.local/bin`. Use `--pi-path` for another location. `--no-service` writes the
-config without installing a user service.
+config without installing a user service. In the panel, choose **This machine**
+unless Pi itself runs inside the `clara` Docker network.
 
 Pi sessions are shared: Clara lists the sessions already in Pi's session store,
 and sessions you start in Clara appear in `pi --resume`. Renaming in either
