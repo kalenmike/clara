@@ -370,11 +370,11 @@ export class InstallService {
     if (!this.options.isEnabled()) {
       return 'Adapter installs are off. Turn them on in Settings → Adapter downloads.'
     }
+    if (this.options.isContainerized()) {
+      return 'The hub service runs in Docker. Install from a local hub, or copy the command and run it inside the container.'
+    }
     if (this.options.allowRemote()) {
       return 'The panel is reachable beyond loopback, so install actions are disabled.'
-    }
-    if (this.options.isContainerized()) {
-      return 'The hub service runs in Docker. Install from a local hub, or use Manual.'
     }
     return undefined
   }
