@@ -103,6 +103,12 @@ contacts the harness directly.
     archive from the URL in its generated map. Install actions are off by
     default and are available only from a loopback panel backed by a local hub
     process.
+11. An online adapter advertises `host.metrics` and serves
+    `/harness/v1/host`. The sample describes the machine or container running
+    the adapter: CPU and memory use cgroup v2 limits when the adapter is in a
+    container, and disk covers only the adapter data and config directories.
+    The hub asks at most once per panel poll, caches the sample, and treats a
+    missing route as unsupported until the adapter reconnects.
 
 ## Adapter mapping
 
@@ -318,6 +324,9 @@ ask for confirmation run without one, exactly as in the Pi TUI.
 - Pending pairing codes are shown only in the panel session that created them.
 - A relay adapter grant lasts thirty days and is refreshed on each connect. An
   adapter offline longer than that must pair again.
+- Host resource samples cover the adapter machine or container. cgroup v1 hosts
+  and non-Linux machines report host-wide CPU and memory, and the sample lists
+  the adapter data and config volumes, not workspace volumes.
 
 ## Technical appendix
 
@@ -326,7 +335,8 @@ ask for confirmation run without one, exactly as in the Pi TUI.
 
 - Protocol: `/harness/v1` over the adapter's E2EE WebSocket session.
   `/harness/v1/health` returns the adapter's live harness probe;
-  `/harness/v1/info` keeps the adapter and harness metadata.
+  `/harness/v1/info` keeps the adapter and harness metadata;
+  `/harness/v1/host` returns the adapter machine's CPU, memory, and disk sample.
 - Frames: `adapter.request`, `adapter.abort`, `adapter.response`,
   `adapter.chunk`, `adapter.end`, `adapter.error`, `adapter.enroll`,
   `adapter.enrolled`.

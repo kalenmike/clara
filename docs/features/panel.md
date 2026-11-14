@@ -110,6 +110,11 @@ card.
    **Connected adapters** follows with live adapter sessions:
    transport, session id, harness label and kind, short harness id, credential
    fingerprint, timestamps, and the same traffic counters as Clients.
+   **Host resources** follows with a sample from every online adapter that
+   reports one: CPU and memory usage, disk space for the adapter data and config
+   directories, a **container** badge when cgroup limits apply, and the sample
+   age. A sample describes the adapter machine or container, not the harness's
+   workspace volumes. Adapters that predate the endpoint show an empty state.
    **Paired harnesses** sits at the bottom with the label, kind, fingerprint,
    transport, version, status, last seen, and last test for every enrolled
    adapter. Each paired row carries **Activate**, **Test**, **Delete**, and
@@ -421,6 +426,9 @@ card.
 - **A harness adapter is connected** — it has its own row under
   **Connected adapters** with its harness label, kind, short harness id, and
   credential fingerprint. It never appears in the Clients table or its counts.
+  **Host resources** adds its CPU, memory, and adapter disk sample; a transient
+  probe failure keeps the last sample for up to thirty seconds, and an adapter
+  without the endpoint is not polled again until it reconnects.
 - **No harness is paired** — **Sessions** explains that a harness must be added
   and shows no table rows.
 - **Every harness is offline** — each harness card says **Offline**; the table
