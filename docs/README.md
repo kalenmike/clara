@@ -69,6 +69,7 @@ Clara works; the guide describes how to use it.
 | [hub-app.md](features/hub-app.md)                     | You are working on the hub tray app, Bun sidecar, or dynamic ports       |
 | [connection.md](features/connection.md)               | You are working on connecting Clara to a harness                         |
 | [harness-adapters.md](features/harness-adapters.md)   | You are working on harness adapters, pairing, or protocol transport      |
+| [handshake-v4.md](features/handshake-v4.md)           | You are working on relay grants, the v4 handshake, or forward secrecy    |
 | [pairing.md](features/pairing.md)                     | You are working on QR/code pairing, device storage, or key rotation      |
 | [panel.md](features/panel.md)                         | You are working on the hub panel                                         |
 | [hub-controls.md](features/hub-controls.md)           | You are working on feature toggles or the Go offline control             |
