@@ -44,7 +44,8 @@ import { useModelVisibility } from '@/features/models/use-model-visibility'
 import { isModelVisible } from '@/features/models/visibility'
 import { useSessionPolicy } from '@/features/notifications/session-policy'
 import { useInboxMonitor } from '@/features/sessions/inbox-monitor'
-import { projectDefaultWorkspace, useProject } from '@/features/projects/use-projects'
+import { resolveProjectWorkspaceTarget } from '@/features/projects/project-workspaces'
+import { useProject } from '@/features/projects/use-projects'
 import { planMessageFork } from '@/features/sessions/fork'
 import { isArchivedSession } from '@/features/sessions/session-archive'
 import { isSnoozedSession } from '@/features/sessions/session-snooze'
@@ -59,6 +60,7 @@ import { useKeybinds } from '@/hooks/use-keybinds'
 import { useMediaQuery } from '@/hooks/use-media-query'
 import {
   readDraft,
+  readLastWorkspace,
   readShowInternal,
   readSidePanelTab,
   saveShowInternal,
@@ -88,9 +90,17 @@ function ChatPageContent() {
   const project = projectQuery.project
   /** The container that owns worktrees and the selected workspace. */
   const owningProject = project
-  const workspace = projectDefaultWorkspace(project)
   const sessionQuery = useSession(sessionId ?? null)
   const session = sessionQuery.data
+  const lastWorkspaceID = project ? readLastWorkspace(project.id) : null
+  const workspaceTarget = useMemo(
+    () =>
+      resolveProjectWorkspaceTarget(project, lastWorkspaceID, {
+        harnessID: session?.harnessID,
+      }),
+    [lastWorkspaceID, project, session?.harnessID]
+  )
+  const workspace = workspaceTarget.workspace
   useMarkSessionViewed(session)
   const worker = session != null && isAutomation?.(session) === true
   const snapshot = useChatSnapshot(sessionId ?? '')
