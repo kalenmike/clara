@@ -4,6 +4,7 @@ import {
   DEFAULT_SYNC_INTERVAL_MS,
   PANEL_API_VERSION,
   PROTOCOL_VERSION,
+  type HostResourceMetrics,
   type PanelAuthInfo,
   type PanelClientInfo,
   type PanelConfigInfo,
@@ -25,7 +26,7 @@ import {
 } from '@clara/shared-types'
 import type { Agent } from '../agent.ts'
 import type { ServerConfig } from '../config.ts'
-import type { HarnessManager } from '../harness/manager.ts'
+import type { HarnessHostResources, HarnessManager } from '../harness/manager.ts'
 import type { HarnessProbe } from '../harness/types.ts'
 import { harnessList, harnessState } from './harness.ts'
 import type { PushService } from '../push/service.ts'
@@ -40,7 +41,16 @@ import type { PanelFeature } from './feature.ts'
 import type { SessionMonitor } from '../sessions/monitor.ts'
 
 const PROBE_TTL_MS = 5_000
+const HOST_METRICS_TTL_MS = 5_000
+const HOST_METRICS_RETENTION_MS = 30_000
 const MAX_ERROR_LENGTH = 240
+
+type HostMetricsCacheEntry = {
+  generation: number
+  at: number
+  metrics?: HostResourceMetrics
+  unsupported?: boolean
+}
 
 export type PanelDatabaseSource = {
   path: string
@@ -84,6 +94,8 @@ export class PanelRuntime implements PanelDataSource {
   private readonly options: PanelRuntimeOptions
   private probeCache: { at: number; generation: number; result: HarnessProbe } | undefined
   private probeInFlight: Promise<HarnessProbe> | undefined
+  private hostCache = new Map<string, HostMetricsCacheEntry>()
+  private hostInFlight = new Map<string, Promise<HarnessHostResources>>()
   private harnessSecrets: string[] = []
 
   constructor(options: PanelRuntimeOptions) {
@@ -94,7 +106,14 @@ export class PanelRuntime implements PanelDataSource {
     const now = Date.now()
     this.harnessSecrets = await this.options.harness.redactionValues()
     const controls = this.controlsSnapshot()
-    const probe = await this.getProbe(controls)
+    const hostEnabled =
+      controlFor(controls, 'opencode').effective && this.options.probeEnabled?.() !== false
+    const [probe, hostMetrics] = await Promise.all([
+      this.getProbe(controls),
+      hostEnabled
+        ? this.hostMetricsSnapshot(now)
+        : Promise.resolve(new Map<string, HostResourceMetrics>()),
+    ])
     const traffic = this.trafficSnapshot()
     const { config } = this.options
     const local = controlFor(controls, 'local')
@@ -125,7 +144,7 @@ export class PanelRuntime implements PanelDataSource {
       config: panelConfigInfo(config),
       opencode: this.openCodeSnapshot(probe, now, controlFor(controls, 'opencode')),
       harness,
-      harnesses: this.harnessList(),
+      harnesses: this.harnessList(hostMetrics),
       harnessPairings: [],
       local: {
         host: config.local.host,
@@ -201,8 +220,82 @@ export class PanelRuntime implements PanelDataSource {
     return state.error ? { ...state, error: this.redact(state.error) } : state
   }
 
-  private harnessList(): PanelHarness[] {
-    return harnessList(this.options.harness)
+  private harnessList(resources: Map<string, HostResourceMetrics>): PanelHarness[] {
+    return harnessList(this.options.harness).map((harness) => {
+      const metrics = resources.get(harness.harnessId)
+      return metrics ? { ...harness, resources: metrics } : harness
+    })
+  }
+
+  /**
+   * Fetch live host samples for online adapters. Successful samples are cached
+   * for the panel's five-second cadence, and one is kept through a short
+   * transient failure so the card does not flicker. A 404 is remembered until
+   * the adapter reconnects, because capabilities from enrollment may predate the
+   * route.
+   */
+  private async hostMetricsSnapshot(now: number): Promise<Map<string, HostResourceMetrics>> {
+    const generation = this.options.harness.generation
+    const online = this.options.harness.list().filter((connection) => connection.online)
+    const onlineIds = new Set(online.map((connection) => connection.harnessId))
+    for (const harnessId of this.hostCache.keys()) {
+      if (!onlineIds.has(harnessId)) this.hostCache.delete(harnessId)
+    }
+
+    const resources = new Map<string, HostResourceMetrics>()
+    await Promise.all(
+      online.map(async (connection) => {
+        const metrics = await this.hostMetricsFor(connection.harnessId, generation, now)
+        if (metrics) resources.set(connection.harnessId, metrics)
+      })
+    )
+    return resources
+  }
+
+  private async hostMetricsFor(
+    harnessId: string,
+    generation: number,
+    now: number
+  ): Promise<HostResourceMetrics | undefined> {
+    const cached = this.hostCache.get(harnessId)
+    if (cached && cached.generation === generation) {
+      if (cached.unsupported) return undefined
+      if (cached.metrics) {
+        if (now - cached.at < HOST_METRICS_TTL_MS) return cached.metrics
+      } else if (now - cached.at < HOST_METRICS_TTL_MS) {
+        // A failed attempt backs off until the next panel poll.
+        return undefined
+      }
+    }
+
+    let pending = this.hostInFlight.get(harnessId)
+    if (!pending) {
+      pending = this.options.harness.hostResources(harnessId)
+      this.hostInFlight.set(harnessId, pending)
+      void pending.then(() => {
+        if (this.hostInFlight.get(harnessId) === pending) this.hostInFlight.delete(harnessId)
+      })
+    }
+    const outcome = await pending
+
+    if (outcome.state === 'unsupported') {
+      this.hostCache.set(harnessId, { generation, at: now, unsupported: true })
+      return undefined
+    }
+    if (outcome.state === 'ok') {
+      this.hostCache.set(harnessId, { generation, at: now, metrics: outcome.metrics })
+      return outcome.metrics
+    }
+
+    if (
+      cached?.metrics &&
+      cached.generation === generation &&
+      now - cached.at < HOST_METRICS_RETENTION_MS
+    ) {
+      return cached.metrics
+    }
+    this.hostCache.set(harnessId, { generation, at: now })
+    return undefined
   }
 
   private relaySnapshot(stopped: boolean, control: PanelFeatureControl): PanelRelayTransport {

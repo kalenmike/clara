@@ -5,7 +5,7 @@ import { afterEach, describe, expect, it } from 'vitest'
 import type { PanelAuthInfo, PanelSessionsResponse, PanelSnapshot } from '@clara/shared-types'
 import type { Agent, AgentSessionInfo } from '../src/agent.ts'
 import type { ServerConfig } from '../src/config.ts'
-import type { HarnessManager } from '../src/harness/manager.ts'
+import type { HarnessHostResources, HarnessManager } from '../src/harness/manager.ts'
 import type { HarnessConnection, HarnessProbe } from '../src/harness/types.ts'
 import type { PushService } from '../src/push/service.ts'
 import type { RelayClient, RelaySnapshot } from '../src/relay-client.ts'
@@ -117,6 +117,8 @@ function harnessConnection(): HarnessConnection {
 function fakeHarness(options: {
   probe?: HarnessProbe
   probeCalls?: { value: number }
+  host?: HarnessHostResources
+  hostCalls?: { value: number }
 }): HarnessManager {
   const connection = harnessConnection()
   return {
@@ -125,6 +127,10 @@ function fakeHarness(options: {
     active: connection,
     lastError: undefined,
     list: () => [connection],
+    hostResources: async () => {
+      if (options.hostCalls) options.hostCalls.value += 1
+      return options.host ?? { state: 'unavailable' }
+    },
     probe: async () => {
       if (options.probeCalls) options.probeCalls.value += 1
       return (
@@ -145,6 +151,8 @@ function createRuntime(
   options: {
     probe?: HarnessProbe
     probeCalls?: { value: number }
+    host?: HarnessHostResources
+    hostCalls?: { value: number }
     relay?: RelaySnapshot
     traffic?: TrafficMeter
     localSessions?: AgentSessionInfo[]
@@ -448,5 +456,63 @@ describe('PanelRuntime', () => {
     expect(snapshot.clients[0]?.bytesIn).toBeUndefined()
     expect(snapshot.clients[0]?.requestsTotal).toBeUndefined()
     expect(snapshot.controls.monitoring).toEqual({ enabled: false })
+  })
+
+  it('attaches live host resources to the online harness and caches the sample', async () => {
+    const dir = tempDir()
+    writeFileSync(join(dir, 'server.json'), '{}', { mode: 0o600 })
+    const hostCalls = { value: 0 }
+    const runtime = createRuntime(dir, {
+      hostCalls,
+      host: {
+        state: 'ok',
+        metrics: {
+          sampledAt: new Date(1_000).toISOString(),
+          platform: 'linux',
+          arch: 'x64',
+          cpu: { cores: 2, hostCores: 4, usagePercent: 25, source: 'cgroup' },
+          memory: {
+            totalBytes: 4 * 1024 ** 3,
+            freeBytes: 1024 ** 3,
+            usedPercent: 75,
+            source: 'cgroup',
+            hostTotalBytes: 16 * 1024 ** 3,
+          },
+          disks: [
+            {
+              label: 'Adapter data',
+              path: '/data',
+              totalBytes: 100,
+              freeBytes: 25,
+              usedPercent: 75,
+            },
+          ],
+        },
+      },
+    })
+
+    const first = await runtime.snapshot(AUTH)
+    expect(first.harnesses[0]?.resources).toMatchObject({ platform: 'linux' })
+    expect(first.harnesses[0]?.resources?.cpu.usagePercent).toBe(25)
+
+    const second = await runtime.snapshot(AUTH)
+    expect(second.harnesses[0]?.resources).toEqual(first.harnesses[0]?.resources)
+    expect(hostCalls.value).toBe(1)
+  })
+
+  it('leaves harness resources empty when the adapter does not support them', async () => {
+    const dir = tempDir()
+    writeFileSync(join(dir, 'server.json'), '{}', { mode: 0o600 })
+    const hostCalls = { value: 0 }
+    const runtime = createRuntime(dir, {
+      hostCalls,
+      host: { state: 'unsupported' },
+    })
+
+    const first = await runtime.snapshot(AUTH)
+    expect(first.harnesses[0]?.resources).toBeUndefined()
+
+    await runtime.snapshot(AUTH)
+    expect(hostCalls.value).toBe(1)
   })
 })
