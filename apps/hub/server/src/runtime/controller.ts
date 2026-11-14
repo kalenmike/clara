@@ -128,6 +128,12 @@ function relayUsable(relay: RelayConfig | undefined): relay is RelayConfig {
   return Boolean(relay?.url && relay.agentToken)
 }
 
+/** The Docker network only resolves for a hub that runs as a container. */
+function isContainerized(): boolean {
+  const value = process.env.CLARA_SERVER_CONTAINER?.trim().toLowerCase()
+  return value === '1' || value === 'true' || value === 'yes'
+}
+
 /**
  * Owns the lifecycle of every outbound transport. Persisted settings are the
  * desired state; the effective state can only be true when the process is not
@@ -831,18 +837,42 @@ export class RuntimeController {
     const kind = typeof record.kind === 'string' ? record.kind.trim() : ''
     const label = typeof record.label === 'string' ? record.label.trim() : ''
     if (!kind) throw new PanelControlError(400, 'invalid_kind', 'Choose a harness type')
-    const transport =
-      record.transport === 'local' || record.transport === 'relay'
+    const requestedTransport =
+      record.transport === 'local' || record.transport === 'relay' || record.transport === 'docker'
         ? record.transport
-        : record.transport === 'docker'
-          ? 'docker'
-          : 'docker'
+        : 'local'
+    const requestedWsUrl = typeof record.wsUrl === 'string' ? record.wsUrl.trim() : ''
+    if (requestedWsUrl && !/^wss?:\/\//i.test(requestedWsUrl)) {
+      throw new PanelControlError(
+        400,
+        'invalid_ws_url',
+        'The WebSocket URL must start with ws:// or wss://'
+      )
+    }
+    if (requestedTransport === 'relay' && requestedWsUrl) {
+      throw new PanelControlError(
+        400,
+        'relay_url_fixed',
+        'A relay pairing always uses the configured relay URL.'
+      )
+    }
     const relay = relayUsable(this.options.config.relay) ? this.options.config.relay : undefined
-    if (transport === 'relay' && !relay) {
+    if (requestedTransport === 'relay' && !relay) {
       throw new PanelControlError(
         400,
         'relay_tokens_required',
         'Save the relay hub token in the Relay card before creating a relay pairing.'
+      )
+    }
+    // A container cannot reach the hub's loopback listener, so a Docker target
+    // on a host-process hub needs the relay, matching transportFor().
+    const transport =
+      requestedTransport === 'docker' && !isContainerized() ? 'relay' : requestedTransport
+    if (transport === 'relay' && !relay) {
+      throw new PanelControlError(
+        400,
+        'relay_required',
+        'Configure the relay before creating a container pairing on this hub.'
       )
     }
     const pairing = await harnessCall(() =>
@@ -850,12 +880,13 @@ export class RuntimeController {
     )
     const localPort = this.options.config.local.port
     const room = transport === 'relay' && relay ? relay.room : 'local'
+    const override = transport === 'relay' ? '' : requestedWsUrl
     const wsUrl =
       transport === 'relay' && relay
         ? relayWsUrl(relay.url, room)
         : transport === 'docker'
-          ? `ws://server:${localPort}/ws`
-          : `ws://${this.options.config.local.host}:${localPort}/ws`
+          ? override || `ws://server:${localPort}/ws`
+          : override || `ws://${this.options.config.local.host}:${localPort}/ws`
     const grant =
       transport === 'relay' && relay
         ? await createRelayGrant({

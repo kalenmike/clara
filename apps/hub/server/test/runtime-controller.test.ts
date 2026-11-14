@@ -45,7 +45,11 @@ function stoppedControl(desired = false, error?: string): PanelOrchestrationCont
 const tempDirs: string[] = []
 const controllers: RuntimeController[] = []
 const servers: Server[] = []
-const ENV_KEYS = ['CLARA_PAIRING_BASE_URL', 'CLARA_VAPID_SUBJECT'] as const
+const ENV_KEYS = [
+  'CLARA_PAIRING_BASE_URL',
+  'CLARA_VAPID_SUBJECT',
+  'CLARA_SERVER_CONTAINER',
+] as const
 let savedEnv: Record<string, string | undefined> = {}
 
 function tempDir(): string {
@@ -781,23 +785,63 @@ it('creates a one-time browser pairing code and cancels it', async () => {
   }
 })
 
-it('harness pairing defaults to the docker network and can choose loopback', async () => {
-  const { controller, close } = await createController(8788)
+it('harness pairing follows the install transport and honours a URL override', async () => {
+  const { controller, close } = await createController(8788, {
+    relay: { url: 'wss://relay.example', room: 'room-1', agentToken: AGENT_TOKEN },
+  })
   try {
+    const local = await controller.createHarnessPairing({
+      kind: 'opencode',
+      label: 'OpenCode',
+    })
+    expect(local.pairing.transport).toBe('local')
+    expect(decodeHarnessPairingCode(local.pairing.code)?.wsUrl).toBe('ws://127.0.0.1:8788/ws')
+
+    const overridden = await controller.createHarnessPairing({
+      kind: 'opencode',
+      label: 'OpenCode',
+      transport: 'local',
+      wsUrl: 'ws://192.168.1.20:8788/ws',
+    })
+    expect(decodeHarnessPairingCode(overridden.pairing.code)?.wsUrl).toBe(
+      'ws://192.168.1.20:8788/ws'
+    )
+
+    // A host-process hub cannot serve the Docker network, so the container
+    // pairing falls back to the relay.
+    const dockerOnHost = await controller.createHarnessPairing({
+      kind: 'opencode',
+      label: 'OpenCode',
+      transport: 'docker',
+    })
+    expect(dockerOnHost.pairing.transport).toBe('relay')
+
+    process.env.CLARA_SERVER_CONTAINER = '1'
     const docker = await controller.createHarnessPairing({
       kind: 'opencode',
       label: 'OpenCode',
+      transport: 'docker',
     })
     expect(docker.pairing.transport).toBe('docker')
     expect(decodeHarnessPairingCode(docker.pairing.code)?.wsUrl).toBe('ws://server:8788/ws')
 
-    const local = await controller.createHarnessPairing({
-      kind: 'opencode',
-      label: 'OpenCode',
-      transport: 'local',
-    })
-    expect(local.pairing.transport).toBe('local')
-    expect(decodeHarnessPairingCode(local.pairing.code)?.wsUrl).toBe('ws://127.0.0.1:8788/ws')
+    await expect(
+      controller.createHarnessPairing({
+        kind: 'opencode',
+        label: 'OpenCode',
+        transport: 'relay',
+        wsUrl: 'wss://another.example/room/other',
+      })
+    ).rejects.toMatchObject({ status: 400, code: 'relay_url_fixed' })
+
+    await expect(
+      controller.createHarnessPairing({
+        kind: 'opencode',
+        label: 'OpenCode',
+        transport: 'local',
+        wsUrl: 'https://not-a-websocket.example',
+      })
+    ).rejects.toMatchObject({ status: 400, code: 'invalid_ws_url' })
   } finally {
     await close()
   }
