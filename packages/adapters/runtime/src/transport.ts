@@ -1,15 +1,19 @@
 import { WebSocket } from 'ws'
 import type { AdapterIdentity } from './types.ts'
+import { REINSTALL_GRANT_MESSAGE } from './config.ts'
 import {
   ReplayGuard,
   base64UrlToBytes,
   bytesToBase64Url,
-  deriveSessionKeys,
+  deriveV4SessionKeys,
+  generateEphemeralKeyPair,
   open,
   randomBytes,
   seal,
   utf8,
+  verifyV4HelloMac,
   type SessionKeys,
+  type V4EphemeralKeyPair,
 } from '@clara/crypto'
 import {
   PROTOCOL_VERSION,
@@ -18,12 +22,14 @@ import {
   RELAY_SUBPROTOCOL,
   isErrorFrame,
   isHelloFrame,
+  isHubHelloFrameV4,
   isSealedFrame,
   type AdapterAction,
   type AdapterRequestAction,
   type AdapterResponseState,
   type ClaraAction,
   type ClaraState,
+  type RelayGrantState,
   type WireFrame,
 } from '@clara/shared-types'
 
@@ -49,12 +55,15 @@ export type AdapterTransportStatus = {
 
 export type AdapterTransportOptions = {
   wsUrl: string
-  clientToken: string
+  /** Relay grant from the config. Absent in local mode. */
+  grant?: string
   identity: AdapterIdentity
   kind: string
   label: string
   info: AdapterTransportInfo
   handler: (request: Request) => Promise<Response>
+  /** Persist a refreshed grant after an authenticated `ready`. */
+  onRelayGrant?: (grant: RelayGrantState) => void
   log?: (message: string, detail?: unknown) => void
 }
 
@@ -89,9 +98,16 @@ export class AdapterTransport {
   private authenticated = false
   private lastError: string | undefined
   private messageChain: Promise<void> = Promise.resolve()
+  /** Relay grant in memory; refreshed by `ready` and persisted by the CLI. */
+  private grant: string
+  private ephemeral: V4EphemeralKeyPair | null = null
+  private handshakeNonce = ''
+  private handshakeEph = ''
+  private preserveError = false
 
   constructor(options: AdapterTransportOptions) {
     this.options = options
+    this.grant = options.grant ?? ''
   }
 
   get online(): boolean {
@@ -134,6 +150,7 @@ export class AdapterTransport {
     this.socket?.close(1000, 'adapter shutting down')
     this.socket = null
     this.keys = null
+    this.ephemeral = null
     this.sendChain = Promise.resolve()
     this.connected = false
     this.authenticated = false
@@ -185,16 +202,31 @@ export class AdapterTransport {
   private connect(): void {
     if (this.stopped) return
     this.authenticated = false
-    const protocols =
-      this.options.clientToken && this.options.clientToken !== 'local'
-        ? [
-            RELAY_SUBPROTOCOL,
-            `${RELAY_ROLE_PREFIX}client`,
-            `${RELAY_AUTH_PREFIX}${this.options.clientToken}`,
-          ]
-        : undefined
+    const protocols = this.subprotocols()
     const socket = new WebSocket(this.options.wsUrl, protocols)
     this.socket = socket
+
+    socket.on('unexpected-response', (request, response) => {
+      response.resume()
+      if (this.socket !== socket) {
+        request.destroy()
+        return
+      }
+      if (response.statusCode === 401) {
+        // The relay verifies the grant before the upgrade. A 401 means this
+        // grant is expired or unknown, which only a new pairing code fixes.
+        this.stopForGrant()
+        request.destroy()
+        return
+      }
+      this.lastError = `The relay refused the connection (${response.statusCode})`
+      this.options.log?.(this.lastError)
+      request.destroy()
+      // A proxy or a relay restart can answer without upgrading; retry with
+      // backoff instead of leaving the adapter stuck without a socket.
+      this.socket = null
+      this.scheduleReconnect()
+    })
 
     socket.on('open', () => {
       if (this.socket !== socket) return
@@ -205,7 +237,10 @@ export class AdapterTransport {
       this.sendChain = Promise.resolve()
       this.startHeartbeat(socket)
       this.startHandshakeTimer(socket)
-      void this.handshake(socket)
+      void this.handshake(socket).catch((cause) => {
+        this.options.log?.('adapter handshake setup failed', cause)
+        this.failHandshake('The v4 handshake could not start')
+      })
     })
 
     socket.on('pong', () => {
@@ -221,16 +256,19 @@ export class AdapterTransport {
     })
 
     socket.on('error', (cause) => {
+      if (this.socket !== socket) return
       this.lastError = cause instanceof Error ? cause.message : String(cause)
       this.options.log?.('adapter socket error', cause)
     })
     socket.on('close', (code, reason) => {
       if (this.socket !== socket) return
-      if (!this.stopped) {
+      if (!this.stopped && !this.preserveError) {
         this.lastError = `Disconnected (${code} ${reason.toString() || 'no reason'})`
       }
+      this.preserveError = false
       this.socket = null
       this.keys = null
+      this.ephemeral = null
       this.connected = false
       this.authenticated = false
       this.lastHubFrameAt = 0
@@ -245,10 +283,24 @@ export class AdapterTransport {
     })
   }
 
+  /**
+   * Relay subprotocols carry the grant. Local mode has no grant and keeps the
+   * bare socket, which is what the hub's local listener expects.
+   */
+  private subprotocols(): string[] | undefined {
+    if (!this.grant) return undefined
+    return [RELAY_SUBPROTOCOL, `${RELAY_ROLE_PREFIX}client`, `${RELAY_AUTH_PREFIX}${this.grant}`]
+  }
+
   private async handshake(socket: WebSocket): Promise<void> {
     this.sid = bytesToBase64Url(randomBytes(16))
     const clientNonce = bytesToBase64Url(randomBytes(16))
     this.handshakeNonce = clientNonce
+    // A fresh ephemeral pair per connection is what gives v4 forward secrecy.
+    const ephemeral = await generateEphemeralKeyPair()
+    if (this.socket !== socket) return
+    this.ephemeral = ephemeral
+    this.handshakeEph = ephemeral.publicKey
     socket.send(
       JSON.stringify({
         t: 'hello',
@@ -256,13 +308,12 @@ export class AdapterTransport {
         sid: this.sid,
         nonce: clientNonce,
         role: 'client',
+        eph: ephemeral.publicKey,
         adapter: true,
         adapterId: this.options.identity.adapterId,
       })
     )
   }
-
-  private handshakeNonce = ''
 
   private async handleMessage(text: string): Promise<void> {
     let parsed: unknown
@@ -274,13 +325,33 @@ export class AdapterTransport {
 
     if (isHelloFrame(parsed)) {
       if (parsed.sid !== this.sid || parsed.role !== 'agent') return
-      const keys = await deriveSessionKeys({
-        key: this.options.identity.key,
+      // A duplicate hello cannot replace an established session's keys.
+      if (this.keys) return
+      if (!isHubHelloFrameV4(parsed) || !this.ephemeral) {
+        // The hub must answer with the v4 shape. Anything else is a failed
+        // handshake, not a reason to keep waiting for one.
+        this.failHandshake('The hub did not send a v4 handshake')
+        return
+      }
+      const input = {
+        staticKey: this.options.identity.key,
         sid: this.sid,
-        clientNonce: this.handshakeNonce,
-        agentNonce: parsed.nonce,
-      })
-      this.keys = keys
+        nonceC: this.handshakeNonce,
+        nonceS: parsed.nonce,
+        ephC: this.handshakeEph,
+        ephS: parsed.eph,
+        privateKey: this.ephemeral.privateKey,
+        peerPublicKey: parsed.eph,
+      }
+      // Verify the hub's MAC before adopting any derived key. A hub without the
+      // adapter credential cannot produce it, so this proves the peer.
+      if (!(await verifyV4HelloMac({ ...input, mac: parsed.mac }))) {
+        this.failHandshake('The hub hello MAC did not verify')
+        return
+      }
+      const material = await deriveV4SessionKeys(input)
+      this.keys = material.keys
+      this.ephemeral = null
       this.receive = new ReplayGuard()
       this.sendSeq = 0
       this.sendChain = Promise.resolve()
@@ -350,9 +421,20 @@ export class AdapterTransport {
       case 'ping':
         await this.send({ type: 'pong', at: payload.at })
         return
-      case 'ready':
+      case 'ready': {
+        // The hub refreshes the adapter grant on every accepted connect. Keep
+        // the new one in memory for reconnects and persist it for restarts.
+        if (payload.relayGrant) {
+          this.grant = payload.relayGrant.grant
+          try {
+            this.options.onRelayGrant?.(payload.relayGrant)
+          } catch (cause) {
+            this.options.log?.('could not persist the refreshed relay grant', cause)
+          }
+        }
         await this.send({ type: 'ready.ack', agent: payload.agent })
         return
+      }
       default:
         return
     }
@@ -550,5 +632,29 @@ export class AdapterTransport {
   private stopHandshakeTimer(): void {
     if (this.handshakeTimer) clearTimeout(this.handshakeTimer)
     this.handshakeTimer = null
+  }
+
+  /**
+   * A v4 handshake that fails before any frame is sealed is transient: close
+   * the socket and let the usual backoff retry. Nothing has been encrypted
+   * with the failed key material, so there is no recovery step.
+   */
+  private failHandshake(reason: string): void {
+    this.lastError = reason
+    this.preserveError = true
+    this.ephemeral = null
+    this.keys = null
+    this.options.log?.(`adapter handshake failed: ${reason}`)
+    this.socket?.close(1000, 'bad handshake')
+  }
+
+  /**
+   * The relay rejected the grant before the upgrade, so retrying with the same
+   * config cannot succeed. Stop reconnecting and report the reinstall message.
+   */
+  private stopForGrant(): void {
+    this.close()
+    this.lastError = REINSTALL_GRANT_MESSAGE
+    this.options.log?.(REINSTALL_GRANT_MESSAGE)
   }
 }
