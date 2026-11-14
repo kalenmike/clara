@@ -76,6 +76,9 @@ Usage:
 Install options:
   --pair <code>                  Pair the adapter with the hub
   --claude-path <path>           Use a system Claude Code binary
+  --base-url <url>               Anthropic-compatible endpoint, such as Ollama
+  --provider-id <id>             Clara provider id for that endpoint
+  --provider-name <name>         Display name for that provider
   --model <model>                Default model for new sessions
   --agent <agent>                Default agent for new sessions
   --permission-mode <mode>       default, acceptEdits, plan, bypassPermissions, dontAsk, auto

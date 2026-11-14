@@ -8,12 +8,13 @@ import type {
   ClaraSkillListOutput,
 } from '@clara/api-contract'
 import type { ClaudeCatalog } from './sdk.ts'
+import type { ClaudeProvider } from './provider.ts'
 
-const PROVIDER_ID = 'anthropic'
 const DEFAULT_CONTEXT = 200_000
 const DEFAULT_OUTPUT = 64_000
 
 export function modelList(catalog: ClaudeCatalog, directory: string): ClaraModelListOutput {
+  const providerID = catalog.provider.id
   return {
     location: { directory },
     data: catalog.models.map((model): ClaraModel => {
@@ -21,10 +22,11 @@ export function modelList(catalog: ClaudeCatalog, directory: string): ClaraModel
       return {
         id,
         modelID: id,
-        providerID: PROVIDER_ID,
+        providerID,
         name: model.name,
-        canonical: id,
-        capabilities: {
+        canonical: model.resolvedModel ?? id,
+        ...(model.family ? { family: model.family } : {}),
+        capabilities: model.capabilities ?? {
           tools: true,
           input: ['text', 'image'],
           output: ['text'],
@@ -32,22 +34,22 @@ export function modelList(catalog: ClaudeCatalog, directory: string): ClaraModel
         },
         variants: [],
         time: { released: 0 },
-        cost: [],
-        status: 'active',
-        enabled: true,
-        limit: { context: DEFAULT_CONTEXT, output: DEFAULT_OUTPUT },
+        cost: model.cost ?? [],
+        status: model.status ?? 'active',
+        enabled: model.enabled ?? true,
+        limit: model.limit ?? { context: DEFAULT_CONTEXT, output: DEFAULT_OUTPUT },
       }
     }),
   }
 }
 
-export function providerList(directory: string): ClaraProviderListOutput {
+export function providerList(provider: ClaudeProvider, directory: string): ClaraProviderListOutput {
   return {
     location: { directory },
     data: [
       {
-        id: PROVIDER_ID,
-        name: 'Anthropic',
+        id: provider.id,
+        name: provider.name,
         activation: 'enabled',
         package: 'claude-code',
       },

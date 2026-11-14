@@ -203,7 +203,11 @@ export function createAdapterApp(context: AdapterContext): Hono {
     const location = directory(c)
     return c.json(modelList(await context.claude.catalog(location || process.cwd()), location))
   })
-  app.get('/harness/v1/providers', (c) => c.json(providerList(directory(c))))
+  app.get('/harness/v1/providers', async (c) => {
+    const location = directory(c)
+    const catalog = await context.claude.catalog(location || process.cwd())
+    return c.json(providerList(catalog.provider, location))
+  })
   app.get('/harness/v1/commands', async (c) => {
     const location = directory(c)
     return c.json(commandList(await context.claude.catalog(location || process.cwd()), location))

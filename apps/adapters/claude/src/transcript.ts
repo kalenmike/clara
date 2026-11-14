@@ -147,7 +147,8 @@ export function transcriptUsage(entries: TranscriptEntry[]): TranscriptUsage {
  */
 export function mapTranscript(
   entries: TranscriptEntry[],
-  fallbackStart: number
+  fallbackStart: number,
+  providerID: string
 ): ClaraSessionMessage[] {
   const messages: ClaraSessionMessage[] = []
   const tools = new Map<
@@ -174,7 +175,7 @@ export function mapTranscript(
         agent: 'claude',
         model: {
           id: typeof message.model === 'string' && message.model ? message.model : 'default',
-          providerID: 'anthropic',
+          providerID,
         },
         content: [],
         ...(message.stop_reason ? { finish: finishOf(message.stop_reason) } : {}),

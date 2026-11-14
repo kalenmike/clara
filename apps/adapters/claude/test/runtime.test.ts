@@ -53,6 +53,7 @@ describe('Claude runtime', () => {
         commands: [],
         skills: [],
         permissionMode: 'default',
+        provider: gateway.providerValue,
       })
       emit({ type: 'message-start', assistantMessageID: 'a1', model: 'claude-sonnet' })
       emit({ type: 'text-started', assistantMessageID: 'a1', ordinal: 0 })
@@ -96,7 +97,66 @@ describe('Claude runtime', () => {
         'session.idle',
       ])
     )
+    const step = received.find((event) => event.type === 'session.step.started')
+    expect(step).toMatchObject({ data: { model: { providerID: 'anthropic' } } })
     expect((await sessions.get(sessionId)).cost).toBe(0.01)
+  })
+
+  it('uses the resolved provider and default model', async () => {
+    const { gateway, received, sessions, runtime } = fixture()
+    gateway.providerValue = { id: 'ollama', name: 'Ollama' }
+    gateway.defaultModelValue = 'gemma4:26b'
+    const session = await create(sessions)
+    const sessionId = session.id
+    gateway.script = async (request, emit) => {
+      emit({
+        type: 'init',
+        sessionId,
+        model: 'gemma4:26b',
+        version: '2.1.325',
+        cwd: '/tmp',
+        tools: [],
+        agents: [],
+        commands: [],
+        skills: [],
+        permissionMode: 'default',
+        provider: gateway.providerValue,
+      })
+      emit({ type: 'message-start', assistantMessageID: 'a1', model: 'gemma4:26b' })
+      emit({
+        type: 'assistant',
+        assistantMessageID: 'a1',
+        model: 'gemma4:26b',
+        content: [{ type: 'text', text: 'Hello' }],
+        usage: { input: 1, output: 1, reasoning: 0, cacheRead: 0, cacheWrite: 0 },
+        aborted: false,
+      })
+      emit({
+        type: 'result',
+        subtype: 'success',
+        sessionId: request.sessionId,
+        costUsd: 0,
+        usage: { input: 1, output: 1, reasoning: 0, cacheRead: 0, cacheWrite: 0 },
+        modelUsage: {
+          'gemma4:26b': { input: 1, output: 1, reasoning: 0, cacheRead: 0, cacheWrite: 0 },
+        },
+        errors: [],
+        aborted: false,
+      })
+    }
+
+    await runtime.prompt(sessionId, { text: 'Hi' })
+    await waitFor(received, 'session.idle')
+
+    expect(gateway.turns[0]?.model).toBe('gemma4:26b')
+    const step = received.find((event) => event.type === 'session.step.started')
+    expect(step).toMatchObject({
+      data: { model: { id: 'gemma4:26b', providerID: 'ollama' } },
+    })
+    expect((await sessions.get(sessionId)).model).toMatchObject({
+      id: 'gemma4:26b',
+      providerID: 'ollama',
+    })
   })
 
   it('round-trips a permission request', async () => {

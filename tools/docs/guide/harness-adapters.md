@@ -64,6 +64,23 @@ to choose a default model, and `--permission-mode` to set how Claude asks for
 approval. Approvals and clarifying questions appear in Clara while a session is
 open.
 
+To use a local Ollama server, give the adapter its Anthropic-compatible endpoint
+and a provider name:
+
+```bash
+clara-adapter-claude install --pair <code> \
+  --base-url http://localhost:11434 \
+  --provider-id ollama --provider-name Ollama \
+  --model gemma4:26b
+```
+
+Start the adapter with `ANTHROPIC_AUTH_TOKEN=ollama` in its environment; Ollama
+accepts any value. Clara reads the models installed on the server and lists them
+under **Ollama**, including their context length and tool, vision, or audio
+support. If `--model` is omitted, the first installed model with tool support
+becomes the default. On Docker, use `host.docker.internal` instead of
+`localhost` when Ollama runs on the host.
+
 If the panel shows **Paired · Offline**, start the adapter with:
 
 ```bash

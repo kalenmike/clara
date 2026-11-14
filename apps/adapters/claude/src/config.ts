@@ -11,6 +11,13 @@ import type { AdapterConfig as GenericAdapterConfig, AdapterIdentity } from '@cl
 export type ClaudePermissionMode =
   'default' | 'acceptEdits' | 'plan' | 'bypassPermissions' | 'dontAsk' | 'auto'
 
+export type ClaudeProviderConfig = {
+  /** Clara provider id for the active backend, e.g. ollama or bedrock. */
+  id: string
+  /** Display name for that provider. Defaults to the id. */
+  name?: string
+}
+
 /**
  * Harness-specific adapter config. Authentication is never stored here: the
  * adapter uses the Claude Code login on the machine that runs the harness, or
@@ -19,6 +26,14 @@ export type ClaudePermissionMode =
 export type ClaudeConfig = {
   /** Optional system Claude Code binary. Omit to use the SDK's pinned binary. */
   claudePath?: string
+  /**
+   * Anthropic-compatible endpoint, such as a local Ollama server. Passed to
+   * Claude Code as ANTHROPIC_BASE_URL. When omitted, the adapter uses the
+   * process environment or the Claude Code user settings.
+   */
+  baseUrl?: string
+  /** Optional display identity for the active endpoint. */
+  provider?: ClaudeProviderConfig
   model?: string
   agent?: string
   permissionMode?: ClaudePermissionMode

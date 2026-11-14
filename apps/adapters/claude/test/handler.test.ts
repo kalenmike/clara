@@ -37,6 +37,17 @@ describe('Claude adapter handler', () => {
     expect(await response.json()).toEqual({ protocol: 1, ...INFO })
   })
 
+  it('reports the resolved provider', async () => {
+    const gateway = new FakeClaudeGateway()
+    gateway.providerValue = { id: 'ollama', name: 'Ollama' }
+    const response = await fixture(gateway).app.request('/harness/v1/providers?directory=/tmp')
+
+    expect(response.status).toBe(200)
+    expect(await response.json()).toMatchObject({
+      data: [{ id: 'ollama', name: 'Ollama', activation: 'enabled' }],
+    })
+  })
+
   it('returns the live probe as health', async () => {
     const response = await fixture().app.request('/harness/v1/health')
 
