@@ -39,6 +39,8 @@ COPY package.json pnpm-lock.yaml pnpm-workspace.yaml tsconfig.base.json ./
 COPY apps/hub/server/package.json apps/hub/server/package.json
 COPY apps/hub/panel/package.json apps/hub/panel/package.json
 COPY packages/crypto/package.json packages/crypto/package.json
+COPY packages/sqlite/package.json packages/sqlite/package.json
+COPY packages/runtime-state/package.json packages/runtime-state/package.json
 COPY packages/contracts/shared-types/package.json packages/contracts/shared-types/package.json
 COPY packages/orchestration/control/package.json packages/orchestration/control/package.json
 COPY packages/contracts/api-contract/package.json packages/contracts/api-contract/package.json
@@ -50,6 +52,8 @@ COPY apps/hub/panel apps/hub/panel
 COPY infra/relay infra/relay
 COPY tools/build tools/build
 COPY packages/crypto packages/crypto
+COPY packages/sqlite packages/sqlite
+COPY packages/runtime-state packages/runtime-state
 COPY packages/contracts/shared-types packages/contracts/shared-types
 COPY packages/orchestration/control packages/orchestration/control
 COPY packages/contracts/api-contract packages/contracts/api-contract
