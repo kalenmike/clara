@@ -70,14 +70,20 @@ card.
    to the add form as soon as the adapter registers. Use **Test** to probe an
    adapter. In a container, the adapter connects to `ws://server:8788/ws` on
    the `clara` network; `127.0.0.1` means the hub host.
-4. The panel opens on **Overview** with the Hub and Orchestration cards, a
-   health strip for Harness, Local, Relay, Push, and Orchestration, the five most
-   recent events, and a storage summary. A **Needs attention** banner names every
-   degraded surface; health tiles jump to their tab. Status chips sit beside each
-   card title, including a storage health summary that turns amber for warnings
-   and red for errors. Sensitive values start masked: device ids and fingerprints,
-   config and storage paths, local WebSocket endpoint, harness URL, relay URL and
-   room, connection session ids, and WebSocket URLs in activity or errors.
+4. The panel opens on **Overview** with a six-tile health strip — Hub, Local,
+   Relay, Harness, Push, and Orchestration — then Active clients and Active
+   adapters previews, the five most recent events, and a storage summary. The
+   Hub tile leads with its connection state and platform, process, and version;
+   the **Go offline** control sits at the far right of the Overview header. A
+   **Needs attention** banner names every degraded surface; health tiles jump to
+   their tab, and the Hub tile opens Settings. The Active clients and Active
+   adapters cards show up to five live rows with transport, paired device or
+   harness, connected, and last seen, and link to the full Clients and Harness
+   tables. Status chips sit beside each card title, including a storage health
+   summary that turns amber for warnings and red for errors. Sensitive values
+   start masked: device ids and fingerprints, config and storage paths, local
+   WebSocket endpoint, harness URL, relay URL and room, connection session ids,
+   and WebSocket URLs in activity or errors.
 5. Move between views from the activity rail: **Home** (Overview), **Harness**,
    **Network** (Connections), **Clients**, **Traffic**, and **Activity**, with
    **Settings** pinned at the bottom. The rail shows live client and event counts
@@ -122,7 +128,9 @@ card.
    Cloudflare**: paste a Workers-scoped API token, choose the account, and Clara
    uploads the Worker, creates the Durable Object namespace, sets both relay
    tokens, and connects the relay. Existing devices must pair again.
-9. In **Settings**, choose **Light**, **Dark**, or **System** under **Appearance**.
+9. In **Settings**, review the full **Hub** details (uptime, process, platform,
+   memory, config path, and paired devices) and the **Orchestration** master
+   switch, then choose **Light**, **Dark**, or **System** under **Appearance**.
    **System** follows the operating system setting. The choice is stored in this
    browser and applies to the sign-in screen too.
 10. In **Settings**, edit **Web URL** or **VAPID contact** and choose **Save**;
@@ -140,9 +148,10 @@ card.
     choose the interval at which those clients check for changes. Turning it off
     hides the web Sync tab and rejects sync requests; the stored namespace and
     each device's category choices remain. The interval defaults to 30 seconds.
-13. To take every external connection offline, choose **Go offline** at the top
-    right of the Hub card on Overview and confirm. The page keeps polling; the
-    banner explains that the panel is still available.
+13. To take every external connection offline, choose **Go offline** at the far
+    right of the Overview header and confirm. The Hub tile reads **Connections
+    inactive**; the page keeps polling and the banner explains that the panel is
+    still available.
 14. Choose **Go online** to restore the saved choices. Feature switches are
     disabled until connections are back online and show red while they are
     stopped, so the offline state is readable from the switch colors alone.
@@ -181,13 +190,14 @@ card.
 18. In **Activity**, read the in-memory events and the storage list. The storage
     header summarizes the most severe entry and its count, and the overview links
     here for the full list.
-19. Use **Orchestration** on Overview to start or stop the local orchestration
-    service. Turning it on starts a detached local instance when nothing is
-    answering and waits for `/health`; turning it off stops only the local
-    instance started from this data directory. A Docker or external instance is
-    detected and labelled, and the switch is disabled because the panel does not
-    own it. The switch is the master gate for the feature; connected clients
-    choose separately whether to use the orchestrator surface.
+19. Use the **Orchestration** switch in **Settings** to start or stop the local
+    orchestration service; the Overview tile still reports its state. Turning it
+    on starts a detached local instance when nothing is answering and waits for
+    `/health`; turning it off stops only the local instance started from this
+    data directory. A Docker or external instance is detected and labelled, and
+    the switch is disabled because the panel does not own it. The switch is the
+    master gate for the feature; connected clients choose separately whether to
+    use the orchestrator surface.
 20. Leave the page open. It refreshes every five seconds while visible and
     pauses when the tab is hidden. Use **Refresh** for an immediate check.
 

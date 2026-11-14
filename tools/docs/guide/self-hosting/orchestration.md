@@ -26,7 +26,7 @@ surface. Keep the choice on one device, or share it through the isolated
 
 ## Start the service
 
-From the hub panel, turn on **Orchestration**. Or run:
+From the hub panel, turn on **Settings → Orchestration**. Or run:
 
 ```bash
 pnpm clara orchestrator start
