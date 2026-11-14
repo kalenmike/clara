@@ -87,7 +87,7 @@ contacts the harness directly.
 | Project id           | Canonical session directory                                       |
 | Session id           | Claude session UUID                                               |
 | Assistant step       | Claude assistant transcript entry                                 |
-| Model                | `{ providerID: 'anthropic', id: <Claude model> }`                 |
+| Model                | `{ providerID: <resolved provider>, id: <model> }`                |
 | Session list         | Claude transcripts merged with the adapter's sidecar catalog      |
 | Messages             | Transcript entries; tool results fold into the requesting tool    |
 | Streaming            | Agent SDK stream events translated to Clara step/text/tool events |
@@ -96,6 +96,25 @@ contacts the harness directly.
 | Usage                | Result cost and model usage, cumulative in the sidecar catalog    |
 | Files, VCS, git      | Read-only filesystem and git queries inside the adapter           |
 | Archive/delete       | Unsupported on the harness; Clara applies its own state           |
+
+The adapter resolves the provider from Claude Code instead of assuming
+Anthropic. A first-party account maps to `anthropic`; Bedrock, Vertex, Foundry,
+Anthropic on AWS or Google Cloud, Mantle, and a Claude gateway map to their own
+provider ids; an unknown backend is kebab-cased from its `apiProvider` value.
+A custom `ANTHROPIC_BASE_URL` maps to `custom-endpoint` unless the installer
+sets `--provider-id` and `--provider-name`.
+
+When that endpoint is Ollama, the adapter reads `/api/tags` and lists the models
+installed on the server, with their tool, vision, and audio capabilities and
+their context length. Claude Code's built-in Claude aliases are omitted in that
+case, while custom `modelPicker` labels are kept. Users without Ollama, or with
+another Anthropic-compatible proxy, keep the model list Claude Code reports
+itself. Discovery is an optional probe: if `/api/tags` does not answer, the
+adapter silently falls back.
+
+Claude Code runs one active API backend per process, so the catalog belongs to
+that backend. The endpoint comes from `--base-url`, `ANTHROPIC_BASE_URL` in the
+adapter environment, or the `env` block of the Claude Code user settings.
 
 ## Edge cases
 
@@ -143,6 +162,9 @@ contacts the harness directly.
   Clara sessions; subagent transcript entries are skipped.
 - Per-step Claude cost is not available. The turn result carries the turn cost
   and session totals; intermediate steps show zero cost.
+- One Claude Code process uses one API backend. The adapter reports all models
+  that backend advertises; it cannot merge catalogs from several providers in
+  one session.
 - Claude Code's `AskUserQuestion` supports at most four questions with four
   options each, matching Clara form limits.
 - Pending pairing codes are shown only in the panel session that created them.
