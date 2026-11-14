@@ -49,6 +49,10 @@ command line:
 ./clara-server setup --username admin --password-stdin
 ```
 
+The Setup modal then asks for the connection path. Choose **Local only** or set
+up the relay with an HTTPS Web URL, pair a harness, and pair a client. It can be
+dismissed and resumed from **Settings → Setup**.
+
 For an unattended install, set `CLARA_ADMIN_USERNAME` and
 `CLARA_ADMIN_PASSWORD` or `CLARA_ADMIN_PASSWORD_FILE` before starting it.
 

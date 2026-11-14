@@ -50,8 +50,8 @@ hub executable and panel, run `pnpm hub:sidecar`.
 1. Launch Clara Hub. A tray icon appears and the panel opens.
 2. Create the hub owner account in the panel. The hub starts no transports until
    the account exists; after you submit, it starts in the same process.
-3. Create a browser pairing code in the panel, then pair the web client or the
-   desktop client.
+3. Follow the Setup modal: choose Local only or set up the relay, pair a harness,
+   then pair a client. You can dismiss it and resume from **Settings → Setup**.
 4. Leave the app running in the tray. Use **Open panel** whenever you need the
    hub settings.
 

@@ -47,10 +47,12 @@ Both modes use the same hub panel, pairing command, and data model.
 3. Open the hub panel and create the owner account. No other hub service starts
    until that account exists. For a headless install, run
    `pnpm clara server setup --password-stdin` instead.
-4. In the panel, add a harness, then run the printed adapter install command on
-   the harness machine.
-5. In the panel, open **Clients → Pair a browser** and scan the QR or open the
-   link on your device. You can also run `pnpm clara pair` and use its link.
+4. The Setup modal asks for the connection path. Choose **Local only** or set up
+   the relay with an HTTPS Web URL.
+5. Pair a harness in the modal, then run the printed adapter install command on
+   the harness machine. Pair a client from the same modal and scan the QR or
+   open the link. You can dismiss the modal and resume from
+   **Settings → Setup**. You can also run `pnpm clara pair` for a terminal code.
 6. Add the web app to your Home Screen or install it.
 
 The detailed steps are in [Docker](docker.md) and

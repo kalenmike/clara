@@ -47,6 +47,19 @@ card.
    the owner before any transport starts and skips the setup screen. A
    host-supplied `CLARA_ADMIN_SETUP_TOKEN` switches the setup screen to token
    mode for an explicitly remote or automated install.
+   After the owner account is created, a dismissible **Setup** modal opens over
+   the dashboard. It asks for the connection path first: **Local only**, or
+   **Remote via relay** with the relay editor and Web URL embedded in the same
+   step. The modal then pairs a harness and a client and ends with **How Clara
+   works**. Required steps are the connection path, a paired harness, and a
+   paired client. The relay step cannot be skipped by leaving it half
+   configured: either the relay is online with an HTTPS Web URL, or the user
+   chooses Local only. The modal can be skipped and resumed from **Settings →
+   Setup**. After it is complete it does not reopen automatically. The same flow
+   is available from **Settings → Setup → Reconfigure connections**, which
+   starts at the connection path with the current values, and the guide is
+   available from **Replay setup guide**. Reconfiguring a relay or its room can
+   require adapters and devices to pair again.
 3. After signing in, open **Harness**, use **Add harness**, choose the adapter
    type and location, then copy the pairing code or install command. Run the
    command on the harness machine. A new adapter appears under
@@ -243,6 +256,16 @@ card.
    any control, or reach the hub service: its allowlist remains the security
    boundary. The choice lives in `sessionStorage` for the tab, so a reload
    keeps it and a new tab starts masked.
+9. **Guided setup is derived, and it does not auto-reopen after completion.**
+   The modal derives completion from the live snapshot: the connection path is
+   local, or the relay is online with an HTTPS Web URL; at least one harness is
+   paired; and at least one non-revoked device is paired. The chosen path,
+   dismissal, completion, and guide-seen timestamps live in `localStorage`; no
+   hub setting or API changes. The modal opens automatically only while setup
+   is incomplete and has not been dismissed. It never opens automatically after
+   completion, even if a harness or device is later removed. **Settings → Setup**
+   is the only restart surface: **Finish setup** while incomplete,
+   **Reconfigure connections** and **Replay setup guide** after completion.
 
 ## Edge cases
 
@@ -250,6 +273,32 @@ card.
   says **Not configured**. Harness-backed `/v1` requests return
   `503 harness_unconfigured` until an adapter is paired and activated. The web
   can still connect and shows a harness banner.
+- **The setup modal is skipped** — dismissal is stored on the browser. The
+  modal stops auto-opening while setup is incomplete; **Settings → Setup →
+  Finish setup** reopens it. Completion is still derived, so the badge and
+  progress reflect whatever is paired.
+- **Relay is selected but offline** — the connection step keeps **Continue**
+  disabled. The user can start the relay, fix its tokens, or choose **Local
+  only**. A relay path also requires an HTTPS Web URL; a loopback or HTTP URL
+  keeps the step incomplete.
+- **The local path keeps loopback** — setup can finish with
+  `http://127.0.0.1:8080`. The client step warns that the link only works on
+  this machine and points back to the Web URL field for another device.
+- **External connections are off** — the connection step shows **Turn
+  connections on**; the relay cannot come online until it succeeds. Turning
+  connections on is the same master switch as the Hub card.
+- **Relay is switched off** — the embedded Relay card stays collapsed until its
+  toggle is on. The step explains that the switch must be enabled before the URL
+  and tokens can be saved.
+- **The harness is paired but offline** — the setup step shows
+  **Paired · Offline** and allows continuing with a warning. The adapter can be
+  started later; the hub keeps the credential.
+- **A harness or device is removed after setup** — the modal does not reopen.
+  **Settings → Setup** shows **Finish setup** again and the setup state becomes
+  incomplete; the rest of the panel keeps working.
+- **Local storage is cleared** — the path, dismissal, and guide-seen timestamps
+  are lost. The modal may auto-open again, but completion is re-derived from the
+  hub and the current pairings are not lost.
 - **The adapter is paired but offline** — **Paired harnesses** says
   **Paired · Offline**, the probe is not run, and harness-backed `/v1` returns
   `harness_offline`. Start the adapter service; it reconnects automatically.
@@ -498,6 +547,15 @@ card.
   `harness-connections-card.tsx` (paired harnesses and actions)
 - Browser pairing card: `apps/hub/panel/src/components/browser-pair-card.tsx`;
   the QR is rendered locally with `qrcode.react`
+- Guided setup: `apps/hub/panel/src/lib/onboarding.ts` (pure step derivation),
+  `apps/hub/panel/src/lib/use-onboarding.ts` (dismissal, completion, and modal
+  mode), and `apps/hub/panel/src/components/onboarding/` (modal, connection,
+  harness, client, and guide steps). The connection step embeds `RelayCard` and
+  the Web URL editor; the harness and client steps reuse their existing cards.
+  The path, dismissal, completion, and guide-seen values live under
+  `clara.panel.setup` in `localStorage`. **Settings → Setup** uses
+  `components/setup-card.tsx`; the setup modal never auto-opens after
+  completion.
 - Peek control: `apps/hub/panel/src/lib/peek.ts` (mask and free-text scrubber),
   `apps/hub/panel/src/lib/peek-context.tsx` (tab state), and the header button in
   `apps/hub/panel/src/App.tsx`; the choice is stored under `clara.panel.peek` in

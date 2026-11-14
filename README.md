@@ -74,9 +74,9 @@ With a harness running, a local checkout needs:
 pnpm install
 pnpm clara start --local --build
 pnpm clara server panel
-# In the panel: create the hub owner account, add a harness, and run the
-# printed adapter install command on the harness machine. Then open
-# Clients -> Pair a browser and scan the QR or open the link.
+# In the panel: create the hub owner account, then follow the Setup modal:
+# choose Local only or configure the relay, pair a harness, and pair a client.
+# The modal can be dismissed and resumed from Settings -> Setup.
 # Alternatively, print a local code:
 pnpm clara pair --local --no-relay
 # Open http://127.0.0.1:8080 and pair.
@@ -90,10 +90,9 @@ pnpm clara server setup --local --password-stdin
 ```
 
 For Docker, use `pnpm clara start --build` and
-`pnpm clara server setup --password-stdin` (or set `CLARA_ADMIN_PASSWORD`).
-Choose **Local connection only** in the panel for a same-machine code; leave it
-off for a relay pairing on a phone or another device, or use
-`pnpm clara pair --no-relay`.
+`pnpm clara server setup --password-stdin` (or set `CLARA_ADMIN_PASSWORD`). The
+Setup modal asks for Local only or a relay with an HTTPS Web URL; choose the
+path that matches where your devices will connect.
 
 For orchestration only, install the harness adapter after the stack is up:
 
@@ -130,15 +129,16 @@ sign in to the panel at <http://localhost:8790> and create a code under
 3. Create the hub owner account. No other hub service starts until this account
    exists. For a headless install, run
    `pnpm clara server setup --password-stdin` instead.
-4. In **Harness → Add harness**, choose the
-   adapter type and location, then run the printed install command on the
+4. Follow the Setup modal. Choose **Local only** or configure the relay with an
+   HTTPS Web URL, then pair a harness and run the printed install command on the
    harness machine. The adapter finds the harness or prompts for its URL and
    credentials. Inside a container, the adapter connects to the hub at
    `ws://server:8788/ws` on the `clara` network; for a containerized OpenCode,
    the adapter uses a name such as `http://opencode:4096`.
-5. Open **Clients → Pair a browser**, then scan the QR or open the link on the
+5. Pair a client from the modal, then scan the QR or open the link on the
    browser or installed app you want to use. The code expires after 10 minutes
-   and enrolls one device.
+   and enrolls one device. Dismiss the modal at any time and resume from
+   **Settings → Setup**.
 
 ### Hub panel
 
