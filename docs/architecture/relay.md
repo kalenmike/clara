@@ -144,7 +144,9 @@ Preview and version URLs are off by default. `infra/relay/wrangler.jsonc` sets
 `preview_urls: false`, and the panel deploy sends `previews_enabled: false` on the
 Worker subdomain settings on every deploy, so redeploying clears URLs an earlier
 deploy enabled. Turning them on is an explicit opt-in because each version gets
-an extra `workers.dev` hostname outside host-scoped WAF and rate-limit rules.
+an extra `workers.dev` hostname outside host-scoped WAF and rate-limit rules. To
+confirm the setting against a real Cloudflare account, follow
+[relay preview URL verification](../features/relay-preview-verification.md).
 
 Existing devices keep their old pairing endpoint and must pair again. The
 deployment is blocked while any relay environment variable is set, because those
