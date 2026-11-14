@@ -19,6 +19,7 @@ export type ServerConfigSources = {
   relayRoom: ConfigSource
   agentToken: ConfigSource
   pairingBaseUrl: ConfigSource
+  adapterRegistryUrl: ConfigSource
 }
 
 export type ServerConfig = {
@@ -31,6 +32,8 @@ export type ServerConfig = {
   }
   relay?: RelayConfig
   pairingBaseUrl: string
+  /** Base URL for adapter registry manifests and install scripts. */
+  adapterRegistryUrl: string
   configDir: string
   configPath: string
   dataDir: string
@@ -52,11 +55,13 @@ type ConfigFile = {
     agentToken?: string
   }
   pairingBaseUrl?: string
+  adapterRegistryUrl?: string
 }
 
 const DEFAULT_LOCAL_HOST = '127.0.0.1'
 const DEFAULT_LOCAL_PORT = 8788
 const DEFAULT_WEB_PORT = 8080
+export const DEFAULT_ADAPTER_REGISTRY_URL = 'https://clara.kalenmichael.com/adapters'
 
 const RELAY_TOKEN_MIN_LENGTH = 32
 const RELAY_TOKEN_MAX_LENGTH = 512
@@ -152,10 +157,24 @@ export function loadConfig(
       ? configuredPairingBaseUrl(filePairingBaseUrl, 'file', configPath)
       : defaultPairingBaseUrl()
 
+  const envAdapterRegistryUrl = readEnv('CLARA_ADAPTER_REGISTRY_URL')
+  const fileAdapterRegistryUrl = nonEmpty(file.adapterRegistryUrl)
+  const adapterRegistryUrlSource: ConfigSource = envAdapterRegistryUrl
+    ? 'env'
+    : fileAdapterRegistryUrl
+      ? 'file'
+      : 'default'
+  const adapterRegistryUrl = envAdapterRegistryUrl
+    ? configuredAdapterRegistryUrl(envAdapterRegistryUrl, 'env', configPath)
+    : fileAdapterRegistryUrl
+      ? configuredAdapterRegistryUrl(fileAdapterRegistryUrl, 'file', configPath)
+      : DEFAULT_ADAPTER_REGISTRY_URL
+
   const config: ServerConfig = {
     local: { host: localHost, bindHost: localBindHost, port: localPort },
     relay,
     pairingBaseUrl,
+    adapterRegistryUrl,
     configDir,
     configPath,
     dataDir,
@@ -168,6 +187,7 @@ export function loadConfig(
       relayRoom: relay ? relayRoomSource : 'none',
       agentToken: relay ? agentTokenSource : 'none',
       pairingBaseUrl: pairingBaseUrlSource,
+      adapterRegistryUrl: adapterRegistryUrlSource,
     },
   }
 
@@ -204,9 +224,23 @@ function persistConfig(path: string, previous: ConfigFile, config: ServerConfig)
       : nonEmpty(previous.pairingBaseUrl)
   const pairingChanged =
     config.sources.pairingBaseUrl === 'file' && previous.pairingBaseUrl !== config.pairingBaseUrl
+  const storedAdapterRegistryUrl =
+    config.sources.adapterRegistryUrl === 'file'
+      ? config.adapterRegistryUrl
+      : nonEmpty(previous.adapterRegistryUrl)
+  const adapterRegistryChanged =
+    config.sources.adapterRegistryUrl === 'file' &&
+    previous.adapterRegistryUrl !== config.adapterRegistryUrl
   // Drop retired fields from older files when the config is rewritten.
   const retiredCleared = previous.opencode !== undefined || previous.psk !== undefined
-  if (!relayChanged && !pairingChanged && !retiredCleared && existsSync(path)) return
+  if (
+    !relayChanged &&
+    !pairingChanged &&
+    !adapterRegistryChanged &&
+    !retiredCleared &&
+    existsSync(path)
+  )
+    return
 
   // Rebuild the file without new credentials. Legacy plaintext tokens are kept
   // so an upgrade cannot lose them before the sealed relay store takes over;
@@ -215,6 +249,9 @@ function persistConfig(path: string, previous: ConfigFile, config: ServerConfig)
     ...(previous.local ? { local: previous.local } : {}),
   }
   if (storedPairingBaseUrl !== undefined) next.pairingBaseUrl = storedPairingBaseUrl
+  if (storedAdapterRegistryUrl !== undefined) {
+    next.adapterRegistryUrl = storedAdapterRegistryUrl
+  }
   if (storedRelayUrl !== undefined || storedRelayRoom !== undefined) {
     next.relay = {
       ...(storedRelayUrl !== undefined ? { url: storedRelayUrl } : {}),
@@ -242,6 +279,23 @@ export function savePairingBaseUrl(configPath: string, value: string | undefined
   delete next.psk
   if (nextValue !== undefined) next.pairingBaseUrl = nextValue
   else delete next.pairingBaseUrl
+  writeConfigFile(configPath, next)
+}
+
+/**
+ * Persist a panel-edited adapter registry URL. Clearing the value removes the
+ * key so the next load falls back to the built-in default.
+ */
+export function saveAdapterRegistryUrl(configPath: string, value: string | undefined): void {
+  const previous = readConfig(configPath)
+  const nextValue = value?.trim() ? normalizeAdapterRegistryUrl(value) : undefined
+  if (previous.adapterRegistryUrl === nextValue && previous.opencode === undefined) return
+
+  const next: ConfigFile = { ...previous }
+  delete next.opencode
+  delete next.psk
+  if (nextValue !== undefined) next.adapterRegistryUrl = nextValue
+  else delete next.adapterRegistryUrl
   writeConfigFile(configPath, next)
 }
 
@@ -286,6 +340,43 @@ function configuredPairingBaseUrl(
   } catch (cause) {
     const label = source === 'env' ? 'CLARA_PAIRING_BASE_URL' : configPath
     throw new Error(`Invalid pairing Web URL in ${label}: ${errorMessage(cause)}`, { cause })
+  }
+}
+
+export function normalizeAdapterRegistryUrl(value: string): string {
+  const trimmed = value.trim()
+  if (!trimmed) throw new Error('The adapter registry URL is required')
+
+  let url: URL
+  try {
+    url = new URL(trimmed)
+  } catch {
+    throw new Error('The adapter registry URL must be a valid HTTP(S) URL')
+  }
+  if (url.protocol !== 'http:' && url.protocol !== 'https:') {
+    throw new Error('The adapter registry URL must start with http:// or https://')
+  }
+  if (url.username || url.password) {
+    throw new Error('The adapter registry URL must not contain credentials')
+  }
+  if (url.search || url.hash) {
+    throw new Error('The adapter registry URL must not contain a query or fragment')
+  }
+  return url.toString().replace(/\/+$/, '')
+}
+
+function configuredAdapterRegistryUrl(
+  value: string,
+  source: 'env' | 'file',
+  configPath: string
+): string {
+  try {
+    return normalizeAdapterRegistryUrl(value)
+  } catch (cause) {
+    const label = source === 'env' ? 'CLARA_ADAPTER_REGISTRY_URL' : configPath
+    throw new Error(`Invalid adapter registry URL in ${label}: ${errorMessage(cause)}`, {
+      cause,
+    })
   }
 }
 

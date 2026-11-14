@@ -31,10 +31,13 @@ import { createApiApp } from '../api/app.ts'
 import type { ApiApp } from '../api/context.ts'
 import {
   createRelayRoom,
+  DEFAULT_ADAPTER_REGISTRY_URL,
   defaultPairingBaseUrl,
+  normalizeAdapterRegistryUrl,
   normalizePairingBaseUrl,
   normalizeRelayUrl,
   readRelayTarget,
+  saveAdapterRegistryUrl,
   savePairingBaseUrl,
   saveRelayRoom,
   saveRelayTarget,
@@ -91,6 +94,8 @@ export type ControllerOptions = {
   onRelayTargetChanged?: () => void
   /** The local listener started, stopped, or bound a different port. */
   onLocalEndpointChange?: () => void
+  /** Adapter installs were turned off, so running jobs should stop. */
+  onInstallDisabled?: () => void
   log: (message: string, detail?: unknown) => void
 }
 
@@ -406,6 +411,7 @@ export class RuntimeController {
       monitoring: { enabled: settings.monitoring },
       sync: { ...settings.sync },
       orchestration: this.orchestration,
+      install: { enabled: settings.install },
     }
   }
 
@@ -496,6 +502,14 @@ export class RuntimeController {
   }
 
   /** Update the global sync gate and cadence, then tell connected clients. */
+  async setInstall(enabled: boolean): Promise<PanelControls> {
+    if (this.options.settings.getInstall() === enabled) return this.controls()
+    this.options.settings.setInstall(enabled)
+    if (!enabled) this.options.onInstallDisabled?.()
+    this.options.log(enabled ? 'adapter installs enabled' : 'adapter installs disabled')
+    return this.controls()
+  }
+
   async setSync(update: PanelSyncUpdate): Promise<PanelControls> {
     const previous = this.options.settings.getSync()
     this.options.settings.setSync(update)
@@ -523,6 +537,7 @@ export class RuntimeController {
   async updateConfig(update: PanelConfigUpdate): Promise<PanelConfigInfo> {
     const { config } = this.options
     const pairingProvided = Object.prototype.hasOwnProperty.call(update, 'pairingBaseUrl')
+    const registryProvided = Object.prototype.hasOwnProperty.call(update, 'adapterRegistryUrl')
     const vapidProvided = Object.prototype.hasOwnProperty.call(update, 'vapidSubject')
 
     let pairingBaseUrl: string | undefined
@@ -540,6 +555,25 @@ export class RuntimeController {
           pairingBaseUrl = normalizePairingBaseUrl(value)
         } catch (cause) {
           throw new PanelControlError(400, 'invalid_pairing_base_url', errorMessage(cause))
+        }
+      }
+    }
+
+    let adapterRegistryUrl: string | undefined
+    if (registryProvided) {
+      if (config.sources.adapterRegistryUrl === 'env') {
+        throw new PanelControlError(
+          409,
+          'env_override',
+          'CLARA_ADAPTER_REGISTRY_URL is set. Remove it and restart the hub service to edit the registry here.'
+        )
+      }
+      const value = update.adapterRegistryUrl
+      if (value !== null && value !== undefined && value.trim()) {
+        try {
+          adapterRegistryUrl = normalizeAdapterRegistryUrl(value)
+        } catch (cause) {
+          throw new PanelControlError(400, 'invalid_adapter_registry_url', errorMessage(cause))
         }
       }
     }
@@ -582,6 +616,11 @@ export class RuntimeController {
       savePairingBaseUrl(config.configPath, pairingBaseUrl)
       config.pairingBaseUrl = pairingBaseUrl ?? defaultPairingBaseUrl()
       config.sources.pairingBaseUrl = pairingBaseUrl ? 'file' : 'default'
+    }
+    if (registryProvided) {
+      saveAdapterRegistryUrl(config.configPath, adapterRegistryUrl)
+      config.adapterRegistryUrl = adapterRegistryUrl ?? DEFAULT_ADAPTER_REGISTRY_URL
+      config.sources.adapterRegistryUrl = adapterRegistryUrl ? 'file' : 'default'
     }
     if (writeVapidSubject) {
       saveVapidSubject(config.configDir, nextVapidSubject)

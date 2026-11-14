@@ -14,6 +14,7 @@ export const MONITORING_SETTING = 'monitoring.enabled'
 export const SYNC_ENABLED_SETTING = 'sync.enabled'
 export const SYNC_INTERVAL_SETTING = 'sync.intervalMs'
 export const ORCHESTRATION_SETTING = 'orchestration.enabled'
+export const INSTALL_SETTING = 'install.enabled'
 
 export type FeatureName = keyof typeof FEATURE_SETTINGS
 
@@ -24,6 +25,7 @@ export type SettingKey =
   | typeof SYNC_ENABLED_SETTING
   | typeof SYNC_INTERVAL_SETTING
   | typeof ORCHESTRATION_SETTING
+  | typeof INSTALL_SETTING
 
 export type FeatureSettings = Record<FeatureName, boolean>
 
@@ -40,6 +42,8 @@ export type AgentSettings = {
   sync: SyncSettings
   /** Keeps a local Clara orchestration service running. */
   orchestration: boolean
+  /** Allows the panel to run an adapter install script on a remote target. */
+  install: boolean
 }
 
 export const FEATURE_NAMES = Object.keys(FEATURE_SETTINGS) as FeatureName[]
@@ -51,6 +55,7 @@ const SETTING_KEYS = new Set<string>([
   SYNC_ENABLED_SETTING,
   SYNC_INTERVAL_SETTING,
   ORCHESTRATION_SETTING,
+  INSTALL_SETTING,
 ])
 
 /**
@@ -84,6 +89,7 @@ export class SettingsStore {
       monitoring: this.readBoolean(MONITORING_SETTING),
       sync: this.getSync(),
       orchestration: this.readBoolean(ORCHESTRATION_SETTING),
+      install: this.readBoolean(INSTALL_SETTING),
     }
   }
 
@@ -101,6 +107,10 @@ export class SettingsStore {
 
   getOrchestration(): boolean {
     return this.readBoolean(ORCHESTRATION_SETTING)
+  }
+
+  getInstall(): boolean {
+    return this.readBoolean(INSTALL_SETTING)
   }
 
   getSync(): SyncSettings {
@@ -140,6 +150,12 @@ export class SettingsStore {
   setOrchestration(enabled: boolean): AgentSettings {
     assertBoolean(enabled, ORCHESTRATION_SETTING)
     this.writeValue(ORCHESTRATION_SETTING, enabled)
+    return this.get()
+  }
+
+  setInstall(enabled: boolean): AgentSettings {
+    assertBoolean(enabled, INSTALL_SETTING)
+    this.writeValue(INSTALL_SETTING, enabled)
     return this.get()
   }
 

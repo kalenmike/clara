@@ -353,6 +353,7 @@ export class PanelRuntime implements PanelDataSource {
         state: 'stopped',
         url: '',
       },
+      install: { enabled: false },
     }
   }
 
@@ -436,6 +437,10 @@ export function panelConfigInfo(config: ServerConfig): PanelConfigInfo {
     pairingBaseUrl: {
       value: config.pairingBaseUrl,
       source: sources.pairingBaseUrl,
+    },
+    adapterRegistryUrl: {
+      value: config.adapterRegistryUrl,
+      source: sources.adapterRegistryUrl,
     },
     vapidSubject: readVapidSubject(config.configDir),
   }

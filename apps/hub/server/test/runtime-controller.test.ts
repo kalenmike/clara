@@ -64,11 +64,13 @@ function config(port: number, relay?: ServerConfig['relay']): ServerConfig {
     relayRoom: relay ? 'file' : 'none',
     agentToken: relay ? 'file' : 'none',
     pairingBaseUrl: 'default',
+    adapterRegistryUrl: 'default',
   }
   return {
     local: { host: '127.0.0.1', bindHost: '127.0.0.1', port },
     ...(relay ? { relay } : {}),
     pairingBaseUrl: 'https://clara.example',
+    adapterRegistryUrl: 'https://clara.example/adapters',
     configDir: dir,
     configPath: join(dir, 'server.json'),
     dataDir: dir,

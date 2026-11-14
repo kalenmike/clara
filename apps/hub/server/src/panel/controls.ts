@@ -24,6 +24,7 @@ export type PanelControlService = {
   setMonitoring: (enabled: boolean) => Promise<PanelControls>
   setSync: (update: PanelSyncUpdate) => Promise<PanelControls>
   setOrchestration: (enabled: boolean) => Promise<PanelControls>
+  setInstall: (enabled: boolean) => Promise<PanelControls>
   updateConfig: (update: PanelConfigUpdate) => Promise<PanelConfigInfo>
   updateRelay: (update: PanelRelayUpdate) => Promise<PanelRelayMutationResponse>
   clearRelay: () => Promise<PanelRelayMutationResponse>
