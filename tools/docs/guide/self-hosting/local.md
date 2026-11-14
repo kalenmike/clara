@@ -46,7 +46,7 @@ pnpm clara server setup --local --password-stdin
 
 Or set `CLARA_ADMIN_USERNAME` and `CLARA_ADMIN_PASSWORD` before starting the hub.
 
-Then pair from **Clients → Pair a browser** in the panel, or run:
+Then pair from **Clients → Pair Client** in the panel, or run:
 
 ```bash
 pnpm clara pair --local --no-relay

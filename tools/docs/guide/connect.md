@@ -27,6 +27,15 @@ relay.
   never reaches the web host or Cloudflare.
 - A pairing link opens a connecting screen and finishes on its own.
 
+## Pair from the hub panel
+
+On the machine that runs the hub, open **Clients** and choose **Pair Client**.
+Pick **Relay** or **Local**, then choose **Create pairing link**. The dialog shows
+a QR code, an **Open Link** action, the expiry, and **Copy code** and **Copy
+link** buttons. It reports **Waiting to connect** until the device enrolls, then
+**Connected**. Closing before enrollment cancels the unused code; closing after
+it leaves the new device in place.
+
 ## Local and relay pairings
 
 A **local** pairing connects directly to the hub on the same machine or trusted
@@ -36,7 +45,7 @@ an SSH tunnel.
 A **relay** pairing goes through Cloudflare. Use it when the browser is on a
 phone or another network. A page loaded over HTTPS cannot open a `ws://` socket,
 so remote devices need a relay pairing. When a relay is configured, the host can
-choose **Relay** or **Local** in the panel's pairing card, or run
+choose **Relay** or **Local** in the Pair Client dialog, or run
 `pnpm clara pair --no-relay`, to force a local code.
 
 If a code does not connect, ask the host whether the hub is running and whether
@@ -46,9 +55,9 @@ step.
 ## Fingerprints
 
 Each device has a fingerprint derived from its key. The host can compare the
-fingerprint shown in the hub panel with the one shown in the panel's pairing card
-or printed by the pairing command. If they differ, do not trust the pairing; ask
-for a fresh code.
+fingerprint shown in the hub panel's paired-devices list with the one shown in the
+browser, or printed by the pairing command. If they differ, do not trust the
+pairing; ask for a fresh code.
 
 ## Manage this device
 

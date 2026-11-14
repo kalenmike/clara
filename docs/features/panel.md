@@ -146,17 +146,22 @@ card.
 14. Choose **Go online** to restore the saved choices. Feature switches are
     disabled until connections are back online and show red while they are
     stopped, so the offline state is readable from the switch colors alone.
-15. In **Clients**, use **Pair a browser** to create a one-time link, code, or
-    QR for a browser or installed app. Choose **Relay** or **Local** before
-    creating the code; the helper text explains where that code works. The
-    ready card shows only the QR until **Show codes** is opened, where the link,
-    code, fingerprint, transport, and expiry live; it can cancel the code before
-    it is used. Review the browser client table and paired devices below. Harness
-    adapter sessions are not listed here; they live under **Harness**. A
-    one-time pairing session appears with a **Pairing** badge and no device until
-    enrollment finishes; it is excluded from the active count and the local E2EE
-    session count. Each paired session row shows the device's display name, short
-    device id, and fingerprint so devices that share a label stay distinguishable.
+15. In **Clients**, choose **Pair Client** in the page header to open the
+    pairing dialog. Choose **Relay** or **Local** before creating the code; the
+    helper text explains where that code works. **Create pairing link** switches
+    the dialog to the pairing view: a locally rendered QR, an **Open Link**
+    action, the expiry, and **Copy code** and **Copy link** buttons. The raw code
+    and link are not printed. The dialog watches the five-second status snapshot
+    for a new device session or paired device and changes from **Waiting to
+    connect** to **Connected** when enrollment succeeds. Closing while waiting
+    cancels the unused code; closing after the dialog reports connected leaves
+    the new device in place. An expired code offers **Create new link**. Review
+    the browser client table and paired devices below. Harness adapter sessions
+    are not listed here; they live under **Harness**. A one-time pairing session
+    appears with a **Pairing** badge and no device until enrollment finishes; it
+    is excluded from the active count and the local E2EE session count. Each
+    paired session row shows the device's display name, short device id, and
+    fingerprint so devices that share a label stay distinguishable.
     An active device's **Edit** action sets an alias of up to 64 characters; the
     enrolled label stays visible as secondary text, and clearing the alias restores
     the enrolled name. Connected clients resolve the same alias from the paired
@@ -362,7 +367,7 @@ card.
   hub status update and reschedule their next check without reconnecting.
 - **Connections are off** — a banner says external connections are off, every
   transport card shows a stopped state, feature switches are disabled, and
-  **Pair a browser** cannot create a code. An enabled feature switch turns red
+  **Pair Client** cannot create a code. An enabled feature switch turns red
   and a disabled one keeps its neutral track. The Traffic and Client sync
   switches keep their usual colors.
 - **Orchestration changes** — the hub probes `/health` before and after the
@@ -545,8 +550,11 @@ card.
 - Harness view: `harness-add-card.tsx` (pairing flow),
   `harness-sessions-card.tsx` (live adapters), and
   `harness-connections-card.tsx` (paired harnesses and actions)
-- Browser pairing card: `apps/hub/panel/src/components/browser-pair-card.tsx`;
-  the QR is rendered locally with `qrcode.react`
+- Browser pairing dialog: `apps/hub/panel/src/components/pair-client-dialog.tsx`;
+  the QR is rendered locally with `qrcode.react`, and
+  `apps/hub/panel/src/lib/browser-pairing.ts` derives the waiting or connected
+  state from the status snapshot. `browser-pair-card.tsx` remains the inline card
+  used by guided setup.
 - Guided setup: `apps/hub/panel/src/lib/onboarding.ts` (pure step derivation),
   `apps/hub/panel/src/lib/use-onboarding.ts` (dismissal, completion, and modal
   mode), and `apps/hub/panel/src/components/onboarding/` (modal, connection,

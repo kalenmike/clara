@@ -37,7 +37,7 @@ Inside the Clara repository you can use
    disabled, the page shows **Off** instead of a live state.
 
 Adapter codes are only for the installer. To pair a browser, use
-**Clients → Pair a browser** in the panel, or the separate code or link printed
+**Clients → Pair Client** in the panel, or the separate code or link printed
 by `pnpm clara pair`. An adapter code starts with `clara-harness1_`; a browser
 code starts with `clara1_`.
 
@@ -122,7 +122,7 @@ connection keeps that state; use **Forget** only when you want to discard it.
   adapter does not store an API key.
 - **The code expired** — create a new code in the panel.
 - **The browser rejects a panel code** — adapter codes install the adapter, not
-  the browser. Use a browser code from **Clients → Pair a browser** or
+  the browser. Use a browser code from **Clients → Pair Client** or
   `pnpm clara pair`, then paste that link or code in Clara.
 - **The adapter is offline** — **Paired harnesses** says **Paired · Offline**.
   Start the adapter service, then use **Test** in the panel. The hub keeps the
