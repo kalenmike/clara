@@ -23,6 +23,7 @@ import { SidePanel } from '@/components/layout/side-panel'
 import { useDefaultAgent } from '@/features/agents/use-default-agent'
 import { useAgents, useModels } from '@/features/catalog/use-catalog'
 import { ComposerProvider, useComposer } from '@/features/chat/composer-provider'
+import { composerDocked } from '@/features/chat/composer-layout'
 import { findPlanReadyReply } from '@/features/chat/plan-ready'
 import { inboxDraftToMessage, mergeSessionMessages } from '@/features/chat/session-messages'
 import { buildTimeline } from '@/features/chat/timeline'
@@ -110,7 +111,14 @@ function ChatPageContent() {
   const busy = snapshot.status.type !== 'idle'
   const [showInternal, setShowInternal] = useState(readShowInternal)
   const [scrollToEndRequest, setScrollToEndRequest] = useState(0)
-  const { mode: composerMode, open: openComposer, draftState, lastSent } = useComposer()
+  const {
+    mode: composerMode,
+    pinned: composerPinned,
+    open: openComposer,
+    draftState,
+    lastSent,
+  } = useComposer()
+  const composerIsDocked = composerDocked({ mode: composerMode, pinned: composerPinned })
   const storedHasLocalDraft = useMemo(
     () => (sessionId ? readDraft(sessionId).trim().length > 0 : false),
     [sessionId]
@@ -522,6 +530,7 @@ function ChatPageContent() {
                     canActOnMessage={canActOnMessage}
                     canFork
                     actionsDisabled={forkPending || forwardPending}
+                    composerDocked={composerIsDocked}
                   />
                 )}
 

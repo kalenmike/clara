@@ -5,7 +5,14 @@
 // status, and logs follow the same flow for every service.
 
 import { existsSync } from 'node:fs'
-import { followLog, parseMode, startDetached, stopDetached } from './local-runtime.mjs'
+import {
+  followLog,
+  parseMode,
+  recordPid,
+  startDetached,
+  stopDetached,
+  systemdUnitActive,
+} from './local-runtime.mjs'
 import { root, runPnpm } from './router.mjs'
 import { ensureNetwork } from './server-control.mjs'
 import { collectStatus, renderJSON, renderStatus, statusExitCode } from './status.mjs'
@@ -39,22 +46,53 @@ export async function printServiceStatus(name, title, json) {
   process.exitCode = statusExitCode([record])
 }
 
-export async function stopLocalService(name, label) {
-  const result = await stopDetached({ name })
-  if (result.status === 'stopped' || result.status === 'stale') {
-    console.log(
-      result.status === 'stopped' ? `stopped local ${label} (pid ${result.pid})` : 'not running'
+export async function stopLocalService(service) {
+  const local = service.local ?? {}
+  if (local.systemdUnit && systemdUnitActive(local.systemdUnit) === true) {
+    console.error(
+      `The local ${service.label} is managed by the systemd unit "${local.systemdUnit}".`
     )
+    console.error(`Stop it with \`systemctl --user stop ${local.systemdUnit}\`.`)
+    process.exitCode = 1
     return
   }
-  if (result.status === 'not-running') {
+
+  const ports = typeof local.ports === 'function' ? local.ports() : (local.ports ?? [])
+  const result = await stopDetached({
+    name: service.name,
+    patterns: local.patterns ?? [],
+    ports,
+    discover: local.discoverPid ? async () => local.discoverPid() : undefined,
+  })
+
+  if (result.status === 'stopped') {
+    const forced = result.escalated ? ', forced' : ''
+    console.log(`stopped local ${service.label} (pid ${result.pid}${forced})`)
+    return
+  }
+  if (result.status === 'stale' || result.status === 'not-running') {
+    if (local.running && (await local.running())) {
+      console.error(`The local ${service.label} is answering but no stoppable process was found.`)
+      console.error('It may have been started outside this checkout; stop it where it was started.')
+      process.exitCode = 1
+      return
+    }
     console.log('not running')
+    return
+  }
+  if (result.status === 'foreign') {
+    const command = result.command ? ` (${result.command})` : ''
+    console.error(
+      `pid ${result.pid} from the ${result.source} is not the local ${service.label}${command}.`
+    )
+    console.error('Nothing was signalled.')
+    process.exitCode = 1
     return
   }
   console.error(
     result.status === 'not-exited'
-      ? `pid ${result.pid} is still running after SIGTERM`
-      : `could not stop the local ${label}: ${result.reason ?? result.status}`
+      ? `pid ${result.pid} is still running after SIGKILL`
+      : `could not stop the local ${service.label}: ${result.reason ?? result.status}`
   )
   process.exitCode = 1
 }
@@ -137,6 +175,16 @@ async function startLocal(service, ctx) {
     healthy: service.local.healthy,
   })
   if (result.status === 'started' || result.status === 'running') {
+    if (result.status === 'running' && service.local.adoptPid) {
+      const pid = await service.local.adoptPid()
+      if (recordPid(service.name, pid)) {
+        console.log(`noted the running local ${service.label} (pid ${pid}) for stop`)
+      } else {
+        console.warn(
+          `warning: the local ${service.label} is running but did not report a pid; \`stop --local\` may not find it.`
+        )
+      }
+    }
     service.local.onStarted?.(result)
     return
   }
@@ -146,7 +194,7 @@ async function startLocal(service, ctx) {
 }
 
 async function stopService(service, ctx) {
-  if (ctx.mode() === 'local') return stopLocalService(service.name, service.label)
+  if (ctx.mode() === 'local') return stopLocalService(service)
   const code = service.docker.compose(['down'])
   if (code !== 0) process.exitCode = code
   else console.log(`${service.containerLabel ?? service.label} container stopped`)
@@ -154,7 +202,7 @@ async function stopService(service, ctx) {
 
 async function restartService(service, ctx) {
   if (ctx.mode() === 'local') {
-    await stopLocalService(service.name, service.label)
+    await stopLocalService(service)
     if (process.exitCode) return
     return startLocal(service, ctx)
   }

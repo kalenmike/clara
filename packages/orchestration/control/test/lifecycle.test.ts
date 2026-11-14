@@ -344,6 +344,30 @@ describe('orchestrator lifecycle', () => {
     }
   })
 
+  it('stops the health-reported local process when its command matches', async () => {
+    const child: ChildProcess = spawn(
+      process.execPath,
+      ['-e', 'setInterval(() => {}, 1000)', 'apps/orchestrator'],
+      { stdio: 'ignore' }
+    )
+    if (child.pid === undefined) throw new Error('child did not start')
+    const exited = new Promise<void>((resolve) => child.once('exit', () => resolve()))
+    const service = await fakeService({
+      ok: true,
+      service: 'clara-orchestrator',
+      mode: 'local',
+      pid: child.pid,
+    })
+    setEnv('CLARA_ORCHESTRATION_PORT', String(service.port))
+    try {
+      expect(await stopService()).toEqual({ kind: 'stopped', pid: child.pid })
+      await exited
+    } finally {
+      child.kill('SIGKILL')
+      await service.close()
+    }
+  })
+
   it('leaves an external instance alone', async () => {
     const service = await fakeService({ ok: true, service: 'clara-orchestrator', mode: 'local' })
     setEnv('CLARA_ORCHESTRATION_PORT', String(service.port))

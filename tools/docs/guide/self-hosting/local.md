@@ -73,7 +73,11 @@ pnpm clara stop --local
 ```
 
 Local processes keep a PID and log under `~/.local/share/clara`, so the same
-stop, restart, status, and logs commands work without Docker.
+stop, restart, status, and logs commands work without Docker. Stop also finds a
+service restarted by `pnpm clara rebuild`, or a web client whose PID file is
+missing, and forces a process that ignores the normal stop signal. If the hub
+runs under the `clara` systemd unit, use `systemctl --user stop clara`; Clara
+will not signal a systemd-managed process.
 
 ## Data
 

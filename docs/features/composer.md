@@ -5,15 +5,17 @@
 The reply composer is a Gmail-style window docked to the bottom-right of a chat.
 It opens from the **Reply** or **New** button, automatically when a new session
 is created or an empty draft with locally saved text is opened, and from Adjust
-Plan on the composer's plan-ready card. While it is open or minimized it keeps
-the session it was opened for as the person navigates to other sessions; closing
-it resets the connection to the current session. It sends prompts that steer the
-run by default, can save the first message as a draft without starting a run, can
-queue a follow-up behind an active run, and carries commands, mentions,
-attachments, model selection, and agent selection. Pending agent questions and a
-ready plan travel with it: **Reply** and **New** show a badge for waiting
-requests, and the composer stacks those requests above its editor so the person
-can answer a form or start work with an optional custom message.
+Plan on the composer's plan-ready card. The title bar can pin the window as a
+full-width block at the bottom of the chat, where it stays out of the thread and
+resizes vertically. While it is open or minimized it keeps the session it was
+opened for as the person navigates to other sessions; closing it resets the
+connection to the current session. It sends prompts that steer the run by
+default, can save the first message as a draft without starting a run, can queue
+a follow-up behind an active run, and carries commands, mentions, attachments,
+model selection, and agent selection. Pending agent questions and a ready plan
+travel with it: **Reply** and **New** show a badge for waiting requests, and the
+composer stacks those requests above its editor so the person can answer a form
+or start work with an optional custom message.
 
 ## User flow
 
@@ -54,15 +56,20 @@ can answer a form or start work with an optional custom message.
    plan-ready card offers a secondary **Start** button: with the editor empty it
    hands off to Build; typing a message disables Start and Send sends the
    message to the Plan agent as an adjustment.
-10. Minimize, maximize, or close the window at any time. Switching between the
-    expanded panel and the smaller dock is remembered in local storage. The draft
-    stays in place until it is sent. While the window is open or minimized,
-    opening another session leaves it connected to the original session; the
-    title bar shows that session's title and a connection line such as **Draft for
-    another brief**. The small return button in the title bar jumps back to the
-    connected session without closing the window. Closing the window while
-    viewing another session resets it to that session, so the next open shows the
-    current session's draft.
+10. Minimize, maximize, pin, or close the window at any time. The pin button
+    docks the composer as a full-width block at the bottom of the chat, above
+    the usage bar, and hides the floating reply actions. Drag the dock's top
+    edge to resize it; the thread ends at the dock's top edge, so the composer
+    never covers a message. Minimize and maximize leave the dock and return to
+    the floating window, while pinning a closed composer makes the next open
+    docked. Switching between the expanded panel and the smaller dock is
+    remembered in local storage. The draft stays in place until it is sent.
+    While the window is open or minimized, opening another session leaves it
+    connected to the original session; the title bar shows that session's title
+    and a connection line such as **Draft for another brief**. The small return
+    button in the title bar jumps back to the connected session without closing
+    the window. Closing the window while viewing another session resets it to
+    that session, so the next open shows the current session's draft.
 
 ## Core business rules
 
@@ -144,6 +151,13 @@ can answer a form or start work with an optional custom message.
     message to the Plan agent as an ordinary adjustment, and the plan can hand
     off again after the next Plan reply. A failed agent switch or start leaves
     the plan pending.
+16. Pin is a placement, not a replacement window mode. It docks the composer at
+    normal size across the chat column and leaves the thread above it. Minimize
+    and maximize exit the dock and use the existing floating states; restoring
+    then returns to the remembered floating size. Pin and dock height persist
+    in local storage, so a reload reopens the composer docked when it was last
+    pinned. The dock height itself is dragged from its top edge, with keyboard
+    arrows, Home/End, and double-click reset.
 
 ## Edge cases
 
@@ -281,6 +295,24 @@ can answer a form or start work with an optional custom message.
 - **Escape with the palette open** — closes the palette, not the run.
 - **Maximized window** — expands to a floating panel with a small margin around
   the viewport until restored or closed.
+- **Pinned window** — docks across the full chat column above the usage bar at
+  its saved height. The thread ends at the dock's top edge and the floating
+  reply actions are hidden, so no message can sit behind the composer.
+- **Pin while minimized or maximized** — pinning immediately returns to the
+  normal dock instead of keeping the minimized or maximized state.
+- **Minimize or maximize while pinned** — leaves the dock and uses the existing
+  floating minimized or maximized window. Restoring returns to the floating
+  size, not the dock.
+- **Dock resize** — drag the top edge, use Up/Down on the focused handle (Shift
+  for larger steps), press Home/End, or double-click to reset. The dock keeps
+  at least 200px for the header, thread, and usage bar and never exceeds 720px.
+- **Tiny viewport** — the dock clamps to its 220px minimum even when the
+  viewport cannot leave the normal thread room.
+- **Pinned and closed** — closing keeps the pin preference; Reply, New, a new
+  session, or a restored local draft reopens the composer docked.
+- **Pinned height memory** — the last dragged height survives close, minimize,
+  maximize, session changes, and reloads; an unreadable value falls back to
+  320px.
 
 ## Out of scope
 
@@ -312,10 +344,15 @@ can answer a form or start work with an optional custom message.
   `src/components/chat/reply-dock.tsx`, `src/components/chat/composer.tsx`,
   `src/components/chat/composer-request-list.tsx`,
   `src/components/chat/form-fields.tsx`
+- Dock placement and resizing: `src/features/chat/composer-layout.ts` owns the
+  pin transitions, `src/hooks/use-composer-height.ts` owns the drag and keyboard
+  height controls, and `src/components/chat/message-list.tsx` drops its floating
+  action padding while the dock is open.
 - Connection state: `src/features/chat/composer-provider.tsx` owns the window
-  mode, connected target, handoff text/files, focus requests, draft reports, and
-  sent signal for the chat route. `src/features/chat/composer-session.ts` holds
-  the open, close, detachment, and return-path rules.
+  mode, pinned placement, connected target, handoff text/files, focus requests,
+  draft reports, and sent signal for the chat route.
+  `src/features/chat/composer-session.ts` holds the open, close, detachment, and
+  return-path rules.
 - Target data: `src/features/chat/use-composer-target.ts` reads the connected
   session's info, live snapshot, history, pending inbox drafts, and plan-ready
   state independently of the route.
@@ -359,6 +396,9 @@ delivery: 'steer' })`
 - Session controls: `client.session.switchAgent`, `client.session.switchModel`
 - Draft key: `clara.draft.<sessionID>`
 - Size key: `clara.composerSize` (`maximized` or `normal`; default `maximized`)
+- Pin key: `clara.composerPinned` (`on` or `off`; default `off`)
+- Height key: `clara.composerHeight` (clamped 220–720px, capped by viewport;
+  default 320px)
 - Related: [chat](chat.md), [shortcuts](shortcuts.md)
 
 </details>

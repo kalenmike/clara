@@ -96,6 +96,8 @@ export type StartLocalResult =
   | { kind: 'foreign' }
   | { kind: 'unhealthy' }
 
+const ORCHESTRATOR_PATTERNS = ['apps/orchestrator', 'clara-orchestrator']
+
 function isAlive(pid: number): boolean {
   try {
     process.kill(pid, 0)
@@ -103,6 +105,32 @@ function isAlive(pid: number): boolean {
   } catch (error) {
     return (error as NodeJS.ErrnoException).code === 'EPERM'
   }
+}
+
+/** Read a process command line without adding a dependency. */
+function processCommand(pid: number): string | undefined {
+  if (!Number.isInteger(pid) || pid <= 0) return undefined
+  try {
+    const raw = readFileSync(`/proc/${pid}/cmdline`).toString('utf8')
+    const command = raw.split('\0').join(' ').trim()
+    if (command) return command
+  } catch {
+    // Fall through to ps on hosts without procfs.
+  }
+  const result = spawnSync('ps', ['-p', String(pid), '-o', 'args='], {
+    encoding: 'utf8',
+    timeout: 3000,
+  })
+  if (result.error || result.status !== 0) return undefined
+  const command = result.stdout.trim()
+  return command || undefined
+}
+
+/** Whether a pid still looks like the orchestration service. */
+function processMatches(pid: number, patterns: string[]): boolean | undefined {
+  const command = processCommand(pid)
+  if (!command) return undefined
+  return patterns.some((pattern) => command.includes(pattern))
 }
 
 export function readPidState(): PidState {
@@ -227,7 +255,7 @@ export function formatStatus(report: StatusReport): string[] {
 
   if (report.state === 'external') {
     lines.push('warning: no local pid file; this instance was not started from this data directory')
-    lines.push('stop: stop it where it was started, or use `pnpm clara orchestrator stop --docker`')
+    lines.push('stop: `pnpm clara orchestrator stop --local` signals the reported process')
   }
   if (report.state === 'unresponsive') {
     lines.push(`warning: the process is alive but ${report.url}/health did not respond`)
@@ -253,6 +281,44 @@ async function waitForExit(pid: number, timeoutMs: number): Promise<boolean> {
     await delay(100)
   }
   return !isAlive(pid)
+}
+
+/** Stop a local pid, escalating to SIGKILL when SIGTERM does not land. */
+async function terminateLocal(pid: number): Promise<StopResult> {
+  try {
+    process.kill(pid, 'SIGTERM')
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === 'ESRCH') {
+      removePid()
+      return { kind: 'stopped', pid }
+    }
+    return {
+      kind: 'error',
+      message: error instanceof Error ? error.message : String(error),
+    }
+  }
+
+  if (await waitForExit(pid, 5000)) {
+    removePid()
+    return { kind: 'stopped', pid }
+  }
+
+  try {
+    process.kill(pid, 'SIGKILL')
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code !== 'ESRCH') {
+      return {
+        kind: 'error',
+        message: error instanceof Error ? error.message : String(error),
+      }
+    }
+  }
+
+  if (await waitForExit(pid, 3000)) {
+    removePid()
+    return { kind: 'stopped', pid }
+  }
+  return { kind: 'not-exited', pid }
 }
 
 function repoRoot(): string {
@@ -419,22 +485,16 @@ export async function stopService(options: StopOptions = {}): Promise<StopResult
   if (probe.status === 'foreign') return { kind: 'foreign' }
 
   if (pid.alive && pid.pid !== null && matchesLocalPid(probe, pid.pid)) {
-    try {
-      process.kill(pid.pid, 'SIGTERM')
-    } catch (error) {
-      if ((error as NodeJS.ErrnoException).code === 'ESRCH') {
-        removePid()
-        return { kind: 'already-stopped', stalePid: pid.pid }
-      }
-      return {
-        kind: 'error',
-        message: error instanceof Error ? error.message : String(error),
-      }
+    return terminateLocal(pid.pid)
+  }
+
+  // A local instance started from another data directory (or by the panel or a
+  // maintenance restart) has no pid file here. The health response names its
+  // process, so stop it when the command line still looks like Clara.
+  if (probe.status === 'current' && probe.mode !== 'container' && probe.pid !== null) {
+    if (isAlive(probe.pid) && processMatches(probe.pid, ORCHESTRATOR_PATTERNS) !== false) {
+      return terminateLocal(probe.pid)
     }
-    const exited = await waitForExit(pid.pid, 5000)
-    if (!exited) return { kind: 'not-exited', pid: pid.pid }
-    removePid()
-    return { kind: 'stopped', pid: pid.pid }
   }
 
   if (probe.status === 'current') return { kind: 'external' }

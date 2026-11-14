@@ -4,13 +4,26 @@
 // running services use, and fall back to common ports so an older Lab or a
 // panel started from another checkout is still visible.
 
-import { spawnSync } from 'node:child_process'
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { setTimeout as delay } from 'node:timers/promises'
 import { isRuntimeLive, readRuntimeState } from '@clara/runtime-state'
+import { findListenerPid, systemdUnitActive } from '../local-runtime.mjs'
 import { readDockerToken, orchestratorContainerRunning } from '../stack-control.mjs'
 import { dataDir } from './state.mjs'
+
+export {
+  canSignal,
+  findListenerPid,
+  parseFuserPid,
+  parseLsofPids,
+  parseSsListeners,
+  processCommand,
+  processMatches,
+  readProcessEnv,
+  systemdUnitActive,
+  waitForExit,
+} from '../local-runtime.mjs'
 
 const LOOPBACK_HOSTS = new Set(['127.0.0.1', 'localhost', '::1', '[::1]'])
 
@@ -279,10 +292,14 @@ export async function probeServer({
   }
 
   const expected = Boolean(panelInfo || localInfo)
+  // The hub publishes its own pid in the runtime file. Prefer it over host
+  // tools such as ss/lsof/fuser, which minimal installs may not provide.
+  const runtime = readRuntimeState()
+  const runtimePid = isRuntimeLive(runtime) && runtime.mode === 'local' ? runtime.pid : undefined
   const pid =
     panelInfo?.container === true
       ? null
-      : (findListenerPid(effectiveLocalPort) ?? findListenerPid(panel) ?? null)
+      : (runtimePid ?? findListenerPid(effectiveLocalPort) ?? findListenerPid(panel) ?? null)
   return {
     expected,
     healthy: expected,
@@ -297,97 +314,6 @@ export async function probeServer({
   }
 }
 
-export function systemdUnitActive(unit = 'clara') {
-  const result = spawnSync('systemctl', ['--user', 'is-active', unit], {
-    encoding: 'utf8',
-    timeout: 3000,
-  })
-  if (result.error) return undefined
-  return result.status === 0 && result.stdout.trim() === 'active'
-}
-
-export function parseSsListeners(output, port) {
-  for (const line of String(output ?? '').split('\n')) {
-    if (!line.includes(`:${port} `)) continue
-    const match = line.match(/pid=(\d+)/)
-    if (match) return Number(match[1])
-  }
-  return undefined
-}
-
-export function parseLsofPids(output) {
-  for (const line of String(output ?? '').split('\n')) {
-    const pid = Number(line.trim())
-    if (Number.isInteger(pid) && pid > 0) return pid
-  }
-  return undefined
-}
-
-export function parseFuserPid(output) {
-  const text = String(output ?? '')
-  const afterPort = text.match(/:\s*(\d+)/)
-  if (afterPort) return Number(afterPort[1])
-  const match = text.match(/\b(\d+)\b/)
-  return match ? Number(match[1]) : undefined
-}
-
-/** Find the process listening on a loopback port without adding a dependency. */
-export function findListenerPid(port) {
-  if (!Number.isInteger(port) || port <= 0) return undefined
-
-  const ss = spawnSync('ss', ['-ltnp'], { encoding: 'utf8', timeout: 3000 })
-  if (!ss.error && ss.status === 0) {
-    const pid = parseSsListeners(ss.stdout, port)
-    if (pid !== undefined) return pid
-  }
-
-  const lsof = spawnSync('lsof', ['-nP', `-iTCP:${port}`, '-sTCP:LISTEN', '-t'], {
-    encoding: 'utf8',
-    timeout: 3000,
-  })
-  if (!lsof.error && lsof.status === 0) {
-    const pid = parseLsofPids(lsof.stdout)
-    if (pid !== undefined) return pid
-  }
-
-  const fuser = spawnSync('fuser', [`${port}/tcp`], { encoding: 'utf8', timeout: 3000 })
-  if (!fuser.error) {
-    const pid = parseFuserPid(`${fuser.stdout ?? ''} ${fuser.stderr ?? ''}`)
-    if (pid !== undefined) return pid
-  }
-  return undefined
-}
-
-export function isAlive(pid) {
-  if (!Number.isInteger(pid) || pid <= 0) return false
-  try {
-    process.kill(pid, 0)
-    return true
-  } catch (error) {
-    return error?.code === 'EPERM'
-  }
-}
-
-/** Whether this process may safely send a signal to the pid. */
-export function canSignal(pid) {
-  if (!Number.isInteger(pid) || pid <= 1) return false
-  try {
-    process.kill(pid, 0)
-    return true
-  } catch (error) {
-    return false
-  }
-}
-
-export async function waitForExit(pid, timeoutMs = 5000) {
-  const deadline = Date.now() + timeoutMs
-  while (Date.now() < deadline) {
-    if (!isAlive(pid)) return true
-    await delay(100)
-  }
-  return !isAlive(pid)
-}
-
 export async function waitForProbe(probe, predicate, { timeoutMs = 30000, intervalMs = 250 } = {}) {
   const deadline = Date.now() + timeoutMs
   let last
@@ -397,47 +323,4 @@ export async function waitForProbe(probe, predicate, { timeoutMs = 30000, interv
     await delay(intervalMs)
   }
   return { ok: false, value: last }
-}
-
-/** Read a process command line without adding a dependency. */
-export function processCommand(pid) {
-  if (!Number.isInteger(pid) || pid <= 0) return undefined
-  try {
-    const raw = readFileSync(`/proc/${pid}/cmdline`).toString('utf8')
-    const command = raw.split('\0').join(' ').trim()
-    if (command) return command
-  } catch {
-    // Fall through to ps on hosts without procfs.
-  }
-  const result = spawnSync('ps', ['-p', String(pid), '-o', 'args='], {
-    encoding: 'utf8',
-    timeout: 3000,
-  })
-  if (result.error || result.status !== 0) return undefined
-  const command = result.stdout.trim()
-  return command || undefined
-}
-
-/** Whether a pid still looks like the service that was captured. */
-export function processMatches(pid, patterns) {
-  const command = processCommand(pid)
-  if (!command) return undefined
-  return patterns.some((pattern) => command.includes(pattern))
-}
-
-/** Read a process environment on Linux so a manual agent restart keeps secrets. */
-export function readProcessEnv(pid) {
-  if (!Number.isInteger(pid) || pid <= 0) return undefined
-  try {
-    const raw = readFileSync(`/proc/${pid}/environ`).toString('utf8')
-    const env = {}
-    for (const entry of raw.split('\0')) {
-      if (!entry) continue
-      const index = entry.indexOf('=')
-      if (index > 0) env[entry.slice(0, index)] = entry.slice(index + 1)
-    }
-    return Object.keys(env).length > 0 ? env : undefined
-  } catch {
-    return undefined
-  }
 }

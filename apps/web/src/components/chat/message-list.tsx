@@ -32,6 +32,7 @@ export function MessageList({
   canActOnMessage,
   canFork,
   actionsDisabled,
+  composerDocked = false,
 }: {
   sessionID: string
   items: TimelineItem[]
@@ -50,6 +51,8 @@ export function MessageList({
   canActOnMessage: (message: ClaraSessionMessage) => boolean
   canFork: boolean
   actionsDisabled: boolean
+  /** The pinned composer sits below the thread, so it needs no floating-action gap. */
+  composerDocked?: boolean
 }) {
   const parentRef = useRef<HTMLDivElement>(null)
   const [atBottom, setAtBottom] = useState(true)
@@ -368,7 +371,7 @@ export function MessageList({
           clearStepTimer()
           releaseAnchor()
         }}
-        className="h-full overflow-y-auto pb-28"
+        className={cn('h-full overflow-y-auto', composerDocked ? 'pb-4' : 'pb-28')}
       >
         <div className="relative w-full" style={{ height: virtualizer.getTotalSize() }}>
           {virtualizer.getVirtualItems().map((item) => {

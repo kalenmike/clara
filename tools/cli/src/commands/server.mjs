@@ -12,12 +12,14 @@
 //   pnpm clara server logs [--local|--docker]
 
 import { existsSync } from 'node:fs'
+import { isRuntimeLive, readRuntimeState } from '@clara/runtime-state'
 import { logPath } from '../lib/local-runtime.mjs'
 import { openPanel } from '../lib/panel.mjs'
 import { root } from '../lib/router.mjs'
 import {
   compose,
   detectServerTarget,
+  localURL,
   panelURL,
   probe,
   runLocalServerProcess,
@@ -30,6 +32,21 @@ import {
 import { readServiceArgs, runServiceLifecycle } from '../lib/service-cli.mjs'
 import { composeEnvValues, hubEnvErrors, hubEnvWarnings } from '../lib/stack-control.mjs'
 
+async function serverHealthy() {
+  const health = await probe(`${panelURL()}/health`)
+  return health.ok && health.body?.service === 'clara-server'
+}
+
+/** The hub publishes its own pid; prefer it over a stale CLI pid file. */
+function hubRuntimePid() {
+  const state = readRuntimeState()
+  return isRuntimeLive(state) && state.mode === 'local' ? state.pid : undefined
+}
+
+function serverPorts() {
+  return [Number(new URL(panelURL()).port), Number(new URL(localURL()).port)]
+}
+
 const serverService = {
   name: 'server',
   label: 'server',
@@ -39,25 +56,28 @@ const serverService = {
     entry: SERVER_ENTRY,
     missing: 'The hub service is not built. Run `pnpm build` first.',
     buildError: 'error: the local server build failed.',
+    patterns: ['apps/hub/server', 'clara-server'],
+    ports: serverPorts,
+    discoverPid: hubRuntimePid,
+    adoptPid: hubRuntimePid,
+    systemdUnit: 'clara',
     preflight: async () => {
       const current = await probe(`${panelURL()}/health`)
-      if (current.ok && current.body?.service === 'clara-server') {
-        if (current.body.mode === 'container') {
-          console.error(
-            'The hub is running in a container. Stop it before starting a local hub service.'
-          )
-          process.exitCode = 1
-          return false
-        }
-        console.log(`panel: ${panelURL()}/ (already running locally)`)
+      if (
+        current.ok &&
+        current.body?.service === 'clara-server' &&
+        current.body.mode === 'container'
+      ) {
+        console.error(
+          'The hub is running in a container. Stop it before starting a local hub service.'
+        )
+        process.exitCode = 1
         return false
       }
       return true
     },
-    healthy: async () => {
-      const health = await probe(`${panelURL()}/health`)
-      return health.ok && health.body?.service === 'clara-server'
-    },
+    healthy: serverHealthy,
+    running: serverHealthy,
     onStarted: () => {
       console.log(`panel: ${panelURL()}/`)
       console.log(`  logs:  ${logPath('server')}`)
