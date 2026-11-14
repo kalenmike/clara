@@ -21,6 +21,10 @@ Inputs:
 - `kinds` — `all` or a comma list of `opencode`, `claude`, `pi`.
 - `dry_run` — build and generate the registry without creating a release.
 
+Each row builds the other architecture with Bun's same-OS cross-compilation. If
+a particular target proves unreliable on a runner, split that target into its own
+native runner row without changing the publish job.
+
 The publish job:
 
 1. Verifies every requested archive and hashes it.
