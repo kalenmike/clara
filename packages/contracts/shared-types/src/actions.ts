@@ -1,3 +1,4 @@
+import type { RelayGrantState } from './grant.ts'
 import type { AgentInfo } from './protocol.ts'
 
 export type HttpMethod = 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE' | 'HEAD' | 'OPTIONS'
@@ -99,7 +100,7 @@ export type ClaraAction =
   | { type: 'http.abort'; id: string }
   | { type: 'ping'; at: number; presence?: PresenceSnapshot }
   | { type: 'pong'; at: number }
-  | { type: 'ready'; agent: AgentInfo }
+  | { type: 'ready'; agent: AgentInfo; relayGrant?: RelayGrantState }
   | { type: 'ready.ack'; agent: AgentInfo }
   | DeviceEnrollAction
   | PushSubscribeAction

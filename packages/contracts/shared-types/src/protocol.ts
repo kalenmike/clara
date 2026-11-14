@@ -1,6 +1,19 @@
 /** Wire protocol version. Bump when a frame shape changes. */
 export const PROTOCOL_VERSION = 3
 
+/**
+ * The v4 handshake adds ephemeral P-256 ECDH for forward secrecy and a MAC on
+ * the hub hello. It is defined alongside v3 until the transport cutover.
+ */
+export const PROTOCOL_VERSION_V4 = 4
+
+/**
+ * Version of the relay route envelope, advertised in `x-clara-relay-version`.
+ * It is independent of the E2EE protocol version: envelope v3 adds the grant
+ * id the relay verified before it tags a client frame.
+ */
+export const RELAY_WIRE_VERSION = 3
+
 export type DeviceErrorCode =
   | 'unknown_device'
   | 'revoked_device'

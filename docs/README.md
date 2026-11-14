@@ -72,6 +72,7 @@ Clara works; the guide describes how to use it.
 | [pairing.md](features/pairing.md)                                       | You are working on QR/code pairing, device storage, or key rotation      |
 | [panel.md](features/panel.md)                                           | You are working on the hub panel                                         |
 | [relay-preview-verification.md](features/relay-preview-verification.md) | You are verifying that a panel deploy disabled Worker preview URLs       |
+| [handshake-v4.md](features/handshake-v4.md)                             | You are working on relay grants, the v4 handshake, or forward secrecy    |
 | [hub-controls.md](features/hub-controls.md)                             | You are working on feature toggles or the Go offline control             |
 | [sync.md](features/sync.md)                                             | You are working on client settings sync, its protocol, or the Sync tab   |
 | [sessions.md](features/sessions.md)                                     | You are working on the project/session browser                           |
