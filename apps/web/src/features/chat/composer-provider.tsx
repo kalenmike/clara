@@ -11,6 +11,15 @@ import {
 } from 'react'
 import { useMatches } from 'react-router'
 import {
+  maximizeComposer,
+  minimizeComposer,
+  openComposerWindow,
+  pinComposer,
+  restoreComposer,
+  unpinComposer,
+  type ComposerWindow,
+} from '@/features/chat/composer-layout'
+import {
   composerOpenTarget,
   composerReturnPath,
   isComposerDetached,
@@ -19,7 +28,12 @@ import {
   type ComposerTarget,
 } from '@/features/chat/composer-session'
 import type { PromptFile } from '@/features/chat/use-chat'
-import { readComposerSize, saveComposerSize } from '@/lib/storage'
+import {
+  readComposerPinned,
+  readComposerSize,
+  saveComposerPinned,
+  saveComposerSize,
+} from '@/lib/storage'
 
 type ComposerHandoff = {
   id: number
@@ -42,6 +56,7 @@ type SentSignal = {
 
 type ComposerContextValue = {
   mode: ComposerMode
+  pinned: boolean
   target: ComposerTarget | null
   handoff: ComposerHandoff | null
   detached: boolean
@@ -54,6 +69,7 @@ type ComposerContextValue = {
   close: () => void
   minimize: () => void
   restore: () => void
+  togglePin: () => void
   toggleMaximize: () => void
   openModels: () => void
   openAgents: () => void
@@ -83,6 +99,7 @@ function useComposerRoute() {
 export function ComposerProvider({ children }: { children: ReactNode }) {
   const route = useComposerRoute()
   const [mode, setMode] = useState<ComposerMode>('closed')
+  const [pinned, setPinned] = useState(readComposerPinned)
   const [target, setTarget] = useState<ComposerTarget | null>(route)
   const [handoff, setHandoff] = useState<ComposerHandoff | null>(null)
   const [focusSignal, setFocusSignal] = useState(0)
@@ -92,6 +109,12 @@ export function ComposerProvider({ children }: { children: ReactNode }) {
   const [drafts, setDrafts] = useState<Record<string, boolean>>({})
   const handoffSeq = useRef(0)
   const sentSeq = useRef(0)
+
+  const applyWindow = useCallback((next: ComposerWindow) => {
+    setMode(next.mode)
+    setPinned(next.pinned)
+    saveComposerPinned(next.pinned)
+  }, [])
 
   /**
    * While the composer is closed it belongs to the route. An open or minimized
@@ -130,12 +153,12 @@ export function ComposerProvider({ children }: { children: ReactNode }) {
       } else {
         setHandoff(null)
       }
-      setMode(readComposerSize())
+      applyWindow(openComposerWindow(pinned, readComposerSize()))
       setFocusSignal((value) => value + 1)
       if (options.model) setModelRequest((value) => value + 1)
       if (options.agent) setAgentRequest((value) => value + 1)
     },
-    [mode, route, target]
+    [applyWindow, mode, pinned, route, target]
   )
 
   const close = useCallback(() => {
@@ -145,40 +168,45 @@ export function ComposerProvider({ children }: { children: ReactNode }) {
   }, [route])
 
   const minimize = useCallback(() => {
-    setMode('minimized')
-  }, [])
+    applyWindow(minimizeComposer())
+  }, [applyWindow])
 
   const restore = useCallback(() => {
-    setMode(readComposerSize())
+    applyWindow(restoreComposer(readComposerSize()))
     setFocusSignal((value) => value + 1)
-  }, [])
+  }, [applyWindow])
+
+  const togglePin = useCallback(() => {
+    applyWindow(pinned ? unpinComposer(readComposerSize()) : pinComposer({ mode, pinned }))
+    setFocusSignal((value) => value + 1)
+  }, [applyWindow, mode, pinned])
 
   const toggleMaximize = useCallback(() => {
-    const next = mode === 'maximized' ? 'normal' : 'maximized'
-    saveComposerSize(next)
-    setMode(next)
+    const next = mode === 'maximized' ? restoreComposer('normal') : maximizeComposer()
+    saveComposerSize(next.mode === 'maximized' ? 'maximized' : 'normal')
+    applyWindow(next)
     setFocusSignal((value) => value + 1)
-  }, [mode])
+  }, [applyWindow, mode])
 
   const openModels = useCallback(() => {
     if (mode === 'closed') {
       open({ model: true })
       return
     }
-    if (mode === 'minimized') setMode(readComposerSize())
+    if (mode === 'minimized') applyWindow(restoreComposer(readComposerSize()))
     setModelRequest((value) => value + 1)
     setFocusSignal((value) => value + 1)
-  }, [mode, open])
+  }, [applyWindow, mode, open])
 
   const openAgents = useCallback(() => {
     if (mode === 'closed') {
       open({ agent: true })
       return
     }
-    if (mode === 'minimized') setMode(readComposerSize())
+    if (mode === 'minimized') applyWindow(restoreComposer(readComposerSize()))
     setAgentRequest((value) => value + 1)
     setFocusSignal((value) => value + 1)
-  }, [mode, open])
+  }, [applyWindow, mode, open])
 
   const consumeHandoff = useCallback(() => {
     setHandoff(null)
@@ -214,6 +242,7 @@ export function ComposerProvider({ children }: { children: ReactNode }) {
   const value = useMemo(
     () => ({
       mode,
+      pinned,
       target,
       handoff,
       detached,
@@ -226,6 +255,7 @@ export function ComposerProvider({ children }: { children: ReactNode }) {
       close,
       minimize,
       restore,
+      togglePin,
       toggleMaximize,
       openModels,
       openAgents,
@@ -252,11 +282,13 @@ export function ComposerProvider({ children }: { children: ReactNode }) {
       openAgents,
       openModels,
       focus,
+      pinned,
       reportDraft,
       restore,
       returnPath,
       target,
       toggleMaximize,
+      togglePin,
     ]
   )
 
