@@ -86,7 +86,7 @@ describe('CloudflareClient', () => {
       scriptName: 'clara-relay',
       sleep: async () => {},
       fetchImpl: async () =>
-        new Response(JSON.stringify({ ok: true }), {
+        new Response(JSON.stringify({ ok: true, relay: 2 }), {
           status: 200,
           headers: { 'content-type': 'application/json' },
         }),
@@ -142,7 +142,7 @@ describe('CloudflareClient', () => {
       account: { id: 'account', name: 'Account' },
       scriptName: 'clara-relay',
       sleep: async () => {},
-      fetchImpl: async () => new Response(JSON.stringify({ ok: true }), { status: 200 }),
+      fetchImpl: async () => new Response(JSON.stringify({ ok: true, relay: 2 }), { status: 200 }),
     })
 
     expect(metadata).not.toHaveProperty('preview_urls')
@@ -173,7 +173,7 @@ describe('CloudflareClient', () => {
       scriptName: 'clara-relay',
       previewUrls: true,
       sleep: async () => {},
-      fetchImpl: async () => new Response(JSON.stringify({ ok: true }), { status: 200 }),
+      fetchImpl: async () => new Response(JSON.stringify({ ok: true, relay: 2 }), { status: 200 }),
     })
 
     expect(subdomainBody).toEqual({ enabled: true, previews_enabled: true })
@@ -204,7 +204,7 @@ describe('CloudflareClient', () => {
       scriptName: 'clara-relay',
       allowExisting: true,
       sleep: async () => {},
-      fetchImpl: async () => new Response(JSON.stringify({ ok: true }), { status: 200 }),
+      fetchImpl: async () => new Response(JSON.stringify({ ok: true, relay: 2 }), { status: 200 }),
     })
 
     expect(subdomainCalls).toBe(1)
@@ -235,7 +235,7 @@ describe('CloudflareClient', () => {
       sleep: async () => {},
       fetchImpl: async () => {
         healthCalls += 1
-        return new Response(JSON.stringify({ ok: true }), { status: 200 })
+        return new Response(JSON.stringify({ ok: true, relay: 2 }), { status: 200 })
       },
     })
 
@@ -266,7 +266,7 @@ describe('CloudflareClient', () => {
         sleep: async () => {},
         fetchImpl: async () => {
           healthCalls += 1
-          return new Response(JSON.stringify({ ok: true }), { status: 200 })
+          return new Response(JSON.stringify({ ok: true, relay: 2 }), { status: 200 })
         },
       })
     ).rejects.toMatchObject({ status: 400 })
@@ -297,7 +297,7 @@ describe('CloudflareClient', () => {
       scriptName: 'clara-relay',
       allowExisting: true,
       sleep: async () => {},
-      fetchImpl: async () => new Response(JSON.stringify({ ok: true }), { status: 200 }),
+      fetchImpl: async () => new Response(JSON.stringify({ ok: true, relay: 2 }), { status: 200 }),
     })
 
     expect(metadata?.migrations).toBeUndefined()
@@ -381,6 +381,40 @@ describe('CloudflareClient', () => {
 })
 
 describe('deployRelay health check', () => {
+  function deploymentClient(): CloudflareClient {
+    return new CloudflareClient('token', async (input) => {
+      const url = String(input)
+      if (url.endsWith('/workers/subdomain')) return json({ subdomain: 'example' })
+      if (url.includes('/workers/services/')) return json(undefined, 404)
+      if (url.endsWith('/subdomain')) return json({ enabled: true })
+      return json({ id: 'script' })
+    })
+  }
+
+  function deploy(
+    client: CloudflareClient,
+    fetchImpl: typeof fetch
+  ): ReturnType<typeof deployRelay> {
+    return deployRelay({
+      client,
+      artifact,
+      account: { id: 'account', name: 'Account' },
+      scriptName: 'clara-relay',
+      sleep: async () => {},
+      fetchImpl,
+    })
+  }
+
+  it('accepts a health payload that reports the current relay version', async () => {
+    const result = await deploy(
+      deploymentClient(),
+      async () => new Response(JSON.stringify({ ok: true, relay: 2 }), { status: 200 })
+    )
+
+    expect(result.reachable).toBe(true)
+    expect(result.healthError).toBeUndefined()
+  })
+
   it('retries until the new workers.dev host answers', async () => {
     let healthCalls = 0
     const client = new CloudflareClient('token', async (input) => {
@@ -401,12 +435,47 @@ describe('deployRelay health check', () => {
         healthCalls += 1
         return healthCalls === 1
           ? new Response('not ready', { status: 503 })
-          : new Response(JSON.stringify({ ok: true }), { status: 200 })
+          : new Response(JSON.stringify({ ok: true, relay: 2 }), { status: 200 })
       },
     })
 
     expect(result.reachable).toBe(true)
     expect(result.url).toBe('wss://clara-relay.example.workers.dev')
+    expect(healthCalls).toBe(2)
+  })
+
+  it('reports an outdated relay when the health payload has no relay version', async () => {
+    let healthCalls = 0
+    const result = await deploy(deploymentClient(), async () => {
+      healthCalls += 1
+      return new Response(JSON.stringify({ ok: true, protocol: 2 }), { status: 200 })
+    })
+
+    expect(result.reachable).toBe(false)
+    expect(result.healthError).toBe('The deployed relay is outdated; redeploy the Worker')
+    expect(healthCalls).toBeGreaterThan(1)
+  })
+
+  it('reports an outdated relay when the health payload names an older version', async () => {
+    const result = await deploy(
+      deploymentClient(),
+      async () => new Response(JSON.stringify({ ok: true, relay: 1 }), { status: 200 })
+    )
+
+    expect(result.reachable).toBe(false)
+    expect(result.healthError).toBe('The deployed relay is outdated; redeploy the Worker')
+  })
+
+  it('retries a health payload that has no relay version', async () => {
+    let healthCalls = 0
+    const result = await deploy(deploymentClient(), async () => {
+      healthCalls += 1
+      return healthCalls === 1
+        ? new Response(JSON.stringify({ ok: true }), { status: 200 })
+        : new Response(JSON.stringify({ ok: true, relay: 2 }), { status: 200 })
+    })
+
+    expect(result.reachable).toBe(true)
     expect(healthCalls).toBe(2)
   })
 
