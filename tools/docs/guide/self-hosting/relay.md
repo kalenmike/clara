@@ -34,7 +34,9 @@ If your Clara build includes the optional Cloudflare deployment feature, open
 
 The hub stores the relay tokens encrypted on this machine. The Cloudflare token
 is kept only for the deployment unless you choose to save it. Existing devices
-must pair again after the relay changes.
+must pair again after the relay changes. A relay URL, room, or token supplied by
+the environment takes precedence, so remove those variables before deploying a
+relay from the panel.
 
 Builds without the feature, and custom-domain deployments, use the manual path
 below.
@@ -83,7 +85,16 @@ For the web container, put the same value in `infra/docker/.env` and rebuild wit
 
 ## Configure the hub
 
-Start the hub with the relay values:
+Open **Connections → Relay** in the hub panel and save the relay URL with the
+same hub and client tokens you set on the Worker. The hub generates a random room
+automatically and connects without a restart. Tokens are encrypted on this
+machine and are never shown again. Changing the room or client token later
+requires every device to pair again.
+
+The room is always generated. You can replace it with **Regenerate room**, but
+you cannot type a room name.
+
+Environment variables are the fallback for CI or headless bootstrap:
 
 ```bash
 CLARA_RELAY_URL=wss://relay.example \
@@ -92,13 +103,16 @@ CLARA_CLIENT_TOKEN=... \
 pnpm clara server start --local
 ```
 
-When `CLARA_RELAY_ROOM` is omitted, the hub generates a room and persists it in
-`server.json`. Keep that value stable: every pairing code is scoped to it.
+Each variable wins over the matching panel value when it is set. Values supplied
+by the environment are not written to disk, so removing the variable later
+restores the panel value. `CLARA_RELAY_ROOM` is optional; when it and the panel
+room are both absent, the hub generates one and persists it in `server.json`.
+Keep that value stable: every pairing code is scoped to it.
 
-Open the hub panel, confirm the relay card is connected, and set **Web URL** to
-the public HTTPS URL. `CLARA_PAIRING_BASE_URL` overrides the panel value. When an
-adapter must reach the hub from another network, choose **Cloudflare relay** as
-its location in **Harness → Add harness**.
+Confirm the relay card is connected, and set **Web URL** to the public HTTPS URL.
+`CLARA_PAIRING_BASE_URL` overrides the panel value. When an adapter must reach the
+hub from another network, choose **Cloudflare relay** as its location in
+**Harness → Add harness**.
 
 ## Pair a remote device
 

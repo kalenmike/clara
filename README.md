@@ -386,9 +386,15 @@ cannot open a `ws://` socket. For phones, configure the relay instead.
 
 3. Deploy `apps/web/dist` to your Pages project and attach your own domain.
 
-4. Configure the hub. The systemd unit reads
-   `~/.config/clara/server.env` (`KEY=value`, mode `0600`) and restarts with it;
-   a hand-started hub service needs the same variables exported:
+4. Configure the hub. Open **Connections → Relay** in the hub panel and save
+   your relay URL with the same hub and client tokens you set on the Worker. The
+   hub generates a random room and stores the tokens encrypted in
+   `~/.config/clara/relay-credentials.json`. Use **Regenerate room** to replace
+   the room; it cannot be typed. Set **Web URL** to
+   `https://your-clara.example` for a Pages deployment.
+
+   Environment variables remain available as a CI or headless fallback. The
+   systemd unit reads `~/.config/clara/server.env` (`KEY=value`, mode `0600`):
 
    ```bash
    CLARA_RELAY_URL=wss://relay.example
@@ -397,17 +403,13 @@ cannot open a `ws://` socket. For phones, configure the relay instead.
    CLARA_CLIENT_TOKEN=<must match the Worker secret>
    ```
 
-   Use your own relay URL. Open the hub panel and set **Web URL** to
-   `https://your-clara.example` for a Pages deployment; `CLARA_PAIRING_BASE_URL`
-   overrides the panel if you prefer environment configuration.
+   Each variable wins over the matching panel value when it is set, and is never
+   written to disk. A URL with no tokens in either the environment or the panel
+   stops the hub at startup with an error naming the missing token.
 
 5. Restart the hub service and check `relay connecting` / `relay online` in its log.
    `pnpm clara pair` must then print a random `Room:` and a `/room/<id>` link;
    a `Room: local` code is local-only and cannot work through the relay.
-
-   The relay URL and room are persisted in `~/.config/clara/server.json`, but the
-   two tokens are environment-only and never written there. Missing tokens stop
-   the hub service at startup with an error naming the missing variable.
 
 `VITE_CLARA_WS_URL` is the relay deployment switch: it retargets relay-room
 pairings and is ignored for `local` pairing codes. When unset, the pairing

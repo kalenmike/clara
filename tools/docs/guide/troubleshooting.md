@@ -125,7 +125,8 @@ container still keeps restarting:
 - Read the printed log tail, or run `pnpm clara logs server`, `pnpm clara logs web`,
   or `pnpm clara logs orchestrator`.
 - A `CLARA_RELAY_URL` without both `CLARA_AGENT_TOKEN` and `CLARA_CLIENT_TOKEN`
-  stops the hub at startup.
+  stops the hub at startup only when the panel has not saved the missing tokens.
+  `pnpm clara start` warns about the gap before launching the container.
 - `CLARA_SERVER_CONFIG_DIR`, `CLARA_SERVER_DATA_DIR`, and
   `CLARA_ORCHESTRATOR_DATA_DIR` must be absolute host paths when set.
 - Stopping the stack does not need any of those values exported in your shell.

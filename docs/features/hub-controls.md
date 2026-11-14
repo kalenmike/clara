@@ -91,7 +91,9 @@ for client settings sync.
 ## Out of scope
 
 - Stopping or restarting the systemd unit from the panel
-- Editing `server.json`, the harness URL, ports, rooms, or tokens from the panel
+- Editing ports, the harness URL, or arbitrary `server.json` values from the
+  panel; the Web URL, relay URL/tokens, generated room, and VAPID contact are
+  editable
 - Kicking clients or revoking a device
 - Historical metrics or a persisted audit trail
 - Remote access to the panel through the relay or Pages
