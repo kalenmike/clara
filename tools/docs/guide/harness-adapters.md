@@ -71,6 +71,25 @@ clara-adapter-claude start
 clara-adapter-claude logs
 ```
 
+## Pair more than one harness
+
+Repeat the same flow for every machine or harness you want to reach. Clara keeps
+each adapter separate: a project can hold a workspace on each one, and a session
+always runs on the harness that owns its workspace.
+
+- **Labels follow the harness type.** Two adapters of the same kind both read
+  OpenCode, so Clara appends a short id to tell their workspaces apart. Give each
+  workspace its own label when you add it and menus stay easy to read.
+- **Active is only a default.** The active harness answers screens that do not
+  name a session or workspace. Paired harnesses keep serving their own
+  workspaces, so you do not switch back and forth.
+- **One offline harness does not stop the others.** Lists keep the rows from
+  harnesses that answered and mark the rest; count cards say the counts are
+  partial.
+- **A path that exists on two machines is ambiguous.** Clara refuses to guess: the
+  request says the path matches more than one harness. Make the harness you are
+  working on the active one, and label the workspaces clearly.
+
 ## Reinstall and reconnect
 
 The adapter keeps a stable identity. If you uninstall and install it again, or
@@ -91,7 +110,7 @@ connection keeps that state; use **Forget** only when you want to discard it.
 - **The adapter is offline** — **Paired harnesses** says **Paired · Offline**.
   Start the adapter service, then use **Test** in the panel. The hub keeps the
   connection and reconnects automatically. Clara stays connected and shows a
-  harness banner with **Retry**.
+  harness banner with **Retry**. Sessions on your other harnesses keep working.
 - **The panel says Online but requests time out** — run
   `pnpm clara adapter status --claude` (or `--opencode`). The **hub** and
   **link** lines show whether the adapter has an authenticated session with the
