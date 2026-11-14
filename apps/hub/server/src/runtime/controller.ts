@@ -853,7 +853,7 @@ export class RuntimeController {
     // Adapters own their live sessions. Resetting the agents here would drop
     // the enrollment session before the hub can answer it, and would tear down
     // the credential session the moment it registers.
-    this.stopPushMonitor()
+    this.pushMonitor?.sync()
     await this.refreshHarnessInfo()
     this.syncPushMonitor()
     this.options.log(
