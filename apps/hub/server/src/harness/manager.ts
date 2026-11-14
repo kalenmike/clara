@@ -1,6 +1,6 @@
 import type { ClaraSession } from '@clara/api-contract'
 import { HarnessClient } from '@clara/harness-protocol'
-import type { AdapterEnrollAction, PanelTransport } from '@clara/shared-types'
+import type { AdapterEnrollAction, HostResourceMetrics, PanelTransport } from '@clara/shared-types'
 import type { ProjectStore } from '../projects/store.ts'
 import type { HarnessMetadataStore } from './metadata.ts'
 import type { EnrollAdapterInput, EnrollAdapterResult, HarnessStore } from './store.ts'
@@ -15,6 +15,16 @@ import {
 } from './types.ts'
 
 export type HarnessChangeListener = () => void | Promise<void>
+
+/**
+ * The outcome of asking one adapter for a host sample. `unsupported` is stable
+ * for the life of that adapter session, so the panel can stop asking until the
+ * adapter reconnects.
+ */
+export type HarnessHostResources =
+  | { state: 'ok'; metrics: HostResourceMetrics }
+  | { state: 'unsupported' }
+  | { state: 'unavailable' }
 
 type Fetch = (request: Request) => Promise<Response>
 
@@ -185,6 +195,37 @@ export class HarnessManager {
         code: cause instanceof Error && cause.name === 'TimeoutError' ? 'timeout' : 'unreachable',
         message: cause instanceof Error ? cause.message : String(cause),
       }
+    }
+  }
+
+  /**
+   * Ask one live adapter for its latest host sample. This never throws: an
+   * offline adapter, a timeout, or an old adapter without the route all read as
+   * unavailable or unsupported so the panel can keep rendering.
+   */
+  async hostResources(harnessId: string, timeoutMs = 1_500): Promise<HarnessHostResources> {
+    const fetch = this.live.get(harnessId)
+    if (!fetch) return { state: 'unavailable' }
+
+    const controller = new AbortController()
+    try {
+      const response = await withTimeout(
+        fetch(
+          new Request('http://adapter/harness/v1/host', {
+            signal: controller.signal,
+          })
+        ),
+        timeoutMs,
+        () => controller.abort(timeoutError(timeoutMs))
+      )
+      if (response.status === 404) return { state: 'unsupported' }
+      if (!response.ok) return { state: 'unavailable' }
+      const value = (await response.json()) as unknown
+      return isHostResourceMetrics(value)
+        ? { state: 'ok', metrics: value }
+        : { state: 'unavailable' }
+    } catch {
+      return { state: 'unavailable' }
     }
   }
 
@@ -410,4 +451,19 @@ function timeoutError(timeoutMs: number): Error {
   const error = new Error(`The adapter did not answer within ${timeoutMs}ms`)
   error.name = 'TimeoutError'
   return error
+}
+
+function isHostResourceMetrics(value: unknown): value is HostResourceMetrics {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return false
+  const record = value as Record<string, unknown>
+  return (
+    typeof record.sampledAt === 'string' &&
+    typeof record.platform === 'string' &&
+    typeof record.arch === 'string' &&
+    typeof record.cpu === 'object' &&
+    record.cpu !== null &&
+    typeof record.memory === 'object' &&
+    record.memory !== null &&
+    Array.isArray(record.disks)
+  )
 }

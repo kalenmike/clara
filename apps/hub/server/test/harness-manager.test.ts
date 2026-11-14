@@ -128,6 +128,58 @@ describe('harness manager', () => {
     })
   })
 
+  it('reads a host resource sample from a live adapter', async () => {
+    await enroll()
+    const metrics = {
+      sampledAt: new Date(1_000).toISOString(),
+      platform: 'linux',
+      arch: 'x64',
+      cpu: { cores: 2, hostCores: 4, usagePercent: 25, source: 'cgroup' as const },
+      memory: {
+        totalBytes: 4 * 1024 ** 3,
+        freeBytes: 1024 ** 3,
+        usedPercent: 75,
+        source: 'cgroup' as const,
+      },
+      disks: [],
+    }
+    await manager.setLive(
+      'harness-a',
+      async (request) => {
+        expect(new URL(request.url).pathname).toBe('/harness/v1/host')
+        return Response.json(metrics)
+      },
+      'local'
+    )
+
+    await expect(manager.hostResources('harness-a')).resolves.toEqual({
+      state: 'ok',
+      metrics,
+    })
+  })
+
+  it('treats a missing host route as unsupported', async () => {
+    await enroll()
+    await manager.setLive(
+      'harness-a',
+      async () => new Response('not found', { status: 404 }),
+      'local'
+    )
+
+    await expect(manager.hostResources('harness-a')).resolves.toEqual({ state: 'unsupported' })
+  })
+
+  it('keeps a host sample failure non-fatal', async () => {
+    await enroll()
+    await expect(manager.hostResources('harness-a')).resolves.toEqual({ state: 'unavailable' })
+
+    await manager.setLive('harness-a', async () => Response.json({ ok: true }), 'local')
+    await expect(manager.hostResources('harness-a')).resolves.toEqual({ state: 'unavailable' })
+
+    await manager.setLive('harness-a', () => new Promise(() => {}), 'local')
+    await expect(manager.hostResources('harness-a', 25)).resolves.toEqual({ state: 'unavailable' })
+  })
+
   it('proxies through a live adapter session', async () => {
     await enroll()
     await manager.setLive(

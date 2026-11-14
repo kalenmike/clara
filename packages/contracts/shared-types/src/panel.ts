@@ -6,6 +6,8 @@
  * agent on a loopback listener; it never travels through the relay.
  */
 
+import type { HostResourceMetrics } from './host.ts'
+
 export const PANEL_API_VERSION = 13
 
 export type PanelValueSource =
@@ -119,6 +121,8 @@ export type PanelHarness = {
   protocolVersion?: number
   harnessVersion?: string
   capabilities?: Record<string, unknown>
+  /** Live host sample; absent while the adapter is offline or does not report it. */
+  resources?: HostResourceMetrics
   isActive: boolean
   credentialConfigured: boolean
   lastTestAt?: string

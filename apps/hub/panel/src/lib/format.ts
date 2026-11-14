@@ -28,6 +28,11 @@ export function formatBytes(bytes: number | undefined): string {
   return `${value.toFixed(value >= 10 ? 0 : 1)} ${unit}`
 }
 
+export function formatPercent(value: number | undefined, digits = 0): string {
+  if (value === undefined || !Number.isFinite(value) || value < 0) return '—'
+  return `${value.toFixed(digits)}%`
+}
+
 export function formatTimestamp(iso: string | undefined): string {
   if (!iso) return '—'
   const date = new Date(iso)

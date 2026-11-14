@@ -160,6 +160,18 @@ always runs on the harness that owns its workspace.
   request says the path matches more than one harness. Make the harness you are
   working on the active one, and label the workspaces clearly.
 
+## Host resources
+
+The **Harness** view shows a **Host resources** card for each online adapter. It
+reports CPU and memory usage, free space on the adapter's data and config
+directories, and when the sample was taken. A **container** badge means the
+adapter runs in a container and the CPU and memory figures use that container's
+limits.
+
+Samples describe the machine or container that runs the adapter. They do not
+measure the disk where your workspaces live. An adapter that is offline, has
+harness access turned off, or predates the feature shows an empty state.
+
 ## Verify native access
 
 Run `pnpm clara adapter verify` to check every installed adapter against the
