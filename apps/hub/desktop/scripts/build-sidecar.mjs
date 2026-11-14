@@ -13,9 +13,13 @@ const here = dirname(fileURLToPath(import.meta.url))
 const packageRoot = resolve(here, '..')
 const repoRoot = resolve(packageRoot, '../../..')
 const panelDist = join(repoRoot, 'apps', 'hub', 'panel', 'dist')
+const relayDist = join(repoRoot, 'apps', 'hub', 'server', 'dist', 'relay')
 const generated = join(packageRoot, 'src', 'embedded-assets.generated.mjs')
 const entry = join(packageRoot, 'src', 'entry.ts')
 const binaries = join(packageRoot, 'src-tauri', 'binaries')
+const cloudflareDeployment = ['1', 'true', 'yes', 'on'].includes(
+  process.env.ENABLE_CLOUDFLARE_DEPLOYMENT?.trim().toLowerCase()
+)
 
 const bunTargets = {
   'x86_64-unknown-linux-gnu': 'bun-linux-x64',
@@ -39,14 +43,33 @@ if (!existsSync(join(panelDist, 'index.html'))) {
 
 const files = listFiles(panelDist)
 if (files.length === 0) fail('The panel build has no files to embed.')
-writeGenerated(files)
+
+const sources = files.map((file) => ({
+  file,
+  name: relative(panelDist, file).split(sep).join('/'),
+}))
+
+if (cloudflareDeployment) {
+  run('node', ['apps/hub/server/scripts/build-relay.mjs'], repoRoot)
+  if (!existsSync(join(relayDist, 'worker.mjs'))) {
+    fail('The relay build did not produce worker.mjs.')
+  }
+  for (const file of listFiles(relayDist)) {
+    sources.push({
+      file,
+      name: `relay/${relative(relayDist, file).split(sep).join('/')}`,
+    })
+  }
+}
+
+writeGenerated(sources)
 
 mkdirSync(binaries, { recursive: true })
 const executable = target.includes('windows') ? '.exe' : ''
 const outfile = join(binaries, `clara-server-${target}${executable}`)
 const bun = process.env.BUN_BIN?.trim() || 'bun'
 
-console.log(`Embedding ${files.length} panel file(s) and compiling ${bunTarget}...`)
+console.log(`Embedding ${sources.length} file(s) and compiling ${bunTarget}...`)
 run(
   bun,
   [
@@ -54,6 +77,10 @@ run(
     '--compile',
     '--conditions=bun',
     `--target=${bunTarget}`,
+    '--define',
+    `process.env.ENABLE_CLOUDFLARE_DEPLOYMENT=${JSON.stringify(
+      cloudflareDeployment ? 'true' : 'false'
+    )}`,
     entry,
     '--outfile',
     outfile,
@@ -91,14 +118,13 @@ function listFiles(directory) {
     .sort()
 }
 
-function writeGenerated(files) {
+function writeGenerated(sources) {
   const imports = []
   const entries = []
   let index = 0
   const hash = createHash('sha256')
 
-  for (const file of files) {
-    const name = relative(panelDist, file).split(sep).join('/')
+  for (const { file, name } of sources) {
     const specifier = relative(dirname(generated), file).split(sep).join('/')
     hash.update(`${name}:`)
     hash.update(readFileSync(file))

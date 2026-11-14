@@ -27,6 +27,9 @@ if (!existsSync(marker)) {
 }
 
 process.env.CLARA_PANEL_ASSETS_DIR ||= assetsRoot
+if ('relay/worker.mjs' in assets) {
+  process.env.CLARA_RELAY_ARTIFACT_DIR ||= join(assetsRoot, 'relay')
+}
 
 void main().catch((cause) => {
   const text = cause instanceof Error ? cause.message : String(cause)

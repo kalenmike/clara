@@ -41,7 +41,7 @@
       "project": ["src/**/*.{mjs,d.ts}", "test/**/*.mjs"]
     },
     "packages/sqlite": {
-      "project": ["src/**/*.ts", "test/**/*.ts"]
+      "project": ["src/**/*.ts"]
     },
     "packages/contracts/api-contract": {
       "project": ["src/**/*.ts", "test/**/*.ts"]
@@ -94,12 +94,8 @@
       "ignoreDependencies": ["ws"]
     }
   },
-  "ignore": [
-    "apps/web/src/components/ui/**",
-    "tools/build/feature-flags.d.mts",
-    "apps/hub/desktop/src/embedded-assets.generated.*"
-  ],
-  "ignoreBinaries": ["ss"],
+  "ignore": ["apps/web/src/components/ui/**", "tools/build/feature-flags.d.mts"],
+  "ignoreBinaries": ["ss", "rustc"],
   "ignoreDependencies": ["yaml", "cloudflare", "better-sqlite3"],
   "rules": {
     "exports": "off",
