@@ -62,7 +62,6 @@ const artifactBase = readString(
 )
 const artifactsOnly = Boolean(args['artifacts-only'])
 const bun = process.env.BUN_BIN?.trim() || 'bun'
-const pnpm = process.platform === 'win32' ? 'pnpm.cmd' : 'pnpm'
 
 if (args['print-targets']) {
   for (const target of targets) console.log(target)
@@ -72,7 +71,7 @@ if (args['print-targets']) {
 const built = []
 
 if (!args['no-adapter-build'] && kinds.includes('opencode')) {
-  run(pnpm, ['--filter', '@clara/adapter-opencode', 'build'], repoRoot)
+  runPnpm(['--filter', '@clara/adapter-opencode', 'build'], repoRoot)
 }
 
 for (const kind of kinds) {
@@ -215,10 +214,20 @@ function sha256(path) {
   return createHash('sha256').update(readFileSync(path)).digest('hex')
 }
 
-function run(command, args, cwd) {
-  const result = spawnSync(command, args, { cwd, stdio: 'inherit', env: process.env })
+function run(command, args, cwd, options = {}) {
+  const result = spawnSync(command, args, {
+    cwd,
+    stdio: 'inherit',
+    env: process.env,
+    ...options,
+  })
   if (result.error) fail(`${command} could not run: ${result.error.message}`)
   if (result.status !== 0) process.exit(result.status ?? 1)
+}
+
+/** Windows cannot spawn the pnpm .cmd shim without a shell. */
+function runPnpm(args, cwd) {
+  run('pnpm', args, cwd, { shell: process.platform === 'win32' })
 }
 
 function parseArgs(argv) {
