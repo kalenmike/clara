@@ -1,17 +1,9 @@
 import { useCallback, useEffect, useState } from 'react'
-import {
-  pickDirectory,
-  preflight,
-  reconnect,
-  reconnectOpenCode,
-  registerAdapter,
-  removeAdapter,
-} from './api'
+import { pickDirectory, preflight, reconnect, registerAdapter, removeAdapter } from './api'
 import { Console } from './components/Console'
 import { Icon } from './components/Icon'
 import { Preview } from './components/Preview'
 import { Runs } from './components/Runs'
-import { Sessions } from './components/Sessions'
 import { SettingsView } from './components/Settings'
 import { Sidebar } from './components/Sidebar'
 import { StatusBar } from './components/StatusBar'
@@ -151,16 +143,6 @@ export function App() {
     }
   }
 
-  const reconnectOpenCodeNow = async (): Promise<void> => {
-    try {
-      await reconnectOpenCode()
-      setNotice('Reconnected to OpenCode.')
-      await runPreflight()
-    } catch (cause) {
-      setPreflightError(cause instanceof Error ? cause.message : String(cause))
-    }
-  }
-
   if (!stream.snapshot) {
     return (
       <div className="boot">
@@ -201,7 +183,6 @@ export function App() {
         onTab={setTab}
         workCount={snapshot.work.length}
         callCount={stream.calls.length}
-        sessionCount={snapshot.opencode.sessionCount}
         setupIssues={setupIssues}
       />
 
@@ -252,13 +233,6 @@ export function App() {
         <div className="view-slot" hidden={settings.tab !== 'console'}>
           <Console stream={stream} />
         </div>
-        <div className="view-slot" hidden={settings.tab !== 'sessions'}>
-          <Sessions
-            stream={stream}
-            active={settings.tab === 'sessions'}
-            onOpenSettings={() => setTab('settings')}
-          />
-        </div>
         <div className="view-slot" hidden={settings.tab !== 'settings'}>
           <SettingsView
             snapshot={snapshot}
@@ -273,8 +247,6 @@ export function App() {
             onReconnect={() => void reconnectNow()}
             onEnableAdapter={() => void enableAdapter()}
             onRemoveAdapter={(id) => void removeAdapterNow(id)}
-            onReconnectOpenCode={() => void reconnectOpenCodeNow()}
-            onOpenSessions={() => setTab('sessions')}
           />
         </div>
       </main>

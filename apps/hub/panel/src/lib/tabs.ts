@@ -2,6 +2,7 @@ import {
   Cable,
   Gauge,
   LayoutDashboard,
+  ListChecks,
   Radio,
   ScrollText,
   Settings,
@@ -14,7 +15,14 @@ import {
  * the rail mirrors the Clara Lab layout: primary views on top, settings below.
  */
 export type PanelTab =
-  'overview' | 'harness' | 'connections' | 'clients' | 'traffic' | 'activity' | 'settings'
+  | 'overview'
+  | 'harness'
+  | 'sessions'
+  | 'connections'
+  | 'clients'
+  | 'traffic'
+  | 'activity'
+  | 'settings'
 
 export type PanelTabMeta = {
   id: PanelTab
@@ -47,6 +55,15 @@ export const PANEL_TABS: PanelTabMeta[] = [
     title: 'Harness',
     description:
       'Live adapter sessions, paired harnesses, and the harness server this hub proxies.',
+    primary: true,
+  },
+  {
+    id: 'sessions',
+    label: 'Sessions',
+    icon: ListChecks,
+    kicker: 'Agents',
+    title: 'Sessions',
+    description: 'Live and recently idle agent sessions across every paired harness.',
     primary: true,
   },
   {

@@ -12,6 +12,8 @@ import {
   type PanelControls,
   type PanelMutationResponse,
   type PanelRelayUpdate,
+  type PanelSessionsQuery,
+  type PanelSessionsResponse,
   type PanelSnapshot,
 } from '@clara/shared-types'
 import { PanelControlError, type PanelControlService } from '../src/panel/controls.ts'
@@ -370,7 +372,11 @@ function fakeControls(initial: Partial<PanelControls> = {}): FakeControls {
   }
 }
 
-async function start(assetsDir?: string, controls?: PanelControlService): Promise<PanelServer> {
+async function start(
+  assetsDir?: string,
+  controls?: PanelControlService,
+  sourceOverride?: PanelDataSource
+): Promise<PanelServer> {
   const dir = tempDir()
   const db = openDatabase(join(dir, 'clara.db'))
   const users = new PanelUserStore(db)
@@ -378,7 +384,7 @@ async function start(assetsDir?: string, controls?: PanelControlService): Promis
   const auth = new PanelAuth({ users, configDir: dir })
   const login = await auth.login('admin', 'test-password', 'test')
   const server = await startPanelServer({
-    source: source(),
+    source: sourceOverride ?? source(),
     controls,
     auth,
     port: 0,
@@ -552,6 +558,75 @@ describe('panel server', () => {
     const body = (await response.json()) as PanelSnapshot
     expect(body.apiVersion).toBe(PANEL_API_VERSION)
     expect(body.agent.version).toBe('0.1.0')
+  })
+
+  it('reads sessions through the panel session endpoint', async () => {
+    const calls: PanelSessionsQuery[] = []
+    const response: PanelSessionsResponse = {
+      generatedAt: new Date(0).toISOString(),
+      sessions: [
+        {
+          id: 'ses-1',
+          harnessID: 'harness-a',
+          harnessLabel: 'Test OpenCode',
+          harnessKind: 'opencode',
+          title: 'Fix parser',
+          state: 'running',
+          directory: '/workspace/demo',
+          archived: false,
+          snoozed: false,
+          createdAt: new Date(0).toISOString(),
+          updatedAt: new Date(1_000).toISOString(),
+        },
+      ],
+      harnesses: [
+        {
+          harnessID: 'harness-a',
+          label: 'Test OpenCode',
+          kind: 'opencode',
+          online: true,
+          active: true,
+          ok: true,
+          sessionCount: 1,
+          runningCount: 1,
+        },
+      ],
+      truncated: false,
+    }
+    const server = await start(undefined, undefined, {
+      snapshot: async () => snapshot(),
+      sessions: async (query) => {
+        calls.push(query)
+        return response
+      },
+    })
+
+    const result = await get(
+      server,
+      'panel/api/v1/sessions?harnessID=harness-a&running=true&archived=true&limit=50&q=parser'
+    )
+    expect(result.status).toBe(200)
+    expect(await result.json()).toEqual(response)
+    expect(calls).toEqual([
+      {
+        harnessID: 'harness-a',
+        runningOnly: true,
+        includeArchived: true,
+        search: 'parser',
+        limit: 50,
+      },
+    ])
+
+    const invalid = await get(server, 'panel/api/v1/sessions?running=maybe')
+    expect(invalid.status).toBe(400)
+    expect(await invalid.json()).toMatchObject({ error: { code: 'invalid_query' } })
+  })
+
+  it('reports session monitoring as unavailable when the source has no monitor', async () => {
+    const server = await start()
+    const result = await get(server, 'panel/api/v1/sessions')
+    expect(result.status).toBe(503)
+    expect(await result.json()).toMatchObject({ error: { code: 'sessions_unavailable' } })
   })
 
   it('allows HEAD and rejects every mutating method', async () => {

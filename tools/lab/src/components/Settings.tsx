@@ -17,8 +17,6 @@ export function SettingsView({
   onReconnect,
   onEnableAdapter,
   onRemoveAdapter,
-  onReconnectOpenCode,
-  onOpenSessions,
 }: {
   snapshot: LabSnapshot
   hostWorkspace: string
@@ -32,8 +30,6 @@ export function SettingsView({
   onReconnect: () => void
   onEnableAdapter: () => void
   onRemoveAdapter: (id: string) => void
-  onReconnectOpenCode: () => void
-  onOpenSessions: () => void
 }) {
   const runtime = snapshot.orchestratorWorkspace
   const friendly = error ? friendlyError(error, 'runtime') : null
@@ -50,9 +46,6 @@ export function SettingsView({
         !preflight.adapter.required || preflight.adapter.ok,
       ].filter((value) => !value).length
     : 0
-  const opencode = snapshot.opencode
-  const auth = opencode.auth
-
   return (
     <div className="view settings-view">
       <header className="view-head">
@@ -213,106 +206,11 @@ export function SettingsView({
           </div>
         </section>
 
-        <section className="settings-section">
-          <div className="section-head">
-            <div>
-              <h2>OpenCode</h2>
-              <p className="muted">Model validation and live session visibility.</p>
-            </div>
-            <Badge
-              tone={
-                opencode.errorKind === 'auth'
-                  ? 'bad'
-                  : opencode.connected
-                    ? 'ok'
-                    : opencode.reachable
-                      ? 'warn'
-                      : 'bad'
-              }
-            >
-              {opencode.errorKind === 'auth'
-                ? 'auth required'
-                : opencode.connected
-                  ? 'streaming'
-                  : opencode.reachable
-                    ? 'reachable'
-                    : 'offline'}
-            </Badge>
-          </div>
-          <dl className="detail-list">
-            <div>
-              <dt>URL</dt>
-              <dd>
-                <code>{opencode.url || 'not resolved'}</code>
-              </dd>
-            </div>
-            <div>
-              <dt>Authentication</dt>
-              <dd className={auth.present ? undefined : 'tone-warn'}>
-                {auth.present
-                  ? `password found (${authSourceLabel(auth.source)})`
-                  : 'no password found'}
-              </dd>
-            </div>
-            <div>
-              <dt>Service file</dt>
-              <dd>
-                <code>{auth.serviceFile || 'not resolved'}</code>
-              </dd>
-            </div>
-            <div>
-              <dt>Models</dt>
-              <dd>
-                {preflight?.models.ok ? `${preflight.models.count} available` : 'not checked'}
-              </dd>
-            </div>
-            <div>
-              <dt>Sessions</dt>
-              <dd>
-                {opencode.sessionCount} known · {opencode.activeCount} running
-              </dd>
-            </div>
-          </dl>
-          {opencode.hint ? (
-            <div
-              className={`opencode-help ${opencode.errorKind === 'auth' ? 'opencode-help-auth' : ''}`}
-            >
-              <div className="opencode-help-head">
-                <Badge tone={opencode.errorKind === 'auth' ? 'bad' : 'warn'}>
-                  {opencode.errorKind === 'auth' ? 'authentication required' : 'connection problem'}
-                </Badge>
-                {opencode.error ? <code>{opencode.error}</code> : null}
-              </div>
-              <p className="opencode-hint">{opencode.hint}</p>
-              <div className="inline-actions">
-                <button type="button" className="button primary" onClick={onReconnectOpenCode}>
-                  <Icon name="refresh" size={14} />
-                  Reconnect OpenCode
-                </button>
-              </div>
-            </div>
-          ) : null}
-          <div className="inline-actions">
-            <button type="button" className="button" onClick={onOpenSessions}>
-              <Icon name="sessions" size={14} />
-              View OpenCode sessions
-            </button>
-            {!opencode.hint ? (
-              <button type="button" className="button" onClick={onReconnectOpenCode}>
-                <Icon name="refresh" size={14} />
-                Reconnect OpenCode
-              </button>
-            ) : null}
-          </div>
-        </section>
-
         <section className="settings-section settings-check">
           <div className="section-head">
             <div>
               <h2>Setup check</h2>
-              <p className="muted">
-                Host compile, orchestrator catalog, strict adapter, and model availability.
-              </p>
+              <p className="muted">Host compile, orchestrator catalog, and strict adapter.</p>
             </div>
             {preflight ? (
               <Badge tone={ok ? 'ok' : 'warn'}>{ok ? 'all clear' : `${issueCount} blocking`}</Badge>
@@ -370,16 +268,6 @@ export function SettingsView({
                     : undefined
                 }
               />
-              <PreflightRow
-                label="OpenCode models"
-                ok={preflight.models.ok}
-                detail={
-                  preflight.models.ok
-                    ? `${preflight.models.count} models available`
-                    : 'not checked — model existence is unverified'
-                }
-                hint={preflight.models.ok ? preflight.models.url : preflight.models.error}
-              />
             </div>
           ) : (
             <div className="empty compact">
@@ -391,12 +279,6 @@ export function SettingsView({
       </div>
     </div>
   )
-}
-
-function authSourceLabel(source: 'env' | 'service' | 'default'): string {
-  if (source === 'env') return 'environment'
-  if (source === 'service') return 'service file'
-  return 'default URL'
 }
 
 function PreflightRow({

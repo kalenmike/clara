@@ -1,17 +1,6 @@
 import type { PreviewResult } from '@clara/pipeline-preview'
 
-export interface ModelCatalogSummary {
-  ok: boolean
-  reachable: boolean
-  url: string
-  count: number
-  error?: string
-  fetchedAt: string
-}
-
-export interface LabPreviewResult extends PreviewResult {
-  modelCatalog?: ModelCatalogSummary
-}
+export type LabPreviewResult = PreviewResult
 
 export interface StepInput {
   label: string
@@ -197,43 +186,6 @@ export interface ToolInfo {
   inputSchema?: unknown
 }
 
-export interface OpenCodeAuthInfo {
-  present: boolean
-  source: 'env' | 'service' | 'default'
-  serviceFile: string
-}
-
-export interface OpenCodeSummary {
-  connected: boolean
-  reachable: boolean
-  url: string
-  sessionCount: number
-  activeCount: number
-  auth: OpenCodeAuthInfo
-  updatedAt: string
-  error?: string
-  errorKind?: 'auth' | 'connection' | 'unknown'
-  hint?: string
-}
-
-export interface OpenCodeSessionRow {
-  id: string
-  title?: string
-  agent?: string
-  directory?: string
-  parentID?: string
-  model?: string
-  running: boolean
-  lastSeenAt: string
-  lastSeenSource: 'event' | 'session'
-  eventCount: number
-  lastEventType?: string
-}
-
-export interface OpenCodeSessionsResult extends OpenCodeSummary {
-  sessions: OpenCodeSessionRow[]
-}
-
 export interface CancelAllResult {
   cancelled: number
   failed: Array<{ id: number; error: string }>
@@ -252,7 +204,6 @@ export interface LabSnapshot {
   adapters: AdapterRow[]
   instructions: string
   tools: ToolInfo[]
-  opencode: OpenCodeSummary
   lastError?: string
 }
 
@@ -286,5 +237,4 @@ export interface PreflightResult {
   host: PreflightHostCheck
   runtime: PreflightRuntimeCheck
   adapter: PreflightAdapterCheck
-  models: ModelCatalogSummary
 }

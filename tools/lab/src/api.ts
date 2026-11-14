@@ -4,7 +4,6 @@ import type {
   CompiledDiff,
   LabPreviewResult,
   LabSnapshot,
-  OpenCodeSessionsResult,
   PreflightResult,
   RunRow,
   StatusResult,
@@ -110,14 +109,6 @@ export function getStep(runID: number, stepPath: string): Promise<StepDetail> {
 
 export function getInbox(): Promise<ToolEnvelope<AlertRow[]>> {
   return request<ToolEnvelope<AlertRow[]>>('/api/inbox')
-}
-
-export function getOpenCodeSessions(): Promise<OpenCodeSessionsResult> {
-  return request<OpenCodeSessionsResult>('/api/opencode/sessions')
-}
-
-export function reconnectOpenCode(): Promise<{ ok: boolean }> {
-  return request<{ ok: boolean }>('/api/opencode/reconnect', mutation({}))
 }
 
 export function cancelAllRuns(): Promise<CancelAllResult> {

@@ -14,14 +14,12 @@ export function Sidebar({
   onTab,
   workCount,
   callCount,
-  sessionCount,
   setupIssues,
 }: {
   tab: LabTab
   onTab: (tab: LabTab) => void
   workCount: number
   callCount: number
-  sessionCount: number
   setupIssues: number
 }) {
   const primary: NavItem[] = [
@@ -29,7 +27,6 @@ export function Sidebar({
     { id: 'runs', label: 'Runs', icon: 'runs', count: workCount },
     { id: 'traffic', label: 'Traffic', icon: 'traffic', count: callCount },
     { id: 'console', label: 'Console', icon: 'console' },
-    { id: 'sessions', label: 'Sessions', icon: 'sessions', count: sessionCount },
   ]
 
   return (

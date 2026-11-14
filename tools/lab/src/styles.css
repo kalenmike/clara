@@ -2343,134 +2343,6 @@ details > summary {
   margin-bottom: 4px;
 }
 
-/* Sessions */
-
-.sessions-toolbar {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 10px;
-  margin-bottom: 10px;
-}
-
-.sessions-toolbar .search-box {
-  flex: 1 1 320px;
-}
-
-.sessions-table {
-  border: 1px solid var(--border);
-  border-radius: 6px;
-  background: var(--surface);
-  overflow: hidden;
-}
-
-.sessions-head,
-.session-row {
-  display: grid;
-  grid-template-columns: 16px minmax(200px, 1.5fr) 100px minmax(160px, 1.2fr) 110px 55px;
-  align-items: center;
-  gap: 10px;
-}
-
-.sessions-head {
-  padding: 7px 12px;
-  background: var(--surface-2);
-  border-bottom: 1px solid var(--border);
-  color: var(--faint);
-  font-size: 9px;
-  text-transform: uppercase;
-  letter-spacing: 0.07em;
-}
-
-.session-record {
-  border-bottom: 1px solid var(--border);
-}
-
-.session-record:last-child {
-  border-bottom: 0;
-}
-
-.session-record.expanded {
-  background: var(--surface-2);
-}
-
-.session-row {
-  width: 100%;
-  padding: 8px 12px;
-  border: 0;
-  background: transparent;
-  color: inherit;
-  text-align: left;
-  cursor: pointer;
-  font-size: 11px;
-}
-
-.session-row:hover {
-  background: var(--surface-2);
-}
-
-.session-state {
-  width: 7px;
-  height: 7px;
-  border-radius: 50%;
-  background: var(--border-strong);
-}
-
-.session-state.running {
-  background: var(--ok);
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--ok) 18%, transparent);
-}
-
-.session-title {
-  display: flex;
-  flex-direction: column;
-  gap: 1px;
-  min-width: 0;
-}
-
-.session-title strong {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.session-title code {
-  color: var(--faint);
-  font-size: 9px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.session-directory {
-  color: var(--muted);
-  font-family: var(--mono);
-  font-size: 10px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.event-mark {
-  display: inline-block;
-  margin-left: 5px;
-  padding: 0 4px;
-  border: 1px solid var(--border);
-  border-radius: 3px;
-  color: var(--faint);
-  font-size: 8px;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-}
-
-.session-detail {
-  padding: 0 12px 12px 38px;
-}
-
-.compact-list {
-  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
-}
-
 .detail-list {
   display: grid;
   gap: 8px;
@@ -2499,11 +2371,6 @@ details > summary {
   margin: 0;
   font-size: 11px;
   overflow-wrap: anywhere;
-}
-
-.compact-list {
-  display: grid;
-  gap: 8px;
 }
 
 /* Settings */
@@ -2544,45 +2411,6 @@ details > summary {
 
 .path-row .button {
   flex: 0 0 auto;
-}
-
-.opencode-help {
-  margin-top: 10px;
-  padding: 10px;
-  border: 1px solid color-mix(in srgb, var(--warn) 45%, var(--border));
-  border-radius: 4px;
-  background: color-mix(in srgb, var(--warn) 8%, var(--surface));
-}
-
-.opencode-help-auth {
-  border-color: color-mix(in srgb, var(--bad) 45%, var(--border));
-  background: color-mix(in srgb, var(--bad) 8%, var(--surface));
-}
-
-.opencode-help-head {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 8px;
-}
-
-.opencode-help-head code,
-.opencode-raw {
-  color: var(--muted);
-  font-size: 10px;
-  overflow-wrap: anywhere;
-}
-
-.opencode-hint {
-  margin: 7px 0 0;
-  white-space: pre-line;
-  font-size: 11px;
-  line-height: 1.5;
-}
-
-.opencode-raw {
-  display: block;
-  margin-top: 6px;
 }
 
 .adapter-list {
@@ -2746,18 +2574,6 @@ details > summary {
 
   .run-head-actions {
     align-items: flex-start;
-  }
-
-  .sessions-head,
-  .session-row {
-    grid-template-columns: 16px minmax(0, 1fr) 80px 90px;
-  }
-
-  .sessions-head span:nth-child(4),
-  .session-row > span:nth-child(4),
-  .sessions-head span:nth-child(6),
-  .session-row > span:nth-child(6) {
-    display: none;
   }
 
   .statusbar-meta {
