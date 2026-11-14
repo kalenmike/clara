@@ -42,6 +42,16 @@ import {
   resolveClaudeProvider,
   type ClaudeProvider,
 } from './provider.ts'
+import {
+  mergeAgents,
+  mergeCommands,
+  mergePlugins,
+  mergeSkills,
+  type ClaudeAgentEntry,
+  type ClaudeCommandEntry,
+  type ClaudePluginEntry,
+  type ClaudeSkillEntry,
+} from './catalog-merge.ts'
 import { ClaudeStreamTranslator, usageOf } from './stream.ts'
 
 export type ClaudeSessionInfo = {
@@ -257,9 +267,12 @@ export type ClaudeCatalog = {
   provider: ClaudeProvider
   defaultModel?: string
   models: ClaudeModelRow[]
-  agents: { name: string; description?: string; model?: string }[]
-  commands: { name: string; description?: string }[]
-  skills: string[]
+  agents: ClaudeAgentEntry[]
+  commands: ClaudeCommandEntry[]
+  skills: ClaudeSkillEntry[]
+  plugins: ClaudePluginEntry[]
+  /** Slash commands bound to the local terminal, hidden from remote surfaces. */
+  terminalCommands: string[]
 }
 
 export interface ClaudeGateway {
@@ -667,6 +680,8 @@ export class AgentSdkGateway implements ClaudeGateway {
           agents: cli?.agents ?? [],
           commands: cli?.commands ?? [],
           skills: cli?.skills ?? [],
+          plugins: cli?.plugins ?? [],
+          terminalCommands: cli?.terminalCommands ?? [],
         }
       : (cli ?? this.fallbackCatalog(provider, defaultModel))
 
@@ -733,6 +748,8 @@ export class AgentSdkGateway implements ClaudeGateway {
           description: command.description,
         })),
         skills: [],
+        plugins: [],
+        terminalCommands: [],
       }
     } catch {
       return undefined
@@ -752,6 +769,8 @@ export class AgentSdkGateway implements ClaudeGateway {
       agents: [],
       commands: [],
       skills: [],
+      plugins: [],
+      terminalCommands: [],
     }
   }
 
@@ -808,12 +827,16 @@ export class AgentSdkGateway implements ClaudeGateway {
             permissionMode: message.permissionMode,
             provider,
           })
+          const previous = this.catalogValue ?? this.fallbackCatalog(provider)
+          const commands = mergeCommands(previous.commands, message.slash_commands ?? [])
           this.catalogValue = {
-            ...(this.catalogValue ?? this.fallbackCatalog(provider)),
+            ...previous,
             provider,
-            agents: (message.agents ?? []).map((name) => ({ name })),
-            commands: (message.slash_commands ?? []).map((name) => ({ name })),
-            skills: message.skills ?? [],
+            agents: mergeAgents(previous.agents, message.agents ?? []),
+            commands,
+            skills: mergeSkills(previous.skills, message.skills ?? [], commands),
+            plugins: mergePlugins(previous.plugins, message.plugins ?? []),
+            terminalCommands: message.terminal_slash_commands ?? previous.terminalCommands,
           }
           return
         }

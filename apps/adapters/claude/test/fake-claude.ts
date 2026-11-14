@@ -103,6 +103,8 @@ export class FakeClaudeGateway implements ClaudeGateway {
       agents: [],
       commands: [],
       skills: [],
+      plugins: [],
+      terminalCommands: [],
     }
   }
 

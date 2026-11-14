@@ -1,13 +1,31 @@
-import { describe, expect, it } from 'vitest'
-import { commandList, modelList, providerList } from '../src/catalog.ts'
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
+import { afterEach, describe, expect, it } from 'vitest'
+import { agentList, commandList, modelList, providerList, skillList } from '../src/catalog.ts'
+import type { ClaudeCatalog } from '../src/sdk.ts'
 
-const catalog = {
+const catalog: ClaudeCatalog = {
   provider: { id: 'anthropic', name: 'Anthropic' },
   models: [{ value: 'sonnet', name: 'Claude Sonnet', description: 'Balanced' }],
   agents: [],
   commands: [{ name: 'review', description: 'Review the diff' }],
   skills: [],
+  plugins: [],
+  terminalCommands: [],
 }
+
+const roots: string[] = []
+
+function skillRoot(): string {
+  const root = mkdtempSync(join(tmpdir(), 'clara-claude-skill-'))
+  roots.push(root)
+  return root
+}
+
+afterEach(() => {
+  for (const root of roots.splice(0)) rmSync(root, { recursive: true, force: true })
+})
 
 describe('Claude catalog mapping', () => {
   it('maps models with the resolved provider', () => {
@@ -60,10 +78,19 @@ describe('Claude catalog mapping', () => {
     })
   })
 
-  it('maps slash commands and the provider', () => {
-    expect(commandList(catalog, '/tmp').data).toEqual([
-      { name: 'review', description: 'Review the diff' },
-    ])
+  it('maps slash commands, hiding terminal-only commands', () => {
+    const result = commandList(
+      {
+        ...catalog,
+        commands: [
+          { name: 'review', description: 'Review the diff' },
+          { name: 'statusline', description: 'Terminal only' },
+        ],
+        terminalCommands: ['statusline'],
+      },
+      '/tmp'
+    )
+    expect(result.data).toEqual([{ name: 'review', description: 'Review the diff' }])
     expect(providerList(catalog.provider, '/tmp').data[0]).toMatchObject({
       id: 'anthropic',
       name: 'Anthropic',
@@ -73,5 +100,87 @@ describe('Claude catalog mapping', () => {
       id: 'ollama',
       name: 'Ollama',
     })
+  })
+
+  it('maps Claude subagent definitions as read-only agents', () => {
+    const result = agentList(
+      {
+        ...catalog,
+        agents: [{ name: 'Explore', description: 'Search the codebase', model: 'inherit' }],
+      },
+      '/tmp'
+    )
+    expect(result.data[0]).toMatchObject({
+      id: 'Explore',
+      name: 'Explore',
+      description: 'Search the codebase',
+      mode: 'subagent',
+      hidden: false,
+      request: {},
+      permissions: [],
+    })
+  })
+
+  it('merges live skill names with project SKILL.md files', () => {
+    const root = skillRoot()
+    const directory = join(root, '.claude', 'skills', 'reviewer')
+    mkdirSync(directory, { recursive: true })
+    writeFileSync(
+      join(directory, 'SKILL.md'),
+      [
+        '---',
+        'name: reviewer',
+        'description: Review changes carefully',
+        '---',
+        '',
+        '# Reviewer',
+        '',
+      ].join('\n')
+    )
+
+    const result = skillList(
+      {
+        ...catalog,
+        skills: [
+          {
+            id: 'builtin',
+            name: 'builtin',
+            description: 'Built-in skill',
+            path: '',
+            content: 'Built-in skill',
+          },
+        ],
+      },
+      root
+    )
+
+    expect(result.location).toEqual({ directory: root })
+    expect(result.data).toContainEqual(
+      expect.objectContaining({
+        id: 'reviewer',
+        name: 'reviewer',
+        description: 'Review changes carefully',
+        path: join(directory, 'SKILL.md'),
+        autoinvoke: true,
+      })
+    )
+    expect(result.data).toContainEqual(
+      expect.objectContaining({ id: 'builtin', description: 'Built-in skill', path: '' })
+    )
+  })
+
+  it('marks a skill with disable-model-invocation as manual', () => {
+    const root = skillRoot()
+    const directory = join(root, '.claude', 'skills', 'manual')
+    mkdirSync(directory, { recursive: true })
+    writeFileSync(
+      join(directory, 'SKILL.md'),
+      ['---', 'name: manual', 'disable-model-invocation: true', '---', '', '# Manual', ''].join(
+        '\n'
+      )
+    )
+
+    const [skill] = skillList(catalog, root).data
+    expect(skill).toMatchObject({ id: 'manual', autoinvoke: false })
   })
 })
