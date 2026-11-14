@@ -117,6 +117,17 @@ describe('Pi runtime', () => {
     await runtime.close()
   })
 
+  it('runs a manual compaction without blocking the request', async () => {
+    const { project, events, sessions, runtime } = fixture()
+    const session = await sessions.create({ location: { directory: project } })
+    const item = await runtime.compact(session.id, {})
+    expect(item).toMatchObject({ type: 'compaction', sessionID: session.id })
+    await idle(events, session.id)
+    expect(events.map((event) => event.type)).toContain('session.compaction.started')
+    expect(events.map((event) => event.type)).toContain('session.compaction.ended')
+    await runtime.close()
+  })
+
   it('maps an extension confirm dialog to a permission request', async () => {
     process.env.FAKE_PI_UI = 'confirm'
     const { project, events, sessions, runtime } = fixture()

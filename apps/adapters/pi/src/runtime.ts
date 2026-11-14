@@ -243,7 +243,7 @@ export class PiRuntime {
       return item
     }
     this.emit('session.inbox.delivered', { sessionID, inboxID: item.id, item })
-    await this.compactNow(sessionID, input.customInstructions)
+    void this.compactNow(sessionID, input.customInstructions)
     return item
   }
 
@@ -252,11 +252,9 @@ export class PiRuntime {
     if (!active || !active.busy) return { interrupted: false }
     active.interrupted = true
     this.cancelUiRequests(sessionID, 'The user interrupted the run')
-    try {
-      await active.handle.client.request({ type: 'abort' }, 30_000)
-    } catch {
+    void active.handle.client.request({ type: 'abort' }, 60_000).catch(() => {
       // agent_settled or an exit still completes the turn.
-    }
+    })
     return { interrupted: true }
   }
 
@@ -516,7 +514,7 @@ export class PiRuntime {
     const turn = this.startTurn(handle, identity)
     if (action === 'compact') {
       if (announce) this.emit('session.inbox.delivered', { sessionID, inboxID: item.id, item })
-      await this.compactNow(sessionID, undefined)
+      void this.compactNow(sessionID, undefined)
       return
     }
     const { message, images } = composePrompt(text, files)
