@@ -3,7 +3,7 @@ import type { ClaraSession } from '@clara/api-contract'
 import type { HarnessManager } from '../src/harness/manager.ts'
 import type { PushNotificationPayload } from '../src/push/payload.ts'
 import { PushMonitor } from '../src/push/monitor.ts'
-import type { PushService } from '../src/push/service.ts'
+import type { PushNotifyOptions, PushService } from '../src/push/service.ts'
 
 const connection = (harnessID: string, online: boolean, active: boolean) => ({
   id: `connection-${harnessID}`,
@@ -109,13 +109,15 @@ function fakeHarness(options: { online?: () => Set<string> } = {}) {
 
 function fakePush() {
   const notifications: PushNotificationPayload[] = []
+  const options: PushNotifyOptions[] = []
   const push = {
     count: 1,
-    notify: async (payload: PushNotificationPayload) => {
+    notify: async (payload: PushNotificationPayload, notifyOptions: PushNotifyOptions = {}) => {
       notifications.push(payload)
+      options.push(notifyOptions)
     },
   } as unknown as PushService
-  return { push, notifications }
+  return { push, notifications, options }
 }
 
 describe('PushMonitor across harnesses', () => {
@@ -144,6 +146,34 @@ describe('PushMonitor across harnesses', () => {
       })
       expect(fake.calls).toContain('harness-b:/sessions/s-b')
       expect(fake.calls).not.toContain('harness-a:/sessions/s-b')
+    } finally {
+      monitor.close()
+    }
+  })
+
+  it('passes worker suppression to push instead of dropping the alert', async () => {
+    const fake = fakeHarness()
+    const { push, notifications, options } = fakePush()
+    const monitor = new PushMonitor({
+      harness: fake.harness,
+      push,
+      suppressForOrchestratorClients: () => true,
+    })
+
+    try {
+      monitor.start()
+      await vi.waitFor(() => expect(fake.streams.size).toBe(2))
+
+      fake.streams
+        .get('harness-b')
+        ?.enqueue(
+          fake.encoder.encode(
+            `data: ${JSON.stringify({ type: 'session.idle', data: { sessionID: 's-b' } })}\n\n`
+          )
+        )
+
+      await vi.waitFor(() => expect(notifications).toHaveLength(1))
+      expect(options[0]?.skipOrchestratorClients).toBe(true)
     } finally {
       monitor.close()
     }
