@@ -6,7 +6,7 @@
  * agent on a loopback listener; it never travels through the relay.
  */
 
-export const PANEL_API_VERSION = 11
+export const PANEL_API_VERSION = 12
 
 export type PanelValueSource =
   'env' | 'file' | 'database' | 'default' | 'generated' | 'runtime' | 'none'
@@ -74,7 +74,13 @@ export type PanelAuthInfo = {
 }
 
 export type PanelAuthStatus =
-  | { authenticated: false; setupRequired: boolean; resetPending: boolean }
+  | {
+      authenticated: false
+      setupRequired: boolean
+      /** A host-supplied token gates the setup form; local setup does not need one. */
+      setupTokenRequired: boolean
+      resetPending: boolean
+    }
   | { authenticated: true; user: PanelAuthInfo }
 
 export type PanelLoginUpdate = {
@@ -83,7 +89,8 @@ export type PanelLoginUpdate = {
 }
 
 export type PanelSetupUpdate = {
-  token: string
+  /** Required only when the hub is started with a host setup token. */
+  token?: string
   username: string
   password: string
 }

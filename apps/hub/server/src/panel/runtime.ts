@@ -354,7 +354,7 @@ export class PanelRuntime implements PanelDataSource {
       describeStorage('vapid', 'VAPID keys', join(config.configDir, 'vapid.json'), false),
       describeStorage(
         'setup-token',
-        'Panel setup token',
+        'Panel setup or reset token',
         join(config.configDir, 'admin-setup.txt'),
         false
       ),

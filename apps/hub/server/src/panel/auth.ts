@@ -24,6 +24,9 @@ const MAX_SESSIONS = 20
 const LOGIN_WINDOW_MS = 10 * 60_000
 const LOGIN_BLOCK_MS = 5 * 60_000
 const MAX_LOGIN_FAILURES = 5
+const SETUP_WINDOW_MS = 10 * 60_000
+const SETUP_BLOCK_MS = 5 * 60_000
+const MAX_SETUP_FAILURES = 10
 const MIN_PASSWORD = 12
 const MAX_PASSWORD = 1024
 const MAX_USERNAME = 64
@@ -37,7 +40,12 @@ export type PanelAuthUser = {
 }
 
 export type PanelAuthStatus =
-  | { authenticated: false; setupRequired: boolean; resetPending: boolean }
+  | {
+      authenticated: false
+      setupRequired: boolean
+      setupTokenRequired: boolean
+      resetPending: boolean
+    }
   | { authenticated: true; user: PanelAuthUser }
 
 export type PanelLoginResult = {
@@ -98,6 +106,9 @@ export class PanelAuth {
   private readonly now: () => number
   private readonly sessions = new Map<string, SessionRecord>()
   private readonly attempts = new Map<string, LoginAttempt>()
+  private readonly setupAttempts = new Map<string, LoginAttempt>()
+  /** A host-supplied setup token is the only first-run form of authentication. */
+  private setupTokenRequired = false
 
   constructor(options: PanelAuthOptions) {
     this.users = options.users
@@ -115,21 +126,33 @@ export class PanelAuth {
     return {
       authenticated: false,
       setupRequired: !configured,
+      setupTokenRequired: !configured && this.setupTokenRequired,
       // A host reset issues a token for the existing admin. Report it so the
       // panel can offer the reset form instead of leaving the token unusable.
       resetPending: configured && this.users.hasUnexpiredSetupToken(this.now()),
     }
   }
 
+  configured(): boolean {
+    return this.users.count() > 0
+  }
+
+  requiresSetupToken(): boolean {
+    return this.setupTokenRequired
+  }
+
   /**
-   * Create the first-run token if no admin exists. Keeps an existing unexpired
-   * token so restarting the server does not invalidate a token the user has
-   * already copied.
+   * First-run setup is local-only by default: the panel is served on loopback
+   * and no transport runs until the owner account exists. A host-supplied
+   * token is required only when an operator explicitly provides one for a
+   * remote or automated install.
+   *
+   * A host reset may issue a token while the server is stopped; keep it until
+   * it is used or expires, and clear only stale resets.
    */
   ensureSetupToken(): { path?: string; fromEnv: boolean } | undefined {
+    this.setupTokenRequired = false
     if (this.users.count() > 0) {
-      // A host reset may have issued a token while the server was stopped. Keep
-      // it until it is used or expires; clear only stale resets.
       const pending = readSetupToken(this.configDir)
       if (pending) {
         const stored = this.users.findSetupToken(hashToken(pending))
@@ -144,65 +167,117 @@ export class PanelAuth {
 
     const envToken = readSetupTokenFromEnv()
     if (envToken) {
+      this.setupTokenRequired = true
       this.users.createSetupToken(hashToken(envToken), this.now() + SETUP_TTL_MS)
       removeSetupToken(this.configDir)
       return { fromEnv: true }
     }
 
-    const existing = readSetupToken(this.configDir)
-    if (existing) {
-      const stored = this.users.findSetupToken(hashToken(existing))
-      if (stored && stored.expiresAt > this.now())
-        return { path: setupTokenPath(this.configDir), fromEnv: false }
-    }
-
-    const token = generateAdminToken()
-    this.users.createSetupToken(hashToken(token), this.now() + SETUP_TTL_MS)
-    const path = writeSetupToken(this.configDir, token)
-    return { path, fromEnv: false }
+    // Local setup needs no token. Drop any token left by an older build or a
+    // host reset so the panel never asks for a code that is not required.
+    this.users.clearSetupTokens()
+    removeSetupToken(this.configDir)
+    return undefined
   }
 
   async setup(
     token: string | undefined,
     username: string,
-    password: string
+    password: string,
+    source = 'unknown'
   ): Promise<PanelLoginResult> {
-    const validToken = normalizeToken(token)
-    const record = this.users.findSetupToken(hashToken(validToken))
-    if (!record || record.expiresAt <= this.now() || !tokenMatches(validToken, record.tokenHash)) {
-      throw new PanelAuthError(
-        401,
-        'setup_token_invalid',
-        'The setup token is invalid or has expired'
-      )
-    }
+    this.assertSetupNotBlocked(source)
+    try {
+      const providedToken = token?.trim()
+      if (providedToken || this.setupTokenRequired) {
+        if (!providedToken || providedToken.length > 256) {
+          throw new PanelAuthError(
+            401,
+            'setup_token_invalid',
+            'The setup token is invalid or has expired'
+          )
+        }
+        const record = this.users.findSetupToken(hashToken(providedToken))
+        if (
+          !record ||
+          record.expiresAt <= this.now() ||
+          !tokenMatches(providedToken, record.tokenHash)
+        ) {
+          throw new PanelAuthError(
+            401,
+            'setup_token_invalid',
+            'The setup token is invalid or has expired'
+          )
+        }
 
-    assertPassword(password)
-    const hash = await hashPassword(password)
+        assertPassword(password)
+        const hash = await hashPassword(password)
 
-    let user: PanelUser
-    if (record.userId) {
-      const existing = this.users.findById(record.userId)
-      if (!existing) {
-        throw new PanelAuthError(401, 'setup_token_invalid', 'The setup token is no longer valid')
+        let user: PanelUser
+        if (record.userId) {
+          const existing = this.users.findById(record.userId)
+          if (!existing) {
+            throw new PanelAuthError(
+              401,
+              'setup_token_invalid',
+              'The setup token is no longer valid'
+            )
+          }
+          this.users.updatePassword(existing.id, hash)
+          user = this.users.findById(existing.id) as PanelUser
+        } else {
+          user = await this.createFirstUser(username, hash)
+        }
+
+        this.users.deleteSetupToken(record.tokenHash)
+        removeSetupToken(this.configDir)
+        this.users.touchLogin(user.id)
+        this.clearSetupFailures(source)
+        return this.createSession(user)
       }
-      this.users.updatePassword(existing.id, hash)
-      user = this.users.findById(existing.id) as PanelUser
-    } else {
+
       if (this.users.count() > 0) {
         throw new PanelAuthError(409, 'already_configured', 'The panel already has an admin user')
       }
-      const name = normalizeUsername(username)
-      if (this.users.findByUsername(name)) {
-        throw new PanelAuthError(409, 'username_taken', 'That username is already in use')
-      }
-      user = this.users.create(name, hash)
+      assertPassword(password)
+      const hash = await hashPassword(password)
+      const user = await this.createFirstUser(username, hash)
+      this.users.touchLogin(user.id)
+      this.clearSetupFailures(source)
+      return this.createSession(user)
+    } catch (cause) {
+      this.recordSetupFailure(source)
+      throw cause
     }
+  }
 
-    this.users.deleteSetupToken(record.tokenHash)
-    removeSetupToken(this.configDir)
+  /**
+   * Create the owner outside the HTTP flow, before transports start. Used by
+   * `CLARA_ADMIN_*` for CI and by the CLI-only setup path.
+   */
+  async createOwner(username: string, password: string): Promise<PanelUser> {
+    if (this.users.count() > 0) {
+      throw new PanelAuthError(409, 'already_configured', 'The panel already has an admin user')
+    }
+    assertPassword(password)
+    const hash = await hashPassword(password)
+    const user = await this.createFirstUser(username, hash)
     this.users.touchLogin(user.id)
-    return this.createSession(user)
+    return user
+  }
+
+  private async createFirstUser(username: string, passwordHash: string): Promise<PanelUser> {
+    if (this.users.count() > 0) {
+      throw new PanelAuthError(409, 'already_configured', 'The panel already has an admin user')
+    }
+    const name = normalizeUsername(username)
+    if (this.users.findByUsername(name)) {
+      throw new PanelAuthError(409, 'username_taken', 'That username is already in use')
+    }
+    const user = this.users.create(name, passwordHash)
+    this.users.clearSetupTokens()
+    removeSetupToken(this.configDir)
+    return user
   }
 
   async login(username: string, password: string, source = 'unknown'): Promise<PanelLoginResult> {
@@ -395,18 +470,40 @@ export class PanelAuth {
     this.attempts.delete(attemptKey('ip', source))
     this.attempts.delete(attemptKey('user', username.trim().toLowerCase()))
   }
+
+  private assertSetupNotBlocked(source: string): void {
+    const now = this.now()
+    const attempt = this.setupAttempts.get(source)
+    if (attempt && attempt.blockedUntil > now) {
+      throw new PanelAuthError(
+        429,
+        'rate_limited',
+        'Too many setup attempts. Try again later.',
+        Math.ceil((attempt.blockedUntil - now) / 1000)
+      )
+    }
+  }
+
+  private recordSetupFailure(source: string): void {
+    const now = this.now()
+    const previous = this.setupAttempts.get(source)
+    if (!previous || now - previous.windowStartedAt > SETUP_WINDOW_MS) {
+      this.setupAttempts.set(source, { failures: 1, windowStartedAt: now, blockedUntil: 0 })
+      return
+    }
+    previous.failures += 1
+    if (previous.failures >= MAX_SETUP_FAILURES) {
+      previous.blockedUntil = now + SETUP_BLOCK_MS
+    }
+  }
+
+  private clearSetupFailures(source: string): void {
+    this.setupAttempts.delete(source)
+  }
 }
 
 function publicUser(session: SessionRecord): PanelAuthUser {
   return { id: session.id, username: session.username, role: session.role }
-}
-
-function normalizeToken(value: string | undefined): string {
-  const token = value?.trim() ?? ''
-  if (!token || token.length > 256) {
-    throw new PanelAuthError(401, 'setup_token_invalid', 'The setup token is invalid')
-  }
-  return token
 }
 
 function normalizeUsername(value: string): string {

@@ -389,6 +389,21 @@ async function start(assetsDir?: string, controls?: PanelControlService): Promis
   return server
 }
 
+async function startSetup(onSetupComplete?: () => void): Promise<PanelServer> {
+  const dir = tempDir()
+  const db = openDatabase(join(dir, 'clara.db'))
+  const auth = new PanelAuth({ users: new PanelUserStore(db), configDir: dir })
+  const server = await startPanelServer({
+    source: source(),
+    auth,
+    port: 0,
+    onSetupComplete,
+  })
+  servers.push(server)
+  databases.push(db)
+  return server
+}
+
 function get(server: PanelServer, path: string, init: RequestInit = {}): Promise<Response> {
   return fetch(`${server.url}${path}`, {
     ...init,
@@ -452,6 +467,42 @@ describe('panel server', () => {
     })
     expect(login.status).toBe(200)
     expect(login.headers.get('set-cookie')).toContain('clara_panel_session=')
+  })
+
+  it('creates the owner without a token and starts the hub', async () => {
+    let started = 0
+    const server = await startSetup(() => {
+      started += 1
+    })
+
+    const health = await fetch(`${server.url}health`)
+    expect(await health.json()).toMatchObject({ setupRequired: true, setupTokenRequired: false })
+
+    const blocked = await fetch(`${server.url}panel/api/v1/status`)
+    expect(blocked.status).toBe(503)
+    expect(await blocked.json()).toMatchObject({
+      error: { code: 'setup_required' },
+    })
+
+    const session = await fetch(`${server.url}panel/api/v1/session`)
+    expect(await session.json()).toMatchObject({
+      authenticated: false,
+      setupRequired: true,
+      setupTokenRequired: false,
+    })
+
+    const created = await post(server, 'setup', {
+      username: 'owner',
+      password: 'a-long-password',
+    })
+    expect(created.status).toBe(200)
+    expect(created.headers.get('set-cookie')).toContain('clara_panel_session=')
+    expect(started).toBe(1)
+
+    expect(await (await fetch(`${server.url}panel/api/v1/session`)).json()).toMatchObject({
+      authenticated: false,
+      setupRequired: false,
+    })
   })
 
   it('routes harness mutations through the panel control service', async () => {

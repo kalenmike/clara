@@ -71,6 +71,8 @@ export type PanelServerOptions = {
   host?: string
   allowRemote?: boolean
   assetsDir?: string
+  /** Starts the hub transports after the first owner account is created. */
+  onSetupComplete?: () => Promise<void> | void
   log?: (message: string, detail?: unknown) => void
 }
 
@@ -98,6 +100,7 @@ export async function startPanelServer(options: PanelServerOptions): Promise<Pan
       allowRemote: options.allowRemote === true,
       assetsRoot,
       indexHtml,
+      onSetupComplete: options.onSetupComplete,
       log: options.log,
     }).catch((cause) => {
       options.log?.('panel request failed', cause)
@@ -150,6 +153,7 @@ type RequestContext = {
   allowRemote: boolean
   assetsRoot: string | undefined
   indexHtml: Buffer | undefined
+  onSetupComplete?: () => Promise<void> | void
   log?: (message: string, detail?: unknown) => void
 }
 
@@ -188,6 +192,8 @@ async function handleRequest(
       service: 'clara-server',
       version: SERVER_VERSION,
       mode: isContainerized() ? 'container' : 'local',
+      setupRequired: !context.auth.configured(),
+      setupTokenRequired: context.auth.requiresSetupToken(),
     })
     return
   }
@@ -203,6 +209,16 @@ async function handleRequest(
   }
 
   if (pathname.startsWith('/panel/api/')) {
+    if (!context.auth.configured()) {
+      sendJson(response, method, 503, {
+        error: {
+          code: 'setup_required',
+          message: 'Create the hub owner account before using the panel API',
+        },
+      })
+      return
+    }
+
     const user = context.auth.session(PanelAuth.readCookie(request.headers.cookie))
     if (!user) {
       sendJson(response, method, 401, {
@@ -450,12 +466,23 @@ async function handleSetup(
   const token = body.value.token
   const username = body.value.username
   const password = body.value.password
-  if (typeof token !== 'string') return invalidField(response, method, 'token')
+  if (token !== undefined && typeof token !== 'string')
+    return invalidField(response, method, 'token')
   if (typeof username !== 'string') return invalidField(response, method, 'username')
   if (typeof password !== 'string') return invalidField(response, method, 'password')
 
   try {
-    const result = await context.auth.setup(token, username, password)
+    const result = await context.auth.setup(
+      typeof token === 'string' ? token : undefined,
+      username,
+      password,
+      requestSource(request)
+    )
+    try {
+      await context.onSetupComplete?.()
+    } catch (cause) {
+      context.log?.('the hub did not start after owner setup', cause)
+    }
     sendJson(
       response,
       method,
