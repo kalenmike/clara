@@ -80,6 +80,12 @@ function config(port: number, relay?: ServerConfig['relay']): ServerConfig {
 
 const info: AgentInfo = { version: 'test', protocol: 2 }
 
+const AGENT_TOKEN = 'a'.repeat(43)
+const CLIENT_TOKEN = 'b'.repeat(43)
+const NEXT_CLIENT_TOKEN = 'c'.repeat(43)
+const TOKEN_FORMAT_ERROR =
+  'Relay tokens must be at least 32 characters with no spaces or commas. Use the generated value or `openssl rand -base64 32`.'
+
 async function createController(
   port = 0,
   options: {
@@ -433,8 +439,8 @@ describe('RuntimeController', () => {
     try {
       const updated = await controller.updateRelay({
         url: 'https://relay.example',
-        agentToken: 'panel-agent',
-        clientToken: 'panel-client',
+        agentToken: AGENT_TOKEN,
+        clientToken: CLIENT_TOKEN,
       })
 
       expect(updated.config.relayUrl).toEqual({ value: 'wss://relay.example', source: 'file' })
@@ -443,8 +449,8 @@ describe('RuntimeController', () => {
       expect(serverConfig.relay).toMatchObject({
         url: 'wss://relay.example',
         room: updated.config.relayRoom.value,
-        agentToken: 'panel-agent',
-        clientToken: 'panel-client',
+        agentToken: AGENT_TOKEN,
+        clientToken: CLIENT_TOKEN,
       })
 
       const saved = JSON.parse(readFileSync(serverConfig.configPath, 'utf8'))
@@ -456,10 +462,38 @@ describe('RuntimeController', () => {
       expect(saved.relay.clientToken).toBeUndefined()
 
       const raw = readFileSync(join(serverConfig.configDir, 'relay-credentials.json'), 'utf8')
-      expect(raw).not.toContain('panel-agent')
-      expect(raw).not.toContain('panel-client')
+      expect(raw).not.toContain(AGENT_TOKEN)
+      expect(raw).not.toContain(CLIENT_TOKEN)
       expect(hasRelayCredentials(serverConfig.configDir)).toBe(true)
       expect(secretKey.version).toBe(1)
+    } finally {
+      await close()
+    }
+  })
+
+  it('rejects relay tokens that are too short or contain a comma', async () => {
+    const { controller, settings, close } = await createController()
+    settings.setFeature('relay', false)
+    try {
+      const invalid = [
+        'a'.repeat(31),
+        'a'.repeat(513),
+        `${'a'.repeat(21)} ${'a'.repeat(21)}`,
+        `${'a'.repeat(42)},`,
+      ]
+      for (const agentToken of invalid) {
+        await expect(
+          controller.updateRelay({
+            url: 'https://relay.example',
+            agentToken,
+            clientToken: CLIENT_TOKEN,
+          })
+        ).rejects.toMatchObject({
+          status: 400,
+          code: 'invalid_relay_token',
+          message: TOKEN_FORMAT_ERROR,
+        })
+      }
     } finally {
       await close()
     }
@@ -494,7 +528,7 @@ describe('RuntimeController', () => {
     serverConfig.relay = {
       url: 'wss://env.example',
       room: 'env-room',
-      agentToken: 'env-agent',
+      agentToken: AGENT_TOKEN,
       clientToken: '',
     }
     serverConfig.sources.relayUrl = 'env'
@@ -502,16 +536,16 @@ describe('RuntimeController', () => {
     serverConfig.sources.agentToken = 'env'
     serverConfig.sources.clientToken = 'none'
     try {
-      const updated = await controller.updateRelay({ clientToken: 'panel-client' })
+      const updated = await controller.updateRelay({ clientToken: NEXT_CLIENT_TOKEN })
       expect(updated.config.relayUrl).toEqual({ value: 'wss://env.example', source: 'env' })
       expect(updated.config.relayRoom).toEqual({ value: 'env-room', source: 'env' })
-      expect(serverConfig.relay?.agentToken).toBe('env-agent')
+      expect(serverConfig.relay?.agentToken).toBe(AGENT_TOKEN)
       expect(serverConfig.sources.agentToken).toBe('env')
       expect(serverConfig.sources.clientToken).toBe('file')
 
       const raw = readFileSync(join(serverConfig.configDir, 'relay-credentials.json'), 'utf8')
-      expect(raw).not.toContain('panel-client')
-      expect(raw).not.toContain('env-agent')
+      expect(raw).not.toContain(NEXT_CLIENT_TOKEN)
+      expect(raw).not.toContain(AGENT_TOKEN)
     } finally {
       await close()
     }
@@ -545,8 +579,8 @@ describe('RuntimeController', () => {
     try {
       await controller.updateRelay({
         url: 'wss://relay.example',
-        agentToken: 'agent',
-        clientToken: 'client',
+        agentToken: AGENT_TOKEN,
+        clientToken: CLIENT_TOKEN,
       })
       expect(hasRelayCredentials(serverConfig.configDir)).toBe(true)
 
@@ -566,8 +600,8 @@ describe('RuntimeController', () => {
     try {
       const first = await controller.updateRelay({
         url: 'wss://relay.example',
-        agentToken: 'agent',
-        clientToken: 'client',
+        agentToken: AGENT_TOKEN,
+        clientToken: CLIENT_TOKEN,
       })
       const firstRoom = first.config.relayRoom.value
       const second = await controller.regenerateRelayRoom()

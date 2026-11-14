@@ -10,7 +10,13 @@ import {
   saveRelayRoom,
   saveRelayTarget,
   validateRelayConfig,
+  type ServerConfig,
 } from '../src/config.ts'
+
+const AGENT_TOKEN = 'a'.repeat(43)
+const CLIENT_TOKEN = 'b'.repeat(43)
+const TOKEN_FORMAT_ERROR =
+  'Relay tokens must be at least 32 characters with no spaces or commas. Use the generated value or `openssl rand -base64 32`.'
 
 const tempDirs: string[] = []
 const ENV_KEYS = [
@@ -427,8 +433,8 @@ describe('panel-managed relay configuration', () => {
     config.relay = {
       url: 'wss://relay.example',
       room: 'room-1',
-      agentToken: 'agent',
-      clientToken: 'client',
+      agentToken: AGENT_TOKEN,
+      clientToken: CLIENT_TOKEN,
     }
     expect(() => validateRelayConfig(config)).not.toThrow()
   })
@@ -471,7 +477,7 @@ describe('panel-managed relay configuration', () => {
     config.relay = {
       url: 'wss://relay.example',
       room: 'room-1',
-      agentToken: 'env-agent',
+      agentToken: AGENT_TOKEN,
       clientToken: '',
     }
     config.sources.agentToken = 'env'
@@ -479,13 +485,60 @@ describe('panel-managed relay configuration', () => {
 
     applyRelayCredentials(config, {
       agentToken: 'sealed-agent',
-      clientToken: 'sealed-client',
+      clientToken: CLIENT_TOKEN,
     })
 
-    expect(config.relay.agentToken).toBe('env-agent')
-    expect(config.relay.clientToken).toBe('sealed-client')
+    expect(config.relay.agentToken).toBe(AGENT_TOKEN)
+    expect(config.relay.clientToken).toBe(CLIENT_TOKEN)
     expect(config.sources.agentToken).toBe('env')
     expect(config.sources.clientToken).toBe('file')
     expect(() => validateRelayConfig(config)).not.toThrow()
+  })
+})
+
+function configWithTokens(agentToken: string, clientToken: string): ServerConfig {
+  const dir = tempDir()
+  process.env.CLARA_CONFIG_DIR = dir
+  process.env.XDG_STATE_HOME = tempDir()
+  const config = loadConfig()
+  config.relay = { url: 'wss://relay.example', room: 'room-1', agentToken, clientToken }
+  return config
+}
+
+describe('relay token validation', () => {
+  it('accepts generated, minimum, maximum, and base64 tokens', () => {
+    expect(() => validateRelayConfig(configWithTokens(AGENT_TOKEN, CLIENT_TOKEN))).not.toThrow()
+    expect(() =>
+      validateRelayConfig(configWithTokens('a'.repeat(32), 'b'.repeat(32)))
+    ).not.toThrow()
+    expect(() =>
+      validateRelayConfig(configWithTokens('a'.repeat(512), 'b'.repeat(512)))
+    ).not.toThrow()
+    // `openssl rand -base64 32` can emit +, /, and =; only whitespace and
+    // commas are rejected so existing working tokens keep working.
+    expect(() =>
+      validateRelayConfig(configWithTokens('Ab+/='.repeat(11), CLIENT_TOKEN))
+    ).not.toThrow()
+  })
+
+  it('rejects a token shorter than 32 characters', () => {
+    expect(() => validateRelayConfig(configWithTokens('a'.repeat(31), CLIENT_TOKEN))).toThrow(
+      TOKEN_FORMAT_ERROR
+    )
+  })
+
+  it('rejects a token longer than 512 characters', () => {
+    expect(() => validateRelayConfig(configWithTokens('a'.repeat(513), CLIENT_TOKEN))).toThrow(
+      TOKEN_FORMAT_ERROR
+    )
+  })
+
+  it('rejects whitespace and commas', () => {
+    expect(() =>
+      validateRelayConfig(configWithTokens(`${'a'.repeat(21)} ${'a'.repeat(21)}`, CLIENT_TOKEN))
+    ).toThrow(TOKEN_FORMAT_ERROR)
+    expect(() => validateRelayConfig(configWithTokens(`${'a'.repeat(42)},`, CLIENT_TOKEN))).toThrow(
+      TOKEN_FORMAT_ERROR
+    )
   })
 })
