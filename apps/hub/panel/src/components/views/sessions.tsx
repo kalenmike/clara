@@ -1,12 +1,14 @@
 import { useMemo, useState } from 'react'
 import { ListChecks, RefreshCw, Search } from 'lucide-react'
 import type { PanelSession, PanelSessionHarness, PanelSessionsResponse } from '@clara/shared-types'
+import { usePeek } from '../../lib/peek-context.tsx'
 import { usePanelSessions } from '../../lib/use-panel-sessions.ts'
 import { Badge, Notice, Toggle } from '../primitives.tsx'
 import { SessionMonitorTable } from '../session-monitor-table.tsx'
 import { View } from '../shell/view.tsx'
 
 export function SessionsView({ active, now }: { active: boolean; now: number }) {
+  const { redact } = usePeek()
   const [search, setSearch] = useState('')
   const [harnessID, setHarnessID] = useState('all')
   const [runningOnly, setRunningOnly] = useState(false)
@@ -47,7 +49,7 @@ export function SessionsView({ active, now }: { active: boolean; now: number }) 
       <div className="space-y-3">
         {error ? (
           <Notice tone={data ? 'warning' : 'danger'}>
-            {data ? `Showing the last result. ${error}` : error}
+            {data ? `Showing the last result. ${redact(error)}` : redact(error)}
           </Notice>
         ) : null}
 
@@ -120,6 +122,7 @@ export function SessionsView({ active, now }: { active: boolean; now: number }) 
 }
 
 function HarnessSummary({ harnesses }: { harnesses: PanelSessionHarness[] }) {
+  const { redact } = usePeek()
   if (harnesses.length === 0) {
     return (
       <div className="panel-card px-3 py-2.5 text-xs text-neutral-500 dark:text-neutral-400">
@@ -160,7 +163,7 @@ function HarnessSummary({ harnesses }: { harnesses: PanelSessionHarness[] }) {
             </div>
             {harness.message ? (
               <p className="mt-1 text-[10px] text-neutral-500 dark:text-neutral-400">
-                {harness.message}
+                {redact(harness.message)}
               </p>
             ) : null}
           </div>
@@ -199,6 +202,9 @@ function emptyMessage(
   if (!data)
     return loading ? 'Reading sessions from paired harnesses…' : 'No session data available.'
   if (data.harnesses.length === 0) return 'No harness is paired. Add one from Harness.'
+  if (data.harnesses.every((harness) => harness.code === 'disabled')) {
+    return 'Harness access is disabled. Enable it from Harness, then refresh.'
+  }
   if (!data.harnesses.some((harness) => harness.online)) {
     return 'No paired harness is online. Start an adapter and refresh.'
   }
