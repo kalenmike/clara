@@ -49,10 +49,18 @@ type HarnessResult = {
   data: ClaraActivitySession[]
 }
 
+type ActivityOptions = {
+  refresh?: boolean
+  runningOnly?: boolean
+  /** Restrict the fan-out and results to one Clara project. */
+  projectID?: string
+}
+
 /**
- * Read Inbox and Outbox sessions from every paired harness. The hub API is
- * normally scoped to the active harness; this service is the deliberate
- * exception for the read-only activity view.
+ * Read Inbox and Outbox sessions from paired harnesses. The hub API is normally
+ * scoped to the active harness; this service is the deliberate exception for
+ * the read-only activity view. Callers can scope the fan-out to one project,
+ * across every workspace and harness that project uses.
  */
 export class ActivitySessionsService {
   private readonly deps: ApiDependencies
@@ -65,16 +73,25 @@ export class ActivitySessionsService {
 
   async load(
     signal: AbortSignal,
-    options: { refresh?: boolean; runningOnly?: boolean } = {}
+    options: ActivityOptions = {}
   ): Promise<ClaraActivitySessionsResponse> {
     if (!this.deps.canAccess()) {
       throw new ApiRequestError(403, 'disabled', 'Harness access is disabled by an admin setting')
     }
 
-    const connections = [...this.deps.harness.list()].sort(
+    let connections = [...this.deps.harness.list()].sort(
       (left, right) =>
         left.createdAt - right.createdAt || left.harnessId.localeCompare(right.harnessId)
     )
+    if (options.projectID) {
+      const project = this.deps.harness.projects.get(options.projectID)
+      if (!project) {
+        throw new ApiRequestError(404, 'not_found', 'That project no longer exists')
+      }
+      const projectHarnessIDs = new Set(project.workspaces.map((workspace) => workspace.harnessID))
+      connections = connections.filter((connection) => projectHarnessIDs.has(connection.harnessId))
+    }
+
     const results = await Promise.all(
       connections.map((connection) =>
         this.loadHarness(connection, withTimeout(signal, HARNESS_TIMEOUT_MS), options)
@@ -90,7 +107,7 @@ export class ActivitySessionsService {
   private async loadHarness(
     connection: HarnessConnection,
     signal: AbortSignal,
-    options: { refresh?: boolean; runningOnly?: boolean } = {}
+    options: ActivityOptions = {}
   ): Promise<HarnessResult> {
     const status: ClaraActivityHarness = {
       harnessID: connection.harnessId,
@@ -162,7 +179,10 @@ export class ActivitySessionsService {
       .map((session) => this.deps.harness.overlaySession(connection.harnessId, session))
       .filter((session) => session.time.archived == null && session.metadata?.snoozed !== true)
     if (!options.runningOnly) this.pruneCaches(connection.harnessId, visible)
-    const candidates = visible.filter((session) => !options.runningOnly || running.has(session.id))
+    const scoped = options.projectID
+      ? visible.filter((session) => session.projectID === options.projectID)
+      : visible
+    const candidates = scoped.filter((session) => !options.runningOnly || running.has(session.id))
 
     let failures = 0
     let firstFailure: unknown

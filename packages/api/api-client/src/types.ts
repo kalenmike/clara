@@ -91,6 +91,8 @@ export type ClaraProjectAvailableInput = {
 }
 
 export type ClaraActivitySessionsInput = {
+  /** Restrict the result to one Clara project. */
+  readonly project?: string
   /** Bypass the hub's activity caches for a manual refresh. */
   readonly refresh?: boolean
 }

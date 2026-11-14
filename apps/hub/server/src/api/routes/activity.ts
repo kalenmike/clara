@@ -26,10 +26,18 @@ export function registerActivityRoutes(
         )
       ),
     }),
-    validator('query', z.object({ refresh: optionalBooleanQuery })),
+    validator(
+      'query',
+      z.object({ refresh: optionalBooleanQuery, project: z.string().min(1).optional() })
+    ),
     async (c) => {
-      const { refresh } = c.req.valid('query')
-      return c.json(await service.load(c.req.raw.signal, { refresh: refresh === true }))
+      const { refresh, project } = c.req.valid('query')
+      return c.json(
+        await service.load(c.req.raw.signal, {
+          refresh: refresh === true,
+          ...(project ? { projectID: project } : {}),
+        })
+      )
     }
   )
 
@@ -47,11 +55,18 @@ export function registerActivityRoutes(
         )
       ),
     }),
-    validator('query', z.object({ refresh: optionalBooleanQuery })),
+    validator(
+      'query',
+      z.object({ refresh: optionalBooleanQuery, project: z.string().min(1).optional() })
+    ),
     async (c) => {
-      const { refresh } = c.req.valid('query')
+      const { refresh, project } = c.req.valid('query')
       return c.json(
-        await service.load(c.req.raw.signal, { refresh: refresh === true, runningOnly: true })
+        await service.load(c.req.raw.signal, {
+          refresh: refresh === true,
+          runningOnly: true,
+          ...(project ? { projectID: project } : {}),
+        })
       )
     }
   )

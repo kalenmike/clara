@@ -84,7 +84,7 @@ export function createClaraClient(options: ClaraClientOptions): ClaraClient {
     activity: {
       sessions: (input, requestOptions) =>
         request<ClaraActivitySessionsResponse>('GET', '/v1/activity/sessions', {
-          query: { refresh: input?.refresh },
+          query: { project: input?.project, refresh: input?.refresh },
           options: requestOptions,
         }),
     },

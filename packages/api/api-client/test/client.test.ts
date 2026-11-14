@@ -50,8 +50,13 @@ describe('Clara API client', () => {
     expect(fake.requests[0]?.method).toBe('GET')
     expect(fake.requests[0]?.url).toBe('http://clara.api/v1/activity/sessions')
 
-    await client.activity.sessions({ refresh: true })
-    expect(fake.requests[1]?.url).toBe('http://clara.api/v1/activity/sessions?refresh=true')
+    await client.activity.sessions({ project: 'p1' })
+    expect(fake.requests[1]?.url).toBe('http://clara.api/v1/activity/sessions?project=p1')
+
+    await client.activity.sessions({ project: 'p1', refresh: true })
+    expect(fake.requests[2]?.url).toBe(
+      'http://clara.api/v1/activity/sessions?project=p1&refresh=true'
+    )
   })
 
   it('sends a prompt to the session endpoint', async () => {
