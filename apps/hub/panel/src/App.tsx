@@ -6,9 +6,11 @@ import { PeekProvider, usePeek } from './lib/peek-context.tsx'
 import { useAgentSnapshot } from './lib/use-agent-snapshot.ts'
 import { useSession, type SessionController } from './lib/use-session.ts'
 import { usePanelTab } from './lib/use-panel-tab.ts'
+import { useOnboarding } from './lib/use-onboarding.ts'
 import { buildHealth, needsAttention, storageHealth, type HealthTone } from './lib/health.ts'
 import type { PanelTab } from './lib/tabs.ts'
 import { AuthScreen } from './components/auth-screen.tsx'
+import { SetupModal } from './components/onboarding/setup-modal.tsx'
 import { ActivityView } from './components/views/activity.tsx'
 import { ClientsView } from './components/views/clients.tsx'
 import { ConnectionsView } from './components/views/connections.tsx'
@@ -47,6 +49,7 @@ function Panel({ state, session }: { state: SnapshotState; session: SessionContr
   const clock = now ?? updatedAt ?? 0
   const [tab, setTab] = usePanelTab()
   const badges = useMemo(() => (data ? buildBadges(data) : {}), [data])
+  const onboarding = useOnboarding(data)
 
   return (
     <div className="panel-shell">
@@ -106,7 +109,15 @@ function Panel({ state, session }: { state: SnapshotState; session: SessionContr
               <ActivityView snapshot={data} now={clock} />
             </div>
             <div className="panel-view-slot" hidden={tab !== 'settings'}>
-              <SettingsView snapshot={data} onChanged={refresh} />
+              <SettingsView
+                snapshot={data}
+                onChanged={refresh}
+                setup={onboarding.setup}
+                preferences={onboarding.preferences}
+                onOpenSetup={onboarding.openSetup}
+                onOpenReconfigure={onboarding.openReconfigure}
+                onOpenGuide={onboarding.openGuide}
+              />
             </div>
           </>
         ) : (
@@ -115,6 +126,20 @@ function Panel({ state, session }: { state: SnapshotState; session: SessionContr
       </main>
 
       <StatusBar data={data} onSelect={setTab} />
+
+      {data ? (
+        <SetupModal
+          open={onboarding.open}
+          mode={onboarding.mode}
+          snapshot={data}
+          setup={onboarding.setup}
+          now={clock}
+          onChanged={refresh}
+          onPathChange={onboarding.setPath}
+          onClose={onboarding.close}
+          onFinish={onboarding.finish}
+        />
+      ) : null}
     </div>
   )
 }

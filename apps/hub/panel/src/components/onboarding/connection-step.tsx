@@ -1,0 +1,223 @@
+import { useState, type ReactNode } from 'react'
+import { CircleAlert, Globe2, Radio, Wifi } from 'lucide-react'
+import type { PanelSnapshot } from '@clara/shared-types'
+import { sourceLabel } from '../../lib/format.ts'
+import { findFeature } from '../../lib/feature-control.ts'
+import type { SetupPath, SetupState } from '../../lib/onboarding.ts'
+import { postPanel } from '../../lib/panel-api.ts'
+import { usePeek } from '../../lib/peek-context.tsx'
+import { ConfigEditorRow, RelayCard } from '../overview-cards.tsx'
+import { Badge, Notice } from '../primitives.tsx'
+
+export function ConnectionStep({
+  snapshot,
+  setup,
+  now,
+  onChanged,
+  onPathChange,
+}: {
+  snapshot: PanelSnapshot
+  setup: SetupState
+  now: number
+  onChanged: () => void
+  onPathChange: (path: SetupPath) => void
+}) {
+  const { redact } = usePeek()
+  const [pending, setPending] = useState(false)
+  const [error, setError] = useState<string>()
+  const webUrl = snapshot.config.pairingBaseUrl.value.replace(/\/+$/, '')
+  const relayConfigured = snapshot.relay.configured
+  const relayOnline = setup.relayReady
+  const relayFeature = findFeature(snapshot.controls, 'relay')
+  const localFeature = findFeature(snapshot.controls, 'local')
+
+  const goOnline = async () => {
+    setPending(true)
+    setError(undefined)
+    try {
+      await postPanel('/panel/api/v1/agent', { stopped: false })
+      onChanged()
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : String(cause))
+    } finally {
+      setPending(false)
+    }
+  }
+
+  const choose = (path: SetupPath) => {
+    onPathChange(path)
+  }
+
+  return (
+    <div className="space-y-4">
+      <div>
+        <h3 className="text-sm font-semibold">How will devices reach this hub?</h3>
+        <p className="panel-muted mt-1 text-xs">
+          This decides the Web URL in every pairing link and the default adapter transport. You can
+          change it later in Settings.
+        </p>
+      </div>
+
+      {snapshot.controls.stopped ? (
+        <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs text-amber-800 dark:border-amber-900 dark:bg-amber-950/60 dark:text-amber-300">
+          <span className="flex items-start gap-2">
+            <CircleAlert className="mt-0.5 size-3.5 shrink-0" aria-hidden="true" />
+            External connections are off, so the relay cannot come online.
+          </span>
+          <button
+            type="button"
+            onClick={() => void goOnline()}
+            disabled={pending}
+            className="panel-button"
+          >
+            {pending ? 'Starting…' : 'Turn connections on'}
+          </button>
+        </div>
+      ) : null}
+
+      {error ? <Notice tone="danger">{redact(error)}</Notice> : null}
+
+      <div role="radiogroup" aria-label="Connection path" className="grid gap-3 md:grid-cols-2">
+        <PathChoice
+          active={setup.path === 'local'}
+          onSelect={() => choose('local')}
+          icon={<Wifi className="size-4" aria-hidden="true" />}
+          title="Local only"
+          description="Devices and adapters connect on this machine or its network. No relay is required."
+          badge={relayConfigured ? 'Relay stays available but unused' : undefined}
+        />
+        <PathChoice
+          active={setup.path === 'relay'}
+          onSelect={() => choose('relay')}
+          icon={<Radio className="size-4" aria-hidden="true" />}
+          title="Remote via relay"
+          description="Devices and adapters can connect from another network through your relay."
+          badge={
+            relayConfigured ? (relayOnline ? 'Relay online' : 'Relay configured') : 'Set up below'
+          }
+        />
+      </div>
+
+      {setup.path === 'local' && !localFeature.effective ? (
+        <Notice>
+          Local transport is off. Turn it on from Network before pairing a local client.
+        </Notice>
+      ) : null}
+
+      {setup.path === 'relay' ? (
+        <div className="space-y-3">
+          {!relayFeature.desired ? (
+            <Notice>
+              Relay is off. Turn it on with the switch in the Relay card below, then save the URL
+              and both tokens.
+            </Notice>
+          ) : null}
+          <div className="flex flex-wrap items-center gap-2 rounded-lg border border-neutral-200 bg-neutral-50 px-3 py-2 text-xs dark:border-neutral-800 dark:bg-neutral-900/60">
+            <Radio
+              className="size-3.5 shrink-0 text-sky-600 dark:text-sky-400"
+              aria-hidden="true"
+            />
+            <span className="font-medium">Relay setup</span>
+            <Badge tone={relayOnline ? 'success' : relayConfigured ? 'warning' : 'neutral'}>
+              {relayOnline ? 'Online' : relayConfigured ? 'Not connected' : 'Not configured'}
+            </Badge>
+            <span className="panel-muted">
+              Save the URL and both tokens. The room is generated by the hub.
+            </span>
+          </div>
+          <RelayCard
+            relay={snapshot.relay}
+            controls={snapshot.controls}
+            onChanged={onChanged}
+            now={now}
+            defaultExpanded
+          />
+        </div>
+      ) : null}
+
+      <div className="rounded-lg border border-neutral-200 p-3 dark:border-neutral-800">
+        <div className="flex items-start gap-2">
+          <Globe2 className="mt-0.5 size-4 shrink-0 text-neutral-500" aria-hidden="true" />
+          <div className="min-w-0 flex-1">
+            <h3 className="text-xs font-semibold">Pairing link preview</h3>
+            <p className="panel-muted mt-0.5 text-[11px]">
+              {setup.path === 'relay'
+                ? 'Remote clients open this URL. Use the public HTTPS address of the hosted or self-hosted client.'
+                : 'Local clients open this URL. Use this machine’s address if another device on the network should open Clara.'}
+            </p>
+            <code className="mt-2 block break-all rounded-md bg-neutral-100 px-2 py-1.5 font-mono text-[11px] dark:bg-neutral-900">
+              {webUrl}/#pair=…
+            </code>
+          </div>
+        </div>
+        {setup.path === 'relay' && !setup.webUrlReady ? (
+          <div className="mt-2">
+            <Notice tone="danger">
+              Use a public HTTPS Web URL that remote devices can reach, not localhost.
+            </Notice>
+          </div>
+        ) : null}
+        <div className="mt-3 border-t border-neutral-100 pt-3 dark:border-neutral-800/60">
+          <ConfigEditorRow
+            id="setup-web-url"
+            label="Web URL"
+            field="pairingBaseUrl"
+            value={snapshot.config.pairingBaseUrl.value}
+            source={snapshot.config.pairingBaseUrl.source}
+            sourceText={sourceLabel(snapshot.config.pairingBaseUrl.source)}
+            hint="Pairing links open this URL."
+            savedHint="Saved in server.json."
+            defaultHint="Using the local default."
+            envHint="Set by CLARA_PAIRING_BASE_URL. Remove it and restart the hub service to edit here."
+            placeholder="https://clara.example"
+            mono
+            onChanged={onChanged}
+          />
+        </div>
+      </div>
+
+      {setup.path === undefined ? (
+        <p className="panel-muted text-[11px]">
+          Choose Local only or Remote via relay to continue. This choice is saved on this browser.
+        </p>
+      ) : null}
+    </div>
+  )
+}
+
+function PathChoice({
+  active,
+  onSelect,
+  icon,
+  title,
+  description,
+  badge,
+}: {
+  active: boolean
+  onSelect: () => void
+  icon: ReactNode
+  title: string
+  description: string
+  badge?: string
+}) {
+  return (
+    <button
+      type="button"
+      role="radio"
+      aria-checked={active}
+      onClick={onSelect}
+      className={`rounded-lg border p-3 text-left transition ${
+        active
+          ? 'border-[color:var(--panel-accent)] bg-[color:var(--panel-accent-soft)]'
+          : 'border-neutral-200 hover:border-neutral-300 dark:border-neutral-800 dark:hover:border-neutral-700'
+      }`}
+    >
+      <span className="flex items-center gap-2 text-xs font-semibold">
+        <span className="text-neutral-500 dark:text-neutral-400">{icon}</span>
+        {title}
+        {badge ? <Badge tone={active ? 'info' : 'neutral'}>{badge}</Badge> : null}
+      </span>
+      <span className="panel-muted mt-1 block text-[11px]">{description}</span>
+    </button>
+  )
+}

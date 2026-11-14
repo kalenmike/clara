@@ -1,0 +1,96 @@
+import { Cable } from 'lucide-react'
+import type { PanelSnapshot } from '@clara/shared-types'
+import { findFeature } from '../../lib/feature-control.ts'
+import type { SetupState } from '../../lib/onboarding.ts'
+import { HarnessAddCard } from '../harness-add-card.tsx'
+import { Badge, Notice } from '../primitives.tsx'
+
+export function HarnessStep({
+  snapshot,
+  setup,
+  now,
+  onChanged,
+}: {
+  snapshot: PanelSnapshot
+  setup: SetupState
+  now: number
+  onChanged: () => void
+}) {
+  const feature = findFeature(snapshot.controls, 'opencode')
+  const initialTransport =
+    setup.path === 'relay' ? 'relay' : snapshot.agent.container ? 'docker' : 'local'
+  const allowedTransports =
+    setup.path === 'relay'
+      ? (['relay', 'local', 'docker'] as const)
+      : (['local', 'docker'] as const)
+  const online = snapshot.harnesses.filter((harness) => harness.online).length
+
+  return (
+    <div className="space-y-4">
+      <div>
+        <h3 className="text-sm font-semibold">Connect a harness</h3>
+        <p className="panel-muted mt-1 text-xs">
+          An adapter runs next to the harness and connects out to this hub. The hub never contacts
+          the harness directly.
+        </p>
+      </div>
+
+      <div className="rounded-lg border border-neutral-200 bg-neutral-50 p-3 text-[11px] text-neutral-600 dark:border-neutral-800 dark:bg-neutral-900/60 dark:text-neutral-300">
+        <p className="flex items-center gap-1.5 font-semibold">
+          <Cable className="size-3.5" aria-hidden="true" />
+          What is a harness?
+        </p>
+        <p className="mt-1">
+          It is the agent server that runs your sessions. This release includes OpenCode 2.1.x and
+          Claude Code 2.1.325 adapters. Choose the harness you run, then run the printed install
+          command on the machine that runs it.
+        </p>
+      </div>
+
+      {!feature.desired ? (
+        <Notice>
+          Harness access is off. Turn it on from the Harness view before pairing an adapter.
+        </Notice>
+      ) : null}
+
+      {snapshot.harnesses.length > 0 ? (
+        <div className="rounded-lg border border-emerald-200 bg-emerald-50/70 p-3 dark:border-emerald-900 dark:bg-emerald-950/30">
+          <div className="flex flex-wrap items-center gap-2">
+            <p className="text-xs font-semibold">Paired harnesses</p>
+            <Badge tone={online > 0 ? 'success' : 'warning'}>
+              {online} of {snapshot.harnesses.length} online
+            </Badge>
+          </div>
+          <ul className="mt-2 space-y-1">
+            {snapshot.harnesses.map((harness) => (
+              <li key={harness.id} className="flex flex-wrap items-center gap-2 text-[11px]">
+                <span className="font-medium">{harness.label}</span>
+                <span className="panel-muted">{harness.kind}</span>
+                {harness.isActive ? <Badge tone="info">Active</Badge> : null}
+                <Badge tone={harness.online ? 'success' : 'warning'}>
+                  {harness.online ? 'Online' : 'Paired · Offline'}
+                </Badge>
+              </li>
+            ))}
+          </ul>
+          {online === 0 ? (
+            <p className="mt-2 text-[11px] text-amber-800 dark:text-amber-300">
+              The adapter is paired but not online. Start the adapter service on the harness
+              machine. You can continue and fix it later.
+            </p>
+          ) : null}
+        </div>
+      ) : null}
+
+      <HarnessAddCard
+        enabled={feature.desired}
+        relayConfigured={snapshot.relay.configured}
+        harnesses={snapshot.harnesses}
+        onChanged={onChanged}
+        now={now}
+        initialTransport={initialTransport}
+        allowedTransports={[...allowedTransports]}
+      />
+    </div>
+  )
+}

@@ -24,19 +24,28 @@ export function HarnessAddCard({
   harnesses,
   onChanged,
   now,
+  initialTransport,
+  allowedTransports,
 }: {
   enabled: boolean
   relayConfigured: boolean
   harnesses: PanelHarness[]
   onChanged: () => void
   now: number
+  initialTransport?: HarnessSetupMode
+  allowedTransports?: HarnessSetupMode[]
 }) {
   const { redact } = usePeek()
   const [pairing, setPairing] = useState<PanelHarnessPairing>()
   const [pending, setPending] = useState<'pair' | 'cancel'>()
   const [error, setError] = useState<string>()
   const [kind, setKind] = useState(KINDS[0].kind)
-  const [transport, setTransport] = useState<HarnessSetupMode>('docker')
+  const allowed = allowedTransports ?? ['docker', 'local', 'relay']
+  const firstTransport =
+    initialTransport && allowed.includes(initialTransport)
+      ? initialTransport
+      : (allowed.find((item) => item !== 'relay' || relayConfigured) ?? 'local')
+  const [transport, setTransport] = useState<HarnessSetupMode>(firstTransport)
 
   useEffect(() => {
     if (pairing && isPairingRegistered(pairing, harnesses)) setPairing(undefined)
@@ -159,11 +168,15 @@ export function HarnessAddCard({
                 onChange={(event) => setTransport(event.target.value as HarnessSetupMode)}
                 className="w-full rounded-md border border-neutral-200 bg-white px-2 py-1.5 text-xs dark:border-neutral-700 dark:bg-neutral-950"
               >
-                <option value="docker">Docker network (default)</option>
-                <option value="local">This machine (loopback)</option>
-                <option value="relay" disabled={!relayConfigured}>
-                  Cloudflare relay
-                </option>
+                {allowed.includes('docker') ? <option value="docker">Docker network</option> : null}
+                {allowed.includes('local') ? (
+                  <option value="local">This machine (loopback)</option>
+                ) : null}
+                {allowed.includes('relay') ? (
+                  <option value="relay" disabled={!relayConfigured}>
+                    Cloudflare relay
+                  </option>
+                ) : null}
               </select>
               <span className="text-[10px] font-normal text-neutral-500 dark:text-neutral-400">
                 {transport === 'docker'
