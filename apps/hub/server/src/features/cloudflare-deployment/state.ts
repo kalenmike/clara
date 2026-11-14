@@ -1,4 +1,4 @@
-import type { PanelRelayDeployment } from '@clara/shared-types'
+import type { PanelCloudflareZone, PanelRelayDeployment } from '@clara/shared-types'
 import type { RelayConfig, ServerConfig } from '../../config.ts'
 import { saveRelayTarget, validateRelayConfig } from '../../config.ts'
 import type { SecretKeyInfo } from '../../store/secret-key.ts'
@@ -31,6 +31,10 @@ export type DeployInput = {
   replaceExisting?: boolean
   /** Serve preview/version URLs for this Worker. Off by default. */
   previewUrls?: boolean
+  /** Attach a custom hostname; the zone may be resolved when omitted. */
+  customDomain?: { hostname: string; zoneId?: string }
+  /** Turn the workers.dev host off after the custom host answers. */
+  disableWorkersDev?: boolean
 }
 
 export type DeployOutcome = {
@@ -99,9 +103,19 @@ export class CloudflareDeploymentState {
             reachable: this.deployment.reachable,
             previewUrls: this.deployment.previewUrls,
             ...(this.deployment.accountName ? { accountName: this.deployment.accountName } : {}),
+            ...(this.deployment.customDomain ? { customDomain: this.deployment.customDomain } : {}),
+            ...(this.deployment.disableWorkersDev ? { disableWorkersDev: true } : {}),
           }
         : {}),
     }
+  }
+
+  async listZones(input: { token?: string; accountId: string }): Promise<PanelCloudflareZone[]> {
+    const token =
+      input.token?.trim() || (await loadCloudflareToken(this.config.configDir, this.secretKey))
+    if (!token) throw new Error('token_required')
+    const client = new CloudflareClient(token)
+    return client.listZones(input.accountId)
   }
 
   async deploy(input: DeployInput): Promise<DeployOutcome> {
@@ -136,6 +150,11 @@ export class CloudflareDeploymentState {
         clientToken: current?.clientToken || undefined,
         allowExisting: Boolean(this.deployment) || input.replaceExisting === true,
         previewUrls: input.previewUrls === true,
+        ...(input.customDomain ? { customDomain: input.customDomain } : {}),
+        disableWorkersDev: input.disableWorkersDev === true,
+        ...(this.deployment?.customDomain
+          ? { previousCustomDomain: this.deployment.customDomain }
+          : {}),
       })
 
       const relay: RelayConfig = {
@@ -152,6 +171,8 @@ export class CloudflareDeploymentState {
         deployedAt: result.deployedAt,
         reachable: result.reachable,
         previewUrls: result.previewUrls,
+        ...(result.customDomain ? { customDomain: result.customDomain } : {}),
+        ...(result.disableWorkersDev ? { disableWorkersDev: true } : {}),
       }
 
       await saveRelayCredentials(this.config.configDir, this.secretKey, {
@@ -195,6 +216,16 @@ export class CloudflareDeploymentState {
           `The Worker deployed, but preview URLs could not be configured, so the Worker stays on the default: ${result.previewUrlsError}`
         )
       }
+      if (result.customDomainError) {
+        this.log('cloudflare relay custom domain is not ready', result.customDomainError)
+        warnings.push(result.customDomainError)
+      }
+      if (result.workersDevDisableError) {
+        this.log('cloudflare relay workers.dev disable failed', result.workersDevDisableError)
+        warnings.push(
+          `The custom hostname is live, but the workers.dev host could not be disabled: ${result.workersDevDisableError}`
+        )
+      }
       if (!result.reachable) {
         warnings.push(
           result.healthError ?? 'The Worker deployed, but its health check has not answered yet.'
@@ -216,9 +247,23 @@ export class CloudflareDeploymentState {
     return this.snapshot()
   }
 
-  /** A panel edit made the stored deployment record stale. */
-  forgetDeployment(): void {
+  /**
+   * A panel edit made the stored deployment record stale. Clear the record
+   * first, then release any custom-domain binding best-effort so a failed
+   * Cloudflare call cannot leave the panel stuck.
+   */
+  async forgetDeployment(): Promise<void> {
+    const record = this.deployment
     forgetRelayDeployment(this.config.configDir)
     this.deployment = undefined
+    if (!record?.customDomain) return
+    try {
+      const token = await loadCloudflareToken(this.config.configDir, this.secretKey)
+      if (!token) return
+      const client = new CloudflareClient(token)
+      await client.detachWorkerDomain(record.accountId, record.customDomain.domainId)
+    } catch (cause) {
+      this.log('cloudflare relay custom domain detach failed', cause)
+    }
   }
 }

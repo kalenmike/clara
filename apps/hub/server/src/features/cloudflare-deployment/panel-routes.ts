@@ -1,11 +1,12 @@
 import type { PanelFeature, PanelFeatureRequest } from '../../panel/feature.ts'
 import { CloudflareClient, CloudflareError } from './cloudflare-client.ts'
-import { RelayDeploymentError } from './deploy.ts'
+import { RelayDeploymentError, validateCustomHostname } from './deploy.ts'
 import type { CloudflareDeploymentState } from './state.ts'
 
 const ROUTE_PREFIX = '/panel/api/v1/relay/cloudflare/'
 const MAX_TOKEN_LENGTH = 4_096
 const ACCOUNT_ID_PATTERN = /^[A-Za-z0-9_-]{16,64}$/
+const ZONE_ID_PATTERN = /^[A-Za-z0-9_-]{1,64}$/
 
 export function createCloudflarePanelFeature(state: CloudflareDeploymentState): PanelFeature {
   return {
@@ -21,6 +22,10 @@ export function createCloudflarePanelFeature(state: CloudflareDeploymentState): 
 
       if (context.pathname === `${ROUTE_PREFIX}accounts`) {
         await handleAccounts(context, state)
+        return true
+      }
+      if (context.pathname === `${ROUTE_PREFIX}zones`) {
+        await handleZones(context, state)
         return true
       }
       if (context.pathname === `${ROUTE_PREFIX}deploy`) {
@@ -69,6 +74,41 @@ async function handleAccounts(
   }
 }
 
+async function handleZones(
+  context: PanelFeatureRequest,
+  state: CloudflareDeploymentState
+): Promise<void> {
+  if (!context.requireMutation(true)) return
+  const body = await context.readJson()
+  if (!body.ok) return sendBodyFailure(context, body)
+  if (!isRecord(body.value)) return invalidBody(context)
+  const unknown = firstUnknown(body.value, ['token', 'accountId'])
+  if (unknown) return invalidField(context, unknown)
+  const { token: rawToken, accountId } = body.value
+  if (
+    rawToken !== undefined &&
+    (typeof rawToken !== 'string' || rawToken.length > MAX_TOKEN_LENGTH)
+  ) {
+    return invalidField(context, 'token')
+  }
+  if (typeof accountId !== 'string' || !ACCOUNT_ID_PATTERN.test(accountId)) {
+    return invalidField(context, 'accountId')
+  }
+
+  try {
+    const zones = await state.listZones({
+      ...(typeof rawToken === 'string' && rawToken.trim() ? { token: rawToken.trim() } : {}),
+      accountId,
+    })
+    context.sendJson(200, { zones })
+  } catch (cause) {
+    if (cause instanceof Error && cause.message === 'token_required') {
+      return tokenRequired(context)
+    }
+    sendCloudflareFailure(context, cause)
+  }
+}
+
 async function handleDeploy(
   context: PanelFeatureRequest,
   state: CloudflareDeploymentState
@@ -84,6 +124,8 @@ async function handleDeploy(
     'rememberToken',
     'replaceExisting',
     'previewUrls',
+    'customDomain',
+    'disableWorkersDev',
   ])
   if (unknown) return invalidField(context, unknown)
 
@@ -106,6 +148,37 @@ async function handleDeploy(
   if (previewUrls !== undefined && typeof previewUrls !== 'boolean') {
     return invalidField(context, 'previewUrls')
   }
+  if (
+    body.value.disableWorkersDev !== undefined &&
+    typeof body.value.disableWorkersDev !== 'boolean'
+  ) {
+    return invalidField(context, 'disableWorkersDev')
+  }
+
+  let customDomain: { hostname: string; zoneId?: string } | undefined
+  if (body.value.customDomain !== undefined) {
+    if (!isRecord(body.value.customDomain)) return invalidField(context, 'customDomain')
+    const customUnknown = firstUnknown(body.value.customDomain, ['hostname', 'zoneId'])
+    if (customUnknown) return invalidField(context, `customDomain.${customUnknown}`)
+    const hostname = body.value.customDomain.hostname
+    const zoneId = body.value.customDomain.zoneId
+    if (typeof hostname !== 'string') return invalidField(context, 'customDomain.hostname')
+    if (zoneId !== undefined && (typeof zoneId !== 'string' || !ZONE_ID_PATTERN.test(zoneId))) {
+      return invalidField(context, 'customDomain.zoneId')
+    }
+    try {
+      customDomain = {
+        hostname: validateCustomHostname(hostname),
+        ...(typeof zoneId === 'string' ? { zoneId } : {}),
+      }
+    } catch (cause) {
+      if (cause instanceof RelayDeploymentError) {
+        context.sendJson(400, { error: { code: cause.code, message: cause.message } })
+        return
+      }
+      throw cause
+    }
+  }
 
   try {
     const outcome = await state.deploy({
@@ -115,6 +188,10 @@ async function handleDeploy(
       ...(typeof rememberToken === 'boolean' ? { rememberToken } : {}),
       ...(typeof replaceExisting === 'boolean' ? { replaceExisting } : {}),
       ...(typeof previewUrls === 'boolean' ? { previewUrls } : {}),
+      ...(customDomain ? { customDomain } : {}),
+      ...(typeof body.value.disableWorkersDev === 'boolean'
+        ? { disableWorkersDev: body.value.disableWorkersDev }
+        : {}),
     })
     context.sendJson(200, outcome)
   } catch (cause) {
@@ -179,7 +256,7 @@ function sendCloudflareFailure(context: PanelFeatureRequest, cause: unknown): vo
       error: {
         code: 'cloudflare_unauthorized',
         message:
-          'Cloudflare rejected the token or it lacks Workers Scripts: Edit for this account.',
+          'Cloudflare rejected the token or it lacks a required scope. The relay deployment needs Workers Scripts: Edit, Zone: Read, and Zone: Workers Routes: Edit.',
       },
     })
     return

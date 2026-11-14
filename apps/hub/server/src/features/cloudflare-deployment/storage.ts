@@ -14,6 +14,13 @@ const DEPLOYMENT_FILE = 'relay-deployment.json'
 const API_TOKEN_FILE = 'cloudflare-api-token.json'
 const API_TOKEN_AAD = 'clara:cloudflare:api-token'
 
+export type RelayDeploymentCustomDomain = {
+  hostname: string
+  zoneId: string
+  domainId: string
+  ready: boolean
+}
+
 export type RelayDeploymentRecord = {
   accountId: string
   accountName?: string
@@ -23,6 +30,10 @@ export type RelayDeploymentRecord = {
   reachable: boolean
   /** Preview/version URLs were requested for this Worker. Off by default. */
   previewUrls: boolean
+  /** Attached Worker custom domain. Absent on older records. */
+  customDomain?: RelayDeploymentCustomDomain
+  /** The workers.dev host was turned off after a ready custom hostname. */
+  disableWorkersDev?: boolean
 }
 
 export function loadRelayDeployment(configDir: string): RelayDeploymentRecord | undefined {
@@ -37,6 +48,7 @@ export function loadRelayDeployment(configDir: string): RelayDeploymentRecord | 
     ) {
       return undefined
     }
+    const customDomain = readCustomDomain(value.customDomain)
     return {
       accountId: value.accountId,
       scriptName: value.scriptName,
@@ -45,8 +57,28 @@ export function loadRelayDeployment(configDir: string): RelayDeploymentRecord | 
       reachable: value.reachable,
       previewUrls: value.previewUrls === true,
       ...(typeof value.accountName === 'string' ? { accountName: value.accountName } : {}),
+      ...(customDomain ? { customDomain } : {}),
+      ...(value.disableWorkersDev === true ? { disableWorkersDev: true } : {}),
     }
   })
+}
+
+function readCustomDomain(value: unknown): RelayDeploymentCustomDomain | undefined {
+  if (
+    !isRecord(value) ||
+    typeof value.hostname !== 'string' ||
+    typeof value.zoneId !== 'string' ||
+    typeof value.domainId !== 'string' ||
+    typeof value.ready !== 'boolean'
+  ) {
+    return undefined
+  }
+  return {
+    hostname: value.hostname,
+    zoneId: value.zoneId,
+    domainId: value.domainId,
+    ready: value.ready,
+  }
 }
 
 export function saveRelayDeployment(configDir: string, record: RelayDeploymentRecord): void {
