@@ -11,6 +11,19 @@ export function saveLastProject(projectID: string): void {
   notifySettingChanged(LAST_PROJECT_KEY)
 }
 
+const LAST_WORKSPACE_PREFIX = 'clara:last-workspace:'
+
+/** The workspace most recently used to start work on a project. */
+export function readLastWorkspace(projectID: string): string | null {
+  if (typeof window === 'undefined') return null
+  return window.localStorage.getItem(`${LAST_WORKSPACE_PREFIX}${projectID}`)
+}
+
+export function saveLastWorkspace(projectID: string, workspaceID: string): void {
+  if (typeof window === 'undefined') return
+  window.localStorage.setItem(`${LAST_WORKSPACE_PREFIX}${projectID}`, workspaceID)
+}
+
 export function readSidebarCollapsed(): boolean {
   return window.localStorage.getItem('clara.sidebar') === 'collapsed'
 }

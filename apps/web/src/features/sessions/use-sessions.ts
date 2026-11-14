@@ -61,6 +61,8 @@ export type CreateSessionInput = {
   title?: string
   agent?: string
   model?: { id: string; providerID: string; variant?: string }
+  /** Routes creation to a paired harness; the hub strips it before forwarding. */
+  harnessID?: string
 }
 
 export function useCreateSession() {
@@ -72,6 +74,7 @@ export function useCreateSession() {
         title: input.title || undefined,
         agent: input.agent,
         model: input.model,
+        harnessID: input.harnessID,
         location: { directory: input.directory },
       }),
     onSuccess: (session: ClaraSession) => {

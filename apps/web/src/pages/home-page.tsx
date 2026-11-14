@@ -3,11 +3,12 @@ import { Loader2, Plus } from 'lucide-react'
 import { EmptySessionView } from '@/components/chat/empty-session-view'
 import { InboxMonitorToggle } from '@/components/chat/inbox-monitor-toggle'
 import { useHarnessLabel } from '@/features/harness/use-harness-label'
-import { findProject, projectDefaultWorkspace, useProjects } from '@/features/projects/use-projects'
+import { resolveProjectWorkspaceTarget } from '@/features/projects/project-workspaces'
+import { findProject, useProjects } from '@/features/projects/use-projects'
 import { useSessions } from '@/features/sessions/use-sessions'
 import { useStartSession } from '@/features/sessions/use-start-session'
 import { useSessionWording } from '@/features/sessions/use-wording'
-import { readLastProject, saveLastProject } from '@/lib/storage'
+import { readLastProject, readLastWorkspace, saveLastProject } from '@/lib/storage'
 import { useConnection } from '@/providers/connection-provider'
 
 export function HomePage() {
@@ -21,7 +22,12 @@ export function HomePage() {
     () => findProject(projects, last) ?? projects[0] ?? null,
     [last, projects]
   )
-  const workspace = useMemo(() => projectDefaultWorkspace(project), [project])
+  const lastWorkspaceID = project ? readLastWorkspace(project.id) : null
+  const workspaceTarget = useMemo(
+    () => resolveProjectWorkspaceTarget(project, lastWorkspaceID),
+    [lastWorkspaceID, project]
+  )
+  const workspace = workspaceTarget.workspace
   const sessionsQuery = useSessions(project?.id ?? null, '', Boolean(project?.workspaces.length))
   const latest = sessionsQuery.data?.data[0]
   const { startSession, pending } = useStartSession({
@@ -58,6 +64,16 @@ export function HomePage() {
       <EmptySessionView
         title="Add a workspace"
         description={`${label} does not know where to run work for this project yet. Add a directory on the project page.`}
+      />
+    )
+  }
+
+  if (!workspaceTarget.startable) {
+    return (
+      <EmptySessionView
+        title={`${workspace.harnessLabel || label} is offline`}
+        description={`Reconnect it, or choose another workspace from the project menu, before starting a new ${lowerSingular}.`}
+        footer={<InboxMonitorToggle />}
       />
     )
   }
