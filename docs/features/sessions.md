@@ -152,11 +152,14 @@ list has no checkbox column or bulk toolbar.
    the same for archived sessions. A record that cannot be read contributes no
    rows and is named in the per-harness status instead of failing the list.
 6. A new session inherits the model of the most recent active session in the
-   project, so the first prompt uses a model that already works. A model hidden
-   in **Settings → Models** is not inherited; the new session starts on the
-   server default instead. Its agent follows the **Default agent** setting: the
-   last agent selected anywhere in Clara, or a specific agent. A specific agent
-   also replaces the agent of an empty draft the first time that draft is
+   selected workspace, matching both the harness and the workspace that saved
+   it, so the first prompt uses a model that already works there. A workspace
+   without an active session starts on the harness default; a model from
+   another workspace, harness, or machine is never carried over. A model hidden
+   in **Settings → Models** is not inherited either; the new session starts on
+   the server default instead. Its agent follows the **Default agent** setting:
+   the last agent selected anywhere in Clara, or a specific agent. A specific
+   agent also replaces the agent of an empty draft the first time that draft is
    opened. Sessions that already have messages are never changed.
 7. Running sessions are marked with a live dot driven by the active-session map
    and status events, and that same map keeps them in Outbox. Inbox rows show
@@ -307,6 +310,9 @@ list has no checkbox column or bulk toolbar.
 - **Every workspace is offline** — New brief is disabled and the start view names
   the offline harness and points at the workspace menu, so the person can
   reconnect rather than wonder where work went.
+- **The selected workspace has no saved model** — New brief sends no model, so
+  the harness picks its own default; a model from the project's other
+  workspaces is not reused.
 - **Workspace directory is missing** — the Clara project stays visible; the
   workspace remains unresolved and session lookup reports the harness problem.
 - **A harness archives its own project** — Clara ignores it; only **Archive

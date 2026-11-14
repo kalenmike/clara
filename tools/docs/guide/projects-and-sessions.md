@@ -96,8 +96,9 @@ start view names the harness to reconnect. Set the project's default workspace o
 the project page.
 
 A new session inherits the model of the most recent working session in the
-project. It follows your **Default agent** setting. Hidden models are not
-inherited.
+workspace you start it in. If that workspace has no earlier session, Clara
+starts on the harness default rather than borrowing another workspace's model.
+It follows your **Default agent** setting. Hidden models are not inherited.
 
 If you leave a new session before typing or saving a draft, Clara removes the
 empty session so it does not pile up under **Drafts**. Typed text, attachments,
