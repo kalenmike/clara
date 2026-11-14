@@ -230,5 +230,6 @@ export function piProcessEnv(
   return {
     ...env,
     PI_CODING_AGENT_DIR: resolveAgentDir(config, env),
+    ...(config.sessionDir?.trim() ? { PI_CODING_AGENT_SESSION_DIR: config.sessionDir.trim() } : {}),
   }
 }
