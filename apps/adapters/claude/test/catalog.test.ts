@@ -183,4 +183,22 @@ describe('Claude catalog mapping', () => {
     const [skill] = skillList(catalog, root).data
     expect(skill).toMatchObject({ id: 'manual', autoinvoke: false })
   })
+
+  it('reads user skills from CLAUDE_CONFIG_DIR', () => {
+    const root = skillRoot()
+    const directory = join(root, 'skills', 'user-skill')
+    mkdirSync(directory, { recursive: true })
+    writeFileSync(join(directory, 'SKILL.md'), ['---', 'name: user-skill', '---', ''].join('\n'))
+
+    const previous = process.env.CLAUDE_CONFIG_DIR
+    process.env.CLAUDE_CONFIG_DIR = root
+    try {
+      expect(skillList(catalog, join(root, 'project')).data).toContainEqual(
+        expect.objectContaining({ id: 'user-skill', path: join(directory, 'SKILL.md') })
+      )
+    } finally {
+      if (previous === undefined) delete process.env.CLAUDE_CONFIG_DIR
+      else process.env.CLAUDE_CONFIG_DIR = previous
+    }
+  })
 })

@@ -1,6 +1,6 @@
 import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs'
 import { homedir } from 'node:os'
-import { basename, join } from 'node:path'
+import { basename, join, resolve } from 'node:path'
 import type { ClaudePluginEntry, ClaudeSkillEntry } from './catalog-merge.ts'
 
 const MAX_SKILL_BYTES = 512 * 1024
@@ -38,7 +38,8 @@ function skillRoots(directory: string, plugins: readonly ClaudePluginEntry[]): S
   const roots: SkillRoot[] = []
   const project = join(directory, '.claude', 'skills')
   if (isDirectory(project)) roots.push({ path: project })
-  const user = join(homedir(), '.claude', 'skills')
+  const configured = process.env.CLAUDE_CONFIG_DIR?.trim()
+  const user = join(configured ? resolve(configured) : join(homedir(), '.claude'), 'skills')
   if (isDirectory(user)) roots.push({ path: user })
   for (const plugin of plugins) {
     if (!plugin.path || plugin.path === 'builtin') continue
