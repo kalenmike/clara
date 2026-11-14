@@ -54,7 +54,6 @@ export function SessionsPage() {
     projectID: project?.id,
     workspace,
     agent: latest?.agent,
-    model: latest?.model,
   })
 
   if (projectQuery.isLoading) {

@@ -261,7 +261,6 @@ function ChatPageContent() {
     projectID: projectId,
     workspace,
     agent: session?.agent,
-    model: session?.model,
   })
   const composeState = location.state as ChatComposeState | null
   const clearComposeState = useCallback(() => {

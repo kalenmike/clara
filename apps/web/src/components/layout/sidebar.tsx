@@ -347,7 +347,6 @@ export function SidebarContent({
     projectID: selectedProject?.id,
     workspace: sessionWorkspace,
     agent: latest?.agent,
-    model: latest?.model,
   })
 
   const sessionsLoading = sessionsQuery.isLoading || archivedQuery.isLoading

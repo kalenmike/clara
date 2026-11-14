@@ -34,7 +34,6 @@ export function HomePage() {
     projectID: project?.id,
     workspace,
     agent: latest?.agent,
-    model: latest?.model,
   })
 
   useEffect(() => {
