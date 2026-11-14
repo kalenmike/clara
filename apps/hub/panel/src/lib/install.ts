@@ -49,6 +49,14 @@ export function registryCommand(
   return `curl -fsSL ${manifest.install} | sh -s -- --pair ${code}${noRunner}`
 }
 
+/**
+ * Whether the hub can run adapter installs at all. A disabled switch, a
+ * containerized hub, or a remote-exposed panel keeps the manual copy path.
+ */
+export function installOffered(info: PanelInstallInfo | undefined): boolean {
+  return info?.enabled !== false && info?.available === true
+}
+
 export function repoCommand(kind: string, code: string): string {
   return `pnpm clara adapter install --${kind} --pair ${code}`
 }

@@ -115,6 +115,41 @@ function MachineStep({ flow }: { flow: HarnessPairingFlow }) {
       </div>
 
       {flow.machine === 'local' ? (
+        <div>
+          <p className="text-[11px] font-medium text-neutral-600 dark:text-neutral-300">
+            Where does the adapter run?
+          </p>
+          <div
+            role="radiogroup"
+            aria-label="Local harness target"
+            className="mt-2 grid grid-cols-2 gap-1 rounded-md border border-neutral-200 bg-neutral-50 p-1 dark:border-neutral-700 dark:bg-neutral-900"
+          >
+            {(
+              [
+                ['host', 'This machine'],
+                ['container', 'Docker container'],
+              ] as const
+            ).map(([target, label]) => (
+              <button
+                key={target}
+                type="button"
+                role="radio"
+                aria-checked={flow.target === target}
+                onClick={() => flow.setTarget(target)}
+                className={`cursor-pointer rounded px-2 py-1.5 text-[11px] font-medium transition ${
+                  flow.target === target
+                    ? 'bg-white text-neutral-900 shadow-sm dark:bg-neutral-800 dark:text-neutral-100'
+                    : 'text-neutral-500 hover:text-neutral-800 dark:text-neutral-400 dark:hover:text-neutral-200'
+                }`}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+        </div>
+      ) : null}
+
+      {flow.machine === 'local' && flow.transport !== 'relay' ? (
         <details className="rounded-lg border border-neutral-200 p-3 dark:border-neutral-800">
           <summary className="cursor-pointer text-[11px] font-medium text-neutral-600 dark:text-neutral-300">
             Advanced
@@ -155,7 +190,9 @@ function TargetStep({ flow, now }: { flow: HarnessPairingFlow; now: number }) {
       ? flow.sshHost && flow.sshHost !== MANUAL_SSH_HOST
         ? flow.sshHost
         : ''
-      : flow.container
+      : flow.target === 'container'
+        ? flow.container
+        : ''
 
   useEffect(() => {
     if (!autoTarget) {
@@ -178,13 +215,22 @@ function TargetStep({ flow, now }: { flow: HarnessPairingFlow; now: number }) {
     <div className="space-y-4">
       <div>
         <span className="inline-flex rounded-md border border-neutral-300 bg-neutral-100 px-2.5 py-1 text-[11px] font-medium text-neutral-800 dark:border-neutral-600 dark:bg-neutral-800 dark:text-neutral-100">
-          {flow.machine === 'remote' ? 'SSH' : 'Docker'}
+          {flow.machine === 'remote' ? 'SSH' : flow.target === 'container' ? 'Docker' : 'Local'}
         </span>
       </div>
 
       {flow.dockerRelayNotice ? <Notice>{flow.dockerRelayNotice}</Notice> : null}
 
-      {flow.machine === 'remote' ? <SshTarget flow={flow} /> : <DockerTarget flow={flow} />}
+      {flow.machine === 'remote' ? (
+        <SshTarget flow={flow} />
+      ) : flow.target === 'container' ? (
+        <DockerTarget flow={flow} />
+      ) : (
+        <p className="text-[11px] text-neutral-500 dark:text-neutral-400">
+          Copy the command in Advanced and run it on this machine, or copy the code and pass it to
+          the adapter installer.
+        </p>
+      )}
 
       <div className="space-y-1 text-center">
         <p className="text-[11px] text-neutral-500 dark:text-neutral-400">
@@ -235,7 +281,12 @@ function TargetStep({ flow, now }: { flow: HarnessPairingFlow; now: number }) {
           Advanced
         </summary>
         <div className="mt-3 space-y-3">
-          <OpenCodeUrlField flow={flow} method={flow.machine === 'remote' ? 'ssh' : 'docker'} />
+          <OpenCodeUrlField
+            flow={flow}
+            method={
+              flow.machine === 'remote' ? 'ssh' : flow.target === 'container' ? 'docker' : 'local'
+            }
+          />
           <div className="space-y-1">
             <p className="text-[10px] font-semibold tracking-wide text-neutral-500 uppercase dark:text-neutral-400">
               Install command
@@ -345,9 +396,17 @@ function DockerTarget({ flow }: { flow: HarnessPairingFlow }) {
     return <p className="panel-muted text-[11px]">Reading Docker containers…</p>
   }
   if (flow.info && !flow.info.docker.available) {
+    if (!flow.installEnabled) {
+      return (
+        <p className="text-[11px] text-neutral-500 dark:text-neutral-400">
+          Copy the command in Advanced and run it inside the container.
+        </p>
+      )
+    }
     return (
-      <Notice tone="danger">
-        {flow.info.docker.reason ?? 'Docker is not available on the hub host.'}
+      <Notice>
+        {flow.info.docker.reason ?? 'Docker is not available on the hub host.'} Copy the command in
+        Advanced and run it inside the container.
       </Notice>
     )
   }
@@ -384,16 +443,17 @@ function OpenCodeUrlField({
   method,
 }: {
   flow: HarnessPairingFlow
-  method: 'ssh' | 'docker'
+  method: 'ssh' | 'docker' | 'local'
 }) {
   if (flow.kind !== 'opencode') return null
+  const placeholder = method === 'docker' ? 'http://opencode:4096' : 'http://127.0.0.1:4096'
   return (
     <label className="grid content-start gap-1 text-[11px] font-medium text-neutral-600 sm:col-span-2 dark:text-neutral-300">
       OpenCode URL <span className="font-normal text-neutral-500">(optional)</span>
       <input
         value={flow.opencodeUrl}
         onChange={(event) => flow.setOpencodeUrl(event.target.value)}
-        placeholder={method === 'docker' ? 'http://opencode:4096' : 'http://127.0.0.1:4096'}
+        placeholder={placeholder}
         className="w-full rounded-md border border-neutral-200 bg-white px-2 py-1.5 text-xs dark:border-neutral-700 dark:bg-neutral-950"
       />
       <span className="text-[10px] font-normal text-neutral-500 dark:text-neutral-400">
@@ -446,7 +506,7 @@ export function HarnessPairFooter({ flow }: { flow: HarnessPairingFlow }) {
             ) : null}
             {flow.pending === 'create'
               ? 'Preparing…'
-              : flow.installEnabled
+              : flow.installOffered
                 ? 'Install Adapter'
                 : 'Continue'}
           </button>

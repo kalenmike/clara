@@ -194,6 +194,18 @@ describe('install service', () => {
     expect(install.job(job.id)?.state).toBe('cancelled')
   })
 
+  it('reports a containerized hub before remote exposure', async () => {
+    const containerized = await service({
+      isContainerized: () => true,
+      allowRemote: () => true,
+    }).info()
+    expect(containerized.reason).toMatch(/runs in Docker/)
+    expect(containerized.reason).toContain('run it inside the container')
+
+    const remote = await service({ allowRemote: () => true }).info()
+    expect(remote.reason).toMatch(/beyond loopback/)
+  })
+
   it('reports availability and registry entries', async () => {
     const disabled = await service({ isEnabled: () => false }).info()
     expect(disabled.available).toBe(false)

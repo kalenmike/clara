@@ -12,12 +12,20 @@ import type {
 import { findFeature } from './feature-control.ts'
 import {
   HARNESS_KINDS,
+  defaultHarnessTarget,
   findHarnessPairingConnection,
   resolveHarnessTransport,
   type HarnessMachine,
+  type HarnessTarget,
   type HarnessTransportMode,
 } from './harness-pairing.ts'
-import { cancelInstallJob, fetchInstallInfo, fetchInstallJob, startInstall } from './install.ts'
+import {
+  cancelInstallJob,
+  fetchInstallInfo,
+  fetchInstallJob,
+  installOffered as isInstallOffered,
+  startInstall,
+} from './install.ts'
 import { deletePanel, postPanel } from './panel-api.ts'
 
 /** The panel uses a sentinel because an SSH alias is a free-text select value. */
@@ -27,6 +35,8 @@ type HarnessPairingPending = 'create' | 'install' | 'close'
 
 export type HarnessPairingFlow = {
   machine: HarnessMachine
+  target: HarnessTarget
+  transport: HarnessTransportMode
   kind: string
   pairing?: PanelHarnessPairing
   job?: PanelInstallJob
@@ -37,6 +47,7 @@ export type HarnessPairingFlow = {
   infoLoading: boolean
   infoError?: string
   installEnabled: boolean
+  installOffered: boolean
   installAvailable: boolean
   relayUsable: boolean
   localUsable: boolean
@@ -56,6 +67,7 @@ export type HarnessPairingFlow = {
   pending?: HarnessPairingPending
   error?: string
   setMachine: (machine: HarnessMachine) => void
+  setTarget: (target: HarnessTarget) => void
   setKind: (kind: string) => void
   setSshHost: (host: string) => void
   setSshHostname: (value: string) => void
@@ -100,6 +112,9 @@ export function useHarnessPairing({
   const localUsable = findFeature(snapshot.controls, 'local').effective
 
   const [machine, setMachine] = useState<HarnessMachine>(initialMachine ?? 'local')
+  const [target, setTarget] = useState<HarnessTarget>(
+    defaultHarnessTarget(snapshot.agent.container)
+  )
   const [kind, setKind] = useState<string>(HARNESS_KINDS[0].kind)
   const [pairing, setPairing] = useState<PanelHarnessPairing>()
   const [job, setJob] = useState<PanelInstallJob>()
@@ -159,10 +174,14 @@ export function useHarnessPairing({
   }, [open, reset])
 
   const step: 1 | 2 = pairing ? 2 : 1
-  const copyTransport: HarnessTransportMode = resolveHarnessTransport({
+  const containerized = snapshot.agent.container
+  const containerTarget = machine === 'local' && target === 'container'
+  const transport: HarnessTransportMode = resolveHarnessTransport({
     machine,
-    containerized: snapshot.agent.container,
+    target,
+    containerized,
   })
+  const transportUsable = transport === 'relay' ? relayUsable : localUsable
   const manualSsh = sshHost === MANUAL_SSH_HOST
   const hostReady = manualSsh ? sshHostname.trim().length > 0 : Boolean(sshHost)
   const targetReady = machine === 'remote' ? hostReady : container.length > 0
@@ -172,22 +191,25 @@ export function useHarnessPairing({
     info?.available === true &&
     (machine === 'remote'
       ? info.ssh.available === true && hostReady
-      : info.docker.available === true && targetReady)
+      : containerTarget && info.docker.available === true && targetReady)
+  const offered =
+    isInstallOffered(info) && (machine === 'remote' || (machine === 'local' && containerTarget))
   const containers = info?.docker.containers ?? []
   const sshHosts = info?.ssh.hosts ?? []
-  const canContinue =
-    !snapshot.controls.stopped && (machine === 'remote' ? relayUsable : localUsable)
+  const canContinue = !snapshot.controls.stopped && transportUsable
 
   const notice = !canContinue
     ? snapshot.controls.stopped
       ? 'External connections are off. Turn them on from Overview before pairing an adapter.'
-      : machine === 'remote'
-        ? 'Relay pairing is unavailable. Configure or enable the relay from Network before installing on another machine.'
+      : transport === 'relay'
+        ? machine === 'remote'
+          ? 'Relay pairing is unavailable. Configure or enable the relay from Network before installing on another machine.'
+          : 'Relay pairing is unavailable. A container cannot reach the hub loopback listener; configure or enable the relay from Network.'
         : 'Local transport is off. Turn it on from Network before pairing a local adapter.'
     : undefined
 
   const dockerRelayNotice =
-    machine === 'local' && installEnabled && !snapshot.agent.container && containers.length > 0
+    machine === 'local' && containerTarget && !containerized && relayUsable
       ? 'This hub runs as a host process, so an adapter inside a container connects through the relay.'
       : undefined
 
@@ -230,7 +252,7 @@ export function useHarnessPairing({
 
   const begin = async () => {
     if (pending || !canContinue) return
-    const override = wsUrl.trim()
+    const override = transport === 'relay' ? '' : wsUrl.trim()
     if (override && !/^wss?:\/\//.test(override)) {
       setError('The advanced WebSocket URL must start with ws:// or wss://.')
       return
@@ -243,7 +265,7 @@ export function useHarnessPairing({
         {
           kind,
           label: HARNESS_KINDS.find((item) => item.kind === kind)?.label ?? kind,
-          transport: copyTransport,
+          transport,
           ...(machine === 'local' && override ? { wsUrl: override } : {}),
         }
       )
@@ -350,6 +372,8 @@ export function useHarnessPairing({
 
   return {
     machine,
+    target,
+    transport,
     kind,
     ...(pairing ? { pairing } : {}),
     ...(job ? { job } : {}),
@@ -360,6 +384,7 @@ export function useHarnessPairing({
     infoLoading,
     ...(infoError ? { infoError } : {}),
     installEnabled,
+    installOffered: offered,
     installAvailable: installReady,
     relayUsable,
     localUsable,
@@ -379,6 +404,7 @@ export function useHarnessPairing({
     ...(pending ? { pending } : {}),
     ...(error ? { error } : {}),
     setMachine,
+    setTarget,
     setKind,
     setSshHost,
     setSshHostname,
