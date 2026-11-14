@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { formatBytes } from './format.ts'
+import { formatBytes, formatPercent } from './format.ts'
 
 describe('formatBytes', () => {
   it('floors byte-scale values to whole bytes', () => {
@@ -22,5 +22,20 @@ describe('formatBytes', () => {
     expect(formatBytes(undefined)).toBe('—')
     expect(formatBytes(-1)).toBe('—')
     expect(formatBytes(Number.NaN)).toBe('—')
+  })
+})
+
+describe('formatPercent', () => {
+  it('formats whole and fractional percentages', () => {
+    expect(formatPercent(0)).toBe('0%')
+    expect(formatPercent(25.4)).toBe('25%')
+    expect(formatPercent(25.4, 1)).toBe('25.4%')
+    expect(formatPercent(100)).toBe('100%')
+  })
+
+  it('reports missing or invalid values as a dash', () => {
+    expect(formatPercent(undefined)).toBe('—')
+    expect(formatPercent(-1)).toBe('—')
+    expect(formatPercent(Number.NaN)).toBe('—')
   })
 })

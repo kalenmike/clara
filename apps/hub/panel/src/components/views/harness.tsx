@@ -5,6 +5,7 @@ import { usePeek } from '../../lib/peek-context.tsx'
 import { HarnessConnectionsCard } from '../harness-connections-card.tsx'
 import { HarnessPairDialog } from '../harness-pair-dialog.tsx'
 import { HarnessSessionsCard } from '../harness-sessions-card.tsx'
+import { HostResourcesCard } from '../host-resources-card.tsx'
 import { Notice } from '../primitives.tsx'
 import { View } from '../shell/view.tsx'
 
@@ -47,6 +48,7 @@ export function HarnessView({
       ) : null}
       <div className="space-y-3">
         <HarnessSessionsCard clients={adapterClients} harnesses={snapshot.harnesses} now={now} />
+        <HostResourcesCard harnesses={snapshot.harnesses} now={now} />
         <HarnessConnectionsCard
           harnesses={snapshot.harnesses}
           enabled={feature.desired}
