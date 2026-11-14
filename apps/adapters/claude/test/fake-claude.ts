@@ -104,6 +104,7 @@ export class FakeClaudeGateway implements ClaudeGateway {
       commands: [],
       skills: [],
       plugins: [],
+      tools: [],
       terminalCommands: [],
     }
   }

@@ -12,6 +12,7 @@ const catalog: ClaudeCatalog = {
   commands: [{ name: 'review', description: 'Review the diff' }],
   skills: [],
   plugins: [],
+  tools: [],
   terminalCommands: [],
 }
 

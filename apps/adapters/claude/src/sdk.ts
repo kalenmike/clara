@@ -271,6 +271,7 @@ export type ClaudeCatalog = {
   commands: ClaudeCommandEntry[]
   skills: ClaudeSkillEntry[]
   plugins: ClaudePluginEntry[]
+  tools: string[]
   /** Slash commands bound to the local terminal, hidden from remote surfaces. */
   terminalCommands: string[]
 }
@@ -681,6 +682,7 @@ export class AgentSdkGateway implements ClaudeGateway {
           commands: cli?.commands ?? [],
           skills: cli?.skills ?? [],
           plugins: cli?.plugins ?? [],
+          tools: cli?.tools ?? [],
           terminalCommands: cli?.terminalCommands ?? [],
         }
       : (cli ?? this.fallbackCatalog(provider, defaultModel))
@@ -691,6 +693,7 @@ export class AgentSdkGateway implements ClaudeGateway {
     const live = this.catalogValue
     if (live && catalog.skills.length === 0) catalog.skills = live.skills
     if (live && catalog.plugins.length === 0) catalog.plugins = live.plugins
+    if (live && catalog.tools.length === 0) catalog.tools = live.tools
     if (live && catalog.terminalCommands.length === 0) {
       catalog.terminalCommands = live.terminalCommands
     }
@@ -759,6 +762,7 @@ export class AgentSdkGateway implements ClaudeGateway {
         })),
         skills: [],
         plugins: [],
+        tools: [],
         terminalCommands: [],
       }
     } catch {
@@ -780,6 +784,7 @@ export class AgentSdkGateway implements ClaudeGateway {
       commands: [],
       skills: [],
       plugins: [],
+      tools: [],
       terminalCommands: [],
     }
   }
@@ -846,6 +851,7 @@ export class AgentSdkGateway implements ClaudeGateway {
             commands,
             skills: mergeSkills(previous.skills, message.skills ?? [], commands),
             plugins: mergePlugins(previous.plugins, message.plugins ?? []),
+            tools: message.tools ?? previous.tools,
             terminalCommands: message.terminal_slash_commands ?? previous.terminalCommands,
           }
           return

@@ -57,13 +57,14 @@ export async function verifyClaude(
     checks.push({
       name: 'catalog',
       status: 'ok',
-      detail: `${catalog.models.length} models, ${catalog.agents.length} subagents, ${catalog.commands.length} commands, ${catalog.skills.length} skills, ${catalog.plugins.length} plugins`,
+      detail: `${catalog.models.length} models, ${catalog.agents.length} subagents, ${catalog.commands.length} commands, ${catalog.skills.length} skills, ${catalog.plugins.length} plugins${catalog.tools.length > 0 ? `, ${catalog.tools.length} tools` : ''}`,
       data: {
         models: catalog.models.length,
         subagents: catalog.agents.length,
         commands: catalog.commands.length,
         skills: catalog.skills.length,
         plugins: catalog.plugins.map((plugin) => plugin.name),
+        ...(catalog.tools.length > 0 ? { tools: catalog.tools.length } : {}),
       },
     })
   } catch (cause) {
