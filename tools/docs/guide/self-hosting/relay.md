@@ -161,8 +161,8 @@ Keep that value stable: every pairing code is scoped to it.
 
 Confirm the relay card is connected, and set **Web URL** to the public HTTPS URL.
 `CLARA_PAIRING_BASE_URL` overrides the panel value. When an adapter must reach the
-hub from another network, choose **Cloudflare relay** as its location in
-**Harness → Add harness**.
+hub from another network, choose **Remote** for it in
+**Harness → Pair Harness**.
 
 ## If another hub takes the room
 

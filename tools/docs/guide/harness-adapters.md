@@ -25,28 +25,31 @@ Inside the Clara repository you can use
 ## Pair an adapter
 
 1. Sign in to the hub panel.
-2. Open **Harness**, use **Add harness**, and choose the adapter type.
-3. Choose how to install it: **SSH**, **Docker**, or **Manual**.
-   - **SSH** selects a host from your SSH configuration or takes a user, host,
-     and port. The hub runs the adapter installer there and shows the log.
-   - **Docker** selects a running container and installs the adapter inside it.
-   - **Manual** shows the pairing code and a command to copy. It also lets you
-     choose where the adapter runs (**Docker network** is the default; also
-     **This machine** or **Cloudflare relay**).
+2. Open **Harness** and choose **Pair Harness**.
+3. Choose the harness, then answer **Remote** or **Local**.
+   - **Remote** installs over SSH: select a host from your SSH configuration or
+     enter a user, host, and port. The hub runs the adapter installer there and
+     shows the log.
+   - **Local** installs into a running Docker container, or you can copy the
+     code and run the command on this machine.
+   - Both branches offer **Copy code** and **Copy command** for a manual
+     install. Local also has **Advanced → WebSocket URL** for a non-default
+     address.
 4. Turn on adapter installs first in **Settings → Adapter downloads** if the
-   SSH and Docker choices are disabled. SSH and Docker installs require the
-   Cloudflare relay, because a remote host or container cannot reach the hub's
-   private local listener.
-5. For a manual install, run the printed command on the harness machine. The
-   registry command downloads the adapter for that machine; the repository
-   command works from a Clara checkout.
+   install actions are disabled. SSH and Docker installs require the Cloudflare
+   relay when the target cannot reach the hub's private local listener.
+5. Continuing creates the pairing code. Run the install action, or copy the
+   code and run the printed command on the harness machine. The registry command
+   downloads the adapter for that machine; the repository command works from a
+   Clara checkout.
 6. The installer looks for the harness and starts a user service, or a
-   background process when systemd is not available. Return to the panel. A
-   newly paired adapter shows **Paired · Offline** under **Paired harnesses**;
-   when its session connects it becomes **Online**, appears under **Connected
-   adapters**, and the first adapter becomes **Active**. The pairing card returns
-   to the add form as soon as the adapter registers. If harness access is
-   disabled, the page shows **Off** instead of a live state.
+   background process when systemd is not available. Return to the panel. The
+   pairing card shows **Waiting for the adapter to connect…** and changes to
+   **Connected** when the adapter registers. A newly paired adapter shows
+   **Paired · Offline** under **Paired harnesses**; when its session connects it
+   becomes **Online**, appears under **Connected adapters**, and the first
+   adapter becomes **Active**. If harness access is disabled, the page shows
+   **Off** instead of a live state.
 
 Adapter codes are only for the installer. To pair a browser, use
 **Clients → Pair Client** in the panel, or the separate code or link printed
@@ -113,8 +116,8 @@ clara-adapter-pi install --pair <code>
 
 The installer finds `pi` on `PATH`, under `~/.pi/agent/bin`, or under
 `~/.local/bin`. Use `--pi-path` for another location. `--no-service` writes the
-config without installing a user service. In the panel, choose **This machine**
-unless Pi itself runs inside the `clara` Docker network.
+config without installing a user service. In the panel, choose **Local** unless
+Pi itself runs inside the `clara` Docker network.
 
 Pi sessions are shared: Clara lists the sessions already in Pi's session store,
 and sessions you start in Clara appear in `pi --resume`. Renaming in either
@@ -170,7 +173,8 @@ connection keeps that state; use **Forget** only when you want to discard it.
 - **The host is missing from the SSH list** — it is not in `~/.ssh/config`.
   Choose **Enter manually** and type the user, host, and port.
 - **The install log says the container has no downloader** — the container has
-  neither `curl` nor `wget`. Select a different container or use **Manual**.
+  neither `curl` nor `wget`. Select a different container, or copy the code and
+  run the installer by hand.
 - **The adapter release is unavailable** — the registry manifest could not be
   read. Check **Settings → Adapter downloads** and the registry URL.
 - **OpenCode needs a password over SSH** — the remote install cannot prompt.

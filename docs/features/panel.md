@@ -60,20 +60,22 @@ card.
    starts at the connection path with the current values, and the guide is
    available from **Replay setup guide**. Reconfiguring a relay or its room can
    require adapters and devices to pair again.
-3. After signing in, open **Harness**, use **Add harness**, choose the adapter
-   type and install method: **SSH**, **Docker**, or **Manual**. SSH uses a host
-   from `~/.ssh/config` or a typed user/host/port; Docker lists running
-   containers. Both run the registry install script on the target and stream the
-   log back. Manual shows the pairing code and the registry or repository
-   command. Install actions are off until they are enabled in **Settings →
-   Adapter downloads**. A new adapter appears under
-   **Paired harnesses** as **Paired · Offline**; when its credential session
-   connects it also appears under **Connected adapters**, becomes **Online**,
-   and the first adapter becomes **Active**, the default for screens that do not
-   name a session or workspace. The pending pairing card returns
-   to the add form as soon as the adapter registers. Use **Test** to probe an
-   adapter. In a container, the adapter connects to `ws://server:8788/ws` on
-   the `clara` network; `127.0.0.1` means the hub host.
+3. After signing in, open **Harness** and use **Pair Harness**. Choose the
+   adapter type, then answer **Remote** or **Local**. Remote installs over SSH
+   from `~/.ssh/config` or a typed user/host/port and uses the relay. Local
+   installs into a running container or runs on the hub host, using the Docker
+   network or loopback. Both branches run the registry install script on the
+   target and stream the log back, and both offer **Copy code** and **Copy
+   command** for a manual install. Install actions are off until they are
+   enabled in **Settings → Adapter downloads**. The pairing card shows
+   **Waiting for the adapter to connect…**, switches to **Connected**, and the
+   footer becomes **Done** when the adapter registers. A new adapter appears
+   under **Paired harnesses** as **Paired · Offline**; when its credential
+   session connects it also appears under **Connected adapters**, becomes
+   **Online**, and the first adapter becomes **Active**, the default for screens
+   that do not name a session or workspace. Use **Test** to probe an adapter. In
+   a container, the adapter connects to `ws://server:8788/ws` on the `clara`
+   network; `127.0.0.1` means the hub host.
 4. The panel opens on **Overview** with a six-tile health strip — Hub, Local,
    Relay, Harness, Push, and Orchestration — then Active clients and Active
    adapters previews, the five most recent events, and a storage summary. The
@@ -101,11 +103,11 @@ card.
    hub, harness, local, relay, push, orchestration, and client state; each item
    opens the matching view. Its far end shows the panel version with the build
    commit and the panel API version, such as `v0.1.0.c8becb85 · API v12`.
-7. **Harness** mirrors the Clients view. The page header carries the active
-   harness health badge. **Add harness** sits first and owns the harness type,
-   adapter location, and pairing code; the form lays the two choices out in a
-   grid, and the latched pairing card returns to the form after the adapter
-   registers. **Connected adapters** follows with live adapter sessions:
+7. **Harness** mirrors the Clients view. The page header carries a **Pair
+   Harness** button that opens the two-step pairing modal. The modal owns the
+   harness type, the Remote or Local answer, the install target, and the pairing
+   code, and it returns to the first step after the adapter registers.
+   **Connected adapters** follows with live adapter sessions:
    transport, session id, harness label and kind, short harness id, credential
    fingerprint, timestamps, and the same traffic counters as Clients.
    **Paired harnesses** sits at the bottom with the label, kind, fingerprint,
@@ -310,10 +312,10 @@ card.
 
 ## Edge cases
 
-- **No harness is configured** — **Add harness** starts open, and the header
-  says **Not configured**. Harness-backed `/v1` requests return
-  `503 harness_unconfigured` until an adapter is paired and activated. The web
-  can still connect and shows a harness banner.
+- **No harness is configured** — **Pair Harness** opens the pairing modal, and
+  harness-backed `/v1` requests return `503 harness_unconfigured` until an
+  adapter is paired and activated. The web can still connect and shows a harness
+  banner.
 - **The setup modal is skipped** — dismissal is stored on the browser. The
   modal stops auto-opening while setup is incomplete; **Settings → Setup →
   Finish setup** reopens it. Completion is still derived, so the badge and
