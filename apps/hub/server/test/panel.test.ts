@@ -593,7 +593,10 @@ describe('panel server', () => {
 
     const info = await get(server, 'panel/api/v1/install')
     expect(info.status).toBe(200)
-    expect(await info.json()).toMatchObject({ available: true, ssh: { hosts: [{ alias: 'prod' }] } })
+    expect(await info.json()).toMatchObject({
+      available: true,
+      ssh: { hosts: [{ alias: 'prod' }] },
+    })
 
     const started = await post(server, 'install', {
       kind: 'opencode',
