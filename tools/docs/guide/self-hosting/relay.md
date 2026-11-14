@@ -47,6 +47,22 @@ relay from the panel.
 Builds without the feature, and custom-domain deployments, use the manual path
 below.
 
+### Confirm preview and version URLs are off
+
+After a panel deploy, open **Workers & Pages → `<Worker>` → Settings → Domains &
+Routes** and check **Version URLs**; Cloudflare still calls the setting preview
+URLs in some places. It should be disabled. The **Deployments** tab shows a
+version URL for a non-production version only when the setting is on, so no
+extra hostname there confirms the same thing. The ordinary `workers.dev` host
+keeps answering: `https://<worker>.<subdomain>.workers.dev/health` returns
+`{"ok":true}`.
+
+If you turned the setting on under **Advanced**, turn it off and deploy again.
+Clara applies the disabled setting on every deploy, so the extra hostnames go
+away without deleting the Worker. Cloudflare does not generate version URLs for
+Workers that use a Durable Object, which the relay does, so an opt-in test may
+show no extra hostname even when Cloudflare accepts the setting.
+
 ### Manually
 
 The Worker and its `RelayRoom` Durable Object live in `infra/relay`.
