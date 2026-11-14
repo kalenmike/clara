@@ -73,6 +73,23 @@ feature source is isolated under `apps/hub/server/src/features/cloudflare-deploy
 and `apps/hub/panel/src/features/cloudflare-deployment`; the core imports only
 the feature loader. `pnpm check:boundaries` enforces that boundary.
 
+### Desktop bundles in Docker
+
+`pnpm desktop:build:docker` builds the Linux desktop bundles in Debian 12 with
+Rust and the WebKitGTK toolchain, then extracts them to `dist/desktop`. It needs
+Docker with Buildx; Cargo, Tauri's tool downloads, and the Rust target directory
+stay in build cache mounts, so repeat builds are incremental.
+
+```bash
+pnpm desktop:build:docker
+pnpm desktop:build:docker --bundles deb --platform linux/amd64
+```
+
+A Linux container cannot produce macOS or Windows installers; build those on
+their own hosts. AppImage bundling sets `NO_STRIP` and extract-and-run so
+linuxdeploy survives without FUSE; narrow the bundle list if it still fails. See
+[features/desktop.md](features/desktop.md).
+
 Each build verifies the result:
 
 - enabled: the Cloudflare API routes, panel UI chunk, and `dist/relay/worker.mjs`

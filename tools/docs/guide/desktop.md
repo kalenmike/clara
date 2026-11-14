@@ -14,9 +14,30 @@ or the home-screen install.
 ## Build an installer
 
 There is no hosted download yet, so build the app from a checkout of the
-repository. The machine needs the Rust toolchain and the WebView development
-packages for its operating system (WebView2 on Windows, WebKitGTK on Linux,
-the system WebKit on macOS).
+repository.
+
+### Linux with Docker
+
+Docker builds the Linux bundles and copies them to the `dist/desktop` folder.
+This is the easiest path when the machine lacks the WebView development
+packages.
+
+```bash
+pnpm desktop:build:docker                      # deb, rpm, and AppImage
+pnpm desktop:build:docker --bundles deb,rpm    # narrower bundle set
+pnpm desktop:build:docker --platform linux/amd64
+```
+
+The first build downloads the Rust toolchain and crate sources and takes a
+while; later builds reuse the Docker cache. The container is based on Debian 12,
+so the bundles target Debian 12 and newer distributions. Docker cannot produce
+macOS or Windows installers.
+
+### On the host
+
+For macOS and Windows, build on that operating system. The machine needs the
+Rust toolchain and the WebView development packages for its operating system
+(WebView2 on Windows, WebKitGTK on Linux, the system WebKit on macOS).
 
 ```bash
 pnpm install
