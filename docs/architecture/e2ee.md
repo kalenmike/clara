@@ -114,18 +114,20 @@ service cannot read the payload, but it sees the endpoint and delivery metadata.
 
 ## Threat model
 
-| Threat                                | Mitigation                                                   |
-| ------------------------------------- | ------------------------------------------------------------ |
-| Cloudflare reads traffic              | AES-GCM payloads; no plaintext request data                  |
-| Relay token leak                      | Attacker can open sockets but cannot decrypt without a key   |
-| Captured frame replayed               | Per-session monotonic sequence + fresh handshake nonces      |
-| Tampered ciphertext                   | GCM authentication tag and AAD                               |
-| Stolen browser storage                | Non-extractable device key; revoke one device                |
-| Stolen pairing link                   | One-time 10-minute token; one device; no long-lived key      |
-| Lost device                           | Revoke it in the panel; other devices keep working           |
-| Relay sees device correlation         | Stable `deviceId` in the plaintext hello; accepted trade-off |
-| XSS in the Pages origin               | CSP, no third-party scripts; a key is usable while open      |
-| Malicious client impersonates the hub | Device keys would not match; sealed frames fail to decrypt   |
+| Threat                                    | Mitigation                                                                                                                                                      |
+| ----------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Cloudflare reads traffic                  | AES-GCM payloads; no plaintext request data                                                                                                                     |
+| Client token leak                         | Peer binding and limits bound it: the holder can open sockets and add noise, but cannot read, kill, or hijack another session without its key                   |
+| Agent token leak                          | A rogue hub closes the real hub and can inject plaintext hello/error frames; sealed frames stay opaque, so rotate both tokens and keep the agent token hub-only |
+| Captured ciphertext, later key compromise | No forward secrecy: recorded frames become readable if that device key leaks later; per-device keys bound the exposure                                          |
+| Metadata exposure                         | The Worker, the DO, and every room member see `deviceId`, `sid`, frame sizes, and timing, even though payloads stay sealed                                      |
+| Captured frame replayed                   | Per-session monotonic sequence + fresh handshake nonces                                                                                                         |
+| Tampered ciphertext                       | GCM authentication tag and AAD                                                                                                                                  |
+| Stolen browser storage                    | Non-extractable device key; revoke one device                                                                                                                   |
+| Stolen pairing link                       | One-time 10-minute token; one device; no long-lived key                                                                                                         |
+| Lost device                               | Revoke it in the panel; other devices keep working                                                                                                              |
+| XSS in the Pages origin                   | CSP, no third-party scripts; a key is usable while open                                                                                                         |
+| Malicious client impersonates the hub     | Sealed frames fail to decrypt; only an agent-token holder can inject plaintext hello/error frames                                                               |
 
 ## Revocation
 
@@ -138,13 +140,20 @@ service cannot read the payload, but it sees the endpoint and delivery metadata.
 
 ## Limitations
 
-- No forward secrecy in v2; the per-device key protects that device's sessions.
+- No forward secrecy in v2; a later device-key compromise exposes that device's
+  recorded ciphertext.
 - No hardware binding. A copied browser profile may still use a non-extractable
   key depending on the browser.
 - XSS on the origin can act as the device while the page is open; it cannot
   export the raw key.
-- The relay client token is shared by every paired device.
-- The relay sees a stable device id and can correlate a device's connections.
+- One shared long-lived client token gates relay access for every device; there
+  is no per-device relay identity or credential.
+- Peer binding requires relay v2. An older Worker cannot bind a session to the
+  socket that opened it, which is why the hub refuses one.
+- Hello and error frames are plaintext and broadcast to the room. Any room
+  member can read them and can spoof one for another `sid`.
+- Revocation is per device at the hub, not at the relay. A revoked device can
+  still open a room socket, though its handshakes fail.
 - A stolen enrollment link can enroll one device before it expires; the panel
   shows the device and can revoke it immediately.
 
