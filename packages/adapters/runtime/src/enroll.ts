@@ -18,7 +18,6 @@ import {
   RELAY_ROLE_PREFIX,
   RELAY_SUBPROTOCOL,
   isErrorFrame,
-  isHelloFrame,
   isHubHelloFrameV4,
   isSealedFrame,
   type AdapterEnrolledState,
@@ -150,9 +149,9 @@ export async function enrollAdapter(input: EnrollmentInput): Promise<AdapterEnro
           return
         }
 
-        if (isHelloFrame(parsed)) {
-          if (parsed.sid !== sid || parsed.role !== 'agent') return
-          if (!isHubHelloFrameV4(parsed) || !ephemeral) {
+        if (isHubHelloFrameV4(parsed)) {
+          if (parsed.sid !== sid) return
+          if (!ephemeral) {
             fail(new Error('The hub did not send a v4 handshake'))
             return
           }

@@ -21,7 +21,6 @@ import {
   RELAY_ROLE_PREFIX,
   RELAY_SUBPROTOCOL,
   isErrorFrame,
-  isHelloFrame,
   isHubHelloFrameV4,
   isSealedFrame,
   type AdapterAction,
@@ -323,13 +322,11 @@ export class AdapterTransport {
       return
     }
 
-    if (isHelloFrame(parsed)) {
-      if (parsed.sid !== this.sid || parsed.role !== 'agent') return
+    if (isHubHelloFrameV4(parsed)) {
+      if (parsed.sid !== this.sid) return
       // A duplicate hello cannot replace an established session's keys.
       if (this.keys) return
-      if (!isHubHelloFrameV4(parsed) || !this.ephemeral) {
-        // The hub must answer with the v4 shape. Anything else is a failed
-        // handshake, not a reason to keep waiting for one.
+      if (!this.ephemeral) {
         this.failHandshake('The hub did not send a v4 handshake')
         return
       }

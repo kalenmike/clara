@@ -9,13 +9,12 @@ import {
   type HarnessPairingPayload,
   type PairingPayload,
 } from '@clara/shared-types'
-import { pairingInputError } from './pairing'
+import { pairingGrantError, pairingInputError } from './pairing'
 
 const browserPairing: PairingPayload = {
   v: PROTOCOL_VERSION,
   wsUrl: 'ws://127.0.0.1:8788/ws',
   room: 'local',
-  clientToken: 'local',
   enrollId: 'enroll',
   enrollToken: 'token',
   fingerprint: 'AB12-CD34',
@@ -35,7 +34,6 @@ const adapterPairing: HarnessPairingPayload = {
   kind: 'opencode',
   wsUrl: 'ws://server:8788/ws',
   room: 'local',
-  clientToken: 'local',
   enrollId: 'enroll',
   enrollToken: 'token',
   fingerprint: 'AB12-CD34',
@@ -53,15 +51,19 @@ describe('pairingInputError', () => {
 
   it('rejects a relay pairing code without a grant', () => {
     const withoutGrant: PairingPayload = { ...relayPairing, grant: undefined }
-    const error = pairingInputError(`${PAIRING_CODE_PREFIX}${encodePairingCode(withoutGrant)}`)
+    expect(pairingInputError(`${PAIRING_CODE_PREFIX}${encodePairingCode(withoutGrant)}`)).not.toBe(
+      ''
+    )
+    const error = pairingGrantError(withoutGrant)
     expect(error).toContain('no enrollment grant')
     expect(error).toContain('pair again')
   })
 
-  it('ignores the removed client token', () => {
-    // Shared pairing validation still requires the legacy field, but the web
-    // never reads it and a relay code is accepted on its grant alone.
-    expect(pairingInputError(`${PAIRING_CODE_PREFIX}${encodePairingCode(relayPairing)}`)).toBe('')
+  it('ignores a leftover client token field', () => {
+    // Older codes may still carry the retired field. The web ignores it and
+    // accepts the code on its enrollment grant alone.
+    const legacy = { ...relayPairing, clientToken: 'retired-value' } as unknown as PairingPayload
+    expect(pairingInputError(`${PAIRING_CODE_PREFIX}${encodePairingCode(legacy)}`)).toBe('')
   })
 
   it('does not require a grant for a local pairing code', () => {

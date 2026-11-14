@@ -887,7 +887,7 @@ async function handleRelay(
       })
       return
     }
-    const unknown = unknownFields(body.value, ['url', 'agentToken', 'clientToken'])
+    const unknown = unknownFields(body.value, ['url', 'agentToken'])
     if (unknown) return invalidField(response, method, unknown)
 
     const update: PanelRelayUpdate = {}
@@ -905,15 +905,8 @@ async function handleRelay(
       }
       update.agentToken = value
     }
-    if ('clientToken' in body.value) {
-      const value = body.value.clientToken
-      if (typeof value !== 'string' || !value.trim() || value.length > MAX_RELAY_TOKEN_LENGTH) {
-        return invalidField(response, method, 'clientToken')
-      }
-      update.clientToken = value
-    }
     if (Object.keys(update).length === 0) {
-      return invalidField(response, method, 'url, agentToken, or clientToken')
+      return invalidField(response, method, 'url or agentToken')
     }
 
     const result = await controls.updateRelay(update)

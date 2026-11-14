@@ -251,12 +251,10 @@ export type PanelRelayTransport = {
   desired: boolean
   effective: boolean
   agentTokenConfigured: boolean
-  clientTokenConfigured: boolean
   /** Where each relay value came from; absent while unconfigured. */
   urlSource?: PanelValueSource
   roomSource?: PanelValueSource
   agentTokenSource?: PanelValueSource
-  clientTokenSource?: PanelValueSource
   /** At least one relay value comes from the environment. */
   envManaged?: boolean
   /** The panel may replace the room with a fresh random value. */
@@ -277,7 +275,6 @@ export type PanelRelayTransport = {
 export type PanelRelayUpdate = {
   url?: string
   agentToken?: string
-  clientToken?: string
 }
 
 export type PanelRelayMutationResponse = {

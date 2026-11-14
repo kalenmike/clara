@@ -106,7 +106,6 @@ function snapshot(): PanelSnapshot {
       desired: true,
       effective: false,
       agentTokenConfigured: false,
-      clientTokenConfigured: false,
     },
     clients: [],
     devices: [],
@@ -1040,14 +1039,12 @@ describe('panel server', () => {
     const saved = await post(server, 'relay', {
       url: 'https://relay.example',
       agentToken: 'agent-token',
-      clientToken: 'client-token',
     })
     expect(saved.status).toBe(200)
     expect(controls.relayUpdates).toEqual([
       {
         url: 'https://relay.example',
         agentToken: 'agent-token',
-        clientToken: 'client-token',
       },
     ])
 
@@ -1074,7 +1071,7 @@ describe('panel server', () => {
       (await post(server, 'relay', { url: 'wss://relay.example', room: 'simple-name' })).status
     ).toBe(400)
     expect((await post(server, 'relay', { agentToken: '' })).status).toBe(400)
-    expect((await post(server, 'relay', { clientToken: 1 })).status).toBe(400)
+    expect((await post(server, 'relay', { agentToken: 1 })).status).toBe(400)
     expect((await post(server, 'relay', {})).status).toBe(400)
     expect((await post(server, 'relay', { room: 'simple-name' })).status).toBe(400)
     expect(controls.relayUpdates).toEqual([])

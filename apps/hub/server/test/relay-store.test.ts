@@ -30,45 +30,32 @@ async function secretKey(): Promise<SecretKeyInfo> {
 }
 
 describe('relay credentials', () => {
-  it('round-trips a partial token pair', async () => {
+  it('round-trips the hub token', async () => {
     const dir = tempDir()
     const key = await secretKey()
 
-    await saveRelayCredentials(dir, key, { clientToken: 'client-token' })
+    await saveRelayCredentials(dir, key, { agentToken: 'agent-token' })
     expect(hasRelayCredentials(dir)).toBe(true)
-    expect(await loadRelayCredentials(dir, key)).toEqual({ clientToken: 'client-token' })
-
-    await saveRelayCredentials(dir, key, {
-      agentToken: 'agent-token',
-      clientToken: 'client-token',
-    })
-    expect(await loadRelayCredentials(dir, key)).toEqual({
-      agentToken: 'agent-token',
-      clientToken: 'client-token',
-    })
+    expect(await loadRelayCredentials(dir, key)).toEqual({ agentToken: 'agent-token' })
   })
 
-  it('reads a legacy full relay record as tokens only', async () => {
+  it('reads a legacy full relay record as the hub token only', async () => {
     const dir = tempDir()
     const key = await secretKey()
     await writeSealed(relayCredentialsPath(dir), key, 'clara:relay:credentials', {
       url: 'wss://relay.example',
       room: 'room-1',
       agentToken: 'agent-token',
-      clientToken: 'client-token',
+      clientToken: 'retired-client-token',
     })
 
-    expect(await loadRelayCredentials(dir, key)).toEqual({
-      agentToken: 'agent-token',
-      clientToken: 'client-token',
-    })
+    expect(await loadRelayCredentials(dir, key)).toEqual({ agentToken: 'agent-token' })
   })
 
   it('ignores credentials sealed with another key', async () => {
     const dir = tempDir()
     await saveRelayCredentials(dir, await secretKey(), {
       agentToken: 'agent-token',
-      clientToken: 'client-token',
     })
 
     expect(await loadRelayCredentials(dir, await secretKey())).toBeUndefined()

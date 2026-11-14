@@ -1,8 +1,10 @@
 import {
+  ENROLLMENT_GRANT_TTL_SECONDS,
   HARNESS_PAIRING_CODE_PREFIX,
   PAIRING_CODE_PREFIX,
   PROTOCOL_VERSION,
   buildPairingUrl,
+  createRelayGrant,
   encodeHarnessPairingCode,
   encodePairingCode,
   type HarnessPairingPayload,
@@ -114,11 +116,11 @@ function adapterSessions(harness: HarnessManager) {
 const FEATURE_ORDER: FeatureName[] = ['opencode', 'local', 'relay', 'push']
 
 const RELAY_TOKENS_MISSING =
-  'The relay URL is saved, but the hub and client tokens are missing. Save both in the Relay card or the environment.'
+  'The relay URL is saved, but the hub token is missing. Save it in the Relay card or the environment.'
 
-/** A relay is only usable when its URL and both tokens are present. */
+/** A relay is only usable when its URL and hub token are present. */
 function relayUsable(relay: RelayConfig | undefined): relay is RelayConfig {
-  return Boolean(relay?.url && relay.agentToken && relay.clientToken)
+  return Boolean(relay?.url && relay.agentToken)
 }
 
 /**
@@ -222,7 +224,7 @@ export class RuntimeController {
   /**
    * Replace the outbound relay target without restarting the hub process. The
    * panel's Cloudflare deployment uses this after it saves a new relay URL,
-   * room, and token pair.
+   * room, and hub token.
    */
   applyRelayConfig(relay?: RelayConfig): void {
     this.relayClient?.close()
@@ -595,7 +597,6 @@ export class RuntimeController {
     const envUrl = sources.relayUrl === 'env' ? config.relay?.url : undefined
     const envRoom = sources.relayRoom === 'env' ? config.relay?.room : undefined
     const envAgentToken = sources.agentToken === 'env' ? config.relay?.agentToken : undefined
-    const envClientToken = sources.clientToken === 'env' ? config.relay?.clientToken : undefined
 
     if (envUrl && update.url !== undefined) {
       throw new PanelControlError(
@@ -611,14 +612,6 @@ export class RuntimeController {
         'CLARA_AGENT_TOKEN is set. Remove it and restart the hub service to edit the hub token here.'
       )
     }
-    if (envClientToken && update.clientToken !== undefined) {
-      throw new PanelControlError(
-        409,
-        'env_override',
-        'CLARA_CLIENT_TOKEN is set. Remove it and restart the hub service to edit the client token here.'
-      )
-    }
-
     let url = envUrl
     if (!envUrl) {
       if (update.url === undefined) {
@@ -634,13 +627,11 @@ export class RuntimeController {
 
     const agentToken =
       envAgentToken ?? tokenValue(update.agentToken, config.relay?.agentToken, 'hub token')
-    const clientToken =
-      envClientToken ?? tokenValue(update.clientToken, config.relay?.clientToken, 'client token')
-    if (!agentToken || !clientToken) {
+    if (!agentToken) {
       throw new PanelControlError(
         400,
         'relay_tokens_required',
-        'Enter both relay tokens, or remove the relay URL. The hub cannot connect with only one token.'
+        'Enter the relay hub token, or remove the relay URL. The hub cannot connect without it.'
       )
     }
 
@@ -653,14 +644,12 @@ export class RuntimeController {
     })
     await this.writeRelayCredentials({
       ...(envAgentToken ? {} : { agentToken }),
-      ...(envClientToken ? {} : { clientToken }),
     })
 
-    config.relay = { url, room, agentToken, clientToken }
+    config.relay = { url, room, agentToken }
     config.sources.relayUrl = envUrl ? 'env' : 'file'
     config.sources.relayRoom = roomSource
     config.sources.agentToken = envAgentToken ? 'env' : 'file'
-    config.sources.clientToken = envClientToken ? 'env' : 'file'
     this.applyRelayConfig(config.relay)
     this.options.onRelayTargetChanged?.()
     this.options.log('relay target saved from the panel')
@@ -673,12 +662,11 @@ export class RuntimeController {
     const envUrl = sources.relayUrl === 'env' ? config.relay?.url : undefined
     const envRoom = sources.relayRoom === 'env' ? config.relay?.room : undefined
     const envAgentToken = sources.agentToken === 'env' ? config.relay?.agentToken : undefined
-    const envClientToken = sources.clientToken === 'env' ? config.relay?.clientToken : undefined
-    if (envUrl && (!envAgentToken || !envClientToken)) {
+    if (envUrl && !envAgentToken) {
       throw new PanelControlError(
         409,
         'env_relay_incomplete',
-        'The relay URL comes from CLARA_RELAY_URL. Set both CLARA_AGENT_TOKEN and CLARA_CLIENT_TOKEN, or remove the relay URL, before clearing the panel relay.'
+        'The relay URL comes from CLARA_RELAY_URL. Set CLARA_AGENT_TOKEN, or remove the relay URL, before clearing the panel relay.'
       )
     }
 
@@ -690,7 +678,6 @@ export class RuntimeController {
       config.sources.relayUrl = 'none'
       config.sources.relayRoom = 'none'
       config.sources.agentToken = 'none'
-      config.sources.clientToken = 'none'
       this.applyRelayConfig(undefined)
       this.options.onRelayTargetChanged?.()
       this.options.log('relay target cleared from the panel')
@@ -699,11 +686,11 @@ export class RuntimeController {
 
     const room = envRoom ?? config.relay?.room
     if (!room) throw new PanelControlError(409, 'relay_room_missing', 'The relay room is missing')
-    if (!envAgentToken || !envClientToken) {
+    if (!envAgentToken) {
       throw new PanelControlError(
         409,
         'env_relay_incomplete',
-        'Set both relay tokens in the environment before clearing the panel relay.'
+        'Set CLARA_AGENT_TOKEN in the environment before clearing the panel relay.'
       )
     }
     saveRelayTarget(config.configPath, {
@@ -713,7 +700,6 @@ export class RuntimeController {
       url: envUrl,
       room,
       agentToken: envAgentToken,
-      clientToken: envClientToken,
     }
     config.sources.relayRoom = envRoom ? 'env' : stored?.room ? 'file' : 'generated'
     this.applyRelayConfig(config.relay)
@@ -750,7 +736,7 @@ export class RuntimeController {
       throw new PanelControlError(
         503,
         'relay_store_unavailable',
-        'The hub secret key is unavailable, so relay tokens cannot be saved'
+        'The hub secret key is unavailable, so the relay token cannot be saved'
       )
     }
     await saveRelayCredentials(this.options.config.configDir, secretKey, credentials)
@@ -769,7 +755,7 @@ export class RuntimeController {
     const relayIncomplete = Boolean(config.relay && !relayUsable(config.relay))
     const useLocal = localOnly || relayIncomplete
     if (!localOnly && relayIncomplete) {
-      this.options.log('relay tokens are missing; created a local browser pairing')
+      this.options.log('the relay hub token is missing; created a local browser pairing')
     }
     this.options.devices.pruneExpiredTokens()
     const payload = await createPairingPayload(config, this.options.devices, {
@@ -817,7 +803,7 @@ export class RuntimeController {
       throw new PanelControlError(
         400,
         'relay_tokens_required',
-        'Save both relay tokens in the Relay card before creating a relay pairing.'
+        'Save the relay hub token in the Relay card before creating a relay pairing.'
       )
     }
     const pairing = await harnessCall(() =>
@@ -831,16 +817,24 @@ export class RuntimeController {
         : transport === 'docker'
           ? `ws://server:${localPort}/ws`
           : `ws://${this.options.config.local.host}:${localPort}/ws`
-    const clientToken = transport === 'relay' && relay ? relay.clientToken : 'local'
+    const grant =
+      transport === 'relay' && relay
+        ? await createRelayGrant({
+            room: relay.room,
+            id: pairing.id,
+            agentToken: relay.agentToken,
+            ttlSeconds: ENROLLMENT_GRANT_TTL_SECONDS,
+          })
+        : undefined
     const payload: HarnessPairingPayload = {
       v: PROTOCOL_VERSION,
       role: 'adapter' as const,
       kind,
       wsUrl,
       room,
-      clientToken,
       enrollId: pairing.id,
       enrollToken: pairing.token,
+      ...(grant ? { grant: grant.grant } : {}),
       fingerprint: pairing.fingerprint,
       expiresAt: pairing.expiresAt,
     }
@@ -1117,7 +1111,7 @@ function tokenValue(
     throw new PanelControlError(
       400,
       'invalid_relay_token',
-      'Relay tokens must be at least 32 characters with no spaces or commas. Use the generated value or `openssl rand -base64 32`.'
+      'The relay token must be at least 32 characters with no spaces or commas. Use the generated value or `openssl rand -base64 32`.'
     )
   }
   return trimmed

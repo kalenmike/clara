@@ -63,7 +63,6 @@ function config(port: number, relay?: ServerConfig['relay']): ServerConfig {
     relayUrl: relay ? 'file' : 'none',
     relayRoom: relay ? 'file' : 'none',
     agentToken: relay ? 'file' : 'none',
-    clientToken: relay ? 'file' : 'none',
     pairingBaseUrl: 'default',
   }
   return {
@@ -81,10 +80,8 @@ function config(port: number, relay?: ServerConfig['relay']): ServerConfig {
 const info: AgentInfo = { version: 'test', protocol: 2 }
 
 const AGENT_TOKEN = 'a'.repeat(43)
-const CLIENT_TOKEN = 'b'.repeat(43)
-const NEXT_CLIENT_TOKEN = 'c'.repeat(43)
 const TOKEN_FORMAT_ERROR =
-  'Relay tokens must be at least 32 characters with no spaces or commas. Use the generated value or `openssl rand -base64 32`.'
+  'The relay token must be at least 32 characters with no spaces or commas. Use the generated value or `openssl rand -base64 32`.'
 
 async function createController(
   port = 0,
@@ -440,7 +437,6 @@ describe('RuntimeController', () => {
       const updated = await controller.updateRelay({
         url: 'https://relay.example',
         agentToken: AGENT_TOKEN,
-        clientToken: CLIENT_TOKEN,
       })
 
       expect(updated.config.relayUrl).toEqual({ value: 'wss://relay.example', source: 'file' })
@@ -450,7 +446,6 @@ describe('RuntimeController', () => {
         url: 'wss://relay.example',
         room: updated.config.relayRoom.value,
         agentToken: AGENT_TOKEN,
-        clientToken: CLIENT_TOKEN,
       })
 
       const saved = JSON.parse(readFileSync(serverConfig.configPath, 'utf8'))
@@ -459,11 +454,9 @@ describe('RuntimeController', () => {
         room: updated.config.relayRoom.value,
       })
       expect(saved.relay.agentToken).toBeUndefined()
-      expect(saved.relay.clientToken).toBeUndefined()
 
       const raw = readFileSync(join(serverConfig.configDir, 'relay-credentials.json'), 'utf8')
       expect(raw).not.toContain(AGENT_TOKEN)
-      expect(raw).not.toContain(CLIENT_TOKEN)
       expect(hasRelayCredentials(serverConfig.configDir)).toBe(true)
       expect(secretKey.version).toBe(1)
     } finally {
@@ -471,7 +464,7 @@ describe('RuntimeController', () => {
     }
   })
 
-  it('rejects relay tokens that are too short or contain a comma', async () => {
+  it('rejects a relay token that is too short or contains a comma', async () => {
     const { controller, settings, close } = await createController()
     settings.setFeature('relay', false)
     try {
@@ -486,7 +479,6 @@ describe('RuntimeController', () => {
           controller.updateRelay({
             url: 'https://relay.example',
             agentToken,
-            clientToken: CLIENT_TOKEN,
           })
         ).rejects.toMatchObject({
           status: 400,
@@ -499,15 +491,15 @@ describe('RuntimeController', () => {
     }
   })
 
-  it('starts local-only when the relay tokens are missing', async () => {
+  it('starts local-only when the relay hub token is missing', async () => {
     const { controller, close } = await createController(0, {
-      relay: { url: 'wss://relay.example', room: 'room-1', agentToken: '', clientToken: '' },
+      relay: { url: 'wss://relay.example', room: 'room-1', agentToken: '' },
     })
     await controller.start()
     try {
       const relay = controller.controls().features.find((entry) => entry.name === 'relay')
       expect(relay).toMatchObject({ desired: true, effective: false })
-      expect(relay?.error).toMatch(/tokens are missing/i)
+      expect(relay?.error).toMatch(/token is missing/i)
       expect(controller.relayTransport).toBeUndefined()
 
       const pairing = await controller.createDevicePairing({ localOnly: false })
@@ -522,30 +514,22 @@ describe('RuntimeController', () => {
     }
   })
 
-  it('keeps environment relay fields over panel token edits', async () => {
+  it('keeps an environment hub token out of the sealed store', async () => {
     const { controller, settings, serverConfig, close } = await createController()
     settings.setFeature('relay', false)
     serverConfig.relay = {
-      url: 'wss://env.example',
-      room: 'env-room',
+      url: 'wss://panel.example',
+      room: 'room-1',
       agentToken: AGENT_TOKEN,
-      clientToken: '',
     }
-    serverConfig.sources.relayUrl = 'env'
-    serverConfig.sources.relayRoom = 'env'
     serverConfig.sources.agentToken = 'env'
-    serverConfig.sources.clientToken = 'none'
+    serverConfig.sources.relayRoom = 'generated'
     try {
-      const updated = await controller.updateRelay({ clientToken: NEXT_CLIENT_TOKEN })
-      expect(updated.config.relayUrl).toEqual({ value: 'wss://env.example', source: 'env' })
-      expect(updated.config.relayRoom).toEqual({ value: 'env-room', source: 'env' })
+      const updated = await controller.updateRelay({ url: 'https://relay.example' })
+      expect(updated.config.relayUrl).toEqual({ value: 'wss://relay.example', source: 'file' })
       expect(serverConfig.relay?.agentToken).toBe(AGENT_TOKEN)
       expect(serverConfig.sources.agentToken).toBe('env')
-      expect(serverConfig.sources.clientToken).toBe('file')
-
-      const raw = readFileSync(join(serverConfig.configDir, 'relay-credentials.json'), 'utf8')
-      expect(raw).not.toContain(NEXT_CLIENT_TOKEN)
-      expect(raw).not.toContain(AGENT_TOKEN)
+      expect(hasRelayCredentials(serverConfig.configDir)).toBe(false)
     } finally {
       await close()
     }
@@ -558,12 +542,10 @@ describe('RuntimeController', () => {
       url: 'wss://env.example',
       room: 'env-room',
       agentToken: 'env-agent',
-      clientToken: 'env-client',
     }
     serverConfig.sources.relayUrl = 'env'
     serverConfig.sources.relayRoom = 'env'
     serverConfig.sources.agentToken = 'env'
-    serverConfig.sources.clientToken = 'env'
     try {
       await expect(
         controller.updateRelay({ url: 'wss://panel.example', agentToken: 'agent' })
@@ -573,14 +555,13 @@ describe('RuntimeController', () => {
     }
   })
 
-  it('clears a panel relay target and its sealed tokens', async () => {
+  it('clears a panel relay target and its sealed token', async () => {
     const { controller, settings, serverConfig, close } = await createController()
     settings.setFeature('relay', false)
     try {
       await controller.updateRelay({
         url: 'wss://relay.example',
         agentToken: AGENT_TOKEN,
-        clientToken: CLIENT_TOKEN,
       })
       expect(hasRelayCredentials(serverConfig.configDir)).toBe(true)
 
@@ -601,7 +582,6 @@ describe('RuntimeController', () => {
       const first = await controller.updateRelay({
         url: 'wss://relay.example',
         agentToken: AGENT_TOKEN,
-        clientToken: CLIENT_TOKEN,
       })
       const firstRoom = first.config.relayRoom.value
       const second = await controller.regenerateRelayRoom()
@@ -784,7 +764,6 @@ it('creates a one-time browser pairing code and cancels it', async () => {
     expect(decodePairingCode(created.pairing.code)).toMatchObject({
       wsUrl: 'ws://127.0.0.1:8788/ws',
       room: 'local',
-      clientToken: 'local',
     })
     expect(await devices.findPairingToken(created.pairing.id)).toBeDefined()
 

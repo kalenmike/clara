@@ -13,7 +13,6 @@ import {
 import {
   DEVICE_GRANT_TTL_SECONDS,
   PROTOCOL_VERSION,
-  PROTOCOL_VERSION_V4,
   createRelayGrant,
   isClientHelloFrameV4,
   isRouteFrameV3,
@@ -60,7 +59,7 @@ const PRESENCE_TTL_MS = 60_000
 /**
  * Live E2EE sessions per transport. A typical install has a phone, a desktop,
  * a PWA, and one or two adapters; 64 leaves generous room for all of them while
- * keeping the cost of a stolen client token bounded. Existing sessions are
+ * keeping the cost of a stolen relay grant bounded. Existing sessions are
  * never evicted to admit a new one, because that would kick a working client.
  */
 export const MAX_SESSIONS = 64
@@ -651,7 +650,7 @@ export class Agent {
 
     const hubHello: HubHelloFrameV4 = {
       t: 'hello',
-      v: PROTOCOL_VERSION_V4,
+      v: PROTOCOL_VERSION,
       sid,
       nonce: agentNonce,
       role: 'agent',

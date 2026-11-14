@@ -150,20 +150,17 @@ async function runServe(
   let storedCredentials = await loadRelayCredentials(config.configDir, secretKey)
   const legacyAgentToken =
     config.sources.agentToken === 'file' ? config.relay?.agentToken : undefined
-  const legacyClientToken =
-    config.sources.clientToken === 'file' ? config.relay?.clientToken : undefined
-  if (legacyAgentToken || legacyClientToken) {
+  if (legacyAgentToken) {
     const credentials = {
       agentToken: legacyAgentToken || storedCredentials?.agentToken,
-      clientToken: legacyClientToken || storedCredentials?.clientToken,
     }
     try {
       await saveRelayCredentials(config.configDir, secretKey, credentials)
       saveRelayTarget(config.configPath, readRelayTarget(config.configPath))
       storedCredentials = credentials
-      log('moved legacy relay tokens from server.json into encrypted storage')
+      log('moved the legacy relay token from server.json into encrypted storage')
     } catch (cause) {
-      log('could not move legacy relay tokens into encrypted storage', cause)
+      log('could not move the legacy relay token into encrypted storage', cause)
     }
   }
   applyRelayCredentials(config, storedCredentials)
@@ -172,9 +169,9 @@ async function runServe(
     secretKey,
     log,
   })
-  if (config.relay && (!config.relay.agentToken || !config.relay.clientToken)) {
+  if (config.relay && !config.relay.agentToken) {
     log(
-      'relay is configured but its tokens are missing; the hub will run local-only until both are saved in the Relay card'
+      'relay is configured but its hub token is missing; the hub will run local-only until it is saved in the Relay card'
     )
   }
   const devices = new DeviceStore({

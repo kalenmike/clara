@@ -93,7 +93,7 @@ export default function CloudflareRelaySlot({ relay, now, onChanged }: Cloudflar
       ) : (
         <p className="text-[11px] text-neutral-500 dark:text-neutral-400">
           Deploy the relay Worker and its Durable Object to your own Cloudflare account. Clara
-          stores the relay tokens on this hub; Cloudflare only forwards encrypted frames.
+          stores the relay hub token on this hub; Cloudflare only forwards encrypted frames.
         </p>
       )}
 
@@ -101,8 +101,8 @@ export default function CloudflareRelaySlot({ relay, now, onChanged }: Cloudflar
         <Notice tone="warning">
           Relay settings come from the environment. Remove{' '}
           <span className="font-mono">CLARA_RELAY_URL</span>,{' '}
-          <span className="font-mono">CLARA_RELAY_ROOM</span>, and the relay tokens before deploying
-          from the panel.
+          <span className="font-mono">CLARA_RELAY_ROOM</span>, and{' '}
+          <span className="font-mono">CLARA_AGENT_TOKEN</span> before deploying from the panel.
         </Notice>
       ) : null}
       {cloudflare.managed && !cloudflare.connected && relay.configured ? (

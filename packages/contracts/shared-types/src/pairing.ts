@@ -13,11 +13,6 @@ export type PairingPayload = {
   v: typeof PROTOCOL_VERSION
   wsUrl: string
   room: string
-  /**
-   * @deprecated The shared relay client token is replaced by `grant`. Kept
-   * until the v4 cleanup lane removes it from the wire payload.
-   */
-  clientToken: string
   enrollId: string
   enrollToken: string
   /**
@@ -80,7 +75,6 @@ export function validatePairing(value: unknown): PairingPayload | null {
   if (!wsUrl.startsWith('ws://') && !wsUrl.startsWith('wss://')) return null
 
   const room = typeof record.room === 'string' ? record.room.trim() : ''
-  const clientToken = typeof record.clientToken === 'string' ? record.clientToken.trim() : ''
   const enrollId = typeof record.enrollId === 'string' ? record.enrollId.trim() : ''
   const enrollToken = typeof record.enrollToken === 'string' ? record.enrollToken.trim() : ''
   const grant = typeof record.grant === 'string' ? record.grant.trim() : ''
@@ -89,15 +83,16 @@ export function validatePairing(value: unknown): PairingPayload | null {
     typeof record.expiresAt === 'number' && Number.isSafeInteger(record.expiresAt)
       ? record.expiresAt
       : 0
-  if (!room || !clientToken || !enrollId || !enrollToken || !fingerprint || expiresAt <= 0) {
-    return null
-  }
+  if (!room || !enrollId || !enrollToken || !fingerprint || expiresAt <= 0) return null
+  // A relay code must carry the one-time enrollment grant the Worker checks
+  // before upgrading. A local code runs over the hub's own listener and needs
+  // none.
+  if (room !== 'local' && !grant) return null
 
   return {
     v: PROTOCOL_VERSION,
     wsUrl,
     room,
-    clientToken,
     enrollId,
     enrollToken,
     ...(grant ? { grant } : {}),
@@ -119,11 +114,6 @@ export type HarnessPairingPayload = {
   /** Additional workspace-side endpoints, for example a compose service name. */
   altWsUrls?: string[]
   room: string
-  /**
-   * @deprecated The shared relay client token is replaced by `grant`. Kept
-   * until the v4 cleanup lane removes it from the wire payload.
-   */
-  clientToken: string
   enrollId: string
   enrollToken: string
   /** One-time enrollment grant scoped to `enrollId`. */
@@ -177,7 +167,6 @@ export function validateHarnessPairing(value: unknown): HarnessPairingPayload | 
 
   const kind = typeof record.kind === 'string' ? record.kind.trim() : ''
   const room = typeof record.room === 'string' ? record.room.trim() : ''
-  const clientToken = typeof record.clientToken === 'string' ? record.clientToken.trim() : ''
   const enrollId = typeof record.enrollId === 'string' ? record.enrollId.trim() : ''
   const enrollToken = typeof record.enrollToken === 'string' ? record.enrollToken.trim() : ''
   const grant = typeof record.grant === 'string' ? record.grant.trim() : ''
@@ -186,17 +175,10 @@ export function validateHarnessPairing(value: unknown): HarnessPairingPayload | 
     typeof record.expiresAt === 'number' && Number.isSafeInteger(record.expiresAt)
       ? record.expiresAt
       : 0
-  if (
-    !kind ||
-    !room ||
-    !clientToken ||
-    !enrollId ||
-    !enrollToken ||
-    !fingerprint ||
-    expiresAt <= 0
-  ) {
+  if (!kind || !room || !enrollId || !enrollToken || !fingerprint || expiresAt <= 0) {
     return null
   }
+  if (room !== 'local' && !grant) return null
 
   const altWsUrls = Array.isArray(record.altWsUrls)
     ? record.altWsUrls.filter(
@@ -212,7 +194,6 @@ export function validateHarnessPairing(value: unknown): HarnessPairingPayload | 
     wsUrl,
     ...(altWsUrls && altWsUrls.length ? { altWsUrls } : {}),
     room,
-    clientToken,
     enrollId,
     enrollToken,
     ...(grant ? { grant } : {}),

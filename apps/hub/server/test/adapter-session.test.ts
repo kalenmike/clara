@@ -14,7 +14,6 @@ import {
 } from '@clara/crypto'
 import {
   PROTOCOL_VERSION,
-  PROTOCOL_VERSION_V4,
   isErrorFrame,
   isHubHelloFrameV4,
   isSealedFrame,
@@ -85,7 +84,7 @@ async function connect(
   const adapter = identity.adapterId !== undefined || identity.enrollId !== undefined
   const hello: ClientHelloFrameV4 = {
     t: 'hello',
-    v: PROTOCOL_VERSION_V4,
+    v: PROTOCOL_VERSION,
     sid,
     nonce: bytesToBase64Url(randomBytes(16)),
     role: 'client',
