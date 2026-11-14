@@ -1,5 +1,6 @@
 import { useMemo } from 'react'
-import { Activity, Loader2, RefreshCw } from 'lucide-react'
+import { Link } from 'react-router'
+import { Activity, FolderGit2, Loader2, RefreshCw } from 'lucide-react'
 import type { ClaraActivityHarness, ClaraProject } from '@clara/api-contract'
 import { ActivityHarnessSection } from '@/components/activity/activity-harness-section'
 import { PageShell } from '@/components/layout/page-shell'
@@ -13,19 +14,26 @@ import {
   type ActivityTotals,
 } from '@/features/activity/activity-sessions'
 import { useActivitySessions } from '@/features/activity/use-activity-sessions'
-import { useArchivedProjects, useProjects } from '@/features/projects/use-projects'
+import { projectLabel } from '@/features/projects/project-list'
+import { findProject, useArchivedProjects, useProjects } from '@/features/projects/use-projects'
 import { errorMessage } from '@/lib/errors'
 import { formatCost, formatCount, formatRelativeTime, formatTokens } from '@/lib/format'
+import { readLastProject } from '@/lib/storage'
 
 export function ActivityPage() {
-  const activityQuery = useActivitySessions()
   const projectsQuery = useProjects()
   const archivedQuery = useArchivedProjects()
+  const projects = useMemo(() => projectsQuery.data ?? [], [projectsQuery.data])
+  const project = useMemo(
+    () => findProject(projects, readLastProject()) ?? projects[0] ?? null,
+    [projects]
+  )
+  const activityQuery = useActivitySessions(project?.id ?? null)
 
   const projectByID = useMemo(() => {
     const map = new Map<string, ClaraProject>()
-    for (const project of [...(projectsQuery.data ?? []), ...(archivedQuery.data ?? [])]) {
-      map.set(project.id, project)
+    for (const item of [...(projectsQuery.data ?? []), ...(archivedQuery.data ?? [])]) {
+      map.set(item.id, item)
     }
     return map
   }, [archivedQuery.data, projectsQuery.data])
@@ -36,7 +44,7 @@ export function ActivityPage() {
   const harnesses = useMemo(() => response?.harnesses ?? [], [response])
   const { groups, idle } = useMemo(() => groupActivitySessions(data, harnesses), [data, harnesses])
   const totals = useMemo(() => sumActivityUsage(data), [data])
-  const pending = activityQuery.isLoading || projectsQuery.isLoading
+  const pending = projectsQuery.isLoading || activityQuery.isLoading
   const initialError = activityQuery.isError && data.length === 0
 
   return (
@@ -45,16 +53,20 @@ export function ActivityPage() {
       eyebrow={
         <>
           <Activity className="size-3.5" />
-          <span>Agents</span>
+          <span>Project</span>
         </>
       }
-      description="Sessions in the Inbox or Outbox across every paired harness. Snoozed and archived sessions stay hidden."
+      description={
+        project
+          ? `Inbox and Outbox sessions across every workspace and harness in ${projectLabel(project)}. Snoozed and archived sessions stay hidden.`
+          : 'Inbox and Outbox sessions for the active project.'
+      }
       actions={
         <Button
           variant="outline"
           size="sm"
           onClick={() => activityQuery.refresh.mutate()}
-          disabled={activityQuery.isFetching || activityQuery.refresh.isPending}
+          disabled={!project || activityQuery.isFetching || activityQuery.refresh.isPending}
         >
           {activityQuery.isFetching || activityQuery.refresh.isPending ? (
             <Loader2 className="size-3.5 animate-spin" />
@@ -67,6 +79,8 @@ export function ActivityPage() {
     >
       {pending ? (
         <ActivitySkeleton />
+      ) : !project ? (
+        <ActivityNoProject />
       ) : initialError ? (
         <ActivityError
           message={errorMessage(activityQuery.error)}
@@ -86,7 +100,11 @@ export function ActivityPage() {
           )}
 
           {data.length === 0 ? (
-            <ActivityEmpty paired={harnesses.length > 0} />
+            <ActivityEmpty
+              paired={harnesses.length > 0}
+              hasWorkspaces={project.workspaces.length > 0}
+              projectID={project.id}
+            />
           ) : (
             <div className="space-y-7">
               {groups.map((group) => (
@@ -193,18 +211,49 @@ function ActivityError({ message, onRetry }: { message: string; onRetry: () => v
   )
 }
 
-function ActivityEmpty({ paired }: { paired: boolean }) {
+function ActivityNoProject() {
+  return (
+    <div className="flex flex-col items-center justify-center rounded-xl border border-dashed p-12 text-center">
+      <FolderGit2 className="size-8 text-muted-foreground" />
+      <p className="mt-3 text-sm font-medium">No project selected</p>
+      <p className="mt-1 max-w-sm text-xs text-muted-foreground">
+        Choose a project in the sidebar to see its Inbox and Outbox sessions.
+      </p>
+      <Button asChild className="mt-4" size="sm" variant="outline">
+        <Link to="/projects">Browse projects</Link>
+      </Button>
+    </div>
+  )
+}
+
+function ActivityEmpty({
+  paired,
+  hasWorkspaces,
+  projectID,
+}: {
+  paired: boolean
+  hasWorkspaces: boolean
+  projectID: string
+}) {
+  const title = !hasWorkspaces
+    ? 'No workspaces in this project'
+    : !paired
+      ? 'No harnesses available'
+      : 'No sessions in the Inbox or Outbox'
+  const description = !hasWorkspaces
+    ? 'Add a workspace on a paired harness before activity can appear here.'
+    : !paired
+      ? 'Pair a harness in the hub panel, or add this project on a harness that is connected.'
+      : 'Sessions appear here while an agent in this project is working or waiting for your reply. Snoozed and archived sessions stay hidden.'
+
   return (
     <div className="flex flex-col items-center justify-center rounded-xl border border-dashed p-12 text-center">
       <Activity className="size-8 text-muted-foreground" />
-      <p className="mt-3 text-sm font-medium">
-        {paired ? 'No sessions in the Inbox or Outbox' : 'No harnesses paired'}
-      </p>
-      <p className="mt-1 max-w-sm text-xs text-muted-foreground">
-        {paired
-          ? 'Sessions appear here while an agent is working or waiting for your reply. Snoozed and archived sessions stay hidden.'
-          : 'Pair a harness in the hub panel before activity can appear here.'}
-      </p>
+      <p className="mt-3 text-sm font-medium">{title}</p>
+      <p className="mt-1 max-w-sm text-xs text-muted-foreground">{description}</p>
+      <Button asChild className="mt-4" size="sm" variant="outline">
+        <Link to={`/p/${projectID}`}>Open project</Link>
+      </Button>
     </div>
   )
 }
