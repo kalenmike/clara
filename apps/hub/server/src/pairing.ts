@@ -1,8 +1,10 @@
 import qrcode from 'qrcode-terminal'
 import {
+  ENROLLMENT_GRANT_TTL_SECONDS,
   PAIRING_CODE_PREFIX,
   PROTOCOL_VERSION,
   buildPairingUrl,
+  createRelayGrant,
   encodePairingCode,
   type PairingPayload,
 } from '@clara/shared-types'
@@ -28,14 +30,26 @@ export async function createPairingPayload(
     ? relayWsUrl(relay.url, relay.room)
     : `ws://${config.local.host}:${config.local.port}/ws`
   const token = await devices.createPairingToken()
+  // The relay no longer accepts a shared client token. A relay pairing carries
+  // a one-time grant scoped to this enrollment; a local pairing needs none.
+  const grant = relay
+    ? await createRelayGrant({
+        room: relay.room,
+        id: token.id,
+        agentToken: relay.agentToken,
+        ttlSeconds: ENROLLMENT_GRANT_TTL_SECONDS,
+      })
+    : undefined
 
   return {
     v: PROTOCOL_VERSION,
     wsUrl,
     room: relay?.room ?? 'local',
+    // Retained for one rollout step; the cleanup lane removes it from the wire.
     clientToken: relay?.clientToken ?? 'local',
     enrollId: token.id,
     enrollToken: token.token,
+    ...(grant ? { grant: grant.grant } : {}),
     fingerprint: token.fingerprint,
     expiresAt: token.expiresAt,
   }

@@ -2,7 +2,8 @@ import {
   ReplayGuard,
   base64UrlToBytes,
   bytesToBase64Url,
-  deriveSessionKeys,
+  deriveV4SessionKeys,
+  generateEphemeralKeyPair,
   open,
   randomBytes,
   seal,
@@ -10,9 +11,12 @@ import {
   type SessionKeys,
 } from '@clara/crypto'
 import {
+  DEVICE_GRANT_TTL_SECONDS,
   PROTOCOL_VERSION,
-  isHelloFrame,
-  isRouteFrame,
+  PROTOCOL_VERSION_V4,
+  createRelayGrant,
+  isClientHelloFrameV4,
+  isRouteFrameV3,
   isSealedFrame,
   parseWireFrame,
   type AdapterAction,
@@ -22,14 +26,16 @@ import {
   type ClaraAction,
   type ClaraPayload,
   type ClaraState,
+  type ClientHelloFrameV4,
   type DeviceClass,
   type DeviceEnrollAction,
   type DeviceErrorCode,
-  type HelloFrame,
+  type HubHelloFrameV4,
   type PanelTransport,
   type PushSubscribeAction,
   type PushTestAction,
   type PushUnsubscribeAction,
+  type RelayGrantState,
   type SyncCheckAction,
   type SyncPullAction,
   type SyncPushAction,
@@ -92,6 +98,8 @@ type Session = {
   kind: SessionKind
   /** Relay-assigned socket that opened the session; absent on the local transport. */
   peer?: string
+  /** Verified grant id from the relay envelope; the audit identity of the session. */
+  grantId?: string
   deviceId?: string
   deviceLabel?: string
   enrollId?: string
@@ -155,6 +163,16 @@ export type AdapterSessionHandler = {
   clearLive: (harnessId: string, fetch?: (request: Request) => Promise<Response>) => Promise<void>
 }
 
+/**
+ * Signs the relay grants a paired client presents on its next connection. The
+ * relay transport supplies it from the same credentials the hub socket uses;
+ * the local transport has none, so local sessions need no grant.
+ */
+export type AgentRelayGrants = {
+  room: string
+  agentToken: string
+}
+
 export type AgentPolicy = {
   /** Gate push actions while keeping stored subscriptions intact. */
   canPush?: () => boolean
@@ -195,6 +213,7 @@ export class Agent {
   private readonly sweepTimer: NodeJS.Timeout
   private readonly options: AgentOptions
   private envelopeMode: AgentEnvelope = 'plain'
+  private grantIssuer: AgentRelayGrants | undefined
   private warnedUnwrapped = false
 
   constructor(options: AgentOptions) {
@@ -210,6 +229,14 @@ export class Agent {
    */
   setEnvelope(mode: AgentEnvelope): void {
     this.envelopeMode = mode
+  }
+
+  /**
+   * Supply the relay credentials used to sign device and adapter grants. The
+   * relay client calls this with the room and agent token it connects with.
+   */
+  setGrantIssuer(issuer: AgentRelayGrants | undefined): void {
+    this.grantIssuer = issuer
   }
 
   handleMessage(raw: string | Uint8Array | ArrayBuffer): void {
@@ -229,10 +256,16 @@ export class Agent {
     }
 
     let peer: string | undefined
+    let grantId: string | undefined
     if (this.envelopeMode === 'relay') {
-      if (!isRouteFrame(parsed)) {
-        // An older Worker forwards client frames verbatim. Without a peer id
-        // any room member could claim another session's sid, so drop them.
+      if (!isRouteFrameV3(parsed)) {
+        // A route frame without the verified grant id is a protocol error: an
+        // older Worker cannot prove who opened the socket. Anything else is an
+        // unwrapped frame from an outdated relay.
+        if (isRouteShaped(parsed)) {
+          this.options.traffic?.recordError('dropped')
+          return
+        }
         if (!this.warnedUnwrapped) {
           this.warnedUnwrapped = true
           this.options.log?.('ignored an unwrapped relay frame; the relay is outdated')
@@ -240,6 +273,7 @@ export class Agent {
         return
       }
       peer = parsed.p
+      grantId = parsed.i
       try {
         text = parsed.b ? new TextDecoder().decode(base64UrlToBytes(parsed.m)) : parsed.m
         parsed = JSON.parse(text)
@@ -251,6 +285,16 @@ export class Agent {
 
     const bytes = Buffer.byteLength(text)
 
+    if (isClientHelloFrameV4(parsed)) {
+      this.options.traffic?.recordInbound(bytes, this.transport)
+      const hello = parsed
+      void this.handleHello(hello, peer, grantId).catch((cause) => {
+        this.options.log?.('handshake failed', cause)
+        this.sendError(hello.sid, 'invalid_device', 'Could not start the session')
+      })
+      return
+    }
+
     const frame = parseWireFrame(parsed)
     if (!frame) {
       this.options.traffic?.recordError('dropped')
@@ -259,11 +303,10 @@ export class Agent {
 
     this.options.traffic?.recordInbound(bytes, this.transport)
 
-    if (isHelloFrame(frame)) {
-      void this.handleHello(frame, peer).catch((cause) => {
-        this.options.log?.('handshake failed', cause)
-        this.sendError(frame.sid, 'invalid_device', 'Could not start the session')
-      })
+    if (frame.t === 'hello') {
+      // The hub speaks handshake v4 only; a v3-style hello has no ephemeral
+      // point to derive a forward-secret session from.
+      this.options.traffic?.recordError('dropped')
       return
     }
     if (isSealedFrame(frame)) {
@@ -278,7 +321,10 @@ export class Agent {
         // The relay told us which socket sent this frame. Serving it would let
         // any room member replay garbage into another member's session.
         this.options.traffic?.recordError('misrouted')
-        this.options.log?.('dropped a frame from another relay peer', `sid=${frame.sid}`)
+        this.options.log?.(
+          'dropped a frame from another relay peer',
+          `sid=${frame.sid} grant=${session.grantId ?? 'none'}`
+        )
         return
       }
       if (this.monitoring) session.bytesIn += bytes
@@ -372,11 +418,15 @@ export class Agent {
     return false
   }
 
-  private async handleHello(frame: HelloFrame, peer?: string): Promise<void> {
-    const { sid, nonce: clientNonce, role } = frame
-    if (role !== 'client' || !sid || !clientNonce) return
+  private async handleHello(
+    frame: ClientHelloFrameV4,
+    peer?: string,
+    grantId?: string
+  ): Promise<void> {
+    const { sid } = frame
 
     const relayPeer = this.envelopeMode === 'relay' ? peer : undefined
+    const relayGrant = this.envelopeMode === 'relay' ? grantId : undefined
     // The local transport has its own one-client-per-socket model and does not
     // pass through these limits; only relay peers are metered.
     if (relayPeer !== undefined && !this.allowHello(relayPeer)) return
@@ -387,7 +437,10 @@ export class Agent {
       // its sid from another peer is an attempted takeover: drop the hello and
       // leave the live session untouched.
       if (relayPeer !== undefined && existing.peer !== relayPeer) {
-        this.options.log?.('dropped a hello from another relay peer', `sid=${sid}`)
+        this.options.log?.(
+          'dropped a hello from another relay peer',
+          `sid=${sid} grant=${relayGrant ?? 'none'}`
+        )
         return
       }
       this.closeSession(existing)
@@ -408,14 +461,17 @@ export class Agent {
       // Refuse a different peer while the first handshake is still in flight.
       const pending = this.pendingPeers.get(sid)
       if (pending !== undefined && pending !== relayPeer) {
-        this.options.log?.('dropped a hello from another relay peer', `sid=${sid}`)
+        this.options.log?.(
+          'dropped a hello from another relay peer',
+          `sid=${sid} grant=${relayGrant ?? 'none'}`
+        )
         return
       }
     }
 
     if (relayPeer !== undefined) this.pendingPeers.set(sid, relayPeer)
     try {
-      await this.establishSession(frame, relayPeer)
+      await this.establishSession(frame, relayPeer, relayGrant)
     } finally {
       if (relayPeer !== undefined) this.pendingPeers.delete(sid)
     }
@@ -457,11 +513,16 @@ export class Agent {
     this.helloWindows.set(peer, window)
   }
 
-  private async establishSession(frame: HelloFrame, peer?: string): Promise<void> {
-    const { sid, nonce: clientNonce } = frame
+  private async establishSession(
+    frame: ClientHelloFrameV4,
+    peer?: string,
+    grantId?: string
+  ): Promise<void> {
+    const { sid, nonce: clientNonce, eph } = frame
 
     const isAdapter = frame.adapter === true
     let kind: SessionKind
+    let identity: string
     let baseKey: string
     let deviceId: string | undefined
     let deviceLabel: string | undefined
@@ -477,6 +538,7 @@ export class Agent {
         return
       }
       kind = 'enroll'
+      identity = frame.enrollId
       enrollId = frame.enrollId
       pairToken = token
       baseKey = token
@@ -487,6 +549,7 @@ export class Agent {
         return
       }
       kind = 'adapter'
+      identity = credential.adapterId
       adapterId = credential.adapterId
       harnessId = credential.harnessId
       baseKey = credential.key
@@ -497,6 +560,7 @@ export class Agent {
         return
       }
       kind = 'enroll'
+      identity = token.id
       enrollId = token.id
       baseKey = token.token
     } else if (!isAdapter && frame.deviceId) {
@@ -506,6 +570,7 @@ export class Agent {
         return
       }
       kind = 'device'
+      identity = device.id
       deviceId = device.id
       deviceLabel = device.label
       baseKey = device.key
@@ -514,15 +579,37 @@ export class Agent {
       return
     }
 
+    // The relay verified the grant and assigned its id to this socket, so the
+    // hello must claim exactly that identity. The hello alone is never trusted.
+    if (peer !== undefined && grantId !== identity) {
+      this.options.log?.('refused a hello whose identity does not match its grant', {
+        sid,
+        grant: grantId,
+        identity,
+      })
+      this.sendError(sid, 'invalid_device', 'The session identity does not match the relay grant')
+      return
+    }
+
     const agentNonce = bytesToBase64Url(randomBytes(16))
     let keys: SessionKeys
+    let mac: string
+    let agentEphemeral: string
     try {
-      keys = await deriveSessionKeys({
-        key: baseKey,
+      const ephemeral = await generateEphemeralKeyPair()
+      agentEphemeral = ephemeral.publicKey
+      const material = await deriveV4SessionKeys({
+        staticKey: baseKey,
         sid,
-        clientNonce,
-        agentNonce,
+        nonceC: clientNonce,
+        nonceS: agentNonce,
+        ephC: eph,
+        ephS: ephemeral.publicKey,
+        privateKey: ephemeral.privateKey,
+        peerPublicKey: eph,
       })
+      keys = material.keys
+      mac = material.mac
     } catch (cause) {
       this.options.traffic?.recordError('handshake')
       this.options.log?.('handshake failed', cause)
@@ -533,6 +620,7 @@ export class Agent {
       sid,
       kind,
       ...(peer ? { peer } : {}),
+      ...(peer !== undefined && grantId !== undefined ? { grantId } : {}),
       ...(deviceId ? { deviceId } : {}),
       ...(deviceLabel ? { deviceLabel } : {}),
       ...(enrollId ? { enrollId } : {}),
@@ -561,14 +649,25 @@ export class Agent {
       session.adapterBridge = new AdapterSessionBridge((payload) => this.enqueue(session, payload))
     }
 
-    this.transmit(undefined, {
+    const hubHello: HubHelloFrameV4 = {
       t: 'hello',
-      v: PROTOCOL_VERSION,
+      v: PROTOCOL_VERSION_V4,
       sid,
       nonce: agentNonce,
       role: 'agent',
+      eph: agentEphemeral,
+      mac,
+    }
+    this.transmit(undefined, hubHello)
+
+    // An enrollment session has no device or adapter identity yet, so its
+    // `ready` carries no grant; the enrollment response delivers the first one.
+    const relayGrant = kind === 'enroll' ? undefined : await this.issueRelayGrant(identity)
+    this.enqueue(session, {
+      type: 'ready',
+      agent: this.options.info,
+      ...(relayGrant ? { relayGrant } : {}),
     })
-    this.enqueue(session, { type: 'ready', agent: this.options.info })
     if (kind === 'adapter' && harnessId && session.adapterBridge) {
       const fetch = (request: Request) => session.adapterBridge!.fetch(request)
       session.adapterFetch = fetch
@@ -736,12 +835,16 @@ export class Agent {
         session.pairToken ?? '',
         this.transport
       )
+      // The adapter must reconnect under its stable credential id, so the first
+      // adapter grant is signed for that id and delivered here.
+      const relayGrant = await this.issueRelayGrant(action.credentialId)
       this.enqueue(session, {
         type: 'adapter.enrolled',
         connectionId: result.connection.id,
         harnessId: result.connection.harnessId,
         label: result.connection.label,
         reconnected: result.reconnected,
+        ...(relayGrant ? { relayGrant } : {}),
       })
       this.closeAfterSend(session)
     } catch (cause) {
@@ -769,11 +872,15 @@ export class Agent {
         transport: this.transport,
         ...(session.presence?.deviceClass ? { deviceClass: session.presence.deviceClass } : {}),
       })
+      // The browser reconnects as this device id, which no longer matches the
+      // enrollment grant, so hand it the first device grant before closing.
+      const relayGrant = await this.issueRelayGrant(device.id)
       this.enqueue(session, {
         type: 'device.enrolled',
         deviceId: device.id,
         fingerprint: device.fingerprint,
         label: device.label,
+        ...(relayGrant ? { relayGrant } : {}),
       })
       // The enrollment session exists only to deliver this response. Retire it
       // once the frame is flushed so the panel never reports it as a live client.
@@ -829,6 +936,27 @@ export class Agent {
   private closeAfterSend(session: Session): void {
     const pending = session.sendChain
     void pending.then(() => this.closeSession(session))
+  }
+
+  /**
+   * Sign a fresh relay grant for a device or adapter identity. A long-lived
+   * grant is refreshed on every accepted connect; without relay credentials
+   * (the local transport) there is nothing to sign.
+   */
+  private async issueRelayGrant(id: string | undefined): Promise<RelayGrantState | undefined> {
+    const issuer = this.grantIssuer
+    if (!issuer || !id || !issuer.agentToken) return undefined
+    try {
+      return await createRelayGrant({
+        room: issuer.room,
+        id,
+        agentToken: issuer.agentToken,
+        ttlSeconds: DEVICE_GRANT_TTL_SECONDS,
+      })
+    } catch (cause) {
+      this.options.log?.('could not sign a relay grant', cause)
+      return undefined
+    }
   }
 
   private sendError(sid: string, code: DeviceErrorCode, message: string): void {
@@ -1353,6 +1481,10 @@ function toDeviceErrorCode(code: string): DeviceErrorCode {
     default:
       return 'invalid_device'
   }
+}
+
+function isRouteShaped(value: unknown): boolean {
+  return typeof value === 'object' && value !== null && (value as { t?: unknown }).t === 'route'
 }
 
 function isClaraPayload(value: unknown): value is ClaraPayload {

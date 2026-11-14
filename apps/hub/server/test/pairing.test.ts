@@ -3,6 +3,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { generateKey } from '@clara/crypto'
+import { verifyRelayGrant } from '@clara/shared-types'
 import { loadConfig, type ServerConfig } from '../src/config.ts'
 import { createPairingPayload, pairingLinkBase, printPairing } from '../src/pairing.ts'
 import type { DeviceStore } from '../src/store/devices.ts'
@@ -96,6 +97,7 @@ describe('createPairingPayload', () => {
       room: 'local',
       clientToken: 'local',
     })
+    expect(payload.grant).toBeUndefined()
   })
 
   it('uses the relay room when a relay is configured', async () => {
@@ -116,6 +118,33 @@ describe('createPairingPayload', () => {
       room: 'room-1',
       clientToken: 'client',
     })
+  })
+
+  it('carries a one-time enrollment grant scoped to the pairing id', async () => {
+    const payload = await createPairingPayload(
+      baseConfig({
+        relay: {
+          url: 'wss://relay.example',
+          room: 'room-1',
+          agentToken: 'agent-token',
+          clientToken: 'client',
+        },
+      }),
+      fakeDevices()
+    )
+
+    expect(payload.grant).toBeDefined()
+    const verified = await verifyRelayGrant(payload.grant!, {
+      agentToken: 'agent-token',
+      room: 'room-1',
+    })
+    expect(verified).toEqual({
+      ok: true,
+      payload: expect.objectContaining({ room: 'room-1', role: 'client', id: 'enroll-id' }),
+    })
+    // The enrollment grant is short-lived and must not outlive the code by much.
+    const expiresAt = verified.ok ? verified.payload.exp * 1000 : 0
+    expect(expiresAt - payload.expiresAt).toBeLessThanOrEqual(60_000)
   })
 
   it('ignores a configured relay for a local-only panel code', async () => {

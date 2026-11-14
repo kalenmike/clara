@@ -2,23 +2,27 @@ import { describe, expect, it } from 'vitest'
 import {
   ReplayGuard,
   bytesToBase64Url,
-  deriveSessionKeys,
+  deriveV4SessionKeys,
+  generateEphemeralKeyPair,
   generateKey,
   open,
   randomBytes,
   seal,
   utf8,
+  verifyV4HelloMac,
   type SessionKeys,
 } from '@clara/crypto'
 import {
   PROTOCOL_VERSION,
+  PROTOCOL_VERSION_V4,
   isErrorFrame,
-  isHelloFrame,
+  isHubHelloFrameV4,
   isSealedFrame,
   type AdapterAction,
   type AdapterEnrollAction,
   type AdapterState,
   type ClaraState,
+  type ClientHelloFrameV4,
   type WireFrame,
 } from '@clara/shared-types'
 import { Agent, type AdapterSessionHandler } from '../src/agent.ts'
@@ -77,34 +81,38 @@ async function connect(
   identity: { enrollId?: string; adapterId?: string; deviceId?: string; key: string }
 ): Promise<Client> {
   const sid = bytesToBase64Url(randomBytes(16))
-  const clientNonce = bytesToBase64Url(randomBytes(16))
+  const ephemeral = await generateEphemeralKeyPair()
   const adapter = identity.adapterId !== undefined || identity.enrollId !== undefined
-  agent.handleMessage(
-    JSON.stringify({
-      t: 'hello',
-      v: PROTOCOL_VERSION,
-      sid,
-      nonce: clientNonce,
-      role: 'client',
-      ...(adapter ? { adapter: true } : {}),
-      ...(identity.enrollId ? { enrollId: identity.enrollId } : {}),
-      ...(identity.adapterId ? { adapterId: identity.adapterId } : {}),
-      ...(identity.deviceId ? { deviceId: identity.deviceId } : {}),
-    })
-  )
-  const hello = await waitFor(() => {
-    const found = frames.find(
-      (frame) => isHelloFrame(frame) && frame.sid === sid && frame.role === 'agent'
-    )
-    return found && isHelloFrame(found) ? found : undefined
-  })
-  const keys = await deriveSessionKeys({
-    key: identity.key,
+  const hello: ClientHelloFrameV4 = {
+    t: 'hello',
+    v: PROTOCOL_VERSION_V4,
     sid,
-    clientNonce,
-    agentNonce: hello.nonce,
+    nonce: bytesToBase64Url(randomBytes(16)),
+    role: 'client',
+    eph: ephemeral.publicKey,
+    ...(adapter ? { adapter: true as const } : {}),
+    ...(identity.enrollId ? { enrollId: identity.enrollId } : {}),
+    ...(identity.adapterId ? { adapterId: identity.adapterId } : {}),
+    ...(identity.deviceId ? { deviceId: identity.deviceId } : {}),
+  }
+  agent.handleMessage(JSON.stringify(hello))
+  const hubHello = await waitFor(() => {
+    const found = frames.find((frame) => isHubHelloFrameV4(frame) && frame.sid === sid)
+    return found && isHubHelloFrameV4(found) ? found : undefined
   })
-  return { sid, keys, sendSeq: 0, receive: new ReplayGuard(), seen: new Set() }
+  const input = {
+    staticKey: identity.key,
+    sid,
+    nonceC: hello.nonce,
+    nonceS: hubHello.nonce,
+    ephC: hello.eph,
+    ephS: hubHello.eph,
+    privateKey: ephemeral.privateKey,
+    peerPublicKey: hubHello.eph,
+  }
+  const material = await deriveV4SessionKeys(input)
+  expect(await verifyV4HelloMac({ ...input, mac: hubHello.mac })).toBe(true)
+  return { sid, keys: material.keys, sendSeq: 0, receive: new ReplayGuard(), seen: new Set() }
 }
 
 async function send(client: Client, agent: Agent, payload: unknown): Promise<void> {
