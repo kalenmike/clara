@@ -129,9 +129,11 @@ instead of at the first upgrade.
 
 A hub build compiled with `ENABLE_CLOUDFLARE_DEPLOYMENT=true` can deploy the relay
 from the panel. The panel asks for a Cloudflare API token scoped to
-**Workers Scripts: Edit** and, for account discovery, **Account Settings: Read**.
-The hub calls the Cloudflare REST API directly; it does not run Wrangler or store
-the token in `server.json`.
+**Workers Scripts: Edit**, **Zone: Read**, and **Zone: Workers Routes: Edit**.
+**Account Settings: Read** is optional and only lets the panel list accounts;
+without it, enter the account ID manually. A `403` from any call names those
+scopes. The hub calls the Cloudflare REST API directly; it does not run Wrangler
+or store the token in `server.json`.
 
 The deployment:
 
@@ -141,11 +143,36 @@ The deployment:
    `secret_text` bindings;
 3. enables the Worker on `workers.dev` and waits for `GET /health` to report a
    compatible `relay` version (see [Relay version](#relay-version));
-4. writes the relay URL and room to `server.json`, stores both tokens encrypted
+4. when the panel submits a custom hostname, reads the account's zones with
+   `GET /zones?account.id=<account>&per_page=50`, lists the script's existing
+   bindings with `GET /accounts/<account>/workers/domains?service=<script>`, and
+   attaches the hostname with `PUT /accounts/<account>/workers/domains` and the
+   body `{ zone_id, hostname, service, environment: "production" }`. A matching
+   hostname in the same zone reuses its binding, so a redeploy does not create a
+   duplicate; a hostname bound in another zone is detached first;
+5. polls the custom hostname's `GET /health` for up to five minutes with capped
+   backoff. Cloudflare provisions DNS and the certificate asynchronously, so this
+   window is longer than the `workers.dev` check. When the relay version is
+   compatible, the deployed URL becomes `wss://<hostname>` and the record stores
+   `customDomain: { hostname, zoneId, domainId, ready: true }`. If the window
+   expires, the deployment keeps the `workers.dev` URL, records `ready: false`,
+   and returns a warning instead of failing;
+6. only after the custom host answers, an opt-in `disableWorkersDev` posts
+   `{ enabled: false, previews_enabled: false }` to the script subdomain endpoint
+   and the deployed URL stays on the custom hostname. Without a custom hostname
+   that switch is never applied, and a failed disable becomes a warning;
+7. writes the relay URL and room to `server.json`, stores both tokens encrypted
    in `relay-credentials.json`, and applies the relay without a hub restart;
    legacy plaintext tokens in `server.json` are moved into that sealed file on
    the next startup;
-5. optionally stores the Cloudflare token encrypted in `cloudflare-api-token.json`.
+8. optionally stores the Cloudflare token encrypted in `cloudflare-api-token.json`.
+
+Forgetting the deployment, or a panel relay edit that invalidates it, detaches
+the stored binding with `DELETE /accounts/<account>/workers/domains/<domainId>`.
+Deploying a different hostname attaches the new binding first and then detaches
+the old one; a binding that is already gone is treated as detached. Deleting the
+Worker in Cloudflare still removes its domains, so the panel record is the
+source for the detach call.
 
 Preview and version URLs are off by default. `infra/relay/wrangler.jsonc` sets
 `preview_urls: false`, and the panel deploy sends `previews_enabled: false` on the
