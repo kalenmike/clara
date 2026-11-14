@@ -5,6 +5,7 @@ import {
   claraEventSchema,
   claraFormSchema,
   claraProjectSchema,
+  claraSessionsResponseSchema,
   claraSessionMessageSchema,
   claraSessionSchema,
   claraVcsGetOutputSchema,
@@ -45,6 +46,36 @@ describe('api contract', () => {
   it('validates Clara project and session DTOs', () => {
     expect(claraProjectSchema.safeParse(project).success).toBe(true)
     expect(claraSessionSchema.safeParse(session).success).toBe(true)
+    expect(
+      claraSessionSchema.safeParse({ ...session, harnessID: 'h1', workspaceID: 'w1' }).success
+    ).toBe(true)
+  })
+
+  it('accepts per-harness status on a project session page', () => {
+    expect(
+      claraSessionsResponseSchema.safeParse({
+        data: [session],
+        cursor: { previous: null, next: null },
+        harnesses: [
+          {
+            harnessID: 'h1',
+            label: 'OpenCode',
+            kind: 'opencode',
+            online: true,
+            ok: true,
+          },
+          {
+            harnessID: 'h2',
+            label: 'Claude',
+            kind: 'claude',
+            online: false,
+            ok: false,
+            code: 'offline',
+            message: 'The harness adapter is offline',
+          },
+        ],
+      }).success
+    ).toBe(true)
   })
 
   it('accepts every Clara message shape', () => {

@@ -266,6 +266,19 @@ export class ProjectStore {
     return row ? toWorkspaceState(row) : undefined
   }
 
+  /** Every workspace that resolves to a directory on any harness. */
+  workspacesForDirectory(directory: string): WorkspaceState[] {
+    const rows = this.db
+      .prepare(
+        `SELECT ${WORKSPACE_COLUMNS}
+           FROM clara_project_workspaces
+          WHERE canonical = ? OR directory = ?
+          ORDER BY created_at ASC`
+      )
+      .all(directory, directory) as WorkspaceRow[]
+    return rows.map(toWorkspaceState)
+  }
+
   findWorkspaceByCanonical(harnessID: string, canonical: string): WorkspaceState | undefined {
     const row = this.db
       .prepare(

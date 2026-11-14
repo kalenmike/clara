@@ -35,7 +35,12 @@ import {
 } from '../dto.ts'
 import { forwardResult, locationQuery, query } from '../harness.ts'
 import { resolveHarnessProjectIds, unmappedProjectError } from '../project-links.ts'
-import { decodeMergedSessionCursor, mergeSessionPages, type SessionPage } from '../session-pages.ts'
+import {
+  cursorForRecord,
+  decodeMergedSessionCursor,
+  mergeSessionPages,
+  type SessionPage,
+} from '../session-pages.ts'
 import { emptyResponse, jsonResponse, responses, statusResponses } from '../schemas.ts'
 import { optionalBooleanQuery, optionalPositiveIntQuery } from '../query.ts'
 
@@ -888,7 +893,8 @@ async function listSingleSessionPage(
   signal: AbortSignal
 ): Promise<ClaraSessionsResponse> {
   const merged = decodeMergedSessionCursor(params.cursor)
-  const cursor = projectID && merged ? merged.projects[projectID] : params.cursor
+  const harnessID = deps.harness.active?.harnessId ?? ''
+  const cursor = projectID && merged ? cursorForRecord(merged, harnessID, projectID) : params.cursor
   if (cursor === null) {
     return { data: [], cursor: { previous: null, next: null } }
   }
@@ -921,11 +927,12 @@ async function listSessionPages(
   signal: AbortSignal
 ): Promise<SessionPage[]> {
   const merged = decodeMergedSessionCursor(params.cursor)
+  const harnessID = deps.harness.active?.harnessId ?? ''
   return Promise.all(
     projectIds.map(async (projectID): Promise<SessionPage> => {
-      const cursor = merged?.projects[projectID]
+      const cursor = cursorForRecord(merged, harnessID, projectID)
       if (cursor === null) {
-        return { projectID, data: [], cursor: { previous: null, next: null } }
+        return { harnessID, projectID, data: [], cursor: { previous: null, next: null } }
       }
       const result: ClaraSessionsResponse = await forwardDto(
         deps,
@@ -941,7 +948,7 @@ async function listSessionPages(
         signal,
         parseClaraSessions
       )
-      return { projectID, ...result }
+      return { harnessID, projectID, ...result }
     })
   )
 }

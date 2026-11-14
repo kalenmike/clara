@@ -40,6 +40,21 @@ describe('Clara API event stream', () => {
     expect(activity).toBe(3)
   })
 
+  it('scopes the event stream to one harness', async () => {
+    let seen: string | undefined
+    const fetch = async (input: RequestInfo | URL): Promise<Response> => {
+      seen = String(input)
+      return streamResponse(['data: {"type":"session.idle","data":{"sessionID":"s1"}}\n\n'])
+    }
+    const client = createClaraClient({ fetch: fetch as typeof globalThis.fetch })
+
+    for await (const _event of client.event.subscribe({ harnessID: 'h1' })) {
+      // Consume the stream so the request completes.
+    }
+
+    expect(seen).toBe('http://clara.api/v1/events?harnessID=h1')
+  })
+
   it('throws a typed error when the stream fails', async () => {
     const fetch = async (): Promise<Response> =>
       new Response(JSON.stringify({ error: { code: 'disabled', message: 'off' } }), {

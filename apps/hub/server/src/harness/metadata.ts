@@ -32,6 +32,24 @@ export class HarnessMetadataStore {
     this.projects = projects
   }
 
+  /**
+   * Resolve the paired harness that owns a session. Session IDs are expected to
+   * be globally unique; if an old database has the same ID on more than one
+   * harness, the most recently seen row wins.
+   */
+  harnessIdForSession(sessionId: string): string | undefined {
+    const row = this.db
+      .prepare(
+        `SELECT harness_id
+           FROM clara_sessions
+          WHERE session_id = ?
+          ORDER BY last_seen_at DESC, harness_id ASC
+          LIMIT 1`
+      )
+      .get(sessionId) as { harness_id: string } | undefined
+    return row?.harness_id
+  }
+
   session(harnessId: string, sessionId: string): ClaraSessionState {
     const row = this.db
       .prepare(

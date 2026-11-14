@@ -162,7 +162,7 @@ export function createClaraClient(options: ClaraClientOptions): ClaraClient {
     location: {
       get: (input, requestOptions) =>
         request<ClaraLocation>('GET', '/v1/locations', {
-          query: { directory: input?.location?.directory },
+          query: { directory: input?.location?.directory, harnessID: input?.harnessID },
           options: requestOptions,
         }),
     },
@@ -177,6 +177,7 @@ export function createClaraClient(options: ClaraClientOptions): ClaraClient {
             archived: input?.archived,
             directory: input?.directory,
             project: input?.project,
+            harnessID: input?.harnessID,
             subpath: input?.subpath,
             cursor: input?.cursor,
           },
@@ -345,7 +346,7 @@ export function createClaraClient(options: ClaraClientOptions): ClaraClient {
       request: {
         list: (input, requestOptions) =>
           request<ClaraPermissionRequestListOutput>('GET', '/v1/permissions', {
-            query: { directory: input?.location?.directory },
+            query: { directory: input?.location?.directory, harnessID: input?.harnessID },
             options: requestOptions,
           }),
       },
@@ -359,32 +360,44 @@ export function createClaraClient(options: ClaraClientOptions): ClaraClient {
       },
     },
     agent: {
-      list: (_input, requestOptions) =>
-        request<ClaraAgentListOutput>('GET', '/v1/agents', { options: requestOptions }),
+      list: (input, requestOptions) =>
+        request<ClaraAgentListOutput>('GET', '/v1/agents', {
+          query: { harnessID: input?.harnessID },
+          options: requestOptions,
+        }),
     },
     model: {
-      list: (_input, requestOptions) =>
-        request<ClaraModelListOutput>('GET', '/v1/models', { options: requestOptions }),
+      list: (input, requestOptions) =>
+        request<ClaraModelListOutput>('GET', '/v1/models', {
+          query: { harnessID: input?.harnessID },
+          options: requestOptions,
+        }),
     },
     provider: {
-      list: (_input, requestOptions) =>
-        request<ClaraProviderListOutput>('GET', '/v1/providers', { options: requestOptions }),
+      list: (input, requestOptions) =>
+        request<ClaraProviderListOutput>('GET', '/v1/providers', {
+          query: { harnessID: input?.harnessID },
+          options: requestOptions,
+        }),
     },
     command: {
-      list: (_input, requestOptions) =>
-        request<ClaraCommandListOutput>('GET', '/v1/commands', { options: requestOptions }),
+      list: (input, requestOptions) =>
+        request<ClaraCommandListOutput>('GET', '/v1/commands', {
+          query: { harnessID: input?.harnessID },
+          options: requestOptions,
+        }),
     },
     skill: {
       list: (input, requestOptions) =>
         request<ClaraSkillListOutput>('GET', '/v1/skills', {
-          query: { directory: input?.location?.directory },
+          query: { directory: input?.location?.directory, harnessID: input?.harnessID },
           options: requestOptions,
         }),
     },
     reference: {
       list: (input, requestOptions) =>
         request<ClaraReferenceListOutput>('GET', '/v1/references', {
-          query: { directory: input?.location?.directory },
+          query: { directory: input?.location?.directory, harnessID: input?.harnessID },
           options: requestOptions,
         }),
     },
@@ -393,6 +406,7 @@ export function createClaraClient(options: ClaraClientOptions): ClaraClient {
         request<ClaraFileFindOutput>('GET', '/v1/files/find', {
           query: {
             directory: input.location?.directory,
+            harnessID: input.harnessID,
             query: input.query,
             type: input.type,
             limit: input.limit,
@@ -403,23 +417,24 @@ export function createClaraClient(options: ClaraClientOptions): ClaraClient {
     vcs: {
       get: (input, requestOptions) =>
         request<ClaraVcsGetOutput>('GET', '/v1/vcs', {
-          query: { directory: input?.location?.directory },
+          query: { directory: input?.location?.directory, harnessID: input?.harnessID },
           options: requestOptions,
         }),
       base: (input, requestOptions) =>
         request<ClaraVcsBaseOutput>('GET', '/v1/vcs/base', {
-          query: { directory: input?.location?.directory },
+          query: { directory: input?.location?.directory, harnessID: input?.harnessID },
           options: requestOptions,
         }),
       status: (input, requestOptions) =>
         request<ClaraVcsStatusOutput>('GET', '/v1/vcs/status', {
-          query: { directory: input?.location?.directory },
+          query: { directory: input?.location?.directory, harnessID: input?.harnessID },
           options: requestOptions,
         }),
       diff: (input, requestOptions) =>
         request<ClaraVcsDiffOutput>('GET', '/v1/vcs/diff', {
           query: {
             directory: input.location?.directory,
+            harnessID: input.harnessID,
             mode: input.mode,
             base: input.base,
             context: input.context,
@@ -444,6 +459,7 @@ export function createClaraClient(options: ClaraClientOptions): ClaraClient {
         request<GitCommit[]>('GET', '/v1/git/log', {
           query: {
             directory: input.directory,
+            harnessID: input.harnessID,
             since: input.since,
             until: input.until,
           },

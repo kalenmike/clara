@@ -1,7 +1,10 @@
 import type { ClaraSession, ClaraSessionsResponse } from '@clara/api-contract'
 
-/** One linked harness project's page, tagged with the project that returned it. */
-export type SessionPage = ClaraSessionsResponse & { projectID: string }
+/** One linked harness project's page, tagged with its harness and record. */
+export type SessionPage = ClaraSessionsResponse & {
+  harnessID: string
+  projectID: string
+}
 
 /**
  * The hub-owned cursor for a project linked to more than one harness record.
@@ -9,9 +12,11 @@ export type SessionPage = ClaraSessionsResponse & { projectID: string }
  * pagination stays complete instead of dropping or repeating a record's page.
  *
  * A missing key means "first page"; `null` means that record is exhausted.
+ * Version 2 keys include the harness because the same harness project ID can
+ * exist on two paired harnesses.
  */
 export type MergedSessionCursor = {
-  v: 1
+  v: 2
   projects: Record<string, string | null>
 }
 
@@ -21,16 +26,30 @@ export function decodeMergedSessionCursor(
   if (!value) return undefined
   try {
     const parsed = JSON.parse(Buffer.from(value, 'base64url').toString('utf8')) as unknown
-    if (!isRecord(parsed) || parsed.v !== 1 || !isRecord(parsed.projects)) return undefined
+    if (!isRecord(parsed) || (parsed.v !== 1 && parsed.v !== 2) || !isRecord(parsed.projects)) {
+      return undefined
+    }
     const projects: Record<string, string | null> = {}
     for (const [key, item] of Object.entries(parsed.projects)) {
       if (item !== null && typeof item !== 'string') return undefined
       projects[key] = item
     }
-    return { v: 1, projects }
+    return { v: 2, projects }
   } catch {
     return undefined
   }
+}
+
+/** Read a record's cursor from either the v2 key or a legacy project-only key. */
+export function cursorForRecord(
+  cursor: MergedSessionCursor | undefined,
+  harnessID: string,
+  projectID: string
+): string | null | undefined {
+  if (!cursor) return undefined
+  const key = `${harnessID}:${projectID}`
+  if (key in cursor.projects) return cursor.projects[key]
+  return cursor.projects[projectID]
 }
 
 /**
@@ -72,11 +91,11 @@ function cursorEnvelope(pages: SessionPage[], direction: 'previous' | 'next'): s
   let hasCursor = false
   for (const page of pages) {
     const cursor = page.cursor?.[direction] ?? null
-    cursors[page.projectID] = cursor
+    cursors[`${page.harnessID}:${page.projectID}`] = cursor
     if (cursor !== null) hasCursor = true
   }
   if (!hasCursor) return null
-  return Buffer.from(JSON.stringify({ v: 1, projects: cursors }), 'utf8').toString('base64url')
+  return Buffer.from(JSON.stringify({ v: 2, projects: cursors }), 'utf8').toString('base64url')
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

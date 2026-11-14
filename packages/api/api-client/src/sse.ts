@@ -1,13 +1,15 @@
 import type { ClaraEvent } from '@clara/api-contract'
-import type { RequestOptions } from './types.ts'
+import type { ClaraEventSubscribeOptions } from './types.ts'
 import { ClaraApiError } from './errors.ts'
 
 export async function* subscribeEvents(
   fetch: typeof globalThis.fetch,
   baseUrl: string,
-  options: RequestOptions = {}
+  options: ClaraEventSubscribeOptions = {}
 ): AsyncIterable<ClaraEvent> {
-  const response = await fetch(new URL('/v1/events', baseUrl), {
+  const url = new URL('/v1/events', baseUrl)
+  if (options.harnessID) url.searchParams.set('harnessID', options.harnessID)
+  const response = await fetch(url, {
     method: 'GET',
     headers: {
       ...headersToRecord(options.headers),
