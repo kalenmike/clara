@@ -129,6 +129,10 @@ export const claraSessionRevertSchema = passthroughObject({
 
 export const claraSessionSchema = passthroughObject({
   id: z.string(),
+  /** The paired harness that owns this session. */
+  harnessID: z.string().optional(),
+  /** The Clara project workspace that resolved this session, when known. */
+  workspaceID: z.string().optional(),
   parentID: z.string().optional(),
   fork: passthroughObject({
     sessionID: z.string(),
@@ -155,8 +159,23 @@ export const claraSessionSchema = passthroughObject({
   location: claraLocationRefSchema,
 }).meta({ id: 'ClaraSession' })
 
+/** Per-harness result for a project-scoped session list. */
+export const claraSessionsHarnessStatusSchema = passthroughObject({
+  harnessID: z.string(),
+  label: z.string(),
+  kind: z.string(),
+  online: z.boolean(),
+  ok: z.boolean(),
+  code: z.string().optional(),
+  message: z.string().optional(),
+}).meta({ id: 'ClaraSessionsHarnessStatus' })
+
+export type ClaraSessionsHarnessStatus = z.infer<typeof claraSessionsHarnessStatusSchema>
+
 export const claraSessionsResponseSchema = passthroughObject({
   data: z.array(claraSessionSchema),
+  /** Present when a project spans more than one harness. */
+  harnesses: z.array(claraSessionsHarnessStatusSchema).optional(),
   cursor: passthroughObject({
     previous: z.string().nullish(),
     next: z.string().nullish(),

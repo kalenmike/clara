@@ -48,10 +48,17 @@ export type RequestOptions = {
   readonly onActivity?: () => void
 }
 
+export type ClaraEventSubscribeOptions = RequestOptions & {
+  /** Stream events from one paired harness instead of the active/default one. */
+  readonly harnessID?: string
+}
+
 export type ClaraLocationInput = {
   readonly location?: {
     readonly directory?: string
   }
+  /** Routes the request to one paired harness instead of the active/default one. */
+  readonly harnessID?: string
 }
 
 export type ClaraProjectListInput = {
@@ -131,6 +138,7 @@ export type ClaraSessionListInput = {
   readonly archived?: boolean
   readonly directory?: string
   readonly project?: string
+  readonly harnessID?: string
   readonly subpath?: string
   readonly cursor?: string
 }
@@ -141,6 +149,8 @@ export type ClaraSessionCreateInput = {
   readonly title?: string | null
   readonly agent?: string | null
   readonly model?: ClaraModelRef | null
+  /** Hub-owned routing field; stripped before the request reaches the adapter. */
+  readonly harnessID?: string
   readonly location?: { readonly directory: string } | null
   readonly metadata?: ClaraSessionMetadata | null
   readonly permissions?: readonly ClaraPermissionRule[] | null
@@ -267,6 +277,7 @@ export type ClaraFileFindInput = {
   readonly location?: {
     readonly directory?: string
   }
+  readonly harnessID?: string
   readonly query: string
   readonly type?: 'file' | 'directory'
   readonly limit?: number
@@ -276,6 +287,7 @@ export type ClaraVcsDiffInput = {
   readonly location?: {
     readonly directory?: string
   }
+  readonly harnessID?: string
   readonly mode: 'working' | 'branch' | 'committed'
   readonly base?: string
   readonly context?: number
@@ -442,7 +454,7 @@ export type ClaraClient = {
     log: (input: GitLogQuery, options?: RequestOptions) => Promise<GitCommit[]>
   }
   event: {
-    subscribe: (options?: RequestOptions) => AsyncIterable<ClaraEvent>
+    subscribe: (options?: ClaraEventSubscribeOptions) => AsyncIterable<ClaraEvent>
   }
 }
 

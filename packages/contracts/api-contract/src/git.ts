@@ -13,6 +13,7 @@ export type GitCommit = z.infer<typeof gitCommitSchema>
 
 export const gitLogQuerySchema = z.object({
   directory: z.string().min(1),
+  harnessID: z.string().min(1).optional(),
   since: z.coerce.number().int().nonnegative(),
   until: z.coerce.number().int().nonnegative().optional(),
 })

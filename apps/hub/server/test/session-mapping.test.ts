@@ -212,8 +212,11 @@ describe('project session mapping', () => {
     expect(fake.requests.some((item) => item.search.get('project') === 'p_demo')).toBe(false)
 
     expect(decodeMergedSessionCursor(body.cursor.next ?? undefined)).toEqual({
-      v: 1,
-      projects: { 'project-a': 'project-a-next', 'project-b': 'project-b-next' },
+      v: 2,
+      projects: {
+        'harness-a:project-a': 'project-a-next',
+        'harness-a:project-b': 'project-b-next',
+      },
     })
   })
 
@@ -293,11 +296,13 @@ describe('mergeSessionPages', () => {
   it('orders ascending and keeps both records cursors', () => {
     const pages: SessionPage[] = [
       {
+        harnessID: 'harness-a',
         projectID: 'a',
         data: [session('s2', 'a', 20)],
         cursor: { previous: null, next: 'a-next' },
       },
       {
+        harnessID: 'harness-a',
         projectID: 'b',
         data: [session('s1', 'b', 10)],
         cursor: { previous: null, next: null },
@@ -308,8 +313,8 @@ describe('mergeSessionPages', () => {
 
     expect(merged.data.map((item) => item.id)).toEqual(['s1', 's2'])
     expect(decodeMergedSessionCursor(merged.cursor.next ?? undefined)).toEqual({
-      v: 1,
-      projects: { a: 'a-next', b: null },
+      v: 2,
+      projects: { 'harness-a:a': 'a-next', 'harness-a:b': null },
     })
   })
 })

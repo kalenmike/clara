@@ -1,5 +1,5 @@
 import { ApiRequestError, type ApiDependencies } from './context.ts'
-import { syncProject } from './project-service.ts'
+import { resolveHarnessProjectGroups } from './harness-scope.ts'
 
 /**
  * Resolve a Clara project to every harness project record the active harness
@@ -16,13 +16,9 @@ export async function resolveHarnessProjectIds(
   projectId: string,
   signal: AbortSignal
 ): Promise<string[]> {
-  const direct = deps.harness.harnessProjectIds(projectId)
-  if (direct.length > 0) return direct
-
-  const record = deps.harness.projects.get(projectId)
-  if (!record) throw unmappedProjectError(projectId)
-  await syncProject(deps, projectId, signal).catch(() => undefined)
-  return deps.harness.harnessProjectIds(projectId)
+  const groups = await resolveHarnessProjectGroups(deps, projectId, signal)
+  const active = deps.harness.active?.harnessId
+  return groups.find((group) => group.harnessID === active)?.projectIDs ?? []
 }
 
 /**

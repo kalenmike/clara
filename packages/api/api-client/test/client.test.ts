@@ -87,18 +87,42 @@ describe('Clara API client', () => {
 
     await client.vcs.diff({
       location: { directory: '/repo' },
+      harnessID: 'h1',
       mode: 'working',
       context: 0,
     })
-    await client.git.log({ directory: '/repo', since: 1, until: 2 })
+    await client.git.log({ directory: '/repo', harnessID: 'h1', since: 1, until: 2 })
 
     expect(fake.requests[0]?.method).toBe('GET')
     expect(fake.requests[0]?.url).toBe(
-      'http://clara.api/v1/vcs/diff?directory=%2Frepo&mode=working&context=0'
+      'http://clara.api/v1/vcs/diff?directory=%2Frepo&harnessID=h1&mode=working&context=0'
     )
     expect(fake.requests[1]?.url).toBe(
-      'http://clara.api/v1/git/log?directory=%2Frepo&since=1&until=2'
+      'http://clara.api/v1/git/log?directory=%2Frepo&harnessID=h1&since=1&until=2'
     )
+  })
+
+  it('scopes session creation, lists, and catalogs to a harness', async () => {
+    const fake = fakeFetch((request) =>
+      request.url.includes('/v1/sessions') ? json({ id: 's1' }) : json({ data: [] })
+    )
+    const client = createClaraClient({ fetch: fake.fetch })
+
+    await client.session.create({
+      harnessID: 'h1',
+      location: { directory: '/repo' },
+    })
+    await client.session.list({ project: 'p1', harnessID: 'h1' })
+    await client.agent.list({ harnessID: 'h1' })
+    await client.model.list({ harnessID: 'h1' })
+
+    expect(JSON.parse(fake.requests[0]?.body ?? '{}')).toEqual({
+      harnessID: 'h1',
+      location: { directory: '/repo' },
+    })
+    expect(fake.requests[1]?.url).toBe('http://clara.api/v1/sessions?project=p1&harnessID=h1')
+    expect(fake.requests[2]?.url).toBe('http://clara.api/v1/agents?harnessID=h1')
+    expect(fake.requests[3]?.url).toBe('http://clara.api/v1/models?harnessID=h1')
   })
 
   it('returns undefined for a no-content response', async () => {

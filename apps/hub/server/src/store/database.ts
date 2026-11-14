@@ -6,7 +6,7 @@ import Database from 'better-sqlite3'
 
 export type ClaraDatabase = Database.Database
 
-export const SCHEMA_VERSION = 12
+export const SCHEMA_VERSION = 13
 
 const BUSY_TIMEOUT_MS = 5_000
 const DATABASE_MODE = 0o600
@@ -544,6 +544,17 @@ const MIGRATIONS: Migration[] = [
       UPDATE clara_project_workspaces
          SET canonical = NULL, snapshot_json = NULL, last_seen_at = NULL
        WHERE ${corrupted};
+    `)
+  },
+  /**
+   * Session-scoped API calls resolve the owning harness from the session
+   * record. The primary key starts with harness_id, so add a lookup index for
+   * the session-first path used by every /v1/sessions/:sessionID request.
+   */
+  (db) => {
+    db.exec(`
+      CREATE INDEX IF NOT EXISTS clara_sessions_session
+        ON clara_sessions(session_id);
     `)
   },
 ]
