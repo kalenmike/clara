@@ -98,31 +98,48 @@ function adapterClaude(args) {
   )
 }
 
+function adapterPi(args) {
+  return runTypeScript(
+    join(root, 'apps/adapters/pi/src/index.ts'),
+    join(root, 'apps/adapters/pi/dist/index.js'),
+    args,
+    'The Clara Pi adapter'
+  )
+}
+
 function adapter(args) {
   const command = args[0] ?? 'help'
   const selectsClaude = args.includes('--claude') || args.includes('claude')
+  const selectsPi = args.includes('--pi') || args.includes('pi')
   const forwarded = args.filter(
     (arg) =>
       arg !== '--opencode' &&
       arg !== 'opencode' &&
       arg !== '--claude' &&
       arg !== 'claude' &&
+      arg !== '--pi' &&
+      arg !== 'pi' &&
       arg !== '--runner'
   )
   const selectsOpencode = args.includes('--opencode') || args.includes('opencode')
   const selectsRunner = args.includes('--runner') || args.includes('--no-runner')
 
   if (selectsClaude) return adapterClaude(forwarded)
+  if (selectsPi) return adapterPi(forwarded)
 
   if (command === 'status') {
-    const adapterCode = adapterOpencode(['status'])
-    const runnerCode = runTypeScript(
-      join(root, 'packages/adapters/runner/src/install-cli.ts'),
-      join(root, 'packages/adapters/runner/dist/install-cli.js'),
-      ['status'],
-      'The Clara runner installer'
-    )
-    return adapterCode || runnerCode
+    const codes = [
+      adapterOpencode(['status']),
+      adapterClaude(['status']),
+      adapterPi(['status']),
+      runTypeScript(
+        join(root, 'packages/adapters/runner/src/install-cli.ts'),
+        join(root, 'packages/adapters/runner/dist/install-cli.js'),
+        ['status'],
+        'The Clara runner installer'
+      ),
+    ]
+    return codes.find((code) => code !== 0) ?? 0
   }
 
   if (
@@ -306,14 +323,16 @@ const clara = {
       name: 'adapter',
       group: 'Services',
       summary: 'Install harness adapters, the MCP bridge, and the shared runner',
-      usage: '<install|uninstall|status|runner> [--opencode|--claude] [--mcp] [--runner]',
+      usage: '<install|uninstall|status|runner> [--opencode|--claude|--pi] [--mcp] [--runner]',
       passthroughHelp: true,
       examples: [
         'pnpm clara adapter install --opencode',
         'pnpm clara adapter install --claude --pair <code>',
+        'pnpm clara adapter install --pi --pair <code>',
         'pnpm clara adapter install --opencode --mcp',
         'pnpm clara adapter install --runner --mcp',
         'pnpm clara adapter status --claude',
+        'pnpm clara adapter status --pi',
       ],
       run: adapter,
     },

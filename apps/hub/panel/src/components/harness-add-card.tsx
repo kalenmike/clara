@@ -14,6 +14,7 @@ import { CardBody, CollapsibleCard, CopyButton, Notice } from './primitives.tsx'
 const KINDS = [
   { kind: 'opencode', label: 'OpenCode' },
   { kind: 'claude', label: 'Claude Code' },
+  { kind: 'pi', label: 'Pi' },
 ]
 
 type HarnessSetupMode = 'local' | 'docker' | 'relay'
