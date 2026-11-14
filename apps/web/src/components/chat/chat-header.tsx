@@ -55,6 +55,7 @@ import { cn } from '@/lib/utils'
 export function ChatHeader({
   session,
   snapshot,
+  harnessLabel,
   infoOpen,
   onToggleInfo,
   onFork,
@@ -68,6 +69,7 @@ export function ChatHeader({
 }: {
   session: ClaraSession | undefined
   snapshot: ChatSnapshot
+  harnessLabel?: string
   infoOpen: boolean
   onToggleInfo: () => void
   onFork: () => void
@@ -233,8 +235,12 @@ export function ChatHeader({
           <Pencil className="size-3 shrink-0 text-muted-foreground opacity-0 transition-opacity hover:opacity-100 md:opacity-0" />
         </button>
         <div className="flex min-w-0 items-center gap-2 text-[10px] text-muted-foreground">
-          <span className={cn(busy && 'text-emerald-500')}>{statusLabel(snapshot)}</span>
-          <span className="truncate">· {session?.agent ?? 'build'}</span>
+          <span className={cn('shrink-0', busy && 'text-emerald-500')}>
+            {statusLabel(snapshot)}
+          </span>
+          <span className="truncate">
+            {`· ${session?.agent ?? 'build'}${harnessLabel ? ` · ${harnessLabel}` : ''}`}
+          </span>
         </div>
       </div>
 
