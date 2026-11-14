@@ -14,14 +14,17 @@ import { useSwitchAgent } from '@/features/chat/use-chat'
 
 export function AgentPicker({
   session,
+  harnessID,
   open,
   onOpenChange,
 }: {
   session: ClaraSession | undefined
+  /** The session's harness, so the picker lists that harness's agents. */
+  harnessID?: string
   open: boolean
   onOpenChange: (open: boolean) => void
 }) {
-  const agentsQuery = useAgents()
+  const agentsQuery = useAgents(harnessID)
   const switchAgent = useSwitchAgent(session?.id ?? '')
   const primaryAgents = (agentsQuery.data ?? []).filter(
     (agent) => !agent.hidden && agent.mode !== 'subagent'

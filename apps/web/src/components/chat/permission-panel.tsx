@@ -13,13 +13,16 @@ import { cn } from '@/lib/utils'
 export function PermissionPanel({
   sessionID,
   directory,
+  harnessID,
   messages,
 }: {
   sessionID: string
   directory: string | undefined
+  /** The session's harness, so approvals are read from the right one. */
+  harnessID?: string
   messages: ClaraSessionMessage[]
 }) {
-  const permissionsQuery = usePendingPermissions(directory)
+  const permissionsQuery = usePendingPermissions(directory, harnessID)
   const reply = useReplyPermission()
   const requests = (permissionsQuery.data ?? []).filter(
     (request) => request.sessionID === sessionID

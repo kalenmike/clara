@@ -28,7 +28,7 @@ export function SessionInfoPanel({
 }) {
   const contextQuery = useSessionContext(session?.id ?? '', Boolean(session))
   const { singular } = useSessionWording()
-  const modelsQuery = useModels()
+  const modelsQuery = useModels(session?.harnessID)
   const model = modelsQuery.data?.find(
     (item) => item.modelID === session?.model?.id && item.providerID === session?.model?.providerID
   )

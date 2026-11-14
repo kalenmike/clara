@@ -42,6 +42,7 @@ import { useSessionForms } from '@/features/chat/use-forms'
 import { useActiveSessionStatus } from '@/features/chat/use-session-status'
 import { useModelVisibility } from '@/features/models/use-model-visibility'
 import { isModelVisible } from '@/features/models/visibility'
+import { HarnessScopeProvider } from '@/features/harness/harness-scope'
 import { useSessionPolicy } from '@/features/notifications/session-policy'
 import { useInboxMonitor } from '@/features/sessions/inbox-monitor'
 import { resolveProjectWorkspaceTarget } from '@/features/projects/project-workspaces'
@@ -101,6 +102,7 @@ function ChatPageContent() {
     [lastWorkspaceID, project, session?.harnessID]
   )
   const workspace = workspaceTarget.workspace
+  const harnessID = session?.harnessID ?? workspace?.harnessID
   useMarkSessionViewed(session)
   const worker = session != null && isAutomation?.(session) === true
   const snapshot = useChatSnapshot(sessionId ?? '')
@@ -129,7 +131,7 @@ function ChatPageContent() {
       mergeSessionMessages(snapshot.messages, messagesQuery.data?.messages ?? [], pendingDrafts),
     [messagesQuery.data?.messages, pendingDrafts, snapshot.messages]
   )
-  const modelsQuery = useModels()
+  const modelsQuery = useModels(harnessID)
   const { source: costSource } = useCostDisplay()
   const estimateMessageCost = useCallback(
     (step: ClaraSessionMessageAssistant) => estimateStepCost(step, modelsQuery.data),
@@ -180,7 +182,7 @@ function ChatPageContent() {
   const [panelTab, setPanelTab] = useState<SidePanelTab>(readSidePanelTab)
   const isDesktop = useMediaQuery('(min-width: 1280px)')
 
-  const agentsQuery = useAgents()
+  const agentsQuery = useAgents(harnessID)
   const agents = useMemo(
     () => (agentsQuery.data ?? []).filter((agent) => !agent.hidden && agent.mode !== 'subagent'),
     [agentsQuery.data]
@@ -420,163 +422,176 @@ function ChatPageContent() {
   }
 
   return (
-    <div className="flex h-full min-h-0">
-      <div className="relative flex min-w-0 flex-1 flex-col">
-        <div className="relative flex min-h-0 flex-1 flex-col">
-          {sessionQuery.isLoading ? (
-            <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
-              <Loader2 className="mr-2 size-4 animate-spin" /> Loading {lowerSingular}…
-            </div>
-          ) : sessionQuery.isError || !session ? (
-            <div className="flex h-full flex-col items-center justify-center gap-3 text-center">
-              <p className="text-sm font-medium">{singular} not found</p>
-              <p className="max-w-sm text-xs text-muted-foreground">
-                It may have been deleted or the server is unreachable.
-              </p>
-              <Button asChild variant="outline" size="sm">
-                <Link to={projectId ? `/p/${projectId}` : '/'}>
-                  <ArrowLeft className="size-4" /> Back to {lowerPlural}
-                </Link>
-              </Button>
-            </div>
-          ) : (
-            <>
-              <ChatHeader
-                session={session}
-                snapshot={snapshot}
-                infoOpen={infoOpen}
-                onToggleInfo={togglePanel}
-                onFork={handleForkSession}
-                forkPending={forkPending}
-                onDeleted={() => navigate(`/p/${projectId ?? session.projectID}`)}
-                allCollapsed={allCollapsed}
-                canToggleAll={canToggleAll}
-                onToggleAll={toggleAll}
-                showInternal={showInternal}
-                onToggleInternal={toggleInternal}
-                worker={worker}
-              />
-
-              {draftCount > 0 && !busy && !worker && !isArchivedSession(session) && (
-                <DraftStartPanel key={sessionId} sessionID={sessionId} count={draftCount} />
-              )}
-              {worker && <FormPanel sessionID={sessionId} />}
-              <PermissionPanel sessionID={sessionId} directory={directory} messages={allMessages} />
-
-              {messagesPending ? (
-                <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
-                  <Loader2 className="mr-2 size-4 animate-spin" /> Loading conversation…
-                </div>
-              ) : messagesQuery.isError && allMessages.length === 0 ? (
-                <div className="flex h-full flex-col items-center justify-center gap-3 text-center">
-                  <p className="text-sm font-medium">Could not load the conversation</p>
-                  <p className="max-w-sm text-xs text-muted-foreground">
-                    The server did not return this {lowerSingular}&apos;s messages.
-                  </p>
-                  <Button variant="outline" size="sm" onClick={() => void messagesQuery.refetch()}>
-                    Retry
-                  </Button>
-                </div>
-              ) : timeline.length === 0 ? (
-                isDraftSession ? (
-                  <DraftSessionView hasDraft={hasLocalDraft} />
-                ) : (
-                  <EmptySessionView
-                    title="No messages"
-                    description={`This ${lowerSingular} has no messages yet.`}
-                  />
-                )
-              ) : (
-                <MessageList
-                  sessionID={sessionId}
-                  items={timeline}
-                  scrollToEndRequest={scrollToEndRequest}
-                  streaming={busy}
+    <HarnessScopeProvider harnessID={harnessID}>
+      <div className="flex h-full min-h-0">
+        <div className="relative flex min-w-0 flex-1 flex-col">
+          <div className="relative flex min-h-0 flex-1 flex-col">
+            {sessionQuery.isLoading ? (
+              <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
+                <Loader2 className="mr-2 size-4 animate-spin" /> Loading {lowerSingular}…
+              </div>
+            ) : sessionQuery.isError || !session ? (
+              <div className="flex h-full flex-col items-center justify-center gap-3 text-center">
+                <p className="text-sm font-medium">{singular} not found</p>
+                <p className="max-w-sm text-xs text-muted-foreground">
+                  It may have been deleted or the server is unreachable.
+                </p>
+                <Button asChild variant="outline" size="sm">
+                  <Link to={projectId ? `/p/${projectId}` : '/'}>
+                    <ArrowLeft className="size-4" /> Back to {lowerPlural}
+                  </Link>
+                </Button>
+              </div>
+            ) : (
+              <>
+                <ChatHeader
+                  session={session}
+                  snapshot={snapshot}
+                  infoOpen={infoOpen}
+                  onToggleInfo={togglePanel}
+                  onFork={handleForkSession}
+                  forkPending={forkPending}
+                  onDeleted={() => navigate(`/p/${projectId ?? session.projectID}`)}
+                  allCollapsed={allCollapsed}
+                  canToggleAll={canToggleAll}
+                  onToggleAll={toggleAll}
                   showInternal={showInternal}
-                  revision={snapshot.revision}
-                  historyRevision={snapshot.historyRevision}
-                  collapsedIDs={collapsedIDs}
-                  hasOlder={snapshot.hasOlder}
-                  loadingOlder={messagesQuery.loadingOlder}
-                  onLoadOlder={() => void messagesQuery.loadOlder()}
-                  onToggleMessage={toggleMessage}
-                  onForkMessage={handleForkMessage}
-                  onForwardMessage={handleForwardMessage}
-                  canActOnMessage={canActOnMessage}
-                  canFork={!worker}
-                  actionsDisabled={forkPending || forwardPending}
+                  onToggleInternal={toggleInternal}
+                  worker={worker}
                 />
-              )}
 
-              <ReplyActions
-                session={session}
-                sessionID={sessionId}
-                projectID={projectId}
-                busy={busy}
-                ready={messagesReady}
-                empty={emptySession}
-                hasDraft={hasLocalDraft}
-                requests={pendingRequestCount}
-                worker={worker}
-                onDone={() => {
-                  if (inboxMonitor.active) {
-                    inboxMonitor.advance(sessionId)
-                    return
-                  }
-                  navigate('/')
-                }}
-              />
-            </>
+                {draftCount > 0 && !busy && !worker && !isArchivedSession(session) && (
+                  <DraftStartPanel key={sessionId} sessionID={sessionId} count={draftCount} />
+                )}
+                {worker && <FormPanel sessionID={sessionId} />}
+                <PermissionPanel
+                  sessionID={sessionId}
+                  directory={directory}
+                  harnessID={harnessID}
+                  messages={allMessages}
+                />
+
+                {messagesPending ? (
+                  <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
+                    <Loader2 className="mr-2 size-4 animate-spin" /> Loading conversation…
+                  </div>
+                ) : messagesQuery.isError && allMessages.length === 0 ? (
+                  <div className="flex h-full flex-col items-center justify-center gap-3 text-center">
+                    <p className="text-sm font-medium">Could not load the conversation</p>
+                    <p className="max-w-sm text-xs text-muted-foreground">
+                      The server did not return this {lowerSingular}&apos;s messages.
+                    </p>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => void messagesQuery.refetch()}
+                    >
+                      Retry
+                    </Button>
+                  </div>
+                ) : timeline.length === 0 ? (
+                  isDraftSession ? (
+                    <DraftSessionView hasDraft={hasLocalDraft} />
+                  ) : (
+                    <EmptySessionView
+                      title="No messages"
+                      description={`This ${lowerSingular} has no messages yet.`}
+                    />
+                  )
+                ) : (
+                  <MessageList
+                    sessionID={sessionId}
+                    items={timeline}
+                    scrollToEndRequest={scrollToEndRequest}
+                    streaming={busy}
+                    showInternal={showInternal}
+                    revision={snapshot.revision}
+                    historyRevision={snapshot.historyRevision}
+                    collapsedIDs={collapsedIDs}
+                    hasOlder={snapshot.hasOlder}
+                    loadingOlder={messagesQuery.loadingOlder}
+                    onLoadOlder={() => void messagesQuery.loadOlder()}
+                    onToggleMessage={toggleMessage}
+                    onForkMessage={handleForkMessage}
+                    onForwardMessage={handleForwardMessage}
+                    canActOnMessage={canActOnMessage}
+                    canFork={!worker}
+                    actionsDisabled={forkPending || forwardPending}
+                  />
+                )}
+
+                <ReplyActions
+                  session={session}
+                  sessionID={sessionId}
+                  projectID={projectId}
+                  busy={busy}
+                  ready={messagesReady}
+                  empty={emptySession}
+                  hasDraft={hasLocalDraft}
+                  requests={pendingRequestCount}
+                  worker={worker}
+                  onDone={() => {
+                    if (inboxMonitor.active) {
+                      inboxMonitor.advance(sessionId)
+                      return
+                    }
+                    navigate('/')
+                  }}
+                />
+              </>
+            )}
+
+            <ReplyDock harnessID={harnessID} />
+          </div>
+
+          {session && (
+            <SessionStatsBar session={session} snapshot={snapshot} harnessID={harnessID} />
           )}
-
-          <ReplyDock />
         </div>
 
-        {session && <SessionStatsBar session={session} snapshot={snapshot} />}
+        {session && infoOpen && isDesktop && (
+          <SidePanel
+            session={session}
+            snapshot={snapshot}
+            messages={allMessages}
+            directory={directory}
+            projectID={owningProject?.id ?? projectId}
+            canonical={workspace?.canonical ?? workspace?.directory}
+            draft={isDraftSession}
+            tab={panelTab}
+            onTabChange={setPanelTab}
+          />
+        )}
+
+        {session && !isDesktop && (
+          <Sheet open={infoOpen} onOpenChange={setInfoOpen}>
+            <SheetContent
+              side="right"
+              className="p-0 data-[side=right]:w-full sm:max-w-none"
+              showCloseButton={false}
+            >
+              <SheetTitle className="sr-only">{singular} panel</SheetTitle>
+              <SheetDescription className="sr-only">
+                Usage, plan, cost, git changes, and the pair terminal
+              </SheetDescription>
+              <SidePanel
+                session={session}
+                snapshot={snapshot}
+                messages={allMessages}
+                directory={directory}
+                projectID={owningProject?.id ?? projectId}
+                canonical={workspace?.canonical ?? workspace?.directory}
+                draft={isDraftSession}
+                tab={panelTab}
+                onTabChange={setPanelTab}
+                onClose={() => setInfoOpen(false)}
+                resizable={false}
+                className="w-full"
+              />
+            </SheetContent>
+          </Sheet>
+        )}
       </div>
-
-      {session && infoOpen && isDesktop && (
-        <SidePanel
-          session={session}
-          snapshot={snapshot}
-          messages={allMessages}
-          directory={directory}
-          projectID={owningProject?.id ?? projectId}
-          canonical={workspace?.canonical ?? workspace?.directory}
-          draft={isDraftSession}
-          tab={panelTab}
-          onTabChange={setPanelTab}
-        />
-      )}
-
-      {session && !isDesktop && (
-        <Sheet open={infoOpen} onOpenChange={setInfoOpen}>
-          <SheetContent
-            side="right"
-            className="p-0 data-[side=right]:w-full sm:max-w-none"
-            showCloseButton={false}
-          >
-            <SheetTitle className="sr-only">{singular} panel</SheetTitle>
-            <SheetDescription className="sr-only">
-              Usage, plan, cost, git changes, and the pair terminal
-            </SheetDescription>
-            <SidePanel
-              session={session}
-              snapshot={snapshot}
-              messages={allMessages}
-              directory={directory}
-              projectID={owningProject?.id ?? projectId}
-              canonical={workspace?.canonical ?? workspace?.directory}
-              draft={isDraftSession}
-              tab={panelTab}
-              onTabChange={setPanelTab}
-              onClose={() => setInfoOpen(false)}
-              resizable={false}
-              className="w-full"
-            />
-          </SheetContent>
-        </Sheet>
-      )}
-    </div>
+    </HarnessScopeProvider>
   )
 }

@@ -8,7 +8,7 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
-import { useModels } from '@/features/catalog/use-catalog'
+import { useModelsForHarnesses, modelsForHarness } from '@/features/catalog/use-catalog'
 import { estimateSessionCost, resolveDisplayCost } from '@/features/cost/estimate'
 import { useCostDisplay } from '@/features/cost/use-cost-display'
 import { projectLabel } from '@/features/projects/project-list'
@@ -34,7 +34,16 @@ export function SessionsPage() {
   const workspace = workspaceTarget.workspace
   const sessionsQuery = useSessions(project?.id ?? null, '', Boolean(project?.workspaces.length))
   const activeQuery = useActiveSessions()
-  const modelsQuery = useModels()
+  /**
+   * Prices come from each session's own harness. Querying the project's
+   * workspace harnesses up front covers every session on this page without a
+   * hook per card; an undefined entry keeps the active harness for old payloads.
+   */
+  const harnessIDs = useMemo(
+    () => [undefined, ...(project?.workspaces.map((workspace) => workspace.harnessID) ?? [])],
+    [project]
+  )
+  const modelsByHarness = useModelsForHarnesses(harnessIDs)
   const { source: costSource } = useCostDisplay()
   const { plural, lowerSingular, lowerPlural } = useSessionWording()
 
@@ -158,9 +167,12 @@ export function SessionsPage() {
             const displayCost = resolveDisplayCost(
               session.cost,
               costSource === 'estimated'
-                ? estimateSessionCost(session.tokens, session.model, modelsQuery.data, {
-                    tierContextTokens: 0,
-                  })
+                ? estimateSessionCost(
+                    session.tokens,
+                    session.model,
+                    modelsForHarness(modelsByHarness, session.harnessID),
+                    { tierContextTokens: 0 }
+                  )
                 : undefined,
               costSource
             )
