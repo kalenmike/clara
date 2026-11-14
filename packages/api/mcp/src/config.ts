@@ -18,8 +18,12 @@ export function apiToken(): string {
   const explicit = process.env.CLARA_API_TOKEN_FILE?.trim()
   if (explicit) return readToken(explicit)
 
+  const state = readRuntimeState()
   const configHome = process.env.XDG_CONFIG_HOME?.trim() || join(homedir(), '.config')
-  const configDir = process.env.CLARA_CONFIG_DIR?.trim() || join(configHome, 'clara')
+  const configDir =
+    (state && isRuntimeLive(state) ? state.configDir : undefined) ||
+    process.env.CLARA_CONFIG_DIR?.trim() ||
+    join(configHome, 'clara')
   return readToken(join(configDir, 'api.token'))
 }
 
