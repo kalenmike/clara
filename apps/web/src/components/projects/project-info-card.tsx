@@ -26,6 +26,7 @@ import {
 import { Separator } from '@/components/ui/separator'
 import { Skeleton } from '@/components/ui/skeleton'
 import { projectLabel, projectWorkspaceSummary } from '@/features/projects/project-list'
+import { describePartialHarnesses } from '@/features/projects/project-stats'
 import {
   useRemoveProjectWorkspace,
   useSyncProject,
@@ -108,6 +109,15 @@ export function ProjectInfoCard({ project }: { project: ClaraProject }) {
                   {formatCount(stats.total)}
                   {stats.truncated ? '+' : ''} total
                 </Badge>
+                {stats.partial && (
+                  <Badge
+                    variant="outline"
+                    className="text-muted-foreground"
+                    title={describePartialHarnesses(stats.harnesses)}
+                  >
+                    partial
+                  </Badge>
+                )}
               </>
             )}
           </div>
@@ -203,7 +213,11 @@ export function ProjectInfoCard({ project }: { project: ClaraProject }) {
               {project.workspaces.find((item) => item.id === project.defaultWorkspaceID)?.label ??
                 'First workspace'}
             </InfoRow>
-            <InfoRow label="Sessions">{`${formatCount(stats?.total ?? 0)} ${lowerPlural}`}</InfoRow>
+            <InfoRow label="Sessions">
+              {stats
+                ? `${formatCount(stats.total)}${stats.truncated ? '+' : ''} ${lowerPlural}`
+                : `— ${lowerPlural}`}
+            </InfoRow>
           </div>
         </CardContent>
       </Card>

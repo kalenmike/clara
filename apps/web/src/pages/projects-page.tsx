@@ -32,12 +32,13 @@ export function ProjectsPage() {
   )
   const {
     hasSessions,
+    incomplete: presenceIncomplete,
     pending: presencePending,
     failed: presenceFailed,
   } = useProjectSessionPresence(projectIDs, !showEmpty)
   const visibleProjects = useMemo(
-    () => filterVisibleProjects(projects, hasSessions, showEmpty),
-    [hasSessions, projects, showEmpty]
+    () => filterVisibleProjects(projects, hasSessions, showEmpty, presenceIncomplete),
+    [hasSessions, presenceIncomplete, projects, showEmpty]
   )
 
   if (
@@ -99,6 +100,13 @@ export function ProjectsPage() {
           >
             Retry
           </button>
+        </div>
+      )}
+
+      {presenceIncomplete.size > 0 && (
+        <div className="rounded-lg border border-dashed px-4 py-3 text-xs text-muted-foreground">
+          Some projects span a harness that is offline or failed to answer. Their counts may be
+          incomplete.
         </div>
       )}
 

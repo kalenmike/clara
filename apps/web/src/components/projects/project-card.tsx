@@ -7,6 +7,7 @@ import { Badge } from '@/components/ui/badge'
 import { Card, CardAction, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
 import { projectLabel, projectWorkspaceSummary } from '@/features/projects/project-list'
+import { describePartialHarnesses, type ProjectStats } from '@/features/projects/project-stats'
 import { useProjectStats } from '@/features/projects/use-project-stats'
 import { useSessionWording } from '@/features/sessions/use-wording'
 import { formatCount, formatRelativeTime } from '@/lib/format'
@@ -62,6 +63,7 @@ export function ProjectCard({ project }: { project: ClaraProject }) {
               <Badge variant="outline" className="text-[10px]">
                 {formatCount(stats.archived)} archived
               </Badge>
+              <PartialBadge stats={stats} />
             </>
           )}
         </div>
@@ -80,5 +82,18 @@ export function ProjectCard({ project }: { project: ClaraProject }) {
         </div>
       </CardContent>
     </Card>
+  )
+}
+
+function PartialBadge({ stats }: { stats: ProjectStats }) {
+  if (!stats.partial) return null
+  return (
+    <Badge
+      variant="outline"
+      className="text-[10px] text-muted-foreground"
+      title={describePartialHarnesses(stats.harnesses)}
+    >
+      partial
+    </Badge>
   )
 }

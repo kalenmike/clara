@@ -81,7 +81,7 @@ export function activitySessionPath(
   harness: ClaraActivityHarness | undefined,
   projectIDs: ReadonlySet<string>
 ): string | null {
-  if (!harness?.active || !projectIDs.has(item.session.projectID)) return null
+  if (!harness || !projectIDs.has(item.session.projectID)) return null
   return `/p/${item.session.projectID}/s/${item.session.id}`
 }
 

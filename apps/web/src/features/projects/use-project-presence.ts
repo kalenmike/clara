@@ -1,38 +1,51 @@
 import { useQueries } from '@tanstack/react-query'
+import type { ClaraSessionsHarnessStatus } from '@clara/api-contract'
 import { queryKeys } from '@/lib/query-keys'
 import { useConnection } from '@/providers/connection-provider'
 
+export type ProjectPresenceAnswer = {
+  hasSessions: boolean
+  harnesses: ReadonlyArray<ClaraSessionsHarnessStatus>
+}
+
 export type PresenceQueryResult = {
-  data?: boolean
+  data?: ProjectPresenceAnswer
   isError: boolean
   isPending: boolean
 }
 
 export type ProjectPresence = {
   hasSessions: Map<string, boolean>
+  /** Projects with at least one linked harness that failed or was offline. */
+  incomplete: Set<string>
   pending: boolean
+  /** True only when no project lookup answered, so partials never look fatal. */
   failed: boolean
 }
 
 /**
- * Combine one lookup per project. A failure is reported instead of being
- * treated as "unknown", so the UI can say that counts are unavailable rather
- * than implying every project is empty.
+ * Combine one lookup per project. A lookup that answered with some harnesses
+ * down still counts as answered: it is incomplete, not failed, and keeps the
+ * project visible instead of implying it is empty.
  */
 export function combineProjectPresence(
   projectIDs: string[],
   results: ReadonlyArray<PresenceQueryResult>
 ): ProjectPresence {
   const hasSessions = new Map<string, boolean>()
-  let failed = false
+  const incomplete = new Set<string>()
   results.forEach((result, index) => {
-    if (result.data !== undefined) hasSessions.set(projectIDs[index], result.data)
-    else if (result.isError) failed = true
+    if (result.data === undefined) return
+    const projectID = projectIDs[index]
+    hasSessions.set(projectID, result.data.hasSessions)
+    if (result.data.harnesses.some((harness) => !harness.ok)) incomplete.add(projectID)
   })
+  const answered = results.some((result) => result.data !== undefined)
   return {
     hasSessions,
+    incomplete,
     pending: results.some((result) => result.isPending),
-    failed,
+    failed: results.length > 0 && !answered && results.every((result) => result.isError),
   }
 }
 
@@ -46,9 +59,9 @@ export function useProjectSessionPresence(projectIDs: string[], enabled = true) 
   return useQueries({
     queries: projectIDs.map((projectID) => ({
       queryKey: queryKeys.projectPresence(projectID),
-      queryFn: async () => {
+      queryFn: async (): Promise<ProjectPresenceAnswer> => {
         const response = await client!.session.list({ project: projectID, limit: 1 })
-        return response.data.length > 0
+        return { hasSessions: response.data.length > 0, harnesses: response.harnesses ?? [] }
       },
       enabled: Boolean(client) && enabled,
       staleTime: 30_000,

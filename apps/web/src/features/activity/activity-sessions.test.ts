@@ -78,10 +78,11 @@ describe('activity helpers', () => {
     })
   })
 
-  it('only links sessions on the active harness with a known project', () => {
+  it('links sessions that map to a Clara project regardless of harness activity', () => {
     const item = activity('a', 's1')
     expect(activitySessionPath(item, harness('a', 1, true), new Set(['p1']))).toBe('/p/p1/s/s1')
-    expect(activitySessionPath(item, harness('a', 1, false), new Set(['p1']))).toBeNull()
+    expect(activitySessionPath(item, harness('a', 1, false), new Set(['p1']))).toBe('/p/p1/s/s1')
     expect(activitySessionPath(item, harness('a', 1, true), new Set(['p2']))).toBeNull()
+    expect(activitySessionPath(item, undefined, new Set(['p1']))).toBeNull()
   })
 })

@@ -189,13 +189,14 @@ export function SidebarContent({
         .map((project) => project.id),
     [projectOptions]
   )
-  const { hasSessions, pending: presencePending } = useProjectSessionPresence(
-    projectIDs,
-    !showEmpty
-  )
+  const {
+    hasSessions,
+    incomplete: presenceIncomplete,
+    pending: presencePending,
+  } = useProjectSessionPresence(projectIDs, !showEmpty)
   const visibleProjectOptions = useMemo(
-    () => filterVisibleProjects(projectOptions, hasSessions, showEmpty),
-    [hasSessions, projectOptions, showEmpty]
+    () => filterVisibleProjects(projectOptions, hasSessions, showEmpty, presenceIncomplete),
+    [hasSessions, presenceIncomplete, projectOptions, showEmpty]
   )
 
   const selectedProject = useMemo(() => {
