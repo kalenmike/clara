@@ -76,6 +76,9 @@ cookie jar.
    others drop the stale offer instead of showing it again.
 8. API reads, streams, and push payloads never enter a cache. Only app
    documents are cached.
+9. Every emitted script is precached, not just the entry. Screens load as
+   separate chunks, and an installed app opens a screen offline even if that
+   screen was never opened before.
 
 ## Edge cases
 
@@ -98,6 +101,11 @@ cookie jar.
   launch.
 - **Deploy during install**: a precache entry can 404 on hashed files, the
   install fails quietly, and the next check retries.
+- **Deploy between page load and navigation**: the page can ask for a chunk the
+  new deploy no longer serves. The controlling worker answers from the precache
+  of the build the page came from, so navigation keeps working until the update
+  is applied; a plain browser tab without worker control recovers with one
+  reload.
 - **Wedged app**: Settings → App clears the worker registration and every cache,
   then reloads from the network. Pairing, settings, and drafts are untouched.
 - **Notifications after clearing**: the push subscription can be dropped; the
@@ -148,6 +156,10 @@ cookie jar.
 - Push handlers: `apps/web/public/push-sw.js`, loaded with `importScripts`.
 - Vite: `apps/web/vite.config.ts` (`registerType: 'prompt'`,
   `injectRegister: false`, `srcDir: 'src'`, `filename: 'sw.ts'`).
+- Route chunks: `apps/web/src/router.tsx` loads every screen except the shell,
+  the landing view, and `/connect` with route-level `lazy`, so a deploy only
+  re-downloads the screens that changed. `apps/web/scripts/check-bundle.mjs`
+  scans each emitted chunk against the harness markers and a 500 kB budget.
 - Related: [capabilities](capabilities.md), [notifications](notifications.md).
 
 </details>
