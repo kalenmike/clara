@@ -121,7 +121,7 @@ fn start_sidecar(
 ) -> Result<(), Box<dyn std::error::Error>> {
     let command = app
         .shell()
-        .sidecar("binaries/clara-server")?
+        .sidecar("clara-server")?
         .env("CLARA_CONFIG_DIR", &config_dir)
         .env("CLARA_DATA_DIR", &data_dir)
         .env("CLARA_CACHE_DIR", &cache_dir)
