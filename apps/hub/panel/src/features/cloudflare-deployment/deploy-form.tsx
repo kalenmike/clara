@@ -25,6 +25,7 @@ export function DeployForm({
   const [accounts, setAccounts] = useState<PanelCloudflareAccount[]>()
   const [accountId, setAccountId] = useState(cloudflare.accountId ?? '')
   const [scriptName, setScriptName] = useState(cloudflare.scriptName ?? 'clara-relay')
+  const [replaceExisting, setReplaceExisting] = useState(cloudflare.managed)
   const [pending, setPending] = useState<'accounts' | 'deploy'>()
   const [error, setError] = useState<string>()
   const [notice, setNotice] = useState<string>()
@@ -75,6 +76,7 @@ export function DeployForm({
           ...(needsToken ? { token: token.trim(), rememberToken: remember } : {}),
           accountId: accountId.trim(),
           scriptName: scriptName.trim() || 'clara-relay',
+          replaceExisting,
         }
       )
       setToken('')
@@ -187,6 +189,15 @@ export function DeployForm({
           onChange={(event) => setScriptName(event.target.value)}
           className="mt-1 w-full rounded-md border border-neutral-200 bg-white px-2 py-1.5 font-mono text-xs dark:border-neutral-700 dark:bg-neutral-900"
         />
+      </label>
+
+      <label className="flex items-center gap-2 text-[11px]">
+        <input
+          type="checkbox"
+          checked={replaceExisting}
+          onChange={(event) => setReplaceExisting(event.target.checked)}
+        />
+        Replace an existing Clara relay Worker with this name
       </label>
 
       {notice ? <Notice tone="warning">{redact(notice)}</Notice> : null}

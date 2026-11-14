@@ -1,0 +1,244 @@
+import { useEffect, useState } from 'react'
+import { RefreshCw, Trash2 } from 'lucide-react'
+import type { PanelRelayTransport } from '@clara/shared-types'
+import { sourceLabel } from '../lib/format.ts'
+import { deletePanel, postPanel } from '../lib/panel-api.ts'
+import { usePeek } from '../lib/peek-context.tsx'
+import { Notice, SourceTag } from './primitives.tsx'
+
+export function RelayEditor({
+  relay,
+  onChanged,
+}: {
+  relay: PanelRelayTransport
+  onChanged: () => void
+}) {
+  const { redact } = usePeek()
+  const [url, setUrl] = useState(relay.url ?? '')
+  const [agentToken, setAgentToken] = useState('')
+  const [clientToken, setClientToken] = useState('')
+  const [pending, setPending] = useState<'save' | 'clear' | 'room'>()
+  const [error, setError] = useState<string>()
+  const [notice, setNotice] = useState<string>()
+
+  useEffect(() => {
+    setUrl(relay.url ?? '')
+  }, [relay.url])
+
+  const urlFromEnv = relay.urlSource === 'env'
+  const agentFromEnv = relay.agentTokenSource === 'env'
+  const clientFromEnv = relay.clientTokenSource === 'env'
+  const hasPanelValues =
+    relay.urlSource === 'file' ||
+    relay.roomSource === 'file' ||
+    relay.roomSource === 'generated' ||
+    relay.agentTokenSource === 'file' ||
+    relay.clientTokenSource === 'file'
+  const hasAgentToken = agentFromEnv || relay.agentTokenConfigured || Boolean(agentToken.trim())
+  const hasClientToken = clientFromEnv || relay.clientTokenConfigured || Boolean(clientToken.trim())
+  const canSave =
+    Boolean((relay.url ?? '').trim() || url.trim()) &&
+    hasAgentToken &&
+    hasClientToken &&
+    (!urlFromEnv || Boolean(agentToken.trim()) || Boolean(clientToken.trim()))
+
+  const save = async () => {
+    setPending('save')
+    setError(undefined)
+    setNotice(undefined)
+    try {
+      const body: { url?: string; agentToken?: string; clientToken?: string } = {}
+      if (!urlFromEnv) {
+        if (!url.trim()) throw new Error('Enter a relay URL')
+        body.url = url.trim()
+      }
+      if (agentToken.trim()) body.agentToken = agentToken.trim()
+      if (clientToken.trim()) body.clientToken = clientToken.trim()
+      if (Object.keys(body).length === 0) {
+        throw new Error('Nothing to save')
+      }
+      await postPanel('/panel/api/v1/relay', body)
+      setAgentToken('')
+      setClientToken('')
+      setNotice('Relay saved. Devices may need to pair again if the room or client token changed.')
+      onChanged()
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : String(cause))
+    } finally {
+      setPending(undefined)
+    }
+  }
+
+  const clear = async () => {
+    if (
+      !window.confirm(
+        'Remove the relay values saved in the panel? Environment values still apply, and devices may need to pair again.'
+      )
+    ) {
+      return
+    }
+    setPending('clear')
+    setError(undefined)
+    setNotice(undefined)
+    try {
+      await deletePanel('/panel/api/v1/relay')
+      setNotice('Panel relay values cleared.')
+      onChanged()
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : String(cause))
+    } finally {
+      setPending(undefined)
+    }
+  }
+
+  const regenerate = async () => {
+    if (
+      !window.confirm(
+        'Replace the relay room with a new random value? Every paired device must pair again.'
+      )
+    ) {
+      return
+    }
+    setPending('room')
+    setError(undefined)
+    setNotice(undefined)
+    try {
+      await postPanel('/panel/api/v1/relay/room', {})
+      setNotice('Relay room regenerated. Pair every device again.')
+      onChanged()
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : String(cause))
+    } finally {
+      setPending(undefined)
+    }
+  }
+
+  return (
+    <div className="space-y-2 border-t border-neutral-100 pt-2 dark:border-neutral-800/60">
+      {relay.envManaged ? (
+        <Notice>
+          Environment values take precedence. Fields marked <SourceTag source="environment" /> are
+          read-only until the matching variable is removed and the hub service restarts.
+        </Notice>
+      ) : null}
+
+      <label className="block text-[11px]">
+        <span className="flex items-center justify-between gap-2">
+          Relay URL
+          {relay.urlSource ? <SourceTag source={sourceLabel(relay.urlSource)} /> : null}
+        </span>
+        <input
+          value={url}
+          onChange={(event) => setUrl(event.target.value)}
+          disabled={urlFromEnv || pending !== undefined}
+          spellCheck={false}
+          placeholder="wss://relay.example"
+          className="mt-1 w-full rounded-md border border-neutral-200 bg-white px-2 py-1.5 font-mono text-xs disabled:opacity-60 dark:border-neutral-700 dark:bg-neutral-900"
+        />
+      </label>
+
+      <div className="flex items-end justify-between gap-2 text-[11px]">
+        <span className="flex min-w-0 items-center gap-2">
+          <span>Room</span>
+          <span className="truncate font-mono text-[11px] text-neutral-600 dark:text-neutral-300">
+            {relay.room ?? 'Generated on first save'}
+          </span>
+          {relay.roomSource ? <SourceTag source={sourceLabel(relay.roomSource)} /> : null}
+        </span>
+        <button
+          type="button"
+          onClick={() => void regenerate()}
+          disabled={!relay.roomRegeneratable || pending !== undefined}
+          className="inline-flex shrink-0 items-center gap-1 rounded-md border border-neutral-200 px-2 py-1 text-[11px] font-medium disabled:opacity-60 dark:border-neutral-700"
+        >
+          <RefreshCw className="size-3" aria-hidden="true" />
+          {pending === 'room' ? 'Regenerating…' : 'Regenerate room'}
+        </button>
+      </div>
+
+      <label className="block text-[11px]">
+        <span className="flex items-center justify-between gap-2">
+          Hub token
+          {relay.agentTokenSource ? (
+            <SourceTag source={relay.agentTokenSource === 'env' ? 'environment' : 'encrypted'} />
+          ) : null}
+        </span>
+        <input
+          type="password"
+          value={agentToken}
+          onChange={(event) => setAgentToken(event.target.value)}
+          disabled={agentFromEnv || pending !== undefined}
+          autoComplete="off"
+          spellCheck={false}
+          placeholder={
+            agentFromEnv
+              ? 'Provided by the environment'
+              : relay.agentTokenConfigured
+                ? 'Saved — leave blank to keep'
+                : 'Required'
+          }
+          className="mt-1 w-full rounded-md border border-neutral-200 bg-white px-2 py-1.5 font-mono text-xs disabled:opacity-60 dark:border-neutral-700 dark:bg-neutral-900"
+        />
+      </label>
+
+      <label className="block text-[11px]">
+        <span className="flex items-center justify-between gap-2">
+          Client token
+          {relay.clientTokenSource ? (
+            <SourceTag source={relay.clientTokenSource === 'env' ? 'environment' : 'encrypted'} />
+          ) : null}
+        </span>
+        <input
+          type="password"
+          value={clientToken}
+          onChange={(event) => setClientToken(event.target.value)}
+          disabled={clientFromEnv || pending !== undefined}
+          autoComplete="off"
+          spellCheck={false}
+          placeholder={
+            clientFromEnv
+              ? 'Provided by the environment'
+              : relay.clientTokenConfigured
+                ? 'Saved — leave blank to keep'
+                : 'Required'
+          }
+          className="mt-1 w-full rounded-md border border-neutral-200 bg-white px-2 py-1.5 font-mono text-xs disabled:opacity-60 dark:border-neutral-700 dark:bg-neutral-900"
+        />
+      </label>
+
+      <p className="text-[10px] text-neutral-500 dark:text-neutral-400">
+        Tokens are encrypted on this hub and never shown again. They must match the Worker secrets.
+        Changing the room or client token requires every device to pair again.
+      </p>
+
+      {notice ? (
+        <p className="rounded-md bg-emerald-50 px-2.5 py-2 text-xs text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-300">
+          {redact(notice)}
+        </p>
+      ) : null}
+      {error ? <Notice tone="danger">{redact(error)}</Notice> : null}
+
+      <div className="flex flex-wrap gap-2">
+        <button
+          type="button"
+          onClick={() => void save()}
+          disabled={!canSave || pending !== undefined}
+          className="inline-flex items-center gap-1.5 rounded-lg bg-sky-600 px-2.5 py-1.5 text-xs font-semibold text-white shadow-sm transition hover:bg-sky-500 disabled:cursor-not-allowed disabled:opacity-60"
+        >
+          {pending === 'save' ? 'Saving…' : 'Save and connect'}
+        </button>
+        {hasPanelValues ? (
+          <button
+            type="button"
+            onClick={() => void clear()}
+            disabled={pending !== undefined}
+            className="inline-flex items-center gap-1.5 rounded-lg border border-neutral-200 px-2.5 py-1.5 text-xs font-semibold transition hover:bg-neutral-50 disabled:opacity-60 dark:border-neutral-700 dark:hover:bg-neutral-900"
+          >
+            <Trash2 className="size-3.5" aria-hidden="true" />
+            {pending === 'clear' ? 'Clearing…' : 'Clear panel relay'}
+          </button>
+        ) : null}
+      </div>
+    </div>
+  )
+}
