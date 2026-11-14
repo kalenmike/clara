@@ -21,6 +21,7 @@ import {
 import { ApiRequestError, type ApiDependencies, type ApiVariables } from '../context.ts'
 import {
   forwardDto,
+  forwardDtoTo,
   parseClaraFiles,
   parseClaraLocation,
   parseClaraVcs,
@@ -29,7 +30,8 @@ import {
   parseClaraVcsStatus,
   parseClaraWorktrees,
 } from '../dto.ts'
-import { forwardResult, locationQuery, query } from '../harness.ts'
+import { forwardResultTo, locationQuery, query } from '../harness.ts'
+import { resolveHarnessForDirectory, resolveHarnessProjectGroups } from '../harness-scope.ts'
 import {
   availableProjects,
   signalProjectArchive,
@@ -37,13 +39,14 @@ import {
   syncProject,
   syncWorkspace,
 } from '../project-service.ts'
-import { resolveHarnessProjectIds, unmappedProjectError } from '../project-links.ts'
+import { unmappedProjectError } from '../project-links.ts'
 import { emptyResponse, jsonResponse, responses, statusResponses } from '../schemas.ts'
 import { optionalBooleanQuery, optionalPositiveIntQuery } from '../query.ts'
 import { connectionLookup, toAvailableProject, toClaraProject } from '../../projects/present.ts'
 
 const directoryQuery = z.object({
   directory: z.string().min(1).optional(),
+  harnessID: z.string().min(1).optional(),
 })
 
 const projectCreateBody = z.object({
@@ -383,9 +386,10 @@ export function registerProjectRoutes(
     }),
     validator('query', directoryQuery),
     async (c) => {
-      const { directory } = c.req.valid('query')
-      const location = await forwardDto(
+      const { directory, harnessID } = c.req.valid('query')
+      const location = await forwardScopedDto(
         deps,
+        resolveHarnessForDirectory(deps, directory, harnessID),
         {
           method: 'GET',
           path: '/locations',
@@ -410,15 +414,17 @@ export function registerProjectRoutes(
       'query',
       z.object({
         directory: z.string().min(1).optional(),
+        harnessID: z.string().min(1).optional(),
         query: z.string(),
         type: z.enum(['file', 'directory']).optional(),
         limit: optionalPositiveIntQuery,
       })
     ),
     async (c) => {
-      const { directory, query: text, type, limit } = c.req.valid('query')
-      const result = await forwardDto(
+      const { directory, harnessID, query: text, type, limit } = c.req.valid('query')
+      const result = await forwardScopedDto(
         deps,
+        resolveHarnessForDirectory(deps, directory, harnessID),
         {
           method: 'GET',
           path: '/files/find',
@@ -443,9 +449,10 @@ export function registerProjectRoutes(
     }),
     validator('query', directoryQuery),
     async (c) => {
-      const { directory } = c.req.valid('query')
-      const result = await forwardDto(
+      const { directory, harnessID } = c.req.valid('query')
+      const result = await forwardScopedDto(
         deps,
+        resolveHarnessForDirectory(deps, directory, harnessID),
         {
           method: 'GET',
           path: '/vcs',
@@ -468,9 +475,10 @@ export function registerProjectRoutes(
     }),
     validator('query', directoryQuery),
     async (c) => {
-      const { directory } = c.req.valid('query')
-      const result = await forwardDto(
+      const { directory, harnessID } = c.req.valid('query')
+      const result = await forwardScopedDto(
         deps,
+        resolveHarnessForDirectory(deps, directory, harnessID),
         {
           method: 'GET',
           path: '/vcs/base',
@@ -495,9 +503,10 @@ export function registerProjectRoutes(
     }),
     validator('query', directoryQuery),
     async (c) => {
-      const { directory } = c.req.valid('query')
-      const result = await forwardDto(
+      const { directory, harnessID } = c.req.valid('query')
+      const result = await forwardScopedDto(
         deps,
+        resolveHarnessForDirectory(deps, directory, harnessID),
         {
           method: 'GET',
           path: '/vcs/status',
@@ -522,15 +531,17 @@ export function registerProjectRoutes(
       'query',
       z.object({
         directory: z.string().min(1).optional(),
+        harnessID: z.string().min(1).optional(),
         mode: z.enum(['working', 'branch', 'committed']),
         base: z.string().optional(),
         context: optionalPositiveIntQuery,
       })
     ),
     async (c) => {
-      const { directory, mode, base, context } = c.req.valid('query')
-      const result = await forwardDto(
+      const { directory, harnessID, mode, base, context } = c.req.valid('query')
+      const result = await forwardScopedDto(
         deps,
+        resolveHarnessForDirectory(deps, directory, harnessID),
         {
           method: 'POST',
           path: '/vcs/diff',
@@ -564,29 +575,46 @@ export function registerProjectRoutes(
         return c.json(result)
       }
 
-      const projectIds = await resolveHarnessProjectIds(deps, project, c.req.raw.signal)
-      if (projectIds.length === 0) throw unmappedProjectError(project)
+      const groups = await resolveHarnessProjectGroups(deps, project, c.req.raw.signal)
+      if (groups.length === 0) throw unmappedProjectError(project)
 
-      const pages = await Promise.all(
-        projectIds.map((projectID) =>
-          forwardDto(
-            deps,
-            {
-              method: 'GET',
-              path: '/worktrees',
-              search: query({ projectID }),
-            },
-            c.req.raw.signal,
-            parseClaraWorktrees
+      const results = await Promise.all(
+        groups.map((group) =>
+          Promise.allSettled(
+            group.projectIDs.map((projectID) =>
+              forwardDtoTo(
+                deps,
+                group.harnessID,
+                {
+                  method: 'GET',
+                  path: '/worktrees',
+                  search: query({ projectID }),
+                },
+                c.req.raw.signal,
+                parseClaraWorktrees
+              )
+            )
           )
         )
       )
       const byDirectory = new Map<string, ClaraWorktree>()
-      for (const page of pages) {
-        for (const worktree of page) {
-          if (!byDirectory.has(worktree.directory)) byDirectory.set(worktree.directory, worktree)
+      let succeeded = false
+      let firstError: unknown
+      for (const group of results) {
+        for (const item of group) {
+          if (item.status === 'fulfilled') {
+            succeeded = true
+            for (const worktree of item.value) {
+              if (!byDirectory.has(worktree.directory)) {
+                byDirectory.set(worktree.directory, worktree)
+              }
+            }
+          } else if (firstError === undefined) {
+            firstError = item.reason
+          }
         }
       }
+      if (!succeeded) throw asApiError(firstError)
       return c.json([...byDirectory.values()])
     }
   )
@@ -602,24 +630,51 @@ export function registerProjectRoutes(
     validator('json', z.object({ projectID: z.string().min(1) })),
     async (c) => {
       const { projectID } = c.req.valid('json')
-      const projectIds = await resolveHarnessProjectIds(deps, projectID, c.req.raw.signal)
-      if (projectIds.length === 0) throw unmappedProjectError(projectID)
+      const groups = await resolveHarnessProjectGroups(deps, projectID, c.req.raw.signal)
+      if (groups.length === 0) throw unmappedProjectError(projectID)
 
-      await Promise.all(
-        projectIds.map((harnessProjectID) =>
-          forwardResult(
-            deps,
-            {
-              method: 'POST',
-              path: '/worktrees/refresh',
-              headers: { 'content-type': 'application/json' },
-              body: JSON.stringify({ projectID: harnessProjectID }),
-            },
-            c.req.raw.signal
+      const results = await Promise.allSettled(
+        groups.flatMap((group) =>
+          group.projectIDs.map((harnessProjectID) =>
+            forwardResultTo(
+              deps,
+              group.harnessID,
+              {
+                method: 'POST',
+                path: '/worktrees/refresh',
+                headers: { 'content-type': 'application/json' },
+                body: JSON.stringify({ projectID: harnessProjectID }),
+              },
+              c.req.raw.signal
+            )
           )
         )
       )
+      if (results.every((item) => item.status === 'rejected')) {
+        throw asApiError(results[0]?.reason)
+      }
       return c.body(null, 204)
     }
+  )
+}
+
+function forwardScopedDto<T>(
+  deps: ApiDependencies,
+  harnessID: string | undefined,
+  request: Parameters<typeof forwardDtoTo>[2],
+  signal: AbortSignal,
+  parse: (value: unknown) => T
+): Promise<T> {
+  return harnessID
+    ? forwardDtoTo(deps, harnessID, request, signal, parse)
+    : forwardDto(deps, request, signal, parse)
+}
+
+function asApiError(cause: unknown): ApiRequestError {
+  if (cause instanceof ApiRequestError) return cause
+  return new ApiRequestError(
+    502,
+    'upstream_error',
+    cause instanceof Error ? cause.message : String(cause)
   )
 }

@@ -40,11 +40,12 @@ function fakeProjects(): ProjectStore {
     list: () => [record],
     get: (projectID: string) => (projectID === 'p1' ? record : undefined),
     linksForProject: () => [],
+    workspacesForDirectory: () => [],
   } as unknown as ProjectStore
 }
 
 function fakeHarness(): HarnessManager {
-  return {
+  const harness = {
     configured: true,
     generation: 3,
     active: connection,
@@ -52,8 +53,9 @@ function fakeHarness(): HarnessManager {
     harnessId: 'harness-a',
     projects: fakeProjects(),
     list: () => [connection],
+    connection: () => connection,
     overlaySessionList: (value: { data: unknown[]; cursor: unknown }) => value,
-    request: async (action: { path: string }) => {
+    request: async (action: { path: string }): Promise<Response> => {
       if (action.path === '/harness/info' || action.path === '/api/info') {
         return json({ version: '9.9.9', pid: 42, urls: [], paths: { tmp: '/tmp' } })
       }
@@ -74,7 +76,15 @@ function fakeHarness(): HarnessManager {
         return json({})
       return json({ error: { code: 'not_found', message: 'not found' } }, 404)
     },
-  } as unknown as HarnessManager
+  } as unknown as HarnessManager & {
+    request: (action: { path: string }) => Promise<Response>
+  }
+  ;(
+    harness as unknown as {
+      requestFor: (harnessID: string, action: { path: string }) => Promise<Response>
+    }
+  ).requestFor = (_harnessID, action) => harness.request(action)
+  return harness
 }
 
 function createTestApi(harness: HarnessManager = fakeHarness()) {

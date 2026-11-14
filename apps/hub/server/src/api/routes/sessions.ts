@@ -14,12 +14,14 @@ import {
   claraSessionMessagesResponseSchema,
   claraSessionSchema,
   type ClaraSession,
+  type ClaraSessionsHarnessStatus,
   type ClaraSessionsResponse,
   claraSessionsResponseSchema,
 } from '@clara/api-contract'
-import type { ApiDependencies, ApiVariables } from '../context.ts'
+import { ApiRequestError, type ApiDependencies, type ApiVariables } from '../context.ts'
 import {
   forwardDto,
+  forwardDtoTo,
   parseClaraForms,
   parseClaraPermissionRequests,
   parseClaraSession,
@@ -33,8 +35,15 @@ import {
   parseClaraSessionMessagesResponse,
   parseClaraSessions,
 } from '../dto.ts'
-import { forwardResult, locationQuery, query } from '../harness.ts'
-import { resolveHarnessProjectIds, unmappedProjectError } from '../project-links.ts'
+import { forwardResult, forwardResultTo, locationQuery, query } from '../harness.ts'
+import {
+  requireHarness,
+  resolveHarnessForDirectory,
+  resolveHarnessForSession,
+  resolveHarnessProjectGroups,
+  type HarnessProjectGroup,
+} from '../harness-scope.ts'
+import { unmappedProjectError } from '../project-links.ts'
 import {
   cursorForRecord,
   decodeMergedSessionCursor,
@@ -61,6 +70,7 @@ const sessionPermissionParam = z.object({
 const createBody = z
   .object({
     id: z.string().optional(),
+    harnessID: z.string().min(1).optional(),
     parentID: z.string().optional(),
     title: z.string().optional(),
     agent: z.string().optional(),
@@ -181,6 +191,7 @@ export function registerSessionRoutes(
         parentID: z.string().optional(),
         archived: optionalBooleanQuery,
         directory: z.string().optional(),
+        harnessID: z.string().min(1).optional(),
         project: z.string().optional(),
         subpath: z.string().optional(),
         cursor: z.string().optional(),
@@ -188,26 +199,29 @@ export function registerSessionRoutes(
     ),
     async (c) => {
       const params = c.req.valid('query')
-      const projectIds = params.project
-        ? await resolveHarnessProjectIds(deps, params.project, c.req.raw.signal)
-        : []
-      if (params.project && projectIds.length === 0) {
-        throw unmappedProjectError(params.project)
-      }
-
-      const result =
-        projectIds.length > 1
-          ? mergeSessionPages(
-              await listSessionPages(deps, params, projectIds, c.req.raw.signal),
-              params.order
+      // `harnessID` is a hub routing hint and must never reach the harness.
+      const { harnessID, ...filters } = params
+      const targetHarnessID = params.project
+        ? undefined
+        : resolveHarnessForDirectory(deps, params.directory, harnessID)
+      const result = params.project
+        ? await listProjectSessions(deps, filters, params.project, c.req.raw.signal)
+        : overlaySessionListFor(
+            deps,
+            targetHarnessID,
+            await forwardScopedDto(
+              deps,
+              targetHarnessID,
+              { method: 'GET', path: '/sessions', search: query(filters) },
+              c.req.raw.signal,
+              parseClaraSessions
             )
-          : await listSingleSessionPage(deps, params, projectIds[0], c.req.raw.signal)
-      const overlaid = deps.harness.overlaySessionList(result)
+          )
       const data =
         params.archived === undefined
-          ? overlaid.data
-          : overlaid.data.filter((session) => Boolean(session.time.archived) === params.archived)
-      return c.json({ ...overlaid, data })
+          ? result.data
+          : result.data.filter((session) => Boolean(session.time.archived) === params.archived)
+      return c.json({ ...result, data })
     }
   )
 
@@ -222,19 +236,26 @@ export function registerSessionRoutes(
     validator('json', createBody),
     async (c) => {
       const body = c.req.valid('json')
-      const session = await forwardDto(
+      const { harnessID: requestedHarnessID, ...forward } = body
+      const harnessID = resolveHarnessForDirectory(
         deps,
+        body.location?.directory,
+        requestedHarnessID
+      )
+      const session = await forwardScopedDto(
+        deps,
+        harnessID,
         {
           method: 'POST',
           path: '/sessions',
           headers: { 'content-type': 'application/json' },
-          body: JSON.stringify(body),
+          body: JSON.stringify(forward),
         },
         c.req.raw.signal,
         parseClaraSession,
         true
       )
-      return c.json(overlaySession(deps, session))
+      return c.json(overlaySession(deps, harnessID, session))
     }
   )
 
@@ -248,15 +269,59 @@ export function registerSessionRoutes(
         jsonResponse(resolver(claraSessionActiveOutputSchema), 'Active sessions')
       ),
     }),
+    validator('query', z.object({ harnessID: z.string().min(1).optional() })),
     async (c) => {
-      const result = await forwardDto(
-        deps,
-        { method: 'GET', path: '/sessions/active' },
-        c.req.raw.signal,
-        parseClaraSessionActive,
-        true
+      const requested = c.req.valid('query').harnessID
+      if (requested) {
+        const result = await forwardDtoTo(
+          deps,
+          requireHarness(deps, requested),
+          { method: 'GET', path: '/sessions/active' },
+          c.req.raw.signal,
+          parseClaraSessionActive,
+          true
+        )
+        return c.json(result)
+      }
+
+      const connections = deps.harness.list().filter((connection) => connection.online)
+      if (connections.length === 0) {
+        // Preserve the single-harness error when nothing can answer.
+        const result = await forwardDto(
+          deps,
+          { method: 'GET', path: '/sessions/active' },
+          c.req.raw.signal,
+          parseClaraSessionActive,
+          true
+        )
+        return c.json(result)
+      }
+
+      const results = await Promise.allSettled(
+        connections.map((connection) =>
+          forwardDtoTo(
+            deps,
+            connection.harnessId,
+            { method: 'GET', path: '/sessions/active' },
+            c.req.raw.signal,
+            parseClaraSessionActive,
+            true
+          )
+        )
       )
-      return c.json(result)
+      const merged: Record<string, { type: 'running' }> = {}
+      let succeeded = false
+      let firstError: unknown
+      for (const item of results) {
+        if (item.status === 'fulfilled') {
+          succeeded = true
+          Object.assign(merged, item.value)
+        } else if (firstError === undefined) {
+          firstError = item.reason
+        }
+      }
+      if (!succeeded) throw asApiError(firstError)
+      return c.json(merged)
     }
   )
 
@@ -271,8 +336,10 @@ export function registerSessionRoutes(
     validator('param', sessionParam),
     async (c) => {
       const { sessionID } = c.req.valid('param')
-      const session = await forwardDto(
+      const harnessID = resolveHarnessForSession(deps, sessionID)
+      const session = await forwardScopedDto(
         deps,
+        harnessID,
         {
           method: 'GET',
           path: `/sessions/${encodeURIComponent(sessionID)}`,
@@ -281,7 +348,7 @@ export function registerSessionRoutes(
         parseClaraSession,
         true
       )
-      return c.json(overlaySession(deps, session))
+      return c.json(overlaySession(deps, harnessID, session))
     }
   )
 
@@ -298,8 +365,10 @@ export function registerSessionRoutes(
     async (c) => {
       const { sessionID } = c.req.valid('param')
       const body = c.req.valid('json')
-      await forwardResult(
+      const harnessID = resolveHarnessForSession(deps, sessionID)
+      await forwardScopedResult(
         deps,
+        harnessID,
         {
           method: 'PATCH',
           path: `/sessions/${encodeURIComponent(sessionID)}`,
@@ -308,16 +377,15 @@ export function registerSessionRoutes(
         },
         c.req.raw.signal
       )
-      const harnessId = deps.harness.harnessId
-      if (harnessId) {
+      if (harnessID) {
         if (typeof body.archived === 'boolean') {
-          deps.harness.metadata.setArchived(harnessId, sessionID, body.archived)
+          deps.harness.metadata.setArchived(harnessID, sessionID, body.archived)
         }
         if (body.metadata && typeof body.metadata === 'object') {
-          deps.harness.metadata.setSnoozed(harnessId, sessionID, body.metadata.snoozed === true)
+          deps.harness.metadata.setSnoozed(harnessID, sessionID, body.metadata.snoozed === true)
         }
         if (typeof body.title === 'string') {
-          deps.harness.metadata.setTitle(harnessId, sessionID, body.title)
+          deps.harness.metadata.setTitle(harnessID, sessionID, body.title)
         }
       }
       return c.body(null, 204)
@@ -335,8 +403,9 @@ export function registerSessionRoutes(
     validator('param', sessionParam),
     async (c) => {
       const { sessionID } = c.req.valid('param')
-      await forwardResult(
+      await forwardScopedResult(
         deps,
+        resolveHarnessForSession(deps, sessionID),
         {
           method: 'DELETE',
           path: `/sessions/${encodeURIComponent(sessionID)}`,
@@ -359,8 +428,10 @@ export function registerSessionRoutes(
     validator('json', forkBody),
     async (c) => {
       const { sessionID } = c.req.valid('param')
-      const session = await forwardDto(
+      const harnessID = resolveHarnessForSession(deps, sessionID)
+      const session = await forwardScopedDto(
         deps,
+        harnessID,
         {
           method: 'POST',
           path: `/sessions/${encodeURIComponent(sessionID)}/fork`,
@@ -371,7 +442,7 @@ export function registerSessionRoutes(
         parseClaraSession,
         true
       )
-      return c.json(overlaySession(deps, session))
+      return c.json(overlaySession(deps, harnessID, session))
     }
   )
 
@@ -387,8 +458,9 @@ export function registerSessionRoutes(
     validator('json', moveBody),
     async (c) => {
       const { sessionID } = c.req.valid('param')
-      await forwardResult(
+      await forwardScopedResult(
         deps,
+        resolveHarnessForSession(deps, sessionID),
         {
           method: 'POST',
           path: `/sessions/${encodeURIComponent(sessionID)}/move`,
@@ -413,8 +485,10 @@ export function registerSessionRoutes(
     validator('json', viewBody),
     async (c) => {
       const { sessionID } = c.req.valid('param')
-      await forwardResult(
+      const harnessID = resolveHarnessForSession(deps, sessionID)
+      await forwardScopedResult(
         deps,
+        harnessID,
         {
           method: 'POST',
           path: `/sessions/${encodeURIComponent(sessionID)}/view`,
@@ -423,8 +497,7 @@ export function registerSessionRoutes(
         },
         c.req.raw.signal
       )
-      const harnessId = deps.harness.harnessId
-      if (harnessId) deps.harness.metadata.setViewed(harnessId, sessionID)
+      if (harnessID) deps.harness.metadata.setViewed(harnessID, sessionID)
       return c.body(null, 204)
     }
   )
@@ -441,8 +514,9 @@ export function registerSessionRoutes(
     validator('json', promptBody),
     async (c) => {
       const { sessionID } = c.req.valid('param')
-      const result = await forwardDto(
+      const result = await forwardScopedDto(
         deps,
+        resolveHarnessForSession(deps, sessionID),
         {
           method: 'POST',
           path: `/sessions/${encodeURIComponent(sessionID)}/prompt`,
@@ -471,8 +545,9 @@ export function registerSessionRoutes(
     validator('json', syntheticBody),
     async (c) => {
       const { sessionID } = c.req.valid('param')
-      const result = await forwardDto(
+      const result = await forwardScopedDto(
         deps,
+        resolveHarnessForSession(deps, sessionID),
         {
           method: 'POST',
           path: `/sessions/${encodeURIComponent(sessionID)}/synthetic`,
@@ -499,8 +574,9 @@ export function registerSessionRoutes(
     validator('json', commandBody),
     async (c) => {
       const { sessionID } = c.req.valid('param')
-      await forwardResult(
+      await forwardScopedResult(
         deps,
+        resolveHarnessForSession(deps, sessionID),
         {
           method: 'POST',
           path: `/sessions/${encodeURIComponent(sessionID)}/command`,
@@ -527,8 +603,9 @@ export function registerSessionRoutes(
     validator('json', interruptBody),
     async (c) => {
       const { sessionID } = c.req.valid('param')
-      const result = await forwardDto(
+      const result = await forwardScopedDto(
         deps,
+        resolveHarnessForSession(deps, sessionID),
         {
           method: 'POST',
           path: `/sessions/${encodeURIComponent(sessionID)}/interrupt`,
@@ -557,8 +634,9 @@ export function registerSessionRoutes(
     validator('json', compactBody),
     async (c) => {
       const { sessionID } = c.req.valid('param')
-      const result = await forwardDto(
+      const result = await forwardScopedDto(
         deps,
+        resolveHarnessForSession(deps, sessionID),
         {
           method: 'POST',
           path: `/sessions/${encodeURIComponent(sessionID)}/compact`,
@@ -585,8 +663,9 @@ export function registerSessionRoutes(
     validator('json', agentBody),
     async (c) => {
       const { sessionID } = c.req.valid('param')
-      await forwardResult(
+      await forwardScopedResult(
         deps,
+        resolveHarnessForSession(deps, sessionID),
         {
           method: 'POST',
           path: `/sessions/${encodeURIComponent(sessionID)}/agent`,
@@ -611,8 +690,9 @@ export function registerSessionRoutes(
     validator('json', modelBody),
     async (c) => {
       const { sessionID } = c.req.valid('param')
-      await forwardResult(
+      await forwardScopedResult(
         deps,
+        resolveHarnessForSession(deps, sessionID),
         {
           method: 'POST',
           path: `/sessions/${encodeURIComponent(sessionID)}/model`,
@@ -638,8 +718,9 @@ export function registerSessionRoutes(
     validator('param', sessionParam),
     async (c) => {
       const { sessionID } = c.req.valid('param')
-      const result = await forwardDto(
+      const result = await forwardScopedDto(
         deps,
+        resolveHarnessForSession(deps, sessionID),
         {
           method: 'GET',
           path: `/sessions/${encodeURIComponent(sessionID)}/context`,
@@ -673,8 +754,9 @@ export function registerSessionRoutes(
     async (c) => {
       const { sessionID } = c.req.valid('param')
       const params = c.req.valid('query')
-      const result = await forwardDto(
+      const result = await forwardScopedDto(
         deps,
+        resolveHarnessForSession(deps, sessionID),
         {
           method: 'GET',
           path: `/sessions/${encodeURIComponent(sessionID)}/messages`,
@@ -698,8 +780,9 @@ export function registerSessionRoutes(
     validator('param', sessionParam),
     async (c) => {
       const { sessionID } = c.req.valid('param')
-      const result = await forwardDto(
+      const result = await forwardScopedDto(
         deps,
+        resolveHarnessForSession(deps, sessionID),
         {
           method: 'GET',
           path: `/sessions/${encodeURIComponent(sessionID)}/forms`,
@@ -724,8 +807,9 @@ export function registerSessionRoutes(
     validator('json', formReplyBody),
     async (c) => {
       const { sessionID, formID } = c.req.valid('param')
-      await forwardResult(
+      await forwardScopedResult(
         deps,
+        resolveHarnessForSession(deps, sessionID),
         {
           method: 'POST',
           path: `/sessions/${encodeURIComponent(sessionID)}/forms/${encodeURIComponent(formID)}/reply`,
@@ -750,8 +834,9 @@ export function registerSessionRoutes(
     validator('json', formCancelBody),
     async (c) => {
       const { sessionID, formID } = c.req.valid('param')
-      await forwardResult(
+      await forwardScopedResult(
         deps,
+        resolveHarnessForSession(deps, sessionID),
         {
           method: 'DELETE',
           path: `/sessions/${encodeURIComponent(sessionID)}/forms/${encodeURIComponent(formID)}`,
@@ -777,8 +862,9 @@ export function registerSessionRoutes(
     validator('param', sessionParam),
     async (c) => {
       const { sessionID } = c.req.valid('param')
-      const result = await forwardDto(
+      const result = await forwardScopedDto(
         deps,
+        resolveHarnessForSession(deps, sessionID),
         {
           method: 'GET',
           path: `/sessions/${encodeURIComponent(sessionID)}/inbox`,
@@ -802,8 +888,9 @@ export function registerSessionRoutes(
     validator('param', sessionInboxParam),
     async (c) => {
       const { sessionID, inboxID } = c.req.valid('param')
-      await forwardResult(
+      await forwardScopedResult(
         deps,
+        resolveHarnessForSession(deps, sessionID),
         {
           method: 'DELETE',
           path: `/sessions/${encodeURIComponent(sessionID)}/inbox/${encodeURIComponent(inboxID)}`,
@@ -824,11 +911,18 @@ export function registerSessionRoutes(
         jsonResponse(resolver(claraPermissionRequestListOutputSchema), 'Permission requests')
       ),
     }),
-    validator('query', z.object({ directory: z.string().optional() })),
+    validator(
+      'query',
+      z.object({
+        directory: z.string().optional(),
+        harnessID: z.string().min(1).optional(),
+      })
+    ),
     async (c) => {
-      const { directory } = c.req.valid('query')
-      const result = await forwardDto(
+      const { directory, harnessID } = c.req.valid('query')
+      const result = await forwardScopedDto(
         deps,
+        resolveHarnessForDirectory(deps, directory, harnessID),
         {
           method: 'GET',
           path: '/permissions',
@@ -853,8 +947,9 @@ export function registerSessionRoutes(
     validator('json', permissionReplyBody),
     async (c) => {
       const { sessionID, requestID } = c.req.valid('param')
-      await forwardResult(
+      await forwardScopedResult(
         deps,
+        resolveHarnessForSession(deps, sessionID),
         {
           method: 'POST',
           path: `/sessions/${encodeURIComponent(sessionID)}/permissions/${encodeURIComponent(requestID)}/reply`,
@@ -880,80 +975,188 @@ type SessionListParams = {
   cursor?: string
 }
 
+type GroupLoad = {
+  group: HarnessProjectGroup
+  pages: SessionPage[]
+  error?: ApiRequestError
+}
+
 /**
- * List sessions for a Clara project that currently owns a single harness
- * record. A composite cursor left over from when the project owned several
- * records is translated to that record's cursor instead of being forwarded to
- * the harness as-is.
+ * Fetch the project's page from every harness that owns a linked record. A
+ * harness that is offline or fails is reported in `harnesses` instead of
+ * failing the whole list, so one unavailable machine never hides the others.
+ * The request only fails when no harness returned anything.
  */
-async function listSingleSessionPage(
+async function listProjectSessions(
   deps: ApiDependencies,
   params: SessionListParams,
-  projectID: string | undefined,
+  projectID: string,
   signal: AbortSignal
 ): Promise<ClaraSessionsResponse> {
+  const groups = await resolveHarnessProjectGroups(deps, projectID, signal)
+  if (groups.length === 0) throw unmappedProjectError(projectID)
+
   const merged = decodeMergedSessionCursor(params.cursor)
-  const harnessID = deps.harness.active?.harnessId ?? ''
-  const cursor = projectID && merged ? cursorForRecord(merged, harnessID, projectID) : params.cursor
-  if (cursor === null) {
-    return { data: [], cursor: { previous: null, next: null } }
+  const totalRecords = groups.reduce((count, group) => count + group.projectIDs.length, 0)
+  // A cursor that is not a hub envelope belongs to the harness. It can only be
+  // passed through when the project has exactly one harness record.
+  const passThrough = merged || totalRecords !== 1 ? undefined : params.cursor
+  const loads = await Promise.all(
+    groups.map((group) => loadGroup(deps, group, params, signal, merged, passThrough))
+  )
+  const pages = loads.flatMap((load) => load.pages)
+  if (pages.length === 0) {
+    const failure = loads.find((load) => load.error)?.error
+    throw failure ?? new ApiRequestError(502, 'upstream_error', 'No harness returned sessions')
   }
-  return forwardDto(
+  const harnesses =
+    groups.length > 1 || loads.some((load) => load.error)
+      ? loads.map((load) => harnessStatus(deps, load))
+      : undefined
+
+  const singlePage = totalRecords === 1 ? pages[0] : undefined
+  if (singlePage) {
+    return {
+      data: singlePage.data,
+      cursor: singlePage.cursor,
+      ...(harnesses ? { harnesses } : {}),
+    }
+  }
+
+  const result = mergeSessionPages(pages, params.order)
+  return { ...result, ...(harnesses ? { harnesses } : {}) }
+}
+
+async function loadGroup(
+  deps: ApiDependencies,
+  group: HarnessProjectGroup,
+  params: SessionListParams,
+  signal: AbortSignal,
+  merged: ReturnType<typeof decodeMergedSessionCursor>,
+  passThrough: string | undefined
+): Promise<GroupLoad> {
+  const settled = await Promise.allSettled(
+    group.projectIDs.map((projectID) =>
+      loadRecord(deps, group.harnessID, projectID, params, signal, merged, passThrough)
+    )
+  )
+  const pages: SessionPage[] = []
+  let error: ApiRequestError | undefined
+  for (const item of settled) {
+    if (item.status === 'fulfilled') pages.push(item.value)
+    else if (!error) error = asApiError(item.reason)
+  }
+  return { group, pages, ...(error ? { error } : {}) }
+}
+
+/**
+ * Fetch one harness project record. Each record keeps its own cursor, so the
+ * hub can merge the pages without losing or repeating rows. An exhausted record
+ * returns no data and stays in the page list so the next cursor marks it done.
+ */
+async function loadRecord(
+  deps: ApiDependencies,
+  harnessID: string,
+  projectID: string,
+  params: SessionListParams,
+  signal: AbortSignal,
+  merged: ReturnType<typeof decodeMergedSessionCursor>,
+  passThrough: string | undefined
+): Promise<SessionPage> {
+  const resolved = cursorForRecord(merged, harnessID, projectID)
+  const cursor = resolved === undefined ? passThrough : resolved
+  if (cursor === null) {
+    return { harnessID, projectID, data: [], cursor: { previous: null, next: null } }
+  }
+  const result = await forwardDtoTo(
     deps,
+    harnessID,
     {
       method: 'GET',
       path: '/sessions',
       search: query({
         ...params,
-        cursor,
-        ...(projectID ? { project: projectID } : {}),
+        cursor: cursor ?? undefined,
+        project: projectID,
       }),
     },
     signal,
     parseClaraSessions
   )
+  return {
+    ...result,
+    harnessID,
+    projectID,
+    data: result.data.map((session) => deps.harness.overlaySession(harnessID, session)),
+  }
 }
 
-/**
- * Fetch one page from every harness project record linked to a Clara project.
- * Each record keeps its own cursor, so the hub can merge the pages without
- * losing or repeating rows. Exhausted records return no data and stay in the
- * page list so the next cursor can mark them done.
- */
-async function listSessionPages(
-  deps: ApiDependencies,
-  params: SessionListParams,
-  projectIds: string[],
-  signal: AbortSignal
-): Promise<SessionPage[]> {
-  const merged = decodeMergedSessionCursor(params.cursor)
-  const harnessID = deps.harness.active?.harnessId ?? ''
-  return Promise.all(
-    projectIds.map(async (projectID): Promise<SessionPage> => {
-      const cursor = cursorForRecord(merged, harnessID, projectID)
-      if (cursor === null) {
-        return { harnessID, projectID, data: [], cursor: { previous: null, next: null } }
-      }
-      const result: ClaraSessionsResponse = await forwardDto(
-        deps,
-        {
-          method: 'GET',
-          path: '/sessions',
-          search: query({
-            ...params,
-            cursor: cursor ?? undefined,
-            project: projectID,
-          }),
-        },
-        signal,
-        parseClaraSessions
-      )
-      return { harnessID, projectID, ...result }
-    })
+function harnessStatus(deps: ApiDependencies, load: GroupLoad): ClaraSessionsHarnessStatus {
+  const connection = deps.harness.connection(load.group.harnessID)
+  return {
+    harnessID: load.group.harnessID,
+    label: connection?.label ?? load.group.harnessID,
+    kind: connection?.kind ?? '',
+    online: connection?.online ?? false,
+    ok: load.error === undefined,
+    ...(load.error ? { code: load.error.code, message: load.error.message } : {}),
+  }
+}
+
+function asApiError(cause: unknown): ApiRequestError {
+  if (cause instanceof ApiRequestError) return cause
+  return new ApiRequestError(
+    502,
+    'upstream_error',
+    cause instanceof Error ? cause.message : String(cause)
   )
 }
 
-function overlaySession(deps: ApiDependencies, session: ClaraSession): ClaraSession {
-  const harnessId = deps.harness.harnessId
-  return harnessId ? deps.harness.overlaySession(harnessId, session) : session
+function forwardScopedDto<T>(
+  deps: ApiDependencies,
+  harnessID: string | undefined,
+  request: Parameters<typeof forwardDtoTo>[2],
+  signal: AbortSignal,
+  parse: (value: unknown) => T,
+  unwrapData = false
+): Promise<T> {
+  return harnessID
+    ? forwardDtoTo(deps, harnessID, request, signal, parse, unwrapData)
+    : forwardDto(deps, request, signal, parse, unwrapData)
+}
+
+function forwardScopedResult<T>(
+  deps: ApiDependencies,
+  harnessID: string | undefined,
+  request: Parameters<typeof forwardResultTo>[2],
+  signal: AbortSignal,
+  unwrapData = false
+): Promise<T> {
+  return harnessID
+    ? forwardResultTo<T>(deps, harnessID, request, signal, unwrapData)
+    : forwardResult<T>(deps, request, signal, unwrapData)
+}
+
+function overlaySession(
+  deps: ApiDependencies,
+  harnessID: string | undefined,
+  session: ClaraSession
+): ClaraSession {
+  return harnessID ? deps.harness.overlaySession(harnessID, session) : session
+}
+
+/**
+ * Overlay a session page with the harness that served it. A resolved harness
+ * must not be overlaid with the active harness's metadata.
+ */
+function overlaySessionListFor(
+  deps: ApiDependencies,
+  harnessID: string | undefined,
+  value: ClaraSessionsResponse
+): ClaraSessionsResponse {
+  if (!harnessID) return { ...value, data: deps.harness.overlaySessionList(value).data }
+  return {
+    ...value,
+    data: value.data.map((session) => deps.harness.overlaySession(harnessID, session)),
+  }
 }
