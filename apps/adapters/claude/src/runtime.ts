@@ -8,7 +8,7 @@ import type {
   ClaraModelRef,
   ClaraPermissionRequest,
   ClaraSessionInboxCompaction,
-  ClaraSessionInboxItem,
+  ClaraSessionInboxInfo,
   ClaraSessionInboxSynthetic,
   ClaraSessionInboxUser,
   ClaraTokenUsage,
@@ -66,7 +66,7 @@ type TurnInput = {
 }
 
 type Queued = {
-  item: ClaraSessionInboxItem
+  item: ClaraSessionInboxInfo
   input: TurnInput
 }
 
@@ -204,8 +204,13 @@ export class ClaudeRuntime {
           text: turnInput.text,
           files: turnInput.files,
           priority: 'next',
+          userMessageID: String(item.id),
         })
-        this.emit('session.inbox.delivered', { sessionID: sessionId, inboxID: String(item.id) })
+        this.emit('session.inbox.delivered', {
+          sessionID: sessionId,
+          inboxID: String(item.id),
+          item,
+        })
       }
       return item
     }
@@ -334,7 +339,7 @@ export class ClaudeRuntime {
     return result
   }
 
-  inbox(sessionId: string): ClaraSessionInboxItem[] {
+  inbox(sessionId: string): ClaraSessionInboxInfo[] {
     return this.activeTurns.get(sessionId)?.queue.map((entry) => entry.item) ?? []
   }
 
@@ -458,7 +463,7 @@ export class ClaudeRuntime {
     sessionId: string,
     directory: string,
     input: TurnInput,
-    item: ClaraSessionInboxItem
+    item: ClaraSessionInboxInfo
   ): Promise<void> {
     const active: ActiveTurn = {
       sessionId,
@@ -485,7 +490,11 @@ export class ClaudeRuntime {
       this.emit('session.execution.started', { sessionID: sessionId })
       this.emit('session.status', { sessionID: sessionId, status: { type: 'busy' } })
     }
-    this.emit('session.inbox.delivered', { sessionID: sessionId, inboxID: String(item.id) })
+    this.emit('session.inbox.delivered', {
+      sessionID: sessionId,
+      inboxID: String(item.id),
+      item,
+    })
     if (active.synthetic) {
       this.emit('session.synthetic', {
         sessionID: sessionId,
@@ -507,6 +516,7 @@ export class ClaudeRuntime {
         ...(input.model ? { model: input.model } : {}),
         agent: input.agent,
         synthetic: input.synthetic,
+        ...(item.type === 'user' ? { userMessageID: String(item.id) } : {}),
         signal: new AbortController().signal,
         onEvent: (event) => this.onEvent(active, event),
         onPermission: (request) => this.onPermission(active, request),

@@ -82,20 +82,28 @@ contacts the harness directly.
 
 ## Adapter mapping
 
-| Clara concept        | Claude Code mapping                                               |
-| -------------------- | ----------------------------------------------------------------- |
-| Project id           | Canonical session directory                                       |
-| Session id           | Claude session UUID                                               |
-| Assistant step       | Claude assistant transcript entry                                 |
-| Model                | `{ providerID: <resolved provider>, id: <model> }`                |
-| Session list         | Claude transcripts merged with the adapter's sidecar catalog      |
-| Messages             | Transcript entries; tool results fold into the requesting tool    |
-| Streaming            | Agent SDK stream events translated to Clara step/text/tool events |
-| Approvals            | `canUseTool` → Clara permission cards                             |
-| Clarifying questions | `AskUserQuestion` → Clara forms                                   |
-| Usage                | Result cost and model usage, cumulative in the sidecar catalog    |
-| Files, VCS, git      | Read-only filesystem and git queries inside the adapter           |
-| Archive/delete       | Unsupported on the harness; Clara applies its own state           |
+| Clara concept        | Claude Code mapping                                                                      |
+| -------------------- | ---------------------------------------------------------------------------------------- |
+| Project id           | Canonical session directory                                                              |
+| Session id           | Claude session UUID                                                                      |
+| Assistant step       | Claude API message; transcript blocks sharing a message id are one step                  |
+| Model                | `{ providerID: <resolved provider>, id: <model> }`                                       |
+| Session list         | Claude transcripts merged with the adapter's sidecar catalog                             |
+| Messages             | Transcript entries grouped by API message id; tool results fold into the requesting tool |
+| Streaming            | Agent SDK stream events translated to one Clara step per API response                    |
+| Approvals            | `canUseTool` → Clara permission cards                                                    |
+| Clarifying questions | `AskUserQuestion` → Clara forms                                                          |
+| Usage                | Result cost and model usage, cumulative in the sidecar catalog                           |
+| Files, VCS, git      | Read-only filesystem and git queries inside the adapter                                  |
+| Archive/delete       | Unsupported on the harness; Clara applies its own state                                  |
+
+Claude Code streams one assistant message per completed content block, each with
+its own wrapper UUID, while every frame for one model response shares the
+Anthropic API message id. The adapter uses that API id as the Clara step id for
+both live events and transcript history, so a thinking block, text block, and
+tool call from the same response stay in one step. A delivered prompt is also
+echoed as a user message immediately; it carries the transcript entry UUID, so
+the transcript replaces the echo by id instead of duplicating it.
 
 The adapter resolves the provider from Claude Code instead of assuming
 Anthropic. A first-party account maps to `anthropic`; Bedrock, Vertex, Foundry,

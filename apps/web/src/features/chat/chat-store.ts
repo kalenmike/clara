@@ -1,18 +1,23 @@
 import type {
+  ClaraSessionInboxUser,
   ClaraSessionMessageAssistant,
   ClaraSessionMessageAssistantReasoning,
   ClaraSessionMessageAssistantText,
   ClaraSessionMessageAssistantTool,
   ClaraSessionMessage,
+  ClaraSessionMessageUser,
   ClaraSessionStatus,
   ClaraTokenUsage,
   ClaraJsonValue,
   ClaraToolContent,
   ClaraEvent,
 } from '@clara/api-contract'
+import { inboxDraftToMessage } from './session-messages.ts'
 
 export type ChatSnapshot = {
   messages: ClaraSessionMessage[]
+  /** User messages delivered to the harness but not yet in the transcript. */
+  sent: ClaraSessionMessageUser[]
   status: ClaraSessionStatus
   cost: number
   tokens?: ClaraTokenUsage
@@ -33,6 +38,7 @@ type HistoryState = {
 
 const EMPTY: ChatSnapshot = {
   messages: [],
+  sent: [],
   status: { type: 'idle' },
   cost: 0,
   revision: 0,
@@ -71,6 +77,7 @@ function cloneSnapshot(snapshot: ChatSnapshot): ChatSnapshot {
     messages: snapshot.messages.map((message) =>
       message.type === 'assistant' ? { ...message, content: [...message.content] } : message
     ),
+    sent: [...snapshot.sent],
   }
 }
 
@@ -123,8 +130,12 @@ class ChatStore {
       replaceOnHydrate: false,
       generation: history?.generation ?? 0,
     })
+    const hydrated = replace ? messages : mergeMessages(previous.messages, messages)
+    const ids = new Set(hydrated.map((message) => message.id))
     this.snapshots.set(sessionID, {
-      messages: replace ? messages : mergeMessages(previous.messages, messages),
+      messages: hydrated,
+      // Keep a delivered prompt until the transcript owns its ID.
+      sent: (previous?.sent ?? []).filter((message) => !ids.has(message.id)),
       status: previous?.status ?? { type: 'idle' },
       cost: previous?.cost ?? 0,
       tokens: previous?.tokens,
@@ -217,6 +228,20 @@ class ChatStore {
   }
 
   /**
+   * Keep a delivered prompt visible while the harness writes it to the
+   * transcript. The transcript entry carries the same message ID, so hydration
+   * replaces it instead of adding a duplicate.
+   */
+  deliverUser(sessionID: string, item: ClaraSessionInboxUser) {
+    const message = inboxDraftToMessage(item)
+    this.update(sessionID, (snapshot) => {
+      if (snapshot.messages.some((existing) => existing.id === message.id)) return snapshot
+      if (snapshot.sent.some((existing) => existing.id === message.id)) return snapshot
+      return { ...snapshot, sent: [...snapshot.sent, message] }
+    })
+  }
+
+  /**
    * Seed the run state from the server's active-session map when a thread
    * opens. The event stream is live-only, so an already-running session has no
    * status event to replay and would otherwise sit at the store's idle default.
@@ -239,6 +264,10 @@ class ChatStore {
     if (!sessionID) return
 
     switch (event.type) {
+      case 'session.inbox.delivered':
+        if (event.data.item?.type === 'user') this.deliverUser(sessionID, event.data.item)
+        return
+
       case 'session.step.started':
         this.statusSynced.add(sessionID)
         this.update(sessionID, (snapshot) => {

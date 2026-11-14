@@ -1,5 +1,6 @@
 import type {
   ClaudeCatalog,
+  ClaudeSteerInput,
   ClaudeTurnEvent,
   ClaudeGateway,
   ClaudeSessionInfo,
@@ -18,12 +19,19 @@ export class FakeClaudeGateway implements ClaudeGateway {
   sessions: ClaudeSessionInfo[] = []
   messages: ClaudeSessionMessage[] = []
   turns: ClaudeTurnRequest[] = []
+  pushes: ClaudeSteerInput[] = []
+  forkInputs: {
+    sessionId: string
+    input?: { directory?: string; upToMessageId?: string; title?: string }
+  }[] = []
   projectsDirectory?: string
   script?: Script
   providerValue: ClaudeProvider = { id: 'anthropic', name: 'Anthropic' }
   defaultModelValue?: string
   turn: ClaudeTurn = {
-    push: () => {},
+    push: (input) => {
+      this.pushes.push(input)
+    },
     interrupt: async () => {},
     setModel: async () => {},
     close: () => {},
@@ -65,7 +73,11 @@ export class FakeClaudeGateway implements ClaudeGateway {
     return this.messages
   }
 
-  async forkSession() {
+  async forkSession(
+    sessionId: string,
+    input?: { directory?: string; upToMessageId?: string; title?: string }
+  ) {
+    this.forkInputs.push({ sessionId, input })
     return 'forked-session'
   }
 

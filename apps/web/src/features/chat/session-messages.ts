@@ -17,18 +17,18 @@ export function inboxDraftToMessage(item: ClaraSessionInboxUser): ClaraSessionMe
   }
 }
 
-/** Combine the live transcript with queued inbox drafts without duplicating IDs. */
+/** Combine the live transcript with queued and just-sent drafts by message ID. */
 export function mergeSessionMessages(
   snapshotMessages: ClaraSessionMessage[],
   historyMessages: ClaraSessionMessage[],
-  pendingDrafts: ClaraSessionInboxUser[]
+  drafts: ClaraSessionMessageUser[]
 ): ClaraSessionMessage[] {
   const base = snapshotMessages.length > 0 ? snapshotMessages : historyMessages
-  if (pendingDrafts.length === 0) return base
+  if (drafts.length === 0) return base
 
   const byID = new Map(base.map((message) => [message.id, message]))
-  for (const draft of pendingDrafts) {
-    if (!byID.has(draft.id)) byID.set(draft.id, inboxDraftToMessage(draft))
+  for (const draft of drafts) {
+    if (!byID.has(draft.id)) byID.set(draft.id, draft)
   }
   return [...byID.values()].sort((a, b) => a.time.created - b.time.created)
 }

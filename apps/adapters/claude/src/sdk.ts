@@ -1,4 +1,4 @@
-import { randomUUID } from 'node:crypto'
+import { randomUUID, type UUID } from 'node:crypto'
 import type { AdapterProbe } from '@clara/adapter-runtime'
 import type { ClaraModel } from '@clara/api-contract'
 import {
@@ -13,9 +13,7 @@ import {
   type ModelInfo,
   type PermissionResult,
   type PermissionUpdate,
-  type SDKAssistantMessage,
   type SDKMessage,
-  type SDKPartialAssistantMessage,
   type SDKResultMessage,
   type SDKUserMessage,
   type SessionMessage,
@@ -44,6 +42,7 @@ import {
   resolveClaudeProvider,
   type ClaudeProvider,
 } from './provider.ts'
+import { ClaudeStreamTranslator, usageOf } from './stream.ts'
 
 export type ClaudeSessionInfo = {
   sessionId: string
@@ -217,6 +216,8 @@ export type ClaudeTurnRequest = {
   model?: string
   agent?: string
   synthetic?: boolean
+  /** Clara inbox ID, so the transcript user entry keeps the same identity. */
+  userMessageID?: string
   signal: AbortSignal
   onEvent: (event: ClaudeTurnEvent) => void
   onPermission: (request: ClaudePermissionRequest) => Promise<ClaudePermissionDecision>
@@ -227,6 +228,8 @@ export type ClaudeSteerInput = {
   text: string
   files?: string[]
   priority?: 'now' | 'next' | 'later'
+  /** Clara inbox ID, so a steered prompt keeps the same identity. */
+  userMessageID?: string
 }
 
 export interface ClaudeTurn {
@@ -350,6 +353,7 @@ export class AgentSdkGateway implements ClaudeGateway {
   private providerValue?: ClaudeProvider
   private defaultModelValue?: string
   private endpointValue?: ClaudeEndpoint
+  private readonly translators = new WeakMap<ClaudeTurnRequest, ClaudeStreamTranslator>()
 
   constructor(config: ClaudeConfig) {
     this.config = config
@@ -824,11 +828,11 @@ export class AgentSdkGateway implements ClaudeGateway {
         return
 
       case 'stream_event':
-        this.translateStreamEvent(message, request)
+        this.emit(request, this.translator(request).streamEvent(message))
         return
 
       case 'assistant':
-        this.translateAssistant(message, request, interrupted())
+        this.emit(request, this.translator(request).assistant(message, interrupted()))
         return
 
       case 'user':
@@ -844,140 +848,17 @@ export class AgentSdkGateway implements ClaudeGateway {
     }
   }
 
-  private translateStreamEvent(message: SDKPartialAssistantMessage, request: ClaudeTurnRequest) {
-    const event = message.event
-    if (event.type === 'message_start') {
-      request.onEvent({
-        type: 'message-start',
-        assistantMessageID: message.uuid,
-        model: event.message.model,
-        ...(message.user_message_uuid ? { userMessageID: message.user_message_uuid } : {}),
-      })
-      return
+  private translator(request: ClaudeTurnRequest): ClaudeStreamTranslator {
+    let translator = this.translators.get(request)
+    if (!translator) {
+      translator = new ClaudeStreamTranslator()
+      this.translators.set(request, translator)
     }
-    if (event.type === 'content_block_start') {
-      const block = event.content_block
-      const state = blocksFor(message)
-      if (block.type === 'text') {
-        state.set(event.index, { kind: 'text', text: block.text })
-        request.onEvent({
-          type: 'text-started',
-          assistantMessageID: message.uuid,
-          ordinal: event.index,
-        })
-      } else if (block.type === 'thinking' || block.type === 'redacted_thinking') {
-        state.set(event.index, { kind: 'thinking', text: '' })
-        request.onEvent({
-          type: 'reasoning-started',
-          assistantMessageID: message.uuid,
-          ordinal: event.index,
-        })
-      } else if (block.type === 'tool_use') {
-        state.set(event.index, { kind: 'tool', toolID: block.id, name: block.name, input: '' })
-        request.onEvent({
-          type: 'tool-input-started',
-          assistantMessageID: message.uuid,
-          index: event.index,
-          toolID: block.id,
-          name: block.name,
-        })
-      }
-      return
-    }
-    if (event.type === 'content_block_delta') {
-      const delta = event.delta
-      const block = blocksFor(message).get(event.index)
-      if (delta.type === 'text_delta') {
-        if (block?.kind === 'text') block.text += delta.text
-        request.onEvent({
-          type: 'text-delta',
-          assistantMessageID: message.uuid,
-          ordinal: event.index,
-          delta: delta.text,
-        })
-      } else if (delta.type === 'thinking_delta') {
-        if (block?.kind === 'thinking') block.text += delta.thinking
-        request.onEvent({
-          type: 'reasoning-delta',
-          assistantMessageID: message.uuid,
-          ordinal: event.index,
-          delta: delta.thinking,
-        })
-      } else if (delta.type === 'input_json_delta' && block?.kind === 'tool') {
-        block.input += delta.partial_json
-        request.onEvent({
-          type: 'tool-input-delta',
-          assistantMessageID: message.uuid,
-          index: event.index,
-          toolID: block.toolID,
-          delta: delta.partial_json,
-        })
-      }
-      return
-    }
-    if (event.type === 'content_block_stop') {
-      const block = blocksFor(message).get(event.index)
-      if (block?.kind === 'text') {
-        request.onEvent({
-          type: 'text-ended',
-          assistantMessageID: message.uuid,
-          ordinal: event.index,
-          text: block.text,
-        })
-      } else if (block?.kind === 'thinking') {
-        request.onEvent({
-          type: 'reasoning-ended',
-          assistantMessageID: message.uuid,
-          ordinal: event.index,
-          text: block.text,
-        })
-      } else if (block?.kind === 'tool') {
-        request.onEvent({
-          type: 'tool-input-ended',
-          assistantMessageID: message.uuid,
-          index: event.index,
-          toolID: block.toolID,
-          text: block.input,
-        })
-      }
-      blocksFor(message).delete(event.index)
-    }
+    return translator
   }
 
-  private translateAssistant(
-    message: SDKAssistantMessage,
-    request: ClaudeTurnRequest,
-    aborted: boolean
-  ) {
-    const blocks: ClaudeContentBlock[] = []
-    for (const block of message.message.content) {
-      if (block.type === 'text') blocks.push({ type: 'text', text: block.text })
-      else if (block.type === 'thinking') blocks.push({ type: 'thinking', text: block.thinking })
-      else if (block.type === 'tool_use') {
-        blocks.push({
-          type: 'tool_use',
-          id: block.id,
-          name: block.name,
-          input: recordOf(block.input),
-        })
-        request.onEvent({
-          type: 'tool-called',
-          assistantMessageID: message.uuid,
-          toolID: block.id,
-          input: recordOf(block.input),
-        })
-      }
-    }
-    request.onEvent({
-      type: 'assistant',
-      assistantMessageID: message.uuid,
-      model: message.message.model,
-      content: blocks,
-      ...(message.message.stop_reason ? { stopReason: message.message.stop_reason } : {}),
-      usage: usageOf(message.message.usage),
-      aborted: message.aborted === true || aborted,
-      ...(message.user_message_uuid ? { userMessageID: message.user_message_uuid } : {}),
-    })
+  private emit(request: ClaudeTurnRequest, events: ClaudeTurnEvent[]): void {
+    for (const event of events) request.onEvent(event)
   }
 
   private translateToolResults(message: SDKUserMessage, request: ClaudeTurnRequest) {
@@ -1026,23 +907,8 @@ export class AgentSdkGateway implements ClaudeGateway {
   }
 }
 
-type StreamBlock =
-  | { kind: 'text'; text: string }
-  | { kind: 'thinking'; text: string }
-  | { kind: 'tool'; toolID: string; name: string; input: string }
-
-const streamBlocks = new WeakMap<SDKPartialAssistantMessage, Map<number, StreamBlock>>()
-
-function blocksFor(message: SDKPartialAssistantMessage): Map<number, StreamBlock> {
-  const existing = streamBlocks.get(message)
-  if (existing) return existing
-  const created = new Map<number, StreamBlock>()
-  streamBlocks.set(message, created)
-  return created
-}
-
 function makeUserMessage(
-  request: { text: string; files?: string[]; sessionId?: string },
+  request: { text: string; files?: string[]; sessionId?: string; userMessageID?: string },
   priority: 'now' | 'next' | 'later',
   synthetic = false
 ): SDKUserMessage {
@@ -1055,7 +921,8 @@ function makeUserMessage(
     parent_tool_use_id: null,
     priority,
     ...(synthetic ? { isSynthetic: true, shouldQuery: false } : {}),
-    uuid: randomUUID(),
+    // Clara inbox IDs are generated with randomUUID, so they are valid UUIDs.
+    uuid: (request.userMessageID ?? randomUUID()) as UUID,
   }
 }
 
@@ -1122,27 +989,6 @@ function customRow(model: ClaudeModelRow): OllamaCustomRow {
     ...(model.description ? { description: model.description } : {}),
     ...(model.resolvedModel ? { resolvedModel: model.resolvedModel } : {}),
   }
-}
-
-function usageOf(value: unknown): ClaudeUsage {
-  const usage = recordOf(value)
-  return {
-    input: numberValue(usage?.input_tokens),
-    output: numberValue(usage?.output_tokens),
-    reasoning: numberValue(usage?.thinking_tokens),
-    cacheRead: numberValue(usage?.cache_read_input_tokens),
-    cacheWrite: numberValue(usage?.cache_creation_input_tokens),
-  }
-}
-
-function numberValue(value: unknown): number {
-  return typeof value === 'number' && Number.isFinite(value) ? value : 0
-}
-
-function recordOf(value: unknown): Record<string, unknown> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value)
-    ? (value as Record<string, unknown>)
-    : {}
 }
 
 function toolResultText(content: unknown): string {
