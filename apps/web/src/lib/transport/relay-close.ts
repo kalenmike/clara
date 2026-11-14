@@ -64,6 +64,8 @@ export function relayHealthUrl(wsUrl: string): string {
 /**
  * True when the relay answers its health endpoint. A refused upgrade against a
  * reachable relay is a credential failure; an unreachable one is transient.
+ * The Worker serves `/health` with `access-control-allow-origin: *`, so this
+ * probe works from the web client's origin even when the relay is remote.
  */
 export async function relayReachable(wsUrl: string): Promise<boolean> {
   try {
