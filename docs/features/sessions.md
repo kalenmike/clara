@@ -36,10 +36,12 @@ list has no checkbox column or bulk toolbar.
    running session. Unread Inbox sessions use a heavier title weight until the
    person opens them.
 5. Drafts holds empty sessions and sessions with a saved no-reply draft that
-   has not produced a projected message yet. An untitled empty session is
-   discarded when the view leaves it with nothing typed or saved. Snoozed holds
-   sessions postponed with the server's `snoozed` metadata. Archived holds
-   sessions archived on the server and wins over Snoozed when both apply.
+   has not produced a projected message yet. An untitled session with no user
+   or assistant message is discarded when the view leaves it with nothing typed
+   or saved, and old ones are swept from the list outside the chat view.
+   Selection and idle notes do not count as content. Snoozed holds sessions
+   postponed with the server's `snoozed` metadata. Archived holds sessions
+   archived on the server and wins over Snoozed when both apply.
 6. Workers sits above the sidebar footer. Only its trigger shows when the section
    is closed, resting at the bottom edge; opening it raises the header and
    reveals the session rows underneath, so the rows read as part of Workers
@@ -57,9 +59,9 @@ list has no checkbox column or bulk toolbar.
    session where the person chose. Otherwise it starts in the workspace the
    project last used. Creating the session re-targets the composer even when it
    is already open or minimized on another session. Opening an empty draft with
-   locally saved text opens the composer too. Leaving the brief with no composer
-   text or attachments, no saved draft, and no waiting request removes the empty
-   session instead of keeping it in Drafts.
+   locally saved text opens the composer too. Leaving the brief with no user or
+   assistant message, no composer text or attachments, no saved draft, and no
+   waiting request removes the empty session instead of keeping it in Drafts.
 9. The All projects page shows one card per non-empty project with its
    workspace summary, last activity, and active/archived session counts, plus a
    **New project** action. A filter icon at the far right of the header opens
@@ -447,10 +449,12 @@ list has no checkbox column or bulk toolbar.
 - **Done or Reopen while running** — both are hidden until the run finishes.
 - **Delete on an empty draft** — the session is removed immediately rather than
   archived, and the start view returns.
-- **Leave an empty draft** — leaving an untitled brief with no messages, no saved
-  draft, no composer text or attachments, and no waiting request deletes it. A
-  composer window bound to that brief closes and follows the view that replaced
-  it. Titled, running, worker, archived, and snoozed briefs are kept.
+- **Leave an empty draft** — leaving an untitled brief with no user or assistant
+  message, no saved draft, no composer text or attachments, and no waiting
+  request deletes it. A composer window bound to that brief closes and follows
+  the view that replaced it. Titled, running, worker, archived, and snoozed
+  briefs are kept. Old untitled empty briefs are also swept from the session
+  list when the chat view is closed; selection and idle notes do not keep them.
 - **Shift-click with no anchor** — the clicked session becomes the anchor and the
   only selected row.
 - **Shift-click across collapsed sections** — rows in a collapsed section are
@@ -592,10 +596,17 @@ metadata, delivery: 'steer' })`
 - Delete empty draft: `client.session.remove({ sessionID })`
 - Leave an empty draft: `useDiscardEmptyDraft` in
   `src/features/chat/use-discard-empty-draft.ts` waits briefly, rechecks the
-  composer and `clara.draft.<sessionID>`, confirms with
-  `client.message.list({ sessionID, limit: 1 })` and
+  composer and `clara.draft.<sessionID>`, confirms through
+  `client.message.list({ sessionID, order: 'desc', limit: 1, type: 'user' })`,
+  the same call with `type: 'assistant'`, and
   `client.session.inbox.list({ sessionID })`, then removes the session and
   closes a composer bound to it
+- Session-list sweep: `usePruneEmptyDrafts` in
+  `src/features/chat/use-prune-empty-drafts.ts` runs from the sidebar only
+  outside the chat view. It uses the mailbox signals, skips running or
+  form-bearing briefs and ones with a local draft, applies a 60-second grace
+  period, and re-confirms each candidate with the same harness calls before
+  removing it
 - Local composer draft: `clara.draft.<sessionID>` in `localStorage`
 - Delete: `client.session.remove({ sessionID })`
 - Sidebar selection: `selectRange` and `pruneSelection` in

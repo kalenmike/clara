@@ -447,9 +447,11 @@ See [fork.md](fork.md).
 - **Done while running** — the button is hidden until the agent is idle.
 - **Delete on an empty draft** — the session is removed immediately and the
   start view returns; the title is left untouched.
-- **Leave an empty draft** — an untitled brief with no messages, saved draft,
-  waiting request, or composer content is removed when the view leaves it, and a
-  composer bound to that brief closes.
+- **Leave an empty draft** — an untitled brief with no user or assistant
+  message, saved draft, waiting request, or composer content is removed when the
+  view leaves it, and a composer bound to that brief closes. Old untitled empty
+  briefs are swept from the session list outside the chat view; selection and
+  idle notes do not count as content.
 - **Done on an archived or snoozed session** — the button is hidden and Reopen
   is shown instead; the chat remains readable.
 - **Worker session** — the composer, Done, Reply, New, fork, compact, snooze,
@@ -544,9 +546,11 @@ metadata, delivery: 'steer' })`
   rendered by `src/components/chat/reply-actions.tsx`
 - Leave an empty draft: `useDiscardEmptyDraft` in
   `src/features/chat/use-discard-empty-draft.ts` confirms through
-  `client.message.list({ sessionID, limit: 1 })` and
-  `client.session.inbox.list({ sessionID })` before removing an untitled brief
-  that was left without composer content or a saved draft
+  `client.message.list({ sessionID, limit: 1, type: 'user' })`, the same call
+  with `type: 'assistant'`, and `client.session.inbox.list({ sessionID })`
+  before removing an untitled brief that was left without composer content or a
+  saved draft. `usePruneEmptyDrafts` in the same feature sweeps old untitled
+  empty briefs from the sidebar list outside the chat view
 - Interrupt: `client.session.interrupt({ sessionID })`
 - Approvals: `client.permission.request.list`, `client.permission.reply`;
   request thinking comes from `src/features/chat/permission-thinking.ts`

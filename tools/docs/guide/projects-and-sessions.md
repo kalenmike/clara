@@ -100,9 +100,11 @@ workspace you start it in. If that workspace has no earlier session, Clara
 starts on the harness default rather than borrowing another workspace's model.
 It follows your **Default agent** setting. Hidden models are not inherited.
 
-If you leave a new session before typing or saving a draft, Clara removes the
-empty session so it does not pile up under **Drafts**. Typed text, attachments,
-and saved drafts keep the session.
+If you leave a new session before sending or saving anything, Clara removes it
+so it does not pile up under **Drafts**. Notes about an agent or model change
+do not count as content; typed text, attachments, and saved drafts keep the
+session. Old empty sessions are also cleaned up when you return to the start or
+project view.
 
 ## Save a first prompt as a draft
 
