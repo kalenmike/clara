@@ -1,13 +1,28 @@
 import { useState } from 'react'
 import { Cloud } from 'lucide-react'
-import type { PanelCloudflareAccount, PanelRelayDeployment } from '@clara/shared-types'
+import type {
+  PanelCloudflareAccount,
+  PanelCloudflareZone,
+  PanelRelayDeployment,
+} from '@clara/shared-types'
 import { postPanel } from '../../lib/panel-api.ts'
 import { usePeek } from '../../lib/peek-context.tsx'
 import { Notice } from '../../components/primitives.tsx'
-import type { CloudflareAccountsResponse, CloudflareDeployResponse } from './types.ts'
+import type {
+  CloudflareAccountsResponse,
+  CloudflareDeployResponse,
+  CloudflareZonesResponse,
+} from './types.ts'
 
-const TOKEN_URL =
-  'https://dash.cloudflare.com/profile/api-tokens?permissionGroupKeys=%5B%7B%22key%22%3A%22workers_scripts%22%2C%22type%22%3A%22edit%22%7D%2C%7B%22key%22%3A%22account_settings%22%2C%22type%22%3A%22read%22%7D%5D&accountId=%2A&zoneId=all&name=Clara%20Relay'
+const TOKEN_PERMISSIONS = [
+  { key: 'workers_scripts', type: 'edit' },
+  { key: 'account_settings', type: 'read' },
+  { key: 'zone', type: 'read' },
+  { key: 'workers_routes', type: 'edit' },
+]
+const TOKEN_URL = `https://dash.cloudflare.com/profile/api-tokens?permissionGroupKeys=${encodeURIComponent(
+  JSON.stringify(TOKEN_PERMISSIONS)
+)}&accountId=%2A&zoneId=all&name=Clara%20Relay`
 
 export function DeployForm({
   cloudflare,
@@ -24,14 +39,19 @@ export function DeployForm({
   const [remember, setRemember] = useState(!cloudflare.tokenStored)
   const [accounts, setAccounts] = useState<PanelCloudflareAccount[]>()
   const [accountId, setAccountId] = useState(cloudflare.accountId ?? '')
+  const [zones, setZones] = useState<PanelCloudflareZone[]>()
+  const [zoneId, setZoneId] = useState(cloudflare.customDomain?.zoneId ?? '')
+  const [hostname, setHostname] = useState(cloudflare.customDomain?.hostname ?? '')
+  const [disableWorkersDev, setDisableWorkersDev] = useState(cloudflare.disableWorkersDev ?? false)
   const [scriptName, setScriptName] = useState(cloudflare.scriptName ?? 'clara-relay')
   const [replaceExisting, setReplaceExisting] = useState(cloudflare.managed)
   const [previewUrls, setPreviewUrls] = useState(cloudflare.previewUrls ?? false)
-  const [pending, setPending] = useState<'accounts' | 'deploy'>()
+  const [pending, setPending] = useState<'accounts' | 'zones' | 'deploy'>()
   const [error, setError] = useState<string>()
   const [notice, setNotice] = useState<string>()
 
   const needsToken = !useStored || !cloudflare.tokenStored
+  const customHostname = hostname.trim()
 
   const loadAccounts = async () => {
     if (needsToken && !token.trim()) {
@@ -47,9 +67,51 @@ export function DeployForm({
         needsToken ? { token: token.trim() } : {}
       )
       setAccounts(result.accounts)
-      if (result.accounts.length === 1) setAccountId(result.accounts[0].id)
+      if (result.accounts.length === 1) {
+        setAccountId(result.accounts[0].id)
+        void loadZones(result.accounts[0].id)
+      }
       if (result.accounts.length === 0) {
         setNotice('No accounts were returned. Enter the Cloudflare account ID manually.')
+      }
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : String(cause))
+    } finally {
+      setPending(undefined)
+    }
+  }
+
+  const loadZones = async (selectedAccountId = accountId) => {
+    const target = selectedAccountId.trim()
+    if (!target) {
+      setError('Choose or enter a Cloudflare account ID first.')
+      return
+    }
+    if (needsToken && !token.trim()) {
+      setError('Paste a Cloudflare API token first.')
+      return
+    }
+    setPending('zones')
+    setError(undefined)
+    setNotice(undefined)
+    try {
+      const result = await postPanel<CloudflareZonesResponse>(
+        '/panel/api/v1/relay/cloudflare/zones',
+        {
+          ...(needsToken ? { token: token.trim() } : {}),
+          accountId: target,
+        }
+      )
+      setZones(result.zones)
+      setZoneId((current) => {
+        const preferred = cloudflare.customDomain?.zoneId || current
+        if (preferred && result.zones.some((zone) => zone.id === preferred)) return preferred
+        return result.zones.length === 1 ? result.zones[0].id : ''
+      })
+      if (result.zones.length === 0) {
+        setNotice(
+          'No zones were returned. Add the domain to this Cloudflare account, or keep the workers.dev hostname.'
+        )
       }
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : String(cause))
@@ -79,6 +141,15 @@ export function DeployForm({
           scriptName: scriptName.trim() || 'clara-relay',
           replaceExisting,
           previewUrls,
+          ...(customHostname
+            ? {
+                customDomain: {
+                  hostname: customHostname,
+                  ...(zoneId ? { zoneId } : {}),
+                },
+              }
+            : {}),
+          ...(customHostname && disableWorkersDev ? { disableWorkersDev: true } : {}),
         }
       )
       setToken('')
@@ -120,8 +191,9 @@ export function DeployForm({
             Create a Cloudflare token
           </a>
           <p className="text-[10px] text-neutral-500 dark:text-neutral-400">
-            The token needs Workers Scripts: Edit. Account Settings: Read lets the panel list your
-            accounts; you can also enter the account ID manually.
+            The token needs Workers Scripts: Edit, Zone: Read, and Zone: Workers Routes: Edit.
+            Account Settings: Read lets the panel list your accounts; you can also enter the account
+            ID manually.
           </p>
           <label className="flex items-center gap-2 text-[11px]">
             <input
@@ -159,7 +231,13 @@ export function DeployForm({
             Account
             <select
               value={accountId}
-              onChange={(event) => setAccountId(event.target.value)}
+              onChange={(event) => {
+                const next = event.target.value
+                setAccountId(next)
+                setZones(undefined)
+                setZoneId('')
+                if (next) void loadZones(next)
+              }}
               className="ml-1 rounded-md border border-neutral-200 bg-white px-1.5 py-1 text-[11px] dark:border-neutral-700 dark:bg-neutral-900"
             >
               <option value="">Choose…</option>
@@ -193,6 +271,51 @@ export function DeployForm({
         />
       </label>
 
+      <div className="space-y-2 rounded-md border border-neutral-200 p-2 dark:border-neutral-800">
+        <div className="flex flex-wrap items-end gap-2">
+          <p className="text-[11px] font-medium">Custom domain (optional)</p>
+          <button
+            type="button"
+            onClick={() => void loadZones()}
+            disabled={pending !== undefined}
+            className="rounded-md border border-neutral-200 px-2 py-1 text-[11px] font-medium disabled:opacity-60 dark:border-neutral-700"
+          >
+            {pending === 'zones' ? 'Loading zones…' : zones ? 'Refresh zones' : 'Load zones'}
+          </button>
+          {zones && zones.length > 0 ? (
+            <label className="text-[11px]">
+              Zone
+              <select
+                value={zoneId}
+                onChange={(event) => setZoneId(event.target.value)}
+                className="ml-1 rounded-md border border-neutral-200 bg-white px-1.5 py-1 text-[11px] dark:border-neutral-700 dark:bg-neutral-900"
+              >
+                <option value="">Choose…</option>
+                {zones.map((zone) => (
+                  <option key={zone.id} value={zone.id}>
+                    {zone.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+          ) : null}
+        </div>
+        <input
+          value={hostname}
+          onChange={(event) => setHostname(event.target.value)}
+          placeholder="relay.example.com"
+          spellCheck={false}
+          autoComplete="off"
+          aria-label="Custom domain hostname"
+          className="w-full rounded-md border border-neutral-200 bg-white px-2 py-1.5 font-mono text-xs dark:border-neutral-700 dark:bg-neutral-900"
+        />
+        <p className="text-[10px] text-neutral-500 dark:text-neutral-400">
+          Enter a bare hostname in one of this account&apos;s zones. Cloudflare issues the
+          certificate after the deploy; the relay stays on workers.dev until the custom host
+          answers.
+        </p>
+      </div>
+
       <label className="flex items-center gap-2 text-[11px]">
         <input
           type="checkbox"
@@ -221,8 +344,32 @@ export function DeployForm({
             id="cloudflare-preview-urls-help"
             className="text-[10px] text-neutral-500 dark:text-neutral-400"
           >
-            The panel does not support custom domains yet, so the workers.dev hostname stays on.
             Preview URLs only add extra hostnames that bypass host-scoped WAF and rate-limit rules.
+          </p>
+          <label
+            className={
+              customHostname
+                ? 'flex items-start gap-2 text-[11px]'
+                : 'flex items-start gap-2 text-[11px] opacity-60'
+            }
+          >
+            <input
+              type="checkbox"
+              checked={disableWorkersDev && Boolean(customHostname)}
+              disabled={!customHostname}
+              onChange={(event) => setDisableWorkersDev(event.target.checked)}
+              aria-describedby="cloudflare-disable-workers-dev-help"
+              className="mt-0.5"
+            />
+            Disable the workers.dev hostname
+          </label>
+          <p
+            id="cloudflare-disable-workers-dev-help"
+            className="text-[10px] text-neutral-500 dark:text-neutral-400"
+          >
+            Available after you enter a custom hostname. This changes the relay URL to the custom
+            domain, and existing devices must pair again. The host is only turned off after the
+            custom hostname answers its health check.
           </p>
         </div>
       </details>
@@ -240,8 +387,8 @@ export function DeployForm({
         {pending === 'deploy' ? 'Deploying…' : 'Deploy relay'}
       </button>
       <p className="text-[10px] text-neutral-500 dark:text-neutral-400">
-        Deployment usually takes under a minute. Existing devices must pair again after the relay
-        changes.
+        Deployment usually takes under a minute; a new custom domain can take a few minutes for its
+        certificate. Existing devices must pair again after the relay changes.
       </p>
     </div>
   )
