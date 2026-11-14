@@ -330,5 +330,6 @@ function zeroErrors(): ErrorCounters {
     limited: 0,
     upstream: 0,
     expired: 0,
+    misrouted: 0,
   }
 }

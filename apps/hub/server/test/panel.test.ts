@@ -167,6 +167,7 @@ function snapshot(): PanelSnapshot {
         limited: 0,
         upstream: 0,
         expired: 0,
+        misrouted: 0,
       },
       peak: { bytesIn: 0, bytesOut: 0, requests: 0, errors: 0 },
       series: [],

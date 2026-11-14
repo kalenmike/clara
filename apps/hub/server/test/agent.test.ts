@@ -1209,3 +1209,299 @@ describe('agent client sync', () => {
     }
   })
 })
+
+describe('agent relay envelope', () => {
+  const PEER_A = 'peer-aaaaaaaaaaaaaaaaaaaa'
+  const PEER_B = 'peer-bbbbbbbbbbbbbbbbbbbb'
+
+  function route(peer: string, frame: WireFrame | string): string {
+    const m = typeof frame === 'string' ? frame : JSON.stringify(frame)
+    return JSON.stringify({ t: 'route', v: PROTOCOL_VERSION, p: peer, m })
+  }
+
+  function routeBytes(peer: string, frame: WireFrame | string): string {
+    const text = typeof frame === 'string' ? frame : JSON.stringify(frame)
+    return JSON.stringify({
+      t: 'route',
+      v: PROTOCOL_VERSION,
+      p: peer,
+      b: true,
+      m: Buffer.from(text, 'utf8').toString('base64url'),
+    })
+  }
+
+  function relayAgent(
+    fake: FakeOpenCode,
+    key: string,
+    frames: WireFrame[],
+    traffic?: TrafficMeter,
+    log?: (message: string, detail?: unknown) => void
+  ): Agent {
+    const agent = new Agent({
+      api: fakeApi(fake),
+      devices: testDevices(key),
+      info: { version: 'test', protocol: PROTOCOL_VERSION },
+      send: (frame) => frames.push(frame),
+      ...(traffic ? { traffic } : {}),
+      ...(log ? { log } : {}),
+    })
+    agent.setEnvelope('relay')
+    agents.push(agent)
+    return agent
+  }
+
+  async function relayConnect(
+    fake: FakeOpenCode,
+    peer: string,
+    options: {
+      sid?: string
+      key?: string
+      traffic?: TrafficMeter
+      log?: (message: string, detail?: unknown) => void
+      frame?: (peer: string, value: WireFrame) => string
+    } = {}
+  ): Promise<{ agent: Agent; client: Client; frames: WireFrame[] }> {
+    const sid = options.sid ?? 'relay-session'
+    const key = options.key ?? generateKey()
+    const frames: WireFrame[] = []
+    const agent = relayAgent(fake, key, frames, options.traffic, options.log)
+    const clientNonce = bytesToBase64Url(randomBytes(16))
+    const hello: WireFrame = {
+      t: 'hello',
+      v: PROTOCOL_VERSION,
+      sid,
+      nonce: clientNonce,
+      role: 'client',
+      deviceId: DEVICE_ID,
+    }
+    const wrap = options.frame ?? route
+    agent.handleMessage(wrap(peer, hello))
+
+    const agentHello = await waitFor(() => frames.find((item) => item.t === 'hello'))
+    if (agentHello.t !== 'hello') throw new Error('No hello frame')
+    const keys = await deriveSessionKeys({
+      key,
+      sid,
+      clientNonce,
+      agentNonce: agentHello.nonce,
+    })
+    return { agent, client: { sid, keys, sendSeq: 0, receiveSeq: 0 }, frames }
+  }
+
+  async function sendRelay(
+    client: Client,
+    agent: Agent,
+    peer: string,
+    payload: ClaraAction,
+    wrap: (peer: string, value: WireFrame) => string = route
+  ): Promise<void> {
+    const seq = client.sendSeq
+    client.sendSeq += 1
+    const box = await seal(
+      client.keys.c2s,
+      { sid: client.sid, direction: 'c2s', seq },
+      utf8(JSON.stringify(payload))
+    )
+    agent.handleMessage(
+      wrap(peer, {
+        t: 'sealed',
+        v: PROTOCOL_VERSION,
+        sid: client.sid,
+        seq,
+        iv: box.iv,
+        ct: box.ct,
+      })
+    )
+  }
+
+  function garbageSealed(client: Client, seq: number): WireFrame {
+    return {
+      t: 'sealed',
+      v: PROTOCOL_VERSION,
+      sid: client.sid,
+      seq,
+      iv: 'AAAAAAAAAAAAAAAA',
+      ct: 'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA',
+    }
+  }
+
+  it('drops a sealed frame from another peer without touching the session', async () => {
+    const fake = await startFakeOpenCode()
+    try {
+      const traffic = new TrafficMeter()
+      const { agent, client, frames } = await relayConnect(fake, PEER_A, { traffic })
+
+      // The relay reports PEER_B as the sender, so this cannot be served as
+      // PEER_A's frame even though the payload names PEER_A's sid.
+      agent.handleMessage(route(PEER_B, garbageSealed(client, 0)))
+      await new Promise((resolve) => setTimeout(resolve, 20))
+
+      expect(frames.some((frame) => frame.t === 'error')).toBe(false)
+      expect(agent.getSnapshot()).toHaveLength(1)
+      expect(traffic.snapshot().errors.misrouted).toBe(1)
+
+      await sendRelay(client, agent, PEER_A, {
+        type: 'ready.ack',
+        agent: { version: 'web', protocol: PROTOCOL_VERSION },
+      })
+      await sendRelay(client, agent, PEER_A, {
+        type: 'http.request',
+        id: 'after-misroute',
+        method: 'GET',
+        path: '/v1/harness/info',
+      })
+      const states = await waitFor(async () => {
+        const parsed = await readStates(client, frames)
+        return parsed.some((state) => state.type === 'http.end') ? parsed : undefined
+      })
+      expect(states.some((state) => state.type === 'http.response' && state.status === 200)).toBe(
+        true
+      )
+    } finally {
+      await fake.close()
+    }
+  })
+
+  it('drops a hello that reuses a live session sid from another peer', async () => {
+    const fake = await startFakeOpenCode()
+    try {
+      const { agent, client, frames } = await relayConnect(fake, PEER_A)
+      const hellosBefore = frames.filter((frame) => frame.t === 'hello').length
+
+      agent.handleMessage(
+        route(PEER_B, {
+          t: 'hello',
+          v: PROTOCOL_VERSION,
+          sid: client.sid,
+          nonce: bytesToBase64Url(randomBytes(16)),
+          role: 'client',
+          deviceId: DEVICE_ID,
+        })
+      )
+      await new Promise((resolve) => setTimeout(resolve, 30))
+
+      expect(frames.filter((frame) => frame.t === 'hello')).toHaveLength(hellosBefore)
+      expect(frames.some((frame) => frame.t === 'error')).toBe(false)
+      expect(agent.getSnapshot()).toHaveLength(1)
+
+      await sendRelay(client, agent, PEER_A, {
+        type: 'ready.ack',
+        agent: { version: 'web', protocol: PROTOCOL_VERSION },
+      })
+      await sendRelay(client, agent, PEER_A, {
+        type: 'http.request',
+        id: 'after-hello',
+        method: 'GET',
+        path: '/v1/harness/info',
+      })
+      const states = await waitFor(async () => {
+        const parsed = await readStates(client, frames)
+        return parsed.some((state) => state.type === 'http.end') ? parsed : undefined
+      })
+      expect(states.some((state) => state.type === 'http.response' && state.status === 200)).toBe(
+        true
+      )
+    } finally {
+      await fake.close()
+    }
+  })
+
+  it('ignores unwrapped frames in relay mode and logs once', async () => {
+    const fake = await startFakeOpenCode()
+    try {
+      const frames: WireFrame[] = []
+      const logs: string[] = []
+      const agent = new Agent({
+        api: fakeApi(fake),
+        devices: testDevices(generateKey()),
+        info: { version: 'test', protocol: PROTOCOL_VERSION },
+        send: (frame) => frames.push(frame),
+        log: (message) => logs.push(message),
+      })
+      agent.setEnvelope('relay')
+      agents.push(agent)
+
+      const hello = JSON.stringify({
+        t: 'hello',
+        v: PROTOCOL_VERSION,
+        sid: 'unwrapped-session',
+        nonce: bytesToBase64Url(randomBytes(16)),
+        role: 'client',
+        deviceId: DEVICE_ID,
+      })
+      agent.handleMessage(hello)
+      agent.handleMessage(hello)
+      // A route frame without a peer is not a route frame either.
+      agent.handleMessage(JSON.stringify({ t: 'route', v: PROTOCOL_VERSION, p: '', m: hello }))
+
+      expect(frames).toHaveLength(0)
+      expect(agent.sessionCount).toBe(0)
+      expect(logs.filter((message) => message.includes('unwrapped'))).toHaveLength(1)
+    } finally {
+      await fake.close()
+    }
+  })
+
+  it('unwraps a binary route frame from the relay', async () => {
+    const fake = await startFakeOpenCode()
+    try {
+      const { agent, client, frames } = await relayConnect(fake, PEER_A, { frame: routeBytes })
+      await sendRelay(
+        client,
+        agent,
+        PEER_A,
+        { type: 'ready.ack', agent: { version: 'web', protocol: PROTOCOL_VERSION } },
+        routeBytes
+      )
+      await sendRelay(
+        client,
+        agent,
+        PEER_A,
+        { type: 'http.request', id: 'binary-route', method: 'GET', path: '/v1/harness/info' },
+        routeBytes
+      )
+      const states = await waitFor(async () => {
+        const parsed = await readStates(client, frames)
+        return parsed.some((state) => state.type === 'http.end') ? parsed : undefined
+      })
+      expect(states.some((state) => state.type === 'http.response' && state.status === 200)).toBe(
+        true
+      )
+    } finally {
+      await fake.close()
+    }
+  })
+
+  it('does not unwrap route frames on the local transport', async () => {
+    const fake = await startFakeOpenCode()
+    try {
+      const frames: WireFrame[] = []
+      const traffic = new TrafficMeter()
+      const key = generateKey()
+      const agent = new Agent({
+        api: fakeApi(fake),
+        devices: testDevices(key),
+        info: { version: 'test', protocol: PROTOCOL_VERSION },
+        send: (frame) => frames.push(frame),
+        traffic,
+      })
+      agents.push(agent)
+
+      const wrapped = route(PEER_A, {
+        t: 'hello',
+        v: PROTOCOL_VERSION,
+        sid: 'local-session',
+        nonce: bytesToBase64Url(randomBytes(16)),
+        role: 'client',
+        deviceId: DEVICE_ID,
+      })
+      agent.handleMessage(wrapped)
+
+      expect(frames).toHaveLength(0)
+      expect(agent.sessionCount).toBe(0)
+      expect(traffic.snapshot().errors.dropped).toBe(1)
+    } finally {
+      await fake.close()
+    }
+  })
+})

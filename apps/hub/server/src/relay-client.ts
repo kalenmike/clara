@@ -10,6 +10,9 @@ import type { Agent } from './agent.ts'
 const MAX_BACKOFF_MS = 30_000
 const HEARTBEAT_MS = 20_000
 const STALL_MS = 45_000
+/** The route envelope (`t: "route"`) ships in relay version 2. */
+const MIN_RELAY_VERSION = 2
+const OUTDATED_RELAY = 'The relay is outdated; redeploy the Worker'
 
 export type RelayStatus = 'connecting' | 'online' | 'reconnecting' | 'offline'
 
@@ -45,6 +48,9 @@ export class RelayClient {
 
   constructor(options: RelayClientOptions) {
     this.options = options
+    // Relay frames always carry the sender's peer id, so the hub builds
+    // sessions from the route envelope instead of trusting the payload's sid.
+    options.agent.setEnvelope('relay')
   }
 
   getSnapshot(): RelaySnapshot {
@@ -99,8 +105,23 @@ export class RelayClient {
     ])
     this.socket = socket
 
+    let relayVersion = 0
+    socket.on('upgrade', (response) => {
+      if (this.socket !== socket) return
+      const value = Number(response.headers['x-clara-relay-version'])
+      relayVersion = Number.isFinite(value) ? value : 0
+    })
+
     socket.on('open', () => {
       if (this.socket !== socket) return
+      if (relayVersion < MIN_RELAY_VERSION) {
+        // An older Worker forwards client frames without a peer id, which
+        // makes every session spoofable. Close instead of serving that room.
+        this.lastError = OUTDATED_RELAY
+        this.options.log?.(OUTDATED_RELAY)
+        socket.close(1002, 'relay outdated')
+        return
+      }
       this.retry = 0
       this.lastPong = Date.now()
       this.connectedSince = Date.now()
