@@ -1,0 +1,16 @@
+{
+  "name": "@clara/desktop",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "description": "Tauri shell that packages the Clara web client for desktop.",
+  "scripts": {
+    "dev": "tauri dev",
+    "bundle": "tauri build",
+    "bundle:app": "tauri build --no-bundle",
+    "icons": "tauri icon ../web/public/clara-mark.png"
+  },
+  "devDependencies": {
+    "@tauri-apps/cli": "^2.12.4"
+  }
+}

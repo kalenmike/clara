@@ -6,6 +6,8 @@ pnpm-lock.yaml
 **/dist-desktop
 **/.wrangler
 **/*.tsbuildinfo
+**/src-tauri/target
+**/src-tauri/gen
 tools/docs/.docusaurus
 tools/docs/build
 packages/contracts/api-contract/src/generated

@@ -16,6 +16,8 @@ coverage
 **/dist
 **/dist-desktop
 **/*.tsbuildinfo
+**/src-tauri/target
+**/src-tauri/gen
 .wrangler
 **/.wrangler
 .dev.vars
