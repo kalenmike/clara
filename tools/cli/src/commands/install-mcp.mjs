@@ -140,10 +140,7 @@ function printConfig() {
           'clara-api': {
             command: process.execPath,
             args: [apiMcpEntry],
-            env: {
-              CLARA_API_URL: apiBaseURL,
-              CLARA_API_TOKEN_FILE: apiTokenFile,
-            },
+            env: apiConfig().environment,
           },
         },
       },
