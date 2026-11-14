@@ -192,13 +192,15 @@ function parseArgs(argv) {
 }
 
 function parseKinds(value) {
-  if (!value || value === 'all') return ['opencode', 'claude']
+  if (!value || value === 'all') return ['opencode', 'claude', 'pi']
   const kinds = String(value)
     .split(',')
     .map((kind) => kind.trim())
     .filter(Boolean)
   for (const kind of kinds) {
-    if (kind !== 'opencode' && kind !== 'claude') fail(`Unknown adapter kind: ${kind}`)
+    if (kind !== 'opencode' && kind !== 'claude' && kind !== 'pi') {
+      fail(`Unknown adapter kind: ${kind}`)
+    }
   }
   return kinds
 }

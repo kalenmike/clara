@@ -28,7 +28,8 @@ and run the adapter with Node.
 
 The Claude Code adapter uses the `claude` binary already installed on the
 machine; it does not embed the Agent SDK's platform binary. The installer passes
-`--claude-path` when needed.
+`--claude-path` when needed. The Pi adapter uses the machine's installed `pi`
+binary in RPC mode.
 
 The OpenCode archive contains the compiled adapter and its `plugin/` assets. The
 installer passes `--no-runner`; the orchestration runner is not part of a remote

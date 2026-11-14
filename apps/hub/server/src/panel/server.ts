@@ -859,6 +859,7 @@ async function startInstall(
 function installLabel(kind: string): string {
   if (kind === 'opencode') return 'OpenCode'
   if (kind === 'claude') return 'Claude Code'
+  if (kind === 'pi') return 'Pi'
   return kind
 }
 
