@@ -13,6 +13,9 @@ export type HarnessMachine = 'remote' | 'local'
 /** The address family the adapter uses to reach the hub. */
 export type HarnessTransportMode = 'relay' | 'docker' | 'local'
 
+/** Where a local harness runs, as the person installing the adapter sees it. */
+export type HarnessTarget = 'host' | 'container'
+
 /**
  * The transport follows from the machine choice and, for a local harness,
  * whether it runs inside the hub's Docker network. A container on a hub that
@@ -21,12 +24,20 @@ export type HarnessTransportMode = 'relay' | 'docker' | 'local'
  */
 export function resolveHarnessTransport(input: {
   machine: HarnessMachine
-  useDocker?: boolean
+  target?: HarnessTarget
   containerized: boolean
 }): HarnessTransportMode {
   if (input.machine === 'remote') return 'relay'
-  if (input.useDocker) return input.containerized ? 'docker' : 'relay'
+  if (input.target === 'container') return input.containerized ? 'docker' : 'relay'
   return 'local'
+}
+
+/**
+ * The target a local harness starts on. A containerized hub is usually paired
+ * with a harness container, and a host-process hub with an adapter on the host.
+ */
+export function defaultHarnessTarget(containerized: boolean): HarnessTarget {
+  return containerized ? 'container' : 'host'
 }
 
 /**

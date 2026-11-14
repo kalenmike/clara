@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import type { PanelHarness, PanelHarnessPairing } from '@clara/shared-types'
 import {
+  defaultHarnessTarget,
   findHarnessPairingConnection,
   isPairingRegistered,
   resolveHarnessTransport,
@@ -46,18 +47,28 @@ describe('resolveHarnessTransport', () => {
 
   it('uses the Docker network for a local container on a containerized hub', () => {
     expect(
-      resolveHarnessTransport({ machine: 'local', useDocker: true, containerized: true })
+      resolveHarnessTransport({ machine: 'local', target: 'container', containerized: true })
     ).toBe('docker')
   })
 
   it('falls back to the relay for a local container on a host-process hub', () => {
     expect(
-      resolveHarnessTransport({ machine: 'local', useDocker: true, containerized: false })
+      resolveHarnessTransport({ machine: 'local', target: 'container', containerized: false })
     ).toBe('relay')
   })
 
   it('uses loopback for a local harness that is not containerized', () => {
     expect(resolveHarnessTransport({ machine: 'local', containerized: false })).toBe('local')
+    expect(resolveHarnessTransport({ machine: 'local', target: 'host', containerized: true })).toBe(
+      'local'
+    )
+  })
+})
+
+describe('defaultHarnessTarget', () => {
+  it('starts a containerized hub on the container target', () => {
+    expect(defaultHarnessTarget(true)).toBe('container')
+    expect(defaultHarnessTarget(false)).toBe('host')
   })
 })
 

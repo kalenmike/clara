@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import type { PanelInstallInfo } from '@clara/shared-types'
 import {
   installManifest,
+  installOffered,
   registryCommand,
   registryError,
   repoCommand,
@@ -64,5 +65,20 @@ describe('install panel helpers', () => {
 
   it('keeps the repository command as a fallback', () => {
     expect(repoCommand('claude', 'code')).toBe('pnpm clara adapter install --claude --pair code')
+  })
+
+  it('offers installs only when the hub can run them', () => {
+    expect(installOffered(info)).toBe(true)
+    expect(installOffered(undefined)).toBe(false)
+    expect(installOffered({ ...info, enabled: false })).toBe(false)
+    expect(
+      installOffered({
+        ...info,
+        available: false,
+        reason: 'The hub service runs in Docker.',
+        ssh: { available: false, reason: 'Docker', hosts: [] },
+        docker: { available: false, reason: 'Docker', containers: [] },
+      })
+    ).toBe(false)
   })
 })
