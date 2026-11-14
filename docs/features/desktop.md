@@ -103,7 +103,9 @@ into the checkout.
   `build.outDir = dist-desktop`, and defines `CLARA_DESKTOP`. The web build is
   the default and keeps the PWA worker and manifest.
 - `apps/web/scripts/check-bundle.mjs` asserts the split on every build: the web
-  artifact must contain `sw.js` and the manifest, the desktop artifact must not.
+  artifact must contain `sw.js` and the manifest, the desktop artifact must not,
+  every emitted chunk is scanned for harness SDK symbols, and no chunk may
+  exceed the size budget.
 - The window is created in Rust so navigation can be intercepted. The CSP,
   window size, frontend path, and bundle identifier live in `tauri.conf.json`.
   The bundle identifier is `com.kalenmichael.clara`; changing it resets the

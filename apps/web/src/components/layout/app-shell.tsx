@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button'
 import { Sheet, SheetContent, SheetDescription, SheetTitle } from '@/components/ui/sheet'
 import { HarnessBanner } from '@/components/layout/harness-banner'
 import { MobileActionsProvider, MobileActionsSlot } from '@/components/layout/mobile-actions'
+import { RouteProgress } from '@/components/layout/route-progress'
 import { Sidebar, SidebarContent } from '@/components/layout/sidebar'
 import { InboxMonitorProvider } from '@/features/sessions/inbox-monitor'
 import { useSessionWording } from '@/features/sessions/use-wording'
@@ -77,6 +78,7 @@ export function AppShell() {
                 <PushProvider>
                   <NotificationProvider>
                     <div className="relative h-full">
+                      <RouteProgress />
                       <Outlet />
                     </div>
                   </NotificationProvider>
