@@ -250,10 +250,14 @@ clara`. A manually started hub is restarted from the captured root with its
   runner, uploads kind-prefixed archives to the `adapters-v<version>` GitHub
   release, and exports `apps/web/public/adapters/<kind>/{manifest.json,v<version>-install.sh}`
   as the `adapter-registry` workflow artifact. The maintainer copies that
-  artifact into `apps/web/public/adapters` and runs `pnpm deploy:web`. A local
-  `pnpm adapters:build` builds only the host target under `dist/adapters` and is
-  not the canonical registry. The hub reads `CLARA_ADAPTER_REGISTRY_URL` or the
-  panel setting; it never embeds an adapter.
+  artifact into `apps/web/public/adapters` and runs `pnpm deploy:web`. When the
+  archives already exist on a release,
+  `pnpm adapters:build --from-release <tag> --repo <owner/repo> --out apps/web/public/adapters`
+  regenerates the manifest and install script from the release asset digests
+  without downloading archives. A local `pnpm adapters:build` builds only the
+  host target under `dist/adapters` and is not the canonical registry. The hub
+  reads `CLARA_ADAPTER_REGISTRY_URL` or the panel setting; it never embeds an
+  adapter.
 - Default ports: orchestrator `8789`, panel `8790`, local hub `8788`, Lab
   `8791`, web `8080`. `CLARA_LAB_PORT`, `CLARA_PANEL_PORT`,
   `CLARA_LOCAL_PORT`, `CLARA_WEB_PORT`, and `CLARA_ORCHESTRATION_URL` override
