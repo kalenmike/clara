@@ -44,11 +44,12 @@ at the panel's **Clients → Pair Client** action or `clara-server pair`.
    pasted. Opening a pairing link directly is consumed automatically and shows a
    branded connecting splash.
 4. Clara validates the payload and expiry, checks that this browser can store a
-   non-extractable key, connects with the one-time enrollment token, and enrolls
-   the device.
+   non-extractable key, connects with the one-time enrollment token and, for a
+   relay code, its one-time enrollment grant, and enrolls the device.
 5. The hub stores the device key encrypted at rest, consumes the token, and
-   returns the device id and fingerprint. Clara stores the non-extractable key
-   in IndexedDB, reconnects with the device id, and probes the hub API. Harness
+   returns the device id, fingerprint, and first thirty-day device grant. Clara
+   stores the non-extractable key in IndexedDB, keeps the grant for relay
+   connects, reconnects with the device id, and probes the hub API. Harness
    information loads separately through the default harness.
 6. On success Clara opens the last project. The Settings → Server card shows the
    relay state and device identity. On failure Clara returns to the pair form and
@@ -64,12 +65,14 @@ at the panel's **Clients → Pair Client** action or `clara-server pair`.
 
 1. Pairing is the only way to obtain a device credential. No encryption key is
    bundled into the Pages build.
-2. A pairing payload contains the WebSocket URL, room id, shared relay client
-   token, a public enrollment id, a one-time enrollment token, the token
-   fingerprint, and the expiry. The fragment is not sent to Pages or Cloudflare.
-3. The enrollment token is valid for 10 minutes and enrolls exactly one device.
-   A device retry with the same device id is idempotent; a different device
-   reusing the token is rejected.
+2. A pairing payload contains the WebSocket URL, room id, a public enrollment
+   id, a one-time enrollment token, the token fingerprint, and the expiry. A
+   relay payload also carries a ten-minute signed enrollment grant scoped to
+   that id; a local payload carries no grant. The fragment is not sent to Pages
+   or Cloudflare.
+3. The enrollment token and its grant are valid for 10 minutes and enroll
+   exactly one device. A device retry with the same device id is idempotent; a
+   different device reusing the token is rejected.
 4. Camera scanning runs entirely in the browser: frames are decoded on the
    device and never reach Pages, the relay, or the hub. A QR that does not
    decode to a Clara payload is rejected before pairing.
@@ -133,7 +136,8 @@ at the panel's **Clients → Pair Client** action or `clara-server pair`.
 - **Relay offline** — the device connects but the hub is absent; the client
   closes with `1013` and the form reports a connection failure. Confirm the
   pairing room matches the relay card in the hub panel.
-- **Wrong relay token** — the Worker returns `401` before the upgrade.
+- **Expired or invalid enrollment grant** — the Worker returns `401` before the
+  upgrade; generate a fresh pairing code.
 - **Hub restart** — the DO closes clients with `1012`; the web reconnects and
   re-handshakes automatically with the stored device key.
 - **Device revoked** — the next handshake or action receives `revoked_device`;
@@ -147,13 +151,13 @@ at the panel's **Clients → Pair Client** action or `clara-server pair`.
   HTTPS page reports that the code is local-only. The panel and
   `clara-server pair` warn when the pairing link is remote while the hub has no
   relay. Configure the relay for phones.
-- **Relay URL without tokens** — the hub still starts and creates a local
-  pairing code. The panel Relay card marks both tokens as missing; save them
-  there before creating a relay code.
+- **Relay URL without the hub token** — the hub still starts and creates a local
+  pairing code. The panel Relay card marks the token as missing; save it there
+  before creating a relay code.
 - **Local code with a relay configured** — the panel's **Local** choice, or
-  `clara-server pair --no-relay`, emits room `local`, the listener
-  URL, and the local web app link without needing relay tokens; the web keeps
-  that endpoint, so the code still works on this machine only.
+  `clara-server pair --no-relay`, emits room `local`, the listener URL, and the
+  local web app link without a relay grant; the web keeps that endpoint, so the
+  code still works on this machine only.
 - **Deployment switch changed** — a relay pairing is re-resolved against
   `VITE_CLARA_WS_URL` on boot, so existing devices follow the new endpoint; a
   `local` pairing keeps its own URL.
@@ -164,8 +168,8 @@ at the panel's **Clients → Pair Client** action or `clara-server pair`.
 
 ## Out of scope
 
-- Per-device relay tokens
-- Pairing expiration windows longer than the enrollment token
+- Per-device relay targets; every device uses the hub's configured relay
+- Pairing expiration windows longer than the enrollment token and grant
 - Scanning a QR from a saved screenshot or photo
 - Torch, camera switching, or barcode formats other than QR
 - Multiple hubs or saved pairing profiles
@@ -175,9 +179,10 @@ at the panel's **Clients → Pair Client** action or `clara-server pair`.
 
 - A stolen but unused pairing link can enroll one device until it expires or is
   used. The panel shows the new device and can revoke it.
-- The relay client token is shared by every paired device.
-- The device id is visible to the relay, which can correlate a device's
-  connections.
+- A relay device grant lasts thirty days and is refreshed on each connect. A
+  device offline longer than that must pair again.
+- The device id and grant id are visible to the relay, which can correlate a
+  device's connections.
 
 ## Technical appendix
 
@@ -190,7 +195,8 @@ at the panel's **Clients → Pair Client** action or `clara-server pair`.
   are returned only from the authenticated creation request, not in the status
   snapshot.
 - Pairing URL: `<webUrl>/#pair=<base64url(JSON)>`
-- Payload: `{ v, wsUrl, room, clientToken, enrollId, enrollToken, fingerprint, expiresAt }`
+- Payload: `{ v, wsUrl, room, enrollId, enrollToken, grant?, fingerprint, expiresAt }`;
+  `grant` is required for a relay payload and absent for a local one
 - Scanner: `getUserMedia` is requested first, with `jsqr` loaded in parallel on
   demand; frames are decoded on a detached canvas and the stream stops on
   detection or close. Camera start, decoder load, and first-frame paint each

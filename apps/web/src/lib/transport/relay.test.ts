@@ -16,7 +16,6 @@ import {
 } from '@clara/crypto'
 import {
   PROTOCOL_VERSION,
-  PROTOCOL_VERSION_V4,
   type ClientHelloFrameV4,
   type ClaraAction,
   type ClaraState,
@@ -488,7 +487,7 @@ function attachFakeAgent(
       })
       const hubHello: HubHelloFrameV4 = {
         t: 'hello',
-        v: PROTOCOL_VERSION_V4,
+        v: PROTOCOL_VERSION,
         sid,
         nonce: agentNonce,
         role: 'agent',

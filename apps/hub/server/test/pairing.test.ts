@@ -17,7 +17,6 @@ const ENV_KEYS = [
   'CLARA_RELAY_URL',
   'CLARA_RELAY_ROOM',
   'CLARA_AGENT_TOKEN',
-  'CLARA_CLIENT_TOKEN',
   'CLARA_PAIRING_BASE_URL',
   'CLARA_WEB_PORT',
   'XDG_STATE_HOME',
@@ -57,7 +56,6 @@ function baseConfig(overrides: Partial<ServerConfig> = {}): ServerConfig {
       relayUrl: 'none',
       relayRoom: 'none',
       agentToken: 'none',
-      clientToken: 'none',
       pairingBaseUrl: 'default',
     },
     ...overrides,
@@ -95,19 +93,17 @@ describe('createPairingPayload', () => {
     expect(payload).toMatchObject({
       wsUrl: 'ws://127.0.0.1:8788/ws',
       room: 'local',
-      clientToken: 'local',
     })
     expect(payload.grant).toBeUndefined()
   })
 
-  it('uses the relay room when a relay is configured', async () => {
+  it('uses the relay room and enrollment grant when a relay is configured', async () => {
     const payload = await createPairingPayload(
       baseConfig({
         relay: {
           url: 'wss://relay.example',
           room: 'room-1',
           agentToken: 'agent',
-          clientToken: 'client',
         },
       }),
       fakeDevices()
@@ -116,8 +112,8 @@ describe('createPairingPayload', () => {
     expect(payload).toMatchObject({
       wsUrl: 'wss://relay.example/room/room-1',
       room: 'room-1',
-      clientToken: 'client',
     })
+    expect(payload.grant).toBeDefined()
   })
 
   it('carries a one-time enrollment grant scoped to the pairing id', async () => {
@@ -127,7 +123,6 @@ describe('createPairingPayload', () => {
           url: 'wss://relay.example',
           room: 'room-1',
           agentToken: 'agent-token',
-          clientToken: 'client',
         },
       }),
       fakeDevices()
@@ -154,7 +149,6 @@ describe('createPairingPayload', () => {
           url: 'wss://relay.example',
           room: 'room-1',
           agentToken: 'agent',
-          clientToken: 'client',
         },
       }),
       fakeDevices(),
@@ -164,8 +158,8 @@ describe('createPairingPayload', () => {
     expect(payload).toMatchObject({
       wsUrl: 'ws://127.0.0.1:8788/ws',
       room: 'local',
-      clientToken: 'local',
     })
+    expect(payload.grant).toBeUndefined()
   })
 })
 
@@ -214,7 +208,6 @@ describe('pair command configuration', () => {
     process.env.CLARA_CONFIG_DIR = dir
     process.env.XDG_STATE_HOME = tempDir()
     process.env.CLARA_AGENT_TOKEN = 'agent-token'
-    process.env.CLARA_CLIENT_TOKEN = 'client-token'
 
     const config = loadConfig()
     const logs: string[] = []
@@ -274,7 +267,6 @@ describe('pairing with an incomplete relay', () => {
     expect(incomplete).toMatchObject({
       wsUrl: 'ws://127.0.0.1:8788/ws',
       room: 'local',
-      clientToken: 'local',
       enrollId: 'enroll-id',
     })
 
@@ -286,14 +278,13 @@ describe('pairing with an incomplete relay', () => {
     expect(payload).toMatchObject({
       wsUrl: 'ws://127.0.0.1:8788/ws',
       room: 'local',
-      clientToken: 'local',
       enrollId: 'enroll-id',
     })
   })
 
-  it('uses a local link and warns when the relay tokens are missing', async () => {
+  it('uses a local link and warns when the relay hub token is missing', async () => {
     const config = baseConfig({
-      relay: { url: 'wss://relay.example', room: 'room-1', agentToken: '', clientToken: '' },
+      relay: { url: 'wss://relay.example', room: 'room-1', agentToken: '' },
     })
     const logs: string[] = []
     const spy = vi.spyOn(console, 'log').mockImplementation((...args: unknown[]) => {
@@ -306,6 +297,6 @@ describe('pairing with an incomplete relay', () => {
     }
 
     expect(logs.join('\n')).toContain('http://127.0.0.1:8080/#pair=')
-    expect(logs.join('\n')).toContain('tokens are missing')
+    expect(logs.join('\n')).toContain('the hub token is missing')
   })
 })

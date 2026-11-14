@@ -235,7 +235,7 @@ function stateErrorMessage(code: string): string {
     case 'deploy_in_progress':
       return 'A relay deployment is already running'
     case 'env_managed':
-      return 'Relay settings come from the environment. Remove CLARA_RELAY_URL, CLARA_RELAY_ROOM, and the relay tokens before deploying from the panel.'
+      return 'Relay settings come from the environment. Remove CLARA_RELAY_URL, CLARA_RELAY_ROOM, and CLARA_AGENT_TOKEN before deploying from the panel.'
     case 'token_required':
       return 'Enter a Cloudflare API token'
     default:

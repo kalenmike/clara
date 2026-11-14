@@ -7,7 +7,7 @@ import { usePeek } from '../lib/peek-context.tsx'
 import { Notice, SourceTag } from './primitives.tsx'
 
 const TOKEN_FORMAT_ERROR =
-  'Relay tokens must be at least 32 characters with no spaces or commas. Use the generated value or `openssl rand -base64 32`.'
+  'The relay token must be at least 32 characters with no spaces or commas. Use the generated value or `openssl rand -base64 32`.'
 
 function invalidToken(value: string): boolean {
   const trimmed = value.trim()
@@ -25,7 +25,6 @@ export function RelayEditor({
   const tokenErrorId = useId()
   const [url, setUrl] = useState(relay.url ?? '')
   const [agentToken, setAgentToken] = useState('')
-  const [clientToken, setClientToken] = useState('')
   const [pending, setPending] = useState<'save' | 'clear' | 'room'>()
   const [error, setError] = useState<string>()
   const [notice, setNotice] = useState<string>()
@@ -36,44 +35,37 @@ export function RelayEditor({
 
   const urlFromEnv = relay.urlSource === 'env'
   const agentFromEnv = relay.agentTokenSource === 'env'
-  const clientFromEnv = relay.clientTokenSource === 'env'
   const agentTokenInvalid = Boolean(agentToken.trim()) && invalidToken(agentToken)
-  const clientTokenInvalid = Boolean(clientToken.trim()) && invalidToken(clientToken)
-  const tokenError = agentTokenInvalid || clientTokenInvalid ? TOKEN_FORMAT_ERROR : undefined
+  const tokenError = agentTokenInvalid ? TOKEN_FORMAT_ERROR : undefined
   const hasPanelValues =
     relay.urlSource === 'file' ||
     relay.roomSource === 'file' ||
     relay.roomSource === 'generated' ||
-    relay.agentTokenSource === 'file' ||
-    relay.clientTokenSource === 'file'
+    relay.agentTokenSource === 'file'
   const hasAgentToken = agentFromEnv || relay.agentTokenConfigured || Boolean(agentToken.trim())
-  const hasClientToken = clientFromEnv || relay.clientTokenConfigured || Boolean(clientToken.trim())
   const canSave =
     Boolean((relay.url ?? '').trim() || url.trim()) &&
     hasAgentToken &&
-    hasClientToken &&
     !tokenError &&
-    (!urlFromEnv || Boolean(agentToken.trim()) || Boolean(clientToken.trim()))
+    (!urlFromEnv || Boolean(agentToken.trim()))
 
   const save = async () => {
     setPending('save')
     setError(undefined)
     setNotice(undefined)
     try {
-      const body: { url?: string; agentToken?: string; clientToken?: string } = {}
+      const body: { url?: string; agentToken?: string } = {}
       if (!urlFromEnv) {
         if (!url.trim()) throw new Error('Enter a relay URL')
         body.url = url.trim()
       }
       if (agentToken.trim()) body.agentToken = agentToken.trim()
-      if (clientToken.trim()) body.clientToken = clientToken.trim()
       if (Object.keys(body).length === 0) {
         throw new Error('Nothing to save')
       }
       await postPanel('/panel/api/v1/relay', body)
       setAgentToken('')
-      setClientToken('')
-      setNotice('Relay saved. Devices may need to pair again if the room or client token changed.')
+      setNotice('Relay saved. Devices may need to pair again if the room or hub token changed.')
       onChanged()
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : String(cause))
@@ -196,36 +188,9 @@ export function RelayEditor({
         />
       </label>
 
-      <label className="block text-[11px]">
-        <span className="flex items-center justify-between gap-2">
-          Client token
-          {relay.clientTokenSource ? (
-            <SourceTag source={relay.clientTokenSource === 'env' ? 'environment' : 'encrypted'} />
-          ) : null}
-        </span>
-        <input
-          type="password"
-          value={clientToken}
-          onChange={(event) => setClientToken(event.target.value)}
-          disabled={clientFromEnv || pending !== undefined}
-          autoComplete="off"
-          spellCheck={false}
-          aria-invalid={clientTokenInvalid || undefined}
-          aria-describedby={clientTokenInvalid ? tokenErrorId : undefined}
-          placeholder={
-            clientFromEnv
-              ? 'Provided by the environment'
-              : relay.clientTokenConfigured
-                ? 'Saved — leave blank to keep'
-                : 'Required'
-          }
-          className="mt-1 w-full rounded-md border border-neutral-200 bg-white px-2 py-1.5 font-mono text-xs disabled:opacity-60 dark:border-neutral-700 dark:bg-neutral-900"
-        />
-      </label>
-
       <p className="text-[10px] text-neutral-500 dark:text-neutral-400">
-        Tokens are encrypted on this hub and never shown again. They must match the Worker secrets.
-        Changing the room or client token requires every device to pair again.
+        The token is encrypted on this hub and never shown again. It must match the Worker secret.
+        Changing the room or hub token requires every device to pair again.
       </p>
 
       {tokenError ? (

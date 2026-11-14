@@ -206,12 +206,10 @@ export function hubEnvWarnings(values) {
     )
   }
   if (values.CLARA_RELAY_URL?.trim()) {
-    const missing = ['CLARA_AGENT_TOKEN', 'CLARA_CLIENT_TOKEN'].filter(
-      (key) => !values[key]?.trim()
-    )
+    const missing = ['CLARA_AGENT_TOKEN'].filter((key) => !values[key]?.trim())
     if (missing.length) {
       warnings.push(
-        `CLARA_RELAY_URL is set without ${missing.join(' and ')}. The hub will use relay tokens saved in the panel if present, and exits at startup if none are available.`
+        `CLARA_RELAY_URL is set without ${missing.join(' and ')}. The hub will use the relay token saved in the panel if present, and exits at startup if none is available.`
       )
     }
   }

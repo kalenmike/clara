@@ -35,7 +35,6 @@ function config(dir: string): ServerConfig {
       url: 'wss://relay.example',
       room: 'room-123',
       agentToken: 'sentinel-agent-token',
-      clientToken: 'sentinel-client-token',
     },
     pairingBaseUrl: 'https://clara.example',
     configDir: dir,
@@ -49,7 +48,6 @@ function config(dir: string): ServerConfig {
       relayUrl: 'file',
       relayRoom: 'file',
       agentToken: 'env',
-      clientToken: 'env',
       pairingBaseUrl: 'default',
     },
   }
@@ -240,7 +238,6 @@ describe('PanelRuntime', () => {
 
     expect(serialized).not.toContain('sentinel-password')
     expect(serialized).not.toContain('sentinel-agent-token')
-    expect(serialized).not.toContain('sentinel-client-token')
     expect(serialized).not.toContain('user:secret')
 
     expect(snapshot.auth).toEqual(AUTH)

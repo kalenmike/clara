@@ -67,8 +67,8 @@ hub data model, pairing, relay, panel, and adapters are unchanged.
   the next launch shows the setup screen again.
 - **Local port busy**: bind an ephemeral port and publish it. Existing local
   pairings may need a new pairing; relay pairings do not.
-- **Relay URL without tokens**: the hub starts local-only. The panel marks the
-  relay tokens as missing, and saving both in the Relay card starts the relay
+- **Relay URL without the hub token**: the hub starts local-only. The panel
+  marks the token as missing, and saving it in the Relay card starts the relay
   without restarting the app. Startup never fails for an incomplete relay.
 - **Existing hub**: the runtime lock refuses a second hub. The tray app's single
   instance focuses the existing app.

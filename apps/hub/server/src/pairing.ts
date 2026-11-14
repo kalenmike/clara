@@ -45,8 +45,6 @@ export async function createPairingPayload(
     v: PROTOCOL_VERSION,
     wsUrl,
     room: relay?.room ?? 'local',
-    // Retained for one rollout step; the cleanup lane removes it from the wire.
-    clientToken: relay?.clientToken ?? 'local',
     enrollId: token.id,
     enrollToken: token.token,
     ...(grant ? { grant: grant.grant } : {}),
@@ -110,7 +108,7 @@ export async function printPairing(
     }
   } else if (!options.noRelay && !usableRelay(config.relay)) {
     console.log(
-      '  Relay:       tokens are missing; this code is local-only. Save both tokens in the hub panel Relay card.'
+      '  Relay:       the hub token is missing; this code is local-only. Save it in the hub panel Relay card.'
     )
   }
   console.log('')
@@ -129,7 +127,7 @@ function isLoopbackUrl(value: string): boolean {
 }
 
 function usableRelay(relay: RelayConfig | undefined): RelayConfig | undefined {
-  return relay?.url && relay.agentToken && relay.clientToken ? relay : undefined
+  return relay?.url && relay.agentToken ? relay : undefined
 }
 
 export function relayWsUrl(value: string, room: string): string {

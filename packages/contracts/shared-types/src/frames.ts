@@ -1,29 +1,5 @@
 import { RELAY_GRANT_MAX_ID_LENGTH } from './grant.ts'
-import {
-  PROTOCOL_VERSION,
-  PROTOCOL_VERSION_V4,
-  type DeviceErrorCode,
-  type RelayRole,
-} from './protocol.ts'
-
-/**
- * The first frame on a session is always plaintext so both sides can derive
- * direction-specific keys. A device session carries `deviceId`; an enrollment
- * session carries `enrollId` and uses the one-time token as its key.
- */
-export type HelloFrame = {
-  t: 'hello'
-  v: typeof PROTOCOL_VERSION
-  sid: string
-  nonce: string
-  role: RelayRole
-  deviceId?: string
-  enrollId?: string
-  /** True for a harness adapter session rather than a browser device. */
-  adapter?: boolean
-  /** Long-lived adapter credential id. */
-  adapterId?: string
-}
+import { PROTOCOL_VERSION, type DeviceErrorCode } from './protocol.ts'
 
 export type SealedFrame = {
   t: 'sealed'
@@ -43,7 +19,7 @@ export type ErrorFrame = {
   message: string
 }
 
-export type WireFrame = HelloFrame | SealedFrame | ErrorFrame
+export type WireFrame = HelloFrameV4 | SealedFrame | ErrorFrame
 
 /**
  * The v4 client hello carries a fresh P-256 ephemeral public point. A browser
@@ -52,7 +28,7 @@ export type WireFrame = HelloFrame | SealedFrame | ErrorFrame
  */
 export type ClientHelloFrameV4 = {
   t: 'hello'
-  v: typeof PROTOCOL_VERSION_V4
+  v: typeof PROTOCOL_VERSION
   sid: string
   nonce: string
   role: 'client'
@@ -72,7 +48,7 @@ export type ClientHelloFrameV4 = {
  */
 export type HubHelloFrameV4 = {
   t: 'hello'
-  v: typeof PROTOCOL_VERSION_V4
+  v: typeof PROTOCOL_VERSION
   sid: string
   nonce: string
   role: 'agent'
@@ -83,23 +59,6 @@ export type HubHelloFrameV4 = {
 }
 
 export type HelloFrameV4 = ClientHelloFrameV4 | HubHelloFrameV4
-
-/**
- * Legacy route envelope v2, kept compiling until the transport cutover. The v4
- * relay always sends `i`; use {@link RouteFrameV3} after the cutover. The relay
- * assigns `p` itself, so the hub can tie a session to the socket that opened it
- * instead of trusting the `sid` a client claims. `b` marks `m` as base64url
- * bytes rather than frame text.
- */
-export type RouteFrame = {
-  t: 'route'
-  v: typeof PROTOCOL_VERSION
-  /** Relay-assigned peer id for the client socket. */
-  p: string
-  /** True when `m` carries bytes instead of frame text. */
-  b?: boolean
-  m: string
-}
 
 /**
  * Route envelope v3. The relay verifies the client's grant before upgrading
@@ -132,28 +91,11 @@ const DEVICE_ERROR_CODES: readonly DeviceErrorCode[] = [
   'protocol_error',
 ]
 
-export function isHelloFrame(value: unknown): value is HelloFrame {
-  if (!isRecord(value)) return false
-  return (
-    value.t === 'hello' &&
-    value.v === PROTOCOL_VERSION &&
-    typeof value.sid === 'string' &&
-    value.sid.length > 0 &&
-    typeof value.nonce === 'string' &&
-    value.nonce.length > 0 &&
-    (value.role === 'agent' || value.role === 'client') &&
-    optionalString(value.deviceId) &&
-    optionalString(value.enrollId) &&
-    optionalString(value.adapterId) &&
-    (value.adapter === undefined || typeof value.adapter === 'boolean')
-  )
-}
-
 export function isClientHelloFrameV4(value: unknown): value is ClientHelloFrameV4 {
   if (!isRecord(value)) return false
   if (
     value.t !== 'hello' ||
-    value.v !== PROTOCOL_VERSION_V4 ||
+    value.v !== PROTOCOL_VERSION ||
     value.role !== 'client' ||
     !isTranscriptField(value.sid) ||
     !isTranscriptField(value.nonce) ||
@@ -180,7 +122,7 @@ export function isHubHelloFrameV4(value: unknown): value is HubHelloFrameV4 {
   if (!isRecord(value)) return false
   return (
     value.t === 'hello' &&
-    value.v === PROTOCOL_VERSION_V4 &&
+    value.v === PROTOCOL_VERSION &&
     value.role === 'agent' &&
     isTranscriptField(value.sid) &&
     isTranscriptField(value.nonce) &&
@@ -220,19 +162,6 @@ export function isErrorFrame(value: unknown): value is ErrorFrame {
   )
 }
 
-/** Legacy v2 guard; the v4 hub uses {@link isRouteFrameV3}. */
-export function isRouteFrame(value: unknown): value is RouteFrame {
-  if (!isRecord(value)) return false
-  return (
-    value.t === 'route' &&
-    value.v === PROTOCOL_VERSION &&
-    typeof value.p === 'string' &&
-    value.p.length > 0 &&
-    typeof value.m === 'string' &&
-    (value.b === undefined || typeof value.b === 'boolean')
-  )
-}
-
 export function isRouteFrameV3(value: unknown): value is RouteFrameV3 {
   if (!isRecord(value)) return false
   return (
@@ -247,16 +176,12 @@ export function isRouteFrameV3(value: unknown): value is RouteFrameV3 {
 }
 
 export function parseWireFrame(value: unknown): WireFrame | null {
-  if (isHelloFrame(value) || isSealedFrame(value) || isErrorFrame(value)) return value
+  if (isHelloFrameV4(value) || isSealedFrame(value) || isErrorFrame(value)) return value
   return null
 }
 
 function isDeviceErrorCode(value: unknown): value is DeviceErrorCode {
   return typeof value === 'string' && DEVICE_ERROR_CODES.includes(value as DeviceErrorCode)
-}
-
-function optionalString(value: unknown): boolean {
-  return value === undefined || (typeof value === 'string' && value.length > 0)
 }
 
 function isNonEmptyString(value: unknown): value is string {

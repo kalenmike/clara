@@ -75,8 +75,7 @@ export class CloudflareDeploymentState {
     return (
       this.config.sources.relayUrl === 'env' ||
       this.config.sources.relayRoom === 'env' ||
-      this.config.sources.agentToken === 'env' ||
-      this.config.sources.clientToken === 'env'
+      this.config.sources.agentToken === 'env'
     )
   }
 
@@ -147,7 +146,6 @@ export class CloudflareDeploymentState {
         scriptName: input.scriptName?.trim() || this.deployment?.scriptName || artifact.scriptName,
         room: current?.room,
         agentToken: current?.agentToken || undefined,
-        clientToken: current?.clientToken || undefined,
         allowExisting: Boolean(this.deployment) || input.replaceExisting === true,
         previewUrls: input.previewUrls === true,
         ...(input.customDomain ? { customDomain: input.customDomain } : {}),
@@ -161,7 +159,6 @@ export class CloudflareDeploymentState {
         url: result.url,
         room: result.room,
         agentToken: result.agentToken,
-        clientToken: result.clientToken,
       }
       const record: RelayDeploymentRecord = {
         accountId: result.account.id,
@@ -177,7 +174,6 @@ export class CloudflareDeploymentState {
 
       await saveRelayCredentials(this.config.configDir, this.secretKey, {
         agentToken: relay.agentToken,
-        clientToken: relay.clientToken,
       })
       saveRelayTarget(this.config.configPath, { url: relay.url, room: relay.room })
       saveRelayDeployment(this.config.configDir, record)
@@ -194,7 +190,6 @@ export class CloudflareDeploymentState {
       this.config.sources.relayUrl = 'file'
       this.config.sources.relayRoom = 'file'
       this.config.sources.agentToken = 'file'
-      this.config.sources.clientToken = 'file'
       validateRelayConfig(this.config)
 
       if (this.runtime) {

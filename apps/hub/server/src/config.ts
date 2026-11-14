@@ -7,7 +7,6 @@ export type RelayConfig = {
   url: string
   room: string
   agentToken: string
-  clientToken: string
 }
 
 export type ConfigSource = 'env' | 'file' | 'default' | 'generated' | 'runtime' | 'none'
@@ -19,7 +18,6 @@ export type ServerConfigSources = {
   relayUrl: ConfigSource
   relayRoom: ConfigSource
   agentToken: ConfigSource
-  clientToken: ConfigSource
   pairingBaseUrl: ConfigSource
 }
 
@@ -52,7 +50,6 @@ type ConfigFile = {
     url?: string
     room?: string
     agentToken?: string
-    clientToken?: string
   }
   pairingBaseUrl?: string
 }
@@ -64,7 +61,7 @@ const DEFAULT_WEB_PORT = 8080
 const RELAY_TOKEN_MIN_LENGTH = 32
 const RELAY_TOKEN_MAX_LENGTH = 512
 const RELAY_TOKEN_FORMAT_ERROR =
-  'Relay tokens must be at least 32 characters with no spaces or commas. Use the generated value or `openssl rand -base64 32`.'
+  'The relay token must be at least 32 characters with no spaces or commas. Use the generated value or `openssl rand -base64 32`.'
 
 export function loadConfig(
   options: {
@@ -129,10 +126,6 @@ export function loadConfig(
   const fileAgentToken = nonEmpty(file.relay?.agentToken)
   const agentToken = envAgentToken ?? fileAgentToken
   const agentTokenSource: ConfigSource = envAgentToken ? 'env' : fileAgentToken ? 'file' : 'none'
-  const envClientToken = readEnv('CLARA_CLIENT_TOKEN')
-  const fileClientToken = nonEmpty(file.relay?.clientToken)
-  const clientToken = envClientToken ?? fileClientToken
-  const clientTokenSource: ConfigSource = envClientToken ? 'env' : fileClientToken ? 'file' : 'none'
 
   // A --no-relay pairing command skips the relay entirely: it neither needs the
   // tokens nor emits a relay room, and the local listener runs independently of
@@ -143,7 +136,6 @@ export function loadConfig(
           url: normalizeRelayUrl(relayUrl),
           room: relayRoom,
           agentToken: agentToken ?? '',
-          clientToken: clientToken ?? '',
         }
       : undefined
 
@@ -175,7 +167,6 @@ export function loadConfig(
       relayUrl: relay ? relayUrlSource : 'none',
       relayRoom: relay ? relayRoomSource : 'none',
       agentToken: relay ? agentTokenSource : 'none',
-      clientToken: relay ? clientTokenSource : 'none',
       pairingBaseUrl: pairingBaseUrlSource,
     },
   }
@@ -230,9 +221,6 @@ function persistConfig(path: string, previous: ConfigFile, config: ServerConfig)
       ...(storedRelayRoom !== undefined ? { room: storedRelayRoom } : {}),
       ...(previous.relay?.agentToken !== undefined
         ? { agentToken: previous.relay.agentToken }
-        : {}),
-      ...(previous.relay?.clientToken !== undefined
-        ? { clientToken: previous.relay.clientToken }
         : {}),
     }
   }
@@ -365,25 +353,16 @@ export function validateRelayConfig(config: ServerConfig): void {
 }
 
 function assertRelayTokens(relay: RelayConfig, configPath: string, configDir: string): void {
-  if (relay.agentToken && relay.clientToken) {
-    // A comma would split the Sec-WebSocket-Protocol header and a short value
-    // is guessable; both fail closed here instead of at the relay.
-    if (!isValidRelayToken(relay.agentToken) || !isValidRelayToken(relay.clientToken)) {
-      throw new Error(RELAY_TOKEN_FORMAT_ERROR)
-    }
-    return
+  if (!relay.agentToken) {
+    throw new Error(
+      `Missing CLARA_AGENT_TOKEN. The relay URL is configured in ${configPath}. Save the hub ` +
+        `token in the hub panel's Relay card, export it before starting the hub service, or add ` +
+        `it to ${join(configDir, 'server.env')} (systemd EnvironmentFile).`
+    )
   }
-  const missing = [
-    relay.agentToken ? null : 'CLARA_AGENT_TOKEN',
-    relay.clientToken ? null : 'CLARA_CLIENT_TOKEN',
-  ]
-    .filter(Boolean)
-    .join(' and ')
-  throw new Error(
-    `Missing ${missing}. The relay URL is configured in ${configPath}. Save both tokens in the ` +
-      `hub panel's Relay card, export them before starting the hub service, or add them to ` +
-      `${join(configDir, 'server.env')} (systemd EnvironmentFile).`
-  )
+  // A comma would split the Sec-WebSocket-Protocol header and a short value is
+  // guessable; both fail closed here instead of at the relay.
+  if (!isValidRelayToken(relay.agentToken)) throw new Error(RELAY_TOKEN_FORMAT_ERROR)
 }
 
 function isValidRelayToken(value: string): boolean {
@@ -442,16 +421,12 @@ export function saveRelayRoom(configPath: string, room: string): void {
  */
 export function applyRelayCredentials(
   config: ServerConfig,
-  credentials: { agentToken?: string; clientToken?: string } | undefined
+  credentials: { agentToken?: string } | undefined
 ): void {
   if (!config.relay || !credentials) return
   if (!config.relay.agentToken && credentials.agentToken) {
     config.relay.agentToken = credentials.agentToken
     config.sources.agentToken = 'file'
-  }
-  if (!config.relay.clientToken && credentials.clientToken) {
-    config.relay.clientToken = credentials.clientToken
-    config.sources.clientToken = 'file'
   }
 }
 

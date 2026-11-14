@@ -79,7 +79,7 @@ for client settings sync.
   `effective: false`, and retrying after the port is free starts a fresh
   listener.
 - **Relay not configured** — enabling it records the choice and reports an error;
-  the relay card explains that a URL and both tokens are required.
+  the relay card explains that a URL and hub token are required.
 - **Push unavailable** — a VAPID or subscription-file failure leaves the switch
   on but ineffective, with the startup error. Existing subscriptions are kept.
 - **Harness down** — the harness probe reports unreachable while the hub is

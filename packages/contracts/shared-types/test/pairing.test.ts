@@ -5,9 +5,6 @@ import {
   buildPairingUrl,
   decodePairingCode,
   encodePairingCode,
-  isErrorFrame,
-  isHelloFrame,
-  isSealedFrame,
   parsePairingInput,
   type PairingPayload,
 } from '../src/index.ts'
@@ -16,11 +13,18 @@ const payload: PairingPayload = {
   v: PROTOCOL_VERSION,
   wsUrl: 'wss://relay.clara.example',
   room: 'room-1',
-  clientToken: 'client-token',
+  grant: 'encoded.signature',
   enrollId: 'enroll-id',
   enrollToken: 'enroll-token',
   fingerprint: 'fingerprint',
   expiresAt: 1_800_000_000_000,
+}
+
+const localPayload: PairingPayload = {
+  ...payload,
+  wsUrl: 'ws://127.0.0.1:8788/ws',
+  room: 'local',
+  grant: undefined,
 }
 
 describe('pairing', () => {
@@ -36,6 +40,11 @@ describe('pairing', () => {
     expect(parsePairingInput(buildPairingUrl('https://clara.example', payload))).toEqual(payload)
   })
 
+  it('requires a grant for a relay payload and allows a local one without it', () => {
+    expect(decodePairingCode(encodePairingCode({ ...payload, grant: undefined }))).toBeNull()
+    expect(decodePairingCode(encodePairingCode(localPayload))).toEqual(localPayload)
+  })
+
   it('rejects malformed payloads', () => {
     expect(parsePairingInput('not-a-code')).toBeNull()
     expect(parsePairingInput('https://clara.example/#pair=bad')).toBeNull()
@@ -46,42 +55,9 @@ describe('pairing', () => {
       v: 1,
       wsUrl: 'wss://relay.clara.example',
       room: 'room-1',
-      clientToken: 'client-token',
       psk: 'psk-value',
       fingerprint: 'fingerprint',
     }
     expect(decodePairingCode(encodePairingCode(legacy as unknown as PairingPayload))).toBeNull()
-  })
-})
-
-describe('frame guards', () => {
-  it('recognizes v2 hello, sealed, and error frames', () => {
-    expect(
-      isHelloFrame({
-        t: 'hello',
-        v: PROTOCOL_VERSION,
-        sid: 'a',
-        nonce: 'b',
-        role: 'client',
-        deviceId: 'device-1',
-      })
-    ).toBe(true)
-    expect(
-      isSealedFrame({ t: 'sealed', v: PROTOCOL_VERSION, sid: 'a', seq: 0, iv: 'iv', ct: 'ct' })
-    ).toBe(true)
-    expect(
-      isErrorFrame({
-        t: 'error',
-        v: PROTOCOL_VERSION,
-        sid: 'a',
-        code: 'unknown_device',
-        message: 'Unknown device',
-      })
-    ).toBe(true)
-  })
-
-  it('rejects v1 frames', () => {
-    expect(isHelloFrame({ t: 'hello', v: 1, sid: 'a', nonce: 'b', role: 'client' })).toBe(false)
-    expect(isSealedFrame({ t: 'sealed', v: 1, sid: 'a', seq: 0, iv: 'iv', ct: 'ct' })).toBe(false)
   })
 })

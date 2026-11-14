@@ -252,10 +252,8 @@ export function RelayCard({
               {relay.lastChangedAt ? formatRelative(relay.lastChangedAt, now) : '—'}
             </KeyValue>
             <KeyValue label="Reconnect attempts">{relay.reconnectAttempts ?? 0}</KeyValue>
-            <KeyValue label="Tokens">
-              {relay.agentTokenConfigured && relay.clientTokenConfigured
-                ? 'Hub and client configured'
-                : 'Missing a token'}
+            <KeyValue label="Hub token">
+              {relay.agentTokenConfigured ? 'Configured' : 'Missing'}
             </KeyValue>
             {relay.error ? <Notice>{redact(relay.error)}</Notice> : null}
             {relay.lastError ? <Notice>{redact(relay.lastError)}</Notice> : null}
@@ -263,8 +261,7 @@ export function RelayCard({
         ) : (
           <>
             <EmptyState>
-              This hub is local-only. Save a relay URL and both tokens below to enable remote
-              access.
+              This hub is local-only. Save a relay URL and hub token below to enable remote access.
             </EmptyState>
             <p className="pt-2 text-xs text-neutral-500 dark:text-neutral-400">
               A relay-disabled hub still serves the local WebSocket and this panel.

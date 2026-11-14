@@ -58,7 +58,7 @@ describe('cloudflare deployment storage', () => {
   it('round-trips relay tokens and the API token through the secret key', async () => {
     const dir = tempDir()
     const key = await secretKey()
-    const relay = { agentToken: 'agent-token', clientToken: 'client-token' }
+    const relay = { agentToken: 'agent-token' }
 
     await saveRelayCredentials(dir, key, relay)
     await saveCloudflareToken(dir, key, 'cloudflare-token')
@@ -151,7 +151,6 @@ describe('CloudflareClient', () => {
           class_name: 'RelayRoom',
         },
         expect.objectContaining({ type: 'secret_text', name: 'CLARA_AGENT_TOKEN' }),
-        expect.objectContaining({ type: 'secret_text', name: 'CLARA_CLIENT_TOKEN' }),
       ])
     )
     expect(metadata.migrations).toEqual({
@@ -1027,7 +1026,6 @@ describe('cloudflare deployment rollback', () => {
         url: 'wss://relay.example.com',
         room: 'room-123',
         agentToken: 'sentinel-agent-token',
-        clientToken: 'sentinel-client-token',
       },
       pairingBaseUrl: 'https://clara.example',
       configDir: dir,
@@ -1041,7 +1039,6 @@ describe('cloudflare deployment rollback', () => {
         relayUrl: 'file',
         relayRoom: 'file',
         agentToken: 'file',
-        clientToken: 'file',
         pairingBaseUrl: 'default',
       },
     }

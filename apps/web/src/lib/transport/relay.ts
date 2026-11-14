@@ -17,7 +17,6 @@ import {
 } from '@clara/crypto'
 import {
   PROTOCOL_VERSION,
-  PROTOCOL_VERSION_V4,
   RELAY_AUTH_PREFIX,
   RELAY_ROLE_PREFIX,
   RELAY_SUBPROTOCOL,
@@ -577,7 +576,7 @@ class RelayFetchTransport implements RelayTransport {
       const credential = this.config.credential
       const hello: ClientHelloFrameV4 = {
         t: 'hello',
-        v: PROTOCOL_VERSION_V4,
+        v: PROTOCOL_VERSION,
         sid: this.sid,
         nonce: this.clientNonce,
         role: 'client',

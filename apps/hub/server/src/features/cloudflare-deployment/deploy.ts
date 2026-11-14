@@ -55,7 +55,6 @@ export type DeployRelayOptions = {
   scriptName: string
   room?: string
   agentToken?: string
-  clientToken?: string
   allowExisting?: boolean
   /** Serve preview/version URLs for the Worker. Off unless explicitly enabled. */
   previewUrls?: boolean
@@ -79,7 +78,6 @@ export type DeployRelayResult = {
   url: string
   room: string
   agentToken: string
-  clientToken: string
   deployedAt: string
   reachable: boolean
   previewUrls: boolean
@@ -166,7 +164,6 @@ export async function deployRelay(options: DeployRelayOptions): Promise<DeployRe
 
   const migrate = !existing
   const agentToken = options.agentToken ?? generateToken()
-  const clientToken = options.clientToken ?? generateToken()
   const room = options.room ?? bytesToBase64Url(randomBytes(16))
   const previewUrls = options.previewUrls === true
 
@@ -180,7 +177,6 @@ export async function deployRelay(options: DeployRelayOptions): Promise<DeployRe
         class_name: options.artifact.durableObject.className,
       },
       { type: 'secret_text', name: 'CLARA_AGENT_TOKEN', text: agentToken },
-      { type: 'secret_text', name: 'CLARA_CLIENT_TOKEN', text: clientToken },
     ],
     ...(migrate
       ? {
@@ -311,7 +307,6 @@ export async function deployRelay(options: DeployRelayOptions): Promise<DeployRe
     url: `wss://${hostname}`,
     room,
     agentToken,
-    clientToken,
     deployedAt: new Date().toISOString(),
     reachable,
     previewUrls: workersDevDisabled ? false : appliedPreviewUrls,

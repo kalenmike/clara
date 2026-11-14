@@ -76,7 +76,6 @@ function relay(patch: Partial<PanelRelayTransport> = {}): PanelRelayTransport {
     desired: true,
     effective: true,
     agentTokenConfigured: true,
-    clientTokenConfigured: true,
     ...patch,
   }
 }

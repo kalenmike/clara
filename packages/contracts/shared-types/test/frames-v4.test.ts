@@ -1,13 +1,11 @@
 import { describe, expect, it } from 'vitest'
 import {
   PROTOCOL_VERSION,
-  PROTOCOL_VERSION_V4,
   decodePairingCode,
   encodePairingCode,
   isClientHelloFrameV4,
   isHelloFrameV4,
   isHubHelloFrameV4,
-  isRouteFrame,
   isRouteFrameV3,
   type AdapterEnrolledState,
   type ClaraAction,
@@ -23,7 +21,7 @@ describe('v4 client hello', () => {
     expect(
       isClientHelloFrameV4({
         t: 'hello',
-        v: PROTOCOL_VERSION_V4,
+        v: PROTOCOL_VERSION,
         sid: 'sid-1',
         nonce: 'nonce-1',
         role: 'client',
@@ -37,7 +35,7 @@ describe('v4 client hello', () => {
     expect(
       isClientHelloFrameV4({
         t: 'hello',
-        v: PROTOCOL_VERSION_V4,
+        v: PROTOCOL_VERSION,
         sid: 'sid-1',
         nonce: 'nonce-1',
         role: 'client',
@@ -49,7 +47,7 @@ describe('v4 client hello', () => {
     expect(
       isClientHelloFrameV4({
         t: 'hello',
-        v: PROTOCOL_VERSION_V4,
+        v: PROTOCOL_VERSION,
         sid: 'sid-1',
         nonce: 'nonce-1',
         role: 'client',
@@ -61,7 +59,7 @@ describe('v4 client hello', () => {
     expect(
       isClientHelloFrameV4({
         t: 'hello',
-        v: PROTOCOL_VERSION_V4,
+        v: PROTOCOL_VERSION,
         sid: 'sid-1',
         nonce: 'nonce-1',
         role: 'client',
@@ -76,7 +74,7 @@ describe('v4 client hello', () => {
   it('rejects missing or short cryptographic fields', () => {
     const base = {
       t: 'hello',
-      v: PROTOCOL_VERSION_V4,
+      v: PROTOCOL_VERSION,
       sid: 'sid-1',
       nonce: 'nonce-1',
       role: 'client',
@@ -93,7 +91,7 @@ describe('v4 client hello', () => {
   it('rejects ambiguous identities', () => {
     const base = {
       t: 'hello',
-      v: PROTOCOL_VERSION_V4,
+      v: PROTOCOL_VERSION,
       sid: 'sid-1',
       nonce: 'nonce-1',
       role: 'client',
@@ -130,7 +128,7 @@ describe('v4 client hello', () => {
   it('rejects an oversized session id or nonce', () => {
     const base = {
       t: 'hello',
-      v: PROTOCOL_VERSION_V4,
+      v: PROTOCOL_VERSION,
       sid: 'sid-1',
       nonce: 'nonce-1',
       role: 'client',
@@ -145,7 +143,7 @@ describe('v4 client hello', () => {
 describe('v4 hub hello', () => {
   const base = {
     t: 'hello',
-    v: PROTOCOL_VERSION_V4,
+    v: PROTOCOL_VERSION,
     sid: 'sid-1',
     nonce: 'nonce-2',
     role: 'agent',
@@ -188,12 +186,6 @@ describe('route envelope v3', () => {
     expect(isRouteFrameV3({ ...route, i: '' })).toBe(false)
     expect(isRouteFrameV3({ ...route, i: 'a'.repeat(129) })).toBe(false)
   })
-
-  it('keeps the v2 route guard working without a grant id', () => {
-    const v2 = { t: route.t, v: route.v, p: route.p, m: route.m }
-    expect(isRouteFrame(v2)).toBe(true)
-    expect(isRouteFrameV3(v2)).toBe(false)
-  })
 })
 
 describe('v4 pairing and ready contract', () => {
@@ -201,7 +193,7 @@ describe('v4 pairing and ready contract', () => {
     v: PROTOCOL_VERSION,
     wsUrl: 'wss://relay.clara.example',
     room: 'room-1',
-    clientToken: 'client-token',
+    grant: 'encoded.signature',
     enrollId: 'enroll-id',
     enrollToken: 'enroll-token',
     fingerprint: 'fingerprint',

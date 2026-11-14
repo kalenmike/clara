@@ -17,18 +17,22 @@ requests, responses, prompts, or the harness password.
   encrypted store and enrollment pattern.
 - A pairing link carries a one-time enrollment token, never a long-lived key.
   The token is valid for 10 minutes, is consumed by one device, and is stored
-  encrypted on the hub until it is used or expires.
-- The relay client token is still shared by every device. It gates relay socket
-  access but is not the encryption key.
+  encrypted on the hub until it is used or expires. A relay pairing link also
+  carries a ten-minute enrollment grant scoped to that one-time id.
+- Relay access is proved by a signed grant, not a shared credential. Enrollment
+  uses a ten-minute grant; each browser and adapter receives a thirty-day grant
+  in the sealed `ready` action and on `device.enrolled`/`adapter.enrolled`, and
+  the hub refreshes it on every accepted connect. A grant names exactly one
+  device, adapter, or enrollment and carries no key material.
 - The device fingerprint is a truncated SHA-256 of the device key. It is shown
   in the panel and can be compared after enrollment.
 
 ## Handshake
 
 ```text
-client ── hello { sid, deviceId | enrollId, nonceC } ──▶ hub
-hub    ── hello { sid, nonceS } ──▶ broadcast
-hub    ── sealed ready { agentInfo } ──▶ broadcast
+client ── hello v4 { sid, nonce, role, eph, deviceId | enrollId } ──▶ hub
+hub    ── hello v4 { sid, nonce, role: agent, eph, mac } ──▶ broadcast
+hub    ── sealed ready { agentInfo, relayGrant } ──▶ broadcast
 client ── sealed ready.ack ──▶ hub
 ```
 
@@ -37,10 +41,15 @@ client ── sealed ready.ack ──▶ hub
   during enrollment. It is stable across reconnects and visible to the relay.
 - `enrollId` is a public enrollment id. The one-time token is the key for the
   enrollment session only.
-- Keys are derived with HKDF-SHA-256 from the device key (or enrollment token),
-  a salt over `sid | nonceC | nonceS`, and directional info strings
-  `clara/v2/c2s` and `clara/v2/s2c`.
-- A fresh client nonce per connection prevents replaying an old handshake.
+- Every session generates fresh P-256 ephemeral key pairs. Both sides derive
+  the shared secret with ECDH; the static device key (or enrollment token) is
+  the HKDF base, the ECDH secret enters the salt, and the directional info
+  strings are `clara/v4/c2s` and `clara/v4/s2c`. The full transcript, key
+  schedule, and MAC are in [Handshake v4](../features/handshake-v4.md).
+- The hub MACs the transcript with the static key. The client verifies it
+  before sending any sealed frame, so a forged hub hello cannot start a session.
+- A fresh nonce and ephemeral key per connection prevent replaying an old
+  handshake and keep recorded sessions unreadable after a later static-key leak.
 - A replayed or out-of-order frame is rejected by a strict sequence guard before
   decryption.
 
@@ -49,10 +58,12 @@ client ── sealed ready.ack ──▶ hub
 ```text
 pair command
   -> creates a pairing_tokens row { id, expiresAt, encrypted token }
-  -> prints a link with enrollId, enrollToken, fingerprint, and expiry
+  -> signs a ten-minute enrollment grant for that id
+  -> prints a link with enrollId, enrollToken, grant, fingerprint, and expiry
 
 client
-  -> hello { enrollId }
+  -> presents the enrollment grant to the relay
+  -> hello { enrollId, eph }
 hub
   -> derives the enrollment session from the one-time token
 client
@@ -60,11 +71,14 @@ client
 hub
   -> stores the device and encrypted key
   -> marks the token used
-  -> device.enrolled { deviceId, fingerprint, label }
+  -> device.enrolled { deviceId, fingerprint, label, relayGrant }
 client
   -> stores the non-extractable key in IndexedDB
-  -> reconnects with hello { deviceId }
+  -> reconnects with hello { deviceId } and the device grant
 ```
+
+A local pairing code skips the relay grant and connects to the hub's own
+listener. Its session crypto is the same v4 handshake.
 
 The enrollment session ends after `device.enrolled` is sent. The hub retires
 it immediately instead of waiting for the idle sweep, so the panel never shows
@@ -81,10 +95,10 @@ Every sealed frame is JSON with a small plaintext header so clients can filter
 broadcast frames:
 
 ```json
-{ "t": "sealed", "v": 2, "sid": "…", "seq": 0, "iv": "…", "ct": "…" }
+{ "t": "sealed", "v": 4, "sid": "…", "seq": 0, "iv": "…", "ct": "…" }
 ```
 
-- AES-256-GCM with a random 12-byte nonce per frame.
+- AES-256-GCM with a random 12-byte nonce per frame and the v4 session keys.
 - AAD binds `sid`, direction, and sequence number.
 - `ct` and `iv` are base64url.
 - Payload chunks are capped at 32 KiB before encryption, keeping frames under
@@ -114,20 +128,20 @@ service cannot read the payload, but it sees the endpoint and delivery metadata.
 
 ## Threat model
 
-| Threat                                    | Mitigation                                                                                                                                                      |
-| ----------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Cloudflare reads traffic                  | AES-GCM payloads; no plaintext request data                                                                                                                     |
-| Client token leak                         | Peer binding and limits bound it: the holder can open sockets and add noise, but cannot read, kill, or hijack another session without its key                   |
-| Agent token leak                          | A rogue hub closes the real hub and can inject plaintext hello/error frames; sealed frames stay opaque, so rotate both tokens and keep the agent token hub-only |
-| Captured ciphertext, later key compromise | No forward secrecy: recorded frames become readable if that device key leaks later; per-device keys bound the exposure                                          |
-| Metadata exposure                         | The Worker, the DO, and every room member see `deviceId`, `sid`, frame sizes, and timing, even though payloads stay sealed                                      |
-| Captured frame replayed                   | Per-session monotonic sequence + fresh handshake nonces                                                                                                         |
-| Tampered ciphertext                       | GCM authentication tag and AAD                                                                                                                                  |
-| Stolen browser storage                    | Non-extractable device key; revoke one device                                                                                                                   |
-| Stolen pairing link                       | One-time 10-minute token; one device; no long-lived key                                                                                                         |
-| Lost device                               | Revoke it in the panel; other devices keep working                                                                                                              |
-| XSS in the Pages origin                   | CSP, no third-party scripts; a key is usable while open                                                                                                         |
-| Malicious client impersonates the hub     | Sealed frames fail to decrypt; only an agent-token holder can inject plaintext hello/error frames                                                               |
+| Threat                                    | Mitigation                                                                                                                                                                                  |
+| ----------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Cloudflare reads traffic                  | AES-GCM payloads; no plaintext request data                                                                                                                                                 |
+| Leaked relay grant                        | Bounded by the grant: the holder can open a socket and add noise until `exp`, but cannot read or act without the device key; revocation stops refreshes and exposure ends at the 30-day TTL |
+| Agent token leak                          | A rogue hub closes the real hub, mints grants, and can inject plaintext hello/error frames; sealed frames stay opaque, so rotate the hub token and keep it hub-only                         |
+| Captured ciphertext, later key compromise | Forward secrecy: the static key alone cannot rebuild a recorded session's ECDH secret or session keys; per-device keys bound the exposure                                                   |
+| Metadata exposure                         | The Worker, the DO, and every room member see `deviceId`, the grant id, `sid`, frame sizes, and timing, even though payloads stay sealed                                                    |
+| Captured frame replayed                   | Per-session monotonic sequence + fresh handshake nonces and ephemeral keys                                                                                                                  |
+| Tampered ciphertext                       | GCM authentication tag and AAD                                                                                                                                                              |
+| Stolen browser storage                    | Non-extractable device key; revoke one device                                                                                                                                               |
+| Stolen pairing link                       | One-time 10-minute enrollment token and grant; one device; no long-lived key                                                                                                                |
+| Lost device                               | Revoke it in the panel; other devices keep working                                                                                                                                          |
+| XSS in the Pages origin                   | CSP, no third-party scripts; a key is usable while open                                                                                                                                     |
+| Malicious client impersonates the hub     | Sealed frames fail to decrypt; only an agent-token holder can inject plaintext hello/error frames and mint grants                                                                           |
 
 ## Revocation
 
@@ -140,20 +154,20 @@ service cannot read the payload, but it sees the endpoint and delivery metadata.
 
 ## Limitations
 
-- No forward secrecy in v2; a later device-key compromise exposes that device's
-  recorded ciphertext.
+- Forward secrecy protects recorded sessions from a later static-key compromise,
+  not a live compromised endpoint: whoever controls the device while the page
+  is open can act as it.
 - No hardware binding. A copied browser profile may still use a non-extractable
   key depending on the browser.
 - XSS on the origin can act as the device while the page is open; it cannot
   export the raw key.
-- One shared long-lived client token gates relay access for every device; there
-  is no per-device relay identity or credential.
-- Peer binding requires relay v2. An older Worker cannot bind a session to the
-  socket that opened it, which is why the hub refuses one.
+- A relay grant is per identity and expires, but revocation is enforced by the
+  hub: the relay keeps accepting an issued grant until `exp`. Without the
+  device key the socket can only add bounded noise.
+- Peer binding requires relay v3. An older Worker cannot verify grants or bind a
+  session to the socket that opened it, which is why the hub refuses one.
 - Hello and error frames are plaintext and broadcast to the room. Any room
   member can read them and can spoof one for another `sid`.
-- Revocation is per device at the hub, not at the relay. A revoked device can
-  still open a room socket, though its handshakes fail.
 - A stolen enrollment link can enroll one device before it expires; the panel
   shows the device and can revoke it immediately.
 

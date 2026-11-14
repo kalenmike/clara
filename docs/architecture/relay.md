@@ -20,7 +20,7 @@ joining the relay room.
 | --------------- | --------------------------------- | ---------------------------------------------------------------------------- |
 | Hub service     | `apps/hub/server`                 | Hub `/v1` API, adapter routing, E2EE sessions, peer binding, relay reconnect |
 | Adapter         | `apps/adapters/*`                 | Harness translation, harness auth, adapter E2EE and reconnect                |
-| Relay Worker    | `infra/relay`                     | Path routing, subprotocol/token auth, static health endpoint                 |
+| Relay Worker    | `infra/relay`                     | Path routing, subprotocol/grant auth, static health endpoint                 |
 | `RelayRoom` DO  | `infra/relay`                     | One hub socket + N client sockets; peer tagging, limits, forwarding          |
 | Web transport   | `apps/web`                        | Fetch-over-WebSocket shim, E2EE, reconnect, heartbeat                        |
 | Shared protocol | `packages/contracts/shared-types` | Frame/action/state types and pairing payloads                                |
@@ -74,51 +74,57 @@ in `Sec-WebSocket-Protocol`:
 ```text
 clara.v1
 clara.role.client | clara.role.agent
-clara.auth.<token>
+clara.auth.<hub token | grant>
 ```
 
-The Worker checks the role-specific token by comparing digests in constant time,
-then forwards a trusted `x-clara-role` header to the DO. Use separate secrets:
+The hub presents the shared `CLARA_AGENT_TOKEN`; every browser and adapter
+presents a per-device signed grant. The Worker checks the agent token by
+comparing digests in constant time and verifies each client grant's signature,
+room, role, lifetime, and id before upgrading the socket. It then forwards a
+trusted `x-clara-role` header and, for clients, tags every frame with the
+verified grant id. Set only the hub secret:
 
 ```bash
 cd infra/relay
 pnpm exec wrangler secret put CLARA_AGENT_TOKEN
-pnpm exec wrangler secret put CLARA_CLIENT_TOKEN
 ```
 
-The client token is embedded in the pairing payload for browsers and adapters. It
-prevents unpaired traffic from reaching the hub, but it is not the encryption
-key. A client-token holder without a device or adapter key can open sockets and
-add noise, but peer binding keeps them out of other sessions: the hub serves a
-hello or sealed frame only from the peer that opened the session, so a guessed
-`sid` cannot kill or hijack it. Every client frame arrives wrapped in a route
-frame that names the sender's peer, so the hub never treats the payload's `sid`
-as proof of ownership. What remains is bounded by the room and per-peer limits.
-Rotate both tokens if either leaks. Adapter pairing also issues its own adapter
-credential; that credential authenticates the adapter after enrollment.
+A grant is not an encryption key. It gates relay socket access for exactly one
+device, adapter, or enrollment, and it carries no key material. The hub still
+binds each session to the peer that opened it: it serves a hello or sealed frame
+only from that peer, so a guessed `sid` cannot kill or hijack a session. Every
+client frame arrives wrapped in a route envelope that names the sender's peer
+and grant id, so the hub never treats the payload's `sid` as proof of ownership.
+A leaked grant can open a socket and add noise, but cannot read or act without
+the matching device or adapter key; revocation stops refreshes and the grant
+expires on its own. The grant format, TTLs, and verification rules live in
+[Handshake v4](../features/handshake-v4.md#relay-grant-encoding-and-verification).
+The adapter adds its own long-lived credential after enrollment.
 
-Relay tokens must be 32–512 characters with no whitespace and no comma. The
+The hub token must be 32–512 characters with no whitespace and no comma. The
 panel refuses to save anything else and names the rule, because a comma would
 split the subprotocol header, and deployment checks the same shape. The Worker
 hashes the presented and configured tokens and compares the digests, so a wrong
 length is no cheaper to probe than a wrong value. Malformed room escapes are
 refused with `400` instead of reaching the DO, and the Worker strips the
-`clara.auth.*` values before forwarding, so the DO never sees a token.
+`clara.auth.*` values before forwarding, so the DO never sees a token or grant.
 
 The hub's relay role and secret keep the historical `agent` name
 (`clara.role.agent`, `CLARA_AGENT_TOKEN`), while prose calls that side the hub.
 
 ## Relay version
 
-The DO advertises `x-clara-relay-version: 2` on the upgrade response and speaks
-the route envelope. The version and the envelope ship together, so the hub and
-the Worker must be redeployed together. A hub that reaches an older Worker
-closes the socket and reports **The relay is outdated; redeploy the Worker**;
-the hub also drops any unwrapped client frame. Remote access is unavailable
-between the two deploys; pairing payloads and the local listener are unaffected.
+The DO advertises `x-clara-relay-version: 3` on the upgrade response and speaks
+route envelope v3. Envelope v3 carries the verified grant id, so the hub can
+bind a session identity to the credential that opened the socket. The version
+and the envelope ship together, so the hub and the Worker must be redeployed
+together. A hub that reaches an older Worker closes the socket and reports
+**The relay is outdated; redeploy the Worker**; the hub also drops any unwrapped
+client frame. Remote access is unavailable between the two deploys; pairing
+payloads and the local listener are unaffected.
 
 The Worker's `GET /health` answers `{ ok, protocol, relay }`, where `relay` is
-the route-envelope version (currently `2`). The panel's deployment check
+the route-envelope version (currently `3`). The panel's deployment check
 refuses a Worker that omits `relay` or reports a version below what the hub
 speaks, so an outdated deployment fails at deploy time with the same message
 instead of at the first upgrade.
@@ -139,8 +145,8 @@ The deployment:
 
 1. lists the token's accounts and reads the account's `workers.dev` subdomain;
 2. uploads `dist/relay/worker.mjs` with the `RELAY_ROOMS` Durable Object binding,
-   a first-deploy `new_sqlite_classes` migration, and both relay tokens as
-   `secret_text` bindings;
+   a first-deploy `new_sqlite_classes` migration, and `CLARA_AGENT_TOKEN` as a
+   `secret_text` binding;
 3. enables the Worker on `workers.dev` and waits for `GET /health` to report a
    compatible `relay` version (see [Relay version](#relay-version));
 4. when the panel submits a custom hostname, reads the account's zones with
@@ -161,10 +167,10 @@ The deployment:
    `{ enabled: false, previews_enabled: false }` to the script subdomain endpoint
    and the deployed URL stays on the custom hostname. Without a custom hostname
    that switch is never applied, and a failed disable becomes a warning;
-7. writes the relay URL and room to `server.json`, stores both tokens encrypted
-   in `relay-credentials.json`, and applies the relay without a hub restart;
-   legacy plaintext tokens in `server.json` are moved into that sealed file on
-   the next startup;
+7. writes the relay URL and room to `server.json`, stores the hub token
+   encrypted in `relay-credentials.json`, and applies the relay without a hub
+   restart; a legacy plaintext token in `server.json` is moved into that sealed
+   file on the next startup;
 8. optionally stores the Cloudflare token encrypted in `cloudflare-api-token.json`.
 
 Forgetting the deployment, or a panel relay edit that invalidates it, detaches
@@ -182,9 +188,9 @@ an extra `workers.dev` hostname outside host-scoped WAF and rate-limit rules. To
 confirm the setting against a real Cloudflare account, follow
 [relay preview URL verification](../features/relay-preview-verification.md).
 
-Existing devices keep their old pairing endpoint and must pair again. The
-deployment is blocked while any relay environment variable is set, because those
-values would override the deployed target. The feature is compile-time optional;
+Every existing device and adapter must pair again to receive an enrollment grant
+under v4. The deployment is blocked while any relay environment variable is set,
+because those values would override the deployed target. The feature is compile-time optional;
 the panel UI, routes, API code, and worker artifact are absent from a build
 without the flag. The manual Wrangler path below remains the supported fallback.
 
@@ -198,15 +204,14 @@ without the flag. The manual Wrangler path below remains the supported fallback.
 3. Deploy the Worker with `pnpm deploy:relay`; it creates the DO namespace. Add
    your own custom domain route in `infra/relay/wrangler.jsonc` or the
    Cloudflare dashboard, or use the workers.dev URL.
-4. Set the Worker secrets, then open the hub panel's **Relay** card and save the
-   Worker URL (`wss://…`) with the same hub and client tokens. The hub stores the
-   tokens encrypted in `relay-credentials.json`; the URL and generated room stay
-   in `server.json`. Set **Web URL** to your web URL as well.
+4. Set the Worker secret, then open the hub panel's **Relay** card and save the
+   Worker URL (`wss://…`) with the same hub token. The hub stores the token
+   encrypted in `relay-credentials.json`; the URL and generated room stay in
+   `server.json`. Set **Web URL** to your web URL as well.
 5. Environment variables remain available for CI and headless bootstrap:
-   `CLARA_RELAY_URL`, `CLARA_RELAY_ROOM`, `CLARA_AGENT_TOKEN`, and
-   `CLARA_CLIENT_TOKEN`. Each one wins over the matching panel value when set;
-   the panel is the fallback. Values supplied by the environment are never
-   written to disk.
+   `CLARA_RELAY_URL`, `CLARA_RELAY_ROOM`, and `CLARA_AGENT_TOKEN`. Each one wins
+   over the matching panel value when set; the panel is the fallback. Values
+   supplied by the environment are never written to disk.
 6. The room is always generated by the hub. When no room exists it generates one
    and persists it in `server.json`; keep that value stable because every pairing
    code is scoped to it. The panel can replace it with another random value, but
@@ -221,7 +226,7 @@ without the flag. The manual Wrangler path below remains the supported fallback.
 | Hub offline               | Clients connect, then close with `1013`; the connect screen shows failure.                                   |
 | Hub restarts              | DO closes clients with `1012`; both sides re-handshake.                                                      |
 | Adapter offline           | Hub returns `harness_offline`; the adapter reconnects with backoff.                                          |
-| Wrong token               | Worker returns `401` before upgrading.                                                                       |
+| Wrong hub token or grant  | Worker returns `401` before upgrading.                                                                       |
 | Outdated relay            | Hub reports **The relay is outdated; redeploy the Worker** and stays offline until the Worker is updated.    |
 | Unknown or revoked device | Hub sends an `error` frame; a transient code reconnects, a credential-dead code stops after three in a row.  |
 | Room full                 | The DO refuses the 33rd client socket, or a 9th from one address, with `4008` and a reason naming the limit. |

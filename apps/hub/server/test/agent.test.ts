@@ -18,7 +18,6 @@ import {
 } from '@clara/crypto'
 import {
   PROTOCOL_VERSION,
-  PROTOCOL_VERSION_V4,
   verifyRelayGrant,
   type AdapterAction,
   type AdapterState,
@@ -218,7 +217,7 @@ async function openClient(
   const ephemeral = await generateEphemeralKeyPair()
   const hello: ClientHelloFrameV4 = {
     t: 'hello',
-    v: PROTOCOL_VERSION_V4,
+    v: PROTOCOL_VERSION,
     sid,
     nonce: bytesToBase64Url(randomBytes(16)),
     role: 'client',
@@ -1503,7 +1502,7 @@ describe('agent relay envelope', () => {
       const ephemeral = await generateEphemeralKeyPair()
       const hello: ClientHelloFrameV4 = {
         t: 'hello',
-        v: PROTOCOL_VERSION_V4,
+        v: PROTOCOL_VERSION,
         sid: 'missing-grant',
         nonce: bytesToBase64Url(randomBytes(16)),
         role: 'client',
@@ -1536,7 +1535,7 @@ describe('agent relay envelope', () => {
           PEER_A,
           {
             t: 'hello',
-            v: PROTOCOL_VERSION_V4,
+            v: PROTOCOL_VERSION,
             sid,
             nonce: bytesToBase64Url(randomBytes(16)),
             role: 'client',
@@ -1568,7 +1567,7 @@ describe('agent relay envelope', () => {
       const ephemeral = await generateEphemeralKeyPair()
       const hello: ClientHelloFrameV4 = {
         t: 'hello',
-        v: PROTOCOL_VERSION_V4,
+        v: PROTOCOL_VERSION,
         sid: 'mac-session',
         nonce: bytesToBase64Url(randomBytes(16)),
         role: 'client',
@@ -1655,7 +1654,7 @@ describe('agent relay envelope', () => {
       agent.handleMessage(
         route(PEER_B, {
           t: 'hello',
-          v: PROTOCOL_VERSION_V4,
+          v: PROTOCOL_VERSION,
           sid: client.sid,
           nonce: bytesToBase64Url(randomBytes(16)),
           role: 'client',
@@ -1779,7 +1778,7 @@ describe('agent relay envelope', () => {
         nonce: bytesToBase64Url(randomBytes(16)),
         role: 'client',
         deviceId: DEVICE_ID,
-      })
+      } as unknown as WireFrame)
       agent.handleMessage(wrapped)
 
       expect(frames).toHaveLength(0)
@@ -1806,7 +1805,7 @@ describe('agent relay limits', () => {
     const ephemeral = await generateEphemeralKeyPair()
     return {
       t: 'hello',
-      v: PROTOCOL_VERSION_V4,
+      v: PROTOCOL_VERSION,
       sid,
       nonce: bytesToBase64Url(randomBytes(16)),
       role: 'client',

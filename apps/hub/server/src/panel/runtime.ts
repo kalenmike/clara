@@ -215,7 +215,6 @@ export class PanelRuntime implements PanelDataSource {
         desired: control.desired,
         effective: false,
         agentTokenConfigured: false,
-        clientTokenConfigured: false,
         ...(control.error ? { error: this.redact(control.error) } : {}),
       }
     }
@@ -235,16 +234,11 @@ export class PanelRuntime implements PanelDataSource {
       desired: control.desired,
       effective: control.effective,
       agentTokenConfigured: Boolean(relay.agentToken),
-      clientTokenConfigured: Boolean(relay.clientToken),
       urlSource: sources.relayUrl,
       roomSource: sources.relayRoom,
       agentTokenSource: relay.agentToken ? sources.agentToken : 'none',
-      clientTokenSource: relay.clientToken ? sources.clientToken : 'none',
       envManaged:
-        sources.relayUrl === 'env' ||
-        sources.relayRoom === 'env' ||
-        sources.agentToken === 'env' ||
-        sources.clientToken === 'env',
+        sources.relayUrl === 'env' || sources.relayRoom === 'env' || sources.agentToken === 'env',
       roomRegeneratable: sources.relayRoom !== 'env',
       ...(snapshot.connectedSince !== undefined
         ? { connectedSince: new Date(snapshot.connectedSince).toISOString() }
@@ -414,11 +408,9 @@ export class PanelRuntime implements PanelDataSource {
   }
 
   private redact(value: string): string {
-    const secrets = [
-      this.options.config.relay?.agentToken,
-      this.options.config.relay?.clientToken,
-      ...this.harnessSecrets,
-    ].filter((secret): secret is string => Boolean(secret))
+    const secrets = [this.options.config.relay?.agentToken, ...this.harnessSecrets].filter(
+      (secret): secret is string => Boolean(secret)
+    )
 
     let text = value
     for (const secret of secrets) text = text.split(secret).join('[redacted]')

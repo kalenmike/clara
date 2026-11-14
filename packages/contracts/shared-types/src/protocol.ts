@@ -5,12 +5,6 @@
 export const PROTOCOL_VERSION = 4
 
 /**
- * The v4 handshake is the only handshake the hub speaks. Kept as an alias so
- * the version cannot drift between the two names.
- */
-export const PROTOCOL_VERSION_V4 = PROTOCOL_VERSION
-
-/**
  * Version of the relay route envelope, advertised in `x-clara-relay-version`.
  * It is independent of the E2EE protocol version: envelope v3 adds the grant
  * id the relay verified before it tags a client frame.
