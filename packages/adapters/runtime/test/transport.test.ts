@@ -226,7 +226,7 @@ function createTransport(
 ): AdapterTransport {
   return new AdapterTransport({
     wsUrl: hub.wsUrl,
-    clientToken: 'local',
+    grant: 'test-grant',
     identity: { harnessId: 'harness', adapterId: 'adapter', key: hub.key },
     kind: 'opencode',
     label: 'OpenCode',

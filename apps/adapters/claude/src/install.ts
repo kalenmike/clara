@@ -6,12 +6,14 @@ import {
   type HarnessPairingPayload,
 } from '@clara/shared-types'
 import {
+  REINSTALL_GRANT_MESSAGE,
   adapterLogSize,
   argValue,
   enrollAdapter,
   foregroundCommand,
   hasFlag,
   installAdapterService,
+  isLocalHubUrl,
   removeAdapterService,
   removeState,
   startAdapterProcess,
@@ -25,6 +27,7 @@ import {
   removeConfig,
   removeIdentity,
   writeConfig,
+  type AdapterConfig,
   type ClaudeConfig,
   type ClaudePermissionMode,
   type ClaudeProviderConfig,
@@ -157,35 +160,43 @@ export async function installClaude(options: InstallOptions): Promise<InstallRes
 
   // Save the config before enrollment so a lost enrollment response can still
   // reconnect with the stored credential.
+  const config: AdapterConfig = {
+    ...identity,
+    wsUrl: pairing.wsUrl,
+    // The enrollment grant is the only grant known before enrollment. It is
+    // replaced by the adapter grant from `adapter.enrolled` below.
+    grant: pairing.grant ?? '',
+    claude,
+    label: 'Claude Code',
+  }
   if (!options.dryRun) {
-    writeConfig({
-      ...identity,
-      wsUrl: pairing.wsUrl,
-      clientToken: pairing.clientToken,
-      claude,
-      label: 'Claude Code',
-    })
+    writeConfig(config)
     actions.push(`write adapter config ${adapterConfigPath()}`)
   }
 
   let enrolled: { connectionId: string; reconnected: boolean }
+  let deviceGrant: string | undefined
   try {
-    enrolled = options.dryRun
-      ? { connectionId: '(dry run)', reconnected: false }
-      : await enrollAdapter({
-          wsUrl: pairing.wsUrl,
-          clientToken: pairing.clientToken,
-          enrollId: pairing.enrollId,
-          enrollToken: pairing.enrollToken,
-          harnessId: identity.harnessId,
-          kind: pairing.kind,
-          label: 'Claude Code',
-          adapterId: identity.adapterId,
-          key: identity.key,
-          adapterVersion: ADAPTER_VERSION,
-          ...(probe.version ? { harnessVersion: probe.version } : {}),
-          capabilities: CLAUDE_CAPABILITIES,
-        })
+    if (options.dryRun) {
+      enrolled = { connectionId: '(dry run)', reconnected: false }
+    } else {
+      const result = await enrollAdapter({
+        wsUrl: pairing.wsUrl,
+        ...(pairing.grant ? { grant: pairing.grant } : {}),
+        enrollId: pairing.enrollId,
+        enrollToken: pairing.enrollToken,
+        harnessId: identity.harnessId,
+        kind: pairing.kind,
+        label: 'Claude Code',
+        adapterId: identity.adapterId,
+        key: identity.key,
+        adapterVersion: ADAPTER_VERSION,
+        ...(probe.version ? { harnessVersion: probe.version } : {}),
+        capabilities: CLAUDE_CAPABILITIES,
+      })
+      enrolled = result
+      deviceGrant = result.relayGrant?.grant
+    }
   } catch (cause) {
     const reason = cause instanceof Error ? cause.message : String(cause)
     if (options.dryRun) throw new Error(reason, { cause })
@@ -216,6 +227,16 @@ export async function installClaude(options: InstallOptions): Promise<InstallRes
         `Log: ${adapterLogPath()}`,
       { cause }
     )
+  }
+  // The one-time enrollment grant cannot authenticate an adapter session.
+  // Persist the adapter grant before the service starts and reconnects.
+  if (!options.dryRun) {
+    if (deviceGrant) {
+      writeConfig({ ...config, grant: deviceGrant })
+      actions.push('store the adapter relay grant')
+    } else if (!isLocalHubUrl(pairing.wsUrl)) {
+      throw new Error(REINSTALL_GRANT_MESSAGE)
+    }
   }
   actions.push(`pair adapter ${identity.harnessId} as connection ${enrolled.connectionId}`)
 

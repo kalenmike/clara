@@ -22,10 +22,15 @@ import {
   type AdapterState,
   type ClaraState,
 } from '@clara/shared-types'
+import { REINSTALL_GRANT_MESSAGE, isLocalHubUrl } from './config.ts'
 
 export type EnrollmentInput = {
   wsUrl: string
-  clientToken: string
+  /**
+   * One-time enrollment grant from the pairing payload, presented to the relay
+   * as `clara.auth.<grant>`. A local `ws://` hub needs none.
+   */
+  grant?: string
   enrollId: string
   enrollToken: string
   harnessId: string
@@ -41,18 +46,18 @@ export type EnrollmentInput = {
 
 /**
  * Opens the one-time enrollment session, sends the stable harness identity,
- * and waits for the hub to create or reuse the connection. The long-lived
- * credential is then used by AdapterTransport.
+ * and waits for the hub to create or reuse the connection. The returned
+ * `relayGrant` is the adapter's long-lived credential for AdapterTransport.
  */
 export async function enrollAdapter(input: EnrollmentInput): Promise<AdapterEnrolledState> {
-  const protocols =
-    input.clientToken && input.clientToken !== 'local'
-      ? [
-          RELAY_SUBPROTOCOL,
-          `${RELAY_ROLE_PREFIX}client`,
-          `${RELAY_AUTH_PREFIX}${input.clientToken}`,
-        ]
-      : undefined
+  if (!isLocalHubUrl(input.wsUrl) && !input.grant) {
+    // Enrollment grants are minted with the pairing code; an old code has no
+    // grant and the relay would refuse the upgrade anyway.
+    throw new Error(REINSTALL_GRANT_MESSAGE)
+  }
+  const protocols = input.grant
+    ? [RELAY_SUBPROTOCOL, `${RELAY_ROLE_PREFIX}client`, `${RELAY_AUTH_PREFIX}${input.grant}`]
+    : undefined
   const socket = new WebSocket(input.wsUrl, protocols)
   const sid = bytesToBase64Url(randomBytes(16))
   const clientNonce = bytesToBase64Url(randomBytes(16))
@@ -187,6 +192,14 @@ export async function enrollAdapter(input: EnrollmentInput): Promise<AdapterEnro
       )
     )
   )
+  socket.on('unexpected-response', (request, response) => {
+    response.resume()
+    // The relay verifies the enrollment grant before the upgrade. A 401 means
+    // the code expired or was already used; only a new pairing code helps.
+    if (response.statusCode === 401) fail(new Error(REINSTALL_GRANT_MESSAGE))
+    else fail(new Error(`The relay refused the enrollment (${response.statusCode})`))
+    request.destroy()
+  })
   socket.on('close', (code, reason) => {
     if (!settled) {
       fail(

@@ -1,5 +1,6 @@
 import { WebSocket } from 'ws'
 import type { AdapterIdentity } from './types.ts'
+import { REINSTALL_GRANT_MESSAGE } from './config.ts'
 import {
   ReplayGuard,
   base64UrlToBytes,
@@ -24,6 +25,7 @@ import {
   type AdapterResponseState,
   type ClaraAction,
   type ClaraState,
+  type RelayGrantState,
   type WireFrame,
 } from '@clara/shared-types'
 
@@ -49,12 +51,15 @@ export type AdapterTransportStatus = {
 
 export type AdapterTransportOptions = {
   wsUrl: string
-  clientToken: string
+  /** Relay grant from the config. Absent in local mode. */
+  grant?: string
   identity: AdapterIdentity
   kind: string
   label: string
   info: AdapterTransportInfo
   handler: (request: Request) => Promise<Response>
+  /** Persist a refreshed grant after an authenticated `ready`. */
+  onRelayGrant?: (grant: RelayGrantState) => void
   log?: (message: string, detail?: unknown) => void
 }
 
@@ -89,9 +94,12 @@ export class AdapterTransport {
   private authenticated = false
   private lastError: string | undefined
   private messageChain: Promise<void> = Promise.resolve()
+  /** Relay grant in memory; refreshed by `ready` and persisted by the CLI. */
+  private grant: string
 
   constructor(options: AdapterTransportOptions) {
     this.options = options
+    this.grant = options.grant ?? ''
   }
 
   get online(): boolean {
@@ -185,16 +193,31 @@ export class AdapterTransport {
   private connect(): void {
     if (this.stopped) return
     this.authenticated = false
-    const protocols =
-      this.options.clientToken && this.options.clientToken !== 'local'
-        ? [
-            RELAY_SUBPROTOCOL,
-            `${RELAY_ROLE_PREFIX}client`,
-            `${RELAY_AUTH_PREFIX}${this.options.clientToken}`,
-          ]
-        : undefined
+    const protocols = this.subprotocols()
     const socket = new WebSocket(this.options.wsUrl, protocols)
     this.socket = socket
+
+    socket.on('unexpected-response', (request, response) => {
+      response.resume()
+      if (this.socket !== socket) {
+        request.destroy()
+        return
+      }
+      if (response.statusCode === 401) {
+        // The relay verifies the grant before the upgrade. A 401 means this
+        // grant is expired or unknown, which only a new pairing code fixes.
+        this.stopForGrant()
+        request.destroy()
+        return
+      }
+      this.lastError = `The relay refused the connection (${response.statusCode})`
+      this.options.log?.(this.lastError)
+      request.destroy()
+      // A proxy or a relay restart can answer without upgrading; retry with
+      // backoff instead of leaving the adapter stuck without a socket.
+      this.socket = null
+      this.scheduleReconnect()
+    })
 
     socket.on('open', () => {
       if (this.socket !== socket) return
@@ -221,6 +244,7 @@ export class AdapterTransport {
     })
 
     socket.on('error', (cause) => {
+      if (this.socket !== socket) return
       this.lastError = cause instanceof Error ? cause.message : String(cause)
       this.options.log?.('adapter socket error', cause)
     })
@@ -243,6 +267,15 @@ export class AdapterTransport {
       )
       this.scheduleReconnect()
     })
+  }
+
+  /**
+   * Relay subprotocols carry the grant. Local mode has no grant and keeps the
+   * bare socket, which is what the hub's local listener expects.
+   */
+  private subprotocols(): string[] | undefined {
+    if (!this.grant) return undefined
+    return [RELAY_SUBPROTOCOL, `${RELAY_ROLE_PREFIX}client`, `${RELAY_AUTH_PREFIX}${this.grant}`]
   }
 
   private async handshake(socket: WebSocket): Promise<void> {
@@ -350,9 +383,20 @@ export class AdapterTransport {
       case 'ping':
         await this.send({ type: 'pong', at: payload.at })
         return
-      case 'ready':
+      case 'ready': {
+        // The hub refreshes the adapter grant on every accepted connect. Keep
+        // the new one in memory for reconnects and persist it for restarts.
+        if (payload.relayGrant) {
+          this.grant = payload.relayGrant.grant
+          try {
+            this.options.onRelayGrant?.(payload.relayGrant)
+          } catch (cause) {
+            this.options.log?.('could not persist the refreshed relay grant', cause)
+          }
+        }
         await this.send({ type: 'ready.ack', agent: payload.agent })
         return
+      }
       default:
         return
     }
@@ -550,5 +594,15 @@ export class AdapterTransport {
   private stopHandshakeTimer(): void {
     if (this.handshakeTimer) clearTimeout(this.handshakeTimer)
     this.handshakeTimer = null
+  }
+
+  /**
+   * The relay rejected the grant before the upgrade, so retrying with the same
+   * config cannot succeed. Stop reconnecting and report the reinstall message.
+   */
+  private stopForGrant(): void {
+    this.close()
+    this.lastError = REINSTALL_GRANT_MESSAGE
+    this.options.log?.(REINSTALL_GRANT_MESSAGE)
   }
 }

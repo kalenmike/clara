@@ -23,7 +23,12 @@ export type AdapterConnectionConfig = {
   adapterId: string
   key: string
   wsUrl: string
-  clientToken: string
+  /**
+   * Relay grant presented as `clara.auth.<grant>`. The hub refreshes it on
+   * every accepted connect. A local `ws://` hub needs none, so this is an
+   * empty string there.
+   */
+  grant: string
   label?: string
 }
 
