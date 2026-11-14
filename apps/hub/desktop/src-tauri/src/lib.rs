@@ -57,7 +57,8 @@ pub fn run() {
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_clipboard_manager::init())
         .setup(|app| {
-            let config_dir = clara_config_dir().ok_or("Could not resolve the Clara config directory")?;
+            let config_dir =
+                clara_config_dir().ok_or("Could not resolve the Clara config directory")?;
             let data_dir = clara_data_dir().ok_or("Could not resolve the Clara data directory")?;
             let cache_dir = app.path().app_cache_dir()?;
             let log_dir = app.path().app_log_dir()?;
@@ -74,7 +75,13 @@ pub fn run() {
             });
 
             build_tray(app.handle())?;
-            start_sidecar(app.handle().clone(), config_dir, data_dir, cache_dir, log_dir)?;
+            start_sidecar(
+                app.handle().clone(),
+                config_dir,
+                data_dir,
+                cache_dir,
+                log_dir,
+            )?;
             Ok(())
         })
         .build(tauri::generate_context!())
@@ -186,7 +193,9 @@ fn watch_runtime(app: AppHandle) {
             tokio::time::sleep(Duration::from_millis(250)).await;
         }
         app.dialog()
-            .message("The Clara hub service did not start. Check the hub log in the app log directory.")
+            .message(
+                "The Clara hub service did not start. Check the hub log in the app log directory.",
+            )
             .title("Clara Hub")
             .kind(MessageDialogKind::Error)
             .show(|_| {});
@@ -292,7 +301,9 @@ fn copy_setup_token(app: &AppHandle) {
 }
 
 fn quit(app: &AppHandle) {
-    app.state::<AppState>().quitting.store(true, Ordering::SeqCst);
+    app.state::<AppState>()
+        .quitting
+        .store(true, Ordering::SeqCst);
     stop_sidecar(app);
     app.exit(0);
 }

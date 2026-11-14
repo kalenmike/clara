@@ -1,6 +1,6 @@
+use std::path::PathBuf;
 use tauri::webview::NewWindowResponse;
 use tauri::Url;
-use std::path::PathBuf;
 
 /// The bundled client is served from a custom protocol on macOS and Linux, and
 /// from `http://tauri.localhost` on Windows. The Vite dev server replaces both
