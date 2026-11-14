@@ -5,6 +5,7 @@ import {
   CircleAlert,
   Cpu,
   Radio,
+  Server,
   Workflow,
   type LucideIcon,
 } from 'lucide-react'
@@ -13,6 +14,7 @@ import type { PanelTab } from '../lib/tabs.ts'
 import { usePeek } from '../lib/peek-context.tsx'
 
 const ICONS: Record<HealthItem['key'], LucideIcon> = {
+  hub: Server,
   harness: Cable,
   local: Cpu,
   relay: Radio,

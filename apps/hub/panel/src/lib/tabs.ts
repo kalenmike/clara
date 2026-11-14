@@ -91,7 +91,7 @@ export const PANEL_TABS: PanelTabMeta[] = [
     icon: Settings,
     kicker: 'Control',
     title: 'Settings',
-    description: 'Effective configuration and client sync.',
+    description: 'Hub details, orchestration, effective configuration, and client sync.',
     primary: false,
   },
 ]

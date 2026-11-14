@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type {
+  PanelAgentInfo,
   PanelLocalTransport,
   PanelOpenCodeInfo,
   PanelOrchestrationControl,
@@ -10,12 +11,34 @@ import type {
 import {
   buildHealth,
   harnessHealth,
+  hubHealth,
   localHealth,
   orchestrationHealth,
+  overviewHealth,
   pushHealth,
   relayHealth,
   storageHealth,
 } from './health.ts'
+
+function agent(patch: Partial<PanelAgentInfo> = {}): PanelAgentInfo {
+  return {
+    version: '0.1.0',
+    protocol: 12,
+    startedAt: '2026-01-01T00:00:00.000Z',
+    uptimeMs: 60_000,
+    pid: 4242,
+    node: 'v22.0.0',
+    platform: 'linux',
+    arch: 'x64',
+    memoryRssBytes: 128 * 1024 * 1024,
+    configPath: '/tmp/clara/server.json',
+    configDir: '/tmp/clara',
+    pairedDevices: 1,
+    stopped: false,
+    container: false,
+    ...patch,
+  }
+}
 
 function opencode(patch: Partial<PanelOpenCodeInfo> = {}): PanelOpenCodeInfo {
   return {
@@ -206,6 +229,28 @@ describe('storageHealth', () => {
   })
 })
 
+describe('hubHealth', () => {
+  it('summarizes an active hub with its platform, process, and version', () => {
+    const item = hubHealth(agent())
+    expect(item).toMatchObject({
+      key: 'hub',
+      label: 'Hub',
+      tab: 'settings',
+      tone: 'ok',
+      status: 'Connections active',
+    })
+    expect(item.detail).toContain('linux/x64')
+    expect(item.detail).toContain('pid 4242')
+    expect(item.detail).toContain('v0.1.0')
+  })
+
+  it('keeps an offline hub idle and names the container process', () => {
+    const item = hubHealth(agent({ stopped: true, container: true }))
+    expect(item).toMatchObject({ tone: 'idle', status: 'Connections inactive' })
+    expect(item.detail).toContain('container')
+  })
+})
+
 describe('buildHealth', () => {
   it('returns one item for each health surface', () => {
     const snapshot = {
@@ -227,6 +272,35 @@ describe('buildHealth', () => {
       'harness',
       'local',
       'relay',
+      'push',
+      'orchestration',
+    ])
+  })
+})
+
+describe('overviewHealth', () => {
+  it('leads with the hub and orders the overview strip', () => {
+    const snapshot = {
+      agent: agent(),
+      opencode: opencode({ reachable: true, code: 'ok' }),
+      local: local(),
+      relay: relay(),
+      push: push(),
+      harnesses: [{ label: 'OpenCode', isActive: true }],
+      controls: {
+        stopped: false,
+        features: [],
+        monitoring: { enabled: true },
+        sync: { enabled: true, intervalMs: 30_000 },
+        orchestration: orchestration(),
+      },
+    } as unknown as Parameters<typeof overviewHealth>[0]
+
+    expect(overviewHealth(snapshot).map((item) => item.key)).toEqual([
+      'hub',
+      'local',
+      'relay',
+      'harness',
       'push',
       'orchestration',
     ])
