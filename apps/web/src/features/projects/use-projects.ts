@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import type { ClaraProject, ClaraProjectWorkspace } from '@clara/api-contract'
+import type { ClaraProject } from '@clara/api-contract'
 import type { ClaraProjectDeleteInput, ClaraProjectUpdateInput } from '@clara/api-client'
 import { queryKeys } from '@/lib/query-keys'
 import { useConnection } from '@/providers/connection-provider'
@@ -61,18 +61,6 @@ export function findProject(
 ): ClaraProject | null {
   if (!projectID) return null
   return projects?.find((item) => item.id === projectID) ?? null
-}
-
-export function projectDefaultWorkspace(
-  project: ClaraProject | null | undefined
-): ClaraProjectWorkspace | null {
-  if (!project) return null
-  const id = project.defaultWorkspaceID
-  return (
-    (id ? project.workspaces.find((workspace) => workspace.id === id) : undefined) ??
-    project.workspaces[0] ??
-    null
-  )
 }
 
 function useInvalidateProjects() {

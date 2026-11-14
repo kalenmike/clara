@@ -42,7 +42,9 @@ function projectIDFromList(projects: ClaraProject[], session: ClaraSession): str
   return (
     projects.find((project) =>
       project.workspaces.some(
-        (workspace) => workspace.canonical === directory || workspace.directory === directory
+        (workspace) =>
+          (workspace.canonical === directory || workspace.directory === directory) &&
+          (!session.harnessID || workspace.harnessID === session.harnessID)
       )
     )?.id ?? null
   )

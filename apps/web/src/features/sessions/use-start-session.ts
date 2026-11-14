@@ -32,7 +32,7 @@ export function useStartSession({
   const navigate = useNavigate()
   const createSession = useCreateSession()
   const { settings, lastAgent } = useDefaultAgent()
-  const agentsQuery = useAgents()
+  const agentsQuery = useAgents(workspace?.harnessID)
   const { visibility } = useModelVisibility()
 
   const resolvedAgent = resolveDefaultAgent({
