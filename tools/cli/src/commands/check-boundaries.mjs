@@ -15,6 +15,12 @@ const rules = [
     specifier: '@anthropic-ai/claude-agent-sdk',
     allowed: ['apps/adapters/claude'],
   },
+  {
+    // The Pi adapter drives the installed Pi binary over its RPC protocol. It
+    // must not embed the Pi SDK, which would pin Clara to one Pi version.
+    specifier: '@earendil-works/pi-coding-agent',
+    allowed: [],
+  },
 ]
 
 const roots = ['apps', 'packages', 'tools']

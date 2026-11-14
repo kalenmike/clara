@@ -100,9 +100,9 @@ For orchestration only, install the harness adapter after the stack is up:
 pnpm clara adapter install --opencode
 ```
 
-Only the OpenCode adapter is included with this release. The hub and web client
-are harness-neutral: another adapter can implement the same Clara Harness
-Protocol and appear in the panel.
+Only the OpenCode, Claude Code, and Pi adapters are included with this release.
+The hub and web client are harness-neutral: another adapter can implement the
+same Clara Harness Protocol and appear in the panel.
 
 The hub does **not** read OpenCode's `service.json`; the adapter discovers its
 harness on its own machine. The harness connection is saved in the authenticated

@@ -8,17 +8,19 @@ sidebar_position: 7
 
 Clara reaches a harness through an adapter. The adapter runs on the harness
 machine, connects out to the hub, and carries your sessions. The hub never opens
-a port on the harness machine. This release includes the OpenCode and Claude Code
-adapters; the hub and web client are harness-neutral.
+a port on the harness machine. This release includes the OpenCode, Claude Code,
+and Pi adapters; the hub and web client are harness-neutral.
 
 | Harness     | Install                                        |
 | ----------- | ---------------------------------------------- |
 | OpenCode    | `clara-adapter-opencode install --pair <code>` |
 | Claude Code | `clara-adapter-claude install --pair <code>`   |
+| Pi          | `clara-adapter-pi install --pair <code>`       |
 
 Inside the Clara repository you can use
-`pnpm clara adapter install --opencode --pair <code>` or
-`pnpm clara adapter install --claude --pair <code>` instead.
+`pnpm clara adapter install --opencode --pair <code>`,
+`pnpm clara adapter install --claude --pair <code>`, or
+`pnpm clara adapter install --pi --pair <code>` instead.
 
 ## Pair an adapter
 
@@ -86,6 +88,38 @@ If the panel shows **Paired · Offline**, start the adapter with:
 ```bash
 clara-adapter-claude start
 clara-adapter-claude logs
+```
+
+### Pi
+
+Install the adapter on the machine where Pi is installed and signed in. The
+adapter runs your existing `pi` binary in RPC mode, so it uses the same login,
+model configuration, extensions, skills, prompt templates, packages, and MCP
+servers as the Pi terminal. There is no harness password to enter.
+
+```bash
+clara-adapter-pi install --pair <code>
+```
+
+The installer finds `pi` on `PATH`, under `~/.pi/agent/bin`, or under
+`~/.local/bin`. Use `--pi-path` for another location. `--no-service` writes the
+config without installing a user service. In the panel, choose **This machine**
+unless Pi itself runs inside the `clara` Docker network.
+
+Pi sessions are shared: Clara lists the sessions already in Pi's session store,
+and sessions you start in Clara appear in `pi --resume`. Renaming in either
+place updates the same session. Clara keeps its own archive, snooze, and view
+state, and Pi keeps its trust decisions for project-local extensions and skills.
+Pi has no session lock, so avoid driving the same session from Clara and the Pi
+terminal at the same time; if the file changed while a session was idle, Clara
+reloads it before the next prompt.
+
+Pi has one built-in agent and does not move sessions between directories. If the
+panel shows **Paired · Offline**, start the adapter with:
+
+```bash
+clara-adapter-pi start
+clara-adapter-pi logs
 ```
 
 ## Pair more than one harness

@@ -5,8 +5,8 @@ your machine that carries harness traffic over an end-to-end encrypted WebSocket
 The web app reads projects, sessions, and messages; the hub owns transport,
 adapter routing, the outbound relay connection, and Web Push delivery while Clara
 is closed. A harness is reached through an **adapter** on the harness machine.
-This repository includes the OpenCode and Claude Code adapters; the hub and
-web client do not depend on either harness.
+This repository includes the OpenCode, Claude Code, and Pi adapters; the hub and
+web client do not depend on any harness.
 
 ## Vocabulary
 
@@ -57,7 +57,9 @@ compatibility names, not prose.
 Clara pins `@opencode/client` to the OpenCode server version it targets (2.1.1)
 inside `apps/adapters/opencode` and `tools/lab`, and pins
 `@anthropic-ai/claude-agent-sdk` (0.3.325, bundling Claude Code 2.1.325)
-inside `apps/adapters/claude`. The hub has no harness SDK. The
+inside `apps/adapters/claude`. The Pi adapter has no versioned SDK dependency:
+it runs the installed `pi` binary over JSONL RPC, so it follows the user's Pi
+release. The hub has no harness SDK. The
 `/v1` DTOs and OpenAPI components are Clara-owned in `@clara/api-contract`; the
 web and SDK never import the harness client. Before bumping either side:
 
@@ -206,7 +208,9 @@ ConnectionProvider
   port.
   The included OpenCode adapter installs its daemon and orchestration binding
   together; the Claude Code adapter installs only its daemon and relies on the
-  machine's Claude Code login. Session/project metadata is keyed by a stable harness identity, so a
+  machine's Claude Code login; the Pi adapter installs only its daemon and runs
+  the machine's Pi in RPC mode against the same session store, extensions, and
+  commands. Session/project metadata is keyed by a stable harness identity, so a
   reinstall or re-pair reconnects the same sessions.
 - Feature choices, the stopped flag, monitoring, the orchestration switch, the
   client-sync gate and interval, panel users, and harness connections live in a

@@ -6,29 +6,31 @@ Clara reaches a harness through a small adapter daemon. The adapter connects out
 to the hub over the same local or relay WebSocket and E2EE session as a browser
 client, then speaks the Clara Harness Protocol. The hub is harness-neutral: it
 routes typed `/v1` calls to whichever adapter is active and branches on
-capability flags, not harness kind. This repository includes the OpenCode and
-Claude Code adapters. Additional adapters can use the same pairing, transport,
-and capability model.
+capability flags, not harness kind. This repository includes the OpenCode,
+Claude Code, and Pi adapters. Additional adapters can use the same pairing,
+transport, and capability model.
 
 | Included adapter          | Harness             | Install                                        |
 | ------------------------- | ------------------- | ---------------------------------------------- |
 | `@clara/adapter-opencode` | OpenCode 2.1.x      | `clara-adapter-opencode install --pair <code>` |
 | `@clara/adapter-claude`   | Claude Code 2.1.325 | `clara-adapter-claude install --pair <code>`   |
+| `@clara/adapter-pi`       | Pi 1.5.x            | `clara-adapter-pi install --pair <code>`       |
 
 The adapter, not the hub, discovers and authenticates the harness. The hub never
 contacts the harness directly.
 
 ## User flow
 
-1. Open the hub panel → **Harness** → **Add harness** → choose OpenCode or
-   Claude Code and the adapter location: **Docker network** (default), **This
-   machine**, or **Cloudflare relay** → **Add harness**.
+1. Open the hub panel → **Harness** → **Add harness** → choose OpenCode,
+   Claude Code, or Pi and the adapter location: **Docker network** (default),
+   **This machine**, or **Cloudflare relay** → **Add harness**.
 2. Copy the pairing code or the matching command. Adapter codes start with
    `clara-harness1_` and only install an adapter; a browser pairs with a
    `clara1_` code from **Clients → Pair Client** or `pnpm clara pair`.
 3. On the harness machine, run the adapter installer. For OpenCode that is
    `pnpm clara adapter install --opencode --pair <code>`; for Claude Code it is
-   `pnpm clara adapter install --claude --pair <code>`.
+   `pnpm clara adapter install --claude --pair <code>`; for Pi it is
+   `pnpm clara adapter install --pi --pair <code>`.
 4. The OpenCode installer discovers OpenCode from flags, environment, or
    `~/.local/state/opencode/service.json`. The Claude Code installer uses the
    machine's existing Claude Code login and accepts `--claude-path`, `--model`,
@@ -126,6 +128,57 @@ Claude Code runs one active API backend per process, so the catalog belongs to
 that backend. The endpoint comes from `--base-url`, `ANTHROPIC_BASE_URL` in the
 adapter environment, or the `env` block of the Claude Code user settings.
 
+## Pi
+
+The Pi adapter runs the `pi` binary the user already installed and speaks Pi's
+RPC mode (`pi --mode rpc`) over stdin/stdout. It does not embed the Pi SDK, so
+Clara follows the user's Pi version, authentication, `models.json`, extensions,
+skills, prompt templates, packages, MCP servers, and project trust decisions.
+
+```bash
+clara-adapter-pi install --pair <code> [--pi-path <path>]
+```
+
+The installer writes the adapter config, enrolls the adapter, and installs a
+user service. `--no-service` runs it in the foreground instead. Pi is discovered
+from `--pi-path`, `PI_BIN`, `PATH`, `~/.pi/agent/bin`, then `~/.local/bin`.
+
+Sessions are the same JSONL files Pi itself uses under
+`~/.pi/agent/sessions/--<cwd>--/` (or a configured `sessionDir`). The adapter
+lists and reads them directly, and a session created in Clara is a normal Pi
+session that appears in `pi --resume`. Titles use Pi's `session_info` name.
+Clara's archive, snooze, and view state stay in the hub. The adapter keeps one
+idle-evicted `pi` process per active session and restarts it before the next
+prompt if the file changed underneath it, so continuing a session the user
+touched in the Pi TUI follows the newer leaf instead of silently branching.
+Pi has no session lock: if both the TUI and Clara write during the same run,
+Pi keeps both branches and the transcript follows the last appended one.
+
+Prompt templates and extension commands come from `get_commands`; skills come
+from the same command list and are read from their `SKILL.md`. Models and
+providers come from `get_available_models`, so the composer shows the user's own
+configured catalog. Pi has a single built-in agent, no session move (a session
+is bound to its working directory), and no tool-approval system of its own.
+Extension dialogs are mapped to Clara: `ctx.ui.confirm` becomes a permission
+card, and `select`, `input`, and `editor` become forms. Extensions that do not
+ask for confirmation run without one, exactly as in the Pi TUI.
+
+| Clara concept   | Pi mapping                                                                    |
+| --------------- | ----------------------------------------------------------------------------- |
+| Project id      | Canonical working directory from the session header                           |
+| Session id      | Pi session id; the file path is the same JSONL file Pi uses                   |
+| Assistant step  | One Pi assistant message; the id is derived from its timestamp                |
+| Model           | Pi `provider` and model id, optionally with a thinking-level variant          |
+| Session list    | Stat-indexed scan of the Pi session store                                     |
+| Messages        | Active branch entries; tool results fold into the requesting tool             |
+| Streaming       | RPC session events translated to Clara step, text, reasoning, and tool events |
+| Approvals       | Extension `confirm` dialog → Clara permission card                            |
+| Questions       | Extension `select`, `input`, and `editor` dialogs → Clara forms               |
+| Usage           | Pi message usage and `usage` entries, summed across the session               |
+| Commands/skills | `get_commands`, split by `source`                                             |
+| Files, VCS, git | Read-only filesystem and git queries inside the adapter                       |
+| Archive/delete  | Unsupported on the harness; Clara applies its own archive state               |
+
 ## Edge cases
 
 - **Harness not reachable** — the OpenCode installer prompts for URL and
@@ -151,6 +204,17 @@ adapter environment, or the `env` block of the Claude Code user settings.
   reinstall or resume finds the same transcript.
 - **Claude Code session moved** — the adapter records the new directory and
   resumes from Claude's cross-project lookup. Clara keeps its project link.
+- **Pi project trust** — the adapter inherits Pi's saved decisions. Print, JSON,
+  and RPC modes cannot prompt, so an untrusted project loads only global
+  resources; the same `trust.json` and `defaultProjectTrust` rules apply as in
+  the Pi TUI. `--project-trust always|never` passes Pi's `--approve` or
+  `--no-approve` for every session.
+- **Pi extension confirmation** — the turn waits while the confirmation is
+  pending. Answering releases it; rejecting returns an explicit no. A Pi
+  extension that owns its own policy can still act without asking.
+- **Pi session used in both places** — Pi has no session lock. Clara detects an
+  idle file change and reloads before the next prompt. Concurrent writes during
+  one run create two valid Pi branches; Clara shows the active (last) one.
 - **Harness access off** — adapters keep their credentials but the panel shows
   **Off** and the hub does not proxy until the legacy harness gate is on again.
 - **Adapter reinstalled** — the same identity reconnects the same sessions and
@@ -165,6 +229,10 @@ adapter environment, or the `env` block of the Claude Code user settings.
   paired adapter serves the workspaces that belong to it.
 - A Claude Code orchestration binding or shared runner integration.
 - A shipped Claude Code container image.
+- A Pi orchestration binding or shared runner integration.
+- A shipped Pi container image.
+- Attaching to an already-running Pi TUI process. Pi exposes no attach API; the
+  adapter shares the session store and configuration instead.
 
 ## Known gaps
 
@@ -177,6 +245,17 @@ adapter environment, or the `env` block of the Claude Code user settings.
   one session.
 - Claude Code's `AskUserQuestion` supports at most four questions with four
   options each, matching Clara form limits.
+- Pi has no session lock. Two writers on one session can create branches; Clara
+  follows the branch whose entry was appended last.
+- Pi exposes no session move. Clara hides move for Pi sessions; fork into the
+  target directory instead.
+- Pi has one built-in agent, so the agent picker is empty and `sessions.agent`
+  is advertised as unsupported.
+- A Pi extension confirmation maps to a Clara permission card, but "Always"
+  behaves as "Once" because the extension owns the policy and Pi has no
+  persistent approval store.
+- Per-step Pi cost is the assistant message's reported usage cost; session cost
+  sums every persisted usage entry, including compaction.
 - Pending pairing codes are shown only in the panel session that created them.
 - A relay adapter grant lasts thirty days and is refreshed on each connect. An
   adapter offline longer than that must pair again.
@@ -192,30 +271,34 @@ adapter environment, or the `env` block of the Claude Code user settings.
 - Frames: `adapter.request`, `adapter.abort`, `adapter.response`,
   `adapter.chunk`, `adapter.end`, `adapter.error`, `adapter.enroll`,
   `adapter.enrolled`.
-- Included adapters: `apps/adapters/opencode` and `apps/adapters/claude`.
-  The OpenCode policy plugin and agent live in `apps/adapters/opencode/plugin/`.
-  The Claude adapter keeps all Agent SDK usage inside
-  `apps/adapters/claude`.
+- Included adapters: `apps/adapters/opencode`, `apps/adapters/claude`, and
+  `apps/adapters/pi`. The OpenCode policy plugin and agent live in
+  `apps/adapters/opencode/plugin/`. The Claude adapter keeps all Agent SDK usage
+  inside `apps/adapters/claude`. The Pi adapter keeps RPC framing and session
+  parsing inside `apps/adapters/pi` and never imports the Pi SDK.
 - Harness SDKs: `@opencode/client@2.1.1` for OpenCode, and
   `@anthropic-ai/claude-agent-sdk@0.3.325` for Claude Code. The Claude SDK
-  bundles Claude Code 2.1.325.
+  bundles Claude Code 2.1.325. Pi is driven as an external binary over
+  `pi --mode rpc`.
 - Protocol package: `packages/contracts/harness-protocol`.
 - Adapter runtime: `packages/adapters/runtime`; orchestration binding core:
   `packages/adapters/binding`.
 - Adapter data: `<config>/clara/adapters/<kind>/config.json` and
   `<data>/clara/adapters/<kind>/{identity.json,adapter.log,adapter.pid,state.json}`.
-  Claude also keeps `catalog.json` for created sessions, titles, and usage.
-- Values of `<kind>`: `opencode` and `claude`.
+  Claude also keeps `catalog.json` for created sessions, titles, and usage. Pi
+  keeps `prompt-ids.json` to reuse Clara inbox ids in session history.
+- Values of `<kind>`: `opencode`, `claude`, and `pi`.
 - Tables: `harness_identities`, `harness_connections`, `adapter_credentials`,
   `harness_pairings`, `clara_projects`, `harness_project_links`,
   `clara_sessions`.
 - Commands: `clara-adapter-opencode install --pair <code>`,
   `clara-adapter-claude install --pair <code>`,
-  `pnpm clara adapter install --claude --pair <code>`,
-  `pnpm clara adapter status [--claude]`,
-  `clara-adapter-claude uninstall [--purge]`.
+  `clara-adapter-pi install --pair <code>`,
+  `pnpm clara adapter install --pi --pair <code>`,
+  `pnpm clara adapter status [--claude|--pi]`,
+  `clara-adapter-pi uninstall [--purge]`.
 - Docker: `infra/docker/adapter-opencode.compose.yml`; no published ports.
-  No Claude Code image ships with Clara. Install the adapter in the container
-  that runs Claude Code and mount the Claude config directory and workspace.
+  No Claude Code or Pi image ships with Clara. Install the adapter in the
+  container that runs the harness and mount its config directory and workspace.
 
 </details>
