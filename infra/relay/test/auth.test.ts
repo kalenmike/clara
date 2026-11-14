@@ -1,5 +1,6 @@
 import { SELF } from 'cloudflare:test'
 import { describe, expect, it } from 'vitest'
+import { PROTOCOL_VERSION } from '@clara/shared-types'
 import { forwardedProtocolHeader } from '../src/index.ts'
 
 const AGENT_TOKEN = 'agent-test-token'
@@ -30,6 +31,16 @@ describe('relay worker authentication', () => {
 
     expect(response.status).toBe(200)
     await expect(response.json()).resolves.toMatchObject({ ok: true })
+  })
+
+  it('reports the protocol and relay versions on the health check', async () => {
+    const response = await SELF.fetch('https://relay.test/health')
+
+    await expect(response.json()).resolves.toEqual({
+      ok: true,
+      protocol: PROTOCOL_VERSION,
+      relay: 2,
+    })
   })
 
   it('rejects a request without a token', async () => {

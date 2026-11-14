@@ -1329,7 +1329,11 @@ describe('agent relay envelope', () => {
     const fake = await startFakeOpenCode()
     try {
       const traffic = new TrafficMeter()
-      const { agent, client, frames } = await relayConnect(fake, PEER_A, { traffic })
+      const logs: Array<{ message: string; detail?: unknown }> = []
+      const { agent, client, frames } = await relayConnect(fake, PEER_A, {
+        traffic,
+        log: (message, detail) => logs.push({ message, detail }),
+      })
 
       // The relay reports PEER_B as the sender, so this cannot be served as
       // PEER_A's frame even though the payload names PEER_A's sid.
@@ -1339,6 +1343,8 @@ describe('agent relay envelope', () => {
       expect(frames.some((frame) => frame.t === 'error')).toBe(false)
       expect(agent.getSnapshot()).toHaveLength(1)
       expect(traffic.snapshot().errors.misrouted).toBe(1)
+      const dropped = logs.find((entry) => entry.message.includes('another relay peer'))
+      expect(dropped?.detail).toBe(`sid=${client.sid}`)
 
       await sendRelay(client, agent, PEER_A, {
         type: 'ready.ack',
@@ -1654,9 +1660,13 @@ describe('agent relay limits', () => {
       const devices = testDevices(key)
       const findActiveDevice = vi.fn(devices.findActiveDevice)
       const frames: WireFrame[] = []
-      const logs: string[] = []
-      const agent = relayAgent(fake, key, frames, { ...devices, findActiveDevice }, (message) =>
-        logs.push(message)
+      const logs: Array<{ message: string; detail?: unknown }> = []
+      const agent = relayAgent(
+        fake,
+        key,
+        frames,
+        { ...devices, findActiveDevice },
+        (message, detail) => logs.push({ message, detail })
       )
 
       const peer = 'peer-rate'
@@ -1669,7 +1679,9 @@ describe('agent relay limits', () => {
 
       expect(findActiveDevice).toHaveBeenCalledTimes(MAX_HELLOS_PER_WINDOW)
       expect(agent.sessionCount).toBe(MAX_HELLOS_PER_WINDOW)
-      expect(logs.filter((message) => message.includes('relay peer limit'))).toHaveLength(1)
+      const limited = logs.filter((entry) => entry.message.includes('relay peer limit'))
+      expect(limited).toHaveLength(1)
+      expect(limited[0]?.detail).toBe(`peer=${peer}`)
     } finally {
       await fake.close()
     }

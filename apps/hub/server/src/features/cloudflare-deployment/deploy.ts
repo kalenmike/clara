@@ -6,6 +6,14 @@ const SCRIPT_NAME_PATTERN = /^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/
 const HEALTH_ATTEMPTS = 8
 const HEALTH_DELAYS_MS = [500, 1_000, 2_000, 3_000, 4_000, 5_000, 5_000]
 const HEALTH_TIMEOUT_MS = 8_000
+/**
+ * The oldest route-envelope version this hub can talk to. The Worker reports
+ * its version on `GET /health`, so an outdated deployment is caught here
+ * instead of at the first WebSocket upgrade. The v4 core lane raises this to 3
+ * once the newer envelope ships.
+ */
+const MIN_RELAY_WIRE_VERSION = 2
+const OUTDATED_RELAY = 'The deployed relay is outdated; redeploy the Worker'
 
 export type DeployRelayOptions = {
   client: CloudflareClient
@@ -181,8 +189,21 @@ async function waitForHealth(
       })
       if (response.ok) {
         const body = (await response.json()) as unknown
-        if (isRecord(body) && body.ok === true) return { ok: true }
-        lastError = 'The relay health check returned an unexpected response'
+        if (isRecord(body) && body.ok === true) {
+          const relay = body.relay
+          if (
+            typeof relay === 'number' &&
+            Number.isFinite(relay) &&
+            relay >= MIN_RELAY_WIRE_VERSION
+          ) {
+            return { ok: true }
+          }
+          // A Worker that predates the version field cannot tag client frames
+          // with a peer id, so refuse it before the hub tries to connect.
+          lastError = OUTDATED_RELAY
+        } else {
+          lastError = 'The relay health check returned an unexpected response'
+        }
       } else {
         lastError = `The relay health check returned HTTP ${response.status}`
       }

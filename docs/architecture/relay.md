@@ -117,6 +117,12 @@ closes the socket and reports **The relay is outdated; redeploy the Worker**;
 the hub also drops any unwrapped client frame. Remote access is unavailable
 between the two deploys; pairing payloads and the local listener are unaffected.
 
+The Worker's `GET /health` answers `{ ok, protocol, relay }`, where `relay` is
+the route-envelope version (currently `2`). The panel's deployment check
+refuses a Worker that omits `relay` or reports a version below what the hub
+speaks, so an outdated deployment fails at deploy time with the same message
+instead of at the first upgrade.
+
 ## Deployment
 
 ### From the hub panel
@@ -133,7 +139,8 @@ The deployment:
 2. uploads `dist/relay/worker.mjs` with the `RELAY_ROOMS` Durable Object binding,
    a first-deploy `new_sqlite_classes` migration, and both relay tokens as
    `secret_text` bindings;
-3. enables the Worker on `workers.dev` and waits for `GET /health`;
+3. enables the Worker on `workers.dev` and waits for `GET /health` to report a
+   compatible `relay` version (see [Relay version](#relay-version));
 4. writes the relay URL and room to `server.json`, stores both tokens encrypted
    in `relay-credentials.json`, and applies the relay without a hub restart;
    legacy plaintext tokens in `server.json` are moved into that sealed file on
@@ -144,7 +151,9 @@ Preview and version URLs are off by default. `infra/relay/wrangler.jsonc` sets
 `preview_urls: false`, and the panel deploy sends `previews_enabled: false` on the
 Worker subdomain settings on every deploy, so redeploying clears URLs an earlier
 deploy enabled. Turning them on is an explicit opt-in because each version gets
-an extra `workers.dev` hostname outside host-scoped WAF and rate-limit rules.
+an extra `workers.dev` hostname outside host-scoped WAF and rate-limit rules. To
+confirm the setting against a real Cloudflare account, follow
+[relay preview URL verification](../features/relay-preview-verification.md).
 
 Existing devices keep their old pairing endpoint and must pair again. The
 deployment is blocked while any relay environment variable is set, because those

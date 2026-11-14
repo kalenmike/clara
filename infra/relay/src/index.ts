@@ -6,6 +6,7 @@ import {
   type RelayRole,
 } from '@clara/shared-types'
 import type { Env } from './env.ts'
+import { RELAY_VERSION } from './room.ts'
 
 export { RelayRoom } from './room.ts'
 
@@ -16,7 +17,7 @@ export default {
     const url = new URL(request.url)
 
     if (url.pathname === '/health') {
-      return json({ ok: true, protocol: PROTOCOL_VERSION })
+      return json({ ok: true, protocol: PROTOCOL_VERSION, relay: RELAY_VERSION })
     }
 
     const match = /^\/room\/([^/]+)$/.exec(url.pathname)
