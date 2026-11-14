@@ -4,6 +4,23 @@ import { randomUUID } from 'node:crypto'
 import { bytesToBase64Url, generateKey, randomBytes } from '@clara/crypto'
 import type { AdapterConfig, AdapterIdentity, AdapterPaths } from './types.ts'
 
+/**
+ * Shown when the stored relay grant is missing or the relay refused it. Grants
+ * do not survive a reinstall of the hub and cannot be repaired locally, so the
+ * only fix is a fresh pairing code.
+ */
+export const REINSTALL_GRANT_MESSAGE =
+  'The adapter has no valid relay grant. Reinstall the adapter with a new pairing code.'
+
+/**
+ * Local mode is a bare `ws://` hub listener without the relay. It keeps the v4
+ * session crypto but presents no grant, because the hub has no relay grant
+ * issuer there.
+ */
+export function isLocalHubUrl(url: string): boolean {
+  return url.trim().startsWith('ws://')
+}
+
 export function readJsonFile<T>(path: string): T | undefined {
   if (!existsSync(path)) return undefined
   try {

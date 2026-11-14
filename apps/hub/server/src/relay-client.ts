@@ -10,8 +10,11 @@ import type { Agent } from './agent.ts'
 const MAX_BACKOFF_MS = 30_000
 const HEARTBEAT_MS = 20_000
 const STALL_MS = 45_000
-/** The route envelope (`t: "route"`) ships in relay version 2. */
-const MIN_RELAY_VERSION = 2
+/**
+ * The route envelope v3 adds the verified grant id (`i`) and the handshake v4
+ * cutover depends on it. A v2 relay cannot bind a hello to its credential.
+ */
+const MIN_RELAY_VERSION = 3
 const OUTDATED_RELAY = 'The relay is outdated; redeploy the Worker'
 
 export type RelayStatus = 'connecting' | 'online' | 'reconnecting' | 'offline'
@@ -48,9 +51,11 @@ export class RelayClient {
 
   constructor(options: RelayClientOptions) {
     this.options = options
-    // Relay frames always carry the sender's peer id, so the hub builds
-    // sessions from the route envelope instead of trusting the payload's sid.
+    // Relay frames always carry the sender's peer id and verified grant id, so
+    // the hub builds sessions from the route envelope instead of trusting the
+    // payload's sid. The same credentials sign the grants it hands back.
     options.agent.setEnvelope('relay')
+    options.agent.setGrantIssuer({ room: options.room, agentToken: options.agentToken })
   }
 
   getSnapshot(): RelaySnapshot {

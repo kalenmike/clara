@@ -8,7 +8,6 @@ export default defineConfig({
       miniflare: {
         bindings: {
           CLARA_AGENT_TOKEN: 'agent-test-token',
-          CLARA_CLIENT_TOKEN: 'client-test-token',
         },
       },
     }),

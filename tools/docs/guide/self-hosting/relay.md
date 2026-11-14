@@ -168,7 +168,7 @@ hub from another network, choose **Cloudflare relay** as its location in
 
 ## Pair a remote device
 
-Open **Clients → Pair a browser** in the hub panel and scan the QR or open the
+Open **Clients → Pair Client** in the hub panel and scan the QR or open the
 link on the phone. You can also run:
 
 ```bash

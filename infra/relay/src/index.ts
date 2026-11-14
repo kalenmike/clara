@@ -3,6 +3,7 @@ import {
   RELAY_AUTH_PREFIX,
   RELAY_ROLE_PREFIX,
   RELAY_SUBPROTOCOL,
+  verifyRelayGrant,
   type RelayRole,
 } from '@clara/shared-types'
 import type { Env } from './env.ts'
@@ -41,13 +42,18 @@ export default {
     if (!auth || auth.version !== RELAY_SUBPROTOCOL) {
       return json({ error: 'unsupported protocol' }, 400)
     }
-    if (!(await isAuthorized(auth.role, auth.token, env))) {
+    const authorization = await authorize(auth.role, auth.token, roomId, env)
+    if (!authorization.ok) {
       return json({ error: 'unauthorized' }, 401)
     }
 
     const headers = new Headers(request.headers)
     headers.delete('x-clara-role')
     headers.set('x-clara-role', auth.role)
+    // The grant id is per connection, so the Worker must set it itself rather
+    // than trust one a client supplied. The hub binds the hello identity to it.
+    headers.delete('x-clara-grant-id')
+    if (authorization.grantId) headers.set('x-clara-grant-id', authorization.grantId)
     const forwardedProtocols = forwardedProtocolHeader(headers.get('sec-websocket-protocol'))
     if (forwardedProtocols) headers.set('sec-websocket-protocol', forwardedProtocols)
     else headers.delete('sec-websocket-protocol')
@@ -79,10 +85,34 @@ function parseProtocols(header: string | null): ParsedProtocols | null {
   return { version, role, token: token ?? '' }
 }
 
-async function isAuthorized(role: RelayRole, token: string, env: Env): Promise<boolean> {
-  const expected = role === 'agent' ? env.CLARA_AGENT_TOKEN : env.CLARA_CLIENT_TOKEN
-  if (!expected || !token) return false
-  return constantTimeEqual(token, expected)
+type Authorization = { ok: true; grantId?: string } | { ok: false }
+
+/**
+ * The hub authenticates with the shared agent token; clients present a grant
+ * the hub signed for this room. A missing, expired, tampered, wrong-room, or
+ * legacy client-token credential is one generic 401 so a probe cannot tell the
+ * failure modes apart.
+ */
+async function authorize(
+  role: RelayRole,
+  credential: string,
+  room: string,
+  env: Env
+): Promise<Authorization> {
+  const agentToken = env.CLARA_AGENT_TOKEN
+  if (!agentToken || !credential) return { ok: false }
+
+  if (role === 'agent') {
+    return (await constantTimeEqual(credential, agentToken)) ? { ok: true } : { ok: false }
+  }
+
+  try {
+    const verified = await verifyRelayGrant(credential, { agentToken, room })
+    return verified.ok ? { ok: true, grantId: verified.payload.id } : { ok: false }
+  } catch {
+    // WebCrypto or a malformed input must fail closed, not surface a 500.
+    return { ok: false }
+  }
 }
 
 /**
@@ -125,6 +155,13 @@ export function forwardedProtocolHeader(header: string | null): string | null {
 function json(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), {
     status,
-    headers: { 'content-type': 'application/json', 'cache-control': 'no-store' },
+    headers: {
+      'content-type': 'application/json',
+      'cache-control': 'no-store',
+      // The health probe and small refusals are unauthenticated and carry no
+      // credentials, so any origin may read them. Never add
+      // access-control-allow-credentials here.
+      'access-control-allow-origin': '*',
+    },
   })
 }

@@ -263,9 +263,17 @@ function isNonEmptyString(value: unknown): value is string {
   return typeof value === 'string' && value.length > 0
 }
 
-/** `|` delimits transcript fields, so no field may contain it. */
+/**
+ * `sid` and `nonce` feed the v4 transcript. `|` delimits its fields, so neither
+ * may contain one, and the cap keeps an unauthenticated hello from carrying
+ * unbounded strings into the key schedule.
+ */
+export const MAX_HANDSHAKE_FIELD_LENGTH = RELAY_GRANT_MAX_ID_LENGTH
+
 function isTranscriptField(value: unknown): value is string {
-  return isNonEmptyString(value) && !value.includes('|')
+  return (
+    isNonEmptyString(value) && value.length <= MAX_HANDSHAKE_FIELD_LENGTH && !value.includes('|')
+  )
 }
 
 const P256_PUBLIC_KEY_BYTES = 65

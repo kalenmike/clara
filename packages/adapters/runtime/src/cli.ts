@@ -2,8 +2,14 @@ import { createInterface } from 'node:readline/promises'
 import { stdin, stdout } from 'node:process'
 import type { Hono } from 'hono'
 import { HARNESS_PROTOCOL_VERSION } from '@clara/harness-protocol'
-import { parseHarnessPairingInput, type HarnessPairingPayload } from '@clara/shared-types'
 import {
+  parseHarnessPairingInput,
+  type HarnessPairingPayload,
+  type RelayGrantState,
+} from '@clara/shared-types'
+import {
+  REINSTALL_GRANT_MESSAGE,
+  isLocalHubUrl,
   loadIdentity,
   readAdapterConfig,
   removeAdapterConfig,
@@ -121,6 +127,14 @@ export async function runAdapterCli<THarness>(
   throw new Error(`unknown command: ${command}`)
 }
 
+/**
+ * A relay connection requires a stored grant. Grants cannot be repaired
+ * locally, so the only recovery is installing with a fresh pairing code.
+ */
+export function requireRelayGrant(wsUrl: string, grant: string | undefined): void {
+  if (!isLocalHubUrl(wsUrl) && !grant) throw new Error(REINSTALL_GRANT_MESSAGE)
+}
+
 async function serve<THarness>(
   definition: AdapterDefinition<THarness>,
   args: string[]
@@ -142,9 +156,19 @@ async function serve<THarness>(
   }
   const app = await definition.createApp({ config, probe, info })
   const harness = definition.describe(config)
+  const wsUrl =
+    argValue(args, '--ws-url') ?? process.env.CLARA_ADAPTER_WS_URL?.trim() ?? config.wsUrl
+  // A relay connection proves access with a grant. There is no legacy token to
+  // fall back to, so an old config must be paired again.
+  requireRelayGrant(wsUrl, config.grant)
+  const persistGrant = (state: RelayGrantState) => {
+    const current = readAdapterConfig<THarness>(definition.paths)
+    if (!current || current.grant === state.grant) return
+    writeAdapterConfig(definition.paths, { ...current, grant: state.grant })
+  }
   const transport = new AdapterTransport({
-    wsUrl: argValue(args, '--ws-url') ?? config.wsUrl,
-    clientToken: argValue(args, '--client-token') ?? config.clientToken,
+    wsUrl,
+    grant: config.grant,
     identity: { harnessId: config.harnessId, adapterId: config.adapterId, key: config.key },
     kind: definition.name,
     label: config.label ?? definition.label,
@@ -155,6 +179,7 @@ async function serve<THarness>(
       capabilities: definition.capabilities,
     },
     handler: async (request) => app.fetch(request),
+    onRelayGrant: persistGrant,
     log: (message, detail) => {
       console.error(`[adapter] ${message}`)
       if (process.env.CLARA_ADAPTER_DEBUG === '1' && detail !== undefined) {
@@ -174,7 +199,7 @@ async function serve<THarness>(
       updatedAt: Date.now(),
       harnessId: config.harnessId,
       hub: {
-        url: config.wsUrl,
+        url: wsUrl,
         status: status.status,
         connected: status.connected,
         authenticated: status.authenticated,
@@ -221,7 +246,7 @@ async function serve<THarness>(
   healthTimer.unref()
 
   console.log(
-    `Clara ${definition.label} adapter ${definition.version} connecting to ${config.wsUrl} as ${config.harnessId}`
+    `Clara ${definition.label} adapter ${definition.version} connecting to ${wsUrl} as ${config.harnessId}`
   )
   const stop = () => {
     clearInterval(statusTimer)
@@ -247,14 +272,15 @@ export async function pair<THarness>(
   const config: AdapterConfig<THarness> = {
     ...identity,
     wsUrl: input.wsUrl,
-    clientToken: input.clientToken,
+    // Only the enrollment grant is known before the hub answers.
+    grant: input.grant ?? '',
     ...harness,
     label: definition.label,
   }
   const probe = await definition.probe(config, 3_000)
   const enrolled = await enrollAdapter({
     wsUrl: input.wsUrl,
-    clientToken: input.clientToken,
+    ...(input.grant ? { grant: input.grant } : {}),
     enrollId: input.enrollId,
     enrollToken: input.enrollToken,
     harnessId: identity.harnessId,
@@ -266,7 +292,11 @@ export async function pair<THarness>(
     ...(probe.version ? { harnessVersion: probe.version } : {}),
     capabilities: definition.capabilities,
   })
-  writeAdapterConfig(definition.paths, config)
+  // Enrollment hands back the first long-lived adapter grant. The enrollment
+  // grant must never be stored as the steady-state credential.
+  const grant = enrolled.relayGrant?.grant ?? (isLocalHubUrl(input.wsUrl) ? '' : undefined)
+  if (grant === undefined) throw new Error(REINSTALL_GRANT_MESSAGE)
+  writeAdapterConfig(definition.paths, { ...config, grant })
   console.log(
     `Paired ${input.kind} adapter ${identity.harnessId} as connection ${enrolled.connectionId}` +
       (enrolled.reconnected ? ' (reconnected)' : '')

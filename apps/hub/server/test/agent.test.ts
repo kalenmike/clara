@@ -5,21 +5,36 @@ import { join } from 'node:path'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import {
   bytesToBase64Url,
-  deriveSessionKeys,
+  deriveV4SessionKeys,
+  generateEphemeralKeyPair,
   generateKey,
   open,
   randomBytes,
   seal,
   utf8,
+  verifyV4HelloMac,
   type SessionKeys,
+  type V4EphemeralKeyPair,
 } from '@clara/crypto'
 import {
   PROTOCOL_VERSION,
+  PROTOCOL_VERSION_V4,
+  verifyRelayGrant,
+  type AdapterAction,
+  type AdapterState,
   type ClaraAction,
   type ClaraState,
+  type ClientHelloFrameV4,
+  type HubHelloFrameV4,
   type WireFrame,
 } from '@clara/shared-types'
-import { Agent, MAX_HELLOS_PER_WINDOW, MAX_SESSIONS, type AgentPolicy } from '../src/agent.ts'
+import {
+  Agent,
+  MAX_HELLOS_PER_WINDOW,
+  MAX_SESSIONS,
+  type AdapterSessionHandler,
+  type AgentPolicy,
+} from '../src/agent.ts'
 import { createApiApp } from '../src/api/app.ts'
 import type { ApiApp } from '../src/api/context.ts'
 import type { HarnessManager } from '../src/harness/manager.ts'
@@ -178,11 +193,85 @@ type Client = {
   receiveSeq: number
 }
 
+type ClientIdentity =
+  | { deviceId: string }
+  | { enrollId: string }
+  | { adapter: true; adapterId: string }
+  | { adapter: true; enrollId: string }
+
+/**
+ * Drives a real v4 client handshake: fresh ephemeral P-256 pair, MAC check on
+ * the hub hello, then the derived directional keys. Every test that opens a
+ * session proves the hub hello MAC this way.
+ */
+async function openClient(
+  agent: Agent,
+  frames: WireFrame[],
+  key: string,
+  identity: ClientIdentity,
+  options: {
+    sid?: string
+    deliver?: (hello: ClientHelloFrameV4) => void
+  } = {}
+): Promise<Client> {
+  const sid = options.sid ?? bytesToBase64Url(randomBytes(16))
+  const ephemeral = await generateEphemeralKeyPair()
+  const hello: ClientHelloFrameV4 = {
+    t: 'hello',
+    v: PROTOCOL_VERSION_V4,
+    sid,
+    nonce: bytesToBase64Url(randomBytes(16)),
+    role: 'client',
+    eph: ephemeral.publicKey,
+    ...identity,
+  }
+
+  const deliver =
+    options.deliver ??
+    ((value: ClientHelloFrameV4) => {
+      agent.handleMessage(JSON.stringify(value))
+    })
+  deliver(hello)
+
+  const hubHello = await waitFor(() =>
+    frames.find(
+      (frame): frame is HubHelloFrameV4 =>
+        frame.t === 'hello' && frame.role === 'agent' && frame.sid === sid
+    )
+  )
+  const keys = await completeHandshake(key, hello, hubHello, ephemeral)
+  return { sid, keys, sendSeq: 0, receiveSeq: 0 }
+}
+
+/** Derive the client keys and prove the hub hello MAC before using the session. */
+async function completeHandshake(
+  key: string,
+  hello: ClientHelloFrameV4,
+  hubHello: HubHelloFrameV4,
+  ephemeral: V4EphemeralKeyPair
+): Promise<SessionKeys> {
+  const input = {
+    staticKey: key,
+    sid: hello.sid,
+    nonceC: hello.nonce,
+    nonceS: hubHello.nonce,
+    ephC: hello.eph,
+    ephS: hubHello.eph,
+    privateKey: ephemeral.privateKey,
+    peerPublicKey: hubHello.eph,
+  }
+  const material = await deriveV4SessionKeys(input)
+  expect(await verifyV4HelloMac({ ...input, mac: hubHello.mac })).toBe(true)
+  return material.keys
+}
+
 const agents: Agent[] = []
 const tempDirs: string[] = []
 const databases: ClaraDatabase[] = []
 
 const DEVICE_ID = 'test-device-000000'
+const RELAY_ROOM = 'test-room'
+const RELAY_AGENT_TOKEN = 'test-agent-token'
 
 function testDevices(key: string, deviceId = DEVICE_ID): DeviceRegistry {
   return {
@@ -213,8 +302,6 @@ async function connect(
   frames: WireFrame[]
 }> {
   const key = generateKey()
-  const sid = 'test-session'
-  const clientNonce = bytesToBase64Url(randomBytes(16))
   const frames: WireFrame[] = []
   const agent = new Agent({
     api: api ?? fakeApi(fake, configured),
@@ -228,30 +315,23 @@ async function connect(
   })
   agents.push(agent)
 
-  agent.handleMessage(
-    JSON.stringify({
-      t: 'hello',
-      v: PROTOCOL_VERSION,
-      sid,
-      nonce: clientNonce,
-      role: 'client',
-      deviceId: DEVICE_ID,
-    })
-  )
-
-  const hello = await waitFor(() => frames.find((frame) => frame.t === 'hello'))
-  if (hello.t !== 'hello') throw new Error('No hello frame')
-  const keys = await deriveSessionKeys({
+  const client = await openClient(
+    agent,
+    frames,
     key,
-    sid,
-    clientNonce,
-    agentNonce: hello.nonce,
-  })
-  const client: Client = { sid, keys, sendSeq: 0, receiveSeq: 0 }
+    { deviceId: DEVICE_ID },
+    {
+      sid: 'test-session',
+    }
+  )
   return { agent, client, frames }
 }
 
-async function send(client: Client, agent: Agent, payload: ClaraAction): Promise<void> {
+async function send(
+  client: Client,
+  agent: Agent,
+  payload: ClaraAction | AdapterAction
+): Promise<void> {
   const seq = client.sendSeq
   client.sendSeq += 1
   const box = await seal(
@@ -271,8 +351,11 @@ async function send(client: Client, agent: Agent, payload: ClaraAction): Promise
   )
 }
 
-async function readStates(client: Client, frames: WireFrame[]): Promise<ClaraState[]> {
-  const states: ClaraState[] = []
+async function readPayloads(
+  client: Client,
+  frames: WireFrame[]
+): Promise<Array<ClaraAction | ClaraState | AdapterState>> {
+  const payloads: Array<ClaraAction | ClaraState | AdapterState> = []
   for (const frame of frames) {
     if (frame.t !== 'sealed' || frame.sid !== client.sid) continue
     const plaintext = await open(
@@ -280,12 +363,18 @@ async function readStates(client: Client, frames: WireFrame[]): Promise<ClaraSta
       { sid: client.sid, direction: 's2c', seq: frame.seq },
       frame
     )
-    const payload = JSON.parse(new TextDecoder().decode(plaintext)) as ClaraAction | ClaraState
-    if (payload.type !== 'ready' && payload.type !== 'ready.ack' && payload.type !== 'pong') {
-      states.push(payload as ClaraState)
-    }
+    payloads.push(
+      JSON.parse(new TextDecoder().decode(plaintext)) as ClaraAction | ClaraState | AdapterState
+    )
   }
-  return states
+  return payloads
+}
+
+async function readStates(client: Client, frames: WireFrame[]): Promise<ClaraState[]> {
+  const payloads = await readPayloads(client, frames)
+  return payloads.filter(
+    (payload) => payload.type !== 'ready' && payload.type !== 'ready.ack' && payload.type !== 'pong'
+  ) as ClaraState[]
 }
 
 async function waitFor<T>(
@@ -614,8 +703,6 @@ describe('agent', () => {
     const fake = await startFakeOpenCode()
     try {
       const key = generateKey()
-      const sid = 'policy-session'
-      const clientNonce = bytesToBase64Url(randomBytes(16))
       const frames: WireFrame[] = []
       const agent = new Agent({
         api: fakeApi(fake, true, () => false),
@@ -625,25 +712,15 @@ describe('agent', () => {
         policy: { canPush: () => false },
       })
       agents.push(agent)
-      agent.handleMessage(
-        JSON.stringify({
-          t: 'hello',
-          v: PROTOCOL_VERSION,
-          sid,
-          nonce: clientNonce,
-          role: 'client',
-          deviceId: DEVICE_ID,
-        })
-      )
-      const hello = await waitFor(() => frames.find((frame) => frame.t === 'hello'))
-      if (hello.t !== 'hello') throw new Error('No hello frame')
-      const keys = await deriveSessionKeys({
+      const client = await openClient(
+        agent,
+        frames,
         key,
-        sid,
-        clientNonce,
-        agentNonce: hello.nonce,
-      })
-      const client: Client = { sid, keys, sendSeq: 0, receiveSeq: 0 }
+        { deviceId: DEVICE_ID },
+        {
+          sid: 'policy-session',
+        }
+      )
       await waitFor(() => (frames.length >= 2 ? true : undefined))
 
       await send(client, agent, {
@@ -1103,34 +1180,18 @@ describe('agent client sync', () => {
       info: { version: 'test', protocol: PROTOCOL_VERSION },
       send: (frame) => frames.push(frame),
     })
+    agent.setGrantIssuer({ room: RELAY_ROOM, agentToken: RELAY_AGENT_TOKEN })
     agents.push(agent)
 
     try {
       const enrollSid = 'enroll-session'
-      const enrollNonce = bytesToBase64Url(randomBytes(16))
-      agent.handleMessage(
-        JSON.stringify({
-          t: 'hello',
-          v: PROTOCOL_VERSION,
-          sid: enrollSid,
-          nonce: enrollNonce,
-          role: 'client',
-          enrollId: token.id,
-        })
+      const enrollClient = await openClient(
+        agent,
+        frames,
+        token.token,
+        { enrollId: token.id },
+        { sid: enrollSid }
       )
-      const enrollHello = await waitFor(() => frames.find((frame) => frame.t === 'hello'))
-      if (enrollHello.t !== 'hello') throw new Error('No enrollment hello')
-      const enrollClient: Client = {
-        sid: enrollSid,
-        keys: await deriveSessionKeys({
-          key: token.token,
-          sid: enrollSid,
-          clientNonce: enrollNonce,
-          agentNonce: enrollHello.nonce,
-        }),
-        sendSeq: 0,
-        receiveSeq: 0,
-      }
       const deviceId = 'device-enrolled-0001'
       const enrollmentKey = generateKey()
       await send(enrollClient, agent, {
@@ -1147,6 +1208,19 @@ describe('agent client sync', () => {
       expect(active?.id).toBe(deviceId)
       expect(active?.key).toBe(enrollmentKey)
 
+      // The enrollment grant was scoped to the pairing id, so the response
+      // must hand over the first grant scoped to the new device id.
+      const enrolledGrant = enrolled.type === 'device.enrolled' ? enrolled.relayGrant : undefined
+      expect(enrolledGrant).toBeDefined()
+      const verifiedEnrollment = await verifyRelayGrant(enrolledGrant!.grant, {
+        agentToken: RELAY_AGENT_TOKEN,
+        room: RELAY_ROOM,
+      })
+      expect(verifiedEnrollment).toEqual({
+        ok: true,
+        payload: expect.objectContaining({ id: deviceId }),
+      })
+
       // The pairing session has no purpose after the response is delivered and
       // must not linger in the panel until the idle sweep.
       await waitFor(() =>
@@ -1154,34 +1228,34 @@ describe('agent client sync', () => {
       )
 
       const deviceSid = 'device-session'
-      const deviceNonce = bytesToBase64Url(randomBytes(16))
-      const helloCount = frames.filter((frame) => frame.t === 'hello').length
-      agent.handleMessage(
-        JSON.stringify({
-          t: 'hello',
-          v: PROTOCOL_VERSION,
-          sid: deviceSid,
-          nonce: deviceNonce,
-          role: 'client',
-          deviceId,
-        })
+      const deviceClient = await openClient(
+        agent,
+        frames,
+        active?.key ?? '',
+        { deviceId },
+        { sid: deviceSid }
       )
-      const deviceHello = await waitFor(
-        () => frames.filter((frame) => frame.t === 'hello')[helloCount]
-      )
-      if (deviceHello.t !== 'hello') throw new Error('No device hello')
-      const deviceClient: Client = {
-        sid: deviceSid,
-        keys: await deriveSessionKeys({
-          key: active?.key ?? '',
-          sid: deviceSid,
-          clientNonce: deviceNonce,
-          agentNonce: deviceHello.nonce,
-        }),
-        sendSeq: 0,
-        receiveSeq: 0,
-      }
-      await send(deviceClient, agent, { type: 'ready.ack', agent: { version: 'web', protocol: 2 } })
+
+      // A reconnect refreshes the grant in `ready`, still scoped to the device.
+      const ready = await waitFor(async () => {
+        const payloads = await readPayloads(deviceClient, frames)
+        return payloads.find((payload) => payload.type === 'ready')
+      })
+      const refreshed = ready.type === 'ready' ? ready.relayGrant : undefined
+      expect(refreshed).toBeDefined()
+      const verifiedRefresh = await verifyRelayGrant(refreshed!.grant, {
+        agentToken: RELAY_AGENT_TOKEN,
+        room: RELAY_ROOM,
+      })
+      expect(verifiedRefresh).toEqual({
+        ok: true,
+        payload: expect.objectContaining({ id: deviceId }),
+      })
+
+      await send(deviceClient, agent, {
+        type: 'ready.ack',
+        agent: { version: 'web', protocol: PROTOCOL_VERSION },
+      })
       await send(deviceClient, agent, {
         type: 'http.request',
         id: 'device-request',
@@ -1210,21 +1284,124 @@ describe('agent client sync', () => {
   })
 })
 
+describe('agent adapter enrollment', () => {
+  it('delivers the first adapter grant in the enrollment response', async () => {
+    const fake = await startFakeOpenCode()
+    try {
+      const pairId = 'pair-1'
+      const pairToken = generateKey()
+      const adapterKey = generateKey()
+      const adapters: AdapterSessionHandler = {
+        pairingToken: async (id) => (id === pairId ? pairToken : undefined),
+        credential: async (id) =>
+          id === 'adapter-a'
+            ? { adapterId: 'adapter-a', harnessId: 'harness-a', key: adapterKey }
+            : undefined,
+        enroll: async (action) => ({
+          connection: { id: 'connection-1', harnessId: action.harnessId, label: action.label },
+          reconnected: false,
+        }),
+        setLive: async () => undefined,
+        clearLive: async () => undefined,
+      }
+      const frames: WireFrame[] = []
+      const agent = new Agent({
+        api: fakeApi(fake),
+        devices: testDevices(generateKey()),
+        info: { version: 'test', protocol: PROTOCOL_VERSION },
+        send: (frame) => frames.push(frame),
+        adapters,
+      })
+      agent.setGrantIssuer({ room: RELAY_ROOM, agentToken: RELAY_AGENT_TOKEN })
+      agents.push(agent)
+
+      const client = await openClient(
+        agent,
+        frames,
+        pairToken,
+        { adapter: true, enrollId: pairId },
+        { sid: 'adapter-enroll' }
+      )
+      await send(client, agent, {
+        type: 'adapter.enroll',
+        id: pairId,
+        harnessId: 'harness-a',
+        kind: 'opencode',
+        label: 'OpenCode',
+        credentialId: 'adapter-a',
+        key: adapterKey,
+        adapterVersion: '0.1.0',
+        protocolVersion: 1,
+        capabilities: {},
+      })
+
+      const enrolled = await waitFor(async () => {
+        const payloads = await readPayloads(client, frames)
+        return payloads.find((payload) => payload.type === 'adapter.enrolled')
+      })
+      const grant = enrolled.type === 'adapter.enrolled' ? enrolled.relayGrant : undefined
+      expect(grant).toBeDefined()
+      const verified = await verifyRelayGrant(grant!.grant, {
+        agentToken: RELAY_AGENT_TOKEN,
+        room: RELAY_ROOM,
+      })
+      expect(verified).toEqual({
+        ok: true,
+        payload: expect.objectContaining({ id: 'adapter-a' }),
+      })
+
+      // A later adapter connect refreshes the same grant in `ready`.
+      const adapterClient = await openClient(
+        agent,
+        frames,
+        adapterKey,
+        { adapter: true, adapterId: 'adapter-a' },
+        { sid: 'adapter-connect' }
+      )
+      const ready = await waitFor(async () => {
+        const payloads = await readPayloads(adapterClient, frames)
+        return payloads.find((payload) => payload.type === 'ready')
+      })
+      const refreshed = ready.type === 'ready' ? ready.relayGrant : undefined
+      expect(refreshed).toBeDefined()
+      const verifiedRefresh = await verifyRelayGrant(refreshed!.grant, {
+        agentToken: RELAY_AGENT_TOKEN,
+        room: RELAY_ROOM,
+      })
+      expect(verifiedRefresh).toEqual({
+        ok: true,
+        payload: expect.objectContaining({ id: 'adapter-a' }),
+      })
+    } finally {
+      await fake.close()
+    }
+  })
+})
+
 describe('agent relay envelope', () => {
   const PEER_A = 'peer-aaaaaaaaaaaaaaaaaaaa'
   const PEER_B = 'peer-bbbbbbbbbbbbbbbbbbbb'
 
-  function route(peer: string, frame: WireFrame | string): string {
+  function route(
+    peer: string,
+    frame: WireFrame | ClientHelloFrameV4 | string,
+    grantId = DEVICE_ID
+  ): string {
     const m = typeof frame === 'string' ? frame : JSON.stringify(frame)
-    return JSON.stringify({ t: 'route', v: PROTOCOL_VERSION, p: peer, m })
+    return JSON.stringify({ t: 'route', v: PROTOCOL_VERSION, p: peer, i: grantId, m })
   }
 
-  function routeBytes(peer: string, frame: WireFrame | string): string {
+  function routeBytes(
+    peer: string,
+    frame: WireFrame | ClientHelloFrameV4 | string,
+    grantId = DEVICE_ID
+  ): string {
     const text = typeof frame === 'string' ? frame : JSON.stringify(frame)
     return JSON.stringify({
       t: 'route',
       v: PROTOCOL_VERSION,
       p: peer,
+      i: grantId,
       b: true,
       m: Buffer.from(text, 'utf8').toString('base64url'),
     })
@@ -1258,34 +1435,26 @@ describe('agent relay envelope', () => {
       key?: string
       traffic?: TrafficMeter
       log?: (message: string, detail?: unknown) => void
-      frame?: (peer: string, value: WireFrame) => string
+      frame?: (peer: string, value: WireFrame | ClientHelloFrameV4, grantId?: string) => string
+      grantId?: string
     } = {}
   ): Promise<{ agent: Agent; client: Client; frames: WireFrame[] }> {
-    const sid = options.sid ?? 'relay-session'
     const key = options.key ?? generateKey()
     const frames: WireFrame[] = []
     const agent = relayAgent(fake, key, frames, options.traffic, options.log)
-    const clientNonce = bytesToBase64Url(randomBytes(16))
-    const hello: WireFrame = {
-      t: 'hello',
-      v: PROTOCOL_VERSION,
-      sid,
-      nonce: clientNonce,
-      role: 'client',
-      deviceId: DEVICE_ID,
-    }
     const wrap = options.frame ?? route
-    agent.handleMessage(wrap(peer, hello))
-
-    const agentHello = await waitFor(() => frames.find((item) => item.t === 'hello'))
-    if (agentHello.t !== 'hello') throw new Error('No hello frame')
-    const keys = await deriveSessionKeys({
+    const grantId = options.grantId ?? DEVICE_ID
+    const client = await openClient(
+      agent,
+      frames,
       key,
-      sid,
-      clientNonce,
-      agentNonce: agentHello.nonce,
-    })
-    return { agent, client: { sid, keys, sendSeq: 0, receiveSeq: 0 }, frames }
+      { deviceId: DEVICE_ID },
+      {
+        ...(options.sid ? { sid: options.sid } : { sid: 'relay-session' }),
+        deliver: (hello) => agent.handleMessage(wrap(peer, hello, grantId)),
+      }
+    )
+    return { agent, client, frames }
   }
 
   async function sendRelay(
@@ -1325,6 +1494,114 @@ describe('agent relay envelope', () => {
     }
   }
 
+  it('drops a relay frame that has no verified grant id', async () => {
+    const fake = await startFakeOpenCode()
+    try {
+      const key = generateKey()
+      const frames: WireFrame[] = []
+      const agent = relayAgent(fake, key, frames)
+      const ephemeral = await generateEphemeralKeyPair()
+      const hello: ClientHelloFrameV4 = {
+        t: 'hello',
+        v: PROTOCOL_VERSION_V4,
+        sid: 'missing-grant',
+        nonce: bytesToBase64Url(randomBytes(16)),
+        role: 'client',
+        eph: ephemeral.publicKey,
+        deviceId: DEVICE_ID,
+      }
+      // No `i`: the hub cannot tell which credential opened the socket.
+      agent.handleMessage(
+        JSON.stringify({ t: 'route', v: PROTOCOL_VERSION, p: PEER_A, m: JSON.stringify(hello) })
+      )
+      await new Promise((resolve) => setTimeout(resolve, 20))
+
+      expect(frames).toHaveLength(0)
+      expect(agent.sessionCount).toBe(0)
+    } finally {
+      await fake.close()
+    }
+  })
+
+  it('rejects a hello whose identity differs from the grant id', async () => {
+    const fake = await startFakeOpenCode()
+    try {
+      const key = generateKey()
+      const frames: WireFrame[] = []
+      const agent = relayAgent(fake, key, frames)
+      const ephemeral = await generateEphemeralKeyPair()
+      const sid = 'identity-mismatch'
+      agent.handleMessage(
+        route(
+          PEER_A,
+          {
+            t: 'hello',
+            v: PROTOCOL_VERSION_V4,
+            sid,
+            nonce: bytesToBase64Url(randomBytes(16)),
+            role: 'client',
+            eph: ephemeral.publicKey,
+            deviceId: DEVICE_ID,
+          },
+          'attacker-identity'
+        )
+      )
+
+      const error = await waitFor(() =>
+        frames.find((frame) => frame.t === 'error' && frame.sid === sid)
+      )
+      expect(error).toMatchObject({ code: 'invalid_device' })
+      // No hub hello and no session: the handshake must fail before key setup.
+      expect(frames.some((frame) => frame.t === 'hello')).toBe(false)
+      expect(agent.sessionCount).toBe(0)
+    } finally {
+      await fake.close()
+    }
+  })
+
+  it('macs the hub hello so only the holder of the static key accepts it', async () => {
+    const fake = await startFakeOpenCode()
+    try {
+      const key = generateKey()
+      const frames: WireFrame[] = []
+      const agent = relayAgent(fake, key, frames)
+      const ephemeral = await generateEphemeralKeyPair()
+      const hello: ClientHelloFrameV4 = {
+        t: 'hello',
+        v: PROTOCOL_VERSION_V4,
+        sid: 'mac-session',
+        nonce: bytesToBase64Url(randomBytes(16)),
+        role: 'client',
+        eph: ephemeral.publicKey,
+        deviceId: DEVICE_ID,
+      }
+      agent.handleMessage(route(PEER_A, hello))
+
+      const hubHello = await waitFor(() =>
+        frames.find(
+          (frame): frame is HubHelloFrameV4 =>
+            frame.t === 'hello' && frame.role === 'agent' && frame.sid === hello.sid
+        )
+      )
+      const input = {
+        sid: hello.sid,
+        nonceC: hello.nonce,
+        nonceS: hubHello.nonce,
+        ephC: hello.eph,
+        ephS: hubHello.eph,
+        privateKey: ephemeral.privateKey,
+        peerPublicKey: hubHello.eph,
+      }
+
+      expect(await verifyV4HelloMac({ ...input, staticKey: key, mac: hubHello.mac })).toBe(true)
+      expect(
+        await verifyV4HelloMac({ ...input, staticKey: generateKey(), mac: hubHello.mac })
+      ).toBe(false)
+    } finally {
+      await fake.close()
+    }
+  })
+
   it('drops a sealed frame from another peer without touching the session', async () => {
     const fake = await startFakeOpenCode()
     try {
@@ -1344,7 +1621,7 @@ describe('agent relay envelope', () => {
       expect(agent.getSnapshot()).toHaveLength(1)
       expect(traffic.snapshot().errors.misrouted).toBe(1)
       const dropped = logs.find((entry) => entry.message.includes('another relay peer'))
-      expect(dropped?.detail).toBe(`sid=${client.sid}`)
+      expect(dropped?.detail).toBe(`sid=${client.sid} grant=${DEVICE_ID}`)
 
       await sendRelay(client, agent, PEER_A, {
         type: 'ready.ack',
@@ -1373,14 +1650,16 @@ describe('agent relay envelope', () => {
     try {
       const { agent, client, frames } = await relayConnect(fake, PEER_A)
       const hellosBefore = frames.filter((frame) => frame.t === 'hello').length
+      const ephemeral = await generateEphemeralKeyPair()
 
       agent.handleMessage(
         route(PEER_B, {
           t: 'hello',
-          v: PROTOCOL_VERSION,
+          v: PROTOCOL_VERSION_V4,
           sid: client.sid,
           nonce: bytesToBase64Url(randomBytes(16)),
           role: 'client',
+          eph: ephemeral.publicKey,
           deviceId: DEVICE_ID,
         })
       )
@@ -1513,25 +1792,25 @@ describe('agent relay envelope', () => {
 })
 
 describe('agent relay limits', () => {
-  function route(peer: string, frame: WireFrame): string {
+  function route(peer: string, frame: WireFrame | ClientHelloFrameV4, grantId = DEVICE_ID): string {
     return JSON.stringify({
       t: 'route',
       v: PROTOCOL_VERSION,
       p: peer,
+      i: grantId,
       m: JSON.stringify(frame),
     })
   }
 
-  function helloFrame(
-    sid: string,
-    nonce = bytesToBase64Url(randomBytes(16))
-  ): Extract<WireFrame, { t: 'hello' }> {
+  async function helloFrame(sid: string): Promise<ClientHelloFrameV4> {
+    const ephemeral = await generateEphemeralKeyPair()
     return {
       t: 'hello',
-      v: PROTOCOL_VERSION,
+      v: PROTOCOL_VERSION_V4,
       sid,
-      nonce,
+      nonce: bytesToBase64Url(randomBytes(16)),
       role: 'client',
+      eph: ephemeral.publicKey,
       deviceId: DEVICE_ID,
     }
   }
@@ -1591,33 +1870,23 @@ describe('agent relay limits', () => {
       for (let index = 0; index < MAX_SESSIONS; index += 1) {
         const sid = `cap-${index}`
         const peer = `peer-cap-${String(index).padStart(4, '0')}`
-        const nonce = bytesToBase64Url(randomBytes(16))
-        const before = frames.filter((frame) => frame.t === 'hello').length
-        agent.handleMessage(route(peer, helloFrame(sid, nonce)))
-        const agentHello = await waitFor(
-          () => frames.filter((frame) => frame.t === 'hello')[before]
-        )
-        if (agentHello.t !== 'hello') throw new Error('No hello frame')
-        sessions.push({
-          client: {
+        const client = await openClient(
+          agent,
+          frames,
+          key,
+          { deviceId: DEVICE_ID },
+          {
             sid,
-            keys: await deriveSessionKeys({
-              key,
-              sid,
-              clientNonce: nonce,
-              agentNonce: agentHello.nonce,
-            }),
-            sendSeq: 0,
-            receiveSeq: 0,
-          },
-          peer,
-        })
+            deliver: (hello) => agent.handleMessage(route(peer, hello)),
+          }
+        )
+        sessions.push({ client, peer })
       }
       expect(agent.sessionCount).toBe(MAX_SESSIONS)
 
       // `device_limit` means the device registry is full and is treated as a
       // credential-dead code, so capacity uses the transient `not_allowed`.
-      agent.handleMessage(route('peer-over', helloFrame('cap-over')))
+      agent.handleMessage(route('peer-over', await helloFrame('cap-over')))
       const error = await waitFor(() =>
         frames.find((frame) => frame.t === 'error' && frame.sid === 'cap-over')
       )
@@ -1671,7 +1940,7 @@ describe('agent relay limits', () => {
 
       const peer = 'peer-rate'
       for (let index = 0; index < MAX_HELLOS_PER_WINDOW * 2; index += 1) {
-        agent.handleMessage(route(peer, helloFrame(`rate-${index}`)))
+        agent.handleMessage(route(peer, await helloFrame(`rate-${index}`)))
       }
 
       await waitFor(() => (agent.sessionCount === MAX_HELLOS_PER_WINDOW ? true : undefined))
@@ -1705,7 +1974,7 @@ describe('agent relay limits', () => {
       // More hellos than both the per-peer budget and the relay session cap.
       const total = MAX_SESSIONS + 2
       for (let index = 0; index < total; index += 1) {
-        agent.handleMessage(JSON.stringify(helloFrame(`local-${index}`)))
+        agent.handleMessage(JSON.stringify(await helloFrame(`local-${index}`)))
       }
 
       await waitFor(() => (agent.sessionCount === total ? true : undefined))

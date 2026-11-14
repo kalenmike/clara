@@ -115,6 +115,7 @@ function Panel({ state, session }: { state: SnapshotState; session: SessionContr
             <div className="panel-view-slot" hidden={tab !== 'settings'}>
               <SettingsView
                 snapshot={data}
+                now={clock}
                 onChanged={refresh}
                 setup={onboarding.setup}
                 preferences={onboarding.preferences}

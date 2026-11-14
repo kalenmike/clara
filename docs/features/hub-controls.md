@@ -12,7 +12,8 @@ for client settings sync.
 1. Open the panel at `http://127.0.0.1:8790/` on the machine running the hub service and sign in with the superadmin account.
 2. The **Hub**, **Effective configuration**, **Connected clients**, and
    **Recent activity** cards start expanded; every other card starts collapsed.
-   Click a card header to expand or collapse it.
+   The full Hub card and the Orchestration switch live in **Settings**. Click a
+   card header to expand or collapse it.
 3. Each transport card carries its own switch at the top right: local
    transport, relay, and push notifications. The Harness page header shows only
    the harness status chip; harness access is still governed by the legacy
@@ -27,16 +28,16 @@ for client settings sync.
 6. In **Client sync**, turn settings sync on or off and choose the client check
    interval. Turning it off hides the web Sync tab and rejects sync requests;
    stored values and per-device category choices are kept.
-7. Choose **Go offline** at the top right of the **Hub** card and confirm.
-   All external connections close, the E2EE sessions are reset, and the page
-   shows the offline banner.
+7. Choose **Go offline** at the far right of the **Overview** header and confirm.
+   All external connections close, the E2EE sessions are reset, the Hub tile
+   reads **Connections inactive**, and the page shows the offline banner.
 8. While connections are off, feature switches are disabled. Choose **Go
    online** in the same place to restore every saved on/off choice,
    including features that were off before the stop. Monitoring, client-sync,
    and orchestration controls stay editable because they do not start a Clara
    transport.
-9. Use **Orchestration** to start or stop the local service. Container and
-   external instances are detected and left alone.
+9. Use the **Orchestration** switch in **Settings** to start or stop the local
+   service. Container and external instances are detected and left alone.
 10. Restart the process at any time; the saved choices and the stopped
     connections setting are loaded before any transport starts.
 
@@ -57,9 +58,9 @@ for client settings sync.
 5. **Dependencies are visible.** Turning harness access off through the legacy
    `features.opencode` gate stops the push event monitor but leaves the local and
    relay transports connected. Push actions are gated separately.
-6. **Cards are accordions.** Hub, effective configuration, connected clients,
-   and recent activity start expanded; every other card starts collapsed. Each
-   opens from its header. A disabled feature hides its details and cannot be
+6. **Cards are accordions.** The Hub card in Settings, effective configuration,
+   connected clients, and recent activity start expanded; every other card starts
+   collapsed. Each opens from its header. A disabled feature hides its details and cannot be
    opened; the header keeps the switch and status chip. The client-sync card
    keeps its interval select editable even
    while the global sync gate is off, so the cadence can be prepared before sync

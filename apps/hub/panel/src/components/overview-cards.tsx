@@ -1,5 +1,5 @@
 import { Suspense, useEffect, useState } from 'react'
-import { Bell, Power, Radio, Server, Settings2 } from 'lucide-react'
+import { Bell, Radio, Server, Settings2 } from 'lucide-react'
 import type {
   PanelAgentInfo,
   PanelConfigInfo,
@@ -12,6 +12,7 @@ import type {
 import { CloudflareRelaySlot } from '../features/cloudflare-deployment/loader.tsx'
 import { findFeature, useFeatureControl } from '../lib/feature-control.ts'
 import { RelayEditor } from './relay-editor.tsx'
+import { HubPowerButton } from './hub-power-button.tsx'
 import {
   formatBytes,
   formatDuration,
@@ -47,32 +48,9 @@ export function AgentCard({
   onChanged: () => void
   now: number
 }) {
-  const [pending, setPending] = useState(false)
   const [error, setError] = useState<string>()
   const stopped = controls.stopped
   const { masked, redact } = usePeek()
-
-  const setStopped = async () => {
-    const next = !stopped
-    if (
-      next &&
-      !window.confirm(
-        'Take every external connection offline? The panel stays available so you can bring them back.'
-      )
-    ) {
-      return
-    }
-    setPending(true)
-    setError(undefined)
-    try {
-      await postPanel('/panel/api/v1/agent', { stopped: next })
-      onChanged()
-    } catch (cause) {
-      setError(cause instanceof Error ? cause.message : String(cause))
-    } finally {
-      setPending(false)
-    }
-  }
 
   return (
     <CollapsibleCard
@@ -85,25 +63,7 @@ export function AgentCard({
           {agent.stopped ? 'Connections off' : 'Connections on'}
         </Badge>
       }
-      control={
-        <button
-          type="button"
-          onClick={() => void setStopped()}
-          disabled={pending}
-          className={`inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-semibold text-white shadow-sm transition disabled:cursor-not-allowed disabled:opacity-60 ${
-            stopped ? 'bg-emerald-600 hover:bg-emerald-500' : 'bg-red-600 hover:bg-red-500'
-          }`}
-        >
-          <Power className="size-3.5" aria-hidden="true" />
-          {pending
-            ? stopped
-              ? 'Going online…'
-              : 'Going offline…'
-            : stopped
-              ? 'Go online'
-              : 'Go offline'}
-        </button>
-      }
+      control={<HubPowerButton stopped={stopped} onChanged={onChanged} onError={setError} />}
       notice={
         error ? (
           <div className="px-4 pt-3">

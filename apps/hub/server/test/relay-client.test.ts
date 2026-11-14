@@ -6,14 +6,21 @@ import { RelayClient } from '../src/relay-client.ts'
 
 const OUTDATED_RELAY = 'The relay is outdated; redeploy the Worker'
 
-function fakeAgent(): { agent: Agent; modes: string[] } {
+function fakeAgent(): {
+  agent: Agent
+  modes: string[]
+  issuers: Array<{ room: string; agentToken: string } | undefined>
+} {
   const modes: string[] = []
+  const issuers: Array<{ room: string; agentToken: string } | undefined> = []
   const agent = {
     setEnvelope: (mode: string) => modes.push(mode),
+    setGrantIssuer: (issuer: { room: string; agentToken: string } | undefined) =>
+      issuers.push(issuer),
     reset: () => {},
     handleMessage: () => {},
   } as unknown as Agent
-  return { agent, modes }
+  return { agent, modes, issuers }
 }
 
 type RelayServer = {
@@ -53,8 +60,8 @@ async function waitFor<T>(read: () => T | undefined, timeout = 2_000): Promise<T
 }
 
 describe('relay client', () => {
-  it('sets the relay envelope on its agent', () => {
-    const { agent, modes } = fakeAgent()
+  it('sets the relay envelope and grant issuer on its agent', () => {
+    const { agent, modes, issuers } = fakeAgent()
     const client = new RelayClient({
       url: 'ws://127.0.0.1:1',
       room: 'room',
@@ -63,13 +70,14 @@ describe('relay client', () => {
     })
     try {
       expect(modes).toEqual(['relay'])
+      expect(issuers).toEqual([{ room: 'room', agentToken: 'token' }])
     } finally {
       client.close()
     }
   })
 
-  it('connects to a version 2 relay', async () => {
-    const relay = await startRelay({ version: '2' })
+  it('connects to a version 3 relay', async () => {
+    const relay = await startRelay({ version: '3' })
     const { agent } = fakeAgent()
     const client = new RelayClient({
       url: relay.url,
@@ -87,8 +95,8 @@ describe('relay client', () => {
     }
   })
 
-  it('closes and reports a relay without a routing version', async () => {
-    for (const version of [undefined, '1']) {
+  it('closes and reports a relay with an outdated routing version', async () => {
+    for (const version of [undefined, '1', '2']) {
       const relay = await startRelay(version ? { version } : {})
       const { agent } = fakeAgent()
       const client = new RelayClient({

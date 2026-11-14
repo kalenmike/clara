@@ -1,6 +1,6 @@
 import { createClaraClient, type ClaraClient } from '@clara/api-client'
 import type { ApiInfo, ClaraServerInfo } from '@clara/api-contract'
-import type { ClaraAction } from '@clara/shared-types'
+import type { ClaraAction, RelayGrantState } from '@clara/shared-types'
 import {
   createRelayTransport,
   type EnrolledDevice,
@@ -15,7 +15,10 @@ export type DeviceConnection = {
   /** Full WebSocket URL, including `/room/<id>` for a relay or `/ws` locally. */
   wsUrl: string
   room: string
-  clientToken: string
+  /** Relay grant presented as `clara.auth.<grant>`; empty for a local pairing. */
+  grant: string
+  /** Unix milliseconds; zero for a local pairing. */
+  grantExpiresAt: number
   deviceId: string
   key: CryptoKey
   fingerprint: string
@@ -26,7 +29,8 @@ export type EnrollmentConnection = {
   kind: 'enroll'
   wsUrl: string
   room: string
-  clientToken: string
+  /** One-time enrollment grant; empty for a local pairing. */
+  grant: string
   enrollId: string
   enrollToken: string
   expiresAt: number
@@ -34,6 +38,11 @@ export type EnrollmentConnection = {
 }
 
 export type ConnectionConfig = DeviceConnection | EnrollmentConnection
+
+/** Called when the hub refreshes the device grant in a sealed `ready` action. */
+export type ClientHandlers = {
+  onRelayGrant?: (grant: RelayGrantState) => void
+}
 
 /** Non-secret connection metadata for the settings and connect screens. */
 export type ConnectionSummary = {
@@ -106,10 +115,14 @@ export function resolveRelayWsUrl(wsUrl: string, room: string): string {
   return url.toString()
 }
 
-export function createClient(config: ConnectionConfig): ClientHandle {
+export function createClient(
+  config: ConnectionConfig,
+  handlers: ClientHandlers = {}
+): ClientHandle {
   const transport = createRelayTransport({
     wsUrl: config.wsUrl,
-    clientToken: config.clientToken,
+    grant: config.grant,
+    ...(handlers.onRelayGrant ? { onRelayGrant: handlers.onRelayGrant } : {}),
     credential:
       config.kind === 'device'
         ? { kind: 'device', deviceId: config.deviceId, key: config.key }

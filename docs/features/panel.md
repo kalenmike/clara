@@ -70,14 +70,20 @@ card.
    to the add form as soon as the adapter registers. Use **Test** to probe an
    adapter. In a container, the adapter connects to `ws://server:8788/ws` on
    the `clara` network; `127.0.0.1` means the hub host.
-4. The panel opens on **Overview** with the Hub and Orchestration cards, a
-   health strip for Harness, Local, Relay, Push, and Orchestration, the five most
-   recent events, and a storage summary. A **Needs attention** banner names every
-   degraded surface; health tiles jump to their tab. Status chips sit beside each
-   card title, including a storage health summary that turns amber for warnings
-   and red for errors. Sensitive values start masked: device ids and fingerprints,
-   config and storage paths, local WebSocket endpoint, harness URL, relay URL and
-   room, connection session ids, and WebSocket URLs in activity or errors.
+4. The panel opens on **Overview** with a six-tile health strip — Hub, Local,
+   Relay, Harness, Push, and Orchestration — then Active clients and Active
+   adapters previews, the five most recent events, and a storage summary. The
+   Hub tile leads with its connection state and platform, process, and version;
+   the **Go offline** control sits at the far right of the Overview header. A
+   **Needs attention** banner names every degraded surface; health tiles jump to
+   their tab, and the Hub tile opens Settings. The Active clients and Active
+   adapters cards show up to five live rows with transport, paired device or
+   harness, connected, and last seen, and link to the full Clients and Harness
+   tables. Status chips sit beside each card title, including a storage health
+   summary that turns amber for warnings and red for errors. Sensitive values
+   start masked: device ids and fingerprints, config and storage paths, local
+   WebSocket endpoint, harness URL, relay URL and room, connection session ids,
+   and WebSocket URLs in activity or errors.
 5. Move between views from the activity rail: **Home** (Overview), **Harness**,
    **Sessions**, **Network** (Connections), **Clients**, **Traffic**, and
    **Activity**, with **Settings** pinned at the bottom. The rail shows live client and event counts
@@ -131,7 +137,9 @@ card.
    Cloudflare**: paste a Workers-scoped API token, choose the account, and Clara
    uploads the Worker, creates the Durable Object namespace, sets both relay
    tokens, and connects the relay. Existing devices must pair again.
-10. In **Settings**, choose **Light**, **Dark**, or **System** under **Appearance**.
+10. In **Settings**, review the full **Hub** details (uptime, process, platform,
+    memory, config path, and paired devices) and the **Orchestration** master
+    switch, then choose **Light**, **Dark**, or **System** under **Appearance**.
     **System** follows the operating system setting. The choice is stored in this
     browser and applies to the sign-in screen too.
 11. In **Settings**, edit **Web URL** or **VAPID contact** and choose **Save**;
@@ -149,23 +157,29 @@ card.
     choose the interval at which those clients check for changes. Turning it off
     hides the web Sync tab and rejects sync requests; the stored namespace and
     each device's category choices remain. The interval defaults to 30 seconds.
-14. To take every external connection offline, choose **Go offline** at the top
-    right of the Hub card on Overview and confirm. The page keeps polling; the
-    banner explains that the panel is still available.
+14. To take every external connection offline, choose **Go offline** at the far
+    right of the Overview header and confirm. The Hub tile reads **Connections
+    inactive**; the page keeps polling and the banner explains that the panel is
+    still available.
 15. Choose **Go online** to restore the saved choices. Feature switches are
     disabled until connections are back online and show red while they are
     stopped, so the offline state is readable from the switch colors alone.
-16. In **Clients**, use **Pair a browser** to create a one-time link, code, or
-    QR for a browser or installed app. Choose **Relay** or **Local** before
-    creating the code; the helper text explains where that code works. The
-    ready card shows only the QR until **Show codes** is opened, where the link,
-    code, fingerprint, transport, and expiry live; it can cancel the code before
-    it is used. Review the browser client table and paired devices below. Harness
-    adapter sessions are not listed here; they live under **Harness**. A
-    one-time pairing session appears with a **Pairing** badge and no device until
-    enrollment finishes; it is excluded from the active count and the local E2EE
-    session count. Each paired session row shows the device's display name, short
-    device id, and fingerprint so devices that share a label stay distinguishable.
+16. In **Clients**, choose **Pair Client** in the page header to open the
+    pairing dialog. Choose **Relay** or **Local** before creating the code; the
+    helper text explains where that code works. **Create pairing link** switches
+    the dialog to the pairing view: a locally rendered QR, an **Open Link**
+    action, the expiry, and **Copy code** and **Copy link** buttons. The raw code
+    and link are not printed. The dialog watches the five-second status snapshot
+    for a new device session or paired device and changes from **Waiting to
+    connect** to **Connected** when enrollment succeeds. Closing while waiting
+    cancels the unused code; closing after the dialog reports connected leaves
+    the new device in place. An expired code offers **Create new link**. Review
+    the browser client table and paired devices below. Harness adapter sessions
+    are not listed here; they live under **Harness**. A one-time pairing session
+    appears with a **Pairing** badge and no device until enrollment finishes; it
+    is excluded from the active count and the local E2EE session count. Each
+    paired session row shows the device's display name, short device id, and
+    fingerprint so devices that share a label stay distinguishable.
     An active device's **Edit** action sets an alias of up to 64 characters; the
     enrolled label stays visible as secondary text, and clearing the alias restores
     the enrolled name. Connected clients resolve the same alias from the paired
@@ -185,13 +199,14 @@ card.
 19. In **Activity**, read the in-memory events and the storage list. The storage
     header summarizes the most severe entry and its count, and the overview links
     here for the full list.
-20. Use **Orchestration** on Overview to start or stop the local orchestration
-    service. Turning it on starts a detached local instance when nothing is
-    answering and waits for `/health`; turning it off stops only the local
-    instance started from this data directory. A Docker or external instance is
-    detected and labelled, and the switch is disabled because the panel does not
-    own it. The switch is the master gate for the feature; connected clients
-    choose separately whether to use the orchestrator surface.
+20. Use the **Orchestration** switch in **Settings** to start or stop the local
+    orchestration service; the Overview tile still reports its state. Turning it
+    on starts a detached local instance when nothing is answering and waits for
+    `/health`; turning it off stops only the local instance started from this
+    data directory. A Docker or external instance is detected and labelled, and
+    the switch is disabled because the panel does not own it. The switch is the
+    master gate for the feature; connected clients choose separately whether to
+    use the orchestrator surface.
 21. Leave the page open. It refreshes every five seconds while visible and
     pauses when the tab is hidden. Use **Refresh** for an immediate check.
 
@@ -378,7 +393,7 @@ card.
   hub status update and reschedule their next check without reconnecting.
 - **Connections are off** — a banner says external connections are off, every
   transport card shows a stopped state, feature switches are disabled, and
-  **Pair a browser** cannot create a code. An enabled feature switch turns red
+  **Pair Client** cannot create a code. An enabled feature switch turns red
   and a disabled one keeps its neutral track. The Traffic and Client sync
   switches keep their usual colors.
 - **Orchestration changes** — the hub probes `/health` before and after the
@@ -600,8 +615,11 @@ card.
   `apps/hub/server/src/panel/server.ts`
 - Sessions DTOs: `PanelSession`, `PanelSessionHarness`, `PanelSessionsQuery`, and
   `PanelSessionsResponse` in `@clara/shared-types`
-- Browser pairing card: `apps/hub/panel/src/components/browser-pair-card.tsx`;
-  the QR is rendered locally with `qrcode.react`
+- Browser pairing dialog: `apps/hub/panel/src/components/pair-client-dialog.tsx`;
+  the QR is rendered locally with `qrcode.react`, and
+  `apps/hub/panel/src/lib/browser-pairing.ts` derives the waiting or connected
+  state from the status snapshot. `browser-pair-card.tsx` remains the inline card
+  used by guided setup.
 - Guided setup: `apps/hub/panel/src/lib/onboarding.ts` (pure step derivation),
   `apps/hub/panel/src/lib/use-onboarding.ts` (dismissal, completion, and modal
   mode), and `apps/hub/panel/src/components/onboarding/` (modal, connection,

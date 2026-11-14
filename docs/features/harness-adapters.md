@@ -25,7 +25,7 @@ contacts the harness directly.
    machine**, or **Cloudflare relay** → **Add harness**.
 2. Copy the pairing code or the matching command. Adapter codes start with
    `clara-harness1_` and only install an adapter; a browser pairs with a
-   `clara1_` code from **Clients → Pair a browser** or `pnpm clara pair`.
+   `clara1_` code from **Clients → Pair Client** or `pnpm clara pair`.
 3. On the harness machine, run the adapter installer. For OpenCode that is
    `pnpm clara adapter install --opencode --pair <code>`; for Claude Code it is
    `pnpm clara adapter install --claude --pair <code>`.
@@ -133,7 +133,7 @@ adapter environment, or the `env` block of the Claude Code user settings.
 - **Pairing code expired or used** — generate a new code in the panel.
 - **Wrong code pasted in the browser** — adapter codes are named as such; the
   web tells the user to install them with the adapter command and to use
-  **Clients → Pair a browser** or `pnpm clara pair` for a browser.
+  **Clients → Pair Client** or `pnpm clara pair` for a browser.
 - **Wrong harness kind** — the adapter rejects a code issued for another type.
 - **Adapter connected** — it appears under **Harness → Connected adapters**
   with its harness label, kind, short harness id, and credential fingerprint.

@@ -79,7 +79,7 @@ export const PANEL_TABS: PanelTabMeta[] = [
     id: 'clients',
     label: 'Clients',
     icon: Users,
-    kicker: 'Sessions',
+    kicker: 'Connections',
     title: 'Clients',
     description: 'Live end-to-end encrypted browser sessions and the devices that own them.',
     primary: true,
@@ -108,7 +108,7 @@ export const PANEL_TABS: PanelTabMeta[] = [
     icon: Settings,
     kicker: 'Control',
     title: 'Settings',
-    description: 'Effective configuration and client sync.',
+    description: 'Hub details, orchestration, effective configuration, and client sync.',
     primary: false,
   },
 ]
