@@ -90,6 +90,7 @@ pnpm clara docs check # Check guide and internal doc indexes and links
 pnpm clara mcp install|config|status # Install or inspect the MCP bridge
 pnpm clara mcp install --api        # Add the read-only hub API MCP
 pnpm check:boundaries # Fail if a harness SDK escapes its adapter package
+pnpm adapters:build # Build host adapter artifacts and a local registry under dist/adapters
 pnpm clara adapter install --opencode --pair <code> [--mcp] # Install the OpenCode adapter, MCP, and shared runner
 pnpm clara adapter install --claude --pair <code> # Install the Claude Code adapter
 pnpm clara adapter install --pi --pair <code> # Install the Pi adapter

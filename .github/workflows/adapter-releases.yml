@@ -1,0 +1,237 @@
+name: adapter-releases
+
+# Build every supported adapter on its own OS runner and upload the archives to
+# a GitHub release. The publish job also writes the registry manifest and
+# install script as the `adapter-registry` workflow artifact; the web registry
+# is deployed manually from that artifact.
+#
+# Use the workflow_dispatch form to run a release. The workflow is deliberately
+# not tag-triggered so the hub-installers `v*` workflow stays independent.
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version without a leading v (default: package version + -dev+<short sha>)'
+        required: false
+        type: string
+      kinds:
+        description: 'Adapters: all, or a comma list (opencode,claude,pi)'
+        required: false
+        default: all
+        type: string
+      dry_run:
+        description: 'Build and generate the registry without touching a GitHub release'
+        required: false
+        default: false
+        type: boolean
+
+permissions:
+  contents: read
+
+concurrency:
+  group: adapter-releases
+  cancel-in-progress: false
+
+jobs:
+  prepare:
+    name: prepare
+    runs-on: ubuntu-22.04
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+      tag: ${{ steps.version.outputs.tag }}
+      artifact_base: ${{ steps.version.outputs.artifact_base }}
+      kinds: ${{ steps.version.outputs.kinds }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Resolve version and release URL
+        id: version
+        env:
+          INPUT_VERSION: ${{ inputs.version }}
+          INPUT_KINDS: ${{ inputs.kinds }}
+        run: |
+          set -eu
+          version="${INPUT_VERSION#v}"
+          if [ -z "$version" ]; then
+            version="$(node -p "require('./package.json').version")-dev+$(git rev-parse --short=7 HEAD)"
+          fi
+          case "$version" in
+            *[!0-9A-Za-z._+-]*) echo "Invalid version: use letters, digits, dot, underscore, plus, or dash." >&2; exit 1 ;;
+          esac
+
+          kinds="${INPUT_KINDS:-all}"
+          kinds="$(printf '%s' "$kinds" | tr -d ' ')"
+          case "$kinds" in
+            all) ;;
+            *[!a-z,]*|'') echo "Invalid kinds: use all or opencode,claude,pi." >&2; exit 1 ;;
+            *)
+              old_ifs="$IFS"
+              IFS=','
+              for kind in $kinds; do
+                case "$kind" in
+                  opencode|claude|pi) ;;
+                  *) echo "Invalid adapter kind: $kind" >&2; exit 1 ;;
+                esac
+              done
+              IFS="$old_ifs"
+              ;;
+          esac
+
+          tag="adapters-v$version"
+          encoded_tag="$(node -e 'process.stdout.write(encodeURIComponent(process.argv[1]))' "$tag")"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+          echo "kinds=$kinds" >> "$GITHUB_OUTPUT"
+          echo "artifact_base=https://github.com/$GITHUB_REPOSITORY/releases/download/$encoded_tag" >> "$GITHUB_OUTPUT"
+
+  build:
+    name: ${{ matrix.name }}
+    needs: prepare
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: linux
+            os: ubuntu-22.04
+            targets: linux-x64,linux-arm64,linux-x64-musl,linux-arm64-musl
+          - name: macos
+            os: macos-14
+            targets: darwin-arm64,darwin-x64
+          - name: windows
+            os: windows-latest
+            targets: win32-x64,win32-arm64
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11.1.1
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.4.0
+
+      - run: pnpm install --frozen-lockfile
+
+      - name: Build adapter archives
+        run: >-
+          node tools/adapters/build.mjs
+          --artifacts-only
+          --kind "${{ needs.prepare.outputs.kinds }}"
+          --targets "${{ matrix.targets }}"
+          --version "${{ needs.prepare.outputs.version }}"
+          --build dist/adapters
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: adapter-${{ matrix.name }}
+          if-no-files-found: error
+          path: dist/adapters/**
+
+  publish:
+    name: publish
+    needs: [prepare, build]
+    runs-on: ubuntu-22.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11.1.1
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: adapter-*
+          path: dist/adapters
+          merge-multiple: true
+
+      - name: Generate registry files
+        run: >-
+          node tools/adapters/build.mjs
+          --skip-build
+          --no-adapter-build
+          --kind "${{ needs.prepare.outputs.kinds }}"
+          --targets all
+          --version "${{ needs.prepare.outputs.version }}"
+          --tag "${{ needs.prepare.outputs.tag }}"
+          --artifact-base "${{ needs.prepare.outputs.artifact_base }}"
+          --build dist/adapters
+          --out apps/web/public/adapters
+
+      # The web registry is deployed by the maintainer. This artifact contains
+      # apps/web/public/adapters/<harness>/manifest.json and the install script.
+      - uses: actions/upload-artifact@v4
+        with:
+          name: adapter-registry
+          if-no-files-found: error
+          path: apps/web/public/adapters/**
+
+      - name: Create draft release
+        if: ${{ !inputs.dry_run }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -eu
+          tag="${{ needs.prepare.outputs.tag }}"
+          if gh release view "$tag" >/dev/null 2>&1; then
+            echo "release $tag already exists"
+          else
+            gh release create "$tag" \
+              --draft \
+              --title "$tag" \
+              --notes "Clara adapter release ${{ needs.prepare.outputs.version }}. Adapter archives for every supported platform are attached. The web registry is published separately from the adapter-registry workflow artifact."
+          fi
+
+      - name: Upload adapter archives
+        if: ${{ !inputs.dry_run }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -eu
+          gh release upload "${{ needs.prepare.outputs.tag }}" \
+            dist/adapters/*/*.tar.gz --clobber
+
+      - name: Publish release
+        if: ${{ !inputs.dry_run }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -eu
+          gh release edit "${{ needs.prepare.outputs.tag }}" --draft=false --latest=false
+
+      - name: Summary
+        run: |
+          {
+            echo "## Adapter release ${{ needs.prepare.outputs.version }}"
+            echo ""
+            echo "- Tag: \`${{ needs.prepare.outputs.tag }}\`"
+            echo "- Artifact base: ${{ needs.prepare.outputs.artifact_base }}"
+            echo "- Registry artifact: \`adapter-registry\` (\`apps/web/public/adapters\`)"
+            if [ "${{ inputs.dry_run }}" = "true" ]; then
+              echo "- Dry run: no release assets were uploaded."
+            else
+              echo "- Release: https://github.com/$GITHUB_REPOSITORY/releases/tag/${{ needs.prepare.outputs.tag }}"
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
