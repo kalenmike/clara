@@ -94,6 +94,10 @@ requires every device to pair again.
 The room is always generated. You can replace it with **Regenerate room**, but
 you cannot type a room name.
 
+A relay URL saved without both tokens does not block the hub. It starts
+local-only, the Relay card marks the missing tokens, and saving them connects
+the relay without a restart.
+
 Environment variables are the fallback for CI or headless bootstrap:
 
 ```bash
@@ -129,14 +133,15 @@ address that only works on the same machine or network.
 
 ## Failure behavior
 
-| Failure           | Result                                                                   |
-| ----------------- | ------------------------------------------------------------------------ |
-| Relay unreachable | The hub retries with backoff and the panel shows the relay state.        |
-| Hub offline       | Clients connect to the room, then close and report a connection failure. |
-| Hub restart       | Clients close and re-handshake with their stored device key.             |
-| Wrong token       | The Worker rejects the upgrade with `401`.                               |
-| Revoked device    | The hub rejects the device and the client stops reconnecting.            |
-| Version mismatch  | Update the web client and hub together.                                  |
+| Failure              | Result                                                                   |
+| -------------------- | ------------------------------------------------------------------------ |
+| Relay unreachable    | The hub retries with backoff and the panel shows the relay state.        |
+| Relay tokens missing | The hub starts local-only; save both tokens in **Connections → Relay**.  |
+| Hub offline          | Clients connect to the room, then close and report a connection failure. |
+| Hub restart          | Clients close and re-handshake with their stored device key.             |
+| Wrong token          | The Worker rejects the upgrade with `401`.                               |
+| Revoked device       | The hub rejects the device and the client stops reconnecting.            |
+| Version mismatch     | Update the web client and hub together.                                  |
 
 ## Security notes
 

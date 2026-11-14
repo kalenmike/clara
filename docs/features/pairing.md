@@ -145,6 +145,9 @@ at the panel's **Clients → Pair a browser** action or `clara-server pair`.
   HTTPS page reports that the code is local-only. The panel and
   `clara-server pair` warn when the pairing link is remote while the hub has no
   relay. Configure the relay for phones.
+- **Relay URL without tokens** — the hub still starts and creates a local
+  pairing code. The panel Relay card marks both tokens as missing; save them
+  there before creating a relay code.
 - **Local code with a relay configured** — the panel's **Local** choice, or
   `clara-server pair --no-relay`, emits room `local`, the listener
   URL, and the local web app link without needing relay tokens; the web keeps

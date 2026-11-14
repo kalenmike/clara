@@ -91,7 +91,9 @@ card.
    details; turning it on makes the header expandable. The Relay card edits the
    relay URL, hub token, and client token, shows the generated room, and can
    regenerate that room. Tokens are encrypted before they are saved and are
-   never shown again. Environment variables win over panel values field by
+   never shown again. A relay URL saved without tokens does not block the hub:
+   the card marks both tokens as missing and the hub runs local-only until they
+   are saved. Environment variables win over panel values field by
    field; fields they supply are read-only. When the build includes the optional
    Cloudflare deployment, the Relay card also carries **Deploy relay to
    Cloudflare**: paste a Workers-scoped API token, choose the account, and Clara

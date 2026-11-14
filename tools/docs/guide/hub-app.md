@@ -90,6 +90,10 @@ starting another hub for the same data directory.
 The hub desktop app cannot start the local orchestration service. Use the
 Docker orchestrator or the CLI when you need pipelines.
 
+If the panel already has a relay URL but the tokens are missing, the hub still
+starts and runs local-only. Save both tokens in **Connections → Relay** to
+connect the relay; no restart is needed.
+
 ## Related
 
 - [Self-hosting overview](self-hosting/index.md)
