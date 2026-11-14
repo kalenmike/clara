@@ -21,6 +21,7 @@ import { ReplyDock } from '@/components/chat/reply-dock'
 import { SessionStatsBar } from '@/components/chat/session-stats-bar'
 import { SidePanel } from '@/components/layout/side-panel'
 import { useDefaultAgent } from '@/features/agents/use-default-agent'
+import { primaryAgents } from '@/features/agents/default-agent'
 import { useAgents, useModels } from '@/features/catalog/use-catalog'
 import { ComposerProvider, useComposer } from '@/features/chat/composer-provider'
 import { composerDocked } from '@/features/chat/composer-layout'
@@ -199,10 +200,7 @@ function ChatPageContent() {
   const isDesktop = useMediaQuery('(min-width: 1280px)')
 
   const agentsQuery = useAgents(harnessID)
-  const agents = useMemo(
-    () => (agentsQuery.data ?? []).filter((agent) => !agent.hidden && agent.mode !== 'subagent'),
-    [agentsQuery.data]
-  )
+  const agents = useMemo(() => primaryAgents(agentsQuery.data), [agentsQuery.data])
   const switchAgent = useSwitchAgent(sessionId ?? '')
   const switchModel = useSwitchModel(sessionId ?? '')
   const { settings: defaultAgentSettings } = useDefaultAgent()
