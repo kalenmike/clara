@@ -5,12 +5,15 @@ import {
   ReplayGuard,
   base64UrlToBytes,
   bytesToBase64Url,
-  deriveSessionKeys,
+  deriveV4SessionKeys,
+  generateEphemeralKeyPair,
   open,
   randomBytes,
   seal,
   utf8,
+  verifyV4HelloMac,
   type SessionKeys,
+  type V4EphemeralKeyPair,
 } from '@clara/crypto'
 import {
   PROTOCOL_VERSION,
@@ -19,6 +22,7 @@ import {
   RELAY_SUBPROTOCOL,
   isErrorFrame,
   isHelloFrame,
+  isHubHelloFrameV4,
   isSealedFrame,
   type AdapterAction,
   type AdapterRequestAction,
@@ -96,6 +100,10 @@ export class AdapterTransport {
   private messageChain: Promise<void> = Promise.resolve()
   /** Relay grant in memory; refreshed by `ready` and persisted by the CLI. */
   private grant: string
+  private ephemeral: V4EphemeralKeyPair | null = null
+  private handshakeNonce = ''
+  private handshakeEph = ''
+  private preserveError = false
 
   constructor(options: AdapterTransportOptions) {
     this.options = options
@@ -142,6 +150,7 @@ export class AdapterTransport {
     this.socket?.close(1000, 'adapter shutting down')
     this.socket = null
     this.keys = null
+    this.ephemeral = null
     this.sendChain = Promise.resolve()
     this.connected = false
     this.authenticated = false
@@ -250,11 +259,13 @@ export class AdapterTransport {
     })
     socket.on('close', (code, reason) => {
       if (this.socket !== socket) return
-      if (!this.stopped) {
+      if (!this.stopped && !this.preserveError) {
         this.lastError = `Disconnected (${code} ${reason.toString() || 'no reason'})`
       }
+      this.preserveError = false
       this.socket = null
       this.keys = null
+      this.ephemeral = null
       this.connected = false
       this.authenticated = false
       this.lastHubFrameAt = 0
@@ -282,6 +293,11 @@ export class AdapterTransport {
     this.sid = bytesToBase64Url(randomBytes(16))
     const clientNonce = bytesToBase64Url(randomBytes(16))
     this.handshakeNonce = clientNonce
+    // A fresh ephemeral pair per connection is what gives v4 forward secrecy.
+    const ephemeral = await generateEphemeralKeyPair()
+    if (this.socket !== socket) return
+    this.ephemeral = ephemeral
+    this.handshakeEph = ephemeral.publicKey
     socket.send(
       JSON.stringify({
         t: 'hello',
@@ -289,13 +305,12 @@ export class AdapterTransport {
         sid: this.sid,
         nonce: clientNonce,
         role: 'client',
+        eph: ephemeral.publicKey,
         adapter: true,
         adapterId: this.options.identity.adapterId,
       })
     )
   }
-
-  private handshakeNonce = ''
 
   private async handleMessage(text: string): Promise<void> {
     let parsed: unknown
@@ -307,13 +322,33 @@ export class AdapterTransport {
 
     if (isHelloFrame(parsed)) {
       if (parsed.sid !== this.sid || parsed.role !== 'agent') return
-      const keys = await deriveSessionKeys({
-        key: this.options.identity.key,
+      // A duplicate hello cannot replace an established session's keys.
+      if (this.keys) return
+      if (!isHubHelloFrameV4(parsed) || !this.ephemeral) {
+        // The hub must answer with the v4 shape. Anything else is a failed
+        // handshake, not a reason to keep waiting for one.
+        this.failHandshake('The hub did not send a v4 handshake')
+        return
+      }
+      const input = {
+        staticKey: this.options.identity.key,
         sid: this.sid,
-        clientNonce: this.handshakeNonce,
-        agentNonce: parsed.nonce,
-      })
-      this.keys = keys
+        nonceC: this.handshakeNonce,
+        nonceS: parsed.nonce,
+        ephC: this.handshakeEph,
+        ephS: parsed.eph,
+        privateKey: this.ephemeral.privateKey,
+        peerPublicKey: parsed.eph,
+      }
+      // Verify the hub's MAC before adopting any derived key. A hub without the
+      // adapter credential cannot produce it, so this proves the peer.
+      if (!(await verifyV4HelloMac({ ...input, mac: parsed.mac }))) {
+        this.failHandshake('The hub hello MAC did not verify')
+        return
+      }
+      const material = await deriveV4SessionKeys(input)
+      this.keys = material.keys
+      this.ephemeral = null
       this.receive = new ReplayGuard()
       this.sendSeq = 0
       this.sendChain = Promise.resolve()
@@ -594,6 +629,20 @@ export class AdapterTransport {
   private stopHandshakeTimer(): void {
     if (this.handshakeTimer) clearTimeout(this.handshakeTimer)
     this.handshakeTimer = null
+  }
+
+  /**
+   * A v4 handshake that fails before any frame is sealed is transient: close
+   * the socket and let the usual backoff retry. Nothing has been encrypted
+   * with the failed key material, so there is no recovery step.
+   */
+  private failHandshake(reason: string): void {
+    this.lastError = reason
+    this.preserveError = true
+    this.ephemeral = null
+    this.keys = null
+    this.options.log?.(`adapter handshake failed: ${reason}`)
+    this.socket?.close(1000, 'bad handshake')
   }
 
   /**

@@ -3,11 +3,13 @@ import { HARNESS_PROTOCOL_VERSION } from '@clara/harness-protocol'
 import {
   ReplayGuard,
   bytesToBase64Url,
-  deriveSessionKeys,
+  deriveV4SessionKeys,
+  generateEphemeralKeyPair,
   open,
   randomBytes,
   seal,
   utf8,
+  verifyV4HelloMac,
   type SessionKeys,
 } from '@clara/crypto'
 import {
@@ -17,6 +19,7 @@ import {
   RELAY_SUBPROTOCOL,
   isErrorFrame,
   isHelloFrame,
+  isHubHelloFrameV4,
   isSealedFrame,
   type AdapterEnrolledState,
   type AdapterState,
@@ -61,6 +64,7 @@ export async function enrollAdapter(input: EnrollmentInput): Promise<AdapterEnro
   const socket = new WebSocket(input.wsUrl, protocols)
   const sid = bytesToBase64Url(randomBytes(16))
   const clientNonce = bytesToBase64Url(randomBytes(16))
+  let ephemeral: Awaited<ReturnType<typeof generateEphemeralKeyPair>> | undefined
   let keys: SessionKeys | undefined
   let sendSeq = 0
   const receive = new ReplayGuard()
@@ -117,17 +121,22 @@ export async function enrollAdapter(input: EnrollmentInput): Promise<AdapterEnro
 
   socket.on('open', () => {
     connected = true
-    socket.send(
-      JSON.stringify({
-        t: 'hello',
-        v: PROTOCOL_VERSION,
-        sid,
-        nonce: clientNonce,
-        role: 'client',
-        adapter: true,
-        enrollId: input.enrollId,
-      })
-    )
+    void (async () => {
+      ephemeral = await generateEphemeralKeyPair()
+      if (settled) return
+      socket.send(
+        JSON.stringify({
+          t: 'hello',
+          v: PROTOCOL_VERSION,
+          sid,
+          nonce: clientNonce,
+          role: 'client',
+          eph: ephemeral.publicKey,
+          adapter: true,
+          enrollId: input.enrollId,
+        })
+      )
+    })().catch(fail)
   })
 
   socket.on('message', (data) => {
@@ -143,13 +152,28 @@ export async function enrollAdapter(input: EnrollmentInput): Promise<AdapterEnro
 
         if (isHelloFrame(parsed)) {
           if (parsed.sid !== sid || parsed.role !== 'agent') return
+          if (!isHubHelloFrameV4(parsed) || !ephemeral) {
+            fail(new Error('The hub did not send a v4 handshake'))
+            return
+          }
           helloReceived = true
-          keys = await deriveSessionKeys({
-            key: input.enrollToken,
+          const handshake = {
+            staticKey: input.enrollToken,
             sid,
-            clientNonce,
-            agentNonce: parsed.nonce,
-          })
+            nonceC: clientNonce,
+            nonceS: parsed.nonce,
+            ephC: ephemeral.publicKey,
+            ephS: parsed.eph,
+            privateKey: ephemeral.privateKey,
+            peerPublicKey: parsed.eph,
+          }
+          if (!(await verifyV4HelloMac({ ...handshake, mac: parsed.mac }))) {
+            fail(new Error('The hub hello MAC did not verify'))
+            return
+          }
+          const material = await deriveV4SessionKeys(handshake)
+          keys = material.keys
+          ephemeral = undefined
           await send({
             type: 'adapter.enroll',
             id: input.enrollId,
