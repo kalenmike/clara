@@ -16,15 +16,15 @@ joining the relay room.
 
 ## Components
 
-| Component       | Location                          | Responsibility                                                 |
-| --------------- | --------------------------------- | -------------------------------------------------------------- |
-| Hub service     | `apps/hub/server`                 | Hub `/v1` API, adapter routing, E2EE sessions, relay reconnect |
-| Adapter         | `apps/adapters/*`                 | Harness translation, harness auth, adapter E2EE and reconnect  |
-| Relay Worker    | `infra/relay`                     | Path routing, subprotocol/token auth, static health endpoint   |
-| `RelayRoom` DO  | `infra/relay`                     | One hub socket + N client sockets; frame forwarding only       |
-| Web transport   | `apps/web`                        | Fetch-over-WebSocket shim, E2EE, reconnect, heartbeat          |
-| Shared protocol | `packages/contracts/shared-types` | Frame/action/state types and pairing payloads                  |
-| Crypto          | `packages/crypto`                 | device-key derivation, AES-GCM seal/open, replay guard         |
+| Component       | Location                          | Responsibility                                                               |
+| --------------- | --------------------------------- | ---------------------------------------------------------------------------- |
+| Hub service     | `apps/hub/server`                 | Hub `/v1` API, adapter routing, E2EE sessions, peer binding, relay reconnect |
+| Adapter         | `apps/adapters/*`                 | Harness translation, harness auth, adapter E2EE and reconnect                |
+| Relay Worker    | `infra/relay`                     | Path routing, subprotocol/token auth, static health endpoint                 |
+| `RelayRoom` DO  | `infra/relay`                     | One hub socket + N client sockets; peer tagging, limits, forwarding          |
+| Web transport   | `apps/web`                        | Fetch-over-WebSocket shim, E2EE, reconnect, heartbeat                        |
+| Shared protocol | `packages/contracts/shared-types` | Frame/action/state types and pairing payloads                                |
+| Crypto          | `packages/crypto`                 | device-key derivation, AES-GCM seal/open, replay guard                       |
 
 ## Example domain layout
 
@@ -43,14 +43,22 @@ only regenerates a fresh random value.
 - A room has exactly one hub socket. A new hub connection closes the old
   one with code `4002` and closes clients with `1012` so they re-handshake
   against the new process.
-- Browsers and adapters are both clients of the room. Client frames go only to
-  the hub. Hub frames are broadcast to every client. There is no per-client
-  routing state in the DO.
+- Browsers and adapters are both clients of the room. The DO assigns each client
+  socket a random peer id and keeps it in the socket attachment, so it survives
+  hibernation. Every client frame is wrapped in a route envelope that carries
+  that peer id before it reaches the hub. Hub frames are broadcast to every
+  client unchanged. The DO holds no per-session routing state: the hub binds
+  each session to the peer that opened it.
 - Each client uses its own `sid` and per-session keys. The hello also carries a
   stable `deviceId` for a browser or a stable adapter identity for an adapter, so
   the relay can correlate connections from one peer even though the `sid` is
   fresh. Foreign frames fail to decrypt and are dropped; the relay does not need
   to understand them.
+- A room admits at most 32 client sockets, and at most 8 of those from one
+  `cf-connecting-ip` address. Per peer the DO allows 60 frames/s and 512 KiB/s
+  with a short burst, and it refuses any client frame larger than 128 KiB. A
+  refusal closes the socket with `4008` and a reason that names the limit, or
+  with `4009` for an oversized frame.
 - When the hub disconnects, clients close with `1012` and reconnect with
   jittered backoff.
 - When no hub is present, a client frame closes that client with `1013`.
@@ -69,8 +77,8 @@ clara.role.client | clara.role.agent
 clara.auth.<token>
 ```
 
-The Worker checks the role-specific token with a constant-time comparison, then
-forwards a trusted `x-clara-role` header to the DO. Use separate secrets:
+The Worker checks the role-specific token by comparing digests in constant time,
+then forwards a trusted `x-clara-role` header to the DO. Use separate secrets:
 
 ```bash
 cd infra/relay
@@ -80,13 +88,34 @@ pnpm exec wrangler secret put CLARA_CLIENT_TOKEN
 
 The client token is embedded in the pairing payload for browsers and adapters. It
 prevents unpaired traffic from reaching the hub, but it is not the encryption
-key. An attacker with the client token and no device or adapter key can open
-sockets and cause noise; they cannot read or forge E2EE frames. Rotate both
-tokens if either leaks. Adapter pairing also issues its own adapter credential;
-that credential authenticates the adapter after enrollment.
+key. A client-token holder without a device or adapter key can open sockets and
+add noise, but peer binding keeps them out of other sessions: the hub serves a
+hello or sealed frame only from the peer that opened the session, so a guessed
+`sid` cannot kill or hijack it. Every client frame arrives wrapped in a route
+frame that names the sender's peer, so the hub never treats the payload's `sid`
+as proof of ownership. What remains is bounded by the room and per-peer limits.
+Rotate both tokens if either leaks. Adapter pairing also issues its own adapter
+credential; that credential authenticates the adapter after enrollment.
+
+Relay tokens must be 32–512 characters with no whitespace and no comma. The
+panel refuses to save anything else and names the rule, because a comma would
+split the subprotocol header, and deployment checks the same shape. The Worker
+hashes the presented and configured tokens and compares the digests, so a wrong
+length is no cheaper to probe than a wrong value. Malformed room escapes are
+refused with `400` instead of reaching the DO, and the Worker strips the
+`clara.auth.*` values before forwarding, so the DO never sees a token.
 
 The hub's relay role and secret keep the historical `agent` name
 (`clara.role.agent`, `CLARA_AGENT_TOKEN`), while prose calls that side the hub.
+
+## Relay version
+
+The DO advertises `x-clara-relay-version: 2` on the upgrade response and speaks
+the route envelope. The version and the envelope ship together, so the hub and
+the Worker must be redeployed together. A hub that reaches an older Worker
+closes the socket and reports **The relay is outdated; redeploy the Worker**;
+the hub also drops any unwrapped client frame. Remote access is unavailable
+between the two deploys; pairing payloads and the local listener are unaffected.
 
 ## Deployment
 
@@ -150,17 +179,21 @@ without the flag. The manual Wrangler path below remains the supported fallback.
 
 ## Failure behavior
 
-| Failure                   | Result                                                                     |
-| ------------------------- | -------------------------------------------------------------------------- |
-| Relay unreachable         | Hub retries with exponential backoff (1s–30s, jittered).                   |
-| Hub offline               | Clients connect, then close with `1013`; the connect screen shows failure. |
-| Hub restarts              | DO closes clients with `1012`; both sides re-handshake.                    |
-| Adapter offline           | Hub returns `harness_offline`; the adapter reconnects with backoff.        |
-| Wrong token               | Worker returns `401` before upgrading.                                     |
-| Unknown or revoked device | Hub sends an `error` frame; the client reports and stops reconnecting.     |
-| Version mismatch          | Handshake is rejected; update web and hub together.                        |
-| Slow client               | DO closes above the buffered-output threshold.                             |
-| Many clients              | Egress scales with client count because hub frames are broadcast.          |
+| Failure                   | Result                                                                                                       |
+| ------------------------- | ------------------------------------------------------------------------------------------------------------ |
+| Relay unreachable         | Hub retries with exponential backoff (1s–30s, jittered).                                                     |
+| Hub offline               | Clients connect, then close with `1013`; the connect screen shows failure.                                   |
+| Hub restarts              | DO closes clients with `1012`; both sides re-handshake.                                                      |
+| Adapter offline           | Hub returns `harness_offline`; the adapter reconnects with backoff.                                          |
+| Wrong token               | Worker returns `401` before upgrading.                                                                       |
+| Outdated relay            | Hub reports **The relay is outdated; redeploy the Worker** and stays offline until the Worker is updated.    |
+| Unknown or revoked device | Hub sends an `error` frame; a transient code reconnects, a credential-dead code stops after three in a row.  |
+| Room full                 | The DO refuses the 33rd client socket, or a 9th from one address, with `4008` and a reason naming the limit. |
+| Per-peer rate limited     | A peer above 60 frames/s or 512 KiB/s closes with `4008`; the client reconnects with backoff.                |
+| Hub session limit         | A hello beyond 64 live sessions gets `not_allowed`; the client retries with backoff.                         |
+| Version mismatch          | Handshake is rejected; update web and hub together.                                                          |
+| Slow client               | DO closes above the buffered-output threshold.                                                               |
+| Many clients              | Egress scales with client count because hub frames are broadcast.                                            |
 
 ## Related
 

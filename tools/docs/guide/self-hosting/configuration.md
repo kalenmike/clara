@@ -129,10 +129,11 @@ values.
 | `CLARA_AGENT_TOKEN`                                        | Relay token for the hub side; wins over the panel when set   |
 | `CLARA_CLIENT_TOKEN`                                       | Relay token embedded in pairing payloads; wins when set      |
 
-The relay variables are covered in [Remote access](relay.md). Each one wins over
-the matching panel value when it is set; otherwise the panel is used. In Docker,
-setting `CLARA_RELAY_URL` without environment tokens is allowed when the panel
-has saved tokens, so `pnpm clara start` warns instead of blocking.
+The relay variables are covered in [Remote access](relay.md). Relay tokens must
+be 32 to 512 characters and cannot contain spaces or commas. Each variable wins
+over the matching panel value when it is set; otherwise the panel is used. In
+Docker, setting `CLARA_RELAY_URL` without environment tokens is allowed when the
+panel has saved tokens, so `pnpm clara start` warns instead of blocking.
 
 ## Files worth backing up
 
