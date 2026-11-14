@@ -1,14 +1,7 @@
 import { useEffect, useRef } from 'react'
 import type { PanelSnapshot } from '@clara/shared-types'
 import { useClientPairing } from '../lib/use-client-pairing.ts'
-import { usePeek } from '../lib/peek-context.tsx'
-import {
-  PairClientFooter,
-  PairClientHeader,
-  PairClientPairingView,
-  PairClientSetupView,
-} from './pair-client-views.tsx'
-import { Notice } from './primitives.tsx'
+import { PairClientContent, PairClientFooter, PairClientHeader } from './pair-client-views.tsx'
 
 export function PairClientDialog({
   open,
@@ -24,7 +17,6 @@ export function PairClientDialog({
   onClose: () => void
 }) {
   const dialogRef = useRef<HTMLDialogElement>(null)
-  const { redact } = usePeek()
   const flow = useClientPairing({ open, snapshot, now, onChanged, onClose })
 
   useEffect(() => {
@@ -52,17 +44,7 @@ export function PairClientDialog({
       <div className="panel-setup-card">
         <PairClientHeader pending={flow.pending} onClose={() => void flow.close()} />
         <div className="panel-setup-body">
-          {flow.error ? <Notice tone="danger">{redact(flow.error)}</Notice> : null}
-          {flow.pairing ? (
-            <PairClientPairingView
-              pairing={flow.pairing}
-              connection={flow.connection}
-              expired={flow.expired}
-              now={now}
-            />
-          ) : (
-            <PairClientSetupView flow={flow} />
-          )}
+          <PairClientContent flow={flow} now={now} />
         </div>
         <PairClientFooter flow={flow} />
       </div>
