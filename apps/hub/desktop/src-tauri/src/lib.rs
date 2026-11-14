@@ -16,7 +16,6 @@ use tauri::{
     tray::TrayIconBuilder,
     AppHandle, Manager, RunEvent, Url, WebviewUrl, WebviewWindowBuilder,
 };
-use tauri_plugin_clipboard_manager::ClipboardExt;
 use tauri_plugin_dialog::{DialogExt, MessageDialogKind};
 use tauri_plugin_shell::{
     process::{CommandChild, CommandEvent},
@@ -55,7 +54,6 @@ pub fn run() {
         .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_opener::init())
-        .plugin(tauri_plugin_clipboard_manager::init())
         .setup(|app| {
             let config_dir =
                 clara_config_dir().ok_or("Could not resolve the Clara config directory")?;
@@ -95,16 +93,14 @@ pub fn run() {
 
 fn build_tray(app: &AppHandle) -> tauri::Result<()> {
     let open = MenuItem::with_id(app, "open", "Open panel", true, None::<&str>)?;
-    let token = MenuItem::with_id(app, "token", "Copy setup token", true, None::<&str>)?;
     let quit_item = MenuItem::with_id(app, "quit", "Quit", true, None::<&str>)?;
-    let menu = Menu::with_items(app, &[&open, &token, &quit_item])?;
+    let menu = Menu::with_items(app, &[&open, &quit_item])?;
 
     let mut tray = TrayIconBuilder::new()
         .menu(&menu)
         .show_menu_on_left_click(true)
         .on_menu_event(|app, event| match event.id.as_ref() {
             "open" => open_panel_from_state(app),
-            "token" => copy_setup_token(app),
             "quit" => quit(app),
             _ => {}
         });
@@ -277,28 +273,6 @@ fn is_panel_url(url: &Url) -> bool {
 fn open_externally(url: &Url) {
     if matches!(url.scheme(), "http" | "https" | "mailto") {
         let _ = tauri_plugin_opener::open_url(url.as_str(), None::<&str>);
-    }
-}
-
-fn copy_setup_token(app: &AppHandle) {
-    let path = app.state::<AppState>().config_dir.join("admin-setup.txt");
-    match fs::read_to_string(&path) {
-        Ok(value) if !value.trim().is_empty() => {
-            if let Err(error) = app.clipboard().write_text(value.trim().to_string()) {
-                app.dialog()
-                    .message(format!("Could not copy the setup token: {error}"))
-                    .title("Clara Hub")
-                    .kind(MessageDialogKind::Error)
-                    .show(|_| {});
-            }
-        }
-        _ => {
-            app.dialog()
-                .message("No setup token is available. The panel may already be set up.")
-                .title("Clara Hub")
-                .kind(MessageDialogKind::Info)
-                .show(|_| {});
-        }
     }
 }
 

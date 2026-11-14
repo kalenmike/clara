@@ -120,9 +120,10 @@ async function collectServerStatus() {
         : 'unknown')
 
   let resolved
+  const setupRequired = panel.health === 'ok' && panel.body?.setupRequired === true
   if (panel.health === 'foreign') {
     resolved = { state: 'unavailable', mode: 'unknown' }
-  } else if (panel.health === 'ok' && local.ok) {
+  } else if (panel.health === 'ok' && (local.ok || setupRequired)) {
     resolved = resolveState({ health: 'ok', container, mode })
   } else if (panel.health === 'ok' || local.ok) {
     resolved = { state: 'degraded', mode }
