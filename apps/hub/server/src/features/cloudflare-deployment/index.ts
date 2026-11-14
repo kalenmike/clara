@@ -10,8 +10,8 @@ export function createCloudflareDeployment(
 
   return {
     panel,
-    applyStoredRelay: () => state.applyStoredRelay(),
     attachRuntime: (runtime) => state.attachRuntime(runtime),
+    forgetDeployment: () => state.forgetDeployment(),
     close: () => {
       // No background resources.
     },

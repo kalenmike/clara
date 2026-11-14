@@ -84,20 +84,22 @@ values.
 | `CLARA_DATA_DIR`                                           | Move data files and logs                                     |
 | `CLARA_SECRET_KEY` / `CLARA_SECRET_KEY_FILE`               | Encrypt adapter credentials instead of using `secrets.key`   |
 | `CLARA_ADMIN_SETUP_TOKEN` / `CLARA_ADMIN_SETUP_TOKEN_FILE` | Supply the first-run setup token                             |
-| `CLARA_RELAY_URL`                                          | Relay endpoint                                               |
-| `CLARA_RELAY_ROOM`                                         | Relay room; generated and persisted when omitted             |
-| `CLARA_AGENT_TOKEN`                                        | Relay token for the hub side                                 |
-| `CLARA_CLIENT_TOKEN`                                       | Relay token embedded in pairing payloads                     |
+| `CLARA_RELAY_URL`                                          | Relay endpoint; wins over the panel when set                 |
+| `CLARA_RELAY_ROOM`                                         | Relay room; generated when omitted and never typed by hand   |
+| `CLARA_AGENT_TOKEN`                                        | Relay token for the hub side; wins over the panel when set   |
+| `CLARA_CLIENT_TOKEN`                                       | Relay token embedded in pairing payloads; wins when set      |
 
-The relay variables are covered in [Remote access](relay.md). In Docker, setting
-`CLARA_RELAY_URL` without both relay tokens is a startup error; `pnpm clara start`
-reports the missing variables before it launches a container.
+The relay variables are covered in [Remote access](relay.md). Each one wins over
+the matching panel value when it is set; otherwise the panel is used. In Docker,
+setting `CLARA_RELAY_URL` without environment tokens is allowed when the panel
+has saved tokens, so `pnpm clara start` warns instead of blocking.
 
 ## Files worth backing up
 
 - The hub database (`CLARA_DB_PATH` or `clara.db`).
 - `secrets.key` (or `CLARA_SECRET_KEY`).
 - `server.json` and `vapid.json`.
+- `relay-credentials.json` when the relay is configured in the panel.
 - `subscriptions.json`.
 
 The Docker volumes already group these. For a local install, back up the config

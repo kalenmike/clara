@@ -15,6 +15,8 @@ import type { PushService } from '../src/push/service.ts'
 import { AgentStoppedError, RuntimeController } from '../src/runtime/controller.ts'
 import { closeDatabase, openDatabase } from '../src/store/database.ts'
 import { DeviceStore } from '../src/store/devices.ts'
+import { hasRelayCredentials } from '../src/store/relay.ts'
+import type { SecretKeyInfo } from '../src/store/secret-key.ts'
 import { SettingsStore } from '../src/store/settings.ts'
 import type { PanelOrchestrationControl } from '@clara/shared-types'
 
@@ -86,6 +88,7 @@ async function createController(
   devices: DeviceStore
   info: AgentInfo
   serverConfig: ServerConfig
+  secretKey: SecretKeyInfo
   close: () => Promise<void>
 }> {
   const serverConfig = config(port)
@@ -93,6 +96,7 @@ async function createController(
   const settings = new SettingsStore(db)
   const controllerInfo: AgentInfo = { ...info }
   const secretKey = await loadSecretKey(generateSecretKey())
+  const secretKeyInfo = { key: secretKey, version: 1, source: 'generated' as const }
   const devices = new DeviceStore({ db, key: secretKey, keyVersion: 1 })
   const harnessStore = new HarnessStore({
     db,
@@ -125,6 +129,7 @@ async function createController(
     devices,
     startedAt: Date.now(),
     apiToken: 'test-token',
+    secretKey: secretKeyInfo,
     ...(options.push ? { push: options.push } : {}),
     log: () => undefined,
   })
@@ -136,6 +141,7 @@ async function createController(
     devices,
     info: controllerInfo,
     serverConfig,
+    secretKey: secretKeyInfo,
     close: async () => {
       await controller.close()
       closeDatabase(db)
@@ -408,6 +414,140 @@ describe('RuntimeController', () => {
       ).rejects.toMatchObject({
         status: 409,
         code: 'env_override',
+      })
+    } finally {
+      await close()
+    }
+  })
+
+  it('saves a panel relay target with a generated room and sealed tokens', async () => {
+    const { controller, settings, serverConfig, secretKey, close } = await createController()
+    settings.setFeature('relay', false)
+    try {
+      const updated = await controller.updateRelay({
+        url: 'https://relay.example',
+        agentToken: 'panel-agent',
+        clientToken: 'panel-client',
+      })
+
+      expect(updated.config.relayUrl).toEqual({ value: 'wss://relay.example', source: 'file' })
+      expect(updated.config.relayRoom.value).toBeTruthy()
+      expect(updated.config.relayRoom.source).toBe('generated')
+      expect(serverConfig.relay).toMatchObject({
+        url: 'wss://relay.example',
+        room: updated.config.relayRoom.value,
+        agentToken: 'panel-agent',
+        clientToken: 'panel-client',
+      })
+
+      const saved = JSON.parse(readFileSync(serverConfig.configPath, 'utf8'))
+      expect(saved.relay).toEqual({
+        url: 'wss://relay.example',
+        room: updated.config.relayRoom.value,
+      })
+      expect(saved.relay.agentToken).toBeUndefined()
+      expect(saved.relay.clientToken).toBeUndefined()
+
+      const raw = readFileSync(join(serverConfig.configDir, 'relay-credentials.json'), 'utf8')
+      expect(raw).not.toContain('panel-agent')
+      expect(raw).not.toContain('panel-client')
+      expect(hasRelayCredentials(serverConfig.configDir)).toBe(true)
+      expect(secretKey.version).toBe(1)
+    } finally {
+      await close()
+    }
+  })
+
+  it('keeps environment relay fields over panel token edits', async () => {
+    const { controller, settings, serverConfig, close } = await createController()
+    settings.setFeature('relay', false)
+    serverConfig.relay = {
+      url: 'wss://env.example',
+      room: 'env-room',
+      agentToken: 'env-agent',
+      clientToken: '',
+    }
+    serverConfig.sources.relayUrl = 'env'
+    serverConfig.sources.relayRoom = 'env'
+    serverConfig.sources.agentToken = 'env'
+    serverConfig.sources.clientToken = 'none'
+    try {
+      const updated = await controller.updateRelay({ clientToken: 'panel-client' })
+      expect(updated.config.relayUrl).toEqual({ value: 'wss://env.example', source: 'env' })
+      expect(updated.config.relayRoom).toEqual({ value: 'env-room', source: 'env' })
+      expect(serverConfig.relay?.agentToken).toBe('env-agent')
+      expect(serverConfig.sources.agentToken).toBe('env')
+      expect(serverConfig.sources.clientToken).toBe('file')
+
+      const raw = readFileSync(join(serverConfig.configDir, 'relay-credentials.json'), 'utf8')
+      expect(raw).not.toContain('panel-client')
+      expect(raw).not.toContain('env-agent')
+    } finally {
+      await close()
+    }
+  })
+
+  it('rejects a panel relay URL while the environment sets it', async () => {
+    const { controller, settings, serverConfig, close } = await createController()
+    settings.setFeature('relay', false)
+    serverConfig.relay = {
+      url: 'wss://env.example',
+      room: 'env-room',
+      agentToken: 'env-agent',
+      clientToken: 'env-client',
+    }
+    serverConfig.sources.relayUrl = 'env'
+    serverConfig.sources.relayRoom = 'env'
+    serverConfig.sources.agentToken = 'env'
+    serverConfig.sources.clientToken = 'env'
+    try {
+      await expect(
+        controller.updateRelay({ url: 'wss://panel.example', agentToken: 'agent' })
+      ).rejects.toMatchObject({ status: 409, code: 'env_override' })
+    } finally {
+      await close()
+    }
+  })
+
+  it('clears a panel relay target and its sealed tokens', async () => {
+    const { controller, settings, serverConfig, close } = await createController()
+    settings.setFeature('relay', false)
+    try {
+      await controller.updateRelay({
+        url: 'wss://relay.example',
+        agentToken: 'agent',
+        clientToken: 'client',
+      })
+      expect(hasRelayCredentials(serverConfig.configDir)).toBe(true)
+
+      await controller.clearRelay()
+      expect(serverConfig.relay).toBeUndefined()
+      expect(serverConfig.sources.relayUrl).toBe('none')
+      expect(hasRelayCredentials(serverConfig.configDir)).toBe(false)
+      expect(JSON.parse(readFileSync(serverConfig.configPath, 'utf8')).relay).toBeUndefined()
+    } finally {
+      await close()
+    }
+  })
+
+  it('regenerates only the relay room', async () => {
+    const { controller, settings, serverConfig, close } = await createController()
+    settings.setFeature('relay', false)
+    try {
+      const first = await controller.updateRelay({
+        url: 'wss://relay.example',
+        agentToken: 'agent',
+        clientToken: 'client',
+      })
+      const firstRoom = first.config.relayRoom.value
+      const second = await controller.regenerateRelayRoom()
+      expect(second.config.relayRoom.value).not.toBe(firstRoom)
+      expect(second.config.relayRoom.source).toBe('generated')
+      expect(serverConfig.relay?.url).toBe('wss://relay.example')
+      expect(serverConfig.relay?.room).toBe(second.config.relayRoom.value)
+      expect(JSON.parse(readFileSync(serverConfig.configPath, 'utf8')).relay).toEqual({
+        url: 'wss://relay.example',
+        room: second.config.relayRoom.value,
       })
     } finally {
       await close()

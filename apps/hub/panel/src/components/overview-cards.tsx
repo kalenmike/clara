@@ -11,6 +11,7 @@ import type {
 } from '@clara/shared-types'
 import { CloudflareRelaySlot } from '../features/cloudflare-deployment/loader.tsx'
 import { findFeature, useFeatureControl } from '../lib/feature-control.ts'
+import { RelayEditor } from './relay-editor.tsx'
 import {
   formatBytes,
   formatDuration,
@@ -243,7 +244,7 @@ export function RelayCard({
   return (
     <CollapsibleCard
       title="Relay"
-      description="Outbound remote access through Cloudflare"
+      description="Outbound remote access through a relay"
       icon={<Radio className="size-4" aria-hidden="true" />}
       action={<Badge tone={tone}>{status}</Badge>}
       defaultExpanded={defaultExpanded}
@@ -271,12 +272,15 @@ export function RelayCard({
         {relay.configured ? (
           <>
             <KeyValue label="Relay URL" mono>
-              {masked ? PEEK_MASK : relay.url}
+              <span className="inline-flex flex-wrap items-center justify-end gap-2">
+                <span>{masked ? PEEK_MASK : relay.url}</span>
+                {relay.urlSource ? <SourceTag source={sourceLabel(relay.urlSource)} /> : null}
+              </span>
             </KeyValue>
             <KeyValue label="Room">
               <span className="inline-flex flex-wrap items-center justify-end gap-2">
                 <span className="font-mono text-xs">{masked ? PEEK_MASK : relay.room}</span>
-                {relay.room && !masked ? <CopyButton value={relay.room} label="Copy room" /> : null}
+                {relay.roomSource ? <SourceTag source={sourceLabel(relay.roomSource)} /> : null}
               </span>
             </KeyValue>
             <KeyValue label="Desired">{relay.desired ? 'On' : 'Off'}</KeyValue>
@@ -299,24 +303,15 @@ export function RelayCard({
         ) : (
           <>
             <EmptyState>
-              {relay.cloudflare?.available ? (
-                <>
-                  This hub is local-only. Deploy a relay below, or set{' '}
-                  <span className="font-mono">CLARA_RELAY_URL</span>, a room, and both tokens to
-                  enable remote access.
-                </>
-              ) : (
-                <>
-                  This hub is local-only. Set <span className="font-mono">CLARA_RELAY_URL</span>, a
-                  room, and both tokens to enable remote access.
-                </>
-              )}
+              This hub is local-only. Save a relay URL and both tokens below to enable remote
+              access.
             </EmptyState>
             <p className="pt-2 text-xs text-neutral-500 dark:text-neutral-400">
               A relay-disabled hub still serves the local WebSocket and this panel.
             </p>
           </>
         )}
+        <RelayEditor relay={relay} onChanged={onChanged} />
         {CloudflareRelaySlot ? (
           <Suspense fallback={null}>
             <CloudflareRelaySlot relay={relay} now={now} onChanged={onChanged} />

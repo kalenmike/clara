@@ -42,7 +42,7 @@ export default function CloudflareRelaySlot({ relay, now, onChanged }: Cloudflar
     }
   }
 
-  const canDeploy = !cloudflare.envManaged && (!relay.configured || cloudflare.managed === true)
+  const canDeploy = !cloudflare.envManaged
 
   return (
     <div
@@ -86,12 +86,6 @@ export default function CloudflareRelaySlot({ relay, now, onChanged }: Cloudflar
           <span className="font-mono">CLARA_RELAY_URL</span>,{' '}
           <span className="font-mono">CLARA_RELAY_ROOM</span>, and the relay tokens before deploying
           from the panel.
-        </Notice>
-      ) : null}
-      {!cloudflare.managed && relay.configured && !cloudflare.envManaged ? (
-        <Notice tone="warning">
-          This hub already has a relay configured outside the panel. Remove it from{' '}
-          <span className="font-mono">server.json</span> if you want Clara to manage one.
         </Notice>
       ) : null}
       {cloudflare.managed && !cloudflare.connected && relay.configured ? (

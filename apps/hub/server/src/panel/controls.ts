@@ -7,6 +7,8 @@ import type {
   PanelHarnessMutationResponse,
   PanelHarnessPairingMutationResponse,
   PanelHarnessTestResult,
+  PanelRelayMutationResponse,
+  PanelRelayUpdate,
   PanelSyncUpdate,
 } from '@clara/shared-types'
 
@@ -23,6 +25,9 @@ export type PanelControlService = {
   setSync: (update: PanelSyncUpdate) => Promise<PanelControls>
   setOrchestration: (enabled: boolean) => Promise<PanelControls>
   updateConfig: (update: PanelConfigUpdate) => Promise<PanelConfigInfo>
+  updateRelay: (update: PanelRelayUpdate) => Promise<PanelRelayMutationResponse>
+  clearRelay: () => Promise<PanelRelayMutationResponse>
+  regenerateRelayRoom: () => Promise<PanelRelayMutationResponse>
   createDevicePairing: (value: unknown) => Promise<PanelDevicePairingMutationResponse>
   cancelDevicePairing: (id: string) => void
   createHarnessPairing: (value: unknown) => Promise<PanelHarnessPairingMutationResponse>

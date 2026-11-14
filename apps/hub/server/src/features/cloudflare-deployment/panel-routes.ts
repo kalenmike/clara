@@ -77,10 +77,16 @@ async function handleDeploy(
   const body = await context.readJson()
   if (!body.ok) return sendBodyFailure(context, body)
   if (!isRecord(body.value)) return invalidBody(context)
-  const unknown = firstUnknown(body.value, ['token', 'accountId', 'scriptName', 'rememberToken'])
+  const unknown = firstUnknown(body.value, [
+    'token',
+    'accountId',
+    'scriptName',
+    'rememberToken',
+    'replaceExisting',
+  ])
   if (unknown) return invalidField(context, unknown)
 
-  const { token, accountId, scriptName, rememberToken } = body.value
+  const { token, accountId, scriptName, rememberToken, replaceExisting } = body.value
   if (token !== undefined && (typeof token !== 'string' || token.length > MAX_TOKEN_LENGTH)) {
     return invalidField(context, 'token')
   }
@@ -93,6 +99,9 @@ async function handleDeploy(
   if (rememberToken !== undefined && typeof rememberToken !== 'boolean') {
     return invalidField(context, 'rememberToken')
   }
+  if (replaceExisting !== undefined && typeof replaceExisting !== 'boolean') {
+    return invalidField(context, 'replaceExisting')
+  }
 
   try {
     const outcome = await state.deploy({
@@ -100,6 +109,7 @@ async function handleDeploy(
       accountId,
       ...(typeof scriptName === 'string' ? { scriptName } : {}),
       ...(typeof rememberToken === 'boolean' ? { rememberToken } : {}),
+      ...(typeof replaceExisting === 'boolean' ? { replaceExisting } : {}),
     })
     context.sendJson(200, outcome)
   } catch (cause) {
@@ -132,12 +142,7 @@ function handleForget(context: PanelFeatureRequest, state: CloudflareDeploymentS
   context.sendJson(200, { deployment: state.forgetToken() })
 }
 
-const STATE_ERRORS = new Set([
-  'deploy_in_progress',
-  'env_managed',
-  'manual_relay',
-  'token_required',
-])
+const STATE_ERRORS = new Set(['deploy_in_progress', 'env_managed', 'token_required'])
 
 function stateErrorStatus(code: string): number {
   return code === 'token_required' ? 400 : 409
@@ -149,8 +154,6 @@ function stateErrorMessage(code: string): string {
       return 'A relay deployment is already running'
     case 'env_managed':
       return 'Relay settings come from the environment. Remove CLARA_RELAY_URL, CLARA_RELAY_ROOM, and the relay tokens before deploying from the panel.'
-    case 'manual_relay':
-      return 'This hub already has a relay configured outside the panel. Remove it from server.json or the environment before deploying a new one.'
     case 'token_required':
       return 'Enter a Cloudflare API token'
     default:

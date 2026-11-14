@@ -158,13 +158,15 @@ test('falls back to the legacy docker/.env after the move', (t) => {
   assert.equal(values.CLARA_RELAY_URL, 'wss://legacy.example')
 })
 
-test('hub env requires both relay tokens when a relay URL is set', () => {
+test('hub env warns when a relay URL has no environment tokens', () => {
   assert.deepEqual(hubEnvErrors({}), [])
-  const missing = hubEnvErrors({ CLARA_RELAY_URL: 'wss://relay.example' })
-  assert.equal(missing.length, 1)
-  assert.match(missing[0], /CLARA_AGENT_TOKEN and CLARA_CLIENT_TOKEN are missing/)
+  assert.deepEqual(hubEnvErrors({ CLARA_RELAY_URL: 'wss://relay.example' }), [])
+
+  const warnings = hubEnvWarnings({ CLARA_RELAY_URL: 'wss://relay.example' })
+  assert.equal(warnings.length, 1)
+  assert.match(warnings[0], /CLARA_AGENT_TOKEN and CLARA_CLIENT_TOKEN/)
   assert.deepEqual(
-    hubEnvErrors({
+    hubEnvWarnings({
       CLARA_RELAY_URL: 'wss://relay.example',
       CLARA_AGENT_TOKEN: 'agent',
       CLARA_CLIENT_TOKEN: 'client',

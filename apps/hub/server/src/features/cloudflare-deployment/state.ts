@@ -2,18 +2,18 @@ import type { PanelRelayDeployment } from '@clara/shared-types'
 import type { RelayConfig, ServerConfig } from '../../config.ts'
 import { saveRelayTarget, validateRelayConfig } from '../../config.ts'
 import type { SecretKeyInfo } from '../../store/secret-key.ts'
+import { saveRelayCredentials } from '../../store/relay.ts'
 import type { SettingsStore } from '../../store/settings.ts'
 import { loadRelayArtifact } from './artifact.ts'
 import { CloudflareClient } from './cloudflare-client.ts'
 import { deployRelay } from './deploy.ts'
 import {
   forgetCloudflareToken,
+  forgetRelayDeployment,
   hasCloudflareToken,
   loadCloudflareToken,
-  loadRelayCredentials,
   loadRelayDeployment,
   saveCloudflareToken,
-  saveRelayCredentials,
   saveRelayDeployment,
   type RelayDeploymentRecord,
 } from './storage.ts'
@@ -27,6 +27,8 @@ export type DeployInput = {
   accountId: string
   scriptName?: string
   rememberToken?: boolean
+  /** Replace a Clara relay Worker left behind by an earlier panel deployment. */
+  replaceExisting?: boolean
 }
 
 export type DeployOutcome = {
@@ -63,30 +65,6 @@ export class CloudflareDeploymentState {
     this.runtime = runtime
   }
 
-  async applyStoredRelay(): Promise<void> {
-    const stored = await loadRelayCredentials(this.config.configDir, this.secretKey)
-    if (!stored || this.isEnvManaged) return
-
-    if (!this.config.relay) {
-      this.config.relay = stored
-      this.config.sources.relayUrl = 'file'
-      this.config.sources.relayRoom = 'file'
-      this.config.sources.agentToken = 'file'
-      this.config.sources.clientToken = 'file'
-      return
-    }
-
-    if (this.config.relay.url !== stored.url) return
-    if (!this.config.relay.agentToken) {
-      this.config.relay.agentToken = stored.agentToken
-      this.config.sources.agentToken = 'file'
-    }
-    if (!this.config.relay.clientToken) {
-      this.config.relay.clientToken = stored.clientToken
-      this.config.sources.clientToken = 'file'
-    }
-  }
-
   get isEnvManaged(): boolean {
     return (
       this.config.sources.relayUrl === 'env' ||
@@ -94,10 +72,6 @@ export class CloudflareDeploymentState {
       this.config.sources.agentToken === 'env' ||
       this.config.sources.clientToken === 'env'
     )
-  }
-
-  get hasManualRelay(): boolean {
-    return Boolean(this.config.relay) && !this.deployment && !this.isEnvManaged
   }
 
   snapshot(): PanelRelayDeployment {
@@ -135,7 +109,6 @@ export class CloudflareDeploymentState {
         input.token?.trim() || (await loadCloudflareToken(this.config.configDir, this.secretKey))
       if (!token) throw new Error('token_required')
       if (this.isEnvManaged) throw new Error('env_managed')
-      if (this.hasManualRelay) throw new Error('manual_relay')
 
       const artifact = loadRelayArtifact()
       const client = new CloudflareClient(token)
@@ -158,7 +131,7 @@ export class CloudflareDeploymentState {
         room: current?.room,
         agentToken: current?.agentToken || undefined,
         clientToken: current?.clientToken || undefined,
-        allowExisting: Boolean(this.deployment),
+        allowExisting: Boolean(this.deployment) || input.replaceExisting === true,
       })
 
       const relay: RelayConfig = {
@@ -176,7 +149,10 @@ export class CloudflareDeploymentState {
         reachable: result.reachable,
       }
 
-      await saveRelayCredentials(this.config.configDir, this.secretKey, relay)
+      await saveRelayCredentials(this.config.configDir, this.secretKey, {
+        agentToken: relay.agentToken,
+        clientToken: relay.clientToken,
+      })
       saveRelayTarget(this.config.configPath, { url: relay.url, room: relay.room })
       saveRelayDeployment(this.config.configDir, record)
       if (input.rememberToken === true) {
@@ -227,5 +203,11 @@ export class CloudflareDeploymentState {
     forgetCloudflareToken(this.config.configDir)
     this.tokenStored = false
     return this.snapshot()
+  }
+
+  /** A panel edit made the stored deployment record stale. */
+  forgetDeployment(): void {
+    forgetRelayDeployment(this.config.configDir)
+    this.deployment = undefined
   }
 }

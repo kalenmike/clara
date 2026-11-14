@@ -1,7 +1,14 @@
 import { join, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { PROTOCOL_VERSION } from '@clara/shared-types'
-import { loadAdminPaths, loadConfig, validateRelayConfig } from './config.ts'
+import {
+  applyRelayCredentials,
+  loadAdminPaths,
+  loadConfig,
+  readRelayTarget,
+  saveRelayTarget,
+  validateRelayConfig,
+} from './config.ts'
 import { loadCloudflareDeploymentFeature } from './features/cloudflare-deployment/loader.ts'
 import { HarnessManager } from './harness/manager.ts'
 import { HarnessMetadataStore } from './harness/metadata.ts'
@@ -22,6 +29,7 @@ import { closeDatabase, openDatabase, schemaVersion } from './store/database.ts'
 import { DeviceStore } from './store/devices.ts'
 import { PanelUserStore } from './store/panel-users.ts'
 import { readApiToken } from './api/token.ts'
+import { loadRelayCredentials, saveRelayCredentials } from './store/relay.ts'
 import { readSecretKey } from './store/secret-key.ts'
 import { SettingsStore } from './store/settings.ts'
 import { SERVER_VERSION } from './version.ts'
@@ -54,12 +62,31 @@ async function main(): Promise<void> {
 
   const database = openDatabase(config.dbPath)
   const secretKey = await readSecretKey(config.configDir)
+  let storedCredentials = await loadRelayCredentials(config.configDir, secretKey)
+  const legacyAgentToken =
+    config.sources.agentToken === 'file' ? config.relay?.agentToken : undefined
+  const legacyClientToken =
+    config.sources.clientToken === 'file' ? config.relay?.clientToken : undefined
+  if (legacyAgentToken || legacyClientToken) {
+    const credentials = {
+      agentToken: legacyAgentToken || storedCredentials?.agentToken,
+      clientToken: legacyClientToken || storedCredentials?.clientToken,
+    }
+    try {
+      await saveRelayCredentials(config.configDir, secretKey, credentials)
+      saveRelayTarget(config.configPath, readRelayTarget(config.configPath))
+      storedCredentials = credentials
+      log('moved legacy relay tokens from server.json into encrypted storage')
+    } catch (cause) {
+      log('could not move legacy relay tokens into encrypted storage', cause)
+    }
+  }
+  applyRelayCredentials(config, storedCredentials)
   const cloudflare = await loadCloudflareDeploymentFeature({
     config,
     secretKey,
     log,
   })
-  if (!noRelay) await cloudflare?.applyStoredRelay()
   validateRelayConfig(config)
   const devices = new DeviceStore({
     db: database,
@@ -190,6 +217,8 @@ async function main(): Promise<void> {
     devices,
     startedAt,
     apiToken,
+    secretKey,
+    onRelayTargetChanged: () => cloudflare?.forgetDeployment(),
     log,
   })
 

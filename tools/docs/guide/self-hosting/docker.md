@@ -27,11 +27,11 @@ pnpm clara start --build
 The first start creates the `clara` network, bootstraps `infra/docker/.env`, and
 starts the selected services. Upgrading from an older checkout: move
 `docker/.env` to `infra/docker/.env`; the CLI keeps reading the old location
-until you do. Start checks the effective env file and shell values first: a relay
-URL without both relay tokens, or a bind directory that is not absolute, stops
-the command with the variable name instead of leaving a container restarting. If
-a service still does not become healthy, the command prints its recent log
-lines. Then set up the panel:
+until you do. Start checks the effective env file and shell values first: a bind
+directory that is not absolute stops the command with the variable name, and a
+relay URL without environment tokens warns because the panel may already have
+saved them. If a service still does not become healthy, the command prints its
+recent log lines. Then set up the panel:
 
 ```bash
 pnpm clara server setup-token

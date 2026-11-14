@@ -15,11 +15,7 @@ export type RelayRuntime = {
 
 export type CloudflareDeployment = {
   panel: PanelFeature
-  /**
-   * Merge the encrypted credentials written by a previous deployment into the
-   * loaded config before the relay client is constructed.
-   */
-  applyStoredRelay: () => Promise<void>
   attachRuntime: (runtime: { controller: RelayRuntime; settings: SettingsStore }) => void
+  forgetDeployment: () => void
   close: () => void
 }

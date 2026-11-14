@@ -192,30 +192,30 @@ export function orchestratorEnvErrors(values, { envFile = envPath() } = {}) {
 
 /** Problems that stop the hub container before it can start. */
 export function hubEnvErrors(values) {
-  const errors = pathErrors(values, ['CLARA_SERVER_CONFIG_DIR', 'CLARA_SERVER_DATA_DIR'])
+  return pathErrors(values, ['CLARA_SERVER_CONFIG_DIR', 'CLARA_SERVER_DATA_DIR'])
+}
+
+/** Non-fatal hub settings that leave a feature disabled. */
+export function hubEnvWarnings(values) {
+  const warnings = []
+  const publicKey = values.CLARA_VAPID_PUBLIC_KEY?.trim()
+  const privateKey = values.CLARA_VAPID_PRIVATE_KEY?.trim()
+  if (Boolean(publicKey) !== Boolean(privateKey)) {
+    warnings.push(
+      'Set both CLARA_VAPID_PUBLIC_KEY and CLARA_VAPID_PRIVATE_KEY, or neither; push notifications stay disabled with only one key.'
+    )
+  }
   if (values.CLARA_RELAY_URL?.trim()) {
     const missing = ['CLARA_AGENT_TOKEN', 'CLARA_CLIENT_TOKEN'].filter(
       (key) => !values[key]?.trim()
     )
     if (missing.length) {
-      errors.push(
-        `CLARA_RELAY_URL is set but ${missing.join(' and ')} ${missing.length === 1 ? 'is' : 'are'} missing. The hub exits at startup without both relay tokens. Set them in infra/docker/.env or unset CLARA_RELAY_URL.`
+      warnings.push(
+        `CLARA_RELAY_URL is set without ${missing.join(' and ')}. The hub will use relay tokens saved in the panel if present, and exits at startup if none are available.`
       )
     }
   }
-  return errors
-}
-
-/** Non-fatal hub settings that leave a feature disabled. */
-export function hubEnvWarnings(values) {
-  const publicKey = values.CLARA_VAPID_PUBLIC_KEY?.trim()
-  const privateKey = values.CLARA_VAPID_PRIVATE_KEY?.trim()
-  if (Boolean(publicKey) !== Boolean(privateKey)) {
-    return [
-      'Set both CLARA_VAPID_PUBLIC_KEY and CLARA_VAPID_PRIVATE_KEY, or neither; push notifications stay disabled with only one key.',
-    ]
-  }
-  return []
+  return warnings
 }
 
 /** The orchestrator token from the Docker stack, independent of local state. */
