@@ -7,8 +7,14 @@ import { useAgents } from '@/features/catalog/use-catalog'
 import type { PromptFile } from '@/features/chat/use-chat'
 import { useModelVisibility } from '@/features/models/use-model-visibility'
 import { resolveInheritedModel } from '@/features/models/visibility'
+import { useSessionPolicy } from '@/features/notifications/session-policy'
 import { isWorkspaceStartable } from '@/features/projects/project-workspaces'
-import { useCreateSession, type CreateSessionInput } from '@/features/sessions/use-sessions'
+import { latestSessionInWorkspace } from '@/features/sessions/session-workspace'
+import {
+  useCreateSession,
+  useSessions,
+  type CreateSessionInput,
+} from '@/features/sessions/use-sessions'
 import { saveLastWorkspace } from '@/lib/storage'
 
 export type ChatComposeState = {
@@ -21,19 +27,19 @@ export function useStartSession({
   projectID,
   workspace,
   agent,
-  model,
 }: {
   projectID: string | undefined
   workspace: ClaraProjectWorkspace | null | undefined
   /** Latest session's agent, used when no default has been chosen yet. */
   agent?: CreateSessionInput['agent']
-  model?: CreateSessionInput['model']
 }) {
   const navigate = useNavigate()
   const createSession = useCreateSession()
   const { settings, lastAgent } = useDefaultAgent()
   const agentsQuery = useAgents(workspace?.harnessID)
   const { visibility } = useModelVisibility()
+  const { isAutomation } = useSessionPolicy()
+  const sessionsQuery = useSessions(projectID ?? null, '', Boolean(projectID && workspace))
 
   const resolvedAgent = resolveDefaultAgent({
     settings,
@@ -41,7 +47,21 @@ export function useStartSession({
     fallbackAgent: agent,
     agents: agentsQuery.data,
   })
-  const resolvedModel = resolveInheritedModel(model, visibility)
+
+  /**
+   * A model belongs to the harness and workspace that saved it. A new brief in
+   * another workspace must not inherit a model from a different harness or
+   * machine, so an unknown pair starts on the harness default.
+   */
+  const modelForWorkspace = useCallback(
+    (target: ClaraProjectWorkspace) => {
+      const latest = latestSessionInWorkspace(sessionsQuery.data?.data ?? [], target, {
+        exclude: (session) => isAutomation?.(session) === true,
+      })
+      return resolveInheritedModel(latest?.model, visibility)
+    },
+    [isAutomation, sessionsQuery.data?.data, visibility]
+  )
 
   const startSession = useCallback(
     (nextWorkspace?: ClaraProjectWorkspace) => {
@@ -54,7 +74,7 @@ export function useStartSession({
           directory,
           harnessID: target.harnessID,
           agent: resolvedAgent,
-          model: resolvedModel,
+          model: modelForWorkspace(target),
         },
         {
           onSuccess: (session) => {
@@ -65,7 +85,7 @@ export function useStartSession({
         }
       )
     },
-    [createSession, navigate, projectID, resolvedAgent, resolvedModel, workspace]
+    [createSession, modelForWorkspace, navigate, projectID, resolvedAgent, workspace]
   )
 
   return { startSession, pending: createSession.isPending }

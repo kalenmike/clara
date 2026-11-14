@@ -12,9 +12,11 @@ The composer's **To** row opens the model picker. It lists only models the serve
 has enabled and that you have not hidden. Choosing a model changes the session
 immediately. If the model has variants, the variant menu appears beside it.
 
-A new session inherits the model of the most recent active session in its
-project. A model hidden in Settings is not inherited; the new session starts on
-the server default.
+A new session inherits the model of the most recent active session in the
+workspace you start it in. A workspace that has no earlier session starts on the
+harness default; a model from another workspace is not carried over. A model
+hidden in Settings is not inherited either; the new session starts on the
+server default.
 
 ## Hide models and providers
 
