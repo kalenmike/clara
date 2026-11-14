@@ -278,7 +278,7 @@ export class Agent {
         // The relay told us which socket sent this frame. Serving it would let
         // any room member replay garbage into another member's session.
         this.options.traffic?.recordError('misrouted')
-        this.options.log?.('dropped a frame from another relay peer', { sid: frame.sid })
+        this.options.log?.('dropped a frame from another relay peer', `sid=${frame.sid}`)
         return
       }
       if (this.monitoring) session.bytesIn += bytes
@@ -387,7 +387,7 @@ export class Agent {
       // its sid from another peer is an attempted takeover: drop the hello and
       // leave the live session untouched.
       if (relayPeer !== undefined && existing.peer !== relayPeer) {
-        this.options.log?.('dropped a hello from another relay peer', { sid })
+        this.options.log?.('dropped a hello from another relay peer', `sid=${sid}`)
         return
       }
       this.closeSession(existing)
@@ -395,7 +395,7 @@ export class Agent {
       // In-flight handshakes are reservations: counting them here stops two
       // racing hellos from both passing the cap and creating the 65th session.
       if (this.pendingPeers.size >= MAX_PENDING_PEERS && !this.pendingPeers.has(sid)) {
-        this.options.log?.('refused a hello at the pending handshake limit', { sid })
+        this.options.log?.('refused a hello at the pending handshake limit', `sid=${sid}`)
         return
       }
       if (this.sessions.size + this.pendingPeers.size >= MAX_SESSIONS) {
@@ -408,7 +408,7 @@ export class Agent {
       // Refuse a different peer while the first handshake is still in flight.
       const pending = this.pendingPeers.get(sid)
       if (pending !== undefined && pending !== relayPeer) {
-        this.options.log?.('dropped a hello from another relay peer', { sid })
+        this.options.log?.('dropped a hello from another relay peer', `sid=${sid}`)
         return
       }
     }
@@ -441,7 +441,7 @@ export class Agent {
       if (!window.warned) {
         window.warned = true
         this.options.traffic?.recordError('limited')
-        this.options.log?.('dropped hellos above the relay peer limit', { peer })
+        this.options.log?.('dropped hellos above the relay peer limit', `peer=${peer}`)
       }
       return false
     }
