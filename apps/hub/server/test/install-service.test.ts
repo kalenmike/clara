@@ -117,9 +117,15 @@ async function tick(): Promise<void> {
 describe('install service', () => {
   it('derives the pairing transport', () => {
     expect(service().transportFor('ssh')).toBe('relay')
-    expect(service({ isContainerized: () => true }).transportFor('docker')).toBe('docker')
+    expect(service().transportFor('docker')).toBe('relay')
     expect(() => service({ config: config(false) }).transportFor('ssh')).toThrow(
       /Configure the relay/
+    )
+    expect(() => service({ isContainerized: () => true }).transportFor('docker')).toThrow(
+      /runs in Docker/
+    )
+    expect(() => service({ isEnabled: () => false }).transportFor('ssh')).toThrow(
+      /Adapter installs are off/
     )
   })
 

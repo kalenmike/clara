@@ -118,6 +118,14 @@ export class InstallService {
    * a container.
    */
   transportFor(method: PanelInstallMethod): 'docker' | 'relay' {
+    const unavailable = this.unavailableReason()
+    if (unavailable) {
+      throw new PanelControlError(
+        403,
+        this.options.isEnabled() ? 'install_unavailable' : 'install_disabled',
+        unavailable
+      )
+    }
     if (method === 'ssh') {
       if (!relayUsable(this.options.config.relay)) {
         throw new PanelControlError(
