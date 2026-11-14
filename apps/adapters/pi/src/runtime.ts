@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto'
 import { mkdirSync, readFileSync, statSync, writeFileSync } from 'node:fs'
+import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import type {
   ClaraEvent,
@@ -144,6 +145,7 @@ export class PiRuntime {
       const handle = this.manager.get(sessionID)
       if (!handle) return false
       await handle.client.request({ type: 'set_session_name', name: title }, COMMAND_TIMEOUT_MS)
+      this.manager.markBusy(handle, handle.busy)
       return true
     }
   }
@@ -277,6 +279,7 @@ export class PiRuntime {
         .catch(() => {})
     }
     handle.state.model = { ...state, name: state.name ?? state.id }
+    this.manager.markBusy(handle, handle.busy)
     this.emit('session.model.selected', {
       sessionID,
       model: { id: state.id, providerID: state.provider },
@@ -439,7 +442,7 @@ export class PiRuntime {
       )
     }
     const directory = sessionDirFor(this.config, parent.summary.cwd)
-    const path = `${directory}/${time.toISOString().replace(/[:.]/g, '-')}_${newID}.jsonl`
+    const path = join(directory, `${time.toISOString().replace(/[:.]/g, '-')}_${newID}.jsonl`)
     mkdirSync(directory, { recursive: true, mode: 0o700 })
     writeFileSync(path, `${lines.join('\n')}\n`, { mode: 0o600 })
     this.sessions.invalidateProjects()
@@ -516,9 +519,6 @@ export class PiRuntime {
     const { message, images } = composePrompt(text, files)
     this.emit('session.execution.started', { sessionID })
     this.emit('session.status', { sessionID, status: { type: 'busy' } })
-    if (announce) {
-      this.emit('session.inbox.delivered', { sessionID, inboxID: item.id, item })
-    }
     if (identity.kind === 'synthetic') {
       this.emit('session.synthetic', {
         sessionID,
@@ -526,7 +526,7 @@ export class PiRuntime {
         ...(identity.description ? { description: identity.description } : {}),
       })
     }
-    void this.runPrompt(turn, message, images)
+    void this.runPrompt(turn, message, images, announce ? item : undefined)
   }
 
   private startTurn(handle: PiSessionHandle, identity: PromptIdentity): ActiveTurn {
@@ -553,16 +553,33 @@ export class PiRuntime {
     return turn
   }
 
-  private async runPrompt(turn: ActiveTurn, message: string, images: PiImage[]): Promise<void> {
+  private async runPrompt(
+    turn: ActiveTurn,
+    message: string,
+    images: PiImage[],
+    item?: ClaraSessionInboxInfo
+  ): Promise<void> {
+    const command = {
+      type: 'prompt',
+      message,
+      ...(images.length > 0 ? { images } : {}),
+    }
     try {
-      const result = await turn.handle.client.request<{ disposition?: string }>(
-        {
-          type: 'prompt',
-          message,
-          ...(images.length > 0 ? { images } : {}),
-        },
-        PROMPT_TIMEOUT_MS
-      )
+      let result: { disposition?: string } | undefined
+      try {
+        result = await turn.handle.client.request<{ disposition?: string }>(
+          command,
+          PROMPT_TIMEOUT_MS
+        )
+      } catch (cause) {
+        // A run may have started outside this turn (for example from an
+        // extension). Pi requires an explicit streaming behavior then.
+        if (!(cause instanceof Error) || !/streaming/i.test(cause.message)) throw cause
+        result = await turn.handle.client.request<{ disposition?: string }>(
+          { ...command, streamingBehavior: 'steer' },
+          PROMPT_TIMEOUT_MS
+        )
+      }
       if (result?.disposition === 'handled') {
         // An extension command may start its own run with pi.sendMessage().
         // Give agent_start a moment to arrive before declaring the prompt done.
@@ -570,6 +587,12 @@ export class PiRuntime {
           if (!turn.sawStart) this.settle(turn, false)
         }, 750)
         timer.unref?.()
+      } else if (item) {
+        this.emit('session.inbox.delivered', {
+          sessionID: turn.sessionID,
+          inboxID: item.id,
+          item,
+        })
       }
     } catch (cause) {
       this.fail(turn, cause)
@@ -1079,13 +1102,18 @@ export class PiRuntime {
     this.emit('session.status', { sessionID: turn.sessionID, status: { type: 'idle' } })
     this.emit('session.idle', { sessionID: turn.sessionID })
     void this.emitUsage(turn.sessionID)
-    if (queuedCompact) {
+    if (queuedCompact && !turn.failed && !turn.interrupted && !aborted) {
       this.emit('session.inbox.delivered', {
         sessionID: turn.sessionID,
         inboxID: queuedCompact.item.id,
         item: queuedCompact.item,
       })
       this.afterSettle(() => this.compactNow(turn.sessionID, undefined))
+    } else if (queuedCompact) {
+      this.emit('session.inbox.cancelled', {
+        sessionID: turn.sessionID,
+        inboxID: queuedCompact.item.id,
+      })
     }
   }
 

@@ -154,7 +154,8 @@ export class CatalogService {
       this.cache.set(cwd, { at: Date.now(), value })
       return value
     } catch (cause) {
-      if (cachedFallback(this.cache, cwd)) return cachedFallback(this.cache, cwd)!
+      const fallback = cachedFallback(this.cache, cwd)
+      if (fallback) return fallback
       throw new AdapterError(
         502,
         'harness_offline',

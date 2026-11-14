@@ -68,6 +68,28 @@ describe('Pi session service', () => {
     expect(found.title).toBe('Renamed')
   })
 
+  it('writes the configured default model for new sessions', async () => {
+    const root = mkdtempSync(join(tmpdir(), 'clara-pi-defaults-'))
+    const project = join(root, 'project')
+    mkdirSync(project)
+    const config: PiConfig = {
+      piPath: fake,
+      agentDir: join(root, 'agent'),
+      sessionDir: join(root, 'sessions'),
+      model: 'fake/fake-model',
+      thinkingLevel: 'high',
+    }
+    const service = new SessionService(
+      config,
+      new SessionIndex(() => [join(root, 'sessions')]),
+      new PromptMap(join(root, 'prompt-ids.json')),
+      '0.1.0',
+      () => {}
+    )
+    const created = await service.create({ location: { directory: project } })
+    expect(created.model).toEqual({ id: 'fake-model', providerID: 'fake' })
+  })
+
   it('deletes the session file', async () => {
     const { root, service } = fixture()
     const created = await service.create({ location: { directory: root } })

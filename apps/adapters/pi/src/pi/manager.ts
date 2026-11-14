@@ -127,10 +127,6 @@ export class PiProcessManager {
       env: piProcessEnv(this.options.config),
       ...(target.existing ? { sessionFile: target.path } : { sessionId: target.sessionID }),
       ...(target.name ? { name: target.name } : {}),
-      ...(this.options.config.model ? { model: this.options.config.model } : {}),
-      ...(this.options.config.thinkingLevel
-        ? { thinkingLevel: this.options.config.thinkingLevel }
-        : {}),
       trust: this.options.config.trust ?? 'inherit',
     })
     let state: PiState
@@ -149,7 +145,7 @@ export class PiProcessManager {
       startedAt: Date.now(),
       lastUsedAt: Date.now(),
       busy: false,
-      stamp: stamp(target.path),
+      stamp: stamp(state.sessionFile ?? target.path),
     }
     client.onEvent((event) => this.options.onEvent(handle, event))
     client.onUiRequest((request) => this.options.onUiRequest(handle, request))

@@ -200,16 +200,27 @@ export class SessionService {
       parent = info.id
       lines.push(JSON.stringify(info))
     }
-    const model = modelRef(input.model)
+    const model = modelRef(input.model) ?? configModel(this.config)
     if (model) {
+      const change = {
+        type: 'model_change',
+        id: entryID(),
+        parentId: parent,
+        timestamp: now.toISOString(),
+        provider: model.providerID,
+        modelId: model.id,
+      }
+      parent = change.id
+      lines.push(JSON.stringify(change))
+    }
+    if (this.config.thinkingLevel) {
       lines.push(
         JSON.stringify({
-          type: 'model_change',
+          type: 'thinking_level_change',
           id: entryID(),
           parentId: parent,
           timestamp: now.toISOString(),
-          provider: model.providerID,
-          modelId: model.id,
+          thinkingLevel: this.config.thinkingLevel,
         })
       )
     }
@@ -443,4 +454,13 @@ function modelRef(value: unknown): ClaraModelRef | undefined {
     providerID: record.providerID,
     ...(typeof record.variant === 'string' ? { variant: record.variant } : {}),
   }
+}
+
+/** The install default uses Pi's `provider/id` form. A bare id is left to Pi. */
+function configModel(config: PiConfig): ClaraModelRef | undefined {
+  const value = config.model?.trim()
+  if (!value) return undefined
+  const slash = value.indexOf('/')
+  if (slash <= 0 || slash === value.length - 1) return undefined
+  return { id: value.slice(slash + 1), providerID: value.slice(0, slash) }
 }
