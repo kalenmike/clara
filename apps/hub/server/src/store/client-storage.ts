@@ -1,4 +1,4 @@
-import type Database from 'better-sqlite3'
+import type { SqliteStatement } from '@clara/sqlite'
 import type { SyncEntry, SyncPushAction, SyncSnapshot } from '@clara/shared-types'
 import type { ClaraDatabase } from './database.ts'
 
@@ -56,11 +56,11 @@ export type ClientStorageStats = {
 
 export class ClientStorageStore {
   private readonly db: ClaraDatabase
-  private readonly selectEntries: Database.Statement
-  private readonly selectRevision: Database.Statement
-  private readonly upsertEntry: Database.Statement
-  private readonly upsertRevision: Database.Statement
-  private readonly selectAll: Database.Statement
+  private readonly selectEntries: SqliteStatement
+  private readonly selectRevision: SqliteStatement
+  private readonly upsertEntry: SqliteStatement
+  private readonly upsertRevision: SqliteStatement
+  private readonly selectAll: SqliteStatement
 
   constructor(db: ClaraDatabase) {
     this.db = db

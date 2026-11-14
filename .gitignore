@@ -18,6 +18,8 @@ coverage
 **/*.tsbuildinfo
 **/src-tauri/target
 **/src-tauri/gen
+**/src-tauri/binaries
+apps/hub/desktop/src/embedded-assets.generated.mjs
 # `tauri icon` also writes mobile and Store variants that the desktop bundles
 # do not reference.
 apps/desktop/src-tauri/icons/android/
@@ -25,6 +27,11 @@ apps/desktop/src-tauri/icons/ios/
 apps/desktop/src-tauri/icons/Square*.png
 apps/desktop/src-tauri/icons/StoreLogo.png
 apps/desktop/src-tauri/icons/64x64.png
+apps/hub/desktop/src-tauri/icons/android/
+apps/hub/desktop/src-tauri/icons/ios/
+apps/hub/desktop/src-tauri/icons/Square*.png
+apps/hub/desktop/src-tauri/icons/StoreLogo.png
+apps/hub/desktop/src-tauri/icons/64x64.png
 .wrangler
 **/.wrangler
 .dev.vars

@@ -1,0 +1,27 @@
+{
+  "name": "@clara/sqlite",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "description": "SQLite driver that uses better-sqlite3 on Node and bun:sqlite on Bun.",
+  "exports": {
+    ".": {
+      "types": "./src/types.ts",
+      "bun": "./src/bun.ts",
+      "default": "./src/node.ts"
+    }
+  },
+  "scripts": {
+    "typecheck": "tsc -p tsconfig.json",
+    "test": "vitest run --passWithNoTests"
+  },
+  "dependencies": {
+    "better-sqlite3": "^13.0.3"
+  },
+  "devDependencies": {
+    "@types/better-sqlite3": "^9.6.0",
+    "@types/node": "^24.19.2",
+    "typescript": "~6.0.3",
+    "vitest": "^5.0.5"
+  }
+}

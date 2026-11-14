@@ -10,7 +10,7 @@ export type RelayConfig = {
   clientToken: string
 }
 
-export type ConfigSource = 'env' | 'file' | 'default' | 'generated' | 'none'
+export type ConfigSource = 'env' | 'file' | 'default' | 'generated' | 'runtime' | 'none'
 
 export type ServerConfigSources = {
   localHost: ConfigSource
@@ -62,7 +62,12 @@ const DEFAULT_LOCAL_PORT = 8788
 const DEFAULT_WEB_PORT = 8080
 
 export function loadConfig(
-  options: { noRelay?: boolean; allowMissingRelayTokens?: boolean } = {}
+  options: {
+    noRelay?: boolean
+    allowMissingRelayTokens?: boolean
+    /** Last local port from the runtime file; reused when no explicit value exists. */
+    localPortHint?: number
+  } = {}
 ): ServerConfig {
   const configDir = resolveConfigDir()
   const dataDir = resolveDataDir()
@@ -79,14 +84,23 @@ export function loadConfig(
   const configuredBind = process.env.CLARA_LOCAL_BIND_HOST?.trim()
   const localBindHost = configuredBind || localHost
   const localBindHostSource: ConfigSource = configuredBind ? 'env' : localHostSource
+  const localPortHint =
+    Number.isInteger(options.localPortHint) &&
+    options.localPortHint !== undefined &&
+    options.localPortHint >= 0 &&
+    options.localPortHint <= 65_535
+      ? options.localPortHint
+      : undefined
   const localPortSource: ConfigSource =
     process.env.CLARA_LOCAL_PORT !== undefined
       ? 'env'
       : file.local?.port !== undefined
         ? 'file'
-        : 'default'
+        : localPortHint !== undefined
+          ? 'runtime'
+          : 'default'
   const localPort = parsePort(
-    process.env.CLARA_LOCAL_PORT ?? String(file.local?.port ?? DEFAULT_LOCAL_PORT)
+    process.env.CLARA_LOCAL_PORT ?? String(file.local?.port ?? localPortHint ?? DEFAULT_LOCAL_PORT)
   )
 
   // Compose passes optional values through as empty strings (`${VAR:-}`). An
@@ -191,8 +205,8 @@ function persistConfig(path: string, previous: ConfigFile, config: ServerConfig)
       : nonEmpty(previous.relay?.room)
   const relayChanged =
     previous.relay?.url !== storedRelayUrl || previous.relay?.room !== storedRelayRoom
-  const localChanged =
-    previous.local?.host !== config.local.host || previous.local?.port !== config.local.port
+  // The effective local endpoint can come from the runtime file or the default.
+  // Keep server.json user-owned: never write an auto-selected port back to it.
   const storedPairingBaseUrl =
     config.sources.pairingBaseUrl === 'file'
       ? config.pairingBaseUrl
@@ -201,13 +215,13 @@ function persistConfig(path: string, previous: ConfigFile, config: ServerConfig)
     config.sources.pairingBaseUrl === 'file' && previous.pairingBaseUrl !== config.pairingBaseUrl
   // Drop retired fields from older files when the config is rewritten.
   const retiredCleared = previous.opencode !== undefined || previous.psk !== undefined
-  if (!relayChanged && !localChanged && !pairingChanged && !retiredCleared) return
+  if (!relayChanged && !pairingChanged && !retiredCleared && existsSync(path)) return
 
   // Rebuild the file without new credentials. Legacy plaintext tokens are kept
   // so an upgrade cannot lose them before the sealed relay store takes over;
   // the first panel save removes them.
   const next: ConfigFile = {
-    local: { host: config.local.host, port: config.local.port },
+    ...(previous.local ? { local: previous.local } : {}),
   }
   if (storedPairingBaseUrl !== undefined) next.pairingBaseUrl = storedPairingBaseUrl
   if (storedRelayUrl !== undefined || storedRelayRoom !== undefined) {
@@ -328,7 +342,8 @@ export function normalizeRelayUrl(value: string): string {
 
 function parsePort(value: string): number {
   const port = Number.parseInt(value, 10)
-  if (!Number.isInteger(port) || port < 1 || port > 65_535) {
+  // Zero means "let the listener choose an ephemeral port".
+  if (!Number.isInteger(port) || port < 0 || port > 65_535) {
     throw new Error(`Invalid local port: ${value}`)
   }
   return port

@@ -8,6 +8,7 @@ import { spawnSync } from 'node:child_process'
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { setTimeout as delay } from 'node:timers/promises'
+import { isRuntimeLive, readRuntimeState } from '@clara/runtime-state'
 import { readDockerToken, orchestratorContainerRunning } from '../stack-control.mjs'
 import { dataDir } from './state.mjs'
 
@@ -199,10 +200,14 @@ export async function probeLab({ ports = labPorts(), timeoutMs = 1200 } = {}) {
 }
 
 export function panelPort(env = process.env) {
+  const state = readRuntimeState()
+  if (isRuntimeLive(state) && state.panel) return state.panel.port
   return positiveInt(env.CLARA_PANEL_PORT, 8790)
 }
 
 export function localPort(env = process.env) {
+  const state = readRuntimeState()
+  if (isRuntimeLive(state) && state.local) return state.local.port
   return positiveInt(env.CLARA_LOCAL_PORT, 8788)
 }
 

@@ -19,6 +19,7 @@
   },
   "dependencies": {
     "@clara/api-client": "workspace:*",
+    "@clara/runtime-state": "workspace:*",
     "@modelcontextprotocol/sdk": "^1.24.3",
     "zod": "^4.1.13"
   },

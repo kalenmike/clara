@@ -1,5 +1,5 @@
 import { MAX_SYNC_INTERVAL_MS, MIN_SYNC_INTERVAL_MS, isSyncIntervalMs } from '@clara/shared-types'
-import type Database from 'better-sqlite3'
+import type { SqliteStatement } from '@clara/sqlite'
 import type { ClaraDatabase } from './database.ts'
 
 export const FEATURE_SETTINGS = {
@@ -61,8 +61,8 @@ const SETTING_KEYS = new Set<string>([
  */
 export class SettingsStore {
   private readonly db: ClaraDatabase
-  private readonly selectStatement: Database.Statement
-  private readonly upsertStatement: Database.Statement
+  private readonly selectStatement: SqliteStatement
+  private readonly upsertStatement: SqliteStatement
 
   constructor(db: ClaraDatabase) {
     this.db = db

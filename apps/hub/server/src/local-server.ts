@@ -12,6 +12,8 @@ export type LocalTransportOptions = {
   api: ApiApp
   /** Shared across restarts so outbound frames keep reaching new clients. */
   sockets: Set<WebSocket>
+  /** Called after a successful bind with the actual port. */
+  onBound?: (port: number) => void
   log?: (message: string, detail?: unknown) => void
 }
 
@@ -32,6 +34,7 @@ export class LocalTransport {
   private server: Server | undefined
   private wss: WebSocketServer | undefined
   private running = false
+  private boundPort: number | undefined
 
   constructor(options: LocalTransportOptions) {
     this.options = options
@@ -39,6 +42,11 @@ export class LocalTransport {
 
   get active(): boolean {
     return this.running
+  }
+
+  /** The actual port, including a port the OS chose for an ephemeral bind. */
+  get port(): number {
+    return this.boundPort ?? this.options.port
   }
 
   get connections(): number {
@@ -97,19 +105,45 @@ export class LocalTransport {
     })
 
     try {
-      await new Promise<void>((resolve, reject) => {
-        const onError = (cause: Error) => {
-          server.off('listening', onListening)
-          reject(cause)
+      const listen = (port: number) =>
+        new Promise<void>((resolve, reject) => {
+          const onError = (cause: Error & { code?: string }) => {
+            server.off('listening', onListening)
+            reject(cause)
+          }
+          const onListening = () => {
+            server.off('error', onError)
+            resolve()
+          }
+          server.once('error', onError)
+          server.once('listening', onListening)
+          server.listen(port, this.options.host)
+        })
+
+      try {
+        await listen(this.options.port)
+      } catch (cause) {
+        // A preferred port may belong to another process. The desktop and CLI
+        // hide that detail: bind an ephemeral port and publish it instead.
+        if (
+          this.options.port !== 0 &&
+          cause instanceof Error &&
+          (cause as NodeJS.ErrnoException).code === 'EADDRINUSE'
+        ) {
+          this.options.log?.(`local port ${this.options.port} is busy; choosing an ephemeral port`)
+          await listen(0)
+        } else {
+          throw cause
         }
-        const onListening = () => {
-          server.off('error', onError)
-          resolve()
-        }
-        server.once('error', onError)
-        server.once('listening', onListening)
-        server.listen(this.options.port, this.options.host)
-      })
+      }
+
+      const address = server.address()
+      if (!address || typeof address === 'string') {
+        throw new Error('The local transport did not report a TCP address')
+      }
+      this.boundPort = address.port
+      this.options.port = address.port
+      this.options.onBound?.(address.port)
     } catch (cause) {
       wss.close()
       server.close()

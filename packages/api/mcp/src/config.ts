@@ -1,9 +1,14 @@
 import { existsSync, readFileSync } from 'node:fs'
 import { homedir } from 'node:os'
 import { join } from 'node:path'
+import { isRuntimeLive, readRuntimeState } from '@clara/runtime-state'
 
 export function apiURL(): string {
-  return (process.env.CLARA_API_URL?.trim() || 'http://127.0.0.1:8788').replace(/\/$/, '')
+  const configured = process.env.CLARA_API_URL?.trim()
+  if (configured) return configured.replace(/\/$/, '')
+  const state = readRuntimeState()
+  if (state && isRuntimeLive(state) && state.local) return state.local.url.replace(/\/$/, '')
+  return 'http://127.0.0.1:8788'
 }
 
 export function apiToken(): string {

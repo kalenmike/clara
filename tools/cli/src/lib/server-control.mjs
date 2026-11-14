@@ -2,6 +2,7 @@ import { spawnSync } from 'node:child_process'
 import { existsSync } from 'node:fs'
 import { homedir } from 'node:os'
 import { join } from 'node:path'
+import { isRuntimeLive, readRuntimeState } from '@clara/runtime-state'
 import { root, run } from './router.mjs'
 
 export function composeFile(repoRoot = root) {
@@ -58,10 +59,14 @@ export function localPort(env = process.env) {
 }
 
 export function panelURL(env = process.env) {
+  const state = readRuntimeState()
+  if (isRuntimeLive(state) && state.panel) return state.panel.url.replace(/\/+$/, '')
   return `http://127.0.0.1:${panelPort(env)}`
 }
 
 export function localURL(env = process.env) {
+  const state = readRuntimeState()
+  if (isRuntimeLive(state) && state.local) return state.local.url.replace(/\/+$/, '')
   return `http://127.0.0.1:${localPort(env)}`
 }
 
@@ -180,14 +185,22 @@ export function dockerServerState() {
 export function serverLocalState(env = process.env) {
   const configHome = env.XDG_CONFIG_HOME?.trim() || join(homedir(), '.config')
   const dataHome = env.XDG_DATA_HOME?.trim() || join(homedir(), '.local', 'share')
-  const configDir = env.CLARA_CONFIG_DIR?.trim() || join(configHome, 'clara')
-  const dataDir = env.CLARA_DATA_DIR?.trim() || join(dataHome, 'clara')
-  const dbPath = env.CLARA_DB_PATH?.trim() || join(dataDir, 'clara.db')
+  const runtime = readRuntimeState()
+  const configDir =
+    (isRuntimeLive(runtime) ? runtime.configDir : undefined) ||
+    env.CLARA_CONFIG_DIR?.trim() ||
+    join(configHome, 'clara')
+  const dataDirPath =
+    (isRuntimeLive(runtime) ? runtime.dataDir : undefined) ||
+    env.CLARA_DATA_DIR?.trim() ||
+    join(dataHome, 'clara')
+  const dbPath = env.CLARA_DB_PATH?.trim() || join(dataDirPath, 'clara.db')
   return {
     configDir,
-    dataDir,
+    dataDir: dataDirPath,
     dbPath,
     present:
+      isRuntimeLive(runtime) ||
       existsSync(dbPath) ||
       existsSync(join(configDir, 'server.json')) ||
       existsSync(join(configDir, 'admin-setup.txt')),

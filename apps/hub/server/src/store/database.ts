@@ -2,9 +2,9 @@ import { randomUUID } from 'node:crypto'
 import { chmodSync, closeSync, existsSync, mkdirSync, openSync } from 'node:fs'
 import { dirname } from 'node:path'
 import { DEFAULT_SYNC_INTERVAL_MS } from '@clara/shared-types'
-import Database from 'better-sqlite3'
+import { openSqlite, type SqliteDatabase } from '@clara/sqlite'
 
-export type ClaraDatabase = Database.Database
+export type ClaraDatabase = SqliteDatabase
 
 export const SCHEMA_VERSION = 13
 
@@ -585,7 +585,7 @@ export function openDatabase(path: string): ClaraDatabase {
 
   let db: ClaraDatabase
   try {
-    db = new Database(path)
+    db = openSqlite(path)
   } catch (cause) {
     throw new Error(`Could not open the Clara database at ${path}: ${errorMessage(cause)}`, {
       cause,

@@ -1,0 +1,19 @@
+{
+  "name": "@clara/runtime-state",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "description": "Shared runtime discovery file for the hub, CLI, MCP, and desktop apps.",
+  "exports": {
+    ".": {
+      "types": "./src/index.d.ts",
+      "default": "./src/index.mjs"
+    }
+  },
+  "scripts": {
+    "test": "vitest run"
+  },
+  "devDependencies": {
+    "vitest": "^5.0.5"
+  }
+}

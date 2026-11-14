@@ -13,6 +13,7 @@ import { homedir } from 'node:os'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { spawnSync } from 'node:child_process'
+import { isRuntimeLive, readRuntimeState } from '@clara/runtime-state'
 import { installCommand, removeCommand } from '../lib/clara-command.mjs'
 import {
   dockerTokenPath,
@@ -33,7 +34,13 @@ const dataDir = process.env.CLARA_DATA_DIR?.trim() || join(dataHome, 'clara')
 const tokenFile =
   process.env.CLARA_ORCHESTRATION_TOKEN_FILE?.trim() || join(dataDir, 'orchestrator.token')
 const baseURL = process.env.CLARA_ORCHESTRATION_URL?.trim() || 'http://127.0.0.1:8789'
-const apiBaseURL = process.env.CLARA_API_URL?.trim() || 'http://127.0.0.1:8788'
+const configuredApiURL = process.env.CLARA_API_URL?.trim()
+const liveRuntime = readRuntimeState()
+const apiBaseURL =
+  configuredApiURL ||
+  (isRuntimeLive(liveRuntime) && liveRuntime.local
+    ? liveRuntime.local.url.replace(/\/$/, '')
+    : 'http://127.0.0.1:8788')
 const apiTokenFile = process.env.CLARA_API_TOKEN_FILE?.trim() || join(claraConfigDir, 'api.token')
 
 const args = process.argv.slice(2)
@@ -190,15 +197,27 @@ function stdioEntry() {
 }
 
 function apiConfig() {
+  const environment = {
+    ...runtimeEnvironment(),
+    CLARA_API_TOKEN_FILE: apiTokenFile,
+  }
+  if (configuredApiURL) environment.CLARA_API_URL = configuredApiURL
   return {
     type: 'local',
     command: [process.execPath, apiMcpEntry],
     enabled: true,
-    environment: {
-      CLARA_API_URL: apiBaseURL,
-      CLARA_API_TOKEN_FILE: apiTokenFile,
-    },
+    environment,
   }
+}
+
+/** Let the MCP resolve the live hub port from the shared runtime file. */
+function runtimeEnvironment() {
+  const environment = {}
+  for (const key of ['CLARA_CONFIG_DIR', 'CLARA_DATA_DIR', 'CLARA_RUNTIME_FILE']) {
+    const value = process.env[key]?.trim()
+    if (value) environment[key] = value
+  }
+  return environment
 }
 
 function activeTokenFile() {

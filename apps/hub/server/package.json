@@ -6,6 +6,9 @@
   "bin": {
     "clara-server": "./dist/index.js"
   },
+  "exports": {
+    "./main": "./src/main.ts"
+  },
   "scripts": {
     "dev": "tsx watch src/index.ts",
     "start": "node dist/index.js",
@@ -13,14 +16,17 @@
     "build": "tsup && node scripts/build-relay.mjs && node scripts/check-bundle.mjs && node scripts/check-feature-bundle.mjs && node scripts/copy-panel.mjs",
     "typecheck": "tsc -p tsconfig.json",
     "test": "vitest run",
+    "smoke:bun": "bun scripts/bun-smoke.ts",
     "pair": "tsx src/index.ts pair",
     "pair:no-relay": "tsx src/index.ts pair --no-relay"
   },
   "dependencies": {
     "@clara/api-contract": "workspace:*",
     "@clara/crypto": "workspace:*",
+    "@clara/runtime-state": "workspace:*",
     "@clara/service-control": "workspace:*",
     "@clara/shared-types": "workspace:*",
+    "@clara/sqlite": "workspace:*",
     "@hono/node-server": "^2.1.6",
     "@hono/swagger-ui": "^0.6.2",
     "better-sqlite3": "^13.0.3",

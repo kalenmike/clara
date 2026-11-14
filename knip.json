@@ -30,7 +30,17 @@
     "apps/hub/server": {
       "project": ["src/**/*.ts", "test/**/*.ts"]
     },
+    "apps/hub/desktop": {
+      "entry": ["src/entry.ts", "scripts/*.mjs"],
+      "project": ["src/**/*.ts", "scripts/**/*.mjs"]
+    },
     "packages/contracts/shared-types": {
+      "project": ["src/**/*.ts", "test/**/*.ts"]
+    },
+    "packages/runtime-state": {
+      "project": ["src/**/*.{mjs,d.ts}", "test/**/*.mjs"]
+    },
+    "packages/sqlite": {
       "project": ["src/**/*.ts", "test/**/*.ts"]
     },
     "packages/contracts/api-contract": {
@@ -84,7 +94,11 @@
       "ignoreDependencies": ["ws"]
     }
   },
-  "ignore": ["apps/web/src/components/ui/**", "tools/build/feature-flags.d.mts"],
+  "ignore": [
+    "apps/web/src/components/ui/**",
+    "tools/build/feature-flags.d.mts",
+    "apps/hub/desktop/src/embedded-assets.generated.*"
+  ],
   "ignoreBinaries": ["ss"],
   "ignoreDependencies": ["yaml", "cloudflare", "better-sqlite3"],
   "rules": {
