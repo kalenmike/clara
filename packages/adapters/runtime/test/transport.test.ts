@@ -130,7 +130,12 @@ describe('AdapterTransport authentication', () => {
       started = resolve
     })
     let aborted = false
+    // Keep the Request alive while the handler waits. The abort link lives on
+    // the Request, not only on its signal, so collecting it under GC pressure
+    // can stop the controller's abort from reaching this listener.
+    let heldRequest: Request | undefined
     const transport = createTransport(hub, logs, async (request) => {
+      heldRequest = request
       await new Promise<void>((resolve) => {
         const onAbort = () => {
           aborted = true
@@ -158,6 +163,7 @@ describe('AdapterTransport authentication', () => {
     await requestStarted
     await hub.sendSealed(hello, { type: 'adapter.abort', id: 'request-1' }, { seq: 2 })
     await waitFor(() => aborted, 90_000)
+    heldRequest = undefined
     transport.close()
   }, 120_000)
 })
