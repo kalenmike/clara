@@ -22,20 +22,22 @@ over the local or relay WebSocket, and stores its long-lived credential. The ada
 credential and never exposes an inbound port. Reinstall and re-pair reuse the
 stable harness identity, so Clara session and project metadata stays attached.
 Adapter codes cannot enroll a browser: the connect screen names them and points
-at the panel's **Clients → Pair a browser** action or `clara-server pair`.
+at the panel's **Clients → Pair Client** action or `clara-server pair`.
 
 ## User flow
 
 1. Start the hub (`pnpm clara server start` or the systemd unit).
-2. Sign in to the hub panel and open **Clients → Pair a browser**, or run
+2. Sign in to the hub panel and choose **Clients → Pair Client**, or run
    `clara-server pair` on the machine that runs the hub service. Both paths
    produce a QR code, a web link, a `clara1_…` code, and an enrollment
    fingerprint. The panel offers a **Relay | Local** choice when a relay is
    configured; the command takes `--no-relay` for the same local result. The
-   ready card shows only the QR until **Show codes** is opened, where the link,
-   code, and fingerprint live. Local codes use the panel Web URL (default
-   `http://127.0.0.1:8080/#pair=…`); relay codes use the same Web URL. The
-   panel's code can be cancelled before it is used.
+   dialog moves from the transport choice to a QR, an **Open Link** action, the
+   expiry, and **Copy code** and **Copy link** buttons. It shows **Waiting to
+   connect** until a device enrolls, then **Connected**. Closing before
+   enrollment cancels the unused code; closing after it leaves the new device in
+   place. Local codes use the panel Web URL (default
+   `http://127.0.0.1:8080/#pair=…`); relay codes use the same Web URL.
 3. Open Clara on the device. **Pair this device** offers **Scan QR code** and a
    paste field. Tapping Scan opens the rear camera and connects as soon as a
    Clara QR is recognized; a `clara1_…` code or `#pair=` link can still be
@@ -90,8 +92,8 @@ at the panel's **Clients → Pair a browser** action or `clara-server pair`.
 7. The device key is stored as a non-extractable `CryptoKey` in IndexedDB. Raw
    key bytes are never written to `localStorage`.
 8. The fingerprint shown by the web should match the fingerprint in the panel's
-   pairing card or printed by the pairing command before the enrollment is
-   trusted.
+   paired-devices table or printed by the pairing command before the enrollment
+   is trusted.
 9. Each device has its own key and can be revoked independently. A revoked
    device's record can then be deleted permanently from the panel.
 

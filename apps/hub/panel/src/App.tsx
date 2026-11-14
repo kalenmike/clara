@@ -16,6 +16,7 @@ import { ClientsView } from './components/views/clients.tsx'
 import { ConnectionsView } from './components/views/connections.tsx'
 import { HarnessView } from './components/views/harness.tsx'
 import { OverviewView } from './components/views/overview.tsx'
+import { SessionsView } from './components/views/sessions.tsx'
 import { SettingsView } from './components/views/settings.tsx'
 import { TrafficView } from './components/views/traffic.tsx'
 import { Rail, type RailBadge } from './components/shell/rail.tsx'
@@ -95,6 +96,9 @@ function Panel({ state, session }: { state: SnapshotState; session: SessionContr
             </div>
             <div className="panel-view-slot" hidden={tab !== 'harness'}>
               <HarnessView snapshot={data} now={clock} onChanged={refresh} />
+            </div>
+            <div className="panel-view-slot" hidden={tab !== 'sessions'}>
+              <SessionsView active={tab === 'sessions'} now={clock} />
             </div>
             <div className="panel-view-slot" hidden={tab !== 'connections'}>
               <ConnectionsView snapshot={data} now={clock} onChanged={refresh} />

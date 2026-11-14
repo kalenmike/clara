@@ -53,7 +53,7 @@ launch.
 
 Pairing works the same way as the browser:
 
-1. Open the hub panel and choose **Clients → Pair a browser**.
+1. Open the hub panel and choose **Clients → Pair Client**.
 2. Copy the pairing code.
 3. Open Clara, paste the code on the connect screen, and connect.
 

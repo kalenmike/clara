@@ -7,22 +7,12 @@ import {
 } from '@clara/pipeline-preview'
 import { EventRelay } from './orchestrator-events.ts'
 import { McpClient, type ToolResult } from './mcp.ts'
-import {
-  createModelCatalogLoader,
-  resolveOpenCodeConfig,
-  type ModelCatalog,
-  type ModelCatalogSource,
-  type OpenCodeConfig,
-} from './models.ts'
-import { OpenCodeObserver } from './opencode.ts'
 import { LabState, workKey } from './state.ts'
 import { resolveStepWiring } from './step-wiring.ts'
 import type {
   AdapterRow,
   CancelAllResult,
   LabPreviewResult,
-  ModelCatalogSummary,
-  OpenCodeSessionsResult,
   PreflightResult,
   RunRow,
   StatusResult,
@@ -34,17 +24,6 @@ import type {
 
 function message(error: unknown): string {
   return error instanceof Error ? error.message : String(error)
-}
-
-function modelSummary(catalog: ModelCatalog): ModelCatalogSummary {
-  return {
-    ok: catalog.ok,
-    reachable: catalog.reachable,
-    url: catalog.url,
-    count: catalog.models.length,
-    ...(catalog.error ? { error: catalog.error } : {}),
-    fetchedAt: catalog.fetchedAt,
-  }
 }
 
 function capabilities(value: string): string[] {
@@ -100,30 +79,16 @@ export class LabRuntime {
   readonly mcp: McpClient
   private readonly url: string
   private readonly token: string
-  private readonly modelCatalog: ModelCatalogSource
   private readonly events: EventRelay
-  private readonly opencode: OpenCodeObserver
   private heartbeatTimer: NodeJS.Timeout | undefined
   private retryTimer: NodeJS.Timeout | undefined
   private beating = false
   private reconnectInFlight = false
   private adaptersLoaded = false
 
-  constructor(options: {
-    url: string
-    token: string
-    workspace: string
-    models?: ModelCatalogSource
-    opencode?: OpenCodeConfig
-  }) {
+  constructor(options: { url: string; token: string; workspace: string }) {
     this.url = options.url
     this.token = options.token
-    this.modelCatalog = options.models ?? createModelCatalogLoader()
-    const opencode = options.opencode
-    this.opencode = new OpenCodeObserver(
-      opencode ? () => opencode : resolveOpenCodeConfig,
-      (summary) => this.state.setOpenCode(summary)
-    )
     this.mcp = new McpClient(options.url, options.token)
     this.state.orchestrator = options.url
     this.state.workspace = options.workspace
@@ -148,7 +113,6 @@ export class LabRuntime {
     } catch (error) {
       this.state.setConnection(false, message(error))
     }
-    this.opencode.start()
     this.heartbeatTimer = setInterval(() => void this.beat(), 10_000)
     this.heartbeatTimer.unref?.()
     this.retryTimer = setInterval(() => void this.ensureConnected(), 5_000)
@@ -177,7 +141,6 @@ export class LabRuntime {
     this.heartbeatTimer = undefined
     if (this.retryTimer) clearInterval(this.retryTimer)
     this.retryTimer = undefined
-    await this.opencode.stop()
     await this.events.stop()
     await this.mcp.disconnect()
   }
@@ -193,7 +156,6 @@ export class LabRuntime {
       await this.loadTools()
       await this.loadConfig()
       this.events.start()
-      this.opencode.start()
       await this.refreshAdapters(this.orchestratorWorkspace())
     } catch (error) {
       this.state.setConnection(false, message(error))
@@ -236,20 +198,10 @@ export class LabRuntime {
     if (this.mcp.connected && !this.adaptersLoaded) {
       await this.refreshAdapters(this.orchestratorWorkspace()).catch(() => {})
     }
-    const catalog = await this.modelCatalog().catch((error: unknown): ModelCatalog => ({
-      ok: false,
-      reachable: false,
-      url: '',
-      models: [],
-      error: message(error),
-      fetchedAt: new Date().toISOString(),
-    }))
-    const result = previewPipeline({
+    return previewPipeline({
       ...input,
       adapters: this.adapterInfo(),
-      ...(catalog.ok ? { models: catalog.models } : {}),
     })
-    return { ...result, modelCatalog: modelSummary(catalog) }
   }
 
   async preflight(input: {
@@ -264,19 +216,10 @@ export class LabRuntime {
     const runtimeWorkspace =
       input.runtimeWorkspace?.trim() || this.state.orchestratorWorkspace || hostWorkspace
     const target = input.target?.trim() || undefined
-    const catalog = await this.modelCatalog().catch((error: unknown): ModelCatalog => ({
-      ok: false,
-      reachable: false,
-      url: '',
-      models: [],
-      error: message(error),
-      fetchedAt: new Date().toISOString(),
-    }))
     const result: PreflightResult = {
       host: { ok: false },
       runtime: { ok: false },
       adapter: { required: false, ok: true },
-      models: modelSummary(catalog),
     }
 
     try {
@@ -398,14 +341,6 @@ export class LabRuntime {
       ...result,
       value: { ...result.value, ...(stepCount === undefined ? {} : { stepCount }) },
     }
-  }
-
-  opencodeSessions(): Promise<OpenCodeSessionsResult> {
-    return this.opencode.sessions()
-  }
-
-  reconnectOpenCode(): Promise<void> {
-    return this.opencode.reconnect()
   }
 
   async cancelAll(): Promise<CancelAllResult> {

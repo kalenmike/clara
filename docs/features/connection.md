@@ -27,7 +27,7 @@ device key through a one-time code; there is no shared browser key.
 3. If no device is stored, the connect screen offers the pairing form: **Scan QR
    code** and a paste field.
 4. Scanning opens the rear camera and connects as soon as the QR shown in the
-   panel's **Clients → Pair a browser** card or printed by `clara-server pair`
+   panel's **Clients → Pair Client** dialog or printed by `clara-server pair`
    is recognized; a `clara1_…` code or `#pair=` link can still be pasted. A pairing link opened directly starts on the splash with a
    connecting message. Clara stores only non-secret metadata in `localStorage`
    and the non-extractable device key in IndexedDB.

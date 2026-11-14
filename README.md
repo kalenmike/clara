@@ -120,7 +120,7 @@ pnpm clara pair             # print a pairing code for the connect screen
 
 Open <http://localhost:5173> and pair with the code from `pnpm clara pair`, or
 sign in to the panel at <http://localhost:8790> and create a code under
-**Clients → Pair a browser**.
+**Clients → Pair Client**.
 
 ### First run
 
@@ -353,7 +353,7 @@ not required. See
 
 ### Local WebSocket mode
 
-Pair with the local hub directly from **Clients → Pair a browser** with
+Pair with the local hub directly from **Clients → Pair Client** with
 **Local connection only**, or run:
 
 ```bash

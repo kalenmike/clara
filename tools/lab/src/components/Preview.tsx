@@ -236,13 +236,6 @@ export function Preview({
                 {compiled.root.enforcement}
               </Badge>
             ) : null}
-            {result?.modelCatalog ? (
-              <Badge tone={result.modelCatalog.ok ? 'ok' : 'warn'}>
-                {result.modelCatalog.ok
-                  ? `${result.modelCatalog.count} models`
-                  : 'models not checked'}
-              </Badge>
-            ) : null}
           </div>
         ) : null}
 

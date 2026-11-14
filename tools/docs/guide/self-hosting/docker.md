@@ -68,7 +68,7 @@ containerized harness, use a service name such as `http://opencode:4096`.
 
 ## Pair a device
 
-Open **Clients → Pair a browser** in the hub panel and scan the QR or open the
+Open **Clients → Pair Client** in the hub panel and scan the QR or open the
 link on the device. You can also run:
 
 ```bash

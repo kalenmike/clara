@@ -11,6 +11,7 @@ describe('panelTabFromHash', () => {
   it('reads a known tab with or without the hash marker', () => {
     expect(panelTabFromHash('#traffic')).toBe('traffic')
     expect(panelTabFromHash('clients')).toBe('clients')
+    expect(panelTabFromHash('#sessions')).toBe('sessions')
   })
 
   it('falls back to the overview for unknown or empty hashes', () => {

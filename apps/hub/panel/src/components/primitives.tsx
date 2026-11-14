@@ -207,10 +207,12 @@ export function CopyButton({
   value,
   label = 'Copy',
   onError,
+  variant = 'compact',
 }: {
   value: string
   label?: string
   onError?: (message: string) => void
+  variant?: 'compact' | 'block'
 }) {
   const [state, setState] = useState<'idle' | 'copied' | 'error'>('idle')
 
@@ -234,7 +236,11 @@ export function CopyButton({
     <button
       type="button"
       onClick={() => void copy()}
-      className="inline-flex cursor-pointer items-center gap-1 rounded-md border border-neutral-200 px-1.5 py-1 text-[11px] text-neutral-600 transition hover:border-neutral-300 hover:bg-neutral-100 active:translate-y-px focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-neutral-400 dark:border-neutral-700 dark:text-neutral-300 dark:hover:border-neutral-600 dark:hover:bg-neutral-800"
+      className={
+        variant === 'block'
+          ? 'panel-button w-full'
+          : 'inline-flex cursor-pointer items-center gap-1 rounded-md border border-neutral-200 px-1.5 py-1 text-[11px] text-neutral-600 transition hover:border-neutral-300 hover:bg-neutral-100 active:translate-y-px focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-neutral-400 dark:border-neutral-700 dark:text-neutral-300 dark:hover:border-neutral-600 dark:hover:bg-neutral-800'
+      }
       aria-label={label}
     >
       {state === 'copied' ? (

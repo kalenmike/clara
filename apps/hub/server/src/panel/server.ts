@@ -10,6 +10,7 @@ import {
   type PanelFeatureName,
   type PanelMutationResponse,
   type PanelRelayUpdate,
+  type PanelSessionsQuery,
 } from '@clara/shared-types'
 import { SERVER_VERSION } from '../version.ts'
 import { PanelAuth, PanelAuthError, type PanelAuthUser } from './auth.ts'
@@ -24,6 +25,7 @@ const SETUP_PATH = '/panel/api/v1/setup'
 const PASSWORD_PATH = '/panel/api/v1/account/password'
 const FEATURES_PATH = '/panel/api/v1/features'
 const AGENT_PATH = '/panel/api/v1/agent'
+const SESSIONS_PATH = '/panel/api/v1/sessions'
 const MONITORING_PATH = '/panel/api/v1/monitoring'
 const SYNC_PATH = '/panel/api/v1/sync'
 const ORCHESTRATION_PATH = '/panel/api/v1/orchestration'
@@ -244,6 +246,11 @@ async function handleRequest(
       if (handled) return
     }
 
+    if (pathname === SESSIONS_PATH) {
+      await handleSessions(request, response, context, method)
+      return
+    }
+
     if (pathname === API_PATH) {
       if (method !== 'GET' && method !== 'HEAD') {
         response.setHeader('allow', 'GET, HEAD')
@@ -360,6 +367,92 @@ async function handleRequest(
       error: { code: 'asset_failed', message: 'Could not read the panel asset' },
     })
   }
+}
+
+async function handleSessions(
+  request: IncomingMessage,
+  response: ServerResponse,
+  context: RequestContext,
+  method: string
+): Promise<void> {
+  if (method !== 'GET' && method !== 'HEAD') {
+    response.setHeader('allow', 'GET, HEAD')
+    sendJson(response, method, 405, {
+      error: { code: 'method_not_allowed', message: 'The sessions endpoint is read-only' },
+    })
+    return
+  }
+
+  const sessions = context.source.sessions
+  if (!sessions) {
+    sendJson(response, method, 503, {
+      error: { code: 'sessions_unavailable', message: 'Session monitoring is unavailable' },
+    })
+    return
+  }
+
+  const url = new URL(request.url ?? '/', 'http://localhost')
+  const query = sessionsQuery(url.searchParams)
+  if (!query.ok) {
+    sendJson(response, method, 400, {
+      error: { code: 'invalid_query', message: query.message },
+    })
+    return
+  }
+
+  try {
+    sendJson(response, method, 200, await sessions(query.value))
+  } catch (cause) {
+    context.log?.('panel session monitor failed', cause)
+    sendJson(response, method, 500, {
+      error: { code: 'sessions_failed', message: 'Could not read sessions from paired harnesses' },
+    })
+  }
+}
+
+type SessionsQueryResult = { ok: true; value: PanelSessionsQuery } | { ok: false; message: string }
+
+function sessionsQuery(params: URLSearchParams): SessionsQueryResult {
+  const query: PanelSessionsQuery = {}
+  const harnessID = params.get('harnessID')
+  if (harnessID !== null) {
+    const value = harnessID.trim()
+    if (!value || value.length > 128) return { ok: false, message: 'Invalid harnessID' }
+    query.harnessID = value
+  }
+
+  const running = booleanParam(params, 'running')
+  if (running === 'invalid') return { ok: false, message: 'Invalid running filter' }
+  if (running !== undefined) query.runningOnly = running
+
+  const archived = booleanParam(params, 'archived')
+  if (archived === 'invalid') return { ok: false, message: 'Invalid archived filter' }
+  if (archived !== undefined) query.includeArchived = archived
+
+  const search = params.get('q')
+  if (search !== null) {
+    const value = search.trim()
+    if (value.length > 200) return { ok: false, message: 'Search text is too long' }
+    if (value) query.search = value
+  }
+
+  const limit = params.get('limit')
+  if (limit !== null) {
+    if (!/^\d+$/.test(limit)) return { ok: false, message: 'Invalid limit' }
+    const value = Number(limit)
+    if (value < 1 || value > 500) return { ok: false, message: 'Limit must be between 1 and 500' }
+    query.limit = value
+  }
+
+  return { ok: true, value: query }
+}
+
+function booleanParam(params: URLSearchParams, name: string): boolean | undefined | 'invalid' {
+  const value = params.get(name)
+  if (value === null) return undefined
+  if (value === 'true') return true
+  if (value === 'false') return false
+  return 'invalid'
 }
 
 async function handleSession(

@@ -5,9 +5,9 @@
 An authenticated control panel served by the hub service. It uses the
 Clara Lab workbench layout: a title bar, an activity rail with tabbed views, and
 a status bar. It shows the hub's live state, transports, browser clients,
-harness adapters, the active harness probe, push health, configuration sources,
-database health, storage files, and a live traffic meter without exposing
-secrets. The active harness is the panel's default backend: any number of
+harness adapters, the active harness probe, agent sessions across every paired
+harness, push health, configuration sources, database health, storage files,
+and a live traffic meter without exposing secrets. The active harness is the panel's default backend: any number of
 harnesses can be paired and serve their own workspaces, while a request that
 names neither a session nor a workspace falls back to the active one. Sensitive values, including the
 harness URL and relay room, start masked behind a header peek control so the
@@ -85,8 +85,8 @@ card.
    WebSocket endpoint, harness URL, relay URL and room, connection session ids,
    and WebSocket URLs in activity or errors.
 5. Move between views from the activity rail: **Home** (Overview), **Harness**,
-   **Network** (Connections), **Clients**, **Traffic**, and **Activity**, with
-   **Settings** pinned at the bottom. The rail shows live client and event counts
+   **Sessions**, **Network** (Connections), **Clients**, **Traffic**, and
+   **Activity**, with **Settings** pinned at the bottom. The rail shows live client and event counts
    and amber or red dots for trouble. Views are hash links (`#traffic`,
    `#clients`), keep their scroll position while you switch, and survive a
    reload. Cards open by default inside their view; click a header to collapse
@@ -113,7 +113,16 @@ card.
    enrollment, or **Off** while harness access is disabled. **Active** only
    chooses the default backend; projects, sessions, and workspaces on other
    paired harnesses keep working through their own scope.
-8. In **Connections**, toggle local transport, relay, or push from the switch at
+8. Open **Sessions** to monitor agent work across every paired harness. Each
+   harness has a status card with its session and running counts; offline,
+   disabled, and partial harnesses stay visible without hiding the others. The
+   table lists running, awaiting-input, and idle sessions with title, harness,
+   agent, directory, model, and last update. Use the search box, harness picker,
+   **Running only**, and **Show archived** to narrow the list. Open a row for
+   the session ID, directory, project, parent session, model, and timestamps.
+   Session IDs and directories follow the header peek control. The view is
+   read-only and refreshes while it is visible.
+9. In **Connections**, toggle local transport, relay, or push from the switch at
    the top right of its card. The choice is saved immediately. An enabled switch
    is green while external connections are on and red while they are off; a disabled switch
    keeps its neutral track in both cases. Turning a feature off hides its
@@ -125,67 +134,74 @@ card.
    Environment variables win over panel values field by field; fields they
    supply are read-only. When the build includes the optional Cloudflare
    deployment, the Relay card also carries **Deploy relay to Cloudflare**: paste
-   a Workers-scoped API token, choose the account, and Clara uploads the Worker,
-   creates the Durable Object namespace, sets the hub token, and connects the
-   relay. Existing devices must pair again to receive a v4 grant.
-9. In **Settings**, review the full **Hub** details (uptime, process, platform,
-   memory, config path, and paired devices) and the **Orchestration** master
-   switch, then choose **Light**, **Dark**, or **System** under **Appearance**.
-   **System** follows the operating system setting. The choice is stored in this
-   browser and applies to the sign-in screen too.
-10. In **Settings**, edit **Web URL** or **VAPID contact** and choose **Save**;
+   a Workers-scoped API token, choose the account, and optionally attach a custom
+   hostname in one of its zones. Clara uploads the Worker, creates the Durable
+   Object namespace, sets the hub token, and connects the relay. A custom
+   hostname waits for its certificate before Clara disables the workers.dev
+   host. Existing devices must pair again to receive a v4 grant.
+10. In **Settings**, review the full **Hub** details (uptime, process, platform,
+    memory, config path, and paired devices) and the **Orchestration** master
+    switch, then choose **Light**, **Dark**, or **System** under **Appearance**.
+    **System** follows the operating system setting. The choice is stored in this
+    browser and applies to the sign-in screen too.
+11. In **Settings**, edit **Web URL** or **VAPID contact** and choose **Save**;
     **Use default** clears the file value. The source tag shows environment,
     `server.json`/`vapid.json`, or default, and an environment value locks the
     field.
-11. In **Settings**, use the **Shell commands** switch to enable or block all
+12. In **Settings**, use the **Shell commands** switch to enable or block all
     command requests. Enabling makes the header expandable; open it to edit
     **Filter commands**, optionally turn on **Allow Git history**, then choose
     **Apply** at the bottom right. **Discard** sits to its left. The switch stays
     amber until Apply succeeds, then turns green. Turning it off blocks every
     command immediately. Empty filters mean every command is allowed, and the
     card warns about it.
-12. In **Settings**, turn client sync on or off for every paired client, and
+13. In **Settings**, turn client sync on or off for every paired client, and
     choose the interval at which those clients check for changes. Turning it off
     hides the web Sync tab and rejects sync requests; the stored namespace and
     each device's category choices remain. The interval defaults to 30 seconds.
-13. To take every external connection offline, choose **Go offline** at the far
+14. To take every external connection offline, choose **Go offline** at the far
     right of the Overview header and confirm. The Hub tile reads **Connections
     inactive**; the page keeps polling and the banner explains that the panel is
     still available.
-14. Choose **Go online** to restore the saved choices. Feature switches are
+15. Choose **Go online** to restore the saved choices. Feature switches are
     disabled until connections are back online and show red while they are
     stopped, so the offline state is readable from the switch colors alone.
-15. In **Clients**, use **Pair a browser** to create a one-time link, code, or
-    QR for a browser or installed app. Choose **Relay** or **Local** before
-    creating the code; the helper text explains where that code works. The
-    ready card shows only the QR until **Show codes** is opened, where the link,
-    code, fingerprint, transport, and expiry live; it can cancel the code before
-    it is used. Review the browser client table and paired devices below. Harness
-    adapter sessions are not listed here; they live under **Harness**. A
-    one-time pairing session appears with a **Pairing** badge and no device until
-    enrollment finishes; it is excluded from the active count and the local E2EE
-    session count. Each paired session row shows the device's display name, short
-    device id, and fingerprint so devices that share a label stay distinguishable.
+16. In **Clients**, choose **Pair Client** in the page header to open the
+    pairing dialog. Choose **Relay** or **Local** before creating the code; the
+    helper text explains where that code works. **Create pairing link** switches
+    the dialog to the pairing view: a locally rendered QR, an **Open Link**
+    action, the expiry, and **Copy code** and **Copy link** buttons. The raw code
+    and link are not printed. The dialog watches the five-second status snapshot
+    for a new device session or paired device and changes from **Waiting to
+    connect** to **Connected** when enrollment succeeds. Closing while waiting
+    cancels the unused code; closing after the dialog reports connected leaves
+    the new device in place. An expired code offers **Create new link**. Review
+    the browser client table and paired devices below. Harness adapter sessions
+    are not listed here; they live under **Harness**. A one-time pairing session
+    appears with a **Pairing** badge and no device until enrollment finishes; it
+    is excluded from the active count and the local E2EE session count. Each
+    paired session row shows the device's display name, short device id, and
+    fingerprint so devices that share a label stay distinguishable.
     An active device's **Edit** action sets an alias of up to 64 characters; the
     enrolled label stays visible as secondary text, and clearing the alias restores
     the enrolled name. Connected clients resolve the same alias from the paired
     device list, so a rename applies on the next snapshot without reconnecting.
     Status badges call out degraded harness, relay, push, permissions, or
     missing files.
-16. In **Traffic**, read the last minute's in and out rates, the request and
+17. In **Traffic**, read the last minute's in and out rates, the request and
     error rates, the two sparklines for the last hour, and the totals since the
     window started. The card shows the local-versus-relay split, a peak minute,
     and the error breakdown. An amber **Spike** badge means the last complete
     minute was at least three times the previous half hour and above a floor; it
     is a hint, not a verdict.
-17. Use the switch at the top left of **Traffic** to stop recording. The card
+18. Use the switch at the top left of **Traffic** to stop recording. The card
     collapses to its header, the counters are discarded, and the client table
     drops its traffic columns. Turning it back on starts a fresh window with a
     one-minute warm-up. The switch stays usable while external connections are off.
-18. In **Activity**, read the in-memory events and the storage list. The storage
+19. In **Activity**, read the in-memory events and the storage list. The storage
     header summarizes the most severe entry and its count, and the overview links
     here for the full list.
-19. Use the **Orchestration** switch in **Settings** to start or stop the local
+20. Use the **Orchestration** switch in **Settings** to start or stop the local
     orchestration service; the Overview tile still reports its state. Turning it
     on starts a detached local instance when nothing is answering and waits for
     `/health`; turning it off stops only the local instance started from this
@@ -193,7 +209,7 @@ card.
     the switch is disabled because the panel does not own it. The switch is the
     master gate for the feature; connected clients choose separately whether to
     use the orchestrator surface.
-20. Leave the page open. It refreshes every five seconds while visible and
+21. Leave the page open. It refreshes every five seconds while visible and
     pauses when the tab is hidden. Use **Refresh** for an immediate check.
 
 ## Core business rules
@@ -258,7 +274,14 @@ card.
    one-minute buckets and reset on restart or when monitoring is switched off.
    Nothing is throttled, blocked, or persisted, and the per-client counters are
    hidden while monitoring is off.
-8. **Peek is presentation-only.** The eye button masks device ids and
+8. **Sessions are read-only and fan out.** The Sessions view asks every paired
+   harness for its newest non-archived sessions and active state; it does not add
+   a second event stream or write session data. Rows are keyed by harness and
+   session. An active session missing from the newest page is looked up by ID so
+   older runaway work still appears. Offline, disabled, partial, and failed
+   harnesses are reported separately without hiding the others. The endpoint is
+   panel-only and is not part of the snapshot.
+9. **Peek is presentation-only.** The eye button masks device ids and
    fingerprints, config and storage paths, local WebSocket endpoint, harness
    URL, relay URL and room, connection session ids, and WebSocket URLs in
    activity messages and error notices. The Home health tiles and status bar
@@ -266,16 +289,16 @@ card.
    any control, or reach the hub service: its allowlist remains the security
    boundary. The choice lives in `sessionStorage` for the tab, so a reload
    keeps it and a new tab starts masked.
-9. **Guided setup is derived, and it does not auto-reopen after completion.**
-   The modal derives completion from the live snapshot: the connection path is
-   local, or the relay is online with an HTTPS Web URL; at least one harness is
-   paired; and at least one non-revoked device is paired. The chosen path,
-   dismissal, completion, and guide-seen timestamps live in `localStorage`; no
-   hub setting or API changes. The modal opens automatically only while setup
-   is incomplete and has not been dismissed. It never opens automatically after
-   completion, even if a harness or device is later removed. **Settings → Setup**
-   is the only restart surface: **Finish setup** while incomplete,
-   **Reconfigure connections** and **Replay setup guide** after completion.
+10. **Guided setup is derived, and it does not auto-reopen after completion.**
+    The modal derives completion from the live snapshot: the connection path is
+    local, or the relay is online with an HTTPS Web URL; at least one harness is
+    paired; and at least one non-revoked device is paired. The chosen path,
+    dismissal, completion, and guide-seen timestamps live in `localStorage`; no
+    hub setting or API changes. The modal opens automatically only while setup
+    is incomplete and has not been dismissed. It never opens automatically after
+    completion, even if a harness or device is later removed. **Settings → Setup**
+    is the only restart surface: **Finish setup** while incomplete,
+    **Reconfigure connections** and **Replay setup guide** after completion.
 
 ## Edge cases
 
@@ -372,7 +395,7 @@ card.
   hub status update and reschedule their next check without reconnecting.
 - **Connections are off** — a banner says external connections are off, every
   transport card shows a stopped state, feature switches are disabled, and
-  **Pair a browser** cannot create a code. An enabled feature switch turns red
+  **Pair Client** cannot create a code. An enabled feature switch turns red
   and a disabled one keeps its neutral track. The Traffic and Client sync
   switches keep their usual colors.
 - **Orchestration changes** — the hub probes `/health` before and after the
@@ -388,6 +411,25 @@ card.
 - **A harness adapter is connected** — it has its own row under
   **Connected adapters** with its harness label, kind, short harness id, and
   credential fingerprint. It never appears in the Clients table or its counts.
+- **No harness is paired** — **Sessions** explains that a harness must be added
+  and shows no table rows.
+- **Every harness is offline** — each harness card says **Offline**; the table
+  says no paired harness is online and keeps the status cards visible.
+- **One harness is offline or partial** — its card reports the state and error
+  while sessions from other harnesses keep appearing. A partial harness still
+  lists the rows it read.
+- **Harness access is disabled** — every harness card says **Disabled** and the
+  view reads no sessions. Sessions are not cached from an earlier enable.
+- **A session is archived** — it stays hidden until **Show archived** is on. A
+  snoozed session stays visible with a **snoozed** badge.
+- **A running session is older than the newest page** — an active ID missing
+  from the list is fetched by ID so the runaway row still appears.
+- **A harness returns more sessions than the cap** — the table shows the newest
+  rows up to the per-harness cap and marks the view **capped**.
+- **A session disappears between requests** — its active lookup is ignored and
+  the other rows remain.
+- **The panel is screenshared** — session IDs, directories, parent IDs, and
+  copy actions follow the header peek control.
 - **A pairing session is listed** — the row carries a **Pairing** badge instead
   of a device. It is the one-time enrollment connection, not a failed client,
   and the hub retires it as soon as the device-enrolled response is sent.
@@ -424,8 +466,8 @@ card.
 - Editing the relay room as free text; rooms are generated by the hub and can
   only be regenerated. The panel does not edit other `server.json` fields beyond
   the Web URL, relay URL, and generated room
-- Cloudflare custom domains, Worker deletion, or account selection beyond the
-  one account used for a relay deployment
+- Cloudflare Worker deletion, or attaching a hostname in a zone the token
+  cannot manage
 - A second active harness or per-client selection in the panel header; the panel
   stores one active backend as the default for requests that name no session or
   workspace, while paired harnesses keep serving the workspaces and sessions
@@ -438,6 +480,10 @@ card.
   trail
 - Reading, editing, or deleting individual synced values or namespaces from the
   panel; it controls only the global gate and cadence
+- Steering, cancelling, archiving, or opening a session from **Sessions**; the
+  view is read-only
+- Per-session event counts, last event type, or a second event subscription
+- Historical session search, full pagination, or cross-harness session totals
 
 ## Known gaps
 
@@ -454,6 +500,10 @@ card.
   analytics.
 - The traffic window and the activity list are in memory and reset when the
   hub service restarts.
+- **Sessions** reads up to 200 rows per harness by default, capped at 500, and
+  does not paginate. Active sessions missing from that page are looked up up to a
+  bound of 25 per harness. Last seen is the harness session update time, not an
+  event count. The view can be up to five seconds stale while it polls.
 - A session that spans a monitoring toggle shows only the traffic recorded while
   monitoring was on.
 - The active harness probe is cached for five seconds, so the header can briefly
@@ -475,6 +525,10 @@ card.
 - Setup: `POST /panel/api/v1/setup` with `{ "username": "...", "password": "..." }`,
   plus `"token"` only when the host supplied one
 - Read API: `GET /panel/api/v1/status` (API version `12`, authenticated)
+- Sessions API: `GET /panel/api/v1/sessions` (authenticated) accepts
+  `harnessID`, `running=true|false`, `archived=true|false`, `q`, and `limit`
+  (1–500). It returns `{ generatedAt, sessions, harnesses, truncated }`, with one
+  status per paired harness and rows keyed by harness and session.
 - Mutations:
   - `POST /panel/api/v1/features` with `{ "feature": "...", "enabled": true }`
   - `POST /panel/api/v1/agent` with `{ "stopped": true }` (external connections off)
@@ -539,7 +593,8 @@ card.
   proxy rewrites `Host` and `Origin`, and the browser carries the session cookie)
 - Snapshot sections: hub, auth, config, harness, harnesses, devices, local transport,
   relay, clients (browser and adapter sessions), push, controls (feature switches,
-  monitoring, sync, orchestration), storage, events, traffic
+  monitoring, sync, orchestration), storage, events, traffic. Agent sessions are
+  read separately from `/panel/api/v1/sessions` so the snapshot stays small.
 - Traffic meter: `apps/hub/server/src/traffic.ts` (sixty one-minute buckets, rates,
   spike detection), fed by `apps/hub/server/src/agent.ts` and read by
   `PanelRuntime`; rendered by the `TrafficCard` in
@@ -555,8 +610,18 @@ card.
 - Harness view: `harness-add-card.tsx` (pairing flow),
   `harness-sessions-card.tsx` (live adapters), and
   `harness-connections-card.tsx` (paired harnesses and actions)
-- Browser pairing card: `apps/hub/panel/src/components/browser-pair-card.tsx`;
-  the QR is rendered locally with `qrcode.react`
+- Sessions view: `apps/hub/panel/src/components/views/sessions.tsx`,
+  `apps/hub/panel/src/components/session-monitor-table.tsx`, and
+  `apps/hub/panel/src/lib/use-panel-sessions.ts`; the hub fan-out lives in
+  `apps/hub/server/src/sessions/monitor.ts` and the panel endpoint in
+  `apps/hub/server/src/panel/server.ts`
+- Sessions DTOs: `PanelSession`, `PanelSessionHarness`, `PanelSessionsQuery`, and
+  `PanelSessionsResponse` in `@clara/shared-types`
+- Browser pairing dialog: `apps/hub/panel/src/components/pair-client-dialog.tsx`;
+  the QR is rendered locally with `qrcode.react`, and
+  `apps/hub/panel/src/lib/browser-pairing.ts` derives the waiting or connected
+  state from the status snapshot. `browser-pair-card.tsx` remains the inline card
+  used by guided setup.
 - Guided setup: `apps/hub/panel/src/lib/onboarding.ts` (pure step derivation),
   `apps/hub/panel/src/lib/use-onboarding.ts` (dismissal, completion, and modal
   mode), and `apps/hub/panel/src/components/onboarding/` (modal, connection,

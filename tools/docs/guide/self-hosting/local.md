@@ -46,13 +46,16 @@ pnpm clara server setup --local --password-stdin
 
 Or set `CLARA_ADMIN_USERNAME` and `CLARA_ADMIN_PASSWORD` before starting the hub.
 
-Then pair from **Clients → Pair a browser** in the panel, or run:
+Then pair from **Clients → Pair Client** in the panel, or run:
 
 ```bash
 pnpm clara pair --local --no-relay
 ```
 
 Open the link, or open `http://127.0.0.1:8080` and paste the code.
+
+After pairing, open **Sessions** in the panel to monitor running, waiting, and
+idle work across every paired harness.
 
 ## Services and ports
 

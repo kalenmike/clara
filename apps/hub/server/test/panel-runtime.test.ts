@@ -2,7 +2,7 @@ import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
-import type { PanelAuthInfo, PanelSnapshot } from '@clara/shared-types'
+import type { PanelAuthInfo, PanelSessionsResponse, PanelSnapshot } from '@clara/shared-types'
 import type { Agent, AgentSessionInfo } from '../src/agent.ts'
 import type { ServerConfig } from '../src/config.ts'
 import type { HarnessManager } from '../src/harness/manager.ts'
@@ -12,6 +12,7 @@ import type { RelayClient, RelaySnapshot } from '../src/relay-client.ts'
 import type { DeviceInfo } from '../src/store/devices.ts'
 import { PanelLog } from '../src/panel/log.ts'
 import { PanelRuntime, type PanelRuntimeOptions } from '../src/panel/runtime.ts'
+import type { SessionMonitor } from '../src/sessions/monitor.ts'
 import { TrafficMeter } from '../src/traffic.ts'
 
 const tempDirs: string[] = []
@@ -146,6 +147,9 @@ function createRuntime(
     traffic?: TrafficMeter
     localSessions?: AgentSessionInfo[]
     relaySessions?: AgentSessionInfo[]
+    sessions?: {
+      load: () => Promise<PanelSessionsResponse>
+    }
   } = {}
 ): PanelRuntime {
   const runtimeOptions: PanelRuntimeOptions = {
@@ -207,6 +211,7 @@ function createRuntime(
     pairedDevices: () => devices().filter((device) => !device.revokedAt).length,
     startedAt: Date.now() - 60_000,
     secretKey: { path: join(dir, 'secrets.key'), source: 'generated' },
+    ...(options.sessions ? { sessions: options.sessions as unknown as SessionMonitor } : {}),
     log: new PanelLog(),
   }
   return new PanelRuntime(runtimeOptions)
@@ -280,6 +285,38 @@ describe('PanelRuntime', () => {
     const snapshot = await runtime.snapshot(AUTH)
     expect(snapshot.relay.lastError).toContain('[redacted]')
     expect(snapshot.relay.lastError).not.toContain('sentinel-agent-token')
+  })
+
+  it('redacts secrets from session monitor errors', async () => {
+    const dir = tempDir()
+    writeFileSync(join(dir, 'server.json'), '{}', { mode: 0o600 })
+    const runtime = createRuntime(dir, {
+      sessions: {
+        load: async () => ({
+          generatedAt: new Date(0).toISOString(),
+          sessions: [],
+          harnesses: [
+            {
+              harnessID: 'harness-a',
+              label: 'Test OpenCode',
+              kind: 'opencode',
+              online: false,
+              active: true,
+              ok: false,
+              code: 'upstream_error',
+              message: 'adapter failed with sentinel-password',
+              sessionCount: 0,
+              runningCount: 0,
+            },
+          ],
+          truncated: false,
+        }),
+      },
+    })
+
+    const result = await runtime.sessions({})
+    expect(result.harnesses[0]?.message).toContain('[redacted]')
+    expect(result.harnesses[0]?.message).not.toContain('sentinel-password')
   })
 
   it('reports adapter sessions with harness identity and fingerprint', async () => {

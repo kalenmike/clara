@@ -2,6 +2,7 @@ import {
   Cable,
   Gauge,
   LayoutDashboard,
+  ListChecks,
   Radio,
   ScrollText,
   Settings,
@@ -14,7 +15,14 @@ import {
  * the rail mirrors the Clara Lab layout: primary views on top, settings below.
  */
 export type PanelTab =
-  'overview' | 'harness' | 'connections' | 'clients' | 'traffic' | 'activity' | 'settings'
+  | 'overview'
+  | 'harness'
+  | 'sessions'
+  | 'connections'
+  | 'clients'
+  | 'traffic'
+  | 'activity'
+  | 'settings'
 
 export type PanelTabMeta = {
   id: PanelTab
@@ -50,6 +58,15 @@ export const PANEL_TABS: PanelTabMeta[] = [
     primary: true,
   },
   {
+    id: 'sessions',
+    label: 'Sessions',
+    icon: ListChecks,
+    kicker: 'Agents',
+    title: 'Sessions',
+    description: 'Live and recently idle agent sessions across every paired harness.',
+    primary: true,
+  },
+  {
     id: 'connections',
     label: 'Network',
     icon: Radio,
@@ -62,7 +79,7 @@ export const PANEL_TABS: PanelTabMeta[] = [
     id: 'clients',
     label: 'Clients',
     icon: Users,
-    kicker: 'Sessions',
+    kicker: 'Connections',
     title: 'Clients',
     description: 'Live end-to-end encrypted browser sessions and the devices that own them.',
     primary: true,
