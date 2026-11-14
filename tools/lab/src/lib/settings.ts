@@ -1,4 +1,4 @@
-export type LabTab = 'pipeline' | 'runs' | 'traffic' | 'console' | 'sessions' | 'settings'
+export type LabTab = 'pipeline' | 'runs' | 'traffic' | 'console' | 'settings'
 
 export interface LabSettings {
   hostWorkspace: string
@@ -17,7 +17,7 @@ export const DEFAULT_SETTINGS: LabSettings = {
 }
 
 const KEY = 'clara-lab.settings.v1'
-const TABS: LabTab[] = ['pipeline', 'runs', 'traffic', 'console', 'sessions', 'settings']
+const TABS: LabTab[] = ['pipeline', 'runs', 'traffic', 'console', 'settings']
 
 function string(value: unknown): string {
   return typeof value === 'string' ? value : ''

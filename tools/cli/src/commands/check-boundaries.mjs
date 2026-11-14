@@ -9,7 +9,7 @@ import { root } from '../lib/router.mjs'
 const rules = [
   {
     specifier: '@opencode/client',
-    allowed: ['apps/adapters/opencode', 'tools/lab'],
+    allowed: ['apps/adapters/opencode'],
   },
   {
     specifier: '@anthropic-ai/claude-agent-sdk',

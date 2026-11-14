@@ -1,6 +1,3 @@
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
-import { tmpdir } from 'node:os'
-import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import type { AddressInfo } from 'node:net'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
@@ -64,13 +61,6 @@ beforeAll(async () => {
     url: `http://127.0.0.1:${address.port}`,
     token,
     workspace,
-    models: async () => ({
-      ok: true,
-      reachable: true,
-      url: 'http://opencode.test',
-      models: [{ providerID: 'opencode-go', id: 'deepseek-v4.1-flash', enabled: true }],
-      fetchedAt: new Date().toISOString(),
-    }),
   })
   await runtime.start()
   lab = await startLabServer({ runtime, port: 0, version: 'test' })
@@ -111,52 +101,6 @@ describe('lab server', () => {
     expect(value.selected?.ref).toBe('std:maintenance/rebuild')
     expect(value.compiled?.root.kind).toBe('pipeline')
     expect(value.sources.some((source) => source.kind === 'pipeline')).toBe(true)
-  })
-
-  it('validates pipeline models against the OpenCode catalog', async () => {
-    const dir = mkdtempSync(join(tmpdir(), 'clara-lab-models-'))
-    try {
-      mkdirSync(join(dir, 'orchestration'))
-      writeFileSync(
-        join(dir, 'orchestration', 'index.yml'),
-        [
-          'id: temp',
-          'name: Temp',
-          'version: 1',
-          'entry: bad',
-          'pipelines:',
-          '  bad:',
-          '    steps:',
-          '      - name: bad_model',
-          '        type: agent',
-          '        prompt: do it',
-          '        provider: opencode-go',
-          '        model: not-a-model',
-        ].join('\n')
-      )
-      const preview = await post('/api/preview', {
-        workspace: dir,
-        configPath: join(dir, 'orchestration', 'index.yml'),
-        target: 'bad',
-      })
-      expect(preview.response.status).toBe(200)
-      const value = preview.value as {
-        modelCatalog?: { ok: boolean; count: number }
-        diagnostics: Array<{ code: string; stepPath?: string }>
-      }
-      expect(value.modelCatalog?.ok).toBe(true)
-      expect(value.modelCatalog?.count).toBe(1)
-      expect(value.diagnostics.map((entry) => entry.code)).toContain('model_unknown')
-    } finally {
-      await post('/api/preview', { workspace, target: 'std:maintenance/rebuild' }).catch(() => {})
-      rmSync(dir, { recursive: true, force: true })
-    }
-  })
-
-  it('reconnects the OpenCode observer', async () => {
-    const result = await post('/api/opencode/reconnect', {})
-    expect(result.response.status).toBe(200)
-    expect(result.value).toEqual({ ok: true })
   })
 
   it('requires the lab header for mutations', async () => {
@@ -260,13 +204,11 @@ describe('lab server', () => {
       host: { ok: boolean; strict?: boolean }
       runtime: { ok: boolean; packages?: number }
       adapter: { required: boolean; ok: boolean }
-      models: { ok: boolean; count: number }
     }
     expect(quickValue.host.ok).toBe(true)
     expect(quickValue.host.strict).toBe(false)
     expect(quickValue.runtime.ok).toBe(true)
     expect(quickValue.adapter.required).toBe(false)
-    expect(quickValue.models).toMatchObject({ ok: true, count: 1 })
 
     const strict = await post('/api/preflight', {
       hostWorkspace: workspace,
