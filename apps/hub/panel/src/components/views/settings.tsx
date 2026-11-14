@@ -1,5 +1,6 @@
 import type { PanelSnapshot } from '@clara/shared-types'
 import type { SetupPreferences, SetupState } from '../../lib/onboarding.ts'
+import { AdapterRegistryCard } from '../adapter-registry-card.tsx'
 import { ClientSyncCard } from '../client-sync-card.tsx'
 import { OrchestrationCard } from '../orchestration-card.tsx'
 import { AgentCard, ConfigCard } from '../overview-cards.tsx'
@@ -31,7 +32,7 @@ export function SettingsView({
       id="settings"
       kicker="Control"
       title="Settings"
-      description="Panel appearance, hub details, orchestration, effective configuration, client sync, and setup."
+      description="Panel appearance, hub details, orchestration, adapter downloads, effective configuration, client sync, and setup."
     >
       <ThemeCard />
       <div className="grid items-start gap-3 md:grid-cols-2">
@@ -49,6 +50,13 @@ export function SettingsView({
       </div>
       <div className="grid items-start gap-3 md:grid-cols-2">
         <ConfigCard config={snapshot.config} onChanged={onChanged} />
+        <AdapterRegistryCard
+          config={snapshot.config}
+          controls={snapshot.controls}
+          onChanged={onChanged}
+        />
+      </div>
+      <div className="grid items-start gap-3 md:grid-cols-2">
         <ClientSyncCard sync={snapshot.controls.sync} onChanged={onChanged} defaultExpanded />
       </div>
       <SetupCard

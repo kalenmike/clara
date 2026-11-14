@@ -469,7 +469,7 @@ export function ConfigEditorRow({
 }: {
   id: string
   label: string
-  field: 'pairingBaseUrl' | 'vapidSubject'
+  field: 'pairingBaseUrl' | 'adapterRegistryUrl' | 'vapidSubject'
   value: string
   source: PanelValueSource
   sourceText: string

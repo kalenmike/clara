@@ -84,7 +84,9 @@ export function HarnessStep({
 
       <HarnessAddCard
         enabled={feature.desired}
+        installEnabled={snapshot.controls.install.enabled}
         relayConfigured={snapshot.relay.configured}
+        containerized={snapshot.agent.container}
         harnesses={snapshot.harnesses}
         onChanged={onChanged}
         now={now}
