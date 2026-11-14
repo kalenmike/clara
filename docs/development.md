@@ -203,7 +203,13 @@ explicit default. Disable any part with `--no-server`, `--no-web`, or
 rebuilds the checkout before starting in either mode.
 Local processes keep a PID and log under `~/.local/share/clara`, so
 `pnpm clara stop --local`, `restart --local`, and `logs ... --local` work the
-same way as the Docker stack. `pnpm clara server start --local` replaces the
+same way as the Docker stack. Stop also resolves a service that was restarted
+outside the PID files: the hub through its runtime file, and the web client
+through the pid in its `/healthz` response. Discovered processes are checked
+against the expected command line before they are signalled, a port owner must
+match, and a process that ignores SIGTERM is forced with SIGKILL. A hub managed
+by the documented `clara` user systemd unit is reported but never signalled;
+stop it with `systemctl --user stop clara`. `pnpm clara server start --local` replaces the
 old `pnpm clara serve` foreground command; local web serves the built
 `apps/web/dist` on `CLARA_WEB_PORT`. The scoped
 `pnpm clara server start` and `pnpm clara orchestrator start` commands remain
