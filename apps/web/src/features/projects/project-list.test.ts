@@ -102,6 +102,18 @@ describe('filterVisibleProjects', () => {
       projects[2],
     ])
   })
+
+  it('keeps projects with an incomplete harness answer when counts look empty', () => {
+    const hasSessions = new Map([
+      ['active', false],
+      ['empty', false],
+    ])
+    expect(
+      filterVisibleProjects(projects, hasSessions, false, new Set(['active'])).map(
+        (project) => project.id
+      )
+    ).toEqual(['active', 'unknown'])
+  })
 })
 
 describe('recentProjects', () => {

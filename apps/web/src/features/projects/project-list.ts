@@ -51,15 +51,19 @@ export function sortProjectsByRecency(projects: ClaraProject[]): ClaraProject[] 
 /**
  * Hide projects without sessions unless the person asked to show them. Projects
  * whose session lookup is still unknown stay visible so a failed lookup cannot
- * hide real work.
+ * hide real work, and projects with an offline or failed harness stay visible
+ * because their sessions may simply not have been counted.
  */
 export function filterVisibleProjects(
   projects: ClaraProject[],
   hasSessions: ReadonlyMap<string, boolean>,
-  showEmpty: boolean
+  showEmpty: boolean,
+  incomplete: ReadonlySet<string> = new Set()
 ): ClaraProject[] {
   if (showEmpty) return projects
-  return projects.filter((project) => hasSessions.get(project.id) !== false)
+  return projects.filter(
+    (project) => incomplete.has(project.id) || hasSessions.get(project.id) !== false
+  )
 }
 
 /**
