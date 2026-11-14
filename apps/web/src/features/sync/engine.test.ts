@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import type { SyncSnapshot } from '@clara/shared-types'
 import type { SyncRequestAction, SyncResponse } from '@/lib/transport/relay'
 import { SettingsSyncEngine, type SettingsSyncStatus } from './engine'
-import type { SyncField, SyncFieldGroups } from './fields'
+import type { SyncField, SyncFieldGroups, SyncStandaloneFields } from './fields'
 import type { SyncPreferences } from './preferences'
 
 type TestField = SyncField & { get: () => string | null; set: (value: string | null) => void }
@@ -32,6 +32,9 @@ function createHarness(initial?: Partial<SyncPreferences>, options?: { disabled?
     project: [testField('clara.lastProject', null)],
     inbox: [testField('clara.monitorInbox', null)],
   }
+  const standaloneFields: SyncStandaloneFields = {
+    orchestratorMode: testField('clara.orchestratorMode', null),
+  }
 
   let preferences: SyncPreferences = {
     categories: {
@@ -42,10 +45,14 @@ function createHarness(initial?: Partial<SyncPreferences>, options?: { disabled?
       project: false,
       inbox: false,
     },
+    standalone: {
+      orchestratorMode: false,
+    },
     revision: null,
     dirty: [],
     ...initial,
     ...(initial?.categories ? { categories: { ...initial.categories } } : {}),
+    ...(initial?.standalone ? { standalone: { ...initial.standalone } } : {}),
   }
 
   let server: SyncSnapshot = { namespace: 'default', revision: 0, entries: [] }
@@ -96,6 +103,7 @@ function createHarness(initial?: Partial<SyncPreferences>, options?: { disabled?
   const engine = new SettingsSyncEngine({
     request,
     fields,
+    standaloneFields,
     readPreferences: () => preferences,
     writePreferences: (next) => {
       preferences = next
@@ -110,6 +118,7 @@ function createHarness(initial?: Partial<SyncPreferences>, options?: { disabled?
   return {
     engine,
     fields,
+    standaloneFields,
     calls,
     preferences: () => preferences,
     status: () => status,
@@ -124,6 +133,7 @@ function createHarness(initial?: Partial<SyncPreferences>, options?: { disabled?
     },
     theme: fields.theme[0] as TestField,
     notifications: fields.notifications[0] as TestField,
+    orchestratorMode: standaloneFields.orchestratorMode as TestField,
   }
 }
 
@@ -296,6 +306,39 @@ describe('SettingsSyncEngine', () => {
     harness.engine.disable('theme')
 
     expect(harness.preferences().categories.theme).toBe(false)
+    expect(harness.preferences().dirty).toEqual([])
+  })
+
+  it('enables one isolated setting without enabling any category', async () => {
+    const harness = createHarness()
+    harness.orchestratorMode.set('on')
+
+    await harness.engine.enableStandalone('orchestratorMode')
+
+    expect(harness.preferences().standalone.orchestratorMode).toBe(true)
+    expect(harness.preferences().categories.theme).toBe(false)
+    expect(harness.orchestratorMode.get()).toBe('on')
+    expect(harness.server().entries).toEqual([
+      { key: 'clara.orchestratorMode', value: 'on', updatedAt: 1 },
+    ])
+  })
+
+  it('applies a standalone server value and stops syncing it when disabled', async () => {
+    const harness = createHarness({
+      standalone: { orchestratorMode: true },
+      revision: 1,
+    })
+    harness.orchestratorMode.set('off')
+    harness.setServerValue('clara.orchestratorMode', 'on', 2)
+
+    await harness.engine.start()
+    harness.engine.stop()
+
+    expect(harness.orchestratorMode.get()).toBe('on')
+    expect(harness.preferences().revision).toBe(2)
+
+    harness.engine.disableStandalone('orchestratorMode')
+    expect(harness.preferences().standalone.orchestratorMode).toBe(false)
     expect(harness.preferences().dirty).toEqual([])
   })
 

@@ -5,17 +5,46 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Separator } from '@/components/ui/separator'
 import { Switch } from '@/components/ui/switch'
 import { SYNC_CATEGORIES, SYNC_CATEGORY_INFO, type SyncCategory } from '@/features/sync/categories'
+import {
+  SYNC_STANDALONE,
+  SYNC_STANDALONE_INFO,
+  type SyncStandalone,
+} from '@/features/sync/standalone'
 import { useSettingsSync } from '@/providers/settings-sync-provider'
 
-export function SyncCard() {
-  const { available, enabled, intervalMs, reason, status, syncNow, toggle } = useSettingsSync()
-  const [pending, setPending] = useState<SyncCategory | null>(null)
-  const hasEnabled = SYNC_CATEGORIES.some((category) => enabled[category])
+type PendingChoice =
+  { kind: 'category'; id: SyncCategory } | { kind: 'standalone'; id: SyncStandalone } | null
 
-  const choose = async (category: SyncCategory) => {
-    setPending(category)
+export function SyncCard() {
+  const {
+    available,
+    enabled,
+    standaloneEnabled,
+    intervalMs,
+    reason,
+    status,
+    syncNow,
+    toggle,
+    toggleStandalone,
+  } = useSettingsSync()
+  const [pending, setPending] = useState<PendingChoice>(null)
+  const hasEnabled =
+    SYNC_CATEGORIES.some((category) => enabled[category]) ||
+    SYNC_STANDALONE.some((standalone) => standaloneEnabled[standalone])
+
+  const chooseCategory = async (category: SyncCategory) => {
+    setPending({ kind: 'category', id: category })
     try {
       await toggle(category)
+    } finally {
+      setPending(null)
+    }
+  }
+
+  const chooseStandalone = async (standalone: SyncStandalone) => {
+    setPending({ kind: 'standalone', id: standalone })
+    try {
+      await toggleStandalone(standalone)
     } finally {
       setPending(null)
     }
@@ -50,9 +79,37 @@ export function SyncCard() {
                 </div>
                 <Switch
                   checked={checked}
-                  onCheckedChange={() => void choose(info.id)}
+                  onCheckedChange={() => void chooseCategory(info.id)}
                   disabled={pending !== null || (!available && !checked)}
                   aria-label={`Sync ${info.label}`}
+                />
+              </div>
+            )
+          })}
+        </div>
+
+        <div className="space-y-1 rounded-lg border border-dashed p-2">
+          <div className="px-1 py-2">
+            <div className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
+              Single setting
+            </div>
+            <p className="mt-1 text-xs text-muted-foreground">
+              Shared on its own, outside the groups above.
+            </p>
+          </div>
+          {SYNC_STANDALONE_INFO.map((info) => {
+            const checked = standaloneEnabled[info.id]
+            return (
+              <div key={info.id} className="flex items-start gap-3 rounded-md px-1 py-2">
+                <div className="min-w-0 flex-1">
+                  <div className="text-sm">{info.label}</div>
+                  <p className="mt-0.5 text-xs text-muted-foreground">{info.description}</p>
+                </div>
+                <Switch
+                  checked={checked}
+                  onCheckedChange={() => void chooseStandalone(info.id)}
+                  disabled={pending !== null || (!available && !checked)}
+                  aria-label={`Sync ${info.label} on its own`}
                 />
               </div>
             )
@@ -90,8 +147,8 @@ export function SyncCard() {
         {status.error && <p className="text-xs text-destructive">{status.error}</p>}
 
         <p className="text-[11px] text-muted-foreground">
-          Each device chooses its own categories. Turning a category off stops syncing it here but
-          leaves the value the hub already stored.
+          Each device chooses its own categories and single-setting shares. Turning one off stops
+          syncing it here but leaves the value the hub already stored.
         </p>
       </CardContent>
     </Card>

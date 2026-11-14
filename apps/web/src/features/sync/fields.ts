@@ -12,6 +12,7 @@ import {
   saveNotificationSettings,
   type NotificationSettings,
 } from '@/features/notifications/settings'
+import { ORCHESTRATOR_MODE_KEY, saveOrchestratorMode } from '@/features/orchestration/client-mode'
 import {
   COST_DISPLAY_KEY,
   isCostDisplaySource,
@@ -47,6 +48,7 @@ import {
   saveTheme,
 } from '@/lib/storage'
 import type { SyncCategory } from './categories'
+import type { SyncStandalone } from './standalone'
 
 export type SyncField = {
   /** The key stored in the server namespace. */
@@ -65,6 +67,8 @@ export type SyncFieldOverrides = {
 }
 
 export type SyncFieldGroups = Record<SyncCategory, SyncField[]>
+
+export type SyncStandaloneFields = Record<SyncStandalone, SyncField>
 
 function readRaw(key: string): string | null {
   try {
@@ -334,6 +338,21 @@ function inboxMonitorField(overrides: SyncFieldOverrides): SyncField {
   }
 }
 
+function orchestratorModeField(): SyncField {
+  return {
+    key: ORCHESTRATOR_MODE_KEY,
+    read: () => {
+      const raw = readRaw(ORCHESTRATOR_MODE_KEY)
+      return raw === 'on' || raw === 'off' ? raw : null
+    },
+    apply: (value) => {
+      if (value !== 'on' && value !== 'off') return false
+      saveOrchestratorMode(value === 'on')
+      return true
+    },
+  }
+}
+
 export function buildSyncFields(overrides: SyncFieldOverrides = {}): SyncFieldGroups {
   return {
     theme: [themeModeField(overrides), colorThemeField()],
@@ -342,5 +361,12 @@ export function buildSyncFields(overrides: SyncFieldOverrides = {}): SyncFieldGr
     notifications: [notificationsField()],
     project: [lastProjectField(), showEmptyProjectsField(), showArchivedProjectsField()],
     inbox: [inboxMonitorField(overrides)],
+  }
+}
+
+/** Single settings that never belong to a category group. */
+export function buildStandaloneSyncFields(): SyncStandaloneFields {
+  return {
+    orchestratorMode: orchestratorModeField(),
   }
 }
