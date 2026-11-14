@@ -1,11 +1,14 @@
-/** Wire protocol version. Bump when a frame shape changes. */
-export const PROTOCOL_VERSION = 3
+/**
+ * Wire protocol version. Bump when a frame shape changes. v4 adds ephemeral
+ * P-256 ECDH for forward secrecy and a MAC on the hub hello.
+ */
+export const PROTOCOL_VERSION = 4
 
 /**
- * The v4 handshake adds ephemeral P-256 ECDH for forward secrecy and a MAC on
- * the hub hello. It is defined alongside v3 until the transport cutover.
+ * The v4 handshake is the only handshake the hub speaks. Kept as an alias so
+ * the version cannot drift between the two names.
  */
-export const PROTOCOL_VERSION_V4 = 4
+export const PROTOCOL_VERSION_V4 = PROTOCOL_VERSION
 
 /**
  * Version of the relay route envelope, advertised in `x-clara-relay-version`.

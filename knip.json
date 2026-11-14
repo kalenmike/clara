@@ -100,5 +100,8 @@
   "rules": {
     "exports": "off",
     "types": "off"
+  },
+  "ignoreIssues": {
+    "packages/contracts/shared-types/src/protocol.ts": ["duplicates"]
   }
 }

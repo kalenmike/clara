@@ -1,5 +1,6 @@
 import type { AdapterPayload } from './adapter.ts'
 import type { ClaraAction } from './actions.ts'
+import type { RelayGrantState } from './grant.ts'
 import type { AgentInfo } from './protocol.ts'
 
 export type SyncEntry = {
@@ -68,6 +69,11 @@ export type ClaraState =
       deviceId: string
       fingerprint: string
       label: string
+      /**
+       * The first device grant. Later connects present it to the relay and
+       * receive a refreshed copy in the sealed `ready` action.
+       */
+      relayGrant?: RelayGrantState
     }
 
 export type ClaraStateType = ClaraState['type']

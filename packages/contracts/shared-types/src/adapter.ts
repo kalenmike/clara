@@ -1,4 +1,5 @@
 import type { HttpMethod } from './actions.ts'
+import type { RelayGrantState } from './grant.ts'
 
 /**
  * Adapter frames travel inside the same sealed WebSocket session as a browser
@@ -60,6 +61,11 @@ export type AdapterEnrolledState = {
   harnessId: string
   label: string
   reconnected: boolean
+  /**
+   * The first adapter grant. Later connects present it to the relay and
+   * receive a refreshed copy in the sealed `ready` action.
+   */
+  relayGrant?: RelayGrantState
 }
 
 export type AdapterState = AdapterResponseState | AdapterEnrolledState
