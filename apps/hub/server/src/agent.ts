@@ -12,6 +12,7 @@ import {
 import {
   PROTOCOL_VERSION,
   isHelloFrame,
+  isRouteFrame,
   isSealedFrame,
   parseWireFrame,
   type AdapterAction,
@@ -58,9 +59,14 @@ type SessionPresence = {
 
 type SessionKind = 'device' | 'enroll' | 'adapter'
 
+/** Whether frames arrive bare or wrapped in the relay's route envelope. */
+type AgentEnvelope = 'plain' | 'relay'
+
 type Session = {
   sid: string
   kind: SessionKind
+  /** Relay-assigned socket that opened the session; absent on the local transport. */
+  peer?: string
   deviceId?: string
   deviceLabel?: string
   enrollId?: string
@@ -152,17 +158,31 @@ export type AgentOptions = {
  * One `Agent` instance serves every client attached to a single transport (the local WS
  * listener or the relay). Sessions are independent and keyed by the client's
  * random sid, so the relay can broadcast every hub frame without routing
- * state.
+ * state. On the relay transport each session is additionally bound to the
+ * relay-assigned peer of the socket that opened it.
  */
 export class Agent {
   private readonly sessions = new Map<string, Session>()
+  /** Sid to peer for a handshake that is still being established. */
+  private readonly pendingPeers = new Map<string, string>()
   private readonly sweepTimer: NodeJS.Timeout
   private readonly options: AgentOptions
+  private envelopeMode: AgentEnvelope = 'plain'
+  private warnedUnwrapped = false
 
   constructor(options: AgentOptions) {
     this.options = options
     this.sweepTimer = setInterval(() => this.sweep(), SWEEP_MS)
     this.sweepTimer.unref()
+  }
+
+  /**
+   * Select the wire envelope. The relay wraps every client frame in a route
+   * frame that names the sending socket, so sessions can be bound to a peer.
+   * The local transport keeps speaking bare frames.
+   */
+  setEnvelope(mode: AgentEnvelope): void {
+    this.envelopeMode = mode
   }
 
   handleMessage(raw: string | Uint8Array | ArrayBuffer): void {
@@ -172,7 +192,6 @@ export class Agent {
     } catch {
       return
     }
-    const bytes = Buffer.byteLength(text)
 
     let parsed: unknown
     try {
@@ -181,6 +200,29 @@ export class Agent {
       this.options.traffic?.recordError('dropped')
       return
     }
+
+    let peer: string | undefined
+    if (this.envelopeMode === 'relay') {
+      if (!isRouteFrame(parsed)) {
+        // An older Worker forwards client frames verbatim. Without a peer id
+        // any room member could claim another session's sid, so drop them.
+        if (!this.warnedUnwrapped) {
+          this.warnedUnwrapped = true
+          this.options.log?.('ignored an unwrapped relay frame; the relay is outdated')
+        }
+        return
+      }
+      peer = parsed.p
+      try {
+        text = parsed.b ? new TextDecoder().decode(base64UrlToBytes(parsed.m)) : parsed.m
+        parsed = JSON.parse(text)
+      } catch {
+        this.options.traffic?.recordError('dropped')
+        return
+      }
+    }
+
+    const bytes = Buffer.byteLength(text)
 
     const frame = parseWireFrame(parsed)
     if (!frame) {
@@ -191,7 +233,7 @@ export class Agent {
     this.options.traffic?.recordInbound(bytes, this.transport)
 
     if (isHelloFrame(frame)) {
-      void this.handleHello(frame).catch((cause) => {
+      void this.handleHello(frame, peer).catch((cause) => {
         this.options.log?.('handshake failed', cause)
         this.sendError(frame.sid, 'invalid_device', 'Could not start the session')
       })
@@ -203,6 +245,13 @@ export class Agent {
         // A sealed frame for a session this instance does not hold is either a
         // stale client or someone probing with a guessed session id.
         this.options.traffic?.recordError('orphan')
+        return
+      }
+      if (this.envelopeMode === 'relay' && session.peer !== peer) {
+        // The relay told us which socket sent this frame. Serving it would let
+        // any room member replay garbage into another member's session.
+        this.options.traffic?.recordError('misrouted')
+        this.options.log?.('dropped a frame from another relay peer', { sid: frame.sid })
         return
       }
       if (this.monitoring) session.bytesIn += bytes
@@ -295,14 +344,40 @@ export class Agent {
     return false
   }
 
-  private async handleHello(frame: HelloFrame): Promise<void> {
+  private async handleHello(frame: HelloFrame, peer?: string): Promise<void> {
     const { sid, nonce: clientNonce, role } = frame
     if (role !== 'client' || !sid || !clientNonce) return
 
+    const relayPeer = this.envelopeMode === 'relay' ? peer : undefined
     const existing = this.sessions.get(sid)
     if (existing) {
+      // A relay session belongs to the socket that opened it. A hello reusing
+      // its sid from another peer is an attempted takeover: drop the hello and
+      // leave the live session untouched.
+      if (relayPeer !== undefined && existing.peer !== relayPeer) {
+        this.options.log?.('dropped a hello from another relay peer', { sid })
+        return
+      }
       this.closeSession(existing)
+    } else if (relayPeer !== undefined) {
+      // Refuse a different peer while the first handshake is still in flight.
+      const pending = this.pendingPeers.get(sid)
+      if (pending !== undefined && pending !== relayPeer) {
+        this.options.log?.('dropped a hello from another relay peer', { sid })
+        return
+      }
     }
+
+    if (relayPeer !== undefined) this.pendingPeers.set(sid, relayPeer)
+    try {
+      await this.establishSession(frame, relayPeer)
+    } finally {
+      if (relayPeer !== undefined) this.pendingPeers.delete(sid)
+    }
+  }
+
+  private async establishSession(frame: HelloFrame, peer?: string): Promise<void> {
+    const { sid, nonce: clientNonce } = frame
 
     const isAdapter = frame.adapter === true
     let kind: SessionKind
@@ -376,6 +451,7 @@ export class Agent {
     const session: Session = {
       sid,
       kind,
+      ...(peer ? { peer } : {}),
       ...(deviceId ? { deviceId } : {}),
       ...(deviceLabel ? { deviceLabel } : {}),
       ...(enrollId ? { enrollId } : {}),
