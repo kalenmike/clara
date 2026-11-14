@@ -72,10 +72,13 @@ forgets the device locally; it does not revoke the key on the hub.
 
 ## Limits worth knowing
 
-- There is no forward secrecy. Each device key protects that device's sessions.
-- The relay client token is shared by devices and adapters. It gates relay socket
-  access but is not the encryption key. An attacker with the token and no device
-  or adapter key can open sockets and cause noise, not read traffic.
+- Handshake v4 uses fresh P-256 ephemeral keys per session, so recorded traffic
+  cannot be decrypted later with the static device key alone.
+- The relay accepts a signed grant per device or adapter, not a shared client
+  token. A grant gates relay socket access but is not the encryption key. An
+  attacker with a grant and no device or adapter key can open sockets and cause
+  noise until it expires, not read traffic. Grants last thirty days and refresh
+  on each connect.
 - Push delivery depends on the browser push service. A notification preview may
   show on a locked screen depending on your operating system settings.
 - The hub panel is loopback-only. Do not expose it to the internet.

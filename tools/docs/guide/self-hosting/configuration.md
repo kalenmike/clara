@@ -107,33 +107,32 @@ values.
 
 ## Environment variables
 
-| Variable                                                   | Purpose                                                      |
-| ---------------------------------------------------------- | ------------------------------------------------------------ |
-| `CLARA_PANEL_PORT`                                         | Hub panel port (default `8790`)                              |
-| `CLARA_PANEL_BIND_HOST`                                    | Panel listener (default `127.0.0.1`)                         |
-| `CLARA_PANEL_ALLOW_REMOTE`                                 | Permit a container bridge source; auth is still required     |
-| `CLARA_PANEL_SECURE_COOKIE`                                | Use a secure cookie behind a loopback-preserving HTTPS proxy |
-| `CLARA_PANEL_DISABLED`                                     | Disable the panel                                            |
-| `CLARA_PAIRING_BASE_URL`                                   | Public web URL used in pairing links                         |
-| `CLARA_VAPID_SUBJECT`                                      | Web Push contact                                             |
-| `CLARA_WEB_PORT`                                           | Default web port for pairing links (default `8080`)          |
-| `CLARA_DB_PATH`                                            | Move the SQLite database                                     |
-| `CLARA_CONFIG_DIR`                                         | Move configuration files                                     |
-| `CLARA_DATA_DIR`                                           | Move data files and logs                                     |
-| `CLARA_SECRET_KEY` / `CLARA_SECRET_KEY_FILE`               | Encrypt adapter credentials instead of using `secrets.key`   |
-| `CLARA_ADMIN_USERNAME`                                     | Owner username created at startup with a password            |
-| `CLARA_ADMIN_PASSWORD` / `CLARA_ADMIN_PASSWORD_FILE`       | Create the owner before transports start; skip setup screen  |
-| `CLARA_ADMIN_SETUP_TOKEN` / `CLARA_ADMIN_SETUP_TOKEN_FILE` | Require a host-supplied token on the setup form              |
-| `CLARA_RELAY_URL`                                          | Relay endpoint; wins over the panel when set                 |
-| `CLARA_RELAY_ROOM`                                         | Relay room; generated when omitted and never typed by hand   |
-| `CLARA_AGENT_TOKEN`                                        | Relay token for the hub side; wins over the panel when set   |
-| `CLARA_CLIENT_TOKEN`                                       | Relay token embedded in pairing payloads; wins when set      |
+| Variable                                                   | Purpose                                                        |
+| ---------------------------------------------------------- | -------------------------------------------------------------- |
+| `CLARA_PANEL_PORT`                                         | Hub panel port (default `8790`)                                |
+| `CLARA_PANEL_BIND_HOST`                                    | Panel listener (default `127.0.0.1`)                           |
+| `CLARA_PANEL_ALLOW_REMOTE`                                 | Permit a container bridge source; auth is still required       |
+| `CLARA_PANEL_SECURE_COOKIE`                                | Use a secure cookie behind a loopback-preserving HTTPS proxy   |
+| `CLARA_PANEL_DISABLED`                                     | Disable the panel                                              |
+| `CLARA_PAIRING_BASE_URL`                                   | Public web URL used in pairing links                           |
+| `CLARA_VAPID_SUBJECT`                                      | Web Push contact                                               |
+| `CLARA_WEB_PORT`                                           | Default web port for pairing links (default `8080`)            |
+| `CLARA_DB_PATH`                                            | Move the SQLite database                                       |
+| `CLARA_CONFIG_DIR`                                         | Move configuration files                                       |
+| `CLARA_DATA_DIR`                                           | Move data files and logs                                       |
+| `CLARA_SECRET_KEY` / `CLARA_SECRET_KEY_FILE`               | Encrypt adapter credentials instead of using `secrets.key`     |
+| `CLARA_ADMIN_USERNAME`                                     | Owner username created at startup with a password              |
+| `CLARA_ADMIN_PASSWORD` / `CLARA_ADMIN_PASSWORD_FILE`       | Create the owner before transports start; skip setup screen    |
+| `CLARA_ADMIN_SETUP_TOKEN` / `CLARA_ADMIN_SETUP_TOKEN_FILE` | Require a host-supplied token on the setup form                |
+| `CLARA_RELAY_URL`                                          | Relay endpoint; wins over the panel when set                   |
+| `CLARA_RELAY_ROOM`                                         | Relay room; generated when omitted and never typed by hand     |
+| `CLARA_AGENT_TOKEN`                                        | Relay hub token; signs grants and wins over the panel when set |
 
-The relay variables are covered in [Remote access](relay.md). Relay tokens must
-be 32 to 512 characters and cannot contain spaces or commas. Each variable wins
-over the matching panel value when it is set; otherwise the panel is used. In
-Docker, setting `CLARA_RELAY_URL` without environment tokens is allowed when the
-panel has saved tokens, so `pnpm clara start` warns instead of blocking.
+The relay variables are covered in [Remote access](relay.md). The relay token
+must be 32 to 512 characters and cannot contain spaces or commas. Each variable
+wins over the matching panel value when it is set; otherwise the panel is used.
+In Docker, setting `CLARA_RELAY_URL` without the environment token is allowed
+when the panel has saved it, so `pnpm clara start` warns instead of blocking.
 
 ## Files worth backing up
 

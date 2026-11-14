@@ -30,8 +30,8 @@ If your Clara build includes the optional Cloudflare deployment feature, open
    **Account Settings: Read** lets the panel list your accounts; without it, you
    can type the account ID.
 2. Paste the token, choose the account, and choose **Deploy relay**.
-3. Clara uploads the Worker, creates its Durable Object namespace, sets both
-   relay tokens, enables the `workers.dev` host, and health-checks it.
+3. Clara uploads the Worker, creates its Durable Object namespace, sets the hub
+   token, enables the `workers.dev` host, and health-checks it.
 
 To serve the relay on your own host, enter a **Custom domain** before deploying.
 Choose **Load zones**, pick the zone that holds the name, and enter a bare
@@ -53,11 +53,11 @@ scoped to the relay host. Turn them on only when you need to test a version
 directly: the panel keeps them off on every deploy unless you opt in under
 **Advanced**.
 
-The hub stores the relay tokens encrypted on this machine. The Cloudflare token
-is kept only for the deployment unless you choose to save it. Existing devices
-must pair again after the relay changes. A relay URL, room, or token supplied by
-the environment takes precedence, so remove those variables before deploying a
-relay from the panel.
+The hub stores the relay hub token encrypted on this machine. The Cloudflare
+token is kept only for the deployment unless you choose to save it. Existing
+devices must pair again after the relay changes. A relay URL, room, or token
+supplied by the environment takes precedence, so remove those variables before
+deploying a relay from the panel.
 
 Builds without the feature use the manual path below.
 
@@ -84,16 +84,15 @@ The Worker and its `RelayRoom` Durable Object live in `infra/relay`.
 ```bash
 cd infra/relay
 pnpm exec wrangler secret put CLARA_AGENT_TOKEN
-pnpm exec wrangler secret put CLARA_CLIENT_TOKEN
 pnpm exec wrangler deploy
 ```
 
 From the repository root, the same deploy is `pnpm deploy:relay`.
 
-Use two different, random values. Each token must be 32 to 512 characters with
-no spaces or commas; the panel refuses to save one that breaks the rule. The hub
-uses the agent token; pairing payloads for browsers and adapters embed the client
-token. Rotate both if either leaks.
+Use one random value. The hub token must be 32 to 512 characters with no spaces
+or commas; the panel refuses to save one that breaks the rule. The Worker uses it
+for the hub's agent role and to sign per-device relay grants. Rotate it if it
+leaks, then redeploy the Worker and pair every device again.
 
 If the hub panel reports that the relay is outdated, redeploy the Worker with
 `pnpm deploy:relay`, or use **Deploy relay** in the panel. The hub and the Worker
@@ -134,24 +133,23 @@ For the web container, put the same value in `infra/docker/.env` and rebuild wit
 ## Configure the hub
 
 Open **Connections → Relay** in the hub panel and save the relay URL with the
-same hub and client tokens you set on the Worker. The hub generates a random room
-automatically and connects without a restart. Tokens are encrypted on this
-machine and are never shown again. Changing the room or client token later
-requires every device to pair again.
+same hub token you set on the Worker. The hub generates a random room
+automatically and connects without a restart. The token is encrypted on this
+machine and is never shown again. Changing the room or hub token later requires
+every device to pair again.
 
 The room is always generated. You can replace it with **Regenerate room**, but
 you cannot type a room name.
 
-A relay URL saved without both tokens does not block the hub. It starts
-local-only, the Relay card marks the missing tokens, and saving them connects
-the relay without a restart.
+A relay URL saved without the hub token does not block the hub. It starts
+local-only, the Relay card marks the missing token, and saving it connects the
+relay without a restart.
 
 Environment variables are the fallback for CI or headless bootstrap:
 
 ```bash
 CLARA_RELAY_URL=wss://relay.example \
 CLARA_AGENT_TOKEN=... \
-CLARA_CLIENT_TOKEN=... \
 pnpm clara server start --local
 ```
 
@@ -165,6 +163,14 @@ Confirm the relay card is connected, and set **Web URL** to the public HTTPS URL
 `CLARA_PAIRING_BASE_URL` overrides the panel value. When an adapter must reach the
 hub from another network, choose **Cloudflare relay** as its location in
 **Harness → Add harness**.
+
+## Upgrading to v4
+
+Handshake v4 replaces the shared relay client token with per-device signed
+grants. Update the relay Worker, hub, web client, and adapters together, and
+remove `CLARA_CLIENT_TOKEN` if it is still set. Each device and adapter pairs
+once more: the pairing link carries a ten-minute enrollment grant, and the
+device then receives a thirty-day grant that the hub refreshes on every connect.
 
 ## Pair a remote device
 
@@ -184,11 +190,11 @@ address that only works on the same machine or network.
 | Failure              | Result                                                                                                      |
 | -------------------- | ----------------------------------------------------------------------------------------------------------- |
 | Relay unreachable    | The hub retries with backoff and the panel shows the relay state.                                           |
-| Relay tokens missing | The hub starts local-only; save both tokens in **Connections → Relay**.                                     |
+| Hub token missing    | The hub starts local-only; save the hub token in **Connections → Relay**.                                   |
 | Relay outdated       | The hub reports that the relay must be redeployed and stays offline until both sides run the same version.  |
 | Hub offline          | Clients connect to the room, then close and report a connection failure.                                    |
 | Hub restart          | Clients close and re-handshake with their stored device key.                                                |
-| Wrong token          | The Worker rejects the upgrade with `401`.                                                                  |
+| Wrong token or grant | The Worker rejects the upgrade with `401`.                                                                  |
 | Room full            | The room already has 32 connections, or eight from this address; close an unused device or reconnect later. |
 | Rate limited         | A connection that sends too many frames or bytes is disconnected and reconnects with backoff.               |
 | Hub at capacity      | The hub is already serving its maximum relay sessions; the client retries shortly.                          |
@@ -199,10 +205,11 @@ address that only works on the same machine or network.
 
 - The relay sees ciphertext, frame sizes, timing, room ids, and connection
   metadata. It does not see prompts or replies.
-- The client token is shared by devices. It is not the encryption key, and the
-  relay binds each session to the connection that opened it, so another device
-  cannot take over a session with the token alone. It can still open sockets and
-  add traffic within the room limits.
+- Relay access uses a signed grant per device or adapter, not a shared client
+  token. A grant is not the encryption key, and the relay binds each session to
+  the connection that opened it. A leaked grant can open sockets and add traffic
+  within the room limits until it expires, but it cannot read or act without the
+  device key. Grants last thirty days and are refreshed on each connect.
 - The hub panel is loopback-only. Use an SSH tunnel if you need to reach it
   remotely; do not expose it to the internet.
 - Enter the Cloudflare API token only in the hub panel over loopback or HTTPS.
