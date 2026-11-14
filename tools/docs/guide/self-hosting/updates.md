@@ -45,9 +45,15 @@ services as stopped. A new `rebuild` is the only thing that takes a new snapshot
 The web app checks for a new service worker on launch and when it returns to the
 foreground. When a deploy is newer, a banner offers **Update** or **Later**.
 
-- **Update** reloads onto the new build.
+- **Update** waits for the new worker to take over, then reloads onto the new
+  build. It never reloads onto the build that is already running.
 - **Later** keeps the current build for this session. Closing every Clara window
   installs the update on the next launch.
+
+One deploy asks once. Rebuilding the same commit is not treated as an update,
+and an older deploy served out of order never prompts. If Clara is open in more
+than one window, the window that accepts the update reloads and the others pick
+up the new build the next time they navigate.
 
 If the app is wedged, use **Settings → Advanced → Clear cached app data**. It
 resets the service worker and caches but keeps pairing, settings, and drafts.

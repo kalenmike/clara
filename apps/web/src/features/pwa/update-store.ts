@@ -1,5 +1,13 @@
 import { useSyncExternalStore } from 'react'
-import { dueForUpdateCheck, isUpdateAvailable } from '@/features/pwa/update-check'
+import {
+  dueForUpdateCheck,
+  isRecentlyApplied,
+  isUpdateAvailable,
+  shouldOfferUpdate,
+  type AppliedBuild,
+  type WorkerBuild,
+} from '@/features/pwa/update-check'
+import { claraBuildId, claraBuiltAt } from '@/lib/build-info'
 import { isDesktop } from '@/lib/runtime'
 
 export type UpdateStatus = 'idle' | 'available' | 'applying'
@@ -12,8 +20,15 @@ export type UpdateSnapshot = {
 
 const IDLE: UpdateSnapshot = { status: 'idle', dismissed: false }
 const WORKER_URL = '/sw.js'
-/** How long to wait for `controllerchange` before reloading anyway. */
-const RELOAD_FALLBACK_MS = 3_000
+/** How long a waiting worker gets to take control after `SKIP_WAITING`. */
+const ACTIVATION_TIMEOUT_MS = 10_000
+/** How long a build applied here is ignored if the browser offers it again. */
+const APPLIED_KEY = 'clara.pwa.appliedBuild'
+/** A waiting worker that predates the build message never answers. */
+const WORKER_BUILD_TIMEOUT_MS = 2_000
+
+/** The build this page is running; the service worker reports the same values. */
+const RUNNING_BUILD: WorkerBuild = { id: claraBuildId, at: claraBuiltAt }
 
 let snapshot: UpdateSnapshot = IDLE
 const listeners = new Set<() => void>()
@@ -21,25 +36,164 @@ let registrationRequest: Promise<ServiceWorkerRegistration | null> | null = null
 let started = false
 let lastCheckAt = 0
 let reloading = false
-/** The waiting worker already offered once, so "Later" is not undone. */
-let offered: ServiceWorker | null = null
+let watchingController = false
+/** A waiting worker already considered, so it is not read twice. */
+let considered: ServiceWorker | null = null
+/** Build of the waiting worker that produced the current offer. */
+let pending: { worker: ServiceWorker; build: WorkerBuild | null } | null = null
 
 function setSnapshot(next: UpdateSnapshot) {
   snapshot = next
   for (const listener of listeners) listener()
 }
 
-function offerUpdate(worker: ServiceWorker | null) {
-  if (snapshot.status === 'applying') return
-  if (worker && worker === offered) return
-  offered = worker
-  setSnapshot({ status: 'available', dismissed: false })
+/** Reads the live state: awaiting a worker message can change it after a check. */
+function isApplying() {
+  return snapshot.status === 'applying'
 }
 
 function reloadPage() {
   if (reloading) return
   reloading = true
   window.location.reload()
+}
+
+function readApplied(): AppliedBuild | null {
+  try {
+    const raw = sessionStorage.getItem(APPLIED_KEY)
+    if (!raw) return null
+    const parsed = JSON.parse(raw) as Partial<AppliedBuild>
+    return typeof parsed.id === 'string' && typeof parsed.at === 'number'
+      ? { id: parsed.id, at: parsed.at }
+      : null
+  } catch {
+    return null
+  }
+}
+
+function rememberApplied(build: WorkerBuild | null) {
+  if (!build) return
+  try {
+    sessionStorage.setItem(APPLIED_KEY, JSON.stringify({ id: build.id, at: Date.now() }))
+  } catch {
+    // Storage can be unavailable; the offer still works without the guard.
+  }
+}
+
+function clearApplied() {
+  try {
+    sessionStorage.removeItem(APPLIED_KEY)
+  } catch {
+    // Storage can be unavailable; there is nothing to clear.
+  }
+}
+
+/** Ask a waiting worker which build it is. Null when it predates the message. */
+function readWorkerBuild(worker: ServiceWorker): Promise<WorkerBuild | null> {
+  return new Promise((resolve) => {
+    const channel = new MessageChannel()
+    const timer = window.setTimeout(() => finish(null), WORKER_BUILD_TIMEOUT_MS)
+
+    function finish(value: WorkerBuild | null) {
+      window.clearTimeout(timer)
+      channel.port1.onmessage = null
+      channel.port1.close()
+      resolve(value)
+    }
+
+    channel.port1.onmessage = (event: MessageEvent) => {
+      const data = event.data as { type?: string; buildId?: unknown; builtAt?: unknown } | null
+      if (
+        data?.type !== 'CLARA_BUILD' ||
+        typeof data.buildId !== 'string' ||
+        typeof data.builtAt !== 'string'
+      ) {
+        finish(null)
+        return
+      }
+      finish({ id: data.buildId, at: data.builtAt })
+    }
+
+    try {
+      worker.postMessage({ type: 'CLARA_BUILD' }, [channel.port2])
+    } catch {
+      finish(null)
+    }
+  })
+}
+
+/**
+ * Offer a waiting worker only when it is a different, newer build. A rebuild of
+ * the same commit (the browser can report it as waiting) and a worker built
+ * before this page are not updates.
+ */
+async function considerUpdate(worker: ServiceWorker | null) {
+  if (!worker) return
+  if (isApplying()) return
+  if (worker === considered) return
+  considered = worker
+
+  const build = await readWorkerBuild(worker)
+  pending = { worker, build }
+  // The worker can activate while it is answering the build message.
+  if (worker.state !== 'installed') return
+  if (isRecentlyApplied({ applied: readApplied(), buildId: build?.id ?? null, now: Date.now() })) {
+    return
+  }
+  if (!shouldOfferUpdate({ running: RUNNING_BUILD, waiting: build })) return
+  if (isApplying()) return
+
+  setSnapshot({ status: 'available', dismissed: false })
+}
+
+function considerInstalled(worker: ServiceWorker | null) {
+  if (!worker || worker.state !== 'installed') return
+  if (
+    !isUpdateAvailable({ waiting: true, controlled: Boolean(navigator.serviceWorker.controller) })
+  ) {
+    return
+  }
+  void considerUpdate(worker)
+}
+
+/** Resolve true once the waiting worker controls this page. */
+function waitForActivation(
+  registration: ServiceWorkerRegistration,
+  worker: ServiceWorker
+): Promise<boolean> {
+  const controls = () =>
+    registration.active === worker ||
+    worker.state === 'activated' ||
+    navigator.serviceWorker.controller === worker
+
+  if (controls()) return Promise.resolve(true)
+
+  return new Promise((resolve) => {
+    let settled = false
+
+    const finish = (value: boolean) => {
+      if (settled) return
+      settled = true
+      worker.removeEventListener('statechange', onStateChange)
+      navigator.serviceWorker.removeEventListener('controllerchange', onControllerChange)
+      window.clearTimeout(timer)
+      resolve(value)
+    }
+
+    // A worker that never activates must not reload this page: the reload would
+    // land on the build that is already running and ask again.
+    const onStateChange = () => {
+      if (worker.state === 'activated') finish(true)
+      else if (worker.state === 'redundant') finish(false)
+    }
+    const onControllerChange = () => {
+      if (controls()) finish(true)
+    }
+
+    const timer = window.setTimeout(() => finish(controls()), ACTIVATION_TIMEOUT_MS)
+    worker.addEventListener('statechange', onStateChange)
+    navigator.serviceWorker.addEventListener('controllerchange', onControllerChange)
+  })
 }
 
 function watchInstalling(worker: ServiceWorker, onInstalled: (worker: ServiceWorker) => void) {
@@ -53,26 +207,15 @@ function watchInstalling(worker: ServiceWorker, onInstalled: (worker: ServiceWor
 }
 
 function watchRegistration(registration: ServiceWorkerRegistration) {
-  // A first install also ends with an installed worker, so the offer only
-  // counts on a page that a worker already controls.
-  const offer = (worker: ServiceWorker | null) => {
-    if (!worker) return
-    if (
-      !isUpdateAvailable({ waiting: true, controlled: Boolean(navigator.serviceWorker.controller) })
-    )
-      return
-    offerUpdate(worker)
-  }
-
   // The worker can already be waiting when this page starts: the user chose
-  // "Later" on an earlier launch, or iOS kept the app suspended.
-  offer(registration.waiting)
+  // "Later" on an earlier launch, or a deploy landed while the app was closed.
+  considerInstalled(registration.waiting)
   // `register()` can resolve after an update was already found, so look at the
   // installing worker too instead of waiting for another `updatefound`.
-  if (registration.installing) watchInstalling(registration.installing, offer)
+  if (registration.installing) watchInstalling(registration.installing, considerInstalled)
 
   registration.addEventListener('updatefound', () => {
-    if (registration.installing) watchInstalling(registration.installing, offer)
+    if (registration.installing) watchInstalling(registration.installing, considerInstalled)
   })
 }
 
@@ -97,6 +240,23 @@ function registerServiceWorker(): Promise<ServiceWorkerRegistration | null> {
   return registrationRequest
 }
 
+/** Another window applied the update; keep this one from offering it again. */
+function watchController() {
+  if (watchingController) return
+  watchingController = true
+  navigator.serviceWorker.addEventListener('controllerchange', () => {
+    if (snapshot.status === 'applying') {
+      reloadPage()
+      return
+    }
+    if (snapshot.status !== 'available') return
+    // This page still runs the previous build, but the worker it was offering
+    // has taken over. Do not keep the offer on screen; the next navigation
+    // picks up the new build.
+    setSnapshot(IDLE)
+  })
+}
+
 async function checkForUpdate({ force }: { force: boolean }) {
   if (typeof navigator === 'undefined' || !('serviceWorker' in navigator)) return
 
@@ -108,9 +268,7 @@ async function checkForUpdate({ force }: { force: boolean }) {
     const registration = await registerServiceWorker()
     await registration?.update()
     // Cover a worker that finished installing before the event listener ran.
-    if (registration?.waiting && navigator.serviceWorker.controller) {
-      offerUpdate(registration.waiting)
-    }
+    considerInstalled(registration?.waiting ?? null)
   } catch (error) {
     // A failed check is normal on a flaky network; the next focus retries.
     console.warn('Clara could not check for a new version.', error)
@@ -124,16 +282,26 @@ export async function applyUpdate(): Promise<void> {
 
   const registration = await registerServiceWorker()
   const waiting = registration?.waiting
-  if (!waiting) {
+  if (!registration || !waiting) {
+    // Nothing is waiting: the update was already applied or was discarded.
     reloadPage()
     return
   }
 
-  navigator.serviceWorker.addEventListener('controllerchange', reloadPage, { once: true })
+  const build = pending?.worker === waiting ? pending.build : await readWorkerBuild(waiting)
+  rememberApplied(build)
   waiting.postMessage({ type: 'SKIP_WAITING' })
-  // iOS can drop `controllerchange` on a page that was already open. The
-  // waiting worker is active by then, so a reload still lands on the new build.
-  window.setTimeout(reloadPage, RELOAD_FALLBACK_MS)
+
+  if (await waitForActivation(registration, waiting)) {
+    reloadPage()
+    return
+  }
+
+  // The worker never took control. Keep the offer instead of reloading onto the
+  // build that is already running, which would show the same banner again.
+  clearApplied()
+  considered = null
+  setSnapshot({ status: 'available', dismissed: false })
 }
 
 export function dismissUpdate(): void {
@@ -164,6 +332,7 @@ export function startServiceWorker(): void {
   // The dev server serves no worker, so there is nothing to register or update.
   if (!import.meta.env.PROD) return
 
+  watchController()
   installTriggers()
   void checkForUpdate({ force: false })
 }

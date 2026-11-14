@@ -97,6 +97,12 @@ The update banner offers **Update** and **Later**. If the app seems stuck:
 A client stuck on an old worker may need up to four hours for the worker script
 to expire before it can recover remotely.
 
+If Update leaves the banner up, the new worker has not taken over yet. Try
+again, or close every Clara window so it can activate on the next launch. Clara
+only offers an update once per deploy, so a second banner for the same deploy is
+not expected; a rebuild of the same commit installs on the next launch instead
+of prompting.
+
 ## Push notifications do not arrive
 
 - Check the browser permission for Clara.

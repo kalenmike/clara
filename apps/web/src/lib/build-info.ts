@@ -4,6 +4,12 @@ const pad = (value: number) => String(value).padStart(2, '0')
 
 export const claraVersion = import.meta.env.CLARA_VERSION
 
+/** Stable identity for this build; the service worker reports the same value. */
+export const claraBuildId = __CLARA_BUILD_ID__
+
+/** When this bundle was built; also compiled into the service worker. */
+export const claraBuiltAt = build.builtAt
+
 /** Version with the build commit, e.g. `0.1.0.90d9f352`. */
 export const claraDisplayVersion = build.commit ? `${claraVersion}.${build.commit}` : claraVersion
 

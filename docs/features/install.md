@@ -14,8 +14,10 @@ can be built from the same client; see [desktop.md](desktop.md).
 2. On every launch, and whenever Clara returns to the foreground, it asks the
    browser whether the service worker changed.
 3. When a deploy is newer, a banner appears above the content: **Update** or
-   **Later**.
-4. **Update** hands over to the new worker and reloads onto the new build.
+   **Later**. One build is offered once; a rebuild of the same code is not an
+   update.
+4. **Update** asks the new worker to take over, waits until it controls the
+   page, and only then reloads onto the new build.
 5. **Later** keeps the current build for this session. Closing every Clara
    window installs the update for the next launch.
 6. Settings → App shows the running version and build, reports whether an
@@ -64,7 +66,15 @@ cookie jar.
    someone taps Update, or until every Clara window has closed.
 4. A first install is not an update. A newly installed worker only prompts when
    a worker already controls the page.
-5. API reads, streams, and push payloads never enter a cache. Only app
+5. A waiting worker is offered only when it reports a **different, newer build**
+   than the running page. A rebuild of the same commit, a worker built before
+   the page, and a same-build copy are ignored.
+6. The page never reloads on a timer. It reloads after the waiting worker takes
+   control; if that does not happen, the banner stays for another attempt
+   instead of reloading onto the build that is already running.
+7. Every window watches the controller. When one window applies the update, the
+   others drop the stale offer instead of showing it again.
+8. API reads, streams, and push payloads never enter a cache. Only app
    documents are cached.
 
 ## Edge cases
@@ -75,6 +85,15 @@ cookie jar.
   shell is used.
 - **Update ignored**: the banner stays dismissed until the app is relaunched;
   a newer deploy asks again.
+- **Update offered again after Update**: no. The same build is ignored, a
+  recently applied build is ignored for five minutes, and a worker that never
+  took control leaves the banner up for a retry instead of reloading.
+- **Rebuild of the same commit**: the worker is byte-different but not a new
+  version; it is ignored and installs on the next launch.
+- **Older deploy served out of order**: a waiting worker built before the page
+  is ignored, so the app never offers a downgrade.
+- **Two Clara windows**: the window that applies the update reloads; the others
+  drop the offer and pick up the new build on their next navigation.
 - **App closed mid-install**: the install is discarded and retried on the next
   launch.
 - **Deploy during install**: a precache entry can 404 on hashed files, the
@@ -111,7 +130,16 @@ cookie jar.
 - Registration and update state: `apps/web/src/features/pwa/update-store.ts`
   (`updateViaCache: 'none'`). Checks run on `visibilitychange`, `focus`, and a
   restored `pageshow`.
-- Throttle and offer rules: `apps/web/src/features/pwa/update-check.ts`.
+- Build identity: Vite defines `__CLARA_BUILD_ID__` and `__CLARA_BUILD_AT__` in
+  both the app and the worker (`apps/web/vite.config.ts`). A clean checkout uses
+  its commit; a dirty tree or a checkout without git uses the build time.
+- Offer rules: `apps/web/src/features/pwa/update-check.ts` compares the waiting
+  build with the running build (`shouldOfferUpdate`) and ignores a build applied
+  on this page for five minutes (`isRecentlyApplied`).
+- Update handover: the page asks the waiting worker for its build over a
+  `MessageChannel`, posts `SKIP_WAITING`, and waits for `registration.active` or
+  `controllerchange` before reloading (`waitForActivation`, ten-second bound).
+- Throttle: `apps/web/src/features/pwa/update-check.ts` (`dueForUpdateCheck`).
 - Banner: `apps/web/src/components/pwa/update-banner.tsx`, rendered under the
   mobile app bar in the app shell.
 - Reset action and build stamp: `apps/web/src/components/settings/app-card.tsx`.
