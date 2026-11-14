@@ -30,14 +30,20 @@ Inside the Clara repository you can use
    - **Remote** installs over SSH: select a host from your SSH configuration or
      enter a user, host, and port. The hub runs the adapter installer there and
      shows the log.
-   - **Local** installs into a running Docker container, or you can copy the
-     code and run the command on this machine.
+   - **Local** asks where the adapter runs. **This machine** uses the hub's
+     loopback listener. **Docker container** installs into a running Docker
+     container, or you can copy the code and run the command inside it. A
+     container on a Docker-hosted hub connects to `ws://server:8788/ws`; on a
+     host-process hub it uses the relay because a container cannot reach
+     loopback.
    - Both branches offer **Copy code** and **Copy command** for a manual
-     install. Local also has **Advanced → WebSocket URL** for a non-default
-     address.
+     install. Local hosts also have **Advanced → WebSocket URL** for a
+     non-default address.
 4. Turn on adapter installs first in **Settings → Adapter downloads** if the
    install actions are disabled. SSH and Docker installs require the Cloudflare
-   relay when the target cannot reach the hub's private local listener.
+   relay when the target cannot reach the hub's private local listener. A hub
+   running in Docker cannot run install actions; choose **Local → Docker
+   container**, copy the command, and run it inside the harness container.
 5. Continuing creates the pairing code. Run the install action, or copy the
    code and run the printed command on the harness machine. The registry command
    downloads the adapter for that machine; the repository command works from a
@@ -202,6 +208,9 @@ connection keeps that state; use **Forget** only when you want to discard it.
 - **The code expired** — create a new code in the panel.
 - **SSH or Docker is disabled** — turn on **Settings → Adapter downloads**. The
   options also require a loopback panel and a hub running as a local process.
+- **The hub runs in Docker** — choose **Local → Docker container**, copy the
+  command, and run it inside the harness container. A containerized hub cannot
+  run the installer itself.
 - **The host is missing from the SSH list** — it is not in `~/.ssh/config`.
   Choose **Enter manually** and type the user, host, and port.
 - **The install log says the container has no downloader** — the container has

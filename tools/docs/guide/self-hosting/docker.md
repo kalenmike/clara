@@ -55,8 +55,10 @@ In the panel:
 1. Create the owner account.
 2. Choose **Local only** or set up the relay in the Setup modal. The relay path
    needs an online relay and an HTTPS Web URL.
-3. Pair a harness in the same modal and run the printed adapter install command
-   on the harness machine.
+3. Pair a harness in the same modal. Choose **Local → Docker container**, copy
+   the command, and run it inside the harness container. A hub running in Docker
+   cannot run adapter installs itself, so the panel issues the container-target
+   code instead.
 4. Pair a client from the modal. You can dismiss it and resume from
    **Settings → Setup**.
 5. Set **Web URL** if the default `http://127.0.0.1:8080` is not what devices

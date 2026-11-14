@@ -62,12 +62,16 @@ card.
    require adapters and devices to pair again.
 3. After signing in, open **Harness** and use **Pair Harness**. Choose the
    adapter type, then answer **Remote** or **Local**. Remote installs over SSH
-   from `~/.ssh/config` or a typed user/host/port and uses the relay. Local
-   installs into a running container or runs on the hub host, using the Docker
-   network or loopback. Both branches run the registry install script on the
-   target and stream the log back, and both offer **Copy code** and **Copy
-   command** for a manual install. Install actions are off until they are
-   enabled in **Settings → Adapter downloads**. The pairing card shows
+   from `~/.ssh/config` or a typed user/host/port and uses the relay. Local asks
+   whether the adapter runs **on this machine** or **in a Docker container**:
+   a container target on a Docker-hosted hub uses the Docker network
+   (`ws://server:8788/ws`), while on a host-process hub it uses the relay.
+   Both branches run the registry install script on the target and stream the
+   log back, and both offer **Copy code** and **Copy command** for a manual
+   install. Install actions are off until they are enabled in **Settings →
+   Adapter downloads**, and a containerized hub cannot run them at all; in that
+   case the pairing still produces the container target's code and command and
+   the panel explains that the hub runs in Docker. The pairing card shows
    **Waiting for the adapter to connect…**, switches to **Connected**, and the
    footer becomes **Done** when the adapter registers. A new adapter appears
    under **Paired harnesses** as **Paired · Offline**; when its credential
@@ -282,7 +286,9 @@ card.
    browser-local: it never reaches the hub service or its database.
    Adapter installs are off by default; they also require a loopback panel and a
    local hub process, so a containerized hub and a remote-exposed panel never
-   receive SSH or Docker install actions.
+   receive SSH or Docker install actions. They still issue the copy code and
+   command for the selected target, including the Docker-network address for a
+   container on a containerized hub.
 7. **Traffic monitoring is advisory and in memory.** The meter counts frame
    sizes, decrypted request actions, and the failures the hub already detects;
    it never reads or stores payloads. Counters live in a sixty-minute ring of
