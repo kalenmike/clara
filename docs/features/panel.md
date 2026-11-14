@@ -109,28 +109,31 @@ card.
    Cloudflare**: paste a Workers-scoped API token, choose the account, and Clara
    uploads the Worker, creates the Durable Object namespace, sets both relay
    tokens, and connects the relay. Existing devices must pair again.
-9. In **Settings**, edit **Web URL** or **VAPID contact** and choose **Save**;
-   **Use default** clears the file value. The source tag shows environment,
-   `server.json`/`vapid.json`, or default, and an environment value locks the
-   field.
-10. In **Settings**, use the **Shell commands** switch to enable or block all
+9. In **Settings**, choose **Light**, **Dark**, or **System** under **Appearance**.
+   **System** follows the operating system setting. The choice is stored in this
+   browser and applies to the sign-in screen too.
+10. In **Settings**, edit **Web URL** or **VAPID contact** and choose **Save**;
+    **Use default** clears the file value. The source tag shows environment,
+    `server.json`/`vapid.json`, or default, and an environment value locks the
+    field.
+11. In **Settings**, use the **Shell commands** switch to enable or block all
     command requests. Enabling makes the header expandable; open it to edit
     **Filter commands**, optionally turn on **Allow Git history**, then choose
     **Apply** at the bottom right. **Discard** sits to its left. The switch stays
     amber until Apply succeeds, then turns green. Turning it off blocks every
     command immediately. Empty filters mean every command is allowed, and the
     card warns about it.
-11. In **Settings**, turn client sync on or off for every paired client, and
+12. In **Settings**, turn client sync on or off for every paired client, and
     choose the interval at which those clients check for changes. Turning it off
     hides the web Sync tab and rejects sync requests; the stored namespace and
     each device's category choices remain. The interval defaults to 30 seconds.
-12. To take every external connection offline, choose **Go offline** at the top
+13. To take every external connection offline, choose **Go offline** at the top
     right of the Hub card on Overview and confirm. The page keeps polling; the
     banner explains that the panel is still available.
-13. Choose **Go online** to restore the saved choices. Feature switches are
+14. Choose **Go online** to restore the saved choices. Feature switches are
     disabled until connections are back online and show red while they are
     stopped, so the offline state is readable from the switch colors alone.
-14. In **Clients**, use **Pair a browser** to create a one-time link, code, or
+15. In **Clients**, use **Pair a browser** to create a one-time link, code, or
     QR for a browser or installed app. Choose **Relay** or **Local** before
     creating the code; the helper text explains where that code works. The
     ready card shows only the QR until **Show codes** is opened, where the link,
@@ -147,27 +150,27 @@ card.
     device list, so a rename applies on the next snapshot without reconnecting.
     Status badges call out degraded harness, relay, push, permissions, or
     missing files.
-15. In **Traffic**, read the last minute's in and out rates, the request and
+16. In **Traffic**, read the last minute's in and out rates, the request and
     error rates, the two sparklines for the last hour, and the totals since the
     window started. The card shows the local-versus-relay split, a peak minute,
     and the error breakdown. An amber **Spike** badge means the last complete
     minute was at least three times the previous half hour and above a floor; it
     is a hint, not a verdict.
-16. Use the switch at the top left of **Traffic** to stop recording. The card
+17. Use the switch at the top left of **Traffic** to stop recording. The card
     collapses to its header, the counters are discarded, and the client table
     drops its traffic columns. Turning it back on starts a fresh window with a
     one-minute warm-up. The switch stays usable while external connections are off.
-17. In **Activity**, read the in-memory events and the storage list. The storage
+18. In **Activity**, read the in-memory events and the storage list. The storage
     header summarizes the most severe entry and its count, and the overview links
     here for the full list.
-18. Use **Orchestration** on Overview to start or stop the local orchestration
+19. Use **Orchestration** on Overview to start or stop the local orchestration
     service. Turning it on starts a detached local instance when nothing is
     answering and waits for `/health`; turning it off stops only the local
     instance started from this data directory. A Docker or external instance is
     detected and labelled, and the switch is disabled because the panel does not
     own it. When the service is reachable, Clara groups worker sessions in
     **Workers** and keeps their session alerts quiet.
-19. Leave the page open. It refreshes every five seconds while visible and
+20. Leave the page open. It refreshes every five seconds while visible and
     pauses when the tab is hidden. Use **Refresh** for an immediate check.
 
 ## Core business rules
@@ -224,7 +227,8 @@ card.
    The Web URL and relay URL/room live in `server.json`, the VAPID contact in
    `vapid.json`, and relay tokens in the encrypted `relay-credentials.json`; the
    panel writes all of them, the environment overrides any field, and the VAPID
-   contact and relay target are applied live.
+   contact and relay target are applied live. The appearance choice is
+   browser-local: it never reaches the hub service or its database.
 7. **Traffic monitoring is advisory and in memory.** The meter counts frame
    sizes, decrypted request actions, and the failures the hub already detects;
    it never reads or stores payloads. Counters live in a sixty-minute ring of
