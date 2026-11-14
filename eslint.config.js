@@ -55,6 +55,8 @@ export default defineConfig([
       globals: globals.browser,
     },
     rules: {
+      // Browser dialogs break the app's look and keyboard behavior.
+      'no-alert': 'error',
       // React Compiler diagnostics that conflict with imperative event-store and
       // menu patterns used in this app.
       'react-hooks/set-state-in-effect': 'off',
