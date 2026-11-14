@@ -27,6 +27,7 @@ import { ComposerProvider, useComposer } from '@/features/chat/composer-provider
 import { findPlanReadyReply } from '@/features/chat/plan-ready'
 import { mergeSessionMessages } from '@/features/chat/session-messages'
 import { buildTimeline } from '@/features/chat/timeline'
+import { useDiscardEmptyDraft } from '@/features/chat/use-discard-empty-draft'
 import { estimateStepCost } from '@/features/cost/estimate'
 import { useCostDisplay } from '@/features/cost/use-cost-display'
 import {
@@ -173,7 +174,17 @@ function ChatPageContent() {
         : undefined,
     [allMessages, busy, session, worker]
   )
-  const pendingRequestCount = (formsQuery.data?.length ?? 0) + (planReady !== undefined ? 1 : 0)
+  const formCount = formsQuery.data?.length ?? 0
+  const pendingRequestCount = formCount + (planReady !== undefined ? 1 : 0)
+  useDiscardEmptyDraft({
+    sessionID: sessionId,
+    session,
+    hasMessages: allMessages.length > 0,
+    hasLocalDraft,
+    hasRequests: formCount > 0,
+    busy,
+    worker,
+  })
   const { collapsedIDs, allCollapsed, canToggleAll, toggleMessage, toggleAll } =
     useCollapsedMessages(sessionId ?? '', timelineMessages)
   const [infoOpen, setInfoOpen] = useState(
