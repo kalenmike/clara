@@ -85,11 +85,11 @@ RUN --mount=type=cache,id=clara-cargo-registry,target=/usr/local/cargo/registry 
     mkdir -p /out \
     && pnpm --dir apps/desktop exec tauri build --bundles "$TAURI_BUNDLES" \
     && find apps/desktop/src-tauri/target/release/bundle -type f -name '*.deb' \
-         -exec cp {} /out/ + \
+         -exec cp -t /out/ {} + \
     && find apps/desktop/src-tauri/target/release/bundle -type f -name '*.rpm' \
-         -exec cp {} /out/ + \
+         -exec cp -t /out/ {} + \
     && find apps/desktop/src-tauri/target/release/bundle -type f -name '*.AppImage' \
-         -exec cp {} /out/ + \
+         -exec cp -t /out/ {} + \
     && cp apps/desktop/src-tauri/target/release/clara-desktop /out/ \
     && cp apps/desktop/src-tauri/Cargo.lock /out/Cargo.lock \
     && cd /out \
