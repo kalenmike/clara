@@ -12,19 +12,26 @@ import { useModels } from '@/features/catalog/use-catalog'
 import { estimateSessionCost, resolveDisplayCost } from '@/features/cost/estimate'
 import { useCostDisplay } from '@/features/cost/use-cost-display'
 import { projectLabel } from '@/features/projects/project-list'
-import { projectDefaultWorkspace, useProject } from '@/features/projects/use-projects'
+import { resolveProjectWorkspaceTarget } from '@/features/projects/project-workspaces'
+import { useProject } from '@/features/projects/use-projects'
 import { useActiveSessions, useSessions } from '@/features/sessions/use-sessions'
 import { useStartSession } from '@/features/sessions/use-start-session'
 import { useSessionWording } from '@/features/sessions/use-wording'
 import { errorMessage } from '@/lib/errors'
 import { formatCost, formatRelativeTime, formatTokens } from '@/lib/format'
+import { readLastWorkspace } from '@/lib/storage'
 import { cn } from '@/lib/utils'
 
 export function SessionsPage() {
   const { projectId } = useParams<{ projectId: string }>()
   const projectQuery = useProject(projectId)
   const project = projectQuery.project
-  const workspace = useMemo(() => projectDefaultWorkspace(project), [project])
+  const lastWorkspaceID = project ? readLastWorkspace(project.id) : null
+  const workspaceTarget = useMemo(
+    () => resolveProjectWorkspaceTarget(project, lastWorkspaceID),
+    [lastWorkspaceID, project]
+  )
+  const workspace = workspaceTarget.workspace
   const sessionsQuery = useSessions(project?.id ?? null, '', Boolean(project?.workspaces.length))
   const activeQuery = useActiveSessions()
   const modelsQuery = useModels()
@@ -75,7 +82,7 @@ export function SessionsPage() {
       }
       description={`Project details and ${lowerPlural}.`}
       actions={
-        <Button onClick={() => startSession()} disabled={pending}>
+        <Button onClick={() => startSession()} disabled={!workspaceTarget.startable || pending}>
           {pending ? <Loader2 className="size-4 animate-spin" /> : <Plus className="size-4" />}
           New {lowerSingular}
         </Button>
@@ -134,7 +141,12 @@ export function SessionsPage() {
             <p className="mt-1 max-w-sm text-xs text-muted-foreground">
               Start a {lowerSingular} to chat with an agent in this project.
             </p>
-            <Button onClick={() => startSession()} className="mt-4" size="sm" disabled={pending}>
+            <Button
+              onClick={() => startSession()}
+              className="mt-4"
+              size="sm"
+              disabled={!workspaceTarget.startable || pending}
+            >
               <Plus className="size-4" /> New {lowerSingular}
             </Button>
           </div>
