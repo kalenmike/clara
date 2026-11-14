@@ -120,11 +120,13 @@ async function resolveBaseDirectory(
   }
 
   const projectID = session.projectID
-  const target = resolveProjectWorkspaceTarget(
-    findProject(projects, projectID),
-    readLastWorkspace(projectID),
-    { harnessID: session.harnessID }
-  )
+  const project = findProject(projects, projectID)
+  const owningWorkspace = session.workspaceID
+    ? project?.workspaces.find((workspace) => workspace.id === session.workspaceID)
+    : undefined
+  const target = resolveProjectWorkspaceTarget(project, readLastWorkspace(projectID), {
+    harnessID: session.harnessID ?? owningWorkspace?.harnessID,
+  })
   const workspace = target.workspace
   return workspace?.canonical ?? workspace?.directory ?? null
 }
