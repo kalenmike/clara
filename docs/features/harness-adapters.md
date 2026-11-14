@@ -52,7 +52,9 @@ contacts the harness directly.
    container, loopback for an adapter on the hub host, or the relay for a
    remote adapter. The default is Docker.
 3. Adapter pairing uses the same one-time code, fingerprint, expiry, E2EE
-   handshake, replay guard, and revocation model as browser pairing.
+   handshake, replay guard, and revocation model as browser pairing. A relay
+   code carries a ten-minute enrollment grant; the adapter then receives and
+   stores a thirty-day grant that the hub refreshes on each connect.
 4. The adapter keeps a stable harness identity. Reinstall, re-pair, and
    connection deletion keep Clara session/project metadata; **Forget** purges
    it explicitly.
@@ -176,7 +178,8 @@ adapter environment, or the `env` block of the Claude Code user settings.
 - Claude Code's `AskUserQuestion` supports at most four questions with four
   options each, matching Clara form limits.
 - Pending pairing codes are shown only in the panel session that created them.
-- The relay client token is shared by browser clients and adapters, as before.
+- A relay adapter grant lasts thirty days and is refreshed on each connect. An
+  adapter offline longer than that must pair again.
 
 ## Technical appendix
 

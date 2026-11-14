@@ -280,16 +280,21 @@ are unchanged. A refusal closes with `4008`, or `4009` for an oversized frame.
 
 ### Rollout
 
-1. Deploy the relay first. It verifies grants, tags `i`, and advertises
-   `x-clara-relay-version: 3`.
+v4 is the shipped state. There is no compatibility mode, no shared relay client
+token, and no `clientToken` field on the wire or in hub configuration.
+
+1. Deploy the relay Worker. It verifies grants, tags `i`, and advertises
+   `x-clara-relay-version: 3`. It needs only `CLARA_AGENT_TOKEN`.
 2. Deploy the hub. It requires envelope v3, speaks v4 only, and issues grants.
+   The panel and Cloudflare deployment store and set only the hub token.
 3. Reload the web client. It presents grants and verifies the hub MAC.
 4. Update each adapter and pair it once more.
 
-There is no legacy path. A v3 client is rejected with a protocol error and must
-reload; an old hub refuses to run against the new relay. v3 is removed in the
-same feature rather than shipped alongside v4. Every device and adapter pairs
-again, and existing devices keep working only after they are updated.
+Every existing device and adapter must pair again once to receive a grant. A v3
+client or hub is rejected with a protocol error; an old hub refuses to run
+against the new relay. The cleanup removed the retired shared token from the
+pairing payloads, panel relay fields, sealed credential store, deployment
+flow, environment examples, and documentation.
 
 </details>
 

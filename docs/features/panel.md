@@ -118,16 +118,16 @@ card.
    is green while external connections are on and red while they are off; a disabled switch
    keeps its neutral track in both cases. Turning a feature off hides its
    details; turning it on makes the header expandable. The Relay card edits the
-   relay URL, hub token, and client token, shows the generated room, and can
-   regenerate that room. Tokens are encrypted before they are saved and are
-   never shown again. A relay URL saved without tokens does not block the hub:
-   the card marks both tokens as missing and the hub runs local-only until they
-   are saved. Environment variables win over panel values field by
-   field; fields they supply are read-only. When the build includes the optional
-   Cloudflare deployment, the Relay card also carries **Deploy relay to
-   Cloudflare**: paste a Workers-scoped API token, choose the account, and Clara
-   uploads the Worker, creates the Durable Object namespace, sets both relay
-   tokens, and connects the relay. Existing devices must pair again.
+   relay URL and hub token, shows the generated room, and can regenerate that
+   room. The token is encrypted before it is saved and is never shown again. A
+   relay URL saved without the hub token does not block the hub: the card marks
+   the token as missing and the hub runs local-only until it is saved.
+   Environment variables win over panel values field by field; fields they
+   supply are read-only. When the build includes the optional Cloudflare
+   deployment, the Relay card also carries **Deploy relay to Cloudflare**: paste
+   a Workers-scoped API token, choose the account, and Clara uploads the Worker,
+   creates the Durable Object namespace, sets the hub token, and connects the
+   relay. Existing devices must pair again to receive a v4 grant.
 9. In **Settings**, review the full **Hub** details (uptime, process, platform,
    memory, config path, and paired devices) and the **Orchestration** master
    switch, then choose **Light**, **Dark**, or **System** under **Appearance**.
@@ -227,13 +227,13 @@ card.
    device, cancels a browser pairing code, and removes a harness or the session.
    Unknown mutating methods return `405`.
 4. **Secrets stay out of the snapshot.** The snapshot is built from an explicit
-   allowlist. Device keys, enrollment codes, adapter credentials, relay tokens,
-   push endpoints, sync values, and file contents are never returned there. A
-   one-time browser or adapter pairing code is returned only by the authenticated
-   request that creates it. Device keys and unused enrollment tokens are
-   encrypted at rest in SQLite with a key outside the database. Relay tokens are
-   encrypted with the same key in `relay-credentials.json`; the URL and generated
-   room stay in `server.json`. Device fingerprints, secret-configured flags, room
+   allowlist. Device keys, enrollment codes, adapter credentials, the relay
+   token, push endpoints, sync values, and file contents are never returned
+   there. A one-time browser or adapter pairing code is returned only by the
+   authenticated request that creates it. Device keys and unused enrollment
+   tokens are encrypted at rest in SQLite with a key outside the database. The
+   relay token is encrypted with the same key in `relay-credentials.json`; the
+   URL and generated room stay in `server.json`. Device fingerprints, secret-configured flags, room
    id, and effective config values are included and start masked in the panel.
 5. **Mutations are browser-hard to forge.** Besides authentication, the
    `Host`, `Origin`, and `Sec-Fetch-Site` checks, writes require
@@ -248,7 +248,7 @@ card.
    hub's SQLite database and are loaded before any transport starts. The panel
    can fail without stopping the hub service; a busy panel port only loses the panel.
    The Web URL and relay URL/room live in `server.json`, the VAPID contact in
-   `vapid.json`, and relay tokens in the encrypted `relay-credentials.json`; the
+   `vapid.json`, and the relay token in the encrypted `relay-credentials.json`; the
    panel writes all of them, the environment overrides any field, and the VAPID
    contact and relay target are applied live. The appearance choice is
    browser-local: it never reaches the hub service or its database.
@@ -288,7 +288,7 @@ card.
   Finish setup** reopens it. Completion is still derived, so the badge and
   progress reflect whatever is paired.
 - **Relay is selected but offline** — the connection step keeps **Continue**
-  disabled. The user can start the relay, fix its tokens, or choose **Local
+  disabled. The user can start the relay, fix its token, or choose **Local
   only**. A relay path also requires an HTTPS Web URL; a loopback or HTTP URL
   keeps the step incomplete.
 - **The local path keeps loopback** — setup can finish with
@@ -299,7 +299,7 @@ card.
   connections on is the same master switch as the Hub card.
 - **Relay is switched off** — the embedded Relay card stays collapsed until its
   toggle is on. The step explains that the switch must be enabled before the URL
-  and tokens can be saved.
+  and token can be saved.
 - **The harness is paired but offline** — the setup step shows
   **Paired · Offline** and allows continuing with a warning. The adapter can be
   started later; the hub keeps the credential.
@@ -351,15 +351,15 @@ card.
 - **Local transport is off** — the card says off and the listener closes its
   clients with a clear reason. Turning it on starts a fresh listener.
 - **Relay is not configured** — the relay card explains local-only mode and
-  opens the relay editor. Saving a URL and both tokens generates a room and
+  opens the relay editor. Saving a URL and hub token generates a room and
   connects without restarting the hub.
-- **The relay room is regenerated** — every pairing code and stored client
-  token tied to the old room becomes invalid; the panel asks for confirmation
-  first.
+- **The relay room is regenerated** — every pairing code and signed grant tied
+  to the old room becomes invalid; devices must pair again. The panel asks for
+  confirmation first.
 - **Relay settings come from the environment** — each field supplied by
-  `CLARA_RELAY_URL`, `CLARA_RELAY_ROOM`, `CLARA_AGENT_TOKEN`, or
-  `CLARA_CLIENT_TOKEN` is read-only and wins over the panel value. Remove the
-  variable and restart the hub service to edit that field here.
+  `CLARA_RELAY_URL`, `CLARA_RELAY_ROOM`, or `CLARA_AGENT_TOKEN` is read-only and
+  wins over the panel value. Remove the variable and restart the hub service to
+  edit that field here.
 - **Relay reconnects** — the card shows the current state, last change, attempt
   count, and a redacted error.
 - **Push is off or unavailable** — the card shows the saved choice, the
@@ -430,7 +430,7 @@ card.
   stores one active backend as the default for requests that name no session or
   workspace, while paired harnesses keep serving the workspaces and sessions
   scoped to them
-- Per-device relay tokens; the relay client token remains shared
+- Per-device relay targets; every device follows the hub's configured relay
 - A sandbox for command execution, or an allowlist of every proxied API route
 - Per-command arguments, wildcards, or regular expressions in the allowlist
 - Rate limiting, blocking, or alerts driven by the traffic meter
@@ -481,10 +481,10 @@ card.
   - `POST /panel/api/v1/orchestration` with `{ "enabled": true }`
   - `POST /panel/api/v1/config` with `{ "pairingBaseUrl": "https://..." }` or
     `{ "vapidSubject": "mailto:..." }`; send `null` to restore the default
-  - `POST /panel/api/v1/relay` with `{ "url": "wss://...", "agentToken": "...", "clientToken": "..." }`;
-    omitted tokens keep their saved values, and `room` is rejected
+  - `POST /panel/api/v1/relay` with `{ "url": "wss://...", "agentToken": "..." }`;
+    an omitted token keeps its saved value, and `room` is rejected
   - `POST /panel/api/v1/relay/room` generates a new random room
-  - `DELETE /panel/api/v1/relay` clears the panel relay target and sealed tokens
+  - `DELETE /panel/api/v1/relay` clears the panel relay target and sealed token
   - `POST /panel/api/v1/monitoring` with `{ "enabled": false }`
   - `POST /panel/api/v1/sync` with `{ "enabled": true, "intervalMs": 30000 }`
   - `POST /panel/api/v1/harnesses/pairings` creates an adapter pairing code

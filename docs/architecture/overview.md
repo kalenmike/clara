@@ -138,10 +138,10 @@ loopback listener. OpenAPI is at `/openapi.json` and Swagger UI at `/docs`. See
 
 Clara supports two transports, both through the hub:
 
-| Mode  | Selected by                        | Auth                            |
-| ----- | ---------------------------------- | ------------------------------- |
-| Relay | `VITE_CLARA_WS_URL` + pairing code | Device key + relay client token |
-| Local | Pairing payload URL (`local` room) | Device key + local WebSocket    |
+| Mode  | Selected by                        | Auth                          |
+| ----- | ---------------------------------- | ----------------------------- |
+| Relay | `VITE_CLARA_WS_URL` + pairing code | Device key + per-device grant |
+| Local | Pairing payload URL (`local` room) | Device key + local WebSocket  |
 
 The connect screen first proves any pairing link or stored device behind a
 branded splash. If none connects, it shows the pairing form. There is no direct
@@ -315,8 +315,8 @@ guaranteed to be connected, so alerts still reach a closed app.
 - The hub only exposes the typed `/v1` API. The browser has no generic harness
   proxy or shell path; the one host command is the fixed Git history endpoint,
   and the hub forwards it to the workspace's own harness.
-- Never commit `service.json`, passwords, pairing codes, device keys, relay tokens,
-  `secrets.key`, or `admin-setup.txt`.
+- Never commit `service.json`, passwords, pairing codes, device keys, the relay
+  token, `secrets.key`, or `admin-setup.txt`.
 - The hub's config is `~/.config/clara/server.json` (mode `0600`).
   Settings, client sync data, panel users, and harness connections live in
   `~/.local/share/clara/clara.db` (mode `0600`). Adapter credentials are
@@ -335,10 +335,11 @@ guaranteed to be connected, so alerts still reach a closed app.
 - The web stores a non-extractable device key in IndexedDB; no raw connection
   key is written to `localStorage`. `_headers` ships a CSP, but XSS on the Pages
   origin can still use the key while the page is open.
-- Relay tokens are defense in depth; the per-device key is the real
+- Relay grants are defense in depth; the per-device key is the real
   authentication key.
-- The Worker uses separate hub/client tokens so a paired client cannot
-  impersonate the hub.
+- The Worker accepts the shared hub token only for the agent role and a signed
+  per-device grant for clients, so a paired client cannot impersonate the hub.
+  Grants name one device, adapter, or enrollment and expire.
 - The hub panel requires a superadmin login and defaults to `127.0.0.1`. It
   checks the socket address when remote access is not explicitly allowed, plus
   `Host`, `Origin`, and fetch metadata, and never returns device keys, adapter

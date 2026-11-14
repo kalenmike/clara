@@ -84,8 +84,8 @@ device key through a one-time code; there is no shared browser key.
 ## Edge cases
 
 - **401 from the relay** — the Worker rejects the WebSocket before upgrade; the
-  pairing token is wrong or rotated. Clara reports that the relay refused the
-  connection and names the room URL and client token.
+  hub token or the client's grant is wrong, expired, or rotated. Clara reports
+  that the relay refused the connection and names the room URL.
 - **Local-only code on HTTPS** — the transport reports that the pairing code is
   local-only instead of a bare socket close.
 - **Fingerprint mismatch** — the enrollment reports a mismatch; request a fresh
@@ -124,7 +124,7 @@ device key through a one-time code; there is no shared browser key.
 
 ## Out of scope
 
-- Per-device relay tokens
+- Per-device relay targets; every device uses the hub's configured relay
 - Multiple saved server profiles or switching without disconnecting
 - OAuth or provider credential management
 - A public HTTP proxy shipped with Clara
@@ -135,7 +135,8 @@ device key through a one-time code; there is no shared browser key.
   separate dry-run that leaves the connection untouched.
 - The connect screen does not show the server's full URL list after success;
   Settings does.
-- The relay client token is shared by every paired device.
+- A relay device grant lasts thirty days and is refreshed on each connect. A
+  device offline longer than that must pair again.
 - A copied browser profile may still be able to use a non-extractable device key
   depending on the browser; passkey binding is not implemented.
 
@@ -145,7 +146,8 @@ device key through a one-time code; there is no shared browser key.
 <summary>Routes, data, and references</summary>
 
 - Route: `/connect`
-- Pairing payload: `{ v, wsUrl, room, clientToken, enrollId, enrollToken, fingerprint, expiresAt }`
+- Pairing payload: `{ v, wsUrl, room, enrollId, enrollToken, grant?, fingerprint, expiresAt }`;
+  `grant` is required for a relay payload and absent for a local one
 - Probe: `GET /v1/info` through the WebSocket transport, 8s timeout on connect,
   5s on reconnect; `/v1/harness/info` loads separately for the harness banner
 - Boot gate: `ConnectionProvider` exposes `booting` and `bootSource`; the page
@@ -170,11 +172,11 @@ device key through a one-time code; there is no shared browser key.
   desktop client refreshes a local `wsUrl` on boot and reconnect, so a port
   change does not require pairing again. Relay pairings carry the relay URL and
   are unaffected.
-- Incomplete relay: a saved relay URL without both tokens never blocks startup.
-  The hub runs local-only, the panel marks the relay as missing its tokens, and
-  saving both in the Relay card starts the relay without a restart. Only explicit
-  relay actions (relay pairing, Cloudflare deployment) reject an incomplete
-  relay.
+- Incomplete relay: a saved relay URL without the hub token never blocks
+  startup. The hub runs local-only, the panel marks the relay as missing its
+  token, and saving it in the Relay card starts the relay without a restart.
+  Only explicit relay actions (relay pairing, Cloudflare deployment) reject an
+  incomplete relay.
 - Docker stack: `pnpm clara start` starts the orchestrator, server, and web
   client together; `--no-*` selects a subset; `restart` recreates the selection.
   Use the scoped commands for one service.
