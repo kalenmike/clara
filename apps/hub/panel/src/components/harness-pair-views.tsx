@@ -1,5 +1,5 @@
+import { useEffect, useRef, type ReactNode } from 'react'
 import { Check, Globe2, LoaderCircle, Wifi, X } from 'lucide-react'
-import type { ReactNode } from 'react'
 import type { PanelInstallJob } from '@clara/shared-types'
 import { formatRelative } from '../lib/format.ts'
 import { HARNESS_KINDS } from '../lib/harness-pairing.ts'
@@ -141,25 +141,57 @@ function MachineStep({ flow }: { flow: HarnessPairingFlow }) {
 
 function TargetStep({ flow, now }: { flow: HarnessPairingFlow; now: number }) {
   const pairing = flow.pairing
+  const lastTarget = useRef('')
+  const installRef = useRef(flow.install)
+  useEffect(() => {
+    installRef.current = flow.install
+  })
+
+  // A host alias or a container is the whole action on this screen: choosing
+  // one runs the install. Manual SSH keeps an explicit button because a typed
+  // hostname is not complete until the person stops typing.
+  const autoTarget =
+    flow.machine === 'remote'
+      ? flow.sshHost && flow.sshHost !== MANUAL_SSH_HOST
+        ? flow.sshHost
+        : ''
+      : flow.container
+
+  useEffect(() => {
+    if (!autoTarget) {
+      lastTarget.current = ''
+      return
+    }
+    if (lastTarget.current === autoTarget) return
+    if (!flow.installEnabled || !flow.installAvailable) return
+    if (flow.connection || flow.expired) return
+    lastTarget.current = autoTarget
+    void installRef.current()
+  }, [autoTarget, flow.connection, flow.expired, flow.installAvailable, flow.installEnabled])
+
   if (!pairing) return null
   const registry = registryCommand(flow.info, pairing.kind, pairing.code)
   const command = registry ?? repoCommand(pairing.kind, pairing.code)
+  const failed = flow.job?.state === 'failed' || flow.job?.state === 'cancelled'
 
   return (
     <div className="space-y-4">
-      <div className="space-y-2 rounded-lg border border-neutral-200 p-3 dark:border-neutral-800">
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <h3 className="text-xs font-semibold">Pair {pairing.label}</h3>
-          <span className="panel-muted text-[10px]">{pairing.transport}</span>
-        </div>
-        <div className="rounded-md bg-neutral-100 p-2 font-mono text-[11px] break-all dark:bg-neutral-900">
-          {pairing.code}
-        </div>
+      <div>
+        <span className="inline-flex rounded-md border border-neutral-300 bg-neutral-100 px-2.5 py-1 text-[11px] font-medium text-neutral-800 dark:border-neutral-600 dark:bg-neutral-800 dark:text-neutral-100">
+          {flow.machine === 'remote' ? 'SSH' : 'Docker'}
+        </span>
+      </div>
+
+      {flow.dockerRelayNotice ? <Notice>{flow.dockerRelayNotice}</Notice> : null}
+
+      {flow.machine === 'remote' ? <SshTarget flow={flow} /> : <DockerTarget flow={flow} />}
+
+      <div className="space-y-1 text-center">
         <p className="text-[11px] text-neutral-500 dark:text-neutral-400">
           Expires {formatRelative(pairing.expiresAt, now)}. It enrolls one adapter.
         </p>
         <p
-          className={`flex items-center gap-1.5 text-xs ${
+          className={`flex items-center justify-center gap-1.5 text-[11px] ${
             flow.connection
               ? 'font-medium text-emerald-600 dark:text-emerald-400'
               : 'text-neutral-500 dark:text-neutral-400'
@@ -177,9 +209,6 @@ function TargetStep({ flow, now }: { flow: HarnessPairingFlow; now: number }) {
             </>
           )}
         </p>
-        <p className="font-mono text-[10px] text-neutral-500 dark:text-neutral-400">
-          fingerprint {pairing.fingerprint} · {pairing.wsUrl}
-        </p>
       </div>
 
       {flow.expired ? (
@@ -188,54 +217,47 @@ function TargetStep({ flow, now }: { flow: HarnessPairingFlow; now: number }) {
         </Notice>
       ) : null}
 
-      {flow.connection || flow.expired ? null : (
-        <>
-          {flow.dockerRelayNotice ? <Notice>{flow.dockerRelayNotice}</Notice> : null}
-          {!flow.installEnabled ? (
-            <Notice>
-              Install actions are off. Copy the code and run the command on the harness machine, or
-              turn on Settings → Adapter downloads.
-            </Notice>
-          ) : flow.machine === 'remote' ? (
-            <SshTarget flow={flow} />
-          ) : (
-            <DockerTarget flow={flow} />
-          )}
+      {!flow.installEnabled ? (
+        <Notice>
+          Install actions are off. Copy the code and run the command on the harness machine, or turn
+          on Settings → Adapter downloads.
+        </Notice>
+      ) : null}
 
-          {flow.installEnabled ? (
-            <div className="flex flex-wrap items-center gap-2">
-              <button
-                type="button"
-                onClick={() => void flow.install()}
-                disabled={!flow.installAvailable || flow.pending !== undefined}
-                className="panel-button primary"
-              >
-                {flow.pending === 'install' ? (
-                  <LoaderCircle className="size-3.5 animate-spin" aria-hidden="true" />
-                ) : null}
-                {flow.pending === 'install'
-                  ? 'Starting…'
-                  : flow.machine === 'remote'
-                    ? 'Install over SSH'
-                    : 'Install in container'}
-              </button>
-              <span className="text-[11px] text-neutral-500 dark:text-neutral-400">
-                or copy the code and run the command yourself
-              </span>
-            </div>
-          ) : null}
-        </>
-      )}
-
-      {flow.job ? <InstallJob job={flow.job} onCancel={() => void flow.cancelInstall()} /> : null}
+      {failed ? (
+        <Notice tone="danger">
+          {flow.job?.error ?? 'The adapter install did not finish. Open Advanced for the log.'}
+        </Notice>
+      ) : null}
 
       <details className="rounded-lg border border-neutral-200 p-3 dark:border-neutral-800">
         <summary className="cursor-pointer text-[11px] font-medium text-neutral-600 dark:text-neutral-300">
-          Install command
+          Advanced
         </summary>
-        <pre className="mt-2 overflow-x-auto rounded-md bg-neutral-950 p-2 text-[11px] text-neutral-100">
-          {command}
-        </pre>
+        <div className="mt-3 space-y-3">
+          <OpenCodeUrlField flow={flow} method={flow.machine === 'remote' ? 'ssh' : 'docker'} />
+          <div className="space-y-1">
+            <p className="text-[10px] font-semibold tracking-wide text-neutral-500 uppercase dark:text-neutral-400">
+              Install command
+            </p>
+            <pre className="overflow-x-auto rounded-md bg-neutral-950 p-2 text-[11px] text-neutral-100">
+              {command}
+            </pre>
+          </div>
+          {flow.job ? (
+            <InstallJob job={flow.job} onCancel={() => void flow.cancelInstall()} />
+          ) : null}
+          {flow.job && flow.job.state !== 'running' && !flow.connection ? (
+            <button
+              type="button"
+              onClick={() => void flow.install()}
+              disabled={!flow.installAvailable || flow.pending !== undefined}
+              className="panel-button"
+            >
+              Install again
+            </button>
+          ) : null}
+        </div>
       </details>
     </div>
   )
@@ -253,9 +275,9 @@ function SshTarget({ flow }: { flow: HarnessPairingFlow }) {
     )
   }
   return (
-    <div className="grid gap-3 rounded-lg border border-neutral-200 p-3 sm:grid-cols-2 dark:border-neutral-800">
-      <label className="grid content-start gap-1 text-[11px] font-medium text-neutral-600 sm:col-span-2 dark:text-neutral-300">
-        SSH host
+    <div className="space-y-2">
+      <label className="grid gap-1 text-[11px] font-medium text-neutral-600 dark:text-neutral-300">
+        Choose Host
         <select
           value={flow.sshHost}
           onChange={(event) => flow.setSshHost(event.target.value)}
@@ -273,7 +295,7 @@ function SshTarget({ flow }: { flow: HarnessPairingFlow }) {
         </select>
       </label>
       {flow.sshHost === MANUAL_SSH_HOST ? (
-        <>
+        <div className="grid gap-3 sm:grid-cols-2">
           <label className="grid content-start gap-1 text-[11px] font-medium text-neutral-600 dark:text-neutral-300">
             Hostname
             <input
@@ -302,9 +324,18 @@ function SshTarget({ flow }: { flow: HarnessPairingFlow }) {
               className="w-full rounded-md border border-neutral-200 bg-white px-2 py-1.5 text-xs dark:border-neutral-700 dark:bg-neutral-950"
             />
           </label>
-        </>
+          <div className="flex items-end sm:col-span-2">
+            <button
+              type="button"
+              onClick={() => void flow.install()}
+              disabled={!flow.installAvailable || flow.pending !== undefined}
+              className="panel-button primary"
+            >
+              {flow.pending === 'install' ? 'Starting…' : 'Install over SSH'}
+            </button>
+          </div>
+        </div>
       ) : null}
-      <OpenCodeUrlField flow={flow} method="ssh" />
     </div>
   )
 }
@@ -321,9 +352,9 @@ function DockerTarget({ flow }: { flow: HarnessPairingFlow }) {
     )
   }
   return (
-    <div className="grid gap-3 rounded-lg border border-neutral-200 p-3 sm:grid-cols-2 dark:border-neutral-800">
-      <label className="grid content-start gap-1 text-[11px] font-medium text-neutral-600 sm:col-span-2 dark:text-neutral-300">
-        Container
+    <div className="space-y-2">
+      <label className="grid gap-1 text-[11px] font-medium text-neutral-600 dark:text-neutral-300">
+        Choose Container
         <select
           value={flow.container}
           onChange={(event) => flow.setContainer(event.target.value)}
@@ -337,19 +368,13 @@ function DockerTarget({ flow }: { flow: HarnessPairingFlow }) {
             </option>
           ))}
         </select>
-        {flow.containers.length === 0 ? (
-          <span className="text-[10px] font-normal text-neutral-500 dark:text-neutral-400">
-            No running containers. Start the harness container first, or copy the code and run the
-            command inside it.
-          </span>
-        ) : (
-          <span className="text-[10px] font-normal text-neutral-500 dark:text-neutral-400">
-            The adapter is installed inside the selected container. Use one with a mounted config
-            path if it is recreated.
-          </span>
-        )}
       </label>
-      <OpenCodeUrlField flow={flow} method="docker" />
+      {flow.containers.length === 0 ? (
+        <p className="text-[10px] text-neutral-500 dark:text-neutral-400">
+          No running containers. Start the harness container first, or copy the code and run the
+          command inside it.
+        </p>
+      ) : null}
     </div>
   )
 }

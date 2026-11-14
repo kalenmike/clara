@@ -283,6 +283,10 @@ export function useHarnessPairing({
           : { container }),
         ...(kind === 'opencode' && opencodeUrl.trim() ? { opencodeUrl: opencodeUrl.trim() } : {}),
       }
+      // A new target replaces a running install so two targets cannot race.
+      if (job?.state === 'running') {
+        await cancelInstallJob(job.id).catch(() => undefined)
+      }
       const result = await startInstall(input)
       // The install response carries the pairing that matches the target; the
       // copy-path code created by begin() is no longer the one to show.
