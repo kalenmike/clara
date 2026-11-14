@@ -107,9 +107,12 @@ start an agent run and move on, so they do not have to watch the sidebar.
     other session. The adapter delivers new alerts and finished root runs into
     the origin session as queued synthetic prompts, at most one completion
     prompt per finished root run.
-14. While orchestration is reachable, sessions with `metadata.automation === true`
-    do not raise their own session alerts. Worker completion is noise; the
-    origin conversation is the actionable alert.
+14. A client that has opted into orchestrator mode holds alerts for sessions
+    with `metadata.automation === true` while the hub feature is enabled. Worker
+    completion is noise to that client; the origin conversation is the
+    actionable alert. Other clients keep receiving ordinary worker alerts. The
+    opt-in travels with the device's push subscription, so closed-app pushes are
+    filtered per device.
 
 ## Edge cases
 
@@ -188,16 +191,16 @@ start an agent run and move on, so they do not have to watch the sidebar.
 - **A harness is offline** — its stream is missing while the adapter is away, so a
   run that finishes in that window does not push. The hub reopens the stream when
   the adapter reconnects.
-- **Orchestration off** — worker sessions lose the automation treatment and
-  keep their ordinary session alerts.
+- **Orchestration off** — even a client that opted in keeps ordinary worker
+  alerts because the hub feature is disabled.
 - **No Clara client connected** — the alert still waits in its origin session;
   the standard push path covers a closed client when a subscription exists.
 - **An alert is delivered twice** — the adapter keeps a delivery cursor and
   does not repeat an alert or finished run.
 - **The origin session is gone** — the alert stays in the inbox and the adapter
   does not prompt a missing session.
-- **A worker completes** — with orchestration reachable, its automation
-  metadata suppresses the session alert.
+- **A worker completes** — a device using orchestrator mode suppresses the
+  session alert; every other device receives it normally.
 - **External OpenCode notifier** — the TUI notifier is a separate plugin and
   does not read the Clara orchestration flag.
 - **Device revoked** — revoking a device in the panel removes its stored push

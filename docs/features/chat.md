@@ -36,15 +36,10 @@ permission approvals remain: each starts expanded and folds independently to a
 single header when the person wants it out of the way. A session with no
 messages shows a
 dedicated New message view, and a session saved as a draft shows its queued user
-message in the thread and a Start card above it. A daemon worker session shown
-while orchestration is reachable stays readable and stoppable but hides Reply,
-Done, the composer, fork actions, and the plan-ready handoff; Forward, Reopen,
-Archive, Delete, Stop, and the right-panel Plan request stay available. Worker
-question forms stay above the thread because there is no composer. On
-normal sessions the header can fork the whole brief, and each user or assistant
-message has fork and forward actions; an assistant reply can also enter a
-structure-aware selection mode and forward just one paragraph, list, or section.
-See [fork.md](fork.md).
+message in the thread and a Start card above it. The header can fork the whole
+brief, and each user or assistant message has fork and forward actions; an
+assistant reply can also enter a structure-aware selection mode and forward just
+one paragraph, list, or section. See [fork.md](fork.md).
 
 ## User flow
 
@@ -135,13 +130,6 @@ See [fork.md](fork.md).
     with Reopen. Replying, starting work, saving a draft, or answering the agent
     on a snoozed session clears the snooze first and returns it to its mailbox
     section.
-19. Open a worker from the Workers section. While orchestration is reachable,
-    the thread streams normally and Stop remains available, but there is no
-    composer, Done, Reply, session fork, message fork, compact, snooze, or
-    plan-ready handoff. Question forms stay above the thread because there is no
-    composer. Messages can still be forwarded, the header can archive or
-    delete the worker, an archived worker shows Reopen, and the right-panel Plan
-    section can request or refresh its checklist.
 
 ## Core business rules
 
@@ -254,21 +242,13 @@ See [fork.md](fork.md).
     the handoff renders as a system row. The button disables while the request
     is in flight. The card starts expanded and can be folded to its title
     without cancelling the start request.
-16. A session is a worker when orchestration is reachable and its metadata says
-    `automation === true`. Worker mode suppresses the composer, Done, Reply,
-    New, message and session fork, compact, snooze, the plan-ready handoff, and
-    draft views. It keeps Stop, Forward, Reopen for archived workers, Archive,
-    Delete, permission and question panels, and the Plan section with its
-    Request Plan and Request Update actions. Worker question forms stay above
-    the thread because there is no composer. When orchestration is off, the
-    same session uses the normal chat controls.
-17. If a message-sending request fails with the harness's `LocationNotFoundError`,
+16. If a message-sending request fails with the harness's `LocationNotFoundError`,
     Clara shows a toast that the workspace folder is missing, moves the session
     to the project's canonical directory with `session.move`, and retries the
     same request once. This covers prompts, queued messages, commands, saved
     drafts, Start, Plan requests, and the plan start handoff including its agent
     switch. The retry keeps the original text, attachments, and delivery.
-18. A question form is a selectable card in the composer. Send answers the
+17. A question form is a selectable card in the composer. Send answers the
     selected form when it has been touched, alone if there is no message, or
     after admitting the custom message with resume disabled when there is one.
     An untouched form with a message is cancelled first through
@@ -283,7 +263,7 @@ See [fork.md](fork.md).
     the unanswered form pending. A failed form reply cancels the admitted
     message so a retry does not duplicate it; if that cancellation fails, Clara
     warns that the message may already be queued.
-19. An expanded, idle assistant reply with text offers **Select part**. The
+18. An expanded, idle assistant reply with text offers **Select part**. The
     inspector groups only the top-level markdown blocks: headings own their
     section, while paragraphs, lists, code fences, tables, quotes, and dividers
     are single blocks. A selected range is sliced from the original markdown
@@ -291,14 +271,14 @@ See [fork.md](fork.md).
     selection creates an empty draft exactly like forwarding a message, but
     carries only the slice and no attachments. Escape cancels selection instead
     of interrupting a run.
-20. A thin usage bar at the bottom of the pane shows the whole session's input,
+19. A thin usage bar at the bottom of the pane shows the whole session's input,
     output, reasoning, and cache-read plus cache-write tokens, the cost in the
     selected display mode, and how long ago the session started. It reads the
     server's session totals rather than the loaded pages, so long conversations
     stay complete. The floating Done, Reply, step, and reply-window controls
     sit above it, and it scrolls horizontally on narrow screens instead of
     wrapping.
-21. The header's second line shows the run state (`busy`, `retry N`, or `idle`)
+20. The header's second line shows the run state (`busy`, `retry N`, or `idle`)
     and the active agent. The state is seeded from the server's active-session
     map when the thread opens, then kept live by status, execution, and step
     events. A reconnect reseeds it, so a session that was already running does
@@ -454,13 +434,6 @@ See [fork.md](fork.md).
   idle notes do not count as content.
 - **Done on an archived or snoozed session** — the button is hidden and Reopen
   is shown instead; the chat remains readable.
-- **Worker session** — the composer, Done, Reply, New, fork, compact, snooze,
-  plan-ready handoff, and draft views are hidden while orchestration is reachable.
-  Stop, Forward, Archive, Delete, Reopen, the Plan request, and question forms
-  above the thread remain.
-- **Worker session with orchestration off** — the automation-session treatment
-  is removed, so the session uses the normal composer and actions; synthetic
-  messages still show the Automation sender.
 - **Snoozing while running** — the session moves to Snoozed, but Reopen stays
   hidden until the run finishes.
 - **UI sounds off** — Done archives silently, but the button animation and

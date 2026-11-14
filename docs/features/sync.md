@@ -3,10 +3,11 @@
 ## Summary
 
 Paired devices can share a small set of non-secret preferences through the Clara
-hub. Each device chooses which categories it syncs from **Settings →
-Sync**; the hub stores the values over the end-to-end encrypted session and
-wins when a device disagrees. The hub panel controls whether sync is available
-at all and how often clients check for changes.
+hub. Each device chooses which categories, and which isolated single settings,
+it syncs from **Settings → Sync**; the hub stores the values over the
+end-to-end encrypted session and wins when a device disagrees. The hub panel
+controls whether sync is available at all and how often clients check for
+changes.
 
 ## User flow
 
@@ -14,7 +15,9 @@ at all and how often clients check for changes.
    HTTP mode has no sync because there is no Clara hub to store the values.
 2. Open **Settings** and choose the **Sync** tab.
 3. Turn on the categories this device should share: **Theme**, **Preferences**,
-   **Models**, **Notifications**, **Project**, or **Inbox monitor**.
+   **Models**, **Notifications**, **Project**, or **Inbox monitor**. A separate
+   **Single setting** section can share **Orchestrator mode** by itself without
+   enabling any category.
 4. The first time a category is turned on, Clara pulls the hub's copy. A value
    the hub already has wins; a key it lacks is filled from this device.
 5. Change a synced setting normally. Clara updates local storage immediately and
@@ -33,16 +36,17 @@ at all and how often clients check for changes.
 1. **Only non-secret preferences.** The server namespace rejects credential-like
    keys and is plaintext in SQLite. Pairing data, passwords, tokens, push
    endpoints, drafts, and message content never travel through it.
-2. **The category choice is per device.** `clara.sync` stores the enabled
-   categories, the last applied revision, and unsynced keys on this client. It is
-   never uploaded, so two devices can sync different categories.
-3. **First enable adopts the server.** A category pulls before it turns on. For
-   every key in that category, an existing server value is applied; if the hub
-   has no value, the local value is pushed. A failed pull leaves the category off.
-4. **Hub values win.** A pull applies the hub's values for enabled
-   categories. A push conflict applies the value the hub already has and drops
-   the losing local batch. Disabling a category stops applying and pushing but
-   leaves the stored namespace intact.
+2. **The choice is per device.** `clara.sync` stores the enabled categories,
+   enabled isolated settings, the last applied revision, and unsynced keys on
+   this client. It is never uploaded, so two devices can sync different choices.
+3. **First enable adopts the server.** A category or single setting pulls before
+   it turns on. For every key in that choice, an existing server value is applied;
+   if the hub has no value, the local value is pushed. A failed pull leaves the
+   choice off.
+4. **Hub values win.** A pull applies the hub's values for enabled choices. A
+   push conflict applies the value the hub already has and drops the losing
+   local batch. Disabling a choice stops applying and pushing but leaves the
+   stored namespace intact.
 5. **Check first, pull only when needed.** Local changes are pushed after a short
    debounce. The periodic timer sends `sync.check`, which returns only the
    namespace revision; the full `sync.pull` happens only when the revision moved.
@@ -62,6 +66,11 @@ at all and how often clients check for changes.
    `clara.hiddenModels`, which contains the complete provider and model lists. A
    local toggle rewrites that one value, and a pull replaces the whole group.
    There are no per-provider or per-model sync entries.
+10. **Single settings are isolated.** The **Single setting** section is not part
+    of any category. **Orchestrator mode** shares only
+    `clara.orchestratorMode`, the per-client choice to use the orchestrator
+    surface. Enabling it does not enable any category, and disabling it leaves
+    every category unchanged.
 
 ## Edge cases
 
@@ -83,8 +92,8 @@ at all and how often clients check for changes.
   is pushed so the namespace can heal.
 - **Model visibility conflict** — a pull replaces the entire hidden model group;
   individual toggles from the losing device are not merged.
-- **Missing or extra keys in a category** — a key the hub lacks is filled from
-  the first enabled device. Keys for categories this device did not enable are
+- **Missing or extra keys in a choice** — a key the hub lacks is filled from
+  the first enabled device. Keys for choices this device did not enable are
   ignored.
 - **Namespace limits** — the existing limits still apply: 100 entries per push,
   64 KB per value, 500 live entries, and 1 MB per namespace.
@@ -119,8 +128,9 @@ at all and how often clients check for changes.
     `soundKinds`, `deskIdleMs` only)
   - Project: `clara.lastProject`, `clara.showEmptyProjects`, `clara.showArchivedProjects`
   - Inbox: `clara.monitorInbox`
-- Per-client state: `clara.sync` with `{ categories, revision, dirty }`; never
-  uploaded
+  - Single setting: Orchestrator mode: `clara.orchestratorMode`
+- Per-client state: `clara.sync` with `{ categories, standalone, revision, dirty }`;
+  never uploaded
 - Interval: `DEFAULT_SYNC_INTERVAL_MS` 30 s, `MIN_SYNC_INTERVAL_MS` 5 s,
   `MAX_SYNC_INTERVAL_MS` 15 min
 - Panel: `POST /panel/api/v1/sync` with `{ enabled, intervalMs }`; controls

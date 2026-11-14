@@ -210,8 +210,6 @@ can answer a form or start work with an optional custom message.
   ordinary adjustment; Start is disabled while a message is present.
 - **Request while the composer is closed** — the badge counts it, but the
   composer is not forced open.
-- **Worker session** — worker sessions have no composer, so their question forms
-  stay in the above-thread panel with Submit and Skip controls.
 - **Command with Send as queued** — a recognised command is queued and runs as
   the next turn instead of executing immediately.
 - **Save as draft failure** — the window stays open with the draft and

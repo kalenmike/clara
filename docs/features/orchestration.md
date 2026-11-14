@@ -216,9 +216,9 @@ the one-time migration.
    failure, routing, and spawn require the matching lease. A second worker
    cannot keep or close the same step.
 5. **One logical conversation.** The root run records its origin session and
-   worker sessions stay hidden automation. The OpenCode adapter delivers new
-   alerts and finished root runs into the origin session; the inbox and SSE
-   remain the read-only fallback.
+   worker sessions carry automation metadata for the dedicated orchestrator
+   surface. The OpenCode adapter delivers new alerts and finished root runs into
+   the origin session; the inbox and SSE remain the read-only fallback.
 6. **The orchestrator owns the workspace and entry.** `CLARA_ORCHESTRATION_WORKSPACE`
    configures the run workspace, defaulting to the service working directory.
    Every run starts at the `entry` declared by the active config: the bundled
@@ -231,10 +231,11 @@ the one-time migration.
    policy, limits, result, and lease are read only from the Lab's dedicated
    endpoints.
 7. **The panel controls the local service.** The **Orchestration** switch keeps
-   `orchestration.enabled` in the hub database and starts or stops a
-   local instance. A service started from the CLI, MCP bridge, or Docker is
-   detected but left under its own management. Clients receive the effective
-   health state as `orchestration` and use it for the Workers grouping.
+   `orchestration.enabled` in the hub database and starts or stops a local
+   instance. A service started from the CLI, MCP bridge, or Docker is detected
+   but left under its own management. Clients receive the effective health state
+   as `orchestration`; each client then chooses whether to use the orchestrator
+   surface, and only opted-in devices hold worker alerts.
 8. **Diagnosis is evidence-first.** The `std:diagnostics` package runs a
    deterministic analyzer over run history, then interprets the report. The
    analyzer prefers the live service, falls back to a read-only database open,

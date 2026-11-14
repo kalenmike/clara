@@ -42,9 +42,10 @@ detail rows that most people leave alone.
    hiding connection details. Simplified App keeps the version, update state,
    update action, and the clear-cache recovery action, while hiding build and
    runtime details.
-5. The Sync tab contains category switches only. Each device stores its own
-   choices; enabling a category can pull or push values, but the tab itself is
-   never synchronized. See [sync](sync.md).
+5. The Sync tab contains category switches plus an isolated **Single setting**
+   section. Each device stores its own choices; enabling a category or single
+   setting can pull or push values, but the tab itself is never synchronized.
+   See [sync](sync.md).
 6. The Models tab hides providers and models from the composer. The whole
    visibility group is stored locally and syncs with the Models category; see
    [models](models.md).

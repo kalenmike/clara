@@ -168,8 +168,8 @@ card.
     answering and waits for `/health`; turning it off stops only the local
     instance started from this data directory. A Docker or external instance is
     detected and labelled, and the switch is disabled because the panel does not
-    own it. When the service is reachable, Clara groups worker sessions in
-    **Workers** and keeps their session alerts quiet.
+    own it. The switch is the master gate for the feature; connected clients
+    choose separately whether to use the orchestrator surface.
 20. Leave the page open. It refreshes every five seconds while visible and
     pauses when the tab is hidden. Use **Refresh** for an immediate check.
 
@@ -316,11 +316,11 @@ card.
   **Pair a browser** cannot create a code. An enabled feature switch turns red
   and a disabled one keeps its neutral track. The Traffic and Client sync
   switches keep their usual colors.
-- **Orchestration changes** — the hub probes `/health` before and after
-  the action, then broadcasts the new `orchestration` flag so connected clients
-  add or remove the Workers treatment without a reload. A failed local start
-  keeps the error on the card. A Docker or external instance cannot be stopped
-  from the panel.
+- **Orchestration changes** — the hub probes `/health` before and after the
+  action, then broadcasts the new `orchestration` flag so connected clients
+  update their feature availability without a reload. A failed local start keeps
+  the error on the card. A Docker or external instance cannot be stopped from
+  the panel.
 - **A feature fails to start** — the saved choice remains, the card shows the
   error, and the rest of the hub keeps running.
 - **No browser clients** — the client table shows an empty state and **Pair a
