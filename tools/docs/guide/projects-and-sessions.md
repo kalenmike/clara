@@ -139,20 +139,20 @@ The switch reports how many agents are working in the project's Outbox.
 ## See agent activity
 
 Choose the activity icon beside Settings in the sidebar to open **Activity**. It
-shows every session in the Inbox or Outbox across all paired harnesses, not just
-the active one. Archived and snoozed sessions stay hidden.
+shows every session in the Inbox or Outbox for the project currently shown in
+the sidebar, across all of that project's workspaces and harnesses. Archived and
+snoozed sessions stay hidden.
 
 Each card shows whether the session is in the Inbox or Outbox, plus its project,
 harness, agent, model, token total, reported spend, and current plan. Plans load
 for the most recently active sessions; other cards say **Plan not loaded** and
 still open normally. Cards keep their position while you watch, and new sessions
 appear at the end of their harness section. Harness sections keep offline or
-partially unavailable harnesses visible. The page refreshes every ten seconds.
-Choose **Refresh** to update plans and session state immediately.
+partially unavailable harnesses visible when they belong to the project. The
+page refreshes every ten seconds. Choose **Refresh** to update plans and session
+state immediately.
 
-You can open a session from any card, whichever harness runs it. The card links
-whenever Clara knows the session's project; a session whose project is unknown
-shows no link.
+You can open a session from any card, whichever harness in the project runs it.
 
 ## Related
 
