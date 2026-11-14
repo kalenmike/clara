@@ -1,5 +1,10 @@
 import { env, runInDurableObject, SELF } from 'cloudflare:test'
-import { isRouteFrame, PROTOCOL_VERSION, type RouteFrame } from '@clara/shared-types'
+import {
+  PROTOCOL_VERSION,
+  createRelayGrant,
+  isRouteFrameV3,
+  type RouteFrameV3,
+} from '@clara/shared-types'
 import { describe, expect, it } from 'vitest'
 import type { Env } from '../src/env.ts'
 import {
@@ -10,7 +15,6 @@ import {
 import type { RelayRoom } from '../src/room.ts'
 
 const AGENT_TOKEN = 'agent-test-token'
-const CLIENT_TOKEN = 'client-test-token'
 const MAX_CLIENT_FRAME_BYTES = 128 * 1024
 const CLIENT_LIMIT_CODE = 4008
 
@@ -23,12 +27,26 @@ type Connection = {
   closed: Promise<number>
 }
 
+let grantCounter = 0
+
+async function grantFor(room: string, id = `client-${(grantCounter += 1)}`): Promise<string> {
+  const { grant } = await createRelayGrant({
+    room,
+    id,
+    agentToken: AGENT_TOKEN,
+    ttlSeconds: 600,
+  })
+  return grant
+}
+
 async function connectWithResponse(
   room: string,
   role: Role,
-  token = roleToken(role),
-  headers: Record<string, string> = {}
+  credential?: string,
+  headers: Record<string, string> = {},
+  grantId?: string
 ): Promise<Connection> {
+  const token = credential ?? (role === 'agent' ? AGENT_TOKEN : await grantFor(room, grantId))
   const response = await SELF.fetch(`https://relay.test/room/${room}`, {
     headers: {
       Upgrade: 'websocket',
@@ -51,15 +69,11 @@ async function connectWithResponse(
 async function connect(
   room: string,
   role: Role,
-  token = roleToken(role),
+  credential?: string,
   headers: Record<string, string> = {}
 ): Promise<WebSocket> {
-  const { socket } = await connectWithResponse(room, role, token, headers)
+  const { socket } = await connectWithResponse(room, role, credential, headers)
   return socket
-}
-
-function roleToken(role: Role): string {
-  return role === 'agent' ? AGENT_TOKEN : CLIENT_TOKEN
 }
 
 function nextMessage(socket: WebSocket): Promise<string> {
@@ -76,9 +90,9 @@ function nextMessage(socket: WebSocket): Promise<string> {
   })
 }
 
-async function nextRoute(socket: WebSocket): Promise<RouteFrame> {
+async function nextRoute(socket: WebSocket): Promise<RouteFrameV3> {
   const parsed: unknown = JSON.parse(await nextMessage(socket))
-  if (!isRouteFrame(parsed)) throw new Error('Expected a route frame')
+  if (!isRouteFrameV3(parsed)) throw new Error('Expected a route frame')
   return parsed
 }
 
@@ -108,7 +122,7 @@ function collectMessages(socket: WebSocket): string[] {
 function routedPeer(messages: string[], text: string): string | undefined {
   for (const message of messages) {
     const parsed: unknown = JSON.parse(message)
-    if (isRouteFrame(parsed) && parsed.m === text) return parsed.p
+    if (isRouteFrameV3(parsed) && parsed.m === text) return parsed.p
   }
   return undefined
 }
@@ -147,24 +161,30 @@ describe('relay worker', () => {
   it('advertises the routing version on the upgrade response', async () => {
     const room = 'version-room'
     const agent = await connectWithResponse(room, 'agent')
-    expect(agent.response.headers.get('x-clara-relay-version')).toBe('2')
+    expect(agent.response.headers.get('x-clara-relay-version')).toBe('3')
     agent.socket.close(1000, 'done')
   })
 
-  it('tags client frames with a per-socket peer and broadcasts hub frames verbatim', async () => {
+  it('tags client frames with a per-socket peer and verified grant id', async () => {
     const room = 'routing-room'
     const agent = await connect(room, 'agent')
-    const first = await connect(room, 'client')
-    const second = await connect(room, 'client')
+    const first = await connect(room, 'client', await grantFor(room, 'device-routing-1'))
+    const second = await connect(room, 'client', await grantFor(room, 'device-routing-2'))
 
     first.send('from-first')
     const firstRoute = await nextRoute(agent)
-    expect(firstRoute).toMatchObject({ t: 'route', v: PROTOCOL_VERSION, m: 'from-first' })
+    expect(firstRoute).toMatchObject({
+      t: 'route',
+      v: PROTOCOL_VERSION,
+      i: 'device-routing-1',
+      m: 'from-first',
+    })
     expect(firstRoute.p).toMatch(/^[A-Za-z0-9_-]{22}$/)
 
     second.send('from-second')
     const secondRoute = await nextRoute(agent)
     expect(secondRoute.m).toBe('from-second')
+    expect(secondRoute.i).toBe('device-routing-2')
     // The relay owns the peer id, so the hub can tell the two sockets apart.
     expect(secondRoute.p).not.toBe(firstRoute.p)
 
@@ -177,6 +197,21 @@ describe('relay worker', () => {
     agent.close(1000, 'done')
     first.close(1000, 'done')
     second.close(1000, 'done')
+  })
+
+  it('overwrites a spoofed grant id header with the verified one', async () => {
+    const room = 'grant-spoof-room'
+    const agent = await connect(room, 'agent')
+    const client = await connect(room, 'client', await grantFor(room, 'real-device'), {
+      'x-clara-grant-id': 'forged-device',
+    })
+
+    client.send('spoof-check')
+    const route = await nextRoute(agent)
+    expect(route.i).toBe('real-device')
+
+    agent.close(1000, 'done')
+    client.close(1000, 'done')
   })
 
   it('wraps a forged route frame under the real sender peer', async () => {
@@ -299,16 +334,17 @@ describe('relay worker', () => {
     const room = 'ip-cap'
     const agent = await connect(room, 'agent')
     const headers = { 'cf-connecting-ip': '203.0.113.10' }
+    const credential = await grantFor(room, 'device-same-network')
     const clients: WebSocket[] = []
     for (let index = 0; index < MAX_CLIENT_SOCKETS_PER_IP; index += 1) {
-      clients.push(await connect(room, 'client', CLIENT_TOKEN, headers))
+      clients.push(await connect(room, 'client', credential, headers))
     }
 
-    const extra = await connectWithResponse(room, 'client', CLIENT_TOKEN, headers)
+    const extra = await connectWithResponse(room, 'client', credential, headers)
     await expect(extra.closed).resolves.toBe(CLIENT_LIMIT_CODE)
 
     // A second network still joins: the cap is per address, not per room.
-    const other = await connectWithResponse(room, 'client', CLIENT_TOKEN, {
+    const other = await connectWithResponse(room, 'client', credential, {
       'cf-connecting-ip': '198.51.100.4',
     })
     const messages = collectMessages(agent)

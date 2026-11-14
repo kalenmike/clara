@@ -9,7 +9,9 @@ import {
   isHubHelloFrameV4,
   isRouteFrame,
   isRouteFrameV3,
+  type AdapterEnrolledState,
   type ClaraAction,
+  type ClaraState,
   type PairingPayload,
 } from '../src/index.ts'
 
@@ -115,7 +117,7 @@ describe('v4 client hello', () => {
     expect(
       isClientHelloFrameV4({
         t: 'hello',
-        v: PROTOCOL_VERSION,
+        v: 3,
         sid: 'sid-1',
         nonce: 'nonce-1',
         role: 'client',
@@ -123,6 +125,20 @@ describe('v4 client hello', () => {
         deviceId: 'device-1',
       })
     ).toBe(false)
+  })
+
+  it('rejects an oversized session id or nonce', () => {
+    const base = {
+      t: 'hello',
+      v: PROTOCOL_VERSION_V4,
+      sid: 'sid-1',
+      nonce: 'nonce-1',
+      role: 'client',
+      eph: POINT,
+      deviceId: 'device-1',
+    }
+    expect(isClientHelloFrameV4({ ...base, sid: 's'.repeat(129) })).toBe(false)
+    expect(isClientHelloFrameV4({ ...base, nonce: 'n'.repeat(129) })).toBe(false)
   })
 })
 
@@ -211,6 +227,27 @@ describe('v4 pairing and ready contract', () => {
         expiresAt: 1_900_000_000_000,
       })
     }
+  })
+
+  it('carries the first relay grant on the enrollment responses', () => {
+    const grant = { grant: 'encoded.signature', expiresAt: 1_900_000_000_000 }
+    const device: ClaraState = {
+      type: 'device.enrolled',
+      deviceId: 'device-1',
+      fingerprint: 'fingerprint',
+      label: 'Desk',
+      relayGrant: grant,
+    }
+    const adapter: AdapterEnrolledState = {
+      type: 'adapter.enrolled',
+      connectionId: 'connection-1',
+      harnessId: 'harness-1',
+      label: 'Laptop',
+      reconnected: false,
+      relayGrant: grant,
+    }
+    expect(device).toMatchObject({ relayGrant: grant })
+    expect(adapter).toMatchObject({ relayGrant: grant })
   })
 })
 
