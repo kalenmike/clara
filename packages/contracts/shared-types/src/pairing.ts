@@ -13,9 +13,18 @@ export type PairingPayload = {
   v: typeof PROTOCOL_VERSION
   wsUrl: string
   room: string
+  /**
+   * @deprecated The shared relay client token is replaced by `grant`. Kept
+   * until the v4 cleanup lane removes it from the wire payload.
+   */
   clientToken: string
   enrollId: string
   enrollToken: string
+  /**
+   * One-time enrollment grant presented to the relay as
+   * `clara.auth.<grant>`. It is scoped to `enrollId` for ten minutes.
+   */
+  grant?: string
   /** Human-comparable fingerprint of the enrollment token. */
   fingerprint: string
   expiresAt: number
@@ -74,6 +83,7 @@ export function validatePairing(value: unknown): PairingPayload | null {
   const clientToken = typeof record.clientToken === 'string' ? record.clientToken.trim() : ''
   const enrollId = typeof record.enrollId === 'string' ? record.enrollId.trim() : ''
   const enrollToken = typeof record.enrollToken === 'string' ? record.enrollToken.trim() : ''
+  const grant = typeof record.grant === 'string' ? record.grant.trim() : ''
   const fingerprint = typeof record.fingerprint === 'string' ? record.fingerprint.trim() : ''
   const expiresAt =
     typeof record.expiresAt === 'number' && Number.isSafeInteger(record.expiresAt)
@@ -90,6 +100,7 @@ export function validatePairing(value: unknown): PairingPayload | null {
     clientToken,
     enrollId,
     enrollToken,
+    ...(grant ? { grant } : {}),
     fingerprint,
     expiresAt,
   }
@@ -108,9 +119,15 @@ export type HarnessPairingPayload = {
   /** Additional workspace-side endpoints, for example a compose service name. */
   altWsUrls?: string[]
   room: string
+  /**
+   * @deprecated The shared relay client token is replaced by `grant`. Kept
+   * until the v4 cleanup lane removes it from the wire payload.
+   */
   clientToken: string
   enrollId: string
   enrollToken: string
+  /** One-time enrollment grant scoped to `enrollId`. */
+  grant?: string
   fingerprint: string
   expiresAt: number
 }
@@ -163,6 +180,7 @@ export function validateHarnessPairing(value: unknown): HarnessPairingPayload | 
   const clientToken = typeof record.clientToken === 'string' ? record.clientToken.trim() : ''
   const enrollId = typeof record.enrollId === 'string' ? record.enrollId.trim() : ''
   const enrollToken = typeof record.enrollToken === 'string' ? record.enrollToken.trim() : ''
+  const grant = typeof record.grant === 'string' ? record.grant.trim() : ''
   const fingerprint = typeof record.fingerprint === 'string' ? record.fingerprint.trim() : ''
   const expiresAt =
     typeof record.expiresAt === 'number' && Number.isSafeInteger(record.expiresAt)
@@ -197,6 +215,7 @@ export function validateHarnessPairing(value: unknown): HarnessPairingPayload | 
     clientToken,
     enrollId,
     enrollToken,
+    ...(grant ? { grant } : {}),
     fingerprint,
     expiresAt,
   }
