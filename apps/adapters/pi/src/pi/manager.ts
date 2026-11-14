@@ -4,7 +4,7 @@ import type { PiConfig } from '../config.ts'
 import { piProcessEnv } from '../discover.ts'
 import { PiRpcClient, type PiRpcRecord, type PiState, type PiUiRequest } from './client.ts'
 
-const READY_TIMEOUT_MS = 30_000
+const READY_TIMEOUT_MS = 60_000
 const EVICTION_INTERVAL_MS = 30_000
 
 export type PiSessionTarget = {

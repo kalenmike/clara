@@ -83,6 +83,7 @@ type ActiveTurn = {
   busy: boolean
   synthetic: boolean
   interrupted: boolean
+  sawStart: boolean
   failed?: string
   assistantMessageID?: string
   assistantModel?: { id: string; providerID: string }
@@ -189,11 +190,27 @@ export class PiRuntime {
 
   async command(sessionID: string, input: CommandInput): Promise<void> {
     const text = `/${input.name}${input.text?.trim() ? ` ${input.text}` : ''}`
-    await this.prompt(sessionID, {
+    const item: ClaraSessionInboxUser = {
+      id: randomUUID(),
+      sessionID,
+      type: 'user',
+      delivery: input.delivery ?? 'steer',
+      payload: {
+        text,
+        ...(input.files ? { files: filesPayload(input.files) } : {}),
+      },
+      time: { created: Date.now() },
+    }
+    await this.submit(
+      sessionID,
       text,
-      ...(input.files ? { files: input.files } : {}),
-      ...(input.delivery ? { delivery: input.delivery } : {}),
-    })
+      input.files,
+      { id: item.id, kind: 'user' },
+      item,
+      'prompt',
+      input.delivery ?? 'steer',
+      false
+    )
   }
 
   async compact(sessionID: string, input: CompactInput): Promise<ClaraSessionInboxCompaction> {
@@ -454,7 +471,8 @@ export class PiRuntime {
     identity: PromptIdentity,
     item: ClaraSessionInboxInfo,
     action: 'prompt' | 'compact',
-    delivery: 'steer' | 'queue' = 'steer'
+    delivery: 'steer' | 'queue' = 'steer',
+    announce = true
   ): Promise<void> {
     const active = this.turns.get(sessionID)
     if (active?.busy) {
@@ -466,10 +484,10 @@ export class PiRuntime {
           COMMAND_TIMEOUT_MS
         )
         active.pending.push(identity)
-        if (delivery === 'queue') {
+        if (delivery === 'queue' && announce) {
           active.queue.push({ item, identity, text: message, images, action })
           this.emit('session.inbox.enqueued', { sessionID, inboxID: item.id, item })
-        } else {
+        } else if (announce) {
           this.emit('session.inbox.delivered', { sessionID, inboxID: item.id, item })
         }
         return
@@ -482,14 +500,16 @@ export class PiRuntime {
     const handle = await this.manager.open(target)
     const turn = this.startTurn(handle, identity)
     if (action === 'compact') {
-      this.emit('session.inbox.delivered', { sessionID, inboxID: item.id, item })
+      if (announce) this.emit('session.inbox.delivered', { sessionID, inboxID: item.id, item })
       await this.compactNow(sessionID, undefined)
       return
     }
     const { message, images } = composePrompt(text, files)
     this.emit('session.execution.started', { sessionID })
     this.emit('session.status', { sessionID, status: { type: 'busy' } })
-    this.emit('session.inbox.delivered', { sessionID, inboxID: item.id, item })
+    if (announce) {
+      this.emit('session.inbox.delivered', { sessionID, inboxID: item.id, item })
+    }
     if (identity.kind === 'synthetic') {
       this.emit('session.synthetic', {
         sessionID,
@@ -508,6 +528,7 @@ export class PiRuntime {
       busy: true,
       synthetic: identity.kind === 'synthetic',
       interrupted: false,
+      sawStart: false,
       endedSteps: new Set(),
       ordinals: new Map(),
       nextOrdinal: 0,
@@ -534,7 +555,12 @@ export class PiRuntime {
         PROMPT_TIMEOUT_MS
       )
       if (result?.disposition === 'handled') {
-        this.settle(turn, false)
+        // An extension command may start its own run with pi.sendMessage().
+        // Give agent_start a moment to arrive before declaring the prompt done.
+        const timer = setTimeout(() => {
+          if (!turn.sawStart) this.settle(turn, false)
+        }, 750)
+        timer.unref?.()
       }
     } catch (cause) {
       this.fail(turn, cause)
@@ -589,11 +615,17 @@ export class PiRuntime {
   }
 
   private onEvent(handle: PiSessionHandle, event: PiRpcRecord): void {
-    const turn = this.turns.get(handle.sessionID)
+    let turn = this.turns.get(handle.sessionID)
+    if (!turn && event.type === 'agent_start') {
+      turn = this.startTurn(handle, { id: `pi-auto-${Date.now()}`, kind: 'user' })
+      this.emit('session.execution.started', { sessionID: turn.sessionID })
+      this.emit('session.status', { sessionID: turn.sessionID, status: { type: 'busy' } })
+    }
     if (!turn) return
     switch (event.type) {
       case 'agent_start':
         turn.busy = true
+        turn.sawStart = true
         this.emit('session.status', { sessionID: turn.sessionID, status: { type: 'busy' } })
         return
       case 'message_start':
@@ -675,7 +707,7 @@ export class PiRuntime {
     if (message.role !== 'assistant') return
     const assistantMessageID = assistantID(message)
     if (!assistantMessageID) return
-    this.startStep(turn, assistantMessageID, modelOf(message))
+    this.startStep(turn, assistantMessageID, modelOf(message, turn.handle.state.model))
   }
 
   private onMessageUpdate(turn: ActiveTurn, event: PiRpcRecord): void {
@@ -781,7 +813,7 @@ export class PiRuntime {
     if (!isRecord(message) || message.role !== 'assistant') return
     const assistantMessageID = assistantID(message)
     if (!assistantMessageID) return
-    this.startStep(turn, assistantMessageID, modelOf(message))
+    this.startStep(turn, assistantMessageID, modelOf(message, turn.handle.state.model))
     const blocks = Array.isArray(message.content) ? message.content : []
     blocks.forEach((block, index) => {
       if (!isRecord(block)) return
@@ -1122,7 +1154,7 @@ export class PiRuntime {
 
   private ensureToolStep(turn: ActiveTurn): string {
     const id = `pi-tools-${Date.now()}`
-    this.startStep(turn, id, turn.assistantModel ?? modelOf({}))
+    this.startStep(turn, id, turn.assistantModel ?? modelOf({}, turn.handle.state.model))
     return id
   }
 
@@ -1182,10 +1214,14 @@ function assistantID(message: Record<string, unknown>): string | undefined {
   return `pi-a-${timestamp}`
 }
 
-function modelOf(message: Record<string, unknown>): { id: string; providerID: string } {
+function modelOf(
+  message: Record<string, unknown>,
+  fallback?: { id: string; name: string; provider: string }
+): { id: string; providerID: string } {
   return {
-    id: typeof message.model === 'string' ? message.model : 'unknown',
-    providerID: typeof message.provider === 'string' ? message.provider : 'pi',
+    id: typeof message.model === 'string' ? message.model : (fallback?.id ?? 'unknown'),
+    providerID:
+      typeof message.provider === 'string' ? message.provider : (fallback?.provider ?? 'pi'),
   }
 }
 

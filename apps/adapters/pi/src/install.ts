@@ -77,6 +77,8 @@ export async function installPi(options: PiInstallOptions): Promise<InstallResul
   }
   await probePiRpc(installation.binary, process.cwd(), piProcessEnv(pi), {
     trust: pi.trust,
+    ...(pi.model ? { model: pi.model } : {}),
+    ...(pi.thinkingLevel ? { thinkingLevel: pi.thinkingLevel } : {}),
   }).catch((cause: unknown) => {
     throw new Error(
       `Pi did not answer in RPC mode: ${cause instanceof Error ? cause.message : String(cause)}`

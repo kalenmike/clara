@@ -373,15 +373,17 @@ export async function probePiRpc(
   binary: string,
   cwd: string,
   env: NodeJS.ProcessEnv,
-  options: { trust?: PiTrust } = {}
+  options: { trust?: PiTrust; model?: string; thinkingLevel?: PiThinkingLevel } = {}
 ): Promise<PiState> {
   const client = await PiRpcClient.start({
     binary,
     cwd,
     env,
     noSession: true,
-    requestTimeoutMs: 15_000,
+    requestTimeoutMs: 30_000,
     ...(options.trust ? { trust: options.trust } : {}),
+    ...(options.model ? { model: options.model } : {}),
+    ...(options.thinkingLevel ? { thinkingLevel: options.thinkingLevel } : {}),
   })
   try {
     return await client.request<PiState>({ type: 'get_state' }, 15_000)

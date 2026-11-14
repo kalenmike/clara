@@ -97,6 +97,26 @@ describe('Pi runtime', () => {
     await runtime.close()
   })
 
+  it('forks a Pi-native session before a message', async () => {
+    const { project, events, sessions, runtime } = fixture()
+    const session = await sessions.create({ location: { directory: project }, title: 'Fork me' })
+    await runtime.prompt(session.id, { text: 'first' })
+    await idle(events, session.id)
+    const messages = await sessions.messages(session.id, { order: 'asc' })
+    const assistantID = messages.data.find((message) => message.type === 'assistant')?.id
+    if (!assistantID) throw new Error('no assistant message')
+
+    const forked = await runtime.fork(session.id, assistantID)
+    expect(forked.id).not.toBe(session.id)
+    expect(forked.parentID).toBe(session.id)
+    expect(forked.title).toBe('Fork me (fork)')
+
+    const forkedMessages = await sessions.messages(forked.id, { order: 'asc' })
+    expect(forkedMessages.data.map((message) => message.type)).toEqual(['user'])
+    expect(forkedMessages.data[0]).toMatchObject({ text: 'first' })
+    await runtime.close()
+  })
+
   it('maps an extension confirm dialog to a permission request', async () => {
     process.env.FAKE_PI_UI = 'confirm'
     const { project, events, sessions, runtime } = fixture()
