@@ -685,6 +685,16 @@ export class AgentSdkGateway implements ClaudeGateway {
         }
       : (cli ?? this.fallbackCatalog(provider, defaultModel))
 
+    // A live turn is the only source for skills, plugins, and terminal-only
+    // commands. Keep what it learned when a later catalog probe cannot report
+    // them (the SDK initialization result omits those fields).
+    const live = this.catalogValue
+    if (live && catalog.skills.length === 0) catalog.skills = live.skills
+    if (live && catalog.plugins.length === 0) catalog.plugins = live.plugins
+    if (live && catalog.terminalCommands.length === 0) {
+      catalog.terminalCommands = live.terminalCommands
+    }
+
     this.providerValue = provider
     this.defaultModelValue = defaultModel
     this.catalogValue = catalog
