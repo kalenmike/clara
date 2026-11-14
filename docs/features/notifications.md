@@ -95,7 +95,9 @@ start an agent run and move on, so they do not have to watch the sidebar.
 10. In-app toasts follow the selected color theme. Success, warning, info, and
     error keep distinct icons, wording, and palette-derived accents, so
     importance is readable without relying on color alone. Error carries the
-    strongest tint, warning the next, and success and info the lightest.
+    strongest tint, warning the next, and success and info the lightest. Below
+    `md` they start under the 48px app bar plus the safe-area inset, so they
+    never cover the menu and title; wider screens keep Sonner's default offset.
 11. Toasts show no close control. Clicking or tapping anywhere on the toast
     dismisses it, on desktop and touch alike; the surface keeps auto-dismiss
     timing and swipe-away.

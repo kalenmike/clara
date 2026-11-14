@@ -68,7 +68,8 @@ normally.
 
 Clara also shows theme-matched toasts with distinct icons for success, warning,
 info, and error. Click or tap anywhere on a toast to dismiss it. Swipe away works
-too.
+too. On phones the toasts appear just below the top bar, so the menu and title
+stay reachable.
 
 ## If alerts do not arrive
 
