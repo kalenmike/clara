@@ -3,6 +3,7 @@ import {
   RELAY_AUTH_PREFIX,
   RELAY_ROLE_PREFIX,
   RELAY_SUBPROTOCOL,
+  RELAY_WIRE_VERSION,
   type WireFrame,
 } from '@clara/shared-types'
 import type { Agent } from './agent.ts'
@@ -22,8 +23,10 @@ const REPLACED_MESSAGE =
 /**
  * The route envelope v3 adds the verified grant id (`i`) and the handshake v4
  * cutover depends on it. A v2 relay cannot bind a hello to its credential.
+ * Sharing the constant with the Worker and the deploy check keeps them
+ * aligned.
  */
-const MIN_RELAY_VERSION = 3
+const MIN_RELAY_VERSION = RELAY_WIRE_VERSION
 const OUTDATED_RELAY = 'The relay is outdated; redeploy the Worker'
 
 export type RelayStatus = 'connecting' | 'online' | 'reconnecting' | 'offline'
