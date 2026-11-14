@@ -22,6 +22,13 @@ const browserPairing: PairingPayload = {
   expiresAt: Date.now() + 60_000,
 }
 
+const relayPairing: PairingPayload = {
+  ...browserPairing,
+  wsUrl: 'wss://relay.example/room/room-1',
+  room: 'room-1',
+  grant: 'encoded.signature',
+}
+
 const adapterPairing: HarnessPairingPayload = {
   v: PROTOCOL_VERSION,
   role: 'adapter',
@@ -37,6 +44,27 @@ const adapterPairing: HarnessPairingPayload = {
 
 describe('pairingInputError', () => {
   it('accepts a browser pairing code', () => {
+    expect(pairingInputError(`${PAIRING_CODE_PREFIX}${encodePairingCode(browserPairing)}`)).toBe('')
+  })
+
+  it('accepts a relay pairing code that carries an enrollment grant', () => {
+    expect(pairingInputError(`${PAIRING_CODE_PREFIX}${encodePairingCode(relayPairing)}`)).toBe('')
+  })
+
+  it('rejects a relay pairing code without a grant', () => {
+    const withoutGrant: PairingPayload = { ...relayPairing, grant: undefined }
+    const error = pairingInputError(`${PAIRING_CODE_PREFIX}${encodePairingCode(withoutGrant)}`)
+    expect(error).toContain('no enrollment grant')
+    expect(error).toContain('pair again')
+  })
+
+  it('ignores the removed client token', () => {
+    // Shared pairing validation still requires the legacy field, but the web
+    // never reads it and a relay code is accepted on its grant alone.
+    expect(pairingInputError(`${PAIRING_CODE_PREFIX}${encodePairingCode(relayPairing)}`)).toBe('')
+  })
+
+  it('does not require a grant for a local pairing code', () => {
     expect(pairingInputError(`${PAIRING_CODE_PREFIX}${encodePairingCode(browserPairing)}`)).toBe('')
   })
 

@@ -11,7 +11,13 @@ export type StoredDevice = {
   label: string
   wsUrl: string
   room: string
-  clientToken: string
+  /**
+   * The device's relay grant, presented as `clara.auth.<grant>`. Local pairings
+   * have no relay credential and store an empty string.
+   */
+  grant: string
+  /** Unix milliseconds. Zero for a local pairing, which never expires. */
+  grantExpiresAt: number
   fingerprint: string
   key: CryptoKey
   createdAt: number
@@ -19,13 +25,32 @@ export type StoredDevice = {
 
 type StoredRecord = StoredDevice & { id: string }
 
-export async function loadDevice(): Promise<StoredDevice | null> {
+export async function loadDevice(
+  options: { allowExpired?: boolean } = {}
+): Promise<StoredDevice | null> {
   const db = await openDatabase()
   try {
     const record = await request<StoredRecord | undefined>(
       db.transaction(STORE_NAME, 'readonly').objectStore(STORE_NAME).get(RECORD_KEY)
     )
     if (!record) return null
+    // A record written before grants has no grant fields at all; make the
+    // browser pair again rather than retrying a credential the relay rejects.
+    if (typeof record.grant !== 'string' || typeof record.grantExpiresAt !== 'number') return null
+    // A relay device is useless once its grant expires: the relay refuses the
+    // upgrade before the hub ever sees the key. Fall back to the pairing screen.
+    // Local pairings carry no relay grant, so only their presence is required.
+    // A live session must still be able to write the refreshed grant it was
+    // just handed, even if the previous one expires during the handshake.
+    if (
+      !options.allowExpired &&
+      record.room !== 'local' &&
+      (!record.grant ||
+        !Number.isFinite(record.grantExpiresAt) ||
+        record.grantExpiresAt <= Date.now())
+    ) {
+      return null
+    }
     const { id: _id, ...device } = record
     return device
   } finally {
@@ -72,8 +97,9 @@ export async function canStoreDeviceKey(): Promise<boolean> {
       deviceId: 'probe',
       label: 'probe',
       wsUrl: 'ws://probe',
-      room: 'probe',
-      clientToken: 'probe',
+      room: 'local',
+      grant: '',
+      grantExpiresAt: 0,
       fingerprint: 'probe',
       key,
       createdAt: Date.now(),

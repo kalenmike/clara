@@ -1,3 +1,4 @@
+import 'fake-indexeddb/auto'
 import { createServer, type Server } from 'node:http'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { WebSocketServer, type WebSocket } from 'ws'
@@ -23,6 +24,7 @@ import {
   type HubHelloFrameV4,
   type RelayGrantState,
 } from '@clara/shared-types'
+import { clearDevice, loadDevice, saveDevice, type StoredDevice } from '../device-store.ts'
 import { createRelayTransport, MAX_IN_FLIGHT_REQUESTS, type RelayTransport } from './relay.ts'
 
 type Greet = (socket: WebSocket, sid: string) => boolean
@@ -77,6 +79,7 @@ beforeAll(async () => {
 
 afterAll(async () => {
   transport.close()
+  await clearDevice()
   await new Promise<void>((resolve) => wss.close(() => resolve()))
   await new Promise<void>((resolve) => server.close(() => resolve()))
 })
@@ -179,13 +182,25 @@ describe('relay fetch transport', () => {
 })
 
 describe('relay grant handshake', () => {
-  it('presents the grant and refreshes it in ready', async () => {
+  it('presents the grant and persists the grant refreshed in ready', async () => {
     const readyGrant: RelayGrantState = {
       grant: `${bytesToBase64Url(randomBytes(8))}.signature`,
       expiresAt: Date.now() + 30 * 24 * 60 * 60 * 1000,
     }
     let protocols: string[] = []
     const updates: RelayGrantState[] = []
+    const key = await importSessionKey(deviceKey)
+    const stored: StoredDevice = {
+      deviceId: 'device-test',
+      label: 'Test device',
+      wsUrl: 'ws://placeholder/ws',
+      room: 'room-1',
+      grant: 'old-grant',
+      grantExpiresAt: 1,
+      fingerprint: 'fingerprint',
+      key,
+      createdAt: 1,
+    }
 
     const relay = await startRelay(undefined, {
       grant: 'grant-abc',
@@ -195,6 +210,11 @@ describe('relay grant handshake', () => {
       },
       onGrant: (grant) => {
         updates.push(grant)
+        void saveDevice({
+          ...stored,
+          grant: grant.grant,
+          grantExpiresAt: grant.expiresAt,
+        })
       },
     })
 
@@ -207,8 +227,12 @@ describe('relay grant handshake', () => {
       })
       expect(response.status).toBe(200)
       expect(updates).toEqual([readyGrant])
+
+      const loaded = await waitForDeviceGrant(readyGrant.grant)
+      expect(loaded.grantExpiresAt).toBe(readyGrant.expiresAt)
     } finally {
       await relay.close()
+      await clearDevice()
     }
   }, 15_000)
 
@@ -329,6 +353,16 @@ async function waitFor(check: () => boolean, timeoutMs = 2_000): Promise<void> {
     if (Date.now() - started > timeoutMs) throw new Error('Timed out waiting for the transport')
     await new Promise((resolve) => setTimeout(resolve, 10))
   }
+}
+
+async function waitForDeviceGrant(grant: string): Promise<StoredDevice> {
+  const started = Date.now()
+  while (Date.now() - started <= 2_000) {
+    const loaded = await loadDevice()
+    if (loaded?.grant === grant) return loaded
+    await new Promise((resolve) => setTimeout(resolve, 10))
+  }
+  throw new Error('Timed out waiting for the refreshed grant')
 }
 
 /**
