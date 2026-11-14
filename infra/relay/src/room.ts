@@ -41,7 +41,7 @@ const FRAME_TOO_LARGE_CODE = 4009
 const OFFLINE_CODE = 1013
 
 /** The route envelope this room speaks; the hub refuses anything older. */
-const RELAY_VERSION = 2
+export const RELAY_VERSION = 2
 
 type Attachment = { peer?: string; ip?: string }
 
