@@ -383,7 +383,6 @@ cannot open a `ws://` socket. For phones, configure the relay instead.
    ```bash
    cd infra/relay
    pnpm exec wrangler secret put CLARA_AGENT_TOKEN
-   pnpm exec wrangler secret put CLARA_CLIENT_TOKEN
    cd ../..
    pnpm deploy:relay
    ```
@@ -400,8 +399,8 @@ cannot open a `ws://` socket. For phones, configure the relay instead.
 3. Deploy `apps/web/dist` to your Pages project and attach your own domain.
 
 4. Configure the hub. Open **Connections → Relay** in the hub panel and save
-   your relay URL with the same hub and client tokens you set on the Worker. The
-   hub generates a random room and stores the tokens encrypted in
+   your relay URL with the same hub token you set on the Worker. The hub
+   generates a random room and stores the token encrypted in
    `~/.config/clara/relay-credentials.json`. Use **Regenerate room** to replace
    the room; it cannot be typed. Set **Web URL** to
    `https://your-clara.example` for a Pages deployment.
@@ -413,12 +412,11 @@ cannot open a `ws://` socket. For phones, configure the relay instead.
    CLARA_RELAY_URL=wss://relay.example
    CLARA_RELAY_ROOM=<generated on first run, persisted in server.json>
    CLARA_AGENT_TOKEN=<must match the Worker secret>
-   CLARA_CLIENT_TOKEN=<must match the Worker secret>
    ```
 
    Each variable wins over the matching panel value when it is set, and is never
-   written to disk. A URL with no tokens in either the environment or the panel
-   stops the hub at startup with an error naming the missing token.
+   written to disk. A URL with no hub token in either the environment or the
+   panel stops the hub at startup with an error naming the missing token.
 
 5. Restart the hub service and check `relay connecting` / `relay online` in its log.
    `pnpm clara pair` must then print a random `Room:` and a `/room/<id>` link;
@@ -513,7 +511,7 @@ is no UI for it. See [docs/features/sync.md](docs/features/sync.md).
   an explicitly remote install, and `CLARA_ADMIN_PASSWORD` creates the owner
   before startup for CI. A lost password is reset by a host command, which
   writes a reset token in `admin-setup.txt` (mode `0600`).
-  It never returns device keys, adapter credentials, relay tokens, push
+  It never returns device keys, adapter credentials, the relay token, push
   endpoints, sync values, or file contents. A one-time pairing code is returned
   only by the authenticated request that creates it, never in the status
   snapshot. It is not exposed through the relay or Pages.
