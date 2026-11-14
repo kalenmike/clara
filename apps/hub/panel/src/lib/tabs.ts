@@ -62,7 +62,7 @@ export const PANEL_TABS: PanelTabMeta[] = [
     id: 'clients',
     label: 'Clients',
     icon: Users,
-    kicker: 'Sessions',
+    kicker: 'Connections',
     title: 'Clients',
     description: 'Live end-to-end encrypted browser sessions and the devices that own them.',
     primary: true,

@@ -777,6 +777,11 @@ body {
   overflow: visible;
 }
 
+.panel-pair-dialog {
+  width: min(560px, calc(100vw - 32px));
+  max-width: 560px;
+}
+
 .panel-setup-dialog::backdrop {
   background: rgb(15 23 42 / 0.55);
   backdrop-filter: blur(2px);
