@@ -1,10 +1,13 @@
-import { existsSync, readFileSync, readdirSync } from 'node:fs'
+import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 /**
  * Guard the deployed artifact. The web build ships the PWA shell; the desktop
  * build must not, or a Tauri bundle would carry a stale service worker.
+ *
+ * Routes are lazy chunks, so every emitted script is checked, not just the
+ * entry: the boundary markers live wherever the importing screen landed.
  */
 const args = process.argv.slice(2)
 function argument(name, fallback) {
@@ -17,24 +20,40 @@ const directory = argument('dir', 'dist')
 const output = fileURLToPath(new URL(`../${directory}/`, import.meta.url))
 const assets = join(output, 'assets')
 
+/** A route chunk this large means a screen was not split, or a dependency leaked. */
+const MAX_CHUNK_BYTES = 500 * 1024
+
+// Harness SDK symbols must never reach the browser artifact.
+const markers = ['/api/session', '/api/project', 'ClientError', 'OpenCode.make']
+// zod is a contract dependency; the browser only calls schema-free helpers.
+const forbidden = [['unrecognized_keys', 'zod']]
+
 if (!existsSync(assets)) {
   console.error(`No ${surface} build found in ${directory}. Run \`vite build\` first.`)
   process.exit(1)
 }
 
-const markers = ['/api/session', '/api/project', 'ClientError', 'OpenCode.make']
-const files = readdirSync(assets).filter((file) => /^index-.*\.js$/.test(file))
+const scripts = readdirSync(assets).filter((file) => file.endsWith('.js'))
+const entry = scripts.filter((file) => /^index-.*\.js$/.test(file))
 
-if (files.length === 0) {
+if (entry.length === 0) {
   console.error(`No production index bundle found in ${directory}. Run \`vite build\` first.`)
   process.exit(1)
 }
 
 const violations = []
-for (const file of files) {
+for (const file of scripts) {
   const source = readFileSync(join(assets, file), 'utf8')
   for (const marker of markers) {
     if (source.includes(marker)) violations.push(`${file} contains ${marker}`)
+  }
+  for (const [marker, dependency] of forbidden) {
+    if (source.includes(marker)) violations.push(`${file} bundles ${dependency}`)
+  }
+
+  const bytes = statSync(join(assets, file)).size
+  if (bytes > MAX_CHUNK_BYTES) {
+    violations.push(`${file} is ${Math.round(bytes / 1024)} kB, over the 500 kB chunk budget`)
   }
 }
 
@@ -55,4 +74,4 @@ if (violations.length > 0) {
   process.exit(1)
 }
 
-console.log(`${surface} bundle is clean (${directory}: ${files.join(', ')}).`)
+console.log(`${surface} bundle is clean (${directory}: ${scripts.length} chunks).`)
