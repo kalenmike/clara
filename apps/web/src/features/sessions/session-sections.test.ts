@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { ClaraSession } from '@clara/api-contract'
-import { groupSessionsByMailbox } from './session-sections'
+import { groupSessionsByMailbox, mergeSessionLists } from './session-sections'
 
 function session(
   id: string,
@@ -50,5 +50,31 @@ describe('groupSessionsByMailbox', () => {
     expect(groups.inbox.map((item) => item.id)).toEqual(['newer', 'older'])
     expect(groups.archived.map((item) => item.id)).toEqual(['archived'])
     expect(groups.snoozed).toHaveLength(0)
+  })
+
+  it('keeps archived and snoozed sessions from the full merge', () => {
+    const active = session('active', 4)
+    const archived = session('archived', 3, {}, 300)
+    const snoozed = session('snoozed', 2, { snoozed: true })
+
+    const groups = groupSessionsByMailbox(
+      mergeSessionLists([active, snoozed], [archived]),
+      signals,
+      running,
+      awaitingInput
+    )
+
+    expect(groups.inbox.map((item) => item.id)).toEqual(['active'])
+    expect(groups.archived.map((item) => item.id)).toEqual(['archived'])
+    expect(groups.snoozed.map((item) => item.id)).toEqual(['snoozed'])
+  })
+
+  it('prefers the archived copy of a session returned by both lists', () => {
+    const active = session('shared', 4)
+    const archived = session('shared', 3, {}, 300)
+
+    const merged = mergeSessionLists([active], [archived])
+
+    expect(merged).toEqual([archived])
   })
 })
