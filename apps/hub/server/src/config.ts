@@ -64,7 +64,6 @@ const DEFAULT_WEB_PORT = 8080
 export function loadConfig(
   options: {
     noRelay?: boolean
-    allowMissingRelayTokens?: boolean
     /** Last local port from the runtime file; reused when no explicit value exists. */
     localPortHint?: number
   } = {}
@@ -142,10 +141,6 @@ export function loadConfig(
           clientToken: clientToken ?? '',
         }
       : undefined
-
-  if (relay && !options.allowMissingRelayTokens) {
-    assertRelayTokens(relay, configPath, configDir)
-  }
 
   const envPairingBaseUrl = readEnv('CLARA_PAIRING_BASE_URL')
   const filePairingBaseUrl = nonEmpty(file.pairingBaseUrl)

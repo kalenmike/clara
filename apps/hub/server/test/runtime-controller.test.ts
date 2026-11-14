@@ -54,25 +54,27 @@ function tempDir(): string {
   return dir
 }
 
-function config(port: number): ServerConfig {
+function config(port: number, relay?: ServerConfig['relay']): ServerConfig {
   const dir = tempDir()
+  const sources: ServerConfig['sources'] = {
+    localHost: 'default',
+    localBindHost: 'default',
+    localPort: 'default',
+    relayUrl: relay ? 'file' : 'none',
+    relayRoom: relay ? 'file' : 'none',
+    agentToken: relay ? 'file' : 'none',
+    clientToken: relay ? 'file' : 'none',
+    pairingBaseUrl: 'default',
+  }
   return {
     local: { host: '127.0.0.1', bindHost: '127.0.0.1', port },
+    ...(relay ? { relay } : {}),
     pairingBaseUrl: 'https://clara.example',
     configDir: dir,
     configPath: join(dir, 'server.json'),
     dataDir: dir,
     dbPath: join(dir, 'clara.db'),
-    sources: {
-      localHost: 'default',
-      localBindHost: 'default',
-      localPort: 'default',
-      relayUrl: 'none',
-      relayRoom: 'none',
-      agentToken: 'none',
-      clientToken: 'none',
-      pairingBaseUrl: 'default',
-    },
+    sources,
   }
 }
 
@@ -80,7 +82,11 @@ const info: AgentInfo = { version: 'test', protocol: 2 }
 
 async function createController(
   port = 0,
-  options: { openCodeUrl?: string; push?: PushService } = {}
+  options: {
+    openCodeUrl?: string
+    push?: PushService
+    relay?: ServerConfig['relay']
+  } = {}
 ): Promise<{
   controller: RuntimeController
   settings: SettingsStore
@@ -91,7 +97,7 @@ async function createController(
   secretKey: SecretKeyInfo
   close: () => Promise<void>
 }> {
-  const serverConfig = config(port)
+  const serverConfig = config(port, options.relay)
   const db = openDatabase(serverConfig.dbPath)
   const settings = new SettingsStore(db)
   const controllerInfo: AgentInfo = { ...info }
@@ -454,6 +460,28 @@ describe('RuntimeController', () => {
       expect(raw).not.toContain('panel-client')
       expect(hasRelayCredentials(serverConfig.configDir)).toBe(true)
       expect(secretKey.version).toBe(1)
+    } finally {
+      await close()
+    }
+  })
+
+  it('starts local-only when the relay tokens are missing', async () => {
+    const { controller, close } = await createController(0, {
+      relay: { url: 'wss://relay.example', room: 'room-1', agentToken: '', clientToken: '' },
+    })
+    await controller.start()
+    try {
+      const relay = controller.controls().features.find((entry) => entry.name === 'relay')
+      expect(relay).toMatchObject({ desired: true, effective: false })
+      expect(relay?.error).toMatch(/tokens are missing/i)
+      expect(controller.relayTransport).toBeUndefined()
+
+      const pairing = await controller.createDevicePairing({ localOnly: false })
+      expect(pairing.pairing).toMatchObject({ room: 'local', transport: 'local' })
+
+      await expect(
+        controller.createHarnessPairing({ kind: 'opencode', label: 'Test', transport: 'relay' })
+      ).rejects.toMatchObject({ status: 400, code: 'relay_tokens_required' })
     } finally {
       await close()
     }

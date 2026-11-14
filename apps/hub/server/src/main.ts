@@ -15,7 +15,6 @@ import {
   loadConfig,
   readRelayTarget,
   saveRelayTarget,
-  validateRelayConfig,
   type ServerConfig,
 } from './config.ts'
 import { loadCloudflareDeploymentFeature } from './features/cloudflare-deployment/loader.ts'
@@ -79,7 +78,6 @@ export async function main(): Promise<void> {
     const live = isRuntimeLive(previous) ? previous : undefined
     const config = loadConfig({
       noRelay,
-      allowMissingRelayTokens: true,
       ...(live?.local ? { localPortHint: live.local.port } : {}),
     })
     if (live?.local) {
@@ -116,7 +114,6 @@ export async function main(): Promise<void> {
 
   try {
     const config = loadConfig({
-      allowMissingRelayTokens: true,
       ...(previous?.local ? { localPortHint: previous.local.port } : {}),
     })
     await runServe(
@@ -168,7 +165,11 @@ async function runServe(
     secretKey,
     log,
   })
-  validateRelayConfig(config)
+  if (config.relay && (!config.relay.agentToken || !config.relay.clientToken)) {
+    log(
+      'relay is configured but its tokens are missing; the hub will run local-only until both are saved in the Relay card'
+    )
+  }
   const devices = new DeviceStore({
     db: database,
     key: secretKey.key,
