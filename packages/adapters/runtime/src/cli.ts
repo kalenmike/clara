@@ -61,7 +61,38 @@ export type AdapterDefinition<THarness> = {
   uninstall?(args: string[]): Promise<void>
   /** Extra lines printed by `status` before the fallback probe. */
   statusLines?(config: AdapterConfig<THarness>, probe: AdapterProbe): string[]
+  /**
+   * `verify` command. Reports whether the adapter can read the native harness
+   * store, and optionally proves a Clara-created session is native.
+   */
+  verify?(
+    config: AdapterConfig<THarness>,
+    options: AdapterVerifyOptions
+  ): Promise<AdapterVerifyReport>
   help?: string
+}
+
+export type AdapterVerifyStatus = 'ok' | 'skip' | 'fail'
+
+export type AdapterVerifyCheck = {
+  name: string
+  status: AdapterVerifyStatus
+  detail?: string
+  data?: Record<string, unknown>
+}
+
+export type AdapterVerifyReport = {
+  adapter: string
+  label: string
+  harness?: string
+  checks: AdapterVerifyCheck[]
+}
+
+export type AdapterVerifyOptions = {
+  /** Directory whose native sessions are inspected. Defaults to the cwd. */
+  directory?: string
+  /** Create and remove a scratch session in the native store. */
+  write: boolean
 }
 
 export type AdapterInstallHelpers<THarness> = {
@@ -106,6 +137,10 @@ export async function runAdapterCli<THarness>(
   }
   if (command === 'status') {
     await status(definition)
+    return
+  }
+  if (command === 'verify') {
+    await verify(definition, args)
     return
   }
   if (command === 'start') {
@@ -344,6 +379,51 @@ async function start<THarness>(definition: AdapterDefinition<THarness>): Promise
   else console.log(`adapter did not start; check ${status.log}`)
 }
 
+async function verify<THarness>(
+  definition: AdapterDefinition<THarness>,
+  args: string[]
+): Promise<void> {
+  const config = readAdapterConfig<THarness>(definition.paths)
+  if (!config) {
+    const report: AdapterVerifyReport = {
+      adapter: definition.name,
+      label: definition.label,
+      checks: [
+        {
+          name: 'config',
+          status: 'skip',
+          detail: `adapter is not installed at ${definition.paths.configPath}`,
+        },
+      ],
+    }
+    if (hasFlag(args, '--json')) console.log(JSON.stringify(report, null, 2))
+    else printVerifyReport(report)
+    return
+  }
+  if (!definition.verify) {
+    throw new Error(`${definition.label} does not support verify`)
+  }
+  const report = await definition.verify(config, {
+    ...(argValue(args, '--directory') ? { directory: argValue(args, '--directory') } : {}),
+    write: hasFlag(args, '--write'),
+  })
+  if (hasFlag(args, '--json')) console.log(JSON.stringify(report, null, 2))
+  else printVerifyReport(report)
+  if (report.checks.some((check) => check.status === 'fail')) process.exitCode = 1
+}
+
+function printVerifyReport(report: AdapterVerifyReport): void {
+  const harness = report.harness ? ` (${report.harness})` : ''
+  console.log(`${report.label} adapter verification${harness}`)
+  for (const check of report.checks) {
+    const mark = check.status === 'ok' ? 'ok  ' : check.status === 'skip' ? 'skip' : 'FAIL'
+    console.log(`${mark} ${check.name}${check.detail ? `: ${check.detail}` : ''}`)
+  }
+  const count = (status: AdapterVerifyStatus) =>
+    report.checks.filter((check) => check.status === status).length
+  console.log(`\n${count('ok')} ok, ${count('skip')} skipped, ${count('fail')} failed`)
+}
+
 async function status<THarness>(definition: AdapterDefinition<THarness>): Promise<void> {
   const config = readAdapterConfig<THarness>(definition.paths)
   const identity = loadIdentity(definition.paths.identityPath)
@@ -453,6 +533,7 @@ Usage:
   ${bin} serve
   ${bin} start|stop|logs [--lines <n>]
   ${bin} status
+  ${bin} verify [--directory <path>] [--write] [--json]
   ${bin} uninstall
   ${bin} config-path
 
