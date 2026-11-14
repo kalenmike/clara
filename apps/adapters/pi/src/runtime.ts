@@ -312,7 +312,7 @@ export class PiRuntime {
     if (!active) return
     const index = active.queue.findIndex((entry) => entry.item.id === inboxID)
     if (index < 0) return
-    active.queue.splice(index, 1)
+    const [removed] = active.queue.splice(index, 1)
     this.emit('session.inbox.cancelled', { sessionID, inboxID })
     if (active.busy) {
       try {
@@ -320,6 +320,9 @@ export class PiRuntime {
       } catch {
         return
       }
+      const cleared = new Set(active.queue.map((entry) => entry.identity.id))
+      if (removed) cleared.add(removed.identity.id)
+      active.pending = active.pending.filter((identity) => !cleared.has(identity.id))
       for (const entry of active.queue) {
         if (entry.action !== 'prompt') continue
         try {
@@ -600,6 +603,7 @@ export class PiRuntime {
   }
 
   private async compactNow(sessionID: string, customInstructions?: string): Promise<void> {
+    if (this.closed) return
     const target = await this.sessions.target(sessionID)
     const handle = await this.manager.open(target)
     const turn =
@@ -1036,7 +1040,7 @@ export class PiRuntime {
           requestID,
           reply: 'reject',
         })
-      }, UI_TIMEOUT_MS)
+      }, uiTimeout(request.timeout))
       timer.unref?.()
       this.pendingPermissions.set(requestID, {
         request: permission,
@@ -1055,7 +1059,7 @@ export class PiRuntime {
       this.pendingForms.delete(form.id)
       handle.client.respond({ id: request.id, cancelled: true })
       this.emit('form.cancelled', { id: form.id, sessionID: handle.sessionID })
-    }, UI_TIMEOUT_MS)
+    }, uiTimeout(request.timeout))
     timer.unref?.()
     this.pendingForms.set(form.id, {
       form,
@@ -1243,6 +1247,11 @@ export class PiRuntime {
       data,
     } as Extract<ClaraEvent, { type: T }>)
   }
+}
+
+function uiTimeout(value: unknown): number {
+  if (typeof value !== 'number' || !Number.isFinite(value) || value <= 0) return UI_TIMEOUT_MS
+  return Math.min(value + 500, UI_TIMEOUT_MS)
 }
 
 function assistantID(message: Record<string, unknown>): string | undefined {

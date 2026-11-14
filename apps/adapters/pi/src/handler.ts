@@ -15,7 +15,7 @@ import {
 } from '@clara/adapter-runtime'
 import type { AdapterInfo, AdapterProbe } from '@clara/adapter-runtime'
 import type { ClaraFormValue, ClaraModelRef } from '@clara/api-contract'
-import { AdapterError } from './errors.ts'
+import { AdapterError, toPiError } from './errors.ts'
 import type { EventBus } from './events.ts'
 import type { CatalogService } from './catalog.ts'
 import type { PiRuntime } from './runtime.ts'
@@ -267,17 +267,18 @@ export function createAdapterApp(context: AdapterContext): Hono {
         error.status as 400
       )
     }
+    const mapped = toPiError(error)
     return c.json(
       {
         error: {
-          code: 'adapter_error',
-          message: error instanceof Error ? error.message : String(error),
+          code: mapped.code,
+          message: mapped.message,
+          ...(mapped.details === undefined ? {} : { details: mapped.details }),
         },
       },
-      500
+      mapped.status as 400
     )
   })
-
   return app
 }
 
