@@ -12,7 +12,8 @@ import {
 export function pairingInputError(input: string): string {
   const value = input.trim()
   if (!value) return 'Enter a Clara pairing code or link.'
-  if (parsePairingInput(value)) return ''
+  const pairing = parsePairingInput(value)
+  if (pairing) return pairingGrantError(pairing)
   const harness = parseHarnessPairingInput(value)
   if (harness || value.startsWith(HARNESS_PAIRING_CODE_PREFIX)) {
     const kind = harness && /^[a-z0-9_-]+$/i.test(harness.kind) ? harness.kind : null
@@ -22,6 +23,21 @@ export function pairingInputError(input: string): string {
     return `That is a harness adapter pairing code. ${install} To pair this browser, use a code from pnpm clara pair.`
   }
   return 'That does not look like a Clara pairing code or link. Browser pairing codes start with clara1_.'
+}
+
+/**
+ * A relay code signs the enrollment with a one-time grant that the relay checks
+ * before the WebSocket upgrade. A code without one can never enroll, so reject
+ * it before opening a socket. Local codes still use the enrollment token alone.
+ */
+export function pairingGrantError(pairing: PairingPayload): string {
+  if (pairing.room === 'local') return ''
+  if (pairing.wsUrl.startsWith('ws://') || pairing.wsUrl.startsWith('wss://')) {
+    if (!pairing.grant?.trim()) {
+      return 'This relay pairing code has no enrollment grant. Generate a new pairing code on the hub and pair again.'
+    }
+  }
+  return ''
 }
 
 let pending: PairingPayload | null = null

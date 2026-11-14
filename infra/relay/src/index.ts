@@ -155,6 +155,13 @@ export function forwardedProtocolHeader(header: string | null): string | null {
 function json(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), {
     status,
-    headers: { 'content-type': 'application/json', 'cache-control': 'no-store' },
+    headers: {
+      'content-type': 'application/json',
+      'cache-control': 'no-store',
+      // The health probe and small refusals are unauthenticated and carry no
+      // credentials, so any origin may read them. Never add
+      // access-control-allow-credentials here.
+      'access-control-allow-origin': '*',
+    },
   })
 }

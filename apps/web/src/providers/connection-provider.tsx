@@ -10,7 +10,7 @@ import {
   type ReactNode,
 } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
-import type { PairingPayload } from '@clara/shared-types'
+import type { PairingPayload, RelayGrantState } from '@clara/shared-types'
 import {
   connectionKey,
   connectionSummary,
@@ -29,7 +29,7 @@ import {
 import type { RelayTransportStatus } from '@/lib/transport/relay'
 import { chatStore } from '@/features/chat/chat-store'
 import { probeHub } from '@/lib/hub-probe'
-import { hasPendingPairingLink, takePairingLink } from '@/lib/pairing'
+import { hasPendingPairingLink, pairingGrantError, takePairingLink } from '@/lib/pairing'
 import { desktopLocalWsUrl } from '@/lib/desktop-runtime'
 import {
   canStoreDeviceKey,
@@ -125,6 +125,17 @@ export function ConnectionProvider({ children }: { children: ReactNode }) {
     setHarnessError(null)
   }, [])
 
+  /**
+   * A refreshed grant arrives on every accepted session. Rewrite the whole
+   * device record in one IndexedDB put so the credential and the key never
+   * disagree after a crash or a torn write.
+   */
+  const persistGrant = useCallback(async (deviceId: string, grant: RelayGrantState) => {
+    const stored = await loadDevice({ allowExpired: true })
+    if (!stored || stored.deviceId !== deviceId) return
+    await saveDevice({ ...stored, grant: grant.grant, grantExpiresAt: grant.expiresAt })
+  }, [])
+
   const refreshHarness = useCallback(async () => {
     const handle = handleRef.current
     if (!handle) return
@@ -181,7 +192,8 @@ export function ConnectionProvider({ children }: { children: ReactNode }) {
         kind: 'device',
         wsUrl: resolveRelayWsUrl(device.wsUrl, device.room),
         room: device.room,
-        clientToken: device.clientToken,
+        grant: device.grant,
+        grantExpiresAt: device.grantExpiresAt,
         deviceId: device.deviceId,
         key: device.key,
         fingerprint: device.fingerprint,
@@ -192,7 +204,21 @@ export function ConnectionProvider({ children }: { children: ReactNode }) {
       setError(null)
       setAttempt(summary)
 
-      const handle = createClient(next)
+      const handle = createClient(next, {
+        onRelayGrant: (grant) => {
+          next.grant = grant.grant
+          next.grantExpiresAt = grant.expiresAt
+          const current = configRef.current
+          if (current?.kind === 'device' && current.deviceId === next.deviceId) {
+            configRef.current = {
+              ...current,
+              grant: grant.grant,
+              grantExpiresAt: grant.expiresAt,
+            }
+          }
+          void persistGrant(next.deviceId, grant)
+        },
+      })
       try {
         const nextHub = await probeHub(handle.client, PROBE_TIMEOUT_MS)
         if (configRef.current && connectionKey(configRef.current) !== connectionKey(summary)) {
@@ -219,7 +245,7 @@ export function ConnectionProvider({ children }: { children: ReactNode }) {
         return false
       }
     },
-    [clearHandle, clearHarness, installHandle, queryClient]
+    [clearHandle, clearHarness, installHandle, persistGrant, queryClient]
   )
 
   const connectPairing = useCallback(
@@ -232,6 +258,12 @@ export function ConnectionProvider({ children }: { children: ReactNode }) {
       if (Date.now() > payload.expiresAt) {
         setStatus('error')
         setError('This pairing code has expired. Generate a new one on the hub.')
+        return false
+      }
+      const grantError = pairingGrantError(payload)
+      if (grantError) {
+        setStatus('error')
+        setError(grantError)
         return false
       }
       if (!(await canStoreDeviceKey())) {
@@ -247,7 +279,7 @@ export function ConnectionProvider({ children }: { children: ReactNode }) {
         kind: 'enroll',
         wsUrl,
         room: payload.room,
-        clientToken: payload.clientToken,
+        grant: payload.grant ?? '',
         enrollId: payload.enrollId,
         enrollToken: payload.enrollToken,
         expiresAt: payload.expiresAt,
@@ -255,12 +287,18 @@ export function ConnectionProvider({ children }: { children: ReactNode }) {
       })
       try {
         const enrolled = await handle.enroll(label)
+        if (payload.room !== 'local' && !enrolled.relayGrant) {
+          throw new Error(
+            'The hub did not return a relay grant for this device. Pair this device again.'
+          )
+        }
         const stored: StoredDevice = {
           deviceId: enrolled.deviceId,
           label: enrolled.label,
           wsUrl,
           room: payload.room,
-          clientToken: payload.clientToken,
+          grant: enrolled.relayGrant?.grant ?? '',
+          grantExpiresAt: enrolled.relayGrant?.expiresAt ?? 0,
           fingerprint: enrolled.fingerprint,
           key: enrolled.key,
           createdAt: Date.now(),
@@ -310,12 +348,20 @@ export function ConnectionProvider({ children }: { children: ReactNode }) {
     setReconnecting(true)
     setReconnectError(null)
 
-    const handle = createClient(current)
+    const connection = current
+    const handle = createClient(connection, {
+      onRelayGrant: (grant) => {
+        connection.grant = grant.grant
+        connection.grantExpiresAt = grant.expiresAt
+        configRef.current = connection
+        void persistGrant(connection.deviceId, grant)
+      },
+    })
     try {
       const nextHub = await probeHub(handle.client, RECONNECT_TIMEOUT_MS)
       installHandle(handle)
       setClient(handle.client)
-      setConfig(connectionSummary(current))
+      setConfig(connectionSummary(connection))
       setHub(nextHub)
       setStatus('connected')
       setError(null)
@@ -329,7 +375,7 @@ export function ConnectionProvider({ children }: { children: ReactNode }) {
     } finally {
       setReconnecting(false)
     }
-  }, [installHandle, queryClient])
+  }, [installHandle, persistGrant, queryClient])
 
   const disconnect = useCallback(() => {
     void clearDevice()

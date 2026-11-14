@@ -1,9 +1,11 @@
+import 'fake-indexeddb/auto'
 import { createServer, type Server } from 'node:http'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { WebSocketServer, type WebSocket } from 'ws'
 import {
   bytesToBase64Url,
-  deriveSessionKeys,
+  deriveV4SessionKeys,
+  generateEphemeralKeyPair,
   generateKey,
   importSessionKey,
   open,
@@ -14,13 +16,30 @@ import {
 } from '@clara/crypto'
 import {
   PROTOCOL_VERSION,
+  PROTOCOL_VERSION_V4,
+  type ClientHelloFrameV4,
   type ClaraAction,
   type ClaraState,
   type DeviceErrorCode,
+  type HubHelloFrameV4,
+  type RelayGrantState,
 } from '@clara/shared-types'
+import { clearDevice, loadDevice, saveDevice, type StoredDevice } from '../device-store.ts'
 import { createRelayTransport, MAX_IN_FLIGHT_REQUESTS, type RelayTransport } from './relay.ts'
 
 type Greet = (socket: WebSocket, sid: string) => boolean
+
+type RelayOptions = {
+  /** Send a hub hello with a MAC that cannot verify. */
+  tamperMac?: boolean
+  /** Attach a refreshed grant to the sealed `ready` action. */
+  readyGrant?: RelayGrantState
+  /** Override the grant offered in the WebSocket subprotocol. */
+  grant?: string
+  onGrant?: (grant: RelayGrantState) => void
+  onProtocols?: (protocols: string[]) => void
+  onSealed?: () => void
+}
 
 let server: Server
 let wss: WebSocketServer
@@ -49,7 +68,7 @@ beforeAll(async () => {
 
   transport = createRelayTransport({
     wsUrl: `ws://127.0.0.1:${address.port}/ws`,
-    clientToken: 'test-client',
+    grant: 'test-grant',
     credential: {
       kind: 'device',
       deviceId: 'device-test',
@@ -60,6 +79,7 @@ beforeAll(async () => {
 
 afterAll(async () => {
   transport.close()
+  await clearDevice()
   await new Promise<void>((resolve) => wss.close(() => resolve()))
   await new Promise<void>((resolve) => server.close(() => resolve()))
 })
@@ -161,6 +181,87 @@ describe('relay fetch transport', () => {
   })
 })
 
+describe('relay grant handshake', () => {
+  it('presents the grant and persists the grant refreshed in ready', async () => {
+    const readyGrant: RelayGrantState = {
+      grant: `${bytesToBase64Url(randomBytes(8))}.signature`,
+      expiresAt: Date.now() + 30 * 24 * 60 * 60 * 1000,
+    }
+    let protocols: string[] = []
+    const updates: RelayGrantState[] = []
+    const key = await importSessionKey(deviceKey)
+    const stored: StoredDevice = {
+      deviceId: 'device-test',
+      label: 'Test device',
+      wsUrl: 'ws://placeholder/ws',
+      room: 'room-1',
+      grant: 'old-grant',
+      grantExpiresAt: 1,
+      fingerprint: 'fingerprint',
+      key,
+      createdAt: 1,
+    }
+
+    const relay = await startRelay(undefined, {
+      grant: 'grant-abc',
+      readyGrant,
+      onProtocols: (value) => {
+        protocols = value
+      },
+      onGrant: (grant) => {
+        updates.push(grant)
+        void saveDevice({
+          ...stored,
+          grant: grant.grant,
+          grantExpiresAt: grant.expiresAt,
+        })
+      },
+    })
+
+    try {
+      await relay.transport.connect()
+      expect(protocols).toContain('clara.auth.grant-abc')
+
+      const response = await relay.transport.fetch('http://clara.relay/api/info', {
+        signal: AbortSignal.timeout(3_000),
+      })
+      expect(response.status).toBe(200)
+      expect(updates).toEqual([readyGrant])
+
+      const loaded = await waitForDeviceGrant(readyGrant.grant)
+      expect(loaded.grantExpiresAt).toBe(readyGrant.expiresAt)
+    } finally {
+      await relay.close()
+      await clearDevice()
+    }
+  }, 15_000)
+
+  it('rejects a hello whose MAC does not verify and opens no session', async () => {
+    let sealed = 0
+    const relay = await startRelay(undefined, {
+      tamperMac: true,
+      onSealed: () => {
+        sealed += 1
+      },
+    })
+
+    try {
+      await relay.transport.connect().catch(() => {})
+      await waitFor(() => relay.transport.status().state === 'reconnecting', 5_000)
+      expect(relay.transport.status().state).toBe('reconnecting')
+      expect(sealed).toBe(0)
+      await expect(
+        relay.transport.fetch('http://clara.relay/api/info', {
+          signal: AbortSignal.timeout(1_500),
+        })
+      ).rejects.toThrow()
+      expect(relay.transport.status().state).not.toBe('open')
+    } finally {
+      await relay.close()
+    }
+  }, 15_000)
+})
+
 describe('relay transport device errors', () => {
   it('reconnects after a transient device error for its own session', async () => {
     let attempts = 0
@@ -254,28 +355,48 @@ async function waitFor(check: () => boolean, timeoutMs = 2_000): Promise<void> {
   }
 }
 
+async function waitForDeviceGrant(grant: string): Promise<StoredDevice> {
+  const started = Date.now()
+  while (Date.now() - started <= 2_000) {
+    const loaded = await loadDevice()
+    if (loaded?.grant === grant) return loaded
+    await new Promise((resolve) => setTimeout(resolve, 10))
+  }
+  throw new Error('Timed out waiting for the refreshed grant')
+}
+
 /**
- * A relay that always completes the handshake unless `greet` says otherwise.
- * `greet` runs on every hello, which lets a test fail the first attempts and
- * then let the transport recover.
+ * A relay that always completes the v4 handshake unless `greet` says otherwise
+ * or the test asks for a bad hub MAC. `greet` runs on every client hello, which
+ * lets a test fail the first attempts and then let the transport recover.
  */
-async function startRelay(greet?: Greet): Promise<{
+async function startRelay(
+  greet?: Greet,
+  options: RelayOptions = {}
+): Promise<{
   transport: RelayTransport
   close: () => Promise<void>
 }> {
   const httpServer = createServer()
   const wsServer = new WebSocketServer({
     server: httpServer,
-    handleProtocols: (protocols) => protocols.values().next().value ?? false,
+    handleProtocols: (protocols) => {
+      const values = [...protocols]
+      options.onProtocols?.(values)
+      return values[0] ?? false
+    },
   })
-  wsServer.on('connection', (socket) => attachFakeAgent(socket, deviceKey, greet))
+  wsServer.on('connection', (socket) =>
+    attachFakeAgent(socket, deviceKey, { ...options, ...(greet ? { greet } : {}) })
+  )
   await new Promise<void>((resolve) => httpServer.listen(0, '127.0.0.1', resolve))
   const address = httpServer.address()
   if (!address || typeof address === 'string') throw new Error('No test server address')
 
   const created = createRelayTransport({
     wsUrl: `ws://127.0.0.1:${address.port}/ws`,
-    clientToken: 'test-client',
+    grant: options.grant ?? 'test-grant',
+    ...(options.onGrant ? { onRelayGrant: options.onGrant } : {}),
     credential: {
       kind: 'device',
       deviceId: 'device-test',
@@ -310,7 +431,11 @@ function sendErrorFrame(
   )
 }
 
-function attachFakeAgent(socket: WebSocket, key: string, greet?: Greet): void {
+function attachFakeAgent(
+  socket: WebSocket,
+  key: string,
+  options: RelayOptions & { greet?: Greet } = {}
+): void {
   let keys: SessionKeys | null = null
   let sid = ''
   let sendSeq = 0
@@ -347,24 +472,37 @@ function attachFakeAgent(socket: WebSocket, key: string, greet?: Greet): void {
     const frame = JSON.parse(text) as Record<string, unknown>
     if (frame.t === 'hello') {
       sid = String(frame.sid)
-      if (greet && !greet(socket, sid)) return
+      if (options.greet && !options.greet(socket, sid)) return
+      const hello = frame as unknown as ClientHelloFrameV4
+      const ephemeral = await generateEphemeralKeyPair()
       const agentNonce = bytesToBase64Url(randomBytes(16))
-      keys = await deriveSessionKeys({
-        key,
+      const material = await deriveV4SessionKeys({
+        staticKey: key,
         sid,
-        clientNonce: String(frame.nonce),
-        agentNonce,
+        nonceC: hello.nonce,
+        nonceS: agentNonce,
+        ephC: hello.eph,
+        ephS: ephemeral.publicKey,
+        privateKey: ephemeral.privateKey,
+        peerPublicKey: hello.eph,
       })
-      socket.send(
-        JSON.stringify({
-          t: 'hello',
-          v: PROTOCOL_VERSION,
-          sid,
-          nonce: agentNonce,
-          role: 'agent',
-        })
-      )
-      send({ type: 'ready', agent: { version: 'test', protocol: PROTOCOL_VERSION } })
+      const hubHello: HubHelloFrameV4 = {
+        t: 'hello',
+        v: PROTOCOL_VERSION_V4,
+        sid,
+        nonce: agentNonce,
+        role: 'agent',
+        eph: ephemeral.publicKey,
+        mac: options.tamperMac ? bytesToBase64Url(randomBytes(32)) : material.mac,
+      }
+      socket.send(JSON.stringify(hubHello))
+      if (options.tamperMac) return
+      keys = material.keys
+      send({
+        type: 'ready',
+        agent: { version: 'test', protocol: PROTOCOL_VERSION },
+        ...(options.readyGrant ? { relayGrant: options.readyGrant } : {}),
+      })
       send({
         type: 'agent.status',
         online: true,
@@ -379,6 +517,7 @@ function attachFakeAgent(socket: WebSocket, key: string, greet?: Greet): void {
     }
 
     if (frame.t !== 'sealed' || !keys) return
+    options.onSealed?.()
     const plaintext = await open(
       keys.c2s,
       { sid, direction: 'c2s', seq: Number(frame.seq) },

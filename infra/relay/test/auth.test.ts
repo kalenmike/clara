@@ -54,6 +54,21 @@ describe('relay worker authentication', () => {
     })
   })
 
+  it('allows the web health probe from any origin', async () => {
+    const response = await SELF.fetch('https://relay.test/health')
+
+    expect(response.headers.get('access-control-allow-origin')).toBe('*')
+    expect(response.headers.get('access-control-allow-credentials')).toBeNull()
+  })
+
+  it('allows a refused upgrade to be read from any origin', async () => {
+    const response = await upgrade(ROOM, protocols('client'))
+
+    expect(response.status).toBe(401)
+    expect(response.headers.get('access-control-allow-origin')).toBe('*')
+    expect(response.headers.get('access-control-allow-credentials')).toBeNull()
+  })
+
   it('rejects a client without a credential', async () => {
     const response = await upgrade(ROOM, protocols('client'))
 
