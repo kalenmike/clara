@@ -12,6 +12,7 @@ import {
 import type { ApiDependencies, ApiVariables } from '../context.ts'
 import {
   forwardDto,
+  forwardDtoTo,
   parseClaraAgentList,
   parseClaraCommandList,
   parseClaraModelList,
@@ -19,8 +20,27 @@ import {
   parseClaraReferenceList,
   parseClaraSkillList,
 } from '../dto.ts'
-import { locationQuery } from '../harness.ts'
+import { locationQuery, type ForwardRequest } from '../harness.ts'
+import { resolveHarnessForDirectory } from '../harness-scope.ts'
 import { jsonResponse, responses } from '../schemas.ts'
+
+const catalogQuery = z.object({ harnessID: z.string().min(1).optional() })
+const locationCatalogQuery = z.object({
+  directory: z.string().optional(),
+  harnessID: z.string().min(1).optional(),
+})
+
+async function forwardCatalog<T>(
+  deps: ApiDependencies,
+  harnessID: string | undefined,
+  request: ForwardRequest,
+  signal: AbortSignal,
+  parse: (value: unknown) => T
+): Promise<T> {
+  return harnessID
+    ? forwardDtoTo(deps, harnessID, request, signal, parse)
+    : forwardDto(deps, request, signal, parse)
+}
 
 export function registerCatalogRoutes(
   app: Hono<{ Variables: ApiVariables }>,
@@ -34,9 +54,13 @@ export function registerCatalogRoutes(
       summary: 'List agents',
       responses: responses(jsonResponse(resolver(claraAgentListOutputSchema), 'Agents')),
     }),
+    validator('query', catalogQuery),
     async (c) => {
-      const result = await forwardDto(
+      const { harnessID } = c.req.valid('query')
+      const harness = resolveHarnessForDirectory(deps, undefined, harnessID)
+      const result = await forwardCatalog(
         deps,
+        harness,
         { method: 'GET', path: '/agents' },
         c.req.raw.signal,
         parseClaraAgentList
@@ -53,9 +77,13 @@ export function registerCatalogRoutes(
       summary: 'List models',
       responses: responses(jsonResponse(resolver(claraModelListOutputSchema), 'Models')),
     }),
+    validator('query', catalogQuery),
     async (c) => {
-      const result = await forwardDto(
+      const { harnessID } = c.req.valid('query')
+      const harness = resolveHarnessForDirectory(deps, undefined, harnessID)
+      const result = await forwardCatalog(
         deps,
+        harness,
         { method: 'GET', path: '/models' },
         c.req.raw.signal,
         parseClaraModelList
@@ -72,9 +100,13 @@ export function registerCatalogRoutes(
       summary: 'List providers',
       responses: responses(jsonResponse(resolver(claraProviderListOutputSchema), 'Providers')),
     }),
+    validator('query', catalogQuery),
     async (c) => {
-      const result = await forwardDto(
+      const { harnessID } = c.req.valid('query')
+      const harness = resolveHarnessForDirectory(deps, undefined, harnessID)
+      const result = await forwardCatalog(
         deps,
+        harness,
         { method: 'GET', path: '/providers' },
         c.req.raw.signal,
         parseClaraProviderList
@@ -91,9 +123,13 @@ export function registerCatalogRoutes(
       summary: 'List commands',
       responses: responses(jsonResponse(resolver(claraCommandListOutputSchema), 'Commands')),
     }),
+    validator('query', catalogQuery),
     async (c) => {
-      const result = await forwardDto(
+      const { harnessID } = c.req.valid('query')
+      const harness = resolveHarnessForDirectory(deps, undefined, harnessID)
+      const result = await forwardCatalog(
         deps,
+        harness,
         { method: 'GET', path: '/commands' },
         c.req.raw.signal,
         parseClaraCommandList
@@ -110,11 +146,13 @@ export function registerCatalogRoutes(
       summary: 'List skills for a location',
       responses: responses(jsonResponse(resolver(claraSkillListOutputSchema), 'Skills')),
     }),
-    validator('query', z.object({ directory: z.string().optional() })),
+    validator('query', locationCatalogQuery),
     async (c) => {
-      const { directory } = c.req.valid('query')
-      const result = await forwardDto(
+      const { directory, harnessID } = c.req.valid('query')
+      const harness = resolveHarnessForDirectory(deps, directory, harnessID)
+      const result = await forwardCatalog(
         deps,
+        harness,
         {
           method: 'GET',
           path: '/skills',
@@ -135,11 +173,13 @@ export function registerCatalogRoutes(
       summary: 'List references for a location',
       responses: responses(jsonResponse(resolver(claraReferenceListOutputSchema), 'References')),
     }),
-    validator('query', z.object({ directory: z.string().optional() })),
+    validator('query', locationCatalogQuery),
     async (c) => {
-      const { directory } = c.req.valid('query')
-      const result = await forwardDto(
+      const { directory, harnessID } = c.req.valid('query')
+      const harness = resolveHarnessForDirectory(deps, directory, harnessID)
+      const result = await forwardCatalog(
         deps,
+        harness,
         {
           method: 'GET',
           path: '/references',
