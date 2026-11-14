@@ -28,13 +28,15 @@ In the panel:
 
 1. Create the hub owner account. Until this exists, the hub starts only the
    loopback panel; the local WebSocket, relay, and pairing stay stopped.
-2. Add a harness under **Harness**, then run the printed adapter install command
-   on the harness machine. For OpenCode, the installer finds the server or
-   prompts for its URL and password.
-3. Wait for the adapter to show **Online** under **Paired harnesses**, then use
-   **Test** and **Activate**.
-4. Set **Web URL** if devices should open something other than
-   `http://127.0.0.1:8080`.
+2. Choose **Local only** or set up the relay in the Setup modal. The relay path
+   needs an online relay and an HTTPS Web URL; Local only needs no relay.
+3. Pair a harness in the same modal, then run the printed adapter install
+   command on the harness machine.
+4. Pair a client from the modal and open the link or QR on your device. The
+   modal ends with a short guide. You can dismiss it and resume from
+   **Settings → Setup**.
+5. Set **Web URL** if devices should open something other than
+   `http://127.0.0.1:8080`; the connection step also exposes it.
 
 For a headless install, create the owner without a browser:
 

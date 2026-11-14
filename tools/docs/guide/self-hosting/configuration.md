@@ -30,6 +30,23 @@ is visible to `docker inspect` and process listings.
 `CLARA_ADMIN_SETUP_TOKEN` or `CLARA_ADMIN_SETUP_TOKEN_FILE` is the explicit
 remote setup path. When set, the setup form also asks for that token.
 
+## Guided setup
+
+After the owner account exists, the panel opens a dismissible Setup modal:
+
+1. Choose **Local only** or **Remote via relay**. The relay path embeds the
+   relay editor and the Web URL; it continues only when the relay is online and
+   the Web URL is HTTPS.
+2. Pair a harness. The adapter transport choices follow the connection path.
+3. Pair a client. The pairing link uses the Web URL chosen in step 1.
+4. Read **How Clara works**.
+
+The modal can be skipped. While setup is incomplete, resume it from
+**Settings → Setup → Finish setup**. After it is complete it never reopens
+automatically; **Settings → Setup → Reconfigure connections** runs the same flow
+with the current values, and **Replay setup guide** opens the guide. Changing the
+relay or its room can require adapters and devices to pair again.
+
 ## Connect a harness
 
 1. Start the hub and open the panel.
