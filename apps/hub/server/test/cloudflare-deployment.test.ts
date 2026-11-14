@@ -3,7 +3,6 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
 import { generateSecretKey, loadSecretKey } from '@clara/crypto'
-import type { ServerConfig } from '../src/config.ts'
 import type { SecretKeyInfo } from '../src/store/secret-key.ts'
 import { CloudflareClient } from '../src/features/cloudflare-deployment/cloudflare-client.ts'
 import { deployRelay } from '../src/features/cloudflare-deployment/deploy.ts'
@@ -11,11 +10,9 @@ import {
   forgetCloudflareToken,
   hasCloudflareToken,
   loadCloudflareToken,
-  loadRelayCredentials,
   saveCloudflareToken,
-  saveRelayCredentials,
 } from '../src/features/cloudflare-deployment/storage.ts'
-import { CloudflareDeploymentState } from '../src/features/cloudflare-deployment/state.ts'
+import { loadRelayCredentials, saveRelayCredentials } from '../src/store/relay.ts'
 import type { RelayArtifact } from '../src/features/cloudflare-deployment/artifact.ts'
 
 const tempDirs: string[] = []
@@ -45,15 +42,10 @@ const artifact: RelayArtifact = {
 }
 
 describe('cloudflare deployment storage', () => {
-  it('round-trips relay credentials and the API token through the secret key', async () => {
+  it('round-trips relay tokens and the API token through the secret key', async () => {
     const dir = tempDir()
     const key = await secretKey()
-    const relay = {
-      url: 'wss://clara-relay.example.workers.dev',
-      room: 'room-1',
-      agentToken: 'agent-token',
-      clientToken: 'client-token',
-    }
+    const relay = { agentToken: 'agent-token', clientToken: 'client-token' }
 
     await saveRelayCredentials(dir, key, relay)
     await saveCloudflareToken(dir, key, 'cloudflare-token')
@@ -278,68 +270,6 @@ describe('deployRelay health check', () => {
     expect(result.healthError).toContain('502')
   })
 })
-
-describe('CloudflareDeploymentState', () => {
-  it('merges stored relay credentials when no environment relay is configured', async () => {
-    const dir = tempDir()
-    const key = await secretKey()
-    const config = testConfig(dir)
-    const relay = {
-      url: 'wss://clara-relay.example.workers.dev',
-      room: 'room-1',
-      agentToken: 'agent',
-      clientToken: 'client',
-    }
-    await saveRelayCredentials(dir, key, relay)
-
-    const state = new CloudflareDeploymentState({ config, secretKey: key, log: () => {} })
-    await state.applyStoredRelay()
-
-    expect(config.relay).toEqual(relay)
-    expect(config.sources.relayUrl).toBe('file')
-  })
-
-  it('does not override an environment relay target', async () => {
-    const dir = tempDir()
-    const key = await secretKey()
-    const config = testConfig(dir)
-    config.sources.relayUrl = 'env'
-    config.sources.agentToken = 'env'
-    config.sources.clientToken = 'env'
-    await saveRelayCredentials(dir, key, {
-      url: 'wss://panel.example.workers.dev',
-      room: 'panel-room',
-      agentToken: 'panel-agent',
-      clientToken: 'panel-client',
-    })
-
-    const state = new CloudflareDeploymentState({ config, secretKey: key, log: () => {} })
-    await state.applyStoredRelay()
-
-    expect(config.relay).toBeUndefined()
-  })
-})
-
-function testConfig(dir: string): ServerConfig {
-  return {
-    local: { host: '127.0.0.1', bindHost: '127.0.0.1', port: 8788 },
-    pairingBaseUrl: 'http://127.0.0.1:8080',
-    configDir: dir,
-    configPath: join(dir, 'server.json'),
-    dataDir: join(dir, 'data'),
-    dbPath: join(dir, 'clara.db'),
-    sources: {
-      localHost: 'default',
-      localBindHost: 'default',
-      localPort: 'default',
-      relayUrl: 'none',
-      relayRoom: 'none',
-      agentToken: 'none',
-      clientToken: 'none',
-      pairingBaseUrl: 'default',
-    },
-  }
-}
 
 function json(result: unknown, status = 200): Response {
   return new Response(

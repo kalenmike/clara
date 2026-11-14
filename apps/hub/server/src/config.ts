@@ -180,9 +180,17 @@ function readConfig(path: string): ConfigFile {
 }
 
 function persistConfig(path: string, previous: ConfigFile, config: ServerConfig): void {
+  // Environment values always win but are never written to the file. Keeping
+  // the previous file value lets the panel remain the fallback when the
+  // environment variable is removed again.
+  const storedRelayUrl =
+    config.sources.relayUrl === 'file' ? nonEmpty(config.relay?.url) : nonEmpty(previous.relay?.url)
+  const storedRelayRoom =
+    config.sources.relayRoom === 'file' || config.sources.relayRoom === 'generated'
+      ? nonEmpty(config.relay?.room)
+      : nonEmpty(previous.relay?.room)
   const relayChanged =
-    Boolean(config.relay) &&
-    (previous.relay?.url !== config.relay?.url || previous.relay?.room !== config.relay?.room)
+    previous.relay?.url !== storedRelayUrl || previous.relay?.room !== storedRelayRoom
   const localChanged =
     previous.local?.host !== config.local.host || previous.local?.port !== config.local.port
   const storedPairingBaseUrl =
@@ -195,14 +203,24 @@ function persistConfig(path: string, previous: ConfigFile, config: ServerConfig)
   const retiredCleared = previous.opencode !== undefined || previous.psk !== undefined
   if (!relayChanged && !localChanged && !pairingChanged && !retiredCleared) return
 
-  // Rebuild the file without legacy credentials. Harness connections live in
-  // the database; device keys live in the encrypted device store.
+  // Rebuild the file without new credentials. Legacy plaintext tokens are kept
+  // so an upgrade cannot lose them before the sealed relay store takes over;
+  // the first panel save removes them.
   const next: ConfigFile = {
     local: { host: config.local.host, port: config.local.port },
   }
   if (storedPairingBaseUrl !== undefined) next.pairingBaseUrl = storedPairingBaseUrl
-  if (config.relay) {
-    next.relay = { url: config.relay.url, room: config.relay.room }
+  if (storedRelayUrl !== undefined || storedRelayRoom !== undefined) {
+    next.relay = {
+      ...(storedRelayUrl !== undefined ? { url: storedRelayUrl } : {}),
+      ...(storedRelayRoom !== undefined ? { room: storedRelayRoom } : {}),
+      ...(previous.relay?.agentToken !== undefined
+        ? { agentToken: previous.relay.agentToken }
+        : {}),
+      ...(previous.relay?.clientToken !== undefined
+        ? { clientToken: previous.relay.clientToken }
+        : {}),
+    }
   }
 
   writeConfigFile(path, next)
@@ -298,7 +316,7 @@ function resolveDatabasePath(dataDir: string): string {
   return process.env.CLARA_DB_PATH?.trim() || join(dataDir, 'clara.db')
 }
 
-function normalizeRelayUrl(value: string): string {
+export function normalizeRelayUrl(value: string): string {
   const trimmed = value.trim().replace(/\/+$/, '')
   if (trimmed.startsWith('https://')) return `wss://${trimmed.slice('https://'.length)}`
   if (trimmed.startsWith('http://')) return `ws://${trimmed.slice('http://'.length)}`
@@ -340,28 +358,71 @@ function assertRelayTokens(relay: RelayConfig, configPath: string, configDir: st
     .filter(Boolean)
     .join(' and ')
   throw new Error(
-    `Missing ${missing}. The relay URL is configured in ${configPath}. Add the tokens to ` +
-      `${join(configDir, 'server.env')} (systemd EnvironmentFile), export them before starting ` +
-      `the hub service, set them under "relay" in ${configPath}, or deploy the relay from the ` +
-      `hub panel when the Cloudflare deployment feature is built in.`
+    `Missing ${missing}. The relay URL is configured in ${configPath}. Save both tokens in the ` +
+      `hub panel's Relay card, export them before starting the hub service, or add them to ` +
+      `${join(configDir, 'server.env')} (systemd EnvironmentFile).`
   )
 }
 
+export type RelayTarget = {
+  url?: string
+  room?: string
+}
+
+/** Read the panel-managed relay target without environment overrides. */
+export function readRelayTarget(configPath: string): RelayTarget | undefined {
+  const relay = readConfig(configPath).relay
+  if (!relay) return undefined
+  const url = nonEmpty(relay.url)
+  const room = nonEmpty(relay.room)
+  if (!url && !room) return undefined
+  return { ...(url ? { url } : {}), ...(room ? { room } : {}) }
+}
+
 /**
- * Persist a panel-managed relay target. The tokens live in the feature's
- * encrypted credential file, never in server.json.
+ * Persist a panel-managed relay target. The tokens live in the encrypted relay
+ * credential file, never in server.json. Passing undefined removes the target.
  */
-export function saveRelayTarget(
-  configPath: string,
-  relay: { url: string; room: string } | undefined
-): void {
+export function saveRelayTarget(configPath: string, relay: RelayTarget | undefined): void {
   const previous = readConfig(configPath)
   const next: ConfigFile = { ...previous }
   delete next.opencode
   delete next.psk
-  if (relay) next.relay = { url: relay.url, room: relay.room }
-  else delete next.relay
+  if (relay && (relay.url || relay.room)) {
+    next.relay = {
+      ...(relay.url ? { url: relay.url } : {}),
+      ...(relay.room ? { room: relay.room } : {}),
+    }
+  } else {
+    delete next.relay
+  }
   writeConfigFile(configPath, next)
+}
+
+/** Replace only the generated room, preserving the panel-managed URL. */
+export function saveRelayRoom(configPath: string, room: string): void {
+  const previousTarget = readRelayTarget(configPath)
+  saveRelayTarget(configPath, { ...(previousTarget?.url ? { url: previousTarget.url } : {}), room })
+}
+
+/**
+ * Merge credentials read from the sealed relay store into the effective config.
+ * Environment and legacy file values keep their precedence; sealed tokens only
+ * fill a missing token.
+ */
+export function applyRelayCredentials(
+  config: ServerConfig,
+  credentials: { agentToken?: string; clientToken?: string } | undefined
+): void {
+  if (!config.relay || !credentials) return
+  if (!config.relay.agentToken && credentials.agentToken) {
+    config.relay.agentToken = credentials.agentToken
+    config.sources.agentToken = 'file'
+  }
+  if (!config.relay.clientToken && credentials.clientToken) {
+    config.relay.clientToken = credentials.clientToken
+    config.sources.clientToken = 'file'
+  }
 }
 
 /** Environment values set to whitespace only are treated as absent. */

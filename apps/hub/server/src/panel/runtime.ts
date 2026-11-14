@@ -206,6 +206,7 @@ export class PanelRuntime implements PanelDataSource {
       : !control.desired
         ? 'disabled'
         : snapshot.status
+    const sources = this.options.config.sources
     return {
       configured: true,
       url: relay.url,
@@ -215,6 +216,16 @@ export class PanelRuntime implements PanelDataSource {
       effective: control.effective,
       agentTokenConfigured: Boolean(relay.agentToken),
       clientTokenConfigured: Boolean(relay.clientToken),
+      urlSource: sources.relayUrl,
+      roomSource: sources.relayRoom,
+      agentTokenSource: relay.agentToken ? sources.agentToken : 'none',
+      clientTokenSource: relay.clientToken ? sources.clientToken : 'none',
+      envManaged:
+        sources.relayUrl === 'env' ||
+        sources.relayRoom === 'env' ||
+        sources.agentToken === 'env' ||
+        sources.clientToken === 'env',
+      roomRegeneratable: sources.relayRoom !== 'env',
       ...(snapshot.connectedSince !== undefined
         ? { connectedSince: new Date(snapshot.connectedSince).toISOString() }
         : {}),

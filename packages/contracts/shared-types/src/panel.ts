@@ -6,7 +6,7 @@
  * agent on a loopback listener; it never travels through the relay.
  */
 
-export const PANEL_API_VERSION = 10
+export const PANEL_API_VERSION = 11
 
 export type PanelValueSource = 'env' | 'file' | 'database' | 'default' | 'generated' | 'none'
 
@@ -225,6 +225,15 @@ export type PanelRelayTransport = {
   effective: boolean
   agentTokenConfigured: boolean
   clientTokenConfigured: boolean
+  /** Where each relay value came from; absent while unconfigured. */
+  urlSource?: PanelValueSource
+  roomSource?: PanelValueSource
+  agentTokenSource?: PanelValueSource
+  clientTokenSource?: PanelValueSource
+  /** At least one relay value comes from the environment. */
+  envManaged?: boolean
+  /** The panel may replace the room with a fresh random value. */
+  roomRegeneratable?: boolean
   connectedSince?: string
   lastChangedAt?: string
   reconnectAttempts?: number
@@ -232,6 +241,20 @@ export type PanelRelayTransport = {
   error?: string
   /** Present when the optional Cloudflare deployment feature is built in. */
   cloudflare?: PanelRelayDeployment
+}
+
+/**
+ * Panel-managed relay edits. The room is never accepted from the panel; the hub
+ * generates it and exposes a separate regeneration action.
+ */
+export type PanelRelayUpdate = {
+  url?: string
+  agentToken?: string
+  clientToken?: string
+}
+
+export type PanelRelayMutationResponse = {
+  config: PanelConfigInfo
 }
 
 export type PanelClientInfo = {

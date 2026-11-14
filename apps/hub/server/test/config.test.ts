@@ -3,8 +3,11 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import {
+  applyRelayCredentials,
   loadConfig,
+  readRelayTarget,
   savePairingBaseUrl,
+  saveRelayRoom,
   saveRelayTarget,
   validateRelayConfig,
 } from '../src/config.ts'
@@ -233,7 +236,7 @@ describe('loadConfig sources', () => {
     expect(second.sources.relayRoom).toBe('file')
   })
 
-  it('persists a relay URL override without changing the room', () => {
+  it('keeps the panel relay target when the environment overrides it', () => {
     const dir = tempDir()
     writeFileSync(
       join(dir, 'server.json'),
@@ -252,7 +255,24 @@ describe('loadConfig sources', () => {
 
     expect(config.relay?.url).toBe('wss://new.example')
     expect(config.relay?.room).toBe('file-room')
-    expect(saved.relay).toEqual({ url: 'wss://new.example', room: 'file-room' })
+    expect(saved.relay).toEqual({ url: 'wss://old.example', room: 'file-room' })
+  })
+
+  it('does not persist an environment-only relay URL', () => {
+    const dir = tempDir()
+    process.env.CLARA_CONFIG_DIR = dir
+    process.env.CLARA_DATA_DIR = dir
+    process.env.XDG_STATE_HOME = tempDir()
+    process.env.CLARA_RELAY_URL = 'https://env.example'
+    process.env.CLARA_AGENT_TOKEN = 'agent-token'
+    process.env.CLARA_CLIENT_TOKEN = 'client-token'
+
+    const config = loadConfig()
+    const saved = JSON.parse(readFileSync(join(dir, 'server.json'), 'utf8'))
+
+    expect(config.relay?.url).toBe('wss://env.example')
+    expect(saved.relay?.url).toBeUndefined()
+    expect(saved.relay?.room).toBe(config.relay?.room)
   })
 
   it('uses CLARA_WEB_PORT for the default web URL', () => {
@@ -411,8 +431,47 @@ describe('panel-managed relay configuration', () => {
 
     expect(saved.relay).toEqual({ url: 'wss://relay.example', room: 'room-1' })
     expect(saved.relay.agentToken).toBeUndefined()
+    expect(readRelayTarget(path)).toEqual({ url: 'wss://relay.example', room: 'room-1' })
 
     saveRelayTarget(path, undefined)
     expect(JSON.parse(readFileSync(path, 'utf8')).relay).toBeUndefined()
+    expect(readRelayTarget(path)).toBeUndefined()
+  })
+
+  it('replaces only the generated room', () => {
+    const dir = tempDir()
+    const path = join(dir, 'server.json')
+    writeFileSync(path, JSON.stringify({ relay: { url: 'wss://relay.example', room: 'room-1' } }), {
+      mode: 0o600,
+    })
+
+    saveRelayRoom(path, 'room-2')
+    expect(readRelayTarget(path)).toEqual({ url: 'wss://relay.example', room: 'room-2' })
+  })
+
+  it('fills only missing relay tokens from the sealed store', () => {
+    const dir = tempDir()
+    process.env.CLARA_CONFIG_DIR = dir
+    process.env.XDG_STATE_HOME = tempDir()
+    const config = loadConfig({ allowMissingRelayTokens: true })
+    config.relay = {
+      url: 'wss://relay.example',
+      room: 'room-1',
+      agentToken: 'env-agent',
+      clientToken: '',
+    }
+    config.sources.agentToken = 'env'
+    config.sources.clientToken = 'none'
+
+    applyRelayCredentials(config, {
+      agentToken: 'sealed-agent',
+      clientToken: 'sealed-client',
+    })
+
+    expect(config.relay.agentToken).toBe('env-agent')
+    expect(config.relay.clientToken).toBe('sealed-client')
+    expect(config.sources.agentToken).toBe('env')
+    expect(config.sources.clientToken).toBe('file')
+    expect(() => validateRelayConfig(config)).not.toThrow()
   })
 })

@@ -18,6 +18,8 @@ import type {
   PanelHarnessPairingMutationResponse,
   PanelHarnessTestResult,
   PanelOrchestrationControl,
+  PanelRelayMutationResponse,
+  PanelRelayUpdate,
   PanelSyncUpdate,
 } from '@clara/shared-types'
 import { baseURL } from '@clara/service-control'
@@ -26,9 +28,14 @@ import { Agent } from '../agent.ts'
 import { createApiApp } from '../api/app.ts'
 import type { ApiApp } from '../api/context.ts'
 import {
+  createRelayRoom,
   defaultPairingBaseUrl,
   normalizePairingBaseUrl,
+  normalizeRelayUrl,
+  readRelayTarget,
   savePairingBaseUrl,
+  saveRelayRoom,
+  saveRelayTarget,
   type RelayConfig,
   type ServerConfig,
 } from '../config.ts'
@@ -52,6 +59,12 @@ import {
 import { RelayClient, type RelayStatus } from '../relay-client.ts'
 import type { ClientStorageStore } from '../store/client-storage.ts'
 import { DeviceStoreError, type DeviceInfo, type DeviceStore } from '../store/devices.ts'
+import {
+  forgetRelayCredentials,
+  saveRelayCredentials,
+  type RelayCredentials,
+} from '../store/relay.ts'
+import type { SecretKeyInfo } from '../store/secret-key.ts'
 import { FEATURE_NAMES, type FeatureName, type SettingsStore } from '../store/settings.ts'
 import { TrafficMeter } from '../traffic.ts'
 import {
@@ -71,6 +84,9 @@ export type ControllerOptions = {
   devices: DeviceStore
   startedAt: number
   apiToken: string
+  secretKey?: SecretKeyInfo
+  /** A panel edit replaced the target, so a managed deployment is now stale. */
+  onRelayTargetChanged?: () => void
   log: (message: string, detail?: unknown) => void
 }
 
@@ -552,6 +568,173 @@ export class RuntimeController {
     return panelConfigInfo(config)
   }
 
+  async updateRelay(update: PanelRelayUpdate): Promise<PanelRelayMutationResponse> {
+    const { config } = this.options
+    const sources = config.sources
+    const envUrl = sources.relayUrl === 'env' ? config.relay?.url : undefined
+    const envRoom = sources.relayRoom === 'env' ? config.relay?.room : undefined
+    const envAgentToken = sources.agentToken === 'env' ? config.relay?.agentToken : undefined
+    const envClientToken = sources.clientToken === 'env' ? config.relay?.clientToken : undefined
+
+    if (envUrl && update.url !== undefined) {
+      throw new PanelControlError(
+        409,
+        'env_override',
+        'CLARA_RELAY_URL is set. Remove it and restart the hub service to edit the relay URL here.'
+      )
+    }
+    if (envAgentToken && update.agentToken !== undefined) {
+      throw new PanelControlError(
+        409,
+        'env_override',
+        'CLARA_AGENT_TOKEN is set. Remove it and restart the hub service to edit the hub token here.'
+      )
+    }
+    if (envClientToken && update.clientToken !== undefined) {
+      throw new PanelControlError(
+        409,
+        'env_override',
+        'CLARA_CLIENT_TOKEN is set. Remove it and restart the hub service to edit the client token here.'
+      )
+    }
+
+    let url = envUrl
+    if (!envUrl) {
+      if (update.url === undefined) {
+        throw new PanelControlError(400, 'relay_url_required', 'Enter a relay URL')
+      }
+      try {
+        url = normalizeRelayUrl(update.url)
+      } catch (cause) {
+        throw new PanelControlError(400, 'invalid_relay_url', errorMessage(cause))
+      }
+    }
+    if (!url) throw new PanelControlError(400, 'relay_url_required', 'Enter a relay URL')
+
+    const agentToken =
+      envAgentToken ?? tokenValue(update.agentToken, config.relay?.agentToken, 'hub token')
+    const clientToken =
+      envClientToken ?? tokenValue(update.clientToken, config.relay?.clientToken, 'client token')
+    if (!agentToken || !clientToken) {
+      throw new PanelControlError(
+        400,
+        'relay_tokens_required',
+        'Enter both relay tokens, or remove the relay URL. The hub cannot connect with only one token.'
+      )
+    }
+
+    const room = envRoom ?? config.relay?.room ?? createRelayRoom()
+    const roomSource = envRoom ? 'env' : config.relay?.room ? sources.relayRoom : 'generated'
+    const stored = readRelayTarget(config.configPath)
+    saveRelayTarget(config.configPath, {
+      ...(envUrl ? (stored?.url ? { url: stored.url } : {}) : { url }),
+      ...(envRoom ? (stored?.room ? { room: stored.room } : {}) : { room }),
+    })
+    await this.writeRelayCredentials({
+      ...(envAgentToken ? {} : { agentToken }),
+      ...(envClientToken ? {} : { clientToken }),
+    })
+
+    config.relay = { url, room, agentToken, clientToken }
+    config.sources.relayUrl = envUrl ? 'env' : 'file'
+    config.sources.relayRoom = roomSource
+    config.sources.agentToken = envAgentToken ? 'env' : 'file'
+    config.sources.clientToken = envClientToken ? 'env' : 'file'
+    this.applyRelayConfig(config.relay)
+    this.options.onRelayTargetChanged?.()
+    this.options.log('relay target saved from the panel')
+    return { config: panelConfigInfo(config) }
+  }
+
+  async clearRelay(): Promise<PanelRelayMutationResponse> {
+    const { config } = this.options
+    const sources = config.sources
+    const envUrl = sources.relayUrl === 'env' ? config.relay?.url : undefined
+    const envRoom = sources.relayRoom === 'env' ? config.relay?.room : undefined
+    const envAgentToken = sources.agentToken === 'env' ? config.relay?.agentToken : undefined
+    const envClientToken = sources.clientToken === 'env' ? config.relay?.clientToken : undefined
+    if (envUrl && (!envAgentToken || !envClientToken)) {
+      throw new PanelControlError(
+        409,
+        'env_relay_incomplete',
+        'The relay URL comes from CLARA_RELAY_URL. Set both CLARA_AGENT_TOKEN and CLARA_CLIENT_TOKEN, or remove the relay URL, before clearing the panel relay.'
+      )
+    }
+
+    const stored = readRelayTarget(config.configPath)
+    forgetRelayCredentials(config.configDir)
+    if (!envUrl) {
+      saveRelayTarget(config.configPath, undefined)
+      config.relay = undefined
+      config.sources.relayUrl = 'none'
+      config.sources.relayRoom = 'none'
+      config.sources.agentToken = 'none'
+      config.sources.clientToken = 'none'
+      this.applyRelayConfig(undefined)
+      this.options.onRelayTargetChanged?.()
+      this.options.log('relay target cleared from the panel')
+      return { config: panelConfigInfo(config) }
+    }
+
+    const room = envRoom ?? config.relay?.room
+    if (!room) throw new PanelControlError(409, 'relay_room_missing', 'The relay room is missing')
+    if (!envAgentToken || !envClientToken) {
+      throw new PanelControlError(
+        409,
+        'env_relay_incomplete',
+        'Set both relay tokens in the environment before clearing the panel relay.'
+      )
+    }
+    saveRelayTarget(config.configPath, {
+      ...(envRoom ? (stored?.room ? { room: stored.room } : {}) : { room }),
+    })
+    config.relay = {
+      url: envUrl,
+      room,
+      agentToken: envAgentToken,
+      clientToken: envClientToken,
+    }
+    config.sources.relayRoom = envRoom ? 'env' : stored?.room ? 'file' : 'generated'
+    this.applyRelayConfig(config.relay)
+    this.options.onRelayTargetChanged?.()
+    this.options.log('panel relay values cleared; the environment relay remains')
+    return { config: panelConfigInfo(config) }
+  }
+
+  async regenerateRelayRoom(): Promise<PanelRelayMutationResponse> {
+    const { config } = this.options
+    if (config.sources.relayRoom === 'env') {
+      throw new PanelControlError(
+        409,
+        'env_override',
+        'CLARA_RELAY_ROOM is set. Remove it and restart the hub service to regenerate the room here.'
+      )
+    }
+    if (!config.relay) {
+      throw new PanelControlError(409, 'relay_not_configured', 'Configure a relay first')
+    }
+
+    const room = createRelayRoom()
+    saveRelayRoom(config.configPath, room)
+    config.relay.room = room
+    config.sources.relayRoom = 'generated'
+    this.applyRelayConfig(config.relay)
+    this.options.log('relay room regenerated from the panel')
+    return { config: panelConfigInfo(config) }
+  }
+
+  private async writeRelayCredentials(credentials: RelayCredentials): Promise<void> {
+    const secretKey = this.options.secretKey
+    if (!secretKey) {
+      throw new PanelControlError(
+        503,
+        'relay_store_unavailable',
+        'The hub secret key is unavailable, so relay tokens cannot be saved'
+      )
+    }
+    await saveRelayCredentials(this.options.config.configDir, secretKey, credentials)
+  }
+
   async createDevicePairing(value: unknown): Promise<PanelDevicePairingMutationResponse> {
     if (!value || typeof value !== 'object' || Array.isArray(value)) {
       throw new PanelControlError(400, 'invalid_body', 'Use a JSON object')
@@ -886,6 +1069,19 @@ export class AgentStoppedError extends Error {
     super('Connections are off. Go online before changing features.')
     this.name = 'AgentStoppedError'
   }
+}
+
+function tokenValue(
+  value: string | undefined,
+  current: string | undefined,
+  label: string
+): string | undefined {
+  if (value === undefined) return current
+  const trimmed = value.trim()
+  if (!trimmed) {
+    throw new PanelControlError(400, 'invalid_relay_token', `The relay ${label} cannot be empty`)
+  }
+  return trimmed
 }
 
 function errorMessage(cause: unknown): string {

@@ -11,6 +11,7 @@ import {
   type PanelConfigUpdate,
   type PanelControls,
   type PanelMutationResponse,
+  type PanelRelayUpdate,
   type PanelSnapshot,
 } from '@clara/shared-types'
 import { PanelControlError, type PanelControlService } from '../src/panel/controls.ts'
@@ -191,6 +192,9 @@ type FakeControls = PanelControlService & {
   syncs: Array<{ enabled: boolean; intervalMs: number }>
   orchestration: boolean[]
   configs: PanelConfigUpdate[]
+  relayUpdates: PanelRelayUpdate[]
+  clears: number
+  roomRegenerations: number
   devicePairings: unknown[]
   cancelledDevicePairings: string[]
 }
@@ -228,6 +232,9 @@ function fakeControls(initial: Partial<PanelControls> = {}): FakeControls {
   const syncs: Array<{ enabled: boolean; intervalMs: number }> = []
   const orchestration: boolean[] = []
   const configs: PanelConfigUpdate[] = []
+  const relayUpdates: PanelRelayUpdate[] = []
+  let clears = 0
+  let roomRegenerations = 0
   const devicePairings: unknown[] = []
   const cancelledDevicePairings: string[] = []
   return {
@@ -239,6 +246,13 @@ function fakeControls(initial: Partial<PanelControls> = {}): FakeControls {
     syncs,
     orchestration,
     configs,
+    relayUpdates,
+    get clears() {
+      return clears
+    },
+    get roomRegenerations() {
+      return roomRegenerations
+    },
     devicePairings,
     cancelledDevicePairings,
     controls: () => state,
@@ -274,6 +288,20 @@ function fakeControls(initial: Partial<PanelControls> = {}): FakeControls {
       orchestration.push(enabled)
       state.orchestration = { ...state.orchestration, desired: enabled, effective: enabled }
       return state
+    },
+    updateRelay: async (update) => {
+      relayUpdates.push(update)
+      config.relayUrl = { value: update.url ?? 'wss://relay.example', source: 'file' }
+      config.relayRoom = { value: 'generated-room', source: 'generated' }
+      return { config }
+    },
+    clearRelay: async () => {
+      clears += 1
+      return { config }
+    },
+    regenerateRelayRoom: async () => {
+      roomRegenerations += 1
+      return { config }
     },
     updateConfig: async (update) => {
       configs.push(update)
@@ -949,6 +977,65 @@ describe('panel server', () => {
     const server = await start(undefined, controls)
 
     const response = await post(server, 'config', { pairingBaseUrl: 'https://clara.example' })
+    expect(response.status).toBe(409)
+    expect(((await response.json()) as { error: { code: string } }).error.code).toBe('env_override')
+  })
+
+  it('saves, regenerates, and clears the relay through dedicated routes', async () => {
+    const controls = fakeControls()
+    const server = await start(undefined, controls)
+
+    const saved = await post(server, 'relay', {
+      url: 'https://relay.example',
+      agentToken: 'agent-token',
+      clientToken: 'client-token',
+    })
+    expect(saved.status).toBe(200)
+    expect(controls.relayUpdates).toEqual([
+      {
+        url: 'https://relay.example',
+        agentToken: 'agent-token',
+        clientToken: 'client-token',
+      },
+    ])
+
+    const room = await post(server, 'relay/room', {})
+    expect(room.status).toBe(200)
+    expect(controls.roomRegenerations).toBe(1)
+
+    const cleared = await fetch(`${server.url}panel/api/v1/relay`, {
+      method: 'DELETE',
+      headers: {
+        'x-clara-panel': '1',
+        ...(cookies.get(server) ? { cookie: cookies.get(server) as string } : {}),
+      },
+    })
+    expect(cleared.status).toBe(200)
+    expect(controls.clears).toBe(1)
+  })
+
+  it('rejects a room value and malformed relay mutations', async () => {
+    const controls = fakeControls()
+    const server = await start(undefined, controls)
+
+    expect(
+      (await post(server, 'relay', { url: 'wss://relay.example', room: 'simple-name' })).status
+    ).toBe(400)
+    expect((await post(server, 'relay', { agentToken: '' })).status).toBe(400)
+    expect((await post(server, 'relay', { clientToken: 1 })).status).toBe(400)
+    expect((await post(server, 'relay', {})).status).toBe(400)
+    expect((await post(server, 'relay', { room: 'simple-name' })).status).toBe(400)
+    expect(controls.relayUpdates).toEqual([])
+  })
+
+  it('maps relay environment overrides to a conflict', async () => {
+    const controls = fakeControls()
+    controls.updateRelay = async () => {
+      throw new PanelControlError(409, 'env_override', 'locked')
+    }
+    const server = await start(undefined, controls)
+
+    const response = await post(server, 'relay', { url: 'wss://panel.example' })
     expect(response.status).toBe(409)
     expect(((await response.json()) as { error: { code: string } }).error.code).toBe('env_override')
   })

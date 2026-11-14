@@ -9,6 +9,7 @@ import {
   type PanelConfigUpdate,
   type PanelFeatureName,
   type PanelMutationResponse,
+  type PanelRelayUpdate,
 } from '@clara/shared-types'
 import { SERVER_VERSION } from '../version.ts'
 import { PanelAuth, PanelAuthError, type PanelAuthUser } from './auth.ts'
@@ -27,6 +28,8 @@ const MONITORING_PATH = '/panel/api/v1/monitoring'
 const SYNC_PATH = '/panel/api/v1/sync'
 const ORCHESTRATION_PATH = '/panel/api/v1/orchestration'
 const CONFIG_PATH = '/panel/api/v1/config'
+const RELAY_PATH = '/panel/api/v1/relay'
+const RELAY_ROOM_PATH = '/panel/api/v1/relay/room'
 const HARNESSES_PREFIX = '/panel/api/v1/harnesses'
 const DEVICES_PREFIX = '/panel/api/v1/devices'
 const HEALTH_PATH = '/health'
@@ -243,6 +246,11 @@ async function handleRequest(
 
     if (pathname === DEVICES_PREFIX || pathname.startsWith(`${DEVICES_PREFIX}/`)) {
       await handleDevices(request, response, context, method, pathname)
+      return
+    }
+
+    if (pathname === RELAY_PATH || pathname === RELAY_ROOM_PATH) {
+      await handleRelay(request, response, context, method, pathname)
       return
     }
 
@@ -770,6 +778,118 @@ async function handleDevices(
     return
   }
   sendJson(response, method, 200, { id: device.id })
+}
+
+const MAX_RELAY_TOKEN_LENGTH = 4_096
+const MAX_RELAY_URL_LENGTH = 2_048
+
+async function handleRelay(
+  request: IncomingMessage,
+  response: ServerResponse,
+  context: RequestContext,
+  method: string,
+  pathname: string
+): Promise<void> {
+  const controls = context.controls
+  if (!controls) {
+    sendJson(response, method, 503, {
+      error: { code: 'controls_unavailable', message: 'Hub controls are not available' },
+    })
+    return
+  }
+
+  try {
+    if (pathname === RELAY_ROOM_PATH) {
+      if (method !== 'POST') {
+        response.setHeader('allow', 'POST')
+        sendJson(response, method, 405, {
+          error: {
+            code: 'method_not_allowed',
+            message: 'Use POST to regenerate the relay room',
+          },
+        })
+        return
+      }
+      if (!requireMutationHeader(request, response, method)) return
+      const result = await controls.regenerateRelayRoom()
+      sendJson(response, method, 200, result)
+      return
+    }
+
+    if (method === 'DELETE') {
+      if (!requireMutationHeader(request, response, method)) return
+      const result = await controls.clearRelay()
+      sendJson(response, method, 200, result)
+      return
+    }
+
+    if (method !== 'POST') {
+      response.setHeader('allow', 'POST, DELETE')
+      sendJson(response, method, 405, {
+        error: {
+          code: 'method_not_allowed',
+          message: 'Use POST to save the relay or DELETE to clear it',
+        },
+      })
+      return
+    }
+
+    if (!requireMutationHeader(request, response, method, true)) return
+    const body = await readJsonBody(request)
+    if (!body.ok) {
+      sendBodyFailure(response, method, body)
+      return
+    }
+    if (!isRecord(body.value)) {
+      sendJson(response, method, 400, {
+        error: { code: 'invalid_body', message: 'The request body must be a JSON object' },
+      })
+      return
+    }
+    const unknown = unknownFields(body.value, ['url', 'agentToken', 'clientToken'])
+    if (unknown) return invalidField(response, method, unknown)
+
+    const update: PanelRelayUpdate = {}
+    if ('url' in body.value) {
+      const value = body.value.url
+      if (typeof value !== 'string' || value.length > MAX_RELAY_URL_LENGTH) {
+        return invalidField(response, method, 'url')
+      }
+      update.url = value
+    }
+    if ('agentToken' in body.value) {
+      const value = body.value.agentToken
+      if (typeof value !== 'string' || !value.trim() || value.length > MAX_RELAY_TOKEN_LENGTH) {
+        return invalidField(response, method, 'agentToken')
+      }
+      update.agentToken = value
+    }
+    if ('clientToken' in body.value) {
+      const value = body.value.clientToken
+      if (typeof value !== 'string' || !value.trim() || value.length > MAX_RELAY_TOKEN_LENGTH) {
+        return invalidField(response, method, 'clientToken')
+      }
+      update.clientToken = value
+    }
+    if (Object.keys(update).length === 0) {
+      return invalidField(response, method, 'url, agentToken, or clientToken')
+    }
+
+    const result = await controls.updateRelay(update)
+    sendJson(response, method, 200, result)
+  } catch (cause) {
+    const failure = readControlFailure(cause)
+    if (failure) {
+      sendJson(response, method, failure.status, {
+        error: { code: failure.code, message: failure.message },
+      })
+      return
+    }
+    context.log?.('panel relay mutation failed', cause)
+    sendJson(response, method, 500, {
+      error: { code: 'relay_mutation_failed', message: 'Could not apply the relay change' },
+    })
+  }
 }
 
 async function handleMutation(
