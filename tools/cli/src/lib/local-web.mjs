@@ -81,7 +81,9 @@ export function createLocalWebServer({ dist = WEB_DIST, env = process.env } = {}
         'content-type': 'application/json; charset=utf-8',
         'cache-control': 'no-store',
       })
-      response.end(JSON.stringify({ ok: true, service: 'clara-web', mode: 'local' }))
+      response.end(
+        JSON.stringify({ ok: true, service: 'clara-web', mode: 'local', pid: process.pid })
+      )
       return
     }
 
