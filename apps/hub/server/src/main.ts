@@ -252,9 +252,9 @@ async function runServe(
   }
 
   let panel: PanelServer | undefined
-  let controller: RuntimeController | undefined
+  const controllerRef: { current?: RuntimeController } = {}
   const publishRuntime = () => {
-    const state = runtimeState(config, startedAt, controller?.localPort, panel)
+    const state = runtimeState(config, startedAt, controllerRef.current?.localPort, panel)
     try {
       writeRuntimeState(state)
       markPublished()
@@ -263,7 +263,7 @@ async function runServe(
     }
   }
 
-  controller = new RuntimeController({
+  const controller = new RuntimeController({
     config,
     harness,
     info,
@@ -279,6 +279,7 @@ async function runServe(
     onLocalEndpointChange: publishRuntime,
     log,
   })
+  controllerRef.current = controller
 
   await controller.start()
   cloudflare?.attachRuntime({ controller, settings })
@@ -358,7 +359,7 @@ async function runServe(
     if (stopping) return
     stopping = true
     log('shutting down')
-    await controller?.close()
+    await controller.close()
     cloudflare?.close()
     await panel?.close()
     closeDatabase(database)

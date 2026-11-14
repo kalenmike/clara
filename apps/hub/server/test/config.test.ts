@@ -310,6 +310,20 @@ describe('loadConfig sources', () => {
     expect(saved.pairingBaseUrl).toBeUndefined()
   })
 
+  it('uses a runtime port hint without writing it to server.json', () => {
+    const dir = tempDir()
+    process.env.CLARA_CONFIG_DIR = dir
+    process.env.CLARA_DATA_DIR = dir
+    process.env.XDG_STATE_HOME = tempDir()
+
+    const config = loadConfig({ localPortHint: 54321 })
+    const saved = JSON.parse(readFileSync(join(dir, 'server.json'), 'utf8'))
+
+    expect(config.local.port).toBe(54321)
+    expect(config.sources.localPort).toBe('runtime')
+    expect(saved.local?.port).toBeUndefined()
+  })
+
   it('treats an empty pairing base environment value as unset', () => {
     const dir = tempDir()
     writeFileSync(
