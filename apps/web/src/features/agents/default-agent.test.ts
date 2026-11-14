@@ -2,7 +2,9 @@ import { describe, expect, it } from 'vitest'
 import {
   DEFAULT_AGENT_SETTINGS,
   isSelectableAgent,
+  primaryAgents,
   resolveDefaultAgent,
+  subagents,
   type AgentOption,
   type DefaultAgentSettings,
 } from './default-agent'
@@ -28,6 +30,15 @@ describe('isSelectableAgent', () => {
 
   it('trusts the stored choice until the catalog loads', () => {
     expect(isSelectableAgent(undefined, 'build')).toBe(true)
+  })
+})
+
+describe('agent selection groups', () => {
+  it('keeps primary and subagent groups disjoint', () => {
+    expect(primaryAgents(AGENTS).map((agent) => agent.id)).toEqual(['build', 'plan'])
+    expect(subagents(AGENTS).map((agent) => agent.id)).toEqual(['explore'])
+    expect(primaryAgents(undefined)).toEqual([])
+    expect(subagents(undefined)).toEqual([])
   })
 })
 

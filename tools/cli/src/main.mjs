@@ -142,6 +142,12 @@ function adapter(args) {
     return codes.find((code) => code !== 0) ?? 0
   }
 
+  if (command === 'verify') {
+    if (selectsOpencode) return adapterOpencode(forwarded)
+    const codes = [adapterOpencode(forwarded), adapterClaude(forwarded), adapterPi(forwarded)]
+    return codes.find((code) => code !== 0) ?? 0
+  }
+
   if (
     selectsOpencode ||
     command === 'help' ||
@@ -323,7 +329,8 @@ const clara = {
       name: 'adapter',
       group: 'Services',
       summary: 'Install harness adapters, the MCP bridge, and the shared runner',
-      usage: '<install|uninstall|status|runner> [--opencode|--claude|--pi] [--mcp] [--runner]',
+      usage:
+        '<install|uninstall|status|verify|runner> [--opencode|--claude|--pi] [--mcp] [--runner]',
       passthroughHelp: true,
       examples: [
         'pnpm clara adapter install --opencode',
@@ -333,6 +340,9 @@ const clara = {
         'pnpm clara adapter install --runner --mcp',
         'pnpm clara adapter status --claude',
         'pnpm clara adapter status --pi',
+        'pnpm clara adapter verify',
+        'pnpm clara adapter verify --claude --json',
+        'pnpm clara adapter verify --pi --write',
       ],
       run: adapter,
     },

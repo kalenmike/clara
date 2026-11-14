@@ -76,6 +76,12 @@ to choose a default model, and `--permission-mode` to set how Claude asks for
 approval. Approvals and clarifying questions appear in Clara while a session is
 open.
 
+Clara lists the slash commands, skills, and subagents your Claude Code
+installation already has. User, project, and plugin skills are read from their
+`SKILL.md` files; built-in skills also appear as slash commands. Subagents are
+listed read-only in the agent picker because Claude invokes them through its
+delegation tool. Commands that belong to the local terminal are hidden.
+
 To use a local Ollama server, give the adapter its Anthropic-compatible endpoint
 and a provider name:
 
@@ -150,6 +156,20 @@ always runs on the harness that owns its workspace.
 - **A path that exists on two machines is ambiguous.** Clara refuses to guess: the
   request says the path matches more than one harness. Make the harness you are
   working on the active one, and label the workspaces clearly.
+
+## Verify native access
+
+Run `pnpm clara adapter verify` to check every installed adapter against the
+harness on its machine. Add `--opencode`, `--claude`, or `--pi` to check one, and
+`--directory <path>` to inspect native sessions for a specific workspace. The
+report probes the harness, lists its models, agents, commands, and skills, and
+reads an existing session, so you can confirm that Clara is using the same
+harness as your terminal.
+
+The command is read-only by default. Add `--write` to create one scratch session,
+confirm the harness sees it, and remove it again; this is the only mode that
+writes to the native store. Use `--json` for a machine-readable report. If an
+adapter is not installed, its section is skipped.
 
 ## Reinstall and reconnect
 

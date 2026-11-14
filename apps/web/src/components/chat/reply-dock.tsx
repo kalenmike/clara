@@ -15,6 +15,7 @@ import {
 import { useComposerTarget } from '@/features/chat/use-composer-target'
 import { useSessionForms } from '@/features/chat/use-forms'
 import { useAgents } from '@/features/catalog/use-catalog'
+import { primaryAgents } from '@/features/agents/default-agent'
 import { useSwitchAgent } from '@/features/chat/use-chat'
 import { useSessionWording } from '@/features/sessions/use-wording'
 import { useComposerHeight } from '@/hooks/use-composer-height'
@@ -62,10 +63,7 @@ function ConnectedComposer({ target, harnessID }: { target: ComposerTarget; harn
   const targetHarnessID = session?.harnessID ?? harnessID
   const agentsQuery = useAgents(targetHarnessID)
   const switchAgent = useSwitchAgent(target.sessionID)
-  const agents = useMemo(
-    () => (agentsQuery.data ?? []).filter((agent) => !agent.hidden && agent.mode !== 'subagent'),
-    [agentsQuery.data]
-  )
+  const agents = useMemo(() => primaryAgents(agentsQuery.data), [agentsQuery.data])
   const title = composerSessionTitle(session?.title, lowerSingular)
   const connectionLabel = composerConnectionLabel(detached, lowerSingular)
 

@@ -98,20 +98,24 @@ contacts the harness directly.
 
 ## Adapter mapping
 
-| Clara concept        | Claude Code mapping                                                                      |
-| -------------------- | ---------------------------------------------------------------------------------------- |
-| Project id           | Canonical session directory                                                              |
-| Session id           | Claude session UUID                                                                      |
-| Assistant step       | Claude API message; transcript blocks sharing a message id are one step                  |
-| Model                | `{ providerID: <resolved provider>, id: <model> }`                                       |
-| Session list         | Claude transcripts merged with the adapter's sidecar catalog                             |
-| Messages             | Transcript entries grouped by API message id; tool results fold into the requesting tool |
-| Streaming            | Agent SDK stream events translated to one Clara step per API response                    |
-| Approvals            | `canUseTool` → Clara permission cards                                                    |
-| Clarifying questions | `AskUserQuestion` → Clara forms                                                          |
-| Usage                | Result cost and model usage, cumulative in the sidecar catalog                           |
-| Files, VCS, git      | Read-only filesystem and git queries inside the adapter                                  |
-| Archive/delete       | Unsupported on the harness; Clara applies its own state                                  |
+| Clara concept        | Claude Code mapping                                                                                    |
+| -------------------- | ------------------------------------------------------------------------------------------------------ |
+| Project id           | Canonical session directory                                                                            |
+| Session id           | Claude session UUID                                                                                    |
+| Assistant step       | Claude API message; transcript blocks sharing a message id are one step                                |
+| Model                | `{ providerID: <resolved provider>, id: <model> }`                                                     |
+| Session list         | Claude transcripts merged with the adapter's sidecar catalog                                           |
+| Messages             | Transcript entries grouped by API message id; tool results fold into the requesting tool               |
+| Streaming            | Agent SDK stream events translated to one Clara step per API response                                  |
+| Approvals            | `canUseTool` → Clara permission cards                                                                  |
+| Clarifying questions | `AskUserQuestion` → Clara forms                                                                        |
+| Commands             | Claude slash commands, including user, project, and plugin commands; terminal-only commands are hidden |
+| Skills               | User, project, and plugin `SKILL.md` files; built-in skills also appear as slash commands              |
+| Agents               | Subagent definitions listed read-only; Claude's Task tool invokes them                                 |
+| Plugins              | Loaded from Claude Code settings; names appear in `clara-adapter-claude status`                        |
+| Usage                | Result cost and model usage, cumulative in the sidecar catalog                                         |
+| Files, VCS, git      | Read-only filesystem and git queries inside the adapter                                                |
+| Archive/delete       | Unsupported on the harness; Clara applies its own state                                                |
 
 Claude Code streams one assistant message per completed content block, each with
 its own wrapper UUID, while every frame for one model response shares the
@@ -214,6 +218,15 @@ ask for confirmation run without one, exactly as in the Pi TUI.
 - **Claude Code session created in Clara** — the sidecar catalog keeps it
   visible before its first prompt. The first turn fixes the Claude UUID so a
   reinstall or resume finds the same transcript.
+- **Claude Code skills** — Clara reads `SKILL.md` from the user, project, and
+  plugin skill directories. Built-in skills also appear as slash commands, so
+  both menus expose the same capability.
+- **Claude Code subagents** — the agent picker lists them read-only. Claude
+  invokes one through its Task tool, so selecting a subagent as the session's
+  main-thread agent is not offered.
+- **Claude Code terminal commands** — slash commands that belong to the local
+  terminal are hidden from Clara's command menu, matching the Agent SDK's
+  remote-surface guidance.
 - **Claude Code session moved** — the adapter records the new directory and
   resumes from Claude's cross-project lookup. Clara keeps its project link.
 - **Pi project trust** — the adapter inherits Pi's saved decisions. Print, JSON,
@@ -272,7 +285,8 @@ ask for confirmation run without one, exactly as in the Pi TUI.
 ## Known gaps
 
 - The Claude Code adapter does not expose Claude's subagent sessions as separate
-  Clara sessions; subagent transcript entries are skipped.
+  Clara sessions; subagent transcript entries are skipped. Subagent definitions
+  are listed read-only and cannot be selected as a session's main-thread agent.
 - Per-step Claude cost is not available. The turn result carries the turn cost
   and session totals; intermediate steps show zero cost.
 - One Claude Code process uses one API backend. The adapter reports all models
@@ -332,6 +346,8 @@ ask for confirmation run without one, exactly as in the Pi TUI.
   `pnpm clara adapter install --claude --pair <code>`,
   `pnpm clara adapter install --pi --pair <code>`,
   `pnpm clara adapter status [--claude|--pi]`,
+  `pnpm clara adapter verify [--opencode|--claude|--pi] [--directory <path>] [--write] [--json]`,
+  `clara-adapter-<kind> verify [--directory <path>] [--write] [--json]`,
   `clara-adapter-claude uninstall [--purge]`,
   `clara-adapter-pi uninstall [--purge]`.
 - Registry: `<registry>/<kind>/manifest.json` and

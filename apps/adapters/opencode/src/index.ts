@@ -8,6 +8,7 @@ import {
   uninstallOpenCodeCommand,
 } from './install.ts'
 import { OpenCodeGateway } from './opencode.ts'
+import { verifyOpenCode } from './verify.ts'
 
 const ADAPTER_NAME = 'opencode'
 const ADAPTER_VERSION = '0.1.0'
@@ -60,6 +61,7 @@ Usage:
   clara-adapter-opencode serve
   clara-adapter-opencode start|stop|logs [--lines <n>]
   clara-adapter-opencode status
+  clara-adapter-opencode verify [--directory <path>] [--write] [--json]
   clara-adapter-opencode uninstall [--purge]
   clara-adapter-opencode config-path
 
@@ -115,6 +117,7 @@ function definition(): AdapterDefinition<Harness> {
       }
       uninstallOpenCodeCommand(args)
     },
+    verify: (config, options) => verifyOpenCode(config, options),
     help: HELP,
   }
 }

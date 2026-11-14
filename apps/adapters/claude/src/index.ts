@@ -2,7 +2,7 @@
 import { join } from 'node:path'
 import { runAdapterCli, type AdapterDefinition } from '@clara/adapter-runtime'
 import { CLAUDE_CAPABILITIES } from './capabilities.ts'
-import { claudePaths, type ClaudeConfig } from './config.ts'
+import { claudePaths, adapterConfigPath, type ClaudeConfig } from './config.ts'
 import { EventBus } from './events.ts'
 import { createAdapterApp } from './handler.ts'
 import { installClaudeCommand, resolveClaudeConfig, uninstallClaudeCommand } from './install.ts'
@@ -10,6 +10,7 @@ import { ClaudeRuntime } from './runtime.ts'
 import { AgentSdkGateway } from './sdk.ts'
 import { SessionService } from './sessions.ts'
 import { SessionStore } from './store.ts'
+import { verifyClaude } from './verify.ts'
 
 const ADAPTER_NAME = 'claude'
 const ADAPTER_VERSION = '0.1.0'
@@ -70,6 +71,7 @@ Usage:
   clara-adapter-claude serve
   clara-adapter-claude start|stop|logs [--lines <n>]
   clara-adapter-claude status
+  clara-adapter-claude verify [--directory <path>] [--write] [--json]
   clara-adapter-claude uninstall [--purge]
   clara-adapter-claude config-path
 
@@ -116,6 +118,18 @@ function definition(): AdapterDefinition<Harness> {
       url: config.claude.claudePath ?? 'Claude Code (bundled)',
       label: 'Claude Code',
     }),
+    statusLines: (config, probe) => {
+      const catalog = gateway(config).lastInit()
+      const plugins =
+        catalog?.plugins.map((plugin) =>
+          plugin.version ? `${plugin.name}@${plugin.version}` : plugin.name
+        ) ?? []
+      return [
+        `claude:   ${config.claude.claudePath ?? 'Claude Code (bundled)'}${probe.version ? ` (${probe.version})` : ''}`,
+        `config:   ${adapterConfigPath()}`,
+        `plugins:  ${plugins.length > 0 ? plugins.join(', ') : 'available after the first turn'}`,
+      ]
+    },
     resolveHarness: async (args) => ({ claude: await resolveClaudeConfig(args) }),
     install: async (args) => {
       if (args.includes('--help') || args.includes('-h')) {
@@ -131,6 +145,7 @@ function definition(): AdapterDefinition<Harness> {
       }
       uninstallClaudeCommand(args)
     },
+    verify: (config, options) => verifyClaude(config, options),
     help: HELP,
   }
 }

@@ -97,12 +97,30 @@ export function subscribeAgentDefault(listener: () => void): () => void {
 }
 
 /** Hidden and subagent agents cannot be a session's primary agent. */
+export function isPrimaryAgent(agent: AgentOption): boolean {
+  return !agent.hidden && agent.mode !== 'subagent'
+}
+
+/** A visible subagent runs only through the harness's delegation tool. */
+export function isSubagentAgent(agent: AgentOption): boolean {
+  return !agent.hidden && agent.mode === 'subagent'
+}
+
+export function primaryAgents<T extends AgentOption>(agents: readonly T[] | undefined): T[] {
+  return (agents ?? []).filter(isPrimaryAgent)
+}
+
+export function subagents<T extends AgentOption>(agents: readonly T[] | undefined): T[] {
+  return (agents ?? []).filter(isSubagentAgent)
+}
+
+/** Hidden and subagent agents cannot be a session's primary agent. */
 export function isSelectableAgent(
   agents: readonly AgentOption[] | undefined,
   agent: string
 ): boolean {
   if (!agents) return true
-  return agents.some((item) => item.id === agent && !item.hidden && item.mode !== 'subagent')
+  return agents.some((item) => item.id === agent && isPrimaryAgent(item))
 }
 
 /**
