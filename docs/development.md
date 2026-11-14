@@ -222,10 +222,7 @@ select a subset with the same `--no-*` flags as `start`.
 `pnpm clara web start --build` builds and serves the static SPA on
 `127.0.0.1:8080`; `pnpm dev:web` remains the Vite development server. The hub
 panel is the one-time harness setup surface; the adapter discovers the harness,
-and the hub service does not read OpenCode's `service.json`. Local tooling such
-as Clara Lab reads the development password from
-`${XDG_STATE_HOME:-~/.local/state}/opencode/service.json` or
-`CLARA_OPENCODE_PASSWORD`.
+and neither the hub service nor Clara Lab reads OpenCode's `service.json`.
 `pnpm clara rebuild` snapshots the running services, rebuilds the primary
 checkout, installs the adapters, restarts only the captured services, and
 verifies their health. It manages Docker services by default; pass `--local`

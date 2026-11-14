@@ -11,16 +11,16 @@ writing custom pipelines, not for end users.
 
 1. Start the lab with `pnpm clara lab`, or run `pnpm dev:lab` while editing it.
    The lab opens on `127.0.0.1:8791` in a full-height workbench with one
-   navigation rail: **Review**, **Runs**, **Traffic**, **Console**,
-   **Sessions**, and **Settings**.
+   navigation rail: **Review**, **Runs**, **Traffic**, **Console**, and
+   **Settings**.
 2. Open **Settings**, choose **Files on this machine** — the repository as the
    lab sees it. Use **Browse…** to pick the folder or type the path. The
    orchestrator's own workspace is reported by the service and shown read-only
    beside it. This is the only place setup and adapter controls live.
 3. Press **Run setup check**. The lab reports whether it can compile the host
-   path, whether the orchestrator can read its reported path, whether a strict
-   pipeline has a live adapter, and whether OpenCode's model catalog is
-   available. The status bar carries only the resulting problem state.
+   path, whether the orchestrator can read its reported path, and whether a
+   strict pipeline has a live adapter. The status bar carries only the resulting
+   problem state.
 4. On **Review**, choose a pipeline. The compiled tree shows every step, route,
    `provider/model`, policy, budget, and source file. Diagnostics sit above the
    tree so errors and warnings are the first thing you see. The Inspector's
@@ -55,11 +55,9 @@ writing custom pipelines, not for end users.
     form from each tool's input schema with required, range, and enum hints
     under every field, keeps the raw JSON editor behind a Form/JSON toggle, and
     loads recent calls back into the form.
-11. Open **Sessions** to see the OpenCode sessions the lab has observed: title,
-    agent, directory, running state, last seen, and event count.
-12. Run `pnpm clara lab check` in CI to compile a target and fail on errors.
-    When OpenCode is reachable it also checks that the configured models exist;
-    offline it falls back to static provider/model validation.
+11. Run `pnpm clara lab check` in CI to compile a target and fail on errors.
+    Model diagnostics stay static: missing providers, missing models, and unset
+    models are reported without reading a live catalog.
 
 ## Core business rules
 
@@ -100,16 +98,15 @@ writing custom pipelines, not for end users.
     `GET /v1/runs/:id/snapshot` and `GET /v1/runs/:id/steps/:path` directly with
     the orchestrator token. The browser sees only the derived step count and the
     step detail it asks for.
-11. **Models are validated against OpenCode.** The lab reads the running
-    OpenCode model catalog and reports `model_provider_missing`,
-    `model_missing`, `model_unset`, `model_unknown`, and `model_disabled`.
-    When OpenCode is offline the preview still compiles; model existence is
-    shown as unchecked instead of failing the setup.
+11. **Model diagnostics are static.** The preview reports
+    `model_provider_missing`, `model_missing`, and `model_unset` from the
+    compiled step fields. It does not read a live model catalog, so it cannot
+    report whether a named model exists or is enabled.
 12. **The lab shows the raw work order.** The step card shows `order.prompt`,
     its declared inputs and artifacts, and the background request separately.
     The preview shows the resolved `inputs` and `artifacts` wiring and warns
     with `inputs_missing` when a step with prior siblings declares none. The
-    OpenCode adapter composes the step prompt, declared inputs, artifacts, and
+    harness adapter composes the step prompt, declared inputs, artifacts, and
     the background request into the managed worker prompt.
 13. **Review owns the debug loop.** Starting, pausing, pulling, completing,
     routing, spawning, and heartbeat controls live in the Debug dock on
@@ -121,19 +118,14 @@ writing custom pipelines, not for end users.
     header totals tokens and tool calls across every step, whether or not the
     run is still active.
 15. **Ownership is visible.** Runs started by the lab carry
-    `origin_harness: "clara-lab"`; runs started by OpenCode carry their own
+    `origin_harness: "clara-lab"`; runs started by a harness carry their own
     origin and session. The Debug dock only steps lab-origin runs. A run with no
     recorded origin is treated as external, never as a debug run.
 16. **Runs are recoverable in one action.** **Cancel run** sits on the selected
     run header; **Kill all runs** cancels every non-terminal root run after a
     confirmation, including debug runs hidden by the toggle. Both are
     front-and-center, not inside advanced controls.
-17. **OpenCode sessions are observed, not driven.** The lab server subscribes to
-    OpenCode `/api/event`, tracks the last event per session, and merges that
-    with session metadata (`title`, `agent`, `location.directory`,
-    `time.updated`) from the session list and lookup endpoints. Phase one is
-    read-only and OpenCode-only.
-18. **Console forms follow the schema.** The console derives one control per
+17. **Console forms follow the schema.** The console derives one control per
     top-level argument and recurses into nested objects. Required fields are
     marked, and range, length, item-count, and enum constraints are shown under
     each input. Blank optional fields are omitted from the payload. Opaque
@@ -150,25 +142,10 @@ writing custom pipelines, not for end users.
 - The orchestrator is offline or has not reported a workspace yet: preview
   still works; Settings shows “Waiting for the orchestrator…” and the run
   actions retry once the service reports its path.
-- OpenCode is offline: preview still compiles and checks provider/model pairing;
-  the models row says model existence is unchecked, and Sessions explains how to
-  reconnect.
-- OpenCode requires authentication: Settings shows whether a password was
-  found, where the lab looked, and the exact recovery steps. Set
-  `CLARA_OPENCODE_PASSWORD`, or add `url` and `password` to the service file,
-  then press **Reconnect OpenCode**. The password stays in the lab server.
-- The OpenCode config changes while the lab is running: **Reconnect OpenCode**
-  re-reads the environment and service file, restarts the event stream, and
-  refreshes the session list without restarting the lab.
-- OpenCode's event stream drops: Sessions keeps the last known rows and retries;
-  the status bar shows `reconnecting`.
-- A session is idle and emits no events after the lab starts: it still appears
-  from the session list, with the list's `time.updated` as its fallback last-seen
-  time.
-- A model exists under a different provider: the diagnostic names the providers
-  that do have it.
 - A worker step has no model: `model_unset` warns that the harness default will
   be used instead of the pipeline model.
+- A worker step names a provider without a model: `model_missing` warns that the
+  provider is ignored.
 - No token is present: Settings and the status bar show the problem; start the
   service or set `CLARA_ORCHESTRATION_TOKEN`.
 - The orchestrator rejects the token: Settings shows the token hint; restart the
@@ -210,7 +187,7 @@ writing custom pipelines, not for end users.
 
 ## Out of scope
 
-- Calling a model, starting an OpenCode session, or spawning processes.
+- Calling a model, starting a harness session, or spawning processes.
 - Real policy enforcement. The lab adapter deliberately does not enforce tool,
   path, shell, turn, or token rules.
 - Editing pipelines, prompts, or policies in the browser.
@@ -219,8 +196,8 @@ writing custom pipelines, not for end users.
 - Rewinding a run to an earlier state.
 - Starting, pulling, completing, routing, or spawning a run from **Runs**. The
   page is observation-first; those controls live in the Review Debug dock.
-- Cancelling, archiving, or moving an OpenCode session from the Sessions view.
-  Phase one is a read-only observation surface.
+- Monitoring harness sessions; the hub panel owns the cross-harness Sessions
+  view.
 
 ## Known gaps
 
@@ -231,10 +208,6 @@ writing custom pipelines, not for end users.
 - Only root-package imports are directly selectable as targets. Nested imports
   are visible in the package list but must be reached through their parent.
 - Source view is capped at 512 KB per file.
-- Sessions are listed from the newest 100 OpenCode records plus any sessions seen
-  on the live event stream; there is no pagination yet.
-- The Sessions view is OpenCode-only. Orchestrator adapters and run ownership
-  are shown in Settings and Runs, not merged into the session table.
 - Runs started through the Console without an explicit origin, and runs created
   before origin tracking, are treated as external and never appear in the Debug
   dock.
@@ -259,48 +232,24 @@ writing custom pipelines, not for end users.
   `CLARA_ORCHESTRATION_URL`, `CLARA_ORCHESTRATION_TOKEN`,
   `CLARA_ORCHESTRATION_TOKEN_FILE`, `CLARA_ORCHESTRATION_WORKSPACE`
   (the service workspace, also the lab host default),
-  `CLARA_ORCHESTRATION_CONFIG`,
-  `CLARA_ORCHESTRATION_AUTOSTART`, `CLARA_OPENCODE_URL`,
-  `CLARA_OPENCODE_PASSWORD`. The lab also reads
-  `${XDG_STATE_HOME:-~/.local/state}/opencode/service.json` when the OpenCode
-  variables are unset.
+  `CLARA_ORCHESTRATION_CONFIG`, and `CLARA_ORCHESTRATION_AUTOSTART`.
 - Lab routes: `GET /api/health`, `GET /api/state`, `GET /api/stream`,
   `POST /api/preview`, `POST /api/preflight`, `POST /api/pick-directory`,
   `POST /api/diff`, `POST /api/tools/:name`, `GET /api/runs`,
   `GET /api/runs/:id`, `POST /api/runs/cancel-all`, `GET /api/inbox`,
-  `GET /api/opencode/sessions`, `POST /api/opencode/reconnect`,
   `GET /api/source`, `POST /api/heartbeat`, `POST /api/reconnect`,
   `POST /api/adapter/register`, `POST /api/adapter/remove`,
   `POST /api/violation`.
-- `/api/preflight` returns `{ host, runtime, adapter, models }`: host compile
-  status and package count, orchestrator catalog visibility of its reported
-  workspace, whether the target is strict and has a live adapter, and the
-  OpenCode model catalog status.
-- `/api/opencode/sessions` returns the observer summary plus rows with
-  `id`, `title`, `agent`, `directory`, `parentID`, `model`, `running`,
-  `lastSeenAt`, `lastSeenSource`, `eventCount`, and `lastEventType`.
+- `/api/preflight` returns `{ host, runtime, adapter }`: host compile status and
+  package count, orchestrator catalog visibility of its reported workspace, and
+  whether the target is strict and has a live adapter.
 - `/api/runs/cancel-all` cancels every non-terminal root run and returns
   `{ cancelled, failed }`.
-- OpenCode auth resolves `CLARA_OPENCODE_URL` first, then the service file URL,
-  then `http://127.0.0.1:4096`. The password resolves from
-  `CLARA_OPENCODE_PASSWORD` first, then the service file. Setting only the
-  password is supported. The service file is
-  `${XDG_STATE_HOME:-~/.local/state}/opencode/service.json` and should contain
-  `{ "url": "...", "password": "..." }`.
-- `/api/opencode/sessions` also reports whether an OpenCode password was found,
-  its source, and the service-file path. Secrets are never returned.
-- `/api/opencode/reconnect` re-reads the OpenCode config, clears stale session
-  observations when the endpoint changes, restarts the event stream, and
-  refreshes metadata.
-- The OpenCode observer keeps the password server-side. It subscribes to
-  `/api/event`, seeds idle sessions from the session list, and uses
-  `session.active()` for the running marker.
 - `/api/pick-directory` opens the lab host's native folder chooser and returns
   `{ path }` or `{ path: null }` when cancelled. It falls back to manual entry
   when no desktop dialog is available.
-- Model diagnostics: `model_provider_missing` (error), `model_missing`
-  (warning), `model_unset` (warning), `model_unknown` (error), and
-  `model_disabled` (warning).
+- Model diagnostics are static: `model_provider_missing` (error),
+  `model_missing` (warning), and `model_unset` (warning).
 - The lab multiplexes MCP traffic and orchestrator events on `/api/stream`;
   the server resumes `/v1/events` with its last event id.
 - SSE event data carries `run_id`, `event_id`, and `created_at` alongside the
