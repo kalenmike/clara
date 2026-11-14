@@ -245,12 +245,15 @@ clara`. A manually started hub is restarted from the captured root with its
 - Adapter install: `clara-adapter-opencode install` or `pnpm clara adapter install --opencode`; MCP refresh:
   `pnpm clara adapter install --opencode --mcp --no-service` or
   `pnpm clara mcp install --no-start`.
-- Adapter release: `pnpm adapters:build` builds the Bun adapters for every
-  supported platform, writes `dist/adapters/<kind>/*.tar.gz`, and writes the
-  registry manifest and install script under `apps/web/public/adapters/<kind>/`.
-  Upload the archives to the GitHub release, then `pnpm deploy:web`. The hub
-  reads `CLARA_ADAPTER_REGISTRY_URL` or the panel setting; it never embeds an
-  adapter.
+- Adapter release: run the `adapter-releases` workflow from
+  **Actions → adapter-releases → Run workflow**. It builds each OS on its own
+  runner, uploads kind-prefixed archives to the `adapters-v<version>` GitHub
+  release, and exports `apps/web/public/adapters/<kind>/{manifest.json,v<version>-install.sh}`
+  as the `adapter-registry` workflow artifact. The maintainer copies that
+  artifact into `apps/web/public/adapters` and runs `pnpm deploy:web`. A local
+  `pnpm adapters:build` builds only the host target under `dist/adapters` and is
+  not the canonical registry. The hub reads `CLARA_ADAPTER_REGISTRY_URL` or the
+  panel setting; it never embeds an adapter.
 - Default ports: orchestrator `8789`, panel `8790`, local hub `8788`, Lab
   `8791`, web `8080`. `CLARA_LAB_PORT`, `CLARA_PANEL_PORT`,
   `CLARA_LOCAL_PORT`, `CLARA_WEB_PORT`, and `CLARA_ORCHESTRATION_URL` override

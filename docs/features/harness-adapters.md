@@ -372,8 +372,12 @@ ask for confirmation run without one, exactly as in the Pi TUI.
   `clara-adapter-pi uninstall [--purge]`.
 - Registry: `<registry>/<kind>/manifest.json` and
   `<registry>/<kind>/v<version>-install.sh`; the default registry is
-  `https://clara.kalenmichael.com/adapters`. `pnpm adapters:build` generates
-  both and writes the archives to `dist/adapters`.
+  `https://clara.kalenmichael.com/adapters`. The `adapter-releases` workflow
+  builds every OS on its own runner, uploads kind-prefixed archives to the
+  `adapters-v<version>` GitHub release, and exports the manifest and install
+  script as the `adapter-registry` workflow artifact. `pnpm adapters:build`
+  locally builds only the host target (or explicit `--targets`) under
+  `dist/adapters`; the maintainer deploys the web registry from the artifact.
 - Panel routes: `GET /panel/api/v1/install`,
   `POST /panel/api/v1/install`, `GET|DELETE /panel/api/v1/install/jobs/:id`,
   and `POST /panel/api/v1/install/settings`.
