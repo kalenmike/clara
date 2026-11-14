@@ -125,9 +125,10 @@ the run.
 The session header can rename the session. Renaming changes only the Clara title;
 the harness session underneath is unchanged.
 
-To delete one session, use the header menu. To delete several, select rows with
-Shift-click or Shift+Enter, then press Delete or Backspace. A confirmation lists
-the count. Partial failures keep the failed rows selected.
+To delete one session, use the header menu and confirm the dialog. To delete
+several, select rows with Shift-click or Shift+Enter, then press Delete or
+Backspace. A confirmation lists the count. Partial failures keep the failed rows
+selected.
 
 ## Monitor the Inbox
 
