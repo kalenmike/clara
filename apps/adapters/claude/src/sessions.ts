@@ -107,7 +107,10 @@ export class SessionService {
       byID.set(session.id, { ...current, stored: session })
     }
 
-    let sessions = [...byID.values()].map(({ info, stored }) => toClaraSession(info, stored))
+    const providerID = this.claude.provider().id
+    let sessions = [...byID.values()].map(({ info, stored }) =>
+      toClaraSession(info, stored, undefined, providerID)
+    )
     if (directory) {
       sessions = sessions.filter(
         (session) =>
@@ -133,7 +136,7 @@ export class SessionService {
     const record = await this.lookup(sessionId, directory)
     if (!record) throw notFound(sessionId)
     const usage = await this.transcriptUsage(record.info, record.stored)
-    return toClaraSession(record.info, record.stored, usage)
+    return toClaraSession(record.info, record.stored, usage, this.claude.provider().id)
   }
 
   async create(input: CreateSessionInput): Promise<ClaraSession> {
@@ -174,7 +177,7 @@ export class SessionService {
         ...(session.model ? { model: session.model } : {}),
       },
     })
-    return toClaraSession(undefined, session)
+    return toClaraSession(undefined, session, undefined, this.claude.provider().id)
   }
 
   async update(sessionId: string, input: UpdateSessionInput): Promise<void> {
@@ -269,7 +272,7 @@ export class SessionService {
         boundary: { type: 'before', messageID: before ?? '' },
       },
     })
-    return toClaraSession(undefined, stored)
+    return toClaraSession(undefined, stored, undefined, this.claude.provider().id)
   }
 
   async move(sessionId: string, requestedDirectory: string): Promise<void> {
@@ -311,7 +314,7 @@ export class SessionService {
     const directory = record.stored?.directory ?? record.info?.cwd ?? ''
     const start = record.info?.createdAt ?? record.info?.lastModified ?? Date.now()
     const entries = await this.transcriptEntries(sessionId, directory)
-    const messages = mapTranscript(entries, start)
+    const messages = mapTranscript(entries, start, this.claude.provider().id)
     const limit = pageLimit(input.limit)
     const offset = cursorOffset(input.cursor)
 
@@ -365,6 +368,7 @@ export class SessionService {
       outcome: 'succeeded' | 'failed' | 'interrupted'
       started: boolean
       model?: string
+      providerID?: string
       agent?: string
       error?: string
     }
@@ -388,7 +392,9 @@ export class SessionService {
       started: existing.started || input.started,
       outcome: input.outcome,
       updatedAt: Date.now(),
-      ...(input.model ? { model: { id: input.model, providerID: 'anthropic' } } : {}),
+      ...(input.model
+        ? { model: { id: input.model, providerID: input.providerID ?? this.claude.provider().id } }
+        : {}),
       ...(input.agent ? { agent: input.agent } : {}),
       ...(input.error ? { lastError: input.error } : {}),
     })
@@ -509,15 +515,15 @@ export class SessionService {
 function toClaraSession(
   info: ClaudeSessionInfo | undefined,
   stored: StoredSession | undefined,
-  usage?: { cost: number; tokens: ReturnType<typeof emptyTokens>; model?: string }
+  usage: { cost: number; tokens: ReturnType<typeof emptyTokens>; model?: string } | undefined,
+  providerID: string
 ): ClaraSession {
   const directory = stored?.directory ?? info?.cwd ?? ''
   const canonicalDirectory = stored?.canonical ?? (directory ? canonical(directory) : '')
   const created = stored?.createdAt ?? info?.createdAt ?? info?.lastModified ?? Date.now()
   const updated = Math.max(stored?.updatedAt ?? 0, info?.lastModified ?? 0, created)
   const title = stored?.title ?? info?.customTitle ?? info?.summary
-  const model =
-    stored?.model ?? (usage?.model ? { id: usage.model, providerID: 'anthropic' } : undefined)
+  const model = stored?.model ?? (usage?.model ? { id: usage.model, providerID } : undefined)
   const archived = stored?.archived === true || info?.archived === true
 
   return {

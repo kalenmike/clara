@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto'
 import type { AdapterProbe } from '@clara/adapter-runtime'
+import type { ClaraModel } from '@clara/api-contract'
 import {
   deleteSession as sdkDeleteSession,
   forkSession as sdkForkSession,
@@ -28,6 +29,21 @@ import {
   type ClaudeAuth,
   type ClaudeInstallation,
 } from './discover.ts'
+import {
+  claudeEndpoint,
+  discoverOllama,
+  isCustomClaudeModel,
+  ollamaDefaultModel,
+  ollamaModels,
+  type ClaudeEndpoint,
+  type OllamaCustomRow,
+} from './ollama.ts'
+import {
+  ANTHROPIC_PROVIDER,
+  OLLAMA_PROVIDER,
+  resolveClaudeProvider,
+  type ClaudeProvider,
+} from './provider.ts'
 
 export type ClaudeSessionInfo = {
   sessionId: string
@@ -76,6 +92,7 @@ export type ClaudeTurnEvent =
       commands: string[]
       skills: string[]
       permissionMode: string
+      provider: ClaudeProvider
     }
   | {
       type: 'message-start'
@@ -220,8 +237,23 @@ export interface ClaudeTurn {
   close(): void
 }
 
+export type ClaudeModelRow = {
+  value: string
+  name: string
+  description?: string
+  resolvedModel?: string
+  family?: string
+  capabilities?: ClaraModel['capabilities']
+  limit?: ClaraModel['limit']
+  cost?: ClaraModel['cost']
+  status?: ClaraModel['status']
+  enabled?: boolean
+}
+
 export type ClaudeCatalog = {
-  models: { value: string; name: string; description?: string }[]
+  provider: ClaudeProvider
+  defaultModel?: string
+  models: ClaudeModelRow[]
   agents: { name: string; description?: string; model?: string }[]
   commands: { name: string; description?: string }[]
   skills: string[]
@@ -231,6 +263,8 @@ export interface ClaudeGateway {
   probe(timeoutMs?: number): Promise<AdapterProbe>
   auth(): Promise<ClaudeAuth | undefined>
   installation(): ClaudeInstallation | undefined
+  provider(): ClaudeProvider
+  defaultModel(): string | undefined
   listSessions(input: {
     directory?: string
     includeWorktrees?: boolean
@@ -256,7 +290,7 @@ export interface ClaudeGateway {
   lastInit(): ClaudeCatalog | undefined
 }
 
-const FALLBACK_MODELS: ClaudeCatalog['models'] = [
+const FALLBACK_MODELS: ClaudeModelRow[] = [
   {
     value: 'default',
     name: 'Claude default',
@@ -313,9 +347,16 @@ export class AgentSdkGateway implements ClaudeGateway {
   private cachedInstallation?: ClaudeInstallation
   private catalogValue?: ClaudeCatalog
   private catalogAt = 0
+  private providerValue?: ClaudeProvider
+  private defaultModelValue?: string
+  private endpointValue?: ClaudeEndpoint
 
   constructor(config: ClaudeConfig) {
     this.config = config
+  }
+
+  private endpoint(): ClaudeEndpoint {
+    return (this.endpointValue ??= claudeEndpoint(this.config))
   }
 
   installation(): ClaudeInstallation | undefined {
@@ -323,6 +364,20 @@ export class AgentSdkGateway implements ClaudeGateway {
       this.cachedInstallation = detectClaudeInstallation(this.config.claudePath)
     }
     return this.cachedInstallation
+  }
+
+  provider(): ClaudeProvider {
+    return (
+      this.providerValue ??
+      resolveClaudeProvider({
+        configured: this.config.provider,
+        baseUrl: this.endpoint().baseUrl,
+      })
+    )
+  }
+
+  defaultModel(): string | undefined {
+    return this.defaultModelValue ?? this.config.model ?? this.endpoint().model
   }
 
   async probe(timeoutMs = 2_000): Promise<AdapterProbe> {
@@ -376,6 +431,13 @@ export class AgentSdkGateway implements ClaudeGateway {
     if (this.cachedAuth && now - this.cachedAuth.at < PROBE_CACHE_MS) return this.cachedAuth.value
     const installation = this.installation()
     const value = installation ? await readClaudeAuth(installation.binary) : undefined
+    if (this.providerValue?.id !== OLLAMA_PROVIDER.id) {
+      this.providerValue = resolveClaudeProvider({
+        configured: this.config.provider,
+        ...(value?.apiProvider ? { apiProvider: value.apiProvider } : {}),
+        baseUrl: this.endpoint().baseUrl,
+      })
+    }
     this.cachedAuth = { at: Date.now(), value }
     return value
   }
@@ -463,6 +525,7 @@ export class AgentSdkGateway implements ClaudeGateway {
 
   async startTurn(request: ClaudeTurnRequest): Promise<ClaudeTurn> {
     const installation = this.installation()
+    const endpoint = this.endpoint()
     const existing = await this.getSessionInfo(request.sessionId, request.directory).catch(
       () => undefined
     )
@@ -483,6 +546,7 @@ export class AgentSdkGateway implements ClaudeGateway {
       env: {
         ...process.env,
         CLAUDE_AGENT_SDK_CLIENT_APP: 'clara-adapter-claude/0.1.0',
+        ...(endpoint.baseUrl ? { ANTHROPIC_BASE_URL: endpoint.baseUrl } : {}),
       },
       stderr: (chunk) => request.onStderr?.(chunk),
       ...(existing ? { resume: request.sessionId } : { sessionId: request.sessionId }),
@@ -569,75 +633,119 @@ export class AgentSdkGateway implements ClaudeGateway {
   }
 
   private async readCatalog(directory: string): Promise<ClaudeCatalog> {
-    const queue = new MessageQueue<SDKUserMessage>()
+    const endpoint = this.endpoint()
+    const [ollama, cli] = await Promise.all([
+      discoverOllama(endpoint.baseUrl, { authToken: endpoint.authToken }),
+      this.readClaudeCatalog(directory, endpoint.baseUrl),
+    ])
+
+    const provider = ollama
+      ? this.config.provider
+        ? resolveClaudeProvider({ configured: this.config.provider })
+        : OLLAMA_PROVIDER
+      : (cli?.provider ??
+        resolveClaudeProvider({
+          configured: this.config.provider,
+          baseUrl: endpoint.baseUrl,
+        }))
+    const defaultModel = ollama
+      ? ollamaDefaultModel(ollama.models, endpoint.model)
+      : (cli?.defaultModel ?? endpoint.model)
+
+    const catalog: ClaudeCatalog = ollama
+      ? {
+          provider,
+          ...(defaultModel ? { defaultModel } : {}),
+          models: ollamaModels(
+            ollama.models,
+            cli?.models.filter(isCustomClaudeModel).map(customRow) ?? []
+          ),
+          agents: cli?.agents ?? [],
+          commands: cli?.commands ?? [],
+          skills: cli?.skills ?? [],
+        }
+      : (cli ?? this.fallbackCatalog(provider, defaultModel))
+
+    this.providerValue = provider
+    this.defaultModelValue = defaultModel
+    this.catalogValue = catalog
+    this.catalogAt = Date.now()
+    return catalog
+  }
+
+  private async readClaudeCatalog(
+    directory: string,
+    baseUrl: string | undefined
+  ): Promise<ClaudeCatalog | undefined> {
     const abort = new AbortController()
     const timer = setTimeout(() => abort.abort(), 8_000)
+    let deadline: NodeJS.Timeout | undefined
+    let live: ReturnType<typeof query> | undefined
     try {
-      const live = query({
-        prompt: queue,
+      live = query({
+        prompt: (async function* empty() {})(),
         options: {
           cwd: directory,
           permissionPrompts: 'none',
           abortController: abort,
+          env: {
+            ...process.env,
+            ...(baseUrl ? { ANTHROPIC_BASE_URL: baseUrl } : {}),
+          },
           ...(this.installation()?.source === 'configured'
             ? { pathToClaudeCodeExecutable: this.installation()?.binary ?? '' }
             : {}),
         },
       })
-      const iterator = live[Symbol.asyncIterator]()
-      const first = await Promise.race([
-        iterator.next(),
-        new Promise<never>((_, reject) =>
-          setTimeout(
+      const init = await Promise.race([
+        live.initializationResult(),
+        new Promise<never>((_, reject) => {
+          deadline = setTimeout(
             () => reject(new AdapterError(504, 'timeout', 'Claude Code did not start')),
             8_000
           )
-        ),
+        }),
       ])
-      if (first.done) return this.fallbackCatalog()
-      const init = first.value
-      if (init.type !== 'system' || init.subtype !== 'init') {
-        queue.close()
-        return this.fallbackCatalog()
-      }
-      const [models, agents, commands] = await Promise.all([
-        live.supportedModels().catch(() => [] as ModelInfo[]),
-        live.supportedAgents().catch(() => []),
-        live.supportedCommands().catch(() => []),
-      ])
-      queue.close()
-      await iterator.return?.(undefined)
-      const catalog: ClaudeCatalog = {
-        models: models.length > 0 ? models.map(toModelRow) : FALLBACK_MODELS,
-        agents: agents.map((agent) => ({
+      const provider = resolveClaudeProvider({
+        configured: this.config.provider,
+        ...(init.account?.apiProvider ? { apiProvider: init.account.apiProvider } : {}),
+        baseUrl,
+      })
+      return {
+        provider,
+        ...(this.config.model ? { defaultModel: this.config.model } : {}),
+        models:
+          init.models.length > 0
+            ? init.models.map(toModelRow)
+            : provider.id === ANTHROPIC_PROVIDER.id
+              ? FALLBACK_MODELS
+              : [],
+        agents: init.agents.map((agent) => ({
           name: agent.name,
           description: agent.description,
           ...(agent.model ? { model: agent.model } : {}),
         })),
-        commands: commands.map((command) => ({
+        commands: init.commands.map((command) => ({
           name: command.name,
           description: command.description,
         })),
-        skills: init.skills ?? [],
+        skills: [],
       }
-      this.catalogValue = catalog
-      this.catalogAt = Date.now()
-      return catalog
     } catch {
-      const catalog = this.fallbackCatalog()
-      this.catalogValue = catalog
-      this.catalogAt = Date.now()
-      return catalog
+      return undefined
     } finally {
       clearTimeout(timer)
+      if (deadline) clearTimeout(deadline)
       abort.abort()
-      queue.close()
+      await live?.return(undefined).catch(() => {})
     }
   }
 
-  private fallbackCatalog(): ClaudeCatalog {
+  private fallbackCatalog(provider = this.provider(), model?: string): ClaudeCatalog {
     return {
-      models: FALLBACK_MODELS,
+      provider,
+      ...(model ? { defaultModel: model } : {}),
+      models: provider.id === ANTHROPIC_PROVIDER.id ? FALLBACK_MODELS : [],
       agents: [],
       commands: [],
       skills: [],
@@ -683,6 +791,7 @@ export class AgentSdkGateway implements ClaudeGateway {
     switch (message.type) {
       case 'system':
         if (message.subtype === 'init') {
+          const provider = this.provider()
           request.onEvent({
             type: 'init',
             sessionId: message.session_id,
@@ -694,9 +803,11 @@ export class AgentSdkGateway implements ClaudeGateway {
             commands: message.slash_commands ?? [],
             skills: message.skills ?? [],
             permissionMode: message.permissionMode,
+            provider,
           })
           this.catalogValue = {
-            ...(this.catalogValue ?? this.fallbackCatalog()),
+            ...(this.catalogValue ?? this.fallbackCatalog(provider)),
+            provider,
             agents: (message.agents ?? []).map((name) => ({ name })),
             commands: (message.slash_commands ?? []).map((name) => ({ name })),
             skills: message.skills ?? [],
@@ -995,11 +1106,21 @@ function toSessionMessage(message: SessionMessage): ClaudeSessionMessage {
   }
 }
 
-function toModelRow(model: ModelInfo): ClaudeCatalog['models'][number] {
+function toModelRow(model: ModelInfo): ClaudeModelRow {
   return {
     value: model.value,
     name: model.displayName,
     description: model.description,
+    ...(model.resolvedModel ? { resolvedModel: model.resolvedModel } : {}),
+  }
+}
+
+function customRow(model: ClaudeModelRow): OllamaCustomRow {
+  return {
+    value: model.value,
+    name: model.name,
+    ...(model.description ? { description: model.description } : {}),
+    ...(model.resolvedModel ? { resolvedModel: model.resolvedModel } : {}),
   }
 }
 

@@ -49,4 +49,24 @@ describe('Claude install options', () => {
   it('rejects an unknown permission mode', () => {
     expect(() => parseInstallOptions(['--permission-mode', 'yolo'])).toThrow(/permission-mode/)
   })
+
+  it('reads an endpoint and provider override', () => {
+    expect(
+      parseInstallOptions([
+        '--base-url',
+        'http://host.docker.internal:11434',
+        '--provider-id',
+        'ollama',
+        '--provider-name',
+        'Ollama',
+      ])
+    ).toMatchObject({
+      baseUrl: 'http://host.docker.internal:11434',
+      provider: { id: 'ollama', name: 'Ollama' },
+    })
+  })
+
+  it('requires a provider id with a provider name', () => {
+    expect(() => parseInstallOptions(['--provider-name', 'Ollama'])).toThrow(/provider-id/)
+  })
 })

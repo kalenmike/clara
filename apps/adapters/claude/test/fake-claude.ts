@@ -7,6 +7,7 @@ import type {
   ClaudeTurn,
   ClaudeTurnRequest,
 } from '../src/sdk.ts'
+import type { ClaudeProvider } from '../src/provider.ts'
 
 export type Script = (
   request: ClaudeTurnRequest,
@@ -19,6 +20,8 @@ export class FakeClaudeGateway implements ClaudeGateway {
   turns: ClaudeTurnRequest[] = []
   projectsDirectory?: string
   script?: Script
+  providerValue: ClaudeProvider = { id: 'anthropic', name: 'Anthropic' }
+  defaultModelValue?: string
   turn: ClaudeTurn = {
     push: () => {},
     interrupt: async () => {},
@@ -40,6 +43,14 @@ export class FakeClaudeGateway implements ClaudeGateway {
 
   installation() {
     return { binary: '/usr/local/bin/claude', source: 'path' as const }
+  }
+
+  provider(): ClaudeProvider {
+    return this.providerValue
+  }
+
+  defaultModel(): string | undefined {
+    return this.defaultModelValue
   }
 
   async listSessions() {
@@ -73,7 +84,14 @@ export class FakeClaudeGateway implements ClaudeGateway {
   }
 
   async catalog(): Promise<ClaudeCatalog> {
-    return { models: [], agents: [], commands: [], skills: [] }
+    return {
+      provider: this.providerValue,
+      ...(this.defaultModelValue ? { defaultModel: this.defaultModelValue } : {}),
+      models: [],
+      agents: [],
+      commands: [],
+      skills: [],
+    }
   }
 
   lastInit(): ClaudeCatalog | undefined {

@@ -27,6 +27,7 @@ import {
   writeConfig,
   type ClaudeConfig,
   type ClaudePermissionMode,
+  type ClaudeProviderConfig,
 } from './config.ts'
 import { CLAUDE_CAPABILITIES } from './capabilities.ts'
 import { detectClaudeInstallation, readClaudeAuth, readClaudeVersion } from './discover.ts'
@@ -46,6 +47,8 @@ const PERMISSION_MODES: ClaudePermissionMode[] = [
 export type InstallOptions = {
   pair?: string
   claudePath?: string
+  baseUrl?: string
+  provider?: ClaudeProviderConfig
   model?: string
   agent?: string
   permissionMode?: ClaudePermissionMode
@@ -83,9 +86,23 @@ export function parseInstallOptions(args: string[]): InstallOptions {
   const maxTurns = argValue(args, '--max-turns')
   const maxBudgetUsd = argValue(args, '--max-budget')
   const concurrency = argValue(args, '--concurrency')
+  const providerId = argValue(args, '--provider-id')?.trim()
+  const providerName = argValue(args, '--provider-name')?.trim()
+  if (providerName && !providerId) {
+    throw new Error('--provider-name requires --provider-id')
+  }
   return {
     ...(argValue(args, '--pair') ? { pair: argValue(args, '--pair') } : {}),
     ...(argValue(args, '--claude-path') ? { claudePath: argValue(args, '--claude-path') } : {}),
+    ...(argValue(args, '--base-url') ? { baseUrl: argValue(args, '--base-url') } : {}),
+    ...(providerId
+      ? {
+          provider: {
+            id: providerId,
+            ...(providerName ? { name: providerName } : {}),
+          },
+        }
+      : {}),
     ...(argValue(args, '--model') ? { model: argValue(args, '--model') } : {}),
     ...(argValue(args, '--agent') ? { agent: argValue(args, '--agent') } : {}),
     ...(permissionMode ? { permissionMode: permissionMode as ClaudePermissionMode } : {}),
@@ -256,6 +273,8 @@ async function resolveClaudeConfigFromOptions(options: InstallOptions): Promise<
 
   return {
     ...(resolvedPath ? { claudePath: resolvedPath } : {}),
+    ...(options.baseUrl ? { baseUrl: options.baseUrl } : {}),
+    ...(options.provider ? { provider: options.provider } : {}),
     ...(options.model ? { model: options.model } : {}),
     ...(options.agent ? { agent: options.agent } : {}),
     ...(options.permissionMode ? { permissionMode: options.permissionMode } : {}),

@@ -16,6 +16,7 @@ import type {
 import type { ClaudeConfig } from './config.ts'
 import { AdapterError } from './errors.ts'
 import type { EventBus } from './events.ts'
+import type { ClaudeProvider } from './provider.ts'
 import type {
   ClaudeGateway,
   ClaudePermissionDecision,
@@ -78,6 +79,7 @@ type ActiveTurn = {
   sessionId: string
   directory: string
   model?: string
+  provider: ClaudeProvider
   agent: string
   synthetic: boolean
   compact: boolean
@@ -162,6 +164,10 @@ export class ClaudeRuntime {
     this.config = config
   }
 
+  private modelFor(session: { model?: { id: string } }): string | undefined {
+    return session.model?.id ?? this.config.model ?? this.claude.defaultModel()
+  }
+
   async prompt(sessionId: string, input: PromptInput): Promise<ClaraSessionInboxUser> {
     const session = await this.sessions.get(sessionId)
     const directory = session.location.directory
@@ -178,10 +184,11 @@ export class ClaudeRuntime {
       },
       time: { created: Date.now() },
     }
+    const model = this.modelFor(session)
     const turnInput: TurnInput = {
       text: input.text,
       files: fileUris(input.files),
-      ...(session.model ? { model: session.model.id } : {}),
+      ...(model ? { model } : {}),
       agent: session.agent ?? this.config.agent ?? 'claude',
       synthetic: false,
       compact: false,
@@ -254,10 +261,11 @@ export class ClaudeRuntime {
       payload: {},
       time: { created: Date.now() },
     }
+    const model = this.modelFor(session)
     const turnInput: TurnInput = {
       text: '/compact',
       files: [],
-      ...(session.model ? { model: session.model.id } : {}),
+      ...(model ? { model } : {}),
       agent: session.agent ?? this.config.agent ?? 'claude',
       synthetic: false,
       compact: true,
@@ -456,6 +464,7 @@ export class ClaudeRuntime {
       sessionId,
       directory,
       ...(input.model ? { model: input.model } : {}),
+      provider: this.claude.provider(),
       agent: input.agent,
       synthetic: input.synthetic,
       compact: input.compact,
@@ -538,6 +547,7 @@ export class ClaudeRuntime {
     switch (event.type) {
       case 'init':
         active.model = event.model
+        active.provider = event.provider
         return
       case 'message-start':
         active.streamed.add(event.assistantMessageID)
@@ -677,7 +687,7 @@ export class ClaudeRuntime {
       sessionID: active.sessionId,
       assistantMessageID,
       agent: active.agent,
-      model: { id: model, providerID: 'anthropic' },
+      model: { id: model, providerID: active.provider.id },
       started: Date.now(),
     })
   }
@@ -837,6 +847,7 @@ export class ClaudeRuntime {
       outcome,
       started: true,
       ...(active.model ? { model: active.model } : {}),
+      providerID: active.provider.id,
       agent: active.agent,
       ...(outcome === 'failed' ? { error } : {}),
     })
@@ -882,6 +893,7 @@ export class ClaudeRuntime {
       outcome: 'failed',
       started: true,
       ...(active.model ? { model: active.model } : {}),
+      providerID: active.provider.id,
       agent: active.agent,
       error: message,
     })
