@@ -9,10 +9,12 @@ lerna-debug.log*
 
 node_modules
 dist
+dist-desktop
 dist-ssr
 coverage
 *.local
 **/dist
+**/dist-desktop
 **/*.tsbuildinfo
 .wrangler
 **/.wrangler

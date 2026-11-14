@@ -1,8 +1,9 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import {
   HARNESS_PAIRING_CODE_PREFIX,
   PAIRING_CODE_PREFIX,
   PROTOCOL_VERSION,
+  buildPairingUrl,
   encodeHarnessPairingCode,
   encodePairingCode,
   type HarnessPairingPayload,
@@ -56,5 +57,44 @@ describe('pairingInputError', () => {
 
   it('explains the browser code prefix for other input', () => {
     expect(pairingInputError('not-a-code')).toContain('Browser pairing codes start with clara1_')
+  })
+})
+
+describe('capturePairingLink', () => {
+  it('accepts a pairing URL from outside the address bar without rewriting it', async () => {
+    vi.resetModules()
+    const replaceState = vi.fn()
+    vi.stubGlobal('window', {
+      location: { href: 'clara://pair', pathname: '/', search: '' },
+      history: { replaceState },
+    })
+
+    const { capturePairingLink, takePairingLink } = await import('./pairing')
+    capturePairingLink(buildPairingUrl('https://clara.example/connect', browserPairing))
+
+    expect(takePairingLink()).toMatchObject({ enrollId: 'enroll', room: 'local' })
+    expect(replaceState).not.toHaveBeenCalled()
+    vi.unstubAllGlobals()
+  })
+
+  it('strips the pairing fragment from the page URL', async () => {
+    vi.resetModules()
+    const replaceState = vi.fn()
+    const link = buildPairingUrl('https://clara.example/connect', browserPairing)
+    vi.stubGlobal('window', {
+      location: {
+        href: link,
+        pathname: '/connect',
+        search: '?from=qr',
+      },
+      history: { replaceState },
+    })
+
+    const { capturePairingLink, takePairingLink } = await import('./pairing')
+    capturePairingLink()
+
+    expect(takePairingLink()).toMatchObject({ enrollId: 'enroll' })
+    expect(replaceState).toHaveBeenCalledWith(null, '', '/connect?from=qr')
+    vi.unstubAllGlobals()
   })
 })

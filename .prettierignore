@@ -3,6 +3,7 @@ coverage
 node_modules
 pnpm-lock.yaml
 **/dist
+**/dist-desktop
 **/.wrangler
 **/*.tsbuildinfo
 tools/docs/.docusaurus

@@ -1,5 +1,6 @@
 import { useSyncExternalStore } from 'react'
 import { dueForUpdateCheck, isUpdateAvailable } from '@/features/pwa/update-check'
+import { isDesktop } from '@/lib/runtime'
 
 export type UpdateStatus = 'idle' | 'available' | 'applying'
 
@@ -157,6 +158,8 @@ function installTriggers() {
 export function startServiceWorker(): void {
   if (started) return
   started = true
+  // The desktop shell has no service worker; its updater owns updates.
+  if (isDesktop) return
   if (typeof navigator === 'undefined' || !('serviceWorker' in navigator)) return
   // The dev server serves no worker, so there is nothing to register or update.
   if (!import.meta.env.PROD) return
