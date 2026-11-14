@@ -20,8 +20,8 @@ rolls into the next visible reply so token and cost totals are not lost. A thin
 usage bar along the bottom of the pane carries the whole session's input,
 output, reasoning, and cache tokens, its cost, and how long ago the session
 started; it reads server session totals, so lazy history pages cannot leave it
-short. The header names the session, shows whether it is busy or idle, and
-names the active agent. Actions
+short. The header names the session, shows whether it is busy or idle, names the
+active agent, and names the harness that owns the session. Actions
 Clara triggers on the person's behalf — requesting a plan,
 refreshing it, and starting work — and the person's answers to an agent
 question appear as compact system rows in the thread rather than as if the
@@ -44,7 +44,8 @@ one paragraph, list, or section. See [fork.md](fork.md).
 ## User flow
 
 1. Open a session from the sidebar or project page. The header shows the
-   session title, whether it is busy or idle, and the active agent. A session
+   session title, whether it is busy or idle, the active agent, and the harness
+   that owns the session. A session
    with no messages and no saved draft shows a dedicated New message view
    instead of the message list. Creating a new session opens the composer
    automatically in the

@@ -51,8 +51,8 @@ means the latest run failed. An orange dot marks a finished Plan waiting for
 
 ## The chat screen
 
-- The header shows the session title, whether the run is busy or idle, and the
-  active agent.
+- The header shows the session title, whether the run is busy or idle, the
+  active agent, and the harness that owns the session.
 - The thread renders prompts and replies as Markdown. Each message has a sender,
   a timestamp, and a fold control.
 - **Internal output** is hidden by default. Turn it on to see reasoning, tool

@@ -15,7 +15,8 @@ Each message is full width with a sender, timestamp, and fold control. Prompts
 and replies render as Markdown, and single line breaks in prompts are preserved.
 Older messages start collapsed so the newest reply is visible.
 
-The header shows the session title, busy or idle state, and the active agent.
+The header shows the session title, busy or idle state, the active agent, and the
+harness that owns the session.
 The arrows at the left edge step through messages; double-press to jump to the
 newest output or the top of the loaded history.
 
