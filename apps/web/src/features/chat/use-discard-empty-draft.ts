@@ -21,7 +21,6 @@ export type EmptyDraftStatus = {
   hasLocalDraft: boolean
   hasRequests: boolean
   busy: boolean
-  worker: boolean
 }
 
 /**
@@ -33,7 +32,7 @@ export function shouldDiscardEmptyDraft(status: EmptyDraftStatus): boolean {
   if (!session) return false
   if (session.title?.trim()) return false
   if (status.hasConversation || status.hasLocalDraft || status.hasRequests) return false
-  if (status.busy || status.worker) return false
+  if (status.busy) return false
   return !isArchivedSession(session) && !isSnoozedSession(session)
 }
 

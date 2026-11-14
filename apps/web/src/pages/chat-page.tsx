@@ -14,7 +14,6 @@ import { ChatHeader } from '@/components/chat/chat-header'
 import { DraftStartPanel } from '@/components/chat/draft-start-panel'
 import { DraftSessionView } from '@/components/chat/draft-session-view'
 import { EmptySessionView } from '@/components/chat/empty-session-view'
-import { FormPanel } from '@/components/chat/form-panel'
 import { MessageList } from '@/components/chat/message-list'
 import { PermissionPanel } from '@/components/chat/permission-panel'
 import { ReplyActions } from '@/components/chat/reply-actions'
@@ -44,7 +43,6 @@ import { useActiveSessionStatus } from '@/features/chat/use-session-status'
 import { useModelVisibility } from '@/features/models/use-model-visibility'
 import { isModelVisible } from '@/features/models/visibility'
 import { HarnessScopeProvider } from '@/features/harness/harness-scope'
-import { useSessionPolicy } from '@/features/notifications/session-policy'
 import { useInboxMonitor } from '@/features/sessions/inbox-monitor'
 import { resolveProjectWorkspaceTarget } from '@/features/projects/project-workspaces'
 import { useProject } from '@/features/projects/use-projects'
@@ -84,7 +82,6 @@ function ChatPageContent() {
   const navigate = useNavigate()
   const location = useLocation()
   const { status } = useConnection()
-  const { isAutomation } = useSessionPolicy()
   const { singular, lowerSingular, lowerPlural } = useSessionWording()
   const inboxMonitor = useInboxMonitor()
   const { setTheme, resolvedTheme } = useTheme()
@@ -105,7 +102,6 @@ function ChatPageContent() {
   const workspace = workspaceTarget.workspace
   const harnessID = session?.harnessID ?? workspace?.harnessID
   useMarkSessionViewed(session)
-  const worker = session != null && isAutomation?.(session) === true
   const snapshot = useChatSnapshot(sessionId ?? '')
   useActiveSessionStatus(sessionId ?? '')
   const messagesQuery = useSessionMessages(sessionId ?? '')
@@ -167,15 +163,14 @@ function ChatPageContent() {
     emptySession &&
     !busy &&
     session != null &&
-    !worker &&
     !isArchivedSession(session) &&
     !isSnoozedSession(session)
   const planReady = useMemo(
     () =>
-      session && !worker && !isArchivedSession(session)
+      session && !isArchivedSession(session)
         ? findPlanReadyReply(allMessages, session.agent, busy)
         : undefined,
-    [allMessages, busy, session, worker]
+    [allMessages, busy, session]
   )
   const formCount = formsQuery.data?.length ?? 0
   const pendingRequestCount = formCount + (planReady !== undefined ? 1 : 0)
@@ -186,7 +181,6 @@ function ChatPageContent() {
     hasLocalDraft,
     hasRequests: formCount > 0,
     busy,
-    worker,
   })
   const { collapsedIDs, allCollapsed, canToggleAll, toggleMessage, toggleAll } =
     useCollapsedMessages(sessionId ?? '', timelineMessages)
@@ -470,13 +464,11 @@ function ChatPageContent() {
                   onToggleAll={toggleAll}
                   showInternal={showInternal}
                   onToggleInternal={toggleInternal}
-                  worker={worker}
                 />
 
-                {draftCount > 0 && !busy && !worker && !isArchivedSession(session) && (
+                {draftCount > 0 && !busy && !isArchivedSession(session) && (
                   <DraftStartPanel key={sessionId} sessionID={sessionId} count={draftCount} />
                 )}
-                {worker && <FormPanel sessionID={sessionId} />}
                 <PermissionPanel
                   sessionID={sessionId}
                   directory={directory}
@@ -528,7 +520,7 @@ function ChatPageContent() {
                     onForkMessage={handleForkMessage}
                     onForwardMessage={handleForwardMessage}
                     canActOnMessage={canActOnMessage}
-                    canFork={!worker}
+                    canFork
                     actionsDisabled={forkPending || forwardPending}
                   />
                 )}
@@ -542,7 +534,6 @@ function ChatPageContent() {
                   empty={emptySession}
                   hasDraft={hasLocalDraft}
                   requests={pendingRequestCount}
-                  worker={worker}
                   onDone={() => {
                     if (inboxMonitor.active) {
                       inboxMonitor.advance(sessionId)

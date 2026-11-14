@@ -32,7 +32,6 @@ export type PruneEmptyDraftStatus = {
 export function shouldPruneEmptyDraft(status: PruneEmptyDraftStatus): boolean {
   const { session, signals } = status
   if (session.title?.trim()) return false
-  if (session.metadata?.automation === true) return false
   if (isArchivedSession(session) || isSnoozedSession(session)) return false
   if (status.running || status.hasLocalDraft) return false
   if (!signals || signals.last !== 'none' || signals.awaitingInput) return false

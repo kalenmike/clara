@@ -284,7 +284,7 @@ function AssistantMessage({
   const exitSelection = actions?.onSelect
 
   // Selection needs the rendered blocks, so it ends when the message folds or
-  // stops being actionable (a new run started, worker mode, session change).
+  // stops being actionable (a new run started or the session changed).
   useEffect(() => {
     if (selecting && (collapsed || actions?.disabled)) exitSelection?.()
   }, [actions?.disabled, collapsed, exitSelection, selecting])

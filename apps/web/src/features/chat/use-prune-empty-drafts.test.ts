@@ -46,7 +46,7 @@ describe('shouldPruneEmptyDraft', () => {
     expect(shouldPruneEmptyDraft(status({ session: session({ title: 'Fix login' }) }))).toBe(false)
   })
 
-  it('keeps an archived, snoozed, or worker brief', () => {
+  it('keeps an archived or snoozed brief', () => {
     expect(
       shouldPruneEmptyDraft(
         status({ session: session({ time: { created: 1, updated: 1, archived: 2 } }) })
@@ -54,9 +54,6 @@ describe('shouldPruneEmptyDraft', () => {
     ).toBe(false)
     expect(
       shouldPruneEmptyDraft(status({ session: session({ metadata: { snoozed: true } }) }))
-    ).toBe(false)
-    expect(
-      shouldPruneEmptyDraft(status({ session: session({ metadata: { automation: true } }) }))
     ).toBe(false)
   })
 

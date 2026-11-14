@@ -24,7 +24,6 @@ function status(overrides: Partial<EmptyDraftStatus> = {}): EmptyDraftStatus {
     hasLocalDraft: false,
     hasRequests: false,
     busy: false,
-    worker: false,
     ...overrides,
   }
 }
@@ -75,9 +74,8 @@ describe('shouldDiscardEmptyDraft', () => {
     expect(shouldDiscardEmptyDraft(status({ hasRequests: true }))).toBe(false)
   })
 
-  it('keeps a running, worker, archived, or snoozed brief', () => {
+  it('keeps a running, archived, or snoozed brief', () => {
     expect(shouldDiscardEmptyDraft(status({ busy: true }))).toBe(false)
-    expect(shouldDiscardEmptyDraft(status({ worker: true }))).toBe(false)
     expect(
       shouldDiscardEmptyDraft(
         status({ session: session({ time: { created: 1, updated: 1, archived: 2 } }) })

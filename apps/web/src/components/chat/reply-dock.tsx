@@ -15,7 +15,6 @@ import { useComposerTarget } from '@/features/chat/use-composer-target'
 import { useSessionForms } from '@/features/chat/use-forms'
 import { useAgents } from '@/features/catalog/use-catalog'
 import { useSwitchAgent } from '@/features/chat/use-chat'
-import { useSessionPolicy } from '@/features/notifications/session-policy'
 import { useSessionWording } from '@/features/sessions/use-wording'
 import { cn } from '@/lib/utils'
 
@@ -48,7 +47,6 @@ function ConnectedComposer({ target, harnessID }: { target: ComposerTarget; harn
     notifySent,
   } = useComposer()
   const { lowerSingular } = useSessionWording()
-  const { isAutomation } = useSessionPolicy()
   const { session, directory, busy, empty, menuMode, planReady, disabled } = useComposerTarget(
     target.sessionID
   )
@@ -61,7 +59,6 @@ function ConnectedComposer({ target, harnessID }: { target: ComposerTarget; harn
     () => (agentsQuery.data ?? []).filter((agent) => !agent.hidden && agent.mode !== 'subagent'),
     [agentsQuery.data]
   )
-  const worker = session != null && isAutomation?.(session) === true
   const title = composerSessionTitle(session?.title, lowerSingular)
   const connectionLabel = composerConnectionLabel(detached, lowerSingular)
 
@@ -109,8 +106,6 @@ function ConnectedComposer({ target, harnessID }: { target: ComposerTarget; harn
     },
     [agents, session?.agent, switchAgent]
   )
-
-  if (worker) return null
 
   return (
     <section

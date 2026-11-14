@@ -54,7 +54,6 @@ import {
   workspaceHarnessLabels,
 } from '@/features/projects/project-workspaces'
 import { findProject, useProjects } from '@/features/projects/use-projects'
-import { useSessionPolicy } from '@/features/notifications/session-policy'
 import { resolveDeleteFocusTarget } from '@/features/sessions/delete-focus'
 import { isArchivedSession } from '@/features/sessions/session-archive'
 import { groupSessionsByMailbox } from '@/features/sessions/session-sections'
@@ -151,7 +150,6 @@ export function SidebarContent({
   const { lowerSingular, lowerPlural } = useSessionWording()
   const { harness, reconnect, reconnecting } = useConnection()
   const label = useHarnessLabel('Harness')
-  const { isAutomation } = useSessionPolicy()
   const { state } = useEventStream()
   const projectsQuery = useProjects()
   const projects = useMemo(() => projectsQuery.data ?? [], [projectsQuery.data])
@@ -258,11 +256,8 @@ export function SidebarContent({
   const activeQuery = useActiveSessions()
   const mailboxSessions = useMemo(
     () =>
-      allSessions.filter(
-        (session) =>
-          !isArchivedSession(session) && !isSnoozedSession(session) && !isAutomation?.(session)
-      ),
-    [allSessions, isAutomation]
+      allSessions.filter((session) => !isArchivedSession(session) && !isSnoozedSession(session)),
+    [allSessions]
   )
   const { signals: mailboxSignals, pending: mailboxesPending } =
     useSessionMailboxSignals(mailboxSessions)
@@ -331,7 +326,7 @@ export function SidebarContent({
   const selectionRef = useRef(selection)
   selectionRef.current = selection
 
-  const latest = sessions.find((session) => !isAutomation?.(session))
+  const latest = sessions[0]
   const { startSession: newSession, pending: createPending } = useStartSession({
     projectID: selectedProject?.id,
     workspace: sessionWorkspace,

@@ -7,7 +7,6 @@ import { useAgents } from '@/features/catalog/use-catalog'
 import type { PromptFile } from '@/features/chat/use-chat'
 import { useModelVisibility } from '@/features/models/use-model-visibility'
 import { resolveInheritedModel } from '@/features/models/visibility'
-import { useSessionPolicy } from '@/features/notifications/session-policy'
 import { isWorkspaceStartable } from '@/features/projects/project-workspaces'
 import { latestSessionInWorkspace } from '@/features/sessions/session-workspace'
 import {
@@ -38,7 +37,6 @@ export function useStartSession({
   const { settings, lastAgent } = useDefaultAgent()
   const agentsQuery = useAgents(workspace?.harnessID)
   const { visibility } = useModelVisibility()
-  const { isAutomation } = useSessionPolicy()
   const sessionsQuery = useSessions(projectID ?? null, '', Boolean(projectID && workspace))
 
   const resolvedAgent = resolveDefaultAgent({
@@ -55,12 +53,10 @@ export function useStartSession({
    */
   const modelForWorkspace = useCallback(
     (target: ClaraProjectWorkspace) => {
-      const latest = latestSessionInWorkspace(sessionsQuery.data?.data ?? [], target, {
-        exclude: (session) => isAutomation?.(session) === true,
-      })
+      const latest = latestSessionInWorkspace(sessionsQuery.data?.data ?? [], target)
       return resolveInheritedModel(latest?.model, visibility)
     },
-    [isAutomation, sessionsQuery.data?.data, visibility]
+    [sessionsQuery.data?.data, visibility]
   )
 
   const startSession = useCallback(
