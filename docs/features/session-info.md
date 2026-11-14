@@ -82,6 +82,10 @@ of the session's token and cost totals also sits in the chat's bottom usage bar
    from the latest request's context size, so tiered pricing does not treat the
    whole session as one huge request. Per-message footers use each step's own
    tier.
+9. A session's cost, tokens, and context come from the harness that owns it;
+   Clara reads the session and its context by session ID and never asks another
+   harness. Model limits and prices come from the session's own harness catalog,
+   so a session on a non-default harness still shows its limits and estimate.
 
 ## Edge cases
 
@@ -100,6 +104,9 @@ of the session's token and cost totals also sits in the chat's bottom usage bar
   compacted (for example 1.2M).
 - **Session without an agent or model** — badges fall back to `build` and
   `default`.
+- **Session on a harness that is not the default** — counts and cost still load
+  from that session's own harness; the model limit and the estimate can be
+  missing, so the panel shows the reported cost instead.
 - **Narrow or small desktop viewport** — the panel becomes a sheet, or its maximum
   width shrinks so the chat keeps at least 360px beside the sidebar.
 - **Switching sessions with the panel open** — it re-reads the new session and
@@ -170,8 +177,10 @@ of the session's token and cost totals also sits in the chat's bottom usage bar
   `src/hooks/use-panel-width.ts`; width stored in `clara.sidePanelWidth`
   (240–640px, default 320px)
 - Session: `client.session.get({ sessionID })`
-- Context entries: `client.session.context({ sessionID })`
-- Models and limits: `client.model.list()`
+- Context entries: `client.session.context({ sessionID })`; both are
+  session-scoped, so the hub routes them to the harness that owns the session
+- Models and limits: `client.model.list({ harnessID })` reads the session's
+  catalog; settings without a session keeps the default harness
 - Live usage: `session.usage.updated`, `session.step.ended`
 - Cost display: `src/features/cost/cost-display.ts` and
   `src/features/cost/use-cost-display.ts`; stored in `clara.costDisplay`

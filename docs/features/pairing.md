@@ -47,7 +47,7 @@ at the panel's **Clients → Pair a browser** action or `clara-server pair`.
 5. The hub stores the device key encrypted at rest, consumes the token, and
    returns the device id and fingerprint. Clara stores the non-extractable key
    in IndexedDB, reconnects with the device id, and probes the hub API. Harness
-   information loads separately through the active adapter.
+   information loads separately through the default harness.
 6. On success Clara opens the last project. The Settings → Server card shows the
    relay state and device identity. On failure Clara returns to the pair form and
    shows the reason.
