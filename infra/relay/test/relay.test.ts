@@ -1,35 +1,60 @@
-import { SELF } from 'cloudflare:test'
+import { env, runInDurableObject, SELF } from 'cloudflare:test'
 import { isRouteFrame, PROTOCOL_VERSION, type RouteFrame } from '@clara/shared-types'
 import { describe, expect, it } from 'vitest'
+import type { Env } from '../src/env.ts'
+import {
+  CLIENT_FRAME_BURST,
+  MAX_CLIENT_SOCKETS_PER_IP,
+  MAX_CLIENT_SOCKETS_PER_ROOM,
+} from '../src/room.ts'
+import type { RelayRoom } from '../src/room.ts'
 
 const AGENT_TOKEN = 'agent-test-token'
 const CLIENT_TOKEN = 'client-test-token'
 const MAX_CLIENT_FRAME_BYTES = 128 * 1024
+const CLIENT_LIMIT_CODE = 4008
 
 type Role = 'agent' | 'client'
+
+type Connection = {
+  socket: WebSocket
+  response: Response
+  /** Resolves with the close code even if the server closes immediately. */
+  closed: Promise<number>
+}
 
 async function connectWithResponse(
   room: string,
   role: Role,
-  token = roleToken(role)
-): Promise<{ socket: WebSocket; response: Response }> {
+  token = roleToken(role),
+  headers: Record<string, string> = {}
+): Promise<Connection> {
   const response = await SELF.fetch(`https://relay.test/room/${room}`, {
     headers: {
       Upgrade: 'websocket',
       'Sec-WebSocket-Protocol': ['clara.v1', `clara.role.${role}`, `clara.auth.${token}`].join(
         ', '
       ),
+      ...headers,
     },
   })
   expect(response.status).toBe(101)
   const socket = response.webSocket
   if (!socket) throw new Error('No WebSocket upgrade')
+  const closed = new Promise<number>((resolve) => {
+    socket.addEventListener('close', (event) => resolve(event.code), { once: true })
+  })
   socket.accept()
-  return { socket, response }
+  return { socket, response, closed }
 }
 
-async function connect(room: string, role: Role, token = roleToken(role)): Promise<WebSocket> {
-  const { socket } = await connectWithResponse(room, role, token)
+async function connect(
+  room: string,
+  role: Role,
+  token = roleToken(role),
+  headers: Record<string, string> = {}
+): Promise<WebSocket> {
+  const { socket } = await connectWithResponse(room, role, token, headers)
   return socket
 }
 
@@ -69,6 +94,43 @@ function nextClose(socket: WebSocket): Promise<number> {
       { once: true }
     )
   })
+}
+
+/** Keep a socket drained while a test sends a burst; returns the frames seen. */
+function collectMessages(socket: WebSocket): string[] {
+  const messages: string[] = []
+  socket.addEventListener('message', (event) => {
+    messages.push(String(event.data))
+  })
+  return messages
+}
+
+function routedPeer(messages: string[], text: string): string | undefined {
+  for (const message of messages) {
+    const parsed: unknown = JSON.parse(message)
+    if (isRouteFrame(parsed) && parsed.m === text) return parsed.p
+  }
+  return undefined
+}
+
+async function waitFor<T>(
+  read: () => T | undefined | Promise<T | undefined>,
+  timeout = 2_000
+): Promise<T> {
+  const started = Date.now()
+  while (Date.now() - started < timeout) {
+    const value = await read()
+    if (value !== undefined) return value
+    await new Promise((resolve) => setTimeout(resolve, 5))
+  }
+  throw new Error('Timed out waiting for a message')
+}
+
+/** Read the room's in-memory limit state inside its Durable Object. */
+async function peerStateCount(room: string): Promise<number> {
+  const bindings = env as unknown as Env
+  const stub = bindings.RELAY_ROOMS.get(bindings.RELAY_ROOMS.idFromName(room))
+  return runInDurableObject(stub, (instance) => (instance as unknown as RelayRoom).peerStateCount)
 }
 
 describe('relay worker', () => {
@@ -209,5 +271,106 @@ describe('relay worker', () => {
     const closed = nextClose(client)
     agent.close(1000, 'going away')
     await expect(closed).resolves.toBe(1012)
+  })
+
+  it('rejects the 33rd client socket in a room', async () => {
+    const room = 'room-cap'
+    const agent = await connect(room, 'agent')
+    const clients: WebSocket[] = []
+    for (let index = 0; index < MAX_CLIENT_SOCKETS_PER_ROOM; index += 1) {
+      clients.push(await connect(room, 'client'))
+    }
+
+    const extra = await connectWithResponse(room, 'client')
+    await expect(extra.closed).resolves.toBe(CLIENT_LIMIT_CODE)
+
+    // The room keeps working for the clients that were already admitted.
+    const messages = collectMessages(agent)
+    const first = clients[0]
+    if (!first) throw new Error('No admitted client')
+    first.send('still-here')
+    await waitFor(() => (routedPeer(messages, 'still-here') ? true : undefined))
+
+    for (const client of clients) client.close(1000, 'done')
+    agent.close(1000, 'done')
+  })
+
+  it('caps concurrent clients from one cf-connecting-ip address', async () => {
+    const room = 'ip-cap'
+    const agent = await connect(room, 'agent')
+    const headers = { 'cf-connecting-ip': '203.0.113.10' }
+    const clients: WebSocket[] = []
+    for (let index = 0; index < MAX_CLIENT_SOCKETS_PER_IP; index += 1) {
+      clients.push(await connect(room, 'client', CLIENT_TOKEN, headers))
+    }
+
+    const extra = await connectWithResponse(room, 'client', CLIENT_TOKEN, headers)
+    await expect(extra.closed).resolves.toBe(CLIENT_LIMIT_CODE)
+
+    // A second network still joins: the cap is per address, not per room.
+    const other = await connectWithResponse(room, 'client', CLIENT_TOKEN, {
+      'cf-connecting-ip': '198.51.100.4',
+    })
+    const messages = collectMessages(agent)
+    other.socket.send('other-ip')
+    await waitFor(() => (routedPeer(messages, 'other-ip') ? true : undefined))
+
+    for (const client of clients) client.close(1000, 'done')
+    other.socket.close(1000, 'done')
+    agent.close(1000, 'done')
+  })
+
+  it('skips the per-IP cap when the request has no client address', async () => {
+    const room = 'ip-unknown'
+    const agent = await connect(room, 'agent')
+    const messages = collectMessages(agent)
+    const clients: WebSocket[] = []
+    for (let index = 0; index < MAX_CLIENT_SOCKETS_PER_IP + 2; index += 1) {
+      clients.push(await connect(room, 'client'))
+    }
+
+    const last = clients[clients.length - 1]
+    if (!last) throw new Error('No client')
+    last.send('no-ip')
+    await waitFor(() => (routedPeer(messages, 'no-ip') ? true : undefined))
+
+    for (const client of clients) client.close(1000, 'done')
+    agent.close(1000, 'done')
+  })
+
+  it('closes a peer above the frame rate and keeps other peers connected', async () => {
+    const room = 'frame-rate'
+    const agent = await connect(room, 'agent')
+    const messages = collectMessages(agent)
+    const flooder = await connectWithResponse(room, 'client')
+    const healthy = await connectWithResponse(room, 'client')
+
+    for (let index = 0; index < CLIENT_FRAME_BURST * 3; index += 1) {
+      flooder.socket.send('flood')
+    }
+    healthy.socket.send('healthy')
+
+    await expect(flooder.closed).resolves.toBe(CLIENT_LIMIT_CODE)
+    await waitFor(() => (routedPeer(messages, 'healthy') ? true : undefined))
+    // The offender's buckets are deleted on close; only the healthy peer's
+    // state remains, so peer churn cannot grow the map.
+    await waitFor(async () => ((await peerStateCount(room)) === 1 ? true : undefined))
+
+    healthy.socket.close(1000, 'done')
+    agent.close(1000, 'done')
+  })
+
+  it('closes a peer above the byte rate', async () => {
+    const room = 'byte-rate'
+    const agent = await connect(room, 'agent')
+    // Drain the hub socket so the burst does not back up its send buffer.
+    collectMessages(agent)
+    const client = await connectWithResponse(room, 'client')
+
+    const payload = 'x'.repeat(64 * 1024)
+    for (let index = 0; index < 24; index += 1) client.socket.send(payload)
+
+    await expect(client.closed).resolves.toBe(CLIENT_LIMIT_CODE)
+    agent.close(1000, 'done')
   })
 })
