@@ -12,8 +12,15 @@ import {
   utf8,
   type SessionKeys,
 } from '@clara/crypto'
-import { PROTOCOL_VERSION, type ClaraAction, type ClaraState } from '@clara/shared-types'
+import {
+  PROTOCOL_VERSION,
+  type ClaraAction,
+  type ClaraState,
+  type DeviceErrorCode,
+} from '@clara/shared-types'
 import { createRelayTransport, MAX_IN_FLIGHT_REQUESTS, type RelayTransport } from './relay.ts'
+
+type Greet = (socket: WebSocket, sid: string) => boolean
 
 let server: Server
 let wss: WebSocketServer
@@ -154,6 +161,91 @@ describe('relay fetch transport', () => {
   })
 })
 
+describe('relay transport device errors', () => {
+  it('reconnects after a transient device error for its own session', async () => {
+    let attempts = 0
+    const relay = await startRelay((socket, sid) => {
+      attempts += 1
+      if (attempts === 1) {
+        sendErrorFrame(socket, sid, 'invalid_device', 'This device is not allowed yet')
+        return false
+      }
+      return true
+    })
+
+    try {
+      await relay.transport.connect().catch(() => {})
+      await waitFor(() => relay.transport.status().state === 'open', 10_000)
+      expect(attempts).toBe(2)
+
+      const response = await relay.transport.fetch('http://clara.relay/api/info', {
+        signal: AbortSignal.timeout(3_000),
+      })
+      expect(response.status).toBe(200)
+    } finally {
+      await relay.close()
+    }
+  }, 15_000)
+
+  it('stops after three consecutive credential-dead errors', async () => {
+    let attempts = 0
+    const relay = await startRelay((socket, sid) => {
+      attempts += 1
+      sendErrorFrame(socket, sid, 'revoked_device', 'This device was revoked')
+      return false
+    })
+
+    try {
+      await relay.transport.connect().catch(() => {})
+      await waitFor(() => relay.transport.status().state === 'closed', 15_000)
+      expect(attempts).toBe(3)
+      expect(relay.transport.status().error).toMatch(/revoked/i)
+      expect(relay.transport.status().error).toMatch(/re-pair/i)
+
+      // A parked transport must not keep dialing the hub.
+      await new Promise((resolve) => setTimeout(resolve, 1_500))
+      expect(attempts).toBe(3)
+      await expect(
+        relay.transport.fetch('http://clara.relay/api/info', {
+          signal: AbortSignal.timeout(3_000),
+        })
+      ).rejects.toThrow(/re-pair/i)
+    } finally {
+      await relay.close()
+    }
+  }, 20_000)
+
+  it('reconnects when connect is called after a terminal error', async () => {
+    let attempts = 0
+    let revoked = true
+    const relay = await startRelay((socket, sid) => {
+      attempts += 1
+      if (revoked) {
+        sendErrorFrame(socket, sid, 'revoked_device', 'This device was revoked')
+        return false
+      }
+      return true
+    })
+
+    try {
+      await relay.transport.connect().catch(() => {})
+      await waitFor(() => relay.transport.status().state === 'closed', 15_000)
+
+      revoked = false
+      await relay.transport.connect()
+      expect(relay.transport.status().state).toBe('open')
+      expect(attempts).toBe(4)
+
+      const response = await relay.transport.fetch('http://clara.relay/api/info', {
+        signal: AbortSignal.timeout(3_000),
+      })
+      expect(response.status).toBe(200)
+    } finally {
+      await relay.close()
+    }
+  }, 20_000)
+})
+
 async function waitFor(check: () => boolean, timeoutMs = 2_000): Promise<void> {
   const started = Date.now()
   while (!check()) {
@@ -162,7 +254,63 @@ async function waitFor(check: () => boolean, timeoutMs = 2_000): Promise<void> {
   }
 }
 
-function attachFakeAgent(socket: WebSocket, key: string): void {
+/**
+ * A relay that always completes the handshake unless `greet` says otherwise.
+ * `greet` runs on every hello, which lets a test fail the first attempts and
+ * then let the transport recover.
+ */
+async function startRelay(greet?: Greet): Promise<{
+  transport: RelayTransport
+  close: () => Promise<void>
+}> {
+  const httpServer = createServer()
+  const wsServer = new WebSocketServer({
+    server: httpServer,
+    handleProtocols: (protocols) => protocols.values().next().value ?? false,
+  })
+  wsServer.on('connection', (socket) => attachFakeAgent(socket, deviceKey, greet))
+  await new Promise<void>((resolve) => httpServer.listen(0, '127.0.0.1', resolve))
+  const address = httpServer.address()
+  if (!address || typeof address === 'string') throw new Error('No test server address')
+
+  const created = createRelayTransport({
+    wsUrl: `ws://127.0.0.1:${address.port}/ws`,
+    clientToken: 'test-client',
+    credential: {
+      kind: 'device',
+      deviceId: 'device-test',
+      key: await importSessionKey(deviceKey),
+    },
+  })
+
+  return {
+    transport: created,
+    close: async () => {
+      created.close()
+      await new Promise<void>((resolve) => wsServer.close(() => resolve()))
+      await new Promise<void>((resolve) => httpServer.close(() => resolve()))
+    },
+  }
+}
+
+function sendErrorFrame(
+  socket: WebSocket,
+  sid: string,
+  code: DeviceErrorCode,
+  message: string
+): void {
+  socket.send(
+    JSON.stringify({
+      t: 'error',
+      v: PROTOCOL_VERSION,
+      sid,
+      code,
+      message,
+    })
+  )
+}
+
+function attachFakeAgent(socket: WebSocket, key: string, greet?: Greet): void {
   let keys: SessionKeys | null = null
   let sid = ''
   let sendSeq = 0
@@ -199,6 +347,7 @@ function attachFakeAgent(socket: WebSocket, key: string): void {
     const frame = JSON.parse(text) as Record<string, unknown>
     if (frame.t === 'hello') {
       sid = String(frame.sid)
+      if (greet && !greet(socket, sid)) return
       const agentNonce = bytesToBase64Url(randomBytes(16))
       keys = await deriveSessionKeys({
         key,

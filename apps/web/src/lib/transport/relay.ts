@@ -23,6 +23,7 @@ import {
   type AgentInfo,
   type ClaraAction,
   type ClaraState,
+  type DeviceErrorCode,
   type HelloFrame,
   type SyncCheckAction,
   type SyncErrorCode,
@@ -39,6 +40,42 @@ const HEARTBEAT_MS = 15_000
 const STALL_MS = 45_000
 const MAX_RECONNECT_MS = 15_000
 const SYNC_TIMEOUT_MS = 30_000
+
+/**
+ * The hub broadcasts error frames without authentication, so one frame must not
+ * be able to park a browser tab offline for good. A credential-dead code has to
+ * be seen this many times in a row before the transport stops retrying, which
+ * also lets a hub restart or a transient race heal itself.
+ */
+const CREDENTIAL_DEAD_LIMIT = 3
+const MAX_CLOSE_REASON_BYTES = 120
+
+/** Codes that mean the stored credential cannot ever work again. */
+const CREDENTIAL_DEAD_CODES = [
+  'revoked_device',
+  'unknown_device',
+  'enrollment_expired',
+  'enrollment_used',
+  'enrollment_invalid',
+  'device_limit',
+] as const satisfies readonly DeviceErrorCode[]
+
+type CredentialDeadCode = (typeof CREDENTIAL_DEAD_CODES)[number]
+
+const CREDENTIAL_DEAD_MESSAGES: Record<CredentialDeadCode, string> = {
+  revoked_device:
+    'The hub revoked this device. Re-pair this browser, or ask the hub host to re-enable the device.',
+  unknown_device:
+    'The hub does not recognize this device. Re-pair this browser from the hub panel.',
+  enrollment_expired:
+    'This pairing code has expired. Generate a new pairing code on the hub and pair again.',
+  enrollment_used:
+    'This pairing code was already used. Generate a new pairing code on the hub and pair again.',
+  enrollment_invalid:
+    'The hub rejected this pairing code. Generate a new pairing code on the hub and pair again.',
+  device_limit:
+    'The hub reached its device limit. Remove a device on the hub, then pair this browser again.',
+}
 
 /**
  * The hub accepts a bounded number of requests per session. Keep the web
@@ -91,6 +128,11 @@ export type SyncResponse =
 export type RelayTransport = {
   fetch: typeof globalThis.fetch
   close: () => void
+  /**
+   * Open a session on demand, clearing a terminal credential error. The UI's
+   * retry affordance uses this so recovery never needs a page reload.
+   */
+  connect: () => Promise<void>
   subscribe: (listener: (status: RelayTransportStatus) => void) => () => void
   subscribePush: (listener: (state: PushStatusState) => void) => () => void
   addChannel: (channel: RelayChannel) => () => void
@@ -168,7 +210,10 @@ class RelayFetchTransport implements RelayTransport {
   private handshakeResolve: (() => void) | null = null
   private handshakeReject: ((cause: unknown) => void) | null = null
   private enrollment: PendingEnrollment | null = null
-  private fatal: string | null = null
+  /** Set only once a credential-dead code repeats past the limit. */
+  private terminal: string | null = null
+  private deadCode: CredentialDeadCode | null = null
+  private deadCount = 0
   private handshakeTimer: number | null = null
   private reconnectTimer: number | null = null
   private heartbeatTimer: number | null = null
@@ -197,6 +242,17 @@ class RelayFetchTransport implements RelayTransport {
     this.socket?.close(1000, 'client closed')
     this.socket = null
     this.setState('closed', null)
+  }
+
+  async connect(): Promise<void> {
+    if (this.closed) throw new Error('Relay transport closed')
+    this.clearTerminalError()
+    this.retry = 0
+    if (this.reconnectTimer !== null) {
+      window.clearTimeout(this.reconnectTimer)
+      this.reconnectTimer = null
+    }
+    await this.ensureReady()
   }
 
   subscribe(listener: (status: RelayTransportStatus) => void): () => void {
@@ -369,7 +425,7 @@ class RelayFetchTransport implements RelayTransport {
 
   private async ensureReady(): Promise<void> {
     if (this.closed) throw new Error('Relay transport closed')
-    if (this.fatal) throw new Error(this.fatal)
+    if (this.terminal) throw new Error(this.terminal)
     if (this.config.credential.kind === 'enroll' && Date.now() > this.config.credential.expiresAt) {
       throw new Error('This pairing code has expired')
     }
@@ -470,8 +526,8 @@ class RelayFetchTransport implements RelayTransport {
       this.failEnrollment(new Error(reason))
 
       if (this.closed) return
-      if (this.fatal) {
-        this.setState('closed', this.fatal)
+      if (this.terminal) {
+        this.setState('closed', this.terminal)
         return
       }
       this.setState('reconnecting', reason)
@@ -502,11 +558,7 @@ class RelayFetchTransport implements RelayTransport {
 
     if (isErrorFrame(parsed)) {
       if (parsed.sid !== this.sid) return
-      const cause = new Error(parsed.message)
-      this.fatal = parsed.message
-      this.failEnrollment(cause)
-      this.rejectHandshake(cause)
-      this.socket?.close(4001, parsed.code)
+      this.handleErrorFrame(parsed.code, parsed.message)
       return
     }
 
@@ -576,6 +628,8 @@ class RelayFetchTransport implements RelayTransport {
     if (payload.type === 'ready') {
       this.statusValue = { ...this.statusValue, agent: payload.agent }
       this.retry = 0
+      this.deadCode = null
+      this.deadCount = 0
       this.setState('open', null)
       if (this.handshakeTimer !== null) window.clearTimeout(this.handshakeTimer)
       this.handshakeTimer = null
@@ -598,6 +652,40 @@ class RelayFetchTransport implements RelayTransport {
     }
 
     if (isState(payload)) this.handleState(payload)
+  }
+
+  /**
+   * The hub broadcasts error frames to every socket, so this only runs for a
+   * frame addressed to the current session. Transient codes always reconnect.
+   * A credential-dead code stops only when it repeats because a hub restart or
+   * a stale broadcast must not strand the tab.
+   */
+  private handleErrorFrame(code: DeviceErrorCode, message: string): void {
+    const cause = new Error(message)
+    this.failEnrollment(cause)
+
+    if (isCredentialDeadCode(code)) {
+      this.deadCount = code === this.deadCode ? this.deadCount + 1 : 1
+      this.deadCode = code
+      if (this.deadCount >= CREDENTIAL_DEAD_LIMIT) {
+        this.terminal = CREDENTIAL_DEAD_MESSAGES[code]
+        this.rejectHandshake(new Error(this.terminal))
+        this.setState('closed', this.terminal)
+        this.socket?.close(4001, code)
+        return
+      }
+    } else {
+      this.clearTerminalError()
+    }
+
+    this.rejectHandshake(cause)
+    this.socket?.close(4001, closeReason(message))
+  }
+
+  private clearTerminalError(): void {
+    this.terminal = null
+    this.deadCode = null
+    this.deadCount = 0
   }
 
   private handleState(state: Exclude<ClaraState, { type: 'push.status' }>): void {
@@ -952,6 +1040,20 @@ function randomId(): string {
 
 function abortError(): DOMException {
   return new DOMException('The request was aborted', 'AbortError')
+}
+
+function isCredentialDeadCode(code: DeviceErrorCode): code is CredentialDeadCode {
+  return (CREDENTIAL_DEAD_CODES as readonly DeviceErrorCode[]).includes(code)
+}
+
+/**
+ * A WebSocket close reason is capped at 123 UTF-8 bytes and an overlong reason
+ * throws, so carry the hub's message only while it fits.
+ */
+function closeReason(message: string): string {
+  const bytes = utf8(message)
+  if (bytes.byteLength <= MAX_CLOSE_REASON_BYTES) return message
+  return new TextDecoder().decode(bytes.slice(0, MAX_CLOSE_REASON_BYTES))
 }
 
 /**
