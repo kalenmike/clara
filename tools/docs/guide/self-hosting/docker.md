@@ -118,8 +118,9 @@ pnpm clara restore ~/clara-backup.tar.gz
 ```
 
 To bind the volumes to host paths, set `CLARA_SERVER_CONFIG_DIR`,
-`CLARA_SERVER_DATA_DIR`, or `CLARA_ORCHESTRATOR_DATA_DIR`. See
-[Configuration](configuration.md).
+`CLARA_SERVER_DATA_DIR`, or `CLARA_ORCHESTRATOR_DATA_DIR`. The hub container
+runs as UID/GID 1000, so the host directories for its config and data must be
+writable by that ID. See [Configuration](configuration.md).
 
 ## Update
 

@@ -148,6 +148,25 @@ container still keeps restarting:
   `CLARA_ORCHESTRATOR_DATA_DIR` must be absolute host paths when set.
 - Stopping the stack does not need any of those values exported in your shell.
 
+## The hub container stops with EACCES
+
+`[clara] fatal: EACCES: permission denied, mkdir '/data/runtime.json.lock'` means
+the config or data directory is not writable by the container user, which is
+UID/GID 1000. A volume created by an older image, or a bind-mounted host
+directory, can have a different owner. Stop the stack and fix ownership once;
+the data is kept:
+
+```bash
+pnpm clara stop
+docker run --rm \
+  -v clara-server-config:/config \
+  -v clara-server-data:/data \
+  node:22-bookworm-slim \
+  chown -R 1000:1000 /config /data
+```
+
+For bind mounts, change the owner of the host directories instead.
+
 ## Still stuck
 
 Ask the host for the hub panel status and the service logs. The panel shows
