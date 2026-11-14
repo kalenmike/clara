@@ -30,6 +30,7 @@ import { startPanelServer, type PanelServer } from './panel/server.ts'
 import { readSetupToken, readSetupTokenFromEnv } from './panel/setup-token.ts'
 import { printPairing } from './pairing.ts'
 import { PushService } from './push/service.ts'
+import { SessionMonitor } from './sessions/monitor.ts'
 import { clearPushSubscriptions, PushSubscriptionStore } from './push/store.ts'
 import { loadVapidDetails } from './push/vapid.ts'
 import { RuntimeController } from './runtime/controller.ts'
@@ -338,9 +339,15 @@ async function runServe(
   if (!setupRequired) await startHub()
 
   if (panelEnabled) {
+    const sessionMonitor = new SessionMonitor({
+      harness,
+      canAccess: () => controller.canProxy(),
+      log,
+    })
     const runtime = new PanelRuntime({
       config,
       harness,
+      sessions: sessionMonitor,
       localAgent: controller.agent,
       relayAgent: () => controller.relay,
       relayClient: () => controller.relayTransport,

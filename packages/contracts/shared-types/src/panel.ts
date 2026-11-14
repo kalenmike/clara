@@ -534,6 +534,58 @@ export type PanelTraffic = {
   spike: PanelTrafficSpike[]
 }
 
+/** One agent session observed on a paired harness. */
+export type PanelSessionState = 'running' | 'awaiting-input' | 'idle'
+
+export type PanelSession = {
+  id: string
+  harnessID: string
+  harnessLabel: string
+  harnessKind: string
+  title?: string
+  agent?: string
+  model?: string
+  directory: string
+  projectID?: string
+  parentID?: string
+  state: PanelSessionState
+  archived: boolean
+  snoozed: boolean
+  createdAt: string
+  updatedAt: string
+}
+
+/** One paired harness and whether its session lookup succeeded. */
+export type PanelSessionHarness = {
+  harnessID: string
+  label: string
+  kind: string
+  online: boolean
+  active: boolean
+  ok: boolean
+  code?: string
+  message?: string
+  sessionCount: number
+  runningCount: number
+}
+
+export type PanelSessionsQuery = {
+  harnessID?: string
+  runningOnly?: boolean
+  includeArchived?: boolean
+  search?: string
+  /** Maximum rows requested from each harness. */
+  limit?: number
+}
+
+export type PanelSessionsResponse = {
+  generatedAt: string
+  sessions: PanelSession[]
+  harnesses: PanelSessionHarness[]
+  /** At least one harness returned more sessions than the per-harness cap. */
+  truncated: boolean
+}
+
 export type PanelSnapshot = {
   harnessPairings: PanelHarnessPairing[]
   apiVersion: number

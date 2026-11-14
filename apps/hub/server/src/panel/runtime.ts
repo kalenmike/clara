@@ -16,6 +16,9 @@ import {
   type PanelHarnessState,
   type PanelOpenCodeInfo,
   type PanelRelayTransport,
+  type PanelSessionHarness,
+  type PanelSessionsQuery,
+  type PanelSessionsResponse,
   type PanelSnapshot,
   type PanelStorageEntry,
   type PanelTraffic,
@@ -34,6 +37,7 @@ import { emptyTraffic, type TrafficMeter } from '../traffic.ts'
 import { SERVER_VERSION } from '../version.ts'
 import type { PanelLog } from './log.ts'
 import type { PanelFeature } from './feature.ts'
+import type { SessionMonitor } from '../sessions/monitor.ts'
 
 const PROBE_TTL_MS = 5_000
 const MAX_ERROR_LENGTH = 240
@@ -59,6 +63,7 @@ export type PanelRuntimeOptions = {
   startedAt: number
   controls?: () => PanelControls
   probeEnabled?: () => boolean
+  sessions?: SessionMonitor
   secretKey?: { path?: string; source: string }
   database?: PanelDatabaseSource
   feature?: PanelFeature
@@ -67,6 +72,7 @@ export type PanelRuntimeOptions = {
 
 export type PanelDataSource = {
   snapshot: (auth: PanelAuthInfo) => Promise<PanelSnapshot>
+  sessions?: (query: PanelSessionsQuery) => Promise<PanelSessionsResponse>
 }
 
 /**
@@ -152,6 +158,20 @@ export class PanelRuntime implements PanelDataSource {
     }
     await this.options.feature?.decorateSnapshot?.(snapshot)
     return snapshot
+  }
+
+  async sessions(query: PanelSessionsQuery): Promise<PanelSessionsResponse> {
+    if (!this.options.sessions) throw new Error('Session monitoring is unavailable')
+    this.harnessSecrets = await this.options.harness.redactionValues()
+    const result = await this.options.sessions.load(query)
+    return {
+      ...result,
+      harnesses: result.harnesses.map((harness) => this.redactSessionStatus(harness)),
+    }
+  }
+
+  private redactSessionStatus(harness: PanelSessionHarness): PanelSessionHarness {
+    return harness.message ? { ...harness, message: this.redact(harness.message) } : harness
   }
 
   private openCodeSnapshot(
