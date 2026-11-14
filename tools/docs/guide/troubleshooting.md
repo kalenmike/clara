@@ -50,8 +50,7 @@ problem and offers **Retry**.
 - If it says **Paired · Offline**, start the adapter service on the harness
   machine.
 - If the hub returns `harness_unconfigured`, no adapter is paired.
-- If the page says **Off**, the Harness switch in the panel header is turned
-  off.
+- If the page says **Off**, harness access is disabled in the hub's settings.
 - A containerized adapter connects to the hub on the `clara` network, not to
   `127.0.0.1`.
 

@@ -30,10 +30,12 @@ at the panel's **Clients → Pair a browser** action or `clara-server pair`.
 2. Sign in to the hub panel and open **Clients → Pair a browser**, or run
    `clara-server pair` on the machine that runs the hub service. Both paths
    produce a QR code, a web link, a `clara1_…` code, and an enrollment
-   fingerprint. The panel offers **Local connection only** when a relay is
-   configured; the command takes `--no-relay` for the same result. Local codes
-   use the panel Web URL (default `http://127.0.0.1:8080/#pair=…`); relay codes
-   use the same Web URL. The panel's code can be cancelled before it is used.
+   fingerprint. The panel offers a **Relay | Local** choice when a relay is
+   configured; the command takes `--no-relay` for the same local result. The
+   ready card shows only the QR until **Show codes** is opened, where the link,
+   code, and fingerprint live. Local codes use the panel Web URL (default
+   `http://127.0.0.1:8080/#pair=…`); relay codes use the same Web URL. The
+   panel's code can be cancelled before it is used.
 3. Open Clara on the device. **Pair this device** offers **Scan QR code** and a
    paste field. Tapping Scan opens the rear camera and connects as soon as a
    Clara QR is recognized; a `clara1_…` code or `#pair=` link can still be
@@ -142,8 +144,8 @@ at the panel's **Clients → Pair a browser** action or `clara-server pair`.
   works on the same machine, and an HTTPS page reports that the code is
   local-only. The panel and `clara-server pair` warn when the pairing link is
   remote while the hub has no relay. Configure the relay for phones.
-- **Local code with a relay configured** — the panel's **Local connection only**
-  option, or `clara-server pair --no-relay`, emits room `local`, the listener
+- **Local code with a relay configured** — the panel's **Local** choice, or
+  `clara-server pair --no-relay`, emits room `local`, the listener
   URL, and the local web app link without needing relay tokens; the web keeps
   that endpoint, so the code still works on this machine only.
 - **Deployment switch changed** — a relay pairing is re-resolved against

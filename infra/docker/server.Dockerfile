@@ -7,6 +7,12 @@
 #
 # The config and data directories are mounted at runtime. The panel listens on
 # 0.0.0.0 inside the container and is published on the host loopback only.
+#
+# The `.git` directory is excluded from the Docker context, so the CLI passes
+# CLARA_COMMIT and CLARA_DIRTY from the host checkout for the panel version.
+#
+#   docker build -f infra/docker/server.Dockerfile \
+#     --build-arg CLARA_COMMIT=$(git rev-parse --short=8 HEAD) -t clara-server .
 
 FROM node:22-bookworm-slim AS build
 
@@ -45,6 +51,10 @@ COPY packages/contracts/shared-types packages/contracts/shared-types
 COPY packages/orchestration/control packages/orchestration/control
 COPY packages/contracts/api-contract packages/contracts/api-contract
 COPY packages/contracts/harness-protocol packages/contracts/harness-protocol
+ARG CLARA_COMMIT=
+ARG CLARA_DIRTY=0
+ENV CLARA_COMMIT=$CLARA_COMMIT
+ENV CLARA_DIRTY=$CLARA_DIRTY
 RUN pnpm --filter @clara/hub-server build
 RUN pnpm --filter @clara/hub-server deploy /out --prod --legacy
 

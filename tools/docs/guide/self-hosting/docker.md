@@ -60,7 +60,7 @@ link on the device. You can also run:
 pnpm clara pair
 ```
 
-Use **Local connection only** in the panel, or `pnpm clara pair --no-relay`, for
+Use **Local** in the panel, or `pnpm clara pair --no-relay`, for
 a same-machine code. For a phone or another network, configure the relay first;
 see [Remote access](relay.md).
 

@@ -1,24 +1,33 @@
-import { useState } from 'react'
-import { Cable, Copy, Plus } from 'lucide-react'
-import type { PanelHarnessPairing, PanelHarnessPairingMutationResponse } from '@clara/shared-types'
+import { useEffect, useState } from 'react'
+import { Cable, Plus } from 'lucide-react'
+import type {
+  PanelHarness,
+  PanelHarnessPairing,
+  PanelHarnessPairingMutationResponse,
+} from '@clara/shared-types'
 import { formatRelative } from '../lib/format.ts'
+import { isPairingRegistered } from '../lib/harness-pairing.ts'
 import { deletePanel, postPanel } from '../lib/panel-api.ts'
 import { usePeek } from '../lib/peek-context.tsx'
-import { CardBody, CollapsibleCard, Notice } from './primitives.tsx'
+import { CardBody, CollapsibleCard, CopyButton, Notice } from './primitives.tsx'
 
 const KINDS = [
   { kind: 'opencode', label: 'OpenCode' },
   { kind: 'claude', label: 'Claude Code' },
 ]
 
+type HarnessSetupMode = 'local' | 'docker' | 'relay'
+
 export function HarnessAddCard({
   enabled,
   relayConfigured,
+  harnesses,
   onChanged,
   now,
 }: {
   enabled: boolean
   relayConfigured: boolean
+  harnesses: PanelHarness[]
   onChanged: () => void
   now: number
 }) {
@@ -27,7 +36,11 @@ export function HarnessAddCard({
   const [pending, setPending] = useState<'pair' | 'cancel'>()
   const [error, setError] = useState<string>()
   const [kind, setKind] = useState(KINDS[0].kind)
-  const [transport, setTransport] = useState<'local' | 'docker' | 'relay'>('docker')
+  const [transport, setTransport] = useState<HarnessSetupMode>('docker')
+
+  useEffect(() => {
+    if (pairing && isPairingRegistered(pairing, harnesses)) setPairing(undefined)
+  }, [pairing, harnesses])
 
   const add = async () => {
     setPending('pair')
@@ -64,14 +77,6 @@ export function HarnessAddCard({
     }
   }
 
-  const copy = async (value: string) => {
-    try {
-      await navigator.clipboard.writeText(value)
-    } catch {
-      setError('Could not copy to the clipboard')
-    }
-  }
-
   const command = pairing
     ? `pnpm clara adapter install --${pairing.kind} --pair ${pairing.code}`
     : ''
@@ -86,8 +91,8 @@ export function HarnessAddCard({
       <CardBody>
         {!enabled ? (
           <Notice tone="warning">
-            The Harness switch is off. Adapters keep their credentials, but the hub does not proxy
-            to them until the switch is on again.
+            Harness access is off. Adapters keep their credentials, but the hub does not proxy to
+            them until harness access is on again.
           </Notice>
         ) : null}
         {error ? <Notice tone="danger">{redact(error)}</Notice> : null}
@@ -100,7 +105,7 @@ export function HarnessAddCard({
                 type="button"
                 onClick={() => void cancelPairing()}
                 disabled={pending !== undefined}
-                className="text-[11px] text-neutral-500 hover:text-neutral-900 disabled:opacity-50 dark:hover:text-neutral-100"
+                className="cursor-pointer text-[11px] text-neutral-500 hover:text-neutral-900 disabled:cursor-not-allowed disabled:opacity-50 dark:hover:text-neutral-100"
               >
                 Cancel
               </button>
@@ -113,20 +118,16 @@ export function HarnessAddCard({
               {pairing.code}
             </div>
             <div className="flex flex-wrap gap-2">
-              <button
-                type="button"
-                onClick={() => void copy(pairing.code)}
-                className="inline-flex items-center gap-1 rounded-md border border-neutral-200 px-2 py-1 text-[11px] font-medium dark:border-neutral-700"
-              >
-                <Copy className="size-3" aria-hidden="true" /> Copy code
-              </button>
-              <button
-                type="button"
-                onClick={() => void copy(command)}
-                className="inline-flex items-center gap-1 rounded-md border border-neutral-200 px-2 py-1 text-[11px] font-medium dark:border-neutral-700"
-              >
-                <Copy className="size-3" aria-hidden="true" /> Copy command
-              </button>
+              <CopyButton
+                value={pairing.code}
+                label="Copy code"
+                onError={(message) => setError(message)}
+              />
+              <CopyButton
+                value={command}
+                label="Copy command"
+                onError={(message) => setError(message)}
+              />
             </div>
             <pre className="overflow-x-auto rounded-md bg-neutral-950 p-2 text-[11px] text-neutral-100">
               {command}
@@ -136,13 +137,13 @@ export function HarnessAddCard({
             </p>
           </div>
         ) : (
-          <div className="flex flex-wrap items-end gap-2 rounded-lg border border-neutral-200 p-3 dark:border-neutral-800">
-            <label className="text-[11px] font-medium text-neutral-600 dark:text-neutral-300">
-              Harness type
+          <div className="grid gap-3 rounded-lg border border-neutral-200 p-3 sm:grid-cols-2 dark:border-neutral-800">
+            <label className="grid content-start gap-1 text-[11px] font-medium text-neutral-600 dark:text-neutral-300">
+              Harness
               <select
                 value={kind}
                 onChange={(event) => setKind(event.target.value)}
-                className="mt-1 block rounded-md border border-neutral-200 bg-white px-2 py-1.5 text-xs dark:border-neutral-700 dark:bg-neutral-950"
+                className="w-full rounded-md border border-neutral-200 bg-white px-2 py-1.5 text-xs dark:border-neutral-700 dark:bg-neutral-950"
               >
                 {KINDS.map((item) => (
                   <option key={item.kind} value={item.kind}>
@@ -151,14 +152,12 @@ export function HarnessAddCard({
                 ))}
               </select>
             </label>
-            <label className="text-[11px] font-medium text-neutral-600 dark:text-neutral-300">
+            <label className="grid content-start gap-1 text-[11px] font-medium text-neutral-600 dark:text-neutral-300">
               Adapter location
               <select
                 value={transport}
-                onChange={(event) =>
-                  setTransport(event.target.value as 'local' | 'docker' | 'relay')
-                }
-                className="mt-1 block rounded-md border border-neutral-200 bg-white px-2 py-1.5 text-xs dark:border-neutral-700 dark:bg-neutral-950"
+                onChange={(event) => setTransport(event.target.value as HarnessSetupMode)}
+                className="w-full rounded-md border border-neutral-200 bg-white px-2 py-1.5 text-xs dark:border-neutral-700 dark:bg-neutral-950"
               >
                 <option value="docker">Docker network (default)</option>
                 <option value="local">This machine (loopback)</option>
@@ -166,7 +165,7 @@ export function HarnessAddCard({
                   Cloudflare relay
                 </option>
               </select>
-              <span className="mt-1 block text-[10px] font-normal text-neutral-500 dark:text-neutral-400">
+              <span className="text-[10px] font-normal text-neutral-500 dark:text-neutral-400">
                 {transport === 'docker'
                   ? 'Adapter runs in a container on the clara network (ws://server:8788/ws).'
                   : transport === 'local'
@@ -174,15 +173,17 @@ export function HarnessAddCard({
                     : 'Adapter connects through the configured Cloudflare relay.'}
               </span>
             </label>
-            <button
-              type="button"
-              onClick={() => void add()}
-              disabled={pending !== undefined}
-              className="inline-flex items-center gap-1.5 rounded-md bg-neutral-950 px-2.5 py-1.5 text-xs font-semibold text-white transition hover:bg-neutral-800 disabled:opacity-50 dark:bg-white dark:text-neutral-950"
-            >
-              <Cable className="size-3.5" aria-hidden="true" />
-              {pending === 'pair' ? 'Preparing…' : 'Add harness'}
-            </button>
+            <div className="sm:col-span-2">
+              <button
+                type="button"
+                onClick={() => void add()}
+                disabled={pending !== undefined}
+                className="inline-flex cursor-pointer items-center gap-1.5 rounded-md bg-neutral-950 px-2.5 py-1.5 text-xs font-semibold text-white transition hover:bg-neutral-800 active:translate-y-px disabled:cursor-not-allowed disabled:opacity-50 dark:bg-white dark:text-neutral-950"
+              >
+                <Cable className="size-3.5" aria-hidden="true" />
+                {pending === 'pair' ? 'Preparing…' : 'Add harness'}
+              </button>
+            </div>
           </div>
         )}
       </CardBody>

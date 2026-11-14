@@ -1,5 +1,5 @@
 import { PANEL_API_VERSION, type PanelSnapshot } from '@clara/shared-types'
-import { formatRelative, formatTimestamp } from '../../lib/format.ts'
+import { panelBuildTitle, panelDisplayVersion } from '../../lib/build-info.ts'
 import { buildHealth, type HealthTone } from '../../lib/health.ts'
 import { usePeek } from '../../lib/peek-context.tsx'
 import type { PanelTab } from '../../lib/tabs.ts'
@@ -13,14 +13,13 @@ const TONE_CLASS: Record<HealthTone, string> = {
 
 export function StatusBar({
   data,
-  now,
   onSelect,
 }: {
   data?: PanelSnapshot
-  now: number
   onSelect: (tab: PanelTab) => void
 }) {
   const { redact } = usePeek()
+  const versionLabel = `v${panelDisplayVersion} · API v${data?.apiVersion ?? PANEL_API_VERSION}`
 
   if (!data) {
     return (
@@ -32,7 +31,9 @@ export function StatusBar({
           </span>
         </div>
         <div className="panel-status-group panel-status-meta">
-          <span className="panel-status-text">API v{PANEL_API_VERSION}</span>
+          <span className="panel-status-text" title={panelBuildTitle}>
+            {versionLabel}
+          </span>
         </div>
       </footer>
     )
@@ -101,11 +102,8 @@ export function StatusBar({
         />
       </div>
       <div className="panel-status-group panel-status-meta">
-        <span className="panel-status-text" title={formatTimestamp(data.generatedAt)}>
-          generated {formatRelative(data.generatedAt, now)}
-        </span>
-        <span className="panel-status-text">
-          {data.auth.username} · API v{data.apiVersion}
+        <span className="panel-status-text" title={panelBuildTitle}>
+          {versionLabel}
         </span>
       </div>
     </footer>

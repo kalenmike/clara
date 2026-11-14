@@ -14,8 +14,10 @@ for client settings sync.
    **Recent activity** cards start expanded; every other card starts collapsed.
    Click a card header to expand or collapse it.
 3. Each transport card carries its own switch at the top right: local
-   transport, relay, and push notifications. The Harness switch and status chip
-   sit in the Harness page header.
+   transport, relay, and push notifications. The Harness page header shows only
+   the harness status chip; harness access is still governed by the legacy
+   `features.opencode` gate, which the panel no longer exposes as a header
+   switch now that multiple harnesses are supported.
 4. Toggle one feature. The panel posts the change, waits for the hub service to
    apply it, then refreshes the snapshot. A disabled feature hides its details
    and its header cannot be expanded; enabling it makes the header expandable.
@@ -52,9 +54,9 @@ for client settings sync.
 4. **Failures are reported, not fatal.** If a port is busy, the relay is
    unavailable, or push keys are invalid, the desired value is still saved and
    the panel reports an error with `effective: false`. The process keeps running.
-5. **Dependencies are visible.** Turning the harness connection off stops the push event
-   monitor but leaves the local and relay transports connected. Push actions are
-   gated separately.
+5. **Dependencies are visible.** Turning harness access off through the legacy
+   `features.opencode` gate stops the push event monitor but leaves the local and
+   relay transports connected. Push actions are gated separately.
 6. **Cards are accordions.** Hub, effective configuration, connected clients,
    and recent activity start expanded; every other card starts collapsed. Each
    opens from its header. A disabled feature hides its details and cannot be

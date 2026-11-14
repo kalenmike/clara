@@ -114,7 +114,7 @@ function Panel({ state, session }: { state: SnapshotState; session: SessionContr
         )}
       </main>
 
-      <StatusBar data={data} now={clock} onSelect={setTab} />
+      <StatusBar data={data} onSelect={setTab} />
     </div>
   )
 }

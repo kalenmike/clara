@@ -20,6 +20,8 @@ services:
       context: ../..
       dockerfile: infra/docker/server.Dockerfile
       args:
+        CLARA_COMMIT: ${CLARA_COMMIT:-}
+        CLARA_DIRTY: ${CLARA_DIRTY:-0}
         ENABLE_CLOUDFLARE_DEPLOYMENT: ${ENABLE_CLOUDFLARE_DEPLOYMENT:-false}
     restart: unless-stopped
     init: true

@@ -2,7 +2,9 @@ import { spawnSync } from 'node:child_process'
 import { existsSync } from 'node:fs'
 import { join } from 'node:path'
 import { root, run } from './router.mjs'
-import { positiveInt, probe } from './server-control.mjs'
+import { buildInfoEnv, positiveInt, probe } from './server-control.mjs'
+
+export { buildInfoEnv }
 
 export function composeFile(repoRoot = root) {
   return join(repoRoot, 'infra', 'docker', 'web.compose.yml')
@@ -17,24 +19,6 @@ export function compose(args, repoRoot = root) {
     cwd: repoRoot,
     env: buildInfoEnv(repoRoot),
   })
-}
-
-/**
- * Build metadata for the web image. The Docker context excludes `.git`, so the
- * image cannot resolve the checkout itself; pass the host values instead.
- */
-export function buildInfoEnv(repoRoot = root) {
-  const commit = gitValue(['rev-parse', '--short=8', 'HEAD'], repoRoot)
-  if (!commit) return {}
-  return {
-    CLARA_COMMIT: commit,
-    CLARA_DIRTY: gitValue(['status', '--porcelain'], repoRoot) ? '1' : '0',
-  }
-}
-
-function gitValue(args, cwd) {
-  const result = spawnSync('git', args, { cwd, encoding: 'utf8' })
-  return result.status === 0 ? result.stdout.trim() : ''
 }
 
 /** Load infra/docker/.env so `clara web ... --docker` matches the documented setup. */

@@ -203,8 +203,22 @@ export function SourceTag({ source }: { source: string }) {
   )
 }
 
-export function CopyButton({ value, label = 'Copy' }: { value: string; label?: string }) {
+export function CopyButton({
+  value,
+  label = 'Copy',
+  onError,
+}: {
+  value: string
+  label?: string
+  onError?: (message: string) => void
+}) {
   const [state, setState] = useState<'idle' | 'copied' | 'error'>('idle')
+
+  useEffect(() => {
+    if (state === 'idle') return
+    const timer = window.setTimeout(() => setState('idle'), 2_000)
+    return () => window.clearTimeout(timer)
+  }, [state])
 
   const copy = async () => {
     try {
@@ -212,6 +226,7 @@ export function CopyButton({ value, label = 'Copy' }: { value: string; label?: s
       setState('copied')
     } catch {
       setState('error')
+      onError?.('Could not copy to the clipboard')
     }
   }
 
@@ -219,7 +234,7 @@ export function CopyButton({ value, label = 'Copy' }: { value: string; label?: s
     <button
       type="button"
       onClick={() => void copy()}
-      className="inline-flex items-center gap-1 rounded-md border border-neutral-200 px-1.5 py-1 text-[11px] text-neutral-600 transition hover:bg-neutral-100 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-neutral-400 dark:border-neutral-700 dark:text-neutral-300 dark:hover:bg-neutral-800"
+      className="inline-flex cursor-pointer items-center gap-1 rounded-md border border-neutral-200 px-1.5 py-1 text-[11px] text-neutral-600 transition hover:border-neutral-300 hover:bg-neutral-100 active:translate-y-px focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-neutral-400 dark:border-neutral-700 dark:text-neutral-300 dark:hover:border-neutral-600 dark:hover:bg-neutral-800"
       aria-label={label}
     >
       {state === 'copied' ? (
