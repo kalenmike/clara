@@ -72,7 +72,8 @@ export function InboxMonitorProvider({ children }: { children: ReactNode }) {
 
   const { inbox, outboxCount, top, pending, isError } = useInboxSessions(
     project?.id ?? null,
-    workspace?.canonical ?? workspace?.directory ?? null
+    workspace?.canonical ?? workspace?.directory ?? null,
+    workspace?.harnessID
   )
   const [active, setActiveState] = useState(readInboxMonitor)
   /** A one-shot jump requested while the Inbox was still loading. */

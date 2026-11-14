@@ -16,11 +16,14 @@ const AGE_REFRESH_MS = 60_000
 export function SessionStatsBar({
   session,
   snapshot,
+  harnessID,
 }: {
   session: ClaraSession
   snapshot: ChatSnapshot
+  /** Falls back to the session's own harness when omitted. */
+  harnessID?: string
 }) {
-  const cost = useSessionCost(session, snapshot)
+  const cost = useSessionCost(session, snapshot, harnessID)
   const [now, setNow] = useState(() => Date.now())
 
   useEffect(() => {

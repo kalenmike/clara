@@ -74,6 +74,7 @@ export function Composer({
   session,
   sessionID,
   directory,
+  harnessID,
   busy,
   disabled,
   active,
@@ -92,6 +93,8 @@ export function Composer({
   session: ClaraSession | undefined
   sessionID: string
   directory: string | undefined
+  /** The harness that owns the session's catalog and file lookups. */
+  harnessID?: string
   busy: boolean
   disabled?: boolean
   active: boolean
@@ -125,10 +128,10 @@ export function Composer({
   const textRef = useRef(text)
   const sendRef = useRef(false)
 
-  const commandsQuery = useCommands()
-  const agentsQuery = useAgents()
-  const skillsQuery = useSkills(directory)
-  const referencesQuery = useReferences(directory)
+  const commandsQuery = useCommands(harnessID)
+  const agentsQuery = useAgents(harnessID)
+  const skillsQuery = useSkills(directory, harnessID)
+  const referencesQuery = useReferences(directory, harnessID)
   const { isModelHidden } = useModelVisibility()
   const isTouchDevice = useIsTouchDevice()
   const sendPrompt = useSendPrompt(sessionID)
@@ -204,10 +207,11 @@ export function Composer({
   const deferredMention = useDeferredValue(mentionQuery)
 
   const fileQuery = useQuery({
-    queryKey: ['file-find', directory, deferredMention],
+    queryKey: ['file-find', directory, harnessID ?? 'active', deferredMention],
     queryFn: () =>
       client!.file.find({
         location: { directory },
+        ...(harnessID ? { harnessID } : {}),
         query: deferredMention,
         type: 'file',
         limit: 8,
@@ -702,8 +706,13 @@ export function Composer({
     <div className="flex min-h-0 flex-1 flex-col">
       <div className="flex shrink-0 items-center gap-2 border-b px-3 py-2">
         <span className="text-xs text-muted-foreground">To</span>
-        <ModelPicker session={session} open={modelOpen} onOpenChange={setModelOpen} />
-        <VariantPicker session={session} />
+        <ModelPicker
+          session={session}
+          harnessID={harnessID}
+          open={modelOpen}
+          onOpenChange={setModelOpen}
+        />
+        <VariantPicker session={session} harnessID={harnessID} />
         {storedModelHidden && (
           <span className="min-w-0 truncate text-[10px] text-amber-600 dark:text-amber-500">
             Pick a visible model
@@ -856,7 +865,12 @@ export function Composer({
         </Button>
 
         <div className="ml-auto flex items-center gap-1 max-md:gap-0.5">
-          <AgentPicker session={session} open={agentOpen} onOpenChange={setAgentOpen} />
+          <AgentPicker
+            session={session}
+            harnessID={harnessID}
+            open={agentOpen}
+            onOpenChange={setAgentOpen}
+          />
 
           {secondaryAction && (
             <Tooltip>

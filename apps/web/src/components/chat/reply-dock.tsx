@@ -19,13 +19,13 @@ import { useSessionPolicy } from '@/features/notifications/session-policy'
 import { useSessionWording } from '@/features/sessions/use-wording'
 import { cn } from '@/lib/utils'
 
-export function ReplyDock() {
+export function ReplyDock({ harnessID }: { harnessID?: string }) {
   const { target } = useComposer()
   if (!target) return null
-  return <ConnectedComposer target={target} />
+  return <ConnectedComposer target={target} harnessID={harnessID} />
 }
 
-function ConnectedComposer({ target }: { target: ComposerTarget }) {
+function ConnectedComposer({ target, harnessID }: { target: ComposerTarget; harnessID?: string }) {
   const navigate = useNavigate()
   const {
     mode,
@@ -54,7 +54,8 @@ function ConnectedComposer({ target }: { target: ComposerTarget }) {
   )
   const formsQuery = useSessionForms(target.sessionID)
   const requestCount = composerRequestCount(formsQuery.data ?? [], planReady)
-  const agentsQuery = useAgents()
+  const targetHarnessID = harnessID ?? session?.harnessID
+  const agentsQuery = useAgents(targetHarnessID)
   const switchAgent = useSwitchAgent(target.sessionID)
   const agents = useMemo(
     () => (agentsQuery.data ?? []).filter((agent) => !agent.hidden && agent.mode !== 'subagent'),
@@ -230,6 +231,7 @@ function ConnectedComposer({ target }: { target: ComposerTarget }) {
           session={session}
           sessionID={target.sessionID}
           directory={directory}
+          harnessID={targetHarnessID}
           busy={busy}
           disabled={disabled}
           active={mode !== 'closed'}

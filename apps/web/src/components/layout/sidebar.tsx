@@ -268,7 +268,8 @@ export function SidebarContent({
     useSessionMailboxSignals(mailboxSessions)
 
   const permissionsQuery = usePendingPermissions(
-    sessionWorkspace?.canonical ?? sessionWorkspace?.directory
+    sessionWorkspace?.canonical ?? sessionWorkspace?.directory,
+    sessionWorkspace?.harnessID
   )
   const awaitingInput = useMemo(
     () => new Set((permissionsQuery.data ?? []).map((request) => request.sessionID)),

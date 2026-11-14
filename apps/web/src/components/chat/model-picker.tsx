@@ -32,14 +32,17 @@ import { isModelVisible } from '@/features/models/visibility'
 
 export function ModelPicker({
   session,
+  harnessID,
   open,
   onOpenChange,
 }: {
   session: ClaraSession | undefined
+  /** The session's harness, so the picker lists that harness's models. */
+  harnessID?: string
   open: boolean
   onOpenChange: (open: boolean) => void
 }) {
-  const modelsQuery = useModels()
+  const modelsQuery = useModels(harnessID)
   const switchModel = useSwitchModel(session?.id ?? '')
   const { visibility, isModelHidden } = useModelVisibility()
   const models = useMemo(
@@ -125,8 +128,14 @@ export function ModelPicker({
   )
 }
 
-export function VariantPicker({ session }: { session: ClaraSession | undefined }) {
-  const modelsQuery = useModels()
+export function VariantPicker({
+  session,
+  harnessID,
+}: {
+  session: ClaraSession | undefined
+  harnessID?: string
+}) {
+  const modelsQuery = useModels(harnessID)
   const { visibility } = useModelVisibility()
   const switchModel = useSwitchModel(session?.id ?? '')
   const currentModel = (modelsQuery.data ?? [])

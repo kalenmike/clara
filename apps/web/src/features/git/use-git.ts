@@ -5,6 +5,7 @@ import {
   type ClaraWorktree,
 } from '@clara/api-contract'
 import { ClaraApiError } from '@clara/api-client'
+import { harnessLocation, useHarnessScope } from '@/features/harness/harness-scope'
 import { queryKeys } from '@/lib/query-keys'
 import { useConnection } from '@/providers/connection-provider'
 
@@ -44,22 +45,26 @@ export type CommitWindow = {
   until?: number
 }
 
-export function useGitInfo(directory: string | undefined) {
+export function useGitInfo(directory: string | undefined, harnessID?: string) {
   const { client } = useConnection()
+  const scope = useHarnessScope()
+  const target = harnessID ?? scope
   return useQuery({
-    queryKey: queryKeys.vcsInfo(directory),
-    queryFn: () => client!.vcs.get({ location: { directory } }),
+    queryKey: queryKeys.vcsInfo(directory, target),
+    queryFn: () => client!.vcs.get(harnessLocation(directory, target)),
     enabled: Boolean(client && directory),
     select: (result) => result.data,
     staleTime: 15_000,
   })
 }
 
-export function useGitBase(directory: string | undefined) {
+export function useGitBase(directory: string | undefined, harnessID?: string) {
   const { client } = useConnection()
+  const scope = useHarnessScope()
+  const target = harnessID ?? scope
   return useQuery({
-    queryKey: queryKeys.vcsBase(directory),
-    queryFn: () => client!.vcs.base({ location: { directory } }),
+    queryKey: queryKeys.vcsBase(directory, target),
+    queryFn: () => client!.vcs.base(harnessLocation(directory, target)),
     enabled: Boolean(client && directory),
     select: (result) => result.data,
     staleTime: 15_000,
@@ -69,19 +74,22 @@ export function useGitBase(directory: string | undefined) {
 export function useGitChanges(
   directory: string | undefined,
   range: GitRange,
-  base: string | undefined
+  base: string | undefined,
+  harnessID?: string
 ) {
   const { client } = useConnection()
+  const scope = useHarnessScope()
+  const target = harnessID ?? scope
   return useQuery({
-    queryKey: queryKeys.vcsChanges(directory, range, base),
+    queryKey: queryKeys.vcsChanges(directory, range, base, target),
     queryFn: async (): Promise<ClaraVcsFileStatus[]> => {
       if (range === 'working') {
-        const result = await client!.vcs.status({ location: { directory } })
+        const result = await client!.vcs.status(harnessLocation(directory, target))
         return result.data
       }
 
       const result = await client!.vcs.diff({
-        location: { directory },
+        ...harnessLocation(directory, target),
         mode: range === 'commits' ? 'committed' : 'branch',
         base,
         context: 0,
@@ -106,17 +114,25 @@ export function useGitChanges(
 export function useGitCommits(
   directory: string | undefined,
   commitWindow: CommitWindow | undefined,
-  enabled: boolean
+  enabled: boolean,
+  harnessID?: string
 ) {
   const { client } = useConnection()
+  const scope = useHarnessScope()
+  const target = harnessID ?? scope
   return useQuery({
-    queryKey: queryKeys.gitCommits(directory, commitWindow?.since, commitWindow?.until),
+    queryKey: queryKeys.gitCommits(directory, commitWindow?.since, commitWindow?.until, target),
     queryFn: ({ signal }) => {
       if (!client) throw new Error('No Clara client')
       if (!directory) throw new Error('No directory')
       if (!commitWindow) throw new Error('No commit window')
       return client.git.log(
-        { directory, since: commitWindow.since, until: commitWindow.until },
+        {
+          directory,
+          since: commitWindow.since,
+          until: commitWindow.until,
+          ...(target ? { harnessID: target } : {}),
+        },
         { signal }
       )
     },
@@ -132,11 +148,14 @@ export function useGitWorktrees(
   projectID: string | undefined,
   currentDirectory: string | undefined,
   canonical: string | undefined,
-  enabled: boolean
+  enabled: boolean,
+  harnessID?: string
 ) {
   const { client } = useConnection()
+  const scope = useHarnessScope()
+  const target = harnessID ?? scope
   return useQuery({
-    queryKey: queryKeys.gitWorktrees(projectID, currentDirectory),
+    queryKey: queryKeys.gitWorktrees(projectID, currentDirectory, target),
     queryFn: () => {
       if (!client) throw new Error('No harness client')
       if (!projectID) throw new Error('No project')
