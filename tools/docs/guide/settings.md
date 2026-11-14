@@ -59,6 +59,10 @@ Models, Notifications, Project, and Inbox monitor. Each device stores its own
 choices. Enabling a category can pull the hub's value and fill missing keys from
 this device.
 
+A separate **Single setting** section shares **Orchestrator mode** on its own. It
+is not part of any category: enabling it shares only the choice to use the
+orchestrator surface, never another preference.
+
 The Sync tab is hidden when the hub disables settings sync.
 
 ## Shortcuts

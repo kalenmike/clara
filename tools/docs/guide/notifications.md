@@ -60,8 +60,9 @@ the screen, or closing the tab releases the phone.
 
 When orchestration is reachable, a failed, stalled, or budget-killed run, or a
 finished result, is delivered into the Clara session that started it. The
-session moves to Needs Input or Ready for Review. Worker sessions do not raise
-their own alerts; the origin conversation is the actionable one.
+session moves to Needs Input or Ready for Review. A client that uses the
+orchestrator surface holds worker-session alerts; other clients receive them
+normally.
 
 ## In-app toasts
 
