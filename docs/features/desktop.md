@@ -5,7 +5,9 @@
 Clara can run as a native desktop app as well as a web PWA. The desktop app is
 the same web client in a Tauri window, so projects, sessions, chat, approvals,
 and settings behave the same. It is a second build target, not a replacement:
-the web deploy keeps its service worker and continues to ship unchanged.
+the web deploy keeps its service worker and continues to ship unchanged. The
+app is built on its host, or for Linux in a container that extracts the bundles
+into the checkout.
 
 ## User flow
 
@@ -41,7 +43,10 @@ the web deploy keeps its service worker and continues to ship unchanged.
 ## Edge cases
 
 - A build host without Rust or the platform WebView development packages cannot
-  produce an installer. The web build and deploy are unaffected.
+  produce an installer on the host. The web build and deploy are unaffected.
+- The Docker builder targets Debian 12 and produces Linux bundles only. macOS
+  and Windows installers need their own hosts. AppImage bundling can still fail
+  inside linuxdeploy; narrowing to `--bundles deb,rpm` avoids it.
 - Installers are unsigned, so the operating system may warn on first launch.
 - The desktop app has no service worker, so the PWA install prompt, update
   banner, and cache-recovery action do not appear. Settings reports updates as
@@ -81,6 +86,13 @@ the web deploy keeps its service worker and continues to ship unchanged.
 - `pnpm desktop:dev` runs the Vite dev server in desktop mode and the Tauri
   window; `pnpm desktop:build` bundles installers for the host platform;
   `pnpm desktop:build:app` produces the binary without installers.
+- `pnpm desktop:build:docker` builds Linux bundles in Debian 12 with Rust, Node,
+  and the WebKitGTK prerequisites, then extracts them to `dist/desktop` with the
+  BuildKit local exporter. Cargo, Tauri tool, and target directories live in
+  cache mounts. The script passes the version stamp because `.git` is outside
+  the context, and sets `NO_STRIP`/`APPIMAGE_EXTRACT_AND_RUN` for linuxdeploy.
+  `--bundles`, `--platform`, `--output`, `--base`, and `--no-cache` are
+  available; the container cannot produce macOS or Windows installers.
 - Vite's `desktop` mode disables `vite-plugin-pwa`, sets
   `build.outDir = dist-desktop`, and defines `CLARA_DESKTOP`. The web build is
   the default and keeps the PWA worker and manifest.

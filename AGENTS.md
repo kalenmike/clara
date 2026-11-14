@@ -103,6 +103,7 @@ pnpm deploy:relay   # Worker deploy
 pnpm desktop:dev    # Desktop window with the Vite desktop mode
 pnpm desktop:build  # Native installer for the host OS (needs Rust + WebView dev packages)
 pnpm desktop:build:app # App bundle without installers
+pnpm desktop:build:docker # Linux bundles in Docker, extracted to dist/desktop
 pnpm desktop:icons  # Regenerate the desktop icons from the web mark
 ```
 
