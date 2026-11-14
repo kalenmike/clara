@@ -17,6 +17,25 @@ There is no hosted download yet. Build the app on the operating system where
 you will run it. The build needs Bun, the Rust toolchain, and that platform's
 WebView development packages.
 
+### Linux with Docker
+
+Docker builds the Linux bundles and copies them to the `dist/hub` folder. This
+is the easiest path when the machine lacks Bun, Rust, or the WebView development
+packages.
+
+```bash
+pnpm hub:build:docker                      # deb, rpm, and AppImage
+pnpm hub:build:docker --bundles deb,rpm    # narrower bundle set
+pnpm hub:build:docker --platform linux/amd64
+```
+
+The first build downloads the Bun, Node, and Rust toolchains and takes a while;
+later builds reuse the Docker cache. The container is based on Debian 12, so the
+bundles target Debian 12 and newer distributions. Docker cannot produce macOS or
+Windows installers.
+
+### On the host
+
 ```bash
 pnpm install
 pnpm hub:build
