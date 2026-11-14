@@ -71,7 +71,7 @@ pub fn run() {
                 child: Mutex::new(None),
                 runtime: Mutex::new(read_runtime_state()),
                 quitting: AtomicBool::new(false),
-                config_dir,
+                config_dir: config_dir.clone(),
             });
 
             build_tray(app.handle())?;
@@ -96,8 +96,8 @@ pub fn run() {
 fn build_tray(app: &AppHandle) -> tauri::Result<()> {
     let open = MenuItem::with_id(app, "open", "Open panel", true, None::<&str>)?;
     let token = MenuItem::with_id(app, "token", "Copy setup token", true, None::<&str>)?;
-    let quit = MenuItem::with_id(app, "quit", "Quit", true, None::<&str>)?;
-    let menu = Menu::with_items(app, &[&open, &token, &quit])?;
+    let quit_item = MenuItem::with_id(app, "quit", "Quit", true, None::<&str>)?;
+    let menu = Menu::with_items(app, &[&open, &token, &quit_item])?;
 
     let mut tray = TrayIconBuilder::new()
         .menu(&menu)
@@ -142,6 +142,7 @@ fn start_sidecar(
     let log_path = log_dir.join("hub.log");
     let log_line = log_path.clone();
     let log_error = log_path.clone();
+    let app_handle = app.clone();
     tauri::async_runtime::spawn(async move {
         while let Some(event) = rx.recv().await {
             match event {
@@ -155,9 +156,10 @@ fn start_sidecar(
                         &log_error,
                         format!("hub sidecar exited ({:?})\n", payload.code).as_bytes(),
                     );
-                    let state = app.state::<AppState>();
+                    let state = app_handle.state::<AppState>();
                     if !state.quitting.load(Ordering::SeqCst) {
-                        app.dialog()
+                        app_handle
+                            .dialog()
                             .message(
                                 "The Clara hub service stopped unexpectedly. Check the hub log in the app log directory.",
                             )
