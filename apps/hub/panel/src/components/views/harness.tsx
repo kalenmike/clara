@@ -55,6 +55,7 @@ export function HarnessView({
           harnesses={snapshot.harnesses}
           onChanged={onChanged}
           now={now}
+          initialTransport={snapshot.agent.container ? 'docker' : 'local'}
         />
         <HarnessSessionsCard clients={adapterClients} harnesses={snapshot.harnesses} now={now} />
         <HarnessConnectionsCard

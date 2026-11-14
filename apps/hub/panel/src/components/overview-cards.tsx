@@ -495,7 +495,7 @@ function ConfigRow({
   )
 }
 
-function ConfigEditorRow({
+export function ConfigEditorRow({
   id,
   label,
   field,

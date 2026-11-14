@@ -192,7 +192,9 @@ ConnectionProvider
   service, and never returns device keys, adapter credentials, tokens, push
   endpoints, sync values, or file contents. First run is a blocker: only the
   loopback setup screen and its two auth routes are served, and no transport or
-  pairing starts until the owner account exists. See
+  pairing starts until the owner account exists. After that, a dismissible setup
+  modal chooses the connection path, pairs a harness and a client, and derives
+  its progress from the snapshot; it never auto-opens once complete. See
   [panel.md](../features/panel.md) and
   [hub-controls.md](../features/hub-controls.md).
 - Harness adapters live in SQLite. Any number can be paired and online at once;

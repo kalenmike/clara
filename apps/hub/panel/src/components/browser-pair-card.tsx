@@ -15,17 +15,28 @@ export function BrowserPairCard({
   canPair,
   now,
   onChanged,
+  initialTransport,
+  allowedTransports,
 }: {
   relayConfigured: boolean
   localAvailable: boolean
   canPair: boolean
   now: number
   onChanged: () => void
+  initialTransport?: PairingTransport
+  allowedTransports?: PairingTransport[]
 }) {
   const { redact } = usePeek()
   const [pairing, setPairing] = useState<PanelDevicePairing>()
   const [pending, setPending] = useState<'create' | 'cancel'>()
-  const [transport, setTransport] = useState<PairingTransport>(relayConfigured ? 'relay' : 'local')
+  const allowed = allowedTransports ?? ['relay', 'local']
+  const requestedTransport =
+    initialTransport === 'relay' && !relayConfigured ? 'local' : initialTransport
+  const firstTransport =
+    requestedTransport && allowed.includes(requestedTransport)
+      ? requestedTransport
+      : (allowed.find((item) => item !== 'relay' || relayConfigured) ?? 'local')
+  const [transport, setTransport] = useState<PairingTransport>(firstTransport)
   const [error, setError] = useState<string>()
   const useLocalOnly = relayConfigured && localAvailable && transport === 'local'
   const helper = relayConfigured
@@ -175,20 +186,24 @@ export function BrowserPairCard({
                 role="group"
                 aria-label="Connection type"
               >
-                <TransportButton
-                  active={transport === 'relay'}
-                  disabled={!relayConfigured}
-                  onClick={() => setTransport('relay')}
-                >
-                  Relay
-                </TransportButton>
-                <TransportButton
-                  active={transport === 'local'}
-                  disabled={!localAvailable}
-                  onClick={() => setTransport('local')}
-                >
-                  Local
-                </TransportButton>
+                {allowed.includes('relay') ? (
+                  <TransportButton
+                    active={transport === 'relay'}
+                    disabled={!relayConfigured}
+                    onClick={() => setTransport('relay')}
+                  >
+                    Relay
+                  </TransportButton>
+                ) : null}
+                {allowed.includes('local') ? (
+                  <TransportButton
+                    active={transport === 'local'}
+                    disabled={!localAvailable}
+                    onClick={() => setTransport('local')}
+                  >
+                    Local
+                  </TransportButton>
+                ) : null}
               </div>
               <span className="text-[10px] text-neutral-500 dark:text-neutral-400">{helper}</span>
             </div>

@@ -17,11 +17,13 @@ hub data model, pairing, relay, panel, and adapters are unchanged.
 2. On first run the panel opens on its **Create the hub owner account** screen.
    Choose the username and password. The hub starts no transports until that
    account exists; after you submit, it starts in the same process.
-3. Pair a client: the web PWA, the desktop client, or a harness adapter.
-4. Use **Open panel** from the tray at any time. Closing the panel window hides
+3. Follow the Setup modal: choose Local only or set up the relay, pair a harness,
+   then pair a client. It can be dismissed and resumed from **Settings → Setup**.
+4. Open Clara on the paired device from the link or QR shown in the modal.
+5. Use **Open panel** from the tray at any time. Closing the panel window hides
    it; the hub keeps running.
-5. Use **Quit** to stop the hub. The sidecar checkpoints SQLite and exits.
-6. Install a newer app to update the sidecar and panel together. There is no
+6. Use **Quit** to stop the hub. The sidecar checkpoints SQLite and exits.
+7. Install a newer app to update the sidecar and panel together. There is no
    in-app updater yet.
 
 ## Core business rules
