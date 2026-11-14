@@ -37,7 +37,7 @@ harness and want to see both work in progress and sessions waiting for them.
    marked itself; drafts are not part of either mailbox and stay hidden.
 3. Inbox and Outbox follow the same rules as the session sidebar. Awaiting input
    or an assistant-last transcript is Inbox; a running agent or a user-last
-   transcript is Outbox. Worker sessions are included in this view.
+   transcript is Outbox. Automation worker sessions follow the same rule.
 4. Cards keep their position. Sessions are ordered by creation time, oldest
    first, within each harness, and harness sections follow pairing time. A run
    finishing changes the card's badge instead of moving it; new sessions append
@@ -86,8 +86,6 @@ harness and want to see both work in progress and sessions waiting for them.
 - Switching the active project from this page; use the sidebar.
 - Choosing a default harness from this page; that remains a panel setting.
 - Showing drafts, snoozed sessions, or archived sessions.
-- Excluding worker sessions. A later orchestrator view will be able to hide
-  them.
 - Estimated spend across harnesses.
 - Historical spend, usage charts, file activity, or a waterfall timeline.
 

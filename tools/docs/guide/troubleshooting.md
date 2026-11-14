@@ -128,9 +128,9 @@ harnesses; a failed lookup for one harness does not empty the list.
 
 ## Orchestration is not available
 
-Orchestration is optional. If the service is stopped, worker sessions and the
-Workers drawer are absent. The host can start it from the hub panel or with
-`pnpm clara orchestrator start`. See
+Orchestration is optional. If the service is stopped, orchestration runs and
+worker sessions are unavailable. The host can start it from the hub panel or
+with `pnpm clara orchestrator start`. See
 [Orchestration](self-hosting/orchestration.md).
 
 ## A Docker container keeps restarting

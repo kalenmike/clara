@@ -80,6 +80,24 @@ describe('PushSubscriptionStore', () => {
     expect(new PushSubscriptionStore(path).list()[0]?.deviceClass).toBe('mobile')
   })
 
+  it('stores the orchestrator opt-in and clears it explicitly', () => {
+    const path = join(tempDir(), 'subscriptions.json')
+    const store = new PushSubscriptionStore(path)
+    const sub = subscription()
+
+    store.upsert(sub, { orchestrationOptIn: true })
+    expect(store.list()[0]?.orchestrationOptIn).toBe(true)
+
+    const reloaded = new PushSubscriptionStore(path)
+    expect(reloaded.list()[0]?.orchestrationOptIn).toBe(true)
+
+    reloaded.upsert(sub)
+    expect(reloaded.list()[0]?.orchestrationOptIn).toBe(true)
+
+    reloaded.upsert(sub, { orchestrationOptIn: false })
+    expect(reloaded.list()[0]?.orchestrationOptIn).toBe(false)
+  })
+
   it('rejects non-HTTPS endpoints and malformed keys', () => {
     expect(() =>
       normalizePushSubscription({ ...subscription(), endpoint: 'http://localhost/push' })
@@ -168,6 +186,42 @@ describe('PushService', () => {
     expect(sent).toHaveLength(1)
     expect(JSON.parse(sent[0]).title).toBe('Brief Complete')
     expect(store.list()[0]?.lastSuccessAt).toBeTypeOf('number')
+  })
+
+  it('holds worker alerts only on devices that opted into orchestration', async () => {
+    const store = new PushSubscriptionStore(join(tempDir(), 'subscriptions.json'))
+    const plain = { ...subscription(), endpoint: 'https://web.push.apple.com/plain' }
+    const orchestrator = {
+      ...subscription(),
+      endpoint: 'https://web.push.apple.com/orchestrator',
+    }
+    store.upsert(plain, { orchestrationOptIn: false })
+    store.upsert(orchestrator, { orchestrationOptIn: true })
+
+    const sent: string[] = []
+    const service = new PushService({
+      ...webpush.generateVAPIDKeys(),
+      subject: 'https://clara.example.com',
+      store,
+      send: async (entry) => {
+        sent.push(entry.endpoint)
+        return { statusCode: 201 }
+      },
+    })
+
+    const payload = buildPushPayload({
+      kind: 'review',
+      sessionID: 'worker',
+      sessionTitle: 'A worker',
+      url: '/',
+    })
+
+    await service.notify(payload, { skipOrchestratorClients: true })
+    expect(sent).toEqual([plain.endpoint])
+
+    sent.length = 0
+    await service.notify(payload)
+    expect(sent.sort()).toEqual([plain.endpoint, orchestrator.endpoint].sort())
   })
 
   it('updates the VAPID subject for the live service', () => {

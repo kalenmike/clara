@@ -9,7 +9,6 @@ export type SessionGroups = {
   drafts: ClaraSession[]
   snoozed: ClaraSession[]
   archived: ClaraSession[]
-  workers: ClaraSession[]
 }
 
 /** Split sessions into the sidebar's mailbox sections, newest first. */
@@ -17,21 +16,15 @@ export function groupSessionsByMailbox(
   sessions: ClaraSession[],
   signals: ReadonlyMap<string, SessionMailboxSignals>,
   running: Readonly<Record<string, unknown>> | undefined,
-  awaitingInput: ReadonlySet<string>,
-  isAutomation?: (session: ClaraSession) => boolean
+  awaitingInput: ReadonlySet<string>
 ): SessionGroups {
   const inbox: ClaraSession[] = []
   const outbox: ClaraSession[] = []
   const drafts: ClaraSession[] = []
   const snoozed: ClaraSession[] = []
   const archived: ClaraSession[] = []
-  const workers: ClaraSession[] = []
 
   for (const session of sessions) {
-    if (isAutomation?.(session)) {
-      workers.push(session)
-      continue
-    }
     if (isArchivedSession(session)) {
       archived.push(session)
       continue
@@ -55,7 +48,6 @@ export function groupSessionsByMailbox(
   drafts.sort(byUpdated)
   snoozed.sort(byUpdated)
   archived.sort((a, b) => (b.time.archived ?? b.time.updated) - (a.time.archived ?? a.time.updated))
-  workers.sort(byUpdated)
 
-  return { inbox, outbox, drafts, snoozed, archived, workers }
+  return { inbox, outbox, drafts, snoozed, archived }
 }

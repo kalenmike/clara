@@ -25,7 +25,6 @@ export function ReplyActions({
   hasDraft,
   requests = 0,
   onDone,
-  worker,
 }: {
   session: ClaraSession
   sessionID: string
@@ -36,7 +35,6 @@ export function ReplyActions({
   hasDraft: boolean
   requests?: number
   onDone: () => void
-  worker?: boolean
 }) {
   const { mode, open } = useComposer()
   const [leaving, setLeaving] = useState(false)
@@ -48,7 +46,7 @@ export function ReplyActions({
   const { singular, lowerSingular } = useSessionWording()
   const archived = isArchivedSession(session)
   const snoozed = isSnoozedSession(session)
-  const canFinish = ready && !busy && !archived && !snoozed && !worker
+  const canFinish = ready && !busy && !archived && !snoozed
   const canArchive = canFinish && !empty
   const canDeleteEmpty = canFinish && empty
   const canNew = canFinish && empty
@@ -167,7 +165,7 @@ export function ReplyActions({
         </Button>
       )}
 
-      {!empty && !worker && (
+      {!empty && (
         <Button
           ref={triggerRef}
           type="button"

@@ -35,8 +35,7 @@ of the session's token and cost totals also sits in the chat's bottom usage bar
    agent writes a new todo list, after five assistant messages and tool calls
    combined arrive without one, or as soon as the run stops. The pending state survives a
    reload because it is read from the session transcript. An empty draft shows
-   "Send your brief to view the plan" instead. A worker session keeps the Plan
-   dock and both request actions even though its composer is hidden.
+   "Send your brief to view the plan" instead.
 5. Read context usage as a percentage and bar, then cost and the input, output,
    reasoning, cache-read, and cache-write totals. The cost follows the **Cost
    display** setting in **Settings → Preferences**; estimated values are marked

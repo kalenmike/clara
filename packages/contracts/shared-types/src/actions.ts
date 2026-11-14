@@ -36,6 +36,8 @@ export type PushSubscribeAction = {
   subscription: PushSubscriptionPayload
   userAgent?: string
   deviceClass?: DeviceClass
+  /** True when this device uses orchestrator mode and wants worker alerts held. */
+  orchestrationOptIn?: boolean
 }
 
 export type PushUnsubscribeAction = {

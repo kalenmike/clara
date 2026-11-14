@@ -1,6 +1,5 @@
 import { describe, expect, it } from 'vitest'
 import type { ClaraSession } from '@clara/api-contract'
-import { isAutomationSession } from './session-automation'
 import { groupSessionsByMailbox } from './session-sections'
 
 function session(
@@ -21,36 +20,35 @@ const running = undefined
 const awaitingInput = new Set<string>()
 
 describe('groupSessionsByMailbox', () => {
-  it('keeps automation sessions out of every mailbox group', () => {
-    const active = session('worker-active', 4, { automation: true })
-    const archived = session('worker-archived', 3, { automation: true }, 300)
-    const snoozed = session('worker-snoozed', 2, { automation: true, snoozed: true })
+  it('splits sessions into the mailbox sections', () => {
+    const active = session('active', 4)
+    const archived = session('archived', 3, {}, 300)
+    const snoozed = session('snoozed', 2, { snoozed: true })
     const human = session('human', 1, {})
 
     const groups = groupSessionsByMailbox(
       [active, archived, snoozed, human],
       signals,
       running,
-      awaitingInput,
-      isAutomationSession
+      awaitingInput
     )
 
-    expect(groups.workers.map((item) => item.id)).toEqual([
-      'worker-active',
-      'worker-archived',
-      'worker-snoozed',
-    ])
-    expect(groups.inbox.map((item) => item.id)).toEqual(['human'])
-    expect(groups.archived).toHaveLength(0)
-    expect(groups.snoozed).toHaveLength(0)
+    expect(groups.inbox.map((item) => item.id)).toEqual(['active', 'human'])
+    expect(groups.archived.map((item) => item.id)).toEqual(['archived'])
+    expect(groups.snoozed.map((item) => item.id)).toEqual(['snoozed'])
+    expect(groups.outbox).toHaveLength(0)
+    expect(groups.drafts).toHaveLength(0)
   })
 
-  it('leaves automation sessions in normal groups when the predicate is absent', () => {
-    const archived = session('worker-archived', 3, { automation: true }, 300)
+  it('keeps archived sessions out of Snoozed and newest first', () => {
+    const older = session('older', 2)
+    const newer = session('newer', 5)
+    const archived = session('archived', 4, { snoozed: true }, 300)
 
-    const groups = groupSessionsByMailbox([archived], signals, running, awaitingInput)
+    const groups = groupSessionsByMailbox([older, archived, newer], signals, running, awaitingInput)
 
-    expect(groups.workers).toHaveLength(0)
-    expect(groups.archived.map((item) => item.id)).toEqual(['worker-archived'])
+    expect(groups.inbox.map((item) => item.id)).toEqual(['newer', 'older'])
+    expect(groups.archived.map((item) => item.id)).toEqual(['archived'])
+    expect(groups.snoozed).toHaveLength(0)
   })
 })

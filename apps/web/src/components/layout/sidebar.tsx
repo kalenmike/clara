@@ -54,7 +54,6 @@ import {
   workspaceHarnessLabels,
 } from '@/features/projects/project-workspaces'
 import { findProject, useProjects } from '@/features/projects/use-projects'
-import { useSessionPolicy } from '@/features/notifications/session-policy'
 import { resolveDeleteFocusTarget } from '@/features/sessions/delete-focus'
 import { isArchivedSession } from '@/features/sessions/session-archive'
 import { groupSessionsByMailbox } from '@/features/sessions/session-sections'
@@ -151,8 +150,6 @@ export function SidebarContent({
   const { lowerSingular, lowerPlural } = useSessionWording()
   const { harness, reconnect, reconnecting } = useConnection()
   const label = useHarnessLabel('Harness')
-  const { isAutomation } = useSessionPolicy()
-  const claraEnabled = Boolean(isAutomation)
   const { state } = useEventStream()
   const projectsQuery = useProjects()
   const projects = useMemo(() => projectsQuery.data ?? [], [projectsQuery.data])
@@ -259,11 +256,8 @@ export function SidebarContent({
   const activeQuery = useActiveSessions()
   const mailboxSessions = useMemo(
     () =>
-      allSessions.filter(
-        (session) =>
-          !isArchivedSession(session) && !isSnoozedSession(session) && !isAutomation?.(session)
-      ),
-    [allSessions, isAutomation]
+      allSessions.filter((session) => !isArchivedSession(session) && !isSnoozedSession(session)),
+    [allSessions]
   )
   const { signals: mailboxSignals, pending: mailboxesPending } =
     useSessionMailboxSignals(mailboxSessions)
@@ -282,15 +276,8 @@ export function SidebarContent({
   )
 
   const grouped = useMemo(
-    () =>
-      groupSessionsByMailbox(
-        allSessions,
-        mailboxSignals,
-        activeQuery.data,
-        awaitingInput,
-        isAutomation
-      ),
-    [allSessions, mailboxSignals, activeQuery.data, awaitingInput, isAutomation]
+    () => groupSessionsByMailbox(mailboxSessions, mailboxSignals, activeQuery.data, awaitingInput),
+    [mailboxSessions, mailboxSignals, activeQuery.data, awaitingInput]
   )
 
   const sections = useMemo<SidebarSectionView[]>(
@@ -303,14 +290,6 @@ export function SidebarContent({
     ],
     [grouped]
   )
-  const workerSection = useMemo<SidebarSectionView>(
-    () => ({ id: 'workers', label: 'Workers', sessions: grouped.workers }),
-    [grouped.workers]
-  )
-  const allSections = useMemo(
-    () => (claraEnabled ? [...sections, workerSection] : sections),
-    [claraEnabled, sections, workerSection]
-  )
 
   const renderedIDs = useMemo(() => {
     const ids: string[] = []
@@ -319,15 +298,12 @@ export function SidebarContent({
         for (const session of section.sessions) ids.push(session.id)
       }
     }
-    if (claraEnabled && (searching || openSections.workers)) {
-      for (const session of workerSection.sessions) ids.push(session.id)
-    }
     return ids
-  }, [claraEnabled, openSections, searching, sections, workerSection])
+  }, [openSections, searching, sections])
 
   const projectOrderedIDs = useMemo(
-    () => allSections.flatMap((section) => section.sessions.map((session) => session.id)),
-    [allSections]
+    () => sections.flatMap((section) => section.sessions.map((session) => session.id)),
+    [sections]
   )
 
   const sessionByID = useMemo(
@@ -350,7 +326,7 @@ export function SidebarContent({
   const selectionRef = useRef(selection)
   selectionRef.current = selection
 
-  const latest = sessions.find((session) => !isAutomation?.(session))
+  const latest = sessions[0]
   const { startSession: newSession, pending: createPending } = useStartSession({
     projectID: selectedProject?.id,
     workspace: sessionWorkspace,
@@ -623,13 +599,12 @@ export function SidebarContent({
   }
 
   const onSettings = location.pathname === '/settings'
-  const allSectionsOpen = allSections.every((section) => openSections[section.id])
-  const workersOpen = searching || openSections.workers
+  const allSectionsOpen = sections.every((section) => openSections[section.id])
 
   const toggleAllSections = () => {
     const open = !allSectionsOpen
     const next = { ...openSections }
-    for (const section of allSections) next[section.id] = open
+    for (const section of sections) next[section.id] = open
     saveSidebarSections(next)
     setOpenSections(next)
   }
@@ -980,7 +955,7 @@ export function SidebarContent({
           </div>
         )}
 
-        {!listPending && !sessionsError && allSessions.length === 0 && (
+        {!listPending && !sessionsError && mailboxSessions.length === 0 && (
           <div className="p-3 text-sm text-muted-foreground md:text-xs">
             {search
               ? `No ${lowerPlural} match your search.`
@@ -1018,35 +993,6 @@ export function SidebarContent({
             )
           })}
       </ScrollArea>
-
-      {claraEnabled && (
-        <div className="shrink-0 border-t bg-sidebar px-2.5 md:px-2">
-          <Collapsible
-            open={workersOpen}
-            onOpenChange={(next) => {
-              if (!searching) setSectionOpen('workers', next)
-            }}
-          >
-            <CollapsibleTrigger className="flex w-full items-center gap-1.5 rounded-md px-2.5 py-2.5 text-xs font-medium uppercase tracking-wider text-muted-foreground transition-colors hover:bg-sidebar-accent/60 hover:text-foreground md:px-2 md:py-1.5 md:text-[10px]">
-              <ChevronRight
-                className={cn(
-                  'size-3.5 shrink-0 transition-transform md:size-3',
-                  workersOpen && 'rotate-90'
-                )}
-              />
-              <span>{workerSection.label}</span>
-              <span className="ml-auto min-w-4 pr-1 text-right tabular-nums">
-                {workerSection.sessions.length}
-              </span>
-            </CollapsibleTrigger>
-            <CollapsibleContent>
-              <div className="max-h-[min(16rem,45dvh)] overflow-y-auto pb-1">
-                {renderSessionRows(workerSection)}
-              </div>
-            </CollapsibleContent>
-          </Collapsible>
-        </div>
-      )}
 
       <div className="shrink-0 border-t px-3 py-2.5 text-[11px] text-muted-foreground md:py-2 md:text-[10px]">
         <div className="flex items-center justify-between gap-2">

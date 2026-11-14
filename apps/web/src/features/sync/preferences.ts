@@ -1,9 +1,12 @@
 import { SYNC_CATEGORIES, type SyncCategory } from './categories'
+import { SYNC_STANDALONE, type SyncStandalone } from './standalone'
 
 export const SYNC_PREFERENCES_KEY = 'clara.sync'
 
 export type SyncPreferences = {
   categories: Record<SyncCategory, boolean>
+  /** Single settings shared on their own, outside every category group. */
+  standalone: Record<SyncStandalone, boolean>
   /** The last namespace revision applied on this client. */
   revision: number | null
   /** Keys changed locally that the server has not accepted yet. */
@@ -19,6 +22,9 @@ export const DEFAULT_SYNC_PREFERENCES: SyncPreferences = {
     project: false,
     inbox: false,
   },
+  standalone: {
+    orchestratorMode: false,
+  },
   revision: null,
   dirty: [],
 }
@@ -29,6 +35,7 @@ const listeners = new Set<() => void>()
 function cloneDefaults(): SyncPreferences {
   return {
     categories: { ...DEFAULT_SYNC_PREFERENCES.categories },
+    standalone: { ...DEFAULT_SYNC_PREFERENCES.standalone },
     revision: null,
     dirty: [],
   }
@@ -47,6 +54,15 @@ function normalize(value: unknown): SyncPreferences {
     categories[category] = rawCategories[category] === true
   }
 
+  const rawStandalone =
+    record.standalone && typeof record.standalone === 'object' && !Array.isArray(record.standalone)
+      ? (record.standalone as Record<string, unknown>)
+      : {}
+  const standalone = {} as Record<SyncStandalone, boolean>
+  for (const id of SYNC_STANDALONE) {
+    standalone[id] = rawStandalone[id] === true
+  }
+
   const revision =
     typeof record.revision === 'number' &&
     Number.isSafeInteger(record.revision) &&
@@ -62,7 +78,7 @@ function normalize(value: unknown): SyncPreferences {
       )
     : []
 
-  return { categories, revision, dirty }
+  return { categories, standalone, revision, dirty }
 }
 
 export function readSyncPreferences(): SyncPreferences {

@@ -49,9 +49,6 @@ A red pulsing dot means a run is blocked on an approval or question. A red dot
 means the latest run failed. An orange dot marks a finished Plan waiting for
 **Steer** or **Build**. A grey dot is an idle reply to review and close.
 
-When the orchestration service is running, worker sessions move to a separate
-**Workers** section at the bottom of the sidebar.
-
 ## The chat screen
 
 - The header shows the session title, whether the run is busy or idle, and the

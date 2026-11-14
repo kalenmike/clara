@@ -70,7 +70,7 @@ export function saveSidePanelWidth(width: number): void {
   window.localStorage.setItem(SIDE_PANEL_WIDTH_KEY, String(clamped))
 }
 
-export type SidebarSection = 'inbox' | 'outbox' | 'drafts' | 'snoozed' | 'archived' | 'workers'
+export type SidebarSection = 'inbox' | 'outbox' | 'drafts' | 'snoozed' | 'archived'
 
 const SIDEBAR_SECTIONS_KEY = 'clara.sidebarSections'
 const SIDEBAR_SECTIONS_DEFAULT: Record<SidebarSection, boolean> = {
@@ -79,7 +79,6 @@ const SIDEBAR_SECTIONS_DEFAULT: Record<SidebarSection, boolean> = {
   drafts: true,
   snoozed: false,
   archived: false,
-  workers: false,
 }
 
 export function readSidebarSections(): Record<SidebarSection, boolean> {
@@ -95,8 +94,6 @@ export function readSidebarSections(): Record<SidebarSection, boolean> {
         typeof value.snoozed === 'boolean' ? value.snoozed : SIDEBAR_SECTIONS_DEFAULT.snoozed,
       archived:
         typeof value.archived === 'boolean' ? value.archived : SIDEBAR_SECTIONS_DEFAULT.archived,
-      workers:
-        typeof value.workers === 'boolean' ? value.workers : SIDEBAR_SECTIONS_DEFAULT.workers,
     }
   } catch {
     return { ...SIDEBAR_SECTIONS_DEFAULT }

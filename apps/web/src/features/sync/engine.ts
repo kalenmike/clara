@@ -1,8 +1,9 @@
 import type { SyncSnapshot } from '@clara/shared-types'
 import type { SyncRequestAction, SyncResponse } from '@/lib/transport/relay'
 import { SYNC_CATEGORIES, type SyncCategory } from './categories'
-import type { SyncField, SyncFieldGroups } from './fields'
+import type { SyncField, SyncFieldGroups, SyncStandaloneFields } from './fields'
 import type { SyncPreferences } from './preferences'
+import { SYNC_STANDALONE, type SyncStandalone } from './standalone'
 
 const PUSH_DEBOUNCE_MS = 500
 
@@ -15,6 +16,7 @@ export type SettingsSyncStatus = {
 export type SettingsSyncEngineOptions = {
   request: (action: SyncRequestAction) => Promise<SyncResponse>
   fields: SyncFieldGroups
+  standaloneFields: SyncStandaloneFields
   readPreferences: () => SyncPreferences
   writePreferences: (preferences: SyncPreferences) => void
   onStatus: (status: SettingsSyncStatus) => void
@@ -23,9 +25,12 @@ export type SettingsSyncEngineOptions = {
   now?: () => number
 }
 
+type FieldScope =
+  { kind: 'category'; category: SyncCategory } | { kind: 'standalone'; standalone: SyncStandalone }
+
 type FieldEntry = {
   field: SyncField
-  category: SyncCategory
+  scope: FieldScope
 }
 
 /**
@@ -37,6 +42,7 @@ export class SettingsSyncEngine {
   private readonly options: SettingsSyncEngineOptions
   private readonly fieldByKey = new Map<string, FieldEntry>()
   private readonly fieldByCategory = new Map<SyncCategory, SyncField[]>()
+  private readonly fieldByStandalone = new Map<SyncStandalone, SyncField[]>()
 
   private status: SettingsSyncStatus = {
     syncing: false,
@@ -61,7 +67,21 @@ export class SettingsSyncEngine {
     for (const category of SYNC_CATEGORIES) {
       const fields = options.fields[category]
       this.fieldByCategory.set(category, fields)
-      for (const field of fields) this.fieldByKey.set(field.key, { field, category })
+      for (const field of fields) {
+        this.fieldByKey.set(field.key, {
+          field,
+          scope: { kind: 'category', category },
+        })
+      }
+    }
+
+    for (const standalone of SYNC_STANDALONE) {
+      const field = options.standaloneFields[standalone]
+      this.fieldByStandalone.set(standalone, [field])
+      this.fieldByKey.set(field.key, {
+        field,
+        scope: { kind: 'standalone', standalone },
+      })
     }
   }
 
@@ -91,38 +111,22 @@ export class SettingsSyncEngine {
 
   /** Turn one category on. A failed pull leaves it off. */
   enable(category: SyncCategory): Promise<void> {
-    const generation = this.generation
-    return this.serialized(() =>
-      this.track(async () => {
-        if (!this.isCurrent(generation)) return
-        const preferences = this.options.readPreferences()
-        if (preferences.categories[category]) return
+    return this.enableScope({ kind: 'category', category })
+  }
 
-        this.setCategories({ [category]: true })
-        this.setError(null)
-        try {
-          const ok = await this.pullAndApply(generation)
-          if (!this.isCurrent(generation)) return
-          if (!ok) {
-            this.setCategories({ [category]: false })
-            return
-          }
-          this.scheduleCheck()
-        } catch (cause) {
-          if (!this.isCurrent(generation)) return
-          this.setCategories({ [category]: false })
-          this.setError(describeError(cause))
-        }
-      })
-    )
+  /** Turn one isolated single-setting share on. A failed pull leaves it off. */
+  enableStandalone(standalone: SyncStandalone): Promise<void> {
+    return this.enableScope({ kind: 'standalone', standalone })
   }
 
   /** Stop applying and pushing one category. Server entries are left intact. */
   disable(category: SyncCategory): void {
-    const preferences = this.options.readPreferences()
-    if (!preferences.categories[category]) return
-    this.setCategories({ [category]: false })
-    if (this.enabledCategories().length === 0) this.clearCheckTimer()
+    this.disableScope({ kind: 'category', category })
+  }
+
+  /** Stop applying and pushing one isolated setting. */
+  disableStandalone(standalone: SyncStandalone): void {
+    this.disableScope({ kind: 'standalone', standalone })
   }
 
   /** Called by the setting-change bus, including while offline. */
@@ -131,7 +135,7 @@ export class SettingsSyncEngine {
     const entry = this.fieldByKey.get(key)
     if (!entry) return
     const preferences = this.options.readPreferences()
-    if (!preferences.categories[entry.category]) return
+    if (!this.isScopeEnabled(entry.scope, preferences)) return
 
     this.addDirty([key])
     if (this.running) this.schedulePush()
@@ -146,7 +150,7 @@ export class SettingsSyncEngine {
       this.track(async () => {
         try {
           if (!this.running || !this.isCurrent(generation)) return
-          if (this.enabledCategories().length === 0) return
+          if (!this.hasEnabledScopes()) return
 
           const preferences = this.options.readPreferences()
           if (preferences.revision === null) {
@@ -167,7 +171,7 @@ export class SettingsSyncEngine {
   /** Force a full pull, used when an admin re-enables sync. */
   refresh(): Promise<void> {
     if (!this.running || this.halted) return Promise.resolve()
-    if (this.enabledCategories().length === 0) return Promise.resolve()
+    if (!this.hasEnabledScopes()) return Promise.resolve()
     const generation = this.generation
 
     return this.serialized(() =>
@@ -256,18 +260,15 @@ export class SettingsSyncEngine {
     }
 
     const failed = new Set<string>()
-    const enabled = new Set(this.enabledCategories())
     this.applying = true
     try {
-      for (const category of enabled) {
-        for (const field of this.fieldByCategory.get(category) ?? []) {
-          const value = live.get(field.key)
-          if (value === undefined) continue
-          try {
-            if (!field.apply(value)) failed.add(field.key)
-          } catch {
-            failed.add(field.key)
-          }
+      for (const field of this.enabledFields()) {
+        const value = live.get(field.key)
+        if (value === undefined) continue
+        try {
+          if (!field.apply(value)) failed.add(field.key)
+        } catch {
+          failed.add(field.key)
         }
       }
     } finally {
@@ -290,12 +291,10 @@ export class SettingsSyncEngine {
     )
     const entries: Array<{ key: string; value: string }> = []
 
-    for (const category of this.enabledCategories()) {
-      for (const field of this.fieldByCategory.get(category) ?? []) {
-        if (live.has(field.key) && !failed.has(field.key)) continue
-        const value = field.read()
-        if (value !== null) entries.push({ key: field.key, value })
-      }
+    for (const field of this.enabledFields()) {
+      if (live.has(field.key) && !failed.has(field.key)) continue
+      const value = field.read()
+      if (value !== null) entries.push({ key: field.key, value })
     }
 
     if (entries.length === 0) return
@@ -348,7 +347,7 @@ export class SettingsSyncEngine {
 
     for (const key of preferences.dirty) {
       const entry = this.fieldByKey.get(key)
-      if (!entry || !preferences.categories[entry.category]) {
+      if (!entry || !this.isScopeEnabled(entry.scope, preferences)) {
         dropped.push(key)
         continue
       }
@@ -403,7 +402,7 @@ export class SettingsSyncEngine {
   private scheduleCheck(): void {
     this.clearCheckTimer()
     if (!this.running || this.halted) return
-    if (this.enabledCategories().length === 0) return
+    if (!this.hasEnabledScopes()) return
 
     this.checkTimer = setTimeout(() => {
       this.checkTimer = null
@@ -431,27 +430,97 @@ export class SettingsSyncEngine {
     this.pushTimer = null
   }
 
-  private enabledCategories(): SyncCategory[] {
-    const categories = this.options.readPreferences().categories
-    return SYNC_CATEGORIES.filter((category) => categories[category])
+  private enableScope(scope: FieldScope): Promise<void> {
+    const generation = this.generation
+    return this.serialized(() =>
+      this.track(async () => {
+        if (!this.isCurrent(generation)) return
+        const preferences = this.options.readPreferences()
+        if (this.isScopeEnabled(scope, preferences)) return
+
+        this.setScope(scope, true)
+        this.setError(null)
+        try {
+          const ok = await this.pullAndApply(generation)
+          if (!this.isCurrent(generation)) return
+          if (!ok) {
+            this.setScope(scope, false)
+            return
+          }
+          this.scheduleCheck()
+        } catch (cause) {
+          if (!this.isCurrent(generation)) return
+          this.setScope(scope, false)
+          this.setError(describeError(cause))
+        }
+      })
+    )
+  }
+
+  private disableScope(scope: FieldScope): void {
+    const preferences = this.options.readPreferences()
+    if (!this.isScopeEnabled(scope, preferences)) return
+    this.setScope(scope, false)
+    if (!this.hasEnabledScopes()) this.clearCheckTimer()
+  }
+
+  private enabledScopes(): FieldScope[] {
+    const preferences = this.options.readPreferences()
+    const scopes: FieldScope[] = []
+    for (const category of SYNC_CATEGORIES) {
+      if (preferences.categories[category]) scopes.push({ kind: 'category', category })
+    }
+    for (const standalone of SYNC_STANDALONE) {
+      if (preferences.standalone[standalone]) scopes.push({ kind: 'standalone', standalone })
+    }
+    return scopes
+  }
+
+  private enabledFields(): SyncField[] {
+    const fields: SyncField[] = []
+    for (const scope of this.enabledScopes()) {
+      if (scope.kind === 'category') {
+        fields.push(...(this.fieldByCategory.get(scope.category) ?? []))
+      } else {
+        fields.push(...(this.fieldByStandalone.get(scope.standalone) ?? []))
+      }
+    }
+    return fields
+  }
+
+  private hasEnabledScopes(): boolean {
+    return this.enabledScopes().length > 0
+  }
+
+  private isScopeEnabled(scope: FieldScope, preferences: SyncPreferences): boolean {
+    return scope.kind === 'category'
+      ? preferences.categories[scope.category]
+      : preferences.standalone[scope.standalone]
   }
 
   private enabledDirtyKeys(): string[] {
     const preferences = this.options.readPreferences()
     return preferences.dirty.filter((key) => {
       const entry = this.fieldByKey.get(key)
-      return Boolean(entry && preferences.categories[entry.category])
+      return Boolean(entry && this.isScopeEnabled(entry.scope, preferences))
     })
   }
 
-  private setCategories(update: Partial<Record<SyncCategory, boolean>>): void {
+  private setScope(scope: FieldScope, enabled: boolean): void {
     const preferences = this.options.readPreferences()
-    const categories = { ...preferences.categories, ...update }
+    const categories =
+      scope.kind === 'category'
+        ? { ...preferences.categories, [scope.category]: enabled }
+        : preferences.categories
+    const standalone =
+      scope.kind === 'standalone'
+        ? { ...preferences.standalone, [scope.standalone]: enabled }
+        : preferences.standalone
     const dirty = preferences.dirty.filter((key) => {
       const entry = this.fieldByKey.get(key)
-      return !entry || categories[entry.category]
+      return !entry || this.isScopeEnabled(entry.scope, { ...preferences, categories, standalone })
     })
-    this.options.writePreferences({ ...preferences, categories, dirty })
+    this.options.writePreferences({ ...preferences, categories, standalone, dirty })
   }
 
   private setRevision(revision: number): void {

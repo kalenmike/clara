@@ -504,8 +504,12 @@ describe('agent', () => {
     const fake = await startFakeOpenCode()
     try {
       const endpoint = 'https://web.push.apple.com/live-test'
+      let subscriptionMeta: { orchestrationOptIn?: boolean } | undefined
       const push = {
-        subscribe: () => ({ count: 1, endpoint }),
+        subscribe: (_subscription: unknown, meta?: { orchestrationOptIn?: boolean }) => {
+          subscriptionMeta = meta
+          return { count: 1, endpoint }
+        },
         unsubscribe: () => ({ count: 0, removed: true }),
         has: () => true,
         test: async () => ({ count: 1 }),
@@ -522,6 +526,7 @@ describe('agent', () => {
           expirationTime: null,
           keys: { p256dh: 'a'.repeat(87), auth: 'b'.repeat(22) },
         },
+        orchestrationOptIn: true,
       })
 
       const states = await waitFor(async () => {
@@ -535,6 +540,7 @@ describe('agent', () => {
         endpoint,
         count: 1,
       })
+      expect(subscriptionMeta?.orchestrationOptIn).toBe(true)
     } finally {
       await fake.close()
     }

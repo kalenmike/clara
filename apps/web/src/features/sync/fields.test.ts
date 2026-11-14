@@ -5,7 +5,12 @@ import {
   readNotificationSettings,
   saveNotificationSettings,
 } from '@/features/notifications/settings'
-import { buildSyncFields } from './fields'
+import {
+  ORCHESTRATOR_MODE_KEY,
+  readOrchestratorMode,
+  saveOrchestratorMode,
+} from '@/features/orchestration/client-mode'
+import { buildStandaloneSyncFields, buildSyncFields } from './fields'
 
 const storage = new Map<string, string>()
 
@@ -53,6 +58,23 @@ describe('hidden models sync field', () => {
     expect(field!.apply('{}')).toBe(false)
     expect(field!.apply('[]')).toBe(false)
     expect(field!.apply('{')).toBe(false)
+  })
+})
+
+describe('orchestrator mode standalone field', () => {
+  it('shares only the single client choice', () => {
+    storage.clear()
+    saveOrchestratorMode(true)
+
+    const field = buildStandaloneSyncFields().orchestratorMode
+    expect(field.key).toBe(ORCHESTRATOR_MODE_KEY)
+    expect(field.read()).toBe('on')
+
+    expect(field.apply('off')).toBe(true)
+    expect(readOrchestratorMode()).toBe(false)
+
+    expect(field.apply('not-a-mode')).toBe(false)
+    expect(readOrchestratorMode()).toBe(false)
   })
 })
 

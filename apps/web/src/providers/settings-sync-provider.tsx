@@ -14,12 +14,13 @@ import { useTheme } from 'next-themes'
 import { normalizeSyncIntervalMs, type AgentInfo } from '@clara/shared-types'
 import { SYNC_CATEGORIES, type SyncCategory } from '@/features/sync/categories'
 import { SettingsSyncEngine, type SettingsSyncStatus } from '@/features/sync/engine'
-import { buildSyncFields } from '@/features/sync/fields'
+import { buildStandaloneSyncFields, buildSyncFields } from '@/features/sync/fields'
 import {
   readSyncPreferences,
   saveSyncPreferences,
   subscribeSyncPreferences,
 } from '@/features/sync/preferences'
+import { SYNC_STANDALONE, type SyncStandalone } from '@/features/sync/standalone'
 import { useInboxMonitor } from '@/features/sessions/inbox-monitor'
 import { THEME_KEY, isThemeMode } from '@/lib/storage'
 import { subscribeSettingChanged } from '@/lib/setting-events'
@@ -41,8 +42,10 @@ export type SettingsSyncContextValue = {
   reason: string | null
   intervalMs: number
   enabled: Record<SyncCategory, boolean>
+  standaloneEnabled: Record<SyncStandalone, boolean>
   status: SettingsSyncStatus
   toggle: (category: SyncCategory) => Promise<void>
+  toggleStandalone: (standalone: SyncStandalone) => Promise<void>
   syncNow: () => Promise<void>
 }
 
@@ -96,6 +99,7 @@ export function SettingsSyncProvider({ children }: { children: ReactNode }) {
     () => buildSyncFields({ themeMode: applyThemeMode, inboxMonitor: applyInboxMonitor }),
     [applyInboxMonitor, applyThemeMode]
   )
+  const standaloneFields = useMemo(() => buildStandaloneSyncFields(), [])
 
   // Keep one engine per transport. Interval changes reschedule its timer rather
   // than recreating it, so a panel edit does not drop an in-flight operation.
@@ -106,12 +110,13 @@ export function SettingsSyncProvider({ children }: { children: ReactNode }) {
     return new SettingsSyncEngine({
       request: (action) => control.requestSync(action),
       fields,
+      standaloneFields,
       readPreferences: readSyncPreferences,
       writePreferences: saveSyncPreferences,
       onStatus: setStatus,
       intervalMs: intervalRef.current,
     })
-  }, [control, fields])
+  }, [control, fields, standaloneFields])
 
   useEffect(() => {
     if (!engine) return
@@ -167,6 +172,16 @@ export function SettingsSyncProvider({ children }: { children: ReactNode }) {
     [engine]
   )
 
+  const toggleStandalone = useCallback(
+    async (standalone: SyncStandalone) => {
+      if (!engine) return
+      const current = readSyncPreferences()
+      if (current.standalone[standalone]) engine.disableStandalone(standalone)
+      else await engine.enableStandalone(standalone)
+    },
+    [engine]
+  )
+
   const syncNow = useCallback(async () => {
     await engine?.syncNow()
   }, [engine])
@@ -187,6 +202,14 @@ export function SettingsSyncProvider({ children }: { children: ReactNode }) {
     return result
   }, [preferences])
 
+  const standaloneEnabled = useMemo(() => {
+    const result = {} as Record<SyncStandalone, boolean>
+    for (const standalone of SYNC_STANDALONE) {
+      result[standalone] = preferences.standalone[standalone]
+    }
+    return result
+  }, [preferences])
+
   const value = useMemo<SettingsSyncContextValue>(
     () => ({
       supported,
@@ -195,11 +218,25 @@ export function SettingsSyncProvider({ children }: { children: ReactNode }) {
       reason,
       intervalMs,
       enabled,
+      standaloneEnabled,
       status,
       toggle,
+      toggleStandalone,
       syncNow,
     }),
-    [available, enabled, intervalMs, reason, serverEnabled, status, supported, syncNow, toggle]
+    [
+      available,
+      enabled,
+      intervalMs,
+      reason,
+      serverEnabled,
+      standaloneEnabled,
+      status,
+      supported,
+      syncNow,
+      toggle,
+      toggleStandalone,
+    ]
   )
 
   return <SettingsSyncContext.Provider value={value}>{children}</SettingsSyncContext.Provider>

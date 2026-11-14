@@ -65,7 +65,6 @@ export function ChatHeader({
   onToggleAll,
   showInternal,
   onToggleInternal,
-  worker,
 }: {
   session: ClaraSession | undefined
   snapshot: ChatSnapshot
@@ -79,7 +78,6 @@ export function ChatHeader({
   onToggleAll: () => void
   showInternal: boolean
   onToggleInternal: () => void
-  worker?: boolean
 }) {
   const [renameOpen, setRenameOpen] = useState(false)
   const [title, setTitle] = useState(session?.title ?? '')
@@ -173,17 +171,13 @@ export function ChatHeader({
           <DropdownMenuItem onSelect={copyID}>
             <Copy className="size-3.5" /> Copy {lowerSingular} ID
           </DropdownMenuItem>
-          {!worker && (
-            <>
-              <DropdownMenuItem onSelect={onFork} disabled={forkPending}>
-                <GitFork className="size-3.5" /> Fork {lowerSingular}
-              </DropdownMenuItem>
-              <DropdownMenuItem onSelect={() => compact.mutate()}>
-                <PanelRight className="size-3.5" /> Compact context
-              </DropdownMenuItem>
-            </>
-          )}
-          {session && !archived && !worker && (
+          <DropdownMenuItem onSelect={onFork} disabled={forkPending}>
+            <GitFork className="size-3.5" /> Fork {lowerSingular}
+          </DropdownMenuItem>
+          <DropdownMenuItem onSelect={() => compact.mutate()}>
+            <PanelRight className="size-3.5" /> Compact context
+          </DropdownMenuItem>
+          {session && !archived && (
             <DropdownMenuItem onSelect={toggleSnooze} disabled={snooze.isPending}>
               {snoozed ? (
                 <AlarmClockOff className="size-3.5" />

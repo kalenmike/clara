@@ -26,10 +26,9 @@ list has no checkbox column or bulk toolbar.
    first workspace, labelled with the harness when the project spans more than
    one; **New project** and **All projects** end the menu.
 3. Choosing a project loads its sessions into five collapsible mailbox
-   sections: Inbox, Outbox, Drafts, Snoozed, and Archived. While the
-   orchestration service is reachable, worker sessions are removed from those
-   sections and shown in a separately anchored **Workers** section at the bottom
-   of the sidebar.
+   sections: Inbox, Outbox, Drafts, Snoozed, and Archived. Orchestration worker
+   sessions are ordinary sessions in this client; the dedicated orchestrator
+   surface is responsible for their separate view.
 4. Inbox holds sessions that need the person: a pending approval or question,
    or an idle session whose latest conversational message is from the agent.
    Outbox holds sessions where the agent still owes a reply, including every
@@ -42,16 +41,11 @@ list has no checkbox column or bulk toolbar.
    Selection and idle notes do not count as content. Snoozed holds sessions
    postponed with the server's `snoozed` metadata. Archived holds sessions
    archived on the server and wins over Snoozed when both apply.
-6. Workers sits above the sidebar footer. Only its trigger shows when the section
-   is closed, resting at the bottom edge; opening it raises the header and
-   reveals the session rows underneath, so the rows read as part of Workers
-   rather than the tail of Archived. The rows keep the same running, blocked,
-   and error dots as the mailbox sections.
-7. The search box filters sessions by title using the server's search parameter
+6. The search box filters sessions by title using the server's search parameter
    and temporarily expands every section so matching titles are visible. A
    toggle button beside the search box opens or closes every section at once;
    it is disabled while a search is active.
-8. **New session** creates a session in the selected project and opens the reply
+7. **New session** creates a session in the selected project and opens the reply
    composer in the last-used size (expanded by default), ready for the first
    prompt; the empty session appears in Drafts. When the project has more than
    one workspace, the button opens a menu that lists every linked workspace
@@ -62,26 +56,26 @@ list has no checkbox column or bulk toolbar.
    locally saved text opens the composer too. Leaving the brief with no user or
    assistant message, no composer text or attachments, no saved draft, and no
    waiting request removes the empty session instead of keeping it in Drafts.
-9. The All projects page shows one card per non-empty project with its
+8. The All projects page shows one card per non-empty project with its
    workspace summary, last activity, and active/archived session counts, plus a
    **New project** action. A filter icon at the far right of the header opens
    **Show empty projects** and **Show archived projects** switches, both off by
    default. The card menu renames the project in Clara, adds a workspace, and
    archives, restores, deletes, or removes the project.
-10. The project page uses the same page shell as Settings and All projects. A
-    project info card shows the container ID, workspace list, default workspace,
-    created/updated/active/archived timestamps, and active/inactive/total session
-    counts. Each workspace shows its harness, directory, online state, and link
-    state, with actions to set the default, sync, or remove it from Clara. The
-    card menu archives, restores, deletes, or removes the project. Below the card,
-    a project settings card edits the icon, avatar color, and workspace startup
-    script in Clara. Below that, a sessions heading introduces the session cards
-    with agent, model, token totals, cost, and update time. Cost follows the
-    **Cost display** setting, so a card can show the reported amount or an
-    estimate marked with `~`.
-11. Opening a session shows it in the sidebar and loads the chat view, or a
+9. The project page uses the same page shell as Settings and All projects. A
+   project info card shows the container ID, workspace list, default workspace,
+   created/updated/active/archived timestamps, and active/inactive/total session
+   counts. Each workspace shows its harness, directory, online state, and link
+   state, with actions to set the default, sync, or remove it from Clara. The
+   card menu archives, restores, deletes, or removes the project. Below the card,
+   a project settings card edits the icon, avatar color, and workspace startup
+   script in Clara. Below that, a sessions heading introduces the session cards
+   with agent, model, token totals, cost, and update time. Cost follows the
+   **Cost display** setting, so a card can show the reported amount or an
+   estimate marked with `~`.
+10. Opening a session shows it in the sidebar and loads the chat view, or a
     dedicated New message view when it has no messages and no pending draft.
-12. A **Monitor Inbox** switch on the start view, below **New Session**, jumps
+11. A **Monitor Inbox** switch on the start view, below **New Session**, jumps
     to the newest Inbox session when turned on. While active it advances after
     Done, Send, Build, or saving a draft: Clara opens the next newest Inbox
     session, or the start view when the Inbox is empty. It also opens a session
@@ -90,37 +84,36 @@ list has no checkbox column or bulk toolbar.
     otherwise never redirected. The switch shows whether monitoring is active
     whenever the start view is shown, and reports how many agents are working in
     the project's Outbox with a pulsing dot while any run is active.
-13. The chat header can rename, snooze, archive, or delete the current session. A
+12. The chat header can rename, snooze, archive, or delete the current session. A
     home button to the left of the title returns to the start view.
-14. The Done button in the reply dock archives the session without renaming it,
+13. The Done button in the reply dock archives the session without renaming it,
     briefly celebrates, and returns to the start view (or opens the next Inbox
     session while Monitor Inbox is active). An empty draft shows a simple
     **Delete** action instead, which removes the session immediately.
-15. Opening an archived or snoozed session shows a Reopen button next to Reply.
+14. Opening an archived or snoozed session shows a Reopen button next to Reply.
     Reopening clears the server's archived and snoozed flags as applicable and
     leaves the title untouched.
-16. A normal click opens the session and makes its row the selection anchor.
+15. A normal click opens the session and makes its row the selection anchor.
     Shift-click another row to select the inclusive rendered range from the
     anchor to that row without navigating; the range runs in section order
-    (Inbox, Outbox, Drafts, Snoozed, Archived, then Workers) and collapses
-    contribute no rows. Shift+Enter on a focused row extends the selection the
-    same way.
-17. While a selection exists, a compact bar above the list shows the count in
+    (Inbox, Outbox, Drafts, Snoozed, Archived) and collapses contribute no rows.
+    Shift+Enter on a focused row extends the selection the same way.
+16. While a selection exists, a compact bar above the list shows the count in
     the configured session noun, the hint **Press Delete or Backspace to
     delete**, Clear, and a Delete action. Selected rows use a destructive tint
     and ring. Clear removes the selection and the anchor.
-18. Delete or Backspace with a non-empty selection and focus outside a
+17. Delete or Backspace with a non-empty selection and focus outside a
     text-entry target opens a confirmation dialog, unless another Clara dialog,
     menu, popover, select, or sheet is already open. Escape, Cancel, the close
     control, and clicking outside dismiss it without a write. The dialog keeps
     the count it opened with through its close animation.
-19. Confirming runs one `session.remove` per session, four at a time. Success
+18. Confirming runs one `session.remove` per session, four at a time. Success
     clears the selection, moves focus to a surviving row, and reports the count;
     partial failure keeps the failed rows selected, names them in a toast and
     the selection bar, and focuses the first failed row. Dismissal focuses the
     row that opened the dialog or the first selected row, never the destructive
     action. Clear and Delete keep 44px touch targets in the mobile drawer.
-20. The mobile drawer keeps its own selection and clears it when it closes.
+19. The mobile drawer keeps its own selection and clears it when it closes.
 
 ## Core business rules
 
@@ -267,25 +260,19 @@ list has no checkbox column or bulk toolbar.
     snapshot, and removing a custom image reveals the selected color or that
     favicon. Every project avatar in the sidebar, All projects cards, and project
     page follows that order.
-22. While the orchestration service is reachable, a session whose metadata says
-    `automation === true` never enters Inbox, Outbox, Drafts, Snoozed, or
-    Archived. It stays in Workers even when archived, and New session does not
-    inherit its agent or model. When the Orchestration switch is off, the same
-    session is treated as an ordinary session and returns to the normal mailbox
-    groups.
-23. The harness runs `commands.start` after it creates a new worktree. Clara does
+22. The harness runs `commands.start` after it creates a new worktree. Clara does
     not create worktrees, so New brief does not run the startup script; the
     setting is for harness clients and future workspace support.
-24. A harness can archive its own project record when a directory is missing.
+23. A harness can archive its own project record when a directory is missing.
     Clara ignores that archive state for visibility; only an explicit Clara
     archive hides a project. Reconciling a workspace through the harness
     location can unarchive the harness record, but it never removes the Clara
     container.
-25. Mailbox lookups run within a shared request budget instead of launching
+24. Mailbox lookups run within a shared request budget instead of launching
     three requests per session at once. A failed background refresh keeps the
     last list visible with a compact refresh notice; the full retry state appears
     only when no list is cached.
-26. New brief picks a workspace in this order: the workspace last used for this
+25. New brief picks a workspace in this order: the workspace last used for this
     project, the project's default workspace when it is online, the first online
     workspace, then the first linked workspace. The last-used workspace wins even
     when its harness is offline, so the choice never silently moves to another
@@ -434,12 +421,9 @@ list has no checkbox column or bulk toolbar.
 - **Very long titles** — rows and cards truncate or clamp; the full title is in
   the chat header.
 - **Archived sessions** — shown only in the Archived section, even when they
-  also carry snooze metadata. An automation worker is the exception: while
-  orchestration is reachable it stays in Workers.
+  also carry snooze metadata.
 - **Snoozed sessions** — shown only in the Snoozed section until reopened; they
   keep their title, messages, and run state.
-- **Orchestration off** — automation sessions lose the Workers treatment and
-  behave like ordinary sessions in every mailbox group.
 - **Snoozed and archived** — Archived wins; reopening the session clears both
   flags and returns it to its mailbox bucket.
 - **Snoozing while running** — the run continues but the session stays out of
@@ -564,14 +548,9 @@ startupScript?, defaultWorkspaceID? })`.
 - Archived list: `client.session.list({ project: projectID, search, archived: true, limit: 50 })`
 - Mailbox signals: `client.message.list({ sessionID, order: 'desc', limit: 1, type })`
   for `user` and `assistant`, plus `client.session.form.list({ sessionID })`
-- Automation grouping: `session.metadata.automation === true`; applied only
-  when hub info reports `orchestration === true`. The predicate is checked
-  before archived and snoozed, so workers never enter a mailbox group while the
-  service is reachable.
-- Workers section: anchored above the sidebar footer, closed by default. Its
-  header is first in the drawer, so opening raises the header and lays the rows
-  out beneath it; the body caps at `min(16rem, 45dvh)` with its own scroll. It is
-  included in search and the open/close-all toggle.
+- Orchestration metadata: `session.metadata.automation === true` is preserved by
+  the hub and adapters for the dedicated orchestrator surface, but this client
+  does not group or hide those sessions.
 - Pending drafts: `client.session.inbox.list({ sessionID })`
 - Save draft: `client.session.prompt({ sessionID, text, files, resume: false })`
 - Start draft: `client.session.synthetic({ sessionID, text, description,

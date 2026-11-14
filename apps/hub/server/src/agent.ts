@@ -738,6 +738,9 @@ export class Agent {
       const result = push.subscribe(action.subscription, {
         userAgent: action.userAgent,
         deviceClass: action.deviceClass,
+        ...(typeof action.orchestrationOptIn === 'boolean'
+          ? { orchestrationOptIn: action.orchestrationOptIn }
+          : {}),
         ...(session.deviceId ? { deviceId: session.deviceId } : {}),
       })
       this.enqueue(session, {

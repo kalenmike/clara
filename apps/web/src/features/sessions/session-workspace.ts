@@ -1,10 +1,5 @@
 import type { ClaraProjectWorkspace, ClaraSession } from '@clara/api-contract'
 
-type SessionSelection = {
-  /** Return true to skip a session, such as an automation worker. */
-  exclude?: (session: ClaraSession) => boolean
-}
-
 /**
  * A session belongs to the workspace the hub resolved, so the workspace ID is
  * authoritative. Older payloads can omit it; fall back to the linked harness
@@ -25,14 +20,12 @@ function belongsToWorkspace(session: ClaraSession, workspace: ClaraProjectWorksp
  */
 export function latestSessionInWorkspace(
   sessions: readonly ClaraSession[],
-  workspace: ClaraProjectWorkspace | null | undefined,
-  { exclude }: SessionSelection = {}
+  workspace: ClaraProjectWorkspace | null | undefined
 ): ClaraSession | undefined {
   if (!workspace) return undefined
 
   let latest: ClaraSession | undefined
   for (const session of sessions) {
-    if (exclude?.(session)) continue
     if (!belongsToWorkspace(session, workspace)) continue
     if (!latest || session.time.updated > latest.time.updated) latest = session
   }

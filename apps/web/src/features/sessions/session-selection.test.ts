@@ -1,15 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import type { SelectionState } from './session-selection'
 
-const ordered = [
-  'inbox-2',
-  'inbox-1',
-  'outbox-1',
-  'drafts-1',
-  'snoozed-1',
-  'archived-1',
-  'worker-1',
-]
+const ordered = ['inbox-2', 'inbox-1', 'outbox-1', 'drafts-1', 'snoozed-1', 'archived-1']
 
 function selection(ids: string[], anchorID: string | null): SelectionState {
   return { anchorID, selectedIDs: new Set(ids) }
@@ -74,15 +66,13 @@ describe('selectRange', () => {
     expect(result.selectedIDs).toEqual(new Set(['missing-target']))
   })
 
-  it('follows caller-provided section order across mailbox and worker sections', async () => {
+  it('follows caller-provided section order across mailbox sections', async () => {
     const { selectRange } = await selectionModule()
 
-    const result = selectRange(ordered, 'outbox-1', 'worker-1')
+    const result = selectRange(ordered, 'outbox-1', 'archived-1')
 
     expect(result.anchorID).toBe('outbox-1')
-    expect(result.selectedIDs).toEqual(
-      new Set(['outbox-1', 'drafts-1', 'snoozed-1', 'archived-1', 'worker-1'])
-    )
+    expect(result.selectedIDs).toEqual(new Set(['outbox-1', 'drafts-1', 'snoozed-1', 'archived-1']))
   })
 })
 
@@ -91,17 +81,17 @@ describe('pruneSelection', () => {
     const { pruneSelection } = await selectionModule()
     const current = selection(['inbox-1', 'outbox-1'], 'outbox-1')
 
-    expect(pruneSelection(current, new Set(['inbox-1', 'outbox-1', 'worker-1']))).toBe(current)
+    expect(pruneSelection(current, new Set(['inbox-1', 'outbox-1', 'inbox-3']))).toBe(current)
   })
 
   it('drops selected IDs that are no longer available and keeps an available anchor', async () => {
     const { pruneSelection } = await selectionModule()
-    const current = selection(['inbox-1', 'outbox-1', 'worker-1'], 'outbox-1')
+    const current = selection(['inbox-1', 'outbox-1', 'inbox-3'], 'outbox-1')
 
-    const result = pruneSelection(current, new Set(['outbox-1', 'worker-1']))
+    const result = pruneSelection(current, new Set(['outbox-1', 'inbox-3']))
 
     expect(result.anchorID).toBe('outbox-1')
-    expect(result.selectedIDs).toEqual(new Set(['outbox-1', 'worker-1']))
+    expect(result.selectedIDs).toEqual(new Set(['outbox-1', 'inbox-3']))
   })
 
   it('drops the anchor when its row disappears while other selected rows survive', async () => {

@@ -86,12 +86,6 @@ The bar along the bottom of the pane shows the whole session's input, output,
 reasoning, and cache tokens, its cost, and how long ago the session started. See
 [Models and usage](models-and-usage.md) for the cost display modes.
 
-## Worker sessions
-
-While orchestration is reachable, a worker session stays readable and
-stoppable, but it hides the composer, Reply, Done, fork actions, and the plan
-handoff. Forward, Reopen, Archive, Delete, Stop, and the Plan request remain.
-
 ## Related
 
 - [The reply composer](composer.md)

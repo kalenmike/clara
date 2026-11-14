@@ -31,7 +31,6 @@ function makeSession(input: {
   workspaceID?: string
   directory?: string
   modelID?: string
-  automation?: boolean
 }): ClaraSession {
   const directory = input.directory ?? '/work/workspace'
   return {
@@ -43,7 +42,6 @@ function makeSession(input: {
     cost: 0,
     tokens: { input: 0, output: 0, reasoning: 0, cache: { read: 0, write: 0 } },
     time: { created: 0, updated: input.updated },
-    ...(input.automation ? { metadata: { automation: true } } : {}),
     location: { directory },
   }
 }
@@ -138,24 +136,5 @@ describe('latestSessionInWorkspace', () => {
 
     expect(latestSessionInWorkspace(sessions, workspace)).toBeUndefined()
     expect(latestSessionInWorkspace(sessions, null)).toBeUndefined()
-  })
-
-  it('skips excluded automation sessions', () => {
-    const workspace = makeWorkspace({ id: 'workspace' })
-    const sessions = [
-      makeSession({
-        id: 'worker',
-        updated: 30,
-        workspaceID: workspace.id,
-        automation: true,
-      }),
-      makeSession({ id: 'saved', updated: 10, workspaceID: workspace.id }),
-    ]
-
-    expect(
-      latestSessionInWorkspace(sessions, workspace, {
-        exclude: (session) => session.metadata?.automation === true,
-      })?.id
-    ).toBe('saved')
   })
 })

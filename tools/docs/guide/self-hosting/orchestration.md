@@ -20,6 +20,10 @@ client, skip this page.
 - Clara Lab, a local workbench for previewing packages and driving a run by hand.
 - MCP tools for callers that do not use the adapter.
 
+The hub enables the feature; each client chooses whether to use the orchestrator
+surface. Keep the choice on one device, or share it through the isolated
+**Orchestrator mode** setting under **Settings → Sync**.
+
 ## Start the service
 
 From the hub panel, turn on **Orchestration**. Or run:
@@ -97,7 +101,8 @@ pnpm clara orchestrator inspect --run <id> --json
 ```
 
 An alert or a finished run is delivered back into the Clara session that started
-it. Worker sessions stay out of the mailbox and appear in the Workers drawer.
+it. A client that uses the orchestrator surface holds worker-session alerts;
+other clients receive them normally.
 
 ## Related
 

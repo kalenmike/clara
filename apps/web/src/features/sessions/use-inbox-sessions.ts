@@ -1,7 +1,6 @@
 import { useMemo } from 'react'
 import type { ClaraProjectWorkspace } from '@clara/api-contract'
 import { useWorkspacePendingPermissions } from '@/features/chat/use-permissions'
-import { useSessionPolicy } from '@/features/notifications/session-policy'
 import { isArchivedSession } from '@/features/sessions/session-archive'
 import { groupSessionsByMailbox } from '@/features/sessions/session-sections'
 import { isSnoozedSession } from '@/features/sessions/session-snooze'
@@ -13,7 +12,6 @@ export function useInboxSessions(
   projectID: string | null,
   workspaces: readonly ClaraProjectWorkspace[] | undefined
 ) {
-  const { isAutomation } = useSessionPolicy()
   const hasWorkspace = Boolean(workspaces?.some((workspace) => workspace.linked))
   const sessionsQuery = useSessions(projectID, '', Boolean(projectID && hasWorkspace))
   const activeQuery = useActiveSessions()
@@ -22,12 +20,8 @@ export function useInboxSessions(
 
   const sessions = useMemo(() => sessionsQuery.data?.data ?? [], [sessionsQuery.data])
   const mailboxSessions = useMemo(
-    () =>
-      sessions.filter(
-        (session) =>
-          !isArchivedSession(session) && !isSnoozedSession(session) && !isAutomation?.(session)
-      ),
-    [sessions, isAutomation]
+    () => sessions.filter((session) => !isArchivedSession(session) && !isSnoozedSession(session)),
+    [sessions]
   )
   const { signals, pending: mailboxesPending } = useSessionMailboxSignals(mailboxSessions)
   const awaitingInput = useMemo(
