@@ -3,7 +3,8 @@ import { tmpdir } from 'node:os'
 import { Hono, type Context } from 'hono'
 import { booleanQuery, jsonBody, numberQuery } from '@clara/adapter-runtime'
 import type { AdapterInfo } from '@clara/adapter-runtime'
-import { AdapterError } from './errors.ts'
+import { AdapterError, findFiles } from '@clara/adapter-runtime'
+import { gitLog, vcsBase, vcsDiff, vcsInfo, vcsStatus, worktrees } from '@clara/adapter-runtime'
 import { EventBus } from './events.ts'
 import type { ClaudeGateway } from './sdk.ts'
 import type { ClaraFormValue, ClaraModelRef } from '@clara/api-contract'
@@ -23,8 +24,6 @@ import type {
   UpdateSessionInput,
 } from './sessions.ts'
 import type { ClaudeRuntime } from './runtime.ts'
-import { findFiles } from './files.ts'
-import { gitLog, vcsBase, vcsDiff, vcsInfo, vcsStatus, worktrees } from './git.ts'
 
 export type AdapterContext = {
   claude: ClaudeGateway

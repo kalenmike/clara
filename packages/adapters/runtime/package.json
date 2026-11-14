@@ -13,6 +13,7 @@
     "test": "vitest run"
   },
   "dependencies": {
+    "@clara/api-contract": "workspace:*",
     "@clara/crypto": "workspace:*",
     "@clara/harness-protocol": "workspace:*",
     "@clara/shared-types": "workspace:*",

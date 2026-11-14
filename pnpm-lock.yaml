@@ -508,6 +508,9 @@ importers:
 
   packages/adapters/runtime:
     dependencies:
+      '@clara/api-contract':
+        specifier: workspace:*
+        version: link:../../contracts/api-contract
       '@clara/crypto':
         specifier: workspace:*
         version: link:../../crypto
