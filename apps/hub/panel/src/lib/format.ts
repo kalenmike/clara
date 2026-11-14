@@ -63,6 +63,8 @@ export function sourceLabel(source: PanelValueSource): string {
       return 'database'
     case 'generated':
       return 'generated'
+    case 'runtime':
+      return 'runtime'
     case 'none':
       return 'not set'
     default:

@@ -87,6 +87,8 @@ export type ControllerOptions = {
   secretKey?: SecretKeyInfo
   /** A panel edit replaced the target, so a managed deployment is now stale. */
   onRelayTargetChanged?: () => void
+  /** The local listener started, stopped, or bound a different port. */
+  onLocalEndpointChange?: () => void
   log: (message: string, detail?: unknown) => void
 }
 
@@ -186,6 +188,10 @@ export class RuntimeController {
       agent: this.localAgent,
       api: this.api,
       sockets: this.localSockets,
+      onBound: (port) => {
+        this.options.config.local.port = port
+        this.options.onLocalEndpointChange?.()
+      },
       log: options.log,
     })
 
@@ -287,6 +293,11 @@ export class RuntimeController {
 
   get localConnections(): number {
     return this.localTransport.connections
+  }
+
+  /** The bound port, or undefined when the local listener is not running. */
+  get localPort(): number | undefined {
+    return this.localTransport.active ? this.localTransport.port : undefined
   }
 
   get traffic(): TrafficMeter {
@@ -933,11 +944,12 @@ export class RuntimeController {
           await this.localTransport.start()
           const host = this.options.config.local.bindHost
           this.options.log(
-            `local WebSocket listening on ws://${formatHost(host)}:${this.options.config.local.port}/ws`
+            `local WebSocket listening on ws://${formatHost(host)}:${this.localTransport.port}/ws`
           )
         } else {
           await this.stopLocal('local transport disabled by an admin setting')
           this.localAgent.reset()
+          this.options.onLocalEndpointChange?.()
         }
         return
       case 'relay':

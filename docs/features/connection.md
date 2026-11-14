@@ -163,6 +163,12 @@ device key through a one-time code; there is no shared browser key.
   and `adapter_credentials` in `clara.db`; the adapter connects out over the
   WebSocket and speaks the Clara Harness Protocol. The hub never sees the
   harness password; the adapter keeps it in its own config.
+- Local endpoint: the hub prefers its previous local port, then `8788`, and
+  falls back to an ephemeral port when one is busy. The live endpoint is written
+  to `runtime.json`; the CLI, MCP, hub shell, and desktop client read it. The
+  desktop client refreshes a local `wsUrl` on boot and reconnect, so a port
+  change does not require pairing again. Relay pairings carry the relay URL and
+  are unaffected.
 - Docker stack: `pnpm clara start` starts the orchestrator, server, and web
   client together; `--no-*` selects a subset; `restart` recreates the selection.
   Use the scoped commands for one service.

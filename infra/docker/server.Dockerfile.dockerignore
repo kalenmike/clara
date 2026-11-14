@@ -7,6 +7,10 @@
 **/.wrangler
 **/.tmp*
 **/*.tsbuildinfo
+**/src-tauri/target
+**/src-tauri/gen
+**/src-tauri/binaries
+apps/hub/desktop/src/embedded-assets.generated.mjs
 .env
 .env.*
 !.env.example

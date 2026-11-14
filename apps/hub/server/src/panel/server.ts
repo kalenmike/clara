@@ -111,7 +111,21 @@ export async function startPanelServer(options: PanelServerOptions): Promise<Pan
     })
   })
 
-  await listen(server, host, options.port)
+  try {
+    await listen(server, host, options.port)
+  } catch (cause) {
+    if (
+      options.port !== 0 &&
+      cause instanceof Error &&
+      (cause as NodeJS.ErrnoException).code === 'EADDRINUSE'
+    ) {
+      options.log?.(`panel port ${options.port} is busy; choosing an ephemeral port`)
+      await listen(server, host, 0)
+    } else {
+      await closeServer(server)
+      throw cause
+    }
+  }
   const address = server.address()
   if (!address || typeof address === 'string') {
     await closeServer(server)

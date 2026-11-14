@@ -140,10 +140,11 @@ at the panel's **Clients → Pair a browser** action or `clara-server pair`.
   are then rejected as an unknown device.
 - **Browser cannot store a protected key** — Clara refuses to consume the code
   and explains that the browser cannot persist a non-extractable key.
-- **Local-only pairing** — the code points at `ws://127.0.0.1:8788/ws`; it only
-  works on the same machine, and an HTTPS page reports that the code is
-  local-only. The panel and `clara-server pair` warn when the pairing link is
-  remote while the hub has no relay. Configure the relay for phones.
+- **Local-only pairing** — the code points at the live local listener URL,
+  usually `ws://127.0.0.1:8788/ws`; it only works on the same machine, and an
+  HTTPS page reports that the code is local-only. The panel and
+  `clara-server pair` warn when the pairing link is remote while the hub has no
+  relay. Configure the relay for phones.
 - **Local code with a relay configured** — the panel's **Local** choice, or
   `clara-server pair --no-relay`, emits room `local`, the listener
   URL, and the local web app link without needing relay tokens; the web keeps

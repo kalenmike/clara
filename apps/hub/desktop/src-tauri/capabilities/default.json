@@ -1,0 +1,6 @@
+{
+  "identifier": "default",
+  "description": "The hub panel is a remote loopback page; it never receives Tauri APIs.",
+  "windows": ["panel"],
+  "permissions": []
+}

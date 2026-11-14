@@ -5,6 +5,9 @@
       "path": "./apps/hub/server"
     },
     {
+      "path": "./apps/hub/desktop"
+    },
+    {
       "path": "./apps/hub/panel"
     },
     {
@@ -12,6 +15,9 @@
     },
     {
       "path": "./packages/crypto"
+    },
+    {
+      "path": "./packages/sqlite"
     },
     {
       "path": "./packages/contracts/shared-types"

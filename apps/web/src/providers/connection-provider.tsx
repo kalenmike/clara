@@ -30,6 +30,7 @@ import type { RelayTransportStatus } from '@/lib/transport/relay'
 import { chatStore } from '@/features/chat/chat-store'
 import { probeHub } from '@/lib/hub-probe'
 import { hasPendingPairingLink, takePairingLink } from '@/lib/pairing'
+import { desktopLocalWsUrl } from '@/lib/desktop-runtime'
 import {
   canStoreDeviceKey,
   clearDevice,
@@ -76,6 +77,20 @@ const ConnectionContext = createContext<ConnectionContextValue | null>(null)
 
 /** Survives React StrictMode's development remount, unlike a ref. */
 let bootStarted = false
+
+/**
+ * A local hub can come back on a different port after a conflict. The device
+ * key is independent of the port, so refresh the endpoint and reconnect rather
+ * than making the user pair again.
+ */
+async function refreshLocalDevice(device: StoredDevice): Promise<StoredDevice> {
+  if (device.room !== 'local') return device
+  const wsUrl = await desktopLocalWsUrl()
+  if (!wsUrl || wsUrl === device.wsUrl) return device
+  const next = { ...device, wsUrl }
+  await saveDevice(next)
+  return next
+}
 
 export function ConnectionProvider({ children }: { children: ReactNode }) {
   const queryClient = useQueryClient()
@@ -279,8 +294,18 @@ export function ConnectionProvider({ children }: { children: ReactNode }) {
    * stream may still recover on its own.
    */
   const reconnect = useCallback(async () => {
-    const current = configRef.current
+    let current = configRef.current
     if (!current) return false
+
+    if (current.room === 'local') {
+      const wsUrl = await desktopLocalWsUrl()
+      if (wsUrl && wsUrl !== current.wsUrl) {
+        const stored = await loadDevice()
+        if (stored) await saveDevice({ ...stored, wsUrl })
+        current = { ...current, wsUrl }
+        configRef.current = current
+      }
+    }
 
     setReconnecting(true)
     setReconnectError(null)
@@ -290,6 +315,7 @@ export function ConnectionProvider({ children }: { children: ReactNode }) {
       const nextHub = await probeHub(handle.client, RECONNECT_TIMEOUT_MS)
       installHandle(handle)
       setClient(handle.client)
+      setConfig(connectionSummary(current))
       setHub(nextHub)
       setStatus('connected')
       setError(null)
@@ -343,9 +369,13 @@ export function ConnectionProvider({ children }: { children: ReactNode }) {
         const stored = await loadDevice()
         if (stored) {
           setBootSource('stored')
-          // Re-resolve the stored endpoint so a deployment switch change applies
-          // to devices paired before it was set. Local pairings keep their URL.
-          await connectDevice({ ...stored, wsUrl: resolveRelayWsUrl(stored.wsUrl, stored.room) })
+          // Re-resolve the stored endpoint so a deployment switch change or a
+          // local port change applies to devices paired earlier.
+          const current = await refreshLocalDevice(stored)
+          await connectDevice({
+            ...current,
+            wsUrl: resolveRelayWsUrl(current.wsUrl, current.room),
+          })
         }
       } finally {
         window.clearTimeout(timeout)

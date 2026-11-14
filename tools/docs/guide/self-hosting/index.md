@@ -66,10 +66,16 @@ The detailed steps are in [Docker](docker.md) and
 
 The hub panel is loopback-only. Do not expose it to the internet.
 
+The Docker stack keeps fixed container ports. The hub desktop app reuses its
+previous panel and local ports and falls back to a free port when one is busy;
+the desktop client follows the local port through the hub's runtime file. See
+[Hub app](../hub-app.md).
+
 ## Where to go next
 
 - [Docker](docker.md)
 - [Local install](local.md)
+- [Hub app](../hub-app.md)
 - [Configuration](configuration.md)
 - [Remote access with the relay](relay.md)
 - [Updates and backups](updates.md)

@@ -13,6 +13,7 @@ export default defineConfig([
     '**/node_modules/**',
     '**/.wrangler/**',
     'apps/web/src/components/ui/**',
+    'apps/**/src-tauri/**',
     'tools/docs/.docusaurus/**',
     'tools/docs/build/**',
   ]),

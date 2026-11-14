@@ -11,6 +11,8 @@ The repository includes an adapter for [OpenCode](https://opencode.ai).
 
 - Node 22 (see `.nvmrc`)
 - pnpm 11
+- Bun 1.4+ to build or run the hub sidecar
+- Rust and the platform WebView packages to build either desktop app
 - A running harness and its adapter. This release includes the OpenCode 2.1.x
   adapter.
 - Optional: a Cloudflare account and your own domain for remote access
@@ -20,9 +22,11 @@ The repository includes an adapter for [OpenCode](https://opencode.ai).
 ```text
 apps/
   web/                    React/Vite SPA, deployed to Cloudflare Pages or the web container
+  desktop/                Tauri shell for the Clara client
   hub/
-    server/               Node hub service, /v1 API, harness proxy, local WS + outbound relay
+    server/               Hub service, /v1 API, harness proxy, local WS + outbound relay
     panel/                Authenticated hub panel and setup surface
+    desktop/              Tauri tray app for the Bun hub sidecar and panel
   orchestrator/           Loopback orchestration service, REST/SSE/MCP
   adapters/
     opencode/             OpenCode harness adapter, binding, and standalone bin
@@ -50,6 +54,8 @@ All new work happens in a task worktree under `../clara-worktrees`:
 pnpm task session start my-change
 # move the session to ../clara-worktrees/my-change, or cd there
 pnpm check && pnpm build
+pnpm desktop:build   # Clara client installer (host OS)
+pnpm hub:build       # Clara Hub tray app installer (host OS)
 pnpm task session close my-change
 ```
 

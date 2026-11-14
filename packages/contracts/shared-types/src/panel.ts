@@ -8,7 +8,8 @@
 
 export const PANEL_API_VERSION = 11
 
-export type PanelValueSource = 'env' | 'file' | 'database' | 'default' | 'generated' | 'none'
+export type PanelValueSource =
+  'env' | 'file' | 'database' | 'default' | 'generated' | 'runtime' | 'none'
 
 export type PanelValue<T> = {
   value: T

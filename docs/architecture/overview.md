@@ -119,6 +119,7 @@ adapter ──outbound WSS──▶ hub ◀──outbound WSS── web / PWA / 
 Local mode: web ──WSS──▶ hub /v1 API ──▶ routed adapter ──▶ harness
 Local tools: MCP ──HTTP 127.0.0.1:8788──▶ hub /v1 API
 Panel: browser ──HTTP 127.0.0.1:8790──▶ hub (auth + setup + controls)
+Hub app: Tauri tray ──spawn──▶ Bun sidecar (hub + embedded panel) ──HTTP 127.0.0.1:<dynamic>──▶ panel window
 Harness: panel ──▶ SQLite harness identity/pairing ──▶ adapter session (E2EE)
 Docker: web client, hub, orchestrator, and an optional harness on the `clara` bridge network
 ```
@@ -322,7 +323,9 @@ guaranteed to be connected, so alerts still reach a closed app.
   `admin-setup.txt` remain in `~/.config/clara` with the same mode. These are
   the local install paths. The Docker stack uses the `clara-server-config` and
   `clara-server-data` volumes instead and keeps its host control token under
-  `~/.local/share/clara/docker`.
+  `~/.local/share/clara/docker`. The hub app writes a `runtime.json` discovery
+  file with the live local and panel ports; the desktop client and local tools
+  read it, and remote relay clients never do.
 - The relay sees metadata only; all payloads are E2EE. Web Push payloads use
   Web Push encryption to the browser subscription, not Clara's device envelope.
 - The web stores a non-extractable device key in IndexedDB; no raw connection

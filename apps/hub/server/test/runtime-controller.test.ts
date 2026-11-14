@@ -283,7 +283,7 @@ describe('RuntimeController', () => {
     }
   })
 
-  it('persists a desired value and reports an error when the listener cannot start', async () => {
+  it('falls back to an ephemeral port when the preferred listener is busy', async () => {
     const blocker = createServer()
     servers.push(blocker)
     await new Promise<void>((resolve) => blocker.listen(0, '127.0.0.1', resolve))
@@ -294,8 +294,9 @@ describe('RuntimeController', () => {
     await controller.start()
     try {
       const local = controller.controls().features.find((entry) => entry.name === 'local')
-      expect(local).toMatchObject({ desired: true, effective: false })
-      expect(local?.error).toMatch(/in use|EADDRINUSE/i)
+      expect(local).toMatchObject({ desired: true, effective: true })
+      expect(controller.localPort).toBeTypeOf('number')
+      expect(controller.localPort).not.toBe(address.port)
       expect(settings.getFeature('local')).toBe(true)
     } finally {
       await close()
