@@ -32,9 +32,9 @@ import { ScrollArea } from '@/components/ui/scroll-area'
 import { Skeleton } from '@/components/ui/skeleton'
 import { AddProjectDialog } from '@/components/projects/add-project-dialog'
 import { ProjectAvatar } from '@/components/projects/project-avatar'
-import { SidebarDeleteDialog } from '@/components/layout/sidebar-delete-dialog'
 import { SidebarSelectionBar } from '@/components/layout/sidebar-selection-bar'
 import { SidebarSessionRow } from '@/components/layout/sidebar-session-row'
+import { DeleteSessionDialog } from '@/components/sessions/delete-session-dialog'
 import { useWorkspacePendingPermissions } from '@/features/chat/use-permissions'
 import { usePruneEmptyDrafts } from '@/features/chat/use-prune-empty-drafts'
 import { useHarnessLabel } from '@/features/harness/use-harness-label'
@@ -1003,7 +1003,7 @@ export function SidebarContent({
         </div>
       </div>
 
-      <SidebarDeleteDialog
+      <DeleteSessionDialog
         open={dialogOpen}
         sessions={snapshot}
         deleting={remove.isPending}

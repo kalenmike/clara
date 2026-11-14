@@ -12,7 +12,7 @@ import {
 } from '@/components/ui/dialog'
 import { useSessionWording } from '@/features/sessions/use-wording'
 
-export function SidebarDeleteDialog({
+export function DeleteSessionDialog({
   open,
   sessions,
   deleting,

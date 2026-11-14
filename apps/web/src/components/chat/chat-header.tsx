@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { Link } from 'react-router'
 import {
@@ -38,6 +38,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { Input } from '@/components/ui/input'
+import { DeleteSessionDialog } from '@/components/sessions/delete-session-dialog'
 import { useCompactSession, useInterruptSession } from '@/features/chat/use-chat'
 import { isArchivedSession } from '@/features/sessions/session-archive'
 import { isSnoozedSession } from '@/features/sessions/session-snooze'
@@ -82,7 +83,9 @@ export function ChatHeader({
   onToggleInternal: () => void
 }) {
   const [renameOpen, setRenameOpen] = useState(false)
+  const [deleteTarget, setDeleteTarget] = useState<ClaraSession | null>(null)
   const [title, setTitle] = useState(session?.title ?? '')
+  const moreActionsRef = useRef<HTMLButtonElement>(null)
   const interrupt = useInterruptSession(session?.id ?? '')
   const compact = useCompactSession(session?.id ?? '')
   const rename = useRenameSession(session?.id ?? '')
@@ -119,9 +122,17 @@ export function ChatHeader({
   }
 
   const deleteSession = () => {
-    if (!session) return
-    if (!window.confirm(`Delete this ${lowerSingular} and all of its messages?`)) return
-    remove.mutate(session.id, { onSuccess: onDeleted })
+    if (!deleteTarget) return
+    remove.mutate(deleteTarget.id, {
+      onSuccess: () => {
+        setDeleteTarget(null)
+        onDeleted()
+      },
+      onError: () => {
+        setDeleteTarget(null)
+        toast.error(`Could not delete the ${lowerSingular}`)
+      },
+    })
   }
 
   const actions = (
@@ -164,7 +175,12 @@ export function ChatHeader({
 
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
-          <Button variant="ghost" size="icon" className="size-8 max-md:size-11">
+          <Button
+            ref={moreActionsRef}
+            variant="ghost"
+            size="icon"
+            className="size-8 max-md:size-11"
+          >
             <MoreHorizontal className="size-4 max-md:size-5" />
             <span className="sr-only">More actions</span>
           </Button>
@@ -193,7 +209,10 @@ export function ChatHeader({
             <Archive className="size-3.5" /> Archive {lowerSingular}
           </DropdownMenuItem>
           <DropdownMenuSeparator />
-          <DropdownMenuItem onSelect={deleteSession} className="text-destructive">
+          <DropdownMenuItem
+            onSelect={() => session && setDeleteTarget(session)}
+            className="text-destructive"
+          >
             <Trash2 className="size-3.5" /> Delete {lowerSingular}
           </DropdownMenuItem>
         </DropdownMenuContent>
@@ -287,6 +306,21 @@ export function ChatHeader({
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <DeleteSessionDialog
+        open={deleteTarget != null}
+        sessions={deleteTarget ? [deleteTarget] : []}
+        deleting={remove.isPending}
+        onOpenChange={(open) => {
+          if (!open) setDeleteTarget(null)
+        }}
+        onCancel={() => setDeleteTarget(null)}
+        onConfirm={deleteSession}
+        onCloseAutoFocus={(event) => {
+          event.preventDefault()
+          moreActionsRef.current?.focus()
+        }}
+      />
     </header>
   )
 }
