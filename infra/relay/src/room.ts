@@ -2,6 +2,7 @@ import {
   PROTOCOL_VERSION,
   RELAY_GRANT_MAX_ID_LENGTH,
   RELAY_SUBPROTOCOL,
+  RELAY_WIRE_VERSION,
   type RouteFrameV3,
 } from '@clara/shared-types'
 import type { Env } from './env.ts'
@@ -45,8 +46,12 @@ const CLIENT_LIMIT_CODE = 4008
 const FRAME_TOO_LARGE_CODE = 4009
 const OFFLINE_CODE = 1013
 
-/** The route envelope this room speaks; the hub refuses anything older. */
-export const RELAY_VERSION = 3
+/**
+ * The route envelope this room speaks; the hub refuses anything older. It is
+ * the shared constant so the Worker, the hub's relay client, and the panel
+ * deploy check cannot drift apart.
+ */
+export const RELAY_VERSION = RELAY_WIRE_VERSION
 
 type Attachment = {
   peer?: string

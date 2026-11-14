@@ -1,4 +1,5 @@
 import { bytesToBase64Url, randomBytes } from '@clara/crypto'
+import { RELAY_WIRE_VERSION } from '@clara/shared-types'
 import type { RelayArtifact } from './artifact.ts'
 import type {
   CloudflareAccount,
@@ -24,10 +25,10 @@ const CUSTOM_HEALTH_DELAYS_MS = [2_000, 3_000, 5_000, 8_000, 10_000, 15_000]
 /**
  * The oldest route-envelope version this hub can talk to. The Worker reports
  * its version on `GET /health`, so an outdated deployment is caught here
- * instead of at the first WebSocket upgrade. The v4 core lane raises this to 3
- * once the newer envelope ships.
+ * instead of at the first WebSocket upgrade. It is the shared constant, so the
+ * gate matches the Worker and the hub's relay client.
  */
-const MIN_RELAY_WIRE_VERSION = 2
+const MIN_RELAY_WIRE_VERSION = RELAY_WIRE_VERSION
 const OUTDATED_RELAY = 'The deployed relay is outdated; redeploy the Worker'
 
 export type DeployCustomDomain = {
