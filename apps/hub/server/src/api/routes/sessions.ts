@@ -191,6 +191,7 @@ export function registerSessionRoutes(
         parentID: z.string().optional(),
         archived: optionalBooleanQuery,
         directory: z.string().optional(),
+        harnessID: z.string().min(1).optional(),
         project: z.string().optional(),
         subpath: z.string().optional(),
         cursor: z.string().optional(),
@@ -198,12 +199,20 @@ export function registerSessionRoutes(
     ),
     async (c) => {
       const params = c.req.valid('query')
+      // `harnessID` is a hub routing hint and must never reach the harness.
+      const { harnessID, ...filters } = params
+      const targetHarnessID = params.project
+        ? undefined
+        : resolveHarnessForDirectory(deps, params.directory, harnessID)
       const result = params.project
-        ? await listProjectSessions(deps, params, params.project, c.req.raw.signal)
-        : deps.harness.overlaySessionList(
-            await forwardDto(
+        ? await listProjectSessions(deps, filters, params.project, c.req.raw.signal)
+        : overlaySessionListFor(
+            deps,
+            targetHarnessID,
+            await forwardScopedDto(
               deps,
-              { method: 'GET', path: '/sessions', search: query(params) },
+              targetHarnessID,
+              { method: 'GET', path: '/sessions', search: query(filters) },
               c.req.raw.signal,
               parseClaraSessions
             )
@@ -1000,7 +1009,10 @@ async function listProjectSessions(
     const failure = loads.find((load) => load.error)?.error
     throw failure ?? new ApiRequestError(502, 'upstream_error', 'No harness returned sessions')
   }
-  const harnesses = groups.length > 1 ? loads.map((load) => harnessStatus(deps, load)) : undefined
+  const harnesses =
+    groups.length > 1 || loads.some((load) => load.error)
+      ? loads.map((load) => harnessStatus(deps, load))
+      : undefined
 
   const singlePage = totalRecords === 1 ? pages[0] : undefined
   if (singlePage) {
@@ -1131,4 +1143,20 @@ function overlaySession(
   session: ClaraSession
 ): ClaraSession {
   return harnessID ? deps.harness.overlaySession(harnessID, session) : session
+}
+
+/**
+ * Overlay a session page with the harness that served it. A resolved harness
+ * must not be overlaid with the active harness's metadata.
+ */
+function overlaySessionListFor(
+  deps: ApiDependencies,
+  harnessID: string | undefined,
+  value: ClaraSessionsResponse
+): ClaraSessionsResponse {
+  if (!harnessID) return { ...value, data: deps.harness.overlaySessionList(value).data }
+  return {
+    ...value,
+    data: value.data.map((session) => deps.harness.overlaySession(harnessID, session)),
+  }
 }

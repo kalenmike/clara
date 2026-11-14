@@ -40,6 +40,7 @@ type FixtureOptions = {
   offline?: string[]
   links?: Record<string, Array<[harnessID: string, harnessProjectID: string]>>
   sessions?: Record<string, ClaraSession[]>
+  failing?: Array<[harnessID: string, harnessProjectID: string]>
   workspaces?: Array<{ harnessID: string; directory: string }>
 }
 
@@ -75,6 +76,9 @@ function fixture(options: FixtureOptions = {}): Fixture {
   const metadata: MetadataCalls = { archived: [], snoozed: [], viewed: [], titles: [] }
   const links = options.links ?? {}
   const sessions = options.sessions ?? {}
+  const failing = new Set(
+    (options.failing ?? []).map(([harnessID, projectID]) => `${harnessID}:${projectID}`)
+  )
   const workspaces = options.workspaces ?? []
 
   const connections: HarnessConnection[] = ids.map((harnessID) => ({
@@ -169,7 +173,7 @@ function fixture(options: FixtureOptions = {}): Fixture {
       })
       const connection = connections.find((item) => item.harnessId === harnessID)
       if (!connection?.online) throw new HarnessOfflineError()
-      return respond(harnessID, input, search, findSession, sessions)
+      return respond(harnessID, input, search, findSession, sessions, failing)
     },
   } as unknown as HarnessManager
 
@@ -181,7 +185,8 @@ function respond(
   input: HarnessRequestInput,
   search: URLSearchParams,
   findSession: (harnessID: string, sessionID: string) => ClaraSession | undefined,
-  sessions: Record<string, ClaraSession[]>
+  sessions: Record<string, ClaraSession[]>,
+  failing: Set<string>
 ): Response {
   if (input.path === '/sessions/active') {
     return json({ [`${harnessID}-running`]: { type: 'running' } })
@@ -189,6 +194,9 @@ function respond(
   if (input.path === '/sessions' && input.method === 'GET') {
     const projectID = search.get('project') ?? ''
     const key = `${harnessID}:${projectID}`
+    if (failing.has(key)) {
+      return json({ error: { code: 'record_failed', message: 'record failed' } }, 503)
+    }
     return json({
       data: sessions[key] ?? [],
       cursor: { previous: null, next: `${key}-next` },
@@ -309,6 +317,70 @@ describe('multi-harness sessions and projects', () => {
     expect(body.data.map((item) => item.id)).toEqual(['s1'])
     expect(body.data[0]?.harnessID).toBe('harness-b')
     expect(fake.requests.map((item) => item.harnessID)).toEqual(['harness-b'])
+  })
+
+  it('lists sessions from an explicitly requested harness without forwarding the hint', async () => {
+    const fake = fixture()
+    const api = createTestApi(fake.harness)
+
+    const response = await api.fetch(request('/v1/sessions?harnessID=harness-b'))
+    expect(response.status).toBe(200)
+    expect(fake.requests).toHaveLength(1)
+    expect(fake.requests[0]?.harnessID).toBe('harness-b')
+    expect(fake.requests[0]?.search.has('harnessID')).toBe(false)
+  })
+
+  it('resolves a non-project session list by its workspace directory', async () => {
+    const fake = fixture({
+      workspaces: [{ harnessID: 'harness-b', directory: '/workspace/only-b' }],
+    })
+    const api = createTestApi(fake.harness)
+
+    const response = await api.fetch(request('/v1/sessions?directory=%2Fworkspace%2Fonly-b'))
+    expect(response.status).toBe(200)
+    expect(fake.requests).toHaveLength(1)
+    expect(fake.requests[0]?.harnessID).toBe('harness-b')
+    expect(fake.requests[0]?.search.get('directory')).toBe('/workspace/only-b')
+    expect(fake.requests[0]?.search.has('harnessID')).toBe(false)
+  })
+
+  it('reports a failed record when a single harness owns several records', async () => {
+    const fake = fixture({
+      links: {
+        p_demo: [
+          ['harness-a', 'project-a'],
+          ['harness-a', 'project-b'],
+        ],
+      },
+      sessions: { 'harness-a:project-a': [session('s1', 'project-a', 10)] },
+      failing: [['harness-a', 'project-b']],
+    })
+    const api = createTestApi(fake.harness)
+
+    const response = await api.fetch(request('/v1/sessions?project=p_demo'))
+    expect(response.status).toBe(200)
+    const body = (await response.json()) as {
+      data: ClaraSession[]
+      harnesses: Array<{
+        harnessID: string
+        online: boolean
+        ok: boolean
+        code?: string
+        message?: string
+      }>
+    }
+    expect(body.data.map((item) => item.id)).toEqual(['s1'])
+    expect(body.harnesses).toEqual([
+      {
+        harnessID: 'harness-a',
+        label: 'Harness harness-a',
+        kind: 'opencode',
+        online: true,
+        ok: false,
+        code: 'record_failed',
+        message: 'record failed',
+      },
+    ])
   })
 
   it('creates a session on the requested harness and strips harnessID', async () => {
