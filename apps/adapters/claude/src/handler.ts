@@ -197,7 +197,10 @@ export function createAdapterApp(context: AdapterContext): Hono {
     })
   )
 
-  app.get('/harness/v1/agents', (c) => c.json(agentList(directory(c))))
+  app.get('/harness/v1/agents', async (c) => {
+    const location = directory(c)
+    return c.json(agentList(await context.claude.catalog(location || process.cwd()), location))
+  })
   app.get('/harness/v1/models', async (c) => {
     const location = directory(c)
     return c.json(modelList(await context.claude.catalog(location || process.cwd()), location))
@@ -211,7 +214,10 @@ export function createAdapterApp(context: AdapterContext): Hono {
     const location = directory(c)
     return c.json(commandList(await context.claude.catalog(location || process.cwd()), location))
   })
-  app.get('/harness/v1/skills', (c) => c.json(skillList(directory(c))))
+  app.get('/harness/v1/skills', async (c) => {
+    const location = directory(c)
+    return c.json(skillList(await context.claude.catalog(location || process.cwd()), location))
+  })
   app.get('/harness/v1/references', (c) => c.json(referenceList(directory(c))))
 
   app.get('/harness/v1/files/find', (c) => {

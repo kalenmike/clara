@@ -149,6 +149,7 @@ pnpm clara server <start|stop|restart|status [--json]|panel|setup-token|pair|adm
 pnpm clara web <start|stop|restart|status [--json]|logs> [--local|--docker] [--build]
 pnpm clara orchestrator <serve|start|stop|restart|status [--json]|logs|token> [--local|--docker] [--build]
 pnpm clara adapter install --opencode [--mcp]
+pnpm clara adapter verify [--opencode|--claude|--pi] [--directory <path>] [--write] [--json]
 pnpm clara mcp install|config|status
 pnpm clara mcp install --api
 pnpm check:boundaries
@@ -223,6 +224,10 @@ select a subset with the same `--no-*` flags as `start`.
 `127.0.0.1:8080`; `pnpm dev:web` remains the Vite development server. The hub
 panel is the one-time harness setup surface; the adapter discovers the harness,
 and neither the hub service nor Clara Lab reads OpenCode's `service.json`.
+`pnpm clara adapter verify` probes each installed adapter's harness, lists its
+catalogs and native sessions, and reads an existing session. It is read-only
+unless `--write` is passed, which creates and removes one scratch session in the
+harness store.
 `pnpm clara rebuild` snapshots the running services, rebuilds the primary
 checkout, installs the adapters, restarts only the captured services, and
 verifies their health. It manages Docker services by default; pass `--local`

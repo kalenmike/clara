@@ -31,6 +31,7 @@ import { AgentPicker } from '@/components/chat/agent-picker'
 import { ComposerRequestList } from '@/components/chat/composer-request-list'
 import { ModelPicker, VariantPicker } from '@/components/chat/model-picker'
 import { useAgents, useCommands, useReferences, useSkills } from '@/features/catalog/use-catalog'
+import { primaryAgents } from '@/features/agents/default-agent'
 import type { ComposerMenuMode } from '@/features/chat/composer-menu'
 import {
   composerCanSend,
@@ -144,10 +145,7 @@ export function Composer({
   const startWork = useStartWork(sessionID)
 
   const commands = useMemo(() => commandsQuery.data ?? [], [commandsQuery.data])
-  const agents = useMemo(
-    () => (agentsQuery.data ?? []).filter((agent) => !agent.hidden),
-    [agentsQuery.data]
-  )
+  const agents = useMemo(() => primaryAgents(agentsQuery.data), [agentsQuery.data])
   const skills = useMemo(() => skillsQuery.data ?? [], [skillsQuery.data])
   const references = useMemo(() => referencesQuery.data ?? [], [referencesQuery.data])
   const forms = useMemo(() => formsQuery.data ?? [], [formsQuery.data])

@@ -9,14 +9,13 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { useDefaultAgent } from '@/features/agents/use-default-agent'
+import { primaryAgents } from '@/features/agents/default-agent'
 import { useAgents } from '@/features/catalog/use-catalog'
 
 export function AgentCard() {
   const { settings, lastAgent, update } = useDefaultAgent()
   const agentsQuery = useAgents()
-  const agents = (agentsQuery.data ?? []).filter(
-    (agent) => !agent.hidden && agent.mode !== 'subagent'
-  )
+  const agents = primaryAgents(agentsQuery.data)
 
   const fixed = settings.mode === 'fixed'
   const fixedAvailable = agents.some((agent) => agent.id === settings.agent)

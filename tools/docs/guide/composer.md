@@ -42,7 +42,8 @@ kept across a reload.
 
 - Type `/` to open the command palette. Commands run when you send.
 - Type `@` to mention a file, agent, skill, or reference. Mentions insert a path
-  reference; they do not upload the file contents.
+  reference; they do not upload the file contents. Only agents that can run the
+  session appear here; model-invoked subagents do not.
 
 ## Attach files
 
@@ -53,6 +54,10 @@ appear as removable chips.
 
 The **To** row sets the model and variant for the session. The footer sets the
 active agent. Both change the session immediately.
+
+A harness with no selectable agents (Pi) hides the agent control. When a harness
+offers only model-invoked subagents (Claude Code), the control lists them
+read-only under **Subagents** instead of offering them as the main agent.
 
 Models hidden in **Settings → Models** do not appear, and the variant menu is
 hidden when the model has no variants.

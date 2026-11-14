@@ -21,6 +21,7 @@ import { ReplyDock } from '@/components/chat/reply-dock'
 import { SessionStatsBar } from '@/components/chat/session-stats-bar'
 import { SidePanel } from '@/components/layout/side-panel'
 import { useDefaultAgent } from '@/features/agents/use-default-agent'
+import { primaryAgents } from '@/features/agents/default-agent'
 import { useAgents, useModels } from '@/features/catalog/use-catalog'
 import { ComposerProvider, useComposer } from '@/features/chat/composer-provider'
 import { composerDocked } from '@/features/chat/composer-layout'
@@ -46,7 +47,7 @@ import { isModelVisible } from '@/features/models/visibility'
 import { HarnessScopeProvider } from '@/features/harness/harness-scope'
 import { useInboxMonitor } from '@/features/sessions/inbox-monitor'
 import { resolveProjectWorkspaceTarget } from '@/features/projects/project-workspaces'
-import { useProject } from '@/features/projects/use-projects'
+import { useHarnesses, useProject } from '@/features/projects/use-projects'
 import { planMessageFork } from '@/features/sessions/fork'
 import { isArchivedSession } from '@/features/sessions/session-archive'
 import { isSnoozedSession } from '@/features/sessions/session-snooze'
@@ -102,6 +103,13 @@ function ChatPageContent() {
   )
   const workspace = workspaceTarget.workspace
   const harnessID = session?.harnessID ?? workspace?.harnessID
+  const harnessesQuery = useHarnesses()
+  const harnessLabel = useMemo(() => {
+    const workspaceLabel = workspace?.harnessLabel?.trim()
+    if (workspaceLabel) return workspaceLabel
+    const paired = harnessesQuery.data?.find((harness) => harness.harnessID === session?.harnessID)
+    return paired?.label?.trim() || undefined
+  }, [harnessesQuery.data, session?.harnessID, workspace?.harnessLabel])
   useMarkSessionViewed(session)
   const snapshot = useChatSnapshot(sessionId ?? '')
   useActiveSessionStatus(sessionId ?? '')
@@ -199,10 +207,7 @@ function ChatPageContent() {
   const isDesktop = useMediaQuery('(min-width: 1280px)')
 
   const agentsQuery = useAgents(harnessID)
-  const agents = useMemo(
-    () => (agentsQuery.data ?? []).filter((agent) => !agent.hidden && agent.mode !== 'subagent'),
-    [agentsQuery.data]
-  )
+  const agents = useMemo(() => primaryAgents(agentsQuery.data), [agentsQuery.data])
   const switchAgent = useSwitchAgent(sessionId ?? '')
   const switchModel = useSwitchModel(sessionId ?? '')
   const { settings: defaultAgentSettings } = useDefaultAgent()
@@ -462,6 +467,7 @@ function ChatPageContent() {
                 <ChatHeader
                   session={session}
                   snapshot={snapshot}
+                  harnessLabel={harnessLabel}
                   infoOpen={infoOpen}
                   onToggleInfo={togglePanel}
                   onFork={handleForkSession}

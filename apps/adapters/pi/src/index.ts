@@ -21,6 +21,7 @@ import { SessionIndex } from './pi/indexer.ts'
 import { PromptMap } from './prompt-map.ts'
 import { PiRuntime } from './runtime.ts'
 import { SessionService } from './sessions.ts'
+import { verifyPi } from './verify.ts'
 
 const ADAPTER_NAME = 'pi'
 const ADAPTER_VERSION = '0.1.0'
@@ -46,6 +47,7 @@ Usage:
   clara-adapter-pi serve
   clara-adapter-pi start|stop|logs [--lines <n>]
   clara-adapter-pi status
+  clara-adapter-pi verify [--directory <path>] [--write] [--json]
   clara-adapter-pi uninstall [--purge]
   clara-adapter-pi config-path
 
@@ -140,6 +142,7 @@ function definition(): AdapterDefinition<Harness> {
       }
       uninstallPiCommand(args)
     },
+    verify: (config, options) => verifyPi(config, options),
     statusLines: (config, probe) => [
       `pi:       ${config.pi.piPath ?? 'unresolved'}${probe.version ? ` (${probe.version})` : ''}`,
       `agent:    ${resolveAgentDir(config.pi)}`,

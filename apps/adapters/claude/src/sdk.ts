@@ -42,6 +42,16 @@ import {
   resolveClaudeProvider,
   type ClaudeProvider,
 } from './provider.ts'
+import {
+  mergeAgents,
+  mergeCommands,
+  mergePlugins,
+  mergeSkills,
+  type ClaudeAgentEntry,
+  type ClaudeCommandEntry,
+  type ClaudePluginEntry,
+  type ClaudeSkillEntry,
+} from './catalog-merge.ts'
 import { ClaudeStreamTranslator, usageOf } from './stream.ts'
 
 export type ClaudeSessionInfo = {
@@ -257,9 +267,13 @@ export type ClaudeCatalog = {
   provider: ClaudeProvider
   defaultModel?: string
   models: ClaudeModelRow[]
-  agents: { name: string; description?: string; model?: string }[]
-  commands: { name: string; description?: string }[]
-  skills: string[]
+  agents: ClaudeAgentEntry[]
+  commands: ClaudeCommandEntry[]
+  skills: ClaudeSkillEntry[]
+  plugins: ClaudePluginEntry[]
+  tools: string[]
+  /** Slash commands bound to the local terminal, hidden from remote surfaces. */
+  terminalCommands: string[]
 }
 
 export interface ClaudeGateway {
@@ -667,8 +681,22 @@ export class AgentSdkGateway implements ClaudeGateway {
           agents: cli?.agents ?? [],
           commands: cli?.commands ?? [],
           skills: cli?.skills ?? [],
+          plugins: cli?.plugins ?? [],
+          tools: cli?.tools ?? [],
+          terminalCommands: cli?.terminalCommands ?? [],
         }
       : (cli ?? this.fallbackCatalog(provider, defaultModel))
+
+    // A live turn is the only source for skills, plugins, and terminal-only
+    // commands. Keep what it learned when a later catalog probe cannot report
+    // them (the SDK initialization result omits those fields).
+    const live = this.catalogValue
+    if (live && catalog.skills.length === 0) catalog.skills = live.skills
+    if (live && catalog.plugins.length === 0) catalog.plugins = live.plugins
+    if (live && catalog.tools.length === 0) catalog.tools = live.tools
+    if (live && catalog.terminalCommands.length === 0) {
+      catalog.terminalCommands = live.terminalCommands
+    }
 
     this.providerValue = provider
     this.defaultModelValue = defaultModel
@@ -733,6 +761,9 @@ export class AgentSdkGateway implements ClaudeGateway {
           description: command.description,
         })),
         skills: [],
+        plugins: [],
+        tools: [],
+        terminalCommands: [],
       }
     } catch {
       return undefined
@@ -752,6 +783,9 @@ export class AgentSdkGateway implements ClaudeGateway {
       agents: [],
       commands: [],
       skills: [],
+      plugins: [],
+      tools: [],
+      terminalCommands: [],
     }
   }
 
@@ -808,12 +842,17 @@ export class AgentSdkGateway implements ClaudeGateway {
             permissionMode: message.permissionMode,
             provider,
           })
+          const previous = this.catalogValue ?? this.fallbackCatalog(provider)
+          const commands = mergeCommands(previous.commands, message.slash_commands ?? [])
           this.catalogValue = {
-            ...(this.catalogValue ?? this.fallbackCatalog(provider)),
+            ...previous,
             provider,
-            agents: (message.agents ?? []).map((name) => ({ name })),
-            commands: (message.slash_commands ?? []).map((name) => ({ name })),
-            skills: message.skills ?? [],
+            agents: mergeAgents(previous.agents, message.agents ?? []),
+            commands,
+            skills: mergeSkills(previous.skills, message.skills ?? [], commands),
+            plugins: mergePlugins(previous.plugins, message.plugins ?? []),
+            tools: message.tools ?? previous.tools,
+            terminalCommands: message.terminal_slash_commands ?? previous.terminalCommands,
           }
           return
         }
