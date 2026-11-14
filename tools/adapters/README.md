@@ -12,7 +12,8 @@ workflow**. It builds each OS on its own runner:
 | Runner           | Targets                                                          |
 | ---------------- | ---------------------------------------------------------------- |
 | `ubuntu-22.04`   | `linux-x64`, `linux-arm64`, `linux-x64-musl`, `linux-arm64-musl` |
-| `macos-14`       | `darwin-arm64`, `darwin-x64`                                     |
+| `macos-15`       | `darwin-arm64`                                                   |
+| `macos-15-intel` | `darwin-x64`                                                     |
 | `windows-latest` | `win32-x64`, `win32-arm64`                                       |
 
 Inputs:
@@ -21,9 +22,10 @@ Inputs:
 - `kinds` — `all` or a comma list of `opencode`, `claude`, `pi`.
 - `dry_run` — build and generate the registry without creating a release.
 
-Each row builds the other architecture with Bun's same-OS cross-compilation. If
-a particular target proves unreliable on a runner, split that target into its own
-native runner row without changing the publish job.
+Linux and Windows build the other architecture with Bun's same-OS
+cross-compilation; macOS runs arm64 and Intel on native runners. If a target
+proves unreliable on a runner, split that target into its own native runner row
+without changing the publish job.
 
 The publish job:
 
