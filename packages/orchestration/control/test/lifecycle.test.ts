@@ -123,7 +123,7 @@ describe('orchestrator lifecycle', () => {
       expect(lines).toContain(
         'database: managed by the container (Docker volume clara-orchestrator-data)'
       )
-      expect(lines).toContain('stop: pnpm clara orchestrator stop --docker')
+      expect(lines).toContain('stop: pnpm clara stop orchestrator --docker')
     } finally {
       await service.close()
     }

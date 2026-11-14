@@ -13,63 +13,8 @@ import {
   hubEnvWarnings,
   orchestratorEnvErrors,
   parseEnvFile,
-  parseSelection,
   readDockerToken,
-  selectedNames,
 } from '../src/lib/stack-control.mjs'
-
-test('selects all services by default', () => {
-  assert.deepEqual(parseSelection([]), {
-    server: true,
-    web: true,
-    orchestrator: true,
-    build: false,
-    json: false,
-    mode: 'docker',
-  })
-})
-
-test('handles multiple exclusions, build, and json', () => {
-  assert.deepEqual(
-    parseSelection(['--no-web', '--no-orchestrator', '--build', '--json'], { json: true }),
-    {
-      server: true,
-      web: false,
-      orchestrator: false,
-      build: true,
-      json: true,
-      mode: 'docker',
-    }
-  )
-})
-
-test('parses local and explicit docker modes', () => {
-  assert.equal(parseSelection(['--local']).mode, 'local')
-  assert.equal(parseSelection(['--docker']).mode, 'docker')
-  assert.equal(parseSelection(['--local', '--build']).build, true)
-  assert.throws(() => parseSelection(['--local', '--docker']), /cannot be combined/)
-})
-
-test('can exclude every service', () => {
-  const selection = parseSelection(['--no-server', '--no-web', '--no-orchestrator'])
-  assert.deepEqual(selectedNames(selection), [])
-})
-
-test('rejects unknown options and flags that are not allowed', () => {
-  assert.throws(() => parseSelection(['--no-wb']), /unknown option: --no-wb/)
-  assert.throws(() => parseSelection(['--build'], { build: false }), /unknown option: --build/)
-  assert.throws(() => parseSelection(['--json']), /unknown option: --json/)
-})
-
-test('keeps start order and reverses it for stop', () => {
-  const selection = parseSelection([])
-  assert.deepEqual(selectedNames(selection), ['orchestrator', 'server', 'web'])
-  assert.deepEqual(selectedNames(selection, ['web', 'server', 'orchestrator']), [
-    'web',
-    'server',
-    'orchestrator',
-  ])
-})
 
 test('parses simple env files, comments, and quotes', (t) => {
   const dir = mkdtempSync(join(tmpdir(), 'clara-stack-'))

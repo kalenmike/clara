@@ -1,10 +1,10 @@
 #!/usr/bin/env node
 // Host and Docker controls for the Clara orchestration service.
 //
-//   pnpm clara orchestrator start [--local|--docker] [--build]
-//   pnpm clara orchestrator stop [--local|--docker]
-//   pnpm clara orchestrator restart [--local|--docker] [--build]
-//   pnpm clara orchestrator status
+//   pnpm clara start orchestrator [--local|--docker] [--build]
+//   pnpm clara stop orchestrator [--local|--docker]
+//   pnpm clara restart orchestrator [--local|--docker] [--build]
+//   pnpm clara status orchestrator
 
 import { existsSync } from 'node:fs'
 import { join } from 'node:path'
@@ -122,7 +122,7 @@ function printHelp() {
   console.log(`Run the Clara orchestration service
 
 Usage:
-  pnpm clara orchestrator <command> [--local|--docker] [options]
+  pnpm clara <command> orchestrator [--local|--docker] [options]
 
 Commands:
   start [--build]     Start the container, or the local service with --local

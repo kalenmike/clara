@@ -1,12 +1,10 @@
 #!/usr/bin/env node
-// Install the Clara MCP bridge into OpenCode, or print generic MCP config.
+// Internal MCP bridge installer used by `clara start adapter --mcp`.
 //
-//   pnpm clara mcp install
-//   pnpm clara mcp install --api
-//   pnpm clara mcp install --no-start
-//   pnpm clara mcp uninstall
-//   pnpm clara mcp config
-//   pnpm clara mcp status
+//   node tools/cli/src/commands/install-mcp.mjs install [--api] [--no-start]
+//   node tools/cli/src/commands/install-mcp.mjs uninstall [--api]
+//   node tools/cli/src/commands/install-mcp.mjs config
+//   node tools/cli/src/commands/install-mcp.mjs status
 
 import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs'
 import { homedir } from 'node:os'
@@ -50,7 +48,7 @@ const withApi = args.includes('--api')
 
 if (command === 'help' || command === '--help' || command === '-h') {
   console.log(
-    'Clara MCP bridge\n\nUsage: pnpm clara mcp <install|uninstall|config|status> [--api] [--no-start]'
+    'Clara MCP bridge\n\nUsage: node tools/cli/src/commands/install-mcp.mjs <install|uninstall|config|status> [--api] [--no-start]'
   )
 } else if (command === 'install') install()
 else if (command === 'uninstall') uninstall()

@@ -89,7 +89,7 @@ export async function startOrchestration(): Promise<void> {
     throw new PanelControlError(
       409,
       'orchestrator_container',
-      'The orchestrator is managed by Docker on this host. Start it with `pnpm clara orchestrator start --docker` or docker compose.'
+      'The orchestrator is managed by Docker on this host. Start it with `pnpm clara start orchestrator --docker` or docker compose.'
     )
   }
 
@@ -121,7 +121,7 @@ export async function startOrchestration(): Promise<void> {
   throw new PanelControlError(
     503,
     'orchestrator_unhealthy',
-    `The orchestrator did not become healthy at ${baseURL()}. Check \`pnpm clara orchestrator status\`.`
+    `The orchestrator did not become healthy at ${baseURL()}. Check \`pnpm clara status orchestrator\`.`
   )
 }
 
@@ -133,7 +133,7 @@ export async function stopOrchestration(): Promise<void> {
     throw new PanelControlError(
       409,
       'orchestrator_container',
-      'The orchestrator is running in Docker. Stop it with `pnpm clara orchestrator stop --docker`.'
+      'The orchestrator is running in Docker. Stop it with `pnpm clara stop orchestrator --docker`.'
     )
   }
   if (result.kind === 'external') {
