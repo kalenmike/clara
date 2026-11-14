@@ -41,7 +41,7 @@ export function useSession() {
 
   const setup = useCallback(async (token: string, username: string, password: string) => {
     const result = await postPanel<SessionResponse>('/panel/api/v1/setup', {
-      token,
+      ...(token ? { token } : {}),
       username,
       password,
     })
@@ -54,7 +54,12 @@ export function useSession() {
       await deletePanel('/panel/api/v1/session')
     } finally {
       setState({
-        status: { authenticated: false, setupRequired: false, resetPending: false },
+        status: {
+          authenticated: false,
+          setupRequired: false,
+          setupTokenRequired: false,
+          resetPending: false,
+        },
         loading: false,
       })
     }
@@ -71,7 +76,12 @@ export function useSession() {
 
   const invalidate = useCallback(() => {
     setState({
-      status: { authenticated: false, setupRequired: false, resetPending: false },
+      status: {
+        authenticated: false,
+        setupRequired: false,
+        setupTokenRequired: false,
+        resetPending: false,
+      },
       loading: false,
     })
     // A host reset revokes the session and issues a token. Re-read the status so

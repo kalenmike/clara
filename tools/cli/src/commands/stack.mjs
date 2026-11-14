@@ -311,7 +311,7 @@ function printSummary(selection) {
     console.log('')
     console.log('Open the panel with `pnpm clara server panel`.')
     console.log(
-      `First run: use \`pnpm clara server setup-token ${target}\` for the one-time token.`
+      `First run: create the owner account in the panel, or run \`pnpm clara server setup ${target} --password-stdin\`.`
     )
     console.log(`Pair a device with \`pnpm clara server pair ${target}\`.`)
     console.log('Add `--no-relay` to that pair command for a local-only code and local link.')

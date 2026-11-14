@@ -138,7 +138,7 @@ orchestrator container is named `clara-orchestrator`.
 
    ```sh
    pnpm clara server start --docker --build
-   pnpm clara server setup-token --docker
+   pnpm clara server setup --password-stdin
    ```
 
    In its panel, use `http://opencode:4096` when the harness is a container on the

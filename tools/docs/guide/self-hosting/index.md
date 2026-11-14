@@ -44,12 +44,14 @@ Both modes use the same hub panel, pairing command, and data model.
 
 1. Install dependencies with `pnpm install`.
 2. Start the stack. Docker is the default; add `--local` for host processes.
-3. Run `pnpm clara server setup-token` and open the hub panel. Choose a
-   superadmin password, add a harness, and run the printed adapter install
-   command on the harness machine.
-4. In the panel, open **Clients → Pair a browser** and scan the QR or open the
+3. Open the hub panel and create the owner account. No other hub service starts
+   until that account exists. For a headless install, run
+   `pnpm clara server setup --password-stdin` instead.
+4. In the panel, add a harness, then run the printed adapter install command on
+   the harness machine.
+5. In the panel, open **Clients → Pair a browser** and scan the QR or open the
    link on your device. You can also run `pnpm clara pair` and use its link.
-5. Add the web app to your Home Screen or install it.
+6. Add the web app to your Home Screen or install it.
 
 The detailed steps are in [Docker](docker.md) and
 [Local install](local.md).
@@ -75,6 +77,7 @@ the desktop client follows the local port through the hub's runtime file. See
 
 - [Docker](docker.md)
 - [Local install](local.md)
+- [Headless server](headless.md)
 - [Hub app](../hub-app.md)
 - [Configuration](configuration.md)
 - [Remote access with the relay](relay.md)

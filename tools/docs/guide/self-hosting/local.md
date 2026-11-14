@@ -21,13 +21,13 @@ It is the fastest path when Node and the harness already run on the machine.
 ```bash
 pnpm install
 pnpm clara start --local --build
-pnpm clara server setup-token --local
 pnpm clara server panel
 ```
 
 In the panel:
 
-1. Choose the superadmin password.
+1. Create the hub owner account. Until this exists, the hub starts only the
+   loopback panel; the local WebSocket, relay, and pairing stay stopped.
 2. Add a harness under **Harness**, then run the printed adapter install command
    on the harness machine. For OpenCode, the installer finds the server or
    prompts for its URL and password.
@@ -35,6 +35,14 @@ In the panel:
    **Test** and **Activate**.
 4. Set **Web URL** if devices should open something other than
    `http://127.0.0.1:8080`.
+
+For a headless install, create the owner without a browser:
+
+```bash
+pnpm clara server setup --local --password-stdin
+```
+
+Or set `CLARA_ADMIN_USERNAME` and `CLARA_ADMIN_PASSWORD` before starting the hub.
 
 Then pair from **Clients → Pair a browser** in the panel, or run:
 
@@ -67,7 +75,7 @@ stop, restart, status, and logs commands work without Docker.
 
 ## Data
 
-- `~/.config/clara` — configuration, setup token, secrets, and VAPID keys.
+- `~/.config/clara` — configuration, reset token, secrets, and VAPID keys.
 - `~/.local/share/clara` — SQLite database, logs, and orchestration data.
 
 Set `CLARA_CONFIG_DIR` and `CLARA_DATA_DIR` to move them. See

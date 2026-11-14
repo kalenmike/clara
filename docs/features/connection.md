@@ -12,8 +12,9 @@ device key through a one-time code; there is no shared browser key.
 
 ## User flow
 
-1. Start the hub and open its panel. Complete the one-time setup token and
-   sign in. In **Harness → Add harness**, choose the adapter type and location,
+1. Start the hub and open its panel. Create the owner account and sign in. Until
+   that account exists the hub starts only the loopback panel and no
+   transports. In **Harness → Add harness**, choose the adapter type and location,
    then copy the pairing code. On the harness machine, run the printed install
    command; for the included adapters, that is
    `pnpm clara adapter install --opencode --pair <code>` or

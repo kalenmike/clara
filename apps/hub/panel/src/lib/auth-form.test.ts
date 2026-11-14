@@ -1,10 +1,20 @@
 import { describe, expect, it } from 'vitest'
 import type { PanelAuthStatus } from '@clara/shared-types'
-import { authFormMode, canResetWithToken, showsUsernameField } from './auth-form.ts'
+import {
+  authFormMode,
+  canResetWithToken,
+  setupNeedsToken,
+  showsUsernameField,
+} from './auth-form.ts'
 
-const signedOut = (setupRequired: boolean, resetPending: boolean): PanelAuthStatus => ({
+const signedOut = (
+  setupRequired: boolean,
+  resetPending: boolean,
+  setupTokenRequired = false
+): PanelAuthStatus => ({
   authenticated: false,
   setupRequired,
+  setupTokenRequired,
   resetPending,
 })
 
@@ -27,6 +37,13 @@ describe('auth form mode', () => {
     const status = signedOut(false, false)
     expect(authFormMode(status, true)).toBe('login')
     expect(canResetWithToken(status)).toBe(false)
+  })
+
+  it('only asks for a setup token when the host supplied one', () => {
+    expect(setupNeedsToken(signedOut(true, false))).toBe(false)
+    expect(setupNeedsToken(signedOut(true, false, true))).toBe(true)
+    expect(setupNeedsToken(signedOut(false, true))).toBe(false)
+    expect(setupNeedsToken(undefined)).toBe(false)
   })
 
   it('asks for the username on sign-in and setup, but not with a reset token', () => {

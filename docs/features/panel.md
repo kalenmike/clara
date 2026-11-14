@@ -12,9 +12,11 @@ harnesses can be paired and serve their own workspaces, while a request that
 names neither a session nor a workspace falls back to the active one. Sensitive values, including the
 harness URL and relay room, start masked behind a header peek control so the
 panel can be screenshared safely. It is also the setup
-surface for browser pairing and harness adapters: the superadmin signs in,
-chooses a password, then creates a one-time browser link, code, or QR, or adds an
-adapter and runs its install command on the harness machine. The same surface
+surface for the owner account, browser pairing, and harness adapters: on first
+run it serves only a local setup screen until the owner account exists, then the
+hub starts its transports and the superadmin can create a one-time browser link,
+code, or QR, or add an adapter and run its install command on the harness
+machine. The same surface
 edits the Web URL used by pairing links, the VAPID contact used by Web Push, and
 the relay target, switches external connections on and off without stopping the
 process, starts and stops the local orchestration service, turns traffic
@@ -31,12 +33,20 @@ card.
    `pnpm clara server panel`. The open command only opens a panel that is
    already being served; the start command prints the panel URL
    (`http://127.0.0.1:8790/` by default).
-2. The command opens the panel. First run shows setup: read the one-time token
-   from `admin-setup.txt` in the config directory, or run
-   `pnpm clara server setup-token` (it targets the running deployment
-   automatically), then choose the superadmin password. Later visits show the
-   sign-in form. After a host reset, the sign-in form shows a reset link while
-   the token is valid.
+2. On first run the panel is the only surface. It shows **Create the hub owner
+   account** with a username, password, and confirmation. No local WebSocket,
+   relay, harness probe, push monitor, orchestration, or pairing starts until
+   that account exists. The setup route is local-only; remote requests are
+   rejected by the panel's Host/Origin/fetch-metadata guards. Choose the owner
+   credentials and submit; the hub starts its transports in the same process and
+   the dashboard replaces the setup screen. Later visits show the sign-in form.
+   A host reset adds a reset link while its token is valid. For a headless
+   install, run `pnpm clara server setup --password-stdin` while the hub is in
+   setup mode, or set `CLARA_ADMIN_USERNAME` and `CLARA_ADMIN_PASSWORD` (or
+   `CLARA_ADMIN_PASSWORD_FILE`) before starting it. The environment path creates
+   the owner before any transport starts and skips the setup screen. A
+   host-supplied `CLARA_ADMIN_SETUP_TOKEN` switches the setup screen to token
+   mode for an explicitly remote or automated install.
 3. After signing in, open **Harness**, use **Add harness**, choose the adapter
    type and location, then copy the pairing code or install command. Run the
    command on the harness machine. A new adapter appears under
@@ -67,7 +77,7 @@ card.
    **Refresh**, and **Sign out**. The status bar along the bottom summarizes the
    hub, harness, local, relay, push, orchestration, and client state; each item
    opens the matching view. Its far end shows the panel version with the build
-   commit and the panel API version, such as `v0.1.0.c8becb85 · API v11`.
+   commit and the panel API version, such as `v0.1.0.c8becb85 · API v12`.
 7. **Harness** mirrors the Clients view. The page header carries the active
    harness health badge. **Add harness** sits first and owns the harness type,
    adapter location, and pairing code; the form lays the two choices out in a
@@ -173,12 +183,20 @@ card.
    explicit exposure controls. The `Host`/`Origin` guard still expects a
    loopback origin, so remote access uses an SSH tunnel rather than direct LAN
    access. It is never served through the relay or Pages.
-2. **First run is a one-time token, not a default password.** With no admin,
-   the server writes `admin-setup.txt` (mode `0600`) in the config directory.
-   The setup form exchanges that token for a username and a scrypt-hashed
-   password. A lost password is reset only by the host-side
-   `clara-server admin reset`, which writes a fresh token and revokes sessions.
-   There is no network password-reset endpoint.
+2. **First run blocks the hub.** With no owner account the panel serves only
+   `/health`, static assets, `GET /panel/api/v1/session`, and
+   `POST /panel/api/v1/setup`; every other panel API route returns
+   `503 setup_required`. The local WebSocket, relay, harness probe and routing,
+   push monitor, orchestration, and all pairing stay stopped until the owner is
+   created. The setup form is local-only by default and needs no token. The
+   handler creates the first user with a scrypt-hashed password, starts the
+   transports in the same process, and returns a session cookie. A lost password
+   is reset only by the host-side `clara-server admin reset`, which writes a
+   fresh token and revokes sessions; there is no network password-reset
+   endpoint. `CLARA_ADMIN_USERNAME` plus `CLARA_ADMIN_PASSWORD` or
+   `CLARA_ADMIN_PASSWORD_FILE` creates the owner before startup for CI and
+   headless installs. A host-supplied `CLARA_ADMIN_SETUP_TOKEN` requires a token
+   on the setup form for an explicitly remote install.
 3. **Reads and writes require a session.** `GET` and `HEAD` serve the snapshot
    and assets after login. `POST` is accepted at the feature, master-stop,
    monitoring, sync, orchestration, config, harness, browser-pairing, password,
@@ -241,12 +259,16 @@ card.
   has no switch in the Harness header because multiple harnesses are supported.
 - **The adapter credential cannot be opened** — the connection stays listed but
   cannot authenticate. Re-pair the adapter; the rest of the hub keeps running.
-- **The setup token is missing** — the panel explains how to run
-  `pnpm clara server setup-token` or `clara-server admin reset`. It does not
-  fall back to a default password.
+- **No owner account exists** — the panel shows only the setup screen. The hub
+  API returns `503 setup_required`, the local listener and relay do not start,
+  and pairing commands refuse until the owner is created. The hub exits if the
+  panel is disabled and no environment owner is configured.
+- **The owner setup screen is opened remotely** — the panel's Host/Origin guard
+  rejects it. Use an SSH tunnel or configure `CLARA_ADMIN_PASSWORD` before
+  startup. A host-supplied setup token is the explicit remote setup path.
 - **The setup token is wrong or expired** — setup returns a generic invalid-token
-  error and keeps the form available. Run the host reset command to issue a new
-  token.
+  error and keeps the form available. A token is only required when the host
+  supplied one; local setup needs no token.
 - **The superadmin password is lost** — run `pnpm clara server admin reset`. It
   targets the running deployment automatically and prints which one it chose,
   writes a new one-time token, and revokes every panel session. While that token
@@ -254,6 +276,11 @@ card.
   the form takes the token and a new password and keeps the existing username.
   The link disappears when the token is used or expires. There is no HTTP reset
   route.
+- **The environment owner is already configured** — the env values are ignored;
+  the existing password is never overwritten. A partial username/password pair
+  is ignored, and a password under 12 characters fails startup.
+- **No owner and the panel is disabled** — startup fails with the missing
+  account and the two supported paths (panel or `CLARA_ADMIN_PASSWORD`).
 - **A local install and the Docker stack both have state** — the command refuses
   to guess and exits after printing the reason. Pass `--docker` for the
   `clara-server` container or `--local` for the local install.
@@ -383,10 +410,12 @@ card.
 - Panel listener: `127.0.0.1:8790` by default; `CLARA_PANEL_BIND_HOST=0.0.0.0`
   inside the container with host-loopback publishing
 - Page: `GET /`
-- Health: `GET /health` (unauthenticated, no secrets)
+- Health: `GET /health` (unauthenticated, no secrets; includes
+  `setupRequired` and `setupTokenRequired`)
 - Session: `GET|POST|DELETE /panel/api/v1/session`
-- Setup: `POST /panel/api/v1/setup` with `{ "token": "...", "username": "...", "password": "..." }`
-- Read API: `GET /panel/api/v1/status` (API version `11`, authenticated)
+- Setup: `POST /panel/api/v1/setup` with `{ "username": "...", "password": "..." }`,
+  plus `"token"` only when the host supplied one
+- Read API: `GET /panel/api/v1/status` (API version `12`, authenticated)
 - Mutations:
   - `POST /panel/api/v1/features` with `{ "feature": "...", "enabled": true }`
   - `POST /panel/api/v1/agent` with `{ "stopped": true }` (external connections off)
@@ -426,16 +455,21 @@ card.
   - `CLARA_DB_PATH` moves the database (default `<data dir>/clara.db`)
   - `CLARA_SECRET_KEY` or `CLARA_SECRET_KEY_FILE` encrypts adapter credentials; otherwise
     `secrets.key` is generated in the config directory
-  - `CLARA_ADMIN_SETUP_TOKEN` or `CLARA_ADMIN_SETUP_TOKEN_FILE` supplies the first-run token
-- CLI: `clara-server serve --no-panel`, `clara-server admin reset|setup-token`
+  - `CLARA_ADMIN_USERNAME` with `CLARA_ADMIN_PASSWORD` or
+    `CLARA_ADMIN_PASSWORD_FILE` creates the owner before transports start
+  - `CLARA_ADMIN_SETUP_TOKEN` or `CLARA_ADMIN_SETUP_TOKEN_FILE` requires a
+    host-supplied token on the setup form
+- CLI: `clara-server serve --no-panel`,
+  `clara-server setup [--username <name>] [--password-stdin]`,
+  `clara-server admin reset|setup-token`
 - Built assets: `apps/hub/server/dist/panel`, copied from `apps/hub/panel/dist`
 - Open the built panel: `pnpm clara server panel` opens
   `http://127.0.0.1:${CLARA_PANEL_PORT:-8790}/` in a browser when the hub service is
   already serving it; start the hub with `pnpm clara server start --local`
   (or `--docker`) first. The panel is a surface of the hub, not a
   separate service
-- Docker (default): `pnpm clara server start|stop|restart|status|setup-token|pair|admin|logs`;
-  `setup-token`, `admin`, and `pair` target the running deployment
+- Docker (default): `pnpm clara server start|stop|restart|status|setup|setup-token|pair|admin|logs`;
+  `setup`, `setup-token`, `admin`, and `pair` target the running deployment
   automatically, and `--docker`/`--local` force the container or the host
   install. Pass `--local` to `start`, `stop`, `restart`, or `logs` to use
   the detached local hub instead. `pair --no-relay` emits a local-only code.
@@ -479,7 +513,9 @@ card.
 - Database health: path, existence, mode, bytes, schema version, client-sync
   counts and bytes (never values)
 - Auth: scrypt password hashes, hashed session tokens in memory, per-source and
-  per-username login limits, session-version revocation, one-time setup tokens
+  per-username login limits, per-source setup limits, session-version
+  revocation, host-supplied setup tokens for remote installs, and environment
+  owner creation for CI
 - Adapter credentials: AES-256-GCM with a per-secret nonce and AAD bound to the
   adapter id; the key lives outside SQLite
 - Guards: authenticated session for `/panel/api/*`, optional bridge source

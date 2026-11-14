@@ -9,6 +9,27 @@ sidebar_position: 3
 Most settings live in the authenticated hub panel. A few deployment values can be
 set with environment variables, which take precedence over the panel files.
 
+## Create the owner account
+
+The first run serves only the loopback setup screen. The local WebSocket, relay,
+harness routing, push, orchestration, and pairing stay stopped until the owner
+account exists. Create it in the panel, or from a shell:
+
+```bash
+pnpm clara server setup --password-stdin
+```
+
+For an unattended start, set `CLARA_ADMIN_USERNAME` and
+`CLARA_ADMIN_PASSWORD` or `CLARA_ADMIN_PASSWORD_FILE` before the hub starts. The
+environment owner is created before any transport starts and the setup screen is
+skipped. The password must be at least 12 characters. A configured hub ignores
+the environment values rather than overwriting its password. Prefer
+`CLARA_ADMIN_PASSWORD_FILE` for Docker or CI because a plain environment value
+is visible to `docker inspect` and process listings.
+
+`CLARA_ADMIN_SETUP_TOKEN` or `CLARA_ADMIN_SETUP_TOKEN_FILE` is the explicit
+remote setup path. When set, the setup form also asks for that token.
+
 ## Connect a harness
 
 1. Start the hub and open the panel.
@@ -83,7 +104,9 @@ values.
 | `CLARA_CONFIG_DIR`                                         | Move configuration files                                     |
 | `CLARA_DATA_DIR`                                           | Move data files and logs                                     |
 | `CLARA_SECRET_KEY` / `CLARA_SECRET_KEY_FILE`               | Encrypt adapter credentials instead of using `secrets.key`   |
-| `CLARA_ADMIN_SETUP_TOKEN` / `CLARA_ADMIN_SETUP_TOKEN_FILE` | Supply the first-run setup token                             |
+| `CLARA_ADMIN_USERNAME`                                     | Owner username created at startup with a password            |
+| `CLARA_ADMIN_PASSWORD` / `CLARA_ADMIN_PASSWORD_FILE`       | Create the owner before transports start; skip setup screen  |
+| `CLARA_ADMIN_SETUP_TOKEN` / `CLARA_ADMIN_SETUP_TOKEN_FILE` | Require a host-supplied token on the setup form              |
 | `CLARA_RELAY_URL`                                          | Relay endpoint; wins over the panel when set                 |
 | `CLARA_RELAY_ROOM`                                         | Relay room; generated when omitted and never typed by hand   |
 | `CLARA_AGENT_TOKEN`                                        | Relay token for the hub side; wins over the panel when set   |

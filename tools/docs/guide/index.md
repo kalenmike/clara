@@ -39,6 +39,7 @@ You run a harness and want to reach it from your own devices.
 - [Self-hosting overview](self-hosting/index.md) — requirements and architecture.
 - [Docker](self-hosting/docker.md) — the recommended stack.
 - [Hub app](hub-app.md) — run the hub and panel from a tray app.
+- [Headless server](self-hosting/headless.md) — run the hub without a desktop.
 - [Local install](self-hosting/local.md) — Node processes on the host.
 - [Configuration](self-hosting/configuration.md) — harness connection, Web URL, and environment.
 - [Remote access](self-hosting/relay.md) — the Cloudflare relay.

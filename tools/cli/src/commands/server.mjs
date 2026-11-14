@@ -24,6 +24,7 @@ import {
   runServerProcess,
   SERVER_ENTRY,
   serverLogTail,
+  serverRunningInCompose,
   waitForPanel,
 } from '../lib/server-control.mjs'
 import { readServiceArgs, runServiceLifecycle } from '../lib/service-cli.mjs'
@@ -60,6 +61,8 @@ const serverService = {
     onStarted: () => {
       console.log(`panel: ${panelURL()}/`)
       console.log(`  logs:  ${logPath('server')}`)
+      console.log('If this is the first run, create the owner account in the panel or run:')
+      console.log('  pnpm clara server setup --local --password-stdin')
       console.log('Stop it with `pnpm clara server stop --local`.')
     },
   },
@@ -73,9 +76,9 @@ const serverService = {
     onUnhealthy: printServerLogTail,
     onStarted: () => {
       console.log(`panel: ${panelURL()}/`)
-      console.log('If this is the first run, open the panel and use the one-time setup token:')
-      console.log('  pnpm clara server setup-token --docker')
-      console.log('The token is also written to admin-setup.txt in the clara-server-config volume.')
+      console.log('If this is the first run, create the owner account in the panel or run:')
+      console.log('  pnpm clara server setup --docker --password-stdin')
+      console.log('The hub starts no transports until the owner account exists.')
     },
   },
 }
@@ -89,6 +92,7 @@ if (ctx.help) {
 
 if (!(await runServiceLifecycle(serverService, ctx))) {
   if (ctx.command === 'panel') await panel()
+  else if (ctx.command === 'setup') await setup()
   else if (ctx.command === 'setup-token') await runServerProcessFor(['admin', 'setup-token'])
   else if (ctx.command === 'admin') await admin()
   else if (ctx.command === 'pair') await pair()
@@ -129,6 +133,10 @@ async function panel() {
   const health = await probe(`${panelURL()}/health`)
   if (health.ok && health.body?.service === 'clara-server') {
     console.log(`panel: ${url}`)
+    if (health.body.setupRequired) {
+      console.log('Setup required: create the owner account in the panel.')
+      console.log('For a headless install, run `pnpm clara server setup --password-stdin`.')
+    }
     openPanel(url)
     return
   }
@@ -143,6 +151,11 @@ async function panel() {
     'Start it with `pnpm clara server start --local` or `pnpm clara server start --docker`.'
   )
   process.exitCode = 1
+}
+
+async function setup() {
+  const forwarded = ctx.args.slice(1).filter((arg) => arg !== '--docker' && arg !== '--local')
+  await runServerProcessFor(['setup', ...forwarded])
 }
 
 async function admin() {
@@ -172,6 +185,12 @@ async function runServerProcessFor(serverArgs) {
       : '[clara] target: the local install'
   )
   if (target === 'container') {
+    if (serverArgs[0] === 'setup' && !serverRunningInCompose()) {
+      console.error('The clara-server container is not running.')
+      console.error('Start it with `pnpm clara server start` before creating the owner account.')
+      process.exitCode = 1
+      return
+    }
     const code = runServerProcess(serverArgs)
     if (code !== 0) process.exitCode = code
     return
@@ -205,13 +224,18 @@ Commands:
   restart [--build]            Restart the selected mode
   status [--json]              Probe the panel and local listener
   panel                        Open the hub panel in a browser
-  setup-token                  Print the one-time panel setup token
+  setup                        Create the owner account without a browser
+  setup-token                  Print a host-supplied setup token, when one is configured
   admin reset                  Reset the panel superadmin password
   pair [--no-relay]            Print a pairing code from the selected deployment
   logs                         Follow container logs, or the local log with --local
 
 Docker is the default. Pass --local to run the built agent as a detached local
-process for start, stop, restart, and logs. For setup-token, admin, and pair,
---local selects the host install and --docker selects the container. Pair with
---no-relay to emit a local-only code and print the local web app link.`)
+process for start, stop, restart, and logs. For setup, setup-token, admin, and
+pair, --local selects the host install and --docker selects the container.
+Pair with --no-relay to emit a local-only code and print the local web app link.
+
+'pnpm clara server setup --password-stdin' reads the owner password from stdin.
+It works after the hub has started in setup mode. For unattended start, set
+CLARA_ADMIN_PASSWORD or CLARA_ADMIN_PASSWORD_FILE before the hub starts.`)
 }

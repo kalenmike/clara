@@ -1,4 +1,5 @@
 import { join, dirname } from 'node:path'
+import { readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { PROTOCOL_VERSION } from '@clara/shared-types'
 import {
@@ -54,6 +55,11 @@ export async function main(): Promise<void> {
     return
   }
 
+  if (command === 'setup') {
+    await runSetup(args.slice(1))
+    return
+  }
+
   if (command === 'health') {
     await runHealth()
     return
@@ -61,7 +67,8 @@ export async function main(): Promise<void> {
 
   if (command !== 'serve' && command !== 'pair') {
     console.error(`Unknown command: ${command}`)
-    console.error('Usage: clara-server [serve|pair|admin|health] [--no-panel]')
+    console.error('Usage: clara-server [serve|setup|pair|admin|health] [--no-panel]')
+    console.error('       clara-server setup [--username <name>] [--password-stdin]')
     console.error('       clara-server pair [--no-relay] [--no-qr] [--revoke-all|--revoke <id>]')
     console.error('       clara-server admin reset|setup-token')
     console.error('       clara-server health')
@@ -196,21 +203,44 @@ async function runServe(
     configDir: config.configDir,
     secureCookie: readBooleanEnv('CLARA_PANEL_SECURE_COOKIE'),
   })
-  if (panelEnabled) {
+
+  // CI and a future hosted gateway can create the owner before the process
+  // starts serving. This is the only non-interactive owner path; the hub still
+  // starts transports only after an owner exists.
+  const owner = readOwnerEnv()
+  if (!auth.configured() && owner) {
     try {
-      const setup = auth.ensureSetupToken()
-      if (setup?.fromEnv) log('panel setup token provided by the environment')
-      else if (setup?.path) {
-        log(`panel setup required; read the one-time token at ${setup.path}`)
-        log('print it with: clara-server admin setup-token')
-      }
+      await auth.createOwner(owner.username, owner.password)
+      log(`owner account "${owner.username}" created from the environment`)
     } catch (cause) {
-      log('panel setup token unavailable; run `clara-server admin reset`', cause)
+      throw new Error(
+        `Could not create the owner account from the environment: ${errorText(cause)}`,
+        {
+          cause,
+        }
+      )
     }
   }
 
+  try {
+    const setup = auth.ensureSetupToken()
+    if (setup?.fromEnv) log('a host setup token is required to claim this hub')
+  } catch (cause) {
+    log('the host setup token could not be registered', cause)
+  }
+
+  const setupRequired = !auth.configured()
+  if (setupRequired && !panelEnabled) {
+    throw new Error(
+      'No owner account exists and the hub panel is disabled. Set CLARA_ADMIN_PASSWORD or enable the panel to create one.'
+    )
+  }
+  if (setupRequired) {
+    log('owner setup is required; no hub transport will start until it is complete')
+  }
+
   const opencodeVersion =
-    initial.stopped || !initial.features.opencode || !harness.configured
+    setupRequired || initial.stopped || !initial.features.opencode || !harness.configured
       ? undefined
       : await harness.probe(3_000).then((probe) => (probe.ok ? probe.version : undefined))
   const startedAt = Date.now() - Math.round(process.uptime() * 1000)
@@ -282,23 +312,30 @@ async function runServe(
   })
   controllerRef.current = controller
 
-  await controller.start()
-  cloudflare?.attachRuntime({ controller, settings })
-  if (apiToken) {
-    log(
-      `api at http://${config.local.host === '0.0.0.0' ? '127.0.0.1' : config.local.host}:${config.local.port} (docs /docs)`
-    )
-  }
+  let started = false
+  const startHub = async () => {
+    if (started) return
+    started = true
+    await controller.start()
+    cloudflare?.attachRuntime({ controller, settings })
+    if (apiToken) {
+      log(
+        `api at http://${config.local.host === '0.0.0.0' ? '127.0.0.1' : config.local.host}:${config.local.port} (docs /docs)`
+      )
+    }
 
-  if (!initial.stopped) {
-    if (!harness.configured) {
-      log('no harness connection is configured; open the panel to set one up')
-    } else if (opencodeVersion) {
-      log(`harness ${harness.active?.label ?? 'harness'} answered with ${opencodeVersion}`)
-    } else if (initial.features.opencode) {
-      log('the configured harness is not answering')
+    if (!initial.stopped) {
+      if (!harness.configured) {
+        log('no harness connection is configured; open the panel to set one up')
+      } else if (opencodeVersion) {
+        log(`harness ${harness.active?.label ?? 'harness'} answered with ${opencodeVersion}`)
+      } else if (initial.features.opencode && !setupRequired) {
+        log('the configured harness is not answering')
+      }
     }
   }
+
+  if (!setupRequired) await startHub()
 
   if (panelEnabled) {
     const runtime = new PanelRuntime({
@@ -338,10 +375,23 @@ async function runServe(
         allowRemote: readBooleanEnv('CLARA_PANEL_ALLOW_REMOTE'),
         port: parsePanelPort(process.env.CLARA_PANEL_PORT, panelPortHint),
         assetsDir,
+        onSetupComplete: async () => {
+          await startHub()
+          publishRuntime()
+        },
         log,
       })
       log(`panel at ${panel.url}`)
+      if (setupRequired) {
+        log('open the panel to create the owner account; the hub starts after that')
+      }
     } catch (cause) {
+      if (setupRequired) {
+        throw new Error(
+          'The hub panel is required to create the owner account, but it could not start.',
+          { cause }
+        )
+      }
       log('panel unavailable', cause)
     }
   }
@@ -350,9 +400,13 @@ async function runServe(
 
   log(`database at ${config.dbPath}`)
   log(`pairing config: ${config.configPath}`)
-  log('print a pairing code with: clara-server pair')
-  if (args.includes('--pair') || args.includes('--qr')) {
-    await printPairing(config, devices, true, { noRelay: false })
+  if (setupRequired) {
+    log('create the owner account with the panel or `clara-server setup`')
+  } else {
+    log('print a pairing code with: clara-server pair')
+    if (args.includes('--pair') || args.includes('--qr')) {
+      await printPairing(config, devices, true, { noRelay: false })
+    }
   }
 
   let stopping = false
@@ -385,6 +439,14 @@ async function runServe(
 async function runPair(config: ServerConfig, args: string[], noRelay: boolean): Promise<void> {
   const database = openDatabase(config.dbPath)
   try {
+    const users = new PanelUserStore(database)
+    if (users.count() === 0) {
+      console.error(
+        'Create the hub owner account first: open the panel or run `clara-server setup`.'
+      )
+      process.exitCode = 1
+      return
+    }
     const secretKey = await readSecretKey(config.configDir)
     const storedCredentials = await loadRelayCredentials(config.configDir, secretKey)
     applyRelayCredentials(config, storedCredentials)
@@ -427,13 +489,157 @@ async function runPair(config: ServerConfig, args: string[], noRelay: boolean): 
   }
 }
 
+async function runSetup(args: string[]): Promise<void> {
+  if (args.includes('--help') || args.includes('-h')) {
+    console.log('Usage: clara-server setup [--username <name>] [--password-stdin] [--url <panel>]')
+    console.log('       clara-server setup --password <value> (not recommended; use stdin or env)')
+    return
+  }
+
+  let password: string | undefined
+  try {
+    password = await readSetupPassword(args)
+  } catch (cause) {
+    console.error(errorText(cause))
+    process.exitCode = 1
+    return
+  }
+  if (!password) {
+    console.error('Usage: clara-server setup [--username <name>] --password-stdin')
+    console.error(
+      'Or set CLARA_ADMIN_PASSWORD / CLARA_ADMIN_PASSWORD_FILE before starting the hub.'
+    )
+    process.exitCode = 2
+    return
+  }
+
+  const username =
+    readOption(args, '--username') ?? process.env.CLARA_ADMIN_USERNAME?.trim() ?? 'admin'
+  const token = readOption(args, '--token') ?? process.env.CLARA_ADMIN_SETUP_TOKEN?.trim()
+  const base = (
+    readOption(args, '--url') ??
+    process.env.CLARA_PANEL_URL?.trim() ??
+    configuredPanelUrl()
+  ).replace(/\/+$/, '')
+
+  try {
+    const sessionResponse = await fetch(`${base}/panel/api/v1/session`, {
+      signal: AbortSignal.timeout(5_000),
+    })
+    if (!sessionResponse.ok) {
+      throw new Error(`The panel answered ${sessionResponse.status} at ${base}`)
+    }
+    const session = (await sessionResponse.json()) as {
+      authenticated?: boolean
+      setupRequired?: boolean
+      setupTokenRequired?: boolean
+    }
+    if (session.authenticated) {
+      throw new Error('The hub already has an owner account')
+    }
+    if (session.setupRequired !== true) {
+      throw new Error('The hub is already configured')
+    }
+    if (session.setupTokenRequired && !token) {
+      throw new Error(
+        'This hub requires a setup token. Pass --token or set CLARA_ADMIN_SETUP_TOKEN.'
+      )
+    }
+
+    const response = await fetch(`${base}/panel/api/v1/setup`, {
+      method: 'POST',
+      headers: {
+        accept: 'application/json',
+        'content-type': 'application/json',
+        'x-clara-panel': '1',
+      },
+      body: JSON.stringify({
+        username,
+        password,
+        ...(token ? { token } : {}),
+      }),
+      signal: AbortSignal.timeout(30_000),
+    })
+    const text = await response.text()
+    const body = text ? (JSON.parse(text) as { error?: { message?: string } }) : undefined
+    if (!response.ok) {
+      throw new Error(body?.error?.message ?? `The panel answered ${response.status}`)
+    }
+
+    if (args.includes('--json')) {
+      console.log(JSON.stringify({ ok: true, username }))
+    } else {
+      console.log(`Owner account "${username}" created. The hub is starting.`)
+    }
+  } catch (cause) {
+    console.error(`Could not create the owner account: ${errorText(cause)}`)
+    console.error(
+      'Start the hub first, then run this command, or set CLARA_ADMIN_PASSWORD before it starts.'
+    )
+    process.exitCode = 1
+  }
+}
+
+async function readSetupPassword(args: string[]): Promise<string | undefined> {
+  if (args.includes('--password-stdin')) {
+    let text = ''
+    for await (const chunk of process.stdin) text += String(chunk)
+    return text.replace(/\r?\n$/, '')
+  }
+  const direct = readOption(args, '--password')
+  if (direct !== undefined) return direct
+  const env = readOwnerEnv()
+  return env?.password
+}
+
+function readOption(args: string[], name: string): string | undefined {
+  const prefix = `${name}=`
+  for (let index = 0; index < args.length; index += 1) {
+    const arg = args[index]
+    if (arg === name) return args[index + 1]
+    if (arg?.startsWith(prefix)) return arg.slice(prefix.length)
+  }
+  return undefined
+}
+
+function configuredPanelUrl(): string {
+  const state = readRuntimeState()
+  if (state?.panel?.url) return state.panel.url
+  return `http://127.0.0.1:${parsePanelPort(process.env.CLARA_PANEL_PORT)}`
+}
+
+function readOwnerEnv(): { username: string; password: string } | undefined {
+  const direct = process.env.CLARA_ADMIN_PASSWORD
+  const file = process.env.CLARA_ADMIN_PASSWORD_FILE?.trim()
+  let password = direct !== undefined && direct !== '' ? direct : undefined
+  if (password === undefined && file) {
+    try {
+      password = readFileSync(file, 'utf8').replace(/\r?\n$/, '')
+    } catch (cause) {
+      throw new Error(`Could not read CLARA_ADMIN_PASSWORD_FILE at ${file}: ${errorText(cause)}`, {
+        cause,
+      })
+    }
+  }
+  if (password === undefined || password === '') return undefined
+  return {
+    username: process.env.CLARA_ADMIN_USERNAME?.trim() || 'admin',
+    password,
+  }
+}
+
+function errorText(cause: unknown): string {
+  return cause instanceof Error ? cause.message : String(cause)
+}
+
 async function runAdmin(args: string[]): Promise<void> {
   const action = args[0]
   const paths = loadAdminPaths()
   if (action === 'setup-token') {
     const token = readSetupTokenFromEnv() ?? readSetupToken(paths.configDir)
     if (!token) {
-      console.error('No setup token is available. Run `clara-server admin reset` first.')
+      console.error('No host setup token is configured.')
+      console.error('Local setup needs no token: open the panel or run `clara-server setup`.')
       process.exitCode = 1
       return
     }

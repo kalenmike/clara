@@ -33,16 +33,26 @@ until you do. Start checks the effective env file and shell values first: a bind
 directory that is not absolute stops the command with the variable name, and a
 relay URL without environment tokens warns because the panel may already have
 saved them. If a service still does not become healthy, the command prints its
-recent log lines. Then set up the panel:
+recent log lines. Then open the panel:
 
 ```bash
-pnpm clara server setup-token
 pnpm clara server panel
 ```
 
+The first run shows **Create the hub owner account**. Choose the username and
+password. The hub starts no transports until the account exists. For an
+unattended container, create it without a browser:
+
+```bash
+pnpm clara server setup --password-stdin
+```
+
+Or set `CLARA_ADMIN_USERNAME` and `CLARA_ADMIN_PASSWORD` (or
+`CLARA_ADMIN_PASSWORD_FILE`) in the environment before starting the container.
+
 In the panel:
 
-1. Choose the superadmin password.
+1. Create the owner account.
 2. Add a harness under **Harness**, then run the printed adapter install command
    on the harness machine.
 3. Wait for the adapter to show **Online**, then use **Test** and **Activate**.
@@ -95,7 +105,7 @@ token or workspace in your shell before stopping the stack.
 
 The stack keeps state in Docker volumes:
 
-- `clara-server-config` — hub configuration, secrets, and setup token.
+- `clara-server-config` — hub configuration, secrets, and reset tokens.
 - `clara-server-data` — the hub SQLite database and orchestration data.
 - `clara-orchestrator-data` — orchestration state.
 

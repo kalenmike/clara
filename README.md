@@ -57,6 +57,7 @@ pnpm check && pnpm build
 pnpm desktop:build   # Clara client installer (host OS)
 pnpm hub:build       # Clara Hub tray app installer (host OS)
 pnpm hub:build:docker # Clara Hub Linux installers in Docker
+pnpm hub:headless    # Headless Clara Hub archive for the host OS
 pnpm task session close my-change
 ```
 
@@ -72,9 +73,8 @@ With a harness running, a local checkout needs:
 ```bash
 pnpm install
 pnpm clara start --local --build
-pnpm clara server setup-token --local
 pnpm clara server panel
-# In the panel: choose the superadmin password, add a harness, and run the
+# In the panel: create the hub owner account, add a harness, and run the
 # printed adapter install command on the harness machine. Then open
 # Clients -> Pair a browser and scan the QR or open the link.
 # Alternatively, print a local code:
@@ -82,13 +82,18 @@ pnpm clara pair --local --no-relay
 # Open http://127.0.0.1:8080 and pair.
 ```
 
-On a fresh install, `setup-token` prints the one-time token. Skip it if the
-panel already has an admin.
+Until the owner account exists, the hub serves only its loopback setup screen
+and starts no transports. For a headless install, create it from a shell:
+
+```bash
+pnpm clara server setup --local --password-stdin
+```
 
 For Docker, use `pnpm clara start --build` and
-`pnpm clara server setup-token --docker`. Choose **Local connection only** in
-the panel for a same-machine code; leave it off for a relay pairing on a phone
-or another device, or use `pnpm clara pair --no-relay`.
+`pnpm clara server setup --password-stdin` (or set `CLARA_ADMIN_PASSWORD`).
+Choose **Local connection only** in the panel for a same-machine code; leave it
+off for a relay pairing on a phone or another device, or use
+`pnpm clara pair --no-relay`.
 
 For orchestration only, install the harness adapter after the stack is up:
 
@@ -122,9 +127,10 @@ sign in to the panel at <http://localhost:8790> and create a code under
 
 1. Start the hub (`pnpm dev` or `pnpm clara server start --local`).
 2. Open the panel at <http://127.0.0.1:8790>, or run `pnpm clara server panel`.
-3. Read the one-time setup token from `~/.config/clara/admin-setup.txt` or run
-   `pnpm clara server setup-token` (add `--docker` for the container).
-4. Choose the superadmin password. In **Harness → Add harness**, choose the
+3. Create the hub owner account. No other hub service starts until this account
+   exists. For a headless install, run
+   `pnpm clara server setup --password-stdin` instead.
+4. In **Harness → Add harness**, choose the
    adapter type and location, then run the printed install command on the
    harness machine. The adapter finds the harness or prompts for its URL and
    credentials. Inside a container, the adapter connects to the hub at
@@ -268,7 +274,7 @@ the built hub service as a detached local process:
 pnpm clara server start --build
 pnpm clara server start --local --build
 pnpm clara server status
-pnpm clara server setup-token --docker
+pnpm clara server setup --password-stdin
 pnpm clara server pair --docker
 ```
 
@@ -501,13 +507,18 @@ is no UI for it. See [docs/features/sync.md](docs/features/sync.md).
   existing files.
 - The hub panel requires a superadmin login. It listens on `127.0.0.1:8790`
   by default, guards every request with Host/Origin/fetch-metadata checks, and
-  keeps the setup token in `admin-setup.txt` (mode `0600`) until the first login.
+  serves only a local setup screen until the owner account exists. No local
+  WebSocket, relay, harness probe, push, orchestration, or pairing starts before
+  then. The setup screen needs no token; `CLARA_ADMIN_SETUP_TOKEN` adds one for
+  an explicitly remote install, and `CLARA_ADMIN_PASSWORD` creates the owner
+  before startup for CI. A lost password is reset by a host command, which
+  writes a reset token in `admin-setup.txt` (mode `0600`).
   It never returns device keys, adapter credentials, relay tokens, push
   endpoints, sync values, or file contents. A one-time pairing code is returned
   only by the authenticated request that creates it, never in the status
   snapshot. It is not exposed through the relay or Pages.
 - A lost panel password is reset with `pnpm clara server admin reset` (add
-  `--docker` in a container). That command writes a new one-time setup token.
+  `--docker` in a container). That command writes a new one-time reset token.
   There is deliberately no network password-reset endpoint.
 - Never commit `.env`, `.dev.vars`, `service.json`, push subscriptions, VAPID
   keys, pairing codes, tokens, device keys, `secrets.key`, or `admin-setup.txt`.
