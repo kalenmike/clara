@@ -182,7 +182,7 @@ function ChatPageContent() {
   useDiscardEmptyDraft({
     sessionID: sessionId,
     session,
-    hasMessages: allMessages.length > 0,
+    hasConversation: !emptySession,
     hasLocalDraft,
     hasRequests: formCount > 0,
     busy,

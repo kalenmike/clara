@@ -36,6 +36,7 @@ import { SidebarDeleteDialog } from '@/components/layout/sidebar-delete-dialog'
 import { SidebarSelectionBar } from '@/components/layout/sidebar-selection-bar'
 import { SidebarSessionRow } from '@/components/layout/sidebar-session-row'
 import { useWorkspacePendingPermissions } from '@/features/chat/use-permissions'
+import { usePruneEmptyDrafts } from '@/features/chat/use-prune-empty-drafts'
 import { useHarnessLabel } from '@/features/harness/use-harness-label'
 import { resolveAttentionKind } from '@/features/notifications/attention'
 import {
@@ -266,6 +267,13 @@ export function SidebarContent({
   )
   const { signals: mailboxSignals, pending: mailboxesPending } =
     useSessionMailboxSignals(mailboxSessions)
+
+  usePruneEmptyDrafts({
+    sessions: mailboxSessions,
+    signals: mailboxSignals,
+    running: activeQuery.data,
+    enabled: !mailboxesPending && !params.sessionId,
+  })
 
   const { requests: permissions } = useWorkspacePendingPermissions(selectedProject?.workspaces)
   const awaitingInput = useMemo(

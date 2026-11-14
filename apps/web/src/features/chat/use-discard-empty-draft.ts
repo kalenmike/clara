@@ -15,7 +15,8 @@ const DISCARD_DELAY_MS = 250
 export type EmptyDraftStatus = {
   sessionID: string | undefined
   session: ClaraSession | undefined
-  hasMessages: boolean
+  /** Any user or assistant message; internal selection notes do not count. */
+  hasConversation: boolean
   /** Composer text or attachments, live or saved in local storage. */
   hasLocalDraft: boolean
   hasRequests: boolean
@@ -31,31 +32,36 @@ export function shouldDiscardEmptyDraft(status: EmptyDraftStatus): boolean {
   const { session } = status
   if (!session) return false
   if (session.title?.trim()) return false
-  if (status.hasMessages || status.hasLocalDraft || status.hasRequests) return false
+  if (status.hasConversation || status.hasLocalDraft || status.hasRequests) return false
   if (status.busy || status.worker) return false
   return !isArchivedSession(session) && !isSnoozedSession(session)
 }
 
+export type DiscardResult = 'deleted' | 'kept' | 'failed'
+
 /**
- * Confirm with the harness before removing a brief. Local query data can lag a
- * send or a saved draft that was still in flight when the view closed.
+ * Confirm with the harness before removing a brief. The newest message is often
+ * an internal selection or idle note, so only user and assistant messages count
+ * as content. Local query data can also lag a send or a saved draft that was
+ * still in flight when the view closed.
  */
 export async function discardEmptyDraft(
   client: ClaraClient,
   sessionID: string,
   stillAbandoned: () => boolean
-): Promise<boolean> {
+): Promise<DiscardResult> {
   try {
-    const [messages, inbox] = await Promise.all([
-      client.message.list({ sessionID, limit: 1 }),
+    const [users, assistants, inbox] = await Promise.all([
+      client.message.list({ sessionID, order: 'desc', limit: 1, type: 'user' }),
+      client.message.list({ sessionID, order: 'desc', limit: 1, type: 'assistant' }),
       client.session.inbox.list({ sessionID }),
     ])
-    if (messages.data.length > 0 || inbox.length > 0) return false
-    if (!stillAbandoned()) return false
+    if (users.data.length > 0 || assistants.data.length > 0 || inbox.length > 0) return 'kept'
+    if (!stillAbandoned()) return 'kept'
     await client.session.remove({ sessionID })
-    return true
+    return 'deleted'
   } catch {
-    return false
+    return 'failed'
   }
 }
 
@@ -101,7 +107,7 @@ export function useDiscardEmptyDraft(status: EmptyDraftStatus) {
         if (live.current.draftState(sessionID)) return false
         return readDraft(sessionID).trim().length === 0
       })
-      if (!discarded) return
+      if (discarded !== 'deleted') return
 
       if (live.current.mode !== 'closed' && live.current.target?.sessionID === sessionID) {
         live.current.close()

@@ -267,10 +267,11 @@ can answer a form or start work with an optional custom message.
   the window and moves the previous session's text to its local draft.
 - **Leave the chat view** — home, projects, and settings unmount the chat-scoped
   composer; returning to a session starts with it closed.
-- **Leave an empty brief** — an untitled brief with no messages, no saved draft,
-  no waiting request, and no composer text or attachments is deleted after the
-  view leaves it. A composer bound to that brief closes and follows the view that
-  replaced it; a brief with any of those is kept.
+- **Leave an empty brief** — an untitled brief with no user or assistant
+  message, no saved draft, no waiting request, and no composer text or
+  attachments is deleted after the view leaves it. A composer bound to that
+  brief closes and follows the view that replaced it; a brief with any of those
+  is kept. Selection and idle notes do not count as content.
 - **Minimized window** — a model or agent shortcut restores the window to its
   saved size before opening its picker, without changing the connected session.
 - **Composer title** — the session title is the heading, falling back to **Untitled
