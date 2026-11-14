@@ -17,6 +17,7 @@ import {
   writeAdapterConfig,
 } from './config.ts'
 import { enrollAdapter } from './enroll.ts'
+import { createHostMetrics } from './host.ts'
 import {
   adapterProcessStatus,
   installAdapterService,
@@ -191,6 +192,13 @@ async function serve<THarness>(
     capabilities: definition.capabilities,
   }
   const app = await definition.createApp({ config, probe, info })
+  const hostMetrics = createHostMetrics({
+    roots: [
+      { label: 'Adapter data', path: definition.paths.dataDir },
+      { label: 'Adapter config', path: definition.paths.configDir },
+    ],
+  })
+  app.route('/', hostMetrics.routes)
   const harness = definition.describe(config)
   const wsUrl =
     argValue(args, '--ws-url') ?? process.env.CLARA_ADAPTER_WS_URL?.trim() ?? config.wsUrl
@@ -262,6 +270,7 @@ async function serve<THarness>(
   }
 
   transport.start()
+  hostMetrics.start()
   writeLive()
   const statusTimer = setInterval(writeLive, 2_000)
   statusTimer.unref()
@@ -287,6 +296,7 @@ async function serve<THarness>(
   const stop = () => {
     clearInterval(statusTimer)
     clearInterval(healthTimer)
+    hostMetrics.stop()
     transport.close()
     writeLive()
     process.exit(0)
