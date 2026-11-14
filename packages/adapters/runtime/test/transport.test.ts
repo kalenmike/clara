@@ -164,7 +164,6 @@ describe('AdapterTransport authentication', () => {
     await hub.sendSealed(hello, { type: 'adapter.abort', id: 'request-1' }, { seq: 2 })
     await waitFor(() => aborted, 90_000)
     expect(heldRequest).toBeDefined()
-    heldRequest = undefined
     transport.close()
   }, 120_000)
 })
