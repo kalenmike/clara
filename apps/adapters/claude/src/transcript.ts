@@ -157,6 +157,18 @@ export function mapTranscript(
   >()
   let clock = fallbackStart
   let index = 0
+  /**
+   * The SDK emits one assistant message per completed content block, all
+   * sharing the Anthropic API message ID. Keep those blocks in one Clara step
+   * so a reload matches the live stream.
+   */
+  let lastAssistant:
+    | {
+        id: string
+        message: ClaraSessionMessageAssistant
+        pushed: boolean
+      }
+    | undefined
 
   for (const entry of entries) {
     index += 1
@@ -168,42 +180,47 @@ export function mapTranscript(
     if (entry.type === 'assistant') {
       const message = entry.message as RawMessage | undefined
       if (!message) continue
-      const assistant: ClaraSessionMessageAssistant = {
-        id: typeof entry.uuid === 'string' ? entry.uuid : `assistant-${index}`,
-        type: 'assistant',
-        time: { created: time, completed: time },
-        agent: 'claude',
-        model: {
-          id: typeof message.model === 'string' && message.model ? message.model : 'default',
-          providerID,
-        },
-        content: [],
-        ...(message.stop_reason ? { finish: finishOf(message.stop_reason) } : {}),
-        ...(message.usage ? { tokens: usageTokens(message.usage) } : {}),
-      }
-      for (const block of blocksOf(message.content)) {
-        if (block.type === 'text' && typeof block.text === 'string' && block.text.trim()) {
-          assistant.content.push({ type: 'text', text: block.text })
-        } else if (block.type === 'thinking' && typeof block.thinking === 'string') {
-          assistant.content.push({
-            type: 'reasoning',
-            text: block.thinking,
-            time: { created: time },
-          })
-        } else if (block.type === 'tool_use' && block.id && block.name) {
-          const part: ClaraSessionMessageAssistantTool = {
-            type: 'tool',
-            id: block.id,
-            name: block.name,
-            executed: true,
-            state: { status: 'running', input: jsonRecordOf(block.input), metadata: {} },
-            time: { created: time, ran: time },
-          }
-          assistant.content.push(part)
-          tools.set(block.id, { message: assistant, part })
+      const id = assistantMessageID(message, entry, index)
+      const transcriptID = typeof entry.uuid === 'string' ? entry.uuid : undefined
+
+      let assistant: ClaraSessionMessageAssistant
+      if (lastAssistant?.id === id) {
+        assistant = lastAssistant.message
+        assistant.time = { ...assistant.time, completed: time }
+        if (transcriptID) {
+          assistant.native = { ...(assistant.native ?? {}), transcriptID }
+        }
+      } else {
+        assistant = {
+          id,
+          type: 'assistant',
+          time: { created: time, completed: time },
+          agent: 'claude',
+          model: {
+            id: typeof message.model === 'string' && message.model ? message.model : 'default',
+            providerID,
+          },
+          content: [],
+          ...(transcriptID ? { native: { transcriptID } } : {}),
+        }
+        lastAssistant = {
+          id,
+          message: assistant,
+          pushed: false,
         }
       }
-      if (assistant.content.length > 0) messages.push(assistant)
+
+      if (message.stop_reason) assistant.finish = finishOf(message.stop_reason)
+      if (message.usage) assistant.tokens = usageTokens(message.usage)
+      if (typeof message.model === 'string' && message.model) {
+        assistant.model = { id: message.model, providerID }
+      }
+      appendAssistantBlocks(assistant, message.content, time, tools)
+
+      if (!lastAssistant.pushed && assistant.content.length > 0) {
+        messages.push(assistant)
+        lastAssistant.pushed = true
+      }
       continue
     }
 
@@ -222,6 +239,7 @@ export function mapTranscript(
     }
 
     if (entry.type !== 'user') continue
+    lastAssistant = undefined
     const message = entry.message as RawMessage | undefined
     const content = message?.content
     const text: string[] = []
@@ -285,6 +303,45 @@ export function mapTranscript(
   }
 
   return messages
+}
+
+function assistantMessageID(message: RawMessage, entry: TranscriptEntry, index: number): string {
+  if (typeof message.id === 'string' && message.id) return message.id
+  if (typeof entry.uuid === 'string') return entry.uuid
+  return `assistant-${index}`
+}
+
+function appendAssistantBlocks(
+  assistant: ClaraSessionMessageAssistant,
+  content: unknown,
+  time: number,
+  tools: Map<
+    string,
+    { message: ClaraSessionMessageAssistant; part: ClaraSessionMessageAssistantTool }
+  >
+): void {
+  for (const block of blocksOf(content)) {
+    if (block.type === 'text' && typeof block.text === 'string' && block.text.trim()) {
+      assistant.content.push({ type: 'text', text: block.text })
+    } else if (block.type === 'thinking' && typeof block.thinking === 'string') {
+      assistant.content.push({
+        type: 'reasoning',
+        text: block.thinking,
+        time: { created: time },
+      })
+    } else if (block.type === 'tool_use' && block.id && block.name) {
+      const part: ClaraSessionMessageAssistantTool = {
+        type: 'tool',
+        id: block.id,
+        name: block.name,
+        executed: true,
+        state: { status: 'running', input: jsonRecordOf(block.input), metadata: {} },
+        time: { created: time, ran: time },
+      }
+      assistant.content.push(part)
+      tools.set(block.id, { message: assistant, part })
+    }
+  }
 }
 
 function completeTool(

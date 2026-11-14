@@ -563,10 +563,22 @@ function modelRef(value: unknown): ClaraModelRef | undefined {
   }
 }
 
+/**
+ * The server's `before` is exclusive: it names the next message, while
+ * `forkSession` slices inclusively. `messages()` returns newest first, so the
+ * selected message is the older neighbour. Assistant Clara IDs are API message
+ * IDs, so pass the transcript UUID that applies to the selected step.
+ */
 function forkBoundary(messages: ClaraSessionMessage[], before: string): string | undefined {
   const index = messages.findIndex((message) => message.id === before)
-  if (index <= 0) return undefined
-  return messages[index - 1]?.id
+  if (index < 0) return undefined
+  const selected = messages[index + 1]
+  if (!selected) return undefined
+  if (selected.type === 'assistant') {
+    const transcriptID = selected.native?.transcriptID
+    if (typeof transcriptID === 'string') return transcriptID
+  }
+  return selected.id
 }
 
 function canonical(directory: string): string {

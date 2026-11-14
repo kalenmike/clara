@@ -107,6 +107,121 @@ describe('Claude sessions', () => {
     })
   })
 
+  it('groups assistant blocks that share an API message id', async () => {
+    const sessionId = randomUUID()
+    const { gateway, sessions } = service()
+    gateway.sessions = [
+      {
+        sessionId,
+        summary: 'Grouped',
+        lastModified: 10,
+        createdAt: 1,
+        cwd: '/tmp',
+      },
+    ]
+    gateway.messages = [
+      {
+        type: 'user',
+        uuid: 'u1',
+        sessionId,
+        parentToolUseID: null,
+        parentAgentID: null,
+        message: { role: 'user', content: 'Hello' },
+      },
+      {
+        type: 'assistant',
+        uuid: 'a1',
+        sessionId,
+        parentToolUseID: null,
+        parentAgentID: null,
+        message: {
+          id: 'msg_1',
+          role: 'assistant',
+          model: 'claude-sonnet',
+          stop_reason: null,
+          content: [{ type: 'thinking', thinking: 'Let me think' }],
+        },
+      },
+      {
+        type: 'assistant',
+        uuid: 'a2',
+        sessionId,
+        parentToolUseID: null,
+        parentAgentID: null,
+        message: {
+          id: 'msg_1',
+          role: 'assistant',
+          model: 'claude-sonnet',
+          stop_reason: 'end_turn',
+          content: [{ type: 'text', text: 'Done' }],
+        },
+      },
+    ]
+
+    const page = await sessions.messages(sessionId, { order: 'asc' })
+    const assistants = page.data.filter((message) => message.type === 'assistant')
+
+    expect(assistants).toHaveLength(1)
+    expect(assistants[0]).toMatchObject({
+      id: 'msg_1',
+      content: [
+        { type: 'reasoning', text: 'Let me think' },
+        { type: 'text', text: 'Done' },
+      ],
+      native: { transcriptID: 'a2' },
+    })
+  })
+
+  it('anchors a message fork to the selected transcript entry', async () => {
+    const sessionId = randomUUID()
+    const { gateway, sessions } = service()
+    gateway.sessions = [
+      {
+        sessionId,
+        summary: 'Original',
+        lastModified: 10,
+        createdAt: 1,
+        cwd: '/tmp',
+      },
+    ]
+    gateway.messages = [
+      {
+        type: 'user',
+        uuid: 'u1',
+        sessionId,
+        parentToolUseID: null,
+        parentAgentID: null,
+        message: { role: 'user', content: 'First' },
+      },
+      {
+        type: 'assistant',
+        uuid: 'a1',
+        sessionId,
+        parentToolUseID: null,
+        parentAgentID: null,
+        message: {
+          id: 'msg_1',
+          role: 'assistant',
+          model: 'claude-sonnet',
+          stop_reason: 'end_turn',
+          content: [{ type: 'text', text: 'Reply' }],
+        },
+      },
+      {
+        type: 'user',
+        uuid: 'u2',
+        sessionId,
+        parentToolUseID: null,
+        parentAgentID: null,
+        message: { role: 'user', content: 'Second' },
+      },
+    ]
+
+    await sessions.fork(sessionId, 'u2')
+
+    expect(gateway.forkInputs[0]?.input?.upToMessageId).toBe('a1')
+  })
+
   it('forks and moves a session', async () => {
     const sessionId = randomUUID()
     const { gateway, sessions } = service()
