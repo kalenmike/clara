@@ -34,7 +34,8 @@ Pick **Relay** or **Local**, then choose **Create pairing link**. The dialog sho
 a QR code, an **Open Link** action, the expiry, and **Copy code** and **Copy
 link** buttons. It reports **Waiting to connect** until the device enrolls, then
 **Connected**. Closing before enrollment cancels the unused code; closing after
-it leaves the new device in place.
+it leaves the new device in place. The guided-setup Client step shows the same
+pairing controls inline.
 
 ## Local and relay pairings
 

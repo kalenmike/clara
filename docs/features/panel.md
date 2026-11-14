@@ -175,8 +175,9 @@ card.
     for a new device session or paired device and changes from **Waiting to
     connect** to **Connected** when enrollment succeeds. Closing while waiting
     cancels the unused code; closing after the dialog reports connected leaves
-    the new device in place. An expired code offers **Create new link**. Review
-    the browser client table and paired devices below. Harness adapter sessions
+    the new device in place. An expired code offers **Create new link**. The
+    guided-setup client step renders the same setup and pairing views inline.
+    Review the browser client table and paired devices below. Harness adapter sessions
     are not listed here; they live under **Harness**. A one-time pairing session
     appears with a **Pairing** badge and no device until enrollment finishes; it
     is excluded from the active count and the local E2EE session count. Each
@@ -617,11 +618,12 @@ card.
   `apps/hub/server/src/panel/server.ts`
 - Sessions DTOs: `PanelSession`, `PanelSessionHarness`, `PanelSessionsQuery`, and
   `PanelSessionsResponse` in `@clara/shared-types`
-- Browser pairing dialog: `apps/hub/panel/src/components/pair-client-dialog.tsx`;
+- Browser pairing flow: `pair-client-dialog.tsx` on the Clients page and
+  `components/onboarding/client-step.tsx` in guided setup share
+  `pair-client-views.tsx` and `apps/hub/panel/src/lib/use-client-pairing.ts`;
   the QR is rendered locally with `qrcode.react`, and
   `apps/hub/panel/src/lib/browser-pairing.ts` derives the waiting or connected
-  state from the status snapshot. `browser-pair-card.tsx` remains the inline card
-  used by guided setup.
+  state from the status snapshot.
 - Guided setup: `apps/hub/panel/src/lib/onboarding.ts` (pure step derivation),
   `apps/hub/panel/src/lib/use-onboarding.ts` (dismissal, completion, and modal
   mode), and `apps/hub/panel/src/components/onboarding/` (modal, connection,
