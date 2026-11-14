@@ -46,11 +46,13 @@ import {
 import { useProjectSessionPresence } from '@/features/projects/use-project-presence'
 import { useShowEmptyProjects } from '@/features/projects/use-show-empty-projects'
 import {
-  activeProjectWorkspaces,
-  findProject,
-  projectDefaultWorkspace,
-  useProjects,
-} from '@/features/projects/use-projects'
+  isWorkspaceStartable,
+  projectSessionWorkspaces,
+  projectSpansHarnesses,
+  resolveProjectWorkspaceTarget,
+  workspaceHarnessLabels,
+} from '@/features/projects/project-workspaces'
+import { findProject, useProjects } from '@/features/projects/use-projects'
 import { useSessionPolicy } from '@/features/notifications/session-policy'
 import { resolveDeleteFocusTarget } from '@/features/sessions/delete-focus'
 import { isArchivedSession } from '@/features/sessions/session-archive'
@@ -83,6 +85,7 @@ import {
   SIDEBAR_WIDTH_MAX,
   SIDEBAR_WIDTH_MIN,
   readLastProject,
+  readLastWorkspace,
   readSidebarSections,
   saveLastProject,
   saveSidebarSections,
@@ -200,21 +203,21 @@ export function SidebarContent({
     if (fromUrl) return fromUrl
     return findProject(projects, readLastProject()) ?? projectOptions[0] ?? null
   }, [params.projectId, projectOptions, projects])
-  const selectedWorkspace = useMemo(
-    () => projectDefaultWorkspace(selectedProject),
-    [selectedProject]
-  )
   const sessionWorkspaces = useMemo(
-    () => activeProjectWorkspaces(selectedProject),
+    () => projectSessionWorkspaces(selectedProject),
     [selectedProject]
   )
-  const sessionWorkspace = useMemo(
-    () =>
-      sessionWorkspaces.find((workspace) => workspace.id === selectedProject?.defaultWorkspaceID) ??
-      sessionWorkspaces[0] ??
-      selectedWorkspace,
-    [selectedProject?.defaultWorkspaceID, selectedWorkspace, sessionWorkspaces]
+  const harnessLabels = useMemo(
+    () => workspaceHarnessLabels(sessionWorkspaces),
+    [sessionWorkspaces]
   )
+  const lastWorkspaceID = selectedProject ? readLastWorkspace(selectedProject.id) : null
+  const workspaceTarget = useMemo(
+    () => resolveProjectWorkspaceTarget(selectedProject, lastWorkspaceID),
+    [lastWorkspaceID, selectedProject]
+  )
+  const sessionWorkspace = workspaceTarget.workspace
+  const spansHarnesses = projectSpansHarnesses(selectedProject)
 
   const recentProjectOptions = useMemo(() => {
     const options =
@@ -264,7 +267,7 @@ export function SidebarContent({
     useSessionMailboxSignals(mailboxSessions)
 
   const permissionsQuery = usePendingPermissions(
-    selectedWorkspace?.canonical ?? selectedWorkspace?.directory
+    sessionWorkspace?.canonical ?? sessionWorkspace?.directory
   )
   const awaitingInput = useMemo(
     () => new Set((permissionsQuery.data ?? []).map((request) => request.sessionID)),
@@ -742,7 +745,11 @@ export function SidebarContent({
                   </span>
                   <span className="block truncate text-[11px] text-muted-foreground md:text-[10px]">
                     {selectedProject
-                      ? (sessionWorkspace?.directory ?? 'No workspace')
+                      ? sessionWorkspace
+                        ? spansHarnesses
+                          ? `${harnessLabels.get(sessionWorkspace.id) ?? sessionWorkspace.harnessLabel} · ${sessionWorkspace.directory}`
+                          : sessionWorkspace.directory
+                        : 'No workspace'
                       : 'No project selected'}
                   </span>
                 </span>
@@ -767,7 +774,11 @@ export function SidebarContent({
                   <span className="min-w-0 flex-1">
                     <span className="block truncate text-xs">{projectLabel(project)}</span>
                     <span className="block truncate text-[10px] text-muted-foreground">
-                      {project.workspaces[0]?.directory ?? 'No workspaces'}
+                      {project.workspaces[0]
+                        ? projectSpansHarnesses(project)
+                          ? `${project.workspaces[0].harnessLabel} · ${project.workspaces[0].directory}`
+                          : project.workspaces[0].directory
+                        : 'No workspaces'}
                     </span>
                   </span>
                 </DropdownMenuItem>
@@ -816,30 +827,44 @@ export function SidebarContent({
             <DropdownMenuContent align="start" className="w-72">
               <DropdownMenuLabel>New {lowerSingular} in</DropdownMenuLabel>
               <DropdownMenuSeparator />
-              {sessionWorkspaces.map((workspace) => (
-                <DropdownMenuItem
-                  key={workspace.id}
-                  onSelect={() => newSession(workspace)}
-                  className="gap-2"
-                >
-                  <FolderGit2 className="size-3.5 text-muted-foreground" />
-                  <span className="min-w-0 flex-1">
-                    <span className="block truncate text-xs">
-                      {workspace.label ?? workspace.harnessLabel}
+              {sessionWorkspaces.map((workspace) => {
+                const harnessLabel = harnessLabels.get(workspace.id) ?? workspace.harnessLabel
+                const startable = isWorkspaceStartable(workspace)
+                return (
+                  <DropdownMenuItem
+                    key={workspace.id}
+                    disabled={!startable}
+                    onSelect={() => newSession(workspace)}
+                    className="gap-2"
+                  >
+                    <FolderGit2 className="size-3.5 text-muted-foreground" />
+                    <span className="min-w-0 flex-1">
+                      <span className="block truncate text-xs">
+                        {workspace.label ?? harnessLabel}
+                      </span>
+                      <span className="block truncate font-mono text-[10px] text-muted-foreground">
+                        {workspace.label
+                          ? `${harnessLabel} · ${workspace.directory}`
+                          : workspace.directory}
+                      </span>
                     </span>
-                    <span className="block truncate font-mono text-[10px] text-muted-foreground">
-                      {workspace.directory}
-                    </span>
-                  </span>
-                </DropdownMenuItem>
-              ))}
+                    {!startable && (
+                      <span className="text-[10px] text-muted-foreground">
+                        {workspace.online ? 'Unlinked' : 'Offline'}
+                      </span>
+                    )}
+                  </DropdownMenuItem>
+                )
+              })}
             </DropdownMenuContent>
           </DropdownMenu>
         ) : (
           <Button
             className="h-11 w-full text-sm md:h-7 md:text-[0.8rem]"
             onClick={() => newSession()}
-            disabled={!selectedProject || !sessionWorkspace || createPending}
+            disabled={
+              !selectedProject || !sessionWorkspace || !workspaceTarget.startable || createPending
+            }
           >
             {createPending ? (
               <Loader2 className="size-4 animate-spin" />

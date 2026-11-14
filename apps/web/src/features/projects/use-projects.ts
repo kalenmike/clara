@@ -73,12 +73,6 @@ export function projectDefaultWorkspace(
   )
 }
 
-/** Workspaces on the active harness can start sessions and list sessions. */
-export function activeProjectWorkspaces(project: ClaraProject | null | undefined) {
-  if (!project) return []
-  return project.workspaces.filter((workspace) => workspace.active)
-}
-
 function useInvalidateProjects() {
   const queryClient = useQueryClient()
   return () => {

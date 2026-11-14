@@ -7,7 +7,9 @@ import { useAgents } from '@/features/catalog/use-catalog'
 import type { PromptFile } from '@/features/chat/use-chat'
 import { useModelVisibility } from '@/features/models/use-model-visibility'
 import { resolveInheritedModel } from '@/features/models/visibility'
+import { isWorkspaceStartable } from '@/features/projects/project-workspaces'
 import { useCreateSession, type CreateSessionInput } from '@/features/sessions/use-sessions'
+import { saveLastWorkspace } from '@/lib/storage'
 
 export type ChatComposeState = {
   compose?: boolean
@@ -45,11 +47,18 @@ export function useStartSession({
     (nextWorkspace?: ClaraProjectWorkspace) => {
       const target = nextWorkspace ?? workspace
       const directory = target?.canonical ?? target?.directory
-      if (!projectID || !directory) return
+      if (!projectID || !target || !directory) return
+      if (!isWorkspaceStartable(target)) return
       createSession.mutate(
-        { directory, agent: resolvedAgent, model: resolvedModel },
+        {
+          directory,
+          harnessID: target.harnessID,
+          agent: resolvedAgent,
+          model: resolvedModel,
+        },
         {
           onSuccess: (session) => {
+            saveLastWorkspace(projectID, target.id)
             const state: ChatComposeState = { compose: true }
             navigate(`/p/${projectID}/s/${session.id}`, { state })
           },
