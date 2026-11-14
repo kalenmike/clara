@@ -766,15 +766,17 @@ export class RuntimeController {
     }
     const localOnly = record.localOnly === true
     const { config } = this.options
-    if (!localOnly && config.relay && !relayUsable(config.relay)) {
+    const relayIncomplete = Boolean(config.relay && !relayUsable(config.relay))
+    const useLocal = localOnly || relayIncomplete
+    if (!localOnly && relayIncomplete) {
       this.options.log('relay tokens are missing; created a local browser pairing')
     }
     this.options.devices.pruneExpiredTokens()
     const payload = await createPairingPayload(config, this.options.devices, {
-      noRelay: localOnly,
+      noRelay: useLocal,
     })
     const link = buildPairingUrl(
-      pairingLinkBase(config.pairingBaseUrl, config.local.host, { noRelay: localOnly }),
+      pairingLinkBase(config.pairingBaseUrl, config.local.host, { noRelay: useLocal }),
       payload
     )
     const code = `${PAIRING_CODE_PREFIX}${encodePairingCode(payload)}`

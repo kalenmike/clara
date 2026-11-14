@@ -69,8 +69,10 @@ export async function printPairing(
   options: PairingOptions = {}
 ): Promise<PairingPayload> {
   const payload = await createPairingPayload(config, devices, options)
+  const relayIncomplete = Boolean(config.relay && !usableRelay(config.relay))
+  const useLocalLink = Boolean(options.noRelay || relayIncomplete)
   const url = buildPairingUrl(
-    pairingLinkBase(config.pairingBaseUrl, config.local.host, { noRelay: options.noRelay }),
+    pairingLinkBase(config.pairingBaseUrl, config.local.host, { noRelay: useLocalLink }),
     payload
   )
   const code = `${PAIRING_CODE_PREFIX}${encodePairingCode(payload)}`

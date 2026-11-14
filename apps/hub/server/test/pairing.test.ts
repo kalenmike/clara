@@ -261,4 +261,22 @@ describe('pairing with an incomplete relay', () => {
       enrollId: 'enroll-id',
     })
   })
+
+  it('uses a local link and warns when the relay tokens are missing', async () => {
+    const config = baseConfig({
+      relay: { url: 'wss://relay.example', room: 'room-1', agentToken: '', clientToken: '' },
+    })
+    const logs: string[] = []
+    const spy = vi.spyOn(console, 'log').mockImplementation((...args: unknown[]) => {
+      logs.push(args.map(String).join(' '))
+    })
+    try {
+      await printPairing(config, fakeDevices(), false)
+    } finally {
+      spy.mockRestore()
+    }
+
+    expect(logs.join('\n')).toContain('http://127.0.0.1:8080/#pair=')
+    expect(logs.join('\n')).toContain('tokens are missing')
+  })
 })

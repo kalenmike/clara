@@ -478,6 +478,7 @@ describe('RuntimeController', () => {
 
       const pairing = await controller.createDevicePairing({ localOnly: false })
       expect(pairing.pairing).toMatchObject({ room: 'local', transport: 'local' })
+      expect(pairing.pairing.link).toContain('127.0.0.1:8080')
 
       await expect(
         controller.createHarnessPairing({ kind: 'opencode', label: 'Test', transport: 'relay' })
