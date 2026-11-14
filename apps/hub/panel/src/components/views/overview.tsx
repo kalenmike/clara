@@ -1,13 +1,14 @@
+import { useState } from 'react'
 import type { PanelEvent, PanelSnapshot, PanelStorageEntry } from '@clara/shared-types'
 import type { PanelTab } from '../../lib/tabs.ts'
 import { formatRelative } from '../../lib/format.ts'
-import { buildHealth, needsAttention, storageHealth, type HealthTone } from '../../lib/health.ts'
+import { needsAttention, overviewHealth, storageHealth, type HealthTone } from '../../lib/health.ts'
 import { PEEK_MASK } from '../../lib/peek.ts'
 import { usePeek } from '../../lib/peek-context.tsx'
-import { AgentCard } from '../overview-cards.tsx'
-import { OrchestrationCard } from '../orchestration-card.tsx'
+import { HubPowerButton } from '../hub-power-button.tsx'
+import { ActiveAdaptersCard, ActiveClientsCard } from '../overview-connections.tsx'
 import { AttentionBanner, HealthTiles } from '../overview-health.tsx'
-import { Badge, EmptyState, type Tone } from '../primitives.tsx'
+import { Badge, EmptyState, Notice, type Tone } from '../primitives.tsx'
 import { View } from '../shell/view.tsx'
 
 const EVENT_TONE: Record<PanelEvent['level'], Tone> = {
@@ -41,8 +42,12 @@ export function OverviewView({
   onChanged: () => void
   onSelect: (tab: PanelTab) => void
 }) {
-  const health = buildHealth(snapshot)
+  const health = overviewHealth(snapshot)
   const attention = health.filter(needsAttention)
+  const [powerError, setPowerError] = useState<string>()
+  const { redact } = usePeek()
+  const browserClients = snapshot.clients.filter((client) => client.kind !== 'adapter')
+  const adapterClients = snapshot.clients.filter((client) => client.kind === 'adapter')
 
   return (
     <View
@@ -50,26 +55,36 @@ export function OverviewView({
       kicker="Hub"
       title="Overview"
       description="Live state of the hub, its harness, and the connections paired clients use."
+      actions={
+        <HubPowerButton
+          stopped={snapshot.agent.stopped}
+          onChanged={onChanged}
+          onError={setPowerError}
+        />
+      }
     >
-      <AttentionBanner items={attention} onSelect={onSelect} />
+      {powerError ? <Notice tone="danger">{redact(powerError)}</Notice> : null}
 
-      <div className="grid items-start gap-3 md:grid-cols-2">
-        <AgentCard
-          agent={snapshot.agent}
-          controls={snapshot.controls}
-          onChanged={onChanged}
-          now={now}
-        />
-        <OrchestrationCard
-          orchestration={snapshot.controls.orchestration}
-          onChanged={onChanged}
-          defaultExpanded
-        />
-      </div>
+      <AttentionBanner items={attention} onSelect={onSelect} />
 
       <HealthTiles items={health} onSelect={onSelect} />
 
-      <div className="grid items-start gap-3 xl:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)]">
+      <div className="grid items-start gap-3 md:grid-cols-2">
+        <ActiveClientsCard
+          clients={browserClients}
+          devices={snapshot.devices}
+          now={now}
+          onOpen={() => onSelect('clients')}
+        />
+        <ActiveAdaptersCard
+          clients={adapterClients}
+          harnesses={snapshot.harnesses}
+          now={now}
+          onOpen={() => onSelect('harness')}
+        />
+      </div>
+
+      <div className="grid items-start gap-3 md:grid-cols-2">
         <RecentActivity events={snapshot.events} now={now} onOpen={() => onSelect('activity')} />
         <StorageSummary storage={snapshot.storage} now={now} onOpen={() => onSelect('activity')} />
       </div>

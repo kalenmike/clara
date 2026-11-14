@@ -1,4 +1,5 @@
 import type {
+  PanelAgentInfo,
   PanelLocalTransport,
   PanelOpenCodeInfo,
   PanelOrchestrationControl,
@@ -11,7 +12,7 @@ import type { PanelTab } from './tabs.ts'
 
 export type HealthTone = 'ok' | 'warn' | 'bad' | 'idle'
 
-export type HealthKey = 'harness' | 'local' | 'relay' | 'push' | 'orchestration'
+export type HealthKey = 'hub' | 'harness' | 'local' | 'relay' | 'push' | 'orchestration'
 
 export type HealthItem = {
   key: HealthKey
@@ -41,6 +42,18 @@ const ORCHESTRATION_LABELS = {
 
 function countLabel(count: number, singular: string, plural = `${singular}s`): string {
   return `${count} ${count === 1 ? singular : plural}`
+}
+
+export function hubHealth(agent: PanelAgentInfo): HealthItem {
+  const process = agent.container ? 'container' : `pid ${agent.pid}`
+  return {
+    key: 'hub',
+    label: 'Hub',
+    tab: 'settings',
+    tone: agent.stopped ? 'idle' : 'ok',
+    status: agent.stopped ? 'Connections inactive' : 'Connections active',
+    detail: `${agent.platform}/${agent.arch} · ${process} · v${agent.version}`,
+  }
 }
 
 export function harnessHealth(opencode: PanelOpenCodeInfo, label = 'OpenCode'): HealthItem {
@@ -229,6 +242,19 @@ export function buildHealth(snapshot: PanelSnapshot): HealthItem[] {
     harnessHealth(snapshot.opencode, activeHarness?.label),
     localHealth(snapshot.local),
     relayHealth(snapshot.relay),
+    pushHealth(snapshot.push),
+    orchestrationHealth(snapshot.controls.orchestration),
+  ]
+}
+
+/** The Overview strip leads with the hub, then the transports and harness. */
+export function overviewHealth(snapshot: PanelSnapshot): HealthItem[] {
+  const activeHarness = snapshot.harnesses?.find((harness) => harness.isActive)
+  return [
+    hubHealth(snapshot.agent),
+    localHealth(snapshot.local),
+    relayHealth(snapshot.relay),
+    harnessHealth(snapshot.opencode, activeHarness?.label),
     pushHealth(snapshot.push),
     orchestrationHealth(snapshot.controls.orchestration),
   ]
