@@ -27,27 +27,25 @@
   color-scheme: light;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --panel-bg: #0b0d10;
-    --panel-surface: #111419;
-    --panel-surface-2: #161a21;
-    --panel-surface-3: #1c222b;
-    --panel-rail: #0e1116;
-    --panel-hover: #1d232d;
-    --panel-border: #242a34;
-    --panel-border-strong: #36404d;
-    --panel-text: #d9dee7;
-    --panel-muted: #8b94a4;
-    --panel-faint: #5f6876;
-    --panel-accent: #4c9aff;
-    --panel-accent-soft: rgba(76, 154, 255, 0.13);
-    --panel-ok: #3fb950;
-    --panel-bad: #f85149;
-    --panel-warn: #d6a132;
-    --panel-live: #a371f7;
-    color-scheme: dark;
-  }
+:root.dark {
+  --panel-bg: #0b0d10;
+  --panel-surface: #111419;
+  --panel-surface-2: #161a21;
+  --panel-surface-3: #1c222b;
+  --panel-rail: #0e1116;
+  --panel-hover: #1d232d;
+  --panel-border: #242a34;
+  --panel-border-strong: #36404d;
+  --panel-text: #d9dee7;
+  --panel-muted: #8b94a4;
+  --panel-faint: #5f6876;
+  --panel-accent: #4c9aff;
+  --panel-accent-soft: rgba(76, 154, 255, 0.13);
+  --panel-ok: #3fb950;
+  --panel-bad: #f85149;
+  --panel-warn: #d6a132;
+  --panel-live: #a371f7;
+  color-scheme: dark;
 }
 
 html,
