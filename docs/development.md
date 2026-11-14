@@ -100,6 +100,7 @@ sidecar build embeds the panel and compiles one executable.
 pnpm hub:sidecar   # panel + embedded-asset sidecar only
 pnpm hub:dev       # sidecar, then the tray app
 pnpm hub:build     # sidecar, then the host installer
+pnpm hub:headless  # standalone server archive and install helpers
 ```
 
 `pnpm hub:build:docker` builds the Linux bundles in Debian 12 with Rust, Node,
@@ -118,6 +119,12 @@ pnpm hub:build:docker --bundles deb --platform linux/amd64
 `pnpm build` does not build either Tauri app. See
 [features/hub-app.md](features/hub-app.md) for ports, the runtime file, and the
 Docker switch.
+
+`pnpm hub:headless` reuses the sidecar build and writes a standalone archive
+under `dist/headless` with the executable, an install helper, and a Linux
+systemd unit, macOS LaunchAgent, or Windows sign-in task. Build each platform on
+its own host. `.github/workflows/hub-installers.yml` runs the tray and headless
+builds on macOS arm64/x64, Linux x64, and Windows x64.
 
 Each build verifies the result:
 
@@ -244,7 +251,7 @@ host paths. Back up Docker volumes with `pnpm clara backup`; back up a local
 install by archiving its two host directories.
 
 Host-side commands that read or write panel state (`pnpm clara server
-setup-token`, `server admin`, and `pair`) probe the panel's `/health` mode and
+setup`, `setup-token`, `server admin`, and `pair`) probe the panel's `/health` mode and
 then the Docker/local state to pick a target, and print which one they chose.
 `--docker` forces the `clara-server` container and `--local` forces a local
 install. When both a local install and Docker state exist and neither is

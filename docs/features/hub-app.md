@@ -14,9 +14,9 @@ hub data model, pairing, relay, panel, and adapters are unchanged.
 ## User flow
 
 1. Launch Clara Hub. The tray icon appears and the sidecar starts.
-2. On first run the panel opens on its setup screen. Use **Copy setup token**
-   from the tray, choose the superadmin password, and create a browser pairing
-   code.
+2. On first run the panel opens on its **Create the hub owner account** screen.
+   Choose the username and password. The hub starts no transports until that
+   account exists; after you submit, it starts in the same process.
 3. Pair a client: the web PWA, the desktop client, or a harness adapter.
 4. Use **Open panel** from the tray at any time. Closing the panel window hides
    it; the hub keeps running.
@@ -59,6 +59,10 @@ hub data model, pairing, relay, panel, and adapters are unchanged.
 
 - **Panel port busy**: bind an ephemeral port. The hub app follows the runtime
   file, so the user never types the port.
+- **First run**: the sidecar serves only the setup screen until the owner
+  account exists. The tray opens the panel as soon as the runtime file names it.
+- **Setup is interrupted**: quitting during setup keeps the hub unconfigured;
+  the next launch shows the setup screen again.
 - **Local port busy**: bind an ephemeral port and publish it. Existing local
   pairings may need a new pairing; relay pairings do not.
 - **Relay URL without tokens**: the hub starts local-only. The panel marks the
@@ -103,6 +107,9 @@ hub data model, pairing, relay, panel, and adapters are unchanged.
 - `pnpm hub:sidecar` builds the panel, embeds it, and compiles the Bun sidecar.
   `pnpm hub:dev` and `pnpm hub:build` run the sidecar build first. The hub app is
   outside `pnpm build`.
+- `pnpm hub:headless` reuses that sidecar and writes a standalone archive under
+  `dist/headless` with a Linux systemd unit, macOS LaunchAgent, or Windows
+  sign-in task and an install helper. Build each platform on its own host.
 - `pnpm hub:build:docker` builds the Linux bundles in Debian 12 with Rust, Node,
   Bun, and the WebKitGTK prerequisites, then extracts them to `dist/hub`. The
   image runs the sidecar build before Tauri, passes the version stamp because

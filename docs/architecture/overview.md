@@ -185,12 +185,14 @@ ConnectionProvider
   Web Push subscriptions at `~/.config/clara/subscriptions.json`. VAPID keys
   live in `~/.config/clara/vapid.json`.
 - The hub service serves `apps/hub/panel` on a second listener (default
-  `127.0.0.1:8790`). It requires a superadmin session, provides first-run setup
-  and harness configuration, reads one allowlisted runtime snapshot, exposes
+  `127.0.0.1:8790`). It requires a superadmin session, provides first-run owner
+  setup and harness configuration, reads one allowlisted runtime snapshot, exposes
   guarded controls for the four external features, the Go offline control,
   monitoring, the client-sync gate and cadence, and the local orchestration
   service, and never returns device keys, adapter credentials, tokens, push
-  endpoints, sync values, or file contents. See
+  endpoints, sync values, or file contents. First run is a blocker: only the
+  loopback setup screen and its two auth routes are served, and no transport or
+  pairing starts until the owner account exists. See
   [panel.md](../features/panel.md) and
   [hub-controls.md](../features/hub-controls.md).
 - Harness adapters live in SQLite. Any number can be paired and online at once;
@@ -339,10 +341,11 @@ guaranteed to be connected, so alerts still reach a closed app.
   checks the socket address when remote access is not explicitly allowed, plus
   `Host`, `Origin`, and fetch metadata, and never returns device keys, adapter
   credentials, harness password, tokens, push endpoints, sync values, or file
-  contents. The first-run
-  setup token is written to a host-only file; a lost password is reset by a
-  host-only command, never over HTTP. Authentication is not host isolation;
-  keep the database and `secrets.key` private.
+  contents. First-run owner setup is local-only by default and starts no hub
+  transport; an environment owner (`CLARA_ADMIN_*`) provisions CI, and a
+  host-supplied setup token is the explicit remote path. A lost password is
+  reset by a host-only command, never over HTTP. Authentication is not host
+  isolation; keep the database and `secrets.key` private.
 
 ## Related
 
