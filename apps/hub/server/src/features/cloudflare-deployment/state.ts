@@ -29,6 +29,8 @@ export type DeployInput = {
   rememberToken?: boolean
   /** Replace a Clara relay Worker left behind by an earlier panel deployment. */
   replaceExisting?: boolean
+  /** Serve preview/version URLs for this Worker. Off by default. */
+  previewUrls?: boolean
 }
 
 export type DeployOutcome = {
@@ -95,6 +97,7 @@ export class CloudflareDeploymentState {
             hostname: this.deployment.hostname,
             deployedAt: this.deployment.deployedAt,
             reachable: this.deployment.reachable,
+            previewUrls: this.deployment.previewUrls,
             ...(this.deployment.accountName ? { accountName: this.deployment.accountName } : {}),
           }
         : {}),
@@ -132,6 +135,7 @@ export class CloudflareDeploymentState {
         agentToken: current?.agentToken || undefined,
         clientToken: current?.clientToken || undefined,
         allowExisting: Boolean(this.deployment) || input.replaceExisting === true,
+        previewUrls: input.previewUrls === true,
       })
 
       const relay: RelayConfig = {
@@ -147,6 +151,7 @@ export class CloudflareDeploymentState {
         hostname: result.hostname,
         deployedAt: result.deployedAt,
         reachable: result.reachable,
+        previewUrls: result.previewUrls,
       }
 
       await saveRelayCredentials(this.config.configDir, this.secretKey, {
@@ -183,16 +188,22 @@ export class CloudflareDeploymentState {
       if (!result.reachable) {
         this.log('cloudflare relay health check failed', result.healthError)
       }
+      const warnings: string[] = []
+      if (result.previewUrlsError) {
+        this.log('cloudflare relay preview URL setting failed', result.previewUrlsError)
+        warnings.push(
+          `The Worker deployed, but its preview URL setting could not be applied: ${result.previewUrlsError}`
+        )
+      }
+      if (!result.reachable) {
+        warnings.push(
+          result.healthError ?? 'The Worker deployed, but its health check has not answered yet.'
+        )
+      }
 
       return {
         deployment: this.snapshot(),
-        ...(result.reachable
-          ? {}
-          : {
-              warning:
-                result.healthError ??
-                'The Worker deployed, but its health check has not answered yet.',
-            }),
+        ...(warnings.length > 0 ? { warning: warnings.join(' ') } : {}),
       }
     } finally {
       this.deploying = false

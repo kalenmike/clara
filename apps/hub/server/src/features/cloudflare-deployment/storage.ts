@@ -21,6 +21,8 @@ export type RelayDeploymentRecord = {
   hostname: string
   deployedAt: string
   reachable: boolean
+  /** Preview/version URLs were requested for this Worker. Off by default. */
+  previewUrls: boolean
 }
 
 export function loadRelayDeployment(configDir: string): RelayDeploymentRecord | undefined {
@@ -41,6 +43,7 @@ export function loadRelayDeployment(configDir: string): RelayDeploymentRecord | 
       hostname: value.hostname,
       deployedAt: value.deployedAt,
       reachable: value.reachable,
+      previewUrls: value.previewUrls === true,
       ...(typeof value.accountName === 'string' ? { accountName: value.accountName } : {}),
     }
   })

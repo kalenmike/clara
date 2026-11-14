@@ -16,6 +16,8 @@ export type DeployRelayOptions = {
   agentToken?: string
   clientToken?: string
   allowExisting?: boolean
+  /** Serve preview/version URLs for the Worker. Off unless explicitly enabled. */
+  previewUrls?: boolean
   fetchImpl?: typeof fetch
   sleep?: (ms: number) => Promise<void>
 }
@@ -30,6 +32,8 @@ export type DeployRelayResult = {
   clientToken: string
   deployedAt: string
   reachable: boolean
+  previewUrls: boolean
+  previewUrlsError?: string
   healthError?: string
 }
 
@@ -84,6 +88,7 @@ export async function deployRelay(options: DeployRelayOptions): Promise<DeployRe
   const agentToken = options.agentToken ?? generateToken()
   const clientToken = options.clientToken ?? generateToken()
   const room = options.room ?? bytesToBase64Url(randomBytes(16))
+  const previewUrls = options.previewUrls === true
 
   const metadata = {
     main_module: options.artifact.mainModule,
@@ -114,7 +119,20 @@ export async function deployRelay(options: DeployRelayOptions): Promise<DeployRe
     moduleName: options.artifact.mainModule,
     module: options.artifact.code,
   })
-  await options.client.enableSubdomain(options.account.id, scriptName)
+  // Cloudflare has no preview field in upload metadata; `previews_enabled` on
+  // the subdomain endpoint is the supported switch, sent on every deploy so an
+  // older Worker gets cleared too.
+  let previewUrlsError: string | undefined
+  try {
+    await options.client.configureSubdomain({
+      accountId: options.account.id,
+      scriptName,
+      enabled: true,
+      previewsEnabled: previewUrls,
+    })
+  } catch (cause) {
+    previewUrlsError = cause instanceof Error ? cause.message : String(cause)
+  }
 
   const hostname = `${scriptName}.${subdomain}.workers.dev`
   const health = await waitForHealth(hostname, options.fetchImpl ?? fetch, options.sleep)
@@ -129,6 +147,8 @@ export async function deployRelay(options: DeployRelayOptions): Promise<DeployRe
     clientToken,
     deployedAt: new Date().toISOString(),
     reachable: health.ok,
+    previewUrls,
+    ...(previewUrlsError ? { previewUrlsError } : {}),
     ...(health.error ? { healthError: health.error } : {}),
   }
 }

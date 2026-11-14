@@ -4,7 +4,8 @@
   "main": "src/index.ts",
   "compatibility_date": "2026-10-30",
   "workers_dev": true,
-  "preview_urls": true,
+  // Preview/version URLs are opt-in: they add public hostnames outside host-scoped WAF rules.
+  "preview_urls": false,
   "observability": {
     "enabled": true,
   },
