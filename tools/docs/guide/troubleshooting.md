@@ -85,6 +85,25 @@ own.
 - If only one network fails, try the other transport: local on the same machine,
   relay from a remote device.
 
+## The relay keeps saying another hub connected
+
+The Relay card reports **Another hub connected to this room** when a second hub
+process uses the same hub token and room. The hub that was replaced waits at
+least 30 seconds before it reconnects, so the two do not evict each other in a
+tight loop, but remote clients still drop until you fix it.
+
+1. Find and stop the second hub. Check other machines, old containers, and a
+   copy started with a different config directory.
+2. Rotate the Worker secret with `wrangler secret put CLARA_AGENT_TOKEN`, then
+   save the same value in **Connections → Relay**, or deploy the relay again
+   from the panel.
+3. Watch the Relay card until it stays online and the warning stops.
+4. If the Cloudflare API token may have leaked, rotate it in Cloudflare and
+   update the token saved in the panel.
+
+Rotating the hub token does not require devices to pair again. Pair again only
+when the relay URL or the room changes.
+
 ## An update will not install
 
 The update banner offers **Update** and **Later**. If the app seems stuck:
