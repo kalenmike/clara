@@ -110,6 +110,7 @@ pnpm desktop:icons  # Regenerate the desktop icons from the web mark
 pnpm hub:dev        # Hub tray app with the Bun sidecar
 pnpm hub:build      # Hub native installer for the host OS
 pnpm hub:build:app  # Hub app bundle without installers
+pnpm hub:build:docker # Linux hub bundles in Docker, extracted to dist/hub
 pnpm hub:sidecar    # Build the embedded-panel Bun sidecar only
 pnpm hub:icons      # Regenerate the hub app icons from the web mark
 ```

@@ -56,6 +56,7 @@ pnpm task session start my-change
 pnpm check && pnpm build
 pnpm desktop:build   # Clara client installer (host OS)
 pnpm hub:build       # Clara Hub tray app installer (host OS)
+pnpm hub:build:docker # Clara Hub Linux installers in Docker
 pnpm task session close my-change
 ```
 

@@ -100,6 +100,13 @@ hub data model, pairing, relay, panel, and adapters are unchanged.
 - `pnpm hub:sidecar` builds the panel, embeds it, and compiles the Bun sidecar.
   `pnpm hub:dev` and `pnpm hub:build` run the sidecar build first. The hub app is
   outside `pnpm build`.
+- `pnpm hub:build:docker` builds the Linux bundles in Debian 12 with Rust, Node,
+  Bun, and the WebKitGTK prerequisites, then extracts them to `dist/hub`. The
+  image runs the sidecar build before Tauri, passes the version stamp because
+  `.git` is outside the context, and keeps Cargo, Tauri tool, and target
+  directories in cache mounts. `--bundles`, `--platform`, `--output`, `--base`,
+  `--no-cache`, and `--cloudflare` are available; like the desktop build, it
+  cannot produce macOS or Windows installers.
 - `apps/hub/desktop/src/entry.ts` extracts the embedded panel and calls
   `@clara/hub-server/main`. The sidecar uses the `bun` export condition of
   `@clara/sqlite`, so `bun:sqlite` replaces better-sqlite3.

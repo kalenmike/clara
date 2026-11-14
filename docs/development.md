@@ -102,6 +102,19 @@ pnpm hub:dev       # sidecar, then the tray app
 pnpm hub:build     # sidecar, then the host installer
 ```
 
+`pnpm hub:build:docker` builds the Linux bundles in Debian 12 with Rust, Node,
+and Bun, then extracts them to `dist/hub`. The image compiles the panel and the
+Bun sidecar first, then lets Tauri bundle the tray shell around the sidecar
+executable. It takes the same `--bundles`, `--platform`, `--output`, `--base`,
+and `--no-cache` options as the desktop build, plus `--cloudflare` (or
+`ENABLE_CLOUDFLARE_DEPLOYMENT`) to embed the relay. Like the desktop build, it
+cannot produce macOS or Windows installers.
+
+```bash
+pnpm hub:build:docker
+pnpm hub:build:docker --bundles deb --platform linux/amd64
+```
+
 `pnpm build` does not build either Tauri app. See
 [features/hub-app.md](features/hub-app.md) for ports, the runtime file, and the
 Docker switch.
