@@ -33,6 +33,7 @@
     "hub:build": "pnpm --filter @clara/hub-desktop bundle",
     "hub:build:app": "pnpm --filter @clara/hub-desktop bundle:app",
     "hub:build:docker": "pnpm --filter @clara/hub-desktop build:docker",
+    "hub:headless": "pnpm --filter @clara/hub-desktop headless",
     "hub:sidecar": "pnpm --filter @clara/hub-desktop sidecar",
     "hub:icons": "pnpm --filter @clara/hub-desktop icons",
     "clara": "node tools/cli/src/main.mjs",

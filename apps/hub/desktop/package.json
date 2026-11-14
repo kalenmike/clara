@@ -9,6 +9,7 @@
     "bundle": "node scripts/build-sidecar.mjs && tauri build",
     "bundle:app": "node scripts/build-sidecar.mjs && tauri build --no-bundle",
     "build:docker": "node scripts/build-docker.mjs",
+    "headless": "node scripts/build-headless.mjs",
     "sidecar": "node scripts/build-sidecar.mjs",
     "icons": "tauri icon ../../web/public/clara-mark.png",
     "typecheck": "tsc -p tsconfig.json"
