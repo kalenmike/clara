@@ -29,8 +29,8 @@ export class SessionIndex {
   }
 
   /** Every session file under the configured roots, newest first. */
-  async list(): Promise<PiSessionSummary[]> {
-    const paths = this.paths()
+  async list(extraRoots: string[] = []): Promise<PiSessionSummary[]> {
+    const paths = this.paths(extraRoots)
     const summaries = await mapWithConcurrency(paths, READ_CONCURRENCY, (path) =>
       this.load(path).catch(() => undefined)
     )
@@ -40,8 +40,15 @@ export class SessionIndex {
   }
 
   /** Find one session by full id, without reading every file when the name matches. */
-  async resolve(id: string): Promise<{ path: string; summary: PiSessionSummary } | undefined> {
-    const paths = this.paths()
+  async resolve(
+    id: string,
+    extraRoots: string[] = []
+  ): Promise<{ path: string; summary: PiSessionSummary } | undefined> {
+    const cached = [...this.cache.values()].find(
+      (entry) => entry.summary.id === id && existsSync(entry.summary.path)
+    )
+    if (cached) return { path: cached.summary.path, summary: cached.summary }
+    const paths = this.paths(extraRoots)
     const direct = paths.find((path) => basenameMatches(path, id))
     if (direct) {
       const summary = await this.load(direct).catch(() => undefined)
@@ -91,9 +98,9 @@ export class SessionIndex {
     return summary
   }
 
-  private paths(): string[] {
+  private paths(extraRoots: string[] = []): string[] {
     const found = new Set<string>()
-    for (const root of this.roots()) {
+    for (const root of new Set([...this.roots(), ...extraRoots])) {
       if (!existsSync(root)) continue
       let entries
       try {

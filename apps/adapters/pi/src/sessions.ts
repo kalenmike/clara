@@ -18,7 +18,7 @@ import type {
   ClaraTokenUsage,
 } from '@clara/api-contract'
 import { AdapterError } from '@clara/adapter-runtime'
-import { sessionDirFor, type PiConfig } from './config.ts'
+import { sessionDirFor, sessionRoots, type PiConfig } from './config.ts'
 import type { PiSessionSummary, ParsedSession } from './pi/format.ts'
 import { parseSession, sessionSummary } from './pi/format.ts'
 import { SessionIndex } from './pi/indexer.ts'
@@ -82,6 +82,7 @@ export class SessionService {
   private readonly publish: (event: ClaraEvent) => void
   private projectCache?: { at: number; value: ClaraHarnessProject[] }
   closeSession?: (sessionID: string) => Promise<void>
+  renameSession?: (sessionID: string, title: string) => Promise<boolean>
 
   constructor(
     config: PiConfig,
@@ -100,7 +101,7 @@ export class SessionService {
   async list(input: SessionListInput): Promise<ClaraSessionsResponse> {
     const requested = input.project ?? input.directory
     const directory = requested ? canonical(requested) : undefined
-    let summaries = await this.index.list()
+    let summaries = await this.index.list(sessionRoots(this.config, directory))
     if (directory) {
       summaries = summaries.filter((summary) => canonical(summary.cwd) === directory)
     }
@@ -132,8 +133,8 @@ export class SessionService {
     }
   }
 
-  async get(sessionID: string, _directory?: string): Promise<ClaraSession> {
-    const resolved = await this.require(sessionID)
+  async get(sessionID: string, directory?: string): Promise<ClaraSession> {
+    const resolved = await this.require(sessionID, directory)
     return this.toClaraSession(resolved.summary)
   }
 
@@ -237,10 +238,15 @@ export class SessionService {
     const resolved = await this.require(sessionID)
     if (typeof input.title !== 'string') return
     const title = input.title.trim()
-    appendEntry(
-      resolved.path,
-      sessionInfoEntry(title, resolved.summary.lastEntryId ?? null, new Date())
-    )
+    const renamed = this.renameSession
+      ? await this.renameSession(sessionID, title).catch(() => false)
+      : false
+    if (!renamed) {
+      appendEntry(
+        resolved.path,
+        sessionInfoEntry(title, resolved.summary.lastEntryId ?? null, new Date())
+      )
+    }
     this.index.forget(resolved.path)
     this.publish({
       id: `session-renamed-${sessionID}-${Date.now()}`,
@@ -332,8 +338,14 @@ export class SessionService {
     return value
   }
 
-  private async require(sessionID: string): Promise<{ path: string; summary: PiSessionSummary }> {
-    const resolved = await this.index.resolve(sessionID)
+  private async require(
+    sessionID: string,
+    directory?: string
+  ): Promise<{ path: string; summary: PiSessionSummary }> {
+    const resolved = await this.index.resolve(
+      sessionID,
+      directory ? sessionRoots(this.config, directory) : []
+    )
     if (!resolved) {
       throw new AdapterError(404, 'SessionNotFoundError', `Session ${sessionID} was not found`)
     }

@@ -140,6 +140,12 @@ export class PiRuntime {
       onExit: (handle) => this.onExit(handle),
     })
     sessions.closeSession = (sessionID) => this.manager.dispose(sessionID)
+    sessions.renameSession = async (sessionID, title) => {
+      const handle = this.manager.get(sessionID)
+      if (!handle) return false
+      await handle.client.request({ type: 'set_session_name', name: title }, COMMAND_TIMEOUT_MS)
+      return true
+    }
   }
 
   async prompt(sessionID: string, input: PromptInput): Promise<ClaraSessionInboxUser> {
@@ -397,6 +403,9 @@ export class PiRuntime {
   }
 
   async fork(sessionID: string, before?: string): Promise<ClaraSession> {
+    if (this.manager.get(sessionID)?.busy) {
+      throw new AdapterError(409, 'session_busy', 'Interrupt the run before forking this session')
+    }
     const parent = await this.sessions.read(sessionID)
     const branch = activeBranch(parent.session.entries)
     const boundary = before
