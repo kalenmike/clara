@@ -5,6 +5,7 @@ import { resolvePorts } from '../ports.ts'
 import { runSetup as setup } from '../setup/setup.ts'
 import { applyLocalArchive, applyUpdate, checkForUpdate, rollback } from '../release/update.ts'
 import { detectService } from '../service-manager/index.ts'
+import { detectRole } from '../state/role.ts'
 import { cyan, dim } from '../ui/color.ts'
 import { failure, success, warn } from '../ui/index.ts'
 import { promptLine, promptSecret, readStdin } from '../ui/prompt.ts'
@@ -17,6 +18,13 @@ export async function runSetupCommand(args: readonly string[]): Promise<number> 
   const paths = resolvePaths()
   const ports = resolvePorts()
   const interactive = !parsed.flags.has('non-interactive') && process.stdin.isTTY
+  if (detectRole(paths) === 'adapter') {
+    console.log(
+      warn(
+        'This machine is currently an adapter host. Setup will create and start the Clara services here.'
+      )
+    )
+  }
 
   let username = parsed.options.get('username')
   if (!username && interactive) username = await promptLine('Hub owner username', 'admin')
