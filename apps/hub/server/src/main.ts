@@ -7,8 +7,10 @@ import {
   PROTOCOL_VERSION,
   createRelayGrant,
   encodeHarnessPairingCode,
+  type AgentInfo,
   type HarnessPairingPayload,
 } from '@clara/shared-types'
+import { baseURL } from '@clara/service-control'
 import {
   acquireRuntimeLock,
   isRuntimeLive,
@@ -294,13 +296,18 @@ async function runServe(
     log('push disabled', cause)
   }
 
-  const info = {
+  const info: AgentInfo = {
     version: SERVER_VERSION,
     protocol: PROTOCOL_VERSION,
     opencodeVersion,
     room: config.relay?.room,
     pushPublicKey: push?.publicKey,
     orchestration: false,
+    endpoints: {
+      web: config.pairingBaseUrl,
+      hub: `http://${config.local.host}:${config.local.port}`,
+      engine: baseURL(),
+    },
   }
 
   const panelBindHost = process.env.CLARA_PANEL_BIND_HOST?.trim() || '127.0.0.1'
@@ -311,7 +318,10 @@ async function runServe(
     panel ? { host: advertisedHost(panelBindHost, '127.0.0.1'), port: panel.port } : undefined
   const controllerRef: { current?: RuntimeController } = {}
   const publishRuntime = () => {
-    const state = runtimeState(config, startedAt, controllerRef.current?.localPort, panel)
+    const localPort = controllerRef.current?.localPort
+    // The listener may fall back to an ephemeral port; advertise the live one.
+    if (localPort && info.endpoints) info.endpoints.hub = `http://${config.local.host}:${localPort}`
+    const state = runtimeState(config, startedAt, localPort, panel)
     try {
       writeRuntimeState(state)
       markPublished()
