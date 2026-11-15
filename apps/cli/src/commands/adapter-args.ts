@@ -55,9 +55,13 @@ export function parseKindSpec(value: string): KindSpec {
   return { kind, ...(version ? { version } : {}) }
 }
 
-export function requireKind(value: string | undefined, command: string): KindSpec {
+export function requireKind(
+  value: string | undefined,
+  command: string,
+  prefix = 'clara adapter'
+): KindSpec {
   if (!value) {
-    throw new Error(`usage: clara adapter ${command} <${ADAPTER_KINDS.join('|')}>`)
+    throw new Error(`usage: ${prefix} ${command} <${ADAPTER_KINDS.join('|')}>`)
   }
   return parseKindSpec(value)
 }

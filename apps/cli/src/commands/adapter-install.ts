@@ -65,7 +65,8 @@ export async function runAdapterUpgrade(args: readonly string[]): Promise<number
     ? parsed.values.map((value) => parseKindSpec(value).kind)
     : ADAPTER_KINDS.filter((kind) => state.adapters[kind])
   if (requested.length === 0) {
-    console.log('No adapters are installed. Run `clara adapter install <kind>` first.')
+    if (json) console.log(JSON.stringify([], null, 2))
+    else console.log('No adapters are installed. Run `clara adapter install <kind>` first.')
     return 0
   }
 
@@ -121,7 +122,11 @@ export async function runAdapterRemove(args: readonly string[]): Promise<number>
 /** `clara pair adapter --harness <kind> [--transport local|relay] [--install]`. */
 export async function runPairAdapter(args: readonly string[]): Promise<number> {
   const parsed = parseAdapterArgs(args)
-  const kind = requireKind(parsed.options.get('--harness') ?? parsed.values[0], 'pair adapter')
+  const kind = requireKind(
+    parsed.options.get('--harness') ?? parsed.values[0],
+    'pair adapter --harness',
+    'clara'
+  )
   const transport = parseTransport(parsed.options.get('--transport'))
   const json = parsed.flags.has('--json')
   const spinner =

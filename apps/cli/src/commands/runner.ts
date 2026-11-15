@@ -1,6 +1,6 @@
 import { spawn } from 'node:child_process'
 import { closeSync, mkdirSync, openSync } from 'node:fs'
-import { readRunnerConfig, engineURL } from '@clara/runner'
+import { readRunnerConfig, engineToken, engineURL } from '@clara/runner'
 import { join } from 'node:path'
 import { resolvePaths } from '../paths.ts'
 import { selfCommand } from '../self.ts'
@@ -59,6 +59,9 @@ export async function runRunnerStart(args: readonly string[]): Promise<number> {
     return 0
   }
   clearRunnerPid(paths)
+  if (!engineToken()) {
+    throw new Error('No engine token. Start the engine or set CLARA_ENGINE_TOKEN.')
+  }
 
   const forwarded = options.workspace ? ['--workspace', options.workspace] : []
   const configPath = join(paths.configDir, 'runner.json')
