@@ -1,10 +1,11 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Composer } from '@/components/chat/composer'
 import { ComposerTabStrip } from '@/components/chat/composer-tab-strip'
 import { useComposer } from '@/features/chat/composer-provider'
 import { autoHideComposerMode } from '@/features/chat/composer-layout'
 import { composerSessionTitle } from '@/features/chat/composer-session'
 import type { ComposerDraft } from '@/features/chat/composer-tabs'
+import { useComposerMenuOpen } from '@/features/chat/use-composer-menu-open'
 import { useComposerTarget } from '@/features/chat/use-composer-target'
 import { useAgents } from '@/features/catalog/use-catalog'
 import { primaryAgents } from '@/features/agents/default-agent'
@@ -63,6 +64,8 @@ function ConnectedComposer({
   const isTouchDevice = useIsTouchDevice()
   const autoHideEnabled = autoHide && !isTouchDevice
   const [hovered, setHovered] = useState(false)
+  const sectionRef = useRef<HTMLElement>(null)
+  const menuOpen = useComposerMenuOpen(sectionRef, autoHideEnabled)
   const { lowerSingular } = useSessionWording()
   const { session, directory, busy, ready, empty, menuMode, planReady, disabled } =
     useComposerTarget(sessionID)
@@ -125,12 +128,13 @@ function ConnectedComposer({
 
   const displayMode = autoHideComposerMode(
     { mode, expanded },
-    { enabled: autoHideEnabled, pinned, revealed: hovered }
+    { enabled: autoHideEnabled, pinned, revealed: hovered, menuOpen }
   )
   const togglePinned = useCallback(() => setPinned(!pinned), [pinned, setPinned])
 
   return (
     <section
+      ref={sectionRef}
       role="region"
       aria-label={`Composer for ${title}`}
       style={displayMode === 'pinned' ? { height } : undefined}
