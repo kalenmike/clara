@@ -53,13 +53,15 @@ RUN corepack enable
 WORKDIR /repo
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml tsconfig.base.json ./
 # These manifest copies cover the workspace dependency closure of the desktop
-# build: the Tauri CLI from @clara/desktop, the frontend from @clara/web, and the
-# shared hub panel the web client renders at `/hub`.
+# build: the Tauri CLI from @clara/desktop, the frontend from @clara/web, the
+# shared hub panel the web client renders at `/hub`, and the shared component
+# library both surfaces render.
 COPY apps/desktop/package.json apps/desktop/package.json
 COPY apps/desktop/host/package.json apps/desktop/host/package.json
 COPY apps/web/package.json apps/web/package.json
 COPY packages/panel/package.json packages/panel/package.json
 COPY packages/theme/package.json packages/theme/package.json
+COPY packages/ui/package.json packages/ui/package.json
 COPY packages/lab/package.json packages/lab/package.json
 COPY packages/preview/package.json packages/preview/package.json
 COPY packages/orchestration/policy/package.json packages/orchestration/policy/package.json
@@ -77,6 +79,7 @@ COPY apps/desktop apps/desktop
 COPY apps/web apps/web
 COPY packages/panel packages/panel
 COPY packages/theme packages/theme
+COPY packages/ui packages/ui
 COPY packages/lab packages/lab
 COPY packages/preview packages/preview
 COPY packages/orchestration/policy packages/orchestration/policy
