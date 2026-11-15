@@ -193,8 +193,8 @@ device key through a one-time code; there is no shared browser key.
   registry manifest, copy command, and `clara://adapter` link. Clara Desktop's
   adapter host (`apps/desktop/host`) turns an offer into a local, SSH, or Docker
   install through `packages/adapters/install`; the hub runs nothing.
-- Docker stack: `clara start` starts the orchestrator, hub, and web client
-  together; `start hub`, `start web`, or `start orchestrator` selects one
+- Docker stack: `clara start` starts the engine, hub, and web client
+  together; `start hub`, `start web`, or `start engine` selects one
   target; `restart` recreates the selection.
 - Server container: `clara start hub --docker`; panel and local
   WebSocket publish on host loopback, and adapters on the `clara` Docker network

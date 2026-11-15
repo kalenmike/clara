@@ -11,7 +11,7 @@ imports:
     - path: diagnostics
     - path: maintenance
 
-# Watchdog defaults. The service currently reads CLARA_ORCHESTRATION_* for
+# Watchdog defaults. The service currently reads CLARA_ENGINE_* for
 # these values; this block is reserved for the orchestrator wiring pass.
 watchdog:
   enabled: true

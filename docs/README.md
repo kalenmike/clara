@@ -87,7 +87,7 @@ Clara works; the guide describes how to use it.
 | [theme.md](features/theme.md)                                           | You are working on appearance, color themes, or light/dark mode          |
 | [settings.md](features/settings.md)                                     | You are working on the Settings page, tabs, or simplified view           |
 | [git.md](features/git.md)                                               | You are working on the branch and change summary in the right panel      |
-| [orchestration.md](features/orchestration.md)                           | You are working on the orchestration service, packages, or MCP adapter   |
+| [orchestration.md](features/orchestration.md)                           | You are working on the engine service, packages, or MCP adapter          |
 | [orchestration-dsl.md](features/orchestration-dsl.md)                   | You are writing or changing a package, pipeline, step, or router         |
 | [diagnostics.md](features/diagnostics.md)                               | You are auditing run history, failures, alerts, or pipeline setup        |
 | [maintenance.md](features/maintenance.md)                               | You are rebuilding Clara or restarting its local services                |

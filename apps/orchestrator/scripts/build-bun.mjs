@@ -26,7 +26,7 @@ const target = arg('--target') ?? hostTarget()
 const executable = target.includes('windows') ? '.exe' : ''
 const outfile = resolve(
   packageRoot,
-  arg('--outfile') ?? join('dist', 'bun', `clara-orchestrator${executable}`)
+  arg('--outfile') ?? join('dist', 'bun', `clara-engine${executable}`)
 )
 
 const files = []

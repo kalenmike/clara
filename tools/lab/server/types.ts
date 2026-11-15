@@ -193,8 +193,8 @@ export interface CancelAllResult {
 
 export interface LabSnapshot {
   workspace: string
-  orchestratorWorkspace: string
-  orchestrator: string
+  engineWorkspace: string
+  engine: string
   connected: boolean
   tokenPresent: boolean
   heartbeat: boolean

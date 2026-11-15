@@ -9,13 +9,19 @@ config file; the service owns run state, leases, transitions, budgets, and
 alerts, while a thin harness adapter executes work orders, enforces strict
 policy, and carries results back to the human-facing Clara agent.
 
+**Naming:** the service is the **Clara Engine** (formerly the orchestrator).
+**Orchestration** is the feature, package domain, and pipeline vocabulary, not a
+process. The engine is deterministic and is never an LLM or an agent.
+`apps/orchestrator`, `clara-orchestrator`, and `CLARA_ORCHESTRATION_*` remain
+compatibility names for one release.
+
 See [orchestration-dsl.md](orchestration-dsl.md) for the complete package and
 step reference.
 
 ## User flow
 
 1. Start the service from the hub panel's **Orchestration** switch, with
-   `clara start orchestrator`, or let the MCP bridge start it on first
+   `clara start engine`, or let the MCP bridge start it on first
    use.
 2. Install the harness adapter and the shared runner with
    `clara-adapter-opencode install --pair <code>` (or `clara start adapter --harness opencode --pair <code>` in the repository). The command installs the
@@ -37,7 +43,7 @@ step reference.
    - a greeting, thanks, or general question is answered without a run;
    - an ambiguous request gets one clarifying question.
 
-   The orchestrator owns the workspace and its configured entry point.
+   The engine owns the workspace and its configured entry point.
    `clara_start` takes only the request; the model never passes a workspace or
    a target. Executors pass a `capabilities` filter so a script step is left
    for a capable runner instead of the agent adapter.
@@ -54,7 +60,7 @@ step reference.
    failures, budget exhaustion, and stalls.
 8. The adapter delivers new alerts and finished root runs back into the origin
    session as queued synthetic prompts. Before queueing a wake, it asks the
-   orchestrator to claim the run or alert; the claim is persisted before the
+   engine to claim the run or alert; the claim is persisted before the
    prompt and released if the prompt fails. A finished root run therefore wakes
    the origin exactly once even when several adapter instances, or overlapping
    poll cycles, see the same transition. Clara reads the run or alert, tells the
@@ -71,7 +77,7 @@ She is the expected entry point in OpenCode.
 Her default is read-first:
 
 - A concrete new-work request creates one run and stops with the run id.
-- A status question reads the orchestrator and answers from it.
+- A status question reads the engine and answers from it.
 - A greeting, thanks, or general question never creates a run.
 - An ambiguous request gets one clarifying question.
 - An answer to an alert resolves or cancels the alert, not a new run.
@@ -84,7 +90,7 @@ silently become a second interface. If an answer needs repository context, the
 agent treats it as work and asks before starting a run.
 
 The adapter delivers new alerts and finished root runs into the same session as
-queued synthetic prompts. The orchestrator is the source of truth for delivery:
+queued synthetic prompts. The engine is the source of truth for delivery:
 the adapter claims the terminal run and its alerts before it awaits the prompt,
 and releases the claim if the prompt fails. The local delivery cycle is also
 serialized, so overlapping polls or several OpenCode locations loading the same
@@ -95,17 +101,17 @@ hidden automation.
 
 ## Container deployment
 
-The orchestrator can run as a container on the same Docker network as the harness
+The engine can run as a container on the same Docker network as the harness
 and the hub. That is the preferred setup when the hub itself is
-containerized. `clara start` brings up the orchestrator, hub, and
-web client together; the steps below cover the orchestrator-only path.
+containerized. `clara start` brings up the engine, hub, and
+web client together; the steps below cover the engine-only path.
 
 The hub uses `infra/docker/server.compose.yml`, joins the same external `clara`
-network, and reaches the orchestrator at `http://orchestrator:8789`. The
-orchestrator container is named `clara-orchestrator`.
+network, and reaches the engine at `http://engine:8789`. The
+engine container is named `clara-engine`.
 
 1. Copy `infra/docker/.env.example` and set:
-   - `CLARA_ORCHESTRATION_TOKEN` to a long random token,
+   - `CLARA_ENGINE_TOKEN` to a long random token,
    - `CLARA_WORKSPACE` to the absolute path of the repository or workspace.
      The database and token default to the `clara-orchestrator-data` volume. Set
      `CLARA_ORCHESTRATOR_DATA_DIR` to an absolute host path only when you want a
@@ -113,19 +119,19 @@ orchestrator container is named `clara-orchestrator`.
 2. Start the service:
 
    ```sh
-   docker compose -f infra/docker/orchestrator.compose.yml up -d --build orchestrator
+   docker compose -f infra/docker/engine.compose.yml up -d --build engine
    ```
 
-   `clara stop orchestrator --docker` does not need the token or workspace
+   `clara stop engine --docker` does not need the token or workspace
    exported in the shell: `down` fills the required compose variables with
    absolute placeholders before Compose interpolates the file.
 
 3. Join the harness container to the `clara` network and set:
 
    ```sh
-   CLARA_ORCHESTRATION_URL=http://orchestrator:8789
-   CLARA_ORCHESTRATION_TOKEN=<same token>
-   CLARA_ORCHESTRATION_WORKSPACE=/workspace/clara
+   CLARA_ENGINE_URL=http://engine:8789
+   CLARA_ENGINE_TOKEN=<same token>
+   CLARA_ENGINE_WORKSPACE=/workspace/clara
    ```
 
 4. Mount the workspace at the same absolute path in both containers:
@@ -142,8 +148,8 @@ orchestrator container is named `clara-orchestrator`.
    ```
 
    In its panel, use `http://opencode:4096` when the harness is a container on the
-   `clara` network. The orchestrator URL is set with
-   `CLARA_ORCHESTRATION_HOST=orchestrator` and port `8789`.
+   `clara` network. The engine URL is set with
+   `CLARA_ENGINE_HOST=engine` and port `8789`.
 
    `clara start hub --docker` loads `infra/docker/.env` when the file exists.
    If the hub uses the relay, set `CLARA_RELAY_ROOM` to a fixed value: pairing
@@ -163,30 +169,30 @@ orchestrator container is named `clara-orchestrator`.
    use a different relay endpoint than the hub. The web container is static
    and does not proxy harness traffic.
 
-The compose service sets `CLARA_ORCHESTRATION_WORKSPACE=/workspace/clara`, which
+The compose service sets `CLARA_ENGINE_WORKSPACE=/workspace/clara`, which
 is the path the service reports to Clara Lab. Change it only if you move the
-workspace mount. The orchestrator image bundles the standard packages inside the
+workspace mount. The engine image bundles the standard packages inside the
 built service, so the container does not mount or copy the standard packages
 separately. Compose publishes the port on host loopback only
 (`127.0.0.1:8789:8789`) so host tools such as
-`clara status orchestrator` and Clara Lab can reach the container. The
+`clara status engine` and Clara Lab can reach the container. The
 database and container token live in the `clara-orchestrator-data` volume.
 `clara start` writes a host copy of the token to
-`~/.local/share/clara/docker/orchestrator.token` for Lab, the MCP bridge, and
+`~/.local/share/clara/docker/engine.token` for Lab, the MCP bridge, and
 `clara rebuild`. That Docker control directory is separate from the local
-install token at `~/.local/share/clara/orchestrator.token`.
+install token at `~/.local/share/clara/engine.token`.
 
-The container writes no host PID file. `clara status orchestrator` reports
-`running (docker container)`, and `clara stop orchestrator` does not
+The container writes no host PID file. `clara status engine` reports
+`running (docker container)`, and `clara stop engine` does not
 signal anything; stop the container with
-`clara stop orchestrator --docker`. Stopping does not require the
-`CLARA_ORCHESTRATION_TOKEN` or `CLARA_WORKSPACE` variables: compose still parses
+`clara stop engine --docker`. Stopping does not require the
+`CLARA_ENGINE_TOKEN` or `CLARA_WORKSPACE` variables: compose still parses
 them for `down`, so the command supplies inert values when they are not
 exported. It also runs `docker compose down` when the container is unhealthy or
 already stopped, so a crashed container can be cleaned up.
 
-Start it from the host with `clara start orchestrator --docker`. That runs
-`docker compose -f infra/docker/orchestrator.compose.yml up -d orchestrator` and waits for
+Start it from the host with `clara start engine --docker`. That runs
+`docker compose -f infra/docker/engine.compose.yml up -d engine` and waits for
 `/health` to report a container. Add `--build` to rebuild the image first. If a
 local instance is already running, the command refuses and asks you to stop it
 first.
@@ -216,13 +222,13 @@ the one-time migration.
    failure, routing, and spawn require the matching lease. A second worker
    cannot keep or close the same step.
 5. **One logical conversation.** The root run records its origin session and
-   worker sessions carry automation metadata for the dedicated orchestrator
+   worker sessions carry automation metadata for the dedicated engine
    surface. The OpenCode adapter delivers new alerts and finished root runs into
    the origin session; the inbox and SSE remain the read-only fallback.
-6. **The orchestrator owns the workspace and entry.** `CLARA_ORCHESTRATION_WORKSPACE`
+6. **The engine owns the workspace and entry.** `CLARA_ENGINE_WORKSPACE`
    configures the run workspace, defaulting to the service working directory.
    Every run starts at the `entry` declared by the active config: the bundled
-   default, or the `index.yml` named by `CLARA_ORCHESTRATION_CONFIG` (or the
+   default, or the `index.yml` named by `CLARA_ENGINE_CONFIG` (or the
    Lab's `--config`). Model-facing `clara_start` takes only the request; the
    capability filter is internal to the executor. Explicit package references
    such as `std:software/feature` are reserved for the Lab, operator REST calls,
@@ -234,7 +240,7 @@ the one-time migration.
    `orchestration.enabled` in the hub database and starts or stops a local
    instance. A service started from the CLI, MCP bridge, or Docker is detected
    but left under its own management. Clients receive the effective health state
-   as `orchestration`; each client then chooses whether to use the orchestrator
+   as `orchestration`; each client then chooses whether to use the engine
    surface, and only opted-in devices hold worker alerts.
 8. **Diagnosis is evidence-first.** The `std:diagnostics` package runs a
    deterministic analyzer over run history, then interprets the report. The
@@ -243,7 +249,7 @@ the one-time migration.
    does not apply them.
 9. **Maintenance restores the captured setup.** The `std:maintenance` package
    snapshots which services and adapters were running, rebuilds the checkout,
-   and restarts only that set. The orchestrator is restarted last, and a restart
+   and restarts only that set. The engine is restarted last, and a restart
    journal makes a retry resume instead of repeating the rebuild.
 
 ## Leases and heartbeats
@@ -255,7 +261,7 @@ step alive. The model never heartbeats itself, and a long turn or tool call does
 not look like a stall.
 
 The watchdog runs every ten seconds. An agent, router, or script step whose heartbeat is
-older than `CLARA_ORCHESTRATION_STALLED_MS` (default five minutes) or whose lease
+older than `CLARA_ENGINE_STALLED_MS` (default five minutes) or whose lease
 expired is requeued while attempts remain, or failed with a `stalled` alert. The
 timeout detects a harness that stopped reporting, not model latency. A failure
 is handed back to the normal transition, so the run and every ancestor step
@@ -274,8 +280,8 @@ A step declares one of five types:
 | `agent`    | harness adapter | rendered prompt and inputs    | text or JSON result     | yes   |
 | `router`   | harness adapter | router prompt and request     | one route key           | yes   |
 | `script`   | runner          | declared command and inputs   | stdout, exit code, JSON | no    |
-| `pipeline` | orchestrator    | referenced or inline children | child results           | no    |
-| `group`    | orchestrator    | inline children               | child results           | no    |
+| `pipeline` | engine          | referenced or inline children | child results           | no    |
+| `group`    | engine          | inline children               | child results           | no    |
 
 `agent` replaced the old `task` name. A package stores prompts under
 `agents/<name>.md`; the step resolves `agents/<step name>.md` by default, or the
@@ -365,7 +371,7 @@ steps:
 
 ## Runners
 
-The orchestrator never spawns a process. `script` steps are executed by a
+The engine never spawns a process. `script` steps are executed by a
 runner, which claims work, renews the lease, streams output, and reports the
 result. The runner is a role on the same work-order protocol as an agent
 adapter.
@@ -489,7 +495,7 @@ packages do not pin a model. They inherit the workspace defaults, so a fresh
 install runs against whatever provider the user's OpenCode can reach.
 
 ```yaml
-# custom index.yml named by CLARA_ORCHESTRATION_CONFIG
+# custom index.yml named by CLARA_ENGINE_CONFIG
 defaults:
   provider: opencode-go
   model: deepseek-v4.1-flash
@@ -597,7 +603,7 @@ A router is the exception: the request is its primary input, so it follows the
 router instructions as `# Request` without the background note.
 
 The prompt does not repeat the run id, step path, work token, model, enforcement,
-attempt, or budget. Those are orchestrator state. The adapter binds the run id,
+attempt, or budget. Those are engine state. The adapter binds the run id,
 step path, and work token to the managed session and supplies them to the control
 tools, so a worker only sends the route key, the result, or the failure reason.
 
@@ -618,7 +624,7 @@ The adapter also scopes the tool list for each model call. A router sees only
 `clara_route` and `clara_fail`; an agent keeps its repository tools and sees only
 `clara_complete`, `clara_fail`, and `clara_spawn` from the Clara namespace. The
 route parameter is an enum of the work order's route keys, so routing is a
-structured choice instead of a free string. The orchestrator still validates the
+structured choice instead of a free string. The engine still validates the
 key and rejects an unknown route.
 
 Clara control tools are registered as native tools, not Code Mode-only tools.
@@ -656,13 +662,13 @@ docs:    assess_docs → update_docs → verify_docs → docs_review
 
 ## Diagnostics pipeline
 
-The `std:diagnostics` package audits the orchestrator itself. Its `diagnose`
+The `std:diagnostics` package audits the engine itself. Its `diagnose`
 pipeline collects a deterministic report from run history, patterns the
 failures, audits the package and watchdog setup, ranks issues, proposes fixes,
 and returns the reviewed Markdown report. It uses `observed` enforcement so a
 missing or stale adapter does not block the diagnosis. Evidence collection is a
 script; the interpretation agents never edit files or mutate the database. Run it from Clara with a request such as "audit
-the orchestrator setup"; the configured router selects it. In the Lab, an
+the engine setup"; the configured router selects it. In the Lab, an
 operator can start it directly with `target: std:diagnostics`. See
 [diagnostics.md](diagnostics.md).
 
@@ -676,12 +682,12 @@ from the current snapshot without rebuilding or recapturing. `diagnose` collects
 a failed run and the snapshot, classifies the failure with two read-only agents,
 and returns safe next actions. The deterministic mechanics live in
 `clara rebuild status|build|adapters|restart|health|inspect|recover` and
-`clara-orchestrator inspect`; the rebuild and recover steps are scripts,
-so no model turn is involved. The orchestrator restarts last, the command waits
+`clara-engine inspect`; the rebuild and recover steps are scripts,
+so no model turn is involved. The engine restarts last, the command waits
 for `/health` before the worker reports completion, and a restart journal makes
 a retry resume instead of repeating the rebuild. Restart and health retry once
 and then run a bounded `on_failure` branch that restarts only the expected
-services that are not answering. An orchestrator reached through a non-loopback
+services that are not answering. An engine reached through a non-loopback
 URL is treated as external and verified but not restarted unless the operator
 passes `--manage-external`. All three pipelines use `observed` enforcement so
 they can run while the adapter or setup is degraded. See
@@ -772,12 +778,12 @@ they can run while the adapter or setup is degraded. See
 
 ## Out of scope
 
-- The orchestrator calling a model, creating a session, or spawning a process.
+- The engine calling a model, creating a session, or spawning a process.
   Runners execute scripts; the service only owns state.
 - MCP-only strict enforcement without a harness adapter or sandbox.
 - A visual pipeline editor; YAML and Markdown are the authoring surface.
-- Remote access to the orchestrator; it binds loopback only.
-- More than one PSK or token model for the orchestrator.
+- Remote access to the engine; it binds loopback only.
+- More than one PSK or token model for the engine.
 
 ## Known gaps
 
@@ -786,7 +792,7 @@ they can run while the adapter or setup is degraded. See
   script runner is shared in `@clara/runner`; a new adapter imports it rather
   than reimplementing execution.
 - A standalone runner is a separate process. It is not supervised by the
-  orchestrator; use the service manager or container of your choice.
+  engine; use the service manager or container of your choice.
 - Script execution is POSIX-first. The Windows path uses `cmd /d /s /c` and
   `taskkill`, but the standard packages target the host that runs the CLI.
 - A script that needs dynamic request arguments must read `CLARA_REQUEST` in a
@@ -818,7 +824,7 @@ they can run while the adapter or setup is degraded. See
 <details>
 <summary>Commands, packages, data, and references</summary>
 
-- Service: `apps/orchestrator`, loopback REST, SSE, and `/mcp`.
+- Service: `apps/orchestrator` (legacy directory name), loopback REST, SSE, and `/mcp`.
 - MCP: `packages/orchestration/mcp` provides the shared tools and the stdio bridge,
   which talks to the service over loopback HTTP.
 - Engine: `packages/orchestration/engine`; policy: `packages/orchestration/policy`;
@@ -832,34 +838,34 @@ they can run while the adapter or setup is degraded. See
   `packages/orchestration/engine/std/maintenance`. The research pipeline scopes the
   question, gathers external sources, verifies every material claim against
   independent dated sources, and returns a concise linked Markdown report. The
-  diagnostics pipeline analyzes the orchestrator database and setup, then
+  diagnostics pipeline analyzes the engine database and setup, then
   returns ranked issues with proposed fixes. The maintenance pipeline is
   entirely deterministic scripts that rebuild Clara, reinstall its adapters,
   restart the captured services, and verify health. See
   [maintenance.md](maintenance.md).
 - Primary config: `packages/orchestration/engine/default/index.yml`, bundled with the
-  engine. Set `CLARA_ORCHESTRATION_CONFIG` to a custom `index.yml` to replace
+  engine. Set `CLARA_ENGINE_CONFIG` to a custom `index.yml` to replace
   it. The default imports the five standard packages and routes to them.
 - Data: local installs use
   `${CLARA_DATA_DIR:-~/.local/share/clara}/orchestration.db`,
-  `orchestrator.token`, and `policy-delivery.json` (adapter delivery cursor).
+  `engine.token`, and `policy-delivery.json` (adapter delivery cursor).
   The Docker stack keeps them in the `clara-orchestrator-data` volume.
 - Workspace: `GET /v1/config` reports the service workspace from
-  `CLARA_ORCHESTRATION_WORKSPACE` (default: the service's working directory),
+  `CLARA_ENGINE_WORKSPACE` (default: the service's working directory),
   the active `configSource` (`bundled` or `file`), and `configPath` when a
   custom file is configured.
-- Container: `docker compose -f infra/docker/orchestrator.compose.yml up -d --build orchestrator`;
+- Container: `docker compose -f infra/docker/engine.compose.yml up -d --build engine`;
   the hub uses `infra/docker/server.compose.yml` on the same `clara` network.
 - Commands:
-  `clara start|stop|restart|status|logs orchestrator`,
+  `clara start|stop|restart|status|logs engine`,
   `clara start adapter --harness <name> [--pair] [--mcp]`,
   `clara stop adapter [--harness <name>] [--purge]`,
   `clara status adapter [--harness <name>] [--verify]`,
   `clara start runner [--workspace <path>] [--label <name>]`,
   `clara rebuild status|build|adapters|restart|health`,
   `clara start lab`, `clara status lab --check`.
-  `clara-orchestrator` remains the standalone orchestration binary.
-- Diagnostics: `clara-orchestrator analyze [--json] [--days n] [--db
+  `clara-engine` remains the standalone engine binary.
+- Diagnostics: `clara-engine analyze [--json] [--days n] [--db
 path] [--url url]` and `GET /v1/diagnostics?days=30`. The analyzer is
   `packages/orchestration/engine/src/diagnostics.ts`; see
   [diagnostics.md](diagnostics.md).
@@ -874,7 +880,7 @@ path] [--url url]` and `GET /v1/diagnostics?days=30`. The analyzer is
   `POST /v1/runs/:id/delivery/release` returns them when the prompt fails.
   The local cursor in `policy-delivery.json` avoids unnecessary claims; a
   missing file is treated as a fresh install, so historical terminal runs are
-  not replayed. Claims persist in the orchestrator database, so adapter
+  not replayed. Claims persist in the engine database, so adapter
   restarts and multiple plugin instances cannot re-send a finished run.
 - MCP tools: `clara_start`, `clara_next`, `clara_complete`, `clara_fail`,
   `clara_route`, `clara_spawn`, `clara_status`, `clara_attempts`, `clara_inbox`,

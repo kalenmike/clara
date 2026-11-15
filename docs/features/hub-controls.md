@@ -4,7 +4,7 @@
 
 The hub keeps its process, panel, and database alive while an admin switches its
 external connections on or off from the hub panel. The panel also starts and
-stops the local orchestration service and owns the global gate and check cadence
+stops the local engine service and owns the global gate and check cadence
 for client settings sync.
 
 ## User flow

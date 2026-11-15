@@ -26,7 +26,7 @@ apps/
   hub/
     server/               Hub service, CLI, Bun executable, /v1 API, and local WS + relay
     panel/                Authenticated hub panel and setup surface
-  orchestrator/           Loopback orchestration service, REST/SSE/MCP
+  orchestrator/           Loopback engine service, REST/SSE/MCP (legacy path)
   adapters/
     opencode/             OpenCode harness adapter, binding, and standalone bin
 tools/
@@ -154,7 +154,7 @@ Run `clara status hub --open` to open it in a browser; the command only opens a
 panel that is already being served. The panel never travels through the relay.
 From it you can create one-time browser pairing links and QR codes, add and
 manage harness adapters, disable the harness connection, local transport, relay,
-or push, start and stop the local orchestration service,
+or push, start and stop the local engine service,
 and stop every external connection while the process, panel, and database stay
 alive. Settings and harness connections are stored at `CLARA_DB_PATH` or
 `~/.local/share/clara/clara.db` (mode `0600`); adapter credentials are encrypted
@@ -192,16 +192,16 @@ clara restart
 clara stop
 ```
 
-`start` brings up the orchestrator, the hub (with its panel), and the web
+`start` brings up the engine, the hub (with its panel), and the web
 client, creates the `clara` network, and writes `infra/docker/.env` with a random
-orchestration token on first run. The containers are named `clara-orchestrator`,
+orchestration token on first run. The containers are named `clara-engine`,
 `clara-server`, and `clara-web`. Pass a target to start one service instead of
 the whole stack:
 
 ```bash
 clara start hub
 clara start web --build
-clara start orchestrator
+clara start engine
 ```
 
 `restart` stops and recreates the selected targets, so it applies image and
@@ -214,13 +214,13 @@ Docker state lives in named volumes, never in the local install directories:
 | ------------------------- | ----------------------------------------------------------------------------------- |
 | `clara-server-config`     | `server.json`, `vapid.json`, `subscriptions.json`, `secrets.key`, `admin-setup.txt` |
 | `clara-server-data`       | `clara.db`                                                                          |
-| `clara-orchestrator-data` | `orchestration.db` and the container token                                          |
+| `clara-orchestrator-data` | `engine.db` and the container token                                                 |
 
 Only the workspace is a host bind. Set `CLARA_SERVER_CONFIG_DIR`,
 `CLARA_SERVER_DATA_DIR`, or `CLARA_ORCHESTRATOR_DATA_DIR` in `infra/docker/.env` to an
 absolute host path when you want to bind one of those states instead. Local
 installs (`clara start --local`, `pnpm dev`, and
-`clara start orchestrator --local`) keep using `~/.config/clara` and
+`clara start engine --local`) keep using `~/.config/clara` and
 `~/.local/share/clara`; they never read `infra/docker/.env` or the Docker volumes. See
 [docs/development.md](docs/development.md#local-and-docker-state) for the full
 state map and the one-time migration.
@@ -245,19 +245,19 @@ running. It accepts a target and `--json`:
 Clara stack
 
 SERVICE       CONTAINER            STATE                URL
-orchestrator  clara-orchestrator   running (container)  http://127.0.0.1:8789
+engine  clara-engine   running (container)  http://127.0.0.1:8789
 server        clara-server         running (container)  http://127.0.0.1:8788
 web           clara-web            running (container)  http://127.0.0.1:8080
 
 Details
-  orchestrator  database: Docker volume clara-orchestrator-data; pid: none
+  engine  database: Docker volume clara-orchestrator-data; pid: none
   server        panel: http://127.0.0.1:8790 (running); admin: configured
   web           kind: static SPA
 ```
 
 `clara status --json` prints `{ "ok": true, "services": [...] }` with the
 same record for each service. The scoped `clara status hub --json`,
-`clara status web --json`, and `clara status orchestrator --json` commands print
+`clara status web --json`, and `clara status engine --json` commands print
 one record with the same shape. For the server record, `url` is the local listener and `details.panel`
 holds the panel URL.
 
@@ -274,7 +274,7 @@ clara-server setup --password-stdin
 clara pair --docker
 ```
 
-The hub service joins the same `clara` network as the orchestrator and, when
+The hub service joins the same `clara` network as the engine and, when
 containerized, the harness. Its panel and local WebSocket are published on host
 loopback only. Use an SSH tunnel
 for remote panel access; the panel's `Host`/`Origin` guard still expects a
@@ -329,20 +329,20 @@ does not proxy API or WebSocket traffic. See
 [docs/features/install.md](docs/features/install.md) and
 [docs/features/connection.md](docs/features/connection.md).
 
-### Orchestrator container
+### Engine container
 
-The orchestrator also runs without the hub or web client:
+The engine also runs without the hub or web client:
 
 ```bash
-clara start orchestrator --docker --build
-clara status orchestrator
-clara stop orchestrator --docker
+clara start engine --docker --build
+clara status engine
+clara stop engine --docker
 ```
 
 It serves REST, SSE, and MCP on `127.0.0.1:8789` with its bearer token and needs
 only a run workspace plus a harness adapter to execute work orders. The bundled
 default config routes to the standard packages; set
-`CLARA_ORCHESTRATION_CONFIG` to an `index.yml` to supply your own routing. The
+`CLARA_ENGINE_CONFIG` to an `index.yml` to supply your own routing. The
 included OpenCode adapter and Clara Lab talk to it directly; the web client is
 not required. See
 [docs/features/orchestration.md](docs/features/orchestration.md).

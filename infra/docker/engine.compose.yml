@@ -1,40 +1,42 @@
-# Clara orchestrator container.
+# Clara engine container.
 #
-#   export CLARA_ORCHESTRATION_TOKEN="$(openssl rand -hex 32)"
+#   export CLARA_ENGINE_TOKEN="$(openssl rand -hex 32)"
 #   export CLARA_WORKSPACE=/absolute/path/to/your/workspace
-#   docker compose -f infra/docker/orchestrator.compose.yml up -d --build
+#   docker compose -f infra/docker/engine.compose.yml up -d --build
 #
-# The orchestrator listens only on the private `clara` network. The host
+# The engine listens only on the private `clara` network. The host
 # loopback publish exists for host tools; the OpenCode container joins the same
-# network and uses http://orchestrator:8789.
+# network and uses http://engine:8789.
 #
 # The database and container token live in the `clara-orchestrator-data` volume
-# by default. Set CLARA_ORCHESTRATOR_DATA_DIR to an absolute host path to bind
+# by default. Set CLARA_ENGINE_DATA_DIR to an absolute host path to bind
 # them instead. The workspace is always a bind mount.
 
 name: clara
 
 services:
-  orchestrator:
-    container_name: clara-orchestrator
+  engine:
+    container_name: clara-engine
     build:
       context: ../..
-      dockerfile: infra/docker/orchestrator.Dockerfile
+      dockerfile: infra/docker/engine.Dockerfile
     restart: unless-stopped
     environment:
-      CLARA_ORCHESTRATION_HOST: 0.0.0.0
-      CLARA_ORCHESTRATION_PORT: '8789'
+      CLARA_ENGINE_HOST: 0.0.0.0
+      CLARA_ENGINE_PORT: '8789'
       CLARA_DATA_DIR: /data
-      CLARA_ORCHESTRATION_WORKSPACE: /workspace/clara
+      CLARA_ENGINE_WORKSPACE: /workspace/clara
       # Optional path to a custom index.yml inside the mounted workspace.
-      CLARA_ORCHESTRATION_CONFIG: ${CLARA_ORCHESTRATION_CONFIG:-}
-      CLARA_ORCHESTRATION_CONTAINER: '1'
-      CLARA_ORCHESTRATION_TOKEN: ${CLARA_ORCHESTRATION_TOKEN:?"set CLARA_ORCHESTRATION_TOKEN"}
+      CLARA_ENGINE_CONFIG: ${CLARA_ENGINE_CONFIG:-}
+      CLARA_ENGINE_CONTAINER: '1'
+      CLARA_ENGINE_TOKEN: ${CLARA_ENGINE_TOKEN:?"set CLARA_ENGINE_TOKEN"}
     volumes:
-      - ${CLARA_ORCHESTRATOR_DATA_DIR:-clara-orchestrator-data}:/data
+      - ${CLARA_ENGINE_DATA_DIR:-clara-orchestrator-data}:/data
       - ${CLARA_WORKSPACE:?set CLARA_WORKSPACE}:/workspace/clara:ro
     networks:
-      - clara
+      clara:
+        aliases:
+          - orchestrator
     ports:
       - '127.0.0.1:8789:8789'
     healthcheck:
@@ -56,12 +58,12 @@ services:
   #   image: your-opencode-image
   #   restart: unless-stopped
   #   depends_on:
-  #     orchestrator:
+  #     engine:
   #       condition: service_healthy
   #   environment:
-  #     CLARA_ORCHESTRATION_URL: http://orchestrator:8789
-  #     CLARA_ORCHESTRATION_TOKEN: ${CLARA_ORCHESTRATION_TOKEN}
-  #     CLARA_ORCHESTRATION_WORKSPACE: /workspace/clara
+  #     CLARA_ENGINE_URL: http://engine:8789
+  #     CLARA_ENGINE_TOKEN: ${CLARA_ENGINE_TOKEN}
+  #     CLARA_ENGINE_WORKSPACE: /workspace/clara
   #   volumes:
   #     - ${CLARA_WORKSPACE}:/workspace/clara
   #     - ${HOME}/.config/opencode:/home/opencode/.config/opencode

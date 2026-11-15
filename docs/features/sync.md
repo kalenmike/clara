@@ -72,7 +72,7 @@ changes.
     A fixed agent chosen on one harness never applies to another.
 11. **Single settings are isolated.** The **Single setting** section is not part
     of any category. **Orchestrator mode** shares only
-    `clara.orchestratorMode`, the per-client choice to use the orchestrator
+    `clara.orchestratorMode`, the per-client choice to use the engine
     surface. Enabling it does not enable any category, and disabling it leaves
     every category unchanged.
 

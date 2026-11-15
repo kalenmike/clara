@@ -167,7 +167,7 @@ export function DebugDock({
       return
     }
     if (!runtimeWorkspace.trim()) {
-      setError('The orchestrator has not reported its workspace yet. Reconnect in Settings.')
+      setError('The engine has not reported its workspace yet. Reconnect in Settings.')
       return
     }
     setBusy(true)
@@ -298,7 +298,7 @@ export function DebugDock({
                 <h3>Start a debug run</h3>
                 <p className="muted">
                   Target <strong>{target || 'Entry router'}</strong> · workspace{' '}
-                  <code>{runtimeWorkspace || 'waiting for the orchestrator'}</code>
+                  <code>{runtimeWorkspace || 'waiting for the engine'}</code>
                 </p>
               </div>
             </div>

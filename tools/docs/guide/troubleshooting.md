@@ -155,7 +155,7 @@ harnesses; a failed lookup for one harness does not empty the list.
 
 Orchestration is optional. If the service is stopped, orchestration runs and
 worker sessions are unavailable. The host can start it from the hub panel or
-with `clara start orchestrator`. See
+with `clara start engine`. See
 [Orchestration](self-hosting/orchestration.md).
 
 ## A Docker container keeps restarting
@@ -165,7 +165,7 @@ and prints the recent log lines when a service does not become healthy. If a
 container still keeps restarting:
 
 - Read the printed log tail, or run `clara logs hub`, `clara logs web`,
-  or `clara logs orchestrator`.
+  or `clara logs engine`.
 - A `CLARA_RELAY_URL` without `CLARA_AGENT_TOKEN` stops the hub at startup only
   when the panel has not saved the token. `clara start` warns about the gap
   before launching the container.

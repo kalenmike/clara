@@ -136,15 +136,15 @@ remains the surface that runs local, SSH, and Docker adapter installs.
 
 ```bash
 # Lifecycle
-clara start [default|hub|web|orchestrator|adapter|runner|lab|docs] [--docker|--local] [--build]
-clara stop [default|hub|web|orchestrator|adapter|runner|lab|docs] [--docker|--local]
-clara restart [default|hub|web|orchestrator|adapter|runner|lab|docs] [--docker|--local] [--build]
-clara status [default|hub|web|orchestrator|adapter|runner|lab|docs] [--json]
-clara logs [default|hub|web|orchestrator|adapter|runner|lab|docs] [--local|--docker]
+clara start [default|hub|web|engine|adapter|runner|lab|docs] [--docker|--local] [--build]
+clara stop [default|hub|web|engine|adapter|runner|lab|docs] [--docker|--local]
+clara restart [default|hub|web|engine|adapter|runner|lab|docs] [--docker|--local] [--build]
+clara status [default|hub|web|engine|adapter|runner|lab|docs] [--json]
+clara logs [default|hub|web|engine|adapter|runner|lab|docs] [--local|--docker]
 clara start hub --open
 clara status hub --open
-clara backup [default|hub|orchestrator] [--output <path>]
-clara restore [default|hub|orchestrator] <archive> [--force]
+clara backup [default|hub|engine] [--output <path>]
+clara restore [default|hub|engine] <archive> [--force]
 
 # Adapters
 clara start adapter [--harness <name>]
@@ -206,11 +206,11 @@ checkout. The `pnpm clara …` script in the checkout remains an alias for the s
 entry point.
 
 `clara start` starts Docker by default: it creates the `clara` network,
-bootstraps `infra/docker/.env` and the orchestrator token on first run, then
-starts the selected targets in orchestrator, hub, web order. Pass `--local` to
+bootstraps `infra/docker/.env` and the engine token on first run, then
+starts the selected targets in engine, hub, web order. Pass `--local` to
 run the same targets as detached local processes. `--build` rebuilds before
 starting. Select one target with `start hub`, `start web`, or
-`start orchestrator`; there are no `--no-*` flags.
+`start engine`; there are no `--no-*` flags.
 
 `hub` is the public target name for the hub service. Docker resources keep their
 `clara-server` names so existing volumes and containers keep working.
@@ -231,7 +231,7 @@ stop it with `systemctl --user stop clara`. Local web serves the built
 `apps/web/dist` on `CLARA_WEB_PORT`.
 
 `clara status` renders one table for the selected targets, using the same
-record shape for `hub`, `web`, and `orchestrator`. The hub row uses its local
+record shape for `hub`, `web`, and `engine`. The hub row uses its local
 listener URL; Details names the panel URL. Add `--json` for a machine-readable
 record or a `{ "ok": true, "services": [...] }` envelope.
 
@@ -265,14 +265,14 @@ Docker is optional. A local install keeps using the host directories; the
 Docker stack uses volumes and a Docker-only control directory. Neither mode
 reads the other's service state.
 
-| State                 | Local install                             | Docker stack                                     |
-| --------------------- | ----------------------------------------- | ------------------------------------------------ |
-| Server config         | `~/.config/clara`                         | volume `clara-server-config`                     |
-| Server database       | `~/.local/share/clara/clara.db`           | volume `clara-server-data`                       |
-| Orchestrator database | `~/.local/share/clara/orchestration.db`   | volume `clara-orchestrator-data`                 |
-| Orchestrator token    | `~/.local/share/clara/orchestrator.token` | `~/.local/share/clara/docker/orchestrator.token` |
-| Compose input         | none                                      | `infra/docker/.env`                              |
-| Workspace             | host path                                 | bind mount at `/workspace/clara`                 |
+| State           | Local install                       | Docker stack                               |
+| --------------- | ----------------------------------- | ------------------------------------------ |
+| Server config   | `~/.config/clara`                   | volume `clara-server-config`               |
+| Server database | `~/.local/share/clara/clara.db`     | volume `clara-server-data`                 |
+| Engine database | `~/.local/share/clara/engine.db`    | volume `clara-orchestrator-data`           |
+| Engine token    | `~/.local/share/clara/engine.token` | `~/.local/share/clara/docker/engine.token` |
+| Compose input   | none                                | `infra/docker/.env`                        |
+| Workspace       | host path                           | bind mount at `/workspace/clara`           |
 
 `CLARA_DOCKER_STATE_DIR` moves the Docker control directory. The workspace and
 the rebuild snapshot under `~/.local/share/clara/rebuild` are the only shared
@@ -300,20 +300,20 @@ clara stop
 tar -czf ~/clara-local-state-backup.tar.gz \
   ~/.config/clara \
   ~/.local/share/clara/clara.db* \
-  ~/.local/share/clara/orchestrator \
+  ~/.local/share/clara/engine \
   infra/docker/.env
 docker volume create clara-server-config clara-server-data clara-orchestrator-data
 docker run --rm \
   -v clara-server-config:/to/config \
   -v clara-server-data:/to/data \
-  -v clara-orchestrator-data:/to/orchestrator \
+  -v clara-orchestrator-data:/to/engine \
   -v "$HOME/.config/clara:/from/config:ro" \
   -v "$HOME/.local/share/clara:/from/data:ro" \
   node:22-bookworm-slim \
   sh -c '
     if [ -d /from/config ]; then cp -a /from/config/. /to/config/; fi &&
     find /from/data -maxdepth 1 -name "clara.db*" -exec cp -a {} /to/data/ \; &&
-    if [ -d /from/data/orchestrator ]; then cp -a /from/data/orchestrator/. /to/orchestrator/; fi &&
+    if [ -d /from/data/engine ]; then cp -a /from/data/engine/. /to/engine/; fi &&
     chown -R 1000:1000 /to
   '
 ```
@@ -328,18 +328,18 @@ clara status
 
 Keep the archive until the stack is healthy. Move the old directories aside
 instead of deleting them; keep `~/.local/share/clara/rebuild` and the local
-`orchestrator.token` if a local install is still used:
+`engine.token` if a local install is still used:
 
 ```bash
 mkdir -p ~/.local/share/clara-pre-volumes
 mv ~/.config/clara ~/.config/clara-pre-volumes
 mv ~/.local/share/clara/clara.db* ~/.local/share/clara-pre-volumes/
-mv ~/.local/share/clara/orchestrator ~/.local/share/clara-pre-volumes/
+mv ~/.local/share/clara/engine ~/.local/share/clara-pre-volumes/
 ```
 
 The Docker stack writes its control token to
-`~/.local/share/clara/docker/orchestrator.token`, so a local install can keep
-using `~/.local/share/clara/orchestrator.token` unchanged.
+`~/.local/share/clara/docker/engine.token`, so a local install can keep
+using `~/.local/share/clara/engine.token` unchanged.
 
 ## Pipeline development
 
@@ -355,7 +355,7 @@ clara status lab --check --json                 # CI-friendly diagnostics
 
 `check` exits non-zero on compile errors. It ignores warnings, so it can run in
 a pre-commit hook or CI without blocking on author feedback. The lab compiles
-the files on the host; when the orchestrator runs in a container, enter the host
+the files on the host; when the engine runs in a container, enter the host
 path under **Files on this machine** and the container mount under **Workspace
-inside the orchestrator** in Setup, then run **Check setup**. See
+inside the engine** in Setup, then run **Check setup**. See
 [features/lab.md](features/lab.md).

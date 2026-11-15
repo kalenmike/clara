@@ -63,7 +63,7 @@ this device.
 
 A separate **Single setting** section shares **Orchestrator mode** on its own. It
 is not part of any category: enabling it shares only the choice to use the
-orchestrator surface, never another preference.
+engine surface, never another preference.
 
 The Sync tab is hidden when the hub disables settings sync.
 

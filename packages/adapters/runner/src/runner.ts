@@ -1,7 +1,7 @@
 import { parseArgs } from 'node:util'
 import { resolve } from 'node:path'
 import { createRunner } from './loop.ts'
-import { orchestratorToken, orchestratorURL, readRunnerConfig, runnerConfigPath } from './config.ts'
+import { engineToken, engineURL, readRunnerConfig, runnerConfigPath } from './config.ts'
 
 export interface RunnerCommandOptions {
   once: boolean
@@ -51,13 +51,14 @@ export async function runRunner(argv: string[]): Promise<void> {
   const workspace = resolve(
     options.workspace ??
       saved?.workspace ??
+      process.env.CLARA_ENGINE_WORKSPACE?.trim() ??
       process.env.CLARA_ORCHESTRATION_WORKSPACE?.trim() ??
       process.cwd()
   )
-  const url = options.url ?? saved?.url ?? orchestratorURL()
-  const token = options.token ?? orchestratorToken()
+  const url = options.url ?? saved?.url ?? engineURL()
+  const token = options.token ?? engineToken()
   if (!token) {
-    throw new Error('no orchestrator token in the environment or at the configured token file')
+    throw new Error('no engine token in the environment or at the configured token file')
   }
   const labels = options.labels.length ? options.labels : (saved?.labels ?? [])
   const concurrency = options.concurrency ?? saved?.concurrency ?? 2

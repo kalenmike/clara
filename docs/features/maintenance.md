@@ -17,7 +17,7 @@ The maintenance package keeps three pipelines:
 
 All three use `observed` enforcement so they can run while the adapter or setup
 is degraded. The deterministic mechanics still live in `clara rebuild …`
-and `clara-orchestrator inspect`.
+and `clara-engine inspect`.
 
 ## User flow
 
@@ -27,9 +27,9 @@ and `clara-orchestrator inspect`.
    `std:maintenance/rebuild`, `std:maintenance/recover`, or
    `std:maintenance/diagnose` directly.
 2. `rebuild` captures the live setup: the primary checkout, git revision, Node
-   and pnpm versions, the adapter and MCP entries, every running orchestrator,
+   and pnpm versions, the adapter and MCP entries, every running engine,
    Lab, hub, and web container, and each service's deployment form
-   (`local`, `container`, or `stopped`; an orchestrator also carries an
+   (`local`, `container`, or `stopped`; an engine also carries an
    `external` flag). It writes the snapshot used by the later steps.
 3. The build step runs `pnpm install --frozen-lockfile` and `pnpm build` in the
    captured build checkout.
@@ -37,7 +37,7 @@ and `clara-orchestrator inspect`.
    and refreshes the MCP entry when it was already configured.
 5. The restart step brings back only the services captured as running, in the
    captured form. It restarts the web container, Lab, and hub first and
-   the orchestrator last, waiting for each health endpoint before moving on. A
+   the engine last, waiting for each health endpoint before moving on. A
    containerized hub is stopped and recreated with compose instead of
    being signalled by PID; the web container is recreated with a fresh image
    build.
@@ -61,8 +61,8 @@ and `clara-orchestrator inspect`.
 1. **The snapshot is the contract.** `status` writes it, `restart`, `recover`,
    and `health` read it. A service that was stopped when captured stays stopped.
 2. **Deployment form is saved.** The snapshot records `local`, `container`, or
-   `stopped` for the hub, orchestrator, Lab, and web client, plus an
-   `external` flag for an orchestrator managed outside the checkout. A
+   `stopped` for the hub, engine, Lab, and web client, plus an
+   `external` flag for an engine managed outside the checkout. A
    containerized hub or web client is recreated with compose, and a
    captured local hub is never restarted by signalling a container PID.
 3. **Recovery uses the same snapshot.** Re-running `status` after a partial
@@ -72,19 +72,19 @@ and `clara-orchestrator inspect`.
    a deterministic recovery branch. There is no model, prompt, turn budget, or
    token budget in `rebuild` or `recover`; the two agents live only in
    `diagnose`, read-only, after the run has already failed.
-5. **The orchestrator restarts last.** The runner executes on the workspace
-   host. The default OpenCode adapter embeds one, so restarting the orchestrator
+5. **The engine restarts last.** The runner executes on the workspace
+   host. The default OpenCode adapter embeds one, so restarting the engine
    does not kill the run. The command waits for `/health` before the runner
    reports completion, and an interrupted restart resumes from its journal
    instead of restarting twice.
-6. **External orchestrators are verified, not restarted.** An orchestrator
+6. **External engines are verified, not restarted.** An engine
    reached through a non-loopback URL, such as a development container’s
-   `http://orchestrator:8789`, is treated as managed outside the checkout. Pass
+   `http://engine:8789`, is treated as managed outside the checkout. Pass
    `--manage-external` to opt in.
 7. **Adapters are installed, not hot-reloaded.** The adapter link and agent file
    are updated during the rebuild. OpenCode is never restarted mid-run; it picks
    up the files on its next start.
-8. **Health is endpoint-based.** The pipeline checks the orchestrator
+8. **Health is endpoint-based.** The pipeline checks the engine
    `/health` and `/v1/config`, the Lab `/api/health`, the hub panel and
    local `/health`, the web client `/healthz`, and the adapter files. A healthy
    endpoint with the wrong workspace or deployment mode is reported as a
@@ -99,9 +99,9 @@ and `clara-orchestrator inspect`.
   `no_runner` alert. Start the shared runner service or `clara-runner`.
 - **A script times out:** the runner terminates the process group and fails the
   step with the exit code and output tail.
-- **The orchestrator is stopped:** capture records it as stopped, the restart
+- **The engine is stopped:** capture records it as stopped, the restart
   step leaves it stopped, and health does not expect it.
-- **The orchestrator runs in a container:** a loopback container is restarted
+- **The engine runs in a container:** a loopback container is restarted
   through compose with a rebuild; a non-loopback container is skipped as
   external unless `--manage-external` is passed.
 - **The run was started from Clara Lab:** restarting the Lab kills the debug
@@ -149,13 +149,13 @@ clara`. A manually started hub is restarted from the captured root with its
   `restart`/`recover`.
 - **The restart is interrupted:** the journal records completed services. A
   retry skips them and finishes the rest.
-- **The orchestrator takes longer than the stall threshold:** the watchdog may
+- **The engine takes longer than the stall threshold:** the watchdog may
   requeue the step. The journal turns the retry into a health check instead of a
   second rebuild.
 - **OpenCode runs in a container without host access:** the build or restart
   step fails with a preflight error. Run the pipeline from a host-side OpenCode
   with the checkout, pnpm, and the service manager available.
-- **The Lab is healthy but disconnected:** health reports the lost orchestrator
+- **The Lab is healthy but disconnected:** health reports the lost engine
   connection as a warning; it does not restart or reconfigure the Lab.
 - **`diagnose` has no snapshot:** `rebuild inspect` accepts exit 1, so the run
   still reports the failed step and asks the agent to avoid snapshot-based
@@ -213,7 +213,7 @@ clara`. A manually started hub is restarted from the captured root with its
   `--manage-external`, `--force`, `--skip <service>`, `--lines <n>`, and
   `--mcp` / `--no-mcp`. Service restarts default to Docker; pass `--local` for
   local services or `--all` for a mixed setup.
-- Run evidence: `clara-orchestrator inspect [--run <id> | --request
+- Run evidence: `clara-engine inspect [--run <id> | --request
 <path> | --request-env] [--json]`. `--request-env` reads `CLARA_REQUEST` in a
   script step. Without a run id it selects the latest failed root run for the
   workspace.
@@ -222,19 +222,19 @@ clara`. A manually started hub is restarted from the captured root with its
   The snapshot is host control state for both local and Docker stacks; it is not
   part of the Docker volumes. Use `clara backup` for the volumes.
 - Deployment state: the snapshot's `deployment` block records `server.mode`,
-  `orchestrator.mode`, `lab.mode`, and `web.mode` as `local`, `container`, or
-  `stopped`, plus `orchestrator.external`. `server.container` and
+  `engine.mode`, `lab.mode`, and `web.mode` as `local`, `container`, or
+  `stopped`, plus `engine.external`. `server.container` and
   `web.container` are the boolean forms. Older snapshots without the block fall
   back to `server.mode` or the running server compose service; snapshots that
   still use the old `control` key are migrated when read.
-- Capture: `GET <orchestrator>/health`, `GET <orchestrator>/v1/config`, Lab
+- Capture: `GET <engine>/health`, `GET <engine>/v1/config`, Lab
   `GET /api/health`, panel `GET /health`, local `GET /health`, and web
   `GET /healthz`. The detailed panel status API requires a session, so the
   rebuild uses the minimal health route. The panel health `mode` is the primary
   source for the hub deployment form; a running compose service is the
   fallback when the panel is down. The web form uses the running web compose
   service as its container signal.
-- Restart order: web, Lab, hub, orchestrator. The orchestrator is last
+- Restart order: web, Lab, hub, engine. The engine is last
   and the command waits for its health endpoint. A containerized hub is
   stopped and recreated with compose rather than signalled by PID; the web
   client is recreated with a fresh image build; local restarts use systemd when
@@ -258,9 +258,9 @@ clara`. A manually started hub is restarted from the captured root with its
   host target under `dist/adapters` and is not the canonical registry. The hub
   reads `CLARA_ADAPTER_REGISTRY_URL` or the panel setting; it never embeds an
   adapter.
-- Default ports: orchestrator `8789`, panel `8790`, local hub `8788`, Lab
+- Default ports: engine `8789`, panel `8790`, local hub `8788`, Lab
   `8791`, web `8080`. `CLARA_LAB_PORT`, `CLARA_PANEL_PORT`,
-  `CLARA_LOCAL_PORT`, `CLARA_WEB_PORT`, and `CLARA_ORCHESTRATION_URL` override
+  `CLARA_LOCAL_PORT`, `CLARA_WEB_PORT`, and `CLARA_ENGINE_URL` override
   discovery. The hub container uses `clara status hub --docker` or
   `clara start hub --docker`; the web container uses
   `clara status web --docker` or `clara start web --docker`.

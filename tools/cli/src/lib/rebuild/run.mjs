@@ -276,7 +276,7 @@ export function formatStatus(state) {
   const lines = [
     `root:         ${state.root}`,
     `git:          ${git}`,
-    `orchestrator: ${describeService(state.orchestrator)}`,
+    `engine: ${describeService(state.orchestrator)}`,
     `lab:          ${describeService(state.lab)}`,
     `hub:          ${describeService(state.server)}`,
     `web:          ${describeService(state.web)}`,
@@ -618,7 +618,7 @@ export function formatInspect(result) {
   const lines = [
     `snapshot   ${result.snapshot.path} (${result.snapshot.stale ? 'stale' : 'fresh'})`,
     `root       ${result.snapshot.root ?? '-'}`,
-    `modes      hub ${result.deployment?.server?.mode ?? 'unknown'}, orchestrator ${
+    `modes      hub ${result.deployment?.server?.mode ?? 'unknown'}, engine ${
       result.deployment?.orchestrator?.mode ?? 'unknown'
     }${result.deployment?.orchestrator?.external ? ' external' : ''}, lab ${
       result.deployment?.lab?.mode ?? 'unknown'
@@ -821,9 +821,9 @@ async function restartLab(state, options) {
     '--no-open',
   ]
   const env = { ...process.env, CLARA_LAB_OPEN: '0', CLARA_LAB_PORT: String(port) }
-  if (lab.orchestrator) env.CLARA_ORCHESTRATION_URL = lab.orchestrator
+  if (lab.orchestrator) env.CLARA_ENGINE_URL = lab.orchestrator
   const token = readToken(process.env)
-  if (token) env.CLARA_ORCHESTRATION_TOKEN = token
+  if (token) env.CLARA_ENGINE_TOKEN = token
 
   logCommand(`starting lab on ${port} from ${root}`)
   spawnDetached(process.execPath, args, { cwd: root, env, logFile: logPath() })
@@ -945,44 +945,44 @@ async function restartOrchestrator(state, options) {
   const orchestrator = state.orchestrator
   if (orchestrator.external && options.manageExternal !== true) {
     throw new Error(
-      `orchestrator at ${orchestrator.url} is external; pass --manage-external to restart it`
+      `engine at ${orchestrator.url} is external; pass --manage-external to restart it`
     )
   }
 
   const root = state.installRoot ?? state.root
   const env = { ...process.env, CLARA_DATA_DIR: dataDir() }
-  if (orchestrator.workspace) env.CLARA_ORCHESTRATION_WORKSPACE = orchestrator.workspace
-  if (orchestrator.configPath) env.CLARA_ORCHESTRATION_CONFIG = orchestrator.configPath
+  if (orchestrator.workspace) env.CLARA_ENGINE_WORKSPACE = orchestrator.workspace
+  if (orchestrator.configPath) env.CLARA_ENGINE_CONFIG = orchestrator.configPath
 
   if (orchestrator.mode === 'local') {
     const url = new URL(orchestrator.url)
-    env.CLARA_ORCHESTRATION_HOST = url.hostname
-    env.CLARA_ORCHESTRATION_PORT = url.port || '8789'
-    await runCli(['orchestrator', 'stop'], { cwd: root, env, progress: options.progress })
-    const start = await runCli(['orchestrator', 'start'], {
+    env.CLARA_ENGINE_HOST = url.hostname
+    env.CLARA_ENGINE_PORT = url.port || '8789'
+    await runCli(['engine', 'stop'], { cwd: root, env, progress: options.progress })
+    const start = await runCli(['engine', 'start'], {
       cwd: root,
       env,
       progress: options.progress,
       log: (text) => appendLog(process.env, text),
     })
-    if (!start.ok) throw new Error(`orchestrator start failed (exit ${start.code ?? 'unknown'})`)
+    if (!start.ok) throw new Error(`engine start failed (exit ${start.code ?? 'unknown'})`)
   } else {
     env.CLARA_WORKSPACE = orchestrator.workspace ?? root
     const token = readToken(process.env)
-    if (token) env.CLARA_ORCHESTRATION_TOKEN = token
-    await runCli(['orchestrator', 'stop', '--docker'], {
+    if (token) env.CLARA_ENGINE_TOKEN = token
+    await runCli(['engine', 'stop', '--docker'], {
       cwd: root,
       env,
       progress: options.progress,
     })
-    const start = await runCli(['orchestrator', 'start', '--docker', '--build'], {
+    const start = await runCli(['engine', 'start', '--docker', '--build'], {
       cwd: root,
       env,
       progress: options.progress,
       log: (text) => appendLog(process.env, text),
     })
     if (!start.ok)
-      throw new Error(`orchestrator container start failed (exit ${start.code ?? 'unknown'})`)
+      throw new Error(`engine container start failed (exit ${start.code ?? 'unknown'})`)
   }
 
   const result = await waitForProbe(
@@ -990,7 +990,7 @@ async function restartOrchestrator(state, options) {
     (probe) => probe.expected && probe.healthy,
     { timeoutMs: orchestrator.mode === 'container' ? 300000 : 60000 }
   )
-  if (!result.ok) throw new Error(`orchestrator did not become healthy at ${orchestrator.url}`)
+  if (!result.ok) throw new Error(`engine did not become healthy at ${orchestrator.url}`)
 
   if (
     orchestrator.mode === 'local' &&
@@ -998,7 +998,7 @@ async function restartOrchestrator(state, options) {
     result.value.pid &&
     result.value.pid === orchestrator.pid
   ) {
-    throw new Error('orchestrator health returned the old pid; it did not restart')
+    throw new Error('engine health returned the old pid; it did not restart')
   }
 }
 
@@ -1007,7 +1007,7 @@ export function formatRestart(result) {
     const lines = ['restart plan (dry run):']
     for (const service of result.plan.services) {
       lines.push(
-        `  ${service.action.padEnd(8)} ${service.name.padEnd(12)} ${(service.mode ?? '').padEnd(9)} ${service.reason}`
+        `  ${service.action.padEnd(8)} ${(service.name === 'orchestrator' ? 'engine' : service.name).padEnd(12)} ${(service.mode ?? '').padEnd(9)} ${service.reason}`
       )
     }
     for (const warning of result.plan.warnings) lines.push(`  warn     ${warning}`)
@@ -1018,7 +1018,10 @@ export function formatRestart(result) {
   if (result.completed?.length) lines.push(`restarted: ${result.completed.join(', ')}`)
   const skipped = result.plan.services
     .filter((service) => service.action === 'skip')
-    .map((service) => `${service.name} (${service.reason}, ${service.mode ?? 'unknown'})`)
+    .map(
+      (service) =>
+        `${service.name === 'orchestrator' ? 'engine' : service.name} (${service.reason}, ${service.mode ?? 'unknown'})`
+    )
   if (skipped.length) lines.push(`skipped:   ${skipped.join(', ')}`)
   for (const error of result.errors ?? []) {
     lines.push(`error:    ${error.service}: ${error.message}`)

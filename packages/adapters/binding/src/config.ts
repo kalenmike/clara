@@ -14,13 +14,24 @@ export function claraDataDir(env: NodeJS.ProcessEnv = process.env): string {
   return join(xdg, 'clara')
 }
 
-/** Resolve the orchestrator URL and bearer token from the environment. */
-export function orchestrationServiceConfig(env: NodeJS.ProcessEnv = process.env): ServiceConfig {
-  const url = (env.CLARA_ORCHESTRATION_URL?.trim() || 'http://127.0.0.1:8789').replace(/\/$/, '')
-  const configured = env.CLARA_ORCHESTRATION_TOKEN?.trim()
+function envValue(env: NodeJS.ProcessEnv, name: string, legacy: string): string | undefined {
+  return env[name]?.trim() || env[legacy]?.trim()
+}
+
+/** Resolve the engine URL and bearer token from the environment. */
+export function engineServiceConfig(env: NodeJS.ProcessEnv = process.env): ServiceConfig {
+  const url = (
+    envValue(env, 'CLARA_ENGINE_URL', 'CLARA_ORCHESTRATION_URL') || 'http://127.0.0.1:8789'
+  ).replace(/\/$/, '')
+  const configured = envValue(env, 'CLARA_ENGINE_TOKEN', 'CLARA_ORCHESTRATION_TOKEN')
   if (configured) return { url, token: configured }
-  const path =
-    env.CLARA_ORCHESTRATION_TOKEN_FILE?.trim() || join(claraDataDir(env), 'orchestrator.token')
-  const token = existsSync(path) ? readFileSync(path, 'utf8').trim() : ''
+
+  const explicit = envValue(env, 'CLARA_ENGINE_TOKEN_FILE', 'CLARA_ORCHESTRATION_TOKEN_FILE')
+  const path = explicit || join(claraDataDir(env), 'engine.token')
+  let token = existsSync(path) ? readFileSync(path, 'utf8').trim() : ''
+  if (!token && !explicit) {
+    const legacy = join(claraDataDir(env), 'orchestrator.token')
+    token = existsSync(legacy) ? readFileSync(legacy, 'utf8').trim() : ''
+  }
   return { url, token }
 }

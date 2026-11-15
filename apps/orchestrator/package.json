@@ -1,9 +1,10 @@
 {
-  "name": "@clara/orchestrator",
+  "name": "@clara/engine",
   "private": true,
   "version": "0.1.0",
   "type": "module",
   "bin": {
+    "clara-engine": "./dist/index.js",
     "clara-orchestrator": "./dist/index.js"
   },
   "scripts": {

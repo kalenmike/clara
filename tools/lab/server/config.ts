@@ -12,24 +12,37 @@ export function dataDir(): string {
 }
 
 export function tokenPath(): string {
-  return process.env.CLARA_ORCHESTRATION_TOKEN_FILE?.trim() || join(dataDir(), 'orchestrator.token')
+  return (
+    process.env.CLARA_ENGINE_TOKEN_FILE?.trim() ||
+    process.env.CLARA_ORCHESTRATION_TOKEN_FILE?.trim() ||
+    join(dataDir(), 'engine.token')
+  )
 }
 
 /** Docker keeps its control token outside the local install data directory. */
 function dockerTokenPath(): string {
+  const configured = process.env.CLARA_DOCKER_STATE_DIR?.trim()
+  if (configured) return join(resolve(configured), 'engine.token')
+  const xdg = process.env.XDG_DATA_HOME?.trim() || join(homedir(), '.local', 'share')
+  return join(xdg, 'clara', 'docker', 'engine.token')
+}
+
+function legacyDockerTokenPath(): string {
   const configured = process.env.CLARA_DOCKER_STATE_DIR?.trim()
   if (configured) return join(resolve(configured), 'orchestrator.token')
   const xdg = process.env.XDG_DATA_HOME?.trim() || join(homedir(), '.local', 'share')
   return join(xdg, 'clara', 'docker', 'orchestrator.token')
 }
 
-function dockerOrchestratorRunning(): boolean {
-  const result = spawnSync(
-    'docker',
-    ['inspect', '--format', '{{.State.Running}}', 'clara-orchestrator'],
-    { encoding: 'utf8', timeout: 3_000 }
-  )
-  return !result.error && result.status === 0 && result.stdout.trim() === 'true'
+function dockerEngineRunning(): boolean {
+  for (const name of ['clara-engine', 'clara-orchestrator']) {
+    const result = spawnSync('docker', ['inspect', '--format', '{{.State.Running}}', name], {
+      encoding: 'utf8',
+      timeout: 3_000,
+    })
+    if (!result.error && result.status === 0 && result.stdout.trim() === 'true') return true
+  }
+  return false
 }
 
 function tokenFile(path: string): string {
@@ -38,23 +51,34 @@ function tokenFile(path: string): string {
 }
 
 export function readToken(): string {
-  const configured = process.env.CLARA_ORCHESTRATION_TOKEN?.trim()
+  const configured =
+    process.env.CLARA_ENGINE_TOKEN?.trim() || process.env.CLARA_ORCHESTRATION_TOKEN?.trim()
   if (configured) return configured
-  const explicit = process.env.CLARA_ORCHESTRATION_TOKEN_FILE?.trim()
+  const explicit =
+    process.env.CLARA_ENGINE_TOKEN_FILE?.trim() ||
+    process.env.CLARA_ORCHESTRATION_TOKEN_FILE?.trim()
   if (explicit) return tokenFile(explicit)
-  if (dockerOrchestratorRunning()) {
-    const dockerToken = tokenFile(dockerTokenPath())
+  if (dockerEngineRunning()) {
+    const dockerToken = tokenFile(dockerTokenPath()) || tokenFile(legacyDockerTokenPath())
     if (dockerToken) return dockerToken
   }
-  return tokenFile(tokenPath())
+  return tokenFile(tokenPath()) || tokenFile(join(dataDir(), 'orchestrator.token'))
 }
 
-export function orchestratorURL(): string {
-  return (process.env.CLARA_ORCHESTRATION_URL?.trim() || 'http://127.0.0.1:8789').replace(/\/$/, '')
+export function engineURL(): string {
+  return (
+    process.env.CLARA_ENGINE_URL?.trim() ||
+    process.env.CLARA_ORCHESTRATION_URL?.trim() ||
+    'http://127.0.0.1:8789'
+  ).replace(/\/$/, '')
 }
 
 export function workspace(): string {
-  return resolve(process.env.CLARA_ORCHESTRATION_WORKSPACE?.trim() || process.cwd())
+  return resolve(
+    process.env.CLARA_ENGINE_WORKSPACE?.trim() ||
+      process.env.CLARA_ORCHESTRATION_WORKSPACE?.trim() ||
+      process.cwd()
+  )
 }
 
 export function labPort(): number {
@@ -68,7 +92,9 @@ export function labURL(port = labPort()): string {
 }
 
 export function autostart(): boolean {
-  const value = String(process.env.CLARA_ORCHESTRATION_AUTOSTART ?? '1').toLowerCase()
+  const value = String(
+    process.env.CLARA_ENGINE_AUTOSTART ?? process.env.CLARA_ORCHESTRATION_AUTOSTART ?? '1'
+  ).toLowerCase()
   return value !== '0' && value !== 'false' && value !== 'off'
 }
 
@@ -90,7 +116,7 @@ export function openBrowser(url: string): void {
   }
 }
 
-export async function healthy(url = orchestratorURL()): Promise<boolean> {
+export async function healthy(url = engineURL()): Promise<boolean> {
   return fetch(`${url}/health`, { signal: AbortSignal.timeout(1500) })
     .then((response) => response.ok)
     .catch(() => false)
@@ -101,7 +127,8 @@ function findRepoRoot(start: string): string | undefined {
   for (;;) {
     if (
       existsSync(join(current, 'pnpm-workspace.yaml')) &&
-      existsSync(join(current, 'apps', 'orchestrator'))
+      (existsSync(join(current, 'apps', 'engine')) ||
+        existsSync(join(current, 'apps', 'orchestrator')))
     ) {
       return current
     }
@@ -121,32 +148,35 @@ export function repoRoot(): string {
   )
 }
 
-function orchestratorCommand(): { command: string; args: string[] } | undefined {
-  const configured = process.env.CLARA_ORCHESTRATOR_BIN?.trim()
+function engineCommand(): { command: string; args: string[] } | undefined {
+  const configured =
+    process.env.CLARA_ENGINE_BIN?.trim() || process.env.CLARA_ORCHESTRATOR_BIN?.trim()
   if (configured) return { command: process.execPath, args: [configured, 'start'] }
   const root = repoRoot()
-  const dist = join(root, 'apps', 'orchestrator', 'dist', 'index.js')
-  if (existsSync(dist)) return { command: process.execPath, args: [dist, 'start'] }
-  const source = join(root, 'apps', 'orchestrator', 'src', 'index.ts')
-  if (existsSync(source)) {
-    return {
-      command: process.execPath,
-      args: ['--experimental-strip-types', '--no-warnings', source, 'start'],
+  for (const directory of ['engine', 'orchestrator']) {
+    const dist = join(root, 'apps', directory, 'dist', 'index.js')
+    if (existsSync(dist)) return { command: process.execPath, args: [dist, 'start'] }
+    const source = join(root, 'apps', directory, 'src', 'index.ts')
+    if (existsSync(source)) {
+      return {
+        command: process.execPath,
+        args: ['--experimental-strip-types', '--no-warnings', source, 'start'],
+      }
     }
   }
   return undefined
 }
 
-export async function ensureOrchestrator(url = orchestratorURL()): Promise<void> {
+export async function ensureEngine(url = engineURL()): Promise<void> {
   if (await healthy(url)) return
   if (!autostart()) {
-    throw new Error(`Clara orchestrator is not running at ${url}`)
+    throw new Error(`Clara engine is not running at ${url}`)
   }
-  const command = orchestratorCommand()
+  const command = engineCommand()
   if (!command) {
-    throw new Error('Clara orchestrator is not running and no executable was found')
+    throw new Error('Clara engine is not running and no executable was found')
   }
-  console.error(`[clara-lab] starting orchestrator at ${url}`)
+  console.error(`[clara-lab] starting engine at ${url}`)
   const child = spawn(command.command, command.args, {
     detached: true,
     stdio: 'ignore',
@@ -157,5 +187,5 @@ export async function ensureOrchestrator(url = orchestratorURL()): Promise<void>
     await new Promise((resolvePromise) => setTimeout(resolvePromise, 100))
     if (await healthy(url)) return
   }
-  throw new Error(`Clara orchestrator did not become healthy at ${url}`)
+  throw new Error(`Clara engine did not become healthy at ${url}`)
 }

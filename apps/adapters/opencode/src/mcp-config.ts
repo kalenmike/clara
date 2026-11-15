@@ -42,7 +42,7 @@ export function installOpenCodeMcp(configPath: string, entry: McpEntry): void {
     type: 'local',
     command: entry.command,
     enabled: true,
-    environment: { CLARA_ORCHESTRATION_URL: entry.url },
+    environment: { CLARA_ENGINE_URL: entry.url },
   }
   config.mcp = mcp
   writeJson(configPath, config)
@@ -74,7 +74,7 @@ export function genericMcpConfig(entry: string, url: string): string {
         clara: {
           command: process.execPath,
           args: [entry],
-          env: { CLARA_ORCHESTRATION_URL: url },
+          env: { CLARA_ENGINE_URL: url },
         },
       },
     },

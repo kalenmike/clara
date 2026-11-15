@@ -80,13 +80,13 @@ A hub on the same machine can create the owner in its own panel once.
 
 ## Ports
 
-| Service               | Default          |
-| --------------------- | ---------------- |
-| Web client            | `127.0.0.1:8080` |
-| Hub panel             | `127.0.0.1:8790` |
-| Hub local WebSocket   | `127.0.0.1:8788` |
-| Orchestration service | `127.0.0.1:8789` |
-| Clara Lab             | `127.0.0.1:8791` |
+| Service             | Default          |
+| ------------------- | ---------------- |
+| Web client          | `127.0.0.1:8080` |
+| Hub panel           | `127.0.0.1:8790` |
+| Hub local WebSocket | `127.0.0.1:8788` |
+| Engine service      | `127.0.0.1:8789` |
+| Clara Lab           | `127.0.0.1:8791` |
 
 The hub panel page is loopback-only. Do not expose it to the internet. Clara
 Desktop reaches the same panel through the hub's encrypted connection; that does

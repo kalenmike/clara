@@ -29,6 +29,11 @@ Other terms:
   the hub host or a separate machine; the adapter connects out in both cases.
 - **Agent** — an LLM worker, prompt, or agent definition in a harness or
   orchestration package. It never means the hub.
+- **Engine** — the deterministic pipeline service (`@clara/engine`,
+  `clara-engine`, the `clara-engine` container). It owns run state, leases,
+  budgets, and policy, and it is never an LLM or an agent. The feature and
+  package domain remain **orchestration**. `apps/orchestrator` and
+  `CLARA_ORCHESTRATION_*` are compatibility names for one release.
 - **Client** / **device** — the browser, installed PWA, or desktop app.
 - **Relay** — the Cloudflare Worker and Durable Object that forward encrypted
   frames from browsers and adapters.
@@ -83,7 +88,7 @@ apps/
   hub/
     server/            Node hub service, outbound relay client, local WS listener, /v1 API
     panel/             Loopback dashboard and admin controls served by the hub service
-  orchestrator/        Loopback orchestration service and CLI
+  orchestrator/        Loopback engine service and CLI
   adapters/
     opencode/          OpenCode harness adapter, binding, and standalone bin
     claude/            Claude Code harness adapter and standalone bin
@@ -123,7 +128,7 @@ Local tools: MCP ──HTTP 127.0.0.1:8788──▶ hub /v1 API
 Panel: browser ──HTTP 127.0.0.1:8790──▶ hub (auth + setup + controls)
 Hub CLI: clara-server serve (hub + embedded panel) ──HTTP 127.0.0.1:<dynamic>──▶ panel in a browser
 Harness: panel ──▶ SQLite harness identity/pairing ──▶ adapter session (E2EE)
-Docker: web client, hub, orchestrator, and an optional harness on the `clara` bridge network
+Docker: web client, hub, engine, and an optional harness on the `clara` bridge network
 ```
 
 The relay forwards opaque frames. It does not parse, store, or replay payloads.
