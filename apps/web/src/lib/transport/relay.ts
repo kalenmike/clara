@@ -12,7 +12,7 @@ import {
   seal,
   utf8,
   verifyV4HelloMac,
-  type SessionKeys,
+  type V4SessionKeys,
   type V4EphemeralKeyPair,
 } from '@clara/crypto'
 import {
@@ -214,7 +214,7 @@ class RelayFetchTransport implements RelayTransport {
   private readonly queue: QueuedRequest[] = []
   private inFlight = 0
   private socket: WebSocket | null = null
-  private keys: SessionKeys | null = null
+  private keys: V4SessionKeys | null = null
   private sid: string | null = null
   private clientNonce: string | null = null
   private clientEphemeral: V4EphemeralKeyPair | null = null
