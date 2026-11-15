@@ -21,6 +21,7 @@ coverage
 **/src-tauri/binaries
 apps/hub/server/src/embedded-assets.generated.mjs
 apps/orchestrator/src/embedded-assets.generated.mjs
+apps/cli/src/embedded-assets.generated.mjs
 # `tauri icon` also writes mobile and Store variants that the desktop bundles
 # do not reference.
 apps/desktop/src-tauri/icons/android/

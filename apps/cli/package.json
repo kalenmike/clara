@@ -13,6 +13,9 @@
   "scripts": {
     "dev": "tsx src/main.ts",
     "start": "tsx src/main.ts",
+    "build:binary": "node scripts/build-binary.mjs",
+    "check:bundle": "node scripts/check-bundle.mjs",
+    "smoke": "node scripts/smoke.mjs",
     "typecheck": "tsc -p tsconfig.json",
     "test": "vitest run"
   },
