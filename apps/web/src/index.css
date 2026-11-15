@@ -30,6 +30,26 @@ body,
 }
 
 /*
+ * Top inset shared by every full-bleed surface (app header, drawers, the
+ * full-screen composer, toasts). An installed phone app draws behind the
+ * status bar, and iOS can report `0` for `env()` right after a PWA launch, so
+ * a 44px floor keeps those controls tappable until the real inset applies.
+ * Browser tabs and desktop keep the raw value, and the bottom safe area is
+ * deliberately separate: the shell stays one screen tall.
+ */
+:root {
+  --safe-top: env(safe-area-inset-top, 0px);
+}
+
+@media (display-mode: standalone), (display-mode: fullscreen), (display-mode: minimal-ui) {
+  @media (orientation: portrait) and (pointer: coarse) and (width < 48rem) {
+    :root {
+      --safe-top: max(2.75rem, env(safe-area-inset-top, 0px));
+    }
+  }
+}
+
+/*
  * The shell is one screen tall, but which unit means "one screen" depends on
  * how the app was opened. An installed iOS PWA draws under the status bar
  * (`black-translucent` + `viewport-fit=cover`), and `height: 100%` on the root
@@ -197,12 +217,12 @@ body {
  * inset, and `1rem` keeps the toaster's own gap below that.
  */
 [data-sonner-toaster].toaster[data-y-position='top'] {
-  top: calc(3rem + env(safe-area-inset-top) + 1rem);
+  top: calc(3rem + var(--safe-top) + 1rem);
 }
 
 @media (width < 48rem) {
   [data-sonner-toaster].toaster[data-y-position='top'] {
-    top: calc(5.75rem + env(safe-area-inset-top) + 1rem);
+    top: calc(5.75rem + var(--safe-top) + 1rem);
   }
 }
 

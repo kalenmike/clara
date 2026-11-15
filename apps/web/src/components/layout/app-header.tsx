@@ -24,7 +24,7 @@ export function AppHeader({
   const items = visibleAppNavItems(isDesktop)
 
   return (
-    <header className="relative z-30 shrink-0 border-b bg-background pt-[env(safe-area-inset-top)]">
+    <header className="relative z-30 shrink-0 border-b bg-background pt-[var(--safe-top)]">
       <div className="flex h-12 items-center gap-2 px-3 md:px-4">
         {onOpenNav && (
           <Button
