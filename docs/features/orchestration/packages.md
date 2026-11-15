@@ -24,13 +24,14 @@ bundled default applies. The root `index.yml` is a manifest plus root-only
 ## Package layout
 
 ```text
-my-package/{index.yml,pipelines/*.yml,routers/*.md,agents/*.md,scripts/*.yml}
+my-package/{index.yml,pipelines/*.yml,routers/*.md,agents/*.md,scripts/*.yml,wrappers/*.yml}
 ```
 
 `defaults.agent_dir` and `defaults.script_dir` can point elsewhere. A YAML file
 imported directly is a synthetic package that supports pipelines only. Names
 come from `pipelines.<id>` or a pipeline `id`; router and agent frontmatter `id`
-or the file name; script `name`/`id` or the path without extension.
+or the file name; script `name`/`id` or the path without extension; wrapper
+`id` or the file name.
 
 ## Manifest
 
@@ -48,7 +49,7 @@ pipelines: { inline: { steps: [{ name: one, type: agent }] } }
 
 Keys are `id` (defaults to the directory name), `name` and `version` (default
 `id` and `1`), `description`, `is_active` (`false` fails the load), `entry`,
-`imports`, `defaults`, `router`, and `pipelines`. `default_model` and
+`imports`, `defaults`, `router`, `pipelines`, and `wrappers`. `default_model` and
 `default_provider` are legacy aliases for `defaults.model` and
 `defaults.provider`.
 
@@ -204,6 +205,11 @@ attempt; `false` completes it from the recovery result. A successful recovery
 emits `step.recovered` instead of a failure alert; a failed one fails the run
 with both errors.
 
+## Wrappers
+
+A wrapper is a reusable before/after guard applied when a router selects an
+imported package. See [wrappers.md](wrappers.md).
+
 ## Policies and limits
 
 `policy` takes `tools`, `edit`, `shell`, and `network` allow/deny globs;
@@ -250,21 +256,8 @@ adapter fails closed; a script step with no capable runner waits
 
 ## Agent and router documents
 
-```markdown
----
-id: code_review
-model: a-model
-limits: { turns: { initial: 20 } }
----
-
-Review the implementation and report blocking issues.
-```
-
-Frontmatter is optional and the body is the prompt. Agent keys: `id`,
-`description`, `model`, `provider`, `permissions`, `policy`, `limits`, and
-`retries`. Router documents add `strategy`, `routes`, `enforcement`, and
-`requires`; their body carries `[ROUTES]` or gets an appended route list, and the
-manifest `router` block can supplement or replace their values.
+Agent and router prompts are Markdown with optional frontmatter. See
+[agents.md](agents.md) for fields, resolution, and router behavior.
 
 ## Compilation and validation
 
@@ -274,8 +267,9 @@ eight; a missing entry, pipeline, router file, or script document; a pipeline or
 group with no steps; a script step with both `script` and `command`, neither, or
 a prompt/model; a router step with neither `path` nor `routes`; duplicate sibling
 step names, invalid input references, or unsafe artifact paths; pipeline or
-router reference cycles; and nested recovery branches or invalid `on_failure`
-bounds.
+router reference cycles; a missing wrapper, a workspace binding that does not
+name one before leaf, or a wrapper workspace with no before step; and nested
+recovery branches or invalid `on_failure` bounds.
 
 The compiled tree, package ids and versions, source files, and resolved
 overrides form the run snapshot; its hash is the pinned identity used by the Lab

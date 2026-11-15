@@ -128,6 +128,42 @@ point it at a local `index.yml`, inspect the resolved steps and prompts, and see
 load errors before starting a run. The [developer documentation](/internals/)
 includes the complete package and step reference.
 
+### Worktree sessions
+
+The default software route runs in a **worktree session**. When the router picks
+feature, bug, or documentation work, the engine creates a git worktree beside
+your checkout and runs that work there. Your primary checkout stays untouched
+until the work is ready.
+
+- The wrapper starts the worktree before the software router chooses a route, so
+  every current and future software route is covered.
+- Before merging, it reconciles the primary's latest commits into the session
+  branch. If that conflicts, it hands the conflict to a separate resolve agent,
+  which merges, fixes, tests, and commits inside the worktree. It retries the
+  reconcile up to three times.
+- After the merge it removes the worktree and deletes the session branch. A
+  failed or cancelled run leaves both in place so you can inspect them.
+- The work continues on `task/run-<id>`. Worktrees live in a `clara-worktrees`
+  directory beside the checkout by default; set `CLARA_WORKTREES_DIR` for the
+  engine and runner to use another root.
+- The primary checkout must be clean when a session starts and when it merges.
+
+This is ordinary pipeline data, not a hidden feature. The bundled `session`
+package defines the `worktree` wrapper, and the default config applies it with
+one line on the software import:
+
+```yaml
+imports:
+  std:
+    - path: session
+    - path: software
+      wrap: std:session/worktree
+```
+
+Remove the `wrap` line to run software work directly in the workspace, or point
+it at another package to give that package the same guard. Starting a specific
+pipeline from Clara Lab runs it directly and does not create a session.
+
 ## MCP
 
 ```bash
