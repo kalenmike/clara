@@ -53,21 +53,6 @@ export async function runSetup(options: SetupOptions): Promise<SetupResult> {
   }
   steps.push({ name: 'created the Clara directories', status: 'done' })
 
-  const username = options.username
-  const password = options.password
-  if (username && password) {
-    const result = await createOwner(username, password)
-    if (result.code !== 0)
-      return fail('created the hub owner account', result.error ?? 'hub setup failed')
-    steps.push({ name: 'created the hub owner account', status: 'done', detail: username })
-  } else {
-    steps.push({
-      name: 'created the hub owner account',
-      status: 'skipped',
-      detail: 'create it in the panel',
-    })
-  }
-
   if (options.start) {
     const code = await startStack({
       paths: options.paths,
@@ -79,6 +64,29 @@ export async function runSetup(options: SetupOptions): Promise<SetupResult> {
     steps.push({ name: 'started the Clara stack', status: 'done' })
   } else {
     steps.push({ name: 'started the Clara stack', status: 'skipped', detail: '--no-start' })
+  }
+
+  // The hub creates the owner over its loopback panel API, so the stack has to
+  // be running first. A hub with no owner only serves the setup screen.
+  const username = options.username
+  const password = options.password
+  if (username && password && options.start) {
+    const result = await createOwner(username, password)
+    if (result.code !== 0)
+      return fail('created the hub owner account', result.error ?? 'hub setup failed')
+    steps.push({ name: 'created the hub owner account', status: 'done', detail: username })
+  } else if (username && password) {
+    steps.push({
+      name: 'created the hub owner account',
+      status: 'skipped',
+      detail: 'start Clara, then run `clara setup` again',
+    })
+  } else {
+    steps.push({
+      name: 'created the hub owner account',
+      status: 'skipped',
+      detail: 'create it in the panel',
+    })
   }
 
   if (options.installService) {
