@@ -1,11 +1,12 @@
 import { rmSync } from 'node:fs'
+import { join } from 'node:path'
 import { homedir } from 'node:os'
 import { isCompiled } from '../self.ts'
 import { resolvePaths } from '../paths.ts'
 import { resolvePorts } from '../ports.ts'
 import { statusStack, stopStack } from '../service/lifecycle.ts'
 import { releaseBaseUrl } from '../release/manifest.ts'
-import { pruneVersions, readInstallInfo } from '../release/version-store.ts'
+import { defaultBinDir, installsDir, readInstallInfo } from '../release/version-store.ts'
 import {
   applyPlan,
   detectService,
@@ -80,8 +81,13 @@ export async function runUninstallCommand(args: readonly string[]): Promise<numb
   await stopStack(paths, undefined)
   const kind = detectService()
   applyPlan(uninstallPlan(kind, serviceOptions()))
-  const info = readInstallInfo(paths)
-  pruneVersions(paths, info ? [info.version] : [])
+  const link = join(defaultBinDir(), process.platform === 'win32' ? 'clara.exe' : 'clara')
+  if (process.platform !== 'win32' || link !== process.execPath) rmSync(link, { force: true })
+  try {
+    rmSync(installsDir(paths), { recursive: true, force: true })
+  } catch {
+    console.log(dim('Left the running version in place.'))
+  }
   if (!isCompiled()) console.log(dim('Source checkout left in place.'))
 
   if (parsed.flags.has('purge')) {
