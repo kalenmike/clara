@@ -81,6 +81,12 @@ type Attachment = {
   grant?: string
   /** Device or adapter, from the signed grant; selects the rate budget. */
   kind?: RelayGrantKind
+  /**
+   * Set when the room refuses this socket. Closing is asynchronous, so frames
+   * already queued behind the refusal can still reach the room; forwarding one
+   * would leave a hole in the client's sealed sequence.
+   */
+  refused?: boolean
 }
 
 type TokenBucket = { tokens: number; at: number }
@@ -102,12 +108,6 @@ type PeerLimits = { frames: TokenBucket; bytes: TokenBucket }
 export class RelayRoom {
   private readonly state: DurableObjectState
   private readonly peers = new Map<string, PeerLimits>()
-  /**
-   * A refused socket must never forward another frame. Closing is asynchronous,
-   * so frames already queued behind the refused one can still reach the room;
-   * forwarding one of those would leave a hole in the client's sealed sequence.
-   */
-  private readonly refused = new WeakSet<WebSocket>()
 
   constructor(state: DurableObjectState, _env: Env) {
     this.state = state
@@ -182,7 +182,7 @@ export class RelayRoom {
     const tags = this.state.getTags(socket)
     const role = tags.includes('agent') ? 'agent' : tags.includes('client') ? 'client' : null
     if (!role) return
-    if (this.refused.has(socket)) return
+    if (peerAttachment(socket)?.refused === true) return
 
     if (role === 'agent') {
       for (const client of this.state.getWebSockets('client')) {
@@ -299,7 +299,10 @@ export class RelayRoom {
    * a refreshed bucket and leave a hole in the client's sealed sequence.
    */
   private refuse(socket: WebSocket, code: number, reason: string): void {
-    this.refused.add(socket)
+    const attachment = peerAttachment(socket) ?? {}
+    // Persist the marker in the attachment so a hibernated room keeps dropping
+    // frames until the close completes.
+    socket.serializeAttachment({ ...attachment, refused: true } satisfies Attachment)
     socket.close(code, reason)
   }
 
