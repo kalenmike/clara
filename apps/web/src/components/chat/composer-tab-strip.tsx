@@ -54,7 +54,12 @@ export function ComposerTabStrip({
   const minimized = mode === 'minimized'
 
   return (
-    <div className="flex shrink-0 items-stretch border-b bg-popover text-popover-foreground">
+    <div
+      className={cn(
+        'flex shrink-0 items-stretch border-b bg-popover text-popover-foreground',
+        mode !== 'maximized' && 'border-t'
+      )}
+    >
       <div
         role="tablist"
         aria-label="Open composer sessions"
