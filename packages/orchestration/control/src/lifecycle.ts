@@ -213,7 +213,7 @@ export function formatStatus(report: StatusReport): string[] {
 
   if (report.state === 'external') {
     lines.push('warning: no local pid file; this instance was not started from this data directory')
-    lines.push('stop: `clara stop engine --local` signals the reported process')
+    lines.push('stop: `clara stop engine` signals the reported process')
   }
   if (report.state === 'unresponsive') {
     lines.push(`warning: the process is alive but ${report.url}/health did not respond`)

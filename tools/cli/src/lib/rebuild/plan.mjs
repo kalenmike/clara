@@ -38,8 +38,7 @@ export function deploymentModes({ orchestrator, lab, server, web } = {}) {
         ? 'local'
         : 'stopped'
   const labMode = lab?.expected ? 'host' : 'stopped'
-  const webMode =
-    web?.mode === 'container' ? 'container' : web?.expected ? 'local' : 'stopped'
+  const webMode = web?.mode === 'container' ? 'container' : web?.expected ? 'local' : 'stopped'
   return {
     orchestrator: {
       mode: orchestratorMode,

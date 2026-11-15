@@ -902,11 +902,7 @@ async function restartOrchestrator(state, options) {
   )
   if (!result.ok) throw new Error(`engine did not become healthy at ${orchestrator.url}`)
 
-  if (
-    orchestrator.pid &&
-    result.value.pid &&
-    result.value.pid === orchestrator.pid
-  ) {
+  if (orchestrator.pid && result.value.pid && result.value.pid === orchestrator.pid) {
     throw new Error('engine health returned the old pid; it did not restart')
   }
 }

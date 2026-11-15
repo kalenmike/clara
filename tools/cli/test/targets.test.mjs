@@ -1,11 +1,6 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import {
-  LIFECYCLE_TARGETS,
-  PAIR_TARGETS,
-  serviceKey,
-  takeTarget,
-} from '../src/lib/targets.mjs'
+import { LIFECYCLE_TARGETS, PAIR_TARGETS, serviceKey, takeTarget } from '../src/lib/targets.mjs'
 
 test('accepts every lifecycle target', () => {
   for (const target of LIFECYCLE_TARGETS) {
