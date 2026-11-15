@@ -12,6 +12,15 @@ import {
 import { tmpdir } from 'node:os'
 import { dirname, join, resolve } from 'node:path'
 import { archiveFormat, extractArchive } from './archive.ts'
+import {
+  containerRuntimeState,
+  inspectContainer,
+  readContainerStatus,
+  runDocker,
+  startContainer,
+  stopContainer,
+  type DockerRunner,
+} from './container.ts'
 import { downloadVerified, type DownloadProgress } from './download.ts'
 import { detectAdapterTarget, isAdapterTarget, type AdapterTarget } from './platform.ts'
 import type { AdapterKind, AdapterRegistry } from './registry.ts'
@@ -50,6 +59,8 @@ export type InstallDeps = {
   fetchImpl?: typeof fetch
   runBinary?: BinaryRunner
   extract?: ExtractRunner
+  /** Runs Docker commands for a container-backed adapter. */
+  docker?: DockerRunner
   log?: (message: string) => void
   /** Called before a streaming child starts, so a spinner can get out of the way. */
   onPhase?: (phase: 'pairing' | 'starting' | 'stopping') => void
@@ -65,6 +76,8 @@ export type InstallRequest = {
   force?: boolean
   /** Stage a built adapter package or `dist` directory instead of a registry archive. */
   from?: string
+  /** Install into, or adopt, an adapter that runs in this Docker container. */
+  container?: string
   /** Reinstall with the saved pairing instead of enrolling a new adapter. */
   reusePairing?: boolean
   /** Adapter install flags replayed when the adapter is reinstalled. */
@@ -90,20 +103,35 @@ export function adapterInstallDir(paths: ClaraPaths, kind: AdapterKind, version:
 }
 
 export function adapterBinaryPath(record: AdapterInstallRecord): string {
-  return join(record.path, adapterBinaryName(record.kind, record.platform))
+  return join(hostInstallPath(record), adapterBinaryName(record.kind, record.platform))
 }
 
 /** The file a record executes, whether a native binary or a staged JS entry. */
 export function adapterEntryPath(record: AdapterInstallRecord): string {
-  return record.entry ? join(record.path, record.entry) : adapterBinaryPath(record)
+  return record.entry ? join(hostInstallPath(record), record.entry) : adapterBinaryPath(record)
 }
 
 /** The command that runs an installed adapter. */
 export function adapterCommand(record: AdapterInstallRecord): AdapterCommand {
+  if (record.container) {
+    throw new Error(
+      `The ${record.kind} adapter runs in container ${record.container.name}; use the Docker commands.`
+    )
+  }
   if (record.entry) {
-    return { command: record.node ?? process.execPath, args: [join(record.path, record.entry)] }
+    return {
+      command: record.node ?? process.execPath,
+      args: [join(hostInstallPath(record), record.entry)],
+    }
   }
   return { command: adapterBinaryPath(record), args: [] }
+}
+
+/** A container record has no host entry, so name the reason instead of a blank path. */
+function hostInstallPath(record: AdapterInstallRecord): string {
+  if (record.path) return record.path
+  const where = record.container ? `container ${record.container.name}` : 'another host'
+  throw new Error(`The ${record.kind} adapter runs in ${where}; it has no host install path.`)
 }
 
 export type AdapterCommand = {
@@ -117,6 +145,7 @@ export async function installAdapter(
   deps: InstallDeps
 ): Promise<AdapterInstallRecord> {
   const paths = deps.paths ?? resolvePaths()
+  if (request.container) return installContainerAdapter(request, paths, deps)
   const target = request.target ?? detectAdapterTarget()
   const previous = readAdapterState(paths).adapters[request.kind]
   const staged = request.from
@@ -189,6 +218,89 @@ export async function installAdapter(
     }
   }
   return record
+}
+
+/**
+ * A container owns the adapter process and its pairing config. The host command
+ * records the container so `status`, `start`, `stop`, and `logs` can reach it,
+ * and never writes a pid or a host install path.
+ */
+async function installContainerAdapter(
+  request: InstallRequest,
+  paths: ClaraPaths,
+  deps: InstallDeps
+): Promise<AdapterInstallRecord> {
+  const name = request.container?.trim()
+  if (!name) throw new Error('--container needs a container name.')
+  const docker = deps.docker ?? runDocker
+  const info = inspectContainer(name, docker)
+  const previous = readAdapterState(paths).adapters[request.kind]
+  const now = () => new Date((deps.now ?? Date.now)()).toISOString()
+
+  if (request.pairCode) {
+    if (!info.running) {
+      throw new Error(
+        `Container ${name} is stopped. Pair it with the container's install command, then ` +
+          `record it with: clara adapter install ${request.kind} --container ${name}`
+      )
+    }
+    deps.onPhase?.('pairing')
+    const args = ['install', '--pair', request.pairCode, ...(request.installArgs ?? [])]
+    const result = docker(['exec', name, ...info.entry, ...args])
+    if (result.code !== 0) {
+      throw new Error(
+        `The ${request.kind} adapter install failed: ${failureText('install', result)}`
+      )
+    }
+  }
+
+  const status = readContainerStatus(info, docker)
+  if (!request.pairCode && !status.paired) {
+    throw new Error(
+      `The ${request.kind} adapter in container ${name} is not paired. ` +
+        'Pair it with --pair <code>, or run the installer inside the container.'
+    )
+  }
+
+  let record: AdapterInstallRecord = {
+    kind: request.kind,
+    version: status.version ?? previous?.version ?? 'unknown',
+    platform: previous?.platform ?? hostPlatform(),
+    container: {
+      name,
+      entry: [...info.entry],
+      ...(info.configDir ? { configDir: info.configDir } : {}),
+      ...(info.dataDir ? { dataDir: info.dataDir } : {}),
+      ...(info.compose ? { compose: info.compose } : {}),
+    },
+    installedAt: previous?.installedAt ?? now(),
+    ...(request.installArgs && request.installArgs.length > 0
+      ? { installArgs: request.installArgs }
+      : previous?.installArgs
+        ? { installArgs: previous.installArgs }
+        : {}),
+    ...(status.paired ? { pairedAt: previous?.pairedAt ?? now() } : {}),
+  }
+  saveAdapterRecord(record, paths)
+
+  if (request.start !== false && !info.running) {
+    deps.onPhase?.('starting')
+    const started = startContainer(name, docker)
+    if (started.code !== 0) {
+      record = { ...record, lastError: failureText('start', started) }
+      saveAdapterRecord(record, paths)
+      deps.log?.(`The adapter container did not start: ${record.lastError}`)
+    }
+  }
+  return record
+}
+
+function hostPlatform(): string {
+  try {
+    return detectAdapterTarget()
+  } catch {
+    return `${process.platform}-${process.arch}`
+  }
 }
 
 async function pullAdapter(
@@ -360,6 +472,12 @@ export async function upgradeAdapter(
   const paths = deps.paths ?? resolvePaths()
   const record = readAdapterState(paths).adapters[kind]
   if (!record) throw new Error(`The ${kind} adapter is not installed.`)
+  if (record.container) {
+    throw new Error(
+      `The ${kind} adapter runs in container ${record.container.name}. ` +
+        'Rebuild and recreate the container to upgrade it.'
+    )
+  }
   // Fail before stopping the adapter when the registry is unreachable.
   await deps.registry.manifest(kind)
   const target = options.target ?? (isAdapterTarget(record.platform) ? record.platform : undefined)
@@ -397,6 +515,7 @@ export async function removeAdapter(
   const paths = deps.paths ?? resolvePaths()
   const record = readAdapterState(paths).adapters[kind]
   if (!record) throw new Error(`The ${kind} adapter is not installed.`)
+  if (record.container) return removeContainerAdapter(record, deps, paths)
 
   const actions: string[] = []
   const command = adapterCommand(record)
@@ -419,6 +538,33 @@ export async function removeAdapter(
   rmSync(join(paths.dataDir, 'adapters', kind), { recursive: true, force: true })
   deleteAdapterRecord(kind, paths)
   actions.push(`remove ${record.path}`)
+  return actions
+}
+
+/**
+ * Docker owns the container and its volumes, so removing a container record
+ * stops the container and forgets it here. It never deletes data Clara did not
+ * create through the host command.
+ */
+function removeContainerAdapter(
+  record: AdapterInstallRecord,
+  deps: InstallDeps,
+  paths: ClaraPaths
+): string[] {
+  const container = record.container
+  if (!container) return []
+  const docker = deps.docker ?? runDocker
+  const actions: string[] = []
+  if (containerRuntimeState(container.name, docker) === 'running') {
+    const stopped = stopContainer(container.name, docker)
+    actions.push(stopped.code === 0 ? 'stop the adapter container' : failureText('stop', stopped))
+  }
+  deleteAdapterRecord(record.kind, paths)
+  actions.push('remove the adapter install record')
+  const compose = container.compose?.service
+    ? ` (compose service ${container.compose.service})`
+    : ''
+  actions.push(`the container ${container.name}${compose} and its volumes were left in place`)
   return actions
 }
 

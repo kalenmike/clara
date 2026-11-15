@@ -76,7 +76,8 @@ function fakeHarness(options: { online?: () => Set<string> } = {}) {
         headers: { 'content-type': 'text/event-stream' },
       })
     }
-    if (input.path === '/sessions/s-b') return json({ data: remoteSession })
+    // Adapters answer with the bare session and a bare forms array, not envelopes.
+    if (input.path === '/sessions/s-b') return json(remoteSession)
     if (input.path === '/sessions/s-b/messages') {
       const type = new URLSearchParams(input.search).get('type')
       return json({
@@ -87,7 +88,7 @@ function fakeHarness(options: { online?: () => Set<string> } = {}) {
         ],
       })
     }
-    if (input.path === '/sessions/s-b/forms') return json({ data: [] })
+    if (input.path === '/sessions/s-b/forms') return json([])
     return json({ error: { code: 'not_found', message: 'not found' } }, 404)
   }
 

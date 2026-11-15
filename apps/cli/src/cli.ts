@@ -87,6 +87,10 @@ export const commands: Command[] = [
       { flags: '--ws-url <url>', description: 'direct hub WebSocket URL for local or docker' },
       { flags: '--from <path>', description: 'install a built adapter package or dist directory' },
       {
+        flags: '--container <name>',
+        description: 'record an adapter that runs in a Docker container',
+      },
+      {
         flags: '--reuse-pairing',
         description: 'reinstall with the saved pairing instead of enrolling',
       },

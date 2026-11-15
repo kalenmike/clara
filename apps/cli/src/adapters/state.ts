@@ -2,16 +2,35 @@ import { existsSync, mkdirSync, readFileSync, renameSync, rmSync, writeFileSync 
 import { homedir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { isAdapterKind, type AdapterKind } from './registry.ts'
+import { containerRuntimeState, isContainerRecord, type DockerRunner } from './container.ts'
 import { resolvePaths, type ClaraPaths } from '../paths.ts'
 
 export type AdapterRuntimeState = 'running' | 'stopped' | 'unknown'
+
+/** A container that runs the adapter on Docker's behalf, not as a host process. */
+export type AdapterContainerRecord = {
+  name: string
+  /** The container's image entrypoint, replayed for `docker exec`. */
+  entry: string[]
+  /** The adapter's config directory inside the container. */
+  configDir?: string
+  /** The adapter's data directory inside the container, which holds `state.json`. */
+  dataDir?: string
+  compose?: {
+    project?: string
+    service?: string
+    file?: string
+  }
+}
 
 export type AdapterInstallRecord = {
   kind: AdapterKind
   version: string
   platform: string
-  /** The versioned install directory that holds the adapter binary. */
-  path: string
+  /** The versioned install directory that holds a host adapter binary. */
+  path?: string
+  /** Set when the adapter runs in a container instead of as a host process. */
+  container?: AdapterContainerRecord
   /** A JavaScript entry run with Node instead of a native binary. */
   entry?: string
   /** The Node executable that runs `entry`; defaults to the current runtime. */
@@ -31,6 +50,9 @@ export type AdapterStateFile = {
 export type RunningProbe = {
   env?: NodeJS.ProcessEnv
   alive?: (pid: number) => boolean
+  /** A container-backed adapter is never probed through the host pid file. */
+  container?: string
+  docker?: DockerRunner
 }
 
 /** `<configDir>/adapters.json`, next to the hub's `server.json`. */
@@ -109,6 +131,7 @@ export function adapterRuntimeState(
   kind: AdapterKind,
   probe: RunningProbe = {}
 ): AdapterRuntimeState {
+  if (probe.container) return containerRuntimeState(probe.container, probe.docker)
   const pidPath = join(adapterDataDir(kind, probe.env ?? process.env), 'adapter.pid')
   if (!existsSync(pidPath)) return 'unknown'
   try {
@@ -172,10 +195,13 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 function isRecordEntry(
   value: Record<string, unknown>
 ): value is Omit<AdapterInstallRecord, 'kind'> {
+  const hasHostPath = typeof value.path === 'string'
+  const hasContainer = isContainerRecord(value.container)
+  if (value.container !== undefined && !hasContainer) return false
   return (
+    (hasHostPath || hasContainer) &&
     typeof value.version === 'string' &&
     typeof value.platform === 'string' &&
-    typeof value.path === 'string' &&
     typeof value.installedAt === 'string' &&
     (value.entry === undefined || typeof value.entry === 'string') &&
     (value.node === undefined || typeof value.node === 'string') &&

@@ -26,6 +26,7 @@ const OPTIONS = new Set([
   '--version',
   '--ws-url',
   '--from',
+  '--container',
   '--directory',
 ])
 

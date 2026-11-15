@@ -71,6 +71,11 @@ capability flags, not harness kind.
    extensions, skills, packages, MCP servers, and project trust. It has one
    built-in agent, no session move, and no session lock; extension dialogs
    become Clara permission cards and forms.
+9. A container-backed record describes an adapter already running in Docker.
+   The install reads its version and pairing inside the container and writes an
+   `adapters.json` record with no host path or pid, so status, list, logs, start,
+   stop, and verify address the container. Upgrade asks for an image rebuild,
+   and remove stops the container but keeps its volumes.
 
 ## Edge cases
 
@@ -88,16 +93,14 @@ capability flags, not harness kind.
   manifest or issue a code and names the error; checkout commands still work.
 - **Adapter behind the registry** — the card shows the connected and published
   versions and names the reinstall; the hub never upgrades an adapter.
+- **Container-backed adapter** — a stopped container is refused for `--pair`,
+  `upgrade` asks for an image rebuild, and `verify --directory` reads inside it.
 - **SSH alias missing or key locked** — the alias is rejected, and installs use
   key or agent auth only, so unlock the key first.
 - **Checksum mismatch or unsupported target** — the script and archive digests
   are verified, and an unknown platform stops before anything runs.
-- **Direct loopback URL for a remote target** — the panel warns but does not
-  block; `wss://` direct is unsupported, so use the relay for public TLS.
 - **Relay grant expired** — the relay answers `401`; the adapter stops retrying
   and reports the reinstall message.
-- **Pi project trust** — untrusted projects load only global resources;
-  `--project-trust always|never` passes Pi's approval flags per session.
 
 ## Out of scope
 
@@ -105,7 +108,7 @@ capability flags, not harness kind.
 - A direct public `wss://` hub endpoint, a hub-wide default harness, or one
   active adapter per hub.
 - One-click installs into a remote Docker host; copy or SSH the command instead.
-- A Claude Code or Pi orchestration binding, shared-runner integration, or
+- A Claude Code or Pi orchestration binding, shared-runner integration, or a
   shipped container image.
 - Attaching to an already-running Pi TUI process; Pi exposes no attach API.
 
@@ -125,26 +128,23 @@ capability flags, not harness kind.
 <details>
 <summary>Commands, data, and references</summary>
 
-```text
-clara adapter install <kind> [--pair <code>] [--from <path>] [--reuse-pairing]
-clara adapter list|status|start|stop|logs|upgrade|remove [<kind>]
-clara adapter verify <kind> [--directory <path>] [--write] [--json]
-clara-adapter-<kind> install --pair <code> [--no-service] [--no-runner]
-clara-adapter-<kind> verify [--directory <path>] [--json]
-clara-adapter-claude|pi uninstall [--purge]
-```
-
-- Adapter config: `<config>/clara/adapters/<kind>/config.json`. Adapter data:
+- Config: `<config>/clara/adapters/<kind>/config.json`; data:
   `<data>/clara/adapters/<kind>/{identity.json,adapter.log,adapter.pid,state.json}`.
-  Values of `<kind>` are `opencode`, `claude`, and `pi`.
-- Registry: `<registry>/<kind>/manifest.json` and
-  `<registry>/<kind>/v<version>-install.sh`; `CLARA_ADAPTER_REGISTRY_URL`
-  overrides the default. `--reuse-pairing` reruns discovery, config, binding,
-  service, and runner from the saved config; `upgrade` enrolls nothing.
-- Protocol frames, capability flags, frame limits, close codes, and per-harness
-  mapping: [harness-protocol.md](../architecture/harness-protocol.md).
-- Identity and revocation: [E2EE](../architecture/e2ee.md). Routing and
-  vocabulary: [overview](../architecture/overview.md). Client-side pairing:
-  [connection.md](connection.md). Panel access: [panel/access.md](panel/access.md).
+  Claude also keeps `catalog.json`; Pi keeps `prompt-ids.json`.
+- Commands: `clara-adapter-<kind> install --pair <code>` (plus `--no-service`,
+  `--no-runner`) and `clara adapter install|list|status|start|stop|logs|verify|
+upgrade|remove <kind> [--pair <code>] [--from <path>] [--container <name>]`.
+  `--reuse-pairing` reruns the saved install without enrolling; `upgrade` does
+  not enroll either. `install --pair --container` runs the installer inside a
+  running container; `upgrade` never rebuilds an image.
+- Registry: `<registry>/<kind>/manifest.json` and `v<version>-install.sh`;
+  `CLARA_ADAPTER_REGISTRY_URL` overrides. `pnpm adapters:build` and
+  `pnpm adapters:serve` provide a local registry; releases verify every
+  manifest and artifact digest before deploy.
+- Protocol frames, capabilities, limits, close codes, and mapping:
+  [harness-protocol.md](../architecture/harness-protocol.md). Identity and
+  revocation: [E2EE](../architecture/e2ee.md). Routing:
+  [overview](../architecture/overview.md). Client pairing:
+  [connection.md](connection.md). Panel: [panel/access.md](panel/access.md).
 
 </details>

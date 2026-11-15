@@ -1,9 +1,11 @@
 import { describe, expect, it } from 'vitest'
-import type { ClaraForm, ClaraSessionMessage } from '@clara/api-contract'
+import type { ClaraForm, ClaraSession, ClaraSessionMessage } from '@clara/api-contract'
 import { createApiApp } from '../src/api/app.ts'
 import type { ApiDependencies } from '../src/api/context.ts'
 import { SessionSignalsService } from '../src/activity/session-signals.ts'
 import type { HarnessManager } from '../src/harness/manager.ts'
+import type { HarnessRequest } from '../src/harness/types.ts'
+import { loadSessionAttention } from '../src/push/attention.ts'
 
 function json(value: unknown, status = 200): Response {
   return new Response(JSON.stringify(value), {
@@ -63,6 +65,19 @@ function form(sessionID: string): ClaraForm {
   }
 }
 
+function session(id: string): ClaraSession {
+  return {
+    id,
+    projectID: 'p1',
+    agent: 'build',
+    cost: 0,
+    tokens: { input: 0, output: 0, reasoning: 0, cache: { read: 0, write: 0 } },
+    time: { created: 1, updated: 2 },
+    title: `Session ${id}`,
+    location: { directory: '/workspace' },
+  }
+}
+
 function fakeHarness(options: HarnessOptions = {}) {
   const calls: string[] = []
   const owners = options.owners ?? { s1: 'harness-a', s2: 'harness-a' }
@@ -84,11 +99,14 @@ function fakeHarness(options: HarnessOptions = {}) {
       const search = new URLSearchParams(
         input.search?.startsWith('?') ? input.search.slice(1) : input.search
       )
+      const single = /^\/sessions\/([^/]+)$/.exec(input.path)
+      if (single) return json(session(single[1]!))
       const match = /^\/sessions\/([^/]+)\/(messages|forms)$/.exec(input.path)
       if (!match) return json({ error: { code: 'not_found', message: 'not found' } }, 404)
       const [, sessionID, endpoint] = match
       if (endpoint === 'forms') {
-        return json({ data: forms[sessionID!] ?? [] })
+        // Adapters return the pending forms as a bare array, not an envelope.
+        return json(forms[sessionID!] ?? [])
       }
       if (fail.has(sessionID!)) {
         return json({ error: { code: 'upstream_error', message: 'boom' } }, 500)
@@ -101,6 +119,12 @@ function fakeHarness(options: HarnessOptions = {}) {
   } as unknown as HarnessManager
 
   return { harness, calls }
+}
+
+function harnessClient(harness: HarnessManager, harnessID: string): HarnessRequest {
+  return {
+    request: (input, signal) => harness.requestFor(harnessID, input, signal),
+  }
 }
 
 function testDependencies(harness: HarnessManager): ApiDependencies {
@@ -204,5 +228,24 @@ describe('session signals', () => {
     const ids = Array.from({ length: 101 }, (_, index) => `s${index}@1`).join(',')
     const oversized = await api.fetch(request(`/v1/sessions/signals?sessions=${ids}`))
     expect(oversized.status).toBe(400)
+  })
+})
+
+describe('session attention', () => {
+  it('reads a bare session body and reports a pending question', async () => {
+    const fake = fakeHarness({ owners: { s1: 'harness-a' }, forms: { s1: [form('s1')] } })
+
+    const attention = await loadSessionAttention(harnessClient(fake.harness, 'harness-a'), 's1')
+
+    expect(attention?.kind).toBe('question')
+    expect(attention?.session.id).toBe('s1')
+  })
+
+  it('returns no attention when the harness has no session', async () => {
+    const client: HarnessRequest = {
+      request: async () => json({ error: { code: 'not_found', message: 'not found' } }, 404),
+    }
+
+    expect(await loadSessionAttention(client, 'missing')).toBeNull()
   })
 })

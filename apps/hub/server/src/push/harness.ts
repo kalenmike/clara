@@ -79,7 +79,15 @@ async function getData<T>(client: HarnessRequest, path: string, search?: string)
     throw new Error(`Harness responded with ${response.status} for ${path}`)
   }
 
-  const body = (await response.json()) as { data?: T }
-  if (body.data === undefined) throw new Error(`Harness returned no data for ${path}`)
-  return body.data
+  // Adapters return the bare DTO for a session and a bare array for forms,
+  // while a message page keeps its `{ data, cursor }` envelope. Unwrap only
+  // when the body carries a data field so both shapes read the same.
+  const value = (await response.json()) as unknown
+  if (isRecord(value) && 'data' in value) return value.data as T
+  if (value === undefined) throw new Error(`Harness returned no data for ${path}`)
+  return value as T
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
 }

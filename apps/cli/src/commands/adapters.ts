@@ -13,6 +13,7 @@ import {
   type AdapterRuntimeState,
 } from '../adapters/state.ts'
 import { readAdapterLiveState, type AdapterLiveState } from '../adapters/live.ts'
+import { readContainerLiveState, runDocker } from '../adapters/container.ts'
 import { resolvePaths } from '../paths.ts'
 import { dim, green } from '../ui/color.ts'
 import { formatBytes, heading, muted, stateLabel, warn } from '../ui/index.ts'
@@ -29,7 +30,7 @@ const HELP = `${heading('Clara adapter management')}
 Usage:
   clara adapter search [--json]
   clara adapter list [--json]
-  clara adapter install <kind>[@version] [--pair <code>] [--transport local|relay|docker] [--ws-url <url>] [--from <path>] [--reuse-pairing] [--no-start]
+  clara adapter install <kind>[@version] [--pair <code>] [--transport local|relay|docker] [--ws-url <url>] [--from <path>] [--container <name>] [--reuse-pairing] [--no-start]
   clara adapter upgrade [kind] [--no-start] [--json]
   clara adapter remove <kind> [--purge]
   clara adapter start|stop|status|logs <kind> [options]
@@ -40,7 +41,9 @@ Kinds: ${ADAPTER_KINDS.join(', ')}
 
 Adapter binaries are downloaded from the release registry only when you ask for
 one. ${muted('Run `clara adapter search` to see published versions.')}
-Pass ${muted('--from')} to install a package or dist directory built in a checkout.`
+Pass ${muted('--from')} to install a package or dist directory built in a checkout.
+Pass ${muted('--container')} to record an adapter that already runs in Docker; the
+host command then reaches it with ${muted('docker exec')} and never writes a pid.`
 
 export async function runAdapters(args: readonly string[]): Promise<number> {
   const [sub = '', ...rest] = args
@@ -123,11 +126,14 @@ export async function runAdapterList(args: readonly string[]): Promise<number> {
       { header: 'KIND', value: (row) => row.kind },
       { header: 'VERSION', value: (row) => row.version },
       { header: 'PLATFORM', value: (row) => row.platform },
+      { header: 'CONTAINER', value: (row) => row.container?.name ?? '-' },
       { header: 'STATE', value: (row) => runtimeLabel(row.state) },
       { header: 'PAIRED', value: (row) => (row.pairedAt ? green('yes') : dim('no')) },
     ])
   )
-  console.log(muted(`Installed under ${join(paths.dataDir, 'adapters')}`))
+  if (entries.some((entry) => !entry.container)) {
+    console.log(muted(`Installed under ${join(paths.dataDir, 'adapters')}`))
+  }
   for (const entry of entries) {
     if (entry.lastError) console.log(warn(`${entry.kind}: ${entry.lastError}`))
   }
@@ -147,11 +153,16 @@ export function adapterListReport(
   return ADAPTER_KINDS.flatMap((kind) => {
     const record = state.adapters[kind]
     if (!record) return []
-    const live = readAdapterLiveState(kind, paths)
+    const live = record.container
+      ? readContainerLiveState(record.container, runDocker)
+      : readAdapterLiveState(kind, paths)
     return [
       {
         ...record,
-        state: adapterRuntimeState(kind, { env: adapterEnv(paths, kind) }),
+        state: adapterRuntimeState(kind, {
+          env: adapterEnv(paths, kind),
+          ...(record.container ? { container: record.container.name } : {}),
+        }),
         ...(live ? { live } : {}),
       },
     ]

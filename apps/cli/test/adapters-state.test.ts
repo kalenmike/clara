@@ -112,6 +112,34 @@ describe('adapter install records', () => {
     expect(adapterHasPairing('opencode', paths)).toBe(true)
   })
 
+  it('round-trips a container record without a host path', () => {
+    const paths = tempPaths()
+    const container = {
+      name: 'clara-adapter-opencode',
+      entry: ['node', '/app/dist/index.js'],
+      configDir: '/config',
+      dataDir: '/data',
+    }
+    saveAdapterRecord(record({ path: undefined, container }), paths)
+    expect(readAdapterState(paths).adapters.opencode?.container).toEqual(container)
+    expect(readAdapterState(paths).adapters.opencode?.path).toBeUndefined()
+  })
+
+  it('drops a container record with no entrypoint', () => {
+    const paths = tempPaths()
+    mkdirSync(paths.configDir, { recursive: true })
+    writeFileSync(
+      adapterStatePath(paths),
+      JSON.stringify({
+        schemaVersion: 1,
+        adapters: {
+          opencode: { ...record({ path: undefined }), container: { name: 'clara-adapter' } },
+        },
+      })
+    )
+    expect(readAdapterState(paths).adapters).toEqual({})
+  })
+
   it('round-trips pairedAt and lastError', () => {
     const paths = tempPaths()
     writeAdapterState(
@@ -170,6 +198,30 @@ describe('adapter process state', () => {
       adapterRuntimeState('pi', {
         env: { CLARA_ADAPTER_DATA_DIR: root },
         alive: () => true,
+      })
+    ).toBe('unknown')
+  })
+
+  it('probes a container instead of the host pid file', () => {
+    const docker =
+      (stdout: string, code = 0) =>
+      () => ({ code, stdout, stderr: '' })
+    expect(
+      adapterRuntimeState('opencode', {
+        container: 'clara-adapter-opencode',
+        docker: docker('true\n'),
+      })
+    ).toBe('running')
+    expect(
+      adapterRuntimeState('opencode', {
+        container: 'clara-adapter-opencode',
+        docker: docker('false\n'),
+      })
+    ).toBe('stopped')
+    expect(
+      adapterRuntimeState('opencode', {
+        container: 'clara-adapter-opencode',
+        docker: docker('', 1),
       })
     ).toBe('unknown')
   })

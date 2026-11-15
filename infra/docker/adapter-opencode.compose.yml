@@ -7,6 +7,12 @@
 #   docker compose -f infra/docker/adapter-opencode.compose.yml run --rm adapter \
 #     install --pair <code> --opencode-url http://opencode:4096 --no-binding --no-runner --no-service
 #
+# Then start the container and record it on the host so `clara status` and
+# `clara adapter start|stop|logs` reach it through Docker:
+#
+#   docker compose -f infra/docker/adapter-opencode.compose.yml up -d
+#   clara adapter install opencode --container clara-adapter-opencode
+#
 # The adapter only makes outbound connections. It publishes no ports, and
 # OpenCode stays private to the `clara` network.
 
