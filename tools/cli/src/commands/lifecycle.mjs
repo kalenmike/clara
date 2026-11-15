@@ -6,16 +6,13 @@
 //   clara restart [target] [options]
 //   clara status [target] [options]
 //   clara logs [target] [options]
-//   clara backup [target] [options]
-//   clara restore [target] <archive> [options]
 //   clara pair [target] [options]
 //
 // `hub`, `web`, and `engine` are the core services. `runner`, `lab`, and `docs`
 // are host-side targets. `default` means the core stack. Adapters are managed by
 // the packaged `clara` command.
 
-import { spawnSync } from 'node:child_process'
-import { existsSync, mkdirSync, writeFileSync } from 'node:fs'
+import { mkdirSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import {
   buildDocs,
@@ -34,9 +31,11 @@ import {
   typecheckDocs,
 } from '../lib/dev-services.mjs'
 import { clara } from '../clara.mjs'
+import { webURL } from '../lib/local-web.mjs'
 import { logPath, stateDir } from '../lib/local-runtime.mjs'
 import { followCommands, followFiles } from '../lib/multi-log.mjs'
 import { openPanel } from '../lib/panel.mjs'
+import { engineURL, panelURL } from '../lib/server-control.mjs'
 import { renderHelp, root, runNode, runPnpm } from '../lib/router.mjs'
 import {
   readRunnerManifest,
@@ -50,26 +49,17 @@ import {
   runnerStatus,
   stopRunnerService,
 } from '../lib/runner.mjs'
-import { composeFile, ensureNetwork, envFile, panelURL } from '../lib/server-control.mjs'
-import { SCRIPTS, ensureEngineEnv, engineURL } from '../lib/stack-control.mjs'
-import {
-  archiveVolumes,
-  defaultBackupPath,
-  existingVolumes,
-  parseBackupArgs,
-  parseRestoreArgs,
-  readBackupManifest,
-  runningContainers,
-  runBackup,
-  runRestore,
-  targetVolumes,
-} from '../lib/stack-backup.mjs'
 import { collectStatus, renderJSON, renderStatus, statusExitCode } from '../lib/status.mjs'
 import { CORE_TARGETS, serviceKey, takeTarget } from '../lib/targets.mjs'
-import { webURL } from '../lib/web-control.mjs'
 
 const CORE_START_ORDER = ['engine', 'server', 'web']
 const CORE_STOP_ORDER = ['web', 'server', 'engine']
+
+const SCRIPTS = {
+  engine: join(root, 'tools', 'cli', 'src', 'commands', 'engine.mjs'),
+  server: join(root, 'tools', 'cli', 'src', 'commands', 'server.mjs'),
+  web: join(root, 'tools', 'cli', 'src', 'commands', 'web.mjs'),
+}
 
 const command = process.argv[2] ?? 'help'
 const args = process.argv.slice(3)
@@ -87,10 +77,6 @@ if (args.includes('--help') || args.includes('-h')) {
 try {
   if (['start', 'stop', 'restart', 'status', 'logs'].includes(command)) {
     await lifecycle(command, args)
-  } else if (command === 'backup') {
-    backup(args)
-  } else if (command === 'restore') {
-    restore(args)
   } else if (command === 'pair') {
     await pair(args)
   } else {
@@ -122,7 +108,7 @@ function coreLifecycle(name, target, argv) {
   const keys = target === 'default' ? [...CORE_START_ORDER] : [serviceKey(target)]
   if (name === 'status') return coreStatus(keys, options, target)
   if (name === 'logs') return coreLogs(keys, options)
-  if (name === 'stop') return coreStop(keys, options)
+  if (name === 'stop') return coreStop(keys)
   if (name === 'start') return coreStart(keys, options, target)
   if (name === 'restart') return coreRestart(keys, options, target)
   throw new Error(`unknown core command: ${name}`)
@@ -130,8 +116,6 @@ function coreLifecycle(name, target, argv) {
 
 function parseCoreOptions(commandName, target, argv) {
   const options = {
-    docker: false,
-    local: false,
     build: false,
     json: false,
     lines: 80,
@@ -141,9 +125,7 @@ function parseCoreOptions(commandName, target, argv) {
   }
   for (let index = 0; index < argv.length; index++) {
     const arg = argv[index]
-    if (arg === '--docker') options.docker = true
-    else if (arg === '--local') options.local = true
-    else if (arg === '--build') options.build = true
+    if (arg === '--build') options.build = true
     else if (arg === '--json') options.json = true
     else if (arg === '--open') options.open = true
     else if (arg === '--foreground') options.foreground = true
@@ -156,7 +138,6 @@ function parseCoreOptions(commandName, target, argv) {
       throw new Error(`unknown option for ${commandName}: ${arg}`)
     }
   }
-  if (options.local && options.docker) throw new Error('--local and --docker cannot be combined')
   if (commandName === 'stop' && options.build) throw new Error('--build is not valid for stop')
   if (commandName === 'status' && options.build) throw new Error('--build is not valid for status')
   if (commandName === 'logs' && options.build) throw new Error('--build is not valid for logs')
@@ -172,10 +153,6 @@ function parseCoreOptions(commandName, target, argv) {
   return options
 }
 
-function modeFlag(options) {
-  return options.local ? '--local' : '--docker'
-}
-
 function runCore(name, args) {
   return runNode(SCRIPTS[name], args)
 }
@@ -184,7 +161,7 @@ function coreStart(keys, options, target) {
   if (keys.includes('engine') && options.foreground) {
     return runCore('engine', ['serve'])
   }
-  const buildWholeStack = options.local && options.build && target === 'default'
+  const buildWholeStack = options.build && target === 'default'
   if (buildWholeStack) {
     console.log('\n==> building the local checkout')
     const code = runPnpm(['build'], { cwd: root })
@@ -193,46 +170,35 @@ function coreStart(keys, options, target) {
       return code
     }
   }
-  if (!options.local && keys.includes('engine')) {
-    try {
-      ensureEngineEnv()
-    } catch (error) {
-      console.error(`error: ${error instanceof Error ? error.message : String(error)}`)
-      return 1
-    }
-  }
-  if (!options.local && ensureNetwork() !== 0) return 1
 
-  const mode = modeFlag(options)
   for (const key of keys) {
-    console.log(`\n==> starting ${displayName(key)} (${options.local ? 'local' : 'docker'})`)
-    const primitiveArgs = ['start', mode]
+    console.log(`\n==> starting ${displayName(key)}`)
+    const primitiveArgs = ['start']
     if (options.build && !buildWholeStack) primitiveArgs.push('--build')
     const code = runCore(key, primitiveArgs)
     if (code !== 0) {
       console.error(
-        `\n${displayName(key)} did not start. The stack is partially started; run \`clara stop ${mode}\` to clean up.`
+        `\n${displayName(key)} did not start. The stack is partially started; run \`clara stop\` to clean up.`
       )
       return code
     }
   }
-  printCoreSummary(keys, options)
+  printCoreSummary(keys)
   if (options.open && keys.includes('server')) openPanel(`${panelURL()}/`)
   return 0
 }
 
-function coreStop(keys, options) {
-  const mode = modeFlag(options)
+function coreStop(keys) {
   let failed = false
   for (const key of CORE_STOP_ORDER.filter((entry) => keys.includes(entry))) {
-    console.log(`\n==> stopping ${displayName(key)} (${options.local ? 'local' : 'docker'})`)
-    if (runCore(key, ['stop', mode]) !== 0) failed = true
+    console.log(`\n==> stopping ${displayName(key)}`)
+    if (runCore(key, ['stop']) !== 0) failed = true
   }
   return failed ? 1 : 0
 }
 
 async function coreRestart(keys, options, target) {
-  const stopped = coreStop(keys, options)
+  const stopped = coreStop(keys)
   if (stopped !== 0) return stopped
   return coreStart(keys, options, target)
 }
@@ -249,46 +215,21 @@ async function coreStatus(keys, options, target) {
 }
 
 async function coreLogs(keys, options) {
-  if (options.local) {
-    return followFiles(
-      keys.map((key) => ({ name: displayName(key), path: logPath(key) })),
-      { lines: options.lines, follow: options.follow }
-    )
-  }
-  const entries = keys.map((key) => ({
-    name: displayName(key),
-    ...dockerLogsCommand(key, options.lines, options.follow),
-  }))
-  return followCommands(entries, { follow: options.follow, cwd: root })
+  return followFiles(
+    keys.map((key) => ({ name: displayName(key), path: logPath(key) })),
+    { lines: options.lines, follow: options.follow }
+  )
 }
 
-function dockerLogsCommand(key, lines, follow) {
-  const composeArgs = []
-  if (key === 'server' || key === 'engine') {
-    const env = envFile()
-    if (existsSync(env)) composeArgs.push('--env-file', env)
-  }
-  const file =
-    key === 'server'
-      ? composeFile()
-      : key === 'web'
-        ? join(root, 'infra', 'docker', 'web.compose.yml')
-        : join(root, 'infra', 'docker', 'engine.compose.yml')
-  const args = ['compose', ...composeArgs, '-f', file, 'logs', '--tail', String(lines)]
-  if (follow) args.push('-f')
-  args.push(key === 'server' ? 'server' : key)
-  return { command: 'docker', args }
-}
-
-function printCoreSummary(keys, options) {
-  console.log(`\nClara stack (${options.local ? 'local' : 'docker'})`)
+function printCoreSummary(keys) {
+  console.log('\nClara stack')
   if (keys.includes('server')) console.log(`  panel:        ${panelURL()}/`)
   if (keys.includes('web')) console.log(`  web:          ${webURL()}/`)
   if (keys.includes('engine')) console.log(`  engine:       ${engineURL()}/`)
   if (keys.includes('server')) {
     console.log('')
     console.log('Open the panel with `clara status hub --open`.')
-    console.log(`Pair a device with \`clara pair hub ${options.local ? '--local' : '--docker'}\`.`)
+    console.log('Pair a device with `clara pair hub`.')
   }
 }
 
@@ -401,8 +342,6 @@ function parseLabOptions(commandName, argv) {
     check: false,
     lines: 80,
     follow: true,
-    docker: false,
-    local: false,
   }
   for (let index = 0; index < argv.length; index++) {
     const arg = argv[index]
@@ -416,11 +355,8 @@ function parseLabOptions(commandName, argv) {
     else if (arg === '--check') options.check = true
     else if (arg === '--no-follow') options.follow = false
     else if (arg === '--lines') options.lines = positiveNumber(argv[++index], '--lines')
-    else if (arg === '--docker') options.docker = true
-    else if (arg === '--local') options.local = true
     else throw new Error(`unknown option for ${commandName} lab: ${arg}`)
   }
-  if (options.docker) throw new Error('Lab is a host-only target; --docker is not supported')
   if (options.check && commandName !== 'status') {
     throw new Error('--check is only valid for status lab')
   }
@@ -482,8 +418,6 @@ function parseDocsOptions(commandName, argv) {
     typecheck: false,
     lines: 80,
     follow: true,
-    docker: false,
-    local: false,
   }
   for (let index = 0; index < argv.length; index++) {
     const arg = argv[index]
@@ -496,11 +430,8 @@ function parseDocsOptions(commandName, argv) {
     else if (arg === '--typecheck') options.typecheck = true
     else if (arg === '--no-follow') options.follow = false
     else if (arg === '--lines') options.lines = positiveNumber(argv[++index], '--lines')
-    else if (arg === '--docker') options.docker = true
-    else if (arg === '--local') options.local = true
     else throw new Error(`unknown option for ${commandName} docs: ${arg}`)
   }
-  if (options.docker) throw new Error('Docs is a host-only target; --docker is not supported')
   if (options.check && commandName !== 'status') {
     throw new Error('--check is only valid for status docs')
   }
@@ -599,83 +530,6 @@ function finalizeStop(name, result) {
 function writePort(name, port) {
   mkdirSync(stateDir(), { recursive: true, mode: 0o700 })
   writeFileSync(join(stateDir(), `${name}.port`), `${port}\n`, { mode: 0o600 })
-}
-
-// ---------------------------------------------------------------------------
-// Backup and restore
-
-function backup(argv) {
-  const { target, args: rest } = takeTarget(argv, ['default', 'hub', 'engine'])
-  const options = parseBackupArgs(rest)
-  if (refuseRunning(target, 'back up')) return
-  const volumes = targetVolumes(target).filter((name) => existingVolumes([name]).length > 0)
-  if (volumes.length === 0) {
-    console.error(`error: no Clara volumes found for ${target}. Start the stack once first.`)
-    process.exitCode = 1
-    return
-  }
-  const output = options.output ?? defaultBackupPath(target)
-  console.log(`writing ${output}`)
-  const code = runBackup({ output, target, volumes })
-  if (code !== 0) {
-    console.error('error: backup failed')
-    process.exitCode = code
-    return
-  }
-  console.log(`backup written to ${output}`)
-}
-
-function restore(argv) {
-  const first = argv.find((arg) => !arg.startsWith('-'))
-  let target = 'default'
-  let rest = [...argv]
-  if (first && ['default', 'hub', 'engine'].includes(first)) {
-    target = first
-    rest.splice(rest.indexOf(first), 1)
-  }
-  const options = parseRestoreArgs(rest)
-  if (!existsSync(options.archive)) {
-    console.error(`error: archive not found: ${options.archive}`)
-    process.exitCode = 1
-    return
-  }
-  const manifest = readBackupManifest({ archive: options.archive })
-  const fromArchive = manifest?.volumes ?? archiveVolumes({ archive: options.archive })
-  const available = fromArchive.length > 0 ? fromArchive : targetVolumes('default')
-  const volumes = target === 'default' ? available : targetVolumes(target)
-  const missing = volumes.filter((name) => !available.includes(name))
-  if (missing.length > 0) {
-    console.error(`error: the archive does not contain ${missing.join(', ')}`)
-    process.exitCode = 1
-    return
-  }
-  if (refuseRunning(target, 'restore')) return
-  const existing = existingVolumes(volumes)
-  if (existing.length > 0 && !options.force) {
-    console.error(
-      `error: refusing to overwrite ${existing.join(', ')}. Re-run with --force to replace the volume contents.`
-    )
-    process.exitCode = 1
-    return
-  }
-  console.log(`restoring ${options.archive}`)
-  const code = runRestore({ archive: options.archive, volumes })
-  if (code !== 0) {
-    console.error('error: restore failed')
-    process.exitCode = code
-    return
-  }
-  console.log('restore complete; start the stack with `clara start`')
-}
-
-function refuseRunning(target, action) {
-  const containers = runningContainers(target)
-  if (containers.length === 0) return false
-  console.error(
-    `error: cannot ${action} while ${containers.join(', ')} ${containers.length === 1 ? 'is' : 'are'} running. Run \`clara stop\` first.`
-  )
-  process.exitCode = 1
-  return true
 }
 
 // ---------------------------------------------------------------------------

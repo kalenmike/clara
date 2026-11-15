@@ -13,7 +13,6 @@ import { fileURLToPath } from 'node:url'
 import { spawnSync } from 'node:child_process'
 import { isRuntimeLive, readRuntimeState } from '@clara/runtime-state'
 import { installCommand, removeCommand } from '../lib/clara-command.mjs'
-import { dockerTokenPath, engineContainerRunning, readEngineToken } from '../lib/stack-control.mjs'
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..', '..', '..', '..')
 const mcpEntry = join(root, 'packages', 'orchestration', 'mcp', 'dist', 'index.js')
@@ -217,14 +216,10 @@ function runtimeEnvironment() {
 }
 
 function activeTokenFile() {
-  return engineContainerRunning() ? dockerTokenPath() : tokenFile
+  return tokenFile
 }
 
 function readToken() {
-  if (engineContainerRunning()) {
-    const dockerToken = readEngineToken(root)
-    if (dockerToken) return dockerToken
-  }
   if (!existsSync(tokenFile)) return ''
   return readFileSync(tokenFile, 'utf8').trim()
 }

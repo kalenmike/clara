@@ -1,8 +1,7 @@
-// Static server for the built web client in local mode.
+// Static server for the built web client.
 //
-// `clara start web --local` spawns this file so the local stack serves the
-// same `apps/web/dist` output as the container, including the `/healthz`
-// contract the status and rebuild probes expect.
+// `clara start web` spawns this file so the stack serves `apps/web/dist`,
+// including the `/healthz` contract the status and rebuild probes expect.
 
 import { createReadStream, existsSync, statSync } from 'node:fs'
 import { createServer } from 'node:http'
@@ -30,8 +29,12 @@ const MIME = {
   '.woff2': 'font/woff2',
 }
 
-export function localWebPort(env = process.env) {
+export function webPort(env = process.env) {
   return positiveInt(env.CLARA_WEB_PORT, 8080)
+}
+
+export function webURL(env = process.env) {
+  return `http://127.0.0.1:${webPort(env)}`
 }
 
 /** Resolve a URL path to a file under dist, with SPA fallback. */
@@ -113,7 +116,7 @@ export function createLocalWebServer({ dist = WEB_DIST, env = process.env } = {}
 const invokedDirectly = process.argv[1] && resolve(process.argv[1]) === here
 
 if (invokedDirectly) {
-  const port = localWebPort()
+  const port = webPort()
   const host = process.env.CLARA_WEB_HOST?.trim() || '127.0.0.1'
   if (!existsSync(join(WEB_DIST, 'index.html'))) {
     console.error(`error: the web client is not built at ${WEB_DIST}. Run \`pnpm build\` first.`)

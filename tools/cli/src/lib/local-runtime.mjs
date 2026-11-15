@@ -1,11 +1,10 @@
 // Detached local Clara processes.
 //
-// `clara start --local` and the `--local` service commands run beside the
-// Docker stack. Each process gets a PID file and a log under the Clara data
-// directory so status, stop, restart, and logs can find it later. A service may
-// also be started by another path (for example `clara rebuild`), so stop
-// falls back to the service's own runtime state or health PID, then to the
-// listening port, before giving up.
+// The service commands start the stack as host processes. Each process gets a
+// PID file and a log under the Clara data directory so status, stop, restart,
+// and logs can find it later. A service may also be started by another path
+// (for example `clara rebuild`), so stop falls back to the service's own
+// runtime state or health PID, then to the listening port, before giving up.
 
 import { spawn, spawnSync } from 'node:child_process'
 import {
@@ -38,14 +37,6 @@ export function logPath(name, env = process.env) {
   return join(stateDir(env), `${name}.log`)
 }
 
-/** Docker is the default; both flags are accepted so scripts can be explicit. */
-export function parseMode(args) {
-  const local = args.includes('--local')
-  const docker = args.includes('--docker')
-  if (local && docker) throw new Error('--local and --docker cannot be combined')
-  return local ? 'local' : 'docker'
-}
-
 export function processAlive(pid) {
   if (!Number.isInteger(pid) || pid <= 0) return false
   try {
@@ -73,7 +64,7 @@ function removePid(name, env = process.env) {
   }
 }
 
-/** Record a running service's pid so a later `stop --local` can find it. */
+/** Record a running service's pid so a later `stop` can find it. */
 export function recordPid(name, pid, env = process.env) {
   if (!Number.isInteger(pid) || pid <= 0) return false
   writePid(name, pid, env)
@@ -390,7 +381,7 @@ export async function stopDetached({
 export async function followLog(name, env = process.env) {
   const path = logPath(name, env)
   if (!existsSync(path)) {
-    fail(`No ${name} log at ${path}. Start it with --local first.`)
+    fail(`No ${name} log at ${path}. Start the service first.`)
   }
 
   let offset = 0

@@ -28,11 +28,6 @@ const TARGETS = [
 
 const TARGETS_SECTION = { label: 'Targets', items: TARGETS }
 
-const MODE_OPTIONS = [
-  { flags: '--docker', description: 'use Docker (default)' },
-  { flags: '--local', description: 'use host processes' },
-]
-
 const RUNNER_OPTIONS = [
   { flags: '--workspace <path>', description: 'runner or lab: workspace path' },
   { flags: '--url <url>', description: 'runner: engine URL' },
@@ -54,7 +49,6 @@ const SITE_OPTIONS = [
 ]
 
 const START_OPTIONS = [
-  ...MODE_OPTIONS,
   { flags: '--build', description: 'build before starting' },
   { flags: '--open', description: 'open the hub panel after starting' },
   { flags: '--foreground', description: 'engine or runner: run in the foreground' },
@@ -75,7 +69,7 @@ const commands = [
     options: START_OPTIONS,
     examples: [
       'clara start',
-      'clara start hub --local --build',
+      'clara start hub --build',
       'clara start hub --open',
       'clara start runner',
       'clara start lab',
@@ -90,8 +84,8 @@ const commands = [
     usage: '<target> [options]',
     passthroughHelp: true,
     sections: [TARGETS_SECTION],
-    options: [...MODE_OPTIONS, { flags: '--purge', description: 'runner: remove the install' }],
-    examples: ['clara stop', 'clara stop hub --local', 'clara stop runner --purge'],
+    options: [{ flags: '--purge', description: 'runner: remove the install' }],
+    examples: ['clara stop', 'clara stop hub', 'clara stop runner --purge'],
     run: (args) => lifecycle('stop', args),
   },
   {
@@ -102,7 +96,6 @@ const commands = [
     passthroughHelp: true,
     sections: [TARGETS_SECTION],
     options: [
-      ...MODE_OPTIONS,
       { flags: '--build', description: 'build before starting' },
       { flags: '--open', description: 'open the hub panel after starting' },
       ...RUNNER_OPTIONS,
@@ -142,44 +135,17 @@ const commands = [
     passthroughHelp: true,
     sections: [TARGETS_SECTION],
     options: [
-      ...MODE_OPTIONS,
       { flags: '--lines <n>', description: 'tail length (default 80)' },
       { flags: '--no-follow', description: 'print the tail and exit' },
     ],
-    examples: ['clara logs hub', 'clara logs hub --local', 'clara logs runner'],
+    examples: ['clara logs hub', 'clara logs runner'],
     run: (args) => lifecycle('logs', args),
-  },
-  {
-    name: 'backup',
-    group: 'State',
-    summary: 'Archive the selected Docker state volumes',
-    usage: '[default|hub|engine] [options]',
-    passthroughHelp: true,
-    options: [
-      {
-        flags: '-o, --output <path>',
-        description: 'archive path (default: a timestamped file in this directory)',
-      },
-    ],
-    examples: ['clara backup', 'clara backup hub --output ~/clara-hub.tar.gz'],
-    run: (args) => lifecycle('backup', args),
-  },
-  {
-    name: 'restore',
-    group: 'State',
-    summary: 'Replace Docker state volumes from a backup',
-    usage: '[default|hub|engine] <archive> [options]',
-    passthroughHelp: true,
-    options: [{ flags: '--force', description: 'replace existing volume contents' }],
-    examples: ['clara restore clara-backup.tar.gz', 'clara restore hub backup.tar.gz --force'],
-    run: (args) => lifecycle('restore', args),
   },
   {
     name: 'pair',
     group: 'Setup',
     summary: 'Print a browser pairing code',
-    usage:
-      '[hub] [--no-relay] [--no-qr] [--no-panel] [--revoke-all] [--revoke <id>] [--docker|--local]',
+    usage: '[hub] [--no-relay] [--no-qr] [--no-panel] [--revoke-all] [--revoke <id>]',
     passthroughHelp: true,
     options: [
       { flags: '--no-relay', description: 'print a local-only code' },
@@ -187,7 +153,6 @@ const commands = [
       { flags: '--no-panel', description: 'do not print the panel link' },
       { flags: '--revoke-all', description: 'revoke every paired device' },
       { flags: '--revoke <id>', description: 'revoke one paired device' },
-      ...MODE_OPTIONS,
     ],
     examples: ['clara pair', 'clara pair hub --no-relay'],
     run: (args) => lifecycle('pair', args),
@@ -228,9 +193,6 @@ const commands = [
         description: 'snapshot path (default: <data dir>/rebuild/setup.json)',
       },
       { flags: '--json', description: 'print machine-readable JSON on stdout' },
-      { flags: '--local', description: 'manage local services only' },
-      { flags: '--docker', description: 'manage container services only (default)' },
-      { flags: '--all', description: 'manage local and container services together' },
       { flags: '--dry-run', description: 'show the restart plan without changing services' },
       {
         flags: '--manage-external',

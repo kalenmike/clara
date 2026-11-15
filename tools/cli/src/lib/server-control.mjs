@@ -2,29 +2,11 @@ import { spawnSync } from 'node:child_process'
 import { existsSync, readFileSync } from 'node:fs'
 import { homedir } from 'node:os'
 import { join } from 'node:path'
-import { isRuntimeLive, readRuntimeState, runtimeFile } from '@clara/runtime-state'
+import { isRuntimeLive, readRuntimeState } from '@clara/runtime-state'
 import { buildVersion } from '../../../build/version.mjs'
 import { root, run } from './router.mjs'
 
-export function composeFile(repoRoot = root) {
-  return join(repoRoot, 'infra', 'docker', 'server.compose.yml')
-}
-
-export function envFile(repoRoot = root) {
-  return join(repoRoot, 'infra', 'docker', '.env')
-}
-
-export function compose(args, repoRoot = root) {
-  return run('docker', composeArgs(args, repoRoot), {
-    cwd: repoRoot,
-    env: buildInfoEnv(repoRoot),
-  })
-}
-
-/**
- * Build metadata for the server image. The Docker context excludes `.git`, so
- * the image cannot resolve the checkout itself; pass the host values instead.
- */
+/** Build metadata for a checkout build. */
 export function buildInfoEnv(repoRoot = root) {
   const version = buildVersion({
     packageVersion: packageVersion(repoRoot),
@@ -56,17 +38,7 @@ function gitValue(args, cwd) {
   return result.status === 0 ? result.stdout.trim() : ''
 }
 
-/** Load infra/docker/.env so `clara start hub --docker` matches the documented setup. */
-function composeArgs(args, repoRoot = root) {
-  const file = envFile(repoRoot)
-  const envArgs = existsSync(file) ? ['--env-file', file] : []
-  return ['compose', ...envArgs, '-f', composeFile(repoRoot), ...args]
-}
-
 export const SERVER_ENTRY = join(root, 'apps', 'hub', 'server', 'dist', 'index.js')
-export const NETWORK = 'clara'
-export const SERVER_CONTAINER = 'clara-server'
-export const SERVER_VOLUMES = ['clara-server-config', 'clara-server-data']
 
 export function panelPort(env = process.env) {
   return positiveInt(env.CLARA_PANEL_PORT, 8790)
@@ -74,6 +46,14 @@ export function panelPort(env = process.env) {
 
 export function localPort(env = process.env) {
   return positiveInt(env.CLARA_LOCAL_PORT, 8788)
+}
+
+export function enginePort(env = process.env) {
+  return positiveInt(env.CLARA_ENGINE_PORT ?? env.CLARA_ORCHESTRATION_PORT, 8789)
+}
+
+export function engineURL(env = process.env) {
+  return `http://127.0.0.1:${enginePort(env)}`
 }
 
 export function panelURL(env = process.env) {
@@ -86,12 +66,6 @@ export function localURL(env = process.env) {
   const state = readRuntimeState()
   if (isRuntimeLive(state) && state.local) return state.local.url.replace(/\/+$/, '')
   return `http://127.0.0.1:${localPort(env)}`
-}
-
-export function ensureNetwork() {
-  const inspect = spawnSync('docker', ['network', 'inspect', NETWORK], { stdio: 'ignore' })
-  if (inspect.status === 0) return 0
-  return run('docker', ['network', 'create', NETWORK])
 }
 
 export async function probe(url, timeoutMs = 1_500) {
@@ -118,36 +92,6 @@ export async function waitForPanel(timeoutMs = 60_000, env = process.env) {
   return undefined
 }
 
-/** The tail of the hub container log, or an empty string when Docker is unavailable. */
-export function serverLogTail(lines = 40) {
-  const result = spawnSync(
-    'docker',
-    composeArgs(['logs', '--tail', String(lines), 'server'], root),
-    {
-      cwd: root,
-      encoding: 'utf8',
-      timeout: 5_000,
-    }
-  )
-  if (result.error) return ''
-  return `${result.stdout ?? ''}${result.stderr ?? ''}`.trim()
-}
-
-export function serverRunningInCompose(repoRoot = root) {
-  const result = spawnSync('docker', composeArgs(['ps', '-q', 'server'], repoRoot), {
-    cwd: repoRoot,
-    encoding: 'utf8',
-  })
-  return result.status === 0 && result.stdout.trim().length > 0
-}
-
-export function runServerProcess(args) {
-  if (serverRunningInCompose()) {
-    return compose(['exec', '-T', 'server', '/app/clara-server', ...args])
-  }
-  return compose(['run', '--rm', 'server', ...args])
-}
-
 export function runLocalServerProcess(args) {
   if (existsSync(SERVER_ENTRY)) {
     return run(process.execPath, [SERVER_ENTRY, ...args], { cwd: root })
@@ -162,58 +106,11 @@ export function runLocalServerProcess(args) {
   return 1
 }
 
-/** The hub container by name, without throwing when Docker is missing. */
-export function serverContainerState() {
-  const result = spawnSync(
-    'docker',
-    ['inspect', '--format', '{{.State.Status}}', SERVER_CONTAINER],
-    {
-      encoding: 'utf8',
-      timeout: 2_000,
-    }
-  )
-  if (result.error) return { available: false, state: 'unknown' }
-  if (result.status !== 0) {
-    const stderr = String(result.stderr ?? '')
-    if (stderr.includes('No such object') || stderr.includes('No such container')) {
-      return { available: true, state: 'missing' }
-    }
-    return { available: false, state: 'unknown' }
-  }
-  return { available: true, state: result.stdout.trim() || 'unknown' }
-}
-
-/** Whether either server state volume exists. */
-export function serverVolumesExist() {
-  return SERVER_VOLUMES.some((name) => {
-    const result = spawnSync('docker', ['volume', 'inspect', name], {
-      stdio: 'ignore',
-      timeout: 2_000,
-    })
-    return result.status === 0
-  })
-}
-
-/** A snapshot of the Docker side, or zeros when the Docker CLI is unavailable. */
-export function dockerServerState() {
-  const container = serverContainerState()
-  const exists = container.available && container.state !== 'missing'
-  const volumes = container.available ? serverVolumesExist() : false
-  return {
-    available: container.available,
-    container: container.state,
-    running: container.state === 'running' || container.state === 'restarting',
-    exists,
-    volumes,
-    present: exists || volumes,
-  }
-}
-
 /** The host directories a local install uses, mirroring apps/hub/server/src/config.ts. */
 export function serverLocalState(env = process.env) {
   const configHome = env.XDG_CONFIG_HOME?.trim() || join(homedir(), '.config')
   const dataHome = env.XDG_DATA_HOME?.trim() || join(homedir(), '.local', 'share')
-  const runtime = readRuntimeState(runtimeFile(env))
+  const runtime = readRuntimeState()
   const configDir =
     (isRuntimeLive(runtime) ? runtime.configDir : undefined) ||
     env.CLARA_CONFIG_DIR?.trim() ||
@@ -233,60 +130,6 @@ export function serverLocalState(env = process.env) {
       existsSync(join(configDir, 'server.json')) ||
       existsSync(join(configDir, 'admin-setup.txt')),
   }
-}
-
-/**
- * Pick the deployment a host command should operate on. Pure so the decision
- * can be tested without Docker or a running panel.
- */
-export function resolveServerTarget(input = {}) {
-  if (input.docker === true && input.local === true) {
-    return { target: 'ambiguous', reason: 'both --docker and --local were passed' }
-  }
-  if (input.docker === true) return { target: 'container', reason: '--docker' }
-  if (input.local === true) return { target: 'local', reason: '--local' }
-  if (input.health === 'container') {
-    return { target: 'container', reason: 'the panel is running in a container' }
-  }
-  if (input.health === 'local') {
-    return { target: 'local', reason: 'the panel is running locally' }
-  }
-  if (input.dockerState?.running === true) {
-    return { target: 'container', reason: 'the clara-server container is running' }
-  }
-  const dockerPresent = input.dockerState?.present === true
-  const localPresent = input.localState?.present === true
-  if (dockerPresent && !localPresent) {
-    return { target: 'container', reason: 'Docker state exists without a local install' }
-  }
-  if (localPresent && !dockerPresent) {
-    return { target: 'local', reason: 'a local install exists without Docker state' }
-  }
-  if (dockerPresent && localPresent) {
-    return { target: 'ambiguous', reason: 'both a local install and Docker state exist' }
-  }
-  return { target: 'local', reason: 'no Docker state was found' }
-}
-
-/** Resolve the target, probing the panel and Docker only when it is not forced. */
-export async function detectServerTarget(options = {}) {
-  const env = options.env ?? process.env
-  if (options.docker === true || options.local === true) {
-    return resolveServerTarget({ docker: options.docker, local: options.local })
-  }
-  const health = await serverHealthMode(env)
-  if (health) return resolveServerTarget({ health })
-  return resolveServerTarget({
-    dockerState: options.dockerState ?? dockerServerState(),
-    localState: options.localState ?? serverLocalState(env),
-  })
-}
-
-async function serverHealthMode(env) {
-  const result = await probe(`${panelURL(env)}/health`)
-  if (!result.ok) return undefined
-  const mode = result.body?.mode
-  return mode === 'container' || mode === 'local' ? mode : undefined
 }
 
 export async function status(env = process.env) {

@@ -27,26 +27,19 @@ export function primaryWorktree(worktrees) {
   return worktrees.length > 0 ? worktrees[0].path : undefined
 }
 
-/**
- * The deployment form captured at status time. `compose` says whether the
- * hub container is running even when its panel is unreachable.
- */
-export function deploymentModes({ orchestrator, lab, server, web, compose = {} } = {}) {
+/** The deployment form captured at status time. */
+export function deploymentModes({ orchestrator, lab, server, web } = {}) {
   const orchestratorMode =
     orchestrator?.mode === 'container' ? 'container' : orchestrator?.expected ? 'local' : 'stopped'
   const serverMode =
-    server?.mode === 'container' || server?.panel?.container === true || compose.server === true
+    server?.mode === 'container' || server?.panel?.container === true
       ? 'container'
       : server?.expected
         ? 'local'
         : 'stopped'
   const labMode = lab?.expected ? 'host' : 'stopped'
   const webMode =
-    web?.mode === 'container' || compose.web === true
-      ? 'container'
-      : web?.expected
-        ? 'local'
-        : 'stopped'
+    web?.mode === 'container' ? 'container' : web?.expected ? 'local' : 'stopped'
   return {
     orchestrator: {
       mode: orchestratorMode,
@@ -68,22 +61,12 @@ function deploymentMode(name, captured, state) {
   return name === 'lab' ? 'host' : 'local'
 }
 
-function serviceMode(name, state, captured) {
-  if (name === 'lab') return 'local'
-  const mode = state?.deployment?.[name]?.mode ?? captured?.mode
-  if (mode === 'container') return 'docker'
-  if (mode === 'local' || mode === 'host') return 'local'
-  if (name === 'server' && captured?.panel?.container === true) return 'docker'
-  if (captured?.expected) return 'local'
-  return 'stopped'
-}
-
 /** Map the pre-`server` service name so old commands and snapshots keep working. */
 function serviceName(name) {
   return name === 'control' ? 'server' : name
 }
 
-export function restartPlan(state, { skip = [], manageExternal = false, only, mode = 'all' } = {}) {
+export function restartPlan(state, { skip = [], manageExternal = false, only } = {}) {
   const skipped = new Set(skip.map(serviceName))
   const wanted = only ? new Set(only.map(serviceName)) : undefined
   const services = []
@@ -92,8 +75,16 @@ export function restartPlan(state, { skip = [], manageExternal = false, only, mo
   for (const name of SERVICE_ORDER) {
     const captured = state?.[name]
     const capturedMode = deploymentMode(name, captured, state)
-    if (mode !== 'all' && serviceMode(name, state, captured) !== mode) {
-      services.push({ name, action: 'skip', reason: `not a ${mode} service`, mode: capturedMode })
+    if (capturedMode === 'container') {
+      services.push({
+        name,
+        action: 'skip',
+        reason: 'managed outside this installation',
+        mode: capturedMode,
+      })
+      warnings.push(
+        `${name} was captured as a container; restart it where it is managed and run \`clara rebuild status\` again`
+      )
       continue
     }
     if (skipped.has(name)) {
@@ -107,18 +98,6 @@ export function restartPlan(state, { skip = [], manageExternal = false, only, mo
         reason: 'not running when captured',
         mode: capturedMode,
       })
-      continue
-    }
-    if (name === 'web' && capturedMode !== 'container' && mode !== 'local') {
-      services.push({
-        name,
-        action: 'skip',
-        reason: 'served outside this checkout',
-        mode: capturedMode,
-      })
-      warnings.push(
-        `web at ${captured.url ?? 'the configured port'} is not a container; restart it where it is served`
-      )
       continue
     }
     if (wanted && !wanted.has(name)) {
@@ -186,7 +165,7 @@ function samePath(left, right) {
   return String(left).replace(/\/$/, '') === String(right).replace(/\/$/, '')
 }
 
-export function evaluateHealth(state, observed, { adapter, now = new Date(), mode = 'all' } = {}) {
+export function evaluateHealth(state, observed, { adapter, now = new Date() } = {}) {
   const services = []
   const warnings = []
 
@@ -276,9 +255,6 @@ export function evaluateHealth(state, observed, { adapter, now = new Date(), mod
   ) {
     web.warnings.push(`mode changed from ${capturedWebMode} to ${observedWebMode}`)
   }
-  if (state?.web?.expected && capturedWebMode === 'local') {
-    web.warnings.push('web is served outside this checkout')
-  }
   services.push(web)
 
   const opencodeAdapter = {
@@ -307,12 +283,7 @@ export function evaluateHealth(state, observed, { adapter, now = new Date(), mod
     warnings.push(...service.warnings)
   }
 
-  const selected =
-    mode === 'all'
-      ? services
-      : services.filter(
-          (service) => serviceMode(service.name, state, state?.[service.name]) === mode
-        )
+  const selected = services
 
   const ok =
     selected.every((service) => !service.expected || service.healthy) &&

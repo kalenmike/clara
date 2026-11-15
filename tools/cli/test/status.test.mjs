@@ -8,17 +8,11 @@ import {
   statusExitCode,
 } from '../src/lib/status.mjs'
 
-const runningContainer = { available: true, state: 'running' }
-const stoppedContainer = { available: true, state: 'exited' }
-const missingContainer = { available: true, state: 'missing' }
-const noDocker = { available: false, state: 'unknown' }
-
 function record(overrides = {}) {
   return {
     service: 'server',
-    container: 'clara-server',
     state: 'running',
-    mode: 'container',
+    mode: 'local',
     healthy: true,
     url: 'http://127.0.0.1:8788',
     error: null,
@@ -30,43 +24,25 @@ function record(overrides = {}) {
   }
 }
 
-test('maps health and container state to one status', () => {
-  assert.deepEqual(resolveState({ health: 'ok', container: runningContainer }), {
-    state: 'running',
-    mode: 'container',
-  })
-  assert.deepEqual(resolveState({ health: 'ok', container: missingContainer, mode: 'local' }), {
+test('maps health and mode to one status', () => {
+  assert.deepEqual(resolveState({ health: 'ok' }), { state: 'running', mode: 'external' })
+  assert.deepEqual(resolveState({ health: 'ok', mode: 'local' }), {
     state: 'running',
     mode: 'local',
   })
-  assert.deepEqual(resolveState({ health: 'ok', container: missingContainer }), {
-    state: 'running',
-    mode: 'external',
-  })
-  assert.deepEqual(resolveState({ health: 'fail', container: runningContainer }), {
-    state: 'unhealthy',
-    mode: 'container',
-  })
-  assert.deepEqual(resolveState({ health: 'fail', container: stoppedContainer }), {
+  assert.deepEqual(resolveState({ health: 'fail' }), { state: 'stopped', mode: 'unknown' })
+  assert.deepEqual(resolveState({ health: 'fail', mode: 'local' }), {
     state: 'stopped',
-    mode: 'container',
+    mode: 'local',
   })
-  assert.deepEqual(resolveState({ health: 'fail', container: missingContainer }), {
-    state: 'stopped',
-    mode: 'unknown',
-  })
-  assert.deepEqual(resolveState({ health: 'fail', container: noDocker }), {
-    state: 'unknown',
-    mode: 'unknown',
-  })
-  assert.deepEqual(resolveState({ health: 'foreign', container: runningContainer }), {
+  assert.deepEqual(resolveState({ health: 'foreign' }), {
     state: 'unavailable',
     mode: 'unknown',
   })
 })
 
 test('renders one stable state label', () => {
-  assert.equal(displayState(record()), 'running (container)')
+  assert.equal(displayState(record()), 'running (local)')
   assert.equal(displayState(record({ state: 'stopped', mode: 'unknown' })), 'stopped')
 })
 
@@ -85,7 +61,6 @@ test('renders the same table for a stack and for one service', () => {
       record(),
       record({
         service: 'web',
-        container: 'clara-web',
         state: 'stopped',
         mode: 'unknown',
         healthy: false,
@@ -97,12 +72,9 @@ test('renders the same table for a stack and for one service', () => {
     { write: (line) => lines.push(line) }
   )
   assert.equal(lines[0], 'Clara stack')
-  assert.match(lines.join('\n'), /SERVICE\s+CONTAINER\s+STATE\s+URL/)
-  assert.match(
-    lines.join('\n'),
-    /server\s+clara-server\s+running \(container\)\s+http:\/\/127\.0\.0\.1:8788/
-  )
-  assert.match(lines.join('\n'), /web\s+clara-web\s+stopped/)
+  assert.match(lines.join('\n'), /SERVICE\s+STATE\s+URL/)
+  assert.match(lines.join('\n'), /server\s+running \(local\)\s+http:\/\/127\.0\.0\.1:8788/)
+  assert.match(lines.join('\n'), /web\s+stopped/)
   assert.match(lines.join('\n'), /Details/)
   assert.match(lines.join('\n'), /Errors/)
   assert.match(lines.join('\n'), /web: unreachable/)
@@ -113,11 +85,8 @@ test('renders the same table for a stack and for one service', () => {
     write: (line) => single.push(line),
   })
   assert.equal(single[0], 'Clara server')
-  assert.match(single.join('\n'), /SERVICE\s+CONTAINER\s+STATE\s+URL/)
-  assert.match(
-    single.join('\n'),
-    /server\s+clara-server\s+running \(container\)\s+http:\/\/127\.0\.0\.1:8788/
-  )
+  assert.match(single.join('\n'), /SERVICE\s+STATE\s+URL/)
+  assert.match(single.join('\n'), /server\s+running \(local\)\s+http:\/\/127\.0\.0\.1:8788/)
   assert.match(single.join('\n'), /panel\s+http:\/\/127\.0\.0\.1:8790 \(running\)/)
   assert.doesNotMatch(single.join('\n'), /local\s+http:\/\//)
   assert.match(single.join('\n'), /admin\s+configured/)

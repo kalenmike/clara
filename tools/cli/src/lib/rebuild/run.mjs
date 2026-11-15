@@ -52,9 +52,6 @@ import {
   restartPlan,
   summarizeHealth,
 } from './plan.mjs'
-import { serverRunningInCompose } from '../server-control.mjs'
-import { webRunningInCompose } from '../web-control.mjs'
-
 const PNPM = process.platform === 'win32' ? 'pnpm.cmd' : 'pnpm'
 const DEFAULT_PROGRESS = (text) => process.stderr.write(text)
 
@@ -221,12 +218,11 @@ function requireState(path) {
 export async function runStatus(options = {}) {
   const repo = resolveRepository({ root: options.root })
   const root = repo.root
-  const webCompose = webRunningInCompose(root)
   const [orchestrator, lab, server, web] = await Promise.all([
     probeOrchestrator({ url: options.orchestratorURL ?? orchestratorURL() }),
     probeLab({ ports: labPorts() }),
     probeServer({ panelPort: panelPort(), localPort: localPort() }),
-    probeWeb({ port: webPort(), container: webCompose }),
+    probeWeb({ port: webPort() }),
   ])
 
   const state = {
@@ -254,16 +250,10 @@ export async function runStatus(options = {}) {
     orchestrator,
     lab,
     server,
-    web: { ...web, expected: web.expected || webCompose },
+    web,
     adapters: adapterSnapshot(root),
   }
-  const deployment = deploymentModes({
-    orchestrator,
-    lab,
-    server,
-    web,
-    compose: { server: serverRunningInCompose(root), web: webCompose },
-  })
+  const deployment = deploymentModes({ orchestrator, lab, server, web })
   state.deployment = deployment
   state.orchestrator = { ...orchestrator, mode: deployment.orchestrator.mode }
   state.server = {
@@ -274,7 +264,6 @@ export async function runStatus(options = {}) {
   state.lab = { ...lab, mode: deployment.lab.mode }
   state.web = {
     ...web,
-    expected: web.expected || webCompose,
     mode: deployment.web.mode,
     container: deployment.web.container,
   }
@@ -464,7 +453,6 @@ export async function runRestart(options = {}) {
     skip: options.skip ?? [],
     manageExternal: options.manageExternal === true,
     ...(options.only ? { only: options.only } : {}),
-    mode: options.mode ?? 'all',
   })
   if (options.dryRun) {
     return {
@@ -598,10 +586,6 @@ export async function runInspect(options = {}) {
         lab: state.lab,
         server: state.server,
         web: state.web,
-        compose: {
-          server: serverRunningInCompose(state.installRoot ?? state.root),
-          web: webRunningInCompose(state.installRoot ?? state.root),
-        },
       }),
     journal: {
       path: selectedJournalPath,
@@ -661,7 +645,6 @@ export async function runRecover(options = {}) {
   const plan = recoveryPlan(state, before, {
     skip: options.skip ?? [],
     manageExternal: options.manageExternal === true,
-    mode: options.mode ?? 'all',
   })
   if (!plan.only.length) {
     return {
@@ -723,61 +706,29 @@ async function restartService(name, state, options) {
 async function restartWeb(state, options) {
   const web = state.web
   const root = state.installRoot ?? state.root
-  const mode = state.deployment?.web?.mode ?? web.mode ?? 'container'
-  if (mode === 'local') {
-    logCommand('stopping the local web client')
-    const stop = await runCli(['web', 'stop', '--local'], {
-      cwd: root,
-      progress: options.progress ?? DEFAULT_PROGRESS,
-      log: (text) => appendLog(process.env, text),
-    })
-    if (!stop.ok) {
-      throw new Error(`local web stop failed (exit ${stop.code ?? 'unknown'})`)
-    }
-    logCommand('starting the local web client')
-    const start = await runCli(['web', 'start', '--local'], {
-      cwd: root,
-      progress: options.progress ?? DEFAULT_PROGRESS,
-      log: (text) => appendLog(process.env, text),
-    })
-    if (!start.ok) {
-      throw new Error(`local web start failed (exit ${start.code ?? 'unknown'})`)
-    }
-    const port = web.port ?? webPort()
-    const result = await waitForProbe(
-      () => probeWeb({ port, container: false }),
-      (probe) => probe.expected && probe.healthy,
-      { timeoutMs: 300_000 }
-    )
-    if (!result.ok) {
-      throw new Error(`web did not become healthy at ${web.url ?? `http://127.0.0.1:${port}`}`)
-    }
-    return
-  }
-
-  logCommand('stopping web through docker compose')
-  const stop = await runCli(['web', 'stop', '--docker'], {
+  logCommand('stopping the local web client')
+  const stop = await runCli(['web', 'stop'], {
     cwd: root,
     progress: options.progress ?? DEFAULT_PROGRESS,
     log: (text) => appendLog(process.env, text),
   })
   if (!stop.ok) {
-    throw new Error(`web container stop failed (exit ${stop.code ?? 'unknown'})`)
+    throw new Error(`local web stop failed (exit ${stop.code ?? 'unknown'})`)
   }
-  logCommand('starting web through docker compose')
-  const start = await runCli(['web', 'start', '--docker', '--build'], {
+  logCommand('starting the local web client')
+  const start = await runCli(['web', 'start'], {
     cwd: root,
     progress: options.progress ?? DEFAULT_PROGRESS,
     log: (text) => appendLog(process.env, text),
   })
   if (!start.ok) {
-    throw new Error(`web container start failed (exit ${start.code ?? 'unknown'})`)
+    throw new Error(`local web start failed (exit ${start.code ?? 'unknown'})`)
   }
   const port = web.port ?? webPort()
   const result = await waitForProbe(
-    () => probeWeb({ port, container: true }),
+    () => probeWeb({ port }),
     (probe) => probe.expected && probe.healthy,
-    { timeoutMs: 300000 }
+    { timeoutMs: 300_000 }
   )
   if (!result.ok) {
     throw new Error(`web did not become healthy at ${web.url ?? `http://127.0.0.1:${port}`}`)
@@ -850,15 +801,6 @@ async function restartLab(state, options) {
 
 async function restartServer(state, options) {
   const server = state.server
-  const buildRoot = state.installRoot ?? state.root
-  let mode = state.deployment?.server?.mode ?? server.mode
-  if (!mode || mode === 'stopped') {
-    mode = serverRunningInCompose(buildRoot) ? 'container' : 'local'
-  }
-  if (mode === 'container') {
-    await restartServerContainer(buildRoot, server, options)
-    return
-  }
   if (server.systemd === true) {
     logCommand('restarting server through systemctl --user restart clara')
     const result = await runStreaming('systemctl', ['--user', 'restart', 'clara'], {
@@ -876,15 +818,6 @@ async function restartServer(state, options) {
     panelPort: server.panelPort,
     localPort: server.localPort,
   })
-  if (current.mode === 'container') {
-    if (!options.force) {
-      throw new Error(
-        'the snapshot captured a local hub but it is running in a container; stop the container or re-capture with `clara rebuild status`'
-      )
-    }
-    await restartServerContainer(buildRoot, server, options)
-    return
-  }
   const pid = current.expected
     ? (current.pid ?? findListenerPid(current.panelPort) ?? findListenerPid(current.localPort))
     : server.pid
@@ -902,28 +835,6 @@ async function restartServer(state, options) {
   }
 
   return startServer(state, server, { ...process.env })
-}
-
-async function restartServerContainer(buildRoot, server, options) {
-  logCommand('stopping server through docker compose')
-  const stop = await runCli(['server', 'stop', '--docker'], {
-    cwd: buildRoot,
-    progress: options.progress ?? DEFAULT_PROGRESS,
-    log: (text) => appendLog(process.env, text),
-  })
-  if (!stop.ok) {
-    throw new Error(`server container stop failed (exit ${stop.code ?? 'unknown'})`)
-  }
-  logCommand('starting server through docker compose')
-  const start = await runCli(['server', 'start', '--docker', '--build'], {
-    cwd: buildRoot,
-    progress: options.progress ?? DEFAULT_PROGRESS,
-    log: (text) => appendLog(process.env, text),
-  })
-  if (!start.ok) {
-    throw new Error(`server container start failed (exit ${start.code ?? 'unknown'})`)
-  }
-  await waitForServer(server)
 }
 
 async function startServer(state, server, env) {
@@ -966,46 +877,32 @@ async function restartOrchestrator(state, options) {
   if (orchestrator.workspace) env.CLARA_ENGINE_WORKSPACE = orchestrator.workspace
   if (orchestrator.configPath) env.CLARA_ENGINE_CONFIG = orchestrator.configPath
 
-  if (orchestrator.mode === 'local') {
-    const url = new URL(orchestrator.url)
-    env.CLARA_ENGINE_HOST = url.hostname
-    env.CLARA_ENGINE_PORT = url.port || '8789'
-    await runCli(['engine', 'stop'], { cwd: root, env, progress: options.progress })
-    const start = await runCli(['engine', 'start'], {
-      cwd: root,
-      env,
-      progress: options.progress,
-      log: (text) => appendLog(process.env, text),
-    })
-    if (!start.ok) throw new Error(`engine start failed (exit ${start.code ?? 'unknown'})`)
-  } else {
-    env.CLARA_WORKSPACE = orchestrator.workspace ?? root
-    const token = readToken(process.env)
-    if (token) env.CLARA_ENGINE_TOKEN = token
-    await runCli(['engine', 'stop', '--docker'], {
-      cwd: root,
-      env,
-      progress: options.progress,
-    })
-    const start = await runCli(['engine', 'start', '--docker', '--build'], {
-      cwd: root,
-      env,
-      progress: options.progress,
-      log: (text) => appendLog(process.env, text),
-    })
-    if (!start.ok)
-      throw new Error(`engine container start failed (exit ${start.code ?? 'unknown'})`)
+  if (orchestrator.mode !== 'local') {
+    throw new Error(
+      `engine at ${orchestrator.url} is managed outside this installation; restart it where it was started`
+    )
   }
+
+  const url = new URL(orchestrator.url)
+  env.CLARA_ENGINE_HOST = url.hostname
+  env.CLARA_ENGINE_PORT = url.port || '8789'
+  await runCli(['engine', 'stop'], { cwd: root, env, progress: options.progress })
+  const start = await runCli(['engine', 'start'], {
+    cwd: root,
+    env,
+    progress: options.progress,
+    log: (text) => appendLog(process.env, text),
+  })
+  if (!start.ok) throw new Error(`engine start failed (exit ${start.code ?? 'unknown'})`)
 
   const result = await waitForProbe(
     () => probeOrchestrator({ url: orchestrator.url, token: readToken(process.env) }),
     (probe) => probe.expected && probe.healthy,
-    { timeoutMs: orchestrator.mode === 'container' ? 300000 : 60000 }
+    { timeoutMs: 60000 }
   )
   if (!result.ok) throw new Error(`engine did not become healthy at ${orchestrator.url}`)
 
   if (
-    orchestrator.mode === 'local' &&
     orchestrator.pid &&
     result.value.pid &&
     result.value.pid === orchestrator.pid
@@ -1049,7 +946,6 @@ export function formatRestart(result) {
 
 export async function runHealth(options = {}) {
   const state = requireState(options.statePath)
-  const webContainer = webRunningInCompose(state.installRoot ?? state.root)
   const [orchestrator, lab, server, web] = await Promise.all([
     state.orchestrator?.expected
       ? probeOrchestrator({ url: state.orchestrator?.url || orchestratorURL() })
@@ -1064,15 +960,11 @@ export async function runHealth(options = {}) {
         })
       : { expected: false, healthy: false, state: 'stopped' },
     state.web?.expected
-      ? probeWeb({ port: state.web?.port ?? webPort(), container: webContainer })
+      ? probeWeb({ port: state.web?.port ?? webPort() })
       : { expected: false, healthy: false, state: 'stopped' },
   ])
   const adapter = adapterSnapshot(state.installRoot ?? state.root)
-  const report = evaluateHealth(
-    state,
-    { orchestrator, lab, server, web },
-    { adapter, mode: options.mode ?? 'all' }
-  )
+  const report = evaluateHealth(state, { orchestrator, lab, server, web }, { adapter })
   report.snapshot = options.statePath ?? statePath()
   return report
 }
