@@ -121,6 +121,10 @@ cookie jar.
   notifications card offers to subscribe again.
 - **Browser tab**: everything works except standalone display and Web Push on
   iOS.
+- **Installed-app top edge**: an installed phone app draws behind the status
+  bar. The app header, drawers, and the expanded composer keep a 44px minimum
+  top inset so their controls stay below the iOS status bar and Control Center;
+  a browser tab and desktop use only the platform inset.
 
 ## Out of scope
 

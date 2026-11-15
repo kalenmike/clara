@@ -55,7 +55,8 @@ Clara is a PWA. On iPhone or iPad, open the page in Safari and choose **Add to
 Home Screen**. On a desktop browser, use the install control in the address bar
 or the browser menu.
 
-The installed app opens without browser chrome. Updates arrive through an
+The installed app opens without browser chrome and keeps its top bar clear of
+the iPhone status bar, so its controls stay tappable. Updates arrive through an
 in-app banner; you choose **Update** or **Later**.
 
 On a computer, [Clara Desktop](desktop.md) is the single GUI install for both
