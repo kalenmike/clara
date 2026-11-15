@@ -33,10 +33,11 @@ model and agent selection, waiting question forms, and the plan-ready handoff.
    composer. A minimized tab selection restores the composer before focusing the
    editor.
 7. With **Auto-hide the composer** on in Settings, the dock rests as its title
-   bar. Pointing at the title bar reveals the last expanded shape, and leaving
-   the composer hides it again. The collapse chevron becomes a pin toggle:
-   pinning keeps the composer open until the pin is turned off, and turning
-   auto-hide off clears the pin.
+   bar. Pointing at the composer reveals the last expanded shape, and leaving it
+   hides the composer again, even while the editor has focus or a send is
+   finishing. The collapse chevron becomes a pin toggle: pinning keeps the
+   composer open until the pin is turned off, and turning auto-hide off clears
+   the pin.
 8. When a question form is waiting, select its card above the editor. Send
    answers it, optionally with a message; a secondary Skip button sits beside
    Send. When a finished plan is waiting, the send menu offers Start work
@@ -72,8 +73,9 @@ model and agent selection, waiting question forms, and the plan-ready handoff.
    first assistant reply, and Send as queued appears while a run is active.
 
 5. Unsent text is stored per session in local storage. Attachments stay with the
-   open tab in memory. A successful send clears the editor and keeps the
-   composer open; a failed send keeps the text, attachments, and delivery.
+   open tab in memory. A successful send clears the editor; the dock stays open
+   when auto-hide is off, and in auto-hide mode it rests as soon as the pointer
+   leaves. A failed send keeps the text, attachments, and delivery.
 6. Waiting question forms belong to the composer. The first pending form is
    selected by default. The cards scroll with the editor rather than in their
    own scroller, so a tall form never hides the message box. A touched form
@@ -83,12 +85,13 @@ model and agent selection, waiting question forms, and the plan-ready handoff.
    Send with typed text instead delivers that text to the Plan agent as an
    adjustment.
 7. **Auto-hide the composer** is a device-local preference. With it on, the dock
-   follows the pointer: entering the title bar reveals the last expanded shape,
-   and leaving the composer hides it again. Keyboard focus and an open composer
-   menu keep it visible. The chevron is replaced by a pin toggle; a pinned
-   composer stays open across reloads until the pin is turned off, while
-   turning auto-hide off clears the pin. A maximized composer never auto-hides,
-   and touch-first devices ignore the preference.
+   follows the pointer: entering the composer reveals the last expanded shape,
+   and leaving it hides the composer again. Only the pointer holds it open;
+   keyboard focus, a send, and an open model, variant, agent, or send menu never
+   do. The chevron is replaced by a pin toggle; a pinned composer stays open
+   across reloads until the pin is turned off, while turning auto-hide off
+   clears the pin. A maximized composer never auto-hides, and touch-first
+   devices ignore the preference.
 
 ## Edge cases
 
@@ -107,9 +110,11 @@ model and agent selection, waiting question forms, and the plan-ready handoff.
   not restored after a reload because attachments are not persisted.
 - **Switching tabs with form answers** — answers belong to the mounted composer
   and reset when another tab is selected.
-- **Auto-hide while typing or choosing** — focus inside the composer or an open
-  model, variant, agent, or send menu keeps it revealed even after the pointer
-  leaves. It collapses after focus leaves and no menu is open.
+- **Auto-hide while typing or choosing** — the expanded state follows the
+  pointer. Moving the pointer away rests the dock even when the editor has
+  focus or a model, variant, agent, or send menu is open; the draft and form
+  answers are kept, and pointing at the composer again restores the last
+  expanded shape.
 - **Auto-hide with a fullscreen composer** — the maximized shape stays visible;
   docking it again returns it to pointer-driven auto-hide.
 - **Auto-hide on a touch device** — the Preferences switch is hidden and a stored
