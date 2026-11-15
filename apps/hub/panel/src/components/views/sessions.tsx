@@ -141,7 +141,6 @@ function HarnessSummary({ harnesses }: { harnesses: PanelSessionHarness[] }) {
               <div className="min-w-0">
                 <div className="flex flex-wrap items-center gap-2">
                   <span className="truncate text-[12px] font-semibold">{harness.label}</span>
-                  {harness.active ? <Badge tone="info">active</Badge> : null}
                 </div>
                 <div className="panel-mono text-[10px] text-neutral-500 dark:text-neutral-400">
                   {harness.kind}

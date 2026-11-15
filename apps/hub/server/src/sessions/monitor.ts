@@ -332,7 +332,6 @@ function baseStatus(connection: HarnessConnection): PanelSessionHarness {
     label: connection.label,
     kind: connection.kind,
     online: connection.online,
-    active: connection.isActive,
     ok: true,
     sessionCount: 0,
     runningCount: 0,

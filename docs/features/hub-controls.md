@@ -124,7 +124,7 @@ for client settings sync.
 - Session: `GET|POST|DELETE /panel/api/v1/session`; setup: `POST /panel/api/v1/setup`
 - Harness: `POST /panel/api/v1/harnesses/pairings` and
   `DELETE /panel/api/v1/harnesses/pairings/:id` for adapter pairing;
-  `POST /panel/api/v1/harnesses/:id/test|activate|forget` and
+  `POST /panel/api/v1/harnesses/:id/test|forget` and
   `DELETE /panel/api/v1/harnesses/:id` for a paired adapter
 - Mutations: `POST /panel/api/v1/features`, `POST /panel/api/v1/agent` (the
   historical master-stop route), `POST /panel/api/v1/monitoring`,

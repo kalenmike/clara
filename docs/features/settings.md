@@ -12,8 +12,8 @@ detail rows that most people leave alone.
 1. Open **Settings** from the sidebar or the home screen.
 2. The page opens on **Appearance**, where the light/dark/system mode and color
    theme live.
-3. Use the tabs to reach **Preferences** for session wording, the default
-   agent, and cost display, **Models** for provider and model visibility,
+3. Use the tabs to reach **Preferences** for session wording, the per-harness
+   default agent, and cost display, **Models** for provider and model visibility,
    **Notifications** for alerts and sounds, **Sync** for per-category settings
    sync, **Shortcuts** for the keyboard reference, and **Advanced** for the
    server connection and app build. On narrow screens the tab strip becomes a
@@ -46,9 +46,9 @@ detail rows that most people leave alone.
    section. Each device stores its own choices; enabling a category or single
    setting can pull or push values, but the tab itself is never synchronized.
    See [sync](sync.md).
-6. The Models tab hides providers and models from the composer. The whole
-   visibility group is stored locally and syncs with the Models category; see
-   [models](models.md).
+6. The Models tab hides providers and models from the composer per harness. It
+   lists every paired harness or filters to one; the whole per-harness group is
+   stored locally and syncs with the Models category; see [models](models.md).
 7. Every remaining control behaves the same as before. Simplification is a view
    filter, not a second settings model.
 8. The **Cost display** choice is stored locally under `clara.costDisplay`,

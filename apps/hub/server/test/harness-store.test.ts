@@ -53,14 +53,13 @@ async function enroll(input: {
 }
 
 describe('harness store', () => {
-  it('creates the first adapter connection as active and stores its credential', async () => {
+  it('creates an adapter connection and stores its credential', async () => {
     const key = generateKey()
     const result = await enroll({ key })
-    expect(result.connection.isActive).toBe(true)
     expect(result.connection.credentialConfigured).toBe(true)
     expect(result.connection.fingerprint).toBe(await fingerprintKey(key))
-    expect(store.active()?.id).toBe(result.connection.id)
-    expect(store.active()?.fingerprint).toBe(await fingerprintKey(key))
+    expect(store.list()[0]?.id).toBe(result.connection.id)
+    expect(store.list()[0]?.fingerprint).toBe(await fingerprintKey(key))
     expect((await store.credential('adapter-a'))?.key).toBe(key)
 
     const raw = db
@@ -126,21 +125,10 @@ describe('harness store', () => {
   it('clears persisted online state when the hub starts', async () => {
     const result = await enroll({})
     store.setOnline(result.connection.harnessId, true)
-    expect(store.active()?.online).toBe(true)
+    expect(store.list()[0]?.online).toBe(true)
 
     store.resetOnline()
-    expect(store.active()?.online).toBe(false)
-  })
-
-  it('activates a new adapter over a credential-less active connection', async () => {
-    const previous = await enroll({ harnessId: 'previous' })
-    db.prepare('UPDATE harness_connections SET credential_id = NULL WHERE id = ?').run(
-      previous.connection.id
-    )
-
-    const next = await enroll({ harnessId: 'adapter-new', adapterId: 'adapter-b' })
-    expect(next.connection.isActive).toBe(true)
-    expect(store.active()?.harnessId).toBe('adapter-new')
+    expect(store.list()[0]?.online).toBe(false)
   })
 
   it('reuses the same connection when the stable identity pairs again', async () => {
@@ -154,7 +142,7 @@ describe('harness store', () => {
   it('keeps identity and metadata when a connection is removed', async () => {
     const first = await enroll({ harnessId: 'same' })
     store.remove(first.connection.id)
-    expect(store.active()).toBeUndefined()
+    expect(store.list()).toHaveLength(0)
 
     const second = await enroll({ harnessId: 'same', adapterId: 'new-adapter' })
     expect(second.connection.id).not.toBe(first.connection.id)

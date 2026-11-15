@@ -84,7 +84,7 @@ harness and want to see both work in progress and sessions waiting for them.
 
 - Starting, steering, interrupting, or deleting sessions from this page.
 - Switching the active project from this page; use the sidebar.
-- Choosing a default harness from this page; that remains a panel setting.
+- Choosing a default harness from this page; there is no hub-wide default.
 - Showing drafts, snoozed sessions, or archived sessions.
 - Estimated spend across harnesses.
 - Historical spend, usage charts, file activity, or a waterfall timeline.

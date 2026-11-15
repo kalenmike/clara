@@ -28,10 +28,10 @@ own. These are the ones you will see most often.
 
 A **project** is yours; a **workspace** is a directory on one harness. Add a
 workspace for each folder a project should reach, and Clara keeps the work
-together even when the folders live on different machines. The **active
-harness** is only a default: it answers screens that do not name a session or
-workspace, while anything opened from a workspace goes to that workspace's own
-harness. You choose the active harness in the hub panel.
+together even when the folders live on different machines. There is no global
+default harness: every session runs on the harness that owns its workspace.
+Settings shows every paired harness so you can configure their models and agents
+independently.
 
 ## The mailbox
 

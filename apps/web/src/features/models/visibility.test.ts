@@ -1,8 +1,10 @@
 import { beforeAll, describe, expect, it } from 'vitest'
 import {
   HIDDEN_MODELS_KEY,
+  emptyHiddenModels,
   filterModelsByPrice,
   formatPricePerMillion,
+  hiddenModelsFor,
   isFreeModel,
   isModelHidden,
   isModelVisible,
@@ -15,6 +17,7 @@ import {
   saveHiddenModels,
   withModelHidden,
   withProviderHidden,
+  type HiddenModelsState,
 } from './visibility'
 
 const storage = new Map<string, string>()
@@ -50,35 +53,73 @@ beforeAll(() => {
 })
 
 describe('hidden model storage', () => {
-  it('falls back to an empty group for missing or invalid values', () => {
-    expect(parseHiddenModels(null)).toEqual({ providers: [], models: [] })
-    expect(parseHiddenModels('{')).toEqual({ providers: [], models: [] })
-    expect(parseHiddenModels('[1,2]')).toEqual({ providers: [], models: [] })
+  it('falls back to no harness groups for missing or v1 values', () => {
+    expect(parseHiddenModels(null)).toEqual({ version: 2, harnesses: {} })
+    expect(parseHiddenModels('{')).toEqual({ version: 2, harnesses: {} })
+    expect(parseHiddenModels('[1,2]')).toEqual({ version: 2, harnesses: {} })
+    expect(parseHiddenModels('{"providers":["opencode"],"models":[]}')).toEqual({
+      version: 2,
+      harnesses: {},
+    })
   })
 
-  it('normalizes and deduplicates both lists', () => {
+  it('normalizes and deduplicates groups per harness', () => {
     expect(
       normalizeHiddenModels({
-        providers: [' opencode ', 'opencode', 3],
-        models: ['opencode/model', '', 'opencode/model'],
+        version: 2,
+        harnesses: {
+          ' harness-a ': {
+            providers: [' opencode ', 'opencode', 3],
+            models: ['opencode/model', '', 'opencode/model'],
+          },
+        },
       })
-    ).toEqual({ providers: ['opencode'], models: ['opencode/model'] })
+    ).toEqual({
+      version: 2,
+      harnesses: {
+        'harness-a': { providers: ['opencode'], models: ['opencode/model'] },
+      },
+    })
   })
 
-  it('round trips the whole group through local storage', () => {
+  it('round trips per-harness groups through local storage', () => {
     storage.clear()
-    saveHiddenModels({ providers: ['opencode'], models: ['openai/gpt-5'] })
+    saveHiddenModels({
+      version: 2,
+      harnesses: {
+        'harness-a': { providers: ['opencode'], models: ['openai/gpt-5'] },
+      },
+    })
 
     expect(readHiddenModels()).toEqual({
-      providers: ['opencode'],
-      models: ['openai/gpt-5'],
+      version: 2,
+      harnesses: {
+        'harness-a': { providers: ['opencode'], models: ['openai/gpt-5'] },
+      },
     })
     expect(storage.get(HIDDEN_MODELS_KEY)).toBe(
-      JSON.stringify({ providers: ['opencode'], models: ['openai/gpt-5'] })
+      JSON.stringify({
+        version: 2,
+        harnesses: {
+          'harness-a': { providers: ['opencode'], models: ['openai/gpt-5'] },
+        },
+      })
     )
 
-    saveHiddenModels({ providers: [], models: [] })
+    saveHiddenModels({ version: 2, harnesses: {} })
     expect(storage.has(HIDDEN_MODELS_KEY)).toBe(false)
+  })
+
+  it('keeps visibility separate per harness', () => {
+    const state: HiddenModelsState = {
+      version: 2,
+      harnesses: { 'harness-a': { providers: ['opencode'], models: [] } },
+    }
+    expect(hiddenModelsFor(state, 'harness-a')).toEqual({
+      providers: ['opencode'],
+      models: [],
+    })
+    expect(hiddenModelsFor(state, 'harness-b')).toEqual(emptyHiddenModels())
   })
 })
 
@@ -107,12 +148,13 @@ describe('hidden model rules', () => {
   })
 
   it('keeps model choices when a provider is toggled off and on', () => {
-    const hidden = withModelHidden({ providers: [], models: [] }, 'openai', 'gpt-5', true)
-    const providerOff = withProviderHidden(hidden, 'openai', true)
-    const providerOn = withProviderHidden(providerOff, 'openai', false)
+    const empty: HiddenModelsState = { version: 2, harnesses: {} }
+    const hidden = withModelHidden(empty, 'harness-a', 'openai', 'gpt-5', true)
+    const providerOff = withProviderHidden(hidden, 'harness-a', 'openai', true)
+    const providerOn = withProviderHidden(providerOff, 'harness-a', 'openai', false)
 
-    expect(providerOn.providers).toEqual([])
-    expect(providerOn.models).toEqual(['openai/gpt-5'])
+    expect(hiddenModelsFor(providerOn, 'harness-a').providers).toEqual([])
+    expect(hiddenModelsFor(providerOn, 'harness-a').models).toEqual(['openai/gpt-5'])
   })
 
   it('treats server-disabled models as not visible', () => {

@@ -5,11 +5,11 @@
 An authenticated control panel served by the hub service. It uses the
 Clara Lab workbench layout: a title bar, an activity rail with tabbed views, and
 a status bar. It shows the hub's live state, transports, browser clients,
-harness adapters, the active harness probe, agent sessions across every paired
+harness adapters, aggregate harness health, agent sessions across every paired
 harness, push health, configuration sources, database health, storage files,
-and a live traffic meter without exposing secrets. The active harness is the panel's default backend: any number of
-harnesses can be paired and serve their own workspaces, while a request that
-names neither a session nor a workspace falls back to the active one. Sensitive values, including the
+and a live traffic meter without exposing secrets. Every paired harness is a
+peer: there is no active or default backend, and a request that names neither a
+session nor a workspace must name its harness. Sensitive values, including the
 harness URL and relay room, start masked behind a header peek control so the
 panel can be screenshared safely. It is also the setup
 surface for the owner account, browser pairing, and harness adapters: on first
@@ -75,9 +75,8 @@ card.
    **Waiting for the adapter to connect…**, switches to **Connected**, and the
    footer becomes **Done** when the adapter registers. A new adapter appears
    under **Paired harnesses** as **Paired · Offline**; when its credential
-   session connects it also appears under **Connected adapters**, becomes
-   **Online**, and the first adapter becomes **Active**, the default for screens
-   that do not name a session or workspace. Use **Test** to probe an adapter. In
+   session connects it also appears under **Connected adapters** and becomes
+   **Online**. Use **Test** to probe an adapter. In
    a container, the adapter connects to `ws://server:8788/ws` on the `clara`
    network; `127.0.0.1` means the hub host.
 4. The panel opens on **Overview** with a six-tile health strip — Hub, Local,
@@ -121,13 +120,11 @@ card.
    workspace volumes. Adapters that predate the endpoint show an empty state.
    **Paired harnesses** sits at the bottom with the label, kind, fingerprint,
    transport, version, status, last seen, and last test for every enrolled
-   adapter. Each paired row carries **Activate**, **Test**, **Delete**, and
-   **Forget**. A paired adapter shows **Active** when selected and one status
-   badge: **Online** for a live session, **Paired · Offline** when the
-   credential exists but no session is connected, **Not paired** before
-   enrollment, or **Off** while harness access is disabled. **Active** only
-   chooses the default backend; projects, sessions, and workspaces on other
-   paired harnesses keep working through their own scope.
+   adapter. Each paired row carries **Test**, **Delete**, and **Forget**, and
+   shows one status badge: **Online** for a live session, **Paired · Offline**
+   when the credential exists but no session is connected, **Not paired**
+   before enrollment, or **Off** while harness access is disabled. The Harness
+   tile reports how many paired harnesses are online; it does not pick one.
 8. Open **Sessions** to monitor agent work across every paired harness. Each
    harness has a status card with its session and running counts; offline,
    disabled, and partial harnesses stay visible without hiding the others. The
@@ -325,8 +322,9 @@ card.
 
 - **No harness is configured** — **Pair Harness** opens the pairing modal, and
   harness-backed `/v1` requests return `503 harness_unconfigured` until an
-  adapter is paired and activated. The web can still connect and shows a harness
-  banner.
+  adapter is paired. The web can still connect and shows a harness banner.
+- **Several harnesses are paired** — context-free catalog and info requests
+  return `409 harness_required`; the web names a harness for every request.
 - **The setup modal is skipped** — dismissal is stored on the browser. The
   modal stops auto-opening while setup is incomplete; **Settings → Setup →
   Finish setup** reopens it. Completion is still derived, so the badge and
@@ -493,10 +491,9 @@ card.
   the Web URL, relay URL, and generated room
 - Cloudflare Worker deletion, or attaching a hostname in a zone the token
   cannot manage
-- A second active harness or per-client selection in the panel header; the panel
-  stores one active backend as the default for requests that name no session or
-  workspace, while paired harnesses keep serving the workspaces and sessions
-  scoped to them
+- A hub-wide active or default harness, or per-client selection in the panel
+  header; paired harnesses keep serving the workspaces and sessions scoped to
+  them
 - Per-device relay targets; every device follows the hub's configured relay
 - A sandbox for command execution, or an allowlist of every proxied API route
 - Per-command arguments, wildcards, or regular expressions in the allowlist
@@ -531,8 +528,8 @@ card.
   event count. The view can be up to five seconds stale while it polls.
 - A session that spans a monitoring toggle shows only the traffic recorded while
   monitoring was on.
-- The active harness probe is cached for five seconds, so the header can briefly
-  lag a restart.
+- Harness online counts come from live adapter sessions and can briefly lag a
+  restart.
 - The peek control hides values in the rendered panel only. The JSON snapshot
   still contains them, so browser devtools and the network panel can show them.
 
@@ -569,7 +566,7 @@ card.
   - `POST /panel/api/v1/sync` with `{ "enabled": true, "intervalMs": 30000 }`
   - `POST /panel/api/v1/harnesses/pairings` creates an adapter pairing code
   - `DELETE /panel/api/v1/harnesses/pairings/:id` cancels one
-  - `POST /panel/api/v1/harnesses/:id/test|activate|forget`
+  - `POST /panel/api/v1/harnesses/:id/test|forget`
   - `DELETE /panel/api/v1/harnesses/:id`
   - `GET /panel/api/v1/install` returns the registry manifests, SSH hosts,
     Docker containers, and whether installs are available

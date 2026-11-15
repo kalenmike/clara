@@ -34,9 +34,8 @@ harness as the default.
 | Worktrees   | `GET /v1/worktrees`, `POST /v1/worktrees/refresh`                                                                                                                                                                                                                                  |
 | Clara       | `GET /v1/git/log`, `GET /v1/events`                                                                                                                                                                                                                                                |
 
-`GET /v1/events` streams one harness: pass `?harnessID=` to name it, or omit it
-for the active harness. A client that needs every harness opens one stream per
-online harness. The wire payloads are typed as the Clara `ClaraEvent` union from
+`GET /v1/events` streams one harness and requires `?harnessID=`. A client that
+needs every harness opens one stream per online harness. The wire payloads are typed as the Clara `ClaraEvent` union from
 `@clara/api-contract`; adapters translate their harness events into that union.
 Web Push is supervised apart from the browser: while the hub runs, it keeps one
 event stream per online harness, so a closed client is still notified for
@@ -50,20 +49,24 @@ Every request is answered by one harness. The hub resolves it in this order:
    that names a harness that is no longer paired fails with `harness_missing`.
 2. The session record, for session-scoped routes. Clara records which harness
    owns each session it has listed, so `messages`, `prompt`, `command`, `fork`,
-   `view`, `context`, permissions, and forms need no hint.
+   `view`, `context`, permissions, and forms need no hint. If the record is
+   missing, the client must send `harnessID` or the request fails with
+   `harness_required`.
 3. The workspace that holds the directory, for directory-scoped routes such as
    files, VCS, skills, references, locations, git history, and permissions. If
-   two harnesses link the same path and neither is the active one, the request
-   fails with `harness_ambiguous` and lists the candidate `harnessIDs` instead
-   of guessing across machines.
-4. The active harness, the default backend chosen in the panel, for a request
-   that names neither a session nor a directory.
+   no workspace matches, or two harnesses link the same path, the request fails
+   with `harness_required` or `harness_ambiguous` and lists the candidate
+   `harnessIDs` instead of guessing across machines.
+
+There is no fallback harness. Catalog, harness info, events, worktrees without a
+project, and available-project requests must name their harness; the hub never
+chooses the first paired or most recently used adapter.
 
 `harnessID` is a hub routing hint and is never forwarded to the adapter. A
 project list ignores it because that list always fans out; see below.
-`POST /v1/sessions` accepts an optional `harnessID` and resolves the directory
-the same way, so creating a session in a workspace on a non-default harness
-needs no extra round trip.
+`POST /v1/sessions` accepts an optional `harnessID` and otherwise resolves the
+parent session or a unique directory workspace. If none of those name a
+harness, it fails with `harness_required`.
 
 ### Projects and workspaces
 

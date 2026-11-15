@@ -1,10 +1,6 @@
 import { useState } from 'react'
-import { Cable, Check, FlaskConical, Trash2 } from 'lucide-react'
-import type {
-  PanelHarness,
-  PanelHarnessMutationResponse,
-  PanelHarnessTestResult,
-} from '@clara/shared-types'
+import { Cable, FlaskConical, Trash2 } from 'lucide-react'
+import type { PanelHarness, PanelHarnessTestResult } from '@clara/shared-types'
 import { formatRelative, formatTimestamp, shortId } from '../lib/format.ts'
 import { harnessState } from '../lib/harness-state.ts'
 import { deletePanel, postPanel } from '../lib/panel-api.ts'
@@ -43,22 +39,6 @@ export function HarnessConnectionsCard({
         {}
       )
       setTest(result)
-      onChanged()
-    } catch (cause) {
-      setError(cause instanceof Error ? cause.message : String(cause))
-    } finally {
-      setPending(undefined)
-    }
-  }
-
-  const activate = async (connection: PanelHarness) => {
-    setPending(`activate:${connection.id}`)
-    setError(undefined)
-    try {
-      await postPanel<PanelHarnessMutationResponse>(
-        `/panel/api/v1/harnesses/${connection.id}/activate`,
-        {}
-      )
       onChanged()
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : String(cause))
@@ -173,12 +153,7 @@ export function HarnessConnectionsCard({
                         </Badge>
                       </td>
                       <td className="px-1 py-2">
-                        <div className="flex flex-wrap items-center gap-1">
-                          {connection.isActive ? (
-                            <Badge tone={enabled ? 'success' : 'neutral'}>Active</Badge>
-                          ) : null}
-                          <Badge tone={status.tone}>{status.label}</Badge>
-                        </div>
+                        <Badge tone={status.tone}>{status.label}</Badge>
                       </td>
                       <td
                         className="px-1 py-2 text-neutral-600 dark:text-neutral-300"
@@ -221,17 +196,6 @@ export function HarnessConnectionsCard({
                       </td>
                       <td className="px-1 py-2 text-right">
                         <div className="inline-flex flex-wrap items-center justify-end gap-1">
-                          {!connection.isActive ? (
-                            <button
-                              type="button"
-                              onClick={() => void activate(connection)}
-                              disabled={pending !== undefined}
-                              className="inline-flex items-center gap-1 rounded-md border border-neutral-200 px-2 py-1 text-[10px] font-medium transition hover:bg-neutral-100 disabled:opacity-50 dark:border-neutral-700 dark:hover:bg-neutral-800"
-                            >
-                              <Check className="size-3" aria-hidden="true" />
-                              {pending === `activate:${connection.id}` ? 'Activating…' : 'Activate'}
-                            </button>
-                          ) : null}
                           <button
                             type="button"
                             onClick={() => void runTest(connection)}
@@ -268,9 +232,10 @@ export function HarnessConnectionsCard({
           </div>
         )}
         <p className="pt-2 text-xs text-neutral-500 dark:text-neutral-400">
-          Only one harness is active at a time. Delete removes the connection but keeps the adapter
-          identity and Clara metadata; Forget purges both. Test probes the adapter's harness
-          endpoint. Fingerprints identify the credential without revealing it.
+          Every paired harness is independent; a workspace chooses the one it belongs to. Delete
+          removes the connection but keeps the adapter identity and Clara metadata; Forget purges
+          both. Test probes that adapter's harness endpoint. Fingerprints identify the credential
+          without revealing it.
         </p>
         <ConfirmDialog
           open={removeTarget != null}

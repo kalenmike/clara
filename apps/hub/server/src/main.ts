@@ -257,7 +257,8 @@ async function runServe(
   const opencodeVersion =
     setupRequired || initial.stopped || !initial.features.opencode || !harness.configured
       ? undefined
-      : await harness.probe(3_000).then((probe) => (probe.ok ? probe.version : undefined))
+      : harness.list().find((connection) => connection.online && connection.harnessVersion)
+          ?.harnessVersion
   const startedAt = Date.now() - Math.round(process.uptime() * 1000)
 
   let apiToken = ''
@@ -354,9 +355,9 @@ async function runServe(
       if (!harness.configured) {
         log('no harness connection is configured; open the panel to set one up')
       } else if (opencodeVersion) {
-        log(`harness ${harness.active?.label ?? 'harness'} answered with ${opencodeVersion}`)
+        log(`a paired harness reported ${opencodeVersion}`)
       } else if (initial.features.opencode && !setupRequired) {
-        log('the configured harness is not answering')
+        log('no paired harness has reported a version yet')
       }
     }
   }

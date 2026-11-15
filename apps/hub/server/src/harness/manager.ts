@@ -6,7 +6,6 @@ import type { HarnessMetadataStore } from './metadata.ts'
 import type { EnrollAdapterInput, EnrollAdapterResult, HarnessStore } from './store.ts'
 import {
   HarnessOfflineError,
-  HarnessUnconfiguredError,
   type HarnessConnection,
   type HarnessPairing,
   type HarnessProbe,
@@ -51,11 +50,6 @@ export class HarnessManager {
     return this.generationValue
   }
 
-  /** The selected default harness, or the first paired one when none is flagged. */
-  get active(): HarnessConnection | undefined {
-    return this.store.active() ?? this.store.list()[0]
-  }
-
   get lastError(): string | undefined {
     return this.error
   }
@@ -69,21 +63,17 @@ export class HarnessManager {
     this.bump()
   }
 
-  async probe(timeoutMs = 2_000): Promise<HarnessProbe> {
-    return this.probeConnection(this.active?.id, timeoutMs)
-  }
-
-  async probeConnection(id: string | undefined, timeoutMs = 2_000): Promise<HarnessProbe> {
-    const active = id ? this.store.get(id) : this.active
-    if (!active) {
+  async probeConnection(id: string, timeoutMs = 2_000): Promise<HarnessProbe> {
+    const connection = this.store.get(id)
+    if (!connection) {
       return {
         ok: false,
         latencyMs: 0,
         code: 'unconfigured',
-        message: 'No harness connection is configured',
+        message: 'That harness connection no longer exists',
       }
     }
-    const fetch = this.live.get(active.harnessId)
+    const fetch = this.live.get(connection.harnessId)
     if (!fetch) {
       return {
         ok: false,
@@ -229,17 +219,7 @@ export class HarnessManager {
     }
   }
 
-  async request(input: HarnessRequestInput, signal: AbortSignal): Promise<Response> {
-    const active = this.active
-    if (!active) throw new HarnessUnconfiguredError()
-    return this.requestFor(active.harnessId, input, signal)
-  }
-
-  /**
-   * Send a request to one paired harness even when another connection is
-   * active. Project workspace sync and archive/delete need to reach every
-   * linked harness, not only the one that serves sessions.
-   */
+  /** Send a request to one paired harness. Every route names its harness. */
   async requestFor(
     harnessId: string,
     input: HarnessRequestInput,
@@ -262,38 +242,20 @@ export class HarnessManager {
     // automatically; there is nothing to reload here.
   }
 
-  async activate(id: string): Promise<HarnessConnection> {
-    const connection = this.store.setActive(id)
-    this.bump()
-    await this.notify()
-    return connection
-  }
-
   async remove(id: string): Promise<void> {
     const connection = this.store.get(id)
-    const wasActive = connection?.isActive === true
     this.store.remove(id)
     if (connection) this.live.delete(connection.harnessId)
-    if (wasActive) this.promoteActive()
     this.bump()
     await this.notify()
   }
 
   async forget(id: string): Promise<void> {
     const connection = this.store.get(id)
-    const wasActive = connection?.isActive === true
     this.store.forget(id)
     if (connection) this.live.delete(connection.harnessId)
-    if (wasActive) this.promoteActive()
     this.bump()
     await this.notify()
-  }
-
-  /** Keep one default when the active harness is deleted or forgotten. */
-  private promoteActive(): void {
-    if (this.store.active()) return
-    const next = this.store.list()[0]
-    if (next) this.store.setActive(next.id)
   }
 
   async createPairing(input: { kind: string; label: string }): Promise<HarnessPairing> {
@@ -346,11 +308,6 @@ export class HarnessManager {
 
   async setLive(harnessId: string, fetch: Fetch, transport: HarnessTransport): Promise<void> {
     void transport
-    const connection = this.store.list().find((item) => item.harnessId === harnessId)
-    const active = this.store.active()
-    if (connection && (active === undefined || !active.credentialConfigured)) {
-      this.store.setActive(connection.id)
-    }
     this.live.set(harnessId, fetch)
     this.store.setOnline(harnessId, true)
     this.bump()
@@ -380,30 +337,8 @@ export class HarnessManager {
     return () => this.listeners.delete(listener)
   }
 
-  get harnessId(): string | undefined {
-    return this.active?.harnessId
-  }
-
   overlaySession(harnessId: string, session: ClaraSession): ClaraSession {
     return this.metadata.overlaySession(harnessId, session)
-  }
-
-  overlaySessionList(value: { data: ClaraSession[]; cursor: unknown }): {
-    data: ClaraSession[]
-    cursor: unknown
-  } {
-    const harnessId = this.harnessId
-    return harnessId
-      ? {
-          ...value,
-          data: value.data.map((session) => this.metadata.overlaySession(harnessId, session)),
-        }
-      : value
-  }
-
-  harnessProjectIds(projectId: string): string[] {
-    const harnessId = this.harnessId
-    return harnessId ? this.projects.harnessProjectIds(harnessId, projectId) : []
   }
 
   private bump(): void {

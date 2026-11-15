@@ -913,11 +913,6 @@ async function handleHarness(
       return
     }
 
-    if (method === 'POST' && id && action === 'activate') {
-      sendJson(response, method, 200, await controls.activateHarness(id))
-      return
-    }
-
     if (method === 'POST' && id && action === 'forget') {
       sendJson(response, method, 200, await controls.forgetHarness(id))
       return

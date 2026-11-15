@@ -98,19 +98,21 @@ function request(path: string): Request {
 }
 
 describe('harness-scoped routes', () => {
-  it('routes catalog requests to an explicit harness and defaults to active', async () => {
+  it('routes catalog requests to an explicit harness and rejects a missing one', async () => {
     const { api, calls } = createTestApi()
 
     const explicit = await api.fetch(request('/v1/commands?harnessID=harness-b'))
     expect(explicit.status).toBe(200)
     expect(calls.at(-1)).toMatchObject({ harnessID: 'harness-b', path: '/commands' })
 
-    const active = await api.fetch(request('/v1/commands'))
-    expect(active.status).toBe(200)
-    expect(calls.at(-1)).toMatchObject({ harnessID: 'harness-a', path: '/commands' })
+    const missing = await api.fetch(request('/v1/commands'))
+    expect(missing.status).toBe(409)
+    expect((await missing.json()) as { error: { code: string } }).toMatchObject({
+      error: { code: 'harness_required' },
+    })
   })
 
-  it('resolves skills by directory before falling back to the active harness', async () => {
+  it('resolves skills by directory when exactly one harness matches', async () => {
     const { api, calls } = createTestApi()
 
     const response = await api.fetch(request('/v1/skills?directory=/workspace/shared'))

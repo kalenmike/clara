@@ -53,9 +53,8 @@ Inside the Clara repository you can use
    pairing card shows **Waiting for the adapter to connect…** and changes to
    **Connected** when the adapter registers. A newly paired adapter shows
    **Paired · Offline** under **Paired harnesses**; when its session connects it
-   becomes **Online**, appears under **Connected adapters**, and the first
-   adapter becomes **Active**. If harness access is disabled, the page shows
-   **Off** instead of a live state.
+   becomes **Online** and appears under **Connected adapters**. If harness
+   access is disabled, the page shows **Off** instead of a live state.
 
 Adapter codes are only for the installer. To pair a browser, use
 **Clients → Pair Client** in the panel, or the separate code or link printed
@@ -156,15 +155,15 @@ always runs on the harness that owns its workspace.
 - **Labels follow the harness type.** Two adapters of the same kind both read
   OpenCode, so Clara appends a short id to tell their workspaces apart. Give each
   workspace its own label when you add it and menus stay easy to read.
-- **Active is only a default.** The active harness answers screens that do not
-  name a session or workspace. Paired harnesses keep serving their own
-  workspaces, so you do not switch back and forth.
+- **No harness is the default.** Paired harnesses are peers, and every session
+  runs on the harness that owns its workspace. Settings shows all of them, so
+  you do not switch back and forth.
 - **One offline harness does not stop the others.** Lists keep the rows from
   harnesses that answered and mark the rest; count cards say the counts are
   partial.
 - **A path that exists on two machines is ambiguous.** Clara refuses to guess: the
-  request says the path matches more than one harness. Make the harness you are
-  working on the active one, and label the workspaces clearly.
+  request says the path matches more than one harness. Pick the workspace you
+  mean, and label the workspaces clearly.
 
 ## Host resources
 

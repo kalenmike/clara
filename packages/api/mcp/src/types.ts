@@ -56,7 +56,7 @@ export type GitLogQuery = {
 export interface ClaraApiReadBackend {
   info(): Promise<unknown>
   openapi(): Promise<unknown>
-  harnessInfo(): Promise<unknown>
+  harnessInfo(harnessID: string): Promise<unknown>
   projects(input?: { archived?: boolean }): Promise<unknown>
   sessions(input?: SessionListQuery): Promise<unknown>
   activeSessions(): Promise<unknown>
@@ -65,12 +65,12 @@ export interface ClaraApiReadBackend {
   permissions(input?: { directory?: string }): Promise<unknown>
   forms(sessionID: string): Promise<unknown>
   inbox(sessionID: string): Promise<unknown>
-  agents(): Promise<unknown>
-  models(): Promise<unknown>
-  providers(): Promise<unknown>
-  commands(): Promise<unknown>
-  skills(input?: { directory?: string }): Promise<unknown>
-  references(input?: { directory?: string }): Promise<unknown>
+  agents(harnessID: string): Promise<unknown>
+  models(harnessID: string): Promise<unknown>
+  providers(harnessID: string): Promise<unknown>
+  commands(harnessID: string): Promise<unknown>
+  skills(input: { harnessID: string; directory?: string }): Promise<unknown>
+  references(input: { harnessID: string; directory?: string }): Promise<unknown>
   location(directory?: string): Promise<unknown>
   files(input: FileFindQuery): Promise<unknown>
   vcs(directory?: string): Promise<unknown>

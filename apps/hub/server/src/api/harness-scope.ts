@@ -16,31 +16,68 @@ export function requireHarness(deps: ApiDependencies, harnessID: string): string
 }
 
 /**
- * Resolve the harness that owns a session. Every session read by the hub is
- * recorded in `clara_sessions`, so the normal path is a single indexed lookup.
- * The active harness remains the fallback for a session opened before the hub
- * ever listed it.
+ * Context-free routes must name a harness. There is no hub-wide default.
  */
-export function resolveHarnessForSession(
-  deps: ApiDependencies,
-  sessionID: string
-): string | undefined {
-  return deps.harness.metadata.harnessIdForSession(sessionID) ?? deps.harness.active?.harnessId
+export function requireHarnessContext(deps: ApiDependencies, harnessID?: string): string {
+  if (!deps.canAccess()) {
+    throw new ApiRequestError(403, 'disabled', 'Harness access is disabled by an admin setting')
+  }
+  if (!deps.harness.configured) {
+    throw new ApiRequestError(
+      503,
+      'harness_unconfigured',
+      'No harness adapter is configured. Add one in the hub panel.'
+    )
+  }
+  if (!harnessID) {
+    throw new ApiRequestError(
+      409,
+      'harness_required',
+      'Name a paired harness for this request. Clara does not choose one for you.',
+      { harnessIDs: deps.harness.list().map((connection) => connection.harnessId) }
+    )
+  }
+  return requireHarness(deps, harnessID)
 }
 
 /**
- * Resolve a directory-scoped request. An explicit harness wins, then a unique
- * workspace match, then the active harness when it is one of several matches.
- * Ambiguity is an error instead of a guess: the same path can exist on two
- * machines.
+ * Resolve the harness that owns a session. Every session read by the hub is
+ * recorded in `clara_sessions`; a client that opened a session before the hub
+ * listed it must send the owning harness explicitly.
+ */
+export function resolveHarnessForSession(
+  deps: ApiDependencies,
+  sessionID: string,
+  explicitHarnessID?: string
+): string {
+  if (explicitHarnessID) return requireHarness(deps, explicitHarnessID)
+  const owner = deps.harness.metadata.harnessIdForSession(sessionID)
+  if (owner) return owner
+  throw new ApiRequestError(409, 'harness_required', 'Name the harness that owns this session.', {
+    sessionID,
+    harnessIDs: deps.harness.list().map((connection) => connection.harnessId),
+  })
+}
+
+/**
+ * Resolve a directory-scoped request. An explicit harness wins, otherwise the
+ * directory must match exactly one workspace. Ambiguity is an error instead of
+ * a guess: the same path can exist on two machines.
  */
 export function resolveHarnessForDirectory(
   deps: ApiDependencies,
   directory: string | undefined,
   explicitHarnessID?: string
-): string | undefined {
+): string {
   if (explicitHarnessID) return requireHarness(deps, explicitHarnessID)
-  if (!directory) return deps.harness.active?.harnessId
+  if (!directory) {
+    throw new ApiRequestError(
+      409,
+      'harness_required',
+      'Name a paired harness for this request. Clara does not choose one for you.',
+      { harnessIDs: deps.harness.list().map((connection) => connection.harnessId) }
+    )
+  }
 
   const harnessIDs = [
     ...new Set(
@@ -49,14 +86,8 @@ export function resolveHarnessForDirectory(
         .map((workspace) => workspace.harnessID)
     ),
   ]
-  if (harnessIDs.length === 1) return harnessIDs[0]
+  if (harnessIDs.length === 1) return requireHarness(deps, harnessIDs[0])
 
-  const active = deps.harness.active?.harnessId
-  const online = harnessIDs.filter((harnessID) => deps.harness.connection(harnessID)?.online)
-  // Prefer the only reachable match over a stale default on an offline machine.
-  if (online.length === 1) return online[0]
-  if (active && online.includes(active)) return active
-  if (active && harnessIDs.includes(active)) return active
   if (harnessIDs.length > 1) {
     throw new ApiRequestError(
       409,
@@ -65,7 +96,12 @@ export function resolveHarnessForDirectory(
       { harnessIDs }
     )
   }
-  return active
+  throw new ApiRequestError(
+    409,
+    'harness_required',
+    'That directory is not linked to a paired harness. Choose a harness.',
+    { harnessIDs: deps.harness.list().map((connection) => connection.harnessId) }
+  )
 }
 
 /**

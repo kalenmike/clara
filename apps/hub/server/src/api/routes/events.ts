@@ -2,8 +2,8 @@ import { describeRoute, validator } from 'hono-openapi'
 import type { Hono } from 'hono'
 import { z } from 'zod'
 import type { ApiDependencies, ApiVariables } from '../context.ts'
-import { forward, forwardTo, upstreamError } from '../harness.ts'
-import { resolveHarnessForDirectory } from '../harness-scope.ts'
+import { forwardTo, upstreamError } from '../harness.ts'
+import { requireHarnessContext } from '../harness-scope.ts'
 import { errorResponse } from '../schemas.ts'
 
 export function registerEventRoutes(
@@ -35,15 +35,13 @@ export function registerEventRoutes(
     validator('query', z.object({ harnessID: z.string().min(1).optional() })),
     async (c) => {
       const { harnessID } = c.req.valid('query')
-      const harness = resolveHarnessForDirectory(deps, undefined, harnessID)
+      const harness = requireHarnessContext(deps, harnessID)
       const request = {
         method: 'GET' as const,
         path: '/events',
         headers: { accept: 'text/event-stream' },
       }
-      const response = harness
-        ? await forwardTo(deps, harness, request, c.req.raw.signal)
-        : await forward(deps, request, c.req.raw.signal)
+      const response = await forwardTo(deps, harness, request, c.req.raw.signal)
       if (!response.ok) throw await upstreamError(response)
       return response
     }

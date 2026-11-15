@@ -101,29 +101,26 @@ function fakeHarness(options: { projects?: ClaraHarnessProject[] } = {}): FakeHa
     workspace: () => workspace,
   }
 
+  const connection = {
+    id: 'h1',
+    harnessId: 'harness-a',
+    kind: 'opencode',
+    label: 'Test OpenCode',
+    transport: 'local' as const,
+    online: true,
+    capabilities: {},
+    credentialConfigured: true,
+    createdAt: 1,
+    updatedAt: 1,
+  }
   const harness = {
     configured: true,
     generation: 1,
-    active: {
-      id: 'h1',
-      harnessId: 'harness-a',
-      kind: 'opencode',
-      label: 'Test OpenCode',
-      transport: 'local',
-      online: true,
-      capabilities: {},
-      isActive: true,
-      credentialConfigured: true,
-      createdAt: 1,
-      updatedAt: 1,
-    },
     lastError: undefined,
-    harnessId: 'harness-a',
     projects: projectStore,
-    harnessProjectIds: (projectId: string) => links.get(projectId) ?? [],
-    overlaySessionList: <T>(value: T) => value,
+    list: () => [connection],
     overlaySession: (harnessID: string, item: ClaraSession) => ({ ...item, harnessID }),
-    connection: () => harness.active,
+    connection: (harnessId: string) => (harnessId === 'harness-a' ? connection : undefined),
     request: async (action: { path: string; search?: string }) => {
       const search = new URLSearchParams(action.search ?? '')
       requests.push({ path: action.path, search })

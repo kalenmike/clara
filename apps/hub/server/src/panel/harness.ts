@@ -17,7 +17,6 @@ export function toPanelHarness(connection: HarnessConnection): PanelHarness {
       : {}),
     ...(connection.harnessVersion ? { harnessVersion: connection.harnessVersion } : {}),
     ...(connection.capabilities ? { capabilities: connection.capabilities } : {}),
-    isActive: connection.isActive,
     credentialConfigured: connection.credentialConfigured,
     ...(connection.lastTestAt !== undefined
       ? {
@@ -34,11 +33,17 @@ export function toPanelHarness(connection: HarnessConnection): PanelHarness {
   }
 }
 
-export function harnessState(manager: HarnessManager): PanelHarnessState {
-  const active = manager.active
+export function harnessState(
+  manager: HarnessManager,
+  control: { desired: boolean; effective: boolean }
+): PanelHarnessState {
+  const connections = manager.list()
   return {
     configured: manager.configured,
-    ...(active ? { activeId: active.id } : {}),
+    paired: connections.length,
+    online: connections.filter((connection) => connection.online).length,
+    desired: control.desired,
+    effective: control.effective,
     ...(manager.lastError ? { error: manager.lastError } : {}),
   }
 }

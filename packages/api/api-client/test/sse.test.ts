@@ -29,7 +29,10 @@ describe('Clara API event stream', () => {
     const client = createClaraClient({ fetch: fetch as typeof globalThis.fetch })
 
     const events: unknown[] = []
-    for await (const event of client.event.subscribe({ onActivity: () => (activity += 1) })) {
+    for await (const event of client.event.subscribe({
+      harnessID: 'harness-a',
+      onActivity: () => (activity += 1),
+    })) {
       events.push(event)
     }
 
@@ -63,7 +66,7 @@ describe('Clara API event stream', () => {
       })
     const client = createClaraClient({ fetch: fetch as typeof globalThis.fetch })
 
-    const iterator = client.event.subscribe()[Symbol.asyncIterator]()
+    const iterator = client.event.subscribe({ harnessID: 'harness-a' })[Symbol.asyncIterator]()
     await expect(iterator.next()).rejects.toBeInstanceOf(ClaraApiError)
   })
 })

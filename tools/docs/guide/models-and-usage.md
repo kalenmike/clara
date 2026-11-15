@@ -14,19 +14,23 @@ immediately. If the model has variants, the variant menu appears beside it.
 
 A new session inherits the model of the most recent active session in the
 workspace you start it in. A workspace that has no earlier session starts on the
-harness default; a model from another workspace is not carried over. A model
-hidden in Settings is not inherited either; the new session starts on the
-server default.
+harness's own default; a model from another workspace is not carried over. A
+model hidden for that harness in Settings is not inherited either; the new
+session starts on the harness default.
 
 ## Hide models and providers
 
 Open **Settings → Models**.
 
-1. Filter the list with **All**, **Free**, or **Paid**.
-2. Expand a provider to see its models.
-3. Use a provider switch to show or hide every model from that provider.
-4. Use a model switch to hide just that model.
-5. **Disable all** hides every provider. **Enable all** restores them.
+1. Choose **All harnesses** or one paired harness. This is a view filter, not a
+   default harness.
+2. Filter the list with **All**, **Free**, or **Paid**.
+3. Expand a provider to see its models.
+4. Use a provider switch to show or hide every model from that harness and
+   provider.
+5. Use a model switch to hide just that model on that harness.
+6. **Disable all** hides every provider on one harness. **Enable all** or
+   **Show all** restores them.
 
 Each model row shows capabilities, context and output limits, modalities, cost,
 cache prices, family, release date, status, and variants.

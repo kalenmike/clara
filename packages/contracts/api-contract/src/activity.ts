@@ -9,7 +9,6 @@ export const claraActivityHarnessSchema = passthroughObject({
   kind: z.string(),
   label: z.string(),
   online: z.boolean(),
-  active: z.boolean(),
   ok: z.boolean(),
   createdAt: z.number(),
   code: z.string().optional(),

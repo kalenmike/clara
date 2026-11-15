@@ -68,8 +68,6 @@ export function collectSecrets(snapshot: PanelSnapshot | undefined): string[] {
     snapshot.local.url,
     isLoopbackHost(snapshot.local.host) ? undefined : snapshot.local.host,
     `${snapshot.local.host}:${snapshot.local.port}`,
-    snapshot.opencode.url,
-    publicHostnameOf(snapshot.opencode.url),
     ...snapshot.harnesses.flatMap((harness) => [harness.harnessId]),
     ...(snapshot.harnessPairings ?? []).flatMap((pairing) => [pairing.code, pairing.wsUrl]),
     snapshot.relay.url,
@@ -96,11 +94,6 @@ function hostnameOf(value: string | undefined): string | undefined {
   } catch {
     return undefined
   }
-}
-
-function publicHostnameOf(value: string | undefined): string | undefined {
-  const hostname = hostnameOf(value)
-  return hostname && !isLoopbackHost(hostname) ? hostname : undefined
 }
 
 function isLoopbackHost(host: string): boolean {

@@ -84,7 +84,7 @@ of the session's token and cost totals also sits in the chat's bottom usage bar
 9. A session's cost, tokens, and context come from the harness that owns it;
    Clara reads the session and its context by session ID and never asks another
    harness. Model limits and prices come from the session's own harness catalog,
-   so a session on a non-default harness still shows its limits and estimate.
+   so every session shows its own harness's limits and estimate.
 
 ## Edge cases
 
@@ -179,7 +179,7 @@ of the session's token and cost totals also sits in the chat's bottom usage bar
 - Context entries: `client.session.context({ sessionID })`; both are
   session-scoped, so the hub routes them to the harness that owns the session
 - Models and limits: `client.model.list({ harnessID })` reads the session's
-  catalog; settings without a session keeps the default harness
+  catalog; Settings names its harness or asks for every paired harness
 - Live usage: `session.usage.updated`, `session.step.ended`
 - Cost display: `src/features/cost/cost-display.ts` and
   `src/features/cost/use-cost-display.ts`; stored in `clara.costDisplay`

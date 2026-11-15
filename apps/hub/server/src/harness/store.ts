@@ -33,7 +33,6 @@ type ConnectionRow = {
   protocol_version: number | null
   harness_version: string | null
   capabilities_json: string | null
-  is_active: number
   last_test_at: number | null
   last_test_ok: number | null
   last_test_error: string | null
@@ -105,19 +104,13 @@ export class HarnessStore {
 
   list(): HarnessConnection[] {
     const rows = this.db
-      .prepare(`${selectConnection} ORDER BY c.is_active DESC, c.created_at ASC`)
+      .prepare(`${selectConnection} ORDER BY c.created_at ASC`)
       .all() as ConnectionRow[]
     return rows.map(toConnection)
   }
 
   get(id: string): HarnessConnection | undefined {
     const row = this.db.prepare(`${selectConnection} WHERE c.id = ?`).get(id) as
-      ConnectionRow | undefined
-    return row ? toConnection(row) : undefined
-  }
-
-  active(): HarnessConnection | undefined {
-    const row = this.db.prepare(`${selectConnection} WHERE c.is_active = 1`).get() as
       ConnectionRow | undefined
     return row ? toConnection(row) : undefined
   }
@@ -164,20 +157,6 @@ export class HarnessStore {
       fingerprint: row.fingerprint,
       createdAt: row.created_at,
     }
-  }
-
-  setActive(id: string): HarnessConnection {
-    const update = this.db.transaction(() => {
-      this.db.prepare('UPDATE harness_connections SET is_active = 0 WHERE is_active = 1').run()
-      const result = this.db
-        .prepare('UPDATE harness_connections SET is_active = 1, updated_at = ? WHERE id = ?')
-        .run(Date.now(), id)
-      if (result.changes === 0) {
-        throw new HarnessValidationError('not_found', 'That harness connection no longer exists')
-      }
-    })
-    update()
-    return this.get(id) as HarnessConnection
   }
 
   remove(id: string): void {
@@ -390,13 +369,8 @@ export class HarnessStore {
       .prepare('SELECT id, harness_id FROM harness_connections WHERE harness_id = ?')
       .get(input.harnessId) as { id: string; harness_id: string } | undefined
     const connectionID = existingConnection?.id ?? randomUUID()
-    const currentActive = this.active()
-    const activateOnEnroll = currentActive === undefined || !currentActive.credentialConfigured
 
     const write = this.db.transaction(() => {
-      if (activateOnEnroll) {
-        this.db.prepare('UPDATE harness_connections SET is_active = 0 WHERE is_active = 1').run()
-      }
       this.db
         .prepare(
           `INSERT INTO harness_identities (harness_id, kind, first_seen_at, last_seen_at)
@@ -455,20 +429,18 @@ export class HarnessStore {
             connectionID
           )
       } else {
-        const takeActive = activateOnEnroll
         this.db
           .prepare(
             `INSERT INTO harness_connections
-               (id, kind, label, is_active, created_at, updated_at, harness_id, credential_id,
+               (id, kind, label, created_at, updated_at, harness_id, credential_id,
                 transport, online, adapter_version, protocol_version, harness_version,
                 capabilities_json, last_seen_at)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?, ?, ?)`
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?, ?, ?)`
           )
           .run(
             connectionID,
             input.kind,
             input.label || pairing.label,
-            takeActive ? 1 : 0,
             now,
             now,
             input.harnessId,
@@ -487,7 +459,6 @@ export class HarnessStore {
         .run(now, input.harnessId, input.pairId)
     })
     write()
-    if (activateOnEnroll && existingConnection) this.setActive(connectionID)
 
     return {
       connection: this.get(connectionID) as HarnessConnection,
@@ -523,7 +494,7 @@ export class HarnessStore {
 const selectConnection = `
   SELECT c.id, c.harness_id, c.kind, c.label, c.transport, c.online,
          c.adapter_version, c.protocol_version, c.harness_version, c.capabilities_json,
-         c.is_active, c.last_test_at, c.last_test_ok, c.last_test_error,
+         c.last_test_at, c.last_test_ok, c.last_test_error,
          c.last_seen_at, c.created_at, c.updated_at, c.credential_id,
          ac.fingerprint AS credential_fingerprint
     FROM harness_connections c
@@ -542,7 +513,6 @@ function toConnection(row: ConnectionRow): HarnessConnection {
     ...(row.protocol_version !== null ? { protocolVersion: row.protocol_version } : {}),
     ...(row.harness_version ? { harnessVersion: row.harness_version } : {}),
     capabilities: parseObject(row.capabilities_json),
-    isActive: row.is_active === 1,
     credentialConfigured: row.credential_id !== null,
     ...(row.last_test_at !== null ? { lastTestAt: row.last_test_at } : {}),
     ...(row.last_test_ok !== null ? { lastTestOk: row.last_test_ok === 1 } : {}),

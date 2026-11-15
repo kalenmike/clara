@@ -1,9 +1,10 @@
 import {
   AGENT_DEFAULT_KEY,
   LAST_AGENT_KEY,
-  readDefaultAgent,
-  saveDefaultAgent,
-  saveLastAgent,
+  readDefaultAgentState,
+  readLastAgentState,
+  saveDefaultAgentState,
+  saveLastAgentState,
 } from '@/features/agents/default-agent'
 import { ATTENTION_KINDS } from '@/features/notifications/attention'
 import {
@@ -124,16 +125,15 @@ function defaultAgentField(): SyncField {
       } catch {
         return null
       }
-      return JSON.stringify(readDefaultAgent())
+      return JSON.stringify(readDefaultAgentState())
     },
     apply: (value) => {
       try {
         const parsed: unknown = JSON.parse(value)
-        if (!isRecord(parsed)) return false
-        saveDefaultAgent({
-          mode: parsed.mode === 'fixed' ? 'fixed' : 'last',
-          agent: typeof parsed.agent === 'string' && parsed.agent.length > 0 ? parsed.agent : null,
-        })
+        if (!isRecord(parsed) || parsed.version !== 2 || !isRecord(parsed.harnesses)) {
+          return false
+        }
+        saveDefaultAgentState(parsed)
         return true
       } catch {
         return false
@@ -147,12 +147,25 @@ function lastAgentField(): SyncField {
     key: LAST_AGENT_KEY,
     read: () => {
       const raw = readRaw(LAST_AGENT_KEY)
-      return raw && raw.trim() ? raw : null
+      if (!raw) return null
+      try {
+        if (!isRecord(JSON.parse(raw))) return null
+      } catch {
+        return null
+      }
+      return JSON.stringify(readLastAgentState())
     },
     apply: (value) => {
-      if (!value.trim()) return false
-      saveLastAgent(value)
-      return true
+      try {
+        const parsed: unknown = JSON.parse(value)
+        if (!isRecord(parsed) || parsed.version !== 2 || !isRecord(parsed.harnesses)) {
+          return false
+        }
+        saveLastAgentState(parsed)
+        return true
+      } catch {
+        return false
+      }
     },
   }
 }
@@ -198,8 +211,9 @@ function hiddenModelsField(): SyncField {
       } catch {
         return false
       }
-      if (!isRecord(parsed)) return false
-      if (!Array.isArray(parsed.providers) || !Array.isArray(parsed.models)) return false
+      if (!isRecord(parsed) || parsed.version !== 2 || !isRecord(parsed.harnesses)) {
+        return false
+      }
       saveHiddenModels(normalizeHiddenModels(parsed))
       return true
     },

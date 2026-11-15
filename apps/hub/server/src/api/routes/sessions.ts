@@ -20,7 +20,6 @@ import {
 } from '@clara/api-contract'
 import { ApiRequestError, type ApiDependencies, type ApiVariables } from '../context.ts'
 import {
-  forwardDto,
   forwardDtoTo,
   parseClaraForms,
   parseClaraPermissionRequests,
@@ -35,9 +34,10 @@ import {
   parseClaraSessionMessagesResponse,
   parseClaraSessions,
 } from '../dto.ts'
-import { forwardResult, forwardResultTo, locationQuery, query } from '../harness.ts'
+import { forwardResultTo, locationQuery, query } from '../harness.ts'
 import {
   requireHarness,
+  requireHarnessContext,
   resolveHarnessForDirectory,
   resolveHarnessForSession,
   resolveHarnessProjectGroups,
@@ -201,28 +201,35 @@ export function registerSessionRoutes(
       const params = c.req.valid('query')
       // `harnessID` is a hub routing hint and must never reach the harness.
       const { harnessID, ...filters } = params
-      const targetHarnessID = params.project
-        ? undefined
-        : harnessID
+      let result: ClaraSessionsResponse
+      if (params.project) {
+        result = await listProjectSessions(
+          deps,
+          filters,
+          params.project,
+          c.req.raw.signal,
+          harnessID
+        )
+      } else {
+        const targetHarnessID = harnessID
           ? requireHarness(deps, harnessID)
           : params.directory
             ? resolveHarnessForDirectory(deps, params.directory)
             : params.parentID
               ? resolveHarnessForSession(deps, params.parentID)
-              : undefined
-      const result = params.project
-        ? await listProjectSessions(deps, filters, params.project, c.req.raw.signal, harnessID)
-        : overlaySessionListFor(
+              : requireHarnessContext(deps, undefined)
+        result = overlaySessionListFor(
+          deps,
+          targetHarnessID,
+          await forwardScopedDto(
             deps,
             targetHarnessID,
-            await forwardScopedDto(
-              deps,
-              targetHarnessID,
-              { method: 'GET', path: '/sessions', search: query(filters) },
-              c.req.raw.signal,
-              parseClaraSessions
-            )
+            { method: 'GET', path: '/sessions', search: query(filters) },
+            c.req.raw.signal,
+            parseClaraSessions
           )
+        )
+      }
       const data =
         params.archived === undefined
           ? result.data
@@ -249,7 +256,7 @@ export function registerSessionRoutes(
           ? resolveHarnessForDirectory(deps, body.location.directory)
           : body.parentID
             ? resolveHarnessForSession(deps, body.parentID)
-            : deps.harness.active?.harnessId
+            : requireHarnessContext(deps, undefined)
       const session = await forwardScopedDto(
         deps,
         harnessID,
@@ -293,17 +300,7 @@ export function registerSessionRoutes(
       }
 
       const connections = deps.harness.list().filter((connection) => connection.online)
-      if (connections.length === 0) {
-        // Preserve the single-harness error when nothing can answer.
-        const result = await forwardDto(
-          deps,
-          { method: 'GET', path: '/sessions/active' },
-          c.req.raw.signal,
-          parseClaraSessionActive,
-          true
-        )
-        return c.json(result)
-      }
+      if (connections.length === 0) return c.json({})
 
       const results = await Promise.allSettled(
         connections.map((connection) =>
@@ -1125,47 +1122,39 @@ function asApiError(cause: unknown): ApiRequestError {
 
 function forwardScopedDto<T>(
   deps: ApiDependencies,
-  harnessID: string | undefined,
+  harnessID: string,
   request: Parameters<typeof forwardDtoTo>[2],
   signal: AbortSignal,
   parse: (value: unknown) => T,
   unwrapData = false
 ): Promise<T> {
-  return harnessID
-    ? forwardDtoTo(deps, harnessID, request, signal, parse, unwrapData)
-    : forwardDto(deps, request, signal, parse, unwrapData)
+  return forwardDtoTo(deps, harnessID, request, signal, parse, unwrapData)
 }
 
 function forwardScopedResult<T>(
   deps: ApiDependencies,
-  harnessID: string | undefined,
+  harnessID: string,
   request: Parameters<typeof forwardResultTo>[2],
   signal: AbortSignal,
   unwrapData = false
 ): Promise<T> {
-  return harnessID
-    ? forwardResultTo<T>(deps, harnessID, request, signal, unwrapData)
-    : forwardResult<T>(deps, request, signal, unwrapData)
+  return forwardResultTo<T>(deps, harnessID, request, signal, unwrapData)
 }
 
 function overlaySession(
   deps: ApiDependencies,
-  harnessID: string | undefined,
+  harnessID: string,
   session: ClaraSession
 ): ClaraSession {
-  return harnessID ? deps.harness.overlaySession(harnessID, session) : session
+  return deps.harness.overlaySession(harnessID, session)
 }
 
-/**
- * Overlay a session page with the harness that served it. A resolved harness
- * must not be overlaid with the active harness's metadata.
- */
+/** Overlay a session page with the harness that served it. */
 function overlaySessionListFor(
   deps: ApiDependencies,
-  harnessID: string | undefined,
+  harnessID: string,
   value: ClaraSessionsResponse
 ): ClaraSessionsResponse {
-  if (!harnessID) return { ...value, data: deps.harness.overlaySessionList(value).data }
   return {
     ...value,
     data: value.data.map((session) => deps.harness.overlaySession(harnessID, session)),

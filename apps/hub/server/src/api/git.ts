@@ -1,5 +1,5 @@
 import type { GitCommit } from '@clara/api-contract'
-import { forwardResult, forwardResultTo, type ForwardRequest } from './harness.ts'
+import { forwardResultTo, type ForwardRequest } from './harness.ts'
 import type { ApiDependencies } from './context.ts'
 import { resolveHarnessForDirectory } from './harness-scope.ts'
 
@@ -25,7 +25,5 @@ export async function loadGitLog(
     search: `?${search.toString()}`,
   }
   const harnessID = resolveHarnessForDirectory(deps, input.directory, input.harnessID)
-  return harnessID
-    ? forwardResultTo<GitCommit[]>(deps, harnessID, request, signal)
-    : forwardResult<GitCommit[]>(deps, request, signal)
+  return forwardResultTo<GitCommit[]>(deps, harnessID, request, signal)
 }
