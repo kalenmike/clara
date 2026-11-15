@@ -27,9 +27,8 @@ what is it planning?" on every session, including a draft.
    date, co-authors, and body. **Git → Worktrees** marks `default` and `current`
    and rescans on demand.
 8. **Terminal** lists the agent's commands with one-line entries for other tools.
-   Select a command to open its output and error, and select it again to fold it
-   away; running and failed commands say so inline. Scroll up to inspect; press
-   **Jump to live** to resume following.
+   Select a command to open its output and error; press **Jump to live** after
+   scrolling up to resume following.
 
 ## Core business rules
 
@@ -67,12 +66,11 @@ what is it planning?" on every session, including a draft.
    validated timestamps, forwards it to the harness that owns the directory, and
    leaves the bound open until idle. Conventional headers split into type, scope,
    and description. **Worktrees** are project-wide, canonical as `default`.
-8. **The terminal is read-only.** Shell commands show the command line, status
-   and duration, and keep streamed and final output folded behind a per-command
-   toggle that starts closed; other tools appear as compact activity lines. The
-   event stream is authoritative and history backfills completed commands. Output
-   is text only: ANSI escapes are stripped, carriage returns collapse, and each
-   command keeps the last 400 lines; following pauses on scroll.
+8. **The terminal is read-only.** Shell commands show the command line, status,
+   and duration with output folded behind a toggle that starts closed; other
+   tools are one-line activity. The event stream is authoritative and backfills
+   completed commands; output is text only with ANSI escapes stripped, carriage
+   returns collapsed, the last 400 lines kept, and following paused on scroll.
 
 ## Edge cases
 
@@ -95,9 +93,8 @@ what is it planning?" on every session, including a draft.
 - **Ambiguous or disabled harness** — a directory linked to two harnesses asks the
   person to choose, and disabled access shows an admin-disabled state.
 - **Terminal with a failed, long, or quiet command** — the folded row shows the
-  error and exit status, opening it reveals the message, and the log keeps the
-  newest lines with a truncation notice; a command without progress events
-  appears when it finishes.
+  error and exit status, opening it shows the message, and the log keeps the
+  newest lines with a truncation notice.
 - **Switching sessions with the panel open** — the panel re-reads the new session;
   numbers, commits, worktree markers, and commands never linger.
 
