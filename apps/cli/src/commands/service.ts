@@ -205,9 +205,10 @@ export async function runStatus(args: readonly string[]): Promise<number> {
     }
     printRemoteStatus(hubs, adapters, runner)
     if (parsed.flags.has('--open')) {
-      const web = hubs.find((hub) => hub.endpoints.web)?.endpoints.web
+      const web = hubs.find((hub) => hub.endpoints.web && !isLoopbackUrl(hub.endpoints.web))
+        ?.endpoints.web
       if (web) openUrl(web)
-      else console.log(warn('No adapter has reported a hub web endpoint yet.'))
+      else console.log(warn('No adapter has reported a reachable hub web endpoint yet.'))
     }
     return 0
   }
@@ -326,13 +327,15 @@ function linkState(hub: AdapterHubLink): string {
 }
 
 function loopbackNote(url: string): string {
+  return isLoopbackUrl(url) ? dim(' (hub host only)') : ''
+}
+
+function isLoopbackUrl(url: string): boolean {
   try {
     const host = new URL(url).hostname
     return host === 'localhost' || host === '127.0.0.1' || host === '::1' || host === '[::1]'
-      ? dim(' (hub host only)')
-      : ''
   } catch {
-    return ''
+    return false
   }
 }
 
