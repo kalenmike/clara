@@ -130,7 +130,8 @@ export async function startLabServer(options: LabServerOptions): Promise<LabServ
       response.setHeader(name, value)
     }
 
-    if (options.token) {
+    const pathname = new URL(request.url ?? '/', 'http://localhost').pathname
+    if (options.token && pathname.startsWith('/api')) {
       const authorization = request.headers.authorization
       if (authorization !== `Bearer ${options.token}`) {
         failure(response, 401, 'unauthorized', 'A valid lab bridge token is required')
