@@ -24,7 +24,9 @@ import type {
   ScriptResultMode,
   ScriptSpec,
   StepDefinition,
+  WorkspaceBinding,
   WorkspaceOverrides,
+  WrapperDefinition,
 } from './types.ts'
 
 export interface LoadOptions {
@@ -95,6 +97,7 @@ function normalizeImports(
         ...(Array.isArray(item.select)
           ? { select: item.select.filter((name): name is string => typeof name === 'string') }
           : {}),
+        ...(str(item.wrap) ? { wrap: String(item.wrap) } : {}),
       }
     })
   }
@@ -253,6 +256,9 @@ function normalizeManifest(raw: Record<string, unknown>, source: string): Packag
     ...(router ? { router } : {}),
     ...(isRecord(raw.pipelines)
       ? { pipelines: raw.pipelines as Record<string, PipelineDefinition> }
+      : {}),
+    ...(isRecord(raw.wrappers)
+      ? { wrappers: raw.wrappers as Record<string, WrapperDefinition> }
       : {}),
     source,
   }
@@ -535,6 +541,62 @@ function normalizePipeline(
   }
 }
 
+function normalizeWrapper(raw: unknown, id: string, source: string): WrapperDefinition {
+  if (!isRecord(raw)) throw new OrchestrationError(source, `wrapper ${id} must be an object`)
+  if (!/^[a-z0-9][a-z0-9-]*$/.test(id)) {
+    throw new OrchestrationError(
+      source,
+      `wrapper id "${id}" must be lowercase letters, digits, and dashes`
+    )
+  }
+  const workspaceRaw = isRecord(raw.workspace) ? raw.workspace : undefined
+  if (workspaceRaw) {
+    assertKnownKeys(workspaceRaw, ['from', 'field'], source, `wrappers.${id}.workspace`)
+  }
+  const from = workspaceRaw ? str(workspaceRaw.from) : undefined
+  if (workspaceRaw && !from) {
+    throw new OrchestrationError(source, `wrappers.${id}.workspace.from is required`)
+  }
+  const field = workspaceRaw ? str(workspaceRaw.field) : undefined
+  const steps = (value: unknown, key: string): StepDefinition[] => {
+    if (value === undefined) return []
+    if (!Array.isArray(value)) {
+      throw new OrchestrationError(source, `wrappers.${id}.${key} must be a list`)
+    }
+    return value.map((step, index) => normalizeStep(step, source, index))
+  }
+  const before = steps(raw.before, 'before')
+  const after = steps(raw.after, 'after')
+  const cleanup = steps(raw.cleanup, 'cleanup')
+  if (!before.length && !after.length && !cleanup.length) {
+    throw new OrchestrationError(source, `wrapper ${id} needs before, after, or cleanup steps`)
+  }
+  const workspace: WorkspaceBinding | undefined =
+    workspaceRaw && from ? { from, ...(field ? { field } : {}) } : undefined
+  if (workspace && !before.length) {
+    throw new OrchestrationError(
+      source,
+      `wrapper ${id} declares a workspace but has no before steps to resolve it`
+    )
+  }
+  return {
+    id,
+    ...(str(raw.name) ? { name: String(raw.name) } : {}),
+    ...(str(raw.description) ? { description: String(raw.description) } : {}),
+    ...(workspace ? { workspace } : {}),
+    before,
+    after,
+    cleanup,
+    source,
+  }
+}
+
+function loadWrapperFile(path: string): WrapperDefinition {
+  const raw = parseYamlRecord(readFileSync(path, 'utf8'), path)
+  const id = str(raw.id) ?? basename(path, extname(path))
+  return normalizeWrapper(raw, id, path)
+}
+
 function loadPipelineFile(path: string): Map<string, PipelineDefinition> {
   const raw = parseYamlRecord(readFileSync(path, 'utf8'), path)
   const pipelines = new Map<string, PipelineDefinition>()
@@ -736,6 +798,7 @@ function syntheticPackage(path: string, spec: ImportSpec): LoadedPackage {
     routers: new Map(),
     agents: new Map(),
     scripts: new Map(),
+    wrappers: new Map(),
     imports: new Map(),
     entry: { pipeline: selected.keys().next().value as string | undefined },
     sources: [path],
@@ -815,6 +878,17 @@ function loadPackageDirectory(
     scripts.set(script.name, script)
   }
 
+  const wrappers = new Map<string, WrapperDefinition>()
+  for (const file of yamlFiles(join(dir, 'wrappers'))) {
+    const wrapper = loadWrapperFile(file)
+    wrappers.set(wrapper.id, wrapper)
+  }
+  if (manifest.wrappers) {
+    for (const [id, raw] of Object.entries(manifest.wrappers)) {
+      wrappers.set(id, normalizeWrapper(raw, id, index))
+    }
+  }
+
   const imports = new Map<string, LoadedPackage[]>()
   for (const [namespace, entries] of Object.entries(manifest.imports ?? {})) {
     const loaded: LoadedPackage[] = []
@@ -826,6 +900,7 @@ function loadPackageDirectory(
         existsSync(candidate) && statSync(candidate).isDirectory()
           ? loadPackageDirectory(candidate, options, stdDir, stack, depth + 1)
           : syntheticPackage(candidate, spec)
+      if (spec.wrap) child.wrap = spec.wrap
       if (spec.select?.length) {
         const allowed = new Set(spec.select)
         child.pipelines = new Map([...child.pipelines].filter(([id]) => allowed.has(id)))
@@ -855,6 +930,7 @@ function loadPackageDirectory(
     routers,
     agents,
     scripts,
+    wrappers,
     imports,
     entry,
     sources: [
@@ -863,6 +939,7 @@ function loadPackageDirectory(
       ...[...routers.values()].flatMap((router) => (router.source ? [router.source] : [])),
       ...[...agents.values()].flatMap((agent) => (agent.source ? [agent.source] : [])),
       ...[...scripts.values()].flatMap((script) => (script.source ? [script.source] : [])),
+      ...[...wrappers.values()].flatMap((wrapper) => (wrapper.source ? [wrapper.source] : [])),
     ],
   }
   stack.delete(key)
@@ -959,6 +1036,65 @@ function importedPackage(
 ): LoadedPackage | undefined {
   const entries = pkg.imports.get(namespace)
   return entries?.find((entry) => entry.manifest.id === alias || basename(entry.dir) === alias)
+}
+
+interface CompileContext {
+  /** Already inside a wrapper; wrappers are not re-entrant. */
+  wrapped: boolean
+  /** Package that owns the router selecting this target. */
+  routeFrom?: LoadedPackage
+}
+
+interface ResolvedRef {
+  pkg: LoadedPackage
+  kind: 'entry' | 'pipeline'
+  id?: string
+}
+
+function resolveRefTarget(pkg: LoadedPackage, ref: string, path: string): ResolvedRef {
+  const parsed = parseRef(ref)
+  if (parsed.namespace) {
+    const target = importedPackage(pkg, parsed.namespace, parsed.alias)
+    if (!target) {
+      throw new OrchestrationError(path, `unknown import ${parsed.namespace}:${parsed.alias}`)
+    }
+    if (parsed.pipeline) return { pkg: target, kind: 'pipeline', id: parsed.pipeline }
+    return { pkg: target, kind: 'entry' }
+  }
+  if (parsed.pipeline) return { pkg, kind: 'pipeline', id: parsed.alias }
+  if (parsed.alias === pkg.manifest.id && !pkg.pipelines.has(parsed.alias)) {
+    return { pkg, kind: 'entry' }
+  }
+  return { pkg, kind: 'pipeline', id: parsed.alias }
+}
+
+function resolveWrapper(
+  host: LoadedPackage,
+  ref: string,
+  path: string
+): { pkg: LoadedPackage; wrapper: WrapperDefinition } {
+  const parsed = parseRef(ref)
+  let pkg = host
+  let name: string | undefined = parsed.pipeline ?? parsed.alias
+  if (parsed.namespace) {
+    const target = importedPackage(host, parsed.namespace, parsed.alias)
+    if (!target) {
+      throw new OrchestrationError(path, `unknown import ${parsed.namespace}:${parsed.alias}`)
+    }
+    pkg = target
+    name = parsed.pipeline
+    if (!name) {
+      if (pkg.wrappers.size !== 1) {
+        throw new OrchestrationError(path, `wrapper ref ${ref} needs a wrapper name`)
+      }
+      name = pkg.wrappers.keys().next().value as string
+    }
+  } else if (parsed.pipeline) {
+    name = parsed.pipeline
+  }
+  const wrapper = name ? pkg.wrappers.get(name) : undefined
+  if (!wrapper) throw new OrchestrationError(path, `wrapper not found: ${ref}`)
+  return { pkg, wrapper }
 }
 
 function policyFromStep(
@@ -1137,7 +1273,8 @@ function compileOnFailure(
   limits: Limits | undefined,
   source: string | undefined,
   fallbackModel?: string,
-  fallbackProvider?: string
+  fallbackProvider?: string,
+  context: CompileContext = { wrapped: false }
 ): CompiledRecovery | undefined {
   const definition = step.on_failure
   if (!definition) return undefined
@@ -1165,7 +1302,8 @@ function compileOnFailure(
       source,
       fallbackModel,
       fallbackProvider,
-      true
+      true,
+      { wrapped: context.wrapped }
     )
     return { ...node, recoveryFor: path }
   })
@@ -1184,7 +1322,8 @@ function compileStep(
   inheritedSource?: string,
   fallbackModel?: string,
   fallbackProvider?: string,
-  inRecovery = false
+  inRecovery = false,
+  context: CompileContext = { wrapped: false }
 ): CompiledNode {
   if (inRecovery && step.on_failure) {
     throw new OrchestrationError(path, 'a recovery step cannot declare on_failure')
@@ -1250,7 +1389,8 @@ function compileStep(
           limits,
           source,
           fallbackModel,
-          fallbackProvider
+          fallbackProvider,
+          context
         )
       : undefined
 
@@ -1291,7 +1431,9 @@ function compileStep(
 
   if (step.type === 'pipeline') {
     if (step.ref) {
-      const target = compileRef(pkg, step.ref, path, stack, model, provider)
+      const target = compileRef(pkg, step.ref, path, stack, model, provider, {
+        wrapped: context.wrapped,
+      })
       return {
         ...target,
         path,
@@ -1328,7 +1470,8 @@ function compileStep(
           base.source,
           fallbackModel,
           fallbackProvider,
-          inRecovery
+          inRecovery,
+          { wrapped: context.wrapped }
         )
       ),
     }
@@ -1352,7 +1495,8 @@ function compileStep(
           base.source,
           fallbackModel,
           fallbackProvider,
-          inRecovery
+          inRecovery,
+          { wrapped: context.wrapped }
         )
       ),
     }
@@ -1364,7 +1508,10 @@ function compileStep(
   stack.add(routerKey)
   const routes: CompiledRoute[] = router.routes.map((route) => ({
     ...route,
-    target: compileRef(pkg, route.run, `${path}/route-${route.when}`, stack, model, provider),
+    target: compileRef(pkg, route.run, `${path}/route-${route.when}`, stack, model, provider, {
+      wrapped: context.wrapped,
+      routeFrom: pkg,
+    }),
   }))
   stack.delete(routerKey)
   return {
@@ -1388,7 +1535,8 @@ function compilePipeline(
   path: string,
   stack: Set<string>,
   fallbackModel?: string,
-  fallbackProvider?: string
+  fallbackProvider?: string,
+  context: CompileContext = { wrapped: false }
 ): CompiledNode {
   const pipeline = pkg.pipelines.get(id)
   if (!pipeline)
@@ -1431,7 +1579,9 @@ function compilePipeline(
         pipeline.limits,
         pipeline.source,
         fallbackModel,
-        fallbackProvider
+        fallbackProvider,
+        false,
+        { wrapped: context.wrapped }
       )
     ),
     ...(pipeline.source ? { source: pipeline.source } : {}),
@@ -1445,7 +1595,8 @@ function compileEntry(
   path: string,
   stack: Set<string>,
   fallbackModel?: string,
-  fallbackProvider?: string
+  fallbackProvider?: string,
+  context: CompileContext = { wrapped: false }
 ): CompiledNode {
   const entry = pkg.entry
   if (entry.router) {
@@ -1458,7 +1609,10 @@ function compileEntry(
     const provider = pkg.manifest.defaults?.provider ?? fallbackProvider
     const routes = router.routes.map((route) => ({
       ...route,
-      target: compileRef(pkg, route.run, `${path}/route-${route.when}`, stack, model, provider),
+      target: compileRef(pkg, route.run, `${path}/route-${route.when}`, stack, model, provider, {
+        wrapped: context.wrapped,
+        routeFrom: pkg,
+      }),
     }))
     stack.delete(routerKey)
     const node: CompiledNode = {
@@ -1486,9 +1640,108 @@ function compileEntry(
     return node
   }
   if (entry.pipeline) {
-    return compilePipeline(pkg, entry.pipeline, path, stack, fallbackModel, fallbackProvider)
+    return compilePipeline(
+      pkg,
+      entry.pipeline,
+      path,
+      stack,
+      fallbackModel,
+      fallbackProvider,
+      context
+    )
   }
   throw new OrchestrationError(path, `package ${pkg.manifest.id} has no entry`)
+}
+
+function applyScope(node: CompiledNode, scopePath: string): void {
+  if (!node.scopePath) node.scopePath = scopePath
+  for (const child of node.children ?? []) applyScope(child, scopePath)
+  for (const child of node.onFailure?.children ?? []) applyScope(child, scopePath)
+  for (const route of node.routes ?? []) {
+    if (route.target) applyScope(route.target, scopePath)
+  }
+}
+
+function compileWrapper(
+  host: LoadedPackage,
+  wrapRef: string,
+  path: string,
+  stack: Set<string>,
+  fallbackModel: string | undefined,
+  fallbackProvider: string | undefined,
+  compileBody: (bodyPath: string) => CompiledNode
+): CompiledNode {
+  const { pkg, wrapper } = resolveWrapper(host, wrapRef, path)
+  const wrapperModel = pkg.manifest.defaults?.model ?? fallbackModel
+  const wrapperProvider = pkg.manifest.defaults?.provider ?? fallbackProvider
+  const compile = (step: StepDefinition, stepPath: string): CompiledNode =>
+    compileStep(
+      pkg,
+      step,
+      stepPath,
+      stack,
+      wrapperModel,
+      wrapperProvider,
+      undefined,
+      undefined,
+      wrapper.source,
+      fallbackModel,
+      fallbackProvider,
+      false,
+      { wrapped: true }
+    )
+  const before = wrapper.before.map((step, index) =>
+    compile(step, `${path}/${index + 1}-${step.name}`)
+  )
+  let binding: CompiledNode['workspace']
+  if (wrapper.workspace) {
+    const from = wrapper.workspace.from
+    const producers = before.filter((step) => step.name === from)
+    if (producers.length !== 1) {
+      throw new OrchestrationError(
+        path,
+        `wrapper ${wrapper.id} workspace.from "${from}" must name one before step`
+      )
+    }
+    const producer = producers[0]
+    if (producer.kind === 'group' || producer.kind === 'pipeline') {
+      throw new OrchestrationError(
+        path,
+        `wrapper ${wrapper.id} workspace.from "${from}" must be a leaf step`
+      )
+    }
+    binding = { path: producer.path, field: wrapper.workspace.field ?? 'path' }
+  }
+  const workPath = `${path}/${before.length + 1}-work`
+  const body = compileBody(`${workPath}/1-body`)
+  const after = wrapper.after.map((step, index) =>
+    compile(step, `${workPath}/${index + 2}-${step.name}`)
+  )
+  const work: CompiledNode = {
+    path: workPath,
+    kind: 'group',
+    name: 'work',
+    title: 'Work',
+    packageId: pkg.manifest.id,
+    ...(binding ? { workspace: binding } : {}),
+    children: [body, ...after],
+    ...(wrapper.source ? { source: wrapper.source } : {}),
+  }
+  applyScope(work, workPath)
+  const cleanup = wrapper.cleanup.map((step, index) =>
+    compile(step, `${path}/${before.length + 2 + index}-${step.name}`)
+  )
+  return {
+    path,
+    kind: 'group',
+    name: `wrapper:${wrapper.id}`,
+    title: wrapper.name ?? `Wrapper ${wrapper.id}`,
+    packageId: pkg.manifest.id,
+    children: [...before, work, ...cleanup],
+    ...(body.enforcement ? { enforcement: body.enforcement } : {}),
+    ...(body.requires ? { requires: body.requires } : {}),
+    ...(wrapper.source ? { source: wrapper.source } : {}),
+  }
 }
 
 export function compileRef(
@@ -1497,28 +1750,39 @@ export function compileRef(
   path: string,
   stack: Set<string> = new Set(),
   fallbackModel?: string,
-  fallbackProvider?: string
+  fallbackProvider?: string,
+  context: CompileContext = { wrapped: false }
 ): CompiledNode {
-  const parsed = parseRef(ref)
-  if (parsed.namespace) {
-    const target = importedPackage(pkg, parsed.namespace, parsed.alias)
-    if (!target)
-      throw new OrchestrationError(path, `unknown import ${parsed.namespace}:${parsed.alias}`)
-    if (parsed.pipeline) {
-      return compilePipeline(target, parsed.pipeline, path, stack, fallbackModel, fallbackProvider)
-    }
-    return compileEntry(target, path, stack, fallbackModel, fallbackProvider)
+  const resolved = resolveRefTarget(pkg, ref, path)
+  const compileAt = (targetPath: string, wrapped: boolean): CompiledNode =>
+    resolved.kind === 'pipeline'
+      ? compilePipeline(
+          resolved.pkg,
+          resolved.id as string,
+          targetPath,
+          stack,
+          fallbackModel,
+          fallbackProvider,
+          { wrapped }
+        )
+      : compileEntry(resolved.pkg, targetPath, stack, fallbackModel, fallbackProvider, { wrapped })
+  if (
+    context.routeFrom &&
+    context.routeFrom !== resolved.pkg &&
+    !context.wrapped &&
+    resolved.pkg.wrap
+  ) {
+    return compileWrapper(
+      pkg,
+      resolved.pkg.wrap,
+      path,
+      stack,
+      fallbackModel,
+      fallbackProvider,
+      (bodyPath) => compileAt(bodyPath, true)
+    )
   }
-  if (parsed.pipeline) {
-    // A slash without a namespace is a local path-like reference.
-    return compilePipeline(pkg, parsed.alias, path, stack, fallbackModel, fallbackProvider)
-  }
-  // A bare package id selects that package's entry. Keep a real pipeline with
-  // the same id working by only using the entry when no pipeline matches.
-  if (parsed.alias === pkg.manifest.id && !pkg.pipelines.has(parsed.alias)) {
-    return compileEntry(pkg, path, stack, fallbackModel, fallbackProvider)
-  }
-  return compilePipeline(pkg, parsed.alias, path, stack, fallbackModel, fallbackProvider)
+  return compileAt(path, context.wrapped)
 }
 
 function resolveWiring(root: CompiledNode): void {
@@ -1600,13 +1864,16 @@ export function compileRun(catalog: LoadedCatalog, targetRef?: string): Compiled
   const fallbackModel = catalog.root.manifest.defaults?.model
   const fallbackProvider = catalog.root.manifest.defaults?.provider
   const root = targetRef
-    ? compileRef(catalog.root, targetRef, targetRef, new Set(), fallbackModel, fallbackProvider)
+    ? compileRef(catalog.root, targetRef, targetRef, new Set(), fallbackModel, fallbackProvider, {
+        wrapped: false,
+      })
     : compileEntry(
         catalog.root,
         catalog.root.manifest.id,
         new Set(),
         fallbackModel,
-        fallbackProvider
+        fallbackProvider,
+        { wrapped: false }
       )
   resolveWiring(root)
   const sources = [...new Set(catalog.packages.flatMap((pkg) => pkg.sources))].sort()
@@ -1634,5 +1901,6 @@ export function catalogSummary(catalog: LoadedCatalog) {
     routers: [...pkg.routers.keys()],
     agents: [...pkg.agents.keys()],
     scripts: [...pkg.scripts.keys()],
+    wrappers: [...pkg.wrappers.keys()],
   }))
 }

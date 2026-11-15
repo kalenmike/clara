@@ -45,6 +45,36 @@ export interface CompiledRecovery {
   children: CompiledNode[]
 }
 
+/**
+ * A wrapper resolves a dynamic workspace from an earlier step result. The
+ * wrapper's `before` steps run in the parent workspace; its body and `after`
+ * steps run in the resolved directory.
+ */
+export interface WorkspaceBinding {
+  /** Name of a step in the wrapper's `before` list. */
+  from: string
+  /** Result field that carries the path. Defaults to `path`. */
+  field?: string
+}
+
+export interface CompiledWorkspaceBinding {
+  /** Compiled path of the step that produces the workspace path. */
+  path: string
+  field: string
+}
+
+/** A reusable before/after guard compiled around a router's chosen target. */
+export interface WrapperDefinition {
+  id: string
+  name?: string
+  description?: string
+  workspace?: WorkspaceBinding
+  before: StepDefinition[]
+  after: StepDefinition[]
+  cleanup: StepDefinition[]
+  source?: string
+}
+
 export interface NotificationPolicy {
   start?: boolean
   stage?: boolean
@@ -168,6 +198,11 @@ export interface ScriptDefinition {
 export interface ImportSpec {
   path: string
   select?: string[]
+  /**
+   * Wrapper applied when a router in another package selects this package.
+   * The reference resolves against the importing package.
+   */
+  wrap?: string
 }
 
 /** Model and provider selected by the workspace, a package, or a step. */
@@ -217,6 +252,7 @@ export interface PackageManifest {
     routes?: RouteDefinition[]
   }
   pipelines?: Record<string, PipelineDefinition>
+  wrappers?: Record<string, WrapperDefinition>
   source: string
 }
 
@@ -227,8 +263,11 @@ export interface LoadedPackage {
   routers: Map<string, RouterDefinition>
   agents: Map<string, AgentDefinition>
   scripts: Map<string, ScriptDefinition>
+  wrappers: Map<string, WrapperDefinition>
   imports: Map<string, LoadedPackage[]>
   entry: PackageEntry
+  /** Import-level wrapper applied when another package's router selects this one. */
+  wrap?: string
   sources: string[]
 }
 
@@ -275,6 +314,13 @@ export interface CompiledNode {
   /** Whether the worker prompt includes the root request as background. */
   request?: boolean
   strategy?: RouterStrategy
+  /** Set on a wrapper scope container: resolve its workspace from an earlier step. */
+  workspace?: CompiledWorkspaceBinding
+  /**
+   * Nearest enclosing workspace scope. Every leaf below a scope carries it so a
+   * work order can find the resolved directory without walking the tree.
+   */
+  scopePath?: string
   children?: CompiledNode[]
   routes?: CompiledRoute[]
   /** Recovery branch for a leaf step. Absent on containers and recovery steps. */
