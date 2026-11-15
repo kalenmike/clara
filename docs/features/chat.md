@@ -123,7 +123,8 @@ one paragraph, list, or section. See [fork.md](fork.md).
     Snoozing moves the session to the sidebar's Snoozed bucket and swaps the
     send menu's Done for Reopen. Replying, starting work, saving a draft, or
     answering the agent on a snoozed session clears the snooze first and returns
-    it to its mailbox section.
+    it to its mailbox section. On an archived session the same menu replaces
+    **Archive** with **Reopen**, which clears the archive and any snooze marker.
 
 ## Core business rules
 
@@ -204,13 +205,15 @@ one paragraph, list, or section. See [fork.md](fork.md).
     **Delete empty draft** instead: it removes the session immediately. The Done
     action plays the UI completion chime when **UI sounds** is on; its success
     toast does not depend on sound settings.
-13. Archived or snoozed sessions offer **Reopen** in the send menu. Reopen
-    clears the server's archived flag and any snooze metadata without renaming
-    the session, so the session returns to its mailbox section with its title
-    intact. Archived wins when both flags are present. Any reply that engages
-    the agent — a prompt, Start, a plan start or a plan request, a command, a
-    saved draft, a permission decision, or a question answer — clears the snooze
-    marker first, so the session leaves Snoozed without a manual Reopen.
+13. Archived or snoozed sessions offer **Reopen** in the send menu, and an
+    archived session also offers it in the header's more menu in place of
+    Archive. Reopen clears the server's archived flag and any snooze metadata
+    without renaming the session, so the session returns to its mailbox section
+    with its title intact. Archived wins when both flags are present. Any reply
+    that engages the agent — a prompt, Start, a plan start or a plan request, a
+    command, a saved draft, a permission decision, or a question answer — clears
+    the snooze marker first, so the session leaves Snoozed without a manual
+    Reopen.
 14. The plan-ready handoff is part of the composer. It appears only while the
     session is idle, the session agent is Plan, and the newest user or assistant
     message is a Plan reply that finished with `stop` and no error. It is absent
@@ -423,6 +426,8 @@ one paragraph, list, or section. See [fork.md](fork.md).
   is shown instead; the chat remains readable.
 - **Snoozing while running** — the session moves to Snoozed, but Reopen stays
   hidden until the run finishes.
+- **Reopen from the header** — an archived session's more menu offers Reopen
+  even while the run is active; the send menu's Reopen still waits for idle.
 - **UI sounds off** — Done archives silently, but the button animation and
   success toast still play. Inbox alert sounds are controlled separately.
 - **Reopen** — clears the archived flag and any snooze metadata, leaves the title
