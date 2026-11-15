@@ -52,11 +52,10 @@ hub executable and panel, run `pnpm hub:sidecar`.
    the account exists; after you submit, it starts in the same process.
 3. Follow the Setup modal: choose Local only or set up the relay, pair a harness,
    then pair a client. You can dismiss it and resume from **Settings → Setup**.
-   Pairing a harness asks whether it runs **Remote** or **Local**, then installs
-   over SSH or Docker, or copies the code for you to run. Turn on install actions
-   under **Settings → Adapter downloads** first; the app uses your SSH
-   configuration and Docker socket to run the adapter installer on the machine or
-   container you choose.
+   Pairing a harness creates a one-time code and command. The hub app never runs
+   the installer; run the command on the harness machine, or use Clara Desktop
+   for a one-click install on this computer, an SSH host, or a local container.
+   Turn on adapter setup under **Settings → Adapter downloads** first.
 4. Leave the app running in the tray. Use **Open panel** whenever you need the
    hub settings.
 

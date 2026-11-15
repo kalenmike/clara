@@ -9,6 +9,11 @@ the web deploy keeps its service worker and continues to ship unchanged. The
 app is built on its host, or for Linux in a container that extracts the bundles
 into the checkout.
 
+The desktop app also bundles the **adapter host**: a loopback sidecar that runs
+adapter installs on this computer, on an SSH host, or in a local Docker
+container. It uses the laptop's SSH agent and Docker socket, so a hosted hub
+never needs either. The browser keeps the copy-command path.
+
 ## User flow
 
 1. Build the app for the host platform, or open an installer produced from the
@@ -23,6 +28,9 @@ into the checkout.
 6. Install a newer build to update. There is no in-app updater yet.
 7. Settings → App identifies the desktop app and shows the same version and
    build stamp as the web client.
+8. Settings → Harness → Pair harness installs an adapter on **This computer**,
+   an **SSH host** from `~/.ssh/config`, or a local **Docker container**. A
+   `clara://adapter?code=…` link opens the same flow with the code filled in.
 
 ## Core business rules
 
@@ -43,6 +51,15 @@ into the checkout.
    the shared runtime file and exposes it to the webview through Tauri IPC; the
    client refreshes its stored local URL on boot and reconnect. Relay pairings
    keep their stored relay URL.
+7. The adapter host is a second sidecar. The shell spawns it with a per-launch
+   bearer token, prints only the bound loopback port to the webview, and kills
+   it on exit. The host accepts local, SSH, and Docker installs; it validates
+   the harness kind, pairing code, target, and manifest, verifies the installer
+   hash on the target, and never runs arbitrary commands. There is no password
+   prompt: the user's SSH key must be in the agent/keychain.
+8. `clara://` is registered only for adapter links. The window is
+   focused when one arrives; a link received before the webview is ready is
+   stored and read on demand. Other schemes never reach the system.
 
 ## Edge cases
 
@@ -57,8 +74,8 @@ into the checkout.
   installed with the app.
 - Web Push needs a service worker, so the push switch stays hidden. Inbox
   attention is limited to the running window until native notifications land.
-- Pairing links are ordinary web URLs. On desktop the code is pasted; a
-  `clara://` deep link is not registered yet.
+- Pairing links for a browser are ordinary web URLs. Adapter links use
+  `clara://adapter?code=…`; the browser pairing flow still uses a pasted code.
 - The QR camera path depends on the platform webview exposing a camera.
   Pasting the code always works.
 - WebCrypto must be available for device-key pairing. If a platform webview
@@ -73,7 +90,7 @@ into the checkout.
 
 - Signed and notarized installers, an auto-updater, and a release pipeline.
 - Native notifications and notification-click routing.
-- `clara://` deep-link pairing and single-instance forwarding.
+- `clara://` browser-pairing deep links and single-instance forwarding.
 - Window-state persistence, tray behavior, and mobile targets.
 
 ## Known gaps
@@ -117,6 +134,14 @@ into the checkout.
 - The shell exposes `hub_runtime` through `withGlobalTauri`. On boot and
   reconnect, `apps/web/src/lib/desktop-runtime.ts` asks for the live local
   `wsUrl` and `connection-provider.tsx` persists it when it changed.
+- The adapter host lives in `apps/desktop/host` (`@clara/desktop-host`). It
+  reuses `@clara/adapter-install` for planning, target discovery, and jobs.
+  `pnpm --filter @clara/desktop-host run bundle` compiles the Bun sidecar into
+  `apps/desktop/src-tauri/binaries/clara-adapter-host-<triple>`; the Tauri
+  `externalBin` entry packages it. The shell's `adapter_host_runtime` and
+  `adapter_take_link` commands are the only bridge, and
+  `apps/web/src/lib/desktop-adapter-host.ts` calls the loopback service with the
+  per-launch token. The deep-link plugin registers the `clara` scheme.
 - See [install.md](install.md) for the web/PWA lifecycle and
   [../architecture/overview.md](../architecture/overview.md) for the connection
   model.

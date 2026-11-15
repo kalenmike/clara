@@ -284,11 +284,11 @@ card.
    panel writes all of them, the environment overrides any field, and the VAPID
    contact and relay target are applied live. The appearance choice is
    browser-local: it never reaches the hub service or its database.
-   Adapter installs are off by default; they also require a loopback panel and a
-   local hub process, so a containerized hub and a remote-exposed panel never
-   receive SSH or Docker install actions. They still issue the copy code and
-   command for the selected target, including the Docker-network address for a
-   container on a containerized hub.
+   Adapter setup is off by default. The panel only issues the one-time code, the
+   registry manifest, the copy command, and the `clara://adapter` link. It never
+   runs SSH or Docker installs, so a containerized hub and a remote-exposed
+   panel behave like any other: the person or Clara Desktop runs the command on
+   the harness machine.
 7. **Traffic monitoring is advisory and in memory.** The meter counts frame
    sizes, decrypted request actions, and the failures the hub already detects;
    it never reads or stores payloads. Counters live in a sixty-minute ring of
@@ -570,16 +570,13 @@ card.
   - `DELETE /panel/api/v1/harnesses/pairings/:id` cancels one
   - `POST /panel/api/v1/harnesses/:id/test|activate|forget`
   - `DELETE /panel/api/v1/harnesses/:id`
-  - `GET /panel/api/v1/install` returns the registry manifests, SSH hosts,
-    Docker containers, and whether installs are available
-  - `POST /panel/api/v1/install` with
-    `{ "kind": "opencode", "method": "ssh|docker", "host": {...}, "container": "...", "opencodeUrl": "..." }`
-    creates a pairing and starts the registry install script; the response is
-    `{ pairing, job }`
-  - `GET /panel/api/v1/install/jobs/:id` polls a job;
-    `DELETE /panel/api/v1/install/jobs/:id` cancels it
+  - `GET /panel/api/v1/install` returns the registry manifests and whether
+    adapter setup is available
+  - `POST /panel/api/v1/install` with `{ "kind": "opencode", "opencodeUrl": "..." }`
+    returns `{ pairing, manifest, command, deepLink }`; it does not run the
+    install
   - `POST /panel/api/v1/install/settings` with `{ "enabled": true }` toggles
-    adapter installs
+    adapter setup
   - `POST /panel/api/v1/devices/pairings` with `{ "localOnly": true }` creates a
     browser pairing link, code, and fingerprint
   - `DELETE /panel/api/v1/devices/pairings/:id` cancels an unused browser code

@@ -31,7 +31,7 @@ In the panel:
 2. Choose **Local only** or set up the relay in the Setup modal. The relay path
    needs an online relay and an HTTPS Web URL; Local only needs no relay.
 3. Pair a harness in the same modal, then run the printed adapter install
-   command on the harness machine.
+   command on the harness machine, or open the link with Clara Desktop.
 4. Pair a client from the modal and open the link or QR on your device. The
    modal ends with a short guide. You can dismiss it and resume from
    **Settings → Setup**.

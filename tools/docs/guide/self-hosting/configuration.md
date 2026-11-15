@@ -50,12 +50,11 @@ relay or its room can require adapters and devices to pair again.
 ## Connect a harness
 
 1. Start the hub and open the panel.
-2. Open **Harness** and choose **Pair Harness**. Choose the adapter type, then
-   answer **Remote** or **Local**. Remote installs over SSH; Local installs into
-   a running container or runs on this machine. Both branches can also copy the
-   code and command. Turn on install actions in
-   **Settings → Adapter downloads** first.
-3. Run the install action, or run the copied command on the harness machine.
+2. Open **Harness** and choose **Pair Harness**. Choose the adapter type; the
+   hub returns a one-time code and command. Turn on adapter setup in
+   **Settings → Adapter downloads** first. Clara Desktop can install it on this
+   computer, an SSH host, or a local container.
+3. Run the copied command on the harness machine, or install from Clara Desktop.
 4. The adapter connects out to the hub. **Paired harnesses** shows
    **Paired · Offline** until the adapter connects, then **Online** with a live
    row under **Connected adapters**. Use **Test** to probe it and **Activate**

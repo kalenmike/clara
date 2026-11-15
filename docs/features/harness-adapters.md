@@ -21,24 +21,24 @@ contacts the harness directly.
 
 ## User flow
 
-1. Open the hub panel → **Harness** → **Pair Harness**. Choose OpenCode,
-   Claude Code, or Pi, then answer one question: is the harness **Remote** or
-   **Local**?
-2. Remote installs over **SSH** from a `~/.ssh/config` host or a typed
-   user/host/port and always uses the relay. Local installs into a running
-   **Docker** container or runs directly on the hub host; a container on a
-   host-process hub falls back to the relay. Every branch also offers **Copy
-   code** and **Copy command** for a manual install, and the local branch has an
-   **Advanced** WebSocket URL override for a non-default address.
-3. The hub fetches the adapter manifest from the configured registry and runs
-   its install script on the target. Adapter codes start with `clara-harness1_`
-   and only install an adapter; a browser pairs with a `clara1_` code from
-   **Clients → Pair Client** or `pnpm clara pair`.
+1. Open the Clara client → **Settings → Harness → Pair harness** (the hub panel
+   offers the same action). Choose OpenCode, Claude Code, or Pi.
+2. The hub fetches the adapter manifest from the configured registry and returns
+   a one-time code, a one-line install command, and a `clara://adapter` link. It
+   never runs the install. Adapter codes start with `clara-harness1_` and only
+   install an adapter; a browser pairs with a `clara1_` code from **Clients →
+   Pair Client** or `pnpm clara pair`.
+3. A browser-only user copies the command and runs it on the machine that hosts
+   the harness. Clara Desktop adds a one-click path: choose **This computer**,
+   an **SSH host** from the laptop's `~/.ssh/config`, or a local **Docker
+   container**, and its adapter-host sidecar runs the same checksummed script.
+   The hub host never needs SSH keys, Docker access, or a route to the harness
+   machine.
 4. The install script detects the target platform, downloads the matching
    Bun-compiled adapter archive, verifies its SHA-256, installs it under the
    adapter data directory, and runs the adapter installer. The manual commands
-   are `pnpm clara adapter install --opencode --pair <code>`,
-   `--claude`, and `--pi`.
+   are `pnpm clara adapter install --opencode --pair <code>`, `--claude`, and
+   `--pi`.
 5. The OpenCode installer discovers OpenCode from flags, environment, or
    `~/.local/state/opencode/service.json`. The Claude Code installer uses the
    machine's existing Claude Code login and accepts `--claude-path`, `--model`,
@@ -62,8 +62,8 @@ contacts the harness directly.
 1. The adapter connects out; the hub does not connect to an adapter port.
    Local, Docker, and relay are transport values in the pairing code, not
    separate architectures.
-2. The panel infers the transport from the machine answer: the relay for a
-   remote harness, the Docker network for a container on a containerized hub,
+2. The client asks for a target and the hub picks the transport: the relay for
+   a remote harness, the Docker network for a container on a containerized hub,
    and loopback for a local harness outside Docker. A container on a
    host-process hub uses the relay. The user does not choose the transport; an
    advanced WebSocket URL can override the local address.
@@ -93,16 +93,18 @@ contacts the harness directly.
    Claude Code installer installs only the adapter and its service; it does not
    install an orchestration binding. Inside the repository,
    `pnpm clara adapter install --opencode` and `--claude` dispatch to the same
-   adapter binaries.
+   adapter binaries. The hub never executes an install. A browser copies the
+   command; Clara Desktop runs it through its loopback adapter-host sidecar,
+   which uses the user's SSH agent and Docker socket.
 9. The Claude Code adapter speaks to the Agent SDK inside the adapter process.
    The SDK is pinned with the adapter and never imported by the hub, web client,
    or shared packages.
-10. The hub embeds no adapter artifacts. It reads
-    `<registry>/<kind>/manifest.json`, verifies the install script's SHA-256,
-    and runs that script on the target. The script downloads the platform
-    archive from the URL in its generated map. Install actions are off by
-    default and are available only from a loopback panel backed by a local hub
-    process.
+10. The hub embeds no adapter artifacts and runs no install script. It reads
+    `<registry>/<kind>/manifest.json`, verifies the manifest, and returns the
+    install script URL, its SHA-256, and the one-line command. The script
+    downloads the platform archive and verifies it on the target. Adapter setup
+    is off by default and is enabled in **Settings → Adapter downloads**; the
+    switch only gates manifest reads and code issuance, never local execution.
 11. An online adapter advertises `host.metrics` and serves
     `/harness/v1/host`. The sample describes the machine or container running
     the adapter: CPU and memory use cgroup v2 limits when the adapter is in a
@@ -259,26 +261,25 @@ ask for confirmation run without one, exactly as in the Pi TUI.
 - **Adapter reinstalled** — the same identity reconnects the same sessions and
   metadata without duplicating the connection.
 - **Relay offline** — the adapter reconnects when the relay or hub returns.
-- **Install actions off** — SSH and Docker installs are disabled until the
-  owner turns on **Settings → Adapter downloads**. **Copy code** and **Copy
-  command** keep working.
-- **Registry unreachable** — the panel names the manifest error and leaves the
-  manual commands available. An install does not start with no manifest.
-- **SSH host missing** — an alias that is not in `~/.ssh/config` is rejected;
-  enter the user, host, and port manually instead.
-- **SSH authentication** — installs use key or agent authentication only
-  (`BatchMode=yes`). A passphrase-protected key that is not in the agent fails
-  without prompting.
+- **Adapter setup off** — the hub cannot read the registry or issue a code until
+  the owner turns on **Settings → Adapter downloads**. The switch never enables
+  local execution.
+- **Registry unreachable** — the panel names the manifest error and does not
+  create a code. The manual repository commands still work from a checkout.
+- **SSH host missing** — an alias that is not in the client machine's
+  `~/.ssh/config` is rejected; enter the user, host, and port manually instead.
+- **SSH authentication** — Clara Desktop installs use key or agent
+  authentication only (`BatchMode=yes`). Unlock the key in the agent/keychain
+  first; a passphrase-protected key that is not in the agent fails without
+  prompting.
 - **Container has no downloader** — the install stops when the selected
-  container has neither `curl` nor `wget`; install into a different container or
-  copy the code and run the installer by hand. The included OpenCode adapter
-  image ships `curl`.
-- **Checksum mismatch** — the hub verifies the install script, and the script
+  container has neither `curl` nor `wget`; use a different container or run the
+  command by hand. The included OpenCode adapter image ships `curl`.
+- **Checksum mismatch** — the client verifies the install script, and the script
   verifies the adapter archive. Either mismatch fails without executing the
   downloaded file.
-- **OpenCode needs a password over SSH** — remote installs cannot prompt for
-  credentials. Pass the OpenCode URL in the panel and make the password
-  available through `OPENCODE_PASSWORD` in the target environment, or run the
+- **OpenCode needs a password over SSH** — the one-click install cannot prompt
+  for credentials. Set `OPENCODE_PASSWORD` in the target environment or run the
   manual installer interactively. The hub never stores the harness password.
 - **Unsupported target** — the script lists the platforms it can install and
   exits; use a supported OS/architecture or run the release archive manually.

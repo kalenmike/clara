@@ -21,6 +21,7 @@ harness as the default.
 | Area        | Endpoints                                                                                                                                                                                                                                                                          |
 | ----------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Meta        | `GET /v1/info`, `GET /v1/harness/info`                                                                                                                                                                                                                                             |
+| Harness     | `GET /v1/harnesses`, `POST /v1/harness/pairings`, `GET /v1/harness/adapters/:kind`                                                                                                                                                                                                 |
 | Activity    | `GET /v1/activity/sessions`, `GET /v1/activity/running` (deprecated alias)                                                                                                                                                                                                         |
 | Projects    | `GET /v1/projects`, `POST /v1/projects`, `PATCH/DELETE /v1/projects/:projectID`, `POST .../archive`, `.../unarchive`, `.../sync`, `.../workspaces`, `GET /v1/projects/available`, `GET /v1/harnesses`, `GET /v1/locations`                                                         |
 | Sessions    | `GET /v1/sessions`, `POST /v1/sessions`, `GET /v1/sessions/active`, `GET/PATCH/DELETE /v1/sessions/:sessionID`, `POST .../fork`, `.../move`, `.../view`, `.../prompt`, `.../synthetic`, `.../command`, `.../interrupt`, `.../compact`, `.../agent`, `.../model`, `GET .../context` |
@@ -41,6 +42,20 @@ online harness. The wire payloads are typed as the Clara `ClaraEvent` union from
 Web Push is supervised apart from the browser: while the hub runs, it keeps one
 event stream per online harness, so a closed client is still notified for
 sessions on any paired harness.
+
+### Adapter setup
+
+`POST /v1/harness/pairings` issues a one-time adapter code plus the registry
+manifest, the one-line install command, and a `clara://adapter?code=…&kind=…`
+desktop link. The body is `{ "kind": "opencode|claude|pi", "method": "local" |
+"ssh" | "docker" }`; `method` is optional and only chooses the transport. The hub
+never runs the install: a browser user copies the command, while Clara Desktop
+runs it through its loopback adapter host.
+
+`GET /v1/harness/adapters/:kind` returns the registry manifest for one adapter.
+The desktop client uses it when a `clara://` link carries a code but no manifest.
+Both routes are device-authenticated like every other `/v1` call. The hub reads
+the registry and never downloads the artifact.
 
 ### Harness routing
 
