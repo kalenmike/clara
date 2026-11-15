@@ -4,7 +4,9 @@ import { join } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
 import { resolvePaths } from '../src/paths.ts'
 import {
+  adapterConfigPath,
   adapterDataDir,
+  adapterHasPairing,
   adapterRuntimeState,
   adapterStatePath,
   deleteAdapterRecord,
@@ -83,6 +85,23 @@ describe('adapter install records', () => {
     saveAdapterRecord(record({ kind: 'claude', path: '/data/claude' }), paths)
     deleteAdapterRecord('opencode', paths)
     expect(Object.keys(readAdapterState(paths).adapters)).toEqual(['claude'])
+  })
+
+  it('round-trips a staged entry and replayed install flags', () => {
+    const paths = tempPaths()
+    saveAdapterRecord(record({ entry: 'index.js', installArgs: ['--no-runner', '--mcp'] }), paths)
+    expect(readAdapterState(paths).adapters.opencode).toMatchObject({
+      entry: 'index.js',
+      installArgs: ['--no-runner', '--mcp'],
+    })
+  })
+
+  it('detects a saved adapter pairing', () => {
+    const paths = tempPaths()
+    expect(adapterHasPairing('opencode', paths)).toBe(false)
+    mkdirSync(join(paths.configDir, 'adapters', 'opencode'), { recursive: true })
+    writeFileSync(adapterConfigPath('opencode', paths), '{}')
+    expect(adapterHasPairing('opencode', paths)).toBe(true)
   })
 
   it('round-trips pairedAt and lastError', () => {

@@ -22,7 +22,7 @@ import { parseAdapterArgs } from './adapter-args.ts'
 import { runAdapterInstall, runAdapterRemove, runAdapterUpgrade } from './adapter-install.ts'
 import { runAdapterControl, type AdapterControlAction } from './adapter-control.ts'
 
-const CONTROL = new Set<AdapterControlAction>(['start', 'stop', 'status', 'logs'])
+const CONTROL = new Set<AdapterControlAction>(['start', 'stop', 'status', 'logs', 'verify'])
 
 const HELP = `${heading('Clara adapter management')}
 
@@ -33,6 +33,7 @@ Usage:
   clara adapter upgrade [kind] [--no-start] [--json]
   clara adapter remove <kind> [--purge]
   clara adapter start|stop|status|logs <kind> [options]
+  clara adapter verify <kind> [--directory <path>] [--write] [--json]
   clara pair adapter --harness <kind> [--transport local|relay] [--install]
 
 Kinds: ${ADAPTER_KINDS.join(', ')}

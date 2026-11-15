@@ -79,7 +79,7 @@ export const commands: Command[] = [
   {
     name: 'adapter',
     summary: 'Search, install, and manage harness adapters',
-    usage: 'search|list|install|upgrade|remove|start|stop|status|logs [options]',
+    usage: 'search|list|install|upgrade|remove|start|stop|status|logs|verify [options]',
     options: [
       { flags: '--json', description: 'machine-readable output where supported' },
       { flags: '--pair <code>', description: 'pair with an existing code instead of issuing one' },
@@ -94,6 +94,11 @@ export const commands: Command[] = [
       { flags: '--no-runner', description: 'skip the shared script runner' },
       { flags: '--no-binding', description: 'skip the harness binding' },
       { flags: '--no-service', description: 'write config without installing a user service' },
+      {
+        flags: '--directory <path>',
+        description: 'verify: directory whose native sessions to read',
+      },
+      { flags: '--write', description: 'verify: create and remove a scratch native session' },
       { flags: '--purge', description: 'remove adapter credentials with the install' },
     ],
     run: runAdapters,

@@ -17,8 +17,16 @@ const FLAGS = new Set([
   '--no-runner',
   '--no-binding',
   '--no-service',
+  '--write',
 ])
-const OPTIONS = new Set(['--pair', '--transport', '--harness', '--version', '--from'])
+const OPTIONS = new Set([
+  '--pair',
+  '--transport',
+  '--harness',
+  '--version',
+  '--from',
+  '--directory',
+])
 
 /** Adapter install flags that are replayed when the adapter is reinstalled. */
 const INSTALL_FLAGS = new Set(['--mcp', '--no-runner', '--no-binding', '--no-service'])

@@ -8,6 +8,7 @@ import { afterEach, describe, expect, it } from 'vitest'
 import { ChecksumError } from '../src/adapters/download.ts'
 import {
   adapterBinaryPath,
+  adapterCommand,
   installAdapter,
   removeAdapter,
   upgradeAdapter,
@@ -16,7 +17,7 @@ import {
   type InstallDeps,
 } from '../src/adapters/install.ts'
 import { AdapterRegistry } from '../src/adapters/registry.ts'
-import { readAdapterState } from '../src/adapters/state.ts'
+import { readAdapterState, type AdapterInstallRecord } from '../src/adapters/state.ts'
 import { resolvePaths, type ClaraPaths } from '../src/paths.ts'
 
 const SHA = 'a'.repeat(64)
@@ -134,6 +135,23 @@ function deps(
 afterEach(async () => {
   for (const fixture of fixtures.splice(0)) await fixture.close()
   for (const root of roots.splice(0)) rmSync(root, { recursive: true, force: true })
+})
+
+describe('adapter command', () => {
+  it('runs a staged entry with the current Node binary', () => {
+    const staged: AdapterInstallRecord = {
+      kind: 'opencode',
+      version: '0.1.0-dev+local',
+      platform: 'linux-x64',
+      path: '/data/adapters/opencode/0.1.0-dev+local',
+      entry: 'index.js',
+      installedAt: '2026-01-01T00:00:00.000Z',
+    }
+    expect(adapterCommand(staged)).toEqual({
+      command: process.execPath,
+      args: [join(staged.path, 'index.js')],
+    })
+  })
 })
 
 describe('adapter install', () => {

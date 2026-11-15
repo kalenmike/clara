@@ -4,7 +4,7 @@ import { readAdapterState } from '../adapters/state.ts'
 import { resolvePaths } from '../paths.ts'
 import { parseKindSpec } from './adapter-args.ts'
 
-export type AdapterControlAction = 'start' | 'stop' | 'status' | 'logs'
+export type AdapterControlAction = 'start' | 'stop' | 'status' | 'logs' | 'verify'
 
 /**
  * `start|stop|status|logs` run the installed binary's own subcommand, so the
