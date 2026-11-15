@@ -15,6 +15,7 @@
     "dev": "tsx src/main.ts",
     "start": "tsx src/main.ts",
     "build:binary": "node scripts/build-binary.mjs",
+    "build:binary:cached": "node scripts/build-binary.mjs --skip-assets",
     "check:bundle": "node scripts/check-bundle.mjs",
     "install:local": "node scripts/install.mjs",
     "smoke": "node scripts/smoke.mjs",

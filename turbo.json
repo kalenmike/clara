@@ -35,6 +35,11 @@
       "dependsOn": ["clean", "^build"],
       "inputs": ["$TURBO_DEFAULT$", "$TURBO_ROOT$/docs/**"],
       "outputs": ["build/**"]
+    },
+    "@clara/cli#build:binary:cached": {
+      "dependsOn": ["clean", "transit", "@clara/hub-panel#build", "@clara/web#build"],
+      "outputs": ["dist/**", "src/embedded-assets.generated.mjs"],
+      "env": ["CLARA_VERSION", "CLARA_RELEASE_PUBLIC_KEY", "BUN_BIN"]
     }
   }
 }

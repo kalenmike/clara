@@ -40,7 +40,7 @@
     "clara": "node tools/cli/src/main.mjs",
     "clara:link": "node tools/cli/scripts/link.mjs",
     "cli": "pnpm --filter @clara/cli dev",
-    "cli:build": "pnpm --filter @clara/cli build:binary",
+    "cli:build": "turbo run build:binary:cached --filter @clara/cli",
     "cli:install": "node apps/cli/scripts/install.mjs",
     "cli:smoke": "pnpm --filter @clara/cli smoke",
     "cli:test": "pnpm --filter @clara/cli test",
