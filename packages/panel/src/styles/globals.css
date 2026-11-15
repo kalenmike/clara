@@ -1,5 +1,8 @@
 @import 'tailwindcss';
 
+/* The panel UI lives in this package, outside the host app's Vite root. */
+@source '../';
+
 @custom-variant dark (&:is(.dark *));
 
 @theme {

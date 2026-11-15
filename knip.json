@@ -19,6 +19,9 @@
       "entry": ["index.html"],
       "project": ["src/**/*.{ts,tsx,css}"]
     },
+    "packages/panel": {
+      "project": ["src/**/*.{ts,tsx,css}"]
+    },
     "tools/docs": {
       "entry": ["src/clientModules/**/*.ts", "src/pages/**/*.tsx", "src/theme/**/*.tsx"],
       "project": ["*.ts", "src/**/*.{ts,tsx}"],

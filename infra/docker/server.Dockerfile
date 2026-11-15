@@ -36,6 +36,7 @@ COPY package.json pnpm-lock.yaml pnpm-workspace.yaml tsconfig.base.json ./
 # though the filtered install succeeds.
 COPY apps/hub/server/package.json apps/hub/server/package.json
 COPY apps/hub/panel/package.json apps/hub/panel/package.json
+COPY packages/panel/package.json packages/panel/package.json
 COPY apps/hub/desktop/package.json apps/hub/desktop/package.json
 COPY packages/sqlite/package.json packages/sqlite/package.json
 COPY packages/runtime-state/package.json packages/runtime-state/package.json
@@ -50,6 +51,7 @@ RUN pnpm install --frozen-lockfile \
 
 COPY apps/hub/server apps/hub/server
 COPY apps/hub/panel apps/hub/panel
+COPY packages/panel packages/panel
 COPY apps/hub/desktop apps/hub/desktop
 COPY infra/relay infra/relay
 COPY tools/build tools/build
