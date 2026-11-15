@@ -24,7 +24,7 @@ import {
   type RelayGrantState,
 } from '@clara/shared-types'
 import { clearDevice, loadDevice, saveDevice, type StoredDevice } from '../device-store.ts'
-import { createRelayTransport, MAX_IN_FLIGHT_REQUESTS, type RelayTransport } from './relay.ts'
+import { createRelayTransport, MAX_IN_FLIGHT_REQUESTS, RELAY_FRAME_BURST, type RelayTransport } from './relay.ts'
 
 type Greet = (socket: WebSocket, sid: string) => boolean
 
@@ -40,6 +40,8 @@ type RelayOptions = {
   onSealed?: () => void
   /** Drop the socket as soon as the handshake completes, racing the ready frame. */
   closeAfterReady?: boolean
+  /** Close instead of serving the next sealed frame, the way the room refuses one. */
+  closeOnSealed?: { code: number; reason: string }
 }
 
 let server: Server
@@ -348,7 +350,58 @@ describe('relay transport device errors', () => {
   }, 20_000)
 })
 
-describe('relay connection races', () => {
+describe('relay volume limits', () => {
+  it('paces a request burst under the room frame budget', async () => {
+    const relay = await startRelay()
+    try {
+      await relay.transport.connect()
+      const total = RELAY_FRAME_BURST + 20
+      const started = Date.now()
+      const responses = await Promise.all(
+        Array.from({ length: total }, () =>
+          relay.transport.fetch('http://clara.relay/api/info', {
+            signal: AbortSignal.timeout(10_000),
+          })
+        )
+      )
+      const elapsed = Date.now() - started
+      expect(responses.every((response) => response.status === 200)).toBe(true)
+      // Twenty frames beyond the burst at twenty-five frames a second cannot
+      // arrive inside 400ms; sending them all at once is what the room refuses.
+      expect(elapsed).toBeGreaterThan(400)
+    } finally {
+      await relay.close()
+    }
+  }, 15_000)
+
+  it('backs off and reports a throttled connection', async () => {
+    let attempts = 0
+    const relay = await startRelay(
+      () => {
+        attempts += 1
+        return true
+      },
+      { closeOnSealed: { code: 4008, reason: 'rate limit' } }
+    )
+
+    try {
+      await relay.transport.connect()
+      await relay.transport
+        .fetch('http://clara.relay/api/info', { signal: AbortSignal.timeout(3_000) })
+        .catch(() => undefined)
+      await waitFor(() => relay.transport.status().state === 'reconnecting', 5_000)
+      expect(relay.transport.status().error).toMatch(/throttl/i)
+
+      // The room's bucket needs a pause, so the next dial waits seconds rather
+      // than the one second an ordinary drop uses.
+      await new Promise((resolve) => setTimeout(resolve, 1_000))
+      expect(attempts).toBe(1)
+      await waitFor(() => attempts === 2, 8_000)
+    } finally {
+      await relay.close()
+    }
+  }, 20_000)
+
   it('reconnects when the socket closes as the handshake completes', async () => {
     const seen: string[] = []
     const relay = await startRelay(undefined, {
@@ -367,6 +420,7 @@ describe('relay connection races', () => {
       await relay.close()
     }
   }, 15_000)
+
 })
 
 async function waitFor(check: () => boolean, timeoutMs = 2_000): Promise<void> {
@@ -541,6 +595,10 @@ function attachFakeAgent(
 
     if (frame.t !== 'sealed' || !keys) return
     options.onSealed?.()
+    if (options.closeOnSealed) {
+      socket.close(options.closeOnSealed.code, options.closeOnSealed.reason)
+      return
+    }
     const plaintext = await open(
       keys.c2s,
       { sid, direction: 'c2s', seq: Number(frame.seq) },
