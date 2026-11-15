@@ -1,3 +1,4 @@
+import { PROTOCOL_VERSION } from '@clara/shared-types/protocol'
 import { resolvePaths } from '../paths.ts'
 import { resolvePorts, type Ports } from '../ports.ts'
 import type { ServiceName } from '../ports.ts'
@@ -15,6 +16,7 @@ import {
 } from '../service/lifecycle.ts'
 import { followLogs } from '../service/logs.ts'
 import { isServiceName, SPECS } from '../service/specs.ts'
+import { mismatchNote, statusColumns } from '../service/status-view.ts'
 import { adapterListReport, type AdapterListEntry } from './adapters.ts'
 import { adapterHubLinks, type AdapterHubLink } from '../adapters/hubs.ts'
 import { detectRole, roleLabel, type ClaraRole } from '../state/role.ts'
@@ -260,23 +262,13 @@ async function printStatus(
     console.log(bold(`Clara ${version()} · ${role === 'hub' ? 'hub host' : 'local'}${suffix}`))
     console.log('')
   }
-  console.log(
-    renderTable(list, [
-      { header: 'SERVICE', value: (service) => bold(service.name) },
-      { header: 'STATE', value: (service) => stateLabel(service.state) },
-      { header: 'ENDPOINT', value: (service) => cyan(service.url) },
-      {
-        header: 'PID',
-        value: (service) => (service.pid ? String(service.pid) : '-'),
-        align: 'right',
-      },
-      {
-        header: 'UPTIME',
-        value: (service) => (service.uptimeMs ? formatDuration(service.uptimeMs) : '-'),
-        align: 'right',
-      },
-    ])
-  )
+  const expected = { version: version(), protocol: PROTOCOL_VERSION }
+  console.log(renderTable(list, statusColumns(expected)))
+  const note = mismatchNote(list, expected)
+  if (note) {
+    console.log('')
+    console.log(`  ${note}`)
+  }
 }
 
 function printRemoteStatus(

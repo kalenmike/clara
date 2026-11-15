@@ -11,6 +11,10 @@ beforeAll(async () => {
   dir = mkdtempSync(join(tmpdir(), 'clara-web-'))
   writeFileSync(join(dir, 'index.html'), '<!doctype html><title>Clara</title>')
   writeFileSync(join(dir, 'sw.js'), 'self.skipWaiting()')
+  writeFileSync(
+    join(dir, 'healthz'),
+    JSON.stringify({ ok: true, service: 'clara-web', version: '9.9.9', protocol: 7 })
+  )
   mkdirSync(join(dir, 'assets'))
   writeFileSync(join(dir, 'assets', 'app.js'), 'console.log(1)')
   server = await startStaticServer({ root: dir, port: 0 })
@@ -22,10 +26,30 @@ afterAll(async () => {
 })
 
 describe('web static server', () => {
-  it('serves the health endpoint', async () => {
+  it('serves the built health response', async () => {
     const response = await fetch(`${server.url}/healthz`)
     expect(response.status).toBe(200)
-    expect(await response.json()).toEqual({ ok: true, service: 'clara-web' })
+    expect(response.headers.get('content-type')).toContain('application/json')
+    expect(await response.json()).toEqual({
+      ok: true,
+      service: 'clara-web',
+      version: '9.9.9',
+      protocol: 7,
+    })
+  })
+
+  it('answers the base contract when the build has no health file', async () => {
+    const bare = mkdtempSync(join(tmpdir(), 'clara-web-bare-'))
+    writeFileSync(join(bare, 'index.html'), '<!doctype html><title>Clara</title>')
+    const bareServer = await startStaticServer({ root: bare, port: 0 })
+    try {
+      const response = await fetch(`${bareServer.url}/healthz`)
+      expect(response.status).toBe(200)
+      expect(await response.json()).toEqual({ ok: true, service: 'clara-web' })
+    } finally {
+      await bareServer.close()
+      rmSync(bare, { recursive: true, force: true })
+    }
   })
 
   it('falls back to the app shell for client routes', async () => {

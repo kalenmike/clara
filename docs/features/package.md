@@ -101,7 +101,15 @@ command that runs them. People install it from a signed release, run
   `linux-arm64`, `darwin-x64`, `darwin-arm64`, and `win32-x64`.
 - Version store: `<data>/versions/<version>/clara` with `~/.local/bin/clara`
   pointing at the active version.
-- Build: `pnpm package:build`; smoke: `pnpm package:smoke`; publish:
+- Build: `pnpm cli:build`; smoke: `pnpm cli:smoke`; publish:
   `.github/workflows/package-releases.yml` with `CLARA_RELEASE_SIGNING_KEY`.
+- Local builds: `pnpm cli:build` writes
+  `apps/cli/dist/package/<bun-target>/clara`. `pnpm cli:install` installs that
+  build without rebuilding it: it stages the binary under
+  `<data>/versions/<version>/clara`, links it from the user bin directory, and
+  writes `install.json` with channel `local`, so `clara doctor`, `clara update`,
+  and `clara uninstall` work as for a release. `--from`, `--bin-dir`, and
+  `--dry-run` change the source and target; `pnpm cli:uninstall [--purge]`
+  removes the install through `clara uninstall`.
 
 </details>

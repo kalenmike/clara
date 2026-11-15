@@ -1,5 +1,5 @@
 import { createECDH, randomBytes } from 'node:crypto'
-import { mkdtempSync, readFileSync, rmSync } from 'node:fs'
+import { chmodSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
@@ -117,6 +117,40 @@ describe('PushSubscriptionStore', () => {
     expect(clearPushSubscriptions(path)).toBe(1)
     expect(new PushSubscriptionStore(path).size).toBe(0)
   })
+
+  it('reports a corrupt file and resets it on request', () => {
+    const path = join(tempDir(), 'subscriptions.json')
+    writeFileSync(path, '{not json', { mode: 0o600 })
+    const store = new PushSubscriptionStore(path)
+
+    expect(store.available).toBe(false)
+    expect(store.error).toContain(path)
+    expect(() => store.upsert(subscription())).toThrow(/storage is unavailable/)
+
+    expect(store.reset()).toBe(0)
+    expect(store.available).toBe(true)
+    expect(store.upsert(subscription()).count).toBe(1)
+    expect(JSON.parse(readFileSync(path, 'utf8')).subscriptions).toHaveLength(1)
+  })
+
+  it.skipIf(process.platform === 'win32' || process.getuid?.() === 0)(
+    'recovers an unreadable file after the permissions are fixed',
+    () => {
+      const path = join(tempDir(), 'subscriptions.json')
+      writeFileSync(path, '{\n  "version": 1,\n  "subscriptions": []\n}\n', { mode: 0o600 })
+      chmodSync(path, 0o000)
+
+      const store = new PushSubscriptionStore(path)
+      expect(store.available).toBe(false)
+      expect(store.error).toMatch(/EACCES|permission denied/)
+      expect(() => store.upsert(subscription())).toThrow(/storage is unavailable/)
+
+      chmodSync(path, 0o600)
+      expect(store.reload()).toBe(true)
+      expect(store.available).toBe(true)
+      expect(store.upsert(subscription()).count).toBe(1)
+    }
+  )
 })
 
 describe('push payloads', () => {
@@ -237,6 +271,27 @@ describe('PushService', () => {
     service.setSubject('mailto:ops@example.com')
 
     expect(service.subject).toBe('mailto:ops@example.com')
+  })
+
+  it('keeps VAPID available when subscription storage fails', async () => {
+    const path = join(tempDir(), 'subscriptions.json')
+    writeFileSync(path, '{not json', { mode: 0o600 })
+    const store = new PushSubscriptionStore(path)
+    const keys = webpush.generateVAPIDKeys()
+    const service = new PushService({
+      ...keys,
+      subject: 'https://clara.example.com',
+      store,
+      send: async () => ({ statusCode: 201 }),
+    })
+
+    expect(service.publicKey).toBe(keys.publicKey)
+    expect(service.storageAvailable).toBe(false)
+    expect(service.storageError).toContain(path)
+    await expect(service.test()).rejects.toThrow(/storage is unavailable/)
+
+    expect(service.resetStorage()).toEqual({ available: true, subscriptions: 0 })
+    expect(service.storageAvailable).toBe(true)
   })
 
   it('holds mobile devices while a desktop client is active', async () => {

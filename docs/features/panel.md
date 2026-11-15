@@ -159,6 +159,9 @@ first-run, headless, and emergency surface.
    room. The token is encrypted before it is saved and is never shown again. A
    relay URL saved without the hub token does not block the hub: the card marks
    the token as missing and the hub runs local-only until it is saved.
+   The Push card separates the VAPID key from subscription storage; when the
+   subscriptions file is unreadable it offers **Retry storage** and a confirmed
+   **Reset subscriptions**.
    Environment variables win over panel values field by field; fields they
    supply are read-only. When the build includes the optional Cloudflare
    deployment, the Relay card also carries **Deploy relay to Cloudflare**: paste
@@ -460,6 +463,10 @@ first-run, headless, and emergency surface.
 - **Push is off or unavailable** — the card shows the saved choice, the
   effective state, the startup error, and the subscription count. Existing
   subscriptions are kept.
+- **Push subscription storage is unavailable** — the card keeps the VAPID key
+  configured, marks storage unavailable, and shows the read error. **Retry
+  storage** retries the read after a permissions fix; **Reset subscriptions**
+  deletes the file and starts empty after confirmation.
 - **Client sync is off** — the web Sync tab disappears, sync actions return
   `disabled`, and the stored namespace and per-device category choices are kept
   for the next enable.
@@ -613,8 +620,8 @@ first-run, headless, and emergency surface.
 - Panel listener: `127.0.0.1:8790` by default; `CLARA_PANEL_BIND_HOST=0.0.0.0`
   inside the container with host-loopback publishing
 - Page: `GET /`
-- Health: `GET /health` (unauthenticated, no secrets; includes
-  `setupRequired` and `setupTokenRequired`)
+- Health: `GET /health` (unauthenticated, no secrets; includes `version`,
+  `protocol`, `setupRequired`, and `setupTokenRequired`)
 - Session: `GET|POST|DELETE /panel/api/v1/session`
 - Setup: `POST /panel/api/v1/setup` with `{ "username": "...", "password": "..." }`,
   plus `"token"` only when the host supplied one
@@ -663,6 +670,11 @@ first-run, headless, and emergency surface.
 - Assets: `GET /assets/<hashed file>` and `GET /favicon.svg`
 - Bundled panel: `/hub` in the web and desktop router, rendered from
   `packages/panel` (`@clara/panel`) inside the connected client shell
+- Bundled layout: the `/hub` route mounts `.panel-root` as a flex slot under its
+  app bar, and the shell, boot, and auth screens fill that slot with `flex: 1`
+  and `min-height: 0`. The panel never uses a viewport or percentage height when
+  embedded, so the host's bar cannot push the status bar off screen. The served
+  page is the only host that sizes the shell against the viewport
 - Hub bridge: `/v1/hub-panel` on the paired E2EE session forwards the typed panel
   API to the loopback listener; it is not a general loopback proxy and adds no
   listener or published port

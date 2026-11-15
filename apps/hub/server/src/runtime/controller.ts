@@ -28,6 +28,7 @@ import type {
   PanelInstallManifest,
   PanelLocalAddress,
   PanelOrchestrationControl,
+  PanelPushStorage,
   PanelRelayMutationResponse,
   PanelRelayUpdate,
   PanelSyncUpdate,
@@ -413,7 +414,7 @@ export class RuntimeController {
     if (!device) return undefined
     this.localAgent.abortDevice(id)
     this.relayAgent?.abortDevice(id)
-    this.options.push?.removeByDevice(id)
+    this.dropPushRoutes(id)
     this.options.log(`device revoked (${id})`)
     return device
   }
@@ -432,9 +433,21 @@ export class RuntimeController {
     if (!device) return undefined
     this.localAgent.abortDevice(id)
     this.relayAgent?.abortDevice(id)
-    this.options.push?.removeByDevice(id)
+    this.dropPushRoutes(id)
     this.options.log(`device record deleted (${id})`)
     return device
+  }
+
+  /**
+   * Revoking a device must succeed even when the subscriptions file is
+   * unreadable. The stale route is harmless until the operator resets storage.
+   */
+  private dropPushRoutes(id: string): void {
+    try {
+      this.options.push?.removeByDevice(id)
+    } catch (cause) {
+      this.options.log('could not remove push routes for a revoked device', cause)
+    }
   }
 
   canProxy(): boolean {
@@ -519,6 +532,41 @@ export class RuntimeController {
       this.options.log(`could not ${enabled ? 'enable' : 'disable'} ${feature}`, cause)
     }
     return this.controls()
+  }
+
+  /** Retry the subscriptions file after the operator fixed its permissions. */
+  reloadPushStorage(): PanelPushStorage {
+    return this.updatePushStorage((push) => push.reloadStorage(), 'reload')
+  }
+
+  /** Drop the stored subscriptions so a corrupt or unreadable file is replaced. */
+  resetPushStorage(): PanelPushStorage {
+    return this.updatePushStorage((push) => push.resetStorage(), 'reset')
+  }
+
+  private updatePushStorage(
+    update: (push: PushService) => PanelPushStorage,
+    action: 'reload' | 'reset'
+  ): PanelPushStorage {
+    const push = this.options.push
+    if (!push) {
+      throw new PanelControlError(
+        409,
+        'push_unavailable',
+        this.options.pushError ?? 'Push notifications are not available on this hub.'
+      )
+    }
+    try {
+      const storage = update(push)
+      if (storage.available) {
+        this.options.log(`push subscription storage ${action} (${storage.subscriptions} device(s))`)
+      } else {
+        this.options.log(`push subscription storage ${action} failed`, storage.error)
+      }
+      return storage
+    } catch (cause) {
+      throw new PanelControlError(500, 'push_storage_failed', errorMessage(cause))
+    }
   }
 
   /**

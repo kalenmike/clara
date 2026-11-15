@@ -75,8 +75,10 @@ pnpm build          # Build every workspace package
 ENABLE_CLOUDFLARE_DEPLOYMENT=true pnpm build # Include the optional Cloudflare relay deployment
 pnpm clara:link     # Install a thin `clara-dev` shim on ~/.local/bin
 pnpm cli            # Run the packaged command from source
-pnpm package:build  # Build the Bun `clara` binary for the host
-pnpm package:smoke  # Build and smoke the packaged binary
+pnpm cli:build      # Build the Bun `clara` binary for the host
+pnpm cli:install    # Install that build for the current user
+pnpm cli:smoke      # Build and smoke the packaged binary
+pnpm cli:uninstall  # Remove the installed command
 clara start|stop|restart|status|ps|logs [hub|engine|web] # Packaged stack lifecycle
 clara setup         # Create the owner account, start, and optionally add a login service
 clara update        # Verify and install a signed release (--check, --rollback)

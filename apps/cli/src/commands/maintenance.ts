@@ -10,7 +10,12 @@ import { adapterListReport } from './adapters.ts'
 import { detectRole, roleLabel } from '../state/role.ts'
 import { serviceInstallGuard } from './role-guard.ts'
 import { releaseBaseUrl } from '../release/manifest.ts'
-import { defaultBinDir, installsDir, readInstallInfo } from '../release/version-store.ts'
+import {
+  defaultBinDir,
+  installInfoPath,
+  installsDir,
+  readInstallInfo,
+} from '../release/version-store.ts'
 import {
   applyPlan,
   detectService,
@@ -99,6 +104,7 @@ export async function runUninstallCommand(args: readonly string[]): Promise<numb
   } catch {
     console.log(dim('Left the running version in place.'))
   }
+  rmSync(installInfoPath(paths), { force: true })
   if (!isCompiled()) console.log(dim('Source checkout left in place.'))
 
   if (parsed.flags.has('purge')) {

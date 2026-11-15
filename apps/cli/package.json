@@ -15,9 +15,11 @@
     "start": "tsx src/main.ts",
     "build:binary": "node scripts/build-binary.mjs",
     "check:bundle": "node scripts/check-bundle.mjs",
+    "install:local": "node scripts/install.mjs",
     "smoke": "node scripts/smoke.mjs",
     "typecheck": "tsc -p tsconfig.json",
-    "test": "vitest run"
+    "test": "vitest run",
+    "uninstall:local": "node scripts/install.mjs --uninstall"
   },
   "dependencies": {
     "@clara/engine": "workspace:*",

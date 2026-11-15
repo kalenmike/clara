@@ -84,7 +84,8 @@ function push(patch: Partial<PanelPushInfo> = {}): PanelPushInfo {
     effective: true,
     subscriptions: 2,
     failing: 0,
-    publicKeyConfigured: true,
+    vapidConfigured: true,
+    storageAvailable: true,
     ...patch,
   }
 }
@@ -181,6 +182,11 @@ describe('pushHealth', () => {
   it('treats a reported error as bad and a disabled feature as idle', () => {
     expect(pushHealth(push({ error: 'VAPID missing' })).tone).toBe('bad')
     expect(pushHealth(push({ desired: false, effective: false })).tone).toBe('idle')
+  })
+
+  it('keeps storage failures separate from a missing VAPID key', () => {
+    const result = pushHealth(push({ storageAvailable: false, storageError: 'EACCES' }))
+    expect(result).toMatchObject({ tone: 'warn', status: 'Storage error', detail: 'EACCES' })
   })
 })
 

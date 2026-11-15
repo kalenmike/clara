@@ -297,7 +297,8 @@ async function runServe(
       store,
       log,
     })
-    log(`push ready (${push.count} device(s))`)
+    if (push.storageError) log('push subscription storage is unavailable', push.storageError)
+    else log(`push ready (${push.count} device(s))`)
   } catch (cause) {
     pushError = cause instanceof Error ? cause.message : String(cause)
     log('push disabled', cause)

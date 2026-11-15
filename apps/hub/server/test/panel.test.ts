@@ -6,6 +6,7 @@ import { afterEach, describe, expect, it } from 'vitest'
 import {
   MAX_DEVICE_ALIAS_LENGTH,
   PANEL_API_VERSION,
+  PROTOCOL_VERSION,
   type PanelConfigInfo,
   type PanelConfigMutationResponse,
   type PanelConfigUpdate,
@@ -112,7 +113,8 @@ function snapshot(): PanelSnapshot {
       effective: false,
       subscriptions: 0,
       failing: 0,
-      publicKeyConfigured: false,
+      vapidConfigured: false,
+      storageAvailable: true,
     },
     controls: {
       stopped: false,
@@ -192,6 +194,7 @@ type FakeControls = PanelControlService & {
   installs: boolean[]
   configs: PanelConfigUpdate[]
   relayUpdates: PanelRelayUpdate[]
+  pushStorage: Array<'reload' | 'reset'>
   clears: number
   roomRegenerations: number
   devicePairings: unknown[]
@@ -239,6 +242,7 @@ function fakeControls(initial: Partial<PanelControls> = {}): FakeControls {
   const installs: boolean[] = []
   const configs: PanelConfigUpdate[] = []
   const relayUpdates: PanelRelayUpdate[] = []
+  const pushStorage: Array<'reload' | 'reset'> = []
   let clears = 0
   let roomRegenerations = 0
   const devicePairings: unknown[] = []
@@ -255,6 +259,7 @@ function fakeControls(initial: Partial<PanelControls> = {}): FakeControls {
     installs,
     configs,
     relayUpdates,
+    pushStorage,
     get clears() {
       return clears
     },
@@ -302,6 +307,14 @@ function fakeControls(initial: Partial<PanelControls> = {}): FakeControls {
       installs.push(enabled)
       state.install = { enabled }
       return state
+    },
+    reloadPushStorage: () => {
+      pushStorage.push('reload')
+      return { available: true, subscriptions: 0 }
+    },
+    resetPushStorage: () => {
+      pushStorage.push('reset')
+      return { available: true, subscriptions: 0 }
     },
     updateRelay: async (update) => {
       relayUpdates.push(update)
@@ -515,7 +528,12 @@ describe('panel server', () => {
 
     const health = await fetch(`${server.url}health`)
     expect(health.status).toBe(200)
-    expect(await health.json()).toMatchObject({ ok: true, service: 'clara-server' })
+    expect(await health.json()).toMatchObject({
+      ok: true,
+      service: 'clara-server',
+      version: expect.any(String),
+      protocol: PROTOCOL_VERSION,
+    })
 
     const anonymous = await fetch(`${server.url}panel/api/v1/status`)
     expect(anonymous.status).toBe(401)
@@ -1208,6 +1226,27 @@ describe('panel server', () => {
     expect((await post(server, 'config', { localBindHost: 1 })).status).toBe(400)
     expect((await post(server, 'config', { extra: true })).status).toBe(400)
     expect(controls.configs).toEqual([])
+  })
+
+  it('reloads and resets push subscription storage', async () => {
+    const controls = fakeControls()
+    const server = await start(undefined, controls)
+
+    const reload = await post(server, 'push', { action: 'reload' })
+    expect(reload.status).toBe(200)
+    expect(await reload.json()).toEqual({
+      storage: { available: true, subscriptions: 0 },
+    })
+
+    const reset = await post(server, 'push', { action: 'reset' })
+    expect(reset.status).toBe(200)
+    expect(await reset.json()).toEqual({
+      storage: { available: true, subscriptions: 0 },
+    })
+
+    expect((await post(server, 'push', { action: 'nope' })).status).toBe(400)
+    expect((await post(server, 'push', { action: 'reset', extra: true })).status).toBe(400)
+    expect(controls.pushStorage).toEqual(['reload', 'reset'])
   })
 
   it('maps an environment override to a conflict', async () => {

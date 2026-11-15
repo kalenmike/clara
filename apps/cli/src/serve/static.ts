@@ -58,7 +58,7 @@ export async function startStaticServer(options: StaticServerOptions): Promise<S
         'content-type': 'application/json; charset=utf-8',
         'cache-control': 'no-cache, max-age=0, must-revalidate',
       })
-      response.end(JSON.stringify({ ok: true, service: 'clara-web' }))
+      response.end(healthBody(root))
       return
     }
 
@@ -100,6 +100,28 @@ export async function startStaticServer(options: StaticServerOptions): Promise<S
         server.close(() => resolveClose())
       }),
   }
+}
+
+/**
+ * The web build writes the health response with the version and protocol of
+ * the assets it shipped. An older build has no such file, so answer the base
+ * contract instead of inventing values.
+ */
+function healthBody(root: string): string {
+  try {
+    const parsed: unknown = JSON.parse(readFileSync(join(root, 'healthz'), 'utf8'))
+    if (
+      typeof parsed === 'object' &&
+      parsed !== null &&
+      !Array.isArray(parsed) &&
+      (parsed as { service?: unknown }).service === 'clara-web'
+    ) {
+      return JSON.stringify(parsed)
+    }
+  } catch {
+    // fall through to the base contract
+  }
+  return JSON.stringify({ ok: true, service: 'clara-web' })
 }
 
 function findFile(root: string, pathname: string): string | undefined {

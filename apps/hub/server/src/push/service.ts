@@ -2,6 +2,7 @@ import type { PushSubscriptionPayload } from '@clara/shared-types'
 import webpush, { type PushSubscription, type RequestOptions } from 'web-push'
 import {
   PushSubscriptionStore,
+  type PushStorageState,
   type StoredPushSubscription,
   type SubscriptionMeta,
 } from './store.ts'
@@ -68,6 +69,36 @@ export class PushService {
     return this.store.list().filter((entry) => entry.lastError).length
   }
 
+  /** The subscriptions file could not be read or written. */
+  get storageError(): string | undefined {
+    return this.store.error
+  }
+
+  get storageAvailable(): boolean {
+    return this.store.available
+  }
+
+  storageState(): PushStorageState {
+    return this.store.state()
+  }
+
+  /** Retry a failed read; the panel uses this after a permissions fix. */
+  reloadStorage(): PushStorageState {
+    this.store.reload()
+    return this.store.state()
+  }
+
+  /** Drop every stored subscription and start a fresh file. */
+  resetStorage(): PushStorageState {
+    this.store.reset()
+    return this.store.state()
+  }
+
+  refreshStorage(): PushStorageState {
+    this.store.refresh()
+    return this.store.state()
+  }
+
   has(endpoint: string): boolean {
     return this.store.has(endpoint)
   }
@@ -96,6 +127,12 @@ export class PushService {
   }
 
   async test(endpoint?: string): Promise<{ count: number }> {
+    this.store.refresh()
+    if (this.store.error) {
+      throw new Error(
+        `Push subscription storage is unavailable. Fix it and retry, or reset it from the hub panel. ${this.store.error}`
+      )
+    }
     const payload: PushNotificationPayload = {
       v: 1,
       kind: 'review',
@@ -120,6 +157,7 @@ export class PushService {
   }
 
   async notify(payload: PushNotificationPayload, options: PushNotifyOptions = {}): Promise<void> {
+    this.store.refresh()
     if (this.store.size === 0) return
     await this.sendAll(JSON.stringify(payload), options)
   }

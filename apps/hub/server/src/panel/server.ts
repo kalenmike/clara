@@ -6,6 +6,7 @@ import { isAdapterInstallMethod, validateKind, validateOpencodeUrl } from '@clar
 import {
   isSyncIntervalMs,
   MAX_DEVICE_ALIAS_LENGTH,
+  PROTOCOL_VERSION,
   type PanelAuthInfo,
   type PanelConfigUpdate,
   type PanelFeatureName,
@@ -35,6 +36,7 @@ const ORCHESTRATION_PATH = '/panel/api/v1/orchestration'
 const CONFIG_PATH = '/panel/api/v1/config'
 const RELAY_PATH = '/panel/api/v1/relay'
 const RELAY_ROOM_PATH = '/panel/api/v1/relay/room'
+const PUSH_PATH = '/panel/api/v1/push'
 const HARNESSES_PREFIX = '/panel/api/v1/harnesses'
 const DEVICES_PREFIX = '/panel/api/v1/devices'
 const INSTALL_PATH = '/panel/api/v1/install'
@@ -201,6 +203,7 @@ async function handleRequest(
       ok: true,
       service: 'clara-server',
       version: SERVER_VERSION,
+      protocol: PROTOCOL_VERSION,
       mode: isContainerized() ? 'container' : 'local',
       setupRequired: !context.auth.configured(),
       setupTokenRequired: context.auth.requiresSetupToken(),
@@ -1177,9 +1180,11 @@ async function handleMutation(
             ? 'sync'
             : pathname === ORCHESTRATION_PATH
               ? 'orchestration'
-              : pathname === CONFIG_PATH
-                ? 'config'
-                : undefined
+              : pathname === PUSH_PATH
+                ? 'push'
+                : pathname === CONFIG_PATH
+                  ? 'config'
+                  : undefined
   if (!kind) {
     sendJson(response, method, 404, {
       error: { code: 'not_found', message: 'Unknown panel endpoint' },
@@ -1243,6 +1248,17 @@ async function handleMutation(
         return invalidField(response, method, 'enabled')
       }
       updated = await controls.setOrchestration(body.value.enabled)
+    } else if (kind === 'push') {
+      const unknown = unknownFields(body.value, ['action'])
+      if (unknown) return invalidField(response, method, unknown)
+      const action = body.value.action
+      if (action !== 'reload' && action !== 'reset') {
+        return invalidField(response, method, 'action')
+      }
+      const storage =
+        action === 'reset' ? controls.resetPushStorage() : controls.reloadPushStorage()
+      sendJson(response, method, 200, { storage })
+      return
     } else if (kind === 'config') {
       const unknown = unknownFields(body.value, [
         'localAccess',
