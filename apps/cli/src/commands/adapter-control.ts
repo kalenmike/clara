@@ -1,6 +1,6 @@
 import { existsSync } from 'node:fs'
 import { adapterBinaryPath, runStreamed } from '../adapters/install.ts'
-import { readAdapterState } from '../adapters/state.ts'
+import { adapterEnv, readAdapterState } from '../adapters/state.ts'
 import { resolvePaths } from '../paths.ts'
 import { parseKindSpec } from './adapter-args.ts'
 
@@ -30,6 +30,10 @@ export async function runAdapterControl(
   if (!existsSync(binary)) {
     throw new Error(`The recorded ${spec.kind} binary is missing at ${binary}. Reinstall it.`)
   }
-  const result = await runStreamed(binary, [action, ...extra])
+  const result = await runStreamed(
+    binary,
+    [action, ...extra],
+    adapterEnv(resolvePaths(), spec.kind)
+  )
   return result.code
 }
