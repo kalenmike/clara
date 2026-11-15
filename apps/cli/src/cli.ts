@@ -4,6 +4,7 @@ import { resolvePorts } from './ports.ts'
 import { isServiceName } from './service/specs.ts'
 import { runLogs, runRestart, runStart, runStatus, runStop } from './commands/service.ts'
 import { runPair } from './commands/pair.ts'
+import { runAdapters } from './commands/adapters.ts'
 import { runRunnerCommand } from './commands/runner.ts'
 import { runSupervisor } from './supervisor/run.ts'
 import { applyColorChoice, bold, cyan, dim } from './ui/color.ts'
@@ -68,9 +69,22 @@ export const commands: Command[] = [
   },
   {
     name: 'pair',
-    summary: 'Print a browser pairing code',
-    usage: 'hub [--no-relay] [--no-qr] [--revoke-all|--revoke <id>]',
+    summary: 'Print a pairing code',
+    usage:
+      'hub [--no-relay] [--no-qr] [--revoke-all|--revoke <id>] | adapter --harness <kind> [--transport local|relay] [--install]',
     run: runPair,
+  },
+  {
+    name: 'adapter',
+    summary: 'Search, install, and manage harness adapters',
+    usage: 'search|list|install|upgrade|remove|start|stop|status|logs [options]',
+    options: [
+      { flags: '--json', description: 'machine-readable output where supported' },
+      { flags: '--pair <code>', description: 'pair with an existing code instead of issuing one' },
+      { flags: '--no-start', description: 'install without starting the adapter' },
+      { flags: '--purge', description: 'remove adapter credentials with the install' },
+    ],
+    run: runAdapters,
   },
   {
     name: 'runner',
