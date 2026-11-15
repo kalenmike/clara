@@ -8,15 +8,7 @@
 // Targets are intentionally a fixed list. Unknown words are rejected instead of
 // being forwarded, so a typo cannot silently become a service name.
 
-export const LIFECYCLE_TARGETS = [
-  'default',
-  'hub',
-  'web',
-  'engine',
-  'runner',
-  'lab',
-  'docs',
-]
+export const LIFECYCLE_TARGETS = ['default', 'hub', 'web', 'engine', 'runner', 'lab', 'docs']
 
 export const CORE_TARGETS = ['hub', 'web', 'engine']
 

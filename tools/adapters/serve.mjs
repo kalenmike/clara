@@ -116,7 +116,9 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
   try {
     const options = parseArgs(process.argv.slice(2))
     if (options.help) {
-      console.log('Usage: pnpm adapters:serve [--dir dist/adapters] [--port 8799] [--host 127.0.0.1]')
+      console.log(
+        'Usage: pnpm adapters:serve [--dir dist/adapters] [--port 8799] [--host 127.0.0.1]'
+      )
     } else {
       await serveRegistry(options)
     }

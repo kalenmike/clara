@@ -90,10 +90,7 @@ const commands = [
     usage: '<target> [options]',
     passthroughHelp: true,
     sections: [TARGETS_SECTION],
-    options: [
-      ...MODE_OPTIONS,
-      { flags: '--purge', description: 'runner: remove the install' },
-    ],
+    options: [...MODE_OPTIONS, { flags: '--purge', description: 'runner: remove the install' }],
     examples: ['clara stop', 'clara stop hub --local', 'clara stop runner --purge'],
     run: (args) => lifecycle('stop', args),
   },
@@ -181,7 +178,8 @@ const commands = [
     name: 'pair',
     group: 'Setup',
     summary: 'Print a browser pairing code',
-    usage: '[hub] [--no-relay] [--no-qr] [--no-panel] [--revoke-all] [--revoke <id>] [--docker|--local]',
+    usage:
+      '[hub] [--no-relay] [--no-qr] [--no-panel] [--revoke-all] [--revoke <id>] [--docker|--local]',
     passthroughHelp: true,
     options: [
       { flags: '--no-relay', description: 'print a local-only code' },
