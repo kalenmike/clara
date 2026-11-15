@@ -175,6 +175,24 @@
   height: 100vh;
 }
 
+/*
+ * The desktop route mounts the lab in a flex column under its app bar, so the
+ * lab fills that slot instead of claiming the viewport. A viewport or percentage
+ * height here resolves against the route's full-viewport column and pushes the
+ * status bar off screen; the standalone `tools/lab` entry keeps `100vh`.
+ */
+.lab-root[data-embedded] {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.lab-root[data-embedded] > :is(.shell, .boot) {
+  flex: 1 1 auto;
+  height: auto;
+  min-height: 0;
+}
+
 .lab-root .titlebar {
   grid-area: title;
   display: flex;
