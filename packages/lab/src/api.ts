@@ -23,12 +23,77 @@ export class ApiError extends Error {
   }
 }
 
+/**
+ * Where Clara Lab sends its requests.
+ *
+ * The lab API always calls relative UI paths (`/api/state`, `/api/stream`, …).
+ * The transport resolves them, so the same UI can run against the standalone
+ * lab server (default, same-origin) or against a hub bridge that exposes the lab
+ * API under another prefix, for example `/v1/lab` behind the paired session.
+ * `stream` defaults to `fetch`.
+ */
+export interface LabTransport {
+  /** Performs every lab API request. It resolves the path it receives. */
+  fetch: typeof globalThis.fetch
+  /** Fetch used for the event stream. Defaults to `fetch`. */
+  stream?: typeof globalThis.fetch
+  /**
+   * Prefix applied to lab API paths. Empty (the default) keeps `/api/...` for
+   * the standalone lab; `/v1/lab` maps `/api/state` to `/v1/lab/state`.
+   */
+  basePath?: string
+}
+
+const API_PREFIX = '/api'
+
+const sameOriginFetch: typeof globalThis.fetch = (input, init) => globalThis.fetch(input, init)
+
+const defaultTransport: LabTransport = {
+  fetch: sameOriginFetch,
+  stream: sameOriginFetch,
+  basePath: '',
+}
+
+let activeTransport: LabTransport = defaultTransport
+
+/** Install the transport used by every lab API call and by the event stream. */
+export function configureLabApi(transport: LabTransport | null): void {
+  activeTransport = transport
+    ? { ...transport, basePath: normalizeBasePath(transport.basePath) }
+    : defaultTransport
+}
+
+/** The transport currently in use, so consumers can share the stream fetch. */
+export function getLabTransport(): LabTransport {
+  return activeTransport
+}
+
+function normalizeBasePath(value: string | undefined): string {
+  const trimmed = (value ?? '').trim().replace(/\/+$/, '')
+  if (!trimmed) return ''
+  return trimmed.startsWith('/') ? trimmed : `/${trimmed}`
+}
+
+/**
+ * Map a lab UI path onto the active transport.
+ *
+ * With no base path the path is returned unchanged. With `/v1/lab`,
+ * `/api/state` becomes `/v1/lab/state` and `/api/source?path=x` becomes
+ * `/v1/lab/source?path=x`. Paths outside `/api` are left alone.
+ */
+export function resolveLabPath(path: string): string {
+  const basePath = activeTransport.basePath ?? ''
+  if (!basePath) return path
+  if (path !== API_PREFIX && !path.startsWith(`${API_PREFIX}/`)) return path
+  return `${basePath}${path.slice(API_PREFIX.length)}`
+}
+
 interface ErrorBody {
   error?: { code?: string; message?: string }
 }
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
-  const response = await fetch(path, { cache: 'no-store', ...init })
+  const response = await activeTransport.fetch(resolveLabPath(path), { cache: 'no-store', ...init })
   const text = await response.text()
   let body: unknown = undefined
   if (text) {
@@ -165,4 +230,9 @@ export function violation(runID: number, stepPath: string, reason: string): Prom
 
 export function streamURL(): string {
   return '/api/stream'
+}
+
+/** The fetch used for the event stream: the transport's `stream`, else its `fetch`. */
+export function streamFetch(): typeof globalThis.fetch {
+  return activeTransport.stream ?? activeTransport.fetch
 }

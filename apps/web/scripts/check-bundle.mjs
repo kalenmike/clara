@@ -31,6 +31,11 @@ const MAX_CHUNK_BYTES = 500 * 1024
  * the app budget, so the panel cannot quietly grow into an eager download.
  */
 const MAX_PANEL_CHUNK_BYTES = 400 * 1024
+/**
+ * The lab is a desktop-only route. It never belongs in the web artifact, so the
+ * web build fails on any lab marker. The desktop build must carry it.
+ */
+const MAX_LAB_CHUNK_BYTES = 500 * 1024
 
 // Harness SDK symbols must never reach the browser artifact.
 const markers = ['/api/session', '/api/project', 'ClientError', 'OpenCode.make']
@@ -41,6 +46,9 @@ const forbidden = [['unrecognized_keys', 'zod']]
 // `__CLARA_CLOUDFLARE_DEPLOYMENT__`. The served panel's build checks the same
 // sentinel and API host string.
 const PANEL_MARKERS = ['panel-shell', 'panel-titlebar']
+// The lab page carries this attribute. It must exist in the desktop build and
+// must never appear in the web build.
+const LAB_MARKERS = ['data-clara-lab-surface', 'clara-lab-surface-v1']
 const CLOUDFLARE_SENTINEL = 'data-clara-cloudflare-deployment'
 const CLOUDFLARE_API_HOST = 'api.cloudflare.com'
 const cloudflareEnabled = featureEnabled(process.env.ENABLE_CLOUDFLARE_DEPLOYMENT)
@@ -66,6 +74,7 @@ const chunks = scripts.map((file) => ({
 
 const violations = []
 let panelChunks = 0
+let labChunks = 0
 let cloudflareUi = false
 for (const { file, source, bytes } of chunks) {
   for (const marker of markers) {
@@ -77,6 +86,9 @@ for (const { file, source, bytes } of chunks) {
 
   const panel = PANEL_MARKERS.some((marker) => source.includes(marker))
   if (panel) panelChunks += 1
+  const lab = LAB_MARKERS.some((marker) => source.includes(marker))
+  if (lab) labChunks += 1
+  if (lab && surface === 'web') violations.push(`${file} contains the desktop-only lab`)
   if (source.includes(CLOUDFLARE_SENTINEL)) cloudflareUi = true
   if (
     !cloudflareEnabled &&
@@ -85,14 +97,18 @@ for (const { file, source, bytes } of chunks) {
     violations.push(`${file} bundles the disabled cloudflare deployment feature`)
   }
 
-  const budget = panel ? MAX_PANEL_CHUNK_BYTES : MAX_CHUNK_BYTES
+  const budget = lab ? MAX_LAB_CHUNK_BYTES : panel ? MAX_PANEL_CHUNK_BYTES : MAX_CHUNK_BYTES
   if (bytes > budget) {
     violations.push(
       `${file} is ${Math.round(bytes / 1024)} kB, over the ${Math.round(budget / 1024)} kB ${
-        panel ? 'panel chunk' : 'chunk'
+        lab ? 'lab chunk' : panel ? 'panel chunk' : 'chunk'
       } budget`
     )
   }
+}
+
+if (surface === 'desktop' && labChunks === 0) {
+  violations.push('the desktop build does not contain the bundled lab')
 }
 
 if (cloudflareEnabled && panelChunks === 0) {
@@ -120,7 +136,7 @@ if (violations.length > 0) {
 }
 
 console.log(
-  `${surface} bundle is clean (${directory}: ${scripts.length} chunks, ${panelChunks} panel, cloudflare ${
+  `${surface} bundle is clean (${directory}: ${scripts.length} chunks, ${panelChunks} panel, ${labChunks} lab, cloudflare ${
     cloudflareEnabled ? 'enabled' : 'disabled'
   }).`
 )

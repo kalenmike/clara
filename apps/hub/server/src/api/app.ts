@@ -9,6 +9,7 @@ import { registerCatalogRoutes } from './routes/catalog.ts'
 import { registerEventRoutes } from './routes/events.ts'
 import { registerGitRoutes } from './routes/git.ts'
 import { registerHarnessRoutes } from './routes/harness.ts'
+import { registerLabBridge } from './routes/lab.ts'
 import { registerMetaRoutes } from './routes/meta.ts'
 import { registerPanelBridge } from './routes/panel.ts'
 import { registerProjectRoutes } from './routes/projects.ts'
@@ -60,6 +61,7 @@ export function createApiApp(deps: ApiDependencies, options: ApiAppOptions): Api
   registerGitRoutes(app, deps)
   registerEventRoutes(app, deps)
   registerPanelBridge(app, deps)
+  registerLabBridge(app, deps)
 
   let spec: Record<string, unknown> | undefined
   const openapi = async (): Promise<Record<string, unknown>> => {

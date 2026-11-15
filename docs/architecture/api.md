@@ -34,6 +34,7 @@ harness as the default.
 | VCS         | `GET /v1/vcs`, `/v1/vcs/base`, `/v1/vcs/status`, `/v1/vcs/diff`                                                                                                                                                                                                                    |
 | Worktrees   | `GET /v1/worktrees`, `POST /v1/worktrees/refresh`                                                                                                                                                                                                                                  |
 | Clara       | `GET /v1/git/log`, `GET /v1/events`                                                                                                                                                                                                                                                |
+| Lab         | `ALL /v1/lab/*` (authenticated bridge to the lab service next to the engine)                                                                                                                                                                                                       |
 
 `GET /v1/events` streams one harness and requires `?harnessID=`. A client that
 needs every harness opens one stream per online harness. The wire payloads are typed as the Clara `ClaraEvent` union from
@@ -59,6 +60,33 @@ runs it through its loopback adapter host.
 The desktop client uses it when a `clara://` link carries a code but no manifest.
 Both routes are device-authenticated like every other `/v1` call. The hub reads
 the registry and never downloads the artifact.
+
+### Lab bridge
+
+`ALL /v1/lab/*` forwards to the lab service that runs next to the engine. It is
+the only way a remote desktop reaches that service; the hub neither runs the lab
+nor holds the engine token.
+
+- **Path mapping.** `/v1/lab/state` maps to `/api/state` on the lab service, and
+  `/v1/lab/runs/3/steps/step-1` maps to `/api/runs/3/steps/step-1`. Query
+  strings are preserved. Only `/api` is reachable: `.`, `..`, backslashes, and
+  NUL are rejected, and a path that normalizes outside `/api` returns
+  `400 invalid_path`.
+- **Authentication.** The route is device-authenticated like every `/v1` call.
+  The hub adds `Authorization: Bearer <CLARA_LAB_TOKEN>` for the lab service and
+  rewrites `Origin` to the lab's own origin, so the lab's loopback guard sees a
+  same-origin request. The desktop never receives the lab token or the engine
+  token.
+- **Streaming.** `GET /v1/lab/stream` is a Server-Sent Events stream. The bridge
+  passes the upstream body through without buffering, so lab events and run
+  progress arrive live.
+- **Limits.** Request bodies are capped at 16 MiB. The bridge forwards only
+  `accept`, `content-type`, `x-clara-lab`, and `user-agent`, and returns only
+  `content-type`, `cache-control`, `allow`, and `retry-after`.
+- **Configuration.** `CLARA_LAB_URL` points the hub at the service (default
+  `http://127.0.0.1:8791`); `off` disables the bridge. `CLARA_LAB_TOKEN` is the
+  shared bridge token and must match the lab service. An unreachable service
+  returns `503 lab_unavailable`.
 
 ### Harness routing
 
@@ -229,7 +257,8 @@ Errors use one envelope:
 Common codes are `unauthorized`, `read_only`, `disabled`,
 `harness_unconfigured`, `harness_offline`, `harness_auth`, `harness_missing`,
 `harness_ambiguous`, `upstream_error`, `upstream_invalid`, `project_unmapped`,
-`project_exists`, and `not_found`. `harness_ambiguous` includes the candidate
+`project_exists`, `lab_unavailable`, `invalid_path`, and `not_found`.
+`harness_ambiguous` includes the candidate
 `harnessIDs` in `details` so a caller can retry with an explicit scope.
 
 ## Read-only MCP

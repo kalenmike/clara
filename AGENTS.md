@@ -19,7 +19,7 @@ apps/engine                          Loopback engine service, REST/SSE/MCP
 apps/adapters/opencode               OpenCode harness adapter, binding, and standalone bin
 apps/adapters/claude                 Claude Code harness adapter and standalone bin
 apps/adapters/pi                     Pi harness adapter and standalone bin (RPC mode)
-tools/lab                            Loopback pipeline preview and agent probe
+tools/lab                            Standalone lab CLI and UI entry (clara-lab bin)
 tools/docs                           User guide and internal documentation site
 tools/cli                            Developer CLI for the stack, worktrees, and docs
 packages/contracts/shared-types      Wire frames, actions, states, pairing payloads
@@ -38,6 +38,8 @@ packages/adapters/binding            Orchestration binding client, delivery, and
 packages/adapters/runner             Shared script runner for harness adapters
 packages/adapters/install            Adapter install planning, target discovery, and jobs
 packages/panel                       Shared hub panel UI for the served and bundled routes
+packages/lab                         Shared Clara Lab UI mounted by the desktop and the standalone entry
+packages/lab-server                  Lab service: workspace preview, engine token, MCP/SSE, asset cache
 packages/preview                     Pipeline preview, diagnostics, and snapshot diff SDK
 packages/crypto                      Device-key derivation, AES-GCM envelopes, replay guard
 infra/relay                          Cloudflare Worker + RelayRoom Durable Object
@@ -50,7 +52,7 @@ infra/docker                         Compose files, Dockerfiles, and the stack .
 - Vite 8, TypeScript 6, React 19, React Router 8
 - Tailwind CSS 4 + shadcn/ui (`radix-nova` preset)
 - TanStack Query 5 + a small external chat store
-- `@opencode/client@2.1.1` — pinned to the targeted OpenCode server version; used only by the OpenCode adapter and Clara Lab
+- `@opencode/client@2.1.1` — pinned to the targeted OpenCode server version; used only by the OpenCode adapter
 - `@anthropic-ai/claude-agent-sdk@0.3.325` — pinned to Claude Code 2.1.325; used only by the Claude Code adapter
 - Pi 1.5.x — driven as the user's installed `pi` binary over `--mode rpc`; the Pi SDK is not a dependency
 - Tauri 2 and Rust for the web desktop app; `@tauri-apps/cli` and the `tauri` crates live only in `apps/desktop`
@@ -156,7 +158,7 @@ create a task worktree outside `../clara-worktrees` (override with
   under `/api`, Claude Code 2.1.325 through the Agent SDK in the Claude Code
   adapter, and Pi 1.5.x by driving the installed `pi` binary in RPC mode.
 - The OpenCode harness SDK is `@opencode/client`, version-matched to the server
-  and used only inside `apps/adapters/opencode` and `tools/lab`. Do not swap it
+  and used only inside `apps/adapters/opencode`. Do not swap it
   for `@opencode-ai/sdk` (v1 API) or import `@opencode/sdk` into the browser
   (embedded Node server). The Claude Code harness SDK is
   `@anthropic-ai/claude-agent-sdk`, pinned inside `apps/adapters/claude`. Neither
@@ -206,7 +208,7 @@ transport, Worker, Durable Object, or crypto.
   Invalidate queries from `EventProvider` instead of polling.
 - Use `packages/contracts/shared-types` for wire types and `packages/crypto` for E2EE.
   Use Clara DTOs from `packages/contracts/api-contract` outside the hub service and lab;
-  keep OpenCode domain types inside `apps/hub/server` and `tools/lab`.
+  keep OpenCode domain types inside `apps/hub/server`.
 - The Worker/DO must not parse or persist encrypted payloads.
 - Never store credentials outside `sessionStorage`/`localStorage` (the latter
   only when the user opts in). Never commit pairing codes, device keys, tokens, or

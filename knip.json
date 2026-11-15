@@ -35,7 +35,14 @@
     },
     "tools/lab": {
       "entry": ["index.html"],
-      "project": ["src/**/*.{ts,tsx}", "server/**/*.ts", "test/**/*.ts"]
+      "project": ["src/**/*.{ts,tsx}", "server/**/*.ts"],
+      "ignoreDependencies": ["@modelcontextprotocol/sdk", "zod"]
+    },
+    "packages/lab": {
+      "project": ["src/**/*.{ts,tsx}", "test/**/*.ts"]
+    },
+    "packages/lab-server": {
+      "project": ["src/**/*.ts", "test/**/*.ts"]
     },
     "apps/hub/server": {
       "entry": ["src/bun.ts", "scripts/*.mjs"],

@@ -3,8 +3,8 @@ import type { AddressInfo } from 'node:net'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { Runtime, Store, defaultConfigPath } from '@clara/orchestration'
 import { createEngineServer, type EngineServer } from '../../../apps/engine/src/server.ts'
-import { startLabServer, type LabServer } from '../server/http.ts'
-import { LabRuntime } from '../server/runtime.ts'
+import { startLabServer, type LabServer } from '../src/http.ts'
+import { LabRuntime } from '../src/runtime.ts'
 
 const workspace = fileURLToPath(new URL('../../../', import.meta.url))
 const config = defaultConfigPath()
@@ -182,8 +182,13 @@ describe('lab server', () => {
   })
 
   it('only reads files that belong to the preview', async () => {
-    await post('/api/preview', { workspace, target: 'std:maintenance/rebuild' })
-    const allowed = await get(`/api/source?path=${encodeURIComponent(config)}`)
+    const preview = await post('/api/preview', {
+      workspace,
+      target: 'std:maintenance/rebuild',
+    })
+    const previewConfig = (preview.value as { workspace: { configPath: string } }).workspace
+      .configPath
+    const allowed = await get(`/api/source?path=${encodeURIComponent(previewConfig)}`)
     expect(allowed.response.status).toBe(200)
     expect((allowed.value as { text: string }).text).toContain('classifier')
 

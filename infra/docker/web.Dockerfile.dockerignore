@@ -28,5 +28,3 @@ orchestration
 **/.vitepress
 packages/api/mcp
 packages/adapters
-packages/orchestration
-packages/preview

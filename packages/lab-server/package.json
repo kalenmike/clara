@@ -1,0 +1,26 @@
+{
+  "name": "@clara/lab-server",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc -p tsconfig.json",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@clara/mcp": "workspace:*",
+    "@clara/pipeline-preview": "workspace:*",
+    "@modelcontextprotocol/sdk": "^1.24.3",
+    "yaml": "^2.8.1",
+    "zod": "^4.1.13"
+  },
+  "devDependencies": {
+    "@clara/orchestration": "workspace:*",
+    "@types/node": "^24.19.2",
+    "typescript": "~6.0.3",
+    "vitest": "^5.0.5"
+  }
+}

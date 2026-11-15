@@ -1,7 +1,8 @@
 #!/usr/bin/env node
 import { existsSync } from 'node:fs'
 import { connect } from 'node:net'
-import { join } from 'node:path'
+import { dirname, join } from 'node:path'
+import { fileURLToPath } from 'node:url'
 import { previewPipeline, type Diagnostic } from '@clara/pipeline-preview'
 import {
   ensureEngine,
@@ -10,11 +11,11 @@ import {
   openBrowser,
   engineURL,
   readToken,
-  repoRoot,
+  startLabServer,
+  staticRootCandidates,
   workspace,
-} from './config.ts'
-import { startLabServer } from './http.ts'
-import { LabRuntime } from './runtime.ts'
+  LabRuntime,
+} from '@clara/lab-server'
 
 interface Options {
   command: string
@@ -129,9 +130,11 @@ async function check(options: Options): Promise<void> {
 
 async function labHealth(port: number): Promise<boolean> {
   try {
+    const token = process.env.CLARA_LAB_TOKEN?.trim()
     const response = await fetch(`${labURL(port)}api/health`, {
       signal: AbortSignal.timeout(1500),
       cache: 'no-store',
+      ...(token ? { headers: { authorization: `Bearer ${token}` } } : {}),
     })
     if (!response.ok) return false
     const body = (await response.json()) as { service?: unknown }
@@ -185,13 +188,22 @@ async function serve(options: Options): Promise<void> {
     token,
     workspace: options.workspace ?? workspace(),
   })
-  if (!existsSync(join(repoRoot(), 'apps', 'lab', 'dist', 'web', 'index.html'))) {
+  const staticRoots = staticRootCandidates(dirname(fileURLToPath(import.meta.url)))
+  if (!staticRoots.some((root) => existsSync(join(root, 'index.html')))) {
     console.warn('[clara-lab] web UI is not built; run `pnpm build` or use `pnpm dev:lab`.')
   }
   await runtime.start()
   const server = await startLabServer({
     runtime,
     port,
+    ...(process.env.CLARA_LAB_HOST?.trim() ? { host: process.env.CLARA_LAB_HOST.trim() } : {}),
+    ...(process.env.CLARA_LAB_TOKEN?.trim() ? { token: process.env.CLARA_LAB_TOKEN.trim() } : {}),
+    ...(['1', 'true', 'yes', 'on'].includes(
+      process.env.CLARA_LAB_ALLOW_REMOTE?.trim().toLowerCase() ?? ''
+    )
+      ? { allowRemote: true }
+      : {}),
+    staticRoots,
     log: (message, detail) => console.error(`[clara-lab] ${message}`, detail ?? ''),
   })
 
