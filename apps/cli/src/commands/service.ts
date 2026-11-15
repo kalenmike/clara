@@ -18,6 +18,7 @@ import { isServiceName, SPECS } from '../service/specs.ts'
 import { adapterListReport, type AdapterListEntry } from './adapters.ts'
 import { adapterHubLinks, type AdapterHubLink } from '../adapters/hubs.ts'
 import { detectRole, roleLabel, type ClaraRole } from '../state/role.ts'
+import { logsGuard, stackGuard } from './role-guard.ts'
 import { runnerProcess } from '../state/runner.ts'
 import { version } from '../version.ts'
 import { bold, cyan, dim, green, red, yellow } from '../ui/color.ts'
@@ -95,6 +96,11 @@ function parse(args: readonly string[]): Parsed {
 export async function runStart(args: readonly string[]): Promise<number> {
   const parsed = parse(args)
   const paths = resolvePaths()
+  const guard = stackGuard(detectRole(paths), 'start')
+  if (guard) {
+    console.error(guard)
+    return 1
+  }
   const ports = resolvePorts()
   const services = parsed.explicit ? parsed.services : defaultServices()
 
@@ -129,6 +135,11 @@ export async function runStart(args: readonly string[]): Promise<number> {
 export async function runStop(args: readonly string[]): Promise<number> {
   const parsed = parse(args)
   const paths = resolvePaths()
+  const guard = stackGuard(detectRole(paths), 'stop')
+  if (guard) {
+    console.error(guard)
+    return 1
+  }
   const target = parsed.explicit && parsed.services.length === 1 ? parsed.services[0] : undefined
   const spinner = startSpinner('Stopping the Clara stack')
   const code = await stopStack(paths, target)
@@ -143,6 +154,11 @@ export async function runStop(args: readonly string[]): Promise<number> {
 export async function runRestart(args: readonly string[]): Promise<number> {
   const parsed = parse(args)
   const paths = resolvePaths()
+  const guard = stackGuard(detectRole(paths), 'restart')
+  if (guard) {
+    console.error(guard)
+    return 1
+  }
   const ports = resolvePorts()
   const code = await restartStack(paths, ports, parsed.explicit ? parsed.services : [])
   if (code !== 0) {
@@ -213,6 +229,11 @@ export async function runStatus(args: readonly string[]): Promise<number> {
 export async function runLogs(args: readonly string[]): Promise<number> {
   const parsed = parse(args)
   const paths = resolvePaths()
+  const guard = logsGuard(detectRole(paths))
+  if (guard) {
+    console.error(guard)
+    return 1
+  }
   const services = parsed.explicit ? parsed.services : defaultServices()
   const tail = Number.parseInt(parsed.options.get('tail') ?? '80', 10)
   return followLogs({

@@ -10,6 +10,8 @@ import { issueAdapterPairing, type PairingTransport } from '../adapters/pairing.
 import { detectAdapterTarget } from '../adapters/platform.ts'
 import { readAdapterState, type AdapterInstallRecord } from '../adapters/state.ts'
 import { resolvePaths } from '../paths.ts'
+import { detectRole } from '../state/role.ts'
+import { adapterInstallGuard } from './role-guard.ts'
 import { dim, green } from '../ui/color.ts'
 import { formatBytes, muted, success, warn } from '../ui/index.ts'
 import { startSpinner, type Spinner } from '../ui/spinner.ts'
@@ -22,20 +24,25 @@ export async function runAdapterInstall(args: readonly string[]): Promise<number
   const spec = requireKind(parsed.values[0], 'install')
   const json = parsed.flags.has('--json')
   const paths = resolvePaths()
+  const pairCode = parsed.options.get('--pair')
+  const guard = pairCode ? undefined : adapterInstallGuard(detectRole(paths), spec.kind)
+  if (guard) {
+    console.error(guard)
+    return 1
+  }
   const spinner =
     json || !process.stdout.isTTY ? undefined : startSpinner(`Installing the ${spec.kind} adapter`)
   const transport = parseTransport(parsed.options.get('--transport'))
   try {
     const target = detectAdapterTarget()
     const version = spec.version ?? parsed.options.get('--version')
-    const pairCode =
-      parsed.options.get('--pair') ?? (await issueCode(spec.kind, transport, spinner))
+    const code = pairCode ?? (await issueCode(spec.kind, transport, spinner))
     const record = await installAdapter(
       {
         kind: spec.kind,
         ...(version ? { version } : {}),
         target,
-        pairCode,
+        pairCode: code,
         start: !parsed.flags.has('--no-start'),
       },
       installDeps(paths, spinner, json)

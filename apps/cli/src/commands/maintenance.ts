@@ -8,6 +8,7 @@ import { statusStack, stopStack } from '../service/lifecycle.ts'
 import { adapterHubLinks } from '../adapters/hubs.ts'
 import { adapterListReport } from './adapters.ts'
 import { detectRole, roleLabel } from '../state/role.ts'
+import { serviceInstallGuard } from './role-guard.ts'
 import { releaseBaseUrl } from '../release/manifest.ts'
 import { defaultBinDir, installsDir, readInstallInfo } from '../release/version-store.ts'
 import {
@@ -28,6 +29,13 @@ import { parseFlags } from './flags.ts'
 export function runServiceCommand(args: readonly string[]): number {
   const parsed = parseFlags(args)
   const action = parsed.positionals[0] ?? 'status'
+  if (action === 'install') {
+    const guard = serviceInstallGuard(detectRole(resolvePaths()))
+    if (guard) {
+      console.error(guard)
+      return 1
+    }
+  }
   const kind = detectService()
   const options = serviceOptions()
 
