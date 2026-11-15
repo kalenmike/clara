@@ -445,6 +445,7 @@ function ChatPageContent() {
                   showInternal={showInternal}
                   onToggleInternal={toggleInternal}
                 />
+                <SessionStatsBar session={session} snapshot={snapshot} harnessID={harnessID} />
 
                 {draftCount > 0 && !busy && !isArchivedSession(session) && (
                   <DraftStartPanel key={sessionId} sessionID={sessionId} count={draftCount} />
@@ -509,10 +510,6 @@ function ChatPageContent() {
 
             <ComposerPanel harnessID={harnessID} onDone={handleComposerDone} />
           </div>
-
-          {session && (
-            <SessionStatsBar session={session} snapshot={snapshot} harnessID={harnessID} />
-          )}
         </div>
 
         {session && infoOpen && isDesktop && (
