@@ -1,5 +1,5 @@
+import { CopyButton as SharedCopyButton } from '@clara/ui/patterns/copy-button'
 import { json } from '../lib/format'
-import { Button } from '@clara/ui/components/button'
 
 export function JsonView({
   value,
@@ -21,16 +21,5 @@ export function JsonView({
 }
 
 export function CopyButton({ value, label = 'Copy' }: { value: unknown; label?: string }) {
-  return (
-    <Button
-      type="button"
-      onClick={() => {
-        void navigator.clipboard?.writeText(json(value)).catch(() => {})
-      }}
-      variant="ghost"
-      size="xs"
-    >
-      {label}
-    </Button>
-  )
+  return <SharedCopyButton value={json(value)} label={label} />
 }
