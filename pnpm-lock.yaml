@@ -391,6 +391,9 @@ importers:
       '@clara/crypto':
         specifier: workspace:*
         version: link:../../packages/crypto
+      '@clara/panel':
+        specifier: workspace:*
+        version: link:../../packages/panel
       '@clara/shared-types':
         specifier: workspace:*
         version: link:../../packages/contracts/shared-types

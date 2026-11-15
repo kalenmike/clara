@@ -12,6 +12,7 @@ import {
   Loader2,
   Plus,
   Search,
+  Server,
   Settings,
   X,
 } from 'lucide-react'
@@ -80,6 +81,7 @@ import { useSidebarWidth } from '@/hooks/use-sidebar-width'
 import { claraBuildTitle, claraDisplayVersion } from '@/lib/build-info'
 import { errorMessage } from '@/lib/errors'
 import { isTextEntryTarget } from '@/lib/keyboard'
+import { isDesktop } from '@/lib/runtime'
 import {
   SIDEBAR_WIDTH_MAX,
   SIDEBAR_WIDTH_MIN,
@@ -673,6 +675,14 @@ export function SidebarContent({
             )}
           </div>
         </div>
+        {isDesktop && (
+          <Button asChild variant="ghost" size="icon" className="size-11 md:size-8">
+            <Link to="/hub" onClick={onNavigate} title="Hub panel">
+              <Server className="size-5 md:size-4" />
+              <span className="sr-only">Hub panel</span>
+            </Link>
+          </Button>
+        )}
         <Button asChild variant="ghost" size="icon" className="size-11 md:size-8">
           <Link to="/activity" onClick={onNavigate} title="Activity">
             <Activity className="size-5 md:size-4" />
