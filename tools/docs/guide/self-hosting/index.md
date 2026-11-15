@@ -40,6 +40,11 @@ flowchart LR
 
 Both modes use the same hub panel, pairing command, and data model.
 
+If you do not want Docker or a checkout, install the packaged command and run
+`clara setup`. It contains the hub, panel, engine, and web client, creates the
+owner account, and can install a per-user login service. See
+[Install the Clara command](../get-clara.md).
+
 ## The short path
 
 1. Install dependencies with `pnpm install`.

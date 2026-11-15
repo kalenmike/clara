@@ -9,6 +9,7 @@ for every AI agent working in this repo.
 ## Workspace
 
 ```text
+apps/cli                             Packaged `clara` command, supervisor, releases, and adapters
 apps/web                             React/Vite SPA (Cloudflare Pages or the web container)
 apps/desktop                         Tauri shell that packages the web client for desktop
 apps/desktop/host                    Loopback adapter-host sidecar for local, SSH, and Docker installs
@@ -70,7 +71,17 @@ pnpm dev:server     # Hub service only
 pnpm dev:relay      # Local wrangler dev for the Worker/DO
 pnpm build          # Build every workspace package
 ENABLE_CLOUDFLARE_DEPLOYMENT=true pnpm build # Include the optional Cloudflare relay deployment
-pnpm clara:link     # Install a thin `clara` shim on ~/.local/bin
+pnpm clara:link     # Install a thin `clara-dev` shim on ~/.local/bin
+pnpm cli            # Run the packaged command from source
+pnpm package:build  # Build the Bun `clara` binary for the host
+pnpm package:smoke  # Build and smoke the packaged binary
+clara start|stop|restart|status|ps|logs [hub|engine|web] # Packaged stack lifecycle
+clara setup         # Create the owner account, start, and optionally add a login service
+clara update        # Verify and install a signed release (--check, --rollback)
+clara adapter search|install|list|upgrade|remove # Pull harness adapters on demand
+clara pair hub      # Print a browser pairing code
+clara service       # install|uninstall|status|print the per-user login service
+clara doctor|uninstall|version
 clara start [default|hub|web|engine] [--docker|--local] [--build] # Start the core stack or one service
 clara stop [default|hub|web|engine] [--docker|--local] # Stop the core stack or one service
 clara restart [default|hub|web|engine] [--docker|--local] [--build] # Restart
