@@ -622,6 +622,34 @@ test('detects stale snapshots and trims long output', () => {
   assert.equal(tail('abc', 3), 'abc')
 })
 
+test('expects the plugin beside a packaged adapter install', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'clara-adapter-'))
+  try {
+    const install = join(dir, 'data', 'adapters', 'opencode', '1.2.3')
+    mkdirSync(join(dir, 'clara'), { recursive: true })
+    writeFileSync(
+      join(dir, 'clara', 'adapters.json'),
+      JSON.stringify({
+        schemaVersion: 1,
+        adapters: {
+          opencode: {
+            kind: 'opencode',
+            version: '1.2.3',
+            platform: 'linux-x64',
+            path: install,
+            installedAt: '2026-01-01T00:00:00.000Z',
+          },
+        },
+      })
+    )
+
+    const snapshot = adapterSnapshot('/work/clara', { XDG_CONFIG_HOME: dir })
+    assert.equal(snapshot.opencode.expectedTarget, join(install, 'plugin'))
+  } finally {
+    rmSync(dir, { recursive: true, force: true })
+  }
+})
+
 test('reads the installed adapter and MCP entry', () => {
   const dir = mkdtempSync(join(tmpdir(), 'clara-adapter-'))
   try {

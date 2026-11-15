@@ -153,6 +153,8 @@ export function adapterSnapshot(root, env = process.env) {
   const link = join(configHome, 'opencode', 'plugins', 'clara-policy')
   const agent = join(configHome, 'opencode', 'agents', 'clara.md')
   const configPath = join(configHome, 'opencode', 'opencode.json')
+  const claraConfigDir = env.CLARA_CONFIG_DIR?.trim() || join(configHome, 'clara')
+  const record = readAdapterRecord(join(claraConfigDir, 'adapters.json'), 'opencode')
 
   let linked = false
   let target = null
@@ -171,12 +173,26 @@ export function adapterSnapshot(root, env = process.env) {
       target,
       agentInstalled: existsSync(agent),
       agentPath: agent,
-      expectedTarget: join(root, 'apps', 'adapters', 'opencode', 'plugin'),
+      // A packaged install stages the plugin beside its versioned entry; a
+      // checkout install links the workspace plugin directly.
+      expectedTarget: record?.path
+        ? join(record.path, 'plugin')
+        : join(root, 'apps', 'adapters', 'opencode', 'plugin'),
     },
     mcp: {
       configured: mcpConfigured(configPath),
       configPath,
     },
+  }
+}
+
+function readAdapterRecord(path, kind) {
+  try {
+    const state = JSON.parse(readFileSync(path, 'utf8'))
+    const record = state?.adapters?.[kind]
+    return typeof record?.path === 'string' ? record : undefined
+  } catch {
+    return undefined
   }
 }
 
@@ -368,15 +384,11 @@ export async function runAdapters(options = {}) {
   const progress = options.progress ?? DEFAULT_PROGRESS
   const results = []
 
-  const install = await runCommandStep(
-    'adapter',
-    ['clara', 'adapter', 'install', 'opencode', '--no-daemon'],
-    {
-      root,
-      progress,
-    }
-  )
-  results.push(install)
+  const upgrade = await runCommandStep('adapter', ['cli', 'adapter', 'upgrade'], {
+    root,
+    progress,
+  })
+  results.push(upgrade)
 
   const wantsMcp =
     options.mcp === true || (options.mcp !== false && state.adapters?.mcp?.configured === true)
