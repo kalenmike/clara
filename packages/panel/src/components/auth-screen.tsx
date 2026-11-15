@@ -6,6 +6,7 @@ import {
   setupNeedsToken,
   showsUsernameField,
 } from '../lib/auth-form.ts'
+import { getPanelUsername, rememberPanelUsername } from '../lib/panel-session.ts'
 import type { SessionController } from '../lib/use-session.ts'
 
 export function AuthScreen({ session }: { session: SessionController }) {
@@ -17,10 +18,11 @@ export function AuthScreen({ session }: { session: SessionController }) {
   const tokenRequired = setupNeedsToken(session.status)
   const needsTokenField = reset || (setup && tokenRequired)
   const offerReset = canResetWithToken(session.status)
-  const [username, setUsername] = useState(setup ? 'admin' : '')
+  const [username, setUsername] = useState(() => (setup ? 'admin' : (getPanelUsername() ?? '')))
   const [password, setPassword] = useState('')
   const [confirm, setConfirm] = useState('')
   const [token, setToken] = useState('')
+  const [remember, setRemember] = useState(true)
   const [pending, setPending] = useState(false)
   const [error, setError] = useState<string>()
 
@@ -49,8 +51,9 @@ export function AuthScreen({ session }: { session: SessionController }) {
     }
     setPending(true)
     try {
-      if (credential) await session.setup(token, setup ? username : '', password)
-      else await session.login(username, password)
+      if (credential) await session.setup(token, setup ? username : '', password, remember)
+      else await session.login(username, password, remember)
+      if (showsUsernameField(mode)) rememberPanelUsername(username)
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : String(cause))
     } finally {
@@ -97,6 +100,7 @@ export function AuthScreen({ session }: { session: SessionController }) {
               {reset ? 'Reset token' : 'Setup token'}
               <input
                 type="password"
+                name="token"
                 autoComplete="one-time-code"
                 value={token}
                 onChange={(event) => setToken(event.target.value)}
@@ -111,6 +115,7 @@ export function AuthScreen({ session }: { session: SessionController }) {
               Username
               <input
                 type="text"
+                name="username"
                 autoComplete="username"
                 value={username}
                 onChange={(event) => setUsername(event.target.value)}
@@ -124,6 +129,7 @@ export function AuthScreen({ session }: { session: SessionController }) {
             {credential ? 'New password' : 'Password'}
             <input
               type="password"
+              name="password"
               autoComplete={credential ? 'new-password' : 'current-password'}
               value={password}
               onChange={(event) => setPassword(event.target.value)}
@@ -138,6 +144,7 @@ export function AuthScreen({ session }: { session: SessionController }) {
               Confirm password
               <input
                 type="password"
+                name="confirmPassword"
                 autoComplete="new-password"
                 value={confirm}
                 onChange={(event) => setConfirm(event.target.value)}
@@ -147,6 +154,24 @@ export function AuthScreen({ session }: { session: SessionController }) {
               />
             </label>
           ) : null}
+
+          <label className="block text-xs font-medium text-foreground">
+            <span className="flex items-start gap-2">
+              <input
+                type="checkbox"
+                name="remember"
+                checked={remember}
+                onChange={(event) => setRemember(event.target.checked)}
+                className="mt-0.5 size-3.5 rounded border-border accent-primary"
+              />
+              <span>
+                Keep me signed in on this device
+                <span className="mt-0.5 block font-normal text-muted-foreground">
+                  Stops asking for your password until you sign out.
+                </span>
+              </span>
+            </span>
+          </label>
 
           {needsTokenField ? (
             <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800 dark:border-amber-900 dark:bg-amber-950/60 dark:text-amber-300">
