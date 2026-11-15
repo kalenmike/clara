@@ -24,8 +24,10 @@ const composeFile = join(root, 'infra', 'docker', 'engine.compose.yml')
 const envFile = join(root, 'infra', 'docker', '.env')
 const ctx = readServiceArgs(process.argv.slice(2), 'help')
 const dockerToken =
-  !process.env.CLARA_ENGINE_TOKEN && !process.env.CLARA_ORCHESTRATION_TOKEN &&
-  !process.env.CLARA_ENGINE_TOKEN_FILE && !process.env.CLARA_ORCHESTRATION_TOKEN_FILE &&
+  !process.env.CLARA_ENGINE_TOKEN &&
+  !process.env.CLARA_ORCHESTRATION_TOKEN &&
+  !process.env.CLARA_ENGINE_TOKEN_FILE &&
+  !process.env.CLARA_ORCHESTRATION_TOKEN_FILE &&
   engineContainerRunning()
     ? readEngineToken()
     : ''
@@ -61,12 +63,7 @@ async function lifecycle(name, mode) {
       return code
     }
   }
-  if (
-    mode === 'docker' &&
-    name === 'start' &&
-    !engineContainerRunning() &&
-    !validateDockerEnv()
-  ) {
+  if (mode === 'docker' && name === 'start' && !engineContainerRunning() && !validateDockerEnv()) {
     return 1
   }
   const forwarded = [
@@ -106,15 +103,7 @@ async function logs() {
     return
   }
   const envArgs = existsSync(envFile) ? ['--env-file', envFile] : []
-  const code = run('docker', [
-    'compose',
-    ...envArgs,
-    '-f',
-    composeFile,
-    'logs',
-    '-f',
-    'engine',
-  ])
+  const code = run('docker', ['compose', ...envArgs, '-f', composeFile, 'logs', '-f', 'engine'])
   if (code !== 0) process.exitCode = code
 }
 

@@ -14,11 +14,7 @@ export function claraDataDir(env: NodeJS.ProcessEnv = process.env): string {
   return join(xdg, 'clara')
 }
 
-function envValue(
-  env: NodeJS.ProcessEnv,
-  name: string,
-  legacy: string
-): string | undefined {
+function envValue(env: NodeJS.ProcessEnv, name: string, legacy: string): string | undefined {
   return env[name]?.trim() || env[legacy]?.trim()
 }
 
@@ -30,11 +26,7 @@ export function engineServiceConfig(env: NodeJS.ProcessEnv = process.env): Servi
   const configured = envValue(env, 'CLARA_ENGINE_TOKEN', 'CLARA_ORCHESTRATION_TOKEN')
   if (configured) return { url, token: configured }
 
-  const explicit = envValue(
-    env,
-    'CLARA_ENGINE_TOKEN_FILE',
-    'CLARA_ORCHESTRATION_TOKEN_FILE'
-  )
+  const explicit = envValue(env, 'CLARA_ENGINE_TOKEN_FILE', 'CLARA_ORCHESTRATION_TOKEN_FILE')
   const path = explicit || join(claraDataDir(env), 'engine.token')
   let token = existsSync(path) ? readFileSync(path, 'utf8').trim() : ''
   if (!token && !explicit) {
@@ -43,6 +35,3 @@ export function engineServiceConfig(env: NodeJS.ProcessEnv = process.env): Servi
   }
   return { url, token }
 }
-
-/** @deprecated Use engineServiceConfig. */
-export const orchestrationServiceConfig = engineServiceConfig

@@ -243,8 +243,7 @@ export function formatStatus(report: StatusReport): string[] {
 
   if (report.state === 'container') {
     const bind =
-      process.env.CLARA_ENGINE_DATA_DIR?.trim() ||
-      process.env.CLARA_ORCHESTRATOR_DATA_DIR?.trim()
+      process.env.CLARA_ENGINE_DATA_DIR?.trim() || process.env.CLARA_ORCHESTRATOR_DATA_DIR?.trim()
     lines.push(
       bind
         ? 'database: managed by the container (host bind from CLARA_ENGINE_DATA_DIR)'

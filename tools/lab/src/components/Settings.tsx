@@ -53,8 +53,8 @@ export function SettingsView({
           <div className="view-kicker">Workspace</div>
           <h1>Settings</h1>
           <p className="muted">
-            The lab compiles your local files and probes the running engine. Setup lives here;
-            every other view only surfaces problems when they matter.
+            The lab compiles your local files and probes the running engine. Setup lives here; every
+            other view only surfaces problems when they matter.
           </p>
         </div>
         <div className="view-head-actions">
@@ -106,8 +106,8 @@ export function SettingsView({
             </div>
           </label>
           <p className="muted section-note">
-            Source watching and the compiled tree follow this path. The engine may use a
-            different mount; the service workspace is shown below.
+            Source watching and the compiled tree follow this path. The engine may use a different
+            mount; the service workspace is shown below.
           </p>
         </section>
 

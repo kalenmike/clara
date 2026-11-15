@@ -198,8 +198,7 @@ async function serve(options: Options): Promise<void> {
   console.log(`Clara Lab:     ${server.url}`)
   console.log(`workspace:     ${runtime.state.workspace}`)
   console.log(`engine:  ${url} (${runtime.state.connected ? 'connected' : 'offline'})`)
-  if (!token)
-    console.warn('[clara-lab] no engine token found; run `clara start engine`')
+  if (!token) console.warn('[clara-lab] no engine token found; run `clara start engine`')
   if (options.open) openBrowser(server.url)
 
   const shutdown = async (): Promise<void> => {

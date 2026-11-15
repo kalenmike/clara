@@ -410,9 +410,7 @@ export class LabRuntime {
     if (!response.ok) {
       const error = isRecord(value) && isRecord(value.error) ? value.error : undefined
       throw new Error(
-        typeof error?.message === 'string'
-          ? error.message
-          : `engine returned ${response.status}`
+        typeof error?.message === 'string' ? error.message : `engine returned ${response.status}`
       )
     }
     return value as T

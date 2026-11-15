@@ -254,7 +254,10 @@ async function coreRestart(keys, options, target) {
 async function coreStatus(keys, options, target) {
   const records = await collectStatus(keys)
   if (options.json) renderJSON(records, { stack: target === 'default' })
-  else renderStatus(records, { title: target === 'default' ? 'Clara stack' : `Clara ${displayName(target)}` })
+  else
+    renderStatus(records, {
+      title: target === 'default' ? 'Clara stack' : `Clara ${displayName(target)}`,
+    })
   if (options.open && keys.includes('server')) openPanel(`${panelURL()}/`)
   process.exitCode = statusExitCode(records)
 }

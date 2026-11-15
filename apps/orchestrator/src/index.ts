@@ -68,8 +68,12 @@ async function serve(): Promise<void> {
   const runtime = new Runtime({
     store,
     ...(configPath() ? { configPath: configPath() } : {}),
-    stalledMs: Number(engineEnv('CLARA_ENGINE_STALLED_MS', 'CLARA_ORCHESTRATION_STALLED_MS') ?? 5 * 60_000),
-    leaseMs: Number(engineEnv('CLARA_ENGINE_LEASE_MS', 'CLARA_ORCHESTRATION_LEASE_MS') ?? 30 * 60_000),
+    stalledMs: Number(
+      engineEnv('CLARA_ENGINE_STALLED_MS', 'CLARA_ORCHESTRATION_STALLED_MS') ?? 5 * 60_000
+    ),
+    leaseMs: Number(
+      engineEnv('CLARA_ENGINE_LEASE_MS', 'CLARA_ORCHESTRATION_LEASE_MS') ?? 30 * 60_000
+    ),
     runnerWaitMs: Number(process.env.CLARA_RUNNER_WAIT_MS ?? 60_000),
   })
   const token = ensureToken()
@@ -290,8 +294,7 @@ function analyzeOptions(args: string[]): AnalyzeOptions | undefined {
 function serviceToken(): string {
   const configured = engineEnv('CLARA_ENGINE_TOKEN', 'CLARA_ORCHESTRATION_TOKEN')
   if (configured) return configured
-  const path =
-    engineEnv('CLARA_ENGINE_TOKEN_FILE', 'CLARA_ORCHESTRATION_TOKEN_FILE') || tokenPath()
+  const path = engineEnv('CLARA_ENGINE_TOKEN_FILE', 'CLARA_ORCHESTRATION_TOKEN_FILE') || tokenPath()
   if (!existsSync(path)) return ''
   try {
     return readFileSync(path, 'utf8').trim()
@@ -301,10 +304,7 @@ function serviceToken(): string {
 }
 
 function serviceURL(): string {
-  return (engineEnv('CLARA_ENGINE_URL', 'CLARA_ORCHESTRATION_URL') || baseURL()).replace(
-    /\/$/,
-    ''
-  )
+  return (engineEnv('CLARA_ENGINE_URL', 'CLARA_ORCHESTRATION_URL') || baseURL()).replace(/\/$/, '')
 }
 
 async function serviceHealthy(url: string): Promise<boolean> {

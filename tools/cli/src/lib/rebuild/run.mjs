@@ -1018,7 +1018,10 @@ export function formatRestart(result) {
   if (result.completed?.length) lines.push(`restarted: ${result.completed.join(', ')}`)
   const skipped = result.plan.services
     .filter((service) => service.action === 'skip')
-    .map((service) => `${service.name === 'orchestrator' ? 'engine' : service.name} (${service.reason}, ${service.mode ?? 'unknown'})`)
+    .map(
+      (service) =>
+        `${service.name === 'orchestrator' ? 'engine' : service.name} (${service.reason}, ${service.mode ?? 'unknown'})`
+    )
   if (skipped.length) lines.push(`skipped:   ${skipped.join(', ')}`)
   for (const error of result.errors ?? []) {
     lines.push(`error:    ${error.service}: ${error.message}`)

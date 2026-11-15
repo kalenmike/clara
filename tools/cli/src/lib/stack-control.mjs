@@ -161,9 +161,7 @@ export function engineEnvErrors(values, { envFile = envPath() } = {}) {
     }
   }
 
-  errors.push(
-    ...pathErrors(values, ['CLARA_ENGINE_DATA_DIR', 'CLARA_ORCHESTRATOR_DATA_DIR'])
-  )
+  errors.push(...pathErrors(values, ['CLARA_ENGINE_DATA_DIR', 'CLARA_ORCHESTRATOR_DATA_DIR']))
   return errors
 }
 

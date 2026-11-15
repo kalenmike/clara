@@ -132,9 +132,7 @@ export function restartPlan(state, { skip = [], manageExternal = false, only, mo
         reason: 'managed outside this checkout',
         mode: capturedMode,
       })
-      warnings.push(
-        `engine at ${captured.url} is external; pass --manage-external to restart it`
-      )
+      warnings.push(`engine at ${captured.url} is external; pass --manage-external to restart it`)
       continue
     }
     services.push({ name, action: 'restart', reason: 'running when captured', mode: capturedMode })
