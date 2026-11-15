@@ -72,14 +72,14 @@ export async function discardEmptyDraft(
 export function useDiscardEmptyDraft(status: EmptyDraftStatus) {
   const { client } = useConnection()
   const queryClient = useQueryClient()
-  const { mode, target, draftState, close } = useComposer()
+  const { draftState, closeTab } = useComposer()
 
   const statuses = useRef(new Map<string, EmptyDraftStatus>())
   const timers = useRef(new Map<string, number>())
-  const live = useRef({ client, mode, target, draftState, close })
+  const live = useRef({ client, draftState, closeTab })
 
   if (status.sessionID) statuses.current.set(status.sessionID, status)
-  live.current = { client, mode, target, draftState, close }
+  live.current = { client, draftState, closeTab }
 
   useEffect(() => {
     const sessionID = status.sessionID
@@ -108,9 +108,7 @@ export function useDiscardEmptyDraft(status: EmptyDraftStatus) {
       })
       if (discarded !== 'deleted') return
 
-      if (live.current.mode !== 'closed' && live.current.target?.sessionID === sessionID) {
-        live.current.close()
-      }
+      live.current.closeTab(sessionID)
       void queryClient.invalidateQueries({ queryKey: ['sessions'] })
       window.setTimeout(() => {
         queryClient.removeQueries({ queryKey: queryKeys.session(sessionID) })

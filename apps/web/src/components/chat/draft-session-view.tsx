@@ -10,8 +10,8 @@ export function DraftSessionView({ hasDraft }: { hasDraft: boolean }) {
         <p className="text-sm font-medium">{hasDraft ? 'Draft in progress' : 'New message'}</p>
         <p className="mt-1 text-xs text-muted-foreground">
           {hasDraft
-            ? 'Your text is saved in this browser. Press New to reopen the composer and keep writing.'
-            : 'Press New to write the first message. Use / for commands or @ to reference files and agents.'}
+            ? 'Your text is saved in this browser. Continue in the composer below.'
+            : 'Write the first message in the composer below. Use / for commands or @ to reference files and agents.'}
         </p>
       </div>
     </div>

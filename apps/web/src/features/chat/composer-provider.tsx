@@ -11,32 +11,34 @@ import {
 } from 'react'
 import { useMatches } from 'react-router'
 import {
-  maximizeComposer,
+  COMPOSER_LAYOUT_DEFAULT,
+  expandComposer,
   minimizeComposer,
-  openComposerWindow,
-  pinComposer,
   restoreComposer,
-  unpinComposer,
-  type ComposerWindow,
+  type ComposerLayout,
 } from '@/features/chat/composer-layout'
 import {
-  composerOpenTarget,
-  composerReturnPath,
-  isComposerDetached,
   routeComposerTarget,
   type ComposerMode,
   type ComposerTarget,
 } from '@/features/chat/composer-session'
-import type { PromptFile } from '@/features/chat/use-chat'
 import {
-  readComposerPinned,
-  readComposerSize,
-  saveComposerPinned,
-  saveComposerSize,
-} from '@/lib/storage'
+  ensureComposerTab,
+  hasComposerInput,
+  leaveComposerTab,
+  parseComposerTabs,
+  pruneComposerTabs,
+  removeComposerTab,
+  serializeComposerTabs,
+  type ComposerDraft,
+  type ComposerTab,
+} from '@/features/chat/composer-tabs'
+import type { PromptFile } from '@/features/chat/use-chat'
+import { readComposerTabsRaw, readDraft, saveComposerTabsRaw } from '@/lib/storage'
 
 type ComposerHandoff = {
   id: number
+  sessionID: string
   text?: string
   files?: PromptFile[]
 }
@@ -56,26 +58,24 @@ type SentSignal = {
 
 type ComposerContextValue = {
   mode: ComposerMode
-  pinned: boolean
-  target: ComposerTarget | null
+  tabs: ComposerTab[]
+  currentSessionID: string | undefined
+  selectedSessionID: string | null
+  draftFor: (sessionID: string) => ComposerDraft | undefined
   handoff: ComposerHandoff | null
-  detached: boolean
-  returnPath: string | null
   focusSignal: number
   modelRequest: number
   agentRequest: number
   lastSent: SentSignal | null
   open: (options?: OpenComposerOptions) => void
-  close: () => void
+  selectTab: (sessionID: string) => void
+  closeTab: (sessionID: string) => void
+  toggleExpand: () => void
   minimize: () => void
-  restore: () => void
-  togglePin: () => void
-  toggleMaximize: () => void
   openModels: () => void
   openAgents: () => void
-  focus: () => void
   consumeHandoff: () => void
-  reportDraft: (sessionID: string, hasDraft: boolean) => void
+  setDraft: (sessionID: string, draft: ComposerDraft) => void
   draftState: (sessionID: string | undefined) => boolean | undefined
   notifySent: (sessionID: string) => void
 }
@@ -96,135 +96,154 @@ function useComposerRoute() {
   }, [matches])
 }
 
+function initialComposerTabs(route: ComposerTarget | null): ComposerTab[] {
+  const stored = pruneComposerTabs(
+    parseComposerTabs(readComposerTabsRaw()),
+    route?.sessionID,
+    (sessionID) => readDraft(sessionID).trim().length > 0
+  )
+  return route ? ensureComposerTab(stored, route) : stored
+}
+
 export function ComposerProvider({ children }: { children: ReactNode }) {
   const route = useComposerRoute()
-  const [mode, setMode] = useState<ComposerMode>('closed')
-  const [pinned, setPinned] = useState(readComposerPinned)
-  const [target, setTarget] = useState<ComposerTarget | null>(route)
+  const [layout, setLayout] = useState<ComposerLayout>(COMPOSER_LAYOUT_DEFAULT)
+  const [tabs, setTabs] = useState<ComposerTab[]>(() => initialComposerTabs(route))
+  const [selectedSessionID, setSelectedSessionID] = useState<string | null>(
+    route?.sessionID ?? null
+  )
+  const [draftFlags, setDraftFlags] = useState<Record<string, boolean>>({})
   const [handoff, setHandoff] = useState<ComposerHandoff | null>(null)
   const [focusSignal, setFocusSignal] = useState(0)
   const [modelRequest, setModelRequest] = useState(0)
   const [agentRequest, setAgentRequest] = useState(0)
   const [lastSent, setLastSent] = useState<SentSignal | null>(null)
-  const [drafts, setDrafts] = useState<Record<string, boolean>>({})
   const handoffSeq = useRef(0)
   const sentSeq = useRef(0)
-
-  const applyWindow = useCallback((next: ComposerWindow) => {
-    setMode(next.mode)
-    setPinned(next.pinned)
-    saveComposerPinned(next.pinned)
-  }, [])
+  const draftsRef = useRef<Record<string, ComposerDraft>>({})
+  const previousRoute = useRef<ComposerTarget | null>(route)
 
   /**
-   * While the composer is closed it belongs to the route. An open or minimized
-   * window keeps its target until an explicit compose action re-targets it.
+   * The route owns the session on screen. Leaving a session keeps its tab only
+   * while that session's composer has unsent text or attachments.
    */
   useEffect(() => {
+    const previous = previousRoute.current
+    previousRoute.current = route
+
     if (!route) {
-      if (mode !== 'closed') setMode('closed')
-      if (target != null) setTarget(null)
-      if (handoff != null) setHandoff(null)
+      setSelectedSessionID(null)
       return
     }
-    if (mode !== 'closed') return
-    if (target?.sessionID === route.sessionID && target.projectID === route.projectID) return
-    setTarget(route)
-  }, [handoff, mode, route, target])
+
+    setTabs((current) =>
+      previous && previous.sessionID !== route.sessionID
+        ? leaveComposerTab({
+            tabs: current,
+            leaving: previous,
+            hasInput: hasComposerInput(draftsRef.current[previous.sessionID]),
+            next: route,
+          })
+        : ensureComposerTab(current, route)
+    )
+    setSelectedSessionID(route.sessionID)
+  }, [route])
+
+  useEffect(() => {
+    const current = route?.sessionID
+    const persisted = tabs.filter(
+      (tab) => tab.sessionID === current || hasComposerInput(draftsRef.current[tab.sessionID])
+    )
+    saveComposerTabsRaw(serializeComposerTabs(persisted))
+  }, [draftFlags, route?.sessionID, tabs])
 
   const open = useCallback(
     (options: OpenComposerOptions = {}) => {
-      const next = composerOpenTarget({
-        mode,
-        route,
-        current: target,
-        explicit: options.target,
-      })
-      if (!next) return
+      const target = options.target ?? route
+      if (!target) return
 
-      setTarget(next)
+      setTabs((current) => ensureComposerTab(current, target))
+      setSelectedSessionID(target.sessionID)
+      setLayout((current) => restoreComposer(current))
       if (options.text !== undefined || options.files !== undefined) {
         handoffSeq.current += 1
         setHandoff({
           id: handoffSeq.current,
+          sessionID: target.sessionID,
           text: options.text,
           files: options.files,
         })
       } else {
         setHandoff(null)
       }
-      applyWindow(openComposerWindow(pinned, readComposerSize()))
       setFocusSignal((value) => value + 1)
       if (options.model) setModelRequest((value) => value + 1)
       if (options.agent) setAgentRequest((value) => value + 1)
     },
-    [applyWindow, mode, pinned, route, target]
+    [route]
   )
 
-  const close = useCallback(() => {
-    setMode('closed')
-    setHandoff(null)
-    setTarget(route)
-  }, [route])
+  const selectTab = useCallback((sessionID: string) => {
+    setSelectedSessionID(sessionID)
+    setLayout((current) => restoreComposer(current))
+    setFocusSignal((value) => value + 1)
+  }, [])
+
+  const closeTab = useCallback(
+    (sessionID: string) => {
+      if (sessionID === route?.sessionID) return
+      setTabs((current) => removeComposerTab(current, sessionID))
+      setSelectedSessionID((current) =>
+        current === sessionID ? (route?.sessionID ?? null) : current
+      )
+    },
+    [route?.sessionID]
+  )
+
+  const toggleExpand = useCallback(() => {
+    setLayout((current) => expandComposer(current))
+    setFocusSignal((value) => value + 1)
+  }, [])
 
   const minimize = useCallback(() => {
-    applyWindow(minimizeComposer())
-  }, [applyWindow])
-
-  const restore = useCallback(() => {
-    applyWindow(restoreComposer(readComposerSize()))
-    setFocusSignal((value) => value + 1)
-  }, [applyWindow])
-
-  const togglePin = useCallback(() => {
-    applyWindow(pinned ? unpinComposer(readComposerSize()) : pinComposer({ mode, pinned }))
-    setFocusSignal((value) => value + 1)
-  }, [applyWindow, mode, pinned])
-
-  const toggleMaximize = useCallback(() => {
-    const next = mode === 'maximized' ? restoreComposer('normal') : maximizeComposer()
-    saveComposerSize(next.mode === 'maximized' ? 'maximized' : 'normal')
-    applyWindow(next)
-    setFocusSignal((value) => value + 1)
-  }, [applyWindow, mode])
+    setLayout((current) => minimizeComposer(current))
+  }, [])
 
   const openModels = useCallback(() => {
-    if (mode === 'closed') {
-      open({ model: true })
-      return
-    }
-    if (mode === 'minimized') applyWindow(restoreComposer(readComposerSize()))
+    setLayout((current) => restoreComposer(current))
     setModelRequest((value) => value + 1)
     setFocusSignal((value) => value + 1)
-  }, [applyWindow, mode, open])
+  }, [])
 
   const openAgents = useCallback(() => {
-    if (mode === 'closed') {
-      open({ agent: true })
-      return
-    }
-    if (mode === 'minimized') applyWindow(restoreComposer(readComposerSize()))
+    setLayout((current) => restoreComposer(current))
     setAgentRequest((value) => value + 1)
     setFocusSignal((value) => value + 1)
-  }, [applyWindow, mode, open])
+  }, [])
 
   const consumeHandoff = useCallback(() => {
     setHandoff(null)
   }, [])
 
-  const focus = useCallback(() => {
-    setFocusSignal((value) => value + 1)
-  }, [])
-
-  const reportDraft = useCallback((sessionID: string, hasDraft: boolean) => {
-    setDrafts((current) =>
-      current[sessionID] === hasDraft ? current : { ...current, [sessionID]: hasDraft }
+  const setDraft = useCallback((sessionID: string, draft: ComposerDraft) => {
+    const existing = draftsRef.current[sessionID]
+    if (existing && existing.text === draft.text && existing.files === draft.files) return
+    draftsRef.current = { ...draftsRef.current, [sessionID]: draft }
+    const input = hasComposerInput(draft)
+    setDraftFlags((current) =>
+      current[sessionID] === input ? current : { ...current, [sessionID]: input }
     )
   }, [])
 
+  /** The latest text and attachments for a tab, without re-rendering on typing. */
+  const draftFor = useCallback((sessionID: string) => draftsRef.current[sessionID], [])
+
   const draftState = useCallback(
-    (sessionID: string | undefined) => (sessionID ? drafts[sessionID] : undefined),
-    [drafts]
+    (sessionID: string | undefined) => {
+      if (!sessionID) return undefined
+      return draftFlags[sessionID]
+    },
+    [draftFlags]
   )
 
   const notifySent = useCallback(
@@ -236,59 +255,52 @@ export function ComposerProvider({ children }: { children: ReactNode }) {
     [route?.sessionID]
   )
 
-  const detached = isComposerDetached(target, route?.sessionID)
-  const returnPath = composerReturnPath(target)
-
   const value = useMemo(
     () => ({
-      mode,
-      pinned,
-      target,
+      mode: layout.mode,
+      tabs,
+      currentSessionID: route?.sessionID,
+      selectedSessionID,
+      draftFor,
       handoff,
-      detached,
-      returnPath,
       focusSignal,
       modelRequest,
       agentRequest,
       lastSent,
       open,
-      close,
+      selectTab,
+      closeTab,
+      toggleExpand,
       minimize,
-      restore,
-      togglePin,
-      toggleMaximize,
       openModels,
       openAgents,
-      focus,
       consumeHandoff,
-      reportDraft,
+      setDraft,
       draftState,
       notifySent,
     }),
     [
       agentRequest,
-      close,
+      closeTab,
       consumeHandoff,
-      detached,
+      draftFor,
       draftState,
       focusSignal,
       handoff,
       lastSent,
+      layout,
       minimize,
-      mode,
       modelRequest,
       notifySent,
       open,
       openAgents,
       openModels,
-      focus,
-      pinned,
-      reportDraft,
-      restore,
-      returnPath,
-      target,
-      toggleMaximize,
-      togglePin,
+      route?.sessionID,
+      selectTab,
+      selectedSessionID,
+      setDraft,
+      tabs,
+      toggleExpand,
     ]
   )
 

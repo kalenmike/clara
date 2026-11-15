@@ -280,31 +280,6 @@ body {
   }
 }
 
-@keyframes clara-done-ring {
-  0% {
-    opacity: 0.85;
-    transform: scale(1);
-  }
-  100% {
-    opacity: 0;
-    transform: scale(1.45);
-  }
-}
-
-@keyframes clara-done-burst {
-  0% {
-    opacity: 1;
-    transform: translate(-50%, -50%) scale(0.4);
-  }
-  70% {
-    opacity: 1;
-  }
-  100% {
-    opacity: 0;
-    transform: translate(calc(-50% + var(--burst-x)), calc(-50% + var(--burst-y))) scale(0);
-  }
-}
-
 ::-webkit-scrollbar {
   width: 10px;
   height: 10px;
