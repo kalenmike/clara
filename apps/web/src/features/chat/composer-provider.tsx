@@ -16,6 +16,7 @@ import {
   restoreComposer,
   toggleComposerCollapse,
   type ComposerLayout,
+  type ExpandedComposerMode,
 } from '@/features/chat/composer-layout'
 import {
   routeComposerTarget,
@@ -58,6 +59,7 @@ type SentSignal = {
 
 type ComposerContextValue = {
   mode: ComposerMode
+  expanded: ExpandedComposerMode
   tabs: ComposerTab[]
   currentSessionID: string | undefined
   selectedSessionID: string | null
@@ -258,6 +260,7 @@ export function ComposerProvider({ children }: { children: ReactNode }) {
   const value = useMemo(
     () => ({
       mode: layout.mode,
+      expanded: layout.expanded,
       tabs,
       currentSessionID: route?.sessionID,
       selectedSessionID,
