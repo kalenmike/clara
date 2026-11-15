@@ -980,10 +980,10 @@ export class RuntimeController {
       }
       return 'relay'
     }
-    if (method === 'docker') return isContainerized() ? 'docker' : 'relay'
-    if (method === 'local') return isContainerized() ? 'docker' : 'local'
+    if (method === 'docker') return 'docker'
+    if (method === 'local') return 'local'
     if (relay) return 'relay'
-    return isContainerized() ? 'docker' : 'local'
+    return 'local'
   }
 
   async cancelHarnessPairing(id: string): Promise<void> {
