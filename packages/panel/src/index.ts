@@ -12,7 +12,28 @@ export {
   patchPanel,
   postPanel,
 } from './lib/panel-api.ts'
-export type { PanelApiErrorInfo, PanelApiRequest, PanelApiTransport } from './lib/panel-api.ts'
+export type {
+  PanelApiErrorInfo,
+  PanelApiRequest,
+  PanelApiRequestOptions,
+  PanelApiTransport,
+} from './lib/panel-api.ts'
+
+export {
+  createTunnelPanelTransport,
+  PANEL_TUNNEL_BASE_PATH,
+  tunnelPanelPath,
+} from './lib/panel-tunnel.ts'
+export type { PanelTunnelFetch, TunnelPanelTransportOptions } from './lib/panel-tunnel.ts'
+
+export {
+  clearPanelSessionToken,
+  getPanelSessionToken,
+  PANEL_SESSION_STORAGE_KEY,
+  rememberSessionToken,
+  setPanelSessionToken,
+} from './lib/panel-session.ts'
+export type { PanelSessionResponse, PanelSessionStorage } from './lib/panel-session.ts'
 
 export { DEFAULT_PANEL_CAPABILITIES, usePanelCapabilities } from './lib/capabilities-context.ts'
 export type { PanelCapabilities } from './lib/capabilities-context.ts'

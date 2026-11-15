@@ -24,6 +24,12 @@ export type PanelApiRequest = {
   body?: string
   credentials: 'same-origin'
   cache: 'no-store'
+  /** Cancels the request, for example when a poll is superseded or unmounted. */
+  signal?: AbortSignal
+}
+
+export type PanelApiRequestOptions = {
+  signal?: AbortSignal
 }
 
 /**
@@ -40,6 +46,7 @@ export function fetchPanelApi(request: PanelApiRequest): Promise<Response> {
     credentials: request.credentials,
     body: request.body,
     cache: request.cache,
+    signal: request.signal,
   })
 }
 
@@ -50,13 +57,14 @@ export function configurePanelApi(transport: PanelApiTransport | null = null): v
   panelApiTransport = transport ?? fetchPanelApi
 }
 
-export async function getPanel<T>(path: string): Promise<T> {
+export async function getPanel<T>(path: string, options: PanelApiRequestOptions = {}): Promise<T> {
   const response = await panelApiTransport({
     method: 'GET',
     path,
     headers: { accept: 'application/json' },
     credentials: 'same-origin',
     cache: 'no-store',
+    signal: options.signal,
   })
   if (!response.ok) throw await errorFor(response)
   return (await response.json()) as T
