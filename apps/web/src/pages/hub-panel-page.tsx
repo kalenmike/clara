@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { ArrowLeft } from 'lucide-react'
 import { Link, Navigate, useLocation } from 'react-router'
 import {
@@ -28,6 +28,25 @@ export function HubPanelPage() {
   // The panel reads its transport from module state on mount, so the first
   // render waits until this effect has installed it.
   const [configured, setConfigured] = useState<ClientControl | null>(null)
+
+  // The panel theme provider applies its choice to the document element. Keep
+  // the app's theme so leaving /hub restores the chat client unchanged.
+  const previousTheme = useRef<{ dark: boolean; colorScheme: string } | null>(null)
+  if (previousTheme.current === null) {
+    previousTheme.current = {
+      dark: document.documentElement.classList.contains('dark'),
+      colorScheme: document.documentElement.style.colorScheme,
+    }
+  }
+
+  useEffect(() => {
+    return () => {
+      const previous = previousTheme.current
+      if (!previous) return
+      document.documentElement.classList.toggle('dark', previous.dark)
+      document.documentElement.style.colorScheme = previous.colorScheme
+    }
+  }, [])
 
   useEffect(() => {
     if (!control) return
@@ -66,7 +85,7 @@ export function HubPanelPage() {
         </Button>
         <span className="truncate text-xs text-muted-foreground">Hub panel</span>
       </header>
-      <div className="min-h-0 flex-1 [&_.panel-shell]:h-full">
+      <div className="panel-root min-h-0 flex-1">
         <PanelThemeProvider>
           <PanelCapabilitiesProvider capabilities={capabilities}>
             <PanelApp />
