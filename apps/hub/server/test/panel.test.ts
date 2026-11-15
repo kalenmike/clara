@@ -554,6 +554,34 @@ describe('panel server', () => {
     expect(login.headers.get('set-cookie')).toContain('clara_panel_session=')
   })
 
+  it('sets a long-lived cookie only for a remembered sign-in', async () => {
+    const server = await start()
+    const login = (remember?: boolean) =>
+      fetch(`${server.url}panel/api/v1/session`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json', 'x-clara-panel': '1' },
+        body: JSON.stringify({ username: 'admin', password: 'test-password', remember }),
+      })
+
+    const remembered = await login(true)
+    expect(remembered.status).toBe(200)
+    expect(remembered.headers.get('set-cookie')).toContain('Max-Age=7776000')
+
+    const tab = await login(false)
+    expect(tab.status).toBe(200)
+    expect(tab.headers.get('set-cookie')).toContain('Max-Age=43200')
+  })
+
+  it('rejects a non-boolean remember flag', async () => {
+    const server = await start()
+    const response = await fetch(`${server.url}panel/api/v1/session`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', 'x-clara-panel': '1' },
+      body: JSON.stringify({ username: 'admin', password: 'test-password', remember: 'yes' }),
+    })
+    expect(response.status).toBe(400)
+  })
+
   it('creates the owner without a token and starts the hub', async () => {
     let started = 0
     const server = await startSetup(() => {

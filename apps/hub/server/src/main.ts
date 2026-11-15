@@ -56,6 +56,7 @@ import { ClientStorageStore } from './store/client-storage.ts'
 import { closeDatabase, openDatabase, schemaVersion } from './store/database.ts'
 import { DeviceStore } from './store/devices.ts'
 import { PanelUserStore } from './store/panel-users.ts'
+import { SqlitePanelSessionStore } from './store/panel-sessions.ts'
 import type { PanelEndpoint } from './api/context.ts'
 import { readApiToken } from './api/token.ts'
 import { loadRelayCredentials, saveRelayCredentials } from './store/relay.ts'
@@ -229,6 +230,7 @@ async function runServe(
   const panelEnabled = !args.includes('--no-panel') && process.env.CLARA_PANEL_DISABLED !== '1'
   const auth = new PanelAuth({
     users: new PanelUserStore(database),
+    sessions: new SqlitePanelSessionStore(database),
     configDir: config.configDir,
     secureCookie: readBooleanEnv('CLARA_PANEL_SECURE_COOKIE'),
   })
@@ -864,6 +866,7 @@ async function runAdmin(args: string[]): Promise<void> {
   try {
     const auth = new PanelAuth({
       users: new PanelUserStore(database),
+      sessions: new SqlitePanelSessionStore(database),
       configDir: paths.configDir,
     })
     const result = auth.resetForHost()

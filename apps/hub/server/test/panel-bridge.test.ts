@@ -136,13 +136,18 @@ describe('panel tunnel bridge', () => {
       tunnel('/session', {
         method: 'POST',
         headers: { 'content-type': 'application/json', 'x-clara-panel': '1' },
-        body: JSON.stringify({ username: 'admin', password: 'test-password' }),
+        body: JSON.stringify({ username: 'admin', password: 'test-password', remember: true }),
       })
     )
     expect(tunneled.status).toBe(200)
-    const body = (await tunneled.json()) as { user: { username: string }; sessionToken?: string }
+    const body = (await tunneled.json()) as {
+      user: { username: string }
+      sessionToken?: string
+      remember?: boolean
+    }
     expect(body.user.username).toBe('admin')
     expect(typeof body.sessionToken).toBe('string')
+    expect(body.remember).toBe(true)
     expect(tunneled.headers.get('set-cookie')).toBeNull()
 
     const direct = await fetch(`${panel.server.url}panel/api/v1/session`, {

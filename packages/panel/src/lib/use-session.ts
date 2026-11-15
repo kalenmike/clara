@@ -45,26 +45,31 @@ export function useSession() {
     void refresh()
   }, [refresh])
 
-  const login = useCallback(async (username: string, password: string) => {
+  const login = useCallback(async (username: string, password: string, remember = false) => {
     const result = await postPanel<SessionResponse>('/panel/api/v1/session', {
       username,
       password,
+      remember,
     })
     rememberSessionToken(result)
     setState({ status: { authenticated: true, user: result.user }, loading: false })
     return result.user
   }, [])
 
-  const setup = useCallback(async (token: string, username: string, password: string) => {
-    const result = await postPanel<SessionResponse>('/panel/api/v1/setup', {
-      ...(token ? { token } : {}),
-      username,
-      password,
-    })
-    rememberSessionToken(result)
-    setState({ status: { authenticated: true, user: result.user }, loading: false })
-    return result.user
-  }, [])
+  const setup = useCallback(
+    async (token: string, username: string, password: string, remember = true) => {
+      const result = await postPanel<SessionResponse>('/panel/api/v1/setup', {
+        ...(token ? { token } : {}),
+        username,
+        password,
+        remember,
+      })
+      rememberSessionToken(result)
+      setState({ status: { authenticated: true, user: result.user }, loading: false })
+      return result.user
+    },
+    []
+  )
 
   const logout = useCallback(async () => {
     try {

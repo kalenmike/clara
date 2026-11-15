@@ -2,7 +2,10 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import {
   clearPanelSessionToken,
   getPanelSessionToken,
+  getPanelUsername,
   PANEL_SESSION_STORAGE_KEY,
+  PANEL_USERNAME_STORAGE_KEY,
+  rememberPanelUsername,
   rememberSessionToken,
   setPanelSessionToken,
   type PanelSessionStorage,
@@ -36,58 +39,89 @@ afterEach(() => {
 })
 
 describe('panel session token store', () => {
-  it('stores one token under a single session key', () => {
-    const storage = memoryStorage()
+  it('stores one token under a single session key by default', () => {
+    const local = memoryStorage()
+    const session = memoryStorage()
 
-    setPanelSessionToken('first', storage)
+    setPanelSessionToken('first', { local, session })
 
     expect(PANEL_SESSION_STORAGE_KEY).toBe('clara.panel.session')
-    expect(storage.values.get(PANEL_SESSION_STORAGE_KEY)).toBe('first')
-    expect(getPanelSessionToken(storage)).toBe('first')
-    expect(storage.values.size).toBe(1)
+    expect(session.values.get(PANEL_SESSION_STORAGE_KEY)).toBe('first')
+    expect(local.values.size).toBe(0)
+    expect(getPanelSessionToken(local, session)).toBe('first')
   })
 
-  it('replaces the token and clears it', () => {
-    const storage = memoryStorage()
+  it('keeps a remembered token in localStorage and drops the tab copy', () => {
+    const local = memoryStorage()
+    const session = memoryStorage({ [PANEL_SESSION_STORAGE_KEY]: 'stale' })
 
-    setPanelSessionToken('first', storage)
-    setPanelSessionToken('second', storage)
-    expect(getPanelSessionToken(storage)).toBe('second')
+    setPanelSessionToken('remembered', { remember: true, local, session })
 
-    clearPanelSessionToken(storage)
-    expect(getPanelSessionToken(storage)).toBeNull()
+    expect(local.values.get(PANEL_SESSION_STORAGE_KEY)).toBe('remembered')
+    expect(session.values.size).toBe(0)
+    expect(getPanelSessionToken(local, session)).toBe('remembered')
+  })
+
+  it('switches back to sessionStorage when remember is off', () => {
+    const local = memoryStorage({ [PANEL_SESSION_STORAGE_KEY]: 'stale' })
+    const session = memoryStorage()
+
+    setPanelSessionToken('tab-only', { local, session })
+
+    expect(session.values.get(PANEL_SESSION_STORAGE_KEY)).toBe('tab-only')
+    expect(local.values.size).toBe(0)
+  })
+
+  it('prefers the remembered token when both stores hold one', () => {
+    const local = memoryStorage({ [PANEL_SESSION_STORAGE_KEY]: 'remembered' })
+    const session = memoryStorage({ [PANEL_SESSION_STORAGE_KEY]: 'tab' })
+
+    expect(getPanelSessionToken(local, session)).toBe('remembered')
+  })
+
+  it('clears the token from both stores', () => {
+    const local = memoryStorage({ [PANEL_SESSION_STORAGE_KEY]: 'remembered' })
+    const session = memoryStorage({ [PANEL_SESSION_STORAGE_KEY]: 'tab' })
+
+    clearPanelSessionToken({ local, session })
+
+    expect(getPanelSessionToken(local, session)).toBeNull()
+    expect(local.values.size).toBe(0)
+    expect(session.values.size).toBe(0)
   })
 
   it('clears the token when given a blank value', () => {
-    const storage = memoryStorage({ [PANEL_SESSION_STORAGE_KEY]: 'stale' })
+    const local = memoryStorage()
+    const session = memoryStorage({ [PANEL_SESSION_STORAGE_KEY]: 'stale' })
 
-    setPanelSessionToken('   ', storage)
+    setPanelSessionToken('   ', { local, session })
 
-    expect(getPanelSessionToken(storage)).toBeNull()
+    expect(getPanelSessionToken(local, session)).toBeNull()
   })
 
   it('survives a missing or blocked storage', () => {
-    expect(getPanelSessionToken(undefined)).toBeNull()
-    expect(() => setPanelSessionToken('token', undefined)).not.toThrow()
-    expect(() => clearPanelSessionToken(undefined)).not.toThrow()
-
     const blocked = blockedStorage()
-    expect(getPanelSessionToken(blocked)).toBeNull()
-    expect(() => setPanelSessionToken('token', blocked)).not.toThrow()
-    expect(() => clearPanelSessionToken(blocked)).not.toThrow()
+
+    expect(getPanelSessionToken(undefined, undefined)).toBeNull()
+    expect(getPanelSessionToken(blocked, blocked)).toBeNull()
+    expect(() => setPanelSessionToken('token', { local: blocked, session: blocked })).not.toThrow()
+    expect(() => clearPanelSessionToken({ local: blocked, session: blocked })).not.toThrow()
   })
 
-  it('defaults to sessionStorage and never touches localStorage', () => {
+  it('defaults to the browser stores and keeps remember in localStorage', () => {
     const session = memoryStorage()
     const local = memoryStorage()
     vi.stubGlobal('sessionStorage', session)
     vi.stubGlobal('localStorage', local)
 
     setPanelSessionToken('tab-token')
-
     expect(session.values.get(PANEL_SESSION_STORAGE_KEY)).toBe('tab-token')
-    expect(getPanelSessionToken()).toBe('tab-token')
     expect(local.values.size).toBe(0)
+
+    setPanelSessionToken('device-token', { remember: true })
+    expect(local.values.get(PANEL_SESSION_STORAGE_KEY)).toBe('device-token')
+    expect(session.values.size).toBe(0)
+    expect(getPanelSessionToken()).toBe('device-token')
 
     clearPanelSessionToken()
     expect(getPanelSessionToken()).toBeNull()
@@ -95,31 +129,77 @@ describe('panel session token store', () => {
 })
 
 describe('panel session token lifecycle', () => {
-  it('keeps the token a sign-in response carries and ignores one that omits it', () => {
-    const storage = memoryStorage()
+  it('stores a remembered sign-in response for the device', () => {
+    const local = memoryStorage()
+    const session = memoryStorage()
 
-    expect(rememberSessionToken({ sessionToken: 'login-token' }, storage)).toBe('login-token')
-    expect(getPanelSessionToken(storage)).toBe('login-token')
+    expect(
+      rememberSessionToken({ sessionToken: 'login-token', remember: true }, { local, session })
+    ).toBe('login-token')
+    expect(local.values.get(PANEL_SESSION_STORAGE_KEY)).toBe('login-token')
+    expect(session.values.size).toBe(0)
+  })
+
+  it('keeps a non-remembered sign-in for the tab only', () => {
+    const local = memoryStorage()
+    const session = memoryStorage()
+
+    rememberSessionToken({ sessionToken: 'tab-token' }, { local, session })
+
+    expect(session.values.get(PANEL_SESSION_STORAGE_KEY)).toBe('tab-token')
+    expect(local.values.size).toBe(0)
+  })
+
+  it('ignores a response without a token, as a served panel sends', () => {
+    const local = memoryStorage()
+    const session = memoryStorage({ [PANEL_SESSION_STORAGE_KEY]: 'login-token' })
 
     // A panel served by the hub service answers without a token; its cookie
     // keeps working and the stored value is untouched.
-    expect(rememberSessionToken({}, storage)).toBeNull()
-    expect(getPanelSessionToken(storage)).toBe('login-token')
+    expect(rememberSessionToken({}, { local, session })).toBeNull()
+    expect(getPanelSessionToken(local, session)).toBe('login-token')
   })
 
   it('replaces the token on setup and password changes, then drops it on sign-out', () => {
-    const storage = memoryStorage()
+    const local = memoryStorage()
+    const session = memoryStorage()
 
-    rememberSessionToken({ sessionToken: 'setup-token' }, storage)
-    rememberSessionToken({ sessionToken: 'changed-token' }, storage)
-    expect(getPanelSessionToken(storage)).toBe('changed-token')
+    rememberSessionToken({ sessionToken: 'setup-token', remember: true }, { local, session })
+    rememberSessionToken({ sessionToken: 'changed-token', remember: true }, { local, session })
+    expect(getPanelSessionToken(local, session)).toBe('changed-token')
 
-    clearPanelSessionToken(storage)
-    expect(getPanelSessionToken(storage)).toBeNull()
+    clearPanelSessionToken({ local, session })
+    expect(getPanelSessionToken(local, session)).toBeNull()
 
     // invalidate() clears as well, so a rejected session leaves no token.
-    rememberSessionToken({ sessionToken: 'expired-token' }, storage)
-    clearPanelSessionToken(storage)
-    expect(getPanelSessionToken(storage)).toBeNull()
+    rememberSessionToken({ sessionToken: 'expired-token' }, { local, session })
+    clearPanelSessionToken({ local, session })
+    expect(getPanelSessionToken(local, session)).toBeNull()
+  })
+})
+
+describe('panel username recall', () => {
+  it('remembers the sign-in name without treating it as a secret', () => {
+    const local = memoryStorage()
+
+    rememberPanelUsername('  admin  ', local)
+
+    expect(local.values.get(PANEL_USERNAME_STORAGE_KEY)).toBe('admin')
+    expect(getPanelUsername(local)).toBe('admin')
+  })
+
+  it('is independent of sign-out', () => {
+    const local = memoryStorage({ [PANEL_SESSION_STORAGE_KEY]: 'token' })
+    const session = memoryStorage()
+
+    rememberPanelUsername('admin', local)
+    clearPanelSessionToken({ local, session })
+
+    expect(getPanelUsername(local)).toBe('admin')
+  })
+
+  it('survives blocked or missing storage', () => {
+    expect(getPanelUsername(undefined)).toBeNull()
+    expect(() => rememberPanelUsername('admin', blockedStorage())).not.toThrow()
   })
 })
