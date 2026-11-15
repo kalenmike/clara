@@ -15,6 +15,8 @@ import {
 } from '../service/lifecycle.ts'
 import { followLogs } from '../service/logs.ts'
 import { isServiceName, SPECS } from '../service/specs.ts'
+import { adapterListReport } from './adapters.ts'
+import { runnerProcess } from '../state/runner.ts'
 import { version } from '../version.ts'
 import { bold, cyan, dim, red } from '../ui/color.ts'
 import { formatDuration, stateLabel, success, warn } from '../ui/index.ts'
@@ -162,12 +164,16 @@ export async function runStatus(args: readonly string[]): Promise<number> {
   const services = parsed.explicit ? parsed.services : defaultServices()
   const report = await statusStack(paths, ports, services)
 
+  const adapters = adapterListReport(paths)
+  const runner = runnerProcess(paths)
+
   if (parsed.flags.has('--json')) {
-    console.log(JSON.stringify(report, null, 2))
+    console.log(JSON.stringify({ ...report, adapters, runner }, null, 2))
     return 0
   }
 
   await printStatus(paths, ports, services, true, report)
+  printExtras(adapters, runner)
   if (parsed.flags.has('--open')) openUrl(panelUrl(report))
   return 0
 }
@@ -215,6 +221,37 @@ async function printStatus(
         align: 'right',
       },
     ])
+  )
+}
+
+function printExtras(
+  adapters: ReturnType<typeof adapterListReport>,
+  runner: ReturnType<typeof runnerProcess>
+): void {
+  console.log('')
+  if (adapters.length === 0) {
+    console.log(dim('  adapters  none installed'))
+  } else {
+    console.log(`  ${bold('ADAPTERS')}`)
+    console.log(
+      renderTable(adapters, [
+        { header: 'KIND', value: (entry) => bold(entry.kind) },
+        { header: 'VERSION', value: (entry) => entry.version },
+        { header: 'PLATFORM', value: (entry) => entry.platform },
+        {
+          header: 'STATE',
+          value: (entry) =>
+            entry.state === 'running'
+              ? stateLabel('running')
+              : entry.state === 'stopped'
+                ? stateLabel('stopped')
+                : dim('unknown'),
+        },
+      ])
+    )
+  }
+  console.log(
+    `  ${dim('runner')}    ${runner.running ? stateLabel('running') : stateLabel('stopped')}${runner.pid ? dim(` (${runner.pid})`) : ''}`
   )
 }
 
