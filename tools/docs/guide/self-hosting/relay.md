@@ -116,6 +116,12 @@ household, so it may send 600 frames or 4 MiB per second. A single frame is
 limited to 128 KiB. These limits apply to the relay only; a local connection is
 not capped this way.
 
+Clara keeps the web client under the browser limit on its own: a burst of
+requests waits its turn instead of being refused. Every tab paired as the same
+device shares one budget, so several open copies can add up. If the relay does
+refuse a connection for volume, Clara shows the reason in **Settings → Server**,
+waits a few seconds, and reconnects at a slower pace before returning to normal.
+
 ## Point the web client at the relay
 
 `VITE_CLARA_WS_URL` is optional. Each pairing payload carries its hub's relay URL

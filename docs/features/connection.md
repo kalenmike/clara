@@ -117,6 +117,11 @@ device key through a one-time code; there is no shared browser key.
   budget refused the socket; `4009` means one sealed frame exceeded 128 KiB. The
   adapter backs off and retries, and a persistent loop means the adapter is
   sending too much or a response was not split.
+- **Browser throttled by the relay** — the transport paces its own frames under
+  the device budget, so an ordinary load is not refused. A `4008` or `4009` close
+  is reported as **The relay is throttling this device** in Settings, reconnects
+  after five seconds, and halves the send rate until a connection holds for 45
+  seconds. Tabs paired as the same device share one budget.
 - **Adapter host shows no service endpoints** — the adapter predates endpoint
   advertisement or has not completed a handshake yet. Upgrade or start it; the
   CLI still shows the hub link and harness from the adapter's live state.

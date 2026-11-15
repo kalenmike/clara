@@ -87,6 +87,11 @@ own.
 - Check the hub and relay status on the host.
 - A revoked device disconnects and needs a new pairing.
 - A hub restart sends clients through a reconnect with the stored device key.
+- **The relay is throttling this device** in **Settings → Server** means one
+  device sent more than the relay allows in a second. Clara waits a few seconds
+  and reconnects at a slower pace, then returns to normal after the connection
+  stays up. Close extra tabs or a second copy of Clara on the same device if it
+  keeps happening.
 - If only one network fails, try the other transport: local on the same machine,
   relay from a remote device.
 
