@@ -3,21 +3,16 @@ import { existsSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { createServer } from 'node:http'
 import type { AddressInfo } from 'node:net'
 import { tmpdir } from 'node:os'
-import { isAbsolute, join } from 'node:path'
+import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { pidPath } from '../src/config.ts'
 import {
   collectStatus,
-  composeArgs,
-  composeEnv,
-  composeLogArgs,
   formatStatus,
   readPidState,
-  startDockerService,
   startLocalService,
   statusExitCode,
   stopService,
-  type HealthProbe,
 } from '../src/lifecycle.ts'
 
 interface FakeService {
@@ -80,7 +75,6 @@ beforeEach(() => {
     CLARA_ENGINE_HOST: process.env.CLARA_ENGINE_HOST,
     CLARA_ENGINE_PORT: process.env.CLARA_ENGINE_PORT,
     CLARA_ENGINE_CONTAINER: process.env.CLARA_ENGINE_CONTAINER,
-    CLARA_ENGINE_DATA_DIR: process.env.CLARA_ENGINE_DATA_DIR,
   }
   dataDir = mkdtempSync(join(tmpdir(), 'clara-engine-'))
   setEnv('CLARA_DATA_DIR', dataDir)
@@ -103,48 +97,6 @@ describe('engine lifecycle', () => {
     expect(report.stalePid).toBeNull()
     expect(statusExitCode(report)).toBe(1)
     expect(formatStatus(report)).toContain('service: stopped')
-  })
-
-  it('reports a docker container without claiming a local pid', async () => {
-    const service = await fakeService({
-      ok: true,
-      service: 'clara-engine',
-      mode: 'container',
-    })
-    setEnv('CLARA_ENGINE_PORT', String(service.port))
-    try {
-      const report = await collectStatus()
-      expect(report.state).toBe('container')
-      expect(report.pid).toBeNull()
-      expect(statusExitCode(report)).toBe(0)
-      const lines = formatStatus(report)
-      expect(lines).toContain('service: running (docker container)')
-      expect(lines).toContain('pid: none (managed by the container)')
-      expect(lines).toContain(
-        'database: managed by the container (Docker volume clara-orchestrator-data)'
-      )
-      expect(lines).toContain('stop: clara stop engine --docker')
-    } finally {
-      await service.close()
-    }
-  })
-
-  it('reports a bound data directory for a container', async () => {
-    const service = await fakeService({
-      ok: true,
-      service: 'clara-engine',
-      mode: 'container',
-    })
-    setEnv('CLARA_ENGINE_PORT', String(service.port))
-    setEnv('CLARA_ENGINE_DATA_DIR', '/srv/clara-engine')
-    try {
-      const lines = formatStatus(await collectStatus())
-      expect(lines).toContain(
-        'database: managed by the container (host bind from CLARA_ENGINE_DATA_DIR)'
-      )
-    } finally {
-      await service.close()
-    }
   })
 
   it('reports a local instance from its pid file', async () => {
@@ -227,90 +179,6 @@ describe('engine lifecycle', () => {
       )
     } finally {
       await service.close()
-    }
-  })
-
-  it('will not stop a container without an explicit docker request', async () => {
-    const service = await fakeService({
-      ok: true,
-      service: 'clara-engine',
-      mode: 'container',
-    })
-    setEnv('CLARA_ENGINE_PORT', String(service.port))
-    try {
-      expect(await stopService()).toEqual({ kind: 'container' })
-    } finally {
-      await service.close()
-    }
-  })
-
-  it('runs compose down for a container when asked', async () => {
-    const service = await fakeService({
-      ok: true,
-      service: 'clara-engine',
-      mode: 'container',
-    })
-    setEnv('CLARA_ENGINE_PORT', String(service.port))
-    let invocations = 0
-    try {
-      const result = await stopService({
-        docker: true,
-        composeDown: async () => {
-          invocations += 1
-          return { ok: true, code: 0 }
-        },
-      })
-      expect(invocations).toBe(1)
-      expect(result).toEqual({
-        kind: 'container-down',
-        detected: true,
-        result: { ok: true, code: 0 },
-      })
-    } finally {
-      await service.close()
-    }
-  })
-
-  it('runs compose down for an unreachable container when asked', async () => {
-    setEnv('CLARA_ENGINE_PORT', String(await freePort()))
-    let invocations = 0
-    const result = await stopService({
-      docker: true,
-      composeDown: async () => {
-        invocations += 1
-        return { ok: true, code: 0 }
-      },
-    })
-    expect(invocations).toBe(1)
-    expect(result).toEqual({
-      kind: 'container-down',
-      detected: false,
-      result: { ok: true, code: 0 },
-    })
-  })
-
-  it('prefers a live local process over compose down', async () => {
-    setEnv('CLARA_ENGINE_PORT', String(await freePort()))
-    const child: ChildProcess = spawn(process.execPath, ['-e', 'setInterval(() => {}, 1000)'], {
-      stdio: 'ignore',
-    })
-    if (child.pid === undefined) throw new Error('child did not start')
-    const exited = new Promise<void>((resolve) => child.once('exit', () => resolve()))
-    let invocations = 0
-    try {
-      writePid(child.pid)
-      const result = await stopService({
-        docker: true,
-        composeDown: async () => {
-          invocations += 1
-          return { ok: true, code: 0 }
-        },
-      })
-      expect(result).toEqual({ kind: 'stopped', pid: child.pid })
-      expect(invocations).toBe(0)
-      await exited
-    } finally {
-      child.kill('SIGKILL')
     }
   })
 
@@ -418,146 +286,3 @@ describe('local start', () => {
   })
 })
 
-describe('docker start', () => {
-  it('builds the compose command with and without a rebuild', () => {
-    expect(composeArgs('down')).toEqual([
-      'compose',
-      '-f',
-      'infra/docker/engine.compose.yml',
-      'down',
-    ])
-    expect(composeArgs('up')).toEqual([
-      'compose',
-      '-f',
-      'infra/docker/engine.compose.yml',
-      'up',
-      '-d',
-      'engine',
-    ])
-    expect(composeArgs('up', true)).toEqual([
-      'compose',
-      '-f',
-      'infra/docker/engine.compose.yml',
-      'up',
-      '-d',
-      '--build',
-      'engine',
-    ])
-    expect(composeLogArgs(10)).toEqual([
-      'compose',
-      '-f',
-      'infra/docker/engine.compose.yml',
-      'logs',
-      '--tail',
-      '10',
-      'engine',
-    ])
-  })
-
-  it('fills required compose variables for down only', () => {
-    const down = composeEnv('down', { PATH: '/bin' })
-    expect(down.PATH).toBe('/bin')
-    expect(down.CLARA_ENGINE_TOKEN).toBeTruthy()
-    expect(down.CLARA_WORKSPACE).toBeTruthy()
-    expect(isAbsolute(down.CLARA_WORKSPACE ?? '')).toBe(true)
-    expect(down.CLARA_DATA_DIR).toBeUndefined()
-
-    expect(composeEnv('up', { PATH: '/bin' })).toEqual({ PATH: '/bin' })
-  })
-
-  it('keeps exported compose variables for down', () => {
-    expect(
-      composeEnv('down', {
-        CLARA_ENGINE_TOKEN: 'token',
-        CLARA_WORKSPACE: '/workspace',
-      })
-    ).toEqual({
-      CLARA_ENGINE_TOKEN: 'token',
-      CLARA_WORKSPACE: '/workspace',
-    })
-  })
-
-  it('starts compose when nothing is running and waits for the container', async () => {
-    const builds: boolean[] = []
-    let probes = 0
-    const probe = async (): Promise<HealthProbe> => {
-      probes += 1
-      return probes === 1
-        ? { status: 'unreachable' }
-        : { status: 'current', mode: 'container', pid: 1 }
-    }
-
-    const result = await startDockerService({
-      build: true,
-      pollMs: 0,
-      probe,
-      composeUp: async (build) => {
-        builds.push(build)
-        return { ok: true, code: 0 }
-      },
-    })
-    expect(result).toEqual({ kind: 'container-started' })
-    expect(builds).toEqual([true])
-  })
-
-  it('does not run compose when a container is already running', async () => {
-    let invocations = 0
-    const result = await startDockerService({
-      probe: async () => ({ status: 'current', mode: 'container', pid: 1 }),
-      composeUp: async () => {
-        invocations += 1
-        return { ok: true, code: 0 }
-      },
-    })
-    expect(result).toEqual({ kind: 'container-running' })
-    expect(invocations).toBe(0)
-  })
-
-  it('refuses when a local instance is running', async () => {
-    writePid(process.pid)
-    const result = await startDockerService({
-      probe: async () => ({ status: 'current', mode: 'local', pid: process.pid }),
-      composeUp: async () => {
-        throw new Error('compose must not run')
-      },
-    })
-    expect(result).toEqual({ kind: 'local-running', pid: process.pid })
-  })
-
-  it('reports a compose failure without polling', async () => {
-    let probes = 0
-    const result = await startDockerService({
-      probe: async () => {
-        probes += 1
-        return { status: 'unreachable' }
-      },
-      composeUp: async () => ({ ok: false, code: 3 }),
-    })
-    expect(result).toEqual({ kind: 'compose-failed', result: { ok: false, code: 3 } })
-    expect(probes).toBe(1)
-  })
-
-  it('reports unhealthy when no container appears', async () => {
-    const result = await startDockerService({
-      timeoutMs: 0,
-      probe: async () => ({ status: 'unreachable' }),
-      composeUp: async () => ({ ok: true, code: 0 }),
-    })
-    expect(result).toEqual({ kind: 'unhealthy' })
-  })
-
-  it('accepts a legacy container that does not report a mode', async () => {
-    let probes = 0
-    const result = await startDockerService({
-      pollMs: 0,
-      probe: async () => {
-        probes += 1
-        return probes === 1
-          ? { status: 'unreachable' }
-          : { status: 'current', mode: 'unknown', pid: 1 }
-      },
-      composeUp: async () => ({ ok: true, code: 0 }),
-    })
-    expect(result).toEqual({ kind: 'container-started' })
-  })
-})

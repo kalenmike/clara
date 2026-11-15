@@ -1,7 +1,6 @@
 import { spawn, spawnSync } from 'node:child_process'
 import { closeSync, existsSync, openSync, readFileSync, unlinkSync } from 'node:fs'
 import { setTimeout as delay } from 'node:timers/promises'
-import { fileURLToPath } from 'node:url'
 import { baseURL, dbPath, logPath, pidPath, type InstanceMode } from './config.ts'
 
 export type ProbeMode = InstanceMode | 'unknown'
@@ -29,52 +28,14 @@ export interface StatusReport {
   log: string
 }
 
-export interface StopOptions {
-  /** Stop the compose-managed container instead of only printing a hint. */
-  docker?: boolean
-  /** Overrides the compose command. Used by tests. */
-  composeDown?: () => Promise<ComposeResult>
-}
-
-export interface StartDockerOptions {
-  /** Rebuild the image before starting the service. */
-  build?: boolean
-  /** Overrides the compose command. Used by tests. */
-  composeUp?: (build: boolean) => Promise<ComposeResult>
-  /** Overrides health probing. Used by tests. */
-  probe?: () => Promise<HealthProbe>
-  /** Delay between health probes. */
-  pollMs?: number
-  /** Total time to wait for the container to become healthy. */
-  timeoutMs?: number
-}
-
-export interface ComposeResult {
-  ok: boolean
-  code: number | null
-  error?: string
-}
-
-export type ComposeAction = 'up' | 'down'
-
 export type StopResult =
   | { kind: 'stopped'; pid: number }
   | { kind: 'already-stopped'; stalePid: number | null }
   | { kind: 'not-exited'; pid: number }
   | { kind: 'container' }
-  | { kind: 'container-down'; result: ComposeResult; detected: boolean }
   | { kind: 'external' }
   | { kind: 'foreign' }
   | { kind: 'error'; message: string }
-
-export type StartDockerResult =
-  | { kind: 'container-started' }
-  | { kind: 'container-running' }
-  | { kind: 'local-running'; pid: number | null }
-  | { kind: 'external' }
-  | { kind: 'foreign' }
-  | { kind: 'compose-failed'; result: ComposeResult }
-  | { kind: 'unhealthy' }
 
 export interface StartLocalOptions {
   /** Executable and arguments for the engine CLI, without the subcommand. */
@@ -218,7 +179,7 @@ export function formatStatus(report: StatusReport): string[] {
   if (report.state === 'local') {
     lines.push('service: running (local)')
   } else if (report.state === 'container') {
-    lines.push('service: running (docker container)')
+    lines.push('service: running (container)')
   } else if (report.state === 'external') {
     lines.push('service: running (external)')
   } else if (report.state === 'unresponsive') {
@@ -232,7 +193,7 @@ export function formatStatus(report: StatusReport): string[] {
   lines.push(`url: ${report.url}`)
 
   if (report.state === 'container') {
-    lines.push('pid: none (managed by the container)')
+    lines.push('pid: none (managed outside this installation)')
   } else if (report.stalePid !== null) {
     lines.push(`pid: ${report.stalePid} (stale; the process is gone)`)
   } else if (report.pid !== null) {
@@ -242,14 +203,8 @@ export function formatStatus(report: StatusReport): string[] {
   }
 
   if (report.state === 'container') {
-    const bind =
-      process.env.CLARA_ENGINE_DATA_DIR?.trim() || process.env.CLARA_ORCHESTRATOR_DATA_DIR?.trim()
-    lines.push(
-      bind
-        ? 'database: managed by the container (host bind from CLARA_ENGINE_DATA_DIR)'
-        : 'database: managed by the container (Docker volume clara-orchestrator-data)'
-    )
-    lines.push('stop: clara stop engine --docker')
+    lines.push('database: unknown (managed outside this installation)')
+    lines.push('stop: this engine is managed outside Clara; stop it where it was started')
   } else if (report.state === 'external') {
     lines.push('database: unknown (not this data directory)')
   } else if (report.state !== 'foreign') {
@@ -324,117 +279,6 @@ async function terminateLocal(pid: number): Promise<StopResult> {
   return { kind: 'not-exited', pid }
 }
 
-function repoRoot(): string {
-  return fileURLToPath(new URL('../../../..', import.meta.url))
-}
-
-export function composeArgs(action: ComposeAction, build = false): string[] {
-  if (action === 'down') return ['compose', '-f', 'infra/docker/engine.compose.yml', 'down']
-  const args = ['compose', '-f', 'infra/docker/engine.compose.yml', 'up', '-d']
-  if (build) args.push('--build')
-  args.push('engine')
-  return args
-}
-
-export function composeLogArgs(tail = 40): string[] {
-  return [
-    'compose',
-    '-f',
-    'infra/docker/engine.compose.yml',
-    'logs',
-    '--tail',
-    String(tail),
-    'engine',
-  ]
-}
-
-/** Recent container output, or an empty string when Docker is unavailable. */
-export function readComposeLogs(tail = 40): string {
-  const result = spawnSync('docker', composeLogArgs(tail), {
-    cwd: repoRoot(),
-    encoding: 'utf8',
-    timeout: 5_000,
-  })
-  if (result.error) return ''
-  return `${result.stdout ?? ''}${result.stderr ?? ''}`.trim()
-}
-
-/**
- * Compose interpolates the whole file, including `${VAR:?}` guards, even for
- * `down`. Down never reads the token or workspace, so fill the required values
- * with inert placeholders when they are not exported. `up` keeps the real
- * environment so a missing token still fails fast.
- *
- * The workspace placeholder must be an absolute path. Compose treats a short
- * volume source without a leading slash as a named volume, so a bare token like
- * `unused-by-compose-down` fails with `refers to undefined volume` before it
- * can remove the container.
- */
-const DOWN_ENV_FALLBACKS = {
-  CLARA_ENGINE_TOKEN: 'unused-by-compose-down',
-  CLARA_WORKSPACE: repoRoot(),
-} as const
-
-export function composeEnv(
-  action: ComposeAction,
-  env: NodeJS.ProcessEnv = process.env
-): NodeJS.ProcessEnv {
-  if (action !== 'down') return env
-  const result = { ...env }
-  for (const [key, value] of Object.entries(DOWN_ENV_FALLBACKS)) {
-    if (!result[key]) result[key] = value
-  }
-  return result
-}
-
-export function runCompose(action: ComposeAction, build = false): Promise<ComposeResult> {
-  return new Promise((resolve) => {
-    const child = spawn('docker', composeArgs(action, build), {
-      cwd: repoRoot(),
-      stdio: 'inherit',
-      env: composeEnv(action),
-    })
-    child.once('error', (error) => resolve({ ok: false, code: null, error: error.message }))
-    child.once('exit', (code) => resolve({ ok: code === 0, code }))
-  })
-}
-
-export async function startDockerService(
-  options: StartDockerOptions = {}
-): Promise<StartDockerResult> {
-  const probe = options.probe ?? (() => probeHealth())
-  const initial = await probe()
-  if (initial.status === 'current') {
-    if (initial.mode === 'container') return { kind: 'container-running' }
-    if (initial.mode === 'local') {
-      const pid = readPidState()
-      if (pid.alive && matchesLocalPid(initial, pid.pid)) {
-        return { kind: 'local-running', pid: pid.pid }
-      }
-    }
-    return { kind: 'external' }
-  }
-  if (initial.status === 'foreign') return { kind: 'foreign' }
-
-  const up = options.composeUp ?? ((build: boolean) => runCompose('up', build))
-  const result = await up(options.build ?? false)
-  if (!result.ok) return { kind: 'compose-failed', result }
-
-  const timeoutMs = options.timeoutMs ?? 30_000
-  const pollMs = options.pollMs ?? 250
-  const deadline = Date.now() + timeoutMs
-  while (Date.now() < deadline) {
-    const next = await probe()
-    if (next.status === 'current') {
-      if (next.mode === 'container' || next.mode === 'unknown') return { kind: 'container-started' }
-      return { kind: 'foreign' }
-    }
-    if (next.status === 'foreign') return { kind: 'foreign' }
-    if (pollMs > 0) await delay(pollMs)
-  }
-  return { kind: 'unhealthy' }
-}
-
 /** Start a detached local service and wait for its health endpoint. */
 export async function startLocalService(options: StartLocalOptions): Promise<StartLocalResult> {
   const probe = options.probe ?? (() => probeHealth())
@@ -474,15 +318,13 @@ export async function startLocalService(options: StartLocalOptions): Promise<Sta
   return { kind: 'unhealthy' }
 }
 
-export async function stopService(options: StopOptions = {}): Promise<StopResult> {
+export async function stopService(): Promise<StopResult> {
   const probe = await probeHealth()
   const pid = readPidState()
   const stalePid = pid.present && !pid.alive ? pid.pid : null
-  const composeDown = options.composeDown ?? (() => runCompose('down'))
 
   if (probe.status === 'current' && probe.mode === 'container') {
-    if (!options.docker) return { kind: 'container' }
-    return { kind: 'container-down', detected: true, result: await composeDown() }
+    return { kind: 'container' }
   }
 
   if (probe.status === 'foreign') return { kind: 'foreign' }
@@ -501,13 +343,6 @@ export async function stopService(options: StopOptions = {}): Promise<StopResult
   }
 
   if (probe.status === 'current') return { kind: 'external' }
-
-  // An explicit docker stop also cleans up a container that is stopped or
-  // unhealthy and therefore not answering /health.
-  if (options.docker) {
-    if (pid.present) removePid()
-    return { kind: 'container-down', detected: false, result: await composeDown() }
-  }
 
   if (pid.present) removePid()
   return { kind: 'already-stopped', stalePid }

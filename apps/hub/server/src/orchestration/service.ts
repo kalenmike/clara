@@ -90,7 +90,7 @@ export async function startOrchestration(): Promise<void> {
     throw new PanelControlError(
       409,
       'orchestrator_container',
-      'The engine is managed by Docker on this host. Start it with `pnpm clara start engine --docker` or docker compose.'
+      'The engine is managed outside this installation on this host. Start it where it was installed.'
     )
   }
 
@@ -134,7 +134,7 @@ export async function stopOrchestration(): Promise<void> {
     throw new PanelControlError(
       409,
       'orchestrator_container',
-      'The engine is running in Docker. Stop it with `pnpm clara stop engine --docker`.'
+      'The engine is running outside this installation. Stop it where it was started.'
     )
   }
   if (result.kind === 'external') {
