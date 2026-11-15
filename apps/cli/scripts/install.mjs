@@ -183,9 +183,14 @@ function probeVersion(binary) {
         'Rebuild with `pnpm cli:build`.'
     )
   }
-  const match = /\b(\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?)\b/.exec(output)
-  if (!match) fail(`${displayPath(binary)} --version printed no version: ${output}`)
-  return { version: match[1], line: output }
+  const version = parseVersion(output)
+  if (!version) fail(`${displayPath(binary)} --version printed no version: ${output}`)
+  return { version, line: output }
+}
+
+/** Read the version token from `clara --version`, including dev build metadata. */
+export function parseVersion(output) {
+  return /\b(\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?)\b/.exec(output)?.[1]
 }
 
 function resolvePaths(options) {
@@ -382,4 +387,4 @@ function main() {
   }
 }
 
-main()
+if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) main()
