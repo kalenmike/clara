@@ -6,6 +6,7 @@ import { resolvePaths } from '../src/paths.ts'
 import {
   adapterConfigPath,
   adapterDataDir,
+  adapterEnv,
   adapterHasPairing,
   adapterRuntimeState,
   adapterStatePath,
@@ -94,6 +95,13 @@ describe('adapter install records', () => {
       entry: 'index.js',
       installArgs: ['--no-runner', '--mcp'],
     })
+  })
+
+  it('points the adapter at the CLI config and data directories', () => {
+    const paths = tempPaths()
+    const env = adapterEnv(paths, 'opencode')
+    expect(env.CLARA_ADAPTER_CONFIG_DIR).toBe(join(paths.configDir, 'adapters', 'opencode'))
+    expect(env.CLARA_ADAPTER_DATA_DIR).toBe(join(paths.dataDir, 'adapters', 'opencode'))
   })
 
   it('detects a saved adapter pairing', () => {

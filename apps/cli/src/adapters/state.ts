@@ -129,7 +129,11 @@ export function adapterEnv(
   kind: AdapterKind,
   env = process.env
 ): NodeJS.ProcessEnv {
-  return { ...env, CLARA_ADAPTER_DATA_DIR: join(paths.dataDir, 'adapters', kind) }
+  return {
+    ...env,
+    CLARA_ADAPTER_CONFIG_DIR: join(paths.configDir, 'adapters', kind),
+    CLARA_ADAPTER_DATA_DIR: join(paths.dataDir, 'adapters', kind),
+  }
 }
 
 /** `<configDir>/adapters/<kind>/config.json`, the adapter's own pairing config. */

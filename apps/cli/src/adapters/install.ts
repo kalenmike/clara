@@ -7,6 +7,7 @@ import {
   mkdtempSync,
   readFileSync,
   rmSync,
+  symlinkSync,
 } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { dirname, join, resolve } from 'node:path'
@@ -222,7 +223,10 @@ type LocalAdapterSource = {
 }
 
 export function resolveLocalAdapterSource(input: string, kind: AdapterKind): LocalAdapterSource {
-  const path = resolve(input)
+  // `pnpm cli` runs the command from apps/cli; resolve relative paths from the
+  // directory the caller invoked it in.
+  const base = process.env.INIT_CWD?.trim() || process.cwd()
+  const path = resolve(base, input)
   const candidates: LocalAdapterSource[] = [
     { root: path, dist: join(path, 'dist') },
     { root: dirname(path), dist: path },
@@ -259,6 +263,16 @@ function stageLocalAdapter(
   rmSync(installDir, { recursive: true, force: true })
   mkdirSync(installDir, { recursive: true })
   cpSync(source.dist, installDir, { recursive: true })
+  // The Node build keeps its non-workspace dependencies external. Link the
+  // package's modules so the staged entry resolves them from the checkout.
+  const modules = join(source.root, 'node_modules')
+  if (existsSync(modules)) {
+    symlinkSync(
+      modules,
+      join(installDir, 'node_modules'),
+      process.platform === 'win32' ? 'junction' : 'dir'
+    )
+  }
   if (!existsSync(staged)) {
     throw new Error(
       `The ${request.kind} build has no dist/index.js at ${source.dist}. Build the adapter first.`
