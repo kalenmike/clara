@@ -20,7 +20,8 @@
       "project": ["src/**/*.{ts,tsx,css}"]
     },
     "apps/cli": {
-      "project": ["src/**/*.ts", "test/**/*.ts"]
+      "project": ["src/**/*.ts", "test/**/*.ts"],
+      "ignoreBinaries": ["ldd"]
     },
     "packages/panel": {
       "project": ["src/**/*.{ts,tsx,css}"]

@@ -1,0 +1,161 @@
+name: package-releases
+
+# Build the packaged `clara` command for every supported platform, sign the
+# release manifest, and publish one release with archives and installers.
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  prepare:
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+      tag: ${{ steps.version.outputs.tag }}
+    steps:
+      - uses: actions/checkout@v5
+      - id: version
+        run: |
+          version=$(node -p "require('./package.json').version")
+          if [ "${{ github.ref_type }}" = "tag" ]; then
+            tag="${{ github.ref_name }}"
+            version="${tag#v}"
+          else
+            tag="v$version"
+          fi
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+
+  build:
+    needs: prepare
+    name: ${{ matrix.name }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: linux-x64
+            os: ubuntu-22.04
+            platform: linux-x64
+            bun-target: bun-linux-x64
+            native: true
+          - name: linux-arm64
+            os: ubuntu-22.04
+            platform: linux-arm64
+            bun-target: bun-linux-arm64
+            native: false
+          - name: darwin-x64
+            os: macos-15-intel
+            platform: darwin-x64
+            bun-target: bun-darwin-x64
+            native: true
+          - name: darwin-arm64
+            os: macos-15
+            platform: darwin-arm64
+            bun-target: bun-darwin-arm64
+            native: true
+          - name: win32-x64
+            os: windows-latest
+            platform: win32-x64
+            bun-target: bun-windows-x64
+            native: true
+
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11.1.1
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.4.0
+
+      - run: pnpm install --frozen-lockfile
+
+      - name: Build the binary
+        run: pnpm --filter @clara/cli run build:binary -- --target=${{ matrix.bun-target }} --outfile=dist/package/${{ matrix.platform }}/clara${{ runner.os == 'Windows' && '.exe' || '' }}
+
+      - name: Smoke the binary
+        if: matrix.native
+        run: node apps/cli/scripts/smoke.mjs --binary dist/package/${{ matrix.platform }}/clara${{ runner.os == 'Windows' && '.exe' || '' }}
+
+      - name: Package the archive
+        shell: bash
+        run: |
+          mkdir -p dist/release/archives
+          cat > "dist/package/${{ matrix.platform }}/README.txt" <<'EOF'
+          Clara packaged command: run `clara setup` to create the hub owner,
+          start the stack, and optionally install the login service.
+          EOF
+          if [ "${{ runner.os }}" = "Windows" ]; then
+            powershell.exe -NoProfile -Command "Compress-Archive -Path 'dist/package/${{ matrix.platform }}/clara.exe','dist/package/${{ matrix.platform }}/README.txt' -DestinationPath 'dist/release/archives/clara-${{ matrix.platform }}.zip' -Force"
+          else
+            tar -czf "dist/release/archives/clara-${{ matrix.platform }}.tar.gz" -C "dist/package/${{ matrix.platform }}" clara README.txt
+          fi
+
+      - uses: actions/upload-artifact@v6
+        with:
+          name: clara-${{ matrix.platform }}
+          if-no-files-found: error
+          path: dist/release/archives/*
+
+  publish:
+    needs: [prepare, build]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+
+      - uses: actions/download-artifact@v7
+        with:
+          path: dist/release/archives
+          merge-multiple: true
+
+      - name: Build the manifest
+        run: |
+          node apps/cli/scripts/release-manifest.mjs \
+            --dir dist/release/archives \
+            --out dist/release \
+            --version "${{ needs.prepare.outputs.version }}" \
+            --channel stable \
+            --base-url "https://github.com/${{ github.repository }}/releases/download/${{ needs.prepare.outputs.tag }}" \
+            --require-platforms
+
+      - name: Sign the manifest
+        env:
+          CLARA_RELEASE_SIGNING_KEY: ${{ secrets.CLARA_RELEASE_SIGNING_KEY }}
+        run: |
+          node apps/cli/scripts/sign-manifest.mjs \
+            --manifest dist/release/manifest.json \
+            --install-script apps/cli/scripts/install.sh \
+            --out dist/release
+
+      - name: Publish the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release view "${{ needs.prepare.outputs.tag }}" >/dev/null 2>&1 || \
+            gh release create "${{ needs.prepare.outputs.tag }}" --title "Clara ${{ needs.prepare.outputs.version }}" --generate-notes
+          gh release upload "${{ needs.prepare.outputs.tag }}" \
+            dist/release/manifest.json \
+            dist/release/manifest.json.sig \
+            dist/release/install.sh \
+            dist/release/install.ps1 \
+            dist/release/public-key.txt \
+            dist/release/archives/* \
+            --clobber
