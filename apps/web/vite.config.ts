@@ -7,6 +7,7 @@ import { defineConfig, type Plugin } from 'vite'
 import { VitePWA } from 'vite-plugin-pwa'
 import { PROTOCOL_VERSION } from '@clara/shared-types/protocol'
 import { featureEnabled } from '../../tools/build/feature-flags.mjs'
+import { buildVersion } from '../../tools/build/version.mjs'
 
 const root = fileURLToPath(new URL('../..', import.meta.url))
 
@@ -31,6 +32,10 @@ const dirty =
     ? Boolean(git(['status', '--porcelain']))
     : dirtyFromEnv === '1' || dirtyFromEnv === 'true'
 const builtAt = new Date().toISOString()
+const healthVersion = buildVersion({
+  packageVersion,
+  commit: process.env.CLARA_COMMIT?.trim().slice(0, 7) || git(['rev-parse', '--short=7', 'HEAD']),
+})
 
 // The identity a page and its service worker compare before offering an update.
 // A clean checkout is identified by its commit, so rebuilding the same code does
@@ -50,7 +55,7 @@ const buildIdentityDefine = {
  * the version and protocol of the assets that are actually deployed, not the
  * ones the command assumes are installed.
  */
-function healthFile(): Plugin {
+function healthFile(version: string): Plugin {
   return {
     name: 'clara-health',
     apply: 'build',
@@ -61,7 +66,7 @@ function healthFile(): Plugin {
         source: JSON.stringify({
           ok: true,
           service: 'clara-web',
-          version: packageVersion,
+          version,
           protocol: PROTOCOL_VERSION,
         }),
       })
@@ -81,7 +86,7 @@ export default defineConfig(({ command, mode }) => {
       ...(desktop
         ? []
         : [
-            healthFile(),
+            healthFile(healthVersion),
             VitePWA({
               includeAssets: ['favicon.png', 'apple-touch-icon.png'],
               manifest: {
