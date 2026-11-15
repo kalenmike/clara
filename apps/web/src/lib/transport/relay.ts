@@ -53,6 +53,24 @@ const MAX_RECONNECT_MS = 15_000
 const SYNC_TIMEOUT_MS = 30_000
 
 /**
+ * The room charges one browser grant 60 frames a second, and every tab paired
+ * as the same device shares that grant. Pace below it so an ordinary UI load
+ * queues instead of racing into a `4008` refusal: the room forwards no frame
+ * after a refusal, so the socket closes and the reload starts over.
+ */
+export const RELAY_FRAME_RATE = 25
+export const RELAY_FRAME_BURST = 10
+/** A throttled connection halves its rate down to this floor. */
+const MIN_FRAME_RATE = 5
+
+/** Room close codes that mean the connection was refused for volume, not lost. */
+const THROTTLE_CLOSE_CODES = new Set([4008, 4009])
+const THROTTLE_MESSAGE = 'The relay is throttling this device'
+const THROTTLE_RECONNECT_MS = 5_000
+/** A connection must hold this long before a throttled rate climbs back. */
+const THROTTLE_STABLE_MS = 45_000
+
+/**
  * The hub broadcasts error frames without authentication, so one frame must not
  * be able to park a browser tab offline for good. A credential-dead code has to
  * be seen this many times in a row before the transport stops retrying, which
@@ -239,6 +257,13 @@ class RelayFetchTransport implements RelayTransport {
   private lastReceivedAt = 0
   private retry = 0
   private closed = false
+  /** Frames per second the pacer allows on a relay connection. */
+  private frameRate = RELAY_FRAME_RATE
+  private frameTokens = RELAY_FRAME_BURST
+  private frameRefilledAt = 0
+  private readonly frameWaiters: Array<() => void> = []
+  private frameTimer: number | null = null
+  private frameRecoverTimer: number | null = null
 
   constructor(config: RelayTransportConfig) {
     this.config = config
@@ -368,6 +393,11 @@ class RelayFetchTransport implements RelayTransport {
 
   status(): RelayTransportStatus {
     return this.statusValue
+  }
+
+  /** Only a relay connection presents a grant and is metered by the room. */
+  private get metered(): boolean {
+    return this.config.grant !== ''
   }
 
   private async doFetch(input: RequestInfo | URL, init?: RequestInit): Promise<Response> {
@@ -500,7 +530,14 @@ class RelayFetchTransport implements RelayTransport {
     socket.addEventListener('message', (event) => {
       if (this.socket !== socket) return
       this.lastReceivedAt = Date.now()
-      this.receiveChain = this.receiveChain.then(() => this.handleFrame(event.data)).catch(() => {})
+      this.receiveChain = this.receiveChain
+        .then(() => {
+          // Decryption is asynchronous, so a close can land between arrival and
+          // handling. A frame from the dead socket must not revive it.
+          if (this.socket !== socket) return
+          return this.handleFrame(event.data, socket)
+        })
+        .catch(() => {})
     })
 
     socket.addEventListener('error', () => {
@@ -531,8 +568,11 @@ class RelayFetchTransport implements RelayTransport {
       this.receive = null
       this.clientEphemeral = null
       this.stopHeartbeat()
+      this.releaseFrameWaiters()
       if (this.handshakeTimer !== null) window.clearTimeout(this.handshakeTimer)
       this.handshakeTimer = null
+      if (this.frameRecoverTimer !== null) window.clearTimeout(this.frameRecoverTimer)
+      this.frameRecoverTimer = null
       const reason = describeClose(event, this.config.wsUrl, wasOpen)
       this.rejectHandshake(new Error(reason))
       this.failQueued(new Error(reason))
@@ -546,6 +586,12 @@ class RelayFetchTransport implements RelayTransport {
         return
       }
       if (!opened && refusalHandled) return
+      // The room accepted the socket and then refused a frame. That is a volume
+      // limit, not a dead credential, so reconnect on a slower schedule.
+      if (opened && THROTTLE_CLOSE_CODES.has(event.code)) {
+        this.throttled()
+        return
+      }
       // A failed upgrade cannot expose its HTTP status to a browser. For a relay
       // device or enrollment grant, a reachable relay that still refused means
       // the grant expired, was revoked, or belongs to another relay; retrying
@@ -613,7 +659,7 @@ class RelayFetchTransport implements RelayTransport {
     })()
   }
 
-  private async handleFrame(raw: unknown): Promise<void> {
+  private async handleFrame(raw: unknown, socket: WebSocket): Promise<void> {
     let text: string
     if (typeof raw === 'string') {
       text = raw
@@ -664,6 +710,7 @@ class RelayFetchTransport implements RelayTransport {
           return
         }
         const material = await deriveV4SessionKeys(input)
+        if (this.socket !== socket) return
         this.keys = material.keys
         this.receive = new ReplayGuard()
         // The ephemeral private key is only needed for this handshake. Drop it
@@ -723,7 +770,12 @@ class RelayFetchTransport implements RelayTransport {
     }
 
     if (payload.type === 'ready') {
+      if (this.socket !== socket) return
       if (payload.relayGrant) {
+        // Adopt the refreshed grant as well as persisting it: the next
+        // reconnect presents this one, so a long-lived tab never dials with a
+        // credential that expired since it paired.
+        this.config.grant = payload.relayGrant.grant
         try {
           this.config.onRelayGrant?.(payload.relayGrant)
         } catch {
@@ -743,6 +795,7 @@ class RelayFetchTransport implements RelayTransport {
       }).catch(() => {})
       this.resolveHandshake()
       this.startHeartbeat()
+      this.scheduleFrameRecovery()
       return
     }
 
@@ -1012,6 +1065,7 @@ class RelayFetchTransport implements RelayTransport {
 
   private send(payload: ClaraAction | ClaraState): Promise<void> {
     const run = this.sendChain.then(async () => {
+      await this.paceFrame()
       const socket = this.socket
       const keys = this.keys
       const sid = this.sid
@@ -1040,10 +1094,82 @@ class RelayFetchTransport implements RelayTransport {
     return run
   }
 
-  private scheduleReconnect(): void {
+  /**
+   * Wait for one frame of the room's per-device budget. A query burst is
+   * spread out on the client so the room never has to refuse a frame: a
+   * refusal closes the socket and drops every request still in flight.
+   */
+  private paceFrame(): Promise<void> {
+    if (!this.metered || this.closed) return Promise.resolve()
+    this.refillFrames(Date.now())
+    if (this.frameTokens >= 1) {
+      this.frameTokens -= 1
+      return Promise.resolve()
+    }
+    return new Promise((resolve) => {
+      this.frameWaiters.push(resolve)
+      this.pumpFrames()
+    })
+  }
+
+  private refillFrames(now: number): void {
+    if (this.frameRefilledAt === 0) {
+      this.frameRefilledAt = now
+      return
+    }
+    const elapsed = now - this.frameRefilledAt
+    if (elapsed <= 0) return
+    this.frameRefilledAt = now
+    this.frameTokens = Math.min(
+      RELAY_FRAME_BURST,
+      this.frameTokens + (elapsed / 1000) * this.frameRate
+    )
+  }
+
+  private pumpFrames(): void {
+    if (this.frameTimer !== null || this.closed) return
+    const wait = this.frameTokens >= 1 ? 0 : ((1 - this.frameTokens) / this.frameRate) * 1000
+    this.frameTimer = window.setTimeout(
+      () => {
+        this.frameTimer = null
+        this.refillFrames(Date.now())
+        while (this.frameTokens >= 1 && this.frameWaiters.length > 0) {
+          this.frameTokens -= 1
+          this.frameWaiters.shift()?.()
+        }
+        if (this.frameWaiters.length > 0) this.pumpFrames()
+      },
+      Math.max(0, Math.ceil(wait))
+    )
+  }
+
+  /**
+   * A closed socket cannot carry the frames still waiting, so settle them: each
+   * send sees the missing socket and fails instead of holding a caller open.
+   */
+  private releaseFrameWaiters(): void {
+    if (this.frameTimer !== null) window.clearTimeout(this.frameTimer)
+    this.frameTimer = null
+    for (const resolve of this.frameWaiters.splice(0)) resolve()
+  }
+
+  /**
+   * The room refused this connection for volume. Dial again after a pause long
+   * enough for its bucket to refill, and halve the local rate so a second tab or
+   * a heavier screen converges instead of tripping the same limit forever.
+   */
+  private throttled(): void {
+    this.frameRate = Math.max(MIN_FRAME_RATE, Math.floor(this.frameRate / 2))
+    this.frameTokens = 0
+    this.frameRefilledAt = Date.now()
+    this.setState('reconnecting', `${THROTTLE_MESSAGE}. Retrying shortly.`)
+    this.scheduleReconnect(THROTTLE_RECONNECT_MS)
+  }
+
+  private scheduleReconnect(minimumDelay = 0): void {
     if (this.closed || this.terminal || this.reconnectTimer !== null) return
     const base = Math.min(1_000 * 2 ** Math.min(this.retry, 5), MAX_RECONNECT_MS)
-    const delay = Math.round(base * (0.8 + Math.random() * 0.4))
+    const delay = Math.max(Math.round(base * (0.8 + Math.random() * 0.4)), minimumDelay)
     this.retry += 1
     this.reconnectTimer = window.setTimeout(() => {
       this.reconnectTimer = null
@@ -1051,6 +1177,16 @@ class RelayFetchTransport implements RelayTransport {
       this.handshake = null
       void this.ensureReady().catch(() => {})
     }, delay)
+  }
+
+  /** One stable connection lets a throttled rate climb back to the budget. */
+  private scheduleFrameRecovery(): void {
+    if (this.frameRate >= RELAY_FRAME_RATE) return
+    if (this.frameRecoverTimer !== null) window.clearTimeout(this.frameRecoverTimer)
+    this.frameRecoverTimer = window.setTimeout(() => {
+      this.frameRecoverTimer = null
+      this.frameRate = RELAY_FRAME_RATE
+    }, THROTTLE_STABLE_MS)
   }
 
   private startHeartbeat(): void {
@@ -1089,8 +1225,11 @@ class RelayFetchTransport implements RelayTransport {
   private clearTimers(): void {
     if (this.handshakeTimer !== null) window.clearTimeout(this.handshakeTimer)
     if (this.reconnectTimer !== null) window.clearTimeout(this.reconnectTimer)
+    if (this.frameRecoverTimer !== null) window.clearTimeout(this.frameRecoverTimer)
     this.handshakeTimer = null
     this.reconnectTimer = null
+    this.frameRecoverTimer = null
+    this.releaseFrameWaiters()
     this.stopHeartbeat()
   }
 

@@ -63,6 +63,15 @@ only regenerates a fresh random value.
   closes the socket with `4008` and a reason that names the limit, or with
   `4009` for an oversized frame. No later frame from that socket is forwarded,
   so the hub never sees a hole in the sealed sequence.
+- The web client paces its own frames under the browser budget, at 25 frames a
+  second with a ten-frame burst, so a query burst queues locally instead of
+  being refused. The budget is keyed by grant, so every tab paired as the same
+  device draws on one bucket. A `4008` or `4009` close is throttling, not a
+  lost socket: the transport reports it, waits five seconds, halves its own rate
+  down to five frames a second, and climbs back after 45 seconds on one stable
+  connection. A local pairing is not metered. Pacing alone is not enough on a
+  reconnect, so a recovered stream refreshes the primary lists and marks the
+  rest stale instead of refetching every sidebar lookup.
 - When the hub disconnects, clients close with `1012` and reconnect with
   jittered backoff.
 - When no hub is present, a client frame closes that client with `1013`.
@@ -265,23 +274,23 @@ without the flag. The manual Wrangler path below remains the supported fallback.
 
 ## Failure behavior
 
-| Failure                   | Result                                                                                                                                                                         |
-| ------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| Relay unreachable         | Hub retries with exponential backoff (1s–30s, jittered).                                                                                                                       |
-| Hub offline               | Clients connect, then close with `1013`; the connect screen shows failure.                                                                                                     |
-| Hub restarts              | DO closes clients with `1012`; both sides re-handshake.                                                                                                                        |
-| Adapter offline           | Hub returns `harness_offline`; the adapter reconnects with backoff.                                                                                                            |
-| Wrong hub token or grant  | Worker returns `401` before upgrading.                                                                                                                                         |
-| Another hub took the room | The old hub socket closes with `4002`; the hub records a replacement warning and waits at least 30s to reconnect.                                                              |
-| Outdated relay            | Hub reports **The relay is outdated; redeploy the Worker** and stays offline until the Worker is updated.                                                                      |
-| Unknown or revoked device | Hub sends an `error` frame; a transient code reconnects, a credential-dead code stops after three in a row.                                                                    |
-| Room full                 | The DO refuses the 33rd client socket, or a 9th from one address, with `4008` and a reason naming the limit.                                                                   |
-| Per-peer rate limited     | A browser above 60 frames/s or 512 KiB/s, or an adapter above 600 frames/s or 4 MiB/s, closes with `4008`; no later frame is forwarded and the client reconnects with backoff. |
-| Oversized client frame    | A frame above 128 KiB closes with `4009`; no later frame is forwarded.                                                                                                         |
-| Hub session limit         | A hello beyond 64 live sessions gets `not_allowed`; the client retries with backoff.                                                                                           |
-| Version mismatch          | Handshake is rejected; update web and hub together.                                                                                                                            |
-| Slow client               | DO closes above the buffered-output threshold.                                                                                                                                 |
-| Many clients              | Egress scales with client count because hub frames are broadcast.                                                                                                              |
+| Failure                   | Result                                                                                                                                                                                                                                                                           |
+| ------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Relay unreachable         | Hub retries with exponential backoff (1s–30s, jittered).                                                                                                                                                                                                                         |
+| Hub offline               | Clients connect, then close with `1013`; the connect screen shows failure.                                                                                                                                                                                                       |
+| Hub restarts              | DO closes clients with `1012`; both sides re-handshake.                                                                                                                                                                                                                          |
+| Adapter offline           | Hub returns `harness_offline`; the adapter reconnects with backoff.                                                                                                                                                                                                              |
+| Wrong hub token or grant  | Worker returns `401` before upgrading.                                                                                                                                                                                                                                           |
+| Another hub took the room | The old hub socket closes with `4002`; the hub records a replacement warning and waits at least 30s to reconnect.                                                                                                                                                                |
+| Outdated relay            | Hub reports **The relay is outdated; redeploy the Worker** and stays offline until the Worker is updated.                                                                                                                                                                        |
+| Unknown or revoked device | Hub sends an `error` frame; a transient code reconnects, a credential-dead code stops after three in a row.                                                                                                                                                                      |
+| Room full                 | The DO refuses the 33rd client socket, or a 9th from one address, with `4008` and a reason naming the limit.                                                                                                                                                                     |
+| Per-peer rate limited     | A browser above 60 frames/s or 512 KiB/s, or an adapter above 600 frames/s or 4 MiB/s, closes with `4008`; no later frame is forwarded. The web client keeps its own frames under the browser budget and, when refused, reconnects after five seconds at half its previous rate. |
+| Oversized client frame    | A frame above 128 KiB closes with `4009`; no later frame is forwarded.                                                                                                                                                                                                           |
+| Hub session limit         | A hello beyond 64 live sessions gets `not_allowed`; the client retries with backoff.                                                                                                                                                                                             |
+| Version mismatch          | Handshake is rejected; update web and hub together.                                                                                                                                                                                                                              |
+| Slow client               | DO closes above the buffered-output threshold.                                                                                                                                                                                                                                   |
+| Many clients              | Egress scales with client count because hub frames are broadcast.                                                                                                                                                                                                                |
 
 ## Related
 

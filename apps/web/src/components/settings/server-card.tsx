@@ -51,6 +51,7 @@ export function ServerCard({ simplified }: { simplified: boolean }) {
               value={config ? (config.room === 'local' ? 'Local WebSocket' : 'E2EE relay') : '—'}
             />
             {relayStatus && <Row label="Relay" value={relayStatus.state} />}
+            {relayStatus?.error && <Row label="Relay error" value={relayStatus.error} />}
             <Row
               label="Hub"
               value={hub ? `${hub.server.version} (PID ${hub.server.pid})` : 'unknown'}
