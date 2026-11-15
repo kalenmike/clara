@@ -16,6 +16,8 @@ import {
   usePanelCapabilities,
 } from '../lib/capabilities-context.ts'
 import { findFeature, useFeatureControl } from '../lib/feature-control.ts'
+import { usePushStorageControl } from '../lib/push-storage.ts'
+import { ConfirmDialog } from './confirm-dialog.tsx'
 import { RelayEditor } from './relay-editor.tsx'
 import { HubPowerButton } from './hub-power-button.tsx'
 import {
@@ -313,9 +315,12 @@ export function PushCard({
 }) {
   const feature = findFeature(controls, 'push')
   const control = useFeatureControl(feature, controls.stopped, onChanged)
+  const storage = usePushStorageControl(onChanged)
+  const [confirmReset, setConfirmReset] = useState(false)
   const { redact } = usePeek()
   const tone: Tone = push.effective ? (push.failing > 0 ? 'warning' : 'success') : 'neutral'
   const status = push.effective ? 'Enabled' : push.desired ? 'Not active' : 'Off'
+  const canManageStorage = push.vapidConfigured && !push.storageAvailable
   return (
     <CollapsibleCard
       title="Push"
@@ -336,9 +341,9 @@ export function PushCard({
         />
       }
       notice={
-        control.error ? (
+        control.error || storage.error ? (
           <div className="px-4 pt-3">
-            <Notice tone="danger">{redact(control.error)}</Notice>
+            <Notice tone="danger">{redact(control.error ?? storage.error ?? '')}</Notice>
           </div>
         ) : null
       }
@@ -349,13 +354,53 @@ export function PushCard({
         <KeyValue label="Subscriptions">{push.subscriptions}</KeyValue>
         <KeyValue label="Delivery problems">{push.failing}</KeyValue>
         <KeyValue label="VAPID key">
-          {push.publicKeyConfigured ? 'Configured' : 'Not configured'}
+          {push.vapidConfigured ? 'Configured' : 'Not configured'}
         </KeyValue>
+        <KeyValue label="Subscription storage">
+          {push.storageAvailable ? 'Ready' : 'Unavailable'}
+        </KeyValue>
+        {push.storageError ? <Notice>{redact(push.storageError)}</Notice> : null}
+        {canManageStorage ? (
+          <div className="flex flex-wrap items-center gap-2 pt-3">
+            <button
+              type="button"
+              className="panel-button"
+              onClick={storage.reload}
+              disabled={storage.pending !== null}
+            >
+              {storage.pending === 'reload' ? 'Checking…' : 'Retry storage'}
+            </button>
+            <button
+              type="button"
+              className="panel-button danger"
+              onClick={() => setConfirmReset(true)}
+              disabled={storage.pending !== null}
+            >
+              Reset subscriptions
+            </button>
+          </div>
+        ) : null}
         {push.error ? <Notice>{redact(push.error)}</Notice> : null}
         <p className="pt-2 text-xs text-muted-foreground">
           Push endpoints are never exposed by the panel.
         </p>
       </CardBody>
+      <ConfirmDialog
+        open={confirmReset}
+        title="Reset push subscriptions?"
+        description="This deletes every stored push subscription on this hub. Each device must enable notifications again."
+        confirmLabel="Reset subscriptions"
+        pendingLabel="Resetting…"
+        pending={storage.pending === 'reset'}
+        danger
+        onOpenChange={(open) => {
+          if (!open) setConfirmReset(false)
+        }}
+        onConfirm={() => {
+          storage.reset()
+          setConfirmReset(false)
+        }}
+      />
     </CollapsibleCard>
   )
 }

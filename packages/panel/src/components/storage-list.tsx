@@ -46,8 +46,9 @@ export function StorageCard({
                     <span className="text-sm font-medium">{entry.label}</span>
                     <Badge tone={toneFor(entry.status)}>{healthLabel(entry.status)}</Badge>
                     <span
-                      className={`text-[11px] ${entry.writable ? 'text-muted-foreground' : 'text-amber-700 dark:text-amber-300'}`}
+                      className={`text-[11px] ${entry.readable === false ? 'text-amber-700 dark:text-amber-300' : 'text-muted-foreground'}`}
                     >
+                      {entry.readable === false ? 'not readable' : 'readable'} ·{' '}
                       {entry.writable ? 'writable' : 'read-only'}
                     </span>
                   </div>
