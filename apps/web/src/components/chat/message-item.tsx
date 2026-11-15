@@ -92,11 +92,15 @@ export function MessageItem({
       return (
         <Note>
           <Sparkles className="size-3" />
-          Skill <span className="font-medium">{message.name}</span> activated
+          Skill <span className="min-w-0 break-words font-medium">{message.name}</span> activated
         </Note>
       )
     case 'model-switched':
-      return <Note>Model switched to {message.model.id}</Note>
+      return (
+        <Note>
+          Model switched to <span className="min-w-0 break-words">{message.model.id}</span>
+        </Note>
+      )
     case 'location-switched':
       return <Note>Location switched</Note>
     case 'compaction':
@@ -242,17 +246,30 @@ function UserMessage({
       <Markdown breaks>{message.text}</Markdown>
       {(message.files?.length ?? 0) > 0 && (
         <div className="mt-2 flex flex-wrap gap-1">
-          {message.files?.map((file, index) => (
-            <Badge key={index} variant="secondary" className="gap-1 text-[10px]">
-              <FileText className="size-3" />
-              {file.name ?? 'file'}
-            </Badge>
-          ))}
+          {message.files?.map((file, index) => {
+            const name = file.name ?? 'file'
+            return (
+              <Badge
+                key={index}
+                variant="secondary"
+                title={name}
+                className="max-w-full gap-1 text-[10px]"
+              >
+                <FileText className="size-3" />
+                <span className="min-w-0 truncate">{name}</span>
+              </Badge>
+            )
+          })}
         </div>
       )}
       {message.agents?.map((agent, index) => (
-        <Badge key={index} variant="secondary" className="mt-2 mr-1 text-[10px]">
-          @{agent.name}
+        <Badge
+          key={index}
+          variant="secondary"
+          title={`@${agent.name}`}
+          className="mt-2 mr-1 max-w-full text-[10px]"
+        >
+          <span className="min-w-0 truncate">@{agent.name}</span>
         </Badge>
       ))}
     </MessageRow>
@@ -495,7 +512,7 @@ function ShellMessage({
 function Note({ children }: { children: React.ReactNode }) {
   return (
     <div className="px-4 py-3 text-xs italic text-muted-foreground sm:px-6">
-      <div className="flex items-center gap-1.5">{children}</div>
+      <div className="flex min-w-0 flex-wrap items-center gap-1.5 break-words">{children}</div>
     </div>
   )
 }

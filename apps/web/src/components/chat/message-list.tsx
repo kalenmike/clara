@@ -295,7 +295,7 @@ export function MessageList({
           userScrolled.current = true
           clearStepTimer()
         }}
-        className="h-full overflow-y-auto pb-4"
+        className="h-full overflow-x-hidden overflow-y-auto pb-4"
       >
         <div className="relative w-full" style={{ height: virtualizer.getTotalSize() }}>
           {virtualizer.getVirtualItems().map((item) => {
