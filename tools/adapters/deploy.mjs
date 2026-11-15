@@ -34,6 +34,11 @@ const tag =
       ? wanted
       : fail(`Cannot derive a version from ${wanted}.`)
 
+const webRegistry = 'apps/web/public/adapters'
+if (!args.check && resolve(repoRoot, directory) !== resolve(repoRoot, webRegistry)) {
+  fail(`--dir only applies to --check; the web deploy reads ${webRegistry}.`)
+}
+
 console.log(`Adapter release: ${tag}`)
 console.log(`Registry:        ${resolve(repoRoot, directory)}`)
 
