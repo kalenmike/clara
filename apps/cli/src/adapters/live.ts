@@ -56,13 +56,14 @@ export function readAdapterLiveState(
   const path = join(paths.dataDir, 'adapters', kind, 'state.json')
   if (!existsSync(path)) return undefined
   try {
-    return normalize(JSON.parse(readFileSync(path, 'utf8')) as unknown)
+    return parseAdapterLiveState(JSON.parse(readFileSync(path, 'utf8')) as unknown)
   } catch {
     return undefined
   }
 }
 
-function normalize(value: unknown): AdapterLiveState | undefined {
+/** Normalize `state.json` whether it was read from disk or a container's volume. */
+export function parseAdapterLiveState(value: unknown): AdapterLiveState | undefined {
   if (!isRecord(value)) return undefined
   const hub = isRecord(value.hub) ? value.hub : undefined
   const harness = isRecord(value.harness) ? value.harness : undefined

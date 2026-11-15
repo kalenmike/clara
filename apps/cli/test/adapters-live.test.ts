@@ -2,6 +2,7 @@ import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
+import { readContainerLiveState } from '../src/adapters/container.ts'
 import { adapterHubLinks } from '../src/adapters/hubs.ts'
 import { readAdapterLiveState, type AdapterLiveState } from '../src/adapters/live.ts'
 import type { AdapterListEntry } from '../src/commands/adapters.ts'
@@ -88,6 +89,32 @@ describe('adapter live state', () => {
     mkdirSync(directory, { recursive: true })
     writeFileSync(join(directory, 'state.json'), '{not-json')
     expect(readAdapterLiveState('opencode', paths)).toBeUndefined()
+  })
+
+  it('reads the live state the adapter writes inside a container', () => {
+    const payload = JSON.stringify(live())
+    const state = readContainerLiveState(
+      { name: 'clara-adapter-opencode', entry: ['node', '/app/dist/index.js'], dataDir: '/data' },
+      (args) =>
+        args[0] === 'exec'
+          ? { code: 0, stdout: payload, stderr: '' }
+          : { code: 1, stdout: '', stderr: 'unexpected' }
+    )
+    expect(state?.hub.url).toBe('wss://relay.example/room/abc')
+    expect(state?.harnessId).toBe('harness-a')
+  })
+
+  it('skips live state for a stopped container', () => {
+    const state = readContainerLiveState(
+      {
+        name: 'clara-adapter-opencode',
+        entry: ['node', '/app/dist/index.js'],
+        dataDir: '/data',
+        running: false,
+      },
+      () => ({ code: 0, stdout: JSON.stringify(live()), stderr: '' })
+    )
+    expect(state).toBeUndefined()
   })
 })
 
