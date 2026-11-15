@@ -62,7 +62,7 @@ Pairing works the same way as the browser:
 2. Copy the pairing code.
 3. Open Clara, paste the code on the connect screen, and connect.
 
-`pnpm clara pair` prints a code too. A pairing link opens the web app, so paste
+`clara pair` prints a code too. A pairing link opens the web app, so paste
 the code when you are using the desktop app. The QR button needs a camera that
 the system webview exposes; pasting the code always works.
 

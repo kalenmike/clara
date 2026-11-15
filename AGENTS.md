@@ -72,31 +72,31 @@ pnpm dev:relay      # Local wrangler dev for the Worker/DO
 pnpm build          # Build every workspace package
 ENABLE_CLOUDFLARE_DEPLOYMENT=true pnpm build # Include the optional Cloudflare relay deployment
 pnpm clara:link     # Install a thin `clara` shim on ~/.local/bin
-pnpm clara start [default|hub|web|orchestrator] [--docker|--local] [--build] # Start the core stack or one service
-pnpm clara stop [default|hub|web|orchestrator] [--docker|--local] # Stop the core stack or one service
-pnpm clara restart [default|hub|web|orchestrator] [--docker|--local] [--build] # Restart
-pnpm clara status [default|hub|web|orchestrator] [--json] # Probe the core services
-pnpm clara logs [default|hub|web|orchestrator] [--local|--docker] # Follow service logs
-pnpm clara start hub --open # Start the hub and open the panel
-pnpm clara status hub --open # Open the running panel
-pnpm clara start adapter [--harness <name>] # Start paired adapters
-pnpm clara start adapter --harness opencode --pair [<code>] # Install and pair an adapter
-pnpm clara stop adapter [--harness <name>] [--mcp] [--purge] # Stop or remove an adapter
-pnpm clara status adapter [--harness <name>] [--json] [--verify] # Full adapter status
-pnpm clara logs adapter [--harness <name>] # Follow adapter logs
-pnpm clara start runner [--workspace <path>] # Start the shared runner service
-pnpm clara stop runner [--purge] # Stop the runner service
-pnpm clara status runner [--json] # Inspect the runner
-pnpm clara start lab [--workspace <path>] # Start Clara Lab
-pnpm clara status lab --check # Validate a package target for CI
-pnpm clara start docs [--build] # Start the documentation site on :5176
-pnpm clara status docs --check # Check guide and internal doc indexes and links
-pnpm clara status docs --typecheck # Typecheck the documentation site
-pnpm clara backup [default|hub|orchestrator] [--output <path>] # Archive Docker state
-pnpm clara restore [default|hub|orchestrator] <archive> [--force] # Replace Docker state
-pnpm clara pair [hub] # Print a browser pairing code
-pnpm clara pair adapter --harness <name> # Print an adapter pairing code
-pnpm clara rebuild  # Snapshot, rebuild, recover services, inspect, and verify health
+clara start [default|hub|web|orchestrator] [--docker|--local] [--build] # Start the core stack or one service
+clara stop [default|hub|web|orchestrator] [--docker|--local] # Stop the core stack or one service
+clara restart [default|hub|web|orchestrator] [--docker|--local] [--build] # Restart
+clara status [default|hub|web|orchestrator] [--json] # Probe the core services
+clara logs [default|hub|web|orchestrator] [--local|--docker] # Follow service logs
+clara start hub --open # Start the hub and open the panel
+clara status hub --open # Open the running panel
+clara start adapter [--harness <name>] # Start paired adapters
+clara start adapter --harness opencode --pair [<code>] # Install and pair an adapter
+clara stop adapter [--harness <name>] [--mcp] [--purge] # Stop or remove an adapter
+clara status adapter [--harness <name>] [--json] [--verify] # Full adapter status
+clara logs adapter [--harness <name>] # Follow adapter logs
+clara start runner [--workspace <path>] # Start the shared runner service
+clara stop runner [--purge] # Stop the runner service
+clara status runner [--json] # Inspect the runner
+clara start lab [--workspace <path>] # Start Clara Lab
+clara status lab --check # Validate a package target for CI
+clara start docs [--build] # Start the documentation site on :5176
+clara status docs --check # Check guide and internal doc indexes and links
+clara status docs --typecheck # Typecheck the documentation site
+clara backup [default|hub|orchestrator] [--output <path>] # Archive Docker state
+clara restore [default|hub|orchestrator] <archive> [--force] # Replace Docker state
+clara pair [hub] # Print a browser pairing code
+clara pair adapter --harness <name> # Print an adapter pairing code
+clara rebuild       # Snapshot, rebuild, recover services, inspect, and verify health
 pnpm check:boundaries # Fail if a harness SDK escapes its adapter package
 pnpm adapters:build # Build host adapter artifacts and a local registry under dist/adapters
 clara-adapter-claude install --pair <code> # Standalone Claude Code adapter install

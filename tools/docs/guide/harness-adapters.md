@@ -18,9 +18,9 @@ and Pi adapters; the hub and web client are harness-neutral.
 | Pi          | `clara-adapter-pi install --pair <code>`       |
 
 Inside the Clara repository you can use
-`pnpm clara start adapter --harness opencode --pair <code>`,
-`pnpm clara start adapter --harness claude --pair <code>`, or
-`pnpm clara start adapter --harness pi --pair <code>` instead.
+`clara start adapter --harness opencode --pair <code>`,
+`clara start adapter --harness claude --pair <code>`, or
+`clara start adapter --harness pi --pair <code>` instead.
 
 ## Pair an adapter
 
@@ -50,7 +50,7 @@ Inside the Clara repository you can use
 
 Adapter codes are only for the installer. To pair a browser, use
 **Clients → Pair Client** in the panel, or the separate code or link printed
-by `pnpm clara pair`. An adapter code starts with `clara-harness1_`; a browser
+by `clara pair`. An adapter code starts with `clara-harness1_`; a browser
 code starts with `clara1_`.
 
 ### OpenCode
@@ -171,7 +171,7 @@ harness access turned off, or predates the feature shows an empty state.
 
 ## Verify native access
 
-Run `pnpm clara status adapter --verify` to check every installed adapter against the
+Run `clara status adapter --verify` to check every installed adapter against the
 harness on its machine. Add `--harness opencode`, `--harness claude`, or
 `--harness pi` to check one, and `--directory <path>` to inspect native sessions
 for a specific workspace. The
@@ -215,18 +215,18 @@ connection keeps that state; use **Forget** only when you want to discard it.
   interactively.
 - **The browser rejects a panel code** — adapter codes install the adapter, not
   the browser. Use a browser code from **Clients → Pair Client** or
-  `pnpm clara pair`, then paste that link or code in Clara.
+  `clara pair`, then paste that link or code in Clara.
 - **The adapter is offline** — **Paired harnesses** says **Paired · Offline**.
   Start the adapter service, then use **Test** in the panel. The hub keeps the
   connection and reconnects automatically. Clara stays connected and shows a
   harness banner with **Retry**. Sessions on your other harnesses keep working.
 - **The panel says Online but requests time out** — run
-  `pnpm clara status adapter --harness claude` (or `--harness opencode`). The **hub** and
+  `clara status adapter --harness claude` (or `--harness opencode`). The **hub** and
   **link** lines show whether the adapter has an authenticated session with the
   hub and how long ago it last heard from it; **health** shows the adapter's last
   harness check. If the process is running but the link is offline or stale,
-  restart it with `pnpm clara stop adapter --harness claude` and
-  `pnpm clara start adapter --harness claude`.
+  restart it with `clara stop adapter --harness claude` and
+  `clara start adapter --harness claude`.
 - **Harness access is off** — the page header and paired status say **Off**; the
   adapter credential is kept while access is off.
 - **The adapter was moved** — pair it again; the stable identity keeps the same

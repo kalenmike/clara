@@ -31,12 +31,12 @@ flowchart LR
 
 ## Choose how to run it
 
-|          | Docker                     | Local                                        |
-| -------- | -------------------------- | -------------------------------------------- |
-| Best for | A clean, repeatable stack  | Development and existing Node setups         |
-| Command  | `pnpm clara start --build` | `pnpm clara start --local --build`           |
-| Hub data | Docker volumes             | `~/.config/clara` and `~/.local/share/clara` |
-| Web      | nginx on `127.0.0.1:8080`  | Static build on `127.0.0.1:8080`             |
+|          | Docker                    | Local                                        |
+| -------- | ------------------------- | -------------------------------------------- |
+| Best for | A clean, repeatable stack | Development and existing Node setups         |
+| Command  | `clara start --build`     | `clara start --local --build`                |
+| Hub data | Docker volumes            | `~/.config/clara` and `~/.local/share/clara` |
+| Web      | nginx on `127.0.0.1:8080` | Static build on `127.0.0.1:8080`             |
 
 Both modes use the same hub panel, pairing command, and data model.
 
@@ -53,7 +53,7 @@ Both modes use the same hub panel, pairing command, and data model.
    the harness machine, or open the link with Clara Desktop to install it in one
    click. Pair a client from the same modal and scan the QR or open the link. You
    can dismiss the modal and resume from **Settings → Setup**. You can also run
-   `pnpm clara pair` for a terminal code.
+   `clara pair` for a terminal code.
 6. Add the web app to your Home Screen or install it.
 
 The detailed steps are in [Docker](docker.md) and

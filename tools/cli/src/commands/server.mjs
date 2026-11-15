@@ -1,21 +1,19 @@
 #!/usr/bin/env node
 // Docker and local controls for the Clara hub.
 //
-//   pnpm clara start hub [--local|--docker] [--build]
-//   pnpm clara stop hub [--local|--docker]
-//   pnpm clara restart hub [--local|--docker] [--build]
-//   pnpm clara status hub
-//   pnpm clara status hub --open
-//   clara-server setup-token [--docker|--local]
-//   clara-server admin reset [--docker|--local]
-//   pnpm clara pair [--no-relay] [--docker|--local]
-//   pnpm clara logs hub [--local|--docker]
+//   clara start hub [--local|--docker] [--build]
+//   clara stop hub [--local|--docker]
+//   clara restart hub [--local|--docker] [--build]
+//   clara status hub
+//   clara status hub --open
+//   clara pair hub [--no-relay] [--docker|--local]
+//   clara logs hub [--local|--docker]
 
 import { existsSync } from 'node:fs'
 import { isRuntimeLive, readRuntimeState } from '@clara/runtime-state'
 import { logPath } from '../lib/local-runtime.mjs'
 import { openPanel } from '../lib/panel.mjs'
-import { root } from '../lib/router.mjs'
+import { renderCommandHelp, root } from '../lib/router.mjs'
 import {
   compose,
   detectServerTarget,
@@ -82,8 +80,8 @@ const serverService = {
       console.log(`panel: ${panelURL()}/`)
       console.log(`  logs:  ${logPath('server')}`)
       console.log('If this is the first run, create the owner account in the panel or run:')
-      console.log('  clara-server setup --local --password-stdin')
-      console.log('Stop it with `pnpm clara stop hub --local`.')
+      console.log('  clara-server setup --password-stdin')
+      console.log('Stop it with `clara stop hub --local`.')
     },
   },
   docker: {
@@ -97,7 +95,7 @@ const serverService = {
     onStarted: () => {
       console.log(`panel: ${panelURL()}/`)
       console.log('If this is the first run, create the owner account in the panel or run:')
-      console.log('  clara-server setup --docker --password-stdin')
+      console.log('  clara-server setup --password-stdin')
       console.log('The hub starts no transports until the owner account exists.')
     },
   },
@@ -167,7 +165,7 @@ async function panel() {
   } else {
     console.error(`The hub service is not serving the panel at ${url}.`)
   }
-  console.error('Start it with `pnpm clara start hub --local` or `pnpm clara start hub --docker`.')
+  console.error('Start it with `clara start hub --local` or `clara start hub --docker`.')
   process.exitCode = 1
 }
 
@@ -205,7 +203,7 @@ async function runServerProcessFor(serverArgs) {
   if (target === 'container') {
     if (serverArgs[0] === 'setup' && !serverRunningInCompose()) {
       console.error('The clara-server container is not running.')
-      console.error('Start it with `pnpm clara start hub` before creating the owner account.')
+      console.error('Start it with `clara start hub` before creating the owner account.')
       process.exitCode = 1
       return
     }
@@ -231,29 +229,34 @@ async function chooseTarget() {
 }
 
 function printHelp() {
-  console.log(`Manage the Clara hub
-
-Usage:
-  pnpm clara <command> hub [--local|--docker] [options]
-
-Commands:
-  start [--build]              Start the container, or the local hub service with --local
-  stop                         Stop the container, or the local hub service with --local
-  restart [--build]            Restart the selected mode
-  status [--json]              Probe the panel and local listener
-  panel                        Open the hub panel in a browser
-  setup                        Create the owner account without a browser
-  setup-token                  Print a host-supplied setup token, when one is configured
-  admin reset                  Reset the panel superadmin password
-  pair [--no-relay]            Print a pairing code from the selected deployment
-  logs                         Follow container logs, or the local log with --local
-
-Docker is the default. Pass --local to run the built agent as a detached local
-process for start, stop, restart, and logs. For setup, setup-token, admin, and
-pair, --local selects the host install and --docker selects the container.
-Pair with --no-relay to emit a local-only code and print the local web app link.
-
-'clara-server setup --password-stdin' reads the owner password from stdin.
-It works after the hub has started in setup mode. For unattended start, set
-CLARA_ADMIN_PASSWORD or CLARA_ADMIN_PASSWORD_FILE before the hub starts.`)
+  console.log(
+    renderCommandHelp({
+      summary: 'Manage the Clara hub',
+      usage: [
+        'start hub [--docker|--local] [--build]',
+        'stop hub [--docker|--local]',
+        'restart hub [--docker|--local] [--build]',
+        'status hub [--json]',
+        'status hub --open',
+        'logs hub [--docker|--local] [--lines <n>] [--no-follow]',
+        'pair hub [--no-relay] [--docker|--local]',
+      ],
+      options: [
+        { flags: '--docker', description: 'use the clara-server container' },
+        { flags: '--local', description: 'use the local hub service' },
+        { flags: '--build', description: 'build before starting' },
+        { flags: '--json', description: 'machine-readable status' },
+        { flags: '--open', description: 'open the hub panel' },
+        { flags: '--no-relay', description: 'print a local-only pairing code' },
+        { flags: '--lines <n>', description: 'tail length (default 80)' },
+        { flags: '--no-follow', description: 'print the tail and exit' },
+      ],
+      examples: [
+        'clara start hub --local',
+        'clara start hub --open',
+        'clara status hub --open',
+        'clara pair hub --no-relay',
+      ],
+    })
+  )
 }

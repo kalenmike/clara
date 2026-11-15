@@ -15,7 +15,7 @@ The home-side installation is the **hub**. Three names cover it:
 | Name        | Meaning                                                                                                                                                                           |
 | ----------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Hub         | The Clara installation on the machine that runs the hub service: one process, one database, one panel, and at most one relay room.                                                |
-| Hub service | The Node process that implements the hub (`apps/hub/server`, `pnpm clara start hub`, the `clara-server` container).                                                               |
+| Hub service | The Node process that implements the hub (`apps/hub/server`, `clara start hub`, the `clara-server` container).                                                                    |
 | Hub panel   | The authenticated dashboard rendered by `@clara/panel`: served on loopback by the hub service, and bundled at `/hub` in the web and desktop clients over the paired E2EE session. |
 
 Other terms:
@@ -80,11 +80,9 @@ browser-safe, so Clara uses the browser client from the same family.
 ```text
 apps/
   web/                 React SPA, deployed to Cloudflare Pages or the web container
-  desktop/             Tauri desktop shell
-    host/              Loopback adapter-host sidecar for local, SSH, and Docker installs
   hub/
     server/            Node hub service, outbound relay client, local WS listener, /v1 API
-    panel/             Entry that serves the shared panel UI from the hub service
+    panel/             Loopback dashboard and admin controls served by the hub service
   orchestrator/        Loopback orchestration service and CLI
   adapters/
     opencode/          OpenCode harness adapter, binding, and standalone bin
@@ -97,8 +95,7 @@ packages/
   contracts/           shared-types, api-contract, harness-protocol
   api/                 api-client, mcp
   orchestration/       engine, policy, control, mcp
-  adapters/            runtime, binding, runner, install
-  panel/               Shared hub panel UI for the served and bundled routes
+  adapters/            runtime, binding, runner
   preview/             Pipeline preview, diagnostics, and snapshot diff SDK
   crypto/              device-key derivation, AES-GCM envelopes, replay guard
 infra/
@@ -124,7 +121,6 @@ adapter ──outbound WSS──▶ hub ◀──outbound WSS── web / PWA / 
 Local mode: web ──WSS──▶ hub /v1 API ──▶ routed adapter ──▶ harness
 Local tools: MCP ──HTTP 127.0.0.1:8788──▶ hub /v1 API
 Panel: browser ──HTTP 127.0.0.1:8790──▶ hub (auth + setup + controls)
-Panel (bundled): web / desktop ──E2EE /v1/hub-panel──▶ hub ──loopback──▶ panel listener
 Hub app: Tauri tray ──spawn──▶ Bun sidecar (hub + embedded panel) ──HTTP 127.0.0.1:<dynamic>──▶ panel window
 Harness: panel ──▶ SQLite harness identity/pairing ──▶ adapter session (E2EE)
 Docker: web client, hub, orchestrator, and an optional harness on the `clara` bridge network
@@ -191,29 +187,19 @@ ConnectionProvider
 - For push, the hub keeps one harness event stream per online harness and stores
   Web Push subscriptions at `~/.config/clara/subscriptions.json`. VAPID keys
   live in `~/.config/clara/vapid.json`.
-- The hub service serves the shared `@clara/panel` UI from `apps/hub/panel` on a
-  second listener (default `127.0.0.1:8790`). It requires a superadmin session,
-  provides first-run owner setup and harness configuration, reads one allowlisted
-  runtime snapshot, exposes guarded controls for the four external features, the
-  Go offline control, monitoring, the client-sync gate and cadence, and the local
-  orchestration service, and never returns device keys, adapter credentials,
-  tokens, push endpoints, sync values, or file contents. First run is a blocker:
-  only the loopback setup screen and its two auth routes are served, and no
-  transport or pairing starts until the owner account exists. After that, a
-  dismissible setup modal chooses the connection path, pairs a harness and a
-  client, and derives its progress from the snapshot; it never auto-opens once
-  complete. See [panel.md](../features/panel.md) and
+- The hub service serves `apps/hub/panel` on a second listener (default
+  `127.0.0.1:8790`). It requires a superadmin session, provides first-run owner
+  setup and harness configuration, reads one allowlisted runtime snapshot, exposes
+  guarded controls for the four external features, the Go offline control,
+  monitoring, the client-sync gate and cadence, and the local orchestration
+  service, and never returns device keys, adapter credentials, tokens, push
+  endpoints, sync values, or file contents. First run is a blocker: only the
+  loopback setup screen and its two auth routes are served, and no transport or
+  pairing starts until the owner account exists. After that, a dismissible setup
+  modal chooses the connection path, pairs a harness and a client, and derives
+  its progress from the snapshot; it never auto-opens once complete. See
+  [panel.md](../features/panel.md) and
   [hub-controls.md](../features/hub-controls.md).
-- The same panel UI ships in the web and desktop clients at `/hub`. It calls a
-  typed bridge under `/v1/hub-panel` on the paired E2EE session, and the hub
-  forwards those panel API requests to its loopback listener. A login over the
-  bridge returns a panel session bearer token that the app holds; the served
-  page keeps its HttpOnly cookie. The route adds no listener or exposed port,
-  still requires the hub owner's credentials, and disables **Go offline**, the
-  transport switch carrying the session (local or relay), and relay target/room
-  edits because they would cut or retarget the panel's own connection. A local hub is set up
-  once on the served page; a remote hub is provisioned with `CLARA_ADMIN_*`
-  before a client pairs.
 - Harness adapters live in SQLite. Any number can be paired and online at once;
   one is **active**, the default backend for requests that name neither a
   session nor a workspace. Each adapter connects out to the hub over the same
@@ -246,7 +232,6 @@ ConnectionProvider
 | `/`                          | Start view; creates a session and opens its draft composer |
 | `/p/:projectId`              | Project details and session grid                           |
 | `/p/:projectId/s/:sessionId` | Chat                                                       |
-| `/hub`                       | Hub panel over the paired E2EE session                     |
 | `/settings`                  | Appearance, preferences, notifications, sync, shortcuts    |
 
 The start view is reused inside `/p/:projectId/s/:sessionId` when the session has
@@ -370,12 +355,6 @@ guaranteed to be connected, so alerts still reach a closed app.
   host-supplied setup token is the explicit remote path. A lost password is
   reset by a host-only command, never over HTTP. Authentication is not host
   isolation; keep the database and `secrets.key` private.
-- The bundled `/hub` panel is not a second listener and does not expose the
-  panel port. Its bridge accepts only panel API requests from an already
-  authenticated E2EE session, and its login returns a session bearer token rather
-  than a cookie. The panel's allowlist, superadmin check, mutation guards, and
-  secret redaction still apply, so a paired device without the owner credentials
-  gains no panel access. The relay sees ciphertext.
 
 ## Related
 

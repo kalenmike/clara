@@ -1,6 +1,6 @@
 import { mkdirSync } from 'node:fs'
 import { dirname } from 'node:path'
-import Database from 'better-sqlite3'
+import { openSqlite, type SqliteDatabase } from '@clara/sqlite'
 import type { ScriptSpec } from './types.ts'
 
 export type Row = Record<string, unknown>
@@ -168,11 +168,11 @@ export interface DeliveryClaimResult {
 export const now = (): string => new Date().toISOString()
 
 export class Store {
-  readonly db: Database.Database
+  readonly db: SqliteDatabase
 
   constructor(path: string) {
     if (path !== ':memory:') mkdirSync(dirname(path), { recursive: true })
-    this.db = new Database(path)
+    this.db = openSqlite(path)
     this.db.pragma('journal_mode = WAL')
     this.db.pragma('foreign_keys = ON')
     this.db.pragma('busy_timeout = 5000')

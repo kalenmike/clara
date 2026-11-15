@@ -6,7 +6,7 @@ sidebar_position: 1
 
 # Run Clara with Docker
 
-Docker is the default target for `pnpm clara`. It creates one external network
+Docker is the default target for `clara`. It creates one external network
 called `clara` and runs the hub, web client, and optionally the orchestration
 service as containers. The hub container is the Bun sidecar with the panel
 embedded; `infra/docker/server-node.Dockerfile` keeps the previous Node image
@@ -23,7 +23,7 @@ as a fallback.
 
 ```bash
 pnpm install
-pnpm clara start --build
+clara start --build
 ```
 
 The first start creates the `clara` network, bootstraps `infra/docker/.env`, and
@@ -36,7 +36,7 @@ saved them. If a service still does not become healthy, the command prints its
 recent log lines. Then open the panel:
 
 ```bash
-pnpm clara status hub --open
+clara status hub --open
 ```
 
 The first run shows **Create the hub owner account**. Choose the username and
@@ -74,10 +74,10 @@ Open **Clients → Pair Client** in the hub panel and scan the QR or open the
 link on the device. You can also run:
 
 ```bash
-pnpm clara pair
+clara pair
 ```
 
-Use **Local** in the panel, or `pnpm clara pair --no-relay`, for
+Use **Local** in the panel, or `clara pair --no-relay`, for
 a same-machine code. For a phone or another network, configure the relay first;
 see [Remote access](relay.md).
 
@@ -92,16 +92,16 @@ see [Remote access](relay.md).
 ## Everyday commands
 
 ```bash
-pnpm clara status
-pnpm clara logs hub
-pnpm clara logs web
-pnpm clara restart --build
-pnpm clara stop
+clara status
+clara logs hub
+clara logs web
+clara restart --build
+clara stop
 ```
 
 `status` accepts `--json` for scripts. `logs` follows the selected target.
-Use `pnpm clara start hub`, `pnpm clara start web`, or
-`pnpm clara start orchestrator` when you want only one service.
+Use `clara start hub`, `clara start web`, or
+`clara start orchestrator` when you want only one service.
 
 `stop` reads `infra/docker/.env` itself. You do not need to export the orchestrator
 token or workspace in your shell before stopping the stack.
@@ -117,9 +117,9 @@ The stack keeps state in Docker volumes:
 Back up and restore the volumes while the stack is stopped:
 
 ```bash
-pnpm clara stop
-pnpm clara backup --output ~/clara-backup.tar.gz
-pnpm clara restore ~/clara-backup.tar.gz
+clara stop
+clara backup --output ~/clara-backup.tar.gz
+clara restore ~/clara-backup.tar.gz
 ```
 
 To bind the volumes to host paths, set `CLARA_SERVER_CONFIG_DIR`,
@@ -130,12 +130,12 @@ writable by that ID. See [Configuration](configuration.md).
 ## Update
 
 ```bash
-pnpm clara rebuild
+clara rebuild
 ```
 
 The rebuild captures the running services, installs dependencies, builds, and
 restarts only what was running. To update a single container with a fresh image,
-use `pnpm clara restart --build`.
+use `clara restart --build`.
 
 ## Related
 

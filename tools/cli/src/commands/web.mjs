@@ -1,17 +1,17 @@
 #!/usr/bin/env node
 // Docker and local controls for the Clara web client.
 //
-//   pnpm clara start web [--local|--docker] [--build]
-//   pnpm clara stop web [--local|--docker]
-//   pnpm clara restart web [--local|--docker] [--build]
-//   pnpm clara status web
-//   pnpm clara logs web [--local|--docker]
+//   clara start web [--local|--docker] [--build]
+//   clara stop web [--local|--docker]
+//   clara restart web [--local|--docker] [--build]
+//   clara status web
+//   clara logs web [--local|--docker]
 
 import { existsSync } from 'node:fs'
 import { join } from 'node:path'
 import { logPath } from '../lib/local-runtime.mjs'
 import { WEB_DIST } from '../lib/local-web.mjs'
-import { root } from '../lib/router.mjs'
+import { renderCommandHelp, root } from '../lib/router.mjs'
 import { probe } from '../lib/server-control.mjs'
 import { readServiceArgs, runServiceLifecycle } from '../lib/service-cli.mjs'
 import { compose, waitForWeb, webPort, webURL } from '../lib/web-control.mjs'
@@ -46,7 +46,7 @@ const webService = {
     onStarted: () => {
       console.log(`web: ${webURL()}/`)
       console.log(`  logs:  ${logPath('web')}`)
-      console.log('Stop it with `pnpm clara stop web --local`.')
+      console.log('Stop it with `clara stop web --local`.')
     },
   },
   docker: {
@@ -56,7 +56,7 @@ const webService = {
     unhealthy: () => `The web container did not become healthy at ${webURL()}/healthz`,
     onStarted: () => {
       console.log(`web: ${webURL()}/`)
-      console.log('Run `pnpm clara pair` for the hub pairing mode, or add --local')
+      console.log('Run `clara pair` for the hub pairing mode, or add --local')
       console.log('to force a local code.')
       console.log('An HTTPS page cannot open a ws:// socket; remote clients need the relay.')
     },
@@ -77,18 +77,25 @@ if (!(await runServiceLifecycle(webService, ctx))) {
 }
 
 function printHelp() {
-  console.log(`Manage the Clara web client
-
-Usage:
-  pnpm clara <command> web [--local|--docker] [options]
-
-Commands:
-  start [--build]     Start the container, or the built SPA with --local
-  stop                Stop the container, or the local server with --local
-  restart [--build]   Restart the selected mode
-  status [--json]     Probe the /healthz endpoint
-  logs                Follow container logs, or the local log with --local
-
-Docker is the default. Local mode serves apps/web/dist on CLARA_WEB_PORT
-(default 8080) with the same /healthz contract as the container.`)
+  console.log(
+    renderCommandHelp({
+      summary: 'Manage the Clara web client',
+      usage: [
+        'start web [--docker|--local] [--build]',
+        'stop web [--docker|--local]',
+        'restart web [--docker|--local] [--build]',
+        'status web [--json]',
+        'logs web [--docker|--local] [--lines <n>] [--no-follow]',
+      ],
+      options: [
+        { flags: '--docker', description: 'use the clara-web container (default)' },
+        { flags: '--local', description: 'serve the built SPA from apps/web/dist' },
+        { flags: '--build', description: 'build before starting' },
+        { flags: '--json', description: 'machine-readable status' },
+        { flags: '--lines <n>', description: 'tail length (default 80)' },
+        { flags: '--no-follow', description: 'print the tail and exit' },
+      ],
+      examples: ['clara start web --local', 'clara status web', 'clara logs web --local'],
+    })
+  )
 }

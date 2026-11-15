@@ -27,7 +27,9 @@ orchestration
 .idea
 **/.vitepress
 packages/api
-packages/adapters
+packages/adapters/binding
+packages/adapters/runner
+packages/adapters/runtime
 packages/preview
 packages/orchestration/engine
 packages/orchestration/policy

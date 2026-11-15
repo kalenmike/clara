@@ -1001,12 +1001,7 @@ export function SidebarContent({
       </ScrollArea>
 
       <div className="shrink-0 border-t px-3 py-2.5 text-[11px] text-muted-foreground md:py-2 md:text-[10px]">
-        <div className="flex items-center justify-between gap-2">
-          <span className="truncate">
-            {sessionWorkspace
-              ? `${sessionWorkspace.harnessLabel} ${sessionWorkspace.online ? 'online' : 'offline'}`
-              : 'No workspace'}
-          </span>
+        <div className="flex justify-end">
           <span className="truncate" title={claraBuildTitle}>
             Clara {claraDisplayVersion}
           </span>

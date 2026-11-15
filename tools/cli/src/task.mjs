@@ -244,6 +244,7 @@ function parseTaskArgs(args, options) {
 
 const task = {
   name: 'task',
+  bin: 'pnpm task',
   summary: 'Repository task lifecycle',
   examples: [
     'pnpm task session start my-change',

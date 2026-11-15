@@ -21,5 +21,5 @@ test('pair treats --local as a deployment target, not a pairing option', () => {
 test('pair accepts --no-relay without a deployment conflict', () => {
   const result = runServer(['pair', '--docker', '--no-relay', '--help'])
   assert.equal(result.status, 0)
-  assert.match(result.stdout, /pair \[--no-relay\]/)
+  assert.match(result.stdout, /clara pair hub \[--no-relay\]/)
 })

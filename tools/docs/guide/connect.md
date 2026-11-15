@@ -59,7 +59,7 @@ A **relay** pairing goes through Cloudflare. Use it when the browser is on a
 phone or another network. A page loaded over HTTPS cannot open a `ws://` socket,
 so remote devices need a relay pairing. When a relay is configured, the host can
 choose **Relay** or **Local** in the Pair Client dialog, or run
-`pnpm clara pair --no-relay`, to force a local code.
+`clara pair --no-relay`, to force a local code.
 
 If a code does not connect, ask the host whether the hub is running and whether
 the code was local or relay. The error on the connect screen names the failing

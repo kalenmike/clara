@@ -1,4 +1,4 @@
-// Implementations for `pnpm clara rebuild`.
+// Implementations for `clara rebuild`.
 //
 // `status` captures the live setup, `build` and `adapters` do the rebuild, and
 // `restart`/`health` restore and verify the captured set. The restart is
@@ -193,7 +193,7 @@ function requireState(path) {
   const selected = path ?? statePath()
   const state = readState(selected)
   if (!state) {
-    throw new Error(`no rebuild snapshot at ${selected}; run \`pnpm clara rebuild status\` first`)
+    throw new Error(`no rebuild snapshot at ${selected}; run \`clara rebuild status\` first`)
   }
   return state
 }
@@ -444,7 +444,7 @@ export async function runRestart(options = {}) {
   const state = requireState(selectedStatePath)
   if (isSnapshotStale(state) && !options.force) {
     throw new Error(
-      `snapshot ${selectedStatePath} is older than two hours; run \`pnpm clara rebuild status\` again`
+      `snapshot ${selectedStatePath} is older than two hours; run \`clara rebuild status\` again`
     )
   }
 
@@ -641,7 +641,7 @@ export async function runRecover(options = {}) {
   const state = requireState(selectedStatePath)
   if (isSnapshotStale(state) && !options.force) {
     throw new Error(
-      `snapshot ${selectedStatePath} is older than two hours; run \`pnpm clara rebuild status\` again`
+      `snapshot ${selectedStatePath} is older than two hours; run \`clara rebuild status\` again`
     )
   }
 
@@ -784,7 +784,7 @@ async function restartLab(state, options) {
   ) {
     if (!options.force) {
       throw new Error(
-        `lab on port ${port} now serves ${current.workspace}, not ${lab.workspace}; run \`pnpm clara rebuild status\` again or pass --force`
+        `lab on port ${port} now serves ${current.workspace}, not ${lab.workspace}; run \`clara rebuild status\` again or pass --force`
       )
     }
   }
@@ -867,7 +867,7 @@ async function restartServer(state, options) {
   if (current.mode === 'container') {
     if (!options.force) {
       throw new Error(
-        'the snapshot captured a local hub but it is running in a container; stop the container or re-capture with `pnpm clara rebuild status`'
+        'the snapshot captured a local hub but it is running in a container; stop the container or re-capture with `clara rebuild status`'
       )
     }
     await restartServerContainer(buildRoot, server, options)

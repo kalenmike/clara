@@ -25,7 +25,7 @@ adapter host remains its only bundled service.
 1. Build the app for the host platform, or open an installer produced from the
    checkout.
 2. Launch Clara. The window opens on the same connect screen as the web client.
-3. Paste a browser pairing code from the hub panel (or from `pnpm clara pair`)
+3. Paste a browser pairing code from the hub panel (or from `clara pair`)
    and connect.
 4. Use Clara as usual: browse projects, start and steer sessions, answer
    approvals, and read usage.

@@ -45,6 +45,7 @@ COPY packages/contracts/shared-types/package.json packages/contracts/shared-type
 COPY packages/orchestration/control/package.json packages/orchestration/control/package.json
 COPY packages/contracts/api-contract/package.json packages/contracts/api-contract/package.json
 COPY packages/contracts/harness-protocol/package.json packages/contracts/harness-protocol/package.json
+COPY packages/adapters/install/package.json packages/adapters/install/package.json
 RUN pnpm install --frozen-lockfile \
       --filter @clara/hub-desktop... \
       --filter @clara/hub-panel...
@@ -62,6 +63,7 @@ COPY packages/contracts/shared-types packages/contracts/shared-types
 COPY packages/orchestration/control packages/orchestration/control
 COPY packages/contracts/api-contract packages/contracts/api-contract
 COPY packages/contracts/harness-protocol packages/contracts/harness-protocol
+COPY packages/adapters/install packages/adapters/install
 
 ARG CLARA_COMMIT=
 ARG CLARA_DIRTY=0

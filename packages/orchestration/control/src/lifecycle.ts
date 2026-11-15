@@ -246,7 +246,7 @@ export function formatStatus(report: StatusReport): string[] {
         ? 'database: managed by the container (host bind from CLARA_ORCHESTRATOR_DATA_DIR)'
         : 'database: managed by the container (Docker volume clara-orchestrator-data)'
     )
-    lines.push('stop: pnpm clara stop orchestrator --docker')
+    lines.push('stop: clara stop orchestrator --docker')
   } else if (report.state === 'external') {
     lines.push('database: unknown (not this data directory)')
   } else if (report.state !== 'foreign') {
@@ -255,7 +255,7 @@ export function formatStatus(report: StatusReport): string[] {
 
   if (report.state === 'external') {
     lines.push('warning: no local pid file; this instance was not started from this data directory')
-    lines.push('stop: `pnpm clara stop orchestrator --local` signals the reported process')
+    lines.push('stop: `clara stop orchestrator --local` signals the reported process')
   }
   if (report.state === 'unresponsive') {
     lines.push(`warning: the process is alive but ${report.url}/health did not respond`)

@@ -38,7 +38,7 @@ function gitValue(args, cwd) {
   return result.status === 0 ? result.stdout.trim() : ''
 }
 
-/** Load infra/docker/.env so `clara server ... --docker` matches the documented setup. */
+/** Load infra/docker/.env so `clara start hub --docker` matches the documented setup. */
 function composeArgs(args, repoRoot = root) {
   const file = envFile(repoRoot)
   const envArgs = existsSync(file) ? ['--env-file', file] : []

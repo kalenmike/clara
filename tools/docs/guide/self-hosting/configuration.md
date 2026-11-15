@@ -154,7 +154,7 @@ The relay variables are covered in [Remote access](relay.md). The relay token
 must be 32 to 512 characters and cannot contain spaces or commas. Each variable
 wins over the matching panel value when it is set; otherwise the panel is used.
 In Docker, setting `CLARA_RELAY_URL` without the environment token is allowed
-when the panel has saved it, so `pnpm clara start` warns instead of blocking.
+when the panel has saved it, so `clara start` warns instead of blocking.
 
 ## Files worth backing up
 

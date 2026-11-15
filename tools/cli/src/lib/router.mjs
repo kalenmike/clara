@@ -84,18 +84,29 @@ export function resolveCommand(tree, argv) {
   return { node, path, args, help, explicitHelp }
 }
 
-/** Render help for a command node. Kept pure so it is easy to test. */
+function renderRows(lines, label, rows) {
+  const width = Math.max(...rows.map((row) => row.name.length))
+  lines.push('', `${label}:`)
+  for (const row of rows) lines.push(`  ${row.name.padEnd(width)}  ${row.description}`)
+}
+
+/**
+ * Render help for a command node. Kept pure so it is easy to test.
+ *
+ * `tree.bin` sets the executable name shown in usage lines (defaults to
+ * `tree.name`). A node may list several `usage` forms; `sections` renders extra
+ * aligned tables such as targets alongside `Commands` and `Options`.
+ */
 export function renderHelp(tree, path = []) {
   const node = commandAt(tree, path)
-  const name = [tree.name, ...path].join(' ')
+  const name = [tree.bin ?? tree.name, ...path].join(' ')
   const lines = [node.summary, '', 'Usage:']
 
   if (node.commands?.length) {
-    lines.push(`  pnpm ${name} <command> [options]`)
-  } else if (node.usage) {
-    lines.push(`  pnpm ${name} ${node.usage}`)
+    lines.push(`  ${name} <command> [options]`)
   } else {
-    lines.push(`  pnpm ${name}`)
+    const usages = node.usage ? [].concat(node.usage) : ['']
+    for (const usage of usages) lines.push(`  ${[name, usage].filter(Boolean).join(' ')}`)
   }
 
   if (node.commands?.length) {
@@ -118,20 +129,24 @@ export function renderHelp(tree, path = []) {
     }
   }
 
+  for (const section of node.sections ?? []) {
+    renderRows(lines, section.label, section.items)
+  }
+
   const options = [...(node.options ?? [])]
   if (!options.some((option) => option.flags.includes('--help'))) {
     options.push({ flags: '-h, --help', description: 'Show help' })
   }
-  if (path.length === 0) {
+  if (path.length === 0 && tree.version !== false) {
     options.push({ flags: '-v, --version', description: 'Show the repository version' })
   }
 
   if (options.length > 0) {
-    const width = Math.max(...options.map((option) => option.flags.length))
-    lines.push('', 'Options:')
-    for (const option of options) {
-      lines.push(`  ${option.flags.padEnd(width)}  ${option.description}`)
-    }
+    renderRows(
+      lines,
+      'Options',
+      options.map((option) => ({ name: option.flags, description: option.description }))
+    )
   }
 
   if (node.examples?.length) {
@@ -140,6 +155,19 @@ export function renderHelp(tree, path = []) {
   }
 
   return lines.join('\n')
+}
+
+/**
+ * Render help for a standalone script that exposes several `clara` usages, such
+ * as a per-service control script invoked by the lifecycle commands.
+ */
+export function renderCommandHelp(node) {
+  return renderHelp({
+    name: 'clara',
+    bin: 'clara',
+    version: false,
+    ...node,
+  })
 }
 
 function commandAt(tree, path) {
