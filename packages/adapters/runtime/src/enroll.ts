@@ -25,6 +25,8 @@ import {
   type ClaraState,
 } from '@clara/shared-types'
 import { REINSTALL_GRANT_MESSAGE, isLocalHubUrl } from './config.ts'
+import { describeError, isConnectionFailure } from './errors.ts'
+import { adapterInstallCommand } from './service.ts'
 
 export type EnrollmentInput = {
   wsUrl: string
@@ -44,6 +46,39 @@ export type EnrollmentInput = {
   harnessVersion?: string
   capabilities: Record<string, unknown>
   timeoutMs?: number
+}
+
+/**
+ * Turn a failed enrollment into the next step a person can act on. The adapter
+ * is not paired, so restarting it cannot repair the install: a new pairing code
+ * is the only recovery.
+ */
+export function enrollmentFailure(input: {
+  name: string
+  label: string
+  entry: string
+  wsUrl: string
+  configPath: string
+  logPath: string
+  cause: unknown
+}): Error {
+  const reason = describeError(input.cause)
+  const unreachable = isConnectionFailure(input.cause)
+  return new Error(
+    [
+      unreachable
+        ? `The ${input.label} adapter could not reach the hub at ${input.wsUrl}: ${reason}.`
+        : `The ${input.label} adapter could not enroll: ${reason}.`,
+      'It is not paired yet; the saved configuration is incomplete.',
+      unreachable
+        ? 'Start the hub on the hub host, then install again with a fresh pairing code:'
+        : 'Get a fresh pairing code and install again:',
+      `  ${adapterInstallCommand(input.name, input.entry)}`,
+      `Config: ${input.configPath}`,
+      `Log: ${input.logPath}`,
+    ].join('\n'),
+    { cause: input.cause }
+  )
 }
 
 /**
@@ -208,13 +243,14 @@ export async function enrollAdapter(input: EnrollmentInput): Promise<AdapterEnro
       .catch(fail)
   })
 
-  socket.on('error', (cause) =>
-    fail(
-      new Error(
-        `Could not connect to ${input.wsUrl}: ${cause instanceof Error ? cause.message : String(cause)}`
-      )
-    )
-  )
+  socket.on('error', (cause) => {
+    const detail = describeError(cause)
+    const hint = isConnectionFailure(cause)
+      ? `\nCheck that the hub is running on the hub host and that this machine can reach ${input.wsUrl}. ` +
+        'If the hub runs in Docker or on another machine, use the relay or a Docker/LAN address from the hub panel.'
+      : ''
+    fail(new Error(`Could not reach the hub at ${input.wsUrl}: ${detail}${hint}`))
+  })
   socket.on('unexpected-response', (request, response) => {
     response.resume()
     // The relay verifies the enrollment grant before the upgrade. A 401 means

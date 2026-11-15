@@ -4,7 +4,9 @@ import {
   REINSTALL_GRANT_MESSAGE,
   adapterLogSize,
   argValue,
+  describeError,
   enrollAdapter,
+  enrollmentFailure,
   foregroundCommand,
   hasFlag,
   installAdapterService,
@@ -243,14 +245,19 @@ export async function installOpenCodeAdapter(options: InstallOptions): Promise<I
         deviceGrant = result.relayGrant?.grant
       }
     } catch (cause) {
-      const reason = cause instanceof Error ? cause.message : String(cause)
-      if (options.dryRun) throw new Error(reason, { cause })
-      warnings.push(reason)
+      if (options.dryRun) throw new Error(describeError(cause), { cause })
+      warnings.push(describeError(cause))
       actions.push(`pair adapter ${identity.harnessId} (enrollment response missing)`)
-      if (options.noService) {
-        actions.push(`run the adapter in the foreground: ${commands}`)
-        return { actions, warnings, configPath: adapterConfigPath(), foregroundCommand: commands }
-      }
+      const failure = enrollmentFailure({
+        name: 'opencode',
+        label: 'OpenCode',
+        entry,
+        wsUrl: pairing.wsUrl,
+        configPath: adapterConfigPath(),
+        logPath: adapterLogPath(),
+        cause,
+      })
+      if (options.noService) throw failure
       const paths = openCodePaths()
       const offset = adapterLogSize(paths)
       const started = startAdapterProcess({
@@ -266,12 +273,7 @@ export async function installOpenCodeAdapter(options: InstallOptions): Promise<I
         )
         return { actions, warnings, configPath: adapterConfigPath(), foregroundCommand: commands }
       }
-      throw new Error(
-        `${reason}\nThe adapter config was saved at ${adapterConfigPath()}. ` +
-          `Start it with: clara-adapter-opencode start\n` +
-          `Log: ${adapterLogPath()}`,
-        { cause }
-      )
+      throw failure
     }
   }
   // The one-time enrollment grant cannot authenticate an adapter session.

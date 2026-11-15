@@ -200,6 +200,21 @@ describe('enrollAdapter', () => {
     const hub = await startRejectingHub()
     await expect(enrollAdapter(baseInput(hub.wsUrl))).rejects.toThrow(REINSTALL_GRANT_MESSAGE)
   })
+
+  it('names the hub when nothing is listening on the local port', async () => {
+    const server = createServer()
+    await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve))
+    const address = server.address()
+    if (typeof address === 'string' || !address) throw new Error('The probe did not bind')
+    const wsUrl = `ws://127.0.0.1:${address.port}/ws`
+    await new Promise<void>((resolve) => server.close(() => resolve()))
+
+    const error = await enrollAdapter(baseInput(wsUrl)).catch((cause: unknown) => cause)
+    const text = error instanceof Error ? error.message : String(error)
+    expect(text).toContain(`Could not reach the hub at ${wsUrl}`)
+    expect(text).toContain('hub host')
+    expect(text).not.toContain('[object ErrorEvent]')
+  })
 })
 
 async function startRejectingHub(): Promise<{ wsUrl: string; close: () => Promise<void> }> {

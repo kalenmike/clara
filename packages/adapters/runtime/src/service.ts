@@ -54,8 +54,87 @@ function quote(value: string): string {
   return value.includes(' ') ? `"${value}"` : value
 }
 
+function systemdUnitPath(name: string): string {
+  return join(
+    process.env.XDG_CONFIG_HOME?.trim() || join(process.env.HOME || '', '.config'),
+    'systemd',
+    'user',
+    `${unitName(name)}.service`
+  )
+}
+
+function launchAgentPath(name: string): string {
+  return join(process.env.HOME || '', 'Library', 'LaunchAgents', `${launchLabel(name)}.plist`)
+}
+
+type AdapterServiceKind = 'systemd' | 'launchd' | 'none'
+
+/** Which user service, if any, was installed for this adapter. */
+export function adapterServiceKind(name: string): AdapterServiceKind {
+  if (process.platform === 'linux' && existsSync(systemdUnitPath(name))) return 'systemd'
+  if (process.platform === 'darwin' && existsSync(launchAgentPath(name))) return 'launchd'
+  return 'none'
+}
+
+/** True when the installed user service is currently running. */
+export function adapterServiceActive(name: string): boolean {
+  const kind = adapterServiceKind(name)
+  if (kind === 'systemd')
+    return run('systemctl', ['--user', 'is-active', '--quiet', unitName(name)])
+  if (kind === 'launchd') return run('launchctl', ['list', launchLabel(name)])
+  return false
+}
+
+/** Start an installed user service; returns false when there is none. */
+export function startAdapterService(name: string): boolean {
+  const kind = adapterServiceKind(name)
+  if (kind === 'systemd') return run('systemctl', ['--user', 'start', unitName(name)])
+  if (kind === 'launchd') return run('launchctl', ['load', '-w', launchAgentPath(name)])
+  return false
+}
+
+/** Stop an installed user service without removing it. */
+export function stopAdapterService(name: string): string[] {
+  const kind = adapterServiceKind(name)
+  if (kind === 'systemd') {
+    return run('systemctl', ['--user', 'stop', unitName(name)])
+      ? [`stop systemd service ${unitName(name)}`]
+      : []
+  }
+  if (kind === 'launchd') {
+    return run('launchctl', ['unload', launchAgentPath(name)])
+      ? [`stop launch agent ${launchLabel(name)}`]
+      : []
+  }
+  return []
+}
+
 export function foregroundCommand(entry: string, command = 'serve'): string {
   return [process.execPath, ...selfArgs(entry, command)].map(quote).join(' ')
+}
+
+/** True when `clara` installed this adapter and owns its config and data paths. */
+function claraManaged(): boolean {
+  return Boolean(
+    process.env.CLARA_ADAPTER_CONFIG_DIR?.trim() || process.env.CLARA_ADAPTER_DATA_DIR?.trim()
+  )
+}
+
+/**
+ * A command a person can actually run. A downloaded adapter lives under the
+ * Clara data directory and is not on `PATH`, so naming its binary alone gives
+ * a "command not found". Use the Clara command when it owns the install, and
+ * the exact executable path otherwise.
+ */
+export function adapterStartCommand(name: string, entry: string): string {
+  if (claraManaged() && !selfEntry()) return `clara adapter start ${name}`
+  return foregroundCommand(entry, 'start')
+}
+
+/** Pair an adapter, through `clara` when it owns the install. */
+export function adapterInstallCommand(name: string, entry: string, pair = '<code>'): string {
+  if (claraManaged() && !selfEntry()) return `clara adapter install ${name} --pair ${pair}`
+  return `${foregroundCommand(entry, 'install')} --pair ${pair}`
 }
 
 export function adapterLogSize(paths: AdapterPaths): number {
@@ -111,12 +190,7 @@ export function installAdapterService(input: AdapterServiceInput): ServiceResult
       }
     }
     const name = unitName(input.name)
-    const unitPath = join(
-      process.env.XDG_CONFIG_HOME?.trim() || join(process.env.HOME || '', '.config'),
-      'systemd',
-      'user',
-      `${name}.service`
-    )
+    const unitPath = systemdUnitPath(input.name)
     mkdirSync(dirname(unitPath), { recursive: true, mode: 0o700 })
     writeFileSync(
       unitPath,
@@ -141,7 +215,7 @@ export function installAdapterService(input: AdapterServiceInput): ServiceResult
   }
   if (process.platform === 'darwin') {
     const label = launchLabel(input.name)
-    const unitPath = join(process.env.HOME || '', 'Library', 'LaunchAgents', `${label}.plist`)
+    const unitPath = launchAgentPath(input.name)
     mkdirSync(dirname(unitPath), { recursive: true, mode: 0o700 })
     writeFileSync(
       unitPath,
@@ -163,6 +237,18 @@ export function adapterProcessStatus(paths: AdapterPaths): AdapterProcessStatus 
   return { running: isAlive(pid), pid, log: paths.logPath }
 }
 
+/** Record this process as the adapter owner so `start`, `status`, and `stop` agree. */
+export function writeAdapterPid(paths: AdapterPaths, pid = process.pid): void {
+  mkdirSync(dirname(paths.pidPath), { recursive: true, mode: 0o700 })
+  writeFileSync(paths.pidPath, `${pid}\n`, { mode: 0o600 })
+}
+
+/** Remove the pid file only when it still names this process. */
+export function clearAdapterPid(paths: AdapterPaths, pid = process.pid): void {
+  if (readPid(paths) !== pid) return
+  rmPid(paths)
+}
+
 export function startAdapterProcess(input: AdapterServiceInput): ServiceResult {
   const existing = readPid(input.paths)
   if (existing !== undefined && isAlive(existing)) {
@@ -179,11 +265,18 @@ export function startAdapterProcess(input: AdapterServiceInput): ServiceResult {
     })
     child.unref()
     if (child.pid === undefined) throw new Error('Could not start the adapter process')
-    writeFileSync(input.paths.pidPath, `${child.pid}\n`, { mode: 0o600 })
+    writeAdapterPid(input.paths, child.pid)
     return { service: 'process', actions: [`start adapter process (pid ${child.pid})`] }
   } finally {
     closeSync(log)
   }
+}
+
+/** Stop the installed user service and any background process it started. */
+export function stopAdapter(name: string, paths: AdapterPaths): string[] {
+  const actions = stopAdapterService(name)
+  actions.push(...stopAdapterProcess(paths))
+  return actions
 }
 
 export function stopAdapterProcess(paths: AdapterPaths): string[] {
@@ -212,12 +305,7 @@ export function removeAdapterService(input: AdapterServiceInput): string[] {
   const actions: string[] = [...stopAdapterProcess(input.paths)]
   if (process.platform === 'linux') {
     const name = unitName(input.name)
-    const unitPath = join(
-      process.env.XDG_CONFIG_HOME?.trim() || join(process.env.HOME || '', '.config'),
-      'systemd',
-      'user',
-      `${name}.service`
-    )
+    const unitPath = systemdUnitPath(input.name)
     run('systemctl', ['--user', 'disable', '--now', name])
     try {
       unlinkSync(unitPath)
@@ -228,8 +316,7 @@ export function removeAdapterService(input: AdapterServiceInput): string[] {
     run('systemctl', ['--user', 'daemon-reload'])
   }
   if (process.platform === 'darwin') {
-    const label = launchLabel(input.name)
-    const unitPath = join(process.env.HOME || '', 'Library', 'LaunchAgents', `${label}.plist`)
+    const unitPath = launchAgentPath(input.name)
     run('launchctl', ['unload', unitPath])
     try {
       unlinkSync(unitPath)
