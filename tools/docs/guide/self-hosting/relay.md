@@ -150,7 +150,7 @@ Environment variables are the fallback for CI or headless bootstrap:
 ```bash
 CLARA_RELAY_URL=wss://relay.example \
 CLARA_AGENT_TOKEN=... \
-pnpm clara start hub --local
+clara start hub --local
 ```
 
 Each variable wins over the matching panel value when it is set. Values supplied
@@ -204,7 +204,7 @@ Open **Clients → Pair Client** in the hub panel and scan the QR or open the
 link on the phone. You can also run:
 
 ```bash
-pnpm clara pair
+clara pair
 ```
 
 A relay code uses the public Web URL and the `wss://` endpoint. Choose **Local

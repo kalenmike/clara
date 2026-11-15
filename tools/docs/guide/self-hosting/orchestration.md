@@ -29,13 +29,13 @@ surface. Keep the choice on one device, or share it through the isolated
 From the hub panel, turn on **Settings → Orchestration**. Or run:
 
 ```bash
-pnpm clara start orchestrator
+clara start orchestrator
 ```
 
 The service listens on `127.0.0.1:8789`. Check it with:
 
 ```bash
-pnpm clara status orchestrator --json
+clara status orchestrator --json
 ```
 
 ## Install the adapter
@@ -56,7 +56,7 @@ reads the service, and a greeting does not create work.
 ## Preview a package
 
 ```bash
-pnpm clara start lab
+clara start lab
 ```
 
 Clara Lab opens on `127.0.0.1:8791`. It compiles a package with the same loader
@@ -64,7 +64,7 @@ and compiler as the service, shows the step tree, rendered prompts, policy,
 budget, and source files, and can drive a run manually. It also reports the
 workspace the service uses.
 
-`pnpm clara status lab --check --workspace . --target std:software/feature` validates a
+`clara status lab --check --workspace . --target std:software/feature` validates a
 target for CI.
 
 ## Pipelines
@@ -85,8 +85,8 @@ includes the complete package and step reference.
 ## MCP
 
 ```bash
-pnpm clara start adapter --harness opencode --mcp
-pnpm clara status adapter
+clara start adapter --harness opencode --mcp
+clara status adapter
 ```
 
 The MCP bridge is a stdio process that talks to the local service. It is useful

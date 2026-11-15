@@ -28,9 +28,9 @@ card.
 
 ## User flow
 
-1. Start the hub after `pnpm build` with `pnpm clara start hub --local`, or
-   `pnpm clara start hub` for the container, then run
-   `pnpm clara status hub --open`. The open command only opens a panel that is
+1. Start the hub after `pnpm build` with `clara start hub --local`, or
+   `clara start hub` for the container, then run
+   `clara status hub --open`. The open command only opens a panel that is
    already being served; the start command prints the panel URL
    (`http://127.0.0.1:8790/` by default).
 2. On first run the panel is the only surface. It shows **Create the hub owner
@@ -608,13 +608,13 @@ card.
   `clara-server setup [--username <name>] [--password-stdin]`,
   `clara-server admin reset|setup-token`
 - Built assets: `apps/hub/server/dist/panel`, copied from `apps/hub/panel/dist`
-- Open the built panel: `pnpm clara status hub --open` opens
+- Open the built panel: `clara status hub --open` opens
   `http://127.0.0.1:${CLARA_PANEL_PORT:-8790}/` in a browser when the hub service is
-  already serving it; start the hub with `pnpm clara start hub --local`
+  already serving it; start the hub with `clara start hub --local`
   (or `--docker`) first. The panel is a surface of the hub, not a
   separate service
-- Docker (default): `pnpm clara start|stop|restart|status|logs hub` and
-  `pnpm clara pair`; `clara-server setup`, `setup-token`, and `admin` target the
+- Docker (default): `clara start|stop|restart|status|logs hub` and
+  `clara pair`; `clara-server setup`, `setup-token`, and `admin` target the
   running deployment, and `--docker`/`--local` force the container or the host
   install. Pass `--local` to `start`, `stop`, `restart`, or `logs` to use the
   detached local hub instead. `pair --no-relay` emits a local-only code.

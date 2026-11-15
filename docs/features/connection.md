@@ -18,8 +18,8 @@ device key through a one-time code; there is no shared browser key.
    the one-time code and command. Clara Desktop can install it on this computer,
    an SSH host, or a local container; a browser user runs the command on the
    harness machine. For the included adapters, that is
-   `pnpm clara start adapter --harness opencode --pair <code>` or
-   `pnpm clara start adapter --harness claude --pair <code>`. The adapter
+   `clara start adapter --harness opencode --pair <code>` or
+   `clara start adapter --harness claude --pair <code>`. The adapter
    discovers its harness, prompts for its URL/password if needed (OpenCode) or
    uses the machine's Claude Code login, enrolls, and installs the hub-facing
    adapter.
@@ -179,15 +179,15 @@ device key through a one-time code; there is no shared browser key.
   token, and saving it in the Relay card starts the relay without a restart.
   Only explicit relay actions (relay pairing, Cloudflare deployment) reject an
   incomplete relay.
-- Docker stack: `pnpm clara start` starts the orchestrator, hub, and web client
+- Docker stack: `clara start` starts the orchestrator, hub, and web client
   together; `start hub`, `start web`, or `start orchestrator` selects one
   target; `restart` recreates the selection.
-- Server container: `pnpm clara start hub --docker`; panel and local
+- Server container: `clara start hub --docker`; panel and local
   WebSocket publish on host loopback, and adapters on the `clara` Docker network
   connect to `ws://server:8788/ws`.
   The maintenance snapshot records `local` vs `container` and recreates the
   container with stop/start; see [maintenance.md](maintenance.md).
-- Web container: `pnpm clara start web --docker --build` serves the SPA on
+- Web container: `clara start web --docker --build` serves the SPA on
   `127.0.0.1:8080`. Local pairing works from that loopback origin; a remote
   HTTPS page still needs the relay because pairing carries a `ws://` URL. The
   maintenance snapshot records the web client as `container` or `stopped`.

@@ -21,14 +21,14 @@ a generic error.
 
 ## The pairing code fails
 
-| Message                   | Fix                                                                                                                                             |
-| ------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- |
-| Adapter pairing code      | Adapter codes (`clara-harness1_…`) install the adapter, not the browser. Use **Clients → Pair Client** or `pnpm clara pair` for a browser code. |
-| Invalid or truncated code | Paste the whole `clara1_…` value or scan the QR again.                                                                                          |
-| Expired code              | Codes last 10 minutes. Ask for a fresh one.                                                                                                     |
-| Code already used         | Each code enrolls one device. Ask for a new code.                                                                                               |
-| Fingerprint mismatch      | Do not trust the pairing. Ask the host for a fresh code and compare again.                                                                      |
-| Device revoked            | The host revoked this browser. Pair again if access is still needed.                                                                            |
+| Message                   | Fix                                                                                                                                        |
+| ------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
+| Adapter pairing code      | Adapter codes (`clara-harness1_…`) install the adapter, not the browser. Use **Clients → Pair Client** or `clara pair` for a browser code. |
+| Invalid or truncated code | Paste the whole `clara1_…` value or scan the QR again.                                                                                     |
+| Expired code              | Codes last 10 minutes. Ask for a fresh one.                                                                                                |
+| Code already used         | Each code enrolls one device. Ask for a new code.                                                                                          |
+| Fingerprint mismatch      | Do not trust the pairing. Ask the host for a fresh code and compare again.                                                                 |
+| Device revoked            | The host revoked this browser. Pair again if access is still needed.                                                                       |
 
 ## The camera will not scan
 
@@ -155,19 +155,19 @@ harnesses; a failed lookup for one harness does not empty the list.
 
 Orchestration is optional. If the service is stopped, orchestration runs and
 worker sessions are unavailable. The host can start it from the hub panel or
-with `pnpm clara start orchestrator`. See
+with `clara start orchestrator`. See
 [Orchestration](self-hosting/orchestration.md).
 
 ## A Docker container keeps restarting
 
-`pnpm clara start` checks the Docker environment before it launches a container
+`clara start` checks the Docker environment before it launches a container
 and prints the recent log lines when a service does not become healthy. If a
 container still keeps restarting:
 
-- Read the printed log tail, or run `pnpm clara logs hub`, `pnpm clara logs web`,
-  or `pnpm clara logs orchestrator`.
+- Read the printed log tail, or run `clara logs hub`, `clara logs web`,
+  or `clara logs orchestrator`.
 - A `CLARA_RELAY_URL` without `CLARA_AGENT_TOKEN` stops the hub at startup only
-  when the panel has not saved the token. `pnpm clara start` warns about the gap
+  when the panel has not saved the token. `clara start` warns about the gap
   before launching the container.
 - `CLARA_SERVER_CONFIG_DIR`, `CLARA_SERVER_DATA_DIR`, and
   `CLARA_ORCHESTRATOR_DATA_DIR` must be absolute host paths when set.
@@ -182,7 +182,7 @@ directory, can have a different owner. Stop the stack and fix ownership once;
 the data is kept:
 
 ```bash
-pnpm clara stop
+clara stop
 docker run --rm \
   -v clara-server-config:/config \
   -v clara-server-data:/data \

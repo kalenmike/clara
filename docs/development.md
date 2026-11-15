@@ -65,7 +65,7 @@ ENABLE_CLOUDFLARE_DEPLOYMENT=true pnpm dev:panel
 Docker builds forward the same flag through the `server` compose build args:
 
 ```bash
-ENABLE_CLOUDFLARE_DEPLOYMENT=true pnpm clara start hub --docker --build
+ENABLE_CLOUDFLARE_DEPLOYMENT=true clara start hub --docker --build
 ```
 
 Anything other than `1`, `true`, `yes`, or `on` builds without the feature. The
@@ -136,41 +136,41 @@ Each build verifies the result:
 
 ```bash
 # Lifecycle
-pnpm clara start [default|hub|web|orchestrator] [--docker|--local] [--build]
-pnpm clara stop [default|hub|web|orchestrator] [--docker|--local]
-pnpm clara restart [default|hub|web|orchestrator] [--docker|--local] [--build]
-pnpm clara status [default|hub|web|orchestrator] [--json]
-pnpm clara logs [default|hub|web|orchestrator] [--local|--docker]
-pnpm clara start hub --open
-pnpm clara status hub --open
-pnpm clara backup [default|hub|orchestrator] [--output <path>]
-pnpm clara restore [default|hub|orchestrator] <archive> [--force]
+clara start [default|hub|web|orchestrator] [--docker|--local] [--build]
+clara stop [default|hub|web|orchestrator] [--docker|--local]
+clara restart [default|hub|web|orchestrator] [--docker|--local] [--build]
+clara status [default|hub|web|orchestrator] [--json]
+clara logs [default|hub|web|orchestrator] [--local|--docker]
+clara start hub --open
+clara status hub --open
+clara backup [default|hub|orchestrator] [--output <path>]
+clara restore [default|hub|orchestrator] <archive> [--force]
 
 # Adapters
-pnpm clara start adapter [--harness <name>]
-pnpm clara start adapter --harness opencode --pair [<code>]
-pnpm clara stop adapter [--harness <name>] [--mcp] [--purge]
-pnpm clara status adapter [--harness <name>] [--json] [--verify]
-pnpm clara logs adapter [--harness <name>]
-pnpm clara pair adapter --harness <name>
+clara start adapter [--harness <name>]
+clara start adapter --harness opencode --pair [<code>]
+clara stop adapter [--harness <name>] [--mcp] [--purge]
+clara status adapter [--harness <name>] [--json] [--verify]
+clara logs adapter [--harness <name>]
+clara pair adapter --harness <name>
 
 # Runner
-pnpm clara start runner [--workspace <path>]
-pnpm clara stop runner [--purge]
-pnpm clara status runner [--json]
-pnpm clara pair [hub] [--no-relay] [--no-qr] [--no-panel] [--revoke-all] [--revoke <id>]
+clara start runner [--workspace <path>]
+clara stop runner [--purge]
+clara status runner [--json]
+clara pair [hub] [--no-relay] [--no-qr] [--no-panel] [--revoke-all] [--revoke <id>]
 
 # Tools
-pnpm clara start lab [--workspace <path>]
-pnpm clara status lab --check
-pnpm clara start docs [--build]
-pnpm clara status docs --check
-pnpm clara status docs --typecheck
-pnpm clara rebuild <status|build|adapters|restart|health|inspect|recover> [--docker|--local|--all]
+clara start lab [--workspace <path>]
+clara status lab --check
+clara start docs [--build]
+clara status docs --check
+clara status docs --typecheck
+clara rebuild <status|build|adapters|restart|health|inspect|recover> [--docker|--local|--all]
 pnpm check:boundaries
 ```
 
-Run `pnpm clara --help` for the command list and `pnpm clara <command> --help`
+Run `clara --help` for the command list and `clara <command> --help`
 for one command.
 
 ## Hub API
@@ -188,7 +188,7 @@ and `pnpm check:boundaries` enforces that split.
 Install the read-only API MCP for live frontend testing:
 
 ```bash
-pnpm clara start adapter --harness opencode --mcp-api
+clara start adapter --harness opencode --mcp-api
 ```
 
 The bridge reads `CLARA_API_URL` (default `http://127.0.0.1:8788`) and
@@ -198,9 +198,10 @@ The bridge reads `CLARA_API_URL` (default `http://127.0.0.1:8788`) and
 `pnpm clara:link` installs a thin `clara` shim under `~/.local/bin`. It runs the
 checkout's Node entry, so it does not need pnpm at invocation time; `--build`,
 Docker Compose, local service scripts, and the MCP bridge still use the
-checkout. `pnpm clara` remains the source alias.
+checkout. The `pnpm clara …` script in the checkout remains an alias for the same
+entry point.
 
-`pnpm clara start` starts Docker by default: it creates the `clara` network,
+`clara start` starts Docker by default: it creates the `clara` network,
 bootstraps `infra/docker/.env` and the orchestrator token on first run, then
 starts the selected targets in orchestrator, hub, web order. Pass `--local` to
 run the same targets as detached local processes. `--build` rebuilds before
@@ -210,12 +211,12 @@ starting. Select one target with `start hub`, `start web`, or
 `hub` is the public target name for the hub service. Docker resources keep their
 `clara-server` names so existing volumes and containers keep working.
 
-`pnpm clara start hub --open` starts the hub and opens the panel;
-`pnpm clara status hub --open` opens a panel that is already running. Headless
+`clara start hub --open` starts the hub and opens the panel;
+`clara status hub --open` opens a panel that is already running. Headless
 hub maintenance uses `clara-server setup` and `clara-server admin` directly.
 
 Local processes keep a PID and log under `~/.local/share/clara`, so
-`pnpm clara stop --local`, `restart --local`, and `logs --local` work the same
+`clara stop --local`, `restart --local`, and `logs --local` work the same
 way as the Docker stack. Stop also resolves a service that was restarted
 outside the PID files: the hub through its runtime file, and the web client
 through the pid in its `/healthz` response. Discovered processes are checked
@@ -225,26 +226,26 @@ by the documented `clara` user systemd unit is reported but never signalled;
 stop it with `systemctl --user stop clara`. Local web serves the built
 `apps/web/dist` on `CLARA_WEB_PORT`.
 
-`pnpm clara status` renders one table for the selected targets, using the same
+`clara status` renders one table for the selected targets, using the same
 record shape for `hub`, `web`, and `orchestrator`. The hub row uses its local
 listener URL; Details names the panel URL. Add `--json` for a machine-readable
 record or a `{ "ok": true, "services": [...] }` envelope.
 
-`pnpm clara status adapter` reports every supported harness, including ones that
+`clara status adapter` reports every supported harness, including ones that
 are not installed. `--harness opencode` narrows the table. `--verify` runs the
-adapter's native-store verification. `pnpm clara start adapter` starts every
+adapter's native-store verification. `clara start adapter` starts every
 paired adapter; `--harness <name> --pair` installs and pairs one. `--pair`
 without a code asks the hub for a fresh code and fails with a clear hint when no
 hub is reachable. The MCP bridge is registered with `--mcp` and removed with
 `stop adapter --mcp`; it is a stdio process, not a service.
 
-`pnpm clara start runner` installs and starts the shared script runner;
-`--foreground` runs it in the foreground. `pnpm clara start lab` and
-`pnpm clara start docs` run the host-only development sites. Their one-shot
+`clara start runner` installs and starts the shared script runner;
+`--foreground` runs it in the foreground. `clara start lab` and
+`clara start docs` run the host-only development sites. Their one-shot
 checks are `status lab --check`, `status docs --check`, and
 `status docs --typecheck`.
 
-`pnpm clara rebuild` snapshots the running services, rebuilds the primary
+`clara rebuild` snapshots the running services, rebuilds the primary
 checkout, installs the adapters, restarts only the captured services, and
 verifies their health. It manages Docker services by default; pass `--local`
 for local services or `--all` for a mixed setup. The standard
@@ -271,10 +272,10 @@ reads the other's service state.
 
 `CLARA_DOCKER_STATE_DIR` moves the Docker control directory. The workspace and
 the rebuild snapshot under `~/.local/share/clara/rebuild` are the only shared
-host paths. Back up Docker volumes with `pnpm clara backup`; back up a local
+host paths. Back up Docker volumes with `clara backup`; back up a local
 install by archiving its two host directories.
 
-`pnpm clara pair` probes the panel's `/health` mode and then the Docker/local
+`clara pair` probes the panel's `/health` mode and then the Docker/local
 state to pick a target, and prints which one it chose. `--docker` forces the
 `clara-server` container and `--local` forces a local install. When both a local
 install and Docker state exist and neither is running, the command refuses to
@@ -291,7 +292,7 @@ Existing Docker installs that still bind `~/.config/clara` and
 `~/.local/share/clara` need one manual copy. Stop the stack first.
 
 ```bash
-pnpm clara stop
+clara stop
 tar -czf ~/clara-local-state-backup.tar.gz \
   ~/.config/clara \
   ~/.local/share/clara/clara.db* \
@@ -317,8 +318,8 @@ Remove `CLARA_DATA_DIR` from `infra/docker/.env`, then start and verify the pane
 harness connection, and pairing:
 
 ```bash
-pnpm clara start
-pnpm clara status
+clara start
+clara status
 ```
 
 Keep the archive until the stack is healthy. Move the old directories aside
@@ -342,10 +343,10 @@ Pipeline authors work on the package files directly, then use Clara Lab to see
 what the compiler resolves:
 
 ```bash
-pnpm clara start lab                         # preview + probe in a browser
+clara start lab                              # preview + probe in a browser
 pnpm dev:lab                           # Vite on :5175, lab server on :8791
-pnpm clara status lab --check --target std:software/feature
-pnpm clara status lab --check --json            # CI-friendly diagnostics
+clara status lab --check --target std:software/feature
+clara status lab --check --json                 # CI-friendly diagnostics
 ```
 
 `check` exits non-zero on compile errors. It ignores warnings, so it can run in

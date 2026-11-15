@@ -11,7 +11,7 @@ sidebar_position: 5
 From the checkout:
 
 ```bash
-pnpm clara rebuild
+clara rebuild
 ```
 
 The rebuild captures the running services, installs dependencies, builds the
@@ -22,18 +22,18 @@ then verifies their health and retries a failed restart once.
 For a smaller change, rebuild and restart one target:
 
 ```bash
-pnpm clara restart --build
-pnpm clara restart --local --build
-pnpm clara restart web --build
+clara restart --build
+clara restart --local --build
+clara restart web --build
 ```
 
 ## Inspect or recover
 
 ```bash
-pnpm clara rebuild status --json
-pnpm clara rebuild health --json
-pnpm clara rebuild inspect --json
-pnpm clara rebuild recover --json
+clara rebuild status --json
+clara rebuild health --json
+clara rebuild inspect --json
+clara rebuild recover --json
 ```
 
 `recover` restores services from the current snapshot without rebuilding. It is
@@ -63,8 +63,8 @@ resets the service worker and caches but keeps pairing, settings, and drafts.
 For Docker, stop the stack and archive the volumes:
 
 ```bash
-pnpm clara stop
-pnpm clara backup --output ~/clara-backup.tar.gz
+clara stop
+clara backup --output ~/clara-backup.tar.gz
 ```
 
 For a local install, copy the config and data directories. The important files
@@ -77,9 +77,9 @@ hub first for a consistent snapshot.
 ## Restore
 
 ```bash
-pnpm clara stop
-pnpm clara restore ~/clara-backup.tar.gz --force
-pnpm clara start --build
+clara stop
+clara restore ~/clara-backup.tar.gz --force
+clara start --build
 ```
 
 The restore replaces the Docker state volumes. For a local install, put the files
@@ -88,9 +88,9 @@ back in the config and data directories and restart.
 ## Check the result
 
 ```bash
-pnpm clara status
-pnpm clara logs hub
-pnpm clara logs web
+clara status
+clara logs hub
+clara logs web
 ```
 
 Open the hub panel and confirm the harness, local transport, relay, push, and
