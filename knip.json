@@ -93,7 +93,8 @@
       "project": ["src/**/*.ts", "test/**/*.ts"]
     },
     "apps/orchestrator": {
-      "project": ["src/**/*.ts", "test/**/*.ts"]
+      "entry": ["src/index.ts", "src/bun.ts", "scripts/*.mjs"],
+      "project": ["src/**/*.ts", "scripts/**/*.mjs", "test/**/*.ts"]
     },
     "apps/adapters/opencode": {
       "project": ["src/**/*.ts", "test/**/*.ts", "plugin/**/*.ts"],
