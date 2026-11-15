@@ -22,9 +22,12 @@ The composer has three shapes, controlled from the right side of its header:
 
 - **Pinned** is the default. It sits above the usage bar, spans the chat, and
   the thread ends at its top edge, so it never covers a message.
-- **Expand** fills the screen. Expand again to return to the pinned dock.
-- **Minimize** collapses the composer to its header. Expanding a minimized
-  composer returns it to the shape it had before.
+- **Collapse** folds the composer to its header. The leading chevron points down
+  while the composer is open; click it again, or use the upward chevron, to
+  restore the shape it had before.
+- **Expand** fills the screen. Expand again to return to the pinned dock. The
+  expand control always goes fullscreen, so using it from a collapsed composer
+  opens fullscreen directly.
 
 Drag the pinned composer's top edge to make it taller or shorter. With the
 resize handle focused, use Up/Down, Home/End, or double-click to reset the
@@ -90,6 +93,8 @@ A session tab shows a badge when a question form or a finished plan is waiting.
 Select the tab to see those cards stacked above the editor.
 
 - A question card can be answered alone, with a message, or skipped.
+- A tall question form scrolls with the composer. Scroll down to reach the
+  message box and type a custom message or a plan adjustment.
 - A plan-ready card offers **Start** when the editor is empty. A typed message
   becomes an adjustment to the plan.
 
