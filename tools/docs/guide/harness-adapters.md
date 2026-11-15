@@ -50,12 +50,14 @@ Inside the Clara repository you can use
    cannot be created. A hosted or Docker-hosted hub does not need SSH or Docker
    access; the command runs where the harness is.
 7. The installer looks for the harness and starts a user service, or a
-   background process when systemd is not available. Return to Clara. The
-   pairing card shows **Waiting for the adapter to connect…** and changes to
-   **Connected** when the adapter registers. A newly paired adapter shows
-   **Paired · Offline** under **Paired harnesses**; when its session connects it
-   becomes **Online** and appears under **Connected adapters**. If harness
-   access is disabled, the page shows **Off** instead of a live state.
+   background process when systemd is not available. A panel install also starts
+   the adapter itself and waits for an authenticated link before it reports
+   success. Return to Clara: the pairing card changes to **Connected** when the
+   adapter registers. If the adapter cannot start or connect, the install card
+   shows the adapter state and log and the install fails instead of claiming
+   success. When its session connects it becomes **Online** and appears under
+   **Connected adapters**. If harness access is disabled, the page shows
+   **Off** instead of a live state.
 
 Adapter codes are only for the installer. To pair a browser, use
 **Clients → Pair Client** in the panel, or the separate code or link printed
@@ -117,6 +119,11 @@ path. `clara status`, `clara adapter list`, `start`, `stop`, `logs`, `status`,
 and `verify` then address the container. Upgrading means rebuilding and
 recreating the image; `clara adapter remove opencode` stops the container and
 forgets the record but leaves the container and its volumes in place.
+
+A panel install starts the adapter inside the container and waits for it to
+connect. That process lasts as long as the container; to keep the adapter
+running when the container is recreated, run it as the container's command or
+under a supervisor.
 
 ### OpenCode
 
