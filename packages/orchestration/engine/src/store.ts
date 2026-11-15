@@ -46,6 +46,8 @@ export interface StepRow extends Row {
   provider: string | null
   policy: string | null
   limits: string | null
+  /** Resolved directory for a wrapper scope container. Null outside a scope. */
+  workspace: string | null
   background: number
   result: string | null
   error: string | null
@@ -245,6 +247,7 @@ export class Store {
         provider TEXT,
         policy TEXT,
         limits TEXT,
+        workspace TEXT,
         background INTEGER NOT NULL DEFAULT 0,
         result TEXT,
         error TEXT,
@@ -318,6 +321,7 @@ export class Store {
       CREATE INDEX IF NOT EXISTS idx_delivery_claims_run ON delivery_claims (run_id, kind);
     `)
     this.ensureColumn('steps', 'provider', 'TEXT')
+    this.ensureColumn('steps', 'workspace', 'TEXT')
     this.ensureColumn('steps', 'current_attempt_id', 'INTEGER')
     this.ensureColumn('steps', 'recovery_cycles', 'INTEGER NOT NULL DEFAULT 0')
     this.ensureColumn('steps', 'recovered', 'INTEGER NOT NULL DEFAULT 0')

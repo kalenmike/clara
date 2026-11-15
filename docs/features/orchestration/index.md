@@ -49,12 +49,13 @@ process. `CLARA_ORCHESTRATION_*` is a compatibility name for one release.
 
 1. **Packages are data.** The engine ships its standard packages as files and
    has no built-in software pipeline. A package is a directory with `index.yml`
-   plus auto-discovered pipelines, routers, agents, and scripts.
+   plus auto-discovered pipelines, routers, agents, scripts, and wrappers.
 2. **The engine owns state and workspace, not execution.** It never calls a
    model, creates a session, or spawns a process. A completion, failure, route,
    or spawn advances the pipeline in one transaction. `CLARA_ENGINE_WORKSPACE`
-   sets where workers and scripts run, and every run starts at the active
-   config's `entry`; model-facing `clara_start` takes only the request.
+   sets where workers and scripts run, a wrapper may scope a selected route to a
+   resolved worktree, and every run starts at the active config's `entry`;
+   model-facing `clara_start` takes only the request.
 3. **Leases own work.** Renewal, completion, failure, routing, and spawn require
    the token from the work order, so a second worker cannot keep or close the
    same step.
@@ -74,6 +75,8 @@ process. `CLARA_ORCHESTRATION_*` is a compatibility name for one release.
 | [packages.md](packages.md)       | You are writing or changing a package, pipeline, step, or model |
 | [execution.md](execution.md)     | You are working on a run, lease, runner, or worker prompt       |
 | [maintenance.md](maintenance.md) | You are rebuilding, recovering, or diagnosing a Clara setup     |
+| [wrappers.md](wrappers.md)       | You are applying or writing a before/after guard                |
+| [agents.md](agents.md)           | You are writing an agent or router document                     |
 | [lab.md](lab.md)                 | You are previewing or hand-driving a package                    |
 
 ## Edge cases
@@ -92,14 +95,15 @@ process. `CLARA_ORCHESTRATION_*` is a compatibility name for one release.
 - A worker exceeds a budget: budgets are hard caps in every enforcement mode,
   control tools stay available, and an over-budget completion is kept rather
   than discarded. See [execution.md](execution.md).
+- A wrapper scope that cannot resolve its workspace fails; failed or cancelled
+  scopes leave their worktree, and explicit targets bypass wrappers.
 
 ## Out of scope
 
-- The engine calling a model, creating a session, or spawning a process.
-- MCP-only strict enforcement without an adapter or sandbox.
+- The engine calling a model, creating a session, or spawning a process;
+  MCP-only strict enforcement without an adapter or sandbox.
 - A visual pipeline editor; YAML and Markdown are the authoring surface.
-- Remote access to the engine; it binds loopback only.
-- More than one token model for the engine.
+  Remote access stays loopback, and there is one token model.
 
 ## Known gaps
 
@@ -109,18 +113,14 @@ process. `CLARA_ORCHESTRATION_*` is a compatibility name for one release.
   finish or fail.
 - Delivery targets `CLARA_INTERFACE_AGENT` (default `clara`). A run started from
   another agent leaves its alerts in the inbox.
-- The web Settings page does not show the package catalog; use Clara Lab,
-  `clara status lab --check`, or MCP `clara_catalog`.
 
 ## Technical appendix
 
 <details>
 <summary>Commands, entry points, and packages</summary>
-
 - Service: `apps/engine`, loopback REST, SSE, and `/mcp` on `127.0.0.1:8789`
-  with a bearer token. Data and token live under `CLARA_DATA_DIR` (default
-  `~/.local/share/clara`): `engine.db`, `engine.token`, and
-  `policy-delivery.json`.
+  with a bearer token; data and token live under `CLARA_DATA_DIR` (default
+  `~/.local/share/clara`).
 - Packages: `packages/orchestration/engine` (loader, runtime, std packages),
   `packages/orchestration/policy` (step policy and budgets),
   `packages/orchestration/control` (service paths and health),
@@ -129,8 +129,7 @@ process. `CLARA_ORCHESTRATION_*` is a compatibility name for one release.
   `packages/adapters/binding` (adapter delivery and usage).
 - CLI: `clara start|stop|restart|status|logs engine`,
   `clara adapter install|upgrade|verify|remove <kind> [--mcp]`,
-  `clara start runner [--workspace <path>] [--label <name>]`,
-  `clara start lab`, and `clara status lab --check`.
+  `clara start runner [--workspace <path>] [--label <name>]`, and `clara start lab`.
 - Workspace: `GET /v1/config` reports the workspace from
   `CLARA_ENGINE_WORKSPACE` (default: the service working directory), the active
   `configSource` (`bundled` or `file`), and `configPath`.

@@ -72,5 +72,6 @@ Implement the request against the frozen tests.
 
 - Run focused tests at every progress boundary.
 - Do not edit tests.
+- Commit each coherent change as you go with a Conventional Commit message.
 - If the spec and tests conflict, stop and report the conflict.
 - Return a summary of changes, test results, and any remaining risk.

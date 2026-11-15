@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto'
-import { existsSync } from 'node:fs'
-import { join, resolve } from 'node:path'
+import { existsSync, readFileSync, realpathSync, statSync } from 'node:fs'
+import { dirname, isAbsolute, join, relative, resolve } from 'node:path'
 import {
   budgetExceeded,
   computeBudget,
@@ -130,6 +130,87 @@ function ageMs(iso: string | null): number {
   if (!iso) return Number.POSITIVE_INFINITY
   const time = new Date(iso).getTime()
   return Number.isFinite(time) ? Date.now() - time : Number.POSITIVE_INFINITY
+}
+
+/** Read a dot-separated field from a step's JSON result. */
+function resultField(result: string | null, field: string): unknown {
+  let value: unknown = parseJson<unknown>(result, undefined)
+  for (const key of field.split('.')) {
+    if (!value || typeof value !== 'object' || Array.isArray(value)) return undefined
+    value = (value as Record<string, unknown>)[key]
+  }
+  return value
+}
+
+/** The directory a wrapper's worktree scopes may live under. */
+function workspaceRoot(workspace: string): string {
+  const configured = process.env.CLARA_WORKTREES_DIR?.trim()
+  return resolve(configured || join(dirname(workspace), 'clara-worktrees'))
+}
+
+/**
+ * Validate a wrapper's resolved workspace. The path comes from a step result,
+ * so it must be a linked git worktree under the configured worktree root. This
+ * is a syntactic and filesystem check only: the engine never runs git.
+ */
+function scopedWorkspace(value: unknown, workspace: string): string {
+  if (typeof value !== 'string' || !value.trim()) {
+    throw new OrchestrationErrorWithCode('workspace_unbound', 'the workspace step returned no path')
+  }
+  const root = workspaceRoot(workspace)
+  const candidate = isAbsolute(value) ? resolve(value) : resolve(workspace, value)
+  let resolved: string
+  try {
+    resolved = realpathSync(candidate)
+  } catch {
+    throw new OrchestrationErrorWithCode(
+      'workspace_missing',
+      `scoped workspace ${candidate} does not exist`
+    )
+  }
+  let realRoot = root
+  try {
+    realRoot = realpathSync(root)
+  } catch {
+    // The scope may resolve before the root exists only on a race; the prefix
+    // check below still uses the configured root.
+  }
+  const rel = relative(realRoot, resolved)
+  if (!rel || rel.startsWith('..') || isAbsolute(rel)) {
+    throw new OrchestrationErrorWithCode(
+      'workspace_outside_root',
+      `scoped workspace ${resolved} is outside the worktree root ${realRoot}`
+    )
+  }
+  if (!statSync(resolved).isDirectory()) {
+    throw new OrchestrationErrorWithCode(
+      'workspace_not_directory',
+      `scoped workspace ${resolved} is not a directory`
+    )
+  }
+  const gitFile = join(resolved, '.git')
+  if (!existsSync(gitFile)) {
+    throw new OrchestrationErrorWithCode(
+      'workspace_not_worktree',
+      `scoped workspace ${resolved} is not a git worktree`
+    )
+  }
+  let marker: string
+  try {
+    marker = readFileSync(gitFile, 'utf8')
+  } catch {
+    throw new OrchestrationErrorWithCode(
+      'workspace_not_worktree',
+      `scoped workspace ${resolved} is not a linked git worktree`
+    )
+  }
+  if (!marker.startsWith('gitdir:')) {
+    throw new OrchestrationErrorWithCode(
+      'workspace_not_worktree',
+      `scoped workspace ${resolved} is not a linked git worktree`
+    )
+  }
+  return resolved
 }
 
 const HANDOFF_LIMIT = 2_000
@@ -554,6 +635,57 @@ export class Runtime {
     const sync = (node: CompiledNode, parentPath: string | null, schedule: boolean): NodeSync => {
       const row = ensure(node, parentPath)
 
+      if (node.workspace && !row.workspace) {
+        if (!schedule) return { status: 'waiting' }
+        const producer = steps.get(node.workspace.path)
+        if (!producer) {
+          mark(row, {
+            status: 'failed',
+            error: `workspace source ${node.workspace.path} is missing`,
+            finished_at: now(),
+          })
+          return { status: 'failed' }
+        }
+        if (!producer.result) {
+          if (
+            producer.status === 'failed' ||
+            producer.status === 'skipped' ||
+            producer.status === 'cancelled'
+          ) {
+            const error = `workspace source "${producer.name}" is ${producer.status}`
+            mark(row, { status: 'failed', error, finished_at: now() })
+            this.store.event(
+              runID,
+              'step.failed',
+              { step: node.path, reason: 'workspace_unavailable', input: producer.path },
+              row.current_attempt_id
+            )
+            return { status: 'failed' }
+          }
+          // The scope waits for its producer; the wrapper orders it earlier.
+          return { status: 'running' }
+        }
+        let scoped: string
+        try {
+          scoped = scopedWorkspace(
+            resultField(producer.result, node.workspace.field),
+            run.workspace
+          )
+        } catch (error) {
+          const message = error instanceof Error ? error.message : String(error)
+          mark(row, { status: 'failed', error: message, finished_at: now() })
+          this.store.event(
+            runID,
+            'step.failed',
+            { step: node.path, reason: 'workspace_invalid' },
+            row.current_attempt_id
+          )
+          return { status: 'failed' }
+        }
+        mark(row, { workspace: scoped })
+        return sync(node, parentPath, schedule)
+      }
+
       if (
         node.onFailure &&
         (node.kind === 'agent' || node.kind === 'script' || node.kind === 'router')
@@ -770,7 +902,7 @@ export class Runtime {
       const failedStep =
         failedSteps.find(
           (step) => step.type === 'agent' || step.type === 'router' || step.type === 'script'
-        ) ?? failedSteps[0]
+        ) ?? failedSteps[failedSteps.length - 1]
       const error = latest.error ?? failedStep?.error ?? 'pipeline failed'
       this.store.transaction(() => {
         this.store.updateRun(runID, { state: 'failed', finished_at: now(), error })
@@ -933,6 +1065,8 @@ export class Runtime {
     const limits = parseJson<Limits | undefined>(row.limits, undefined)
     const budget = computeBudget(limits, Number(row.attempt) || 1)
     const steps = new Map(this.store.steps(Number(run.id)).map((step) => [step.path, step]))
+    const scope = node.scopePath ? steps.get(node.scopePath) : undefined
+    const workspace = scope?.workspace ? resolve(scope.workspace) : run.workspace
     const inputs = Object.entries(node.inputs ?? {}).flatMap(([label, path]) => {
       const input = steps.get(path)
       if (!input?.result) return []
@@ -948,7 +1082,7 @@ export class Runtime {
     const artifacts = Object.entries(node.artifacts ?? {}).map(([label, path]) => ({
       label,
       path,
-      ...(isLiteralPath(path) ? { exists: existsSync(join(run.workspace, path)) } : {}),
+      ...(isLiteralPath(path) ? { exists: existsSync(join(workspace, path)) } : {}),
     }))
     const previous =
       Number(row.attempt) > 1
@@ -971,7 +1105,7 @@ export class Runtime {
       ...(script
         ? { ...(node.script ? { script: node.script } : {}) }
         : { prompt: node.prompt ?? node.description ?? `Execute ${node.name}` }),
-      workspace: run.workspace,
+      workspace,
       work_token: token,
       attempt: Number(row.attempt),
       max_attempts: Number(row.max_attempts) + Number(row.recovery_cycles),
@@ -1272,6 +1406,15 @@ export class Runtime {
       throw new OrchestrationErrorWithCode('spawn_count', 'count must be between 1 and 32')
     }
     const parentNode = findNode(JSON.parse(run.snapshot) as CompiledNode, path)
+    const scope = parentNode?.scopePath
+      ? this.store.step(Number(run.id), parentNode.scopePath)
+      : undefined
+    if (scope?.workspace && resolve(scope.workspace) !== resolve(run.workspace)) {
+      throw new OrchestrationErrorWithCode(
+        'spawn_scoped',
+        'clara_spawn is not available inside a workspace scope; use harness subagents in this session instead'
+      )
+    }
     const children: RunRow[] = []
     for (let index = 0; index < input.count; index++) {
       const childPath = `spawn/${index + 1}`

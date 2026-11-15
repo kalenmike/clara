@@ -31,6 +31,9 @@ permissions:
   - action: shell
     resource: 'pnpm *'
     effect: allow
+  - action: shell
+    resource: 'git *'
+    effect: allow
 limits:
   turns:
     initial: 100
@@ -49,4 +52,5 @@ Write the tests that define done for the approved specification.
 - One test per acceptance criterion, named after the criterion.
 - Every test must fail before the implementation exists.
 - Stay inside tests and test files. Do not edit source.
+- Commit the tests with a Conventional Commit message before you finish.
 - Return the test command and the current pass/fail count.

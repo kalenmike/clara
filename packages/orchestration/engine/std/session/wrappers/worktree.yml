@@ -1,0 +1,120 @@
+id: worktree
+name: Worktree session
+description: Run the wrapped pipeline in a git worktree, reconcile, merge, and clean up.
+
+workspace:
+  from: start_session
+
+before:
+  - name: start_session
+    type: script
+    title: Create the session worktree
+    result_mode: json
+    timeout_seconds: 300
+    pass_env: [CLARA_WORKTREES_DIR]
+    command: |
+      set -eu
+      primary="$(git worktree list --porcelain | sed -n '1s/^worktree //p')"
+      [ -n "$primary" ] || { echo "no primary checkout found" >&2; exit 2; }
+      [ -z "$(git -C "$primary" status --porcelain)" ] || {
+        echo "the primary checkout is dirty; commit or stash before starting a session" >&2
+        git -C "$primary" status --short >&2
+        exit 2
+      }
+      base="${CLARA_WORKTREES_DIR:-$(dirname "$primary")/clara-worktrees}"
+      path="$base/run-$CLARA_RUN_ID"
+      branch="task/run-$CLARA_RUN_ID"
+      mkdir -p "$base"
+      if [ -e "$path" ]; then
+        echo "the session worktree already exists: $path" >&2
+        exit 2
+      fi
+      if git -C "$primary" show-ref --verify --quiet "refs/heads/$branch"; then
+        echo "the session branch already exists: $branch" >&2
+        exit 2
+      fi
+      git -C "$primary" worktree add -b "$branch" "$path" "$(git -C "$primary" rev-parse HEAD)" >&2
+      printf '{"path":"%s","branch":"%s","primary":"%s"}\n' "$path" "$branch" "$primary"
+
+after:
+  - name: reconcile
+    type: script
+    title: Reconcile the primary into the session branch
+    timeout_seconds: 300
+    pass_env: [CLARA_WORKTREES_DIR]
+    command: |
+      set -eu
+      primary="$(git worktree list --porcelain | sed -n '1s/^worktree //p')"
+      [ -n "$primary" ] || { echo "no primary checkout found" >&2; exit 2; }
+      target="$(git -C "$primary" rev-parse HEAD)"
+      [ -z "$(git status --porcelain)" ] || {
+        echo "the session worktree is dirty; commit the work before closing" >&2
+        git status --short >&2
+        exit 2
+      }
+      if ! git merge --no-ff "$target" -m "chore: reconcile with primary" >&2; then
+        git diff --name-only --diff-filter=U | sed 's/^/conflict: /' >&2
+        git merge --abort || true
+        exit 1
+      fi
+    on_failure:
+      max_cycles: 3
+      retry: true
+      steps:
+        - name: resolve_conflicts
+          type: agent
+          title: Resolve merge conflicts
+
+  - name: merge
+    type: script
+    title: Merge the session branch into the primary
+    timeout_seconds: 300
+    pass_env: [CLARA_WORKTREES_DIR]
+    command: |
+      set -eu
+      primary="$(git worktree list --porcelain | sed -n '1s/^worktree //p')"
+      [ -n "$primary" ] || { echo "no primary checkout found" >&2; exit 2; }
+      branch="$(git rev-parse --abbrev-ref HEAD)"
+      [ "$branch" != "HEAD" ] || { echo "the session branch is detached" >&2; exit 2; }
+      [ -z "$(git -C "$primary" status --porcelain)" ] || {
+        echo "the primary checkout is dirty; commit or stash before merging" >&2
+        git -C "$primary" status --short >&2
+        exit 2
+      }
+      if ! git -C "$primary" merge --no-ff "$branch" -m "chore: merge $branch" >&2; then
+        git -C "$primary" diff --name-only --diff-filter=U | sed 's/^/conflict: /' >&2
+        git -C "$primary" merge --abort || true
+        exit 1
+      fi
+    on_failure:
+      max_cycles: 1
+      retry: true
+      steps:
+        - name: resolve_conflicts
+          type: agent
+          title: Resolve the race conflict
+
+cleanup:
+  - name: remove_session
+    type: script
+    title: Remove the session worktree
+    timeout_seconds: 120
+    pass_env: [CLARA_WORKTREES_DIR]
+    command: |
+      set -eu
+      primary="$(git worktree list --porcelain | sed -n '1s/^worktree //p')"
+      [ -n "$primary" ] || { echo "no primary checkout found" >&2; exit 2; }
+      base="${CLARA_WORKTREES_DIR:-$(dirname "$primary")/clara-worktrees}"
+      path="$base/run-$CLARA_RUN_ID"
+      branch="task/run-$CLARA_RUN_ID"
+      if [ -d "$path" ]; then
+        [ -z "$(git -C "$path" status --porcelain)" ] || {
+          echo "the session worktree is dirty; leaving it in place" >&2
+          git -C "$path" status --short >&2
+          exit 2
+        }
+        git -C "$primary" worktree remove "$path"
+      fi
+      if git -C "$primary" show-ref --verify --quiet "refs/heads/$branch"; then
+        git -C "$primary" branch -d "$branch"
+      fi

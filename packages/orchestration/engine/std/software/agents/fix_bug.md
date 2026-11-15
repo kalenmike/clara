@@ -78,6 +78,7 @@ Apply the smallest correct fix for the identified root cause.
 - The regression test is frozen. Do not edit tests.
 - Keep the change inside the identified fix scope.
 - Run the regression test and the focused suite after the change.
+- Commit the fix with a Conventional Commit message.
 - If the fix requires a broader change or a migration, stop and report why.
 
 Return a compact JSON result with `filesChanged`, `commands`, `passFail`, and `remainingRisk`.

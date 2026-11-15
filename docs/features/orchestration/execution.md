@@ -112,11 +112,10 @@ instruction. A router's request is its primary input under `# Request`. The
 prompt repeats no run id, step path, work token, model, enforcement, attempt, or
 budget; the adapter binds those to the session.
 
-A worker is expected to finish through a control tool. If a managed agent session
-goes idle without one, the adapter sends one corrective turn, then records the
-final text as an inferred completion (`{ summary, inferred: true }`). Routers
-never infer. A control call closes the binding and later tool calls are denied.
-A router sees only `clara_route` and `clara_fail`; an agent sees
+A worker finishes through a control tool. If a managed session goes idle without
+one, the adapter sends one corrective turn, then records the final text as an
+inferred completion; routers never infer. A control call closes the binding.
+A router sees only `clara_route` and `clara_fail`; an agent also sees
 `clara_complete`, `clara_fail`, and `clara_spawn`.
 
 ## Edge cases
@@ -129,21 +128,22 @@ A router sees only `clara_route` and `clara_fail`; an agent sees
 - A worker disappears: the lease expires and the watchdog retries or fails it.
 - A worker calls after its run failed: the call is rejected with
   `run_terminal`.
+- A wrapper scope fails on an invalid workspace; failures leave the worktree,
+  and `clara_spawn` is refused. See [wrappers.md](wrappers.md).
 
 ## Out of scope
 
-- The engine calling a model, creating a session, or spawning a process.
-- MCP-only strict enforcement without an adapter or sandbox.
+- The engine calling a model, creating a session, or spawning a process;
+  MCP-only strict enforcement without an adapter or sandbox.
 
 ## Known gaps
 
-- Token limits depend on harness-reported usage; the other limits are exact.
+- Token limits depend on reported usage; the other limits are exact.
 
 ## Technical appendix
 
 <details>
 <summary>Endpoints, tools, and data</summary>
-
 - Work: `POST /v1/runs/:id/next`, `POST /v1/work/next`, and `clara_next`.
 - Delivery: `POST /v1/runs/:id/delivery/claim` and `…/release`.
 
