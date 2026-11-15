@@ -97,6 +97,7 @@ export async function stopStack(
     const result = await terminateProcess(supervisor, {
       graceMs: limits.supervisorGraceMs,
       killMs: limits.supervisorKillMs,
+      signal: process.platform !== 'win32',
     })
     escalated = result.escalated
   }
@@ -168,13 +169,17 @@ export async function waitForStackStop(paths: ClaraPaths, timeoutMs = 10_000): P
 
 export async function terminateProcess(
   pid: number,
-  options: { graceMs: number; killMs: number }
+  options: { graceMs: number; killMs: number; signal?: boolean }
 ): Promise<TerminateResult> {
   if (!processAlive(pid)) return { stopped: true, escalated: false }
-  try {
-    process.kill(pid, 'SIGTERM')
-  } catch {
-    return { stopped: !processAlive(pid), escalated: false }
+  // Windows delivers SIGTERM as an immediate termination, so a supervisor that
+  // watches `stop.request` must be given time to read it instead.
+  if (options.signal !== false) {
+    try {
+      process.kill(pid, 'SIGTERM')
+    } catch {
+      return { stopped: !processAlive(pid), escalated: false }
+    }
   }
   if (await waitFor(() => !processAlive(pid), options.graceMs, 100)) {
     return { stopped: true, escalated: false }

@@ -5,7 +5,7 @@ import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { resolvePaths, type ClaraPaths } from '../src/paths.ts'
 import type { ServiceName } from '../src/ports.ts'
-import { clearStaleStack, stopStack } from '../src/service/stop.ts'
+import { clearStaleStack, stopStack, terminateProcess } from '../src/service/stop.ts'
 import {
   processAlive,
   readServicesState,
@@ -156,6 +156,22 @@ describe('stopStack', () => {
     await expect(stopStack(paths, 'hub', { timings: TIMINGS })).rejects.toThrow(
       'supervised as one process'
     )
+  })
+})
+
+describe('terminateProcess', () => {
+  it('waits for a request-driven supervisor instead of signalling it', async () => {
+    const supervisor = await start(IGNORE_SIGNALS)
+    const startedAt = Date.now()
+
+    const result = await terminateProcess(supervisor.pid as number, {
+      graceMs: 200,
+      killMs: 1_000,
+      signal: false,
+    })
+
+    expect(result).toEqual({ stopped: true, escalated: true })
+    expect(Date.now() - startedAt).toBeGreaterThanOrEqual(180)
   })
 })
 

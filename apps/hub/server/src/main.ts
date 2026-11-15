@@ -479,9 +479,9 @@ async function runServe(
     // A live client or a held database handle must not keep the hub alive
     // after the supervisor asked it to stop.
     const deadline = setTimeout(() => {
-      log('shutdown did not finish in 5s; exiting')
+      log('shutdown did not finish in 3s; exiting')
       process.exit(0)
-    }, 5_000)
+    }, 3_000)
     deadline.unref?.()
     log('shutting down')
     install.close()
