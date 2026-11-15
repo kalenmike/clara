@@ -193,6 +193,27 @@ export const claraSessionInterruptResponseSchema = passthroughObject({
   interrupted: z.boolean(),
 }).meta({ id: 'ClaraSessionInterruptResponse' })
 
+/** The mailbox signals the sidebar and notifications classify a session with. */
+export const claraSessionMailboxSignalsSchema = passthroughObject({
+  last: z.enum(['user', 'assistant', 'none']),
+  awaitingInput: z.boolean(),
+  lastError: z.boolean(),
+  planReply: z.boolean(),
+}).meta({ id: 'ClaraSessionMailboxSignals' })
+
+export const claraSessionSignalsSchema = passthroughObject({
+  sessionID: z.string(),
+  signals: claraSessionMailboxSignalsSchema,
+}).meta({ id: 'ClaraSessionSignals' })
+
+export const claraSessionSignalsResponseSchema = passthroughObject({
+  data: z.array(claraSessionSignalsSchema),
+}).meta({ id: 'ClaraSessionSignalsResponse' })
+
+export type ClaraSessionSignals = z.infer<typeof claraSessionSignalsSchema>
+
+export type ClaraSessionSignalsResponse = z.infer<typeof claraSessionSignalsResponseSchema>
+
 export const claraSessionInboxDeliverySchema = z.enum(['steer', 'queue'])
 
 export type ClaraSessionInboxDelivery = z.infer<typeof claraSessionInboxDeliverySchema>

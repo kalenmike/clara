@@ -18,14 +18,13 @@ import {
   parseClaraSessionMessagesResponse,
 } from '../api/dto.ts'
 import { query } from '../api/harness.ts'
-import type { HarnessConnection, HarnessRequest } from '../harness/types.ts'
-import { loadSessionSignals } from '../push/attention.ts'
+import type { HarnessConnection } from '../harness/types.ts'
+import type { SessionSignalsService } from './session-signals.ts'
 
 const HARNESS_TIMEOUT_MS = 30_000
 const SESSION_PAGE_LIMIT = 100
 const MAX_SESSIONS_PER_HARNESS = 1_000
 const SESSION_WORKERS = 4
-const SIGNAL_CACHE_MS = 5 * 60_000
 const TODO_CACHE_MS = 5_000
 const IDLE_TODO_CACHE_MS = 5 * 60_000
 const PLAN_PAGE_SIZE = 50
@@ -36,12 +35,6 @@ type TodoCacheEntry = {
   updated: number
   todos?: ClaraPlanTodo[]
   unavailable?: boolean
-}
-
-type SignalCacheEntry = {
-  at: number
-  updated: number
-  signals: SessionMailboxSignals
 }
 
 type HarnessResult = {
@@ -64,11 +57,12 @@ type ActivityOptions = {
  */
 export class ActivitySessionsService {
   private readonly deps: ApiDependencies
+  private readonly signals: SessionSignalsService
   private readonly todoCache = new Map<string, TodoCacheEntry>()
-  private readonly signalCache = new Map<string, SignalCacheEntry>()
 
-  constructor(deps: ApiDependencies) {
+  constructor(deps: ApiDependencies, signals: SessionSignalsService) {
     this.deps = deps
+    this.signals = signals
   }
 
   async load(
@@ -260,9 +254,10 @@ export class ActivitySessionsService {
   private pruneCaches(harnessID: string, sessions: readonly ClaraSession[]): void {
     const prefix = `${harnessID}:`
     const seen = new Set(sessions.map((session) => `${prefix}${session.id}`))
-    for (const key of this.signalCache.keys()) {
-      if (key.startsWith(prefix) && !seen.has(key)) this.signalCache.delete(key)
-    }
+    this.signals.prune(
+      harnessID,
+      sessions.map((session) => session.id)
+    )
     for (const key of this.todoCache.keys()) {
       if (key.startsWith(prefix) && !seen.has(key)) this.todoCache.delete(key)
     }
@@ -309,32 +304,12 @@ export class ActivitySessionsService {
     return sessions
   }
 
-  private async loadSignals(
+  private loadSignals(
     connection: HarnessConnection,
     session: ClaraSession,
     options: { refresh?: boolean }
   ): Promise<SessionMailboxSignals> {
-    const key = `${connection.harnessId}:${session.id}`
-    const cached = options.refresh ? undefined : this.signalCache.get(key)
-    if (
-      cached &&
-      cached.updated === session.time.updated &&
-      Date.now() - cached.at < SIGNAL_CACHE_MS
-    ) {
-      return cached.signals
-    }
-
-    const client: HarnessRequest = {
-      request: (input, requestSignal) =>
-        this.deps.harness.requestFor(connection.harnessId, input, requestSignal),
-    }
-    const signals = await loadSessionSignals(client, session.id)
-    this.signalCache.set(key, {
-      at: Date.now(),
-      updated: session.time.updated,
-      signals,
-    })
-    return signals
+    return this.signals.forSession(connection.harnessId, session.id, session.time.updated, options)
   }
 
   private async loadTodos(

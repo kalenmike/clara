@@ -13,12 +13,14 @@ import {
   claraSessionMessageSchema,
   claraSessionMessagesResponseSchema,
   claraSessionSchema,
+  claraSessionSignalsResponseSchema,
   type ClaraSession,
   type ClaraSessionsHarnessStatus,
   type ClaraSessionsResponse,
   claraSessionsResponseSchema,
 } from '@clara/api-contract'
 import { ApiRequestError, type ApiDependencies, type ApiVariables } from '../context.ts'
+import { SessionSignalsService, type SessionSignalRequest } from '../../activity/session-signals.ts'
 import {
   forwardDtoTo,
   parseClaraForms,
@@ -172,7 +174,8 @@ const permissionReplyBody = z.object({
 
 export function registerSessionRoutes(
   app: Hono<{ Variables: ApiVariables }>,
-  deps: ApiDependencies
+  deps: ApiDependencies,
+  signals: SessionSignalsService
 ): void {
   app.get(
     '/v1/sessions',
@@ -327,6 +330,36 @@ export function registerSessionRoutes(
       }
       if (!succeeded) throw asApiError(firstError)
       return c.json(merged)
+    }
+  )
+
+  app.get(
+    '/v1/sessions/signals',
+    describeRoute({
+      tags: ['sessions'],
+      operationId: 'listSessionSignals',
+      summary: 'Read mailbox signals for many sessions at once',
+      description:
+        'Pass `sessions` as a comma-separated list of `sessionID@updated` pairs, ' +
+        'where `updated` is the value from the session `time.updated`. Unknown ' +
+        'or offline sessions are omitted.',
+      responses: responses(
+        jsonResponse(resolver(claraSessionSignalsResponseSchema), 'Session mailbox signals')
+      ),
+    }),
+    validator(
+      'query',
+      z.object({
+        sessions: z.string().min(1),
+      })
+    ),
+    async (c) => {
+      const requests = parseSessionSignalQuery(c.req.valid('query').sessions)
+      return c.json({
+        // A sidebar refetches one session at a time after an event, so the
+        // batch reads fresh signals instead of risking a stale form state.
+        data: await signals.load(requests, c.req.raw.signal, { refresh: true }),
+      })
     }
   )
 
@@ -1156,6 +1189,39 @@ function asApiError(cause: unknown): ApiRequestError {
     'upstream_error',
     cause instanceof Error ? cause.message : String(cause)
   )
+}
+
+/** One sidebar's worth of sessions; the query string stays well under a frame. */
+const MAX_SIGNAL_SESSIONS = 100
+
+/**
+ * Parse `?sessions=id@updated,id@updated`. The updated stamp lets the hub serve
+ * cached signals for unchanged sessions and re-read only the ones that moved.
+ */
+function parseSessionSignalQuery(value: string): SessionSignalRequest[] {
+  const requests = new Map<string, SessionSignalRequest>()
+  for (const item of value.split(',')) {
+    const separator = item.lastIndexOf('@')
+    const sessionID = separator > 0 ? item.slice(0, separator) : ''
+    const rawUpdated = separator > 0 ? item.slice(separator + 1).trim() : ''
+    const updated = rawUpdated ? Number(rawUpdated) : Number.NaN
+    if (!sessionID || !Number.isFinite(updated) || updated < 0) {
+      throw new ApiRequestError(
+        400,
+        'invalid_request',
+        'Session signals need a session ID and its updated time'
+      )
+    }
+    requests.set(sessionID, { sessionID, updated })
+    if (requests.size > MAX_SIGNAL_SESSIONS) {
+      throw new ApiRequestError(
+        400,
+        'invalid_request',
+        `Ask for at most ${MAX_SIGNAL_SESSIONS} sessions at a time`
+      )
+    }
+  }
+  return [...requests.values()]
 }
 
 function forwardScopedDto<T>(

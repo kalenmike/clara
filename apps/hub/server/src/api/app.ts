@@ -3,6 +3,7 @@ import { Hono } from 'hono'
 import { generateSpecs } from 'hono-openapi'
 import { swaggerUI } from '@hono/swagger-ui'
 import { SERVER_VERSION } from '../version.ts'
+import { SessionSignalsService } from '../activity/session-signals.ts'
 import { ApiRequestError, type ApiApp, type ApiDependencies, type ApiVariables } from './context.ts'
 import { registerActivityRoutes } from './routes/activity.ts'
 import { registerCatalogRoutes } from './routes/catalog.ts'
@@ -54,9 +55,10 @@ export function createApiApp(deps: ApiDependencies, options: ApiAppOptions): Api
 
   registerMetaRoutes(app, deps)
   registerHarnessRoutes(app, deps)
-  registerActivityRoutes(app, deps)
+  const sessionSignals = new SessionSignalsService(deps)
+  registerActivityRoutes(app, deps, sessionSignals)
   registerProjectRoutes(app, deps)
-  registerSessionRoutes(app, deps)
+  registerSessionRoutes(app, deps, sessionSignals)
   registerCatalogRoutes(app, deps)
   registerGitRoutes(app, deps)
   registerEventRoutes(app, deps)
