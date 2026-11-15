@@ -65,8 +65,9 @@ export function MessageList({
   const anchorOffset = useRef(0)
   const skipAutoScroll = useRef(false)
   const openedSession = useRef<string | null>(null)
-  const anchorSettling = useRef(false)
-  const anchorFrame = useRef<number | null>(null)
+  // The content the view has already reacted to, so opening a thread or
+  // moving back to the end never starts a scroll of its own.
+  const followedContent = useRef({ length: items.length, revision })
   const handledScrollRequest = useRef(scrollToEndRequest)
   const stepTimer = useRef<number | null>(null)
   const stepDirection = useRef<MessageStepDirection | null>(null)
@@ -97,19 +98,18 @@ export function MessageList({
     estimateSize: () => 180,
     overscan: 6,
     getItemKey: (index) => items[index]?.key ?? index,
+    // Treat the newest output as the stable edge: the view stays pinned to the
+    // end while rows measure or stream in, and holds its place once the person
+    // scrolls away from it.
+    anchorTo: 'end',
+    scrollEndThreshold: 80,
   })
 
-  const cancelAnchor = () => {
-    if (anchorFrame.current !== null) cancelAnimationFrame(anchorFrame.current)
-    anchorFrame.current = null
-    anchorSettling.current = false
-  }
-
-  /** Move to the newest output without disturbing an opening anchor. */
+  /** Move to the newest output. */
   const scrollToEnd = () => {
     if (items.length === 0) return
     setOpened(true)
-    virtualizer.scrollToIndex(items.length - 1, { align: 'end' })
+    virtualizer.scrollToEnd()
     setAtBottom(true)
     setShowJump(false)
     const element = parentRef.current
@@ -117,14 +117,8 @@ export function MessageList({
     userScrolled.current = false
   }
 
-  const scrollToBottom = () => {
-    cancelAnchor()
-    scrollToEnd()
-  }
-
   /** Move to the oldest loaded row; the top edge keeps loading older pages. */
   const scrollToTop = () => {
-    cancelAnchor()
     skipAutoScroll.current = false
     userScrolled.current = true
     setOpened(true)
@@ -144,7 +138,6 @@ export function MessageList({
 
   const scrollToItemStart = (index: number) => {
     if (index < 0 || index >= items.length) return
-    cancelAnchor()
     skipAutoScroll.current = false
     userScrolled.current = true
     setOpened(true)
@@ -158,14 +151,14 @@ export function MessageList({
   const scrollToMessageStep = (direction: MessageStepDirection) => {
     const current = firstVisibleIndex()
     if (current === -1) {
-      if (direction === 'down') scrollToBottom()
+      if (direction === 'down') scrollToEnd()
       else scrollToTop()
       return
     }
 
     const target = stepMessageIndex(items, current, direction)
     if (target === null) {
-      if (direction === 'down') scrollToBottom()
+      if (direction === 'down') scrollToEnd()
       else scrollToTop()
       return
     }
@@ -182,7 +175,7 @@ export function MessageList({
   const handleStepPress = (direction: MessageStepDirection) => {
     if (stepDirection.current === direction && stepTimer.current !== null) {
       clearStepTimer()
-      if (direction === 'down') scrollToBottom()
+      if (direction === 'down') scrollToEnd()
       else scrollToTop()
       return
     }
@@ -196,14 +189,6 @@ export function MessageList({
     }, STEP_TAP_WINDOW)
   }
 
-  /** Stop chasing the opening position and hand control back to the person. */
-  const releaseAnchor = () => {
-    if (!anchorSettling.current) return
-    cancelAnchor()
-    skipAutoScroll.current = false
-    setOpened(true)
-  }
-
   const requestOlder = () => {
     if (!hasOlder || loadingOlder) return
     const offset = parentRef.current?.scrollTop ?? 0
@@ -212,50 +197,6 @@ export function MessageList({
     anchorKey.current = item?.key ?? null
     anchorOffset.current = first ? Math.max(0, offset - first.start) : 0
     onLoadOlder()
-  }
-
-  /**
-   * Put the top of the newest message at the top of the thread so a long reply
-   * is readable from its first line. Measurements land over a few frames, so
-   * re-align briefly instead of trusting the first estimated offset.
-   */
-  const alignToLastMessage = () => {
-    const index = lastMessageIndex >= 0 ? lastMessageIndex : items.length - 1
-    if (!parentRef.current || index < 0) return
-
-    anchorSettling.current = true
-    setAtBottom(false)
-    setShowJump(false)
-
-    let attempts = 0
-    const settle = () => {
-      anchorFrame.current = null
-      const element = parentRef.current
-      if (!element || !anchorSettling.current) return
-
-      const target = virtualizer.getOffsetForIndex(index, 'start')
-      if (target && Math.abs(element.scrollTop - target[0]) > 1) {
-        virtualizer.scrollToOffset(target[0])
-      }
-
-      attempts += 1
-      if (attempts < 3) {
-        anchorFrame.current = requestAnimationFrame(settle)
-        return
-      }
-
-      anchorSettling.current = false
-      skipAutoScroll.current = false
-      const bottom = element.scrollHeight - element.scrollTop - element.clientHeight < 80
-      setAtBottom(bottom)
-      setShowJump(!bottom)
-      setShowUp(element.scrollTop > 0)
-      setOpened(true)
-      if (element.scrollTop < 240) requestOlder()
-    }
-
-    virtualizer.scrollToIndex(index, { align: 'start' })
-    anchorFrame.current = requestAnimationFrame(settle)
   }
 
   useLayoutEffect(() => {
@@ -271,54 +212,43 @@ export function MessageList({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [historyRevision])
 
+  /**
+   * A newly opened thread shows its newest output. Position once per session,
+   * before the first paint and without animation, so the view never appears to
+   * scroll: from then on it stays where the person puts it and the arrows
+   * handle movement.
+   */
   useLayoutEffect(() => {
     if (items.length === 0) return
-    if (openedSession.current !== sessionID) {
-      // A newly opened thread starts fresh: stop the previous session's settle
-      // and drop its scroll intent before anything else can act on it.
-      cancelAnchor()
-      userScrolled.current = false
-      skipAutoScroll.current = false
-      setOpened(false)
-      setShowJump(false)
-      setShowUp(false)
-    }
-    // Measure after the virtualizer has attached its scroll element, which its
-    // own layout effect does after ours. Deferring also keeps StrictMode's
-    // setup/cleanup/setup cycle from skipping the anchor.
-    const frame = requestAnimationFrame(() => {
-      if (openedSession.current === sessionID) return
-      if (userScrolled.current) {
-        openedSession.current = sessionID
-        setOpened(true)
-        return
-      }
-      openedSession.current = sessionID
-      cancelAnchor()
-      skipAutoScroll.current = false
-      setShowJump(false)
+    if (openedSession.current === sessionID) return
 
-      if (streaming) {
-        setAtBottom(true)
-        setOpened(true)
-        return
-      }
-
-      setOpened(false)
-      alignToLastMessage()
-    })
-    return () => cancelAnimationFrame(frame)
+    openedSession.current = sessionID
+    userScrolled.current = false
+    skipAutoScroll.current = false
+    followedContent.current = { length: items.length, revision }
+    // The virtualizer resolves this target against fresh measurements in this
+    // same commit, so the end of the thread is on screen when React paints.
+    virtualizer.scrollToEnd()
+    setAtBottom(true)
+    setShowJump(false)
+    setOpened(true)
+    const element = parentRef.current
+    setShowUp(element ? element.scrollHeight > element.clientHeight + 1 : false)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [sessionID, items.length, streaming])
+  }, [sessionID, items.length])
 
   useEffect(() => {
     if (!opened) return
     // Never follow with another session's state while a new thread is opening.
     if (openedSession.current !== sessionID) return
+    const previous = followedContent.current
+    followedContent.current = { length: items.length, revision }
     if (skipAutoScroll.current) {
       skipAutoScroll.current = false
       return
     }
+    // Only new output moves the view, never opening it or returning to the end.
+    if (previous.length === items.length && previous.revision === revision) return
     if (!atBottom) return
     const frame = requestAnimationFrame(scrollToEnd)
     return () => cancelAnimationFrame(frame)
@@ -328,13 +258,12 @@ export function MessageList({
   useEffect(() => {
     if (scrollToEndRequest === handledScrollRequest.current) return
     handledScrollRequest.current = scrollToEndRequest
-    scrollToBottom()
+    scrollToEnd()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [scrollToEndRequest])
 
   useEffect(
     () => () => {
-      if (anchorFrame.current !== null) cancelAnimationFrame(anchorFrame.current)
       clearStepTimer()
     },
     [clearStepTimer]
@@ -364,12 +293,10 @@ export function MessageList({
         onWheel={() => {
           userScrolled.current = true
           clearStepTimer()
-          releaseAnchor()
         }}
         onTouchMove={() => {
           userScrolled.current = true
           clearStepTimer()
-          releaseAnchor()
         }}
         className={cn('h-full overflow-y-auto', composerDocked ? 'pb-4' : 'pb-28')}
       >

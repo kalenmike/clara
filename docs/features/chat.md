@@ -52,14 +52,14 @@ one paragraph, list, or section. See [fork.md](fork.md).
    last-used size (expanded by default) and binds it to the new session. Opening
    an empty draft with locally saved text opens the composer too; otherwise
    press **New** to reopen it bound to that session.
-2. Clara loads the newest messages and opens the thread with the top of the
-   newest message at the top of the view, directly below the header and any
-   permission or saved-draft panel above the thread, so a long reply is readable
-   from its first line. A session that is still running keeps following the
-   newest output instead. A stacked pair of arrow controls at the left edge
-   steps through the thread: a single press puts the top of the next or previous
-   message at the top of the view, and a double press jumps to the newest output
-   or the top of the loaded history.
+2. Clara loads the newest messages and opens the thread at its newest output,
+   directly below the header and any permission or saved-draft panel above the
+   thread, without any scroll movement on screen. The view then stays where the
+   person leaves it; only new output follows while they are at the end. A
+   stacked pair of arrow controls at the left edge steps through the thread: a
+   single press puts the top of the next or previous message at the top of the
+   view, and a double press jumps to the newest output or the top of the loaded
+   history.
 3. Click **Reply**, type in the reply window, and press Enter; the prompt appears
    immediately and the header switches to "busy". If the composer was already
    open or minimized on another session, it stays connected there instead; close
@@ -145,21 +145,21 @@ one paragraph, list, or section. See [fork.md](fork.md).
    before that tool call in the same assistant step, falls back to the newest
    assistant step when the source is unavailable, and stays hidden when no
    reasoning was recorded. It is available whether or not internal output is on.
-4. History loads the newest 100 messages first. Opening a thread positions the
-   top of the newest message at the top of the view unless the session is
-   running, in which case the view follows new output; scrolling near the top
-   fetches older pages with the server's cursor and keeps the view anchored to
-   the first visible message. A request panel above the thread (permission or
-   saved-draft start) is in normal document flow, so the newest message starts
-   just below it without any extra offset. Each request card starts expanded and
-   folds independently to its title; folded content is clipped and not
-   focusable. Folding is held in memory for the mounted card and resets when the
-   person leaves the session. Question forms and the plan-ready handoff live in
-   the composer instead, so they do not push the thread down. The left-edge up
-   and down arrows step by message and skip system-event and hidden-activity
-   rows; a single press aligns the next or previous message to the top, and at
-   the ends it moves to the bottom or top. A double press always jumps to the
-   bottom or top.
+4. History loads the newest 100 messages first. Opening a thread puts the newest
+   output on screen in the first painted frame, with no visible scroll, and then
+   leaves the view where the person puts it; new output follows only while they
+   are at the end. Scrolling near the top fetches older pages with the server's
+   cursor and keeps the view anchored to the first visible message. A request
+   panel above the thread (permission or saved-draft start) is in normal
+   document flow, so the newest message starts just below it without any extra
+   offset. Each request card starts expanded and folds independently to its
+   title; folded content is clipped and not focusable. Folding is held in memory
+   for the mounted card and resets when the person leaves the session. Question
+   forms and the plan-ready handoff live in the composer instead, so they do not
+   push the thread down. The left-edge up and down arrows step by message and
+   skip system-event and hidden-activity rows; a single press aligns the next or
+   previous message to the top, and at the ends it moves to the bottom or top. A
+   double press always jumps to the bottom or top.
 5. Unknown event types are ignored so a newer server does not break the view.
 6. Each message renders as a full-width row with a `U`/`A` avatar, sender name,
    timestamp, and a divider. A user message with `metadata.synthetic === true`
@@ -471,8 +471,6 @@ one paragraph, list, or section. See [fork.md](fork.md).
 - Form answers support the common field types but not conditional `when` rules.
 - Question answers appear as system events; answers to non-question forms such as
   MCP elicitations are not logged in the thread.
-- The opening position is settled over a few frames; scrolling in the first
-  moments after opening can cancel the adjustment mid-measurement.
 - Double-press gestures are pointer-only; keyboard activation performs the
   single step.
 
