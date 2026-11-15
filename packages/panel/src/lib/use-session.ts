@@ -1,8 +1,21 @@
 import { useCallback, useEffect, useState } from 'react'
 import type { PanelAuthStatus, PanelAuthInfo } from '@clara/shared-types'
-import { deletePanel, getPanel, postPanel } from './panel-api.ts'
+import { deletePanel, getPanel, PanelApiError, postPanel } from './panel-api.ts'
+import {
+  clearPanelSessionToken,
+  rememberSessionToken,
+  type PanelSessionResponse,
+} from './panel-session.ts'
 
-type SessionResponse = { user: PanelAuthInfo }
+type SessionResponse = PanelSessionResponse & { user: PanelAuthInfo }
+
+/** The status a signed-out panel shows; a host reset re-reads it for the token. */
+const SIGNED_OUT_STATUS: PanelAuthStatus = {
+  authenticated: false,
+  setupRequired: false,
+  setupTokenRequired: false,
+  resetPending: false,
+}
 
 export type SessionState = {
   status?: PanelAuthStatus
@@ -19,6 +32,8 @@ export function useSession() {
       const status = await getPanel<PanelAuthStatus>('/panel/api/v1/session')
       setState({ status, loading: false })
     } catch (cause) {
+      // A rejected session token is dead; the next sign-in issues a new one.
+      if (cause instanceof PanelApiError && cause.status === 401) clearPanelSessionToken()
       setState({
         loading: false,
         error: cause instanceof Error ? cause.message : String(cause),
@@ -35,6 +50,7 @@ export function useSession() {
       username,
       password,
     })
+    rememberSessionToken(result)
     setState({ status: { authenticated: true, user: result.user }, loading: false })
     return result.user
   }, [])
@@ -45,6 +61,7 @@ export function useSession() {
       username,
       password,
     })
+    rememberSessionToken(result)
     setState({ status: { authenticated: true, user: result.user }, loading: false })
     return result.user
   }, [])
@@ -53,15 +70,8 @@ export function useSession() {
     try {
       await deletePanel('/panel/api/v1/session')
     } finally {
-      setState({
-        status: {
-          authenticated: false,
-          setupRequired: false,
-          setupTokenRequired: false,
-          resetPending: false,
-        },
-        loading: false,
-      })
+      clearPanelSessionToken()
+      setState({ status: SIGNED_OUT_STATUS, loading: false })
     }
   }, [])
 
@@ -70,20 +80,14 @@ export function useSession() {
       currentPassword,
       newPassword,
     })
+    rememberSessionToken(result)
     setState({ status: { authenticated: true, user: result.user }, loading: false })
     return result.user
   }, [])
 
   const invalidate = useCallback(() => {
-    setState({
-      status: {
-        authenticated: false,
-        setupRequired: false,
-        setupTokenRequired: false,
-        resetPending: false,
-      },
-      loading: false,
-    })
+    clearPanelSessionToken()
+    setState({ status: SIGNED_OUT_STATUS, loading: false })
     // A host reset revokes the session and issues a token. Re-read the status so
     // the sign-in screen can offer the reset form without a manual reload.
     void refresh()
