@@ -56,6 +56,7 @@ pnpm check && pnpm build
 pnpm cli:build       # Packaged `clara` command (host OS)
 pnpm cli:install     # Install that build for the current user
 pnpm desktop:build   # Clara client installer (host OS)
+pnpm desktop:build:release # Installers collected for a release (host OS)
 pnpm hub:binary      # Clara Hub Bun executable (host OS)
 pnpm hub:headless    # Headless Clara Hub archive for the host OS
 pnpm task session close my-change

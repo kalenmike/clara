@@ -141,6 +141,17 @@ their own hosts. AppImage bundling sets `NO_STRIP` and extract-and-run so
 linuxdeploy survives without FUSE; narrow the bundle list if it still fails. See
 [features/desktop.md](features/desktop.md).
 
+### Desktop release builds
+
+`pnpm desktop:build:release` builds this platform's installers the way the
+release workflow does. It stamps the release version into the Tauri config and
+the web bundle, verifies the bundled adapter host, and writes
+`dist/desktop-release` with `SHA256SUMS`. Tauri cannot cross-compile the
+bundles, so `.github/workflows/desktop-releases.yml` runs the script on macOS
+(arm64 and x64), Linux x64, and Windows x64 and publishes a `desktop-v*` tag's
+installers. Its `dry_run` dispatch input builds every platform without touching
+a release. Installers are unsigned.
+
 ### Hub CLI
 
 The hub is a CLI service. `apps/hub/server` owns the hub code and the Bun

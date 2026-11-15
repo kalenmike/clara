@@ -16,10 +16,23 @@ hub panel share one window. The hub itself is still a service you run
 separately, with the [Hub CLI](hub-cli.md), Docker, or a local install. The
 desktop app does not run the hub service.
 
+## Download an installer
+
+Desktop releases carry native installers built on each platform:
+
+- **macOS:** a `.dmg` for Apple silicon and one for Intel.
+- **Linux:** a `.deb`, an `.rpm`, and an `.AppImage`.
+- **Windows:** an `.msi` and an `.exe` installer.
+
+Download the file for your platform from the release's assets and check it
+against the release's `SHA256SUMS`. Installers are unsigned for now, so the
+system may ask you to confirm the first launch. After downloading the AppImage,
+make it executable with `chmod +x`.
+
 ## Build an installer
 
-There is no hosted download yet, so build the app from a checkout of the
-repository.
+Build from a checkout when you want to change the app or a release does not
+cover your platform.
 
 ### Linux with Docker
 
@@ -51,8 +64,8 @@ pnpm desktop:build:app   # app bundle only, no installer
 pnpm desktop:dev         # development window with hot reload
 ```
 
-Installers are unsigned for now, so the system may ask you to confirm the first
-launch.
+Installers from host builds are unsigned too, so the system may ask you to
+confirm the first launch.
 
 ## Install from a build
 
