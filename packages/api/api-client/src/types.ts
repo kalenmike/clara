@@ -33,6 +33,7 @@ import type {
   ClaraSessionMessageType,
   ClaraSessionMessagesResponse,
   ClaraSessionMetadata,
+  ClaraSessionSignalsResponse,
   ClaraSessionsResponse,
   ClaraSkillListOutput,
   ClaraVcsBaseOutput,
@@ -160,6 +161,14 @@ export type ClaraSessionListInput = {
 
 export type ClaraSessionActiveInput = {
   readonly harnessID?: string
+}
+
+export type ClaraSessionSignalsInput = {
+  readonly sessions: ReadonlyArray<{
+    readonly sessionID: string
+    /** The session's `time.updated`; the hub caches signals against it. */
+    readonly updated: number
+  }>
 }
 
 export type ClaraSessionCreateInput = {
@@ -420,6 +429,10 @@ export type ClaraClient = {
       input?: ClaraSessionActiveInput,
       options?: RequestOptions
     ) => Promise<ClaraSessionActiveOutput>
+    signals: (
+      input: ClaraSessionSignalsInput,
+      options?: RequestOptions
+    ) => Promise<ClaraSessionSignalsResponse>
     form: {
       list: (input: ClaraSessionFormListInput, options?: RequestOptions) => Promise<ClaraForm[]>
       reply: (input: ClaraSessionFormReplyInput, options?: RequestOptions) => Promise<void>
