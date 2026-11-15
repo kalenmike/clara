@@ -17,8 +17,9 @@ model and agent selection, waiting question forms, and the plan-ready handoff.
    line; on touch devices Enter adds a line and Send submits. Type `/` for
    commands and `@` for files, agents, skills, and references. Attach files with
    the paperclip or by pasting them.
-3. Open the send menu for **Done**, **Save as draft**, **Send as queued**,
-   **Delete empty draft**, or **Reopen**. Done archives an idle session, Save as
+3. Open the send menu for **Start work**, **Done**, **Save as draft**,
+   **Send as queued**, **Delete empty draft**, or **Reopen**. Start work hands a
+   finished plan to the working agent, Done archives an idle session, Save as
    draft keeps a first message without starting a run, and queued sends wait
    behind an active run.
 4. Move to another session. The composer follows the session on screen; the
@@ -31,9 +32,10 @@ model and agent selection, waiting question forms, and the plan-ready handoff.
    header, while Expand always goes fullscreen, including from a collapsed
    composer. A minimized tab selection restores the composer before focusing the
    editor.
-7. When a question form or plan-ready handoff is waiting, select its card above
-   the editor. Send answers it, optionally with a message; a secondary Skip or
-   Start button sits beside Send.
+7. When a question form is waiting, select its card above the editor. Send
+   answers it, optionally with a message; a secondary Skip button sits beside
+   Send. When a finished plan is waiting, the send menu offers Start work
+   instead of a card.
 
 ## Core business rules
 
@@ -56,21 +58,24 @@ model and agent selection, waiting question forms, and the plan-ready handoff.
    finished, or idle — so another session's state is visible without opening it.
    A send from another tab targets that tab's session and removes the tab once
    the draft clears.
-4. The send chevron holds every action that is not the primary Send. Done is
-   available on an idle, non-archived, non-snoozed session with messages and
-   archives it without renaming. Delete removes an empty draft; Reopen clears
-   the archived or snoozed state. Save as draft appears before the first
-   assistant reply, and Send as queued appears while a run is active.
+4. The send chevron holds every action that is not the primary Send. Start work
+   appears while a finished plan waits and no question form is pending; it
+   switches to the working agent, and a typed message becomes the first Build
+   prompt. Done is available on an idle, non-archived, non-snoozed session with
+   messages and archives it without renaming. Delete removes an empty draft;
+   Reopen clears the archived or snoozed state. Save as draft appears before the
+   first assistant reply, and Send as queued appears while a run is active.
+
 5. Unsent text is stored per session in local storage. Attachments stay with the
    open tab in memory. A successful send clears the editor and keeps the
    composer open; a failed send keeps the text, attachments, and delivery.
-6. Waiting requests belong to the composer. The first pending question is
-   selected by default, otherwise the plan-ready card. The cards scroll with the
-   editor rather than in their own scroller, so a tall form never hides the
-   message box. A touched form with a message admits the prompt first with
-   resume disabled, then answers the form; an untouched form with a message is
-   skipped before sending. A ready plan starts through the secondary Start
-   button and ignores typed text, which is sent to the Plan agent as an
+6. Waiting question forms belong to the composer. The first pending form is
+   selected by default. The cards scroll with the editor rather than in their
+   own scroller, so a tall form never hides the message box. A touched form
+   with a message admits the prompt first with resume disabled, then answers
+   the form; an untouched form with a message is skipped before sending. A
+   ready plan starts from the send menu and is hidden while a form waits.
+   Send with typed text instead delivers that text to the Plan agent as an
    adjustment.
 
 ## Edge cases
@@ -145,8 +150,8 @@ model and agent selection, waiting question forms, and the plan-ready handoff.
   the sent signal. `src/features/chat/composer-session.ts` holds route targets,
   titles, and return paths.
 - Actions: `src/features/chat/composer-actions.ts` decides which send-menu items
-  apply; `src/features/chat/composer-menu.ts` still chooses the draft or queue
-  alternative.
+  apply, including Start work for a ready plan; `src/features/chat/composer-menu.ts`
+  still chooses the draft or queue alternative.
 - Target data: `src/features/chat/use-composer-target.ts` reads the selected
   session's info, snapshot, history, pending drafts, and plan-ready state.
 - Send: `client.session.prompt({ sessionID, text, files, delivery })` with
