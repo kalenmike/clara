@@ -119,4 +119,21 @@ describe('adapter archives', () => {
     expect(calls[0]?.args.at(-1)).toContain('Expand-Archive')
     expect(calls[0]?.args.at(-1)).toContain(dest)
   })
+
+  it('falls back to pwsh when powershell is not installed', () => {
+    const calls: string[] = []
+    const dest = tempDir()
+    extractArchive({
+      archive: '/tmp/adapter.zip',
+      dest,
+      format: 'zip',
+      run: (command) => {
+        calls.push(command)
+        return command === 'powershell'
+          ? { status: null, stdout: '', stderr: '', code: 'ENOENT' }
+          : { status: 0, stdout: '', stderr: '' }
+      },
+    })
+    expect(calls).toEqual(['powershell', 'pwsh'])
+  })
 })

@@ -87,7 +87,9 @@ function extractZip(archive: string, dest: string, run: CommandRunner): void {
   const script =
     `Expand-Archive -LiteralPath '${quotePowerShell(archive)}' ` +
     `-DestinationPath '${quotePowerShell(dest)}' -Force`
-  const result = run('powershell', ['-NoProfile', '-NonInteractive', '-Command', script])
+  const args = ['-NoProfile', '-NonInteractive', '-Command', script]
+  let result = run('powershell', args)
+  if (result.code === 'ENOENT') result = run('pwsh', args)
   assertSuccess(result, 'PowerShell could not extract the adapter archive')
 }
 
