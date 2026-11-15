@@ -2,13 +2,16 @@
 // Build the single-file `clara` command with the hub panel, the web client, and
 // the engine's standard packages and default config embedded.
 //
-//   node scripts/build-binary.mjs [--target <bun-target>] [--outfile <path>] [--check]
+//   node scripts/build-binary.mjs [--target <bun-target>] [--outfile <path>]
+//     [--check] [--skip-assets]
 //
 // `bun` from PATH is used unless BUN_BIN names one. Cross-target builds need
 // the matching Bun target: bun-linux-x64, bun-linux-arm64, bun-darwin-x64,
-// bun-darwin-arm64, or bun-windows-x64. `--check` builds the assets and runs
-// the dependency check without compiling. A checkout build reports
-// `<package version>-dev+<7-character commit>`; set CLARA_VERSION for a release.
+// bun-darwin-arm64, or bun-windows-x64. `--check` runs the dependency check
+// without compiling. `--skip-assets` embeds the existing panel and web builds
+// instead of rebuilding them; the Turborepo task restores those first. A
+// checkout build reports `<package version>-dev+<7-character commit>`; set
+// CLARA_VERSION for a release.
 
 import { spawnSync } from 'node:child_process'
 import { createHash } from 'node:crypto'
@@ -26,6 +29,7 @@ const engineRoot = join(repoRoot, 'packages', 'orchestration', 'engine')
 const generated = join(packageRoot, 'src', 'embedded-assets.generated.mjs')
 const entry = join(packageRoot, 'src', 'main.ts')
 const checkOnly = process.argv.includes('--check')
+const skipAssets = process.argv.includes('--skip-assets')
 
 const TARGETS = [
   'bun-linux-x64',
@@ -51,8 +55,13 @@ const version = buildVersion({
   commit: git(['rev-parse', '--short=7', 'HEAD']) || 'local',
 })
 
-buildPanel()
-buildWeb(version)
+if (skipAssets) {
+  requireIndex(panelDist, 'hub panel', 'pnpm --filter @clara/hub-panel build')
+  requireIndex(webDist, 'web client', 'pnpm --filter @clara/web build')
+} else {
+  buildPanel()
+  buildWeb(version)
+}
 
 const sources = [
   ...collect(panelDist, 'panel'),

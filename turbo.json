@@ -1,0 +1,64 @@
+{
+  "$schema": "https://turbo.build/schema.json",
+  "envMode": "loose",
+  "concurrency": "4",
+  "cacheMaxSize": "10GB",
+  "globalDependencies": ["pnpm-workspace.yaml", "tsconfig.base.json", "tools/build/**"],
+  "tasks": {
+    "transit": {
+      "dependsOn": ["^transit"]
+    },
+    "clean": {
+      "cache": false
+    },
+    "build": {
+      "dependsOn": ["clean", "^build"],
+      "outputs": ["dist/**"]
+    },
+    "@clara/web#build": {
+      "dependsOn": ["clean", "^build"],
+      "outputs": ["dist/**"],
+      "env": ["ENABLE_CLOUDFLARE_DEPLOYMENT", "CLARA_COMMIT", "CLARA_DIRTY", "VITE_CLARA_WS_URL"]
+    },
+    "@clara/web#build:desktop": {
+      "dependsOn": ["clean", "^build"],
+      "outputs": ["dist-desktop/**"],
+      "env": ["ENABLE_CLOUDFLARE_DEPLOYMENT", "CLARA_COMMIT", "CLARA_DIRTY"]
+    },
+    "@clara/hub-panel#build": {
+      "dependsOn": ["clean", "^build"],
+      "outputs": ["dist/**"],
+      "env": ["ENABLE_CLOUDFLARE_DEPLOYMENT", "CLARA_COMMIT", "CLARA_DIRTY"]
+    },
+    "@clara/hub-server#build": {
+      "dependsOn": ["clean", "^build", "@clara/hub-panel#build"],
+      "inputs": ["$TURBO_DEFAULT$", "$TURBO_ROOT$/infra/relay/src/**"],
+      "outputs": ["dist/**"],
+      "env": ["ENABLE_CLOUDFLARE_DEPLOYMENT"]
+    },
+    "@clara/docs#build": {
+      "dependsOn": ["clean", "^build"],
+      "inputs": ["$TURBO_DEFAULT$", "$TURBO_ROOT$/docs/**"],
+      "outputs": ["build/**"]
+    },
+    "@clara/desktop-host#bundle": {
+      "dependsOn": ["clean", "transit"],
+      "outputs": ["../src-tauri/binaries/**"],
+      "env": ["BUN_BIN", "TAURI_ENV_TARGET_TRIPLE", "CARGO_BUILD_TARGET"]
+    },
+    "@clara/desktop#bundle": {
+      "dependsOn": ["clean", "@clara/web#build:desktop", "@clara/desktop-host#bundle"],
+      "outputs": ["src-tauri/target/**/bundle/**"],
+      "env": ["TAURI_SIGNING_PRIVATE_KEY", "TAURI_SIGNING_PRIVATE_KEY_PASSWORD"]
+    },
+    "@clara/desktop#bundle:app": {
+      "dependsOn": ["clean", "@clara/web#build:desktop", "@clara/desktop-host#bundle"],
+      "cache": false
+    },
+    "@clara/cli#build:binary:cached": {
+      "dependsOn": ["clean", "transit", "@clara/hub-panel#build", "@clara/web#build"],
+      "outputs": ["dist/**", "src/embedded-assets.generated.mjs"],
+      "env": ["CLARA_VERSION", "CLARA_RELEASE_PUBLIC_KEY", "BUN_BIN"]
+    }
+  }
+}

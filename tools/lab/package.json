@@ -7,6 +7,7 @@
     "clara-lab": "./dist/server/index.js"
   },
   "scripts": {
+    "clean": "node ../../tools/build/clean.mjs dist",
     "dev": "node scripts/dev.mjs",
     "dev:web": "vite",
     "dev:server": "tsx watch server/index.ts",

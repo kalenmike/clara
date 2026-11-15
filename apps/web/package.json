@@ -4,6 +4,7 @@
   "version": "0.1.0",
   "type": "module",
   "scripts": {
+    "clean": "node ../../tools/build/clean.mjs dist dist-desktop",
     "dev": "vite",
     "build": "tsc -b && vite build && node scripts/check-bundle.mjs --dir dist --surface web",
     "build:desktop": "tsc -b && vite build --mode desktop && node scripts/check-bundle.mjs --dir dist-desktop --surface desktop",
