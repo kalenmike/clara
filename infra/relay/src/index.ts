@@ -90,9 +90,7 @@ function parseProtocols(header: string | null): ParsedProtocols | null {
   return { version, role, token: token ?? '' }
 }
 
-type Authorization =
-  | { ok: true; grantId?: string; grantKind?: RelayGrantKind }
-  | { ok: false }
+type Authorization = { ok: true; grantId?: string; grantKind?: RelayGrantKind } | { ok: false }
 
 /**
  * The hub authenticates with the shared agent token; clients present a grant
