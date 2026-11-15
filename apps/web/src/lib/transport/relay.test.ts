@@ -24,7 +24,12 @@ import {
   type RelayGrantState,
 } from '@clara/shared-types'
 import { clearDevice, loadDevice, saveDevice, type StoredDevice } from '../device-store.ts'
-import { createRelayTransport, MAX_IN_FLIGHT_REQUESTS, RELAY_FRAME_BURST, type RelayTransport } from './relay.ts'
+import {
+  createRelayTransport,
+  MAX_IN_FLIGHT_REQUESTS,
+  RELAY_FRAME_BURST,
+  type RelayTransport,
+} from './relay.ts'
 
 type Greet = (socket: WebSocket, sid: string) => boolean
 

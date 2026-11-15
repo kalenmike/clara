@@ -1129,15 +1129,18 @@ class RelayFetchTransport implements RelayTransport {
   private pumpFrames(): void {
     if (this.frameTimer !== null || this.closed) return
     const wait = this.frameTokens >= 1 ? 0 : ((1 - this.frameTokens) / this.frameRate) * 1000
-    this.frameTimer = window.setTimeout(() => {
-      this.frameTimer = null
-      this.refillFrames(Date.now())
-      while (this.frameTokens >= 1 && this.frameWaiters.length > 0) {
-        this.frameTokens -= 1
-        this.frameWaiters.shift()?.()
-      }
-      if (this.frameWaiters.length > 0) this.pumpFrames()
-    }, Math.max(0, Math.ceil(wait)))
+    this.frameTimer = window.setTimeout(
+      () => {
+        this.frameTimer = null
+        this.refillFrames(Date.now())
+        while (this.frameTokens >= 1 && this.frameWaiters.length > 0) {
+          this.frameTokens -= 1
+          this.frameWaiters.shift()?.()
+        }
+        if (this.frameWaiters.length > 0) this.pumpFrames()
+      },
+      Math.max(0, Math.ceil(wait))
+    )
   }
 
   /**
