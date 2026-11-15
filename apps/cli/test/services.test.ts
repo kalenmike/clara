@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { defaultServices, resolveServices } from '../src/service/lifecycle.ts'
+import { defaultServices, reportedService, resolveServices } from '../src/service/lifecycle.ts'
 import { ordered, START_ORDER, STOP_ORDER } from '../src/service/specs.ts'
 
 describe('service selection', () => {
@@ -13,5 +13,21 @@ describe('service selection', () => {
     expect(resolveServices(['hub,web'])).toEqual(['hub', 'web'])
     expect(resolveServices(['bogus'])).toEqual([])
     expect(resolveServices([])).toEqual([])
+  })
+})
+
+describe('reported service identity', () => {
+  it('reads a version and protocol from a health body', () => {
+    expect(reportedService({ version: '1.2.3', protocol: 4 })).toEqual({
+      version: '1.2.3',
+      protocol: 4,
+    })
+  })
+
+  it('keeps only valid values', () => {
+    expect(reportedService({ version: '', protocol: 0 })).toEqual({})
+    expect(reportedService({ version: 4, protocol: '4' })).toEqual({})
+    expect(reportedService({ version: '1.2.3' })).toEqual({ version: '1.2.3' })
+    expect(reportedService(undefined)).toEqual({})
   })
 })

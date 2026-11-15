@@ -18,6 +18,10 @@
 /manifest.webmanifest
   Cache-Control: no-cache, max-age=0, must-revalidate
 
+/healthz
+  Content-Type: application/json
+  Cache-Control: no-cache, max-age=0, must-revalidate
+
 # Adapter registry manifests and install scripts change with each release.
 /adapters/*/manifest.json
   Cache-Control: no-cache, max-age=0, must-revalidate

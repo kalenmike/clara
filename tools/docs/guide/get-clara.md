@@ -46,7 +46,7 @@ Re-running setup repairs missing pieces without duplicating them.
 ## Everyday commands
 
 ```bash
-clara ps                 # what is running, with endpoints and uptime
+clara ps                 # what is running, with version, protocol, and uptime
 clara logs -f            # follow all three services
 clara logs hub -f        # follow one service
 clara pair hub           # print a browser pairing code and QR
@@ -55,8 +55,12 @@ clara stop               # stop the stack
 clara doctor             # paths, versions, ports, and login service
 ```
 
-`clara status --json` is the machine-readable form for scripts. Colors and the
-spinner are disabled automatically when the output is not a terminal.
+`clara status` asks each running service which version and protocol it loaded,
+so a stack that is still on the previous build after an update is visible before
+you restart it. A value marked with `*` differs from the installed command; a
+service that does not report one shows `-`. `clara status --json` is the
+machine-readable form for scripts. Colors and the spinner are disabled
+automatically when the output is not a terminal.
 
 ## Pair a harness
 

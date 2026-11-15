@@ -3,8 +3,9 @@ import { readFileSync } from 'node:fs'
 import { fileURLToPath, URL } from 'node:url'
 import tailwindcss from '@tailwindcss/vite'
 import react from '@vitejs/plugin-react'
-import { defineConfig } from 'vite'
+import { defineConfig, type Plugin } from 'vite'
 import { VitePWA } from 'vite-plugin-pwa'
+import { PROTOCOL_VERSION } from '@clara/shared-types/protocol'
 import { featureEnabled } from '../../tools/build/feature-flags.mjs'
 
 const root = fileURLToPath(new URL('../..', import.meta.url))
@@ -43,6 +44,31 @@ const buildIdentityDefine = {
   __CLARA_BUILD_AT__: JSON.stringify(builtAt),
 }
 
+/**
+ * Publish the health response as a file next to the app. The static hosts
+ * (nginx, the packaged command, Pages) serve it at `/healthz`, so a probe sees
+ * the version and protocol of the assets that are actually deployed, not the
+ * ones the command assumes are installed.
+ */
+function healthFile(): Plugin {
+  return {
+    name: 'clara-health',
+    apply: 'build',
+    buildStart() {
+      this.emitFile({
+        type: 'asset',
+        fileName: 'healthz',
+        source: JSON.stringify({
+          ok: true,
+          service: 'clara-web',
+          version: packageVersion,
+          protocol: PROTOCOL_VERSION,
+        }),
+      })
+    },
+  }
+}
+
 export default defineConfig(({ command, mode }) => {
   // The desktop shell bundles the same app without the service worker, into its
   // own directory so a Tauri build can never leak into the deployed web build.
@@ -55,6 +81,7 @@ export default defineConfig(({ command, mode }) => {
       ...(desktop
         ? []
         : [
+            healthFile(),
             VitePWA({
               includeAssets: ['favicon.png', 'apple-touch-icon.png'],
               manifest: {
