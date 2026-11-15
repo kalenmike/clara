@@ -77,7 +77,6 @@ import {
 import { useStartSession } from '@/features/sessions/use-start-session'
 import { useSessionWording } from '@/features/sessions/use-wording'
 import { useSidebarWidth } from '@/hooks/use-sidebar-width'
-import { claraBuildTitle, claraDisplayVersion } from '@/lib/build-info'
 import { errorMessage } from '@/lib/errors'
 import { isTextEntryTarget } from '@/lib/keyboard'
 import {
@@ -989,19 +988,6 @@ export function SidebarContent({
             )
           })}
       </ScrollArea>
-
-      <div className="shrink-0 border-t px-3 py-2.5 text-[11px] text-muted-foreground md:py-2 md:text-[10px]">
-        <div className="flex items-center justify-between gap-2">
-          <span className="truncate">
-            {sessionWorkspace
-              ? `${sessionWorkspace.harnessLabel} ${sessionWorkspace.online ? 'online' : 'offline'}`
-              : 'No workspace'}
-          </span>
-          <span className="truncate" title={claraBuildTitle}>
-            Clara {claraDisplayVersion}
-          </span>
-        </div>
-      </div>
 
       <DeleteSessionDialog
         open={dialogOpen}
