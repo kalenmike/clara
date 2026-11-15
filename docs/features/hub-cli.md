@@ -73,7 +73,9 @@ run and recovery.
 11. The hub bridges the lab, it does not host it. The lab service runs next to
     the engine; the hub forwards `/v1/lab/*` to it with `CLARA_LAB_URL` and the
     shared `CLARA_LAB_TOKEN`. The hub holds no engine token and runs no lab
-    process. `CLARA_LAB_URL=off` disables the bridge.
+    process; the packaged `clara` command supervises the lab service separately,
+    and the Docker and headless hub deployments leave it to the host.
+    `CLARA_LAB_URL=off` disables the bridge.
 
 ## Commands
 
@@ -116,8 +118,8 @@ clara-server health
 - **Orchestration**: the hub does not run the engine in-process. Use the
   engine container or `clara start engine`.
 - **The lab service is unreachable**: `/v1/lab/*` returns `503 lab_unavailable`.
-  Start the lab service next to the engine, or fix `CLARA_LAB_URL`; a token
-  mismatch fails the lab's own authentication.
+  Start it next to the engine with `clara start` or `clara start lab`, or fix
+  `CLARA_LAB_URL`; a token mismatch fails the lab's own authentication.
 - **The lab bridge is off**: `CLARA_LAB_URL=off` makes the bridge return
   `503 lab_unavailable` without contacting a service. The hub keeps running.
 - **A remote hub needs the lab on its private network**: set `CLARA_LAB_HOST` and
