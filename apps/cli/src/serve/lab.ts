@@ -6,6 +6,7 @@ import {
   startLabServer,
   workspace,
 } from '@clara/lab-server'
+import { installShutdownHandlers } from '@clara/service-control'
 import { version } from '../version.ts'
 
 /**
@@ -34,15 +35,12 @@ export async function serveLab(): Promise<void> {
   console.log(`[clara-lab] workspace ${runtime.state.workspace}`)
   console.log(`[clara-lab] engine ${engine} (${runtime.state.connected ? 'connected' : 'offline'})`)
 
-  const shutdown = (): void => {
-    void (async () => {
-      await server.close()
-      await runtime.stop()
-      process.exit(0)
-    })()
+  const shutdown = async (): Promise<void> => {
+    // Abort the engine stream and the lab's own streams together: the engine
+    // cannot close while a lab relay is still reading its event feed.
+    await Promise.allSettled([server.close(), runtime.stop()])
   }
-  process.once('SIGINT', shutdown)
-  process.once('SIGTERM', shutdown)
+  installShutdownHandlers({ label: 'clara-lab', close: shutdown })
 }
 
 function allowRemote(): boolean {

@@ -243,6 +243,7 @@ export function createEngineServer(options: EngineServerOptions): EngineServer {
     string,
     { transport: StreamableHTTPServerTransport; close: () => void }
   >()
+  const streams = new Set<ServerResponse>()
   let assetBundleCache: EngineAssetBundle | undefined
   const assetBundle = (): EngineAssetBundle | undefined => {
     assetBundleCache ??= readEngineAssetBundle()
@@ -302,6 +303,8 @@ export function createEngineServer(options: EngineServerOptions): EngineServer {
         return
       }
       if (req.method === 'GET' && url.pathname === '/v1/events') {
+        streams.add(res)
+        res.once('close', () => streams.delete(res))
         streamEvents(req, res, runtime, Number(url.searchParams.get('since') ?? 0))
         return
       }
@@ -564,7 +567,14 @@ export function createEngineServer(options: EngineServerOptions): EngineServer {
       clearInterval(tick)
       for (const entry of mcpSessions.values()) entry.close()
       mcpSessions.clear()
-      await new Promise<void>((resolve) => server.close(() => resolve()))
+      // An open event stream is a request that never finishes on its own, so
+      // `server.close()` would wait forever for the lab or the desktop.
+      for (const stream of streams) stream.end()
+      streams.clear()
+      await new Promise<void>((resolve) => {
+        server.close(() => resolve())
+        server.closeAllConnections?.()
+      })
     },
   }
 }

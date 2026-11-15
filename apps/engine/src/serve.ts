@@ -6,6 +6,7 @@ import {
   dbPath,
   ensureToken,
   host,
+  installShutdownHandlers,
   pidPath,
   port,
   workspace,
@@ -68,8 +69,6 @@ export async function serveEngine(): Promise<void> {
     await app.close()
     store.db.close()
     removePid()
-    process.exit(0)
   }
-  process.once('SIGINT', () => void shutdown())
-  process.once('SIGTERM', () => void shutdown())
+  installShutdownHandlers({ label: 'clara-engine', close: shutdown })
 }

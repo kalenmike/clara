@@ -457,7 +457,10 @@ export async function startLabServer(options: LabServerOptions): Promise<LabServ
       watcher.stop()
       for (const stream of streams) stream.end()
       streams.clear()
-      await new Promise<void>((resolve) => server.close(() => resolve()))
+      await new Promise<void>((resolve) => {
+        server.close(() => resolve())
+        server.closeAllConnections?.()
+      })
     },
   }
 }

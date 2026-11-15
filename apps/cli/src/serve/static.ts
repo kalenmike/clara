@@ -98,6 +98,8 @@ export async function startStaticServer(options: StaticServerOptions): Promise<S
     close: () =>
       new Promise<void>((resolveClose) => {
         server.close(() => resolveClose())
+        // Do not let a browser keep-alive connection hold the stop open.
+        server.closeAllConnections?.()
       }),
   }
 }

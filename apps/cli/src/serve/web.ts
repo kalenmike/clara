@@ -1,6 +1,7 @@
 import { existsSync } from 'node:fs'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { installShutdownHandlers } from '@clara/service-control'
 import { resolvePorts } from '../ports.ts'
 import { startStaticServer } from './static.ts'
 
@@ -19,11 +20,7 @@ export async function serveWeb(): Promise<void> {
   const server = await startStaticServer({ root, port: ports.web })
   console.log(`[clara-web] serving ${root}`)
   console.log(`[clara-web] listening on ${server.url}`)
-  const shutdown = () => {
-    void server.close().then(() => process.exit(0))
-  }
-  process.once('SIGINT', shutdown)
-  process.once('SIGTERM', shutdown)
+  installShutdownHandlers({ label: 'clara-web', close: () => server.close() })
 }
 
 export function webAssetsRoot(env: NodeJS.ProcessEnv = process.env): string | undefined {

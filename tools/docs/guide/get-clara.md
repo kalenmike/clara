@@ -63,6 +63,11 @@ differs from the installed command; a service that does not report one shows `-`
 `clara status --json` is the machine-readable form for scripts. Colors and the
 spinner are disabled automatically when the output is not a terminal.
 
+`clara stop` stops every service within a bounded window and names any service
+that refused to stop; run it again to retry the pids it kept. An interrupted
+stop never becomes a second stack on the same ports — the next `clara start`
+cleans up first.
+
 ## Pair a harness
 
 Adapters are downloaded when you ask for them; none ship in the command.

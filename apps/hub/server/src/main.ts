@@ -476,6 +476,13 @@ async function runServe(
   const shutdown = async () => {
     if (stopping) return
     stopping = true
+    // A live client or a held database handle must not keep the hub alive
+    // after the supervisor asked it to stop.
+    const deadline = setTimeout(() => {
+      log('shutdown did not finish in 3s; exiting')
+      process.exit(0)
+    }, 3_000)
+    deadline.unref?.()
     log('shutting down')
     install.close()
     await controller.close()
@@ -483,6 +490,7 @@ async function runServe(
     await panel?.close()
     closeDatabase(database)
     finalize()
+    clearTimeout(deadline)
     process.exit(0)
   }
 

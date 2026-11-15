@@ -37,8 +37,15 @@ a checkout.
    at `/lab` and reaches the service through the hub bridge.
 2. One supervisor. `clara start` detaches a single `__supervise` process that
    starts engine → Lab → hub → web, restarts a crashed child a few times, and
-   stops everything in reverse order. A login service runs the same supervisor in the
-   foreground.
+   stops every child behind one bounded window: it signals the whole set at
+   once, waits a short grace, kills what is left, and always exits before its
+   deadline. A login service runs the same supervisor in the foreground.
+   `clara stop` waits longer than that deadline, then terminates any child the
+   supervisor left behind and keeps the recorded pids when a service refuses to
+   stop, so a retry finishes the job instead of reporting an empty stack. The
+   CLI also writes `stop.request` because Windows turns `SIGTERM` into an
+   immediate termination; the supervisor honours it only when it names its own
+   pid.
 3. Ports and paths match the existing services. Hub panel `8790`, hub local
    WebSocket `8788`, engine `8789`, Lab `8791`, web `8080`; `~/.config/clara`,
    `~/.local/share/clara`, and `~/.cache/clara`, with the existing environment
@@ -73,8 +80,15 @@ a checkout.
   and reports `connected: false`; probe actions retry once the engine is up.
 - **The Lab port is busy**: the Lab child exits and the start fails like any
   other busy service port; move it with `CLARA_LAB_PORT`.
-- **A stale `services.json`**: a dead supervisor pid is ignored and the state is
-  replaced on the next start.
+- **A stale `services.json`**: a stop that could not finish keeps the recorded
+  pids. The next `clara stop` retries them, and `clara start` clears them before
+  it spawns a supervisor so a second stack never fights over the same ports.
+- **A service ignores `SIGTERM`**: the supervisor kills the whole set after a
+  short grace, and the CLI reports any pid that survives instead of claiming the
+  stack stopped.
+- **A client holds a connection**: the engine ends its event streams and every
+  server closes remaining connections on shutdown, so a browser or Lab client
+  cannot keep a service alive.
 - **The web or panel build is missing at build time**: the binary build fails
   before it writes an executable.
 - **No supported login manager**: setup skips autostart with a visible note.
@@ -107,8 +121,8 @@ a checkout.
   `setup`, `update`, `service`, `adapter`, `runner`, `doctor`, `uninstall`,
   `version`.
 - Hidden dispatch: `__serve hub|engine|lab|web|runner`, `__supervise`, `__hub`.
-- State: `services.json` and `supervisor.pid` under the data directory; logs in
-  `<data>/logs/<service>.log`.
+- State: `services.json`, `supervisor.pid`, and `stop.request` under the data
+  directory; logs in `<data>/logs/<service>.log`.
 - Release assets: `manifest.json`, `manifest.json.sig`, `install.sh`,
   `install.ps1`, and `clara-<platform>.tar.gz` or `.zip` for `linux-x64`,
   `linux-arm64`, `darwin-x64`, `darwin-arm64`, and `win32-x64`.
