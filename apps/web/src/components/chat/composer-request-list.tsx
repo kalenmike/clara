@@ -13,7 +13,8 @@ import { cn } from '@/lib/utils'
  * composer's editor. One request is selected at a time; clicking the selected
  * header returns to message-only mode. The composer's primary button carries
  * the action, so the cards do not repeat Submit, Skip, Start Work, or Adjust
- * Plan controls.
+ * Plan controls. The list has no scroller of its own: it scrolls with the
+ * composer so a tall form never hides the editor.
  */
 export function ComposerRequestList({
   forms,
@@ -44,7 +45,7 @@ export function ComposerRequestList({
 
   return (
     <div className="shrink-0 border-b bg-muted/20">
-      <div className="max-h-64 space-y-1.5 overflow-y-auto p-2 md:max-h-72">
+      <div className="space-y-1.5 p-2">
         {forms.map((form) => {
           const selected = selectedFormID === form.id
           const formAnswers = answers[form.id] ?? {}
