@@ -828,14 +828,15 @@ export function Composer({
                 <Badge
                   key={`${file.name}-${index}`}
                   variant="secondary"
-                  className="gap-1 text-[10px] max-md:h-9 max-md:overflow-visible"
+                  title={file.name}
+                  className="max-w-full gap-1 text-[10px] max-md:h-9 max-md:overflow-visible"
                 >
-                  <FileText className="size-3" />
-                  {file.name ?? 'file'}
+                  <FileText className="size-3 shrink-0" />
+                  <span className="min-w-0 truncate">{file.name ?? 'file'}</span>
                   <button
                     type="button"
                     onClick={() => setFiles((current) => current.filter((_, i) => i !== index))}
-                    className="relative ml-1 rounded-full hover:bg-background/50 max-md:size-7 max-md:after:absolute max-md:after:-inset-2 max-md:after:content-['']"
+                    className="relative ml-1 shrink-0 rounded-full hover:bg-background/50 max-md:size-7 max-md:after:absolute max-md:after:-inset-2 max-md:after:content-['']"
                   >
                     <X className="size-3 max-md:size-4" />
                   </button>
