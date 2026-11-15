@@ -20,7 +20,13 @@ fail() {
 
 download() {
   if command -v curl >/dev/null 2>&1; then
-    curl -fsSL --proto '=https' --tlsv1.2 --connect-timeout 10 --max-time 300 "$1" -o "$2"
+    # A local development registry answers on loopback HTTP. Everything else
+    # stays HTTPS-only, including redirects.
+    proto='=https'
+    case "$1" in
+      http://127.0.0.1:* | http://localhost:* | http://\[::1\]:*) proto='=https,http' ;;
+    esac
+    curl -fsSL --proto "$proto" --tlsv1.2 --connect-timeout 10 --max-time 300 "$1" -o "$2"
   elif command -v wget >/dev/null 2>&1; then
     wget -qO "$2" "$1"
   else
