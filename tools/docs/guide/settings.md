@@ -46,6 +46,9 @@ follow, so it follows your system's light or dark setting.
   **Brief**. Presets include Task, Session, Action, Run, Job, and a custom word.
 - **Default agent** — per harness, the last agent selected there or a specific
   agent.
+- **Auto-hide composer** — keep the composer folded to its title bar. Point at
+  the title bar to expand it, or use the pin in the bar to keep it open. Saved
+  on this device and available with a mouse or trackpad.
 - **Cost display** — **Actual** or **Estimated**. Estimates are marked with `~`.
 
 ## Models
