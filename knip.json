@@ -34,11 +34,11 @@
       ]
     },
     "tools/lab": {
-      "entry": ["index.html", "server/index.ts"],
+      "entry": ["index.html"],
       "project": ["src/**/*.{ts,tsx}", "server/**/*.ts"]
     },
     "packages/lab": {
-      "project": ["src/**/*.{ts,tsx,css}", "test/**/*.ts"]
+      "project": ["src/**/*.{ts,tsx}", "test/**/*.ts"]
     },
     "packages/lab-server": {
       "project": ["src/**/*.ts", "test/**/*.ts"]
