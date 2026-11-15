@@ -113,12 +113,16 @@ one paragraph, list, or section. See [fork.md](fork.md).
     first line only. The button in the top-right folds or opens every message.
 16. Click the eye button next to it to show or hide internal output. The choice
     is remembered across sessions and reloads.
-17. To forward one part of a long reply, choose **Select part** on an expanded
-    assistant message. Hover a block to preview it, click to select a paragraph,
-    list, code fence, table, quote, or heading section, or Shift-click to extend
-    the range. The floating bar shows the section path and length; **Expand**
-    moves one level out, **Forward selection** opens the new draft with that
-    markdown, and Escape cancels.
+17. Hover a user or assistant message to reveal its actions: **Select part**
+    (on an expanded, settled assistant reply), **Fork from here**, and
+    **Forward to new brief**, stacked in a rail at the message's right edge.
+    While a long message scrolls, the rail stays just below the header and
+    leaves with that message's end. To forward one part of a long reply, choose
+    **Select part** on an expanded assistant message. Hover a block to preview
+    it, click to select a paragraph, list, code fence, table, quote, or heading
+    section, or Shift-click to extend the range. The floating bar shows the
+    section path and length; **Expand** moves one level out, **Forward
+    selection** opens the new draft with that markdown, and Escape cancels.
 18. The header's more menu can **Snooze session** or **Remove from Snoozed**.
     Snoozing moves the session to the sidebar's Snoozed bucket and swaps the
     send menu's Done for Reopen. Replying, starting work, saving a draft, or
@@ -450,6 +454,10 @@ one paragraph, list, or section. See [fork.md](fork.md).
   interrupt the run.
 - **Folding during selection** — folding the message or switching sessions ends
   selection and leaves the reply untouched.
+- **Long message actions** — the action rail stays pinned below the header while
+  any part of its own message is on screen, then leaves with that message. It
+  floats over the reply without narrowing it and never carries into the next
+  message.
 
 ## Out of scope
 

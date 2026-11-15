@@ -140,14 +140,14 @@ function MessageRow({
         if (open === collapsed) onToggle?.()
       }}
     >
-      <article className="group/row px-2 py-1 sm:px-4">
-        <div className="flex items-start gap-1">
+      <article className="group/row relative px-2 py-1 sm:px-4">
+        <div className="min-w-0">
           <CollapsibleTrigger asChild>
             <button
               type="button"
               aria-label={collapsed ? `Expand ${sender} message` : `Collapse ${sender} message`}
               className={cn(
-                'flex min-w-0 flex-1 flex-col gap-1.5 rounded-lg px-2 py-3 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
+                'flex min-w-0 flex-col gap-1.5 rounded-lg py-3 pr-12 pl-2 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring md:pr-9',
                 collapsed && 'hover:bg-accent/40'
               )}
             >
@@ -180,16 +180,16 @@ function MessageRow({
             </button>
           </CollapsibleTrigger>
 
-          {actions ? <MessageActions {...actions} /> : null}
+          <CollapsibleContent>
+            <div className="pr-2 pb-3 pl-14 text-sm leading-relaxed">{children}</div>
+
+            {meta ? (
+              <div className="pr-2 pb-3 pl-14 text-[11px] text-muted-foreground">{meta}</div>
+            ) : null}
+          </CollapsibleContent>
         </div>
 
-        <CollapsibleContent>
-          <div className="pr-2 pb-3 pl-14 text-sm leading-relaxed">{children}</div>
-
-          {meta ? (
-            <div className="pr-2 pb-3 pl-14 text-[11px] text-muted-foreground">{meta}</div>
-          ) : null}
-        </CollapsibleContent>
+        {actions ? <MessageActions {...actions} /> : null}
       </article>
     </Collapsible>
   )
