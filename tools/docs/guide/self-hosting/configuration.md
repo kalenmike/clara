@@ -16,7 +16,7 @@ harness routing, push, orchestration, and pairing stay stopped until the owner
 account exists. Create it in the panel, or from a shell:
 
 ```bash
-pnpm clara server setup --password-stdin
+node apps/hub/server/dist/index.js setup --password-stdin
 ```
 
 For an unattended start, set `CLARA_ADMIN_USERNAME` and

@@ -105,7 +105,6 @@ function harnessConnection(): HarnessConnection {
     online: true,
     fingerprint: 'harness-fingerprint',
     capabilities: {},
-    isActive: true,
     lastTestAt: now,
     lastTestOk: true,
     createdAt: now,
@@ -251,9 +250,7 @@ describe('PanelRuntime', () => {
     expect(serialized).not.toContain('user:secret')
 
     expect(snapshot.auth).toEqual(AUTH)
-    expect(snapshot.opencode.url).toBe('opencode adapter (local)')
-    expect(snapshot.opencode.passwordConfigured).toBe(true)
-    expect(snapshot.opencode.error).toContain('[redacted]')
+    expect(snapshot.harness).toMatchObject({ configured: true, paired: 1, online: 1 })
     expect(snapshot.push.error).toContain('[redacted]')
     expect(snapshot.agent.pairedDevices).toBe(2)
     expect(snapshot.devices).toHaveLength(2)
@@ -389,17 +386,6 @@ describe('PanelRuntime', () => {
       }),
     ])
     expect(snapshot.harnesses[0]?.fingerprint).toBe('harness-fingerprint')
-  })
-
-  it('caches harness probes between polls', async () => {
-    const dir = tempDir()
-    writeFileSync(join(dir, 'server.json'), '{}', { mode: 0o600 })
-    const probeCalls = { value: 0 }
-    const runtime = createRuntime(dir, { probeCalls })
-
-    await runtime.snapshot(AUTH)
-    await runtime.snapshot(AUTH)
-    expect(probeCalls.value).toBe(1)
   })
 
   it('warns about broad config permissions without revealing contents', async () => {

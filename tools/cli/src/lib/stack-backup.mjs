@@ -1,16 +1,47 @@
 import { spawnSync } from 'node:child_process'
-import { closeSync, mkdirSync, openSync, unlinkSync } from 'node:fs'
+import {
+  closeSync,
+  mkdirSync,
+  mkdtempSync,
+  openSync,
+  readFileSync,
+  rmSync,
+  unlinkSync,
+  writeFileSync,
+} from 'node:fs'
+import { tmpdir } from 'node:os'
 import { dirname, resolve } from 'node:path'
 import { CONTAINERS, SERVICES, VOLUMES } from './stack-control.mjs'
 
 export const BACKUP_IMAGE = 'node:22-bookworm-slim'
+export const BACKUP_MANIFEST = 'clara-backup.json'
+
+export const BACKUP_TARGETS = {
+  default: VOLUMES,
+  hub: ['clara-server-config', 'clara-server-data'],
+  orchestrator: ['clara-orchestrator-data'],
+}
+
+export function targetVolumes(target) {
+  const volumes = BACKUP_TARGETS[target]
+  if (!volumes) throw new Error(`unknown backup target: ${target}`)
+  return volumes
+}
+
+export function targetContainers(target) {
+  if (target === 'default') return SERVICES.map((name) => CONTAINERS[name])
+  if (target === 'hub') return [CONTAINERS.server]
+  if (target === 'orchestrator') return [CONTAINERS.orchestrator]
+  return []
+}
 
 /** `clara-backup-YYYYMMDD-HHMMSS.tar.gz` in the current directory. */
-export function defaultBackupPath(now = new Date()) {
+export function defaultBackupPath(target = 'default', now = new Date()) {
   const iso = now.toISOString()
   const date = iso.slice(0, 10).replaceAll('-', '')
   const time = iso.slice(11, 19).replaceAll(':', '')
-  return resolve(`clara-backup-${date}-${time}.tar.gz`)
+  const prefix = target === 'default' ? 'clara' : `clara-${target}`
+  return resolve(`${prefix}-backup-${date}-${time}.tar.gz`)
 }
 
 export function parseBackupArgs(args) {
@@ -25,7 +56,7 @@ export function parseBackupArgs(args) {
     }
     throw new Error(`unknown option: ${arg}`)
   }
-  return { output: output ?? defaultBackupPath() }
+  return { output }
 }
 
 export function parseRestoreArgs(args) {
@@ -77,12 +108,12 @@ function volumeExists(name) {
   return !result.error && result.status === 0
 }
 
-export function existingVolumes() {
-  return VOLUMES.filter((name) => volumeExists(name))
+export function existingVolumes(volumes = VOLUMES) {
+  return volumes.filter((name) => volumeExists(name))
 }
 
-export function runningContainers() {
-  return SERVICES.map((name) => CONTAINERS[name]).filter((container) => {
+export function runningContainers(target = 'default') {
+  return targetContainers(target).filter((container) => {
     const result = spawnSync('docker', ['inspect', '--format', '{{.State.Running}}', container], {
       encoding: 'utf8',
       timeout: 3_000,
@@ -91,13 +122,49 @@ export function runningContainers() {
   })
 }
 
-export function runBackup({ output, volumes = existingVolumes(), image = BACKUP_IMAGE }) {
+export function runBackup({
+  output,
+  target = 'default',
+  volumes = targetVolumes(target),
+  image = BACKUP_IMAGE,
+}) {
   mkdirSync(dirname(output), { recursive: true })
+  const manifestDir = mkdtempSync(join(tmpdir(), 'clara-backup-'))
+  const manifestPath = join(manifestDir, BACKUP_MANIFEST)
+  writeFileSync(
+    manifestPath,
+    `${JSON.stringify(
+      {
+        version: 1,
+        target,
+        volumes,
+        createdAt: new Date().toISOString(),
+      },
+      null,
+      2
+    )}\n`,
+    { mode: 0o600 }
+  )
   const fd = openSync(output, 'w', 0o600)
   try {
-    const result = spawnSync('docker', backupArgs(volumes, image), {
-      stdio: ['ignore', fd, 'inherit'],
-    })
+    const args = [
+      'run',
+      '--rm',
+      ...volumes.flatMap((name) => ['-v', `${name}:/state/${name}:ro`]),
+      '-v',
+      `${manifestDir}:/manifest:ro`,
+      image,
+      'tar',
+      'czf',
+      '-',
+      '-C',
+      '/state',
+      '.',
+      '-C',
+      '/manifest',
+      BACKUP_MANIFEST,
+    ]
+    const result = spawnSync('docker', args, { stdio: ['ignore', fd, 'inherit'] })
     if (result.error) {
       unlinkSync(output)
       throw result.error
@@ -109,13 +176,14 @@ export function runBackup({ output, volumes = existingVolumes(), image = BACKUP_
     return 0
   } finally {
     closeSync(fd)
+    rmSync(manifestDir, { recursive: true, force: true })
   }
 }
 
-export function runRestore({ archive, image = BACKUP_IMAGE }) {
+export function runRestore({ archive, volumes = VOLUMES, image = BACKUP_IMAGE }) {
   const fd = openSync(archive, 'r')
   try {
-    const result = spawnSync('docker', restoreArgs(VOLUMES, image), {
+    const result = spawnSync('docker', restoreArgs(volumes, image), {
       stdio: [fd, 'inherit', 'inherit'],
     })
     if (result.error) throw result.error
@@ -123,4 +191,40 @@ export function runRestore({ archive, image = BACKUP_IMAGE }) {
   } finally {
     closeSync(fd)
   }
+}
+
+export function readBackupManifest({ archive, image = BACKUP_IMAGE }) {
+  const result = spawnSync(
+    'docker',
+    ['run', '--rm', '-i', image, 'tar', 'xzOf', '-', BACKUP_MANIFEST],
+    {
+      stdio: ['pipe', 'pipe', 'pipe'],
+      input: readFileSync(archive),
+      encoding: 'utf8',
+    }
+  )
+  if (result.error || result.status !== 0 || !result.stdout.trim()) return undefined
+  try {
+    const parsed = JSON.parse(result.stdout)
+    if (parsed?.version !== 1) return undefined
+    if (!Array.isArray(parsed.volumes)) return undefined
+    return parsed
+  } catch {
+    return undefined
+  }
+}
+
+export function archiveVolumes({ archive, image = BACKUP_IMAGE }) {
+  const result = spawnSync('docker', ['run', '--rm', '-i', image, 'tar', 'tzf', '-'], {
+    stdio: ['pipe', 'pipe', 'pipe'],
+    input: readFileSync(archive),
+    encoding: 'utf8',
+  })
+  if (result.error || result.status !== 0) return []
+  const names = new Set()
+  for (const line of String(result.stdout).split('\n')) {
+    const match = /^\.?\/?([^/]+)\//.exec(line.trim())
+    if (match && VOLUMES.includes(match[1])) names.add(match[1])
+  }
+  return VOLUMES.filter((name) => names.has(name))
 }

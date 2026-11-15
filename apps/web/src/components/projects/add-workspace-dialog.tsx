@@ -41,13 +41,15 @@ export function AddWorkspaceDialog({
   const [directory, setDirectory] = useState('')
   const [label, setLabel] = useState('')
 
-  const active = useMemo(
-    () => harnesses.data?.find((harness) => harness.active) ?? harnesses.data?.[0],
-    [harnesses.data]
-  )
   const available = useAvailableProjects(harnessID)
   const selectedHarness = harnesses.data?.find((harness) => harness.harnessID === harnessID)
-  const initialHarnessID = project.workspaces[0]?.harnessID ?? active?.harnessID
+  const initialHarnessID = useMemo(
+    () =>
+      project.workspaces[0]?.harnessID ??
+      harnesses.data?.find((harness) => harness.online)?.harnessID ??
+      harnesses.data?.[0]?.harnessID,
+    [harnesses.data, project.workspaces]
+  )
 
   useEffect(() => {
     if (!open) return

@@ -15,7 +15,7 @@ The home-side installation is the **hub**. Three names cover it:
 | Name        | Meaning                                                                                                                            |
 | ----------- | ---------------------------------------------------------------------------------------------------------------------------------- |
 | Hub         | The Clara installation on the machine that runs the hub service: one process, one database, one panel, and at most one relay room. |
-| Hub service | The Node process that implements the hub (`apps/hub/server`, `pnpm clara server`, the `clara-server` container).                   |
+| Hub service | The Node process that implements the hub (`apps/hub/server`, `pnpm clara start hub`, the `clara-server` container).                |
 | Hub panel   | The authenticated loopback dashboard served by the hub service (`apps/hub/panel`).                                                 |
 
 Other terms:
@@ -153,8 +153,9 @@ described in [pairing.md](../features/pairing.md).
 The harness password never reaches the browser. The adapter adds harness
 authentication and is the only process that talks to the harness. The browser
 uses `@clara/api-client` against `/v1`; the hub routes each call to the harness
-that owns the session or workspace, falls back to the active harness for a
-request that names neither, and never exposes a generic harness proxy.
+that owns the session or workspace, requires an explicit harness for a request
+that names neither, and never exposes a generic harness proxy or picks a
+default adapter.
 
 ## Runtime shape
 
@@ -251,18 +252,19 @@ A workspace's canonical directory is used to create sessions and to scope
 location-specific data such as skills, references, and pending approvals. For an
 open session, its `location.directory` wins when it differs from the workspace
 directory. Session creation takes an optional `harnessID`; without one, the hub
-resolves the owning harness from the directory and falls back to the active
-harness.
+resolves the owning harness from the parent session or a unique directory
+workspace. If neither names one, it returns `harness_required`.
 
-The active harness is a default, not a boundary. It answers requests that name
-neither a session nor a directory, and it is what an older client that knows only
-one harness talks to. Everything else is scoped explicitly:
+There is no active or default harness. Every paired harness is a peer, and every
+request is scoped explicitly:
 
-- A session-scoped call resolves its harness from the session record.
-- A directory-scoped call resolves the harness that links that path. If the same
-  path exists on more than one harness and the active harness is not one of them,
-  the hub returns `harness_ambiguous` and lists the candidates instead of
-  guessing.
+- A session-scoped call resolves its harness from the session record, or from an
+  explicit `harnessID` when the record is missing.
+- A directory-scoped call resolves the harness that links that path. If no
+  workspace matches, or the same path exists on more than one harness, the hub
+  returns `harness_required` or `harness_ambiguous` and lists the candidates
+  instead of guessing.
+- A context-free catalog or info call must name its harness.
 - A project-scoped list always fans out and never narrows to one harness.
 
 A harness can keep more than one project record for the same canonical path, for

@@ -62,7 +62,9 @@ describe('install panel helpers', () => {
   })
 
   it('keeps the repository command as a fallback', () => {
-    expect(repoCommand('claude', 'code')).toBe('pnpm clara adapter install --claude --pair code')
+    expect(repoCommand('claude', 'code')).toBe(
+      'pnpm clara start adapter --harness claude --pair code'
+    )
   })
 
   it('offers setup only when the hub can share a command', () => {

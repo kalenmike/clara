@@ -47,7 +47,6 @@ export function HarnessCard({ simplified }: { simplified: boolean }) {
               >
                 <span className="font-medium">{harness.label}</span>
                 <span className="text-muted-foreground">{harness.kind}</span>
-                {harness.active ? <Badge variant="secondary">Active</Badge> : null}
                 <Badge variant={harness.online ? 'default' : 'outline'}>
                   {harness.online ? 'Online' : 'Paired · Offline'}
                 </Badge>

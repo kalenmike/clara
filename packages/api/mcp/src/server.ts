@@ -35,7 +35,7 @@ export function createClaraApiServer(backend: ClaraApiReadBackend, version = '0.
     'clara_api_info',
     {
       description:
-        'Read hub status, the active harness, and the API version. Start here before listing data.',
+        'Read hub status, paired harness counts, and the API version. Start here before listing data.',
       inputSchema: {},
     },
     async () => text(await backend.info())
@@ -54,10 +54,12 @@ export function createClaraApiServer(backend: ClaraApiReadBackend, version = '0.
   server.registerTool(
     'clara_harness_info',
     {
-      description: 'Read the active OpenCode server information.',
-      inputSchema: {},
+      description: 'Read one paired harness server information.',
+      inputSchema: {
+        harnessID: z.string().min(1).describe('The paired harness to probe'),
+      },
     },
-    async () => text(await backend.harnessInfo())
+    async ({ harnessID }) => text(await backend.harnessInfo(harnessID))
   )
 
   server.registerTool(
@@ -193,44 +195,44 @@ export function createClaraApiServer(backend: ClaraApiReadBackend, version = '0.
   server.registerTool(
     'clara_agents_list',
     {
-      description: 'List available OpenCode agents.',
-      inputSchema: {},
+      description: 'List available agents for one paired harness.',
+      inputSchema: { harnessID: z.string().min(1) },
     },
-    async () => text(await backend.agents())
+    async ({ harnessID }) => text(await backend.agents(harnessID))
   )
 
   server.registerTool(
     'clara_models_list',
     {
-      description: 'List available models and providers.',
-      inputSchema: {},
+      description: 'List available models and providers for one paired harness.',
+      inputSchema: { harnessID: z.string().min(1) },
     },
-    async () => text(await backend.models())
+    async ({ harnessID }) => text(await backend.models(harnessID))
   )
 
   server.registerTool(
     'clara_providers_list',
     {
-      description: 'List configured providers.',
-      inputSchema: {},
+      description: 'List configured providers for one paired harness.',
+      inputSchema: { harnessID: z.string().min(1) },
     },
-    async () => text(await backend.providers())
+    async ({ harnessID }) => text(await backend.providers(harnessID))
   )
 
   server.registerTool(
     'clara_commands_list',
     {
-      description: 'List slash commands.',
-      inputSchema: {},
+      description: 'List slash commands for one paired harness.',
+      inputSchema: { harnessID: z.string().min(1) },
     },
-    async () => text(await backend.commands())
+    async ({ harnessID }) => text(await backend.commands(harnessID))
   )
 
   server.registerTool(
     'clara_skills_list',
     {
-      description: 'List skills for a directory.',
-      inputSchema: { directory: z.string().optional() },
+      description: 'List skills for a directory on one paired harness.',
+      inputSchema: { harnessID: z.string().min(1), directory: z.string().optional() },
     },
     async (args) => text(await backend.skills(args))
   )
@@ -238,8 +240,8 @@ export function createClaraApiServer(backend: ClaraApiReadBackend, version = '0.
   server.registerTool(
     'clara_references_list',
     {
-      description: 'List references for a directory.',
-      inputSchema: { directory: z.string().optional() },
+      description: 'List references for a directory on one paired harness.',
+      inputSchema: { harnessID: z.string().min(1), directory: z.string().optional() },
     },
     async (args) => text(await backend.references(args))
   )
@@ -357,7 +359,7 @@ export function createClaraApiServer(backend: ClaraApiReadBackend, version = '0.
   server.registerResource(
     'info',
     'clara://server/info',
-    { description: 'Clara hub status and active harness', mimeType: 'application/json' },
+    { description: 'Clara hub status and paired harness counts', mimeType: 'application/json' },
     async (uri) => ({
       contents: [
         {

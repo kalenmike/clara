@@ -12,7 +12,7 @@ import {
   seal,
   utf8,
   verifyV4HelloMac,
-  type SessionKeys,
+  type V4SessionKeys,
   type V4EphemeralKeyPair,
 } from '@clara/crypto'
 import {
@@ -214,7 +214,7 @@ class RelayFetchTransport implements RelayTransport {
   private readonly queue: QueuedRequest[] = []
   private inFlight = 0
   private socket: WebSocket | null = null
-  private keys: SessionKeys | null = null
+  private keys: V4SessionKeys | null = null
   private sid: string | null = null
   private clientNonce: string | null = null
   private clientEphemeral: V4EphemeralKeyPair | null = null
@@ -666,6 +666,10 @@ class RelayFetchTransport implements RelayTransport {
         const material = await deriveV4SessionKeys(input)
         this.keys = material.keys
         this.receive = new ReplayGuard()
+        // The ephemeral private key is only needed for this handshake. Drop it
+        // as soon as the session keys exist so forward secrecy does not depend
+        // on the socket close path.
+        this.clientEphemeral = null
       } catch (cause) {
         this.rejectHandshake(cause)
         this.socket?.close(4001, 'handshake failed')

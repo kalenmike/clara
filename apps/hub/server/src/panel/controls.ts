@@ -40,7 +40,6 @@ export type PanelControlService = {
   }) => Promise<AdapterInstallOffer>
   cancelHarnessPairing: (id: string) => Promise<void>
   testHarness: (id: string) => Promise<PanelHarnessTestResult>
-  activateHarness: (id: string) => Promise<PanelHarnessMutationResponse>
   deleteHarness: (id: string) => Promise<PanelHarnessMutationResponse>
   forgetHarness: (id: string) => Promise<PanelHarnessMutationResponse>
   revokeDevice: (id: string) => { id: string } | undefined

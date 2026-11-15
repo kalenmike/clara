@@ -1,7 +1,7 @@
 import type {
   PanelAgentInfo,
+  PanelHarnessState,
   PanelLocalTransport,
-  PanelOpenCodeInfo,
   PanelOrchestrationControl,
   PanelPushInfo,
   PanelRelayTransport,
@@ -56,49 +56,36 @@ export function hubHealth(agent: PanelAgentInfo): HealthItem {
   }
 }
 
-export function harnessHealth(opencode: PanelOpenCodeInfo, label = 'OpenCode'): HealthItem {
+export function harnessHealth(harness: PanelHarnessState): HealthItem {
   const base = { key: 'harness', label: 'Harness', tab: 'harness' } as const
-  const detail = opencode.version
-    ? `${label} ${opencode.version}`
-    : opencode.url || 'No connection saved'
 
-  if (opencode.code === 'unconfigured') {
+  if (harness.paired === 0) {
     return { ...base, tone: 'warn', status: 'Not configured', detail: 'Add a harness adapter' }
   }
-  if (opencode.code === 'disabled') {
+  if (!harness.effective) {
     return {
       ...base,
       tone: 'idle',
-      status: 'Off',
-      detail: opencode.url || 'Disabled by admin setting',
+      status: harness.desired ? 'Off' : 'Disabled',
+      detail: harness.error || 'Harness access is disabled by an admin setting',
     }
   }
-  if (opencode.code === 'offline') {
+  if (harness.online === 0) {
     return {
       ...base,
       tone: 'warn',
-      status: 'Adapter offline',
-      detail: opencode.error || 'The active harness adapter is offline',
+      status: 'All offline',
+      detail: harness.error || `${harness.paired} paired, none online`,
     }
   }
-  if (opencode.reachable) {
-    const latency = opencode.latencyMs === undefined ? '' : ` · ${opencode.latencyMs} ms`
-    return { ...base, tone: 'ok', status: 'Reachable', detail: `${detail}${latency}` }
-  }
-
-  const status =
-    opencode.code === 'auth'
-      ? 'Auth rejected'
-      : opencode.code === 'timeout'
-        ? 'Timed out'
-        : opencode.code === 'unsupported'
-          ? 'Unsupported version'
-          : 'Unreachable'
   return {
     ...base,
-    tone: opencode.code === 'unsupported' ? 'warn' : 'bad',
-    status,
-    detail: opencode.error || detail,
+    tone: 'ok',
+    status: `${harness.online} of ${harness.paired} online`,
+    detail:
+      harness.online === harness.paired
+        ? 'Every paired harness is online'
+        : 'One or more paired harnesses are offline',
   }
 }
 
@@ -237,9 +224,8 @@ export function storageHealth(storage: PanelStorageEntry[]): StorageHealth {
 }
 
 export function buildHealth(snapshot: PanelSnapshot): HealthItem[] {
-  const activeHarness = snapshot.harnesses?.find((harness) => harness.isActive)
   return [
-    harnessHealth(snapshot.opencode, activeHarness?.label),
+    harnessHealth(snapshot.harness),
     localHealth(snapshot.local),
     relayHealth(snapshot.relay),
     pushHealth(snapshot.push),
@@ -249,12 +235,11 @@ export function buildHealth(snapshot: PanelSnapshot): HealthItem[] {
 
 /** The Overview strip leads with the hub, then the transports and harness. */
 export function overviewHealth(snapshot: PanelSnapshot): HealthItem[] {
-  const activeHarness = snapshot.harnesses?.find((harness) => harness.isActive)
   return [
     hubHealth(snapshot.agent),
     localHealth(snapshot.local),
     relayHealth(snapshot.relay),
-    harnessHealth(snapshot.opencode, activeHarness?.label),
+    harnessHealth(snapshot.harness),
     pushHealth(snapshot.push),
     orchestrationHealth(snapshot.controls.orchestration),
   ]

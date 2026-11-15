@@ -8,7 +8,7 @@ import {
   randomBytes,
   seal,
   utf8,
-  type SessionKeys,
+  type V4SessionKeys,
 } from '@clara/crypto'
 import {
   DEVICE_GRANT_TTL_SECONDS,
@@ -108,7 +108,7 @@ type Session = {
   adapterBridge?: AdapterSessionBridge
   adapterFetch?: (request: Request) => Promise<Response>
   isAdapter?: boolean
-  keys: SessionKeys
+  keys: V4SessionKeys
   sendSeq: number
   receive: ReplayGuard
   connectedAt: number
@@ -591,7 +591,7 @@ export class Agent {
     }
 
     const agentNonce = bytesToBase64Url(randomBytes(16))
-    let keys: SessionKeys
+    let keys: V4SessionKeys
     let mac: string
     let agentEphemeral: string
     try {

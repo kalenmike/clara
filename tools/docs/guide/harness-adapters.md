@@ -18,9 +18,9 @@ and Pi adapters; the hub and web client are harness-neutral.
 | Pi          | `clara-adapter-pi install --pair <code>`       |
 
 Inside the Clara repository you can use
-`pnpm clara adapter install --opencode --pair <code>`,
-`pnpm clara adapter install --claude --pair <code>`, or
-`pnpm clara adapter install --pi --pair <code>` instead.
+`pnpm clara start adapter --harness opencode --pair <code>`,
+`pnpm clara start adapter --harness claude --pair <code>`, or
+`pnpm clara start adapter --harness pi --pair <code>` instead.
 
 ## Pair an adapter
 
@@ -45,9 +45,8 @@ Inside the Clara repository you can use
    pairing card shows **Waiting for the adapter to connect…** and changes to
    **Connected** when the adapter registers. A newly paired adapter shows
    **Paired · Offline** under **Paired harnesses**; when its session connects it
-   becomes **Online**, appears under **Connected adapters**, and the first
-   adapter becomes **Active**. If harness access is disabled, the page shows
-   **Off** instead of a live state.
+   becomes **Online** and appears under **Connected adapters**. If harness
+   access is disabled, the page shows **Off** instead of a live state.
 
 Adapter codes are only for the installer. To pair a browser, use
 **Clients → Pair Client** in the panel, or the separate code or link printed
@@ -148,15 +147,15 @@ always runs on the harness that owns its workspace.
 - **Labels follow the harness type.** Two adapters of the same kind both read
   OpenCode, so Clara appends a short id to tell their workspaces apart. Give each
   workspace its own label when you add it and menus stay easy to read.
-- **Active is only a default.** The active harness answers screens that do not
-  name a session or workspace. Paired harnesses keep serving their own
-  workspaces, so you do not switch back and forth.
+- **No harness is the default.** Paired harnesses are peers, and every session
+  runs on the harness that owns its workspace. Settings shows all of them, so
+  you do not switch back and forth.
 - **One offline harness does not stop the others.** Lists keep the rows from
   harnesses that answered and mark the rest; count cards say the counts are
   partial.
 - **A path that exists on two machines is ambiguous.** Clara refuses to guess: the
-  request says the path matches more than one harness. Make the harness you are
-  working on the active one, and label the workspaces clearly.
+  request says the path matches more than one harness. Pick the workspace you
+  mean, and label the workspaces clearly.
 
 ## Host resources
 
@@ -172,9 +171,10 @@ harness access turned off, or predates the feature shows an empty state.
 
 ## Verify native access
 
-Run `pnpm clara adapter verify` to check every installed adapter against the
-harness on its machine. Add `--opencode`, `--claude`, or `--pi` to check one, and
-`--directory <path>` to inspect native sessions for a specific workspace. The
+Run `pnpm clara status adapter --verify` to check every installed adapter against the
+harness on its machine. Add `--harness opencode`, `--harness claude`, or
+`--harness pi` to check one, and `--directory <path>` to inspect native sessions
+for a specific workspace. The
 report probes the harness, lists its models, agents, commands, and skills, and
 reads an existing session, so you can confirm that Clara is using the same
 harness as your terminal.
@@ -221,12 +221,12 @@ connection keeps that state; use **Forget** only when you want to discard it.
   connection and reconnects automatically. Clara stays connected and shows a
   harness banner with **Retry**. Sessions on your other harnesses keep working.
 - **The panel says Online but requests time out** — run
-  `pnpm clara adapter status --claude` (or `--opencode`). The **hub** and
+  `pnpm clara status adapter --harness claude` (or `--harness opencode`). The **hub** and
   **link** lines show whether the adapter has an authenticated session with the
   hub and how long ago it last heard from it; **health** shows the adapter's last
   harness check. If the process is running but the link is offline or stale,
-  restart it with `pnpm clara adapter stop --claude` and
-  `pnpm clara adapter start --claude`.
+  restart it with `pnpm clara stop adapter --harness claude` and
+  `pnpm clara start adapter --harness claude`.
 - **Harness access is off** — the page header and paired status say **Off**; the
   adapter credential is kept while access is off.
 - **The adapter was moved** — pair it again; the stable identity keeps the same

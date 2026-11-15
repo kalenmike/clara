@@ -199,7 +199,7 @@ async function serve(options: Options): Promise<void> {
   console.log(`workspace:     ${runtime.state.workspace}`)
   console.log(`orchestrator:  ${url} (${runtime.state.connected ? 'connected' : 'offline'})`)
   if (!token)
-    console.warn('[clara-lab] no orchestrator token found; run `pnpm clara orchestrator start`')
+    console.warn('[clara-lab] no orchestrator token found; run `pnpm clara start orchestrator`')
   if (options.open) openBrowser(server.url)
 
   const shutdown = async (): Promise<void> => {

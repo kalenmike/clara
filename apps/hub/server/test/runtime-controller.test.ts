@@ -745,11 +745,11 @@ describe('RuntimeController', () => {
     const reset = vi.spyOn(controller.agent, 'reset')
     try {
       await harness.setLive('harness-a', async () => Response.json({ protocol: 1 }), 'local')
-      expect(harness.active?.online).toBe(true)
+      expect(harness.connection('harness-a')?.online).toBe(true)
       expect(reset).not.toHaveBeenCalled()
 
       await harness.clearLive('harness-a')
-      expect(harness.active?.online).toBe(false)
+      expect(harness.connection('harness-a')?.online).toBe(false)
       expect(reset).not.toHaveBeenCalled()
     } finally {
       await close()

@@ -34,7 +34,7 @@ export interface StaticFiles {
 }
 
 /**
- * The lab server runs from source through `pnpm clara lab` and from the bundle
+ * The lab server runs from source through `pnpm clara start lab` and from the bundle
  * through `pnpm build`. Vite always emits to `tools/lab/dist/web`, so the source
  * layout needs one more parent hop than the bundle layout.
  */

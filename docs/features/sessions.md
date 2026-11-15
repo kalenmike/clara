@@ -488,8 +488,8 @@ list has no checkbox column or bulk toolbar.
 - The workspace startup script set on the project page is not run by Clara's
   New brief action because Clara does not create worktrees.
 - The active and archived lists each cap at 50 sessions.
-- Settings model and agent catalogs come from the default harness in this
-  release; the composer uses the open session or target workspace harness.
+- Settings model and agent catalogs show every paired harness; the composer
+  uses the open session or target workspace harness.
 - Session cards do not show a message count; that lives in the chat info panel.
 - Saved drafts cannot be edited or cancelled from Clara yet; start the draft or
   delete the session.

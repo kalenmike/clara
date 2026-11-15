@@ -1,7 +1,14 @@
 import { join, dirname } from 'node:path'
 import { readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
-import { PROTOCOL_VERSION } from '@clara/shared-types'
+import {
+  ENROLLMENT_GRANT_TTL_SECONDS,
+  HARNESS_PAIRING_CODE_PREFIX,
+  PROTOCOL_VERSION,
+  createRelayGrant,
+  encodeHarnessPairingCode,
+  type HarnessPairingPayload,
+} from '@clara/shared-types'
 import {
   acquireRuntimeLock,
   isRuntimeLive,
@@ -30,7 +37,7 @@ import { PanelLog } from './panel/log.ts'
 import { PanelRuntime } from './panel/runtime.ts'
 import { startPanelServer, type PanelServer } from './panel/server.ts'
 import { readSetupToken, readSetupTokenFromEnv } from './panel/setup-token.ts'
-import { printPairing } from './pairing.ts'
+import { printPairing, relayWsUrl } from './pairing.ts'
 import { PushService } from './push/service.ts'
 import { SessionMonitor } from './sessions/monitor.ts'
 import { clearPushSubscriptions, PushSubscriptionStore } from './push/store.ts'
@@ -63,6 +70,11 @@ export async function main(): Promise<void> {
     return
   }
 
+  if (command === 'pair-adapter') {
+    await runPairAdapter(args.slice(1))
+    return
+  }
+
   if (command === 'health') {
     await runHealth()
     return
@@ -70,9 +82,12 @@ export async function main(): Promise<void> {
 
   if (command !== 'serve' && command !== 'pair') {
     console.error(`Unknown command: ${command}`)
-    console.error('Usage: clara-server [serve|setup|pair|admin|health] [--no-panel]')
+    console.error('Usage: clara-server [serve|setup|pair|pair-adapter|admin|health] [--no-panel]')
     console.error('       clara-server setup [--username <name>] [--password-stdin]')
     console.error('       clara-server pair [--no-relay] [--no-qr] [--revoke-all|--revoke <id>]')
+    console.error(
+      '       clara-server pair-adapter --kind <kind> [--transport local|relay|docker] [--json]'
+    )
     console.error('       clara-server admin reset|setup-token')
     console.error('       clara-server health')
     process.exitCode = 2
@@ -242,7 +257,8 @@ async function runServe(
   const opencodeVersion =
     setupRequired || initial.stopped || !initial.features.opencode || !harness.configured
       ? undefined
-      : await harness.probe(3_000).then((probe) => (probe.ok ? probe.version : undefined))
+      : harness.list().find((connection) => connection.online && connection.harnessVersion)
+          ?.harnessVersion
   const startedAt = Date.now() - Math.round(process.uptime() * 1000)
 
   let apiToken = ''
@@ -337,9 +353,9 @@ async function runServe(
       if (!harness.configured) {
         log('no harness connection is configured; open the panel to set one up')
       } else if (opencodeVersion) {
-        log(`harness ${harness.active?.label ?? 'harness'} answered with ${opencodeVersion}`)
+        log(`a paired harness reported ${opencodeVersion}`)
       } else if (initial.features.opencode && !setupRequired) {
-        log('the configured harness is not answering')
+        log('no paired harness has reported a version yet')
       }
     }
   }
@@ -504,6 +520,119 @@ async function runPair(config: ServerConfig, args: string[], noRelay: boolean): 
   } finally {
     closeDatabase(database)
   }
+}
+
+async function runPairAdapter(args: string[]): Promise<void> {
+  const kind = readOption(args, '--kind') ?? readOption(args, '--harness')
+  if (!kind) {
+    console.error(
+      'Usage: clara-server pair-adapter --kind <kind> [--transport local|relay|docker] [--json]'
+    )
+    process.exitCode = 2
+    return
+  }
+  const transport = readOption(args, '--transport') ?? 'local'
+  if (transport !== 'local' && transport !== 'relay' && transport !== 'docker') {
+    console.error('--transport must be local, relay, or docker')
+    process.exitCode = 2
+    return
+  }
+  const label = readOption(args, '--label') ?? kind
+  const wsUrlOverride = readOption(args, '--ws-url')
+
+  const previous = readRuntimeState()
+  const live = isRuntimeLive(previous) ? previous : undefined
+  const config = loadConfig({
+    ...(live?.local ? { localPortHint: live.local.port } : {}),
+  })
+  if (live?.local) {
+    config.local.host = live.local.host
+    config.local.port = live.local.port
+    config.sources.localHost = 'runtime'
+    config.sources.localPort = 'runtime'
+  }
+
+  const database = openDatabase(config.dbPath)
+  try {
+    const users = new PanelUserStore(database)
+    if (users.count() === 0) {
+      console.error(
+        'Create the hub owner account first: open the panel or run `clara-server setup`.'
+      )
+      process.exitCode = 1
+      return
+    }
+    const secretKey = await readSecretKey(config.configDir)
+    const store = new HarnessStore({
+      db: database,
+      key: secretKey.key,
+      keyVersion: secretKey.version,
+    })
+    const pairing = await store.createPairing({ kind, label })
+    const relay = transport === 'relay' ? usableRelay(config.relay) : undefined
+    if (transport === 'relay' && !relay) {
+      console.error(
+        'The relay URL or hub token is missing. Save both in the Relay card before pairing.'
+      )
+      process.exitCode = 1
+      return
+    }
+    const room = relay ? relay.room : 'local'
+    const wsUrl =
+      transport === 'relay' && relay
+        ? relayWsUrl(relay.url, room)
+        : (wsUrlOverride ??
+          (transport === 'docker'
+            ? `ws://server:${config.local.port}/ws`
+            : `ws://${config.local.host}:${config.local.port}/ws`))
+    const grant = relay
+      ? await createRelayGrant({
+          room: relay.room,
+          id: pairing.id,
+          agentToken: relay.agentToken,
+          ttlSeconds: ENROLLMENT_GRANT_TTL_SECONDS,
+        })
+      : undefined
+    const payload: HarnessPairingPayload = {
+      v: PROTOCOL_VERSION,
+      role: 'adapter',
+      kind,
+      wsUrl,
+      room,
+      enrollId: pairing.id,
+      enrollToken: pairing.token,
+      ...(grant ? { grant: grant.grant } : {}),
+      fingerprint: pairing.fingerprint,
+      expiresAt: pairing.expiresAt,
+    }
+    const code = `${HARNESS_PAIRING_CODE_PREFIX}${encodeHarnessPairingCode(payload)}`
+    const result = {
+      pairing: {
+        id: pairing.id,
+        kind,
+        label,
+        transport,
+        code,
+        wsUrl,
+        room,
+        fingerprint: pairing.fingerprint,
+        expiresAt: new Date(pairing.expiresAt).toISOString(),
+        createdAt: new Date(pairing.createdAt).toISOString(),
+      },
+    }
+    if (args.includes('--json')) {
+      console.log(JSON.stringify(result))
+    } else {
+      console.log(code)
+      console.log(`expires ${result.pairing.expiresAt}`)
+    }
+  } finally {
+    closeDatabase(database)
+  }
+}
+
+function usableRelay(relay: { url: string; room: string; agentToken: string } | undefined) {
+  return relay?.url && relay.agentToken ? relay : undefined
 }
 
 async function runSetup(args: string[]): Promise<void> {

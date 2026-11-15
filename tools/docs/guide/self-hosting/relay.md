@@ -150,7 +150,7 @@ Environment variables are the fallback for CI or headless bootstrap:
 ```bash
 CLARA_RELAY_URL=wss://relay.example \
 CLARA_AGENT_TOKEN=... \
-pnpm clara server start --local
+pnpm clara start hub --local
 ```
 
 Each variable wins over the matching panel value when it is set. Values supplied

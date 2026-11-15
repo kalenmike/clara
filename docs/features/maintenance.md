@@ -17,7 +17,7 @@ The maintenance package keeps three pipelines:
 
 All three use `observed` enforcement so they can run while the adapter or setup
 is degraded. The deterministic mechanics still live in `pnpm clara rebuild …`
-and `pnpm clara orchestrator inspect`.
+and `clara-orchestrator inspect`.
 
 ## User flow
 
@@ -108,7 +108,7 @@ and `pnpm clara orchestrator inspect`.
   dispatcher. The normal Clara hub path is safe; the operator can pass
   `--skip lab` when driving the pipeline from the Lab.
 - **The hub runs in a container:** restart stops and recreates it with
-  `pnpm clara server stop --docker` and `pnpm clara server start --docker
+  `pnpm clara stop hub --docker` and `pnpm clara start hub --docker
 --build`, then waits for the panel `/health` endpoint. The container is
   detected from its health `mode` or, if the panel is down, from the running
   compose service. No host PID is signalled.
@@ -120,7 +120,7 @@ and `pnpm clara orchestrator inspect`.
   as stopped and the restart leaves it stopped. It does not start a service
   that was down before the rebuild.
 - **The web client runs in a container:** restart stops and recreates it with
-  `pnpm clara web stop --docker` and `pnpm clara web start --docker --build`,
+  `pnpm clara stop web --docker` and `pnpm clara start web --docker --build`,
   then waits for `/healthz`. The fresh build reuses any `VITE_CLARA_WS_URL` in
   `infra/docker/.env`, so keep a retargeted relay endpoint there when the image uses
   one.
@@ -213,7 +213,7 @@ clara`. A manually started hub is restarted from the captured root with its
   `--manage-external`, `--force`, `--skip <service>`, `--lines <n>`, and
   `--mcp` / `--no-mcp`. Service restarts default to Docker; pass `--local` for
   local services or `--all` for a mixed setup.
-- Run evidence: `pnpm clara orchestrator inspect [--run <id> | --request
+- Run evidence: `clara-orchestrator inspect [--run <id> | --request
 <path> | --request-env] [--json]`. `--request-env` reads `CLARA_REQUEST` in a
   script step. Without a run id it selects the latest failed root run for the
   workspace.
@@ -242,9 +242,9 @@ clara`. A manually started hub is restarted from the captured root with its
 - Recovery: `recover` probes health, selects only `expected && !healthy`
   services, restarts them in the same order, and re-runs health. It never
   restarts a healthy service or starts one that was stopped at capture.
-- Adapter install: `clara-adapter-opencode install` or `pnpm clara adapter install --opencode`; MCP refresh:
-  `pnpm clara adapter install --opencode --mcp --no-service` or
-  `pnpm clara mcp install --no-start`.
+- Adapter install: `clara-adapter-opencode install` or `pnpm clara start adapter --harness opencode --pair`; MCP refresh:
+  `pnpm clara start adapter --harness opencode --pair --mcp` or
+  `pnpm clara start adapter --harness opencode --mcp`.
 - Adapter release: run the `adapter-releases` workflow from
   **Actions → adapter-releases → Run workflow**. It builds each OS on its own
   runner, uploads kind-prefixed archives to the `adapters-v<version>` GitHub
@@ -261,9 +261,9 @@ clara`. A manually started hub is restarted from the captured root with its
 - Default ports: orchestrator `8789`, panel `8790`, local hub `8788`, Lab
   `8791`, web `8080`. `CLARA_LAB_PORT`, `CLARA_PANEL_PORT`,
   `CLARA_LOCAL_PORT`, `CLARA_WEB_PORT`, and `CLARA_ORCHESTRATION_URL` override
-  discovery. The hub container uses
-  `pnpm clara server status|start --docker`; the web container uses
-  `pnpm clara web status|start --docker`.
+  discovery. The hub container uses `pnpm clara status hub --docker` or
+  `pnpm clara start hub --docker`; the web container uses
+  `pnpm clara status web --docker` or `pnpm clara start web --docker`.
 - Tests: `tools/cli/test/rebuild.test.mjs`,
   `tools/cli/test/web-control.test.mjs`,
   `packages/orchestration/engine/test/loader.test.ts`,

@@ -10,7 +10,7 @@ import {
   seal,
   utf8,
   verifyV4HelloMac,
-  type SessionKeys,
+  type V4SessionKeys,
 } from '@clara/crypto'
 import {
   PROTOCOL_VERSION,
@@ -64,7 +64,7 @@ export async function enrollAdapter(input: EnrollmentInput): Promise<AdapterEnro
   const sid = bytesToBase64Url(randomBytes(16))
   const clientNonce = bytesToBase64Url(randomBytes(16))
   let ephemeral: Awaited<ReturnType<typeof generateEphemeralKeyPair>> | undefined
-  let keys: SessionKeys | undefined
+  let keys: V4SessionKeys | undefined
   let sendSeq = 0
   const receive = new ReplayGuard()
   let settled = false

@@ -8,16 +8,23 @@ import {
   parseBackupArgs,
   parseRestoreArgs,
   restoreArgs,
+  targetContainers,
+  targetVolumes,
 } from '../src/lib/stack-backup.mjs'
 import { VOLUMES } from '../src/lib/stack-control.mjs'
 
-test('builds a timestamped backup path', () => {
-  const path = defaultBackupPath(new Date('2026-11-10T12:34:56Z'))
-  assert.equal(path, resolve('clara-backup-20261110-123456.tar.gz'))
+test('builds a timestamped backup path for each target', () => {
+  const now = new Date('2026-11-10T12:34:56Z')
+  assert.equal(defaultBackupPath('default', now), resolve('clara-backup-20261110-123456.tar.gz'))
+  assert.equal(defaultBackupPath('hub', now), resolve('clara-hub-backup-20261110-123456.tar.gz'))
+  assert.equal(
+    defaultBackupPath('orchestrator', now),
+    resolve('clara-orchestrator-backup-20261110-123456.tar.gz')
+  )
 })
 
 test('parses backup output paths', () => {
-  assert.deepEqual(parseBackupArgs([]), { output: defaultBackupPath() })
+  assert.deepEqual(parseBackupArgs([]), { output: undefined })
   assert.deepEqual(parseBackupArgs(['--output', 'backup.tar.gz']), {
     output: resolve('backup.tar.gz'),
   })
@@ -65,6 +72,15 @@ test('restores into all volumes with replace semantics', () => {
   assert.ok(
     args.includes('find /state -mindepth 1 -maxdepth 1 -exec rm -rf {} + && tar xzf - -C /state')
   )
+})
+
+test('selects volumes and containers for each backup target', () => {
+  assert.deepEqual(targetVolumes('default'), VOLUMES)
+  assert.deepEqual(targetVolumes('hub'), ['clara-server-config', 'clara-server-data'])
+  assert.deepEqual(targetVolumes('orchestrator'), ['clara-orchestrator-data'])
+  assert.deepEqual(targetContainers('hub'), ['clara-server'])
+  assert.deepEqual(targetContainers('orchestrator'), ['clara-orchestrator'])
+  assert.throws(() => targetVolumes('web'), /unknown backup target/)
 })
 
 test('uses the node image for the one-shot container', () => {

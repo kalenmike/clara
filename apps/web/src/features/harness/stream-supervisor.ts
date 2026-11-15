@@ -13,8 +13,8 @@ const STABLE_MS = 10_000
 
 export type HarnessStreamOptions = {
   client: ClaraClient
-  /** Omit to stream the active/default harness. */
-  harnessID?: string
+  /** The paired harness whose events to stream. */
+  harnessID: string
   onEvent: (event: ClaraEvent) => void
   onState: (state: StreamState) => void
   onError: (message: string) => void
@@ -98,7 +98,7 @@ export function superviseHarnessStream(options: HarnessStreamOptions): HarnessSt
 
       try {
         for await (const event of client.event.subscribe({
-          ...(harnessID ? { harnessID } : {}),
+          harnessID,
           signal: attempt.signal,
           onActivity: markAlive,
         })) {

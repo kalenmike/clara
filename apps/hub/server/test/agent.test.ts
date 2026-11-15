@@ -13,7 +13,7 @@ import {
   seal,
   utf8,
   verifyV4HelloMac,
-  type SessionKeys,
+  type V4SessionKeys,
   type V4EphemeralKeyPair,
 } from '@clara/crypto'
 import {
@@ -49,29 +49,49 @@ import type { DeviceRegistry } from '../src/store/devices.ts'
 import { TrafficMeter } from '../src/traffic.ts'
 
 function fakeHarness(url: string, configured = true): HarnessManager {
+  const connection = {
+    id: 'harness-1',
+    harnessId: 'harness-a',
+    kind: 'opencode',
+    label: 'Test OpenCode',
+    transport: 'local' as const,
+    online: true,
+    capabilities: {},
+    credentialConfigured: true,
+    createdAt: 1,
+    updatedAt: 1,
+  }
+  const request = (
+    input: { method: string; path: string; search?: string; body?: string },
+    signal: AbortSignal
+  ) => {
+    if (!configured) return Promise.reject(new HarnessUnconfiguredError())
+    const path =
+      input.path === '/harness/info'
+        ? '/api/info'
+        : input.path === '/projects'
+          ? '/api/project'
+          : input.path === '/sessions'
+            ? '/api/session'
+            : input.path === '/events'
+              ? '/api/stream'
+              : `/api${input.path}`
+    return fetch(`${url}${path}${input.search ?? ''}`, {
+      method: input.method,
+      ...(input.body ? { body: input.body } : {}),
+      signal,
+    })
+  }
   return {
     configured,
-    request: (
+    list: () => (configured ? [connection] : []),
+    connection: (harnessID: string) => (harnessID === 'harness-a' ? connection : undefined),
+    requestFor: (
+      _harnessID: string,
       input: { method: string; path: string; search?: string; body?: string },
       signal: AbortSignal
-    ) => {
-      if (!configured) return Promise.reject(new HarnessUnconfiguredError())
-      const path =
-        input.path === '/harness/info'
-          ? '/api/info'
-          : input.path === '/projects'
-            ? '/api/project'
-            : input.path === '/sessions'
-              ? '/api/session'
-              : input.path === '/events'
-                ? '/api/stream'
-                : `/api${input.path}`
-      return fetch(`${url}${path}${input.search ?? ''}`, {
-        method: input.method,
-        ...(input.body ? { body: input.body } : {}),
-        signal,
-      })
-    },
+    ) => request(input, signal),
+    request,
   } as unknown as HarnessManager
 }
 
@@ -187,7 +207,7 @@ function closeServer(server: Server): Promise<void> {
 
 type Client = {
   sid: string
-  keys: SessionKeys
+  keys: V4SessionKeys
   sendSeq: number
   receiveSeq: number
 }
@@ -248,7 +268,7 @@ async function completeHandshake(
   hello: ClientHelloFrameV4,
   hubHello: HubHelloFrameV4,
   ephemeral: V4EphemeralKeyPair
-): Promise<SessionKeys> {
+): Promise<V4SessionKeys> {
   const input = {
     staticKey: key,
     sid: hello.sid,
@@ -413,7 +433,7 @@ describe('agent', () => {
         type: 'http.request',
         id: 'unconfigured',
         method: 'GET',
-        path: '/v1/harness/info',
+        path: '/v1/harness/info?harnessID=harness-a',
       })
 
       const states = await waitFor(async () => {
@@ -490,7 +510,7 @@ describe('agent', () => {
         type: 'http.request',
         id: 'request-1',
         method: 'GET',
-        path: '/v1/harness/info',
+        path: '/v1/harness/info?harnessID=harness-a',
       })
 
       const states = await waitFor(async () => {
@@ -726,7 +746,7 @@ describe('agent', () => {
         type: 'http.request',
         id: 'disabled-1',
         method: 'GET',
-        path: '/v1/harness/info',
+        path: '/v1/harness/info?harnessID=harness-a',
       })
       const states = await waitFor(async () => {
         const parsed = await readStates(client, frames)
@@ -1084,7 +1104,7 @@ describe('agent client sync', () => {
         type: 'http.request',
         id: 'request-metered',
         method: 'GET',
-        path: '/v1/harness/info',
+        path: '/v1/harness/info?harnessID=harness-a',
       })
       await waitFor(async () => {
         const states = await readStates(client, frames)
@@ -1125,7 +1145,7 @@ describe('agent client sync', () => {
         type: 'http.request',
         id: 'request-unmetered',
         method: 'GET',
-        path: '/v1/harness/info',
+        path: '/v1/harness/info?harnessID=harness-a',
       })
       await waitFor(async () => {
         const states = await readStates(client, frames)
@@ -1259,7 +1279,7 @@ describe('agent client sync', () => {
         type: 'http.request',
         id: 'device-request',
         method: 'GET',
-        path: '/v1/harness/info',
+        path: '/v1/harness/info?harnessID=harness-a',
       })
       await waitFor(async () => {
         const states = await readStates(deviceClient, frames)
@@ -1272,7 +1292,7 @@ describe('agent client sync', () => {
         type: 'http.request',
         id: 'revoked-request',
         method: 'GET',
-        path: '/v1/harness/info',
+        path: '/v1/harness/info?harnessID=harness-a',
       })
       const error = await waitFor(() => frames.find((frame) => frame.t === 'error'))
       expect(error).toMatchObject({ code: 'revoked_device' })
@@ -1630,7 +1650,7 @@ describe('agent relay envelope', () => {
         type: 'http.request',
         id: 'after-misroute',
         method: 'GET',
-        path: '/v1/harness/info',
+        path: '/v1/harness/info?harnessID=harness-a',
       })
       const states = await waitFor(async () => {
         const parsed = await readStates(client, frames)
@@ -1676,7 +1696,7 @@ describe('agent relay envelope', () => {
         type: 'http.request',
         id: 'after-hello',
         method: 'GET',
-        path: '/v1/harness/info',
+        path: '/v1/harness/info?harnessID=harness-a',
       })
       const states = await waitFor(async () => {
         const parsed = await readStates(client, frames)
@@ -1741,7 +1761,12 @@ describe('agent relay envelope', () => {
         client,
         agent,
         PEER_A,
-        { type: 'http.request', id: 'binary-route', method: 'GET', path: '/v1/harness/info' },
+        {
+          type: 'http.request',
+          id: 'binary-route',
+          method: 'GET',
+          path: '/v1/harness/info?harnessID=harness-a',
+        },
         routeBytes
       )
       const states = await waitFor(async () => {
@@ -1907,7 +1932,7 @@ describe('agent relay limits', () => {
         type: 'http.request',
         id: 'cap-still-works',
         method: 'GET',
-        path: '/v1/harness/info',
+        path: '/v1/harness/info?harnessID=harness-a',
       })
       const states = await waitFor(async () => {
         const parsed = await readStates(first.client, frames)

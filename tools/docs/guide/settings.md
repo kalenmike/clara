@@ -38,14 +38,16 @@ and dark without changing the palette.
 
 - **Session wording** — rename sessions in the interface. The default is
   **Brief**. Presets include Task, Session, Action, Run, Job, and a custom word.
-- **Default agent** — the last agent selected anywhere in Clara, or a specific
+- **Default agent** — per harness, the last agent selected there or a specific
   agent.
 - **Cost display** — **Actual** or **Estimated**. Estimates are marked with `~`.
 
 ## Models
 
-Hide providers and models from the composer, filter by free or paid, and read
-capabilities, limits, prices, and variants. See [Models and usage](models-and-usage.md).
+Choose **All harnesses** or one paired harness, hide providers and models from
+the composer, filter by free or paid, and read capabilities, limits, prices, and
+variants. Hiding a model on one harness does not hide it on another. See
+[Models and usage](models-and-usage.md).
 
 ## Notifications
 

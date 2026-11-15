@@ -64,7 +64,6 @@ export function HarnessStep({
               <li key={harness.id} className="flex flex-wrap items-center gap-2 text-[11px]">
                 <span className="font-medium">{harness.label}</span>
                 <span className="panel-muted">{harness.kind}</span>
-                {harness.isActive ? <Badge tone="info">Active</Badge> : null}
                 <Badge tone={harness.online ? 'success' : 'warning'}>
                   {harness.online ? 'Online' : 'Paired · Offline'}
                 </Badge>

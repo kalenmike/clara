@@ -131,7 +131,17 @@ export function runServerProcess(args) {
 }
 
 export function runLocalServerProcess(args) {
-  return run(process.execPath, [SERVER_ENTRY, ...args], { cwd: root })
+  if (existsSync(SERVER_ENTRY)) {
+    return run(process.execPath, [SERVER_ENTRY, ...args], { cwd: root })
+  }
+  const source = join(root, 'apps', 'hub', 'server', 'src', 'index.ts')
+  if (existsSync(source)) {
+    return run(process.execPath, ['--experimental-strip-types', '--no-warnings', source, ...args], {
+      cwd: root,
+    })
+  }
+  console.error('The hub service is not built. Run `pnpm build` first.')
+  return 1
 }
 
 /** The hub container by name, without throwing when Docker is missing. */

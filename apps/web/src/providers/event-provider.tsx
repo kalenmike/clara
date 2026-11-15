@@ -10,7 +10,7 @@ import {
   type ReactNode,
 } from 'react'
 import { useQueryClient, type QueryClient } from '@tanstack/react-query'
-import type { ClaraEvent } from '@clara/api-contract'
+import type { ClaraEvent, ClaraSession } from '@clara/api-contract'
 import { toast } from 'sonner'
 import { saveLastAgent } from '@/features/agents/default-agent'
 import { chatStore } from '@/features/chat/chat-store'
@@ -49,8 +49,6 @@ const EventContext = createContext<EventContextValue>({
 })
 
 const RECONNECT_NOTICE_MS = 5_000
-/** Before the harness list settles, stream the active/default harness. */
-const DEFAULT_STREAM = '\u0000default'
 
 const MESSAGE_EVENTS = new Set([
   'session.synthetic',
@@ -79,12 +77,8 @@ export function EventProvider({ children }: { children: ReactNode }) {
     () => (harnessesQuery.isSuccess ? onlineHarnessIDs(harnessesQuery.data ?? []) : []),
     [harnessesQuery.data, harnessesQuery.isSuccess]
   )
-  /**
-   * One stream per online harness. Until the harness list settles the active
-   * harness still streams, so the first paint keeps working on single-harness
-   * installs and offline harnesses never open a socket.
-   */
-  const streamTargets = harnessesQuery.isSuccess ? onlineIDs.join('\u0000') : DEFAULT_STREAM
+  /** One stream per online harness. Offline harnesses never open a socket. */
+  const streamTargets = harnessesQuery.isSuccess ? onlineIDs.join('\u0000') : ''
 
   const subscribe = useCallback((listener: EventListener) => {
     listeners.current.add(listener)
@@ -99,12 +93,7 @@ export function EventProvider({ children }: { children: ReactNode }) {
       return
     }
 
-    const harnessIDs: (string | undefined)[] =
-      streamTargets === DEFAULT_STREAM
-        ? [undefined]
-        : streamTargets
-          ? streamTargets.split('\u0000')
-          : []
+    const harnessIDs: string[] = streamTargets ? streamTargets.split('\u0000') : []
     const states = new Map<string, StreamState>()
     const handles: HarnessStreamHandle[] = []
     const timers = new Map<string, number>()
@@ -157,7 +146,7 @@ export function EventProvider({ children }: { children: ReactNode }) {
     }
 
     for (const harnessID of harnessIDs) {
-      const key = harnessID ?? 'active'
+      const key = harnessID
       states.set(key, 'connecting')
       handles.push(
         superviseHarnessStream({
@@ -317,7 +306,10 @@ function handleInvalidation(
       return
 
     case 'session.agent.selected':
-      saveLastAgent(event.data.agent)
+      if (sessionID) {
+        const session = queryClient.getQueryData<ClaraSession>(queryKeys.session(sessionID))
+        saveLastAgent(session?.harnessID, event.data.agent)
+      }
       if (sessionID) {
         void queryClient.invalidateQueries({ queryKey: queryKeys.session(sessionID) })
         void queryClient.invalidateQueries({ queryKey: ['sessions'] })

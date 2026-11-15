@@ -30,7 +30,7 @@ Cloudflare Pages is optional. To serve the SPA from the checkout:
 
 ```bash
 docker network create clara      # once, or reuse the server stack
-pnpm clara web start --docker --build
+pnpm clara start web --docker --build
 ```
 
 Open [127.0.0.1:8080](http://127.0.0.1:8080). The image builds the same bundle as

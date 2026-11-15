@@ -2,6 +2,8 @@ import { spawnSync } from 'node:child_process'
 import { CONTAINERS, SERVICES, orchestratorURL } from './stack-control.mjs'
 import { localURL, panelURL, probe } from './server-control.mjs'
 import { webURL } from './web-control.mjs'
+import { docsPort, docsURL, labPort, labURL, labHealthy } from './dev-services.mjs'
+import { readPid } from './local-runtime.mjs'
 
 const UNKNOWN_CONTAINER = { available: false, state: 'unknown' }
 
@@ -158,7 +160,7 @@ async function collectServerStatus() {
         : (panel.error ?? (local.ok ? null : probeError(local)))
 
   return {
-    service: 'server',
+    service: 'hub',
     container: CONTAINERS.server,
     state: resolved.state,
     mode: resolved.mode,
@@ -187,10 +189,62 @@ async function collectWebStatus() {
   }
 }
 
+async function collectLabStatus() {
+  const port = labPort()
+  const healthy = await labHealthy(port)
+  const pidState = readPid('lab')
+  const state = healthy ? 'running' : pidState.alive ? 'unhealthy' : 'stopped'
+  return {
+    service: 'lab',
+    container: 'local process',
+    state,
+    mode: 'local',
+    healthy,
+    url: labURL(port),
+    error: healthy || !pidState.alive ? null : 'the Lab process is running but is not answering',
+    details: {
+      pid: pidState.pid ? String(pidState.pid) : 'none',
+      port: String(port),
+    },
+  }
+}
+
+async function collectDocsStatus() {
+  const port = docsPort()
+  const pidState = readPid('docs')
+  let reachable = false
+  try {
+    const response = await fetch(docsURL(port), {
+      cache: 'no-store',
+      signal: AbortSignal.timeout(1_500),
+    })
+    reachable = response.ok
+  } catch {
+    reachable = false
+  }
+  const state = reachable ? 'running' : pidState.alive ? 'unhealthy' : 'stopped'
+  return {
+    service: 'docs',
+    container: 'local process',
+    state,
+    mode: 'local',
+    healthy: reachable,
+    url: docsURL(port),
+    error: reachable || !pidState.alive ? null : 'the docs process is running but is not answering',
+    details: {
+      pid: pidState.pid ? String(pidState.pid) : 'none',
+      port: String(port),
+    },
+  }
+}
+
 const collectors = {
   orchestrator: collectOrchestratorStatus,
   server: collectServerStatus,
+  hub: collectServerStatus,
   web: collectWebStatus,
+  lab: collectLabStatus,
+  docs: collectDocsStatus,
 }
 
 export async function collectStatus(names = SERVICES) {

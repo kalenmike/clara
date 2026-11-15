@@ -49,7 +49,7 @@ export function ActivityCard({
           )}
         </CardTitle>
         <div className="flex min-w-0 flex-wrap items-center gap-1.5 text-[11px] text-muted-foreground">
-          <Badge variant={harness.active ? 'secondary' : 'outline'} className="text-[10px]">
+          <Badge variant="outline" className="text-[10px]">
             {harness.label}
           </Badge>
           <Badge variant={item.mailbox === 'inbox' ? 'default' : 'outline'} className="text-[10px]">

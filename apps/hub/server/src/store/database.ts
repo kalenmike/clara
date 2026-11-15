@@ -6,7 +6,7 @@ import { openSqlite, type SqliteDatabase } from '@clara/sqlite'
 
 export type ClaraDatabase = SqliteDatabase
 
-export const SCHEMA_VERSION = 14
+export const SCHEMA_VERSION = 15
 
 const BUSY_TIMEOUT_MS = 5_000
 const DATABASE_MODE = 0o600
@@ -569,6 +569,25 @@ const MIGRATIONS: Migration[] = [
     db.prepare(
       'INSERT INTO settings (key, value, updated_at) VALUES (?, ?, ?) ON CONFLICT (key) DO NOTHING'
     ).run('install.enabled', JSON.stringify(false), Date.now())
+  },
+  /**
+   * Harnesses are peers. The workspace or session selects one, so the hub no
+   * longer stores a globally active connection.
+   */
+  (db) => {
+    const table = db
+      .prepare(
+        "SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'harness_connections'"
+      )
+      .get() as { name: string } | undefined
+    if (!table) return
+    db.exec('DROP INDEX IF EXISTS harness_connections_active')
+    const columns = db.prepare('PRAGMA table_info(harness_connections)').all() as Array<{
+      name: string
+    }>
+    if (columns.some((column) => column.name === 'is_active')) {
+      db.exec('ALTER TABLE harness_connections DROP COLUMN is_active')
+    }
   },
 ]
 

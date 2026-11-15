@@ -36,28 +36,46 @@ beforeAll(() => {
 })
 
 describe('hidden models sync field', () => {
-  it('shares the whole group as one value', () => {
+  it('shares per-harness groups as one value', () => {
     storage.clear()
-    saveHiddenModels({ providers: ['opencode'], models: ['openai/gpt-5'] })
+    saveHiddenModels({
+      version: 2,
+      harnesses: {
+        'harness-a': { providers: ['opencode'], models: ['openai/gpt-5'] },
+      },
+    })
 
     const field = buildSyncFields().models.find((item) => item.key === HIDDEN_MODELS_KEY)
     expect(field).toBeDefined()
     expect(JSON.parse(field!.read() as string)).toEqual({
-      providers: ['opencode'],
-      models: ['openai/gpt-5'],
+      version: 2,
+      harnesses: {
+        'harness-a': { providers: ['opencode'], models: ['openai/gpt-5'] },
+      },
     })
 
-    expect(field!.apply(JSON.stringify({ providers: ['anthropic'], models: [] }))).toBe(true)
-    expect(readHiddenModels()).toEqual({ providers: ['anthropic'], models: [] })
+    expect(
+      field!.apply(
+        JSON.stringify({
+          version: 2,
+          harnesses: { 'harness-b': { providers: ['anthropic'], models: [] } },
+        })
+      )
+    ).toBe(true)
+    expect(readHiddenModels()).toEqual({
+      version: 2,
+      harnesses: { 'harness-b': { providers: ['anthropic'], models: [] } },
+    })
   })
 
-  it('rejects snapshots that are not a hidden model group', () => {
+  it('rejects v1 and malformed snapshots', () => {
     storage.clear()
     const field = buildSyncFields().models.find((item) => item.key === HIDDEN_MODELS_KEY)
 
     expect(field!.apply('{}')).toBe(false)
     expect(field!.apply('[]')).toBe(false)
     expect(field!.apply('{')).toBe(false)
+    expect(field!.apply(JSON.stringify({ providers: ['opencode'], models: [] }))).toBe(false)
   })
 })
 

@@ -123,7 +123,6 @@ export type PanelHarness = {
   capabilities?: Record<string, unknown>
   /** Live host sample; absent while the adapter is offline or does not report it. */
   resources?: HostResourceMetrics
-  isActive: boolean
   credentialConfigured: boolean
   lastTestAt?: string
   lastTestOk?: boolean
@@ -154,7 +153,10 @@ export type PanelHarnessPairingList = PanelHarnessPairing[]
 
 export type PanelHarnessState = {
   configured: boolean
-  activeId?: string
+  paired: number
+  online: number
+  desired: boolean
+  effective: boolean
   error?: string
 }
 
@@ -688,7 +690,6 @@ export type PanelSessionHarness = {
   label: string
   kind: string
   online: boolean
-  active: boolean
   ok: boolean
   code?: string
   message?: string
@@ -720,7 +721,6 @@ export type PanelSnapshot = {
   agent: PanelAgentInfo
   auth: PanelAuthInfo
   config: PanelConfigInfo
-  opencode: PanelOpenCodeInfo
   harness: PanelHarnessState
   harnesses: PanelHarness[]
   local: PanelLocalTransport

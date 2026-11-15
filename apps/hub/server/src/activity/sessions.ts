@@ -58,7 +58,7 @@ type ActivityOptions = {
 
 /**
  * Read Inbox and Outbox sessions from paired harnesses. The hub API is normally
- * scoped to the active harness; this service is the deliberate exception for
+ * scoped to every paired harness; this service is the deliberate exception for
  * the read-only activity view. Callers can scope the fan-out to one project,
  * across every workspace and harness that project uses.
  */
@@ -114,7 +114,6 @@ export class ActivitySessionsService {
       kind: connection.kind,
       label: connection.label,
       online: connection.online,
-      active: connection.isActive,
       ok: true,
       createdAt: connection.createdAt,
     }

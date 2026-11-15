@@ -20,8 +20,9 @@ action runs the registry install script on the target over SSH or Docker, while
 **Copy code** and **Copy command** install by hand. For the included adapters
 the manual command is `clara-adapter-opencode install --pair <code>` or
 `clara-adapter-claude install --pair <code>` (or
-`pnpm clara adapter install --opencode --pair <code>` /
-`--claude` in the repository). It discovers the harness, enrolls the adapter
+`pnpm clara start adapter --harness opencode --pair <code>` /
+`pnpm clara start adapter --harness claude --pair <code>` in the repository). It
+discovers the harness, enrolls the adapter
 over the local or relay WebSocket, and stores its long-lived credential. The
 adapter reconnects with that credential and never exposes an inbound port.
 Reinstall and re-pair reuse the stable harness identity, so Clara session and
@@ -31,7 +32,7 @@ action or `clara-server pair`.
 
 ## User flow
 
-1. Start the hub (`pnpm clara server start` or the systemd unit).
+1. Start the hub (`pnpm clara start hub` or the systemd unit).
 2. Sign in to the hub panel and choose **Clients → Pair Client**, or run
    `clara-server pair` on the machine that runs the hub service. Both paths
    produce a QR code, a web link, a `clara1_…` code, and an enrollment
@@ -55,7 +56,7 @@ action or `clara-server pair`.
    returns the device id, fingerprint, and first thirty-day device grant. Clara
    stores the non-extractable key in IndexedDB, keeps the grant for relay
    connects, reconnects with the device id, and probes the hub API. Harness
-   information loads separately through the default harness.
+   information loads separately per paired harness.
 6. On success Clara opens the last project. The Settings → Server card shows the
    relay state and device identity. On failure Clara returns to the pair form and
    shows the reason.

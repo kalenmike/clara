@@ -38,10 +38,10 @@ export function SessionsPage() {
   /**
    * Prices come from each session's own harness. Querying the project's
    * workspace harnesses up front covers every session on this page without a
-   * hook per card; an undefined entry keeps the active harness for old payloads.
+   * hook per card.
    */
   const harnessIDs = useMemo(
-    () => [undefined, ...(project?.workspaces.map((workspace) => workspace.harnessID) ?? [])],
+    () => project?.workspaces.map((workspace) => workspace.harnessID) ?? [],
     [project]
   )
   const modelsByHarness = useModelsForHarnesses(harnessIDs)

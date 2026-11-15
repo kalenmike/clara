@@ -18,10 +18,11 @@ device key through a one-time code; there is no shared browser key.
    the one-time code and command. Clara Desktop can install it on this computer,
    an SSH host, or a local container; a browser user runs the command on the
    harness machine. For the included adapters, that is
-   `pnpm clara adapter install --opencode --pair <code>` or
-   `pnpm clara adapter install --claude --pair <code>`. The adapter discovers
-   its harness, prompts for its URL/password if needed (OpenCode) or uses the
-   machine's Claude Code login, enrolls, and installs the hub-facing adapter.
+   `pnpm clara start adapter --harness opencode --pair <code>` or
+   `pnpm clara start adapter --harness claude --pair <code>`. The adapter
+   discovers its harness, prompts for its URL/password if needed (OpenCode) or
+   uses the machine's Claude Code login, enrolls, and installs the hub-facing
+   adapter.
 2. Open Clara. A branded splash shows while Clara checks a pairing link in the
    URL fragment or a stored device. A successful attempt opens the last project
    without showing the connect form.
@@ -36,9 +37,9 @@ device key through a one-time code; there is no shared browser key.
    enrollment handshake, stores the device key, reconnects with the device id,
    and calls `/v1/info` through the tunnel to prove the hub is reachable.
 6. On success Clara opens the last project, or the first project the server
-   returns. It fetches `/v1/harness/info` separately; when the default harness
-   adapter is missing or offline, the app stays connected and shows a retryable
-   harness banner instead of failing the connect screen.
+   returns. It reads the paired-harness list separately; when no adapter is
+   paired or every adapter is offline, the app stays connected and shows a
+   retryable harness banner instead of failing the connect screen.
 7. On failure the form explains whether the code, expiry, fingerprint, relay,
    authentication, or reachability failed. A failed pairing link returns to the
    pair form with the reason.
@@ -55,7 +56,7 @@ device key through a one-time code; there is no shared browser key.
 2. The transport never sends a harness password to the browser. The adapter
    adds harness authentication and is the only process that talks to its
    harness; the hub maps each typed `/v1` call to the harness that owns the
-   session or workspace, and to the default harness otherwise.
+   session or workspace, and requires an explicit harness otherwise.
 3. `VITE_CLARA_WS_URL` retargets relay-room pairings; a `local` pairing keeps the
    endpoint from its payload. The panel's local-only option or
    `clara-server pair --no-relay` produces a `local` pairing even when the hub
@@ -67,12 +68,12 @@ device key through a one-time code; there is no shared browser key.
    handshake failures settle first and report their own reason.
 6. The event stream is healthy only while chunks keep arriving. The hub sends
    a heartbeat every 15 seconds; 45 seconds of silence is treated as dead.
-7. The hub resolves its default harness from SQLite and keeps every paired
-   connection in the same table. If none is paired, the tunnel can connect but
-   `/v1/harness/info` returns `503` with `harness_unconfigured`; if the default
-   adapter is paired but offline, it returns `harness_offline`. The connection
-   probe is `/v1/info`, not the harness endpoint, so these states render as a
-   banner instead of a connection error. Pair or start an adapter in the panel
+7. The hub keeps every paired connection in one table and never marks one as
+   default. If none is paired, the tunnel can connect but harness-backed routes
+   return `503` with `harness_unconfigured`; a named adapter that is offline
+   returns `harness_offline`. The connection probe is `/v1/info`, not a harness
+   endpoint, so these states render as a banner instead of a connection error.
+   Pair or start an adapter in the panel
    to use projects and sessions.
 8. Push notifications need the hub's E2EE transport; the control channel
    also carries push subscriptions.
@@ -178,15 +179,15 @@ device key through a one-time code; there is no shared browser key.
   token, and saving it in the Relay card starts the relay without a restart.
   Only explicit relay actions (relay pairing, Cloudflare deployment) reject an
   incomplete relay.
-- Docker stack: `pnpm clara start` starts the orchestrator, server, and web
-  client together; `--no-*` selects a subset; `restart` recreates the selection.
-  Use the scoped commands for one service.
-- Server container: `pnpm clara server start --docker`; panel and local
+- Docker stack: `pnpm clara start` starts the orchestrator, hub, and web client
+  together; `start hub`, `start web`, or `start orchestrator` selects one
+  target; `restart` recreates the selection.
+- Server container: `pnpm clara start hub --docker`; panel and local
   WebSocket publish on host loopback, and adapters on the `clara` Docker network
   connect to `ws://server:8788/ws`.
   The maintenance snapshot records `local` vs `container` and recreates the
   container with stop/start; see [maintenance.md](maintenance.md).
-- Web container: `pnpm clara web start --docker --build` serves the SPA on
+- Web container: `pnpm clara start web --docker --build` serves the SPA on
   `127.0.0.1:8080`. Local pairing works from that loopback origin; a remote
   HTTPS page still needs the relay because pairing carries a `ws://` URL. The
   maintenance snapshot records the web client as `container` or `stopped`.

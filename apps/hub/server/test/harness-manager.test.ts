@@ -6,7 +6,7 @@ import { generateKey, generateSecretKey, loadSecretKey } from '@clara/crypto'
 import { HarnessManager } from '../src/harness/manager.ts'
 import { HarnessMetadataStore } from '../src/harness/metadata.ts'
 import { HarnessStore } from '../src/harness/store.ts'
-import { HarnessUnconfiguredError } from '../src/harness/types.ts'
+import { HarnessOfflineError } from '../src/harness/types.ts'
 import { ProjectStore } from '../src/projects/store.ts'
 import { closeDatabase, openDatabase, type ClaraDatabase } from '../src/store/database.ts'
 
@@ -52,35 +52,32 @@ async function enroll(harnessId = 'harness-a', adapterId = 'adapter-a') {
 describe('harness manager', () => {
   it('starts unconfigured and returns a clear error', async () => {
     expect(manager.configured).toBe(false)
-    expect((await manager.probe()).code).toBe('unconfigured')
+    expect((await manager.probeConnection('missing')).code).toBe('unconfigured')
     await expect(
-      manager.request({ method: 'GET', path: '/info' }, AbortSignal.timeout(1000))
-    ).rejects.toBeInstanceOf(HarnessUnconfiguredError)
+      manager.requestFor('missing', { method: 'GET', path: '/info' }, AbortSignal.timeout(1000))
+    ).rejects.toBeInstanceOf(HarnessOfflineError)
   })
 
   it('marks an enrolled adapter offline until its session registers', async () => {
     const result = await enroll()
-    expect(result.connection.isActive).toBe(true)
     expect(result.connection.online).toBe(false)
     expect(manager.configured).toBe(true)
-    expect((await manager.probe()).code).toBe('offline')
+    expect((await manager.probeConnection(result.connection.id)).code).toBe('offline')
 
     await manager.setLive('harness-a', async () => Response.json({ protocol: 1 }), 'local')
-    expect(manager.active?.online).toBe(true)
+    expect(manager.connection('harness-a')?.online).toBe(true)
     await manager.clearLive('harness-a')
-    expect(manager.active?.online).toBe(false)
+    expect(manager.connection('harness-a')?.online).toBe(false)
   })
 
-  it('promotes another harness when the active one is removed', async () => {
+  it('keeps other harnesses when one is removed', async () => {
     const first = await enroll('harness-a', 'adapter-a')
-    const second = await enroll('harness-b', 'adapter-b')
-    expect(first.connection.isActive).toBe(true)
-    expect(second.connection.isActive).toBe(false)
+    await enroll('harness-b', 'adapter-b')
 
     await manager.remove(first.connection.id)
 
     expect(manager.configured).toBe(true)
-    expect(manager.active?.harnessId).toBe('harness-b')
+    expect(manager.list().map((connection) => connection.harnessId)).toEqual(['harness-b'])
   })
 
   it('keeps every harness record linked to one workspace', async () => {
@@ -98,14 +95,14 @@ describe('harness manager', () => {
         workspaceID: workspace.id,
       })
     }
-    expect(manager.harnessProjectIds(project.id)).toEqual([
+    expect(manager.projects.harnessProjectIds('harness-a', project.id)).toEqual([
       'harness-project-a',
       'harness-project-b',
     ])
   })
 
   it('reports the live harness from the health route', async () => {
-    await enroll()
+    const enrolled = await enroll()
     await manager.setLive(
       'harness-a',
       async (request) => {
@@ -120,7 +117,7 @@ describe('harness manager', () => {
       'local'
     )
 
-    await expect(manager.probe()).resolves.toMatchObject({
+    await expect(manager.probeConnection(enrolled.connection.id)).resolves.toMatchObject({
       ok: true,
       code: 'ok',
       version: '2.1.1',
@@ -191,19 +188,20 @@ describe('harness manager', () => {
       'local'
     )
 
-    const response = await manager.request(
+    const response = await manager.requestFor(
+      'harness-a',
       { method: 'GET', path: '/sessions' },
       AbortSignal.timeout(1000)
     )
     expect((await response.json()) as { data: unknown[] }).toEqual({ data: [], cursor: {} })
-    expect((await manager.probe()).ok).toBe(false)
+    expect((await manager.probeConnection('missing')).ok).toBe(false)
   })
 
   it('times out a probe even when the adapter ignores the abort signal', async () => {
-    await enroll()
+    const enrolled = await enroll()
     await manager.setLive('harness-a', () => new Promise(() => {}), 'local')
 
-    const probe = await manager.probe(25)
+    const probe = await manager.probeConnection(enrolled.connection.id, 25)
     expect(probe.code).toBe('timeout')
     expect(probe.ok).toBe(false)
   })

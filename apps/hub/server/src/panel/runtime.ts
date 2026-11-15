@@ -15,7 +15,6 @@ import {
   type PanelFeatureName,
   type PanelHarness,
   type PanelHarnessState,
-  type PanelOpenCodeInfo,
   type PanelRelayTransport,
   type PanelSessionHarness,
   type PanelSessionsQuery,
@@ -27,7 +26,6 @@ import {
 import type { Agent } from '../agent.ts'
 import type { ServerConfig } from '../config.ts'
 import type { HarnessHostResources, HarnessManager } from '../harness/manager.ts'
-import type { HarnessProbe } from '../harness/types.ts'
 import { harnessList, harnessState } from './harness.ts'
 import type { PushService } from '../push/service.ts'
 import { readVapidSubject } from '../push/vapid.ts'
@@ -40,7 +38,6 @@ import type { PanelLog } from './log.ts'
 import type { PanelFeature } from './feature.ts'
 import type { SessionMonitor } from '../sessions/monitor.ts'
 
-const PROBE_TTL_MS = 5_000
 const HOST_METRICS_TTL_MS = 5_000
 const HOST_METRICS_RETENTION_MS = 30_000
 const MAX_ERROR_LENGTH = 240
@@ -92,8 +89,6 @@ export type PanelDataSource = {
  */
 export class PanelRuntime implements PanelDataSource {
   private readonly options: PanelRuntimeOptions
-  private probeCache: { at: number; generation: number; result: HarnessProbe } | undefined
-  private probeInFlight: Promise<HarnessProbe> | undefined
   private hostCache = new Map<string, HostMetricsCacheEntry>()
   private hostInFlight = new Map<string, Promise<HarnessHostResources>>()
   private harnessSecrets: string[] = []
@@ -108,18 +103,15 @@ export class PanelRuntime implements PanelDataSource {
     const controls = this.controlsSnapshot()
     const hostEnabled =
       controlFor(controls, 'opencode').effective && this.options.probeEnabled?.() !== false
-    const [probe, hostMetrics] = await Promise.all([
-      this.getProbe(controls),
-      hostEnabled
-        ? this.hostMetricsSnapshot(now)
-        : Promise.resolve(new Map<string, HostResourceMetrics>()),
-    ])
+    const hostMetrics = hostEnabled
+      ? await this.hostMetricsSnapshot(now)
+      : new Map<string, HostResourceMetrics>()
     const traffic = this.trafficSnapshot()
     const { config } = this.options
     const local = controlFor(controls, 'local')
     const relay = controlFor(controls, 'relay')
     const push = controlFor(controls, 'push')
-    const harness = this.harnessState()
+    const harness = this.harnessState(controlFor(controls, 'opencode'))
 
     const snapshot: PanelSnapshot = {
       apiVersion: PANEL_API_VERSION,
@@ -142,7 +134,6 @@ export class PanelRuntime implements PanelDataSource {
       },
       auth,
       config: panelConfigInfo(config),
-      opencode: this.openCodeSnapshot(probe, now, controlFor(controls, 'opencode')),
       harness,
       harnesses: this.harnessList(hostMetrics),
       harnessPairings: [],
@@ -193,31 +184,10 @@ export class PanelRuntime implements PanelDataSource {
     return harness.message ? { ...harness, message: this.redact(harness.message) } : harness
   }
 
-  private openCodeSnapshot(
-    probe: HarnessProbe,
-    now: number,
-    control: PanelFeatureControl
-  ): PanelOpenCodeInfo {
-    const active = this.options.harness.active
-    const error = control.error ?? this.options.harness.lastError ?? probe.message
-    return {
-      url: active ? `${active.kind} adapter (${active.transport})` : '',
-      passwordConfigured: active?.credentialConfigured === true,
-      reachable: probe.ok,
-      desired: control.desired,
-      effective: control.effective,
-      configured: this.options.harness.configured,
-      ...(probe.version ? { version: probe.version } : {}),
-      latencyMs: probe.latencyMs,
-      checkedAt: new Date(this.probeCache?.at ?? now).toISOString(),
-      code: probe.code,
-      ...(error ? { error: this.redact(error) } : {}),
-    }
-  }
-
-  private harnessState(): PanelHarnessState {
-    const state = harnessState(this.options.harness)
-    return state.error ? { ...state, error: this.redact(state.error) } : state
+  private harnessState(control: PanelFeatureControl): PanelHarnessState {
+    const state = harnessState(this.options.harness, control)
+    const error = control.error ?? state.error
+    return error ? { ...state, error: this.redact(error) } : state
   }
 
   private harnessList(resources: Map<string, HostResourceMetrics>): PanelHarness[] {
@@ -372,47 +342,6 @@ export class PanelRuntime implements PanelDataSource {
 
   private events(): PanelEvent[] {
     return this.options.log.list()
-  }
-
-  private async getProbe(controls: PanelControls): Promise<HarnessProbe> {
-    if (!this.options.harness.configured) {
-      return {
-        ok: false,
-        latencyMs: 0,
-        code: 'unconfigured',
-        message: this.options.harness.lastError ?? 'No harness connection is configured',
-      }
-    }
-    if (!controlFor(controls, 'opencode').effective || this.options.probeEnabled?.() === false) {
-      return {
-        ok: false,
-        latencyMs: 0,
-        code: 'disabled',
-        message: 'Harness access is disabled by an admin setting',
-      }
-    }
-
-    const now = Date.now()
-    const generation = this.options.harness.generation
-    if (
-      this.probeCache &&
-      this.probeCache.generation === generation &&
-      now - this.probeCache.at < PROBE_TTL_MS
-    ) {
-      return this.probeCache.result
-    }
-    if (!this.probeInFlight) {
-      this.probeInFlight = this.options.harness
-        .probe()
-        .then((result) => {
-          this.probeCache = { at: Date.now(), generation, result }
-          return result
-        })
-        .finally(() => {
-          this.probeInFlight = undefined
-        })
-    }
-    return this.probeInFlight
   }
 
   private controlsSnapshot(): PanelControls {

@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest'
 import type {
   PanelAgentInfo,
+  PanelHarnessState,
   PanelLocalTransport,
-  PanelOpenCodeInfo,
   PanelOrchestrationControl,
   PanelPushInfo,
   PanelRelayTransport,
@@ -40,16 +40,13 @@ function agent(patch: Partial<PanelAgentInfo> = {}): PanelAgentInfo {
   }
 }
 
-function opencode(patch: Partial<PanelOpenCodeInfo> = {}): PanelOpenCodeInfo {
+function harnessState(patch: Partial<PanelHarnessState> = {}): PanelHarnessState {
   return {
-    url: 'http://127.0.0.1:4096',
-    passwordConfigured: true,
-    reachable: false,
+    configured: true,
+    paired: 2,
+    online: 2,
     desired: true,
     effective: true,
-    configured: true,
-    checkedAt: '2026-01-01T00:00:00.000Z',
-    code: 'unreachable',
     ...patch,
   }
 }
@@ -114,32 +111,27 @@ function storage(status: PanelStorageEntry['status']): PanelStorageEntry {
 }
 
 describe('harnessHealth', () => {
-  it('reports a reachable harness with its version and latency', () => {
-    const item = harnessHealth(
-      opencode({ reachable: true, code: 'ok', version: '2.1.0', latencyMs: 12 })
-    )
+  it('counts paired and online harnesses', () => {
+    const item = harnessHealth(harnessState({ paired: 3, online: 2 }))
     expect(item.tone).toBe('ok')
-    expect(item.status).toBe('Reachable')
-    expect(item.detail).toContain('OpenCode 2.1.0')
-    expect(item.detail).toContain('12 ms')
+    expect(item.status).toBe('2 of 3 online')
   })
 
-  it('separates a missing connection from a rejected password', () => {
-    expect(harnessHealth(opencode({ code: 'unconfigured' })).tone).toBe('warn')
-    expect(harnessHealth(opencode({ code: 'auth' }))).toMatchObject({
-      tone: 'bad',
-      status: 'Auth rejected',
+  it('separates no paired harness from all offline', () => {
+    expect(harnessHealth(harnessState({ paired: 0, online: 0 }))).toMatchObject({
+      tone: 'warn',
+      status: 'Not configured',
+    })
+    expect(harnessHealth(harnessState({ paired: 2, online: 0 }))).toMatchObject({
+      tone: 'warn',
+      status: 'All offline',
     })
   })
 
   it('keeps a disabled harness idle', () => {
-    expect(harnessHealth(opencode({ code: 'disabled', desired: false })).tone).toBe('idle')
-  })
-
-  it('distinguishes an offline adapter from an unreachable harness', () => {
-    expect(harnessHealth(opencode({ code: 'offline', reachable: false }))).toMatchObject({
-      tone: 'warn',
-      status: 'Adapter offline',
+    expect(harnessHealth(harnessState({ effective: false, desired: false }))).toMatchObject({
+      tone: 'idle',
+      status: 'Disabled',
     })
   })
 })
@@ -253,7 +245,7 @@ describe('hubHealth', () => {
 describe('buildHealth', () => {
   it('returns one item for each health surface', () => {
     const snapshot = {
-      opencode: opencode({ reachable: true, code: 'ok' }),
+      harness: harnessState(),
       local: local(),
       relay: relay(),
       push: push(),
@@ -281,11 +273,10 @@ describe('overviewHealth', () => {
   it('leads with the hub and orders the overview strip', () => {
     const snapshot = {
       agent: agent(),
-      opencode: opencode({ reachable: true, code: 'ok' }),
+      harness: harnessState(),
       local: local(),
       relay: relay(),
       push: push(),
-      harnesses: [{ label: 'OpenCode', isActive: true }],
       controls: {
         stopped: false,
         features: [],

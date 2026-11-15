@@ -5,8 +5,9 @@
 Clara reaches a harness through a small adapter daemon. The adapter connects out
 to the hub over the same local or relay WebSocket and E2EE session as a browser
 client, then speaks the Clara Harness Protocol. The hub is harness-neutral: it
-routes typed `/v1` calls to whichever adapter is active and branches on
-capability flags, not harness kind. This repository includes the OpenCode,
+routes typed `/v1` calls to the adapter that owns the workspace or session, and
+branches on capability flags, not harness kind. Every paired adapter is a peer;
+there is no hub-wide default. This repository includes the OpenCode,
 Claude Code, and Pi adapters. Additional adapters can use the same pairing,
 transport, and capability model.
 
@@ -37,8 +38,9 @@ contacts the harness directly.
 4. The install script detects the target platform, downloads the matching
    Bun-compiled adapter archive, verifies its SHA-256, installs it under the
    adapter data directory, and runs the adapter installer. The manual commands
-   are `pnpm clara adapter install --opencode --pair <code>`, `--claude`, and
-   `--pi`.
+   are `pnpm clara start adapter --harness opencode --pair <code>`,
+   `pnpm clara start adapter --harness claude --pair <code>`, and
+   `pnpm clara start adapter --harness pi --pair <code>`.
 5. The OpenCode installer discovers OpenCode from flags, environment, or
    `~/.local/state/opencode/service.json`. The Claude Code installer uses the
    machine's existing Claude Code login and accepts `--claude-path`, `--model`,
@@ -92,7 +94,8 @@ contacts the harness directly.
    shared runner. `--no-runner` and `--no-service` split those pieces. The
    Claude Code installer installs only the adapter and its service; it does not
    install an orchestration binding. Inside the repository,
-   `pnpm clara adapter install --opencode` and `--claude` dispatch to the same
+   `pnpm clara start adapter --harness opencode --pair` and
+   `pnpm clara start adapter --harness claude --pair` dispatch to the same
    adapter binaries. The hub never executes an install. A browser copies the
    command; Clara Desktop runs it through its loopback adapter-host sidecar,
    which uses the user's SSH agent and Docker socket.
@@ -290,8 +293,8 @@ ask for confirmation run without one, exactly as in the Pi TUI.
 
 - Running the adapter inside the hub process.
 - An inbound adapter HTTP port.
-- A per-client active harness; the panel keeps one default backend while every
-  paired adapter serves the workspaces that belong to it.
+- A hub-wide default or active harness. Every paired adapter serves the
+  workspaces and sessions that belong to it.
 - A Claude Code orchestration binding or shared runner integration.
 - A shipped Claude Code container image.
 - A Pi orchestration binding or shared runner integration.
@@ -364,10 +367,10 @@ ask for confirmation run without one, exactly as in the Pi TUI.
 - Commands: `clara-adapter-opencode install --pair <code>`,
   `clara-adapter-claude install --pair <code>`,
   `clara-adapter-pi install --pair <code>`,
-  `pnpm clara adapter install --claude --pair <code>`,
-  `pnpm clara adapter install --pi --pair <code>`,
-  `pnpm clara adapter status [--claude|--pi]`,
-  `pnpm clara adapter verify [--opencode|--claude|--pi] [--directory <path>] [--write] [--json]`,
+  `pnpm clara start adapter --harness claude --pair <code>`,
+  `pnpm clara start adapter --harness pi --pair <code>`,
+  `pnpm clara status adapter [--harness claude|--harness pi]`,
+  `pnpm clara status adapter --verify [--harness <name>] [--directory <path>] [--write] [--json]`,
   `clara-adapter-<kind> verify [--directory <path>] [--write] [--json]`,
   `clara-adapter-claude uninstall [--purge]`,
   `clara-adapter-pi uninstall [--purge]`.

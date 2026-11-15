@@ -5,7 +5,7 @@ import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Separator } from '@/components/ui/separator'
-import { useHarnessLabel } from '@/features/harness/use-harness-label'
+import { useHarnesses } from '@/features/projects/use-projects'
 import { connectionUrl } from '@/lib/client'
 import { useConnection } from '@/providers/connection-provider'
 import { useEventStream } from '@/providers/event-provider'
@@ -13,18 +13,10 @@ import { usePush } from '@/providers/push-provider'
 
 export function ServerCard({ simplified }: { simplified: boolean }) {
   const navigate = useNavigate()
-  const {
-    config,
-    hub,
-    harness,
-    harnessError,
-    disconnect,
-    reconnect,
-    reconnecting,
-    reconnectError,
-    relayStatus,
-  } = useConnection()
-  const label = useHarnessLabel('Harness')
+  const { config, hub, disconnect, reconnect, reconnecting, reconnectError, relayStatus } =
+    useConnection()
+  const harnessesQuery = useHarnesses()
+  const harnesses = harnessesQuery.data ?? []
   const { state: streamState, lastError } = useEventStream()
   const push = usePush()
 
@@ -59,21 +51,27 @@ export function ServerCard({ simplified }: { simplified: boolean }) {
               value={config ? (config.room === 'local' ? 'Local WebSocket' : 'E2EE relay') : '—'}
             />
             {relayStatus && <Row label="Relay" value={relayStatus.state} />}
-            {relayStatus?.agent?.opencodeVersion && (
-              <Row label={`${label} version`} value={relayStatus.agent.opencodeVersion} />
-            )}
             <Row
               label="Hub"
               value={hub ? `${hub.server.version} (PID ${hub.server.pid})` : 'unknown'}
             />
             <Row
-              label="Harness"
+              label="Harnesses"
               value={
-                harness
-                  ? `${harness.version} · ${harness.urls.join(', ')}`
-                  : (harnessError ?? 'checking…')
+                harnessesQuery.isPending
+                  ? 'checking…'
+                  : harnesses.length === 0
+                    ? 'none paired'
+                    : `${harnesses.filter((item) => item.online).length} of ${harnesses.length} online`
               }
             />
+            {harnesses.map((harness) => (
+              <Row
+                key={harness.harnessID}
+                label={harness.label}
+                value={harness.online ? 'online' : 'offline'}
+              />
+            ))}
             <Row label="Stream" value={streamState} />
             {lastError && <Row label="Stream error" value={lastError} />}
             <Separator />

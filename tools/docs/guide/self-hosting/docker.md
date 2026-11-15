@@ -36,7 +36,7 @@ saved them. If a service still does not become healthy, the command prints its
 recent log lines. Then open the panel:
 
 ```bash
-pnpm clara server panel
+pnpm clara status hub --open
 ```
 
 The first run shows **Create the hub owner account**. Choose the username and
@@ -44,7 +44,7 @@ password. The hub starts no transports until the account exists. For an
 unattended container, create it without a browser:
 
 ```bash
-pnpm clara server setup --password-stdin
+docker exec clara-server /app/clara-server setup --password-stdin
 ```
 
 Or set `CLARA_ADMIN_USERNAME` and `CLARA_ADMIN_PASSWORD` (or
@@ -93,15 +93,15 @@ see [Remote access](relay.md).
 
 ```bash
 pnpm clara status
-pnpm clara logs server
+pnpm clara logs hub
 pnpm clara logs web
 pnpm clara restart --build
 pnpm clara stop
 ```
 
-`status` accepts `--json` for scripts. `logs` follows one service. The scoped
-commands `pnpm clara server …`, `pnpm clara web …`, and
-`pnpm clara orchestrator …` work when you want only one service.
+`status` accepts `--json` for scripts. `logs` follows the selected target.
+Use `pnpm clara start hub`, `pnpm clara start web`, or
+`pnpm clara start orchestrator` when you want only one service.
 
 `stop` reads `infra/docker/.env` itself. You do not need to export the orchestrator
 token or workspace in your shell before stopping the stack.

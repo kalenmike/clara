@@ -49,7 +49,7 @@ const USAGE = [
   '  --dry-run           Show the restart plan without changing services',
   '  --manage-external   Restart an orchestrator that is managed outside this checkout',
   '  --force             Ignore a stale snapshot or completed restart journal',
-  '  --skip <service>    Skip web, lab, server, or orchestrator (repeatable)',
+  '  --skip <service>    Skip web, lab, hub, or orchestrator (repeatable)',
   '  --mcp / --no-mcp    Install or skip the MCP entry',
   '  -h, --help          Show this help',
 ].join('\n')
@@ -171,6 +171,7 @@ function parseArgs(argv) {
             .split(',')
             .map((entry) => entry.trim())
             .filter(Boolean)
+            .map((entry) => (entry === 'hub' ? 'server' : entry))
         )
       }
     } else if (arg.startsWith('-')) {
