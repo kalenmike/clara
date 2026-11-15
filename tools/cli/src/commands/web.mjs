@@ -1,11 +1,11 @@
 #!/usr/bin/env node
 // Docker and local controls for the Clara web client.
 //
-//   pnpm clara start web [--local|--docker] [--build]
-//   pnpm clara stop web [--local|--docker]
-//   pnpm clara restart web [--local|--docker] [--build]
-//   pnpm clara status web
-//   pnpm clara logs web [--local|--docker]
+//   clara start web [--local|--docker] [--build]
+//   clara stop web [--local|--docker]
+//   clara restart web [--local|--docker] [--build]
+//   clara status web
+//   clara logs web [--local|--docker]
 
 import { existsSync } from 'node:fs'
 import { join } from 'node:path'
@@ -46,7 +46,7 @@ const webService = {
     onStarted: () => {
       console.log(`web: ${webURL()}/`)
       console.log(`  logs:  ${logPath('web')}`)
-      console.log('Stop it with `pnpm clara stop web --local`.')
+      console.log('Stop it with `clara stop web --local`.')
     },
   },
   docker: {
@@ -56,7 +56,7 @@ const webService = {
     unhealthy: () => `The web container did not become healthy at ${webURL()}/healthz`,
     onStarted: () => {
       console.log(`web: ${webURL()}/`)
-      console.log('Run `pnpm clara pair` for the hub pairing mode, or add --local')
+      console.log('Run `clara pair` for the hub pairing mode, or add --local')
       console.log('to force a local code.')
       console.log('An HTTPS page cannot open a ws:// socket; remote clients need the relay.')
     },

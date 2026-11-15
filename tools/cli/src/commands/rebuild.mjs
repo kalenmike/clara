@@ -1,11 +1,11 @@
 #!/usr/bin/env node
 // Rebuild Clara and restore the services that were running before the rebuild.
 //
-//   pnpm clara rebuild status [--json]
-//   pnpm clara rebuild build [--json]
-//   pnpm clara rebuild adapters [--json]
-//   pnpm clara rebuild restart [--json] [--dry-run]
-//   pnpm clara rebuild health [--json]
+//   clara rebuild status [--json]
+//   clara rebuild build [--json]
+//   clara rebuild adapters [--json]
+//   clara rebuild restart [--json] [--dry-run]
+//   clara rebuild health [--json]
 //
 // The orchestration package `std:maintenance/rebuild` drives these commands one
 // step at a time; they are also usable by hand.

@@ -1,15 +1,15 @@
 #!/usr/bin/env node
 // Docker and local controls for the Clara hub.
 //
-//   pnpm clara start hub [--local|--docker] [--build]
-//   pnpm clara stop hub [--local|--docker]
-//   pnpm clara restart hub [--local|--docker] [--build]
-//   pnpm clara status hub
-//   pnpm clara status hub --open
+//   clara start hub [--local|--docker] [--build]
+//   clara stop hub [--local|--docker]
+//   clara restart hub [--local|--docker] [--build]
+//   clara status hub
+//   clara status hub --open
 //   clara-server setup-token [--docker|--local]
 //   clara-server admin reset [--docker|--local]
-//   pnpm clara pair [--no-relay] [--docker|--local]
-//   pnpm clara logs hub [--local|--docker]
+//   clara pair [--no-relay] [--docker|--local]
+//   clara logs hub [--local|--docker]
 
 import { existsSync } from 'node:fs'
 import { isRuntimeLive, readRuntimeState } from '@clara/runtime-state'
@@ -83,7 +83,7 @@ const serverService = {
       console.log(`  logs:  ${logPath('server')}`)
       console.log('If this is the first run, create the owner account in the panel or run:')
       console.log('  clara-server setup --local --password-stdin')
-      console.log('Stop it with `pnpm clara stop hub --local`.')
+      console.log('Stop it with `clara stop hub --local`.')
     },
   },
   docker: {
@@ -167,7 +167,7 @@ async function panel() {
   } else {
     console.error(`The hub service is not serving the panel at ${url}.`)
   }
-  console.error('Start it with `pnpm clara start hub --local` or `pnpm clara start hub --docker`.')
+  console.error('Start it with `clara start hub --local` or `clara start hub --docker`.')
   process.exitCode = 1
 }
 
@@ -205,7 +205,7 @@ async function runServerProcessFor(serverArgs) {
   if (target === 'container') {
     if (serverArgs[0] === 'setup' && !serverRunningInCompose()) {
       console.error('The clara-server container is not running.')
-      console.error('Start it with `pnpm clara start hub` before creating the owner account.')
+      console.error('Start it with `clara start hub` before creating the owner account.')
       process.exitCode = 1
       return
     }

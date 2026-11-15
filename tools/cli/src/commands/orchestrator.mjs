@@ -1,10 +1,10 @@
 #!/usr/bin/env node
 // Host and Docker controls for the Clara orchestration service.
 //
-//   pnpm clara start orchestrator [--local|--docker] [--build]
-//   pnpm clara stop orchestrator [--local|--docker]
-//   pnpm clara restart orchestrator [--local|--docker] [--build]
-//   pnpm clara status orchestrator
+//   clara start orchestrator [--local|--docker] [--build]
+//   clara stop orchestrator [--local|--docker]
+//   clara restart orchestrator [--local|--docker] [--build]
+//   clara status orchestrator
 
 import { existsSync } from 'node:fs'
 import { join } from 'node:path'

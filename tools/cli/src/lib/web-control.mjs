@@ -21,7 +21,7 @@ export function compose(args, repoRoot = root) {
   })
 }
 
-/** Load infra/docker/.env so `clara web ... --docker` matches the documented setup. */
+/** Load infra/docker/.env so `clara start web --docker` matches the documented setup. */
 export function composeArgs(args, repoRoot = root) {
   const file = envFile(repoRoot)
   const envArgs = existsSync(file) ? ['--env-file', file] : []

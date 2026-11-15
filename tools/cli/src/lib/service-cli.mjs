@@ -140,7 +140,9 @@ async function startService(service, ctx) {
   if (!(await service.docker.healthy())) {
     console.error(service.docker.unhealthy())
     service.docker.onUnhealthy?.()
-    console.error(`Check \`pnpm clara ${service.name} logs --docker\`.`)
+    console.error(
+      `Check \`clara logs ${service.name === 'server' ? 'hub' : service.name} --docker\`.`
+    )
     process.exitCode = 1
     return
   }
