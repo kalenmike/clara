@@ -18,6 +18,10 @@ export type ServiceStatus = {
   uptimeMs?: number
   restarts: number
   managed: boolean
+  /** Version the running service reports for itself. */
+  version?: string
+  /** Wire protocol the running service reports for itself. */
+  protocol?: number
 }
 
 export type StatusReport = {
@@ -66,7 +70,8 @@ export async function statusStack(
     }
     const pid = record?.pid ?? null
     const alive = processAlive(pid)
-    const healthy = alive && (await probe(`${url}${spec.healthPath}`, spec.serviceId)).ok
+    const result = alive ? await probe(`${url}${spec.healthPath}`, spec.serviceId) : undefined
+    const healthy = result?.ok === true
     const startedAt = record?.startedAt ? Date.parse(record.startedAt) : Number.NaN
     statuses.push({
       name,
@@ -85,6 +90,7 @@ export async function statusStack(
       ...(Number.isFinite(startedAt) && healthy ? { uptimeMs: Date.now() - startedAt } : {}),
       restarts: record?.restarts ?? 0,
       managed: Boolean(state),
+      ...(healthy ? reportedService(result.body) : {}),
     })
   }
 
@@ -93,6 +99,18 @@ export async function statusStack(
     services: statuses,
     supervisorPid: state?.supervisor.pid ?? null,
   }
+}
+
+/** Read the optional identity fields a healthy service reports about itself. */
+export function reportedService(body: Record<string, unknown> | undefined): {
+  version?: string
+  protocol?: number
+} {
+  const version =
+    typeof body?.version === 'string' && body.version.length > 0 ? body.version : undefined
+  const protocol =
+    typeof body?.protocol === 'number' && body.protocol > 0 ? body.protocol : undefined
+  return { ...(version ? { version } : {}), ...(protocol ? { protocol } : {}) }
 }
 
 export async function startStack(options: {
