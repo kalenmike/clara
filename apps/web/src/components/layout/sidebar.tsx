@@ -55,6 +55,7 @@ import { findProject, useProjects } from '@/features/projects/use-projects'
 import { resolveDeleteFocusTarget } from '@/features/sessions/delete-focus'
 import { isArchivedSession } from '@/features/sessions/session-archive'
 import { groupSessionsByMailbox, mergeSessionLists } from '@/features/sessions/session-sections'
+import { resolveSessionStatus } from '@/features/sessions/session-status'
 import {
   pruneSelection,
   selectRange,
@@ -613,6 +614,11 @@ export function SidebarContent({
     return section.sessions.map((session) => {
       const signals = mailboxSignals.get(session.id)
       const attention = resolveAttentionKind(signals, session.agent, awaitingInput.has(session.id))
+      const status = resolveSessionStatus({
+        snoozed: section.id === 'snoozed',
+        active: Boolean(activeQuery.data?.[session.id]),
+        attention: section.id === 'inbox' || attention === 'question' ? attention : null,
+      })
       return (
         <SidebarSessionRow
           key={session.id}
@@ -620,11 +626,7 @@ export function SidebarContent({
           projectID={selectedProject?.id ?? session.projectID}
           selected={session.id === params.sessionId}
           bulkSelected={selection.selectedIDs.has(session.id)}
-          active={Boolean(activeQuery.data?.[session.id])}
-          snoozed={section.id === 'snoozed'}
-          blocked={attention === 'question'}
-          error={section.id === 'inbox' && attention === 'error'}
-          planReady={section.id === 'inbox' && attention === 'plan'}
+          status={status}
           unread={section.id === 'inbox' && isSessionUnread(session)}
           onSelect={() => select(session.id)}
           onExtend={() => extendTo(session.id)}

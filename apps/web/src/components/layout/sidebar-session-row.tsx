@@ -1,7 +1,8 @@
 import type { KeyboardEvent, MouseEvent, Ref } from 'react'
 import { Link } from 'react-router'
-import { AlarmClock, CircleDot } from 'lucide-react'
 import type { ClaraSession } from '@clara/api-contract'
+import { SessionStatusIcon } from '@/components/sessions/session-status-icon'
+import type { SessionStatusKind } from '@/features/sessions/session-status'
 import { useSessionWording } from '@/features/sessions/use-wording'
 import { formatRelativeTime } from '@/lib/format'
 import { cn } from '@/lib/utils'
@@ -11,11 +12,7 @@ export function SidebarSessionRow({
   projectID,
   selected,
   bulkSelected,
-  active,
-  snoozed,
-  blocked,
-  error,
-  planReady,
+  status,
   unread,
   onSelect,
   onExtend,
@@ -26,11 +23,7 @@ export function SidebarSessionRow({
   projectID: string
   selected: boolean
   bulkSelected: boolean
-  active: boolean
-  snoozed: boolean
-  blocked: boolean
-  error: boolean
-  planReady: boolean
+  status: SessionStatusKind
   unread: boolean
   onSelect: () => void
   onExtend: () => void
@@ -78,19 +71,7 @@ export function SidebarSessionRow({
       )}
     >
       <span className="flex h-5 w-4 shrink-0 items-center justify-center md:h-4 md:w-3">
-        {snoozed ? (
-          <AlarmClock className="size-3.5 text-muted-foreground md:size-3" />
-        ) : blocked ? (
-          <CircleDot className="size-3.5 animate-pulse text-red-500 md:size-3" />
-        ) : active ? (
-          <CircleDot className="size-3.5 animate-pulse text-emerald-500 md:size-3" />
-        ) : error ? (
-          <CircleDot className="size-3.5 text-red-500 md:size-3" />
-        ) : planReady ? (
-          <span className="size-2 rounded-full bg-orange-500 md:size-1.5" />
-        ) : (
-          <span className="size-2 rounded-full bg-muted-foreground/30 md:size-1.5" />
-        )}
+        <SessionStatusIcon status={status} />
       </span>
       <span className="min-w-0 flex-1">
         <span
