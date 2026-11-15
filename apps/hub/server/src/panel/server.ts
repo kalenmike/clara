@@ -399,8 +399,10 @@ async function handleSessions(
     return
   }
 
-  const sessions = context.source.sessions
-  if (!sessions) {
+  // Call the source as the receiver: its methods are class methods, so a
+  // detached call would run with an undefined `this`.
+  const source = context.source
+  if (!source.sessions) {
     sendJson(response, method, 503, {
       error: { code: 'sessions_unavailable', message: 'Session monitoring is unavailable' },
     })
@@ -417,7 +419,7 @@ async function handleSessions(
   }
 
   try {
-    sendJson(response, method, 200, await sessions(query.value))
+    sendJson(response, method, 200, await source.sessions(query.value))
   } catch (cause) {
     context.log?.('panel session monitor failed', cause)
     sendJson(response, method, 500, {
