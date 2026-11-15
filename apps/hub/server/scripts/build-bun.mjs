@@ -1,7 +1,11 @@
 #!/usr/bin/env node
-// Build the single-file hub sidecar with the panel embedded.
+// Build the single-file hub server with the panel embedded.
 //
-//   node scripts/build-sidecar.mjs [--target <rust-triple>]
+//   node scripts/build-bun.mjs [--target <bun-target>] [--outfile <path>]
+//
+// `bun` from PATH is used unless BUN_BIN names one. Cross-target builds need
+// the matching Bun target: bun-linux-x64, bun-linux-arm64, bun-darwin-x64,
+// bun-darwin-arm64, bun-windows-x64, or bun-windows-arm64.
 
 import { spawnSync } from 'node:child_process'
 import { createHash } from 'node:crypto'
@@ -13,28 +17,19 @@ const here = dirname(fileURLToPath(import.meta.url))
 const packageRoot = resolve(here, '..')
 const repoRoot = resolve(packageRoot, '../../..')
 const panelDist = join(repoRoot, 'apps', 'hub', 'panel', 'dist')
-const relayDist = join(repoRoot, 'apps', 'hub', 'server', 'dist', 'relay')
+const relayDist = join(packageRoot, 'dist', 'relay')
 const generated = join(packageRoot, 'src', 'embedded-assets.generated.mjs')
-const entry = join(packageRoot, 'src', 'entry.ts')
-const binaries = join(packageRoot, 'src-tauri', 'binaries')
+const entry = join(packageRoot, 'src', 'bun.ts')
 const cloudflareDeployment = ['1', 'true', 'yes', 'on'].includes(
   process.env.ENABLE_CLOUDFLARE_DEPLOYMENT?.trim().toLowerCase()
 )
 
-const bunTargets = {
-  'x86_64-unknown-linux-gnu': 'bun-linux-x64',
-  'aarch64-unknown-linux-gnu': 'bun-linux-arm64',
-  'x86_64-apple-darwin': 'bun-darwin-x64',
-  'aarch64-apple-darwin': 'bun-darwin-arm64',
-  'x86_64-pc-windows-msvc': 'bun-windows-x64',
-  'aarch64-pc-windows-msvc': 'bun-windows-arm64',
-}
-
-const target = resolveTarget(process.argv.slice(2))
-const bunTarget = bunTargets[target]
-if (!bunTarget) {
-  fail(`Unsupported target triple ${target}`)
-}
+const target = arg('--target') ?? hostTarget()
+const executable = target.includes('windows') ? '.exe' : ''
+const outfile = resolve(
+  packageRoot,
+  arg('--outfile') ?? join('dist', 'bun', `clara-server${executable}`)
+)
 
 run('pnpm', ['--filter', '@clara/hub-panel', 'build'], repoRoot)
 if (!existsSync(join(panelDist, 'index.html'))) {
@@ -64,19 +59,17 @@ if (cloudflareDeployment) {
 
 writeGenerated(sources)
 
-mkdirSync(binaries, { recursive: true })
-const executable = target.includes('windows') ? '.exe' : ''
-const outfile = join(binaries, `clara-server-${target}${executable}`)
+mkdirSync(dirname(outfile), { recursive: true })
 const bun = process.env.BUN_BIN?.trim() || 'bun'
 
-console.log(`Embedding ${sources.length} file(s) and compiling ${bunTarget}...`)
+console.log(`Embedding ${sources.length} file(s) and compiling ${target}...`)
 run(
   bun,
   [
     'build',
     '--compile',
     '--conditions=bun',
-    `--target=${bunTarget}`,
+    `--target=${target}`,
     '--define',
     `process.env.ENABLE_CLOUDFLARE_DEPLOYMENT=${JSON.stringify(
       cloudflareDeployment ? 'true' : 'false'
@@ -87,28 +80,25 @@ run(
   ],
   repoRoot
 )
-console.log(`Sidecar: ${outfile}`)
+console.log(`Hub binary: ${outfile}`)
 
-function resolveTarget(args) {
-  const index = args.indexOf('--target')
-  const fromArg = index >= 0 ? args[index + 1] : undefined
-  const configured =
-    fromArg?.trim() ||
-    process.env.TAURI_ENV_TARGET_TRIPLE?.trim() ||
-    process.env.CARGO_BUILD_TARGET?.trim()
-  if (configured) return configured
+function arg(name) {
+  const index = process.argv.indexOf(name)
+  if (index < 0) return undefined
+  const value = process.argv[index + 1]
+  if (!value || value.startsWith('--')) fail(`${name} needs a value.`)
+  return value.trim()
+}
 
-  const rustc = spawnSync('rustc', ['-vV'], { encoding: 'utf8' })
-  const host = rustc.status === 0 ? /^host:\s*(\S+)$/m.exec(rustc.stdout)?.[1] : undefined
-  if (host) return host
-
-  const arch = process.arch === 'arm64' ? 'aarch64' : 'x86_64'
-  if (process.platform === 'darwin') return `${arch}-apple-darwin`
-  if (process.platform === 'win32') return `${arch}-pc-windows-msvc`
-  return `${arch}-unknown-linux-gnu`
+function hostTarget() {
+  const arch = process.arch === 'arm64' ? 'arm64' : 'x64'
+  if (process.platform === 'darwin') return `bun-darwin-${arch}`
+  if (process.platform === 'win32') return `bun-windows-${arch}`
+  return `bun-linux-${arch}`
 }
 
 function listFiles(directory) {
+  if (!existsSync(directory)) return []
   const entries = readdirSync(directory, { withFileTypes: true })
   return entries
     .flatMap((entry) => {
@@ -149,6 +139,6 @@ function run(command, args, cwd) {
 }
 
 function fail(message) {
-  console.error(`hub sidecar: ${message}`)
+  console.error(`hub binary: ${message}`)
   process.exit(1)
 }

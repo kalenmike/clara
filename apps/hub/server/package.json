@@ -6,14 +6,13 @@
   "bin": {
     "clara-server": "./dist/index.js"
   },
-  "exports": {
-    "./main": "./src/main.ts"
-  },
   "scripts": {
     "dev": "tsx watch src/index.ts",
     "start": "node dist/index.js",
     "prebuild": "pnpm --filter @clara/hub-panel build",
     "build": "tsup && node scripts/build-relay.mjs && node scripts/check-bundle.mjs && node scripts/check-feature-bundle.mjs && node scripts/copy-panel.mjs",
+    "build:bun": "node scripts/build-bun.mjs",
+    "headless": "node scripts/build-headless.mjs",
     "typecheck": "tsc -p tsconfig.json",
     "test": "vitest run",
     "smoke:bun": "bun scripts/bun-smoke.ts",

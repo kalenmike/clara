@@ -1,46 +1,47 @@
 #!/usr/bin/env node
 // Build a headless hub-server archive for one target.
 //
-//   node scripts/build-headless.mjs [--target <rust-triple>] [--no-archive]
+//   node scripts/build-headless.mjs [--target <bun-target>] [--no-archive]
 //
-// The sidecar build already embeds the panel and compiles one standalone
+// The Bun build already embeds the panel and compiles one standalone
 // executable. This script adds the headless install helpers and an archive
 // under dist/headless. Build each platform on its own host (or in CI): a Linux
 // container cannot produce macOS or Windows binaries.
 
 import { spawnSync } from 'node:child_process'
-import { chmodSync, copyFileSync, existsSync, mkdirSync, rmSync, writeFileSync } from 'node:fs'
+import { chmodSync, existsSync, mkdirSync, rmSync, writeFileSync } from 'node:fs'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 const here = dirname(fileURLToPath(import.meta.url))
 const packageRoot = resolve(here, '..')
 const repoRoot = resolve(packageRoot, '../../..')
-const binaries = join(packageRoot, 'src-tauri', 'binaries')
 const outputRoot = join(repoRoot, 'dist', 'headless')
 
-const target = resolveTarget(process.argv.slice(2))
+const target = arg('--target') ?? hostTarget()
+const label = target.replace(/^bun-/, '')
 const windows = target.includes('windows')
 const executable = windows ? 'clara-server.exe' : 'clara-server'
-const archiveName = `clara-hub-${target}${windows ? '.zip' : '.tar.gz'}`
-const stage = join(outputRoot, target)
+const archiveName = `clara-hub-${label}${windows ? '.zip' : '.tar.gz'}`
+const stage = join(outputRoot, label)
 
 function main() {
-  const args = ['scripts/build-sidecar.mjs', '--target', target]
-  run(process.execPath, args, packageRoot)
-
-  const built = join(binaries, `clara-server-${target}${windows ? '.exe' : ''}`)
-  if (!existsSync(built)) fail(`The sidecar build did not produce ${built}`)
-
   rmSync(stage, { recursive: true, force: true })
   mkdirSync(stage, { recursive: true })
-  copyFileSync(built, join(stage, executable))
-  if (!windows) chmodSync(join(stage, executable), 0o755)
 
-  writeFileSync(join(stage, 'README.txt'), readme(target), 'utf8')
+  const built = join(stage, executable)
+  run(
+    process.execPath,
+    ['scripts/build-bun.mjs', '--target', target, '--outfile', built],
+    packageRoot
+  )
+  if (!existsSync(built)) fail(`The Bun build did not produce ${built}`)
+  if (!windows) chmodSync(built, 0o755)
+
+  writeFileSync(join(stage, 'README.txt'), readme(label), 'utf8')
   if (windows) writeFileSync(join(stage, 'install.ps1'), windowsInstall(), 'utf8')
   else {
-    writeFileSync(join(stage, 'install.sh'), unixInstall(target), { mode: 0o755 })
+    writeFileSync(join(stage, 'install.sh'), unixInstall(label), { mode: 0o755 })
     writeFileSync(join(stage, 'clara-hub.service'), systemdUnit(), { mode: 0o644 })
     writeFileSync(join(stage, 'com.clara.hub.plist'), launchdPlist(), { mode: 0o644 })
   }
@@ -192,23 +193,19 @@ Write-Host 'Clara hub installed. Open http://127.0.0.1:8790/ to create the owner
 `
 }
 
-function resolveTarget(argv) {
-  const index = argv.indexOf('--target')
-  const fromArg = index >= 0 ? argv[index + 1] : undefined
-  const configured =
-    fromArg?.trim() ||
-    process.env.TAURI_ENV_TARGET_TRIPLE?.trim() ||
-    process.env.CARGO_BUILD_TARGET?.trim()
-  if (configured) return configured
+function arg(name) {
+  const index = process.argv.indexOf(name)
+  if (index < 0) return undefined
+  const value = process.argv[index + 1]
+  if (!value || value.startsWith('--')) fail(`${name} needs a value.`)
+  return value.trim()
+}
 
-  const rustc = spawnSync('rustc', ['-vV'], { encoding: 'utf8' })
-  const host = rustc.status === 0 ? /^host:\s*(\S+)$/m.exec(rustc.stdout)?.[1] : undefined
-  if (host) return host
-
-  const arch = process.arch === 'arm64' ? 'aarch64' : 'x86_64'
-  if (process.platform === 'darwin') return `${arch}-apple-darwin`
-  if (process.platform === 'win32') return `${arch}-pc-windows-msvc`
-  return `${arch}-unknown-linux-gnu`
+function hostTarget() {
+  const arch = process.arch === 'arm64' ? 'arm64' : 'x64'
+  if (process.platform === 'darwin') return `bun-darwin-${arch}`
+  if (process.platform === 'win32') return `bun-windows-${arch}`
+  return `bun-linux-${arch}`
 }
 
 function run(command, args, cwd) {

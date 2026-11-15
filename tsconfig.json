@@ -5,9 +5,6 @@
       "path": "./apps/hub/server"
     },
     {
-      "path": "./apps/hub/desktop"
-    },
-    {
       "path": "./apps/hub/panel"
     },
     {
