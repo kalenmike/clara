@@ -654,11 +654,26 @@ function indexPath(path: string): string {
 }
 
 /**
+ * The Bun executable extracts its embedded assets to a cache directory and
+ * points here. A source checkout and the Node bundle resolve beside the module
+ * instead.
+ */
+function configuredAssetsDir(): string | undefined {
+  const configured = process.env.CLARA_ORCHESTRATION_ASSETS_DIR?.trim()
+  return configured ? resolve(configured) : undefined
+}
+
+/**
  * The standard packages ship with the engine. A source checkout resolves them
  * next to this module; a bundled service resolves the copy placed beside its
- * bundle at build time.
+ * bundle, or the extracted copy named by `CLARA_ORCHESTRATION_ASSETS_DIR`.
  */
 export function bundledStdDir(): string | undefined {
+  const configured = configuredAssetsDir()
+  if (configured) {
+    const candidate = join(configured, 'std')
+    if (existsSync(candidate)) return resolve(candidate)
+  }
   for (const candidate of [
     fileURLToPath(new URL('../std/', import.meta.url)),
     fileURLToPath(new URL('./std/', import.meta.url)),
@@ -671,9 +686,14 @@ export function bundledStdDir(): string | undefined {
 /**
  * The default routing config ships with the engine. A source checkout resolves
  * it next to this module; a bundled service resolves the copy placed beside its
- * bundle at build time.
+ * bundle, or the extracted copy named by `CLARA_ORCHESTRATION_ASSETS_DIR`.
  */
 export function defaultConfigPath(): string | undefined {
+  const configured = configuredAssetsDir()
+  if (configured) {
+    const candidate = join(configured, 'default/index.yml')
+    if (existsSync(candidate)) return resolve(candidate)
+  }
   for (const candidate of [
     fileURLToPath(new URL('../default/index.yml', import.meta.url)),
     fileURLToPath(new URL('./default/index.yml', import.meta.url)),
