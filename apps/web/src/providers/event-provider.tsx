@@ -143,10 +143,10 @@ export function EventProvider({ children }: { children: ReactNode }) {
       chatStore.resetHistories()
       void queryClient.resetQueries({ queryKey: ['messages'] })
       // Mark everything else stale without refetching it. One gap must not
-      // launch the whole sidebar fan-out — three mailbox lookups per session —
-      // over the same socket that just came back. These lists are what the
-      // screen is built from; everything else refreshes from its own event,
-      // focus, or poll.
+      // launch the whole sidebar fan-out — a mailbox lookup per session — over
+      // the same socket that just came back. These lists are what the screen is
+      // built from; everything else refreshes from its own event, focus, or
+      // poll.
       void queryClient.invalidateQueries({
         predicate: (query) => query.queryKey[0] !== 'messages',
         refetchType: 'none',
