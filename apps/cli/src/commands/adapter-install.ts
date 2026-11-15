@@ -22,7 +22,8 @@ export async function runAdapterInstall(args: readonly string[]): Promise<number
   const spec = requireKind(parsed.values[0], 'install')
   const json = parsed.flags.has('--json')
   const paths = resolvePaths()
-  const spinner = json ? undefined : startSpinner(`Installing the ${spec.kind} adapter`)
+  const spinner =
+    json || !process.stdout.isTTY ? undefined : startSpinner(`Installing the ${spec.kind} adapter`)
   const transport = parseTransport(parsed.options.get('--transport'))
   try {
     const target = detectAdapterTarget()
@@ -43,7 +44,8 @@ export async function runAdapterInstall(args: readonly string[]): Promise<number
       console.log(JSON.stringify(record, null, 2))
       return 0
     }
-    spinner?.succeed(`Installed ${record.kind} ${record.version} (${record.platform})`)
+    if (spinner) spinner.succeed(`Installed ${record.kind} ${record.version} (${record.platform})`)
+    else console.log(success(`Installed ${record.kind} ${record.version} (${record.platform})`))
     printRecord(record)
     if (record.lastError) console.log(warn(record.lastError))
     return 0
@@ -67,7 +69,8 @@ export async function runAdapterUpgrade(args: readonly string[]): Promise<number
     return 0
   }
 
-  const spinner = json ? undefined : startSpinner('Checking adapter releases')
+  const spinner =
+    json || !process.stdout.isTTY ? undefined : startSpinner('Checking adapter releases')
   const deps = installDeps(paths, spinner, json)
   const reports: UpgradeReport[] = []
   for (const kind of requested) {
@@ -121,7 +124,8 @@ export async function runPairAdapter(args: readonly string[]): Promise<number> {
   const kind = requireKind(parsed.options.get('--harness') ?? parsed.values[0], 'pair adapter')
   const transport = parseTransport(parsed.options.get('--transport'))
   const json = parsed.flags.has('--json')
-  const spinner = json ? undefined : startSpinner(`Issuing a ${kind.kind} pairing code`)
+  const spinner =
+    json || !process.stdout.isTTY ? undefined : startSpinner(`Issuing a ${kind.kind} pairing code`)
   const pairing = await issueAdapterPairing(kind.kind, transport)
   spinner?.succeed(`Pairing code ready (expires ${pairing.expiresAt})`)
 
@@ -139,7 +143,8 @@ export async function runPairAdapter(args: readonly string[]): Promise<number> {
   }
 
   if (!parsed.flags.has('--install')) return 0
-  const installSpinner = json ? undefined : startSpinner(`Installing the ${kind.kind} adapter`)
+  const installSpinner =
+    json || !process.stdout.isTTY ? undefined : startSpinner(`Installing the ${kind.kind} adapter`)
   const record = await installAdapter(
     {
       kind: kind.kind,
@@ -151,7 +156,8 @@ export async function runPairAdapter(args: readonly string[]): Promise<number> {
   )
   if (json) console.log(JSON.stringify(record, null, 2))
   else {
-    installSpinner?.succeed(`Installed ${record.kind} ${record.version}`)
+    if (installSpinner) installSpinner.succeed(`Installed ${record.kind} ${record.version}`)
+    else console.log(success(`Installed ${record.kind} ${record.version}`))
     printRecord(record)
   }
   return 0

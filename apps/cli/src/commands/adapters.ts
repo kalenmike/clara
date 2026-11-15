@@ -61,13 +61,15 @@ export async function runAdapterSearch(args: readonly string[]): Promise<number>
   if (parsed.values.length > 0) throw new Error(`usage: clara adapter search [--json]`)
   const json = parsed.flags.has('--json')
   const target = hostTarget()
-  const spinner = json ? undefined : startSpinner('Reading the adapter registry')
+  const spinner =
+    json || !process.stdout.isTTY ? undefined : startSpinner('Reading the adapter registry')
   const report = await new AdapterRegistry().search(target)
   if (json) {
     console.log(JSON.stringify(report, null, 2))
     return report.entries.every((entry) => !entry.ok) ? 1 : 0
   }
-  spinner?.succeed(`Read ${report.entries.length} manifests from ${report.baseUrl}`)
+  if (spinner) spinner.succeed(`Read ${report.entries.length} manifests from ${report.baseUrl}`)
+  else console.log(muted(`Read ${report.entries.length} manifests from ${report.baseUrl}`))
   const rows = report.entries.map((entry) => ({
     kind: entry.kind,
     version: entry.ok ? (entry.version ?? '-') : '-',
@@ -117,7 +119,7 @@ export async function runAdapterList(args: readonly string[]): Promise<number> {
       { header: 'KIND', value: (row) => row.kind },
       { header: 'VERSION', value: (row) => row.version },
       { header: 'PLATFORM', value: (row) => row.platform },
-      { header: 'STATE', value: (row) => runtimeLabel(row.running) },
+      { header: 'STATE', value: (row) => runtimeLabel(row.state) },
       { header: 'PAIRED', value: (row) => (row.pairedAt ? green('yes') : dim('no')) },
     ])
   )
@@ -128,7 +130,7 @@ export async function runAdapterList(args: readonly string[]): Promise<number> {
   return 0
 }
 
-export type AdapterListEntry = AdapterInstallRecord & { running: AdapterRuntimeState }
+export type AdapterListEntry = AdapterInstallRecord & { state: AdapterRuntimeState }
 
 /** Installed adapters plus their best-effort process state; reusable by `clara ps`. */
 export function adapterListReport(
@@ -137,7 +139,7 @@ export function adapterListReport(
   const state = readAdapterState(paths)
   return ADAPTER_KINDS.flatMap((kind) => {
     const record = state.adapters[kind]
-    return record ? [{ ...record, running: adapterRuntimeState(kind) }] : []
+    return record ? [{ ...record, state: adapterRuntimeState(kind) }] : []
   })
 }
 
