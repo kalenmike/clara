@@ -903,6 +903,7 @@ export class RuntimeController {
             id: pairing.id,
             agentToken: relay.agentToken,
             ttlSeconds: ENROLLMENT_GRANT_TTL_SECONDS,
+            kind: 'adapter',
           })
         : undefined
     const payload: HarnessPairingPayload = {

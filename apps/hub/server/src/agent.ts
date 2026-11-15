@@ -34,6 +34,7 @@ import {
   type PushSubscribeAction,
   type PushTestAction,
   type PushUnsubscribeAction,
+  type RelayGrantKind,
   type RelayGrantState,
   type SyncCheckAction,
   type SyncPullAction,
@@ -661,7 +662,10 @@ export class Agent {
 
     // An enrollment session has no device or adapter identity yet, so its
     // `ready` carries no grant; the enrollment response delivers the first one.
-    const relayGrant = kind === 'enroll' ? undefined : await this.issueRelayGrant(identity)
+    const relayGrant =
+      kind === 'enroll'
+        ? undefined
+        : await this.issueRelayGrant(identity, kind === 'adapter' ? 'adapter' : 'device')
     this.enqueue(session, {
       type: 'ready',
       agent: this.options.info,
@@ -836,7 +840,7 @@ export class Agent {
       )
       // The adapter must reconnect under its stable credential id, so the first
       // adapter grant is signed for that id and delivered here.
-      const relayGrant = await this.issueRelayGrant(action.credentialId)
+      const relayGrant = await this.issueRelayGrant(action.credentialId, 'adapter')
       this.enqueue(session, {
         type: 'adapter.enrolled',
         connectionId: result.connection.id,
@@ -942,7 +946,10 @@ export class Agent {
    * grant is refreshed on every accepted connect; without relay credentials
    * (the local transport) there is nothing to sign.
    */
-  private async issueRelayGrant(id: string | undefined): Promise<RelayGrantState | undefined> {
+  private async issueRelayGrant(
+    id: string | undefined,
+    kind: RelayGrantKind = 'device'
+  ): Promise<RelayGrantState | undefined> {
     const issuer = this.grantIssuer
     if (!issuer || !id || !issuer.agentToken) return undefined
     try {
@@ -951,6 +958,7 @@ export class Agent {
         id,
         agentToken: issuer.agentToken,
         ttlSeconds: DEVICE_GRANT_TTL_SECONDS,
+        kind,
       })
     } catch (cause) {
       this.options.log?.('could not sign a relay grant', cause)

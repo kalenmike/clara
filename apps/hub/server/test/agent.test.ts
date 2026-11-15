@@ -1366,7 +1366,7 @@ describe('agent adapter enrollment', () => {
       })
       expect(verified).toEqual({
         ok: true,
-        payload: expect.objectContaining({ id: 'adapter-a' }),
+        payload: expect.objectContaining({ id: 'adapter-a', kind: 'adapter' }),
       })
 
       // A later adapter connect refreshes the same grant in `ready`.
@@ -1389,7 +1389,7 @@ describe('agent adapter enrollment', () => {
       })
       expect(verifiedRefresh).toEqual({
         ok: true,
-        payload: expect.objectContaining({ id: 'adapter-a' }),
+        payload: expect.objectContaining({ id: 'adapter-a', kind: 'adapter' }),
       })
     } finally {
       await fake.close()

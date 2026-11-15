@@ -3,11 +3,13 @@ import {
   PROTOCOL_VERSION,
   createRelayGrant,
   isRouteFrameV3,
+  type RelayGrantKind,
   type RouteFrameV3,
 } from '@clara/shared-types'
 import { describe, expect, it } from 'vitest'
 import type { Env } from '../src/env.ts'
 import {
+  ADAPTER_FRAME_BURST,
   CLIENT_FRAME_BURST,
   MAX_CLIENT_SOCKETS_PER_IP,
   MAX_CLIENT_SOCKETS_PER_ROOM,
@@ -29,12 +31,17 @@ type Connection = {
 
 let grantCounter = 0
 
-async function grantFor(room: string, id = `client-${(grantCounter += 1)}`): Promise<string> {
+async function grantFor(
+  room: string,
+  id = `client-${(grantCounter += 1)}`,
+  kind: RelayGrantKind = 'device'
+): Promise<string> {
   const { grant } = await createRelayGrant({
     room,
     id,
     agentToken: AGENT_TOKEN,
     ttlSeconds: 600,
+    kind,
   })
   return grant
 }
@@ -452,6 +459,52 @@ describe('relay worker', () => {
     expect(payloads.length).toBeLessThan(sent)
     expect(payloads).toEqual(payloads.map((_, index) => `frame-${index}`))
 
+    agent.close(1000, 'done')
+  })
+
+  it('gives an adapter grant a larger frame budget', async () => {
+    const room = 'adapter-budget'
+    const agent = await connect(room, 'agent')
+    const messages = collectMessages(agent)
+    const grantId = 'adapter-budget-id'
+    const client = await connectWithResponse(
+      room,
+      'client',
+      await grantFor(room, grantId, 'adapter')
+    )
+
+    // More than a browser burst, but well under the adapter budget.
+    const sent = CLIENT_FRAME_BURST + 30
+    expect(sent).toBeLessThan(ADAPTER_FRAME_BURST)
+    for (let index = 0; index < sent; index += 1) client.socket.send(`adapter-${index}`)
+
+    client.socket.send('still-open')
+    await waitFor(() =>
+      routedPayloads(messages, grantId).includes('still-open') ? true : undefined
+    )
+    expect(routedPayloads(messages, grantId)).toEqual([
+      ...Array.from({ length: sent }, (_, index) => `adapter-${index}`),
+      'still-open',
+    ])
+
+    client.socket.close(1000, 'done')
+    agent.close(1000, 'done')
+  })
+
+  it('uses the signed grant kind, not a spoofed header', async () => {
+    const room = 'adapter-kind-spoof'
+    const agent = await connect(room, 'agent')
+    const client = await connectWithResponse(room, 'client', await grantFor(room, 'device-kind'), {
+      'x-clara-grant-kind': 'adapter',
+    })
+
+    for (let index = 0; index < CLIENT_FRAME_BURST + 10; index += 1) {
+      client.socket.send(`spoof-${index}`)
+    }
+
+    // A device grant keeps the tighter budget even when the client claims
+    // otherwise; the Worker stamps the kind from the verified grant.
+    await expect(client.closed).resolves.toBe(CLIENT_LIMIT_CODE)
     agent.close(1000, 'done')
   })
 
