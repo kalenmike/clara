@@ -421,6 +421,31 @@ describe('relay volume limits', () => {
     }
   }, 15_000)
 
+  it('presents the refreshed grant on the next connection', async () => {
+    const readyGrant: RelayGrantState = {
+      grant: 'refreshed-grant',
+      expiresAt: Date.now() + 60_000,
+    }
+    const seen: string[] = []
+    const relay = await startRelay(undefined, {
+      grant: 'initial-grant',
+      readyGrant,
+      closeOnSealed: { code: 1000, reason: 'test reconnect' },
+      onProtocols: (protocols) => {
+        const auth = protocols.find((value) => value.startsWith('clara.auth.'))
+        if (auth) seen.push(auth.slice('clara.auth.'.length))
+      },
+    })
+
+    try {
+      await relay.transport.connect().catch(() => undefined)
+      await waitFor(() => seen.length >= 2, 10_000)
+      expect(seen[0]).toBe('initial-grant')
+      expect(seen[1]).toBe('refreshed-grant')
+    } finally {
+      await relay.close()
+    }
+  }, 15_000)
 })
 
 async function waitFor(check: () => boolean, timeoutMs = 2_000): Promise<void> {

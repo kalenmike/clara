@@ -772,6 +772,10 @@ class RelayFetchTransport implements RelayTransport {
     if (payload.type === 'ready') {
       if (this.socket !== socket) return
       if (payload.relayGrant) {
+        // Adopt the refreshed grant as well as persisting it: the next
+        // reconnect presents this one, so a long-lived tab never dials with a
+        // credential that expired since it paired.
+        this.config.grant = payload.relayGrant.grant
         try {
           this.config.onRelayGrant?.(payload.relayGrant)
         } catch {
