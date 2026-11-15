@@ -1,7 +1,9 @@
 import { useNavigate } from 'react-router'
 import { ChevronDown, ChevronUp, CornerUpLeft, Maximize2, Minimize2, X } from 'lucide-react'
+import { SessionStatusIcon } from '@/components/sessions/session-status-icon'
 import { Button } from '@/components/ui/button'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
+import { useComposerTabStatus } from '@/features/chat/use-composer-tab-status'
 import type { ComposerMode } from '@/features/chat/composer-session'
 import { composerReturnPath, composerSessionTitle } from '@/features/chat/composer-session'
 import type { ComposerTab } from '@/features/chat/composer-tabs'
@@ -118,6 +120,7 @@ function ComposerTabButton({
   const navigate = useNavigate()
   const { lowerSingular } = useSessionWording()
   const session = useSession(tab.sessionID).data
+  const status = useComposerTabStatus(session)
   const formsQuery = useSessionForms(tab.sessionID)
   const forms = formsQuery.data ?? []
   const requestCount = forms.length + (planReady ? 1 : 0)
@@ -143,7 +146,7 @@ function ComposerTabButton({
         title={title}
         className="flex min-w-0 flex-1 items-center gap-1.5 rounded-md px-2 py-1.5 text-left outline-none focus-visible:ring-2 focus-visible:ring-ring"
       >
-        {current && <span className="size-1.5 shrink-0 rounded-full bg-emerald-500" aria-hidden />}
+        <SessionStatusIcon status={status} />
         <span className="min-w-0 truncate text-xs font-medium">{title}</span>
         {requestCount > 0 && (
           <span

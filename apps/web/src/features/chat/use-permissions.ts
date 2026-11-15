@@ -10,14 +10,18 @@ import { harnessLocation, useHarnessScope } from '@/features/harness/harness-sco
 import { queryKeys } from '@/lib/query-keys'
 import { useConnection } from '@/providers/connection-provider'
 
-export function usePendingPermissions(directory: string | undefined, harnessID?: string) {
+export function usePendingPermissions(
+  directory: string | undefined,
+  harnessID?: string,
+  options?: { enabled?: boolean }
+) {
   const { client } = useConnection()
   const scope = useHarnessScope()
   const target = harnessID ?? scope
   return useQuery({
     queryKey: queryKeys.permissionsFor(directory, target),
     queryFn: () => client!.permission.request.list(harnessLocation(directory, target)),
-    enabled: Boolean(client),
+    enabled: Boolean(client) && (options?.enabled ?? true),
     select: (result) => result.data,
     refetchInterval: 15_000,
   })

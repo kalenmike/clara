@@ -162,6 +162,8 @@ list has no checkbox column or bulk toolbar.
    when a finished Plan reply is waiting for Steer or Build, and a grey dot for
    an idle session to review and close. The error dot is reserved for failed
    last messages; it does not apply to older errors already followed by a reply.
+   Composer tabs reuse the same mark, so another open session's run state is
+   visible without opening it.
    Unread Inbox sessions use a heavier title weight; opening the chat marks the
    newest completed turn viewed. These states also drive Inbox alerts; see
    [notifications](notifications.md).
