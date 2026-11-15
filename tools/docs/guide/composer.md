@@ -20,8 +20,8 @@ waiting for you.
 
 The composer has three shapes, controlled from the right side of its header:
 
-- **Pinned** is the default. It sits above the usage bar, spans the chat, and
-  the thread ends at its top edge, so it never covers a message.
+- **Pinned** is the default. It docks at the bottom of the thread, spans the
+  chat, and the thread ends at its top edge, so it never covers a message.
 - **Collapse** folds the composer to its header. The leading chevron points down
   while the composer is open; click it again, or use the upward chevron, to
   restore the shape it had before.
@@ -34,8 +34,8 @@ resize handle focused, use Up/Down, Home/End, or double-click to reset the
 height. The height is remembered; a reload starts pinned.
 
 If you turn on **Auto-hide the composer** in **Settings → Preferences**, the
-composer rests as its title bar. Point at the title bar to expand it, and move
-away to collapse it. Typing or an open menu keeps it open until you finish. The
+composer rests as its title bar. Point at the composer to expand it, and move
+away to collapse it, whether you are typing, sending, or choosing a model. The
 collapse chevron becomes a pin: pin the composer to keep it open, then unpin to
 return to auto-hide. A maximized composer stays visible. Touch devices do not
 show the setting or use it.

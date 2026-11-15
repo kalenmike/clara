@@ -1,9 +1,8 @@
 import { useEffect, useState } from 'react'
-import { Navigate, useLocation } from 'react-router'
 import { LabApp, configureLabApi } from '@clara/lab'
 import '@clara/lab/styles.css'
 import { ConnectionSplash } from '@/components/connect/connection-splash'
-import { AppHeader } from '@/components/layout/app-header'
+import { FullWindowShell } from '@/components/layout/full-window-shell'
 import { labAvailable, readLabHealth } from '@/lib/desktop-lab'
 import { useConnection } from '@/providers/connection-provider'
 
@@ -13,8 +12,7 @@ import { useConnection } from '@/providers/connection-provider'
  * `/v1/lab`, so the desktop works even when the hub and engine are remote.
  */
 export function LabPage() {
-  const { status, booting, control } = useConnection()
-  const location = useLocation()
+  const { control } = useConnection()
   const [error, setError] = useState<string | null>(null)
   const [ready, setReady] = useState(false)
 
@@ -47,15 +45,8 @@ export function LabPage() {
     }
   }, [control])
 
-  if (booting) return <ConnectionSplash label="Checking connection…" />
-  if (status === 'connecting') return <ConnectionSplash label="Connecting to the hub…" />
-  if (status !== 'connected' || !control) {
-    return <Navigate to="/connect" replace state={{ from: location.pathname }} />
-  }
-
   return (
-    <div className="flex h-dvh flex-col bg-background text-foreground">
-      <AppHeader />
+    <FullWindowShell>
       <div className="lab-root min-h-0 flex-1" data-embedded data-clara-lab-surface>
         {!ready && !error ? (
           <ConnectionSplash label="Opening Clara Lab…" />
@@ -70,6 +61,6 @@ export function LabPage() {
           <LabApp />
         )}
       </div>
-    </div>
+    </FullWindowShell>
   )
 }

@@ -9,7 +9,7 @@ import { formatSessionAge } from '@/lib/format'
 const AGE_REFRESH_MS = 60_000
 
 /**
- * A thin whole-session summary pinned below the thread. Token and cost totals
+ * A thin whole-session summary pinned below the header. Token and cost totals
  * come from the server rather than the lazily loaded pages, so the figures
  * stay whole for long conversations.
  */
@@ -37,7 +37,7 @@ export function SessionStatsBar({
   return (
     <footer
       aria-label="Session usage"
-      className="flex shrink-0 items-center overflow-x-auto border-t bg-background px-3 pt-1.5 pb-1.5 text-[10px] whitespace-nowrap text-muted-foreground [scrollbar-width:none] md:text-xs [&::-webkit-scrollbar]:hidden"
+      className="flex shrink-0 items-center overflow-x-auto border-b bg-background px-3 pt-1.5 pb-1.5 text-[10px] whitespace-nowrap text-muted-foreground [scrollbar-width:none] md:text-xs [&::-webkit-scrollbar]:hidden"
     >
       <span className="font-mono">{text}</span>
     </footer>

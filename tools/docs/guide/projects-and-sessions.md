@@ -143,10 +143,11 @@ The switch reports how many agents are working in the project's Outbox.
 
 ## See agent activity
 
-Choose **Activity** in the app header to open it. It
-shows every session in the Inbox or Outbox for the project currently shown in
-the sidebar, across all of that project's workspaces and harnesses. Archived and
-snoozed sessions stay hidden.
+Choose **Activity** in the app header to open it. Activity opens full-window, so
+the project sidebar is not shown; it shows every session in the Inbox or Outbox
+for the project you opened last, across all of that project's workspaces and
+harnesses. To switch projects, open another one from **Chat** and return to
+Activity. Archived and snoozed sessions stay hidden.
 
 Each card shows whether the session is in the Inbox or Outbox, plus its project,
 harness, agent, model, token total, reported spend, and current plan. Plans load

@@ -17,7 +17,7 @@ the person, even when orchestration is off. A
 header toggle reveals internal output such as thinking, tool calls, and
 commands; internal output is hidden by default, and the usage from hidden steps
 rolls into the next visible reply so token and cost totals are not lost. A thin
-usage bar along the bottom of the pane carries the whole session's input,
+usage bar just below the header carries the whole session's input,
 output, reasoning, and cache tokens, its cost, and how long ago the session
 started; it reads server session totals, so lazy history pages cannot leave it
 short. The header names the session, shows whether it is busy or idle, names the
@@ -50,9 +50,10 @@ one paragraph, list, or section. See [fork.md](fork.md).
    instead of the message list. The composer sits pinned below the thread with a
    tab for the session on screen; creating a new session focuses that tab.
 2. Clara loads the newest messages and opens the thread at its newest output,
-   directly below the header and any permission or saved-draft panel above the
-   thread, without any scroll movement on screen. The view then stays where the
-   person leaves it; only new output follows while they are at the end. A
+   directly below the header, the usage bar, and any permission or saved-draft
+   panel above the thread, without any scroll movement on screen. The view then
+   stays where the person leaves it; only new output follows while they are at
+   the end. A
    stacked pair of arrow controls at the left edge steps through the thread: a
    single press puts the top of the next or previous message at the top of the
    view, and a double press jumps to the newest output or the top of the loaded
@@ -81,9 +82,9 @@ one paragraph, list, or section. See [fork.md](fork.md).
    agent is working steers the active run, or use the composer's chevron menu to
    send it as queued for the next turn.
 10. When the run finishes the header returns to "idle" and usage settles.
-11. Read the usage bar along the bottom of the pane at any time: whole-session
+11. Read the usage bar just below the header at any time: whole-session
     input, output, reasoning, and cache tokens, the cost in the selected display
-    mode, and how long ago the session started. It sits below the composer.
+    mode, and how long ago the session started.
 12. When a Plan run ends with a final reply, the composer tab carries a request
     badge. The send menu offers **Start work** while no question form is
     pending. With an empty editor, Start work switches to the working agent and
@@ -267,12 +268,12 @@ one paragraph, list, or section. See [fork.md](fork.md).
     selection creates an empty draft exactly like forwarding a message, but
     carries only the slice and no attachments. Escape cancels selection instead
     of interrupting a run.
-19. A thin usage bar at the bottom of the pane shows the whole session's input,
+19. A thin usage bar just below the header shows the whole session's input,
     output, reasoning, and cache-read plus cache-write tokens, the cost in the
     selected display mode, and how long ago the session started. It reads the
     server's session totals rather than the loaded pages, so long conversations
-    stay complete. The composer sits above it, and it scrolls horizontally on
-    narrow screens instead of wrapping.
+    stay complete. It scrolls horizontally on narrow screens instead of
+    wrapping.
 20. The header's second line shows the run state (`busy`, `retry N`, or `idle`)
     and the active agent. Live status, execution, and step events drive the
     state, and every successful active-session fetch reconciles it. A seeded or
@@ -312,8 +313,8 @@ one paragraph, list, or section. See [fork.md](fork.md).
   `$0.00`, and "started just now".
 - **Estimated cost in the usage bar** — the bar marks an estimate with `~`,
   matching the message footers and the session info panel.
-- **Narrow usage bar** — the line scrolls sideways instead of wrapping and owns
-  the bottom safe-area inset while it is the lowest element.
+- **Narrow usage bar** — the line scrolls sideways instead of wrapping as it
+  sits between the header and the thread.
 - **Long-open session** — the "started ... ago" wording refreshes about once a
   minute while the bar stays open.
 - **Message step timing** — a single press waits about 250 ms for a possible

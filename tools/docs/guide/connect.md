@@ -77,7 +77,8 @@ pairing; ask for a fresh code.
 ## Manage this device
 
 - **Settings → Reconnect** proves the transport again without forgetting the
-  device. The sidebar health control offers the same action.
+  device. The health control at the left of the bottom status bar offers the same
+  action.
 - **Settings → Disconnect** removes the device from this browser and returns to
   the connect screen. The device stays listed on the hub until the host revokes
   it.

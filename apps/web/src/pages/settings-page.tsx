@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Check, ChevronDown } from 'lucide-react'
 import { PageShell } from '@/components/layout/page-shell'
+import { FullWindowShell } from '@/components/layout/full-window-shell'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import {
@@ -26,6 +27,7 @@ import { WordingCard } from '@/components/settings/wording-card'
 import { useSimplifySettings } from '@/features/settings/use-simplify-settings'
 import { useSessionWording } from '@/features/sessions/use-wording'
 import type { SessionWording } from '@/features/sessions/wording'
+import { ConnectedProviders } from '@/providers/connected-providers'
 import { useSettingsSync } from '@/providers/settings-sync-provider'
 import { useIsTouchDevice } from '@/hooks/use-is-touch-device'
 
@@ -64,6 +66,18 @@ function shortcutList(wording: SessionWording): Array<[string, string]> {
 }
 
 export function SettingsPage() {
+  return (
+    <FullWindowShell>
+      <ConnectedProviders>
+        <div className="min-h-0 flex-1">
+          <SettingsScreen />
+        </div>
+      </ConnectedProviders>
+    </FullWindowShell>
+  )
+}
+
+function SettingsScreen() {
   const isTouchDevice = useIsTouchDevice()
   const { simplified } = useSimplifySettings()
   const { serverEnabled } = useSettingsSync()
