@@ -5,6 +5,7 @@ import tailwindcss from '@tailwindcss/vite'
 import react from '@vitejs/plugin-react'
 import { defineConfig } from 'vite'
 import { VitePWA } from 'vite-plugin-pwa'
+import { featureEnabled } from '../../tools/build/feature-flags.mjs'
 
 const root = fileURLToPath(new URL('../..', import.meta.url))
 
@@ -103,6 +104,12 @@ export default defineConfig(({ command, mode }) => {
         dirty,
         builtAt,
       }),
+      // The `/hub` route compiles the shared panel UI into this app. Its
+      // Cloudflare relay deployment screen is a build-time feature, so the flag
+      // follows the served panel's config rather than a runtime setting.
+      __CLARA_CLOUDFLARE_DEPLOYMENT__: JSON.stringify(
+        featureEnabled(process.env.ENABLE_CLOUDFLARE_DEPLOYMENT)
+      ),
       // The same identity is compiled into the app and into the service worker
       // build, which lets them compare versions over a message.
       ...buildIdentityDefine,
