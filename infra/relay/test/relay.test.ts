@@ -3,11 +3,13 @@ import {
   PROTOCOL_VERSION,
   createRelayGrant,
   isRouteFrameV3,
+  type RelayGrantKind,
   type RouteFrameV3,
 } from '@clara/shared-types'
 import { describe, expect, it } from 'vitest'
 import type { Env } from '../src/env.ts'
 import {
+  ADAPTER_FRAME_BURST,
   CLIENT_FRAME_BURST,
   MAX_CLIENT_SOCKETS_PER_IP,
   MAX_CLIENT_SOCKETS_PER_ROOM,
@@ -29,12 +31,17 @@ type Connection = {
 
 let grantCounter = 0
 
-async function grantFor(room: string, id = `client-${(grantCounter += 1)}`): Promise<string> {
+async function grantFor(
+  room: string,
+  id = `client-${(grantCounter += 1)}`,
+  kind: RelayGrantKind = 'device'
+): Promise<string> {
   const { grant } = await createRelayGrant({
     room,
     id,
     agentToken: AGENT_TOKEN,
     ttlSeconds: 600,
+    kind,
   })
   return grant
 }
@@ -125,6 +132,21 @@ function routedPeer(messages: string[], text: string): string | undefined {
     if (isRouteFrameV3(parsed) && parsed.m === text) return parsed.p
   }
   return undefined
+}
+
+/** Payloads the agent received from one grant id, in arrival order. */
+function routedPayloads(messages: string[], grantId: string): string[] {
+  const payloads: string[] = []
+  for (const message of messages) {
+    const parsed: unknown = JSON.parse(message)
+    if (isRouteFrameV3(parsed) && parsed.i === grantId) payloads.push(parsed.m)
+  }
+  return payloads
+}
+
+/** Let in-flight frames drain before asserting what the agent received. */
+function settle(): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, 100))
 }
 
 async function waitFor<T>(
@@ -283,6 +305,27 @@ describe('relay worker', () => {
     agent.close(1000, 'done')
   })
 
+  it('never forwards a frame after an oversized refusal', async () => {
+    const room = 'large-gap-room'
+    const agent = await connect(room, 'agent')
+    const messages = collectMessages(agent)
+    const grantId = 'large-gap-device'
+    const client = await connectWithResponse(room, 'client', await grantFor(room, grantId))
+
+    client.socket.send('before')
+    client.socket.send('x'.repeat(MAX_CLIENT_FRAME_BYTES + 1))
+    client.socket.send('after')
+
+    await expect(client.closed).resolves.toBe(4009)
+    await settle()
+
+    // Everything queued behind the refused frame is dropped too, so the hub
+    // never sees a sealed-sequence hole.
+    expect(routedPayloads(messages, grantId)).toEqual(['before'])
+
+    agent.close(1000, 'done')
+  })
+
   it('round-trips a binary client frame as base64url', async () => {
     const room = 'binary-room'
     const agent = await connect(room, 'agent')
@@ -393,6 +436,75 @@ describe('relay worker', () => {
     await waitFor(async () => ((await peerStateCount(room)) === 1 ? true : undefined))
 
     healthy.socket.close(1000, 'done')
+    agent.close(1000, 'done')
+  })
+
+  it('never forwards a frame after a rate refusal', async () => {
+    const room = 'frame-rate-gap'
+    const agent = await connect(room, 'agent')
+    const messages = collectMessages(agent)
+    const grantId = 'rate-gap-device'
+    const client = await connectWithResponse(room, 'client', await grantFor(room, grantId))
+
+    const sent = CLIENT_FRAME_BURST * 3
+    for (let index = 0; index < sent; index += 1) client.socket.send(`frame-${index}`)
+
+    await expect(client.closed).resolves.toBe(CLIENT_LIMIT_CODE)
+    await settle()
+
+    // The agent must see a contiguous prefix. A frame queued behind the
+    // refusal must not slip through and create a sealed-sequence hole.
+    const payloads = routedPayloads(messages, grantId)
+    expect(payloads.length).toBeGreaterThan(0)
+    expect(payloads.length).toBeLessThan(sent)
+    expect(payloads).toEqual(payloads.map((_, index) => `frame-${index}`))
+
+    agent.close(1000, 'done')
+  })
+
+  it('gives an adapter grant a larger frame budget', async () => {
+    const room = 'adapter-budget'
+    const agent = await connect(room, 'agent')
+    const messages = collectMessages(agent)
+    const grantId = 'adapter-budget-id'
+    const client = await connectWithResponse(
+      room,
+      'client',
+      await grantFor(room, grantId, 'adapter')
+    )
+
+    // More than a browser burst, but well under the adapter budget.
+    const sent = CLIENT_FRAME_BURST + 30
+    expect(sent).toBeLessThan(ADAPTER_FRAME_BURST)
+    for (let index = 0; index < sent; index += 1) client.socket.send(`adapter-${index}`)
+
+    client.socket.send('still-open')
+    await waitFor(() =>
+      routedPayloads(messages, grantId).includes('still-open') ? true : undefined
+    )
+    expect(routedPayloads(messages, grantId)).toEqual([
+      ...Array.from({ length: sent }, (_, index) => `adapter-${index}`),
+      'still-open',
+    ])
+
+    client.socket.close(1000, 'done')
+    agent.close(1000, 'done')
+  })
+
+  it('uses the signed grant kind, not a spoofed header', async () => {
+    const room = 'adapter-kind-spoof'
+    const agent = await connect(room, 'agent')
+    const client = await connectWithResponse(room, 'client', await grantFor(room, 'device-kind'), {
+      'x-clara-grant-kind': 'adapter',
+    })
+
+    for (let index = 0; index < CLIENT_FRAME_BURST + 10; index += 1) {
+      client.socket.send(`spoof-${index}`)
+    }
+
+    // A device grant keeps the tighter budget even when the client claims
+    // otherwise; the Worker stamps the kind from the verified grant.
+    await expect(client.closed).resolves.toBe(CLIENT_LIMIT_CODE)
     agent.close(1000, 'done')
   })
 

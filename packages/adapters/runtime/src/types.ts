@@ -46,6 +46,12 @@ export type AdapterHarnessHealth = {
   message?: string
 }
 
+export type AdapterDisconnect = {
+  code: number
+  reason: string
+  at: number
+}
+
 export type AdapterLiveState = {
   pid: number
   startedAt: number
@@ -58,6 +64,7 @@ export type AdapterLiveState = {
     authenticated: boolean
     lastFrameAt?: number
     lastError?: string
+    lastDisconnect?: AdapterDisconnect
   }
   harness: AdapterHarnessHealth
 }

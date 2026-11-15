@@ -9,6 +9,13 @@ export const RELAY_GRANT_VERSION = 1
 /** A grant id is a device id, adapter id, or enrollment id. */
 export const RELAY_GRANT_MAX_ID_LENGTH = 128
 
+/**
+ * What the grant represents. The relay uses this to size the per-connection
+ * budget: an adapter multiplexes every proxied browser request and event
+ * stream, while a browser is one interactive client.
+ */
+export type RelayGrantKind = 'device' | 'adapter'
+
 /** Allow a little clock skew between the hub and the relay. */
 export const RELAY_GRANT_CLOCK_LEEWAY_SECONDS = 60
 
@@ -27,6 +34,7 @@ export type RelayGrantPayload = {
   room: string
   role: 'client'
   id: string
+  kind: RelayGrantKind
   exp: number
 }
 
@@ -66,6 +74,7 @@ export function encodeRelayGrantPayload(payload: RelayGrantPayload): string {
         room: payload.room,
         role: 'client',
         id: payload.id,
+        kind: payload.kind,
         exp: payload.exp,
       })
     )
@@ -103,6 +112,7 @@ export async function createRelayGrant(input: {
   id: string
   agentToken: string
   ttlSeconds: number
+  kind?: RelayGrantKind
   nowSeconds?: number
 }): Promise<RelayGrantState> {
   if (!Number.isSafeInteger(input.ttlSeconds) || input.ttlSeconds <= 0) {
@@ -111,7 +121,14 @@ export async function createRelayGrant(input: {
   const now = input.nowSeconds ?? Math.floor(Date.now() / 1000)
   const exp = now + input.ttlSeconds
   const grant = await signRelayGrant(
-    { v: RELAY_GRANT_VERSION, room: input.room, role: 'client', id: input.id, exp },
+    {
+      v: RELAY_GRANT_VERSION,
+      room: input.room,
+      role: 'client',
+      id: input.id,
+      kind: input.kind ?? 'device',
+      exp,
+    },
     input.agentToken
   )
   return { grant, expiresAt: exp * 1000 }
@@ -172,22 +189,31 @@ function parsePayload(encoded: string): ParsedPayload {
   const room = record.room
   const id = record.id
   const exp = record.exp
+  const kind = record.kind
   if (record.v !== RELAY_GRANT_VERSION) return { ok: false, reason: 'invalid_payload' }
   if (typeof room !== 'string' || room.length === 0) return { ok: false, reason: 'invalid_payload' }
   if (record.role !== 'client') return { ok: false, reason: 'invalid_payload' }
+  // Grants signed before the kind field existed are device grants.
+  if (kind !== undefined && kind !== 'device' && kind !== 'adapter') {
+    return { ok: false, reason: 'invalid_payload' }
+  }
   if (typeof id !== 'string' || id.length === 0 || id.length > RELAY_GRANT_MAX_ID_LENGTH) {
     return { ok: false, reason: 'invalid_payload' }
   }
   if (typeof exp !== 'number' || !Number.isSafeInteger(exp) || exp <= 0) {
     return { ok: false, reason: 'invalid_payload' }
   }
-  return { ok: true, payload: { v: RELAY_GRANT_VERSION, room, role: 'client', id, exp } }
+  return {
+    ok: true,
+    payload: { v: RELAY_GRANT_VERSION, room, role: 'client', id, kind: kind ?? 'device', exp },
+  }
 }
 
 function validatePayload(payload: RelayGrantPayload): string | null {
   if (payload.v !== RELAY_GRANT_VERSION) return 'unsupported version'
   if (typeof payload.room !== 'string' || payload.room.length === 0) return 'missing room'
   if (payload.role !== 'client') return 'invalid role'
+  if (payload.kind !== 'device' && payload.kind !== 'adapter') return 'invalid kind'
   if (
     typeof payload.id !== 'string' ||
     payload.id.length === 0 ||

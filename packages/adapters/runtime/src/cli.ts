@@ -249,6 +249,7 @@ async function serve<THarness>(
         authenticated: status.authenticated,
         ...(status.lastFrameAt ? { lastFrameAt: status.lastFrameAt } : {}),
         ...(status.lastError ? { lastError: status.lastError } : {}),
+        ...(status.lastDisconnect ? { lastDisconnect: status.lastDisconnect } : {}),
       },
       harness: {
         url: harness.url,
@@ -460,6 +461,10 @@ async function status<THarness>(definition: AdapterDefinition<THarness>): Promis
         (live.hub.lastFrameAt ? `, last frame ${formatAge(live.hub.lastFrameAt)}` : '')
     )
     if (live.hub.lastError) console.log(`hub error: ${live.hub.lastError}`)
+    if (live.hub.lastDisconnect) {
+      const closed = live.hub.lastDisconnect
+      console.log(`last close: ${closed.code} ${closed.reason} (${formatAge(closed.at)})`)
+    }
     const health = live.harness
     console.log(
       `health:   ${health.reachable ? 'reachable' : 'unreachable'} (${health.code ?? 'unknown'}` +

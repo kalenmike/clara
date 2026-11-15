@@ -23,6 +23,7 @@ function payload(overrides: Partial<RelayGrantPayload> = {}): RelayGrantPayload 
     room: ROOM,
     role: 'client',
     id: 'device-1',
+    kind: 'device',
     exp: NOW + ENROLLMENT_GRANT_TTL_SECONDS,
     ...overrides,
   }
@@ -44,9 +45,35 @@ describe('relay grant encoding', () => {
   it('writes the payload fields in canonical order', () => {
     const encoded = encodeRelayGrantPayload(payload())
     expect(new TextDecoder().decode(base64UrlToBytes(encoded))).toBe(
-      '{"v":1,"room":"room-1","role":"client","id":"device-1","exp":1900000600}'
+      '{"v":1,"room":"room-1","role":"client","id":"device-1","kind":"device","exp":1900000600}'
     )
     expect(decodeRelayGrantPayload(encoded)).toEqual(payload())
+  })
+
+  it('defaults a legacy grant without a kind to a device', () => {
+    const legacy = encode(
+      JSON.stringify({
+        v: RELAY_GRANT_VERSION,
+        room: ROOM,
+        role: 'client',
+        id: 'device-1',
+        exp: NOW + ENROLLMENT_GRANT_TTL_SECONDS,
+      })
+    )
+    expect(decodeRelayGrantPayload(legacy)).toMatchObject({ kind: 'device' })
+  })
+
+  it('round-trips an adapter grant', async () => {
+    const grant = await sign({ id: 'adapter-1', kind: 'adapter' })
+    await expect(verify(grant)).resolves.toMatchObject({
+      ok: true,
+      payload: { id: 'adapter-1', kind: 'adapter' },
+    })
+  })
+
+  it('rejects an unknown grant kind', () => {
+    const encoded = encode(JSON.stringify({ ...payload(), kind: 'other' }))
+    expect(decodeRelayGrantPayload(encoded)).toBeNull()
   })
 
   it('emits base64url only', () => {
@@ -158,7 +185,22 @@ describe('relay grant creation', () => {
     expect(created.expiresAt).toBe((NOW + DEVICE_GRANT_TTL_SECONDS) * 1000)
     await expect(verify(created.grant)).resolves.toMatchObject({
       ok: true,
-      payload: { id: 'adapter-1', exp: NOW + DEVICE_GRANT_TTL_SECONDS },
+      payload: { id: 'adapter-1', kind: 'device', exp: NOW + DEVICE_GRANT_TTL_SECONDS },
+    })
+  })
+
+  it('records an adapter grant kind', async () => {
+    const created = await createRelayGrant({
+      room: ROOM,
+      id: 'adapter-1',
+      agentToken: AGENT_TOKEN,
+      ttlSeconds: DEVICE_GRANT_TTL_SECONDS,
+      nowSeconds: NOW,
+      kind: 'adapter',
+    })
+    await expect(verify(created.grant)).resolves.toMatchObject({
+      ok: true,
+      payload: { id: 'adapter-1', kind: 'adapter' },
     })
   })
 })

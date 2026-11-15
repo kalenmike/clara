@@ -107,6 +107,11 @@ device key through a one-time code; there is no shared browser key.
   container is the adapter itself. Use the harness service name or an address
   reachable from the adapter host. In the Docker stack the adapter joins the
   `clara` network and reaches the hub at `ws://server:8788/ws`.
+- **Adapter reconnect loop** — `clara status adapter` and the adapter log show
+  the most recent relay close code. `4008` means the relay's frame or byte
+  budget refused the socket; `4009` means one sealed frame exceeded 128 KiB. The
+  adapter backs off and retries, and a persistent loop means the adapter is
+  sending too much or a response was not split.
 - **Stored device cannot connect** — Clara falls back to the pair form; it does
   not silently try another hub. Revoke the stale entry in the panel.
 - **Pairing link fails** — the connecting splash gives way to the pair form,
