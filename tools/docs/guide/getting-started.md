@@ -58,6 +58,10 @@ or the browser menu.
 The installed app opens without browser chrome. Updates arrive through an
 in-app banner; you choose **Update** or **Later**.
 
+On a computer, [Clara Desktop](desktop.md) is the single GUI install for both
+chat and the hub panel. It needs its own installer, and the hub remains a
+service you run separately.
+
 ## Next steps
 
 - [Understand the screen](concepts.md) — projects, sessions, and the mailbox.

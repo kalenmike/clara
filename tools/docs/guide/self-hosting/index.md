@@ -59,6 +59,25 @@ Both modes use the same hub panel, pairing command, and data model.
 The detailed steps are in [Docker](docker.md) and
 [Local install](local.md).
 
+## Reach the panel
+
+The hub serves its panel on the hub machine, on loopback only. That page creates
+the first owner account and remains the recovery surface if the usual client is
+unavailable. It is also the place for controls that would cut a client's own
+connection.
+
+After the owner exists, pair [Clara Desktop](../desktop.md) and choose **Hub** in
+the app. The app shows the same panel over its encrypted hub connection, so a
+remote hub can be administered without a tunnel or an exposed panel port. Sign
+in with the owner account; pairing a device alone does not grant panel access.
+
+**A remote hub needs its owner before the first client pairing.** The loopback
+page cannot be used from another machine. Set `CLARA_ADMIN_USERNAME` and
+`CLARA_ADMIN_PASSWORD` or `CLARA_ADMIN_PASSWORD_FILE` before the first start, or
+use the headless setup command described in
+[Configuration](configuration.md#create-the-owner-account), then pair the app.
+A hub on the same machine can create the owner in its own panel once.
+
 ## Ports
 
 | Service               | Default          |
@@ -69,7 +88,9 @@ The detailed steps are in [Docker](docker.md) and
 | Orchestration service | `127.0.0.1:8789` |
 | Clara Lab             | `127.0.0.1:8791` |
 
-The hub panel is loopback-only. Do not expose it to the internet.
+The hub panel page is loopback-only. Do not expose it to the internet. Clara
+Desktop reaches the same panel through the hub's encrypted connection; that does
+not publish the panel port.
 
 The Docker stack keeps fixed container ports. The hub desktop app reuses its
 previous panel and local ports and falls back to a free port when one is busy;

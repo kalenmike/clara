@@ -37,6 +37,18 @@ link** buttons. It reports **Waiting to connect** until the device enrolls, then
 it leaves the new device in place. The guided-setup Client step shows the same
 pairing controls inline.
 
+## Open the hub panel from Clara
+
+Paired devices can open the same hub panel inside Clara Desktop. Choose **Hub**
+in the app and sign in with the hub owner's username and password. Pairing a
+device does not grant panel access by itself, and the panel password is never
+sent through the relay in readable form.
+
+The app reaches the panel through its encrypted hub connection, so a remote hub
+works without opening a port or visiting its loopback address. Controls that
+would cut that connection are disabled there; use the hub host's own panel for
+those and for first-run owner setup. See [Desktop app](desktop.md).
+
 ## Local and relay pairings
 
 A **local** pairing connects directly to the hub on the same machine or trusted

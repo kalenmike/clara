@@ -62,6 +62,12 @@ hub executable and panel, run `pnpm hub:sidecar`.
 The tray menu has **Open panel** and **Quit**. Closing the panel window hides
 it; Quit stops the hub.
 
+From another machine, pair [Clara Desktop](desktop.md) and choose **Hub** to use
+the same panel over the encrypted connection. The tray page remains the surface
+for first run, headless recovery, and the controls that would cut the connected
+client's own link. The hub app still runs exactly one hub service and one panel
+listener.
+
 ## Panel appearance
 
 Open **Settings → Appearance** to choose **Light**, **Dark**, or **System** for

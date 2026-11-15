@@ -30,6 +30,12 @@ is visible to `docker inspect` and process listings.
 `CLARA_ADMIN_SETUP_TOKEN` or `CLARA_ADMIN_SETUP_TOKEN_FILE` is the explicit
 remote setup path. When set, the setup form also asks for that token.
 
+For a remote hub, prefer the environment owner or the headless setup command
+before the first start. The setup page is loopback-only, so a client on another
+machine cannot create the first owner. After the owner exists, pair Clara
+Desktop and choose **Hub** in the app to use the panel over the encrypted
+connection.
+
 ## Guided setup
 
 After the owner account exists, the panel opens a dismissible Setup modal:

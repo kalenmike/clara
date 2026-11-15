@@ -11,6 +11,11 @@ app is the same client: your hub, projects, sessions, chat, and settings are
 unchanged. It is an extra way to open Clara, not a replacement for the web app
 or the home-screen install.
 
+Clara Desktop is the single GUI install for using Clara: the chat client and the
+hub panel share one window. The hub itself is still a service you run
+separately, with the [Hub app](hub-app.md), Docker, or a local install. The
+desktop app does not run the hub service.
+
 ## Build an installer
 
 There is no hosted download yet, so build the app from a checkout of the
@@ -60,6 +65,30 @@ Pairing works the same way as the browser:
 `pnpm clara pair` prints a code too. A pairing link opens the web app, so paste
 the code when you are using the desktop app. The QR button needs a camera that
 the system webview exposes; pasting the code always works.
+
+## Open the hub panel
+
+The app includes the hub panel for the hub you are connected to. Choose **Hub**
+in the app and sign in with the hub owner's username and password. You do not
+need to open the hub's loopback address, and a remote hub works the same way
+once the app is paired.
+
+The panel shows hub health, paired harnesses, sessions, clients, traffic, and
+settings in the same views as the hub host's own page. Adapter setup works from
+here too: the hub issues a one-time code and command, and the app's adapter host
+can install on this computer, an SSH host, or a local Docker container.
+
+A few controls belong only to the hub host: **Go offline**, the local
+connection switch that carries this app, and relay target or room changes. They
+are disabled in the app because they would cut or redirect its own connection.
+Use the hub's own panel for those.
+
+### First run
+
+- **A hub on this machine:** create the owner account once in the hub's own
+  panel, then pair this app.
+- **A remote hub:** the host creates the owner before pairing. The app cannot
+  create the first owner over a remote connection.
 
 ## What is different
 
