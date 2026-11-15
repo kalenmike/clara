@@ -203,9 +203,11 @@ first-run, headless, and emergency surface.
 16. In **Clients**, choose **Pair Client** in the page header to open the
     pairing dialog. Choose **Relay** or **Local** before creating the code; the
     helper text explains where that code works. **Create pairing link** switches
-    the dialog to the pairing view: a locally rendered QR, an **Open Link**
-    action, the expiry, and **Copy code** and **Copy link** buttons. The raw code
-    and link are not printed. The dialog watches the five-second status snapshot
+    the dialog to the pairing view: a locally rendered 288 px QR, an **Open
+    Link** action, the expiry, and **Copy code** and **Copy link** buttons. The
+    raw code and link are not printed. The QR uses the lowest error-correction
+    level and scales down on narrow screens, keeping a relay link's ~700
+    characters readable by a phone camera. The dialog watches the five-second status snapshot
     for a new device session or paired device and changes from **Waiting to
     connect** to **Connected** when enrollment succeeds. Closing while waiting
     cancels the unused code; closing after the dialog reports connected leaves

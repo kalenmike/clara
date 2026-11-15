@@ -38,6 +38,11 @@ a generic error.
 - If the preview stays black after resuming the app, close and reopen the
   scanner.
 - If the camera is busy or missing, paste the code instead.
+- A relay pairing QR carries more data than a local one. If nothing happens
+  after a few seconds, move the phone closer so the code fills the middle of
+  the frame, or use **Copy link** in the hub panel and paste it instead.
+- If the terminal says the QR is too wide, widen the window or open the printed
+  link; a wrapped QR cannot be scanned.
 
 ## Clara connects but shows no projects
 
