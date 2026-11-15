@@ -74,7 +74,10 @@ The lab has three parts, and only the first is a window:
 1. **The desktop UI.** Clara Desktop compiles the lab UI into its own build and
    opens it at `/lab`. The deployed web/PWA build contains no lab code: the
    route is not registered, Vite replaces the lab modules with stubs, and the
-   bundle check fails if a lab chunk reaches the web artifact.
+   bundle check fails if a lab chunk reaches the web artifact. The route mounts
+   the lab in a flex slot under its own app bar and marks it `data-embedded`, so
+   the workbench fills that slot rather than the viewport; only the standalone
+   `tools/lab` entry keeps the viewport height.
 2. **The lab service.** `@clara/lab-server` runs next to the engine, not on the
    desktop and not inside the hub process. It owns the workspace files, the
    preview and import graph, the engine token, run and admin calls over MCP and
