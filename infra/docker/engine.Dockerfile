@@ -1,12 +1,12 @@
 # syntax=docker/dockerfile:1.7
 
-# Build the loopback orchestration service and only its runtime dependencies.
+# Build the loopback engine service and only its runtime dependencies.
 # Build context: repository root.
 #
-#   docker build -f infra/docker/orchestrator.Dockerfile -t clara-orchestrator .
+#   docker build -f infra/docker/engine.Dockerfile -t clara-engine .
 #
 # The workspace is mounted at runtime, not baked into the image. Both the
-# orchestrator container and the OpenCode container must see the same absolute
+# engine container and the OpenCode container must see the same absolute
 # workspace path.
 
 FROM node:22-bookworm-slim AS build
@@ -24,7 +24,7 @@ RUN corepack enable
 WORKDIR /repo
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml tsconfig.base.json ./
 # These manifest and source copies must cover the workspace dependency closure
-# of @clara/orchestrator. Missing packages make the tsup build fail to resolve
+# of @clara/engine. Missing packages make the tsup build fail to resolve
 # their imports even though the filtered install succeeds.
 COPY apps/orchestrator/package.json apps/orchestrator/package.json
 COPY packages/orchestration/mcp/package.json packages/orchestration/mcp/package.json
@@ -32,7 +32,7 @@ COPY packages/orchestration/engine/package.json packages/orchestration/engine/pa
 COPY packages/orchestration/control/package.json packages/orchestration/control/package.json
 COPY packages/orchestration/policy/package.json packages/orchestration/policy/package.json
 COPY packages/sqlite/package.json packages/sqlite/package.json
-RUN pnpm install --frozen-lockfile --filter @clara/orchestrator...
+RUN pnpm install --frozen-lockfile --filter @clara/engine...
 
 COPY apps/orchestrator apps/orchestrator
 COPY packages/orchestration/mcp packages/orchestration/mcp
@@ -40,16 +40,16 @@ COPY packages/orchestration/engine packages/orchestration/engine
 COPY packages/orchestration/control packages/orchestration/control
 COPY packages/orchestration/policy packages/orchestration/policy
 COPY packages/sqlite packages/sqlite
-RUN pnpm --filter @clara/orchestrator build
-RUN pnpm --filter @clara/orchestrator deploy /out --prod --legacy
+RUN pnpm --filter @clara/engine build
+RUN pnpm --filter @clara/engine deploy /out --prod --legacy
 
 FROM node:22-bookworm-slim AS runtime
 ENV NODE_ENV=production
 ENV CLARA_DATA_DIR=/data
-ENV CLARA_ORCHESTRATION_HOST=0.0.0.0
-ENV CLARA_ORCHESTRATION_PORT=8789
-ENV CLARA_ORCHESTRATION_WORKSPACE=/workspace/clara
-ENV CLARA_ORCHESTRATION_CONTAINER=1
+ENV CLARA_ENGINE_HOST=0.0.0.0
+ENV CLARA_ENGINE_PORT=8789
+ENV CLARA_ENGINE_WORKSPACE=/workspace/clara
+ENV CLARA_ENGINE_CONTAINER=1
 
 WORKDIR /app
 RUN mkdir -p /data /opt/clara && chown -R node:node /app /data /opt/clara

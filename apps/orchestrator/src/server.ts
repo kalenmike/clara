@@ -6,7 +6,7 @@ import type { Runtime } from '@clara/orchestration'
 import { instanceMode } from '@clara/service-control'
 import { RuntimeBackend } from './backend.ts'
 
-export interface OrchestratorServerOptions {
+export interface EngineServerOptions {
   runtime: Runtime
   token: string
   host?: string
@@ -16,7 +16,7 @@ export interface OrchestratorServerOptions {
   configPath?: string
 }
 
-export interface OrchestratorServer {
+export interface EngineServer {
   server: Server
   close(): Promise<void>
 }
@@ -88,7 +88,7 @@ function decode(value: string): string {
   }
 }
 
-export function createOrchestratorServer(options: OrchestratorServerOptions): OrchestratorServer {
+export function createEngineServer(options: EngineServerOptions): EngineServer {
   const { runtime, token } = options
   const backend = new RuntimeBackend(runtime, options.workspace)
   const mcpSessions = new Map<
@@ -102,7 +102,7 @@ export function createOrchestratorServer(options: OrchestratorServerOptions): Or
       if (req.method === 'GET' && url.pathname === '/health') {
         json(res, 200, {
           ok: true,
-          service: 'clara-orchestrator',
+          service: 'clara-engine',
           version: '0.1.0',
           mode: instanceMode(),
           pid: process.pid,

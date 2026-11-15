@@ -15,7 +15,7 @@ apps/desktop/host                    Loopback adapter-host sidecar for local, SS
 apps/hub/panel                       Hub panel entry that serves the shared panel package
 apps/hub/desktop                     Tauri tray app that runs the Bun hub sidecar and panel
 apps/hub/server                      Node hub service, local WS + outbound Cloudflare relay
-apps/orchestrator                    Loopback orchestration service, REST/SSE/MCP
+apps/orchestrator                    Loopback engine service, REST/SSE/MCP (legacy path)
 apps/adapters/opencode               OpenCode harness adapter, binding, and standalone bin
 apps/adapters/claude                 Claude Code harness adapter and standalone bin
 apps/adapters/pi                     Pi harness adapter and standalone bin (RPC mode)
@@ -72,11 +72,11 @@ pnpm dev:relay      # Local wrangler dev for the Worker/DO
 pnpm build          # Build every workspace package
 ENABLE_CLOUDFLARE_DEPLOYMENT=true pnpm build # Include the optional Cloudflare relay deployment
 pnpm clara:link     # Install a thin `clara` shim on ~/.local/bin
-clara start [default|hub|web|orchestrator] [--docker|--local] [--build] # Start the core stack or one service
-clara stop [default|hub|web|orchestrator] [--docker|--local] # Stop the core stack or one service
-clara restart [default|hub|web|orchestrator] [--docker|--local] [--build] # Restart
-clara status [default|hub|web|orchestrator] [--json] # Probe the core services
-clara logs [default|hub|web|orchestrator] [--local|--docker] # Follow service logs
+clara start [default|hub|web|engine] [--docker|--local] [--build] # Start the core stack or one service
+clara stop [default|hub|web|engine] [--docker|--local] # Stop the core stack or one service
+clara restart [default|hub|web|engine] [--docker|--local] [--build] # Restart
+clara status [default|hub|web|engine] [--json] # Probe the core services
+clara logs [default|hub|web|engine] [--local|--docker] # Follow service logs
 clara start hub --open # Start the hub and open the panel
 clara status hub --open # Open the running panel
 clara start adapter [--harness <name>] # Start paired adapters
@@ -92,8 +92,8 @@ clara status lab --check # Validate a package target for CI
 clara start docs [--build] # Start the documentation site on :5176
 clara status docs --check # Check guide and internal doc indexes and links
 clara status docs --typecheck # Typecheck the documentation site
-clara backup [default|hub|orchestrator] [--output <path>] # Archive Docker state
-clara restore [default|hub|orchestrator] <archive> [--force] # Replace Docker state
+clara backup [default|hub|engine] [--output <path>] # Archive Docker state
+clara restore [default|hub|engine] <archive> [--force] # Replace Docker state
 clara pair [hub] # Print a browser pairing code
 clara pair adapter --harness <name> # Print an adapter pairing code
 clara rebuild       # Snapshot, rebuild, recover services, inspect, and verify health
@@ -186,6 +186,10 @@ transport, Worker, Durable Object, or crypto.
 - Use **hub** for the home-side installation, **hub service** for its process,
   and **hub panel** for its dashboard. Reserve **agent** for LLM agents. See the
   [vocabulary](docs/architecture/overview.md#vocabulary).
+- Use **engine** for the deterministic pipeline service (`@clara/engine`,
+  `clara-engine`, the `clara-engine` container) and **orchestration** for the
+  feature, packages, and pipelines. The engine is never an LLM or an agent.
+  `apps/orchestrator` remains the legacy directory name for one release.
 - Write platform behavior as **harness** and **adapter**. Name OpenCode only for
   the included adapter, its install commands, or a fact specific to OpenCode.
 - Web components live under `apps/web/src/components`; web hooks under
@@ -313,9 +317,9 @@ is never published.
 | Relay Worker, DO, remote access    | [docs/architecture/relay.md](docs/architecture/relay.md)                 |
 | E2EE, device keys, envelopes       | [docs/architecture/e2ee.md](docs/architecture/e2ee.md)                   |
 | What ships and what does not       | [docs/features/capabilities.md](docs/features/capabilities.md)           |
-| Orchestration service and control  | [docs/features/orchestration.md](docs/features/orchestration.md)         |
+| Engine service and control         | [docs/features/orchestration.md](docs/features/orchestration.md)         |
 | Pipeline DSL and package fields    | [docs/features/orchestration-dsl.md](docs/features/orchestration-dsl.md) |
-| Orchestrator diagnosis and fixes   | [docs/features/diagnostics.md](docs/features/diagnostics.md)             |
+| Engine diagnosis and fixes         | [docs/features/diagnostics.md](docs/features/diagnostics.md)             |
 | Rebuilding and restarting Clara    | [docs/features/maintenance.md](docs/features/maintenance.md)             |
 | Pipeline preview and agent probe   | [docs/features/lab.md](docs/features/lab.md)                             |
 | Pairing, QR codes, device storage  | [docs/features/pairing.md](docs/features/pairing.md)                     |

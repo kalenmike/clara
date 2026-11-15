@@ -36,7 +36,12 @@ import {
   tokenPath,
   workspace,
 } from '@clara/service-control'
-import { createOrchestratorServer } from './server.ts'
+import { createEngineServer } from './server.ts'
+
+/** Read a Clara engine variable, falling back to its historical name. */
+function engineEnv(name: string, legacy: string): string | undefined {
+  return process.env[name]?.trim() || process.env[legacy]?.trim()
+}
 
 function selfCommand(): string[] {
   const entry = fileURLToPath(import.meta.url)
@@ -63,12 +68,16 @@ async function serve(): Promise<void> {
   const runtime = new Runtime({
     store,
     ...(configPath() ? { configPath: configPath() } : {}),
-    stalledMs: Number(process.env.CLARA_ORCHESTRATION_STALLED_MS ?? 5 * 60_000),
-    leaseMs: Number(process.env.CLARA_ORCHESTRATION_LEASE_MS ?? 30 * 60_000),
+    stalledMs: Number(
+      engineEnv('CLARA_ENGINE_STALLED_MS', 'CLARA_ORCHESTRATION_STALLED_MS') ?? 5 * 60_000
+    ),
+    leaseMs: Number(
+      engineEnv('CLARA_ENGINE_LEASE_MS', 'CLARA_ORCHESTRATION_LEASE_MS') ?? 30 * 60_000
+    ),
     runnerWaitMs: Number(process.env.CLARA_RUNNER_WAIT_MS ?? 60_000),
   })
   const token = ensureToken()
-  const app = createOrchestratorServer({
+  const app = createEngineServer({
     runtime,
     token,
     host: host(),
@@ -81,15 +90,15 @@ async function serve(): Promise<void> {
     app.server.once('error', reject)
     app.server.listen(port(), host(), () => resolve())
   })
-  console.log(`[clara-orchestrator] listening on ${baseURL()}`)
-  console.log(`[clara-orchestrator] database ${dbPath()}`)
-  console.log(`[clara-orchestrator] workspace ${workspace()}`)
+  console.log(`[clara-engine] listening on ${baseURL()}`)
+  console.log(`[clara-engine] database ${dbPath()}`)
+  console.log(`[clara-engine] workspace ${workspace()}`)
   console.log(
-    `[clara-orchestrator] token file ${process.env.CLARA_ORCHESTRATION_TOKEN_FILE ?? 'default'}`
+    `[clara-engine] token file ${engineEnv('CLARA_ENGINE_TOKEN_FILE', 'CLARA_ORCHESTRATION_TOKEN_FILE') ?? 'default'}`
   )
-  console.log('[clara-orchestrator] MCP endpoint /mcp, REST /v1, events /v1/events')
+  console.log('[clara-engine] MCP endpoint /mcp, REST /v1, events /v1/events')
   const shutdown = async () => {
-    console.log('[clara-orchestrator] shutting down')
+    console.log('[clara-engine] shutting down')
     await app.close()
     store.db.close()
     removePid()
@@ -283,9 +292,9 @@ function analyzeOptions(args: string[]): AnalyzeOptions | undefined {
 }
 
 function serviceToken(): string {
-  const configured = process.env.CLARA_ORCHESTRATION_TOKEN?.trim()
+  const configured = engineEnv('CLARA_ENGINE_TOKEN', 'CLARA_ORCHESTRATION_TOKEN')
   if (configured) return configured
-  const path = process.env.CLARA_ORCHESTRATION_TOKEN_FILE?.trim() || tokenPath()
+  const path = engineEnv('CLARA_ENGINE_TOKEN_FILE', 'CLARA_ORCHESTRATION_TOKEN_FILE') || tokenPath()
   if (!existsSync(path)) return ''
   try {
     return readFileSync(path, 'utf8').trim()
@@ -295,7 +304,7 @@ function serviceToken(): string {
 }
 
 function serviceURL(): string {
-  return (process.env.CLARA_ORCHESTRATION_URL?.trim() || baseURL()).replace(/\/$/, '')
+  return (engineEnv('CLARA_ENGINE_URL', 'CLARA_ORCHESTRATION_URL') || baseURL()).replace(/\/$/, '')
 }
 
 async function serviceHealthy(url: string): Promise<boolean> {
@@ -686,7 +695,7 @@ function renderHelp(command?: string): boolean {
         selected.summary,
         '',
         'Usage:',
-        `  clara-orchestrator ${selected.usage}`,
+        `  clara-engine ${selected.usage}`,
         '',
         'Options:',
         ...options.map((option) => `  ${option.flags.padEnd(width)}  ${option.description}`),
@@ -698,10 +707,10 @@ function renderHelp(command?: string): boolean {
   const width = Math.max(...commandHelp.map((item) => item.name.length), 'help'.length)
   console.log(
     [
-      'Clara orchestration service',
+      'Clara engine',
       '',
       'Usage:',
-      '  clara-orchestrator <command> [options]',
+      '  clara-engine <command> [options]',
       '',
       'Commands:',
       ...commandHelp.map((item) => `  ${item.name.padEnd(width)}  ${item.summary}`),
@@ -755,6 +764,6 @@ async function main(): Promise<void> {
 }
 
 void main().catch((error) => {
-  console.error(`[clara-orchestrator] ${error instanceof Error ? error.message : String(error)}`)
+  console.error(`[clara-engine] ${error instanceof Error ? error.message : String(error)}`)
   process.exit(1)
 })

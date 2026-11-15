@@ -36,10 +36,14 @@ export function runnerEntry(): string {
 /** Install the one shared script runner used by every harness in a workspace. */
 export function installRunner(input: RunnerInstallInput = {}): RunnerInstallResult {
   const workspace = resolve(
-    input.workspace ?? process.env.CLARA_ORCHESTRATION_WORKSPACE?.trim() ?? process.cwd()
+    input.workspace ??
+      process.env.CLARA_ENGINE_WORKSPACE?.trim() ??
+      process.env.CLARA_ORCHESTRATION_WORKSPACE?.trim() ??
+      process.cwd()
   )
   const url = (
     input.url ??
+    process.env.CLARA_ENGINE_URL?.trim() ??
     process.env.CLARA_ORCHESTRATION_URL?.trim() ??
     'http://127.0.0.1:8789'
   ).replace(/\/$/, '')

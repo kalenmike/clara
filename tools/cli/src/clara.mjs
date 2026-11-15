@@ -17,10 +17,11 @@ function rebuild(args) {
 }
 
 const TARGETS = [
-  { name: 'default', description: 'hub, web, and orchestrator' },
+  { name: 'default', description: 'hub, web, and engine' },
   { name: 'hub', description: 'Clara hub' },
   { name: 'web', description: 'web client' },
-  { name: 'orchestrator', description: 'orchestration service' },
+  { name: 'engine', description: 'pipeline engine' },
+  { name: 'orchestrator', description: 'alias for engine (deprecated)' },
   { name: 'adapter', description: 'paired harness adapters' },
   { name: 'runner', description: 'shared script runner' },
   { name: 'lab', description: 'Clara Lab' },
@@ -44,7 +45,7 @@ const ADAPTER_PAIR_OPTIONS = [
 
 const RUNNER_OPTIONS = [
   { flags: '--workspace <path>', description: 'runner or lab: workspace path' },
-  { flags: '--url <url>', description: 'runner: orchestrator URL' },
+  { flags: '--url <url>', description: 'runner: engine URL' },
   { flags: '--concurrency <n>', description: 'runner: concurrent scripts' },
   { flags: '--label <name>', description: 'runner: queue label (repeatable)' },
   { flags: '--no-service', description: 'runner: do not install a service' },
@@ -66,7 +67,7 @@ const START_OPTIONS = [
   ...MODE_OPTIONS,
   { flags: '--build', description: 'build before starting' },
   { flags: '--open', description: 'open the hub panel after starting' },
-  { flags: '--foreground', description: 'orchestrator or runner: run in the foreground' },
+  { flags: '--foreground', description: 'engine or runner: run in the foreground' },
   ...ADAPTER_PAIR_OPTIONS,
   ...RUNNER_OPTIONS,
   ...LAB_OPTIONS,

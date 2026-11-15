@@ -16,7 +16,7 @@ packages and declares the classifier router, so a fresh install can start a run
 without a workspace config. The workspace is only the directory where workers
 run, scripts execute, and artifacts live; it does not have to contain a config.
 
-To use custom routing, point `CLARA_ORCHESTRATION_CONFIG` at an `index.yml` (or
+To use custom routing, point `CLARA_ENGINE_CONFIG` at an `index.yml` (or
 pass `--config` to Clara Lab). The file can live anywhere. Its imports are
 resolved relative to that file, while `std:` imports always resolve to the
 standard packages bundled with the engine. A missing explicit config fails with
@@ -24,7 +24,7 @@ standard packages bundled with the engine. A missing explicit config fails with
 
 The root `index.yml` is a package manifest with one extra root-only section,
 `overrides`. Unknown top-level keys are ignored; the `watchdog` block is
-reserved until the orchestrator wiring lands.
+reserved until the engine wiring lands.
 
 ## Package layout
 
@@ -265,8 +265,8 @@ A step has one of five types:
 | `agent`    | harness adapter | model text or JSON result           |
 | `router`   | harness adapter | one route key                       |
 | `script`   | runner          | stdout, exit code, or parsed JSON   |
-| `pipeline` | orchestrator    | referenced or inline child pipeline |
-| `group`    | orchestrator    | inline child steps                  |
+| `pipeline` | engine          | referenced or inline child pipeline |
+| `group`    | engine          | inline child steps                  |
 
 `type` defaults to `group` when `steps` is present, otherwise `agent`.
 
@@ -662,15 +662,15 @@ by the Lab diff and run history.
 ## Reserved settings
 
 These fields are accepted by the loader but are not yet consumed by the
-orchestrator. They are reserved for the next wiring pass and must not be relied
+engine. They are reserved for the next wiring pass and must not be relied
 on for behavior:
 
-| Field                     | Current behavior                                                                                                         |
-| ------------------------- | ------------------------------------------------------------------------------------------------------------------------ |
-| root `watchdog`           | The service uses `CLARA_ORCHESTRATION_STALLED_MS`, the lease duration, and `CLARA_RUNNER_WAIT_MS`; the block is not read |
-| pipeline `notification`   | Alerts and terminal runs are delivered by the adapter, not this block                                                    |
-| router or step `strategy` | Routing is LLM classification; `fixed` is not implemented                                                                |
-| `schemaVersion`           | Recorded as metadata only                                                                                                |
+| Field                     | Current behavior                                                                                                  |
+| ------------------------- | ----------------------------------------------------------------------------------------------------------------- |
+| root `watchdog`           | The service uses `CLARA_ENGINE_STALLED_MS`, the lease duration, and `CLARA_RUNNER_WAIT_MS`; the block is not read |
+| pipeline `notification`   | Alerts and terminal runs are delivered by the adapter, not this block                                             |
+| router or step `strategy` | Routing is LLM classification; `fixed` is not implemented                                                         |
+| `schemaVersion`           | Recorded as metadata only                                                                                         |
 
 ## See also
 

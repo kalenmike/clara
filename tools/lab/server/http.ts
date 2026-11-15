@@ -139,8 +139,8 @@ export async function startLabServer(options: LabServerOptions): Promise<LabServ
           root: repoRoot(),
           startedAt: new Date(Date.now() - process.uptime() * 1000).toISOString(),
           workspace: runtime.state.workspace,
-          orchestratorWorkspace: runtime.state.orchestratorWorkspace,
-          orchestrator: runtime.state.orchestrator,
+          engineWorkspace: runtime.state.engineWorkspace,
+          engine: runtime.state.engine,
           connected: runtime.state.connected,
           tokenPresent: runtime.state.tokenPresent,
         })
@@ -371,7 +371,7 @@ export async function startLabServer(options: LabServerOptions): Promise<LabServ
     if (url.pathname === '/api/adapter/register') {
       const workspace =
         stringField(body.workspace) ||
-        context.runtime.state.orchestratorWorkspace ||
+        context.runtime.state.engineWorkspace ||
         context.runtime.state.workspace
       const result = await context.runtime.registerAdapter(workspace)
       json(response, 200, { ok: !result.isError, isError: result.isError, value: result.value })

@@ -125,6 +125,7 @@ export async function installOpenCode(options: InstallOptions): Promise<InstallR
   const warnings: string[] = []
   const url = (
     options.url ??
+    process.env.CLARA_ENGINE_URL?.trim() ??
     process.env.CLARA_ORCHESTRATION_URL?.trim() ??
     'http://127.0.0.1:8789'
   ).replace(/\/$/, '')

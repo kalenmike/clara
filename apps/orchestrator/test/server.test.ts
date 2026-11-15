@@ -5,20 +5,20 @@ import { Client } from '@modelcontextprotocol/sdk/client/index.js'
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { Runtime, Store, defaultConfigPath } from '@clara/orchestration'
-import { createOrchestratorServer, type OrchestratorServer } from '../src/server.ts'
+import { createEngineServer, type EngineServer } from '../src/server.ts'
 
 const workspace = fileURLToPath(new URL('../../../', import.meta.url))
 const config = defaultConfigPath()
 if (!config) throw new Error('bundled default config is missing')
 const token = 'test-token'
-let app: OrchestratorServer
+let app: EngineServer
 let base: string
 let runtime: Runtime
 
 beforeAll(async () => {
   const store = new Store(':memory:')
   runtime = new Runtime({ store, configPath: config })
-  app = createOrchestratorServer({ runtime, token, port: 0, tickMs: 60_000, workspace })
+  app = createEngineServer({ runtime, token, port: 0, tickMs: 60_000, workspace })
   await new Promise<void>((resolve) => app.server.listen(0, '127.0.0.1', () => resolve()))
   const address = app.server.address() as AddressInfo
   base = `http://127.0.0.1:${address.port}`
@@ -41,18 +41,18 @@ describe('orchestrator HTTP service', () => {
   })
 
   it('advertises whether it runs locally or in a container', async () => {
-    const previous = process.env.CLARA_ORCHESTRATION_CONTAINER
+    const previous = process.env.CLARA_ENGINE_CONTAINER
     try {
-      delete process.env.CLARA_ORCHESTRATION_CONTAINER
+      delete process.env.CLARA_ENGINE_CONTAINER
       const local = (await (await fetch(`${base}/health`)).json()) as Record<string, unknown>
-      expect(local).toMatchObject({ ok: true, service: 'clara-orchestrator', mode: 'local' })
+      expect(local).toMatchObject({ ok: true, service: 'clara-engine', mode: 'local' })
 
-      process.env.CLARA_ORCHESTRATION_CONTAINER = '1'
+      process.env.CLARA_ENGINE_CONTAINER = '1'
       const container = (await (await fetch(`${base}/health`)).json()) as Record<string, unknown>
       expect(container).toMatchObject({ mode: 'container' })
     } finally {
-      if (previous === undefined) delete process.env.CLARA_ORCHESTRATION_CONTAINER
-      else process.env.CLARA_ORCHESTRATION_CONTAINER = previous
+      if (previous === undefined) delete process.env.CLARA_ENGINE_CONTAINER
+      else process.env.CLARA_ENGINE_CONTAINER = previous
     }
   })
 

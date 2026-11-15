@@ -6,6 +6,17 @@ test('prefers the container workspace override', () => {
   assert.equal(
     resolveWorkspace(
       { worktree: '/session', directory: '/project' },
+      { CLARA_ENGINE_WORKSPACE: '/mounted' },
+      '/cwd'
+    ),
+    '/mounted'
+  )
+})
+
+test('reads the historical workspace variable', () => {
+  assert.equal(
+    resolveWorkspace(
+      { worktree: '/session', directory: '/project' },
       { CLARA_ORCHESTRATION_WORKSPACE: '/mounted' },
       '/cwd'
     ),

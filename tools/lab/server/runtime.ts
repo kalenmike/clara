@@ -5,7 +5,7 @@ import {
   type CompiledNode,
   type PreviewInput,
 } from '@clara/pipeline-preview'
-import { EventRelay } from './orchestrator-events.ts'
+import { EventRelay } from './engine-events.ts'
 import { McpClient, type ToolResult } from './mcp.ts'
 import { LabState, workKey } from './state.ts'
 import { resolveStepWiring } from './step-wiring.ts'
@@ -90,7 +90,7 @@ export class LabRuntime {
     this.url = options.url
     this.token = options.token
     this.mcp = new McpClient(options.url, options.token)
-    this.state.orchestrator = options.url
+    this.state.engine = options.url
     this.state.workspace = options.workspace
     this.state.tokenPresent = Boolean(options.token)
     this.state.instructions = SERVER_INSTRUCTIONS
@@ -109,7 +109,7 @@ export class LabRuntime {
       await this.loadTools()
       await this.loadConfig()
       this.events.start()
-      await this.refreshAdapters(this.orchestratorWorkspace()).catch(() => {})
+      await this.refreshAdapters(this.engineWorkspace()).catch(() => {})
     } catch (error) {
       this.state.setConnection(false, message(error))
     }
@@ -128,7 +128,7 @@ export class LabRuntime {
       await this.loadTools()
       await this.loadConfig()
       this.events.start()
-      if (!this.adaptersLoaded) await this.refreshAdapters(this.orchestratorWorkspace())
+      if (!this.adaptersLoaded) await this.refreshAdapters(this.engineWorkspace())
     } catch (error) {
       this.state.setConnection(false, message(error))
     } finally {
@@ -156,7 +156,7 @@ export class LabRuntime {
       await this.loadTools()
       await this.loadConfig()
       this.events.start()
-      await this.refreshAdapters(this.orchestratorWorkspace())
+      await this.refreshAdapters(this.engineWorkspace())
     } catch (error) {
       this.state.setConnection(false, message(error))
       throw error
@@ -182,7 +182,7 @@ export class LabRuntime {
       })
       if (!response.ok) return
       const value = (await response.json()) as { workspace?: unknown }
-      this.state.setOrchestratorWorkspace(
+      this.state.setEngineWorkspace(
         typeof value.workspace === 'string' ? value.workspace.trim() : ''
       )
     } catch {
@@ -190,13 +190,13 @@ export class LabRuntime {
     }
   }
 
-  private orchestratorWorkspace(): string {
-    return this.state.orchestratorWorkspace || this.state.workspace
+  private engineWorkspace(): string {
+    return this.state.engineWorkspace || this.state.workspace
   }
 
   async preview(input: PreviewInput): Promise<LabPreviewResult> {
     if (this.mcp.connected && !this.adaptersLoaded) {
-      await this.refreshAdapters(this.orchestratorWorkspace()).catch(() => {})
+      await this.refreshAdapters(this.engineWorkspace()).catch(() => {})
     }
     return previewPipeline({
       ...input,
@@ -210,11 +210,11 @@ export class LabRuntime {
     target?: string
   }): Promise<PreflightResult> {
     const hostWorkspace = input.hostWorkspace.trim() || this.state.workspace
-    if (!this.state.orchestratorWorkspace && !input.runtimeWorkspace?.trim()) {
+    if (!this.state.engineWorkspace && !input.runtimeWorkspace?.trim()) {
       await this.loadConfig()
     }
     const runtimeWorkspace =
-      input.runtimeWorkspace?.trim() || this.state.orchestratorWorkspace || hostWorkspace
+      input.runtimeWorkspace?.trim() || this.state.engineWorkspace || hostWorkspace
     const target = input.target?.trim() || undefined
     const result: PreflightResult = {
       host: { ok: false },
@@ -290,7 +290,7 @@ export class LabRuntime {
     }
 
     if (!this.mcp.connected) {
-      result.runtime = { ok: false, error: 'The orchestrator is not connected.' }
+      result.runtime = { ok: false, error: 'The engine is not connected.' }
       return result
     }
 
@@ -410,9 +410,7 @@ export class LabRuntime {
     if (!response.ok) {
       const error = isRecord(value) && isRecord(value.error) ? value.error : undefined
       throw new Error(
-        typeof error?.message === 'string'
-          ? error.message
-          : `orchestrator returned ${response.status}`
+        typeof error?.message === 'string' ? error.message : `engine returned ${response.status}`
       )
     }
     return value as T
@@ -507,7 +505,7 @@ export class LabRuntime {
     }
 
     if (name === 'clara_adapter_register' || name === 'clara_adapter_remove') {
-      void this.refreshAdapters(this.orchestratorWorkspace()).catch(() => {})
+      void this.refreshAdapters(this.engineWorkspace()).catch(() => {})
     }
 
     if (name === 'clara_start' || name === 'clara_complete') {

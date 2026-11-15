@@ -22,7 +22,7 @@ describe('orchestrator CLI', () => {
   it('prints structured help when no subcommand is given', () => {
     const result = run([])
     expect(result.status).toBe(0)
-    expect(result.stdout).toContain('Usage:\n  clara-orchestrator <command> [options]')
+    expect(result.stdout).toContain('Usage:\n  clara-engine <command> [options]')
     expect(result.stdout).toContain('Commands:')
     expect(result.stdout).toMatch(/^ {2}serve {2,}Run the service in the foreground$/m)
     expect(result.stdout).toMatch(/^ {2}start {2,}Start the service in the background$/m)
@@ -37,7 +37,7 @@ describe('orchestrator CLI', () => {
     const result = run(['analyze', '--help'])
     expect(result.status).toBe(0)
     expect(result.stdout).toContain(
-      'Usage:\n  clara-orchestrator analyze [--json] [--days <n>] [--db <path>] [--url <url>]'
+      'Usage:\n  clara-engine analyze [--json] [--days <n>] [--db <path>] [--url <url>]'
     )
     expect(result.stdout).toMatch(/^ {2}--json {2,}Print the full report as JSON$/m)
     expect(result.stdout).toMatch(/^ {2}--days <n> {2,}Analysis window in days/m)
@@ -46,7 +46,7 @@ describe('orchestrator CLI', () => {
   it('prints a JSON report from a database', () => {
     const dir = mkdtempSync(join(tmpdir(), 'clara-cli-diagnostics-'))
     try {
-      const path = join(dir, 'orchestration.db')
+      const path = join(dir, 'engine.db')
       const store = new Store(path)
       const seeded = store.insertRun({
         workspace: '/workspace/clara',
@@ -113,7 +113,7 @@ describe('orchestrator CLI', () => {
   it('prints command options for start', () => {
     const result = run(['start', '--help'])
     expect(result.status).toBe(0)
-    expect(result.stdout).toContain('Usage:\n  clara-orchestrator start [--docker] [--build]')
+    expect(result.stdout).toContain('Usage:\n  clara-engine start [--docker] [--build]')
     expect(result.stdout).toMatch(
       /^ {2}--docker {2,}Start the compose-managed container instead of a local process$/m
     )
@@ -125,7 +125,7 @@ describe('orchestrator CLI', () => {
   it('prints command options for stop', () => {
     const result = run(['stop', '--help'])
     expect(result.status).toBe(0)
-    expect(result.stdout).toContain('Usage:\n  clara-orchestrator stop [--docker]')
+    expect(result.stdout).toContain('Usage:\n  clara-engine stop [--docker]')
     expect(result.stdout).toMatch(/^ {2}--docker {2,}Stop the compose-managed container$/m)
   })
 
@@ -133,12 +133,12 @@ describe('orchestrator CLI', () => {
     const result = run(['help', 'serve'])
     expect(result.status).toBe(0)
     expect(result.stdout).toContain('Run the service in the foreground')
-    expect(result.stdout).toContain('Usage:\n  clara-orchestrator serve')
+    expect(result.stdout).toContain('Usage:\n  clara-engine serve')
   })
 
   it('prints root help for the help subcommand', () => {
     const result = run(['help'])
     expect(result.status).toBe(0)
-    expect(result.stdout).toContain('Usage:\n  clara-orchestrator <command> [options]')
+    expect(result.stdout).toContain('Usage:\n  clara-engine <command> [options]')
   })
 })

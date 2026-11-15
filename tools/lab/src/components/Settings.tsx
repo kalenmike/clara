@@ -31,7 +31,7 @@ export function SettingsView({
   onEnableAdapter: () => void
   onRemoveAdapter: (id: string) => void
 }) {
-  const runtime = snapshot.orchestratorWorkspace
+  const runtime = snapshot.engineWorkspace
   const friendly = error ? friendlyError(error, 'runtime') : null
   const ok = Boolean(
     preflight &&
@@ -53,8 +53,8 @@ export function SettingsView({
           <div className="view-kicker">Workspace</div>
           <h1>Settings</h1>
           <p className="muted">
-            The lab compiles your local files and probes the running orchestrator. Setup lives here;
-            every other view only surfaces problems when they matter.
+            The lab compiles your local files and probes the running engine. Setup lives here; every
+            other view only surfaces problems when they matter.
           </p>
         </div>
         <div className="view-head-actions">
@@ -106,15 +106,15 @@ export function SettingsView({
             </div>
           </label>
           <p className="muted section-note">
-            Source watching and the compiled tree follow this path. The orchestrator may use a
-            different mount; the service workspace is shown below.
+            Source watching and the compiled tree follow this path. The engine may use a different
+            mount; the service workspace is shown below.
           </p>
         </section>
 
         <section className="settings-section">
           <div className="section-head">
             <div>
-              <h2>Orchestrator</h2>
+              <h2>Engine</h2>
               <p className="muted">MCP, events, and the workspace runs actually use.</p>
             </div>
             <Badge tone={snapshot.connected ? 'ok' : 'bad'}>
@@ -125,13 +125,13 @@ export function SettingsView({
             <div>
               <dt>URL</dt>
               <dd>
-                <code>{snapshot.orchestrator || '—'}</code>
+                <code>{snapshot.engine || '—'}</code>
               </dd>
             </div>
             <div>
               <dt>Runtime workspace</dt>
               <dd>
-                <code>{runtime || 'Waiting for the orchestrator…'}</code>
+                <code>{runtime || 'Waiting for the engine…'}</code>
               </dd>
             </div>
             <div>
@@ -146,7 +146,7 @@ export function SettingsView({
             </button>
             {!snapshot.tokenPresent ? (
               <span className="muted">
-                Start the service or set <code>CLARA_ORCHESTRATION_TOKEN</code>.
+                Start the service or set <code>CLARA_ENGINE_TOKEN</code>.
               </span>
             ) : null}
           </div>
@@ -210,7 +210,7 @@ export function SettingsView({
           <div className="section-head">
             <div>
               <h2>Setup check</h2>
-              <p className="muted">Host compile, orchestrator catalog, and strict adapter.</p>
+              <p className="muted">Host compile, engine catalog, and strict adapter.</p>
             </div>
             {preflight ? (
               <Badge tone={ok ? 'ok' : 'warn'}>{ok ? 'all clear' : `${issueCount} blocking`}</Badge>
@@ -236,13 +236,13 @@ export function SettingsView({
                 }
               />
               <PreflightRow
-                label="Orchestrator workspace"
+                label="Engine workspace"
                 ok={preflight.runtime.ok}
                 detail={
                   preflight.runtime.ok
                     ? `${preflight.runtime.packages ?? 0} packages visible`
                     : friendlyError(
-                        preflight.runtime.error ?? 'The orchestrator check failed.',
+                        preflight.runtime.error ?? 'The engine check failed.',
                         'runtime'
                       ).title
                 }

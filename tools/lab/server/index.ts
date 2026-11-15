@@ -4,11 +4,11 @@ import { connect } from 'node:net'
 import { join } from 'node:path'
 import { previewPipeline, type Diagnostic } from '@clara/pipeline-preview'
 import {
-  ensureOrchestrator,
+  ensureEngine,
   labPort,
   labURL,
   openBrowser,
-  orchestratorURL,
+  engineURL,
   readToken,
   repoRoot,
   workspace,
@@ -168,14 +168,14 @@ async function serve(options: Options): Promise<void> {
     )
   }
 
-  const url = orchestratorURL()
+  const url = engineURL()
   let token = readToken()
   try {
-    await ensureOrchestrator(url)
+    await ensureEngine(url)
     token = readToken()
   } catch (error) {
     console.warn(
-      `[clara-lab] orchestrator unavailable: ${error instanceof Error ? error.message : String(error)}`
+      `[clara-lab] engine unavailable: ${error instanceof Error ? error.message : String(error)}`
     )
     console.warn('[clara-lab] preview works offline; probe actions will retry when it is up.')
   }
@@ -197,9 +197,8 @@ async function serve(options: Options): Promise<void> {
 
   console.log(`Clara Lab:     ${server.url}`)
   console.log(`workspace:     ${runtime.state.workspace}`)
-  console.log(`orchestrator:  ${url} (${runtime.state.connected ? 'connected' : 'offline'})`)
-  if (!token)
-    console.warn('[clara-lab] no orchestrator token found; run `clara start orchestrator`')
+  console.log(`engine:  ${url} (${runtime.state.connected ? 'connected' : 'offline'})`)
+  if (!token) console.warn('[clara-lab] no engine token found; run `clara start engine`')
   if (options.open) openBrowser(server.url)
 
   const shutdown = async (): Promise<void> => {

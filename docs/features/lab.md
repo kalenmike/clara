@@ -2,7 +2,7 @@
 
 ## Summary
 
-Clara Lab is a loopback developer console for the orchestrator. It compiles a
+Clara Lab is a loopback developer console for the engine. It compiles a
 workspace's packages so authors can inspect every resolved step, then acts as
 the MCP harness so they can drive the same run by hand. It is for people
 writing custom pipelines, not for end users.
@@ -15,10 +15,10 @@ writing custom pipelines, not for end users.
    **Settings**.
 2. Open **Settings**, choose **Files on this machine** — the repository as the
    lab sees it. Use **Browse…** to pick the folder or type the path. The
-   orchestrator's own workspace is reported by the service and shown read-only
+   engine's own workspace is reported by the service and shown read-only
    beside it. This is the only place setup and adapter controls live.
 3. Press **Run setup check**. The lab reports whether it can compile the host
-   path, whether the orchestrator can read its reported path, and whether a
+   path, whether the engine can read its reported path, and whether a
    strict pipeline has a live adapter. The status bar carries only the resulting
    problem state.
 4. On **Review**, choose a pipeline. The compiled tree shows every step, route,
@@ -29,7 +29,7 @@ writing custom pipelines, not for end users.
    **Compare run** opens the pinned-snapshot diff without hiding it in an
    accordion.
 5. Press **Run this pipeline** to open the **Debug** dock at the bottom of
-   Review. The dock carries the pipeline and the orchestrator-reported
+   Review. The dock carries the pipeline and the engine-reported
    workspace. Start a run there; the lab selects it and claims the first work
    order.
 6. Step through the run in the Debug dock. It shows one clear current-step card:
@@ -51,7 +51,7 @@ writing custom pipelines, not for end users.
    text; Result toggles between Markdown, pretty JSON, and raw text. Inputs
    lists every declared input with its source path, status, and result. The
    selected run header totals tokens and tool calls across all of its steps.
-10. Open **Console** to call the orchestrator MCP surface directly. It renders a
+10. Open **Console** to call the engine MCP surface directly. It renders a
     form from each tool's input schema with required, range, and enum hints
     under every field, keeps the raw JSON editor behind a Form/JSON toggle, and
     loads recent calls back into the form.
@@ -63,9 +63,9 @@ writing custom pipelines, not for end users.
 
 1. **Preview is local; probe is remote.** Preview uses the same loader and
    compiler as the service against the host files. Probe talks to the running
-   orchestrator over MCP and SSE.
+   engine over MCP and SSE.
 2. **One host path, one reported workspace.** Preview needs the local host path;
-   the service reports its own path from `CLARA_ORCHESTRATION_WORKSPACE`
+   the service reports its own path from `CLARA_ENGINE_WORKSPACE`
    (default: its working directory) over `GET /v1/config`. Settings keeps the
    host path editable and shows the service path read-only, and the Review debug
    dock always uses the reported path. The Lab is also the supported place to
@@ -79,7 +79,7 @@ writing custom pipelines, not for end users.
    a work token, and the operator REST endpoints for target selection and
    preflight. It does not call a model, create an agent session, or enforce real
    policy.
-5. **The orchestrator token never reaches the browser.** The lab server keeps it
+5. **The engine token never reaches the browser.** The lab server keeps it
    and every browser request stays on the same loopback origin.
 6. **Auto-pull is the default.** After a response the next ready step is claimed
    automatically. **Pause after each step** turns the run into a manual
@@ -93,10 +93,10 @@ writing custom pipelines, not for end users.
 9. **Files are edited outside the browser.** The lab is a viewer and a probe; it
    never writes YAML, Markdown, or agent prompts. The preview watches the source
    files and reloads.
-10. **Pinned data is Lab-only.** The orchestrator returns run summaries to MCP
+10. **Pinned data is Lab-only.** The engine returns run summaries to MCP
     and REST callers without the pinned tree or full step rows. The lab reads
     `GET /v1/runs/:id/snapshot` and `GET /v1/runs/:id/steps/:path` directly with
-    the orchestrator token. The browser sees only the derived step count and the
+    the engine token. The browser sees only the derived step count and the
     step detail it asks for.
 11. **Model diagnostics are static.** The preview reports
     `model_provider_missing`, `model_missing`, and `model_unset` from the
@@ -135,24 +135,24 @@ writing custom pipelines, not for end users.
 
 ## Edge cases
 
-- The host path compiles but the orchestrator reports a path it cannot read:
-  Settings shows “Orchestrator workspace: Needs attention” and the status bar
-  points there; set `CLARA_ORCHESTRATION_WORKSPACE` on the service to its
+- The host path compiles but the engine reports a path it cannot read:
+  Settings shows “Engine workspace: Needs attention” and the status bar
+  points there; set `CLARA_ENGINE_WORKSPACE` on the service to its
   mounted workspace.
-- The orchestrator is offline or has not reported a workspace yet: preview
-  still works; Settings shows “Waiting for the orchestrator…” and the run
+- The engine is offline or has not reported a workspace yet: preview
+  still works; Settings shows “Waiting for the engine…” and the run
   actions retry once the service reports its path.
 - A worker step has no model: `model_unset` warns that the harness default will
   be used instead of the pipeline model.
 - A worker step names a provider without a model: `model_missing` warns that the
   provider is ignored.
 - No token is present: Settings and the status bar show the problem; start the
-  service or set `CLARA_ORCHESTRATION_TOKEN`.
-- The orchestrator rejects the token: Settings shows the token hint; restart the
+  service or set `CLARA_ENGINE_TOKEN`.
+- The engine rejects the token: Settings shows the token hint; restart the
   lab with the service's token.
 - The service and Lab bundle different standard packages: the host check passes
   but the run fails on a package the service does not have. Rebuild both the
-  orchestrator and Lab from the same checkout.
+  engine and Lab from the same checkout.
 - A strict target has no adapter: the run registers one automatically; the
   adapter status changes to live in Settings on the next check.
 - There are no active runs: **Kill all runs** stays disabled, and no empty
@@ -201,9 +201,9 @@ writing custom pipelines, not for end users.
 
 ## Known gaps
 
-- The lab trusts the workspace reported by the orchestrator. It does not verify
+- The lab trusts the workspace reported by the engine. It does not verify
   that the host path and the service mount point at the same files.
-- Preview compiles the host files. If the orchestrator has a different mount,
+- Preview compiles the host files. If the engine has a different mount,
   the run can use different content until the two paths are aligned.
 - Only root-package imports are directly selectable as targets. Nested imports
   are visible in the package list but must be reached through their parent.
@@ -227,12 +227,12 @@ writing custom pipelines, not for end users.
 
 - Start: `clara start lab` (serve), `clara status lab --check` (validate).
 - Dev: `pnpm dev:lab` runs Vite on `5175` and the lab server on `8791`.
-- Default ports: lab `8791`, orchestrator `8789`.
+- Default ports: lab `8791`, engine `8789`.
 - Environment: `CLARA_LAB_PORT`, `CLARA_LAB_OPEN=0`,
-  `CLARA_ORCHESTRATION_URL`, `CLARA_ORCHESTRATION_TOKEN`,
-  `CLARA_ORCHESTRATION_TOKEN_FILE`, `CLARA_ORCHESTRATION_WORKSPACE`
+  `CLARA_ENGINE_URL`, `CLARA_ENGINE_TOKEN`,
+  `CLARA_ENGINE_TOKEN_FILE`, `CLARA_ENGINE_WORKSPACE`
   (the service workspace, also the lab host default),
-  `CLARA_ORCHESTRATION_CONFIG`, and `CLARA_ORCHESTRATION_AUTOSTART`.
+  `CLARA_ENGINE_CONFIG`, and `CLARA_ENGINE_AUTOSTART`.
 - Lab routes: `GET /api/health`, `GET /api/state`, `GET /api/stream`,
   `POST /api/preview`, `POST /api/preflight`, `POST /api/pick-directory`,
   `POST /api/diff`, `POST /api/tools/:name`, `GET /api/runs`,
@@ -241,7 +241,7 @@ writing custom pipelines, not for end users.
   `POST /api/adapter/register`, `POST /api/adapter/remove`,
   `POST /api/violation`.
 - `/api/preflight` returns `{ host, runtime, adapter }`: host compile status and
-  package count, orchestrator catalog visibility of its reported workspace, and
+  package count, engine catalog visibility of its reported workspace, and
   whether the target is strict and has a live adapter.
 - `/api/runs/cancel-all` cancels every non-terminal root run and returns
   `{ cancelled, failed }`.
@@ -250,12 +250,12 @@ writing custom pipelines, not for end users.
   when no desktop dialog is available.
 - Model diagnostics are static: `model_provider_missing` (error),
   `model_missing` (warning), and `model_unset` (warning).
-- The lab multiplexes MCP traffic and orchestrator events on `/api/stream`;
+- The lab multiplexes MCP traffic and engine events on `/api/stream`;
   the server resumes `/v1/events` with its last event id.
 - SSE event data carries `run_id`, `event_id`, and `created_at` alongside the
   step payload so subscribers can attribute events to a run.
 - Setup, tab, pause-after-step, and **Show debug runs** choices persist under
-  `clara-lab.settings.v1` in local storage. The orchestrator token is never
+  `clara-lab.settings.v1` in local storage. The engine token is never
   stored there.
 - Debug runs are runs with `origin_harness: "clara-lab"`. The Debug dock starts
   them with origin `{ harness: "clara-lab", agent: "lab", kind: "agent" }` and

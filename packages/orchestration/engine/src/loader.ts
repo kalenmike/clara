@@ -659,14 +659,16 @@ function indexPath(path: string): string {
  * instead.
  */
 function configuredAssetsDir(): string | undefined {
-  const configured = process.env.CLARA_ORCHESTRATION_ASSETS_DIR?.trim()
+  const configured =
+    process.env.CLARA_ENGINE_ASSETS_DIR?.trim() ||
+    process.env.CLARA_ORCHESTRATION_ASSETS_DIR?.trim()
   return configured ? resolve(configured) : undefined
 }
 
 /**
  * The standard packages ship with the engine. A source checkout resolves them
  * next to this module; a bundled service resolves the copy placed beside its
- * bundle, or the extracted copy named by `CLARA_ORCHESTRATION_ASSETS_DIR`.
+ * bundle, or the extracted copy named by `CLARA_ENGINE_ASSETS_DIR`.
  */
 export function bundledStdDir(): string | undefined {
   const configured = configuredAssetsDir()
@@ -686,7 +688,7 @@ export function bundledStdDir(): string | undefined {
 /**
  * The default routing config ships with the engine. A source checkout resolves
  * it next to this module; a bundled service resolves the copy placed beside its
- * bundle, or the extracted copy named by `CLARA_ORCHESTRATION_ASSETS_DIR`.
+ * bundle, or the extracted copy named by `CLARA_ENGINE_ASSETS_DIR`.
  */
 export function defaultConfigPath(): string | undefined {
   const configured = configuredAssetsDir()

@@ -21,10 +21,10 @@ import {
   createDeliveryCycle,
   isTerminalState,
   NAMESPACE,
-  orchestrationServiceConfig,
+  engineServiceConfig,
   readDeliveryState,
   renderWorkPrompt,
-  requestOrchestrator as call,
+  requestEngine as call,
   scopeWorkerTools,
   startStepHeartbeat,
   tokenDelta,
@@ -215,7 +215,7 @@ export default {
   id: 'clara-policy',
 
   async setup(ctx: Any) {
-    const config = orchestrationServiceConfig()
+    const config = engineServiceConfig()
     const localConfig = readAdapterConfig()
     let runner: Runner | undefined
     const active = new Map<string, ActiveWork>()

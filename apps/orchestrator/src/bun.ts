@@ -8,7 +8,7 @@ import { assets, buildId } from './embedded-assets.generated'
  * as embedded files. Extract them once per build, point the loader at the copy,
  * then run the CLI unchanged.
  */
-const cacheRoot = process.env.CLARA_CACHE_DIR?.trim() || join(tmpdir(), 'clara-orchestrator')
+const cacheRoot = process.env.CLARA_CACHE_DIR?.trim() || join(tmpdir(), 'clara-engine')
 const assetsRoot = join(cacheRoot, 'assets', buildId)
 const marker = join(assetsRoot, '.complete')
 
@@ -25,6 +25,6 @@ if (!existsSync(marker)) {
   writeFileSync(marker, '1')
 }
 
-process.env.CLARA_ORCHESTRATION_ASSETS_DIR ||= assetsRoot
+process.env.CLARA_ENGINE_ASSETS_DIR ||= assetsRoot
 
 await import('./index.ts')

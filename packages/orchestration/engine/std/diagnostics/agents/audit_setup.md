@@ -26,7 +26,7 @@ repository read and grep tools; do not edit files and do not run the pipelines.
 Start with:
 
 - the active orchestration config: the bundled default, or the file named by
-  `CLARA_ORCHESTRATION_CONFIG`, for imports, defaults, package overrides, router
+  `CLARA_ENGINE_CONFIG`, for imports, defaults, package overrides, router
   criteria, and reserved watchdog settings,
 - the standard packages bundled with the orchestrator engine (under
   `packages/orchestration/engine/std` in the Clara checkout) for defaults, enforcement,
@@ -42,7 +42,7 @@ Start with:
 1. **Budgets**: do the turn, token, tool-call, or violation limits in the
    evidence line up with the configured limits? A router that repeatedly reaches
    its turn limit is a setup bug, not a worker bug.
-2. **Stalls and leases**: do `CLARA_ORCHESTRATION_STALLED_MS`, the lease
+2. **Stalls and leases**: do `CLARA_ENGINE_STALLED_MS`, the lease
    duration, and `CLARA_RUNNER_WAIT_MS` make sense for the observed step
    durations and model latency? The `watchdog` block in the config is reserved
    until the orchestrator wiring lands; do not treat it as active.

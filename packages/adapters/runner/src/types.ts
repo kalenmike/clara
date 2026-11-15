@@ -1,8 +1,8 @@
 /** Options for one embedded or standalone Clara script runner. */
 export interface RunnerConfig {
-  /** Orchestrator base URL, for example http://127.0.0.1:8789. */
+  /** Engine base URL, for example http://127.0.0.1:8789. */
   url: string
-  /** Orchestrator bearer token. */
+  /** Engine bearer token. */
   token: string
   /** Absolute workspace path the runner executes in. */
   workspace: string

@@ -10,7 +10,7 @@
 //   clara restore [target] <archive> [options]
 //   clara pair [target] [options]
 //
-// `hub`, `web`, and `orchestrator` are the core services. `adapter`, `runner`,
+// `hub`, `web`, and `engine` are the core services. `adapter`, `runner`,
 // `lab`, and `docs` are host-side targets. `default` means the core stack.
 
 import { spawnSync } from 'node:child_process'
@@ -63,7 +63,7 @@ import {
   stopRunnerService,
 } from '../lib/runner.mjs'
 import { composeFile, ensureNetwork, envFile, panelURL } from '../lib/server-control.mjs'
-import { SCRIPTS, ensureOrchestratorEnv, orchestratorURL } from '../lib/stack-control.mjs'
+import { SCRIPTS, ensureEngineEnv, engineURL } from '../lib/stack-control.mjs'
 import {
   archiveVolumes,
   defaultBackupPath,
@@ -77,7 +77,7 @@ import {
   targetVolumes,
 } from '../lib/stack-backup.mjs'
 import { collectStatus, renderJSON, renderStatus, statusExitCode } from '../lib/status.mjs'
-import { CORE_TARGETS, serviceKey, takeTarget } from '../lib/targets.mjs'
+import { CORE_TARGETS, normalizeTarget, serviceKey, takeTarget } from '../lib/targets.mjs'
 import { webURL } from '../lib/web-control.mjs'
 
 const CORE_START_ORDER = ['orchestrator', 'server', 'web']
@@ -116,7 +116,8 @@ try {
 }
 
 async function lifecycle(name, argv) {
-  const { target, args: rest } = takeTarget(argv)
+  const { target: requested, args: rest } = takeTarget(argv)
+  const target = normalizeTarget(requested)
   if (target === 'default' || CORE_TARGETS.includes(target)) {
     return coreLifecycle(name, target, rest)
   }
@@ -174,7 +175,7 @@ function parseCoreOptions(commandName, target, argv) {
   if (commandName === 'status' && options.build) throw new Error('--build is not valid for status')
   if (commandName === 'logs' && options.build) throw new Error('--build is not valid for logs')
   if (options.foreground && (commandName !== 'start' || target !== 'orchestrator')) {
-    throw new Error('--foreground is only valid for `start orchestrator`')
+    throw new Error('--foreground is only valid for `start engine`')
   }
   if (options.open && !['start', 'restart', 'status'].includes(commandName)) {
     throw new Error('--open is only valid for start, restart, and status')
@@ -208,7 +209,7 @@ function coreStart(keys, options, target) {
   }
   if (!options.local && keys.includes('orchestrator')) {
     try {
-      ensureOrchestratorEnv()
+      ensureEngineEnv()
     } catch (error) {
       console.error(`error: ${error instanceof Error ? error.message : String(error)}`)
       return 1
@@ -253,7 +254,10 @@ async function coreRestart(keys, options, target) {
 async function coreStatus(keys, options, target) {
   const records = await collectStatus(keys)
   if (options.json) renderJSON(records, { stack: target === 'default' })
-  else renderStatus(records, { title: target === 'default' ? 'Clara stack' : `Clara ${target}` })
+  else
+    renderStatus(records, {
+      title: target === 'default' ? 'Clara stack' : `Clara ${displayName(target)}`,
+    })
   if (options.open && keys.includes('server')) openPanel(`${panelURL()}/`)
   process.exitCode = statusExitCode(records)
 }
@@ -283,10 +287,10 @@ function dockerLogsCommand(key, lines, follow) {
       ? composeFile()
       : key === 'web'
         ? join(root, 'infra', 'docker', 'web.compose.yml')
-        : join(root, 'infra', 'docker', 'orchestrator.compose.yml')
+        : join(root, 'infra', 'docker', 'engine.compose.yml')
   const args = ['compose', ...composeArgs, '-f', file, 'logs', '--tail', String(lines)]
   if (follow) args.push('-f')
-  args.push(key === 'server' ? 'server' : key)
+  args.push(key === 'server' ? 'server' : key === 'orchestrator' ? 'engine' : key)
   return { command: 'docker', args }
 }
 
@@ -294,7 +298,7 @@ function printCoreSummary(keys, options) {
   console.log(`\nClara stack (${options.local ? 'local' : 'docker'})`)
   if (keys.includes('server')) console.log(`  panel:        ${panelURL()}/`)
   if (keys.includes('web')) console.log(`  web:          ${webURL()}/`)
-  if (keys.includes('orchestrator')) console.log(`  orchestrator: ${orchestratorURL()}/`)
+  if (keys.includes('orchestrator')) console.log(`  engine:       ${engineURL()}/`)
   if (keys.includes('server')) {
     console.log('')
     console.log('Open the panel with `clara status hub --open`.')
@@ -303,7 +307,9 @@ function printCoreSummary(keys, options) {
 }
 
 function displayName(key) {
-  return key === 'server' ? 'hub' : key
+  if (key === 'server') return 'hub'
+  if (key === 'orchestrator') return 'engine'
+  return key
 }
 
 // ---------------------------------------------------------------------------
@@ -893,7 +899,7 @@ function writePort(name, port) {
 // Backup and restore
 
 function backup(argv) {
-  const { target, args: rest } = takeTarget(argv, ['default', 'hub', 'orchestrator'])
+  const { target, args: rest } = takeTarget(argv, ['default', 'hub', 'engine', 'orchestrator'])
   const options = parseBackupArgs(rest)
   if (refuseRunning(target, 'back up')) return
   const volumes = targetVolumes(target).filter((name) => existingVolumes([name]).length > 0)
@@ -917,7 +923,7 @@ function restore(argv) {
   const first = argv.find((arg) => !arg.startsWith('-'))
   let target = 'default'
   let rest = [...argv]
-  if (first && ['default', 'hub', 'orchestrator'].includes(first)) {
+  if (first && ['default', 'hub', 'engine', 'orchestrator'].includes(first)) {
     target = first
     rest.splice(rest.indexOf(first), 1)
   }

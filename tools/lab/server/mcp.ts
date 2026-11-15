@@ -83,7 +83,7 @@ export class McpClient {
       await transport.close().catch(() => {})
       throw new McpError(
         'connect_failed',
-        `Could not connect to the orchestrator at ${this.url}: ${
+        `Could not connect to the engine at ${this.url}: ${
           error instanceof Error ? error.message : String(error)
         }`
       )
@@ -99,7 +99,7 @@ export class McpClient {
 
   private async ready(): Promise<Client> {
     await this.connect()
-    if (!this.client) throw new McpError('not_connected', 'The orchestrator is not connected.')
+    if (!this.client) throw new McpError('not_connected', 'The engine is not connected.')
     return this.client
   }
 

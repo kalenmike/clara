@@ -48,7 +48,7 @@ export function App() {
   }, [notice])
 
   const hostWorkspace = settings.hostWorkspace.trim() || stream.snapshot?.workspace || ''
-  const runtimeWorkspace = stream.snapshot?.orchestratorWorkspace || ''
+  const runtimeWorkspace = stream.snapshot?.engineWorkspace || ''
 
   const runPreflight = useCallback(async (): Promise<void> => {
     if (!hostWorkspace) return
@@ -111,7 +111,7 @@ export function App() {
 
   const enableAdapter = async (): Promise<void> => {
     if (!runtimeWorkspace) {
-      setPreflightError('The orchestrator has not reported its workspace yet.')
+      setPreflightError('The engine has not reported its workspace yet.')
       return
     }
     try {
@@ -136,7 +136,7 @@ export function App() {
   const reconnectNow = async (): Promise<void> => {
     try {
       await reconnect()
-      setNotice('Reconnected to the orchestrator.')
+      setNotice('Reconnected to the engine.')
       await runPreflight()
     } catch (cause) {
       setPreflightError(cause instanceof Error ? cause.message : String(cause))
@@ -175,7 +175,7 @@ export function App() {
           <Icon name="folder" size={13} />
           <code>{hostWorkspace || 'No workspace selected'}</code>
         </div>
-        <div className="titlebar-meta">{snapshot.orchestrator}</div>
+        <div className="titlebar-meta">{snapshot.engine}</div>
       </header>
 
       <Sidebar

@@ -24,7 +24,7 @@ export function opencodePaths(env: NodeJS.ProcessEnv = process.env) {
     token: join(
       env.XDG_DATA_HOME?.trim() || join(homedir(), '.local', 'share'),
       'clara',
-      'orchestrator.token'
+      'engine.token'
     ),
   }
 }

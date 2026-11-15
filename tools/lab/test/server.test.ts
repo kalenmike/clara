@@ -2,10 +2,7 @@ import { fileURLToPath } from 'node:url'
 import type { AddressInfo } from 'node:net'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { Runtime, Store, defaultConfigPath } from '@clara/orchestration'
-import {
-  createOrchestratorServer,
-  type OrchestratorServer,
-} from '../../../apps/orchestrator/src/server.ts'
+import { createEngineServer, type EngineServer } from '../../../apps/orchestrator/src/server.ts'
 import { startLabServer, type LabServer } from '../server/http.ts'
 import { LabRuntime } from '../server/runtime.ts'
 
@@ -13,7 +10,7 @@ const workspace = fileURLToPath(new URL('../../../', import.meta.url))
 const config = defaultConfigPath()
 if (!config) throw new Error('bundled default config is missing')
 const token = 'lab-test-token'
-let orchestrator: OrchestratorServer
+let orchestrator: EngineServer
 let lab: LabServer
 let runtime: LabRuntime
 let store: Store
@@ -48,7 +45,7 @@ beforeAll(async () => {
   const orchestrationRuntime = new Runtime({
     store,
   })
-  orchestrator = createOrchestratorServer({
+  orchestrator = createEngineServer({
     runtime: orchestrationRuntime,
     token,
     port: 0,
@@ -81,7 +78,7 @@ describe('lab server', () => {
     expect(health.value).toMatchObject({
       service: 'clara-lab',
       connected: true,
-      orchestratorWorkspace: workspace,
+      engineWorkspace: workspace,
       pid: expect.any(Number),
       port: expect.any(Number),
       root: expect.any(String),
@@ -89,7 +86,7 @@ describe('lab server', () => {
     })
 
     const state = await get('/api/state')
-    expect(state.value).toMatchObject({ orchestratorWorkspace: workspace })
+    expect(state.value).toMatchObject({ engineWorkspace: workspace })
 
     const preview = await post('/api/preview', { workspace, target: 'std:maintenance/rebuild' })
     expect(preview.response.status).toBe(200)

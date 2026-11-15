@@ -83,11 +83,11 @@ see [Remote access](relay.md).
 
 ## Services and ports
 
-| Service       | Container            | Host port                                                |
-| ------------- | -------------------- | -------------------------------------------------------- |
-| Web client    | `clara-web`          | `127.0.0.1:8080`                                         |
-| Hub service   | `clara-server`       | panel `127.0.0.1:8790`, local WebSocket `127.0.0.1:8788` |
-| Orchestration | `clara-orchestrator` | `127.0.0.1:8789`                                         |
+| Service       | Container      | Host port                                                |
+| ------------- | -------------- | -------------------------------------------------------- |
+| Web client    | `clara-web`    | `127.0.0.1:8080`                                         |
+| Hub service   | `clara-server` | panel `127.0.0.1:8790`, local WebSocket `127.0.0.1:8788` |
+| Orchestration | `clara-engine` | `127.0.0.1:8789`                                         |
 
 ## Everyday commands
 
@@ -101,9 +101,9 @@ clara stop
 
 `status` accepts `--json` for scripts. `logs` follows the selected target.
 Use `clara start hub`, `clara start web`, or
-`clara start orchestrator` when you want only one service.
+`clara start engine` when you want only one service.
 
-`stop` reads `infra/docker/.env` itself. You do not need to export the orchestrator
+`stop` reads `infra/docker/.env` itself. You do not need to export the engine
 token or workspace in your shell before stopping the stack.
 
 ## Data
@@ -112,7 +112,7 @@ The stack keeps state in Docker volumes:
 
 - `clara-server-config` — hub configuration, secrets, and reset tokens.
 - `clara-server-data` — the hub SQLite database and orchestration data.
-- `clara-orchestrator-data` — orchestration state.
+- `clara-orchestrator-data` — engine state.
 
 Back up and restore the volumes while the stack is stopped:
 

@@ -239,7 +239,7 @@ function removeCommandIfUnused(config) {
 
 function startService() {
   if (!existsSync(orchestratorEntry)) {
-    console.log('warn orchestrator is not built; run `pnpm --filter @clara/orchestrator build`')
+    console.log('warn orchestrator is not built; run `pnpm --filter @clara/engine build`')
     return
   }
   const result = spawnSync(process.execPath, [orchestratorEntry, 'start'], { stdio: 'inherit' })

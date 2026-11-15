@@ -1,19 +1,19 @@
 import type { ServiceConfig } from './config.ts'
 
-export class OrchestratorRequestError extends Error {
+export class EngineRequestError extends Error {
   readonly code?: string
   readonly status: number
 
   constructor(status: number, message: string, code?: string) {
     super(message)
-    this.name = 'OrchestratorRequestError'
+    this.name = 'EngineRequestError'
     this.status = status
     if (code) this.code = code
   }
 }
 
-/** One JSON request to the local orchestrator. */
-export async function requestOrchestrator<T = unknown>(
+/** One JSON request to the local engine. */
+export async function requestEngine<T = unknown>(
   config: ServiceConfig,
   method: string,
   path: string,
@@ -38,9 +38,9 @@ export async function requestOrchestrator<T = unknown>(
   }
   if (!response.ok) {
     const error = parsed as { error?: { code?: string; message?: string } } | undefined
-    throw new OrchestratorRequestError(
+    throw new EngineRequestError(
       response.status,
-      error?.error?.message ?? `Clara orchestrator returned ${response.status}`,
+      error?.error?.message ?? `Clara engine returned ${response.status}`,
       error?.error?.code
     )
   }

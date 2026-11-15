@@ -106,15 +106,15 @@ paired E2EE session; the hub app neither hosts nor depends on that route.
   only hides it.
 - **Linux tray**: needs libayatana-appindicator at runtime. Installers are
   unsigned unless the release pipeline signs them.
-- **Orchestration**: the desktop app cannot start the local orchestrator because
-  it needs the Node orchestrator and better-sqlite3. Use the orchestrator
+- **Orchestration**: the desktop app cannot start the local engine because
+  it needs the Node engine and better-sqlite3. Use the engine
   container or the CLI.
 
 ## Out of scope
 
 - The chat client desktop app; see [desktop.md](desktop.md).
 - Signed and notarized installers, an auto-updater, and a release pipeline.
-- Running the orchestrator inside the hub app.
+- Running the engine inside the hub app.
 - Serving the web client from the hub app. The web PWA and the web container
   remain separate.
 
